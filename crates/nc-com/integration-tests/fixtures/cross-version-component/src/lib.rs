@@ -51,7 +51,7 @@ impl ICrossVersionService for CrossVersionService {
     }
 
     fn read_number(&self, number: ComRef<'_, ICrossVersionNumberAbi>) -> Result<u32, NcStatus> {
-        Ok(self.seed + number.add_ref().value()?)
+        Ok(self.seed + number.value()?)
     }
 
     fn make_number(&self, value: u32) -> Result<ComPtr<ICrossVersionNumberAbi>, NcStatus> {

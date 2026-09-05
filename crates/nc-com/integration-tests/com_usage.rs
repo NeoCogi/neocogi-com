@@ -531,7 +531,7 @@ pub struct ReferenceConsumer;
 
 impl IReferenceConsumer for ReferenceConsumer {
     fn borrowed_value(&self, tracked: ComRef<'_, ITrackedAbi>) -> Result<i32, NcStatus> {
-        tracked.add_ref().value()
+        tracked.value()
     }
 
     fn make_tracked(&self, value: i32) -> Result<ComPtr<ITrackedAbi>, NcStatus> {

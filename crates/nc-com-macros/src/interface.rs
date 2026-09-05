@@ -328,7 +328,7 @@ pub(crate) fn expand_com_interface(
                 fn #method_ident(&self, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
                     #(#arg_preparations)*
                     let this = self.as_mut_ptr();
-                    // SAFETY: `self` owns a live interface reference. The raw
+                    // SAFETY: `self` holds a live interface reference. The raw
                     // vtable method receives borrowed pointers valid for this
                     // call and returns only an `NcStatus`.
                     let status = unsafe {
@@ -369,7 +369,7 @@ pub(crate) fn expand_com_interface(
                         #(#arg_preparations)*
                         let mut __nc_out = core::mem::MaybeUninit::<#abi_ret>::uninit();
                         let this = self.as_mut_ptr();
-                        // SAFETY: `self` owns a live interface reference. The
+                        // SAFETY: `self` holds a live interface reference. The
                         // out pointer targets local storage that remains valid
                         // until the call returns.
                         let status = unsafe {
@@ -388,7 +388,7 @@ pub(crate) fn expand_com_interface(
                 }
             }
         }
-    });
+    }).collect::<Vec<_>>();
 
     let ext_trait_methods = methods.iter().map(|method| {
         let method_ident = &method.ident;
@@ -547,12 +547,18 @@ pub(crate) fn expand_com_interface(
             #(#thunks)*
         }
 
-        #[doc = concat!("Safe call helpers for `ComPtr<", stringify!(#abi_ident), ", M>`.")]
+        #[doc = concat!("Safe owning and borrowed call helpers for `ComPtr<", stringify!(#abi_ident), ", M>`.")]
         #vis trait #ext_ident {
             #(#ext_trait_methods)*
         }
 
         impl<M: #nc::ThreadingModel> #ext_ident for #nc::ComPtr<#abi_ident, M> {
+            #(#ext_methods)*
+        }
+
+        // Borrowing already keeps the interface alive for this synchronous call.
+        // Reuse the identical lowering without a temporary owned reference.
+        impl<M: #nc::ThreadingModel> #ext_ident for #nc::ComRef<'_, #abi_ident, M> {
             #(#ext_methods)*
         }
     })

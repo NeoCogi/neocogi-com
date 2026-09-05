@@ -121,3 +121,7 @@ runtime = ["std", "dep:nc-com-runtime-sys"]
 [[test]]
 name = "recursive_interfaces"
 path = "integration-tests/recursive_interfaces.rs"
+
+[[test]]
+name = "borrowed_calls"
+path = "integration-tests/borrowed_calls.rs"

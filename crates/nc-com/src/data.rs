@@ -23,7 +23,7 @@ use crate::__alloc::boxed::Box;
 use crate::__alloc::string::String;
 use crate::__alloc::vec::Vec;
 use crate::object::{__com_add_ref_count, __com_release_ref_count};
-use crate::{ComPtr, ThreadSafe, ThreadingModel};
+use crate::{ComPtr, ComRef, ThreadSafe, ThreadingModel};
 
 /// Default maximum allocation performed by an owned COM byte/string conversion.
 ///
@@ -146,7 +146,7 @@ impl NcString {
     }
 }
 
-/// Safe call helpers for [`ComPtr<INcBytesAbi, M>`].
+/// Safe call helpers for owned and borrowed `INcBytesAbi` pointers.
 pub trait INcBytesComPtrExt {
     /// Returns the byte length.
     fn len(&self) -> Result<u64, NcStatus>;
@@ -185,12 +185,16 @@ pub trait INcBytesComPtrExt {
     fn to_i8_vec_bounded(&self, max_len: usize) -> Result<Vec<i8>, NcStatus>;
 }
 
-impl<M: ThreadingModel> INcBytesComPtrExt for ComPtr<INcBytesAbi, M> {
+// Share the complete client lowering between owned and borrowed pointers.
+// Each pointer type already establishes a live interface for the call lifetime.
+macro_rules! impl_bytes_client {
+    ($pointer:ty) => {
+impl<M: ThreadingModel> INcBytesComPtrExt for $pointer {
     /// Calls the raw `len` slot and reads its initialized output on success.
     fn len(&self) -> Result<u64, NcStatus> {
         let mut out = MaybeUninit::<u64>::uninit();
         let this = self.as_mut_ptr();
-        // SAFETY: `self` owns a live bytes interface reference and `out`
+        // SAFETY: `self` holds a live bytes interface reference and `out`
         // remains valid until the call returns.
         let status = unsafe { ((*(*this).vtable).len)(this, out.as_mut_ptr()) };
         if status.is_ok() {
@@ -210,7 +214,7 @@ impl<M: ThreadingModel> INcBytesComPtrExt for ComPtr<INcBytesAbi, M> {
     fn byte_at(&self, index: u64) -> Result<u8, NcStatus> {
         let mut out = MaybeUninit::<u8>::uninit();
         let this = self.as_mut_ptr();
-        // SAFETY: `self` owns a live bytes interface reference and `out`
+        // SAFETY: `self` holds a live bytes interface reference and `out`
         // remains valid until the call returns.
         let status = unsafe { ((*(*this).vtable).byte_at)(this, index, out.as_mut_ptr()) };
         if status.is_ok() {
@@ -249,7 +253,13 @@ impl<M: ThreadingModel> INcBytesComPtrExt for ComPtr<INcBytesAbi, M> {
     }
 }
 
-/// Safe call helpers for [`ComPtr<INcStringAbi, M>`].
+    };
+}
+
+impl_bytes_client!(ComPtr<INcBytesAbi, M>);
+impl_bytes_client!(ComRef<'_, INcBytesAbi, M>);
+
+/// Safe call helpers for owned and borrowed `INcStringAbi` pointers.
 pub trait INcStringComPtrExt {
     /// Returns the UTF-8 byte length.
     fn byte_len(&self) -> Result<u64, NcStatus>;
@@ -285,12 +295,16 @@ pub trait INcStringComPtrExt {
     fn to_string_bounded(&self, max_len: usize) -> Result<String, NcStatus>;
 }
 
-impl<M: ThreadingModel> INcStringComPtrExt for ComPtr<INcStringAbi, M> {
+// Share the complete client lowering between owned and borrowed pointers.
+// Each pointer type already establishes a live interface for the call lifetime.
+macro_rules! impl_string_client {
+    ($pointer:ty) => {
+impl<M: ThreadingModel> INcStringComPtrExt for $pointer {
     /// Calls the raw byte-length slot and reads its output on success.
     fn byte_len(&self) -> Result<u64, NcStatus> {
         let mut out = MaybeUninit::<u64>::uninit();
         let this = self.as_mut_ptr();
-        // SAFETY: `self` owns a live string interface reference and `out`
+        // SAFETY: `self` holds a live string interface reference and `out`
         // remains valid until the call returns.
         let status = unsafe { ((*(*this).vtable).byte_len)(this, out.as_mut_ptr()) };
         if status.is_ok() {
@@ -310,7 +324,7 @@ impl<M: ThreadingModel> INcStringComPtrExt for ComPtr<INcStringAbi, M> {
     fn byte_at(&self, index: u64) -> Result<u8, NcStatus> {
         let mut out = MaybeUninit::<u8>::uninit();
         let this = self.as_mut_ptr();
-        // SAFETY: `self` owns a live string interface reference and `out`
+        // SAFETY: `self` holds a live string interface reference and `out`
         // remains valid until the call returns.
         let status = unsafe { ((*(*this).vtable).byte_at)(this, index, out.as_mut_ptr()) };
         if status.is_ok() {
@@ -348,6 +362,12 @@ impl<M: ThreadingModel> INcStringComPtrExt for ComPtr<INcStringAbi, M> {
         String::from_utf8(self.to_bytes_bounded(max_len)?).map_err(|_| NC_E_INVALID_ARG)
     }
 }
+
+    };
+}
+
+impl_string_client!(ComPtr<INcStringAbi, M>);
+impl_string_client!(ComRef<'_, INcStringAbi, M>);
 
 /// Allocates an exactly sized byte vector and lets one ABI operation fill it.
 ///

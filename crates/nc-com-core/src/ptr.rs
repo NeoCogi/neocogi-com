@@ -139,6 +139,15 @@ unsafe impl<T: ComInterface + ?Sized> Sync for ComPtr<T, ThreadSafe> {}
 /// returns a normal owning [`ComPtr`] carrying the same threading capability.
 /// The lifetime parameter still limits how long either threading mode may be
 /// borrowed; `ThreadSafe` changes cross-thread permission, not borrow duration.
+///
+/// A borrowed client cannot extend its owner's lifetime:
+///
+/// ```compile_fail
+/// use nc_com_core::{ComPtr, ComRef, IUnknown};
+/// fn escape(owner: ComPtr<IUnknown>) -> ComRef<'static, IUnknown> {
+///     owner.as_com_ref()
+/// }
+/// ```
 pub struct ComRef<'a, T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
     ptr: NonNull<T>,
     _interface: PhantomData<&'a T>,

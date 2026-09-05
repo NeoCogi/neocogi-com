@@ -45,7 +45,7 @@ impl IContractWidget for PluginWidget {
     fn read_value(&self, value: ComRef<'_, IContractValueAbi>) -> Result<u32, NcStatus> {
         // ComRef is borrowed. add_ref() turns it into an owned ComPtr while this
         // method reads from it, using normal COM reference-counting rules.
-        Ok(self.seed + value.add_ref().value()?)
+        Ok(self.seed + value.value()?)
     }
 
     fn make_value(&self, value: u32) -> Result<ComPtr<IContractValueAbi>, NcStatus> {

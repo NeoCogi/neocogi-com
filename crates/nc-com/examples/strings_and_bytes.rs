@@ -63,7 +63,7 @@ pub struct ByteCounter;
 
 impl IByteConsumer for ByteCounter {
     fn consume(&self, bytes: ComRef<'_, INcBytesAbi>) -> Result<u64, NcStatus> {
-        bytes.add_ref().len()
+        bytes.len()
     }
 }
 

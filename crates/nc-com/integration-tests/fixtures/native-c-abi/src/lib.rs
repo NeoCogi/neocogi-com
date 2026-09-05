@@ -56,7 +56,7 @@ impl INativeCalculator for NativeCalculator {
     }
 
     fn read_value(&self, value: ComRef<'_, INativeValueAbi>) -> Result<i32, NcStatus> {
-        value.add_ref().value()
+        value.value()
     }
 
     fn sum_buffer(&self, input: NcCopyFromBufferOffset<'_, u8>) -> Result<u64, NcStatus> {

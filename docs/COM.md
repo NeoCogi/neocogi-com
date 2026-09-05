@@ -1505,3 +1505,13 @@ The script deliberately does not pass `--locked`.
 Miri and both sanitizer runs are also release gates in the scheduled/manual
 `Release Safety` CI workflow. CI invokes the same repository scripts and retains
 their complete logs as workflow artifacts even when a gate fails.
+
+### Borrowed interface calls
+
+Generated interface extension traits work on both `ComPtr<T, M>` and
+`ComRef<'_, T, M>`. Both use the same argument, status, and returned-pointer
+validation. A synchronous borrowed call does not acquire an owned reference:
+`value.as_com_ref().method()` keeps the original owner responsible for lifetime.
+Use `add_ref()` only when retaining the object after the borrowed call. The same
+rule applies to the built-in string and byte helpers. A borrowed pointer can still
+be retained explicitly; it must never wrap a stack-borrowing COM implementation.
