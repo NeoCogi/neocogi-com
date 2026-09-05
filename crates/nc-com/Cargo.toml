@@ -1,0 +1,119 @@
+[package]
+name = "nc-com"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/neocogi/nc-com"
+homepage = "https://github.com/neocogi/nc-com"
+documentation = "https://docs.rs/nc-com"
+readme = "README.md"
+description = "Small C-ABI COM runtime and proc macros for Rust interfaces"
+keywords = ["com", "abi", "ffi", "plugin"]
+categories = ["api-bindings", "development-tools::ffi"]
+
+[dependencies]
+nc-com-core = { workspace = true, default-features = false }
+nc-com-macros = { workspace = true, optional = true }
+nc-com-runtime-sys = { workspace = true, optional = true, default-features = false }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[[example]]
+name = "component_plugin"
+crate-type = ["cdylib"]
+test = false
+
+[[example]]
+name = "component_plugin_counter"
+crate-type = ["cdylib"]
+test = false
+
+[[example]]
+name = "component_plugin_flag"
+crate-type = ["cdylib"]
+test = false
+
+[[example]]
+name = "component_plugin_extra"
+crate-type = ["cdylib"]
+test = false
+
+[[example]]
+name = "component_plugin_metric"
+crate-type = ["cdylib"]
+test = false
+
+[[example]]
+name = "component_plugin_state"
+crate-type = ["cdylib"]
+test = false
+
+[[example]]
+name = "multi_plugin_host"
+test = false
+required-features = ["runtime"]
+
+[[example]]
+name = "runtime_host"
+test = false
+required-features = ["runtime"]
+
+[[test]]
+name = "abi_policy"
+path = "integration-tests/abi_policy.rs"
+
+[[test]]
+name = "com_usage"
+path = "integration-tests/com_usage.rs"
+required-features = ["runtime"]
+
+[[test]]
+name = "contract_workflow"
+path = "integration-tests/contract_workflow.rs"
+required-features = ["runtime"]
+
+[[test]]
+name = "cross_version_component"
+path = "integration-tests/cross_version_component.rs"
+required-features = ["runtime"]
+
+[[test]]
+name = "native_c_abi"
+path = "integration-tests/native_c_abi.rs"
+
+[[test]]
+name = "panic_behavior"
+path = "integration-tests/panic_behavior.rs"
+
+[[test]]
+name = "renamed_dependency"
+path = "integration-tests/renamed_dependency.rs"
+
+[[test]]
+name = "shared_library_component"
+path = "integration-tests/shared_library_component.rs"
+required-features = ["runtime"]
+
+[[test]]
+name = "status_contract"
+path = "integration-tests/status_contract.rs"
+
+[[test]]
+name = "ui"
+path = "integration-tests/ui.rs"
+
+[dev-dependencies]
+# The native-C ABI fixture runs Cargo offline from its own workspace. Keeping
+# its build dependency here ensures clean test runners fetch it first.
+cc = { version = "=1.2.0", default-features = false }
+trybuild = "1"
+
+[features]
+default = ["macros", "std"]
+macros = ["dep:nc-com-macros"]
+std = ["alloc", "nc-com-core/std"]
+alloc = ["nc-com-core/alloc"]
+runtime = ["std", "dep:nc-com-runtime-sys"]

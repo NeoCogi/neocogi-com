@@ -1,0 +1,5 @@
+error: `NcCopyFromBufferOffset` parameters must be `NcCopyFromBufferOffset<'_, Element>`
+ --> integration-tests/ui/interface_copy_from_buffer_missing_lifetime.rs:7:46
+  |
+7 |         input: nc_com::NcCopyFromBufferOffset<u8>,
+  |                                              ^^^^

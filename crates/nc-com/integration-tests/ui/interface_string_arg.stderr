@@ -1,0 +1,5 @@
+error: COM method arguments cannot be String; model strings as COM interfaces
+ --> integration-tests/ui/interface_string_arg.rs:5:28
+  |
+5 |     fn value(&self, value: String) -> Result<u32, nc_com::NcStatus>;
+  |                            ^^^^^^

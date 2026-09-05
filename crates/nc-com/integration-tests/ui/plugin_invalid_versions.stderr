@@ -1,0 +1,11 @@
+error: invalid descriptor version: version text must not be empty
+ --> integration-tests/ui/plugin_invalid_versions.rs:4:15
+  |
+4 |     version = "",
+  |               ^^
+
+error: invalid descriptor version: version text contains a non-graphic ASCII byte at byte 3
+  --> integration-tests/ui/plugin_invalid_versions.rs:11:15
+   |
+11 |     version = "1.0 beta",
+   |               ^^^^^^^^^^

@@ -1,0 +1,5 @@
+error: COM methods currently require `&self`
+ --> integration-tests/ui/interface_mut_receiver.rs:5:14
+  |
+5 |     fn value(&mut self) -> Result<u32, nc_com::NcStatus>;
+  |              ^^^^^^^^^

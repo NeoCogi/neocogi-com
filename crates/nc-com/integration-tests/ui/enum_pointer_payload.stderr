@@ -1,0 +1,5 @@
+error: COM enum payload fields cannot be raw pointers; model pointed-to data as COM interfaces
+  --> integration-tests/ui/enum_pointer_payload.rs:10:12
+   |
+10 |     Object(*mut IObjectAbi),
+   |            ^^^^^^^^^^^^^^^

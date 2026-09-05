@@ -1,0 +1,5 @@
+error: duplicate COM enum tag value; `First` already uses tag 1
+ --> integration-tests/ui/enum_duplicate_tag.rs:6:15
+  |
+6 |     #[com_tag(1)]
+  |               ^

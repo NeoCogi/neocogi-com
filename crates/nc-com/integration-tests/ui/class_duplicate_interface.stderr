@@ -1,0 +1,5 @@
+error: duplicate COM interface in interfaces(...)
+  --> integration-tests/ui/class_duplicate_interface.rs:10:5
+   |
+10 |     IDuplicateClassInterface
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^

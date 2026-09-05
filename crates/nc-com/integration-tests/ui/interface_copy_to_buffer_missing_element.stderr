@@ -1,0 +1,5 @@
+error: `NcCopyToBufferOffset` parameters must be `NcCopyToBufferOffset<'_, Element>`
+ --> integration-tests/ui/interface_copy_to_buffer_missing_element.rs:7:45
+  |
+7 |         output: nc_com::NcCopyToBufferOffset<'_>,
+  |                                             ^^^^

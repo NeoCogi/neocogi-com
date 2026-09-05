@@ -1,0 +1,19 @@
+use nc_com::com_interface;
+
+#[allow(unused_macros)]
+macro_rules! add_method {
+    () => {
+        fn generated(&self) -> Result<u32, nc_com::NcStatus>;
+    };
+}
+
+#[com_interface(auto_guid = "nc.tests.ui.UnsupportedItems:v1")]
+pub trait IUnsupportedItems {
+    type Value;
+    const VERSION: u32;
+    add_method!();
+
+    fn value(&self) -> Result<u32, nc_com::NcStatus>;
+}
+
+fn main() {}

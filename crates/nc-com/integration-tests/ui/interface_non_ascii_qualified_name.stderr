@@ -1,0 +1,5 @@
+error: invalid descriptor qualified name: qualified name contains a disallowed character at byte 15
+ --> integration-tests/ui/interface_non_ascii_qualified_name.rs:3:29
+  |
+3 | #[com_interface(auto_guid = "nc.tests.ui.Café:v1")]
+  |                             ^^^^^^^^^^^^^^^^^^^^^

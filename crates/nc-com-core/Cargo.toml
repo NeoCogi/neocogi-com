@@ -1,0 +1,18 @@
+[package]
+name = "nc-com-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/neocogi/nc-com"
+homepage = "https://github.com/neocogi/nc-com"
+documentation = "https://docs.rs/nc-com"
+readme = "README.md"
+description = "Stable core ABI types for nc-com"
+keywords = ["com", "abi", "ffi", "plugin"]
+categories = ["api-bindings", "development-tools::ffi"]
+
+[features]
+default = []
+alloc = []
+std = ["alloc"]

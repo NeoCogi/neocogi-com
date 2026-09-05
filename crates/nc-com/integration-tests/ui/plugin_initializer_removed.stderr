@@ -1,0 +1,5 @@
+error: expected plugin_id(...), name = ..., version = ..., dependencies = [...], classes = [...], or nc_com = path
+  --> integration-tests/ui/plugin_initializer_removed.rs:11:5
+   |
+11 |     init = initialize,
+   |     ^^^^

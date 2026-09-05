@@ -1,0 +1,5 @@
+error: COM method error type must be `nc_com::NcStatus`
+ --> integration-tests/ui/interface_wrong_error.rs:5:36
+  |
+5 |     fn value(&self) -> Result<u32, u32>;
+  |                                    ^^^

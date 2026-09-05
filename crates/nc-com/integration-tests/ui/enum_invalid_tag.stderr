@@ -1,0 +1,5 @@
+error: expected #[com_tag(value)]: expected attribute arguments in parentheses: #[com_tag(...)]
+ --> integration-tests/ui/enum_invalid_tag.rs:5:5
+  |
+5 |     #[com_tag]
+  |     ^

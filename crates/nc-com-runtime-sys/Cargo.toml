@@ -1,0 +1,16 @@
+[package]
+name = "nc-com-runtime-sys"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/neocogi/nc-com"
+homepage = "https://github.com/neocogi/nc-com"
+documentation = "https://docs.rs/nc-com"
+readme = "README.md"
+description = "Link-time C ABI bindings for the nc-com runtime shared library"
+keywords = ["com", "abi", "ffi", "plugin"]
+categories = ["api-bindings", "development-tools::ffi"]
+
+[dependencies]
+nc-com-core = { workspace = true, default-features = false }

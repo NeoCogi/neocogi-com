@@ -1,0 +1,5 @@
+error: COM enums cannot be generic
+ --> integration-tests/ui/enum_generic.rs:4:20
+  |
+4 | pub enum BadGeneric<T> {
+  |                    ^^^

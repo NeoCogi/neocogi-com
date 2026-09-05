@@ -1,0 +1,9 @@
+[package]
+name = "nc-com-contract-workflow-host"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+contract_abi = { package = "nc-com-contract-workflow-abi", path = "../abi" }
+nc-com = { path = "../../../nc-com", features = ["macros", "std", "runtime"] }

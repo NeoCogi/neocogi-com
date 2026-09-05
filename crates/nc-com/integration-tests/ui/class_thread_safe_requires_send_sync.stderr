@@ -1,0 +1,77 @@
+error[E0277]: `Rc<u32>` cannot be shared between threads safely
+  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
+   |
+10 | pub struct NotActuallyThreadSafe {
+   |            ^^^^^^^^^^^^^^^^^^^^^ `Rc<u32>` cannot be shared between threads safely
+   |
+   = help: within `NotActuallyThreadSafe`, the trait `Sync` is not implemented for `Rc<u32>`
+note: required because it appears within the type `NotActuallyThreadSafe`
+  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
+   |
+10 | pub struct NotActuallyThreadSafe {
+   |            ^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `ThreadSafeComObject`
+  --> src/object.rs
+   |
+   | pub unsafe trait ThreadSafeComObject:
+   |                  ------------------- required by a bound in this trait
+   |     ComClass<Threading = ThreadSafe> + Send + Sync
+   |                                               ^^^^ required by this bound in `ThreadSafeComObject`
+
+error[E0277]: `Rc<u32>` cannot be sent between threads safely
+  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
+   |
+10 | pub struct NotActuallyThreadSafe {
+   |            ^^^^^^^^^^^^^^^^^^^^^ `Rc<u32>` cannot be sent between threads safely
+   |
+   = help: within `NotActuallyThreadSafe`, the trait `Send` is not implemented for `Rc<u32>`
+note: required because it appears within the type `NotActuallyThreadSafe`
+  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
+   |
+10 | pub struct NotActuallyThreadSafe {
+   |            ^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `ThreadSafeComObject`
+  --> src/object.rs
+   |
+   | pub unsafe trait ThreadSafeComObject:
+   |                  ------------------- required by a bound in this trait
+   |     ComClass<Threading = ThreadSafe> + Send + Sync
+   |                                        ^^^^ required by this bound in `ThreadSafeComObject`
+
+error[E0277]: `Rc<u32>` cannot be sent between threads safely
+  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
+   |
+10 | pub struct NotActuallyThreadSafe {
+   |            ^^^^^^^^^^^^^^^^^^^^^ `Rc<u32>` cannot be sent between threads safely
+   |
+   = help: within `NotActuallyThreadSafe`, the trait `Send` is not implemented for `Rc<u32>`
+note: required because it appears within the type `NotActuallyThreadSafe`
+  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
+   |
+10 | pub struct NotActuallyThreadSafe {
+   |            ^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `assert_thread_safe`
+  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:9:1
+   |
+ 9 | #[com_class(thread_safe, interfaces(IThreadSafeRequiresSendSync))]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_thread_safe`
+   = note: this error originates in the attribute macro `com_class` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `Rc<u32>` cannot be shared between threads safely
+  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
+   |
+10 | pub struct NotActuallyThreadSafe {
+   |            ^^^^^^^^^^^^^^^^^^^^^ `Rc<u32>` cannot be shared between threads safely
+   |
+   = help: within `NotActuallyThreadSafe`, the trait `Sync` is not implemented for `Rc<u32>`
+note: required because it appears within the type `NotActuallyThreadSafe`
+  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
+   |
+10 | pub struct NotActuallyThreadSafe {
+   |            ^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `assert_thread_safe`
+  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:9:1
+   |
+ 9 | #[com_class(thread_safe, interfaces(IThreadSafeRequiresSendSync))]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_thread_safe`
+   = note: this error originates in the attribute macro `com_class` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -1,0 +1,5 @@
+error: COM interfaces cannot have supertraits
+ --> integration-tests/ui/interface_supertrait.rs:6:24
+  |
+6 | pub trait ISupertrait: Base {
+  |                        ^^^^

@@ -1,0 +1,6 @@
+error: COM enums cannot have where clauses
+ --> integration-tests/ui/enum_where_clause.rs:5:1
+  |
+5 | / where
+6 | |     u32: Copy,
+  | |______________^

@@ -1,0 +1,5 @@
+error: COM method arguments cannot be Rust references; model borrowed data as COM interfaces
+ --> integration-tests/ui/interface_reference_arg.rs:5:28
+  |
+5 |     fn value(&self, value: &u32) -> Result<u32, nc_com::NcStatus>;
+  |                            ^^^^

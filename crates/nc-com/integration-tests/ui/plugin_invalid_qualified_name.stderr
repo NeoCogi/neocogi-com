@@ -1,0 +1,5 @@
+error: invalid descriptor qualified name: qualified name contains a disallowed character at byte 19
+ --> integration-tests/ui/plugin_invalid_qualified_name.rs:3:12
+  |
+3 |     name = "nc.tests.ui.Invalid Plugin:v1",
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -1,0 +1,5 @@
+error: COM struct fields cannot be ComRef; borrowed interface references are call-scoped method parameters
+ --> integration-tests/ui/struct_comref_field.rs:5:12
+  |
+5 |     value: nc_com::ComRef<'static, nc_com::IUnknown>,
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

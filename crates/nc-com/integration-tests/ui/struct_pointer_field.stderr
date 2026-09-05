@@ -1,0 +1,5 @@
+error: COM struct fields cannot be raw pointers; model pointed-to data as COM interfaces
+ --> integration-tests/ui/struct_pointer_field.rs:5:12
+  |
+5 |     value: *const u8,
+  |            ^^^^^^^^^
