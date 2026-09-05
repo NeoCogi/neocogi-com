@@ -20,3 +20,13 @@ host runs.
 Most Rust hosts should use `nc-com` with its `runtime` feature instead. Use this
 crate directly only when building a lower-level wrapper around the shared
 runtime C ABI.
+
+## Static binding
+
+Enable `static-runtime` through the `nc-com` facade for a static/browser host.
+Cargo then links `nc-com-runtime` once as an ordinary dependency; the bindings
+call the same C symbols, tables, and catalog implementation. No separately built
+runtime library or `NC_COM_RUNTIME_LINK_DIR` is needed. A native plugin assembly
+must use shared mode consistently: do not enable static-runtime in each DSO,
+which would give each binary its own registry. The static feature wins when Cargo
+unifies both features, so `--all-features` is unsuitable for shared deployments.

@@ -117,6 +117,8 @@ macros = ["dep:nc-com-macros"]
 std = ["alloc", "nc-com-core/std"]
 alloc = ["nc-com-core/alloc"]
 runtime = ["std", "dep:nc-com-runtime-sys"]
+# Static/browser hosts own one instance of the existing runtime implementation.
+static-runtime = ["runtime", "nc-com-runtime-sys/static-runtime"]
 
 [[test]]
 name = "recursive_interfaces"

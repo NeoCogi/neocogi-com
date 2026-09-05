@@ -36,3 +36,20 @@ fn multiple_descriptors_link_and_the_explicit_export_reuses_its_metadata() {
     // SAFETY: Null output is the supported defensive error case.
     assert_eq!(unsafe { nc_get_plugin_descriptor(std::ptr::null_mut()) }, nc_com::NC_E_POINTER);
 }
+
+#[cfg(feature = "static-runtime")]
+#[test]
+fn static_plugins_publish_into_one_shared_runtime_catalog() {
+    let runtime = nc_com::Runtime::global();
+    assert_eq!(runtime.core_abi_version(), nc_com::NC_COM_CORE_ABI_VERSION);
+    for descriptor in [first::plugin_descriptor(), second::plugin_descriptor()] {
+        // SAFETY: Both plugin descriptors and all nested tables are immutable statics.
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(descriptor) }, nc_com::NC_OK);
+    }
+    // A separately acquired facade observes the same catalog, not a local mirror.
+    let observer = nc_com::Runtime::global();
+    let ids = observer.plugin_registry().plugin_ids().unwrap();
+    assert!(ids.contains(&first::plugin_descriptor().plugin_id));
+    assert!(ids.contains(&second::plugin_descriptor().plugin_id));
+    assert_eq!(ids.len(), 2);
+}

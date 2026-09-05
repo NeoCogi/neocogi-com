@@ -149,6 +149,7 @@ and enforced by the packaged `cross_version_component` integration test.
 - `std` (default) enables allocation and standard-library integrations.
 - `alloc` enables generated heap-backed classes and owned data helpers.
 - `macros` (default) re-exports the proc macros.
+- `static-runtime` links the existing runtime implementation into one final binary, including browsers; it includes `runtime` and needs no shared library.
 - `runtime` enables `std` and the linked shared-runtime facade.
 - With default features disabled, core interfaces and `ComPtr` remain available
   without allocation.

@@ -49,7 +49,7 @@ run_linked_cargo() {
     cargo "$@"
 }
 
-listed="$(run_linked_cargo test -p nc-com --all-features --locked \
+listed="$(run_linked_cargo test -p nc-com --features runtime --locked \
   --target-dir "$target_dir" -- --list)"
 printf '%s\n' "$listed"
 
@@ -67,6 +67,6 @@ for required_test in "${required_tests[@]}"; do
   fi
 done
 
-run_linked_cargo test -p nc-com --all-features --locked --target-dir "$target_dir"
+run_linked_cargo test -p nc-com --features runtime --locked --target-dir "$target_dir"
 
 echo "linked-runtime test suite passed"

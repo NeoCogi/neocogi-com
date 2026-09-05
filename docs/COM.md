@@ -1516,3 +1516,26 @@ validation. A synchronous borrowed call does not acquire an owned reference:
 Use `add_ref()` only when retaining the object after the borrowed call. The same
 rule applies to the built-in string and byte helpers. A borrowed pointer can still
 be retained explicitly; it must never wrap a stack-borrowing COM implementation.
+
+### Runtime deployment modes
+
+`runtime` links the shared runtime. Build `nc-com-runtime` first, provide its
+link directory, and package that one library alongside native plugins. UI/plugin
+implementation crates normally need only contracts, objects, and macros.
+
+`static-runtime` includes `runtime` and links the exact same implementation once
+into the final executable or browser module. It needs no shared runtime library.
+Register each `plugin_descriptor()` explicitly in dependency order. The browser
+uses static registration; native dynamic loading remains unsupported there.
+Do not link a static runtime into each native plugin: those would be separate
+registries. Select the mode at the final application, and avoid `--all-features`
+for native shared deployment because it enables `static-runtime` too.
+
+Mode-specific verification:
+
+```sh
+cargo test -p nc-com --features static-runtime --test com_usage --test plugin_assembly
+cargo check -p nc-com --features static-runtime --target wasm32-unknown-unknown
+# The linked-runtime script builds/tests the independent shared mode.
+crates/com/scripts/test-linked-runtime.sh
+```

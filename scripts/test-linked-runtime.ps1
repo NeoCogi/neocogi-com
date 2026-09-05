@@ -45,7 +45,7 @@ $env:RUSTFLAGS = if ($env:RUSTFLAGS) {
 $env:NC_COM_RUNTIME_LINK_DIR = $runtimeDir
 $env:PATH = "$runtimeDir;$runtimeDepsDir;$($env:PATH)"
 
-$listed = (& cargo test -p nc-com --all-features --locked `
+$listed = (& cargo test -p nc-com --features runtime --locked `
     --target-dir $targetDir -- --list 2>&1 | Out-String)
 if ($LASTEXITCODE -ne 0) {
     throw "failed to enumerate linked-runtime tests`n$listed"
@@ -65,7 +65,7 @@ foreach ($requiredTest in $requiredTests) {
     }
 }
 
-& cargo test -p nc-com --all-features --locked --target-dir $targetDir
+& cargo test -p nc-com --features runtime --locked --target-dir $targetDir
 if ($LASTEXITCODE -ne 0) {
     throw "linked-runtime test suite failed"
 }
