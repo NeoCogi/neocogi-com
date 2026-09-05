@@ -106,7 +106,14 @@ pub(crate) fn expand_com_enum(
                 let struct_fields = unnamed.unnamed.iter().enumerate().map(|(index, field)| {
                     let field_ident = tuple_payload_field(index);
                     let ty = &field.ty;
-                    quote! { pub #field_ident: #ty }
+                    // Preserve author semantics on the public wire field while
+                    // documenting its generated position even without source docs.
+                    let docs = field.attrs.iter().filter(|attr| attr.path().is_ident("doc"));
+                    quote! {
+                        #[doc = concat!("Copied tuple payload field ", stringify!(#index), ".")]
+                        #(#docs)*
+                        pub #field_ident: #ty
+                    }
                 });
                 Some(quote! {
                     #[repr(C)]
@@ -156,7 +163,14 @@ pub(crate) fn expand_com_enum(
                 let struct_fields = named.named.iter().map(|field| {
                     let field_ident = field.ident.as_ref().expect("named field has an ident");
                     let ty = &field.ty;
-                    quote! { pub #field_ident: #ty }
+                    // Only documentation is copied: conditional/layout attributes
+                    // must not silently change the separately validated ABI shape.
+                    let docs = field.attrs.iter().filter(|attr| attr.path().is_ident("doc"));
+                    quote! {
+                        #[doc = concat!("Copied payload field `", stringify!(#field_ident), "`.")]
+                        #(#docs)*
+                        pub #field_ident: #ty
+                    }
                 });
                 Some(quote! {
                     #[repr(C)]
@@ -239,10 +253,14 @@ pub(crate) fn expand_com_enum(
         let field_ident = union_payload_field(variant_ident);
         let struct_ident = variant_payload_ident(enum_ident, variant_ident);
         Some(quote! {
+            #[doc = concat!("Wire payload selected by [`", stringify!(#enum_ident), "::", stringify!(#variant_ident), "`].")]
             pub #field_ident: core::mem::ManuallyDrop<#struct_ident>
         })
     });
-    let empty_union_field = quote! { pub _empty: () };
+    let empty_union_field = quote! {
+        #[doc = "Unit payload for variants without data and for opaque unknown tags."]
+        pub _empty: ()
+    };
 
     let from_arms = variants.iter().map(|(variant_ident, fields, _)| {
         let tag_const = variant_ident;
@@ -362,7 +380,10 @@ pub(crate) fn expand_com_enum(
         #[repr(transparent)]
         #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
         #[doc = concat!("ABI tag for [`", stringify!(#enum_ident), "`].")]
-        #vis struct #tag_ident(pub #tag_ty);
+        #vis struct #tag_ident(
+            #[doc = "Raw integer wire tag; unknown values remain representable."]
+            pub #tag_ty
+        );
 
         // SAFETY: The transparent tag has exactly the representation of
         // `#tag_ty`, and the where-clause requires that type to be ABI-safe.

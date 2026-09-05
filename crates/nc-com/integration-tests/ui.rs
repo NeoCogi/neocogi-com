@@ -24,6 +24,7 @@ fn ui_errors_are_stable() {
     t.compile_fail("integration-tests/ui/enum_case_folded_variant.rs");
     t.compile_fail("integration-tests/ui/enum_string_payload.rs");
     t.compile_fail("integration-tests/ui/enum_where_clause.rs");
+    t.pass("integration-tests/ui/enum_public_documentation.rs");
     t.compile_fail("integration-tests/ui/format_method_signature_requires_unsafe.rs");
     t.compile_fail("integration-tests/ui/interface_async_method.rs");
     t.compile_fail("integration-tests/ui/interface_copy_from_buffer_bad_element.rs");
