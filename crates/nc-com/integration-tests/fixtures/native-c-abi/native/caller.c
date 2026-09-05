@@ -123,6 +123,8 @@ struct IUnknown {
 };
 
 struct IUnknownVTable {
+    /* Immutable identity of the projected interface; draft core ABI 2. */
+    const NcInterfaceId *interface_id;
     NcStatus (*query_interface)(
         IUnknown *self,
         const NcInterfaceId *interface_id,

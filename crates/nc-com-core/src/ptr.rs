@@ -185,6 +185,26 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
         })
     }
 
+    /// Validates a transferred reference before exposing its typed methods.
+    /// A rejected non-null result is released exactly once through its common
+    /// prefix. No typed vtable slot is read before the identity check succeeds.
+    ///
+    /// # Safety
+    /// `ptr` must be null or own one reference to a live core-ABI-2 interface
+    /// header. Its common prefix must be valid, even when it is not interface T.
+    /// The caller guarantees the threading capability M of the returned object.
+    #[doc(hidden)]
+    pub unsafe fn __nc_from_raw_owned_checked(ptr: *mut T) -> Result<Self, NcStatus> {
+        // SAFETY: The caller guarantees the live common prefix and ownership.
+        if let Err(status) = unsafe { raw::validate_interface(ptr) } {
+            // SAFETY: Release only needs the common prefix, not T's methods.
+            unsafe { raw::release(ptr) };
+            return Err(status);
+        }
+        // SAFETY: Identity now proves the exact interface; ownership is unchanged.
+        unsafe { Self::from_raw_owned(ptr) }.ok_or(NC_E_POINTER)
+    }
+
     /// Clones a borrowed raw interface pointer by calling `AddRef`.
     ///
     /// Returns `None` for null.
@@ -268,7 +288,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
             // SAFETY: Successful `QueryInterface` transfers ownership of one
             // reference for the requested interface. Null is still guarded and
             // mapped to `NC_E_POINTER` for defensive foreign implementations.
-            unsafe { ComPtr::<U, M>::from_raw_owned(out.cast::<U>()) }.ok_or(NC_E_POINTER)
+            unsafe { ComPtr::<U, M>::__nc_from_raw_owned_checked(out.cast::<U>()) }
         } else {
             Err(status)
         }
@@ -313,6 +333,20 @@ impl<T: ComInterface + ?Sized> ComPtr<T, ThreadSafe> {
 }
 
 impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
+    /// Checks an incoming pointer's complete identity without acquiring ownership.
+    ///
+    /// # Safety
+    /// A non-null pointer must have a live core-ABI-2 common header/vtable for
+    /// lifetime 'a and carry threading capability M. Its typed slots may differ
+    /// from T; they are never called unless the full identity matches.
+    #[doc(hidden)]
+    pub unsafe fn __nc_from_raw_borrowed_checked(ptr: *mut T) -> Result<Self, NcStatus> {
+        // SAFETY: The call's borrowed common prefix is valid by contract.
+        unsafe { raw::validate_interface(ptr) }?;
+        // SAFETY: Validation establishes T without changing the borrowed lifetime.
+        unsafe { Self::from_raw_borrowed(ptr) }.ok_or(NC_E_POINTER)
+    }
+
     /// Wraps a borrowed raw interface pointer.
     ///
     /// This function does not call `AddRef`; the returned value is a borrowed
@@ -431,6 +465,40 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> core::fmt::Debug for ComRe
 /// pointers.
 pub mod raw {
     use super::ComInterface;
+
+    /// Validates the actual projected interface against the receiver's contract.
+    /// This performs no AddRef/Release and never follows interface-specific slots.
+    ///
+    /// # Safety
+    /// A non-null pointer must have a readable common header and vtable from the
+    /// current core ABI. Non-null identity metadata must be readable and immutable.
+    /// Pointer validity and the core ABI generation are established by the loader
+    /// or raw FFI caller; identity checking cannot validate arbitrary addresses.
+    pub unsafe fn validate_interface<T: ComInterface + ?Sized>(ptr: *mut T) -> Result<(), crate::NcStatus> {
+        if ptr.is_null() {
+            return Err(crate::NC_E_POINTER);
+        }
+        let unknown = T::iunknown(ptr);
+        // SAFETY: Only the common header is read before the identity is known.
+        let vtable = unsafe { (*unknown).vtable };
+        if vtable.is_null() {
+            return Err(crate::NC_E_POINTER);
+        }
+        // SAFETY: A non-null vtable is readable under the raw caller's contract.
+        let identity = unsafe { (*vtable).interface_id };
+        if identity.is_null() {
+            return Err(crate::NC_E_POINTER);
+        }
+        // SAFETY: Non-null metadata has static immutable storage by contract.
+        let identity = unsafe { &*identity };
+        if identity.iid != T::IID {
+            return Err(crate::NC_E_NOINTERFACE);
+        }
+        if identity.abi_hash != T::ABI_HASH {
+            return Err(crate::NC_E_ABI_VERSION);
+        }
+        Ok(())
+    }
 
     /// Calls `AddRef` on a raw interface pointer.
     ///

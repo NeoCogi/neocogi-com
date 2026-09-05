@@ -409,6 +409,7 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
             // headers use their interface-specific vtables, which embed the
             // same three lifecycle operations as the first field.
             const UNKNOWN_VTABLE: #nc::IUnknownVTable = #nc::IUnknownVTable {
+                interface_id: &#nc::IUnknown::INTERFACE_ID,
                 query_interface: Self::query_interface_thunk,
                 add_ref: Self::add_ref_thunk,
                 release: Self::release_thunk,

@@ -192,12 +192,12 @@ unsafe extern "C" fn(this: *mut IFlushableAbi) -> NcStatus
 `nc-com` is not a C SDK generator. The ABI is C-compatible and is tested from
 native C, but the focus is Rust components using a C ABI as the stable
 compatibility layer across independently built Rust artifacts after an explicit
-ABI ratification milestone. The current ABI-v1 definition is still a pre-alpha
+ABI ratification milestone. The current ABI-v2 definition is still a pre-alpha
 draft.
 
 C header generation, language bindings, and C-first distribution should be a
 separate project/tooling layer that consumes original contract definitions or
-other build-time inputs. ABI-v1 runtime descriptors are validation metadata,
+other build-time inputs. ABI-v2 runtime descriptors are validation metadata,
 not a reflection schema, and are never intended for reverse generation of
 source declarations. This crate should remain focused on defining and enforcing
 the Rust-side ABI model.
@@ -213,7 +213,7 @@ This root README is the canonical long-form usage guide and the only place that
 maintains the exact local/CI compatibility-test matrix. The published
 `nc-com` crate README is a shorter package entry point, crate-level rustdoc owns
 compiled API examples and feature-sensitive API documentation, and
-[`docs/abi-v1.md`](docs/abi-v1.md) is the normative ABI specification. Shorter
+[`docs/abi-v2.md`](docs/abi-v2.md) is the normative ABI specification. Shorter
 documents link here for detailed workflows instead of copying exact test rows.
 
 ## Example
@@ -526,7 +526,7 @@ nc_com::plugin! {
 `auto_guid = "stable.Name:v1"`, or a path to an `NcGuid` constant. Every form
 must match the adjacent normative qualified name. Contract crates should define
 constant paths with `guid_from_qualified_name` so hosts and plugins share one
-source of identity. ABI v1 descriptors are declarative and have no
+source of identity. core ABI v2 descriptors are declarative and have no
 initialization callback.
 
 The `plugin!` macro emits `pub fn plugin_descriptor() -> &'static
@@ -713,7 +713,7 @@ let base = &loaded[0];
 # let _ = base;
 ```
 
-ABI v1 does not discover paths or recursively load plugin dependencies. Use
+core ABI v2 does not discover paths or recursively load plugin dependencies. Use
 `nc-com-inspect plan` to validate dependencies and produce this explicit order.
 Live activation calls must not be nested: native loader initialization and the
 descriptor entrypoint must not directly or indirectly call nc-com loading while
@@ -981,11 +981,11 @@ break. Create a new interface version instead.
 
 ## ABI Compatibility Policy
 
-The current draft ABI v1 specification lives in
-[`docs/abi-v1.md`](docs/abi-v1.md). ABI v1 uses an unversioned plugin descriptor
-entrypoint. ABI v1 is an experimental pre-alpha draft and has not been
+The current draft core ABI v2 specification lives in
+[`docs/abi-v2.md`](docs/abi-v2.md). core ABI v2 uses an unversioned plugin descriptor
+entrypoint. core ABI v2 is an experimental pre-alpha draft and has not been
 ratified. Cross-release compatibility begins only when a named release/tag and
-changelog entry explicitly establish the ABI-v1 freeze baseline. Until then,
+changelog entry explicitly establish the ABI-v2 freeze baseline. Until then,
 breaking draft changes and intentional golden-vector updates are permitted;
 hosts and plugins from different nc-com source releases are not guaranteed to
 interoperate.
@@ -1004,7 +1004,7 @@ offsets, passing modes, void versus `out` returns, `ComRef` borrowed parameters,
 `ComPtr` owned returns, safe buffer passing modes, referenced interface IIDs and
 ABI hashes, and the `NcStatus` status convention.
 
-The hash input grammar is itself part of the ABI policy. Once ABI v1 has been
+The hash input grammar is itself part of the ABI policy. Once core ABI v2 has been
 ratified and an interface has been published, changing how `nc-com`
 canonicalizes the same Rust interface into hash input is an ABI-policy event,
 even if the generated vtable layout would
@@ -1042,7 +1042,7 @@ new versioned interface name and therefore a new IID:
 - changing any lowered argument or return type
 - changing `ComRef` versus plain value ownership
 - changing `ComPtr` returned-interface ownership or target interface
-- changing a referenced interface's ABI hash
+- changing a referenced interface IID (referenced contract hashes are checked at pointer boundaries)
 - changing whether success returns through an `out` pointer or is void
 
 Adding a method to the end of a vtable is still an ABI change for `nc-com`
@@ -1411,7 +1411,7 @@ scripts/test-quality.sh
 
 It runs formatting, Clippy over all targets and features with warnings denied,
 the supported reduced-feature checks, compiled normative examples embedded in
-`docs/abi-v1.md`, repository-local Markdown links, and rustdoc with warnings
+`docs/abi-v2.md`, repository-local Markdown links, and rustdoc with warnings
 and missing public documentation denied for the workspace/all-feature, facade
 default-feature, no-default, and alloc-only modes. Each shipped Rust crate also
 denies `missing_docs` at its crate root, so ordinary checks reject undocumented

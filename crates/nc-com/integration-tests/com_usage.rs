@@ -900,7 +900,7 @@ fn generated_metadata_describes_interfaces_and_classes() {
 }
 
 #[test]
-fn generated_interface_hashes_include_referenced_interface_hashes() {
+fn generated_interface_hashes_include_referenced_interface_iids() {
     let expected = NcAbiHash::from_abi_parts(&[
         NcAbiHashPart::Interface {
             iid: IReferenceConsumerAbi::IID,
@@ -911,13 +911,8 @@ fn generated_interface_hashes_include_referenced_interface_hashes() {
         },
         NcAbiHashPart::Arg {
             index: 0,
-            passing: NcAbiPassing::ComRef {
-                mode: NcAbiThreadingMode::ThreadLocal,
-            },
-            ty: NcAbiType::Interface {
-                iid: ITrackedAbi::IID,
-                abi_hash: ITrackedAbi::ABI_HASH,
-            },
+            passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
+            ty: NcAbiType::Interface { iid: ITrackedAbi::IID },
         },
         NcAbiHashPart::Return {
             passing: NcAbiPassing::Out,
@@ -934,33 +929,18 @@ fn generated_interface_hashes_include_referenced_interface_hashes() {
             ty: NcAbiType::I32,
         },
         NcAbiHashPart::Return {
-            passing: NcAbiPassing::ComPtrOut {
-                mode: NcAbiThreadingMode::ThreadLocal,
-            },
-            ty: NcAbiType::Interface {
-                iid: ITrackedAbi::IID,
-                abi_hash: ITrackedAbi::ABI_HASH,
-            },
+            passing: NcAbiPassing::ComPtrOut { mode: NcAbiThreadingMode::ThreadLocal },
+            ty: NcAbiType::Interface { iid: ITrackedAbi::IID },
         },
         NcAbiHashPart::Status,
     ]);
-    let with_different_referenced_hash = NcAbiHash::from_abi_parts(&[
-        NcAbiHashPart::Interface {
-            iid: IReferenceConsumerAbi::IID,
-        },
-        NcAbiHashPart::Method {
-            index: 0,
-            name: "borrowed_value",
-        },
+    let with_different_referenced_iid = NcAbiHash::from_abi_parts(&[
+        NcAbiHashPart::Interface { iid: IReferenceConsumerAbi::IID },
+        NcAbiHashPart::Method { index: 0, name: "borrowed_value" },
         NcAbiHashPart::Arg {
             index: 0,
-            passing: NcAbiPassing::ComRef {
-                mode: NcAbiThreadingMode::ThreadLocal,
-            },
-            ty: NcAbiType::Interface {
-                iid: ITrackedAbi::IID,
-                abi_hash: NcAbiHash::ZERO,
-            },
+            passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
+            ty: NcAbiType::Interface { iid: ICalculatorAbi::IID },
         },
         NcAbiHashPart::Return {
             passing: NcAbiPassing::Out,
@@ -977,13 +957,8 @@ fn generated_interface_hashes_include_referenced_interface_hashes() {
             ty: NcAbiType::I32,
         },
         NcAbiHashPart::Return {
-            passing: NcAbiPassing::ComPtrOut {
-                mode: NcAbiThreadingMode::ThreadLocal,
-            },
-            ty: NcAbiType::Interface {
-                iid: ITrackedAbi::IID,
-                abi_hash: ITrackedAbi::ABI_HASH,
-            },
+            passing: NcAbiPassing::ComPtrOut { mode: NcAbiThreadingMode::ThreadLocal },
+            ty: NcAbiType::Interface { iid: ICalculatorAbi::IID },
         },
         NcAbiHashPart::Status,
     ]);
@@ -999,10 +974,7 @@ fn generated_interface_hashes_include_referenced_interface_hashes() {
             hash_hex(ITrackedAbi::ABI_HASH)
         )
     );
-    assert_ne!(
-        IReferenceConsumerAbi::ABI_HASH,
-        with_different_referenced_hash
-    );
+    assert_ne!(IReferenceConsumerAbi::ABI_HASH, with_different_referenced_iid);
 }
 
 #[test]
@@ -1352,24 +1324,12 @@ fn plugin_macro_descriptor_registers_and_constructs_class() {
             plugin_id: CALCULATOR_PLUGIN_ID,
         }]
     );
-    assert_eq!(
-        unsafe { runtime.register_plugin_descriptor(&CALCULATOR_PLUGIN) },
-        NC_OK
-    );
+    assert_eq!(unsafe { runtime.register_plugin_descriptor(&CALCULATOR_PLUGIN) }, NC_OK);
 
+    assert_eq!(MacroPluginEcho::class_descriptor().class_id, MacroPluginEcho::CLASS_ID);
+    assert_eq!(unsafe { runtime.register_plugin_descriptor(descriptor) }, NC_OK);
     assert_eq!(
-        MacroPluginEcho::class_descriptor().class_id,
-        MacroPluginEcho::CLASS_ID
-    );
-    assert_eq!(
-        unsafe { runtime.register_plugin_descriptor(descriptor) },
-        NC_OK
-    );
-    assert_eq!(
-        runtime
-            .inspection()
-            .plugin_dependency_ids(descriptor.plugin_id)
-            .unwrap(),
+        runtime.inspection().plugin_dependency_ids(descriptor.plugin_id).unwrap(),
         vec![CALCULATOR_PLUGIN_ID]
     );
     runtime

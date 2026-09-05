@@ -15,7 +15,7 @@
 //! graph for reconstructing source declarations or generating headers from a
 //! plugin binary.
 //!
-//! ABI v1 is currently an experimental pre-alpha draft. The core ABI version
+//! core ABI v2 is currently an experimental pre-alpha draft. The core ABI version
 //! identifies its current binary generation, not a ratified compatibility
 //! baseline. Cross-release compatibility begins only at an explicitly named
 //! future ratification milestone.

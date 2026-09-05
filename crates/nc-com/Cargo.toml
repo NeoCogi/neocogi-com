@@ -117,3 +117,7 @@ macros = ["dep:nc-com-macros"]
 std = ["alloc", "nc-com-core/std"]
 alloc = ["nc-com-core/alloc"]
 runtime = ["std", "dep:nc-com-runtime-sys"]
+
+[[test]]
+name = "recursive_interfaces"
+path = "integration-tests/recursive_interfaces.rs"

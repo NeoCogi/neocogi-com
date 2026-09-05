@@ -112,7 +112,7 @@ pub unsafe fn query_constructor_arguments<T: ComInterface>(
     }
     // SAFETY: Successful `QueryInterface` transfers one owned reference for the
     // requested interface; null is still handled defensively as `NC_E_POINTER`.
-    unsafe { ComPtr::<T>::from_raw_owned(out.cast::<T>()) }.ok_or(NC_E_POINTER)
+    unsafe { ComPtr::<T>::__nc_from_raw_owned_checked(out.cast::<T>()) }
 }
 
 /// Implements a checked class constructor wrapper.

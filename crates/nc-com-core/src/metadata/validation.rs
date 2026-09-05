@@ -1135,25 +1135,11 @@ unsafe fn hash_interface_descriptor(
 /// Converts a validated raw passing descriptor into its logical enum.
 fn descriptor_passing(passing: NcAbiPassingDescriptor) -> Result<NcAbiPassing, NcStatus> {
     match passing.tag {
-        NC_ABI_PASSING_VOID if passing.threading == NC_ABI_THREADING_THREAD_LOCAL => {
-            Ok(NcAbiPassing::Void)
-        }
-        NC_ABI_PASSING_VALUE if passing.threading == NC_ABI_THREADING_THREAD_LOCAL => {
-            Ok(NcAbiPassing::Value)
-        }
-        NC_ABI_PASSING_OUT if passing.threading == NC_ABI_THREADING_THREAD_LOCAL => {
-            Ok(NcAbiPassing::Out)
-        }
-        NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET
-            if passing.threading == NC_ABI_THREADING_THREAD_LOCAL =>
-        {
-            Ok(NcAbiPassing::CopyFromBufferOffset)
-        }
-        NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET
-            if passing.threading == NC_ABI_THREADING_THREAD_LOCAL =>
-        {
-            Ok(NcAbiPassing::CopyToBufferOffset)
-        }
+        NC_ABI_PASSING_VOID if passing.threading == NC_ABI_THREADING_THREAD_LOCAL => Ok(NcAbiPassing::Void),
+        NC_ABI_PASSING_VALUE if passing.threading == NC_ABI_THREADING_THREAD_LOCAL => Ok(NcAbiPassing::Value),
+        NC_ABI_PASSING_OUT if passing.threading == NC_ABI_THREADING_THREAD_LOCAL => Ok(NcAbiPassing::Out),
+        NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET if passing.threading == NC_ABI_THREADING_THREAD_LOCAL => Ok(NcAbiPassing::CopyFromBufferOffset),
+        NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET if passing.threading == NC_ABI_THREADING_THREAD_LOCAL => Ok(NcAbiPassing::CopyToBufferOffset),
         NC_ABI_PASSING_COM_REF => Ok(NcAbiPassing::ComRef {
             mode: descriptor_threading_mode(passing.threading)?,
         }),
@@ -1164,7 +1150,7 @@ fn descriptor_passing(passing: NcAbiPassingDescriptor) -> Result<NcAbiPassing, N
     }
 }
 
-/// Converts a raw threading tag, rejecting values outside ABI v1.
+/// Converts a raw threading tag, rejecting values outside core ABI v2.
 fn descriptor_threading_mode(threading: u32) -> Result<NcAbiThreadingMode, NcStatus> {
     NcAbiThreadingMode::from_raw(threading).ok_or(NC_E_INVALID_ARG)
 }
@@ -1189,17 +1175,8 @@ fn descriptor_type(ty: &NcAbiTypeDescriptor) -> Result<NcAbiType, NcStatus> {
         NC_ABI_TYPE_NC_GUID => Ok(NcAbiType::NcGuid),
         NC_ABI_TYPE_NC_STATUS => Ok(NcAbiType::NcStatus),
         NC_ABI_TYPE_NC_ABI_HASH => Ok(NcAbiType::NcAbiHash),
-        NC_ABI_TYPE_AGGREGATE if ty.aggregate_hash != NcAbiHash::ZERO => {
-            Ok(NcAbiType::Aggregate(ty.aggregate_hash))
-        }
-        NC_ABI_TYPE_INTERFACE
-            if !ty.interface.iid.is_nil() && ty.interface.abi_hash != NcAbiHash::ZERO =>
-        {
-            Ok(NcAbiType::Interface {
-                iid: ty.interface.iid,
-                abi_hash: ty.interface.abi_hash,
-            })
-        }
+        NC_ABI_TYPE_AGGREGATE if ty.aggregate_hash != NcAbiHash::ZERO => Ok(NcAbiType::Aggregate(ty.aggregate_hash)),
+        NC_ABI_TYPE_INTERFACE if !ty.interface.iid.is_nil() && ty.interface.abi_hash != NcAbiHash::ZERO => Ok(NcAbiType::Interface { iid: ty.interface.iid }),
         _ => Err(NC_E_INVALID_ARG),
     }
 }
@@ -1412,19 +1389,13 @@ mod tests {
 
         let (status, issues) = collect_issues(&PLUGIN);
         assert_eq!(status, NC_E_INVALID_ARG);
+        assert!(issues.iter().any(|issue| { issue.kind == NcDescriptorValidationKind::NilPluginDependencyId }));
+        assert!(issues.iter().any(|issue| { issue.kind == NcDescriptorValidationKind::SelfPluginDependency }));
         assert!(
             issues
                 .iter()
-                .any(|issue| { issue.kind == NcDescriptorValidationKind::NilPluginDependencyId })
+                .any(|issue| { issue.kind == NcDescriptorValidationKind::DuplicatePluginDependencyId })
         );
-        assert!(
-            issues
-                .iter()
-                .any(|issue| { issue.kind == NcDescriptorValidationKind::SelfPluginDependency })
-        );
-        assert!(issues.iter().any(|issue| {
-            issue.kind == NcDescriptorValidationKind::DuplicatePluginDependencyId
-        }));
     }
 
     #[test]

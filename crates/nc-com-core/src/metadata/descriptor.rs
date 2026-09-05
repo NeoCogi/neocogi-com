@@ -375,7 +375,7 @@ pub struct NcPluginDependencyDescriptor {
 
 /// Static descriptor for one plugin shared library.
 ///
-/// ABI v1 descriptors are declarative: they contain no initialization callback
+/// core ABI v2 descriptors are declarative: they contain no initialization callback
 /// or path resolver. Hard dependency IDs describe activation order but never
 /// trigger recursive loading.
 #[repr(C)]
@@ -449,7 +449,7 @@ mod tests {
 
     #[test]
     fn core_abi_identity_is_stable() {
-        assert_eq!(NC_COM_CORE_ABI_VERSION, 1);
+        assert_eq!(NC_COM_CORE_ABI_VERSION, 2);
         assert_eq!(NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, "nc_get_plugin_descriptor");
     }
 
@@ -809,8 +809,6 @@ mod tests {
     fn method_hash_changes_for_com_pointer_modes_and_interface_identity() {
         let interface_guid = guid(1);
         let other_interface_guid = guid(2);
-        let dependency_hash = NcAbiHash::from_bytes([1; 32]);
-        let other_dependency_hash = NcAbiHash::from_bytes([2; 32]);
 
         let base = NcAbiHash::from_abi_parts(&[
             NcAbiHashPart::Interface {
@@ -822,22 +820,12 @@ mod tests {
             },
             NcAbiHashPart::Arg {
                 index: 0,
-                passing: NcAbiPassing::ComRef {
-                    mode: NcAbiThreadingMode::ThreadLocal,
-                },
-                ty: NcAbiType::Interface {
-                    iid: interface_guid,
-                    abi_hash: dependency_hash,
-                },
+                passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
+                ty: NcAbiType::Interface { iid: interface_guid },
             },
             NcAbiHashPart::Return {
-                passing: NcAbiPassing::ComPtrOut {
-                    mode: NcAbiThreadingMode::ThreadLocal,
-                },
-                ty: NcAbiType::Interface {
-                    iid: interface_guid,
-                    abi_hash: dependency_hash,
-                },
+                passing: NcAbiPassing::ComPtrOut { mode: NcAbiThreadingMode::ThreadLocal },
+                ty: NcAbiType::Interface { iid: interface_guid },
             },
             NcAbiHashPart::Status,
         ]);
@@ -854,22 +842,12 @@ mod tests {
                 },
                 NcAbiHashPart::Arg {
                     index: 0,
-                    passing: NcAbiPassing::ComRef {
-                        mode: NcAbiThreadingMode::ThreadLocal,
-                    },
-                    ty: NcAbiType::Interface {
-                        iid: interface_guid,
-                        abi_hash: dependency_hash,
-                    },
+                    passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
+                    ty: NcAbiType::Interface { iid: interface_guid },
                 },
                 NcAbiHashPart::Return {
-                    passing: NcAbiPassing::ComPtrOut {
-                        mode: NcAbiThreadingMode::ThreadLocal,
-                    },
-                    ty: NcAbiType::Interface {
-                        iid: interface_guid,
-                        abi_hash: dependency_hash,
-                    },
+                    passing: NcAbiPassing::ComPtrOut { mode: NcAbiThreadingMode::ThreadLocal },
+                    ty: NcAbiType::Interface { iid: interface_guid },
                 },
                 NcAbiHashPart::Status,
             ])
@@ -886,22 +864,12 @@ mod tests {
                 },
                 NcAbiHashPart::Arg {
                     index: 0,
-                    passing: NcAbiPassing::ComRef {
-                        mode: NcAbiThreadingMode::ThreadSafe,
-                    },
-                    ty: NcAbiType::Interface {
-                        iid: interface_guid,
-                        abi_hash: dependency_hash,
-                    },
+                    passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadSafe },
+                    ty: NcAbiType::Interface { iid: interface_guid },
                 },
                 NcAbiHashPart::Return {
-                    passing: NcAbiPassing::ComPtrOut {
-                        mode: NcAbiThreadingMode::ThreadLocal,
-                    },
-                    ty: NcAbiType::Interface {
-                        iid: interface_guid,
-                        abi_hash: dependency_hash,
-                    },
+                    passing: NcAbiPassing::ComPtrOut { mode: NcAbiThreadingMode::ThreadLocal },
+                    ty: NcAbiType::Interface { iid: interface_guid },
                 },
                 NcAbiHashPart::Status,
             ])
@@ -918,22 +886,12 @@ mod tests {
                 },
                 NcAbiHashPart::Arg {
                     index: 0,
-                    passing: NcAbiPassing::ComRef {
-                        mode: NcAbiThreadingMode::ThreadLocal,
-                    },
-                    ty: NcAbiType::Interface {
-                        iid: other_interface_guid,
-                        abi_hash: dependency_hash,
-                    },
+                    passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
+                    ty: NcAbiType::Interface { iid: other_interface_guid },
                 },
                 NcAbiHashPart::Return {
-                    passing: NcAbiPassing::ComPtrOut {
-                        mode: NcAbiThreadingMode::ThreadLocal,
-                    },
-                    ty: NcAbiType::Interface {
-                        iid: interface_guid,
-                        abi_hash: dependency_hash,
-                    },
+                    passing: NcAbiPassing::ComPtrOut { mode: NcAbiThreadingMode::ThreadLocal },
+                    ty: NcAbiType::Interface { iid: interface_guid },
                 },
                 NcAbiHashPart::Status,
             ])
@@ -950,54 +908,12 @@ mod tests {
                 },
                 NcAbiHashPart::Arg {
                     index: 0,
-                    passing: NcAbiPassing::ComRef {
-                        mode: NcAbiThreadingMode::ThreadLocal,
-                    },
-                    ty: NcAbiType::Interface {
-                        iid: interface_guid,
-                        abi_hash: other_dependency_hash,
-                    },
+                    passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
+                    ty: NcAbiType::Interface { iid: interface_guid },
                 },
                 NcAbiHashPart::Return {
-                    passing: NcAbiPassing::ComPtrOut {
-                        mode: NcAbiThreadingMode::ThreadLocal,
-                    },
-                    ty: NcAbiType::Interface {
-                        iid: interface_guid,
-                        abi_hash: dependency_hash,
-                    },
-                },
-                NcAbiHashPart::Status,
-            ])
-        );
-        assert_ne!(
-            base,
-            NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Interface {
-                    iid: interface_guid,
-                },
-                NcAbiHashPart::Method {
-                    index: 0,
-                    name: "consume",
-                },
-                NcAbiHashPart::Arg {
-                    index: 0,
-                    passing: NcAbiPassing::ComRef {
-                        mode: NcAbiThreadingMode::ThreadLocal,
-                    },
-                    ty: NcAbiType::Interface {
-                        iid: interface_guid,
-                        abi_hash: dependency_hash,
-                    },
-                },
-                NcAbiHashPart::Return {
-                    passing: NcAbiPassing::ComPtrOut {
-                        mode: NcAbiThreadingMode::ThreadSafe,
-                    },
-                    ty: NcAbiType::Interface {
-                        iid: interface_guid,
-                        abi_hash: dependency_hash,
-                    },
+                    passing: NcAbiPassing::ComPtrOut { mode: NcAbiThreadingMode::ThreadSafe },
+                    ty: NcAbiType::Interface { iid: interface_guid },
                 },
                 NcAbiHashPart::Status,
             ])

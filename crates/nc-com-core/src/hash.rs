@@ -16,7 +16,7 @@ use crate::metadata::{
     NcAbiThreadingMode, NcAbiType,
 };
 
-const NC_ABI_HASH_SCHEMA: &[u8] = b"nc-com:abi-hash:v1\0";
+const NC_ABI_HASH_SCHEMA: &[u8] = b"nc-com:abi-hash:v2\0";
 
 /// SHA-256 ABI hash bytes.
 #[repr(C)]
@@ -57,7 +57,7 @@ impl NcAbiHash {
     /// Hashes canonical typed ABI parts with SHA-256.
     ///
     /// This helper is primarily used by generated interface metadata. It is
-    /// const so interface hashes can include referenced interface hashes without
+    /// const so contracts can hash referenced IIDs and aggregate layouts without
     /// requiring the procedural macro to know those values while expanding.
     pub const fn from_abi_parts(parts: &[NcAbiHashPart<'_>]) -> Self {
         let mut hasher = NcSha256::new().update(NC_ABI_HASH_SCHEMA);
@@ -409,18 +409,9 @@ impl NcSha256 {
     const fn update_abi_hash_part(self, part: NcAbiHashPart<'_>) -> Self {
         match part {
             NcAbiHashPart::Interface { iid } => self.update_byte(0x01).update_guid(iid),
-            NcAbiHashPart::Method { index, name } => {
-                self.update_byte(0x02).update_u32(index).update_str(name)
-            }
-            NcAbiHashPart::Arg { index, passing, ty } => self
-                .update_byte(0x03)
-                .update_u32(index)
-                .update_passing(passing)
-                .update_abi_type(ty),
-            NcAbiHashPart::Return { passing, ty } => self
-                .update_byte(0x04)
-                .update_passing(passing)
-                .update_abi_type(ty),
+            NcAbiHashPart::Method { index, name } => self.update_byte(0x02).update_u32(index).update_str(name),
+            NcAbiHashPart::Arg { index, passing, ty } => self.update_byte(0x03).update_u32(index).update_passing(passing).update_abi_type(ty),
+            NcAbiHashPart::Return { passing, ty } => self.update_byte(0x04).update_passing(passing).update_abi_type(ty),
             NcAbiHashPart::Status => self.update_byte(0x05),
             NcAbiHashPart::Layout { size, align } => self
                 .update_byte(0x06)
@@ -461,10 +452,8 @@ impl NcSha256 {
             NcAbiType::NcStatus => self.update_byte(0x0f),
             NcAbiType::NcAbiHash => self.update_byte(0x10),
             NcAbiType::Aggregate(hash) => self.update_byte(0x11).update_hash(hash),
-            NcAbiType::Interface { iid, abi_hash } => self
-                .update_byte(0x12)
-                .update_guid(iid)
-                .update_hash(abi_hash),
+            // Pointer boundaries check full identities; the local grammar terminates at IIDs.
+            NcAbiType::Interface { iid } => self.update_byte(0x12).update_guid(iid),
         }
     }
 
@@ -713,13 +702,8 @@ mod tests {
     }
 
     #[test]
-    fn typed_part_tags_match_the_draft_v1_grammar() {
-        let iid = NcGuid::from_fields(
-            0x1234_5678,
-            0x9abc,
-            0xdef0,
-            [0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0],
-        );
+    fn typed_part_tags_match_the_draft_v2_grammar() {
+        let iid = NcGuid::from_fields(0x1234_5678, 0x9abc, 0xdef0, [0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0]);
         let nested_hash = NcAbiHash::from_bytes([0x5a; 32]);
         let hash = NcAbiHash::from_abi_parts(&[
             NcAbiHashPart::Interface { iid },
@@ -729,13 +713,8 @@ mod tests {
             },
             NcAbiHashPart::Arg {
                 index: 3,
-                passing: NcAbiPassing::ComRef {
-                    mode: NcAbiThreadingMode::ThreadSafe,
-                },
-                ty: NcAbiType::Interface {
-                    iid,
-                    abi_hash: nested_hash,
-                },
+                passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadSafe },
+                ty: NcAbiType::Interface { iid },
             },
             NcAbiHashPart::Return {
                 passing: NcAbiPassing::Out,
@@ -757,14 +736,7 @@ mod tests {
                 kind: NcAbiAggregateKind::TaggedEnum,
             },
         ]);
-        let actual = hash
-            .bytes
-            .iter()
-            .map(|byte| std::format!("{byte:02x}"))
-            .collect::<std::string::String>();
-        assert_eq!(
-            actual,
-            "a3e42f45cced5d66980f029e2ae60db9df087c26f53ae159a082b3a35d13d0ff"
-        );
+        let actual = hash.bytes.iter().map(|byte| std::format!("{byte:02x}")).collect::<std::string::String>();
+        assert_eq!(actual, "b1082d3722c7d86902132c1654cde80bd4ec8a2a6659412cb292c14cc939bb3d");
     }
 }

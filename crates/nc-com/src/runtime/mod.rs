@@ -257,9 +257,9 @@ impl Runtime {
     /// `path` must identify trusted nc-com plugin code.
     pub unsafe fn load_plugin_library(&self, path: impl AsRef<Path>) -> LoadedModuleInfo {
         let path = path.as_ref();
-        let path = path.to_str().unwrap_or_else(|| {
-            fatal_plugin_load(format_args!("path is not valid UTF-8: {}", path.display()))
-        });
+        let path = path
+            .to_str()
+            .unwrap_or_else(|| fatal_plugin_load(format_args!("path is not valid UTF-8: {}", path.display())));
         let mut module_id = 0;
         // SAFETY: The UTF-8 path is readable for this call and the output slot
         // is valid. The caller accepted the trusted-library requirement.
@@ -361,7 +361,7 @@ impl Runtime {
         };
         status_to_result(status)?;
         // SAFETY: A successful runtime construction returns one owned reference.
-        unsafe { ComPtr::<IUnknown, M>::from_raw_owned(out) }.ok_or(NC_E_POINTER)
+        unsafe { ComPtr::<IUnknown, M>::__nc_from_raw_owned_checked(out) }
     }
 
     /// Constructs an object, then validates and queries generated interface `T`.
@@ -424,7 +424,7 @@ impl Runtime {
         object: *mut IUnknown,
     ) -> Result<ComPtr<T>, NcStatus> {
         // SAFETY: The caller transfers one owned reference when non-null.
-        let unknown = unsafe { ComPtr::<IUnknown>::from_raw_owned(object) }.ok_or(NC_E_POINTER)?;
+        let unknown = unsafe { ComPtr::<IUnknown>::__nc_from_raw_owned_checked(object) }?;
         self.query_validated::<T, _>(class_id, &unknown)
     }
 

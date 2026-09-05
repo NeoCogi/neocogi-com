@@ -235,9 +235,7 @@ impl<M: ThreadingModel> INcBytesComPtrExt for ComPtr<INcBytesAbi, M> {
     /// Allocates a bounded vector and fills it with one bulk ABI call.
     fn to_vec_bounded(&self, max_len: usize) -> Result<Vec<u8>, NcStatus> {
         let len = self.len()?;
-        copy_owned_bytes(len, max_len, |out| {
-            copy_to_raw(self.as_mut_ptr(), 0, len, out)
-        })
+        copy_owned_bytes(len, max_len, |out| copy_to_raw(self.as_mut_ptr(), 0, len, out))
     }
 
     /// Copies bytes and reinterprets their bits as signed eight-bit values.
@@ -337,9 +335,7 @@ impl<M: ThreadingModel> INcStringComPtrExt for ComPtr<INcStringAbi, M> {
     /// Allocates a bounded byte vector and fills it with one ABI call.
     fn to_bytes_bounded(&self, max_len: usize) -> Result<Vec<u8>, NcStatus> {
         let len = self.byte_len()?;
-        copy_owned_bytes(len, max_len, |out| {
-            copy_string_to_raw(self.as_mut_ptr(), 0, len, out)
-        })
+        copy_owned_bytes(len, max_len, |out| copy_string_to_raw(self.as_mut_ptr(), 0, len, out))
     }
 
     /// Copies and validates UTF-8 using the default allocation ceiling.
@@ -561,6 +557,7 @@ impl StringObject {
 
 /// Standalone `IUnknown` dispatch table for byte objects.
 static BYTES_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
+    interface_id: &IUnknown::INTERFACE_ID,
     query_interface: bytes_query_interface,
     add_ref: bytes_unknown_add_ref,
     release: bytes_unknown_release,
@@ -569,6 +566,7 @@ static BYTES_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
 /// Primary byte-sequence dispatch table for byte objects.
 static BYTES_VTABLE: INcBytesVTable = INcBytesVTable {
     unknown: IUnknownVTable {
+        interface_id: &INcBytesAbi::INTERFACE_ID,
         query_interface: bytes_query_interface,
         add_ref: bytes_unknown_add_ref,
         release: bytes_unknown_release,
@@ -580,6 +578,7 @@ static BYTES_VTABLE: INcBytesVTable = INcBytesVTable {
 
 /// Standalone `IUnknown` dispatch table for string objects.
 static STRING_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
+    interface_id: &IUnknown::INTERFACE_ID,
     query_interface: string_query_interface,
     add_ref: string_unknown_add_ref,
     release: string_unknown_release,
@@ -588,6 +587,7 @@ static STRING_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
 /// Primary UTF-8 string dispatch table for string objects.
 static STRING_VTABLE: INcStringVTable = INcStringVTable {
     unknown: IUnknownVTable {
+        interface_id: &INcStringAbi::INTERFACE_ID,
         query_interface: string_query_interface,
         add_ref: string_unknown_add_ref,
         release: string_unknown_release,
@@ -600,6 +600,7 @@ static STRING_VTABLE: INcStringVTable = INcStringVTable {
 /// Byte-sequence projection dispatch table for string objects.
 static STRING_BYTES_VTABLE: INcBytesVTable = INcBytesVTable {
     unknown: IUnknownVTable {
+        interface_id: &INcBytesAbi::INTERFACE_ID,
         query_interface: string_query_interface,
         add_ref: string_unknown_add_ref,
         release: string_unknown_release,

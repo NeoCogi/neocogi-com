@@ -217,7 +217,7 @@ pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// `pub fn plugin_descriptor() -> &'static NcPluginDescriptor` for in-process
 /// hosts. It also exports `nc_get_plugin_descriptor` for dynamic loading.
 ///
-/// ABI v1 plugin descriptors contain declarative metadata only. The optional
+/// core ABI v2 plugin descriptors contain declarative metadata only. The optional
 /// `dependencies = [PLUGIN_ID, ...]` list declares hard dependencies that must
 /// already be registered. It never causes recursive loading.
 /// Every `plugin_id(...)` form is checked against the plugin's normative

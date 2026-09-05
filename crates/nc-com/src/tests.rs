@@ -396,6 +396,7 @@ unsafe extern "C" fn probe_string_copy_to(
 
 static PROBE_STRING_VTABLE: INcStringVTable = INcStringVTable {
     unknown: IUnknownVTable {
+        interface_id: &INcStringAbi::INTERFACE_ID,
         query_interface: probe_string_query_interface,
         add_ref: probe_string_add_ref,
         release: probe_string_release,

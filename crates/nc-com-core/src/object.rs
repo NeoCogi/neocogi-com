@@ -43,6 +43,11 @@ pub struct IUnknown {
 /// C-compatible vtable for [`IUnknown`].
 #[repr(C)]
 pub struct IUnknownVTable {
+    /// Identity of the actual interface header using this vtable, including its
+    /// complete local contract hash. This points to immutable static metadata;
+    /// it describes the projected interface, which may differ from IUnknown.
+    pub interface_id: *const NcInterfaceId,
+
     /// Queries the object for another interface by identity.
     ///
     /// # Safety
@@ -80,6 +85,10 @@ pub struct IUnknownVTable {
     pub release: unsafe extern "C" fn(this: *mut IUnknown) -> u32,
 }
 
+// SAFETY: Vtables contain only function pointers and immutable static identity
+// metadata. Sharing the table does not grant cross-thread access to an object.
+unsafe impl Sync for IUnknownVTable {}
+
 /// Metadata and pointer conversion implemented by every COM ABI interface type.
 ///
 /// Prefer defining interfaces with `#[com_interface]` from the `nc-com` crate.
@@ -103,7 +112,10 @@ pub struct IUnknownVTable {
 ///   [`Self::INTERFACE_ID`]. Its first field is a live pointer to `Self::VTable`,
 ///   and the vtable starts with a valid [`IUnknownVTable`] prefix.
 /// - `Self::INTERFACE_ID`, including its ABI hash, describes the actual vtable
-///   method order, signatures, passing modes, and referenced interface contracts.
+///   method order, signatures, passing modes, and referenced interface IIDs.
+///   Every COM pointer argument/return is checked against its expected full
+///   identity before invoking any interface-specific method. The common prefix
+///   publishes this actual interface identity in immutable static storage.
 /// - Every live `*mut Self` stored in a [`crate::ComPtr`] or [`crate::ComRef`]
 ///   remains backed by its interface header, vtable, and object storage for the
 ///   reference's lifetime.
@@ -184,11 +196,7 @@ mod tests {
         );
         assert_eq!(
             IUnknown::ABI_HASH.bytes,
-            [
-                0xd2, 0x2a, 0x3f, 0x97, 0x21, 0xef, 0x1e, 0x10, 0x8f, 0x84, 0x76, 0xe8, 0xdd, 0xb7,
-                0x45, 0x4e, 0xe8, 0x02, 0x48, 0x59, 0xca, 0xa8, 0x3f, 0xb9, 0x7e, 0xe0, 0xa5, 0x35,
-                0xb6, 0x50, 0x7e, 0x27,
-            ]
+            [0x7c, 0x07, 0x6b, 0x86, 0x36, 0xac, 0x22, 0x3b, 0x15, 0x5d, 0xe0, 0x50, 0xeb, 0x04, 0x26, 0x08, 0x09, 0x37, 0x57, 0xb7, 0xd6, 0x9d, 0x09, 0xc0, 0xf6, 0x4c, 0xee, 0xd0, 0xe1, 0xf0, 0xd8, 0x4e,]
         );
         assert_eq!(
             IUNKNOWN_INTERFACE_ID,

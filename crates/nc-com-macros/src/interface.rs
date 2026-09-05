@@ -59,13 +59,7 @@ pub(crate) fn expand_com_interface(
         checked_u32_len(methods.len(), trait_ident.span(), "interface method count")?;
     let method_param_counts = methods
         .iter()
-        .map(|method| {
-            checked_u32_len(
-                method.args.len(),
-                method.ident.span(),
-                "interface method parameter count",
-            )
-        })
+        .map(|method| checked_u32_len(method.args.len(), method.ident.span(), "interface method parameter count"))
         .collect::<Result<Vec<_>>>()?;
     for method in &methods {
         checked_u32_len(
@@ -92,22 +86,20 @@ pub(crate) fn expand_com_interface(
         .enumerate()
         .map(|(index, method)| method_abi_descriptor_consts(&nc, index, method))
         .collect::<Vec<_>>();
-    let method_descriptors = methods.iter().zip(&method_param_counts).enumerate().map(
-        |(index, (method, param_count))| {
-            let index = index as u32;
-            let method_ident = &method.ident;
-            let params_ident = method_params_const_ident(index as usize);
-            let return_ident = method_return_const_ident(index as usize);
-            quote! {
-                #nc::NcMethodDescriptor {
-                    name: #nc::NcStaticUtf8::from_static(stringify!(#method_ident)),
-                    param_count: #param_count,
-                    params: Self::#params_ident.as_ptr(),
-                    returns: Self::#return_ident,
-                }
+    let method_descriptors = methods.iter().zip(&method_param_counts).enumerate().map(|(index, (method, param_count))| {
+        let index = index as u32;
+        let method_ident = &method.ident;
+        let params_ident = method_params_const_ident(index as usize);
+        let return_ident = method_return_const_ident(index as usize);
+        quote! {
+            #nc::NcMethodDescriptor {
+                name: #nc::NcStaticUtf8::from_static(stringify!(#method_ident)),
+                param_count: #param_count,
+                params: Self::#params_ident.as_ptr(),
+                returns: Self::#return_ident,
             }
-        },
-    );
+        }
+    });
     let mut interface_hash_parts = vec![quote! {
         #nc::NcAbiHashPart::Interface {
             iid: #guid,
@@ -211,14 +203,16 @@ pub(crate) fn expand_com_interface(
                     })
                     .unwrap_or_else(|| quote! { #nc::ThreadLocal });
                 Some(quote! {
-                    let Some(#ident) = (unsafe {
+                    let #ident = match unsafe {
                         // SAFETY: The raw thunk checks the call-scoped pointer
-                        // by converting it to `ComRef`; null becomes
-                        // `NC_E_POINTER`, and non-null validity is the caller's
-                        // ABI responsibility for the duration of the call.
-                        #nc::ComRef::<#interface_ty, #mode_ty>::from_raw_borrowed(#ident)
-                    }) else {
-                        return #nc::NC_E_POINTER;
+                        // against the callee's expected full interface identity.
+                        // Null and mismatched pointers fail before dispatch;
+                        // live common-prefix validity remains the raw caller's
+                        // responsibility for the duration of the call.
+                        #nc::ComRef::<#interface_ty, #mode_ty>::__nc_from_raw_borrowed_checked(#ident)
+                    } {
+                        Ok(value) => value,
+                        Err(status) => return status,
                     };
                 })
             }
@@ -364,7 +358,7 @@ pub(crate) fn expand_com_interface(
                         let __nc_out = unsafe { __nc_out.assume_init() };
                         // SAFETY: Successful COM pointer returns transfer one
                         // owned reference to the caller.
-                        unsafe { <#rust_ret>::from_raw_owned(__nc_out) }.ok_or(#nc::NC_E_POINTER)
+                        unsafe { <#rust_ret>::__nc_from_raw_owned_checked(__nc_out) }
                     },
                     AbiReturnKind::Void => unreachable!(),
                 };
@@ -448,6 +442,7 @@ pub(crate) fn expand_com_interface(
         // and ABI hash from the exact generated method contract. `iunknown`
         // performs only the shared-prefix pointer cast.
         unsafe impl #nc::ComInterface for #abi_ident {
+            const IID: #nc::NcGuid = #guid;
             const INTERFACE_ID: #nc::NcInterfaceId =
                 #nc::NcInterfaceId::new(#guid, #abi_ident::ABI_HASH);
             type VTable = #vtable_ident;
@@ -492,6 +487,7 @@ pub(crate) fn expand_com_interface(
         {
             pub const VTABLE: #vtable_ident = #vtable_ident {
                 unknown: #nc::IUnknownVTable {
+                    interface_id: &<#abi_ident as #nc::ComInterface>::INTERFACE_ID,
                     query_interface: Self::query_interface_thunk,
                     add_ref: Self::add_ref_thunk,
                     release: Self::release_thunk,
@@ -624,7 +620,6 @@ fn method_hash_parts(
                         },
                         ty: #nc::NcAbiType::Interface {
                             iid: <#interface_ty as #nc::ComInterface>::IID,
-                            abi_hash: <#interface_ty as #nc::ComInterface>::ABI_HASH,
                         },
                     }
                 });
@@ -662,7 +657,6 @@ fn method_hash_parts(
                     },
                     ty: #nc::NcAbiType::Interface {
                         iid: <#interface_ty as #nc::ComInterface>::IID,
-                        abi_hash: <#interface_ty as #nc::ComInterface>::ABI_HASH,
                     },
                 }
             });
@@ -765,10 +759,9 @@ fn arg_type_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_macro
         AbiArgKind::ComRef { interface_ty, .. } => {
             let interface_ty = interface_ty.as_ref();
             quote! {
-                #nc::NcAbiTypeDescriptor::from_abi_type(#nc::NcAbiType::Interface {
-                    iid: <#interface_ty as #nc::ComInterface>::IID,
-                    abi_hash: <#interface_ty as #nc::ComInterface>::ABI_HASH,
-                })
+                #nc::NcAbiTypeDescriptor::from_interface(
+                    <#interface_ty as #nc::ComInterface>::INTERFACE_ID,
+                )
             }
         }
     }
@@ -809,10 +802,9 @@ fn return_type_descriptor(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::To
         AbiReturnKind::ComPtr { interface_ty, .. } => {
             let interface_ty = interface_ty.as_ref();
             quote! {
-                #nc::NcAbiTypeDescriptor::from_abi_type(#nc::NcAbiType::Interface {
-                    iid: <#interface_ty as #nc::ComInterface>::IID,
-                    abi_hash: <#interface_ty as #nc::ComInterface>::ABI_HASH,
-                })
+                #nc::NcAbiTypeDescriptor::from_interface(
+                    <#interface_ty as #nc::ComInterface>::INTERFACE_ID,
+                )
             }
         }
     }
@@ -868,9 +860,7 @@ fn safe_arg_preparation(arg: &crate::model::AbiArg) -> Option<proc_macro2::Token
             let ident = &arg.ident;
             Some(quote! { let mut #ident = #ident; })
         }
-        AbiArgKind::Plain | AbiArgKind::CopyFromBufferOffset { .. } | AbiArgKind::ComRef { .. } => {
-            None
-        }
+        AbiArgKind::Plain | AbiArgKind::CopyFromBufferOffset { .. } | AbiArgKind::ComRef { .. } => None,
     }
 }
 
@@ -934,9 +924,7 @@ fn validate_generated_method_identifiers(methods: &[AbiMethod], errors: &mut Opt
             let arg_name = arg.ident.to_string();
             let fixed_collision = match arg_name.as_str() {
                 "this" => Some("the generated safe-wrapper receiver pointer"),
-                "object" if matches!(&arg.kind, AbiArgKind::Plain | AbiArgKind::ComRef { .. }) => {
-                    Some("the generated ABI object back-pointer local")
-                }
+                "object" if matches!(&arg.kind, AbiArgKind::Plain | AbiArgKind::ComRef { .. }) => Some("the generated ABI object back-pointer local"),
                 "__nc_value" => Some("the generated Rust implementation pointer local"),
                 "__nc_out" if has_out => Some("the generated non-void output slot"),
                 _ => None,

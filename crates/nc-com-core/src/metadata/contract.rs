@@ -16,9 +16,9 @@ use crate::hash::NcAbiHash;
 
 /// Current experimental draft core ABI version.
 ///
-/// This identifies the current binary generation; it does not mean ABI v1 has
+/// This identifies the current binary generation; it does not mean core ABI v2 has
 /// reached its ratification milestone.
-pub const NC_COM_CORE_ABI_VERSION: u32 = 1;
+pub const NC_COM_CORE_ABI_VERSION: u32 = 2;
 
 /// Exported symbol name for an unversioned plugin descriptor provider.
 pub const NC_GET_PLUGIN_DESCRIPTOR_SYMBOL: &str = "nc_get_plugin_descriptor";
@@ -184,8 +184,6 @@ pub enum NcAbiType {
     Interface {
         /// Referenced interface GUID.
         iid: NcGuid,
-        /// Referenced interface ABI hash.
-        abi_hash: NcAbiHash,
     },
 }
 
@@ -332,7 +330,19 @@ pub struct NcAbiTypeDescriptor {
 }
 
 impl NcAbiTypeDescriptor {
-    /// Builds a C-stable descriptor from a canonical ABI type.
+    /// Describes an interface using its complete expected identity. Local hash
+    /// grammar uses only the IID, while metadata and pointer checks retain the
+    /// complete hash. Keeping these separate permits recursive contracts.
+    pub const fn from_interface(interface: NcInterfaceId) -> Self {
+        let mut out = Self::from_abi_type(NcAbiType::Interface { iid: interface.iid });
+        out.interface = interface;
+        out
+    }
+
+    /// Builds a descriptor for a local hash-grammar type. An Interface input
+    /// contains only an IID and therefore leaves its hash zero; publish complete
+    /// interface metadata with [`Self::from_interface`] instead. Validation rejects
+    /// incomplete interface descriptors before plugin registration.
     pub const fn from_abi_type(ty: NcAbiType) -> Self {
         let mut out = Self {
             tag: NC_ABI_TYPE_VOID,
@@ -361,9 +371,9 @@ impl NcAbiTypeDescriptor {
                 out.tag = NC_ABI_TYPE_AGGREGATE;
                 out.aggregate_hash = hash;
             }
-            NcAbiType::Interface { iid, abi_hash } => {
+            NcAbiType::Interface { iid } => {
                 out.tag = NC_ABI_TYPE_INTERFACE;
-                out.interface = NcInterfaceId::new(iid, abi_hash);
+                out.interface = NcInterfaceId::new(iid, NcAbiHash::ZERO);
             }
         }
         out

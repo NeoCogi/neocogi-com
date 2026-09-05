@@ -38,7 +38,7 @@ catalog `RwLock` permits concurrent reads and publishes static registration or
 dynamic activation as a blocking write transaction. A successful activation
 makes its retained native handle, module provenance, plugin, classes,
 relationships, and identity mappings visible together. No hash-map iteration
-order is exposed through ABI v1.
+order is exposed through core ABI v2.
 
 Plugin loading, descriptor invocation, and descriptor validation happen before
 the catalog write lock is acquired. nc-com never invokes plugin constructors,

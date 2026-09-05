@@ -44,7 +44,8 @@ pub trait IContractWidgetArgs {
 
 // This is the main cross-boundary interface used by the example. Changing
 // method order, argument types, return types, COM passing mode, or referenced
-// interface hashes changes IContractWidgetAbi::ABI_HASH.
+// interface IIDs changes IContractWidgetAbi::ABI_HASH. Full pointer identities
+// are checked at call boundaries independently of this local hash.
 #[com_interface(auto_guid = "nc.tests.contract.Widget:v1")]
 pub trait IContractWidget {
     fn add(&self, left: u32, right: u32) -> Result<u32, NcStatus>;
