@@ -30,3 +30,6 @@ nc_com::plugin! {
     version = "1.0.0",
     classes = [MultiCounter],
 }
+
+// This crate is the final shared library, so it owns the sole dynamic entrypoint.
+nc_com::export_plugin!();

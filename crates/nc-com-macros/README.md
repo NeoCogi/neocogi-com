@@ -88,8 +88,8 @@ escape hatch.
 
 `plugin!` assembles generated class descriptors into one static plugin
 descriptor. It emits `pub fn plugin_descriptor() -> &'static NcPluginDescriptor`
-for in-process hosts and exports `nc_get_plugin_descriptor` for shared
-library loading:
+for in-process hosts. Call `nc_com::export_plugin!()` at the final shared
+library root to export `nc_get_plugin_descriptor`:
 
 ```rust
 #[com_class(

@@ -115,3 +115,39 @@ macro_rules! com_int_enum {
         {}
     };
 }
+
+/// Exports a plugin descriptor from the final dynamic-library assembly crate.
+///
+/// `plugin!` only defines metadata. Invoke this once per shared library; omit it
+/// when statically linking several plugins into an executable or browser module.
+/// Both forms reuse the same descriptor and validation. The optional path names
+/// a descriptor function when the plugin implementation lives in another module
+/// or a statically linked implementation crate.
+///
+/// ```ignore
+/// nc_com::plugin! { /* plugin identity and classes */ }
+/// #[cfg(feature = "dynamic-plugin")]
+/// nc_com::export_plugin!();
+/// ```
+#[macro_export]
+macro_rules! export_plugin {
+    () => { $crate::export_plugin!(plugin_descriptor); };
+    ($descriptor:path) => {
+        /// Returns validated, immutable metadata through the dynamic plugin ABI.
+        ///
+        /// # Safety
+        /// `out` must be null or writable for one descriptor pointer. The module
+        /// containing the descriptor must stay loaded while its metadata is used.
+        #[unsafe(no_mangle)]
+        pub unsafe extern "C" fn nc_get_plugin_descriptor(
+            out: *mut *const $crate::NcPluginDescriptor,
+        ) -> $crate::NcStatus {
+            // SAFETY: The descriptor function returns static metadata, and the
+            // caller supplies the output storage. The shared helper validates
+            // the same descriptor used for static registration.
+            unsafe { $crate::return_plugin_descriptor(out, $descriptor()) }
+        }
+        // Check the export signature without duplicating the ABI declaration.
+        const _: $crate::NcGetPluginDescriptor = nc_get_plugin_descriptor;
+    };
+}

@@ -530,17 +530,18 @@ source of identity. core ABI v2 descriptors are declarative and have no
 initialization callback.
 
 The `plugin!` macro emits `pub fn plugin_descriptor() -> &'static
-nc_com::NcPluginDescriptor` for in-process registration and exports the
-descriptor entrypoint for shared-library loading:
+nc_com::NcPluginDescriptor` for static registration. It exports no dynamic
+symbol, so several plugin implementations can be linked into one binary.
+The final shared-library root publishes its one dynamic entrypoint explicitly:
 
-```rust
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nc_get_plugin_descriptor(
-    out: *mut *const nc_com::NcPluginDescriptor,
-) -> nc_com::NcStatus {
-    unsafe { nc_com::return_plugin_descriptor(out, &PLUGIN) }
-}
+```rust,ignore
+nc_com::export_plugin!();
+// Or select a descriptor in another module/crate:
+// nc_com::export_plugin!(implementation::plugin_descriptor);
 ```
+
+Both deployment modes use the same descriptor and validation. Keep the export
+behind the final library's dynamic feature when supporting both modes.
 
 The class table enumerates constructible classes. Each class descriptor carries
 a stable class ID, static qualified name/version metadata, the constructor

@@ -33,3 +33,6 @@ nc_com::plugin! {
     dependencies = [COUNTER_PLUGIN_ID],
     classes = [MultiFlag],
 }
+
+// This crate is the final shared library, so it owns the sole dynamic entrypoint.
+nc_com::export_plugin!();

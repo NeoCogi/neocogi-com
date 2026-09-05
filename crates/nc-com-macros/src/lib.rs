@@ -215,7 +215,8 @@ pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// IDs, interface tables, and constructors through `#[com_class(...)]`; this
 /// macro copies those descriptors into a plugin-level class table and provides
 /// `pub fn plugin_descriptor() -> &'static NcPluginDescriptor` for in-process
-/// hosts. It also exports `nc_get_plugin_descriptor` for dynamic loading.
+/// hosts. A final shared library calls `nc_com::export_plugin!` separately to
+/// export `nc_get_plugin_descriptor`; static assemblies omit that export.
 ///
 /// core ABI v2 plugin descriptors contain declarative metadata only. The optional
 /// `dependencies = [PLUGIN_ID, ...]` list declares hard dependencies that must

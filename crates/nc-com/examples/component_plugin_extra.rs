@@ -34,3 +34,6 @@ nc_com::plugin! {
     dependencies = [STATE_PLUGIN_ID],
     classes = [MultiExtra],
 }
+
+// This crate is the final shared library, so it owns the sole dynamic entrypoint.
+nc_com::export_plugin!();

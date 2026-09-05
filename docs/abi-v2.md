@@ -1424,6 +1424,10 @@ activation order; they do not replace interface compatibility checks.
 
 ## 13. Plugin Descriptor Entrypoint
 
+The Rust `plugin!` macro only generates descriptors. A final dynamic-library
+root invokes `nc_com::export_plugin!()` (or passes an explicit descriptor function
+path). Static plugin assemblies omit that export and register the same metadata.
+
 A dynamic v2 plugin exports:
 
 ```rust,ignore

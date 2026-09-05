@@ -205,17 +205,6 @@ pub(crate) fn expand_plugin(args: PluginArgs) -> proc_macro2::TokenStream {
             &NC_COM_PLUGIN_DESCRIPTOR
         }
 
-        #[doc = "Standard C ABI entrypoint that returns the validated static plugin descriptor."]
-        #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn nc_get_plugin_descriptor(
-            out: *mut *const #nc::NcPluginDescriptor,
-        ) -> #nc::NcStatus {
-            // SAFETY: `plugin_descriptor` returns immutable static metadata
-            // whose tables live for the whole component lifetime.
-            unsafe { #nc::return_plugin_descriptor(out, plugin_descriptor()) }
-        }
-
-        const _: #nc::NcGetPluginDescriptor = nc_get_plugin_descriptor;
     }
 }
 
