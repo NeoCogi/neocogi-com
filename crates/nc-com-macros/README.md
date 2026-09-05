@@ -117,7 +117,7 @@ pins, not arbitrary IDs. Contract crates should define constant paths with
 `guid_from_qualified_name` so hosts and plugins share one source of identity.
 The optional `dependencies = [...]` list contains hard
 plugin IDs that must already be registered. It never triggers path discovery or
-recursive loading. core ABI v2 descriptors remain declarative and have no
+recursive loading. core ABI v3 descriptors remain declarative and have no
 initialization hook.
 
 ## ABI Lowering

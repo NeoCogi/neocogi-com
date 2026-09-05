@@ -409,6 +409,7 @@ impl NcSha256 {
     const fn update_abi_hash_part(self, part: NcAbiHashPart<'_>) -> Self {
         match part {
             NcAbiHashPart::Interface { iid } => self.update_byte(0x01).update_guid(iid),
+            NcAbiHashPart::BaseInterface { interface } => self.update_byte(0x0a).update_guid(interface.iid).update_hash(interface.abi_hash),
             NcAbiHashPart::Method { index, name } => self.update_byte(0x02).update_u32(index).update_str(name),
             NcAbiHashPart::Arg { index, passing, ty } => self.update_byte(0x03).update_u32(index).update_passing(passing).update_abi_type(ty),
             NcAbiHashPart::Return { passing, ty } => self.update_byte(0x04).update_passing(passing).update_abi_type(ty),
@@ -494,6 +495,22 @@ mod tests {
     use crate::{
         NcAbiAggregateKind, NcAbiHashPart, NcAbiPassing, NcAbiThreadingMode, NcAbiType, NcGuid,
     };
+
+    #[test]
+    fn inherited_contract_hash_matches_independent_serialization() {
+        // Golden computed with Python hashlib over the documented wire grammar:
+        // domain + 0x01 + UUID bytes 0..15 + 0x0a + UUID bytes 16..31 + [42; 32].
+        let hash = NcAbiHash::from_abi_parts(&[
+            NcAbiHashPart::Interface { iid: NcGuid::from_uuid_bytes(core::array::from_fn(|i| i as u8)) },
+            NcAbiHashPart::BaseInterface { interface: crate::NcInterfaceId::new(
+                NcGuid::from_uuid_bytes(core::array::from_fn(|i| (i + 16) as u8)), NcAbiHash::from_bytes([42; 32]),
+            ) },
+        ]);
+        assert_eq!(hash.bytes, [
+            0xfd, 0x4e, 0xc7, 0x74, 0x14, 0x90, 0xe8, 0x08, 0x6d, 0x72, 0x38, 0x27, 0x74, 0x1d, 0x49, 0xf9,
+            0x31, 0x7f, 0x20, 0x2a, 0xcc, 0x97, 0xab, 0xc5, 0xf2, 0x0e, 0x9f, 0x8b, 0xc0, 0xef, 0x7f, 0xbf,
+        ]);
+    }
 
     // Expected SHA-256 digests for input bytes `0, 1, 2, ... len - 1`.
     // Generated with `sha256sum` and cross-checked with `openssl dgst -sha256`:

@@ -1,0 +1,5 @@
+error[E0515]: cannot return reference to function parameter `owner`
+  --> integration-tests/ui/interface_client_escape.rs:13:5
+   |
+13 |     &owner
+   |     ^^^^^^ returns a reference to data owned by the current function

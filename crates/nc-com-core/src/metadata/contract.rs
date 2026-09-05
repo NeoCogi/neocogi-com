@@ -16,9 +16,9 @@ use crate::hash::NcAbiHash;
 
 /// Current experimental draft core ABI version.
 ///
-/// This identifies the current binary generation; it does not mean core ABI v2 has
+/// This identifies the current binary generation; it does not mean core ABI v3 has
 /// reached its ratification milestone.
-pub const NC_COM_CORE_ABI_VERSION: u32 = 2;
+pub const NC_COM_CORE_ABI_VERSION: u32 = 3;
 
 /// Exported symbol name for an unversioned plugin descriptor provider.
 pub const NC_GET_PLUGIN_DESCRIPTOR_SYMBOL: &str = "nc_get_plugin_descriptor";
@@ -61,6 +61,11 @@ pub enum NcAbiHashPart<'a> {
     Interface {
         /// Interface GUID whose contract is being hashed.
         iid: NcGuid,
+    },
+    /// Full base contract whose vtable occupies the inherited prefix.
+    BaseInterface {
+        /// Base IID and hash; changes to any ancestor change the derived hash.
+        interface: NcInterfaceId,
     },
     /// Method identity within an interface vtable.
     Method {

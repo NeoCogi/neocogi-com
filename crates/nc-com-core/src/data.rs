@@ -198,6 +198,7 @@ impl INcBytesAbi {
         interface_id: <Self as ComInterface>::IID,
         qualified_name: NcStaticUtf8::from_static(QUALIFIED_NAME_INC_BYTES),
         abi_hash: Self::ABI_HASH,
+        base: crate::NcInterfaceId::NONE,
         method_count: Self::METHOD_DESCRIPTORS.len() as u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
     };
@@ -375,6 +376,7 @@ impl INcStringAbi {
         interface_id: <Self as ComInterface>::IID,
         qualified_name: NcStaticUtf8::from_static(QUALIFIED_NAME_INC_STRING),
         abi_hash: Self::ABI_HASH,
+        base: crate::NcInterfaceId::NONE,
         method_count: Self::METHOD_DESCRIPTORS.len() as u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
     };

@@ -16,7 +16,7 @@ use crate::compat::check_compatibility;
 use crate::diff::diff_inspections;
 use crate::plan::{render_plan_json, render_plan_text};
 use crate::render::{render_compatibility, render_diff, render_json, render_text};
-use crate::schema::{ArtifactValidationError, InspectionArtifactV1};
+use crate::schema::{ArtifactValidationError, InspectionArtifactV2};
 
 mod cli;
 mod compat;
@@ -174,9 +174,9 @@ fn run() -> Result<(), CliError> {
     Ok(())
 }
 
-fn read_json(path: &Path) -> Result<InspectionArtifactV1, CliError> {
+fn read_json(path: &Path) -> Result<InspectionArtifactV2, CliError> {
     let data = std::fs::read(path).map_err(CliError::Io)?;
-    let artifact: InspectionArtifactV1 = serde_json::from_slice(&data).map_err(CliError::Json)?;
+    let artifact: InspectionArtifactV2 = serde_json::from_slice(&data).map_err(CliError::Json)?;
     artifact.validate().map_err(CliError::Artifact)?;
     Ok(artifact)
 }

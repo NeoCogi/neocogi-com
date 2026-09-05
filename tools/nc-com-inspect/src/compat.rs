@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::schema::{ArtifactClass, ArtifactInterface, ArtifactThreading, InspectionArtifactV1};
+use crate::schema::{ArtifactClass, ArtifactInterface, ArtifactThreading, InspectionArtifactV2};
 
 #[derive(Debug, Default, Eq, PartialEq)]
 pub(crate) struct CompatibilityReport {
@@ -22,8 +22,8 @@ impl CompatibilityReport {
 }
 
 pub(crate) fn check_compatibility(
-    old: &InspectionArtifactV1,
-    new: &InspectionArtifactV1,
+    old: &InspectionArtifactV2,
+    new: &InspectionArtifactV2,
 ) -> CompatibilityReport {
     let mut report = CompatibilityReport::default();
 
@@ -68,8 +68,8 @@ pub(crate) fn check_compatibility(
 
 fn compare_dependencies(
     report: &mut CompatibilityReport,
-    old: &InspectionArtifactV1,
-    new: &InspectionArtifactV1,
+    old: &InspectionArtifactV2,
+    new: &InspectionArtifactV2,
 ) {
     let old: BTreeSet<_> = old.plugin.dependencies.iter().collect();
     let new: BTreeSet<_> = new.plugin.dependencies.iter().collect();
@@ -162,7 +162,7 @@ fn compare_interfaces(
                 "class {class_id} changed interface {iid} ABI hash: {} -> {}",
                 old_interface.abi_hash, new_interface.abi_hash
             ));
-        } else if old_interface.methods != new_interface.methods {
+        } else if old_interface.methods != new_interface.methods || old_interface.base != new_interface.base {
             report.diagnostic.push(format!(
                 "class {class_id} interface {iid} diagnostic method metadata changed with an unchanged ABI hash"
             ));
@@ -214,10 +214,12 @@ mod tests {
         new.classes.push(class);
 
         let interface_name = "example.Added:v1";
+        let base = new.classes[0].interfaces[1].base.clone();
         new.classes[0].interfaces.push(ArtifactInterface {
             id: guid_from_qualified_name(interface_name).to_string(),
             name: interface_name.to_string(),
             abi_hash: "22".repeat(32),
+            base,
             methods: Vec::new(),
         });
 

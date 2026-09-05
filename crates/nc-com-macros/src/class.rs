@@ -1,7 +1,7 @@
 //! Expansion of Rust structs into reference-counted multi-interface COM classes.
 //!
 //! The generator builds one private allocation containing an atomic reference
-//! count, an `IUnknown` header, one header per declared interface, and the Rust
+//! count, an `IUnknown` header, headers for each declared interface and its ancestors, and the Rust
 //! value. It emits query/add-ref/release thunks, optional class descriptors and
 //! constructors, threading assertions, and safe object-creation helpers.
 
@@ -10,7 +10,7 @@ use syn::{Fields, ItemStruct};
 
 use crate::args::{ClassArgs, ConstructorArguments};
 use crate::util::{
-    checked_u32_len, create_visibility, runtime_crate_path, stable_guid, validate_version_literal,
+    create_visibility, runtime_crate_path, stable_guid, validate_version_literal,
 };
 
 /// Generates object storage, lifecycle thunks, interfaces, and optional metadata.
@@ -44,25 +44,11 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
         }
     };
     let is_unit_struct = matches!(input.fields, Fields::Unit);
-    let Some(class_interface_count) = args.interfaces.len().checked_add(1) else {
-        return syn::Error::new(class_ident.span(), "class interface count overflows usize")
-            .to_compile_error();
-    };
-    let class_interface_count_u32 = match checked_u32_len(
-        class_interface_count,
-        class_ident.span(),
-        "class interface count",
-    ) {
-        Ok(count) => count,
-        Err(err) => return err.to_compile_error(),
-    };
-    let class_interface_descriptors = args.interfaces.iter().map(|iface| {
+    // Query order and exported metadata use the same derived-first ancestry.
+    // Shared bases are advertised once even when several branches expose them.
+    let interface_chains = args.interfaces.iter().map(|iface| {
         let abi = &iface.abi_path;
-        quote! {
-            #nc::NcClassInterfaceDescriptor {
-                interface_descriptor: &#abi::INTERFACE_DESCRIPTOR,
-            }
-        }
+        quote! { &#abi::INTERFACE_CHAIN }
     });
     let thread_safe_marker_impl = args.thread_safe.then(|| {
         quote! {
@@ -94,21 +80,17 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
     // These headers may live at different addresses, so user-visible casting
     // must always go through QueryInterface rather than pointer casts.
     let interface_inits = args.interfaces.iter().map(|iface| {
-        let abi = &iface.abi_path;
-        let vtable_for = &iface.vtable_for_path;
+        let interfaces_for = &iface.interfaces_for_path;
         let field = &iface.field_ident;
         quote! {
-            #field: #abi {
-                vtable: &#vtable_for::<#class_ident>::VTABLE,
-                object: core::ptr::null_mut(),
-            }
+            #field: #interfaces_for::<#class_ident>::__nc_new()
         }
     });
 
     let interface_fields = args.interfaces.iter().map(|iface| {
-        let abi = &iface.abi_path;
+        let interfaces_for = &iface.interfaces_for_path;
         let field = &iface.field_ident;
-        quote! { #field: #abi }
+        quote! { #field: #interfaces_for<#class_ident> }
     });
 
     // The object pointer is not known until the Box allocation exists. Headers
@@ -118,28 +100,29 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
     // `extern crate alloc` just to use generated classes.
     let set_interface_objects = args.interfaces.iter().map(|iface| {
         let field = &iface.field_ident;
-        quote! { (*raw).#field.object = raw.cast::<core::ffi::c_void>(); }
+        quote! { (*raw).#field.set_object(raw.cast::<core::ffi::c_void>()); }
     });
 
     // QueryInterface matches stable IIDs and returns the address of the
     // matching interface header. Returning a pointer also transfers one owned
     // reference, so every successful arm calls AddRef first.
-    let query_arms = args.interfaces.iter().map(|iface| {
-        let abi = &iface.abi_path;
+    let query_projections = args.interfaces.iter().map(|iface| {
         let field = &iface.field_ident;
         quote! {
-            interface_id if interface_id.iid == <#abi as #nc::ComInterface>::IID => {
-                if *interface_id != <#abi as #nc::ComInterface>::INTERFACE_ID {
-                    return #nc::NC_E_ABI_VERSION;
+            // SAFETY: The shared borrow only obtains a header address in live
+            // class storage; query never changes object state.
+            let projection = match unsafe { (*storage).#field.query(interface_id) } {
+                Ok(pointer) => pointer,
+                Err(status) => return status,
+            };
+            if !projection.is_null() {
+                // SAFETY: The enclosing object is live and `out` is writable.
+                // Exactly one reference is transferred after finding the header.
+                unsafe {
+                    Self::add_ref_from_abi_object(object);
+                    *out = projection;
                 }
-                // SAFETY: `object` is the generated storage pointer for this
-                // class, established by the interface header that dispatched
-                // QueryInterface.
-                unsafe { Self::add_ref_from_abi_object(object); }
-                // SAFETY: `storage` points to the enclosing generated storage
-                // and `out` was checked non-null by the caller.
-                unsafe { *out = core::ptr::addr_of_mut!((*storage).#field).cast::<core::ffi::c_void>(); }
-                #nc::NC_OK
+                return #nc::NC_OK;
             }
         }
     });
@@ -234,7 +217,7 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
                     constructor_args: #constructor_args,
                     threading: #class_threading,
                     construct: Some(#constructor_fn as #nc::NcConstructorFn),
-                    interface_count: #class_interface_count_u32,
+                    interface_count: Self::COM_INTERFACE_COUNT as u32,
                     interfaces: Self::COM_INTERFACES.as_ptr(),
                 };
 
@@ -272,13 +255,18 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
         }
 
         impl #class_ident {
-            #[doc = "Static descriptors for the COM interfaces exposed by this class. The canonical `IUnknown` descriptor is first, followed by the interfaces from `interfaces(...)` in declaration order."]
-            pub const COM_INTERFACES: [#nc::NcClassInterfaceDescriptor; #class_interface_count] = [
-                #nc::NcClassInterfaceDescriptor {
-                    interface_descriptor: &#nc::IUnknown::INTERFACE_DESCRIPTOR,
-                },
-                #(#class_interface_descriptors,)*
+            /// Static ancestry inputs; canonical IUnknown always comes first.
+            const COM_INTERFACE_CHAINS: &'static [&'static [&'static #nc::NcInterfaceDescriptor]] = &[
+                &[&#nc::IUnknown::INTERFACE_DESCRIPTOR],
+                #(#interface_chains,)*
             ];
+
+            /// Number of unique contracts, including automatically exposed bases.
+            pub const COM_INTERFACE_COUNT: usize = #nc::__nc_class_interface_count(Self::COM_INTERFACE_CHAINS);
+
+            /// All supported contracts in deterministic QueryInterface order.
+            pub const COM_INTERFACES: [#nc::NcClassInterfaceDescriptor; Self::COM_INTERFACE_COUNT] =
+                #nc::__nc_class_interfaces(Self::COM_INTERFACE_CHAINS);
 
             #class_descriptor_items
 
@@ -361,8 +349,10 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
                         unsafe { *out = core::ptr::addr_of_mut!((*storage).unknown).cast::<core::ffi::c_void>(); }
                         #nc::NC_OK
                     }
-                    #(#query_arms)*
-                    _ => #nc::NC_E_NOINTERFACE,
+                    _ => {
+                        #(#query_projections)*
+                        #nc::NC_E_NOINTERFACE
+                    },
                 }
             }
 

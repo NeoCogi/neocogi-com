@@ -1,11 +1,11 @@
-error[E0599]: the associated function or constant `VTABLE` exists for struct `IMissingImplVtblFor<MissingImpl>`, but its trait bounds were not satisfied
+error[E0599]: the associated function or constant `__nc_new` exists for struct `IMissingImplInterfacesFor<MissingImpl>`, but its trait bounds were not satisfied
  --> integration-tests/ui/class_missing_impl.rs:8:1
   |
 3 | #[com_interface(auto_guid = "nc.tests.ui.MissingImpl:v1")]
-  | ---------------------------------------------------------- associated function or constant `VTABLE` not found for this struct
+  | ---------------------------------------------------------- associated function or constant `__nc_new` not found for this struct
 ...
 8 | #[com_class(interfaces(IMissingImpl))]
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ associated function or constant cannot be called on `IMissingImplVtblFor<MissingImpl>` due to unsatisfied trait bounds
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ associated function or constant cannot be called on `IMissingImplInterfacesFor<MissingImpl>` due to unsatisfied trait bounds
 9 | pub struct MissingImpl;
   | ---------------------- doesn't satisfy `MissingImpl: IMissingImpl`
   |

@@ -6,7 +6,7 @@
 //! model so pointer ownership, buffer bounds, docs, and ABI hashes stay aligned.
 
 use quote::{format_ident, quote};
-use syn::{ItemTrait, Result};
+use syn::{ItemTrait, Result, TypeParamBound, TraitBoundModifier, PathArguments};
 
 use crate::abi_method::{
     parse_abi_trait_item, raw_vtable_method_docs, safe_method_docs, validate_interface_trait,
@@ -32,6 +32,8 @@ pub(crate) fn expand_com_interface(
     let vtable_ident = format_ident!("{trait_ident}VTable");
     let vtable_for_ident = format_ident!("{trait_ident}VtblFor");
     let ext_ident = format_ident!("{trait_ident}ComPtrExt");
+    let client_ident = format_ident!("{trait_ident}Client");
+    let interfaces_ident = format_ident!("{trait_ident}InterfacesFor");
     let qualified_name = args.qualified_name;
     let guid = interface_guid(args.guid, &qualified_name, &nc)?;
     let mut errors = None;
@@ -50,9 +52,80 @@ pub(crate) fn expand_com_interface(
     };
 
     validate_generated_method_identifiers(&methods, &mut errors);
+    // Vtable prefix fields are physical ABI members, so a local method cannot
+    // use their name. Report the source method instead of duplicate generated fields.
+    let prefix_name = if input.supertraits.is_empty() { "unknown" } else { "base" };
+    for method in &methods {
+        if method.ident == prefix_name {
+            push_error(&mut errors, syn::Error::new(method.ident.span(), format!("COM method conflicts with the generated `{prefix_name}` vtable prefix")));
+        }
+    }
+
 
     if let Some(errors) = errors {
         return Err(errors);
+    }
+
+    // Single inheritance has one unambiguous physical prefix. Generated names
+    // retain the original module path, so bases may live in another crate.
+    let base = match input.supertraits.first() {
+        None => None,
+        Some(TypeParamBound::Trait(bound)) if bound.modifier == TraitBoundModifier::None
+            && bound.lifetimes.is_none()
+            && bound.path.segments.iter().all(|segment| matches!(segment.arguments, PathArguments::None)) => Some(&bound.path),
+        Some(bound) => return Err(syn::Error::new_spanned(bound, "expected one nongeneric generated COM base interface")),
+    };
+    let mut base_identity = quote! { #nc::NcInterfaceId::NONE };
+    let mut base_chain = quote! { &[] };
+    let mut prefix_field = quote! {
+        /// Common identity, query and reference-count slots.
+        pub unknown: #nc::IUnknownVTable,
+    };
+    let mut prefix_value = quote! {
+        unknown: #nc::IUnknownVTable {
+            interface_id: identity,
+            query_interface: Self::query_interface_thunk,
+            add_ref: Self::add_ref_thunk,
+            release: Self::release_thunk,
+        },
+    };
+    let mut client_base = quote! {};
+    let mut storage_base = quote! {};
+    let mut storage_base_init = quote! {};
+    let mut storage_base_set = quote! {};
+    let mut storage_base_query = quote! { Ok(core::ptr::null_mut()) };
+    if let Some(base) = base {
+        let base_abi = generated_path(base, "Abi");
+        let base_vtable = generated_path(base, "VTable");
+        let base_vtable_for = generated_path(base, "VtblFor");
+        let base_client = generated_path(base, "Client");
+        let base_interfaces = generated_path(base, "InterfacesFor");
+        base_identity = quote! { <#base_abi as #nc::ComInterface>::INTERFACE_ID };
+        base_chain = quote! { &#base_abi::INTERFACE_CHAIN };
+        prefix_field = quote! {
+            /// Complete inherited vtable at offset zero; local slots follow it.
+            pub base: #base_vtable,
+        };
+        prefix_value = quote! { base: #base_vtable_for::<T>::with_identity(identity), };
+        client_base = quote! {
+            impl<M: #nc::ThreadingModel> core::ops::Deref for #client_ident<M> {
+                type Target = #base_client<M>;
+                fn deref(&self) -> &Self::Target {
+                    // SAFETY: Both generated views are transparent pointer words.
+                    // The inherited table is a physical prefix of the derived table.
+                    // This lends methods only; ownership and checked base projection
+                    // still require QueryInterface on the actual derived header.
+                    unsafe { &*core::ptr::from_ref(self).cast::<Self::Target>() }
+                }
+            }
+        };
+        storage_base = quote! {
+            /// Base projections share this class's allocation and reference count.
+            base: #base_interfaces<T>,
+        };
+        storage_base_init = quote! { base: #base_interfaces::<T>::__nc_new(), };
+        storage_base_set = quote! { self.base.set_object(object); };
+        storage_base_query = quote! { self.base.query(interface) };
     }
 
     let method_count =
@@ -105,6 +178,9 @@ pub(crate) fn expand_com_interface(
             iid: #guid,
         }
     }];
+    if base.is_some() {
+        interface_hash_parts.push(quote! { #nc::NcAbiHashPart::BaseInterface { interface: #base_identity } });
+    }
     for parts in &method_hash_parts {
         interface_hash_parts.extend(parts.iter().cloned());
     }
@@ -283,7 +359,7 @@ pub(crate) fn expand_com_interface(
                 #(#arg_conversions)*
                 // SAFETY: `__nc_value` points at the Rust value stored inside
                 // live generated COM storage for this call.
-                let result = unsafe { (&*__nc_value).#method_ident(#(#arg_names),*) };
+                let result = unsafe { <T as #trait_ident>::#method_ident(&*__nc_value, #(#arg_names),*) };
                 match result {
                     #success_arm
                     // Rust `Result::Err` must map to a negative ABI status.
@@ -307,88 +383,13 @@ pub(crate) fn expand_com_interface(
     // Safe extension methods hide the raw vtable call from Rust users. They
     // allocate an uninitialized out slot, call the ABI function, and only read
     // the out value when the returned status is successful.
-    let ext_methods = methods.iter().map(|method| {
-        let method_ident = &method.ident;
-        let args = method.args.iter().map(|arg| {
-            let ident = &arg.ident;
-            let ty = &arg.rust_ty;
-            quote! { #ident: #ty }
-        });
-        let arg_preparations = method.args.iter().filter_map(safe_arg_preparation);
-        let arg_names = method
-            .args
-            .iter()
-            .flat_map(safe_vtable_call_args)
-            .collect::<Vec<_>>();
-        let rust_ret = &method.ok.rust_ty;
-        match &method.ok.kind {
-            AbiReturnKind::Void => quote! {
-                // Implements the safe extension trait by forwarding to the raw
-                // status-only vtable slot.
-                fn #method_ident(&self, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
-                    #(#arg_preparations)*
-                    let this = self.as_mut_ptr();
-                    // SAFETY: `self` holds a live interface reference. The raw
-                    // vtable method receives borrowed pointers valid for this
-                    // call and returns only an `NcStatus`.
-                    let status = unsafe {
-                        ((*(*this).vtable).#method_ident)(
-                            this,
-                            #(#arg_names,)*
-                        )
-                    };
-                    if status.is_ok() {
-                        Ok(())
-                    } else {
-                        Err(status)
-                    }
-                }
-            },
-            AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => {
-                let abi_ret = &method.ok.abi_ty;
-                let success_return = match &method.ok.kind {
-                    AbiReturnKind::Plain => quote! {
-                        // SAFETY: The raw method returned success, which is the
-                        // ABI contract that it initialized the out slot.
-                        Ok(unsafe { __nc_out.assume_init() })
-                    },
-                    AbiReturnKind::ComPtr { .. } => quote! {
-                        // SAFETY: The raw method returned success, which is the
-                        // ABI contract that it initialized the out slot.
-                        let __nc_out = unsafe { __nc_out.assume_init() };
-                        // SAFETY: Successful COM pointer returns transfer one
-                        // owned reference to the caller.
-                        unsafe { <#rust_ret>::__nc_from_raw_owned_checked(__nc_out) }
-                    },
-                    AbiReturnKind::Void => unreachable!(),
-                };
-                quote! {
-                    // Implements the safe extension trait with a local output
-                    // slot that is read only after ABI success.
-                    fn #method_ident(&self, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
-                        #(#arg_preparations)*
-                        let mut __nc_out = core::mem::MaybeUninit::<#abi_ret>::uninit();
-                        let this = self.as_mut_ptr();
-                        // SAFETY: `self` holds a live interface reference. The
-                        // out pointer targets local storage that remains valid
-                        // until the call returns.
-                        let status = unsafe {
-                            ((*(*this).vtable).#method_ident)(
-                                this,
-                                #(#arg_names,)*
-                                __nc_out.as_mut_ptr(),
-                            )
-                        };
-                        if status.is_ok() {
-                            #success_return
-                        } else {
-                            Err(status)
-                        }
-                    }
-                }
-            }
-        }
-    }).collect::<Vec<_>>();
+    let ext_methods = safe_method_implementations(&nc, &methods, quote! { self.as_mut_ptr() });
+    let client_bodies = safe_method_implementations(&nc, &methods, quote! { self.__nc_pointer.as_mut_ptr() });
+    let client_methods = methods.iter().zip(client_bodies).map(|(method, body)| {
+        let user_docs = &method.doc_attrs;
+        let generated_docs = safe_method_docs(trait_ident, method);
+        quote! { #(#user_docs)* #(#generated_docs)* pub #body }
+    });
 
     let ext_trait_methods = methods.iter().map(|method| {
         let method_ident = &method.ident;
@@ -431,8 +432,7 @@ pub(crate) fn expand_com_interface(
         #[repr(C)]
         #[doc = concat!("C-compatible vtable for [`", stringify!(#trait_ident), "`].")]
         #vis struct #vtable_ident {
-            #[doc = "Common `IUnknown` lifecycle and `QueryInterface` slots."]
-            pub unknown: #nc::IUnknownVTable,
+            #prefix_field
             #(#method_fields)*
         }
 
@@ -455,6 +455,27 @@ pub(crate) fn expand_com_interface(
             }
         }
 
+        // The view only lends method lookup. It has no constructor, ownership
+        // conversions or Clone/Copy implementation and cannot outlive its lender.
+        #[repr(transparent)]
+        #[doc = concat!("Borrowed static method view for [`", stringify!(#trait_ident), "`].")]
+        #vis struct #client_ident<M: #nc::ThreadingModel = #nc::ThreadLocal> {
+            /// Certified transparent storage supplied only by a live COM pointer borrow.
+            __nc_pointer: #nc::NcClientPointer<#abi_ident, M>,
+        }
+
+        // SAFETY: The generated view is transparent pointer storage; all safe
+        // methods make synchronous ABI calls and never transfer its borrowed pointer.
+        unsafe impl #nc::ComClientInterface for #abi_ident {
+            type Client<M: #nc::ThreadingModel> = #client_ident<M>;
+        }
+
+        impl<M: #nc::ThreadingModel> #client_ident<M> {
+            #(#client_methods)*
+        }
+
+        #client_base
+
         impl #abi_ident {
             #[doc = "SHA-256 hash of this interface's typed ABI contract."]
             pub const ABI_HASH: #nc::NcAbiHash = #nc::NcAbiHash::from_abi_parts(&[
@@ -473,9 +494,58 @@ pub(crate) fn expand_com_interface(
                 interface_id: <Self as #nc::ComInterface>::IID,
                 qualified_name: #nc::NcStaticUtf8::from_static(#qualified_name),
                 abi_hash: Self::ABI_HASH,
+                base: #base_identity,
                 method_count: #method_count,
                 methods: Self::METHOD_DESCRIPTORS.as_ptr(),
             };
+
+            /// Static base ancestry used to size and construct the complete chain.
+            const BASE_CHAIN: &'static [&'static #nc::NcInterfaceDescriptor] = #base_chain;
+
+            /// This contract followed by every generated base, in query order.
+            pub const INTERFACE_CHAIN: [&'static #nc::NcInterfaceDescriptor; 1 + Self::BASE_CHAIN.len()] =
+                #nc::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, #base_chain);
+        }
+
+        // Header storage is recursive only over the statically known base
+        // chain. It is embedded directly in the one class allocation.
+        #[doc(hidden)]
+        #vis struct #interfaces_ident<T> {
+            /// Projection whose header advertises this exact interface contract.
+            own: #abi_ident,
+            #storage_base
+            /// Associates the thunk implementor without owning a second value.
+            implementor: core::marker::PhantomData<fn() -> T>,
+        }
+
+        impl<T: #trait_ident + #nc::ComAbiObject> #interfaces_ident<T> {
+            /// Creates unpublished headers; the class installs its back-pointer.
+            pub const fn __nc_new() -> Self {
+                Self {
+                    own: #abi_ident { vtable: &#vtable_for_ident::<T>::VTABLE, object: core::ptr::null_mut() },
+                    #storage_base_init
+                    implementor: core::marker::PhantomData,
+                }
+            }
+        }
+
+        impl<T> #interfaces_ident<T> {
+            /// Patches every projection before the object is published.
+            pub fn set_object(&mut self, object: *mut core::ffi::c_void) {
+                self.own.object = object;
+                #storage_base_set
+            }
+
+            /// Finds a checked projection without changing the reference count.
+            pub fn query(&self, interface: &#nc::NcInterfaceId) -> Result<*mut core::ffi::c_void, #nc::NcStatus> {
+                if interface.iid == <#abi_ident as #nc::ComInterface>::IID {
+                    if *interface != <#abi_ident as #nc::ComInterface>::INTERFACE_ID {
+                        return Err(#nc::NC_E_ABI_VERSION);
+                    }
+                    return Ok(core::ptr::from_ref(&self.own).cast_mut().cast());
+                }
+                #storage_base_query
+            }
         }
 
         #[doc(hidden)]
@@ -485,15 +555,16 @@ pub(crate) fn expand_com_interface(
         where
             T: #trait_ident + #nc::ComAbiObject,
         {
-            pub const VTABLE: #vtable_ident = #vtable_ident {
-                unknown: #nc::IUnknownVTable {
-                    interface_id: &<#abi_ident as #nc::ComInterface>::INTERFACE_ID,
-                    query_interface: Self::query_interface_thunk,
-                    add_ref: Self::add_ref_thunk,
-                    release: Self::release_thunk,
-                },
-                #(#vtable_entries,)*
-            };
+            /// Table for a standalone projection of this interface.
+            pub const VTABLE: #vtable_ident = Self::with_identity(&<#abi_ident as #nc::ComInterface>::INTERFACE_ID);
+
+            /// Builds an inherited prefix advertising the actual outer projection.
+            pub const fn with_identity(identity: &'static #nc::NcInterfaceId) -> #vtable_ident {
+                #vtable_ident {
+                    #prefix_value
+                    #(#vtable_entries,)*
+                }
+            }
 
             // Routes this interface header's IUnknown prefix to the generated
             // object's allocation-wide interface negotiation implementation.
@@ -562,6 +633,96 @@ pub(crate) fn expand_com_interface(
             #(#ext_methods)*
         }
     })
+}
+
+/// Generates one synchronous call lowering reused by owning, borrowed and inherited clients.
+fn safe_method_implementations(
+    nc: &syn::Path,
+    methods: &[AbiMethod],
+    pointer: proc_macro2::TokenStream,
+) -> Vec<proc_macro2::TokenStream> {
+    methods.iter().map(|method| {
+        let method_ident = &method.ident;
+        let args = method.args.iter().map(|arg| {
+            let ident = &arg.ident;
+            let ty = &arg.rust_ty;
+            quote! { #ident: #ty }
+        });
+        let arg_preparations = method.args.iter().filter_map(safe_arg_preparation);
+        let arg_names = method
+            .args
+            .iter()
+            .flat_map(safe_vtable_call_args)
+            .collect::<Vec<_>>();
+        let rust_ret = &method.ok.rust_ty;
+        match &method.ok.kind {
+            AbiReturnKind::Void => quote! {
+                // Implements the safe extension trait by forwarding to the raw
+                // status-only vtable slot.
+                fn #method_ident(&self, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
+                    #(#arg_preparations)*
+                    let this = #pointer;
+                    // SAFETY: `self` holds a live interface reference. The raw
+                    // vtable method receives borrowed pointers valid for this
+                    // call and returns only an `NcStatus`.
+                    let status = unsafe {
+                        ((*(*this).vtable).#method_ident)(
+                            this,
+                            #(#arg_names,)*
+                        )
+                    };
+                    if status.is_ok() {
+                        Ok(())
+                    } else {
+                        Err(status)
+                    }
+                }
+            },
+            AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => {
+                let abi_ret = &method.ok.abi_ty;
+                let success_return = match &method.ok.kind {
+                    AbiReturnKind::Plain => quote! {
+                        // SAFETY: The raw method returned success, which is the
+                        // ABI contract that it initialized the out slot.
+                        Ok(unsafe { __nc_out.assume_init() })
+                    },
+                    AbiReturnKind::ComPtr { .. } => quote! {
+                        // SAFETY: The raw method returned success, which is the
+                        // ABI contract that it initialized the out slot.
+                        let __nc_out = unsafe { __nc_out.assume_init() };
+                        // SAFETY: Successful COM pointer returns transfer one
+                        // owned reference to the caller.
+                        unsafe { <#rust_ret>::__nc_from_raw_owned_checked(__nc_out) }
+                    },
+                    AbiReturnKind::Void => unreachable!(),
+                };
+                quote! {
+                    // Implements the safe extension trait with a local output
+                    // slot that is read only after ABI success.
+                    fn #method_ident(&self, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
+                        #(#arg_preparations)*
+                        let mut __nc_out = core::mem::MaybeUninit::<#abi_ret>::uninit();
+                        let this = #pointer;
+                        // SAFETY: `self` holds a live interface reference. The
+                        // out pointer targets local storage that remains valid
+                        // until the call returns.
+                        let status = unsafe {
+                            ((*(*this).vtable).#method_ident)(
+                                this,
+                                #(#arg_names,)*
+                                __nc_out.as_mut_ptr(),
+                            )
+                        };
+                        if status.is_ok() {
+                            #success_return
+                        } else {
+                            Err(status)
+                        }
+                    }
+                }
+            }
+        }
+    }).collect::<Vec<_>>()
 }
 
 /// Emits the ordered logical hash grammar for one lowered method.
@@ -996,4 +1157,12 @@ fn threading_mode_expr(nc: &syn::Path, mode_ty: Option<&syn::Type>) -> proc_macr
         Some(mode_ty) => quote! { <#mode_ty as #nc::ThreadingModel>::ABI_THREADING_MODE },
         None => quote! { <#nc::ThreadLocal as #nc::ThreadingModel>::ABI_THREADING_MODE },
     }
+}
+
+/// Preserves a base's module path while selecting one generated companion type.
+fn generated_path(path: &syn::Path, suffix: &str) -> syn::Path {
+    let mut generated = path.clone();
+    let last = generated.segments.last_mut().expect("trait paths have a final segment");
+    last.ident = format_ident!("{}{suffix}", last.ident);
+    generated
 }

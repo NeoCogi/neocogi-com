@@ -131,3 +131,7 @@ path = "integration-tests/borrowed_calls.rs"
 [[test]]
 name = "plugin_assembly"
 path = "integration-tests/plugin_assembly.rs"
+
+[[test]]
+name = "inheritance"
+path = "integration-tests/inheritance.rs"

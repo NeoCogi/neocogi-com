@@ -6,10 +6,10 @@ use nc_com_core::NcAbiThreadingMode;
 use nc_com_runtime::{ClassInspection, InterfaceInspection, MethodInspection, PluginInspection};
 
 use crate::compat::CompatibilityReport;
-use crate::schema::{InspectionArtifactV1, SCHEMA, SCHEMA_VERSION, format_hash};
+use crate::schema::{InspectionArtifactV2, SCHEMA, SCHEMA_VERSION, format_hash};
 
 pub(crate) fn render_json(inspection: &PluginInspection) -> Result<String, serde_json::Error> {
-    let json = InspectionArtifactV1::from(inspection);
+    let json = InspectionArtifactV2::from(inspection);
     let mut rendered = serde_json::to_string_pretty(&json)?;
     rendered.push('\n');
     Ok(rendered)
@@ -147,17 +147,19 @@ fn render_class_text(out: &mut String, class: &ClassInspection) {
     }
 }
 
+/// Prints local slots beside their explicit base contract without duplicating ancestry.
 fn render_interface_text(out: &mut String, interface: &InterfaceInspection) {
     writeln!(out, "      - {}", interface.qualified_name).unwrap();
     writeln!(out, "        id: {}", interface.interface_id).unwrap();
     writeln!(out, "        abi_hash: {}", format_hash(interface.abi_hash)).unwrap();
+    if !interface.base.is_none() {
+        writeln!(out, "        base: {} ({})", interface.base.iid, format_hash(interface.base.abi_hash)).unwrap();
+    }
     writeln!(out, "        methods:").unwrap();
     if interface.methods.is_empty() {
         writeln!(out, "          (none)").unwrap();
     } else {
-        for method in &interface.methods {
-            render_method_text(out, method);
-        }
+        for method in &interface.methods { render_method_text(out, method); }
     }
 }
 
@@ -191,6 +193,7 @@ mod tests {
                         interface_id: NcGuid::from_fields(9, 10, 11, [12; 8]),
                         qualified_name: "nc.tests.inspect.Interface:v1".to_string(),
                         abi_hash: NcAbiHash::from_bytes([0x44; 32]),
+                        base: NcInterfaceId::NONE,
                         methods: Vec::new(),
                     },
                 }],

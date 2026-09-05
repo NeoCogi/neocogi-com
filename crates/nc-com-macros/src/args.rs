@@ -27,8 +27,8 @@ pub(crate) struct ClassArgs {
 pub(crate) struct ClassInterface {
     /// Path to the macro-generated C-shaped interface header.
     pub(crate) abi_path: Path,
-    /// Path to the generated generic vtable adapter.
-    pub(crate) vtable_for_path: Path,
+    /// Path to the generated ancestry-header storage for one implementor.
+    pub(crate) interfaces_for_path: Path,
     /// Collision-checked field identifier used in class storage.
     pub(crate) field_ident: Ident,
 }
@@ -511,12 +511,12 @@ impl ClassInterface {
     /// Derives generated ABI, vtable, and storage names from a trait path.
     fn from_path(path: Path) -> Result<Self> {
         let abi_path = interface_abi_path(&path)?;
-        let vtable_for_path = interface_vtable_for_path(&path)?;
+        let interfaces_for_path = interface_interfaces_for_path(&path)?;
         let field_ident = interface_field(&path);
 
         Ok(Self {
             abi_path,
-            vtable_for_path,
+            interfaces_for_path,
             field_ident,
         })
     }
@@ -569,13 +569,13 @@ fn interface_abi_path(path: &Path) -> Result<Path> {
     Ok(path_with_last_ident(path, abi_ident))
 }
 
-/// Replaces an interface trait's final segment with its vtable adapter type.
-fn interface_vtable_for_path(path: &Path) -> Result<Path> {
+/// Replaces the final trait segment with its generated ancestry storage type.
+fn interface_interfaces_for_path(path: &Path) -> Result<Path> {
     let Some(last) = path.segments.last() else {
         return Err(syn::Error::new(path.span(), "expected interface path"));
     };
     let trait_ident = &last.ident;
-    let vtable_for_ident = format_ident!("{trait_ident}VtblFor", span = trait_ident.span());
+    let vtable_for_ident = format_ident!("{trait_ident}InterfacesFor", span = trait_ident.span());
     Ok(path_with_last_ident(path, vtable_for_ident))
 }
 

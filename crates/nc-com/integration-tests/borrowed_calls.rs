@@ -11,6 +11,10 @@ pub trait ICounter {
     fn additions(&self) -> Result<u32, NcStatus>;
 }
 
+#[com_interface(auto_guid = "nc.tests.borrowed.DerivedCounter:v1")]
+/// A derived contract with no local slots exercises inherited dispatch alone.
+pub trait IDerivedCounter: ICounter {}
+
 #[derive(Default)]
 /// Observations kept alive after the foreign object's final release.
 struct Counts {
@@ -24,7 +28,7 @@ struct Counts {
 /// Heap-owned test object with a real reference-counted lifetime.
 struct Counter {
     /// Projected interface at offset zero; points back to this allocation.
-    header: ICounterAbi,
+    header: IDerivedCounterAbi,
     /// Strong references held by clients of this test object.
     references: Cell<u32>,
     /// Shared observations remain private to the test implementation binary.
@@ -75,22 +79,22 @@ unsafe extern "C" fn additions(this: *mut ICounterAbi, out: *mut u32) -> NcStatu
 }
 
 /// Immutable table whose prefix describes this exact projected interface.
-static VTABLE: ICounterVTable = ICounterVTable {
-    unknown: IUnknownVTable { interface_id: &ICounterAbi::INTERFACE_ID, query_interface: query, add_ref, release },
+static VTABLE: IDerivedCounterVTable = IDerivedCounterVTable { base: ICounterVTable {
+    unknown: IUnknownVTable { interface_id: &IDerivedCounterAbi::INTERFACE_ID, query_interface: query, add_ref, release },
     additions,
-};
+} };
 
 #[test]
 fn borrowed_generated_calls_perform_no_lifecycle_operations() {
     let counts = Rc::new(Counts::default());
     let allocation = Box::into_raw(Box::new(Counter {
-        header: ICounterAbi { vtable: &VTABLE, object: std::ptr::null_mut() },
+        header: IDerivedCounterAbi { vtable: &VTABLE, object: std::ptr::null_mut() },
         references: Cell::new(1), counts: counts.clone(),
     }));
     // SAFETY: The allocation is private until its fully initialized header is published.
     let owner = unsafe {
         (*allocation).header.object = allocation.cast();
-        ComPtr::<ICounterAbi>::from_raw_owned(&mut (*allocation).header).unwrap()
+        ComPtr::<IDerivedCounterAbi>::from_raw_owned(&mut (*allocation).header).unwrap()
     };
     let borrowed = owner.as_com_ref();
     assert_eq!(borrowed.additions(), Ok(0));

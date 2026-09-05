@@ -16,12 +16,12 @@ use nc_com_runtime::PluginInspection;
 use serde::{Deserialize, Serialize};
 
 pub(crate) const SCHEMA: &str = "nc-com.inspection";
-pub(crate) const SCHEMA_VERSION: u32 = 1;
+pub(crate) const SCHEMA_VERSION: u32 = 2;
 const PRODUCER: &str = "nc-com-inspect";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct InspectionArtifactV1 {
+pub(crate) struct InspectionArtifactV2 {
     pub(crate) schema: String,
     pub(crate) schema_version: u32,
     pub(crate) producer: ArtifactProducer,
@@ -86,6 +86,8 @@ pub(crate) struct ArtifactInterface {
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) abi_hash: String,
+    /// Base contract identity; local methods follow this complete prefix.
+    pub(crate) base: ArtifactInterfaceId,
     pub(crate) methods: Vec<ArtifactMethod>,
 }
 
@@ -128,7 +130,7 @@ impl std::fmt::Display for ArtifactValidationError {
 
 impl std::error::Error for ArtifactValidationError {}
 
-impl From<&PluginInspection> for InspectionArtifactV1 {
+impl From<&PluginInspection> for InspectionArtifactV2 {
     fn from(value: &PluginInspection) -> Self {
         let mut dependencies: Vec<_> = value.dependencies.iter().map(ToString::to_string).collect();
         dependencies.sort();
@@ -146,6 +148,7 @@ impl From<&PluginInspection> for InspectionArtifactV1 {
                             id: interface.interface_id.to_string(),
                             name: interface.qualified_name.clone(),
                             abi_hash: format_hash(interface.abi_hash),
+                            base: artifact_interface_id(interface.base),
                             methods: interface
                                 .methods
                                 .iter()
@@ -201,7 +204,7 @@ impl From<&PluginInspection> for InspectionArtifactV1 {
     }
 }
 
-impl InspectionArtifactV1 {
+impl InspectionArtifactV2 {
     pub(crate) fn validate(&self) -> Result<(), ArtifactValidationError> {
         self.validate_envelope()?;
 
@@ -266,6 +269,20 @@ impl InspectionArtifactV1 {
                     &interface.name,
                     &interface_path,
                 )?;
+            }
+            // Every inherited identity must resolve in this same class. Bound
+            // traversal by table length so malformed artifacts cannot loop.
+            for interface in &class.interfaces {
+                let mut current = interface;
+                let mut hops = 0;
+                while !validate_interface_id(&current.base, &class_path, true)?.is_none() {
+                    hops += 1;
+                    if hops >= class.interfaces.len() {
+                        return Err(ArtifactValidationError::new(&class_path, "cyclic interface inheritance"));
+                    }
+                    current = class.interfaces.iter().find(|candidate| candidate.id == current.base.iid && candidate.abi_hash == current.base.abi_hash)
+                        .ok_or_else(|| ArtifactValidationError::new(&class_path, "base interface contract is absent or incompatible"))?;
+                }
             }
             if iunknown_count != 1 {
                 return Err(ArtifactValidationError::new(
@@ -365,7 +382,13 @@ fn validate_interface(
 ) -> Result<NcGuid, ArtifactValidationError> {
     let iid = parse_guid(&interface.id, &format!("{path}.id"))?;
     let advertised_hash = parse_hash(&interface.abi_hash, &format!("{path}.abi_hash"))?;
+    let base = validate_interface_id(&interface.base, &format!("{path}.base"), true)?;
+    if base.iid == IID_IUNKNOWN {
+        return Err(ArtifactValidationError::new(path, "IUnknown is an implicit prefix, not an explicit base"));
+    }
     if interface.name == IUNKNOWN_QUALIFIED_NAME {
+        if !base.is_none() { return Err(ArtifactValidationError::new(path, "IUnknown cannot have a base")); }
+
         if NcInterfaceId::new(iid, advertised_hash) != IUNKNOWN_INTERFACE_ID {
             return Err(ArtifactValidationError::new(
                 path,
@@ -556,11 +579,11 @@ pub(crate) fn format_hash(hash: NcAbiHash) -> String {
 }
 
 #[cfg(test)]
-pub(crate) fn sample_artifact() -> InspectionArtifactV1 {
+pub(crate) fn sample_artifact() -> InspectionArtifactV2 {
     let plugin_name = "example.plugin";
     let class_name = "example.Foo";
     let interface_name = "example.FooInterface:v1";
-    InspectionArtifactV1 {
+    InspectionArtifactV2 {
         schema: SCHEMA.to_string(),
         schema_version: SCHEMA_VERSION,
         producer: ArtifactProducer {
@@ -590,12 +613,14 @@ pub(crate) fn sample_artifact() -> InspectionArtifactV1 {
                     id: IID_IUNKNOWN.to_string(),
                     name: IUNKNOWN_QUALIFIED_NAME.to_string(),
                     abi_hash: format_hash(IUNKNOWN_INTERFACE_ID.abi_hash),
+                    base: artifact_interface_id(NcInterfaceId::NONE),
                     methods: Vec::new(),
                 },
                 ArtifactInterface {
                     id: guid_from_qualified_name(interface_name).to_string(),
                     name: interface_name.to_string(),
                     abi_hash: "11".repeat(32),
+                    base: artifact_interface_id(NcInterfaceId::NONE),
                     methods: vec![ArtifactMethod {
                         index: 0,
                         name: "value".to_string(),
@@ -616,7 +641,7 @@ mod tests {
         let artifact = sample_artifact();
         artifact.validate().unwrap();
         let json = serde_json::to_vec(&artifact).unwrap();
-        let parsed: InspectionArtifactV1 = serde_json::from_slice(&json).unwrap();
+        let parsed: InspectionArtifactV2 = serde_json::from_slice(&json).unwrap();
         parsed.validate().unwrap();
         assert_eq!(parsed, artifact);
     }
@@ -627,7 +652,7 @@ mod tests {
         json.as_object_mut()
             .unwrap()
             .insert("unexpected".to_string(), serde_json::Value::Bool(true));
-        assert!(serde_json::from_value::<InspectionArtifactV1>(json).is_err());
+        assert!(serde_json::from_value::<InspectionArtifactV2>(json).is_err());
 
         let mut artifact = sample_artifact();
         artifact.schema_version += 1;

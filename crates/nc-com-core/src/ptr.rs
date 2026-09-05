@@ -170,6 +170,28 @@ unsafe impl<'a, T: ComInterface + ?Sized> Send for ComRef<'a, T, ThreadSafe> {}
 // every exposed method must be safe under concurrent calls.
 unsafe impl<'a, T: ComInterface + ?Sized> Sync for ComRef<'a, T, ThreadSafe> {}
 
+// Method views borrow the pointer word rather than forging a ComRef with a
+// longer lifetime. The optional unsafe interface trait certifies the view layout.
+impl<T: crate::ComClientInterface, M: ThreadingModel> core::ops::Deref for ComPtr<T, M> {
+    type Target = T::Client<M>;
+    /// Lends the generated method view without AddRef or a second allocation.
+    fn deref(&self) -> &Self::Target {
+        // SAFETY: ComClientInterface certifies transparent pointer storage and
+        // borrowing-only operations. This reference cannot outlive &self.
+        unsafe { &*core::ptr::from_ref(&self.ptr).cast::<Self::Target>() }
+    }
+}
+
+impl<T: crate::ComClientInterface, M: ThreadingModel> core::ops::Deref for ComRef<'_, T, M> {
+    type Target = T::Client<M>;
+    /// Lends inherited methods within the existing borrow's lifetime.
+    fn deref(&self) -> &Self::Target {
+        // SAFETY: The certified view shares the pointer word, capability and
+        // lifetime of this live ComRef; it cannot manufacture another owner.
+        unsafe { &*core::ptr::from_ref(&self.ptr).cast::<Self::Target>() }
+    }
+}
+
 impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
     /// Wraps a raw owned interface pointer.
     ///

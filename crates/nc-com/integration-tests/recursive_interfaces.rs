@@ -8,12 +8,17 @@ use std::{cell::Cell, rc::Rc};
 pub mod consumer {
     use super::*;
 
-    #[com_interface(auto_guid = "nc.tests.recursion.Value:v1")]
+    #[com_interface(auto_guid = "nc.tests.recursion.BaseValue:v1")]
     /// Consumer expects a 32-bit value.
-    pub trait IValue {
+    pub trait IBaseValue {
         /// Reads the old contract's scalar.
         fn value(&self) -> Result<u32, NcStatus>;
     }
+
+    #[com_interface(auto_guid = "nc.tests.recursion.Value:v1")]
+    /// The empty derived contract changes its hash when the base changes.
+    pub trait IValue: IBaseValue {}
+    impl IValue for Value {}
 
     #[com_interface(auto_guid = "nc.tests.recursion.Exchange:v1")]
     /// The surrounding local contract only names the value IID.
@@ -28,7 +33,7 @@ pub mod consumer {
     /// Valid consumer-side value object used as a borrowed argument.
     pub struct Value;
 
-    impl IValue for Value {
+    impl IBaseValue for Value {
         /// A mismatched receiver must never reach this method.
         fn value(&self) -> Result<u32, NcStatus> {
             Ok(42)
@@ -40,12 +45,17 @@ pub mod consumer {
 pub mod producer {
     use super::*;
 
-    #[com_interface(auto_guid = "nc.tests.recursion.Value:v1")]
+    #[com_interface(auto_guid = "nc.tests.recursion.BaseValue:v1")]
     /// The producer's revision returns 64 bits, so its full hash differs.
-    pub trait IValue {
+    pub trait IBaseValue {
         /// Reads the producer's scalar.
         fn value(&self) -> Result<u64, NcStatus>;
     }
+
+    #[com_interface(auto_guid = "nc.tests.recursion.Value:v1")]
+    /// The empty derived contract changes its hash when the base changes.
+    pub trait IValue: IBaseValue {}
+    impl IValue for Value {}
 
     #[com_interface(auto_guid = "nc.tests.recursion.Exchange:v1")]
     /// Same local method contract as the consumer, with producer-side checks.
@@ -63,7 +73,7 @@ pub mod producer {
         pub drops: Rc<Cell<u32>>,
     }
 
-    impl IValue for Value {
+    impl IBaseValue for Value {
         /// Never called by the consumer after its pointer check fails.
         fn value(&self) -> Result<u64, NcStatus> {
             Ok(42)
@@ -177,7 +187,7 @@ fn full_pointer_checks_reject_incompatible_arguments_and_release_owned_returns()
     assert_eq!(exchange.accept(value.as_com_ref()), Err(NC_E_ABI_VERSION));
     assert_eq!(calls.get(), 0, "rejected arguments must not enter the implementation");
     // The failed borrowed call must leave its owner's reference alive.
-    assert_eq!(consumer::IValueComPtrExt::value(&value), Ok(42));
+    assert_eq!(value.value(), Ok(42));
     for expected in 1..=3 {
         assert_eq!(exchange.produce().unwrap_err(), NC_E_ABI_VERSION);
         assert_eq!(drops.get(), expected, "each rejected transfer is released exactly once");

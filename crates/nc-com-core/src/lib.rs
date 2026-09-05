@@ -15,7 +15,7 @@
 //! graph for reconstructing source declarations or generating headers from a
 //! plugin binary.
 //!
-//! core ABI v2 is currently an experimental pre-alpha draft. The core ABI version
+//! core ABI v3 is currently an experimental pre-alpha draft. The core ABI version
 //! identifies its current binary generation, not a ratified compatibility
 //! baseline. Cross-release compatibility begins only at an explicitly named
 //! future ratification milestone.
@@ -25,6 +25,7 @@
 
 mod abi;
 mod constructor;
+mod client;
 mod data;
 mod guid;
 mod hash;
@@ -43,6 +44,7 @@ pub use abi::{
     __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type,
     AbiPlainValue, AbiType, ComStruct,
 };
+pub use client::{ComClientInterface, NcClientPointer};
 pub use constructor::{
     construct_class_checked, query_constructor_arguments, return_plugin_descriptor,
     validate_constructor_arguments,
@@ -97,3 +99,6 @@ pub use status::{
     NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE,
     NC_E_POINTER, NC_OK, NcStatus,
 };
+
+#[doc(hidden)]
+pub use metadata::{__nc_interface_chain, __nc_class_interface_count, __nc_class_interfaces};

@@ -4,12 +4,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::schema::{
     ArtifactClass, ArtifactInterface, ArtifactInterfaceId, ArtifactMethod, ArtifactPlugin,
-    InspectionArtifactV1,
+    InspectionArtifactV2,
 };
 
 pub(crate) fn diff_inspections(
-    old: &InspectionArtifactV1,
-    new: &InspectionArtifactV1,
+    old: &InspectionArtifactV2,
+    new: &InspectionArtifactV2,
 ) -> Vec<String> {
     // Artifact validation runs before this function, so identity-keyed maps
     // cannot silently normalize duplicate entries.
@@ -130,6 +130,7 @@ fn diff_interfaces(
         match (old.get(&id), new.get(&id)) {
             (Some(old), Some(new)) => {
                 let interface_path = format!("{path} {id}");
+                diff_interface_id(differences, &format!("{interface_path}.base"), &old.base, &new.base);
                 push_changed_str(
                     differences,
                     &format!("{interface_path}.name"),

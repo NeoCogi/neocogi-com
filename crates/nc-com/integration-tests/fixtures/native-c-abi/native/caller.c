@@ -47,6 +47,7 @@ struct NcInterfaceDescriptor {
     NcGuid interface_id;
     NcStaticUtf8 qualified_name;
     NcAbiHash abi_hash;
+    NcInterfaceId base;
     uint32_t method_count;
     const NcMethodDescriptor *methods;
 };
@@ -156,7 +157,8 @@ typedef struct NativeAggregate {
 } NativeAggregate;
 
 struct INativeCalculatorVTable {
-    IUnknownVTable unknown;
+    /* The complete INativeValue contract is the physical prefix. */
+    INativeValueVTable base;
     NcStatus (*add)(INativeCalculatorAbi *self, int32_t a, int32_t b, int32_t *out);
     NcStatus (*reset)(INativeCalculatorAbi *self);
     NcStatus (*make_value)(INativeCalculatorAbi *self, int32_t value, INativeValueAbi **out);
@@ -249,11 +251,11 @@ _Static_assert(offsetof(NcDebugApiV1Prefix, create_messenger) == sizeof(size_t),
     "NcDebugApiV1 prefix changed");
 
 #if UINTPTR_MAX == UINT64_MAX
-_Static_assert(sizeof(NcInterfaceDescriptor) == 80,
+_Static_assert(sizeof(NcInterfaceDescriptor) == 128,
     "64-bit NcInterfaceDescriptor ABI size changed");
-_Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 64,
+_Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 112,
     "64-bit NcInterfaceDescriptor.method_count ABI offset changed");
-_Static_assert(offsetof(NcInterfaceDescriptor, methods) == 72,
+_Static_assert(offsetof(NcInterfaceDescriptor, methods) == 120,
     "64-bit NcInterfaceDescriptor.methods ABI offset changed");
 _Static_assert(sizeof(NcClassDescriptor) == 128,
     "64-bit NcClassDescriptor ABI size changed");
@@ -274,11 +276,11 @@ _Static_assert(offsetof(NcPluginDescriptor, class_table) == 72,
 _Static_assert(offsetof(NcRuntimeApiV1Prefix, register_plugin_descriptor) == 16,
     "64-bit NcRuntimeApiV1 registration prefix changed");
 #elif UINTPTR_MAX == UINT32_MAX
-_Static_assert(sizeof(NcInterfaceDescriptor) == 64,
+_Static_assert(sizeof(NcInterfaceDescriptor) == 112,
     "32-bit NcInterfaceDescriptor ABI size changed");
-_Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 56,
+_Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 104,
     "32-bit NcInterfaceDescriptor.method_count ABI offset changed");
-_Static_assert(offsetof(NcInterfaceDescriptor, methods) == 60,
+_Static_assert(offsetof(NcInterfaceDescriptor, methods) == 108,
     "32-bit NcInterfaceDescriptor.methods ABI offset changed");
 _Static_assert(sizeof(NcClassDescriptor) == 96,
     "32-bit NcClassDescriptor ABI size changed");
@@ -364,11 +366,16 @@ NcStatus nc_c_exercise_calculator(
 
     INativeCalculatorAbi *calculator = (INativeCalculatorAbi *)queried;
     IUnknown *calculator_unknown = (IUnknown *)calculator;
+    int32_t inherited = 0;
+    if (calculator->vtable->base.value((INativeValueAbi *)calculator, &inherited) != 0 || inherited != 23) {
+        status = -99;
+        goto release_calculator;
+    }
 
     results->add_ref_count =
-        calculator->vtable->unknown.add_ref(calculator_unknown);
+        calculator->vtable->base.unknown.add_ref(calculator_unknown);
     results->release_extra_count =
-        calculator->vtable->unknown.release(calculator_unknown);
+        calculator->vtable->base.unknown.release(calculator_unknown);
 
     status = calculator->vtable->add(calculator, 2, 3, &results->sum);
     if (failed(status)) {
@@ -497,6 +504,6 @@ release_value:
 
 release_calculator:
     results->release_query_count =
-        calculator->vtable->unknown.release(calculator_unknown);
+        calculator->vtable->base.unknown.release(calculator_unknown);
     return status;
 }

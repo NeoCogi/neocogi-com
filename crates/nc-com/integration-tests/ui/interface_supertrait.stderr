@@ -1,5 +1,5 @@
-error: COM interfaces cannot have supertraits
+error: COM interfaces support exactly one generated base interface
  --> integration-tests/ui/interface_supertrait.rs:6:24
   |
-6 | pub trait ISupertrait: Base {
-  |                        ^^^^
+6 | pub trait ISupertrait: Base + Send {
+  |                        ^^^^^^^^^^^

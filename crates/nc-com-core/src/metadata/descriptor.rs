@@ -145,7 +145,10 @@ pub struct NcInterfaceDescriptor {
     ///
     /// This must match the canonical hash computed from `methods`.
     pub abi_hash: NcAbiHash,
-    /// Number of method descriptors.
+    /// Explicit generated base contract, or `NONE` for the implicit IUnknown root.
+    /// Methods below describe only the slots introduced by this interface.
+    pub base: NcInterfaceId,
+    /// Number of locally introduced method descriptors.
     pub method_count: u32,
     /// Pointer to `method_count` descriptors.
     pub methods: *const NcMethodDescriptor,
@@ -375,7 +378,7 @@ pub struct NcPluginDependencyDescriptor {
 
 /// Static descriptor for one plugin shared library.
 ///
-/// core ABI v2 descriptors are declarative: they contain no initialization callback
+/// core ABI v3 descriptors are declarative: they contain no initialization callback
 /// or path resolver. Hard dependency IDs describe activation order but never
 /// trigger recursive loading.
 #[repr(C)]
@@ -449,7 +452,7 @@ mod tests {
 
     #[test]
     fn core_abi_identity_is_stable() {
-        assert_eq!(NC_COM_CORE_ABI_VERSION, 2);
+        assert_eq!(NC_COM_CORE_ABI_VERSION, 3);
         assert_eq!(NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, "nc_get_plugin_descriptor");
     }
 
@@ -527,7 +530,7 @@ mod tests {
     fn interface_descriptor_c_layout_includes_qualified_name() {
         #[cfg(target_pointer_width = "64")]
         {
-            assert_eq!(core::mem::size_of::<NcInterfaceDescriptor>(), 80);
+            assert_eq!(core::mem::size_of::<NcInterfaceDescriptor>(), 128);
             assert_eq!(core::mem::align_of::<NcInterfaceDescriptor>(), 8);
             assert_eq!(
                 core::mem::offset_of!(NcInterfaceDescriptor, interface_id),
@@ -540,14 +543,14 @@ mod tests {
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, abi_hash), 32);
             assert_eq!(
                 core::mem::offset_of!(NcInterfaceDescriptor, method_count),
-                64
+                112
             );
-            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, methods), 72);
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, methods), 120);
         }
 
         #[cfg(target_pointer_width = "32")]
         {
-            assert_eq!(core::mem::size_of::<NcInterfaceDescriptor>(), 64);
+            assert_eq!(core::mem::size_of::<NcInterfaceDescriptor>(), 112);
             assert_eq!(core::mem::align_of::<NcInterfaceDescriptor>(), 4);
             assert_eq!(
                 core::mem::offset_of!(NcInterfaceDescriptor, interface_id),
@@ -560,9 +563,9 @@ mod tests {
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, abi_hash), 24);
             assert_eq!(
                 core::mem::offset_of!(NcInterfaceDescriptor, method_count),
-                56
+                104
             );
-            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, methods), 60);
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, methods), 108);
         }
     }
 

@@ -47,3 +47,9 @@ constructor, threading, target/core ABI, and hard-dependency compatibility. New
 classes/interfaces and stronger threading are compatible; version labels and
 rendered method diagnostics do not affect the result. Compatibility mode exits
 with status `1` only for a breaking or activation-breaking change.
+
+Inspection schema 2 records each interface's explicit `base` IID/hash and its
+locally declared methods. Inherited methods are found through the base entry
+in the same class. Dumps validate that base contracts exist and are acyclic;
+diffs report base changes explicitly. Schema version and core ABI version are
+independent; current libraries use core ABI 3.

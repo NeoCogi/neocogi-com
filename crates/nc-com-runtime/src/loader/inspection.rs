@@ -75,14 +75,16 @@ pub struct InterfaceInspection {
     pub qualified_name: String,
     /// SHA-256 hash of the complete lowered interface ABI contract.
     pub abi_hash: NcAbiHash,
-    /// Lowered method metadata.
+    /// Explicit base contract, or NONE for the implicit IUnknown prefix.
+    pub base: NcInterfaceId,
+    /// Locally introduced method metadata; inherited slots belong to `base`.
     pub methods: Vec<MethodInspection>,
 }
 
 /// Owned metadata for one ABI method.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MethodInspection {
-    /// Zero-based method index in the generated vtable after `IUnknown`.
+    /// Zero-based local method index after the complete inherited prefix.
     pub index: u32,
     /// Static method name copied into owned storage.
     pub name: String,
@@ -351,6 +353,7 @@ fn copy_interface(
         interface_id: interface.interface_id,
         qualified_name,
         abi_hash: interface.abi_hash,
+        base: interface.base,
         methods: copied_methods,
     })
 }

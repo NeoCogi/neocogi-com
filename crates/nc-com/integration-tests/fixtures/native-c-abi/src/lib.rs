@@ -17,7 +17,7 @@ pub trait INativeValue {
 }
 
 #[com_interface(auto_guid = "nc.tests.native_c_abi.Calculator:v1")]
-pub trait INativeCalculator {
+pub trait INativeCalculator: INativeValue {
     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
     fn reset(&self) -> Result<(), NcStatus>;
     fn make_value(&self, value: i32) -> Result<ComPtr<INativeValueAbi>, NcStatus>;
@@ -40,6 +40,11 @@ impl INativeValue for NativeValue {
 
 #[com_class(interfaces(INativeCalculator))]
 pub struct NativeCalculator;
+
+/// Inherited calls use the same concrete calculator allocation from C.
+impl INativeValue for NativeCalculator {
+    fn value(&self) -> Result<i32, NcStatus> { Ok(23) }
+}
 
 impl INativeCalculator for NativeCalculator {
     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus> {

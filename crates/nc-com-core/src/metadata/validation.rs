@@ -170,6 +170,8 @@ pub enum NcDescriptorValidationKind {
     ZeroInterfaceAbiHash,
     /// Recomputed typed method metadata does not match the advertised ABI hash.
     InterfaceAbiHashMismatch,
+    /// A base identity is malformed, absent from its class, incompatible, or cyclic.
+    InvalidInterfaceBase,
     /// A nonzero method count has a null method-table pointer.
     NullInterfaceMethods,
     /// Method-name bytes are not valid UTF-8.
@@ -612,6 +614,15 @@ fn validate_class_descriptor<R>(
         // SAFETY: The caller guarantees every non-null descriptor-graph pointer
         // is readable for validation.
         let interface = unsafe { &*class_interface.interface_descriptor };
+        // Base identities are resolved only inside this already-readable class
+        // table. The hop bound prevents hostile ancestry cycles from recursing.
+        if !unsafe { valid_interface_ancestry(interface, interfaces) } {
+            reporter.issue(
+                NC_E_ABI_VERSION,
+                NcDescriptorPath::Interface { class_index: class_index as u32, interface_index: interface_index as u32 },
+                NcDescriptorValidationKind::InvalidInterfaceBase,
+            );
+        }
         if interface.interface_id != IID_IUNKNOWN {
             continue;
         }
@@ -619,6 +630,7 @@ fn validate_class_descriptor<R>(
         let name_is_canonical =
             unsafe { interface.qualified_name.as_str() } == Ok(IUNKNOWN_QUALIFIED_NAME);
         if interface.abi_hash != IUNKNOWN_ABI_HASH
+            || !interface.base.is_none()
             || interface.method_count != 0
             || !name_is_canonical
         {
@@ -639,6 +651,34 @@ fn validate_class_descriptor<R>(
             NcDescriptorValidationKind::MissingIUnknownInterface,
         );
     }
+}
+
+/// Checks the bounded single-base chain without following new foreign pointers.
+///
+/// # Safety
+/// Every non-null descriptor pointer in `interfaces` must remain readable.
+unsafe fn valid_interface_ancestry(mut current: &NcInterfaceDescriptor, interfaces: &[NcClassInterfaceDescriptor]) -> bool {
+    for _ in 0..interfaces.len() {
+        let base = current.base;
+        if base.is_none() { return true; }
+        if base.iid.is_nil() || base.abi_hash.is_zero() || base.iid == IID_IUNKNOWN {
+            return false;
+        }
+        let mut found = None;
+        for candidate in interfaces {
+            if candidate.interface_descriptor.is_null() { continue; }
+            // SAFETY: The caller guarantees this existing class-table pointer.
+            let candidate = unsafe { &*candidate.interface_descriptor };
+            if candidate.interface_id == base.iid {
+                if candidate.abi_hash != base.abi_hash { return false; }
+                found = Some(candidate);
+                break;
+            }
+        }
+        let Some(parent) = found else { return false; };
+        current = parent;
+    }
+    false
 }
 
 /// Validates one class/interface edge and its referenced interface descriptor.
@@ -1098,6 +1138,10 @@ unsafe fn hash_interface_descriptor(
         iid: interface.interface_id,
     });
 
+    if !interface.base.is_none() {
+        hasher = hasher.update_abi_hash_part(NcAbiHashPart::BaseInterface { interface: interface.base });
+    }
+
     for (method_index, method) in methods.iter().enumerate() {
         let method_name = unsafe {
             // SAFETY: The caller validated method name UTF-8 metadata for this
@@ -1150,7 +1194,7 @@ fn descriptor_passing(passing: NcAbiPassingDescriptor) -> Result<NcAbiPassing, N
     }
 }
 
-/// Converts a raw threading tag, rejecting values outside core ABI v2.
+/// Converts a raw threading tag, rejecting values outside core ABI v3.
 fn descriptor_threading_mode(threading: u32) -> Result<NcAbiThreadingMode, NcStatus> {
     NcAbiThreadingMode::from_raw(threading).ok_or(NC_E_INVALID_ARG)
 }
@@ -1404,6 +1448,7 @@ mod tests {
             interface_id: INTERFACE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.Interface"),
             abi_hash: NcAbiHash::ZERO,
+            base: crate::NcInterfaceId::NONE,
             method_count: 0,
             methods: core::ptr::null(),
         };
@@ -1459,6 +1504,7 @@ mod tests {
             interface_id: INTERFACE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.Interface"),
             abi_hash: DESCRIBED_INTERFACE_HASH,
+            base: crate::NcInterfaceId::NONE,
             method_count: DESCRIBED_INTERFACE_METHODS.len() as u32,
             methods: DESCRIBED_INTERFACE_METHODS.as_ptr(),
         };
@@ -1501,6 +1547,7 @@ mod tests {
             interface_id: INTERFACE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.Interface"),
             abi_hash: NcAbiHash::from_bytes([0x7b; 32]),
+            base: crate::NcInterfaceId::NONE,
             method_count: DESCRIBED_INTERFACE_METHODS.len() as u32,
             methods: DESCRIBED_INTERFACE_METHODS.as_ptr(),
         };
@@ -1601,6 +1648,7 @@ mod tests {
             interface_id: WRONG_INTERFACE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.Identity.Interface"),
             abi_hash: WRONG_INTERFACE_HASH,
+            base: crate::NcInterfaceId::NONE,
             method_count: 0,
             methods: core::ptr::null(),
         };
@@ -1709,6 +1757,7 @@ mod tests {
             interface_id: IID_IUNKNOWN,
             qualified_name: NcStaticUtf8::from_static("IUnknown"),
             abi_hash: INVALID_IUNKNOWN_HASH,
+            base: crate::NcInterfaceId::NONE,
             method_count: INVALID_IUNKNOWN_METHOD.len() as u32,
             methods: INVALID_IUNKNOWN_METHOD.as_ptr(),
         };

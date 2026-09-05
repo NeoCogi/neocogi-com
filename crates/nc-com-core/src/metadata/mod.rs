@@ -7,6 +7,7 @@
 
 mod contract;
 mod descriptor;
+mod inheritance;
 #[cfg(feature = "alloc")]
 mod signature;
 mod text;
@@ -14,6 +15,7 @@ mod validation;
 
 pub use contract::*;
 pub use descriptor::*;
+pub use inheritance::*;
 #[cfg(feature = "alloc")]
 pub use signature::format_method_signature;
 pub use text::*;

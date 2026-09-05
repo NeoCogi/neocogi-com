@@ -506,6 +506,7 @@ mod tests {
             interface_id: INTERFACE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.registry.ModuleIndexedInterface"),
             abi_hash: INTERFACE_HASH,
+            base: nc_com_core::NcInterfaceId::NONE,
             method_count: 0,
             methods: core::ptr::null(),
         };
@@ -812,6 +813,7 @@ mod tests {
             interface_id: INTERFACE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.registry.MultiPluginInterface"),
             abi_hash: INTERFACE_HASH,
+            base: nc_com_core::NcInterfaceId::NONE,
             method_count: 0,
             methods: core::ptr::null(),
         };

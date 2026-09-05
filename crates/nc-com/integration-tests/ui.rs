@@ -56,6 +56,8 @@ fn ui_errors_are_stable() {
     t.compile_fail("integration-tests/ui/interface_comptr_arg.rs");
     t.compile_fail("integration-tests/ui/interface_comref_return.rs");
     t.compile_fail("integration-tests/ui/interface_supertrait.rs");
+    t.compile_fail("integration-tests/ui/interface_client_escape.rs");
+    t.compile_fail("integration-tests/ui/interface_prefix_collision.rs");
     t.compile_fail("integration-tests/ui/interface_unsafe_trait.rs");
     t.compile_fail("integration-tests/ui/interface_unsupported_items.rs");
     t.compile_fail("integration-tests/ui/interface_wrong_error.rs");

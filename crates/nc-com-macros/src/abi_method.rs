@@ -140,10 +140,10 @@ pub(crate) fn validate_interface_trait(input: &ItemTrait, errors: &mut Option<sy
             syn::Error::new_spanned(where_clause, "COM interfaces cannot have where clauses"),
         );
     }
-    if !input.supertraits.is_empty() {
+    if input.supertraits.len() > 1 {
         push_error(
             errors,
-            syn::Error::new_spanned(&input.supertraits, "COM interfaces cannot have supertraits"),
+            syn::Error::new_spanned(&input.supertraits, "COM interfaces support exactly one generated base interface"),
         );
     }
 }

@@ -173,6 +173,7 @@ impl IUnknown {
         interface_id: IID_IUNKNOWN,
         qualified_name: NcStaticUtf8::from_static(IUNKNOWN_QUALIFIED_NAME),
         abi_hash: IUNKNOWN_ABI_HASH,
+        base: crate::NcInterfaceId::NONE,
         method_count: 0,
         methods: core::ptr::null(),
     };
