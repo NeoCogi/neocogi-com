@@ -2,7 +2,7 @@
 
 Status: experimental draft (pre-alpha; not ratified)
 
-Core ABI version: `NC_COM_CORE_ABI_VERSION = 1`
+Core ABI version: `NC_COM_CORE_ABI_VERSION = 3`
 
 Dynamic plugin descriptor symbol: `nc_get_plugin_descriptor`
 
@@ -80,7 +80,7 @@ another explicit protocol. Bounded call-scoped copy buffers may cross through
 the `CopyFromBufferOffset<T>` and `CopyToBufferOffset<T>` passing modes. The
 built-in read-only byte and string interfaces are specified in section 15.
 
-ABI-v2 descriptor metadata exists for runtime identity, compatibility
+ABI-v3 descriptor metadata exists for runtime identity, compatibility
 validation, registration, construction, and inspection. It is deliberately not
 a source-level reflection schema. In particular, aggregate hashes are opaque,
 one-way compatibility fingerprints: runtime consumers compare and propagate
@@ -203,7 +203,7 @@ build has been distributed, a later incompatible binary shape must use a
 different ABI discriminator so stale artifacts are rejected rather than
 misinterpreted.
 
-No ABI-v2 ratification milestone has occurred. Ratification requires an
+No ABI-v3 ratification milestone has occurred. Ratification requires an
 explicit status change in this document, a named source tag/release, a changelog
 entry identifying the compatibility baseline, and locked golden vectors for
 the ratified contract. Until then, breaking draft changes and intentional
@@ -235,9 +235,9 @@ pub struct NcStatus(i32);
 ```
 
 Non-negative values are success. Negative values are errors. `NC_OK` is the
-only built-in success status in v1.
+only built-in success status.
 
-Built-in v1 status values are:
+Built-in status values are:
 
 | Symbol | Code | Meaning |
 | --- | ---: | --- |
@@ -378,12 +378,12 @@ may implement one interface. Mapping conflicts are rejected during planning or
 registration. These checks run only during validation/registration and add no
 cost to interface lookup or dispatch.
 
-The conventional COM `IUnknown` identity is the sole v1 exception. Its
+The conventional COM `IUnknown` identity is the sole built-in identity exception. Its
 reserved qualified name is exactly `IUnknown`, and its IID remains the
 conventional non-v5 value. User-defined metadata may not claim that reserved
 IID/name pair except through the canonical root descriptor.
 
-The v2 built-in COM interface identities are:
+The v3 built-in COM interface identities are:
 
 | Interface | Qualified name | IID | ABI hash |
 | --- | --- | --- | --- |
@@ -419,7 +419,7 @@ every bit pattern is valid, that arbitrary storage is initialized, or that a
 tagged union's tag and active member agree. Consumers must establish those
 validity properties before materializing a typed Rust payload.
 
-The built-in v2 plain value set is:
+The built-in v3 plain value set is:
 
 - `bool`
 - `u8`, `u16`, `u32`, `u64`, `usize`
@@ -526,7 +526,7 @@ every tag with `#[com_tag(...)]`.
 
 ## 8. Object Model
 
-Every COM object implements `IUnknown`. The v2 `IUnknown` header is:
+Every COM object implements `IUnknown`. The v3 `IUnknown` header is:
 
 ```rust,ignore
 #[repr(C)]
@@ -536,7 +536,7 @@ pub struct IUnknown {
 }
 ```
 
-The v2 `IUnknown` vtable is:
+The v3 `IUnknown` vtable is:
 
 ```rust,ignore
 #[repr(C)]
@@ -964,8 +964,10 @@ checks of actual pointers. Descriptor metadata still records full target hashes.
 
 `interface_id` describes the actual projected interface using the vtable, not
 necessarily IUnknown. It points to immutable static metadata. Checking it performs
-no AddRef/Release. The loader must validate core ABI generation 2 before reading
-object pointers: generation 1 vtables have a different prefix. Raw callers remain
+no AddRef/Release. The loader must validate core ABI generation 3 before accepting
+descriptors or object pointers: generation 1 vtables lack this identity field, and
+generation 2 descriptors lack the explicit interface-base metadata. The current
+header still contains two pointers; projected identity belongs to its vtable. Raw callers remain
 responsible for live, valid common headers/vtables; these checks cannot make an
 arbitrary address safe. Threading promises remain the producer's obligation.
 
@@ -1161,12 +1163,12 @@ whose advertised `abi_hash` does not match.
 
 ## 12. Descriptor Layouts
 
-All public descriptor structs are `repr(C)` exact v2 layouts. They do not carry
+All public descriptor structs are `repr(C)` exact v3 layouts. They do not carry
 per-descriptor `size` fields. Consumers interpret descriptor fields only after
 the plugin `core_abi_version` matches the host's supported
 `NC_COM_CORE_ABI_VERSION`.
 
-Existing v2 fields must not be reordered, removed, appended to, or
+Existing v3 fields must not be reordered, removed, appended to, or
 reinterpreted without a core ABI break.
 
 Fields declared as `Option<extern "C" fn>` use the nullable function-pointer
@@ -1189,7 +1191,7 @@ while the descriptor is visible to the host.
 
 Conforming producer metadata that is specified as text must be valid UTF-8.
 The core descriptor validator checks pointer/count consistency and UTF-8 before
-metadata is accepted. It also applies these v2 metadata policies:
+metadata is accepted. It also applies these v3 metadata policies:
 
 - Plugin, class, and interface qualified names contain `1..=1024` bytes.
 - A qualified name is a sequence of nonempty segments separated by `.` or `:`.
@@ -1397,7 +1399,7 @@ duplicate interface entries. Listed paths must have distinct final names because
 those names determine generated fields and companion ABI types. Generated
 tables place `IUnknown` first, followed by the listed interfaces in source
 declaration order. This order is observable enumeration metadata but is not
-part of an interface ABI hash; v1 defines no class-interface-set signature or
+part of an interface ABI hash; the core ABI defines no class-interface-set signature or
 hash. Handwritten descriptor producers may use another order, but must still
 provide exactly one canonical `IUnknown` and no duplicate IID.
 
@@ -1459,7 +1461,7 @@ pub struct NcPluginDescriptor {
 }
 ```
 
-`core_abi_version` must equal `NC_COM_CORE_ABI_VERSION` for v1. `plugin_id` must
+`core_abi_version` must equal `NC_COM_CORE_ABI_VERSION` for this draft. `plugin_id` must
 equal the UUIDv5 derivation of `qualified_name` and be non-nil. Every class ID
 and non-root interface ID in the graph follows the same rule. If
 `dependency_count == 0`, `dependencies` may be null. Otherwise it
@@ -1505,7 +1507,7 @@ The Rust `plugin!` macro only generates descriptors. A final dynamic-library
 root invokes `nc_com::export_plugin!()` (or passes an explicit descriptor function
 path). Static plugin assemblies omit that export and register the same metadata.
 
-A dynamic v2 plugin exports:
+A dynamic v3 plugin exports:
 
 ```rust,ignore
 pub unsafe extern "C" fn nc_get_plugin_descriptor(
@@ -2367,7 +2369,7 @@ inter-thread proxy system.
 
 Expected cross-boundary failures must be returned as `NcStatus`.
 
-nc-com v1 does not catch panics in generated ABI thunks. With `panic=abort`, the
+nc-com does not catch panics in generated ABI thunks. With `panic=abort`, the
 process aborts at the panic site. With unwinding enabled, a panic that reaches a
 non-unwind `extern "C"` ABI boundary aborts under Rust's ABI unwind rules.
 
@@ -2428,7 +2430,7 @@ contracts exposed by those libraries.
 ## 21. ABI Evolution Rules
 
 The no-mutation rules in this section apply to published contracts beginning at
-the explicit ABI-v2 ratification baseline. During the experimental draft phase,
+the explicit ABI-v3 ratification baseline. During the experimental draft phase,
 they describe the intended post-freeze policy rather than a promise of
 compatibility with earlier pre-alpha revisions.
 
@@ -2501,7 +2503,7 @@ The contract crate should not contain:
 - heap-owned Rust containers crossing the boundary
 - host-specific activation policy
 
-Recommended release policy after ABI-v2 ratification:
+Recommended release policy after ABI-v3 ratification:
 
 - patch releases change documentation, tests, or non-ABI internals only
 - minor releases add side-by-side interfaces, classes, records, or enum values
@@ -2564,7 +2566,7 @@ core ABI v3 does not specify:
 
 ## 25. Application Responsibilities
 
-The v2 core ABI is suitable for same-process Rust component boundaries. It
+The v3 core ABI is suitable for same-process Rust component boundaries. It
 deliberately does not define an application shell, package manager, plugin
 marketplace, or operating-system style activation database.
 

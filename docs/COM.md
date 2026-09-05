@@ -192,12 +192,12 @@ unsafe extern "C" fn(this: *mut IFlushableAbi) -> NcStatus
 `nc-com` is not a C SDK generator. The ABI is C-compatible and is tested from
 native C, but the focus is Rust components using a C ABI as the stable
 compatibility layer across independently built Rust artifacts after an explicit
-ABI ratification milestone. The current ABI-v2 definition is still a pre-alpha
+ABI ratification milestone. The current ABI-v3 definition is still a pre-alpha
 draft.
 
 C header generation, language bindings, and C-first distribution should be a
 separate project/tooling layer that consumes original contract definitions or
-other build-time inputs. ABI-v2 runtime descriptors are validation metadata,
+other build-time inputs. ABI-v3 runtime descriptors are validation metadata,
 not a reflection schema, and are never intended for reverse generation of
 source declarations. This crate should remain focused on defining and enforcing
 the Rust-side ABI model.
@@ -1022,7 +1022,7 @@ The current draft core ABI v3 specification lives in
 [`docs/abi-v3.md`](docs/abi-v3.md). core ABI v3 uses an unversioned plugin descriptor
 entrypoint. core ABI v3 is an experimental pre-alpha draft and has not been
 ratified. Cross-release compatibility begins only when a named release/tag and
-changelog entry explicitly establish the ABI-v2 freeze baseline. Until then,
+changelog entry explicitly establish the ABI-v3 freeze baseline. Until then,
 breaking draft changes and intentional golden-vector updates are permitted;
 hosts and plugins from different nc-com source releases are not guaranteed to
 interoperate.
