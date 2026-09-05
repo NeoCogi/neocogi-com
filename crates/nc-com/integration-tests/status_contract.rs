@@ -129,3 +129,25 @@ fn checked_constructor_success_publishes_a_non_null_owned_output() {
     let owned = unsafe { ComPtr::<IUnknown>::from_raw_owned(out) };
     assert!(owned.is_some());
 }
+
+#[nc_com::com_enum(tag = u8)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// Legal Rust variants whose lowercase spellings are reserved field identifiers.
+enum KeywordPayload {
+    /// Exercises a control-flow keyword.
+    Move(u32),
+    /// Exercises a type-definition keyword.
+    Type(u8),
+    /// Exercises a keyword which cannot simply become a raw identifier.
+    Crate(u64),
+    /// Previously collided with the generator's empty-union sentinel.
+    _EMPTY(u16),
+}
+
+#[test]
+fn keyword_shaped_payload_variants_round_trip_without_identifier_collisions() {
+    for value in [KeywordPayload::Move(7), KeywordPayload::Type(8), KeywordPayload::Crate(9), KeywordPayload::_EMPTY(10)] {
+        let abi = KeywordPayloadAbi::from(value);
+        assert_eq!(KeywordPayload::try_from(abi), Ok(value));
+    }
+}

@@ -80,6 +80,7 @@ pub(crate) fn expand_com_enum(
 
     let tag_consts = variants.iter().map(|(variant_ident, _, tag_value)| {
         quote! {
+            #[doc = concat!("Wire tag for [`", stringify!(#enum_ident), "::", stringify!(#variant_ident), "`].")]
             pub const #variant_ident: Self = Self(#tag_value);
         }
     });
@@ -684,7 +685,9 @@ fn variant_payload_ident(enum_ident: &Ident, variant_ident: &Ident) -> Ident {
 fn union_payload_field(variant_ident: &Ident) -> Ident {
     let mut name = variant_ident.to_string();
     name.make_ascii_lowercase();
-    format_ident!("{name}")
+    // A private prefix keeps Move/Type/Crate and other keyword-shaped variants
+    // valid without special-case keyword lists or changing their ABI layout.
+    format_ident!("__nc_{name}")
 }
 
 /// Rejects case-folded variant names that would collide as generated union fields.
@@ -697,19 +700,7 @@ fn validate_unique_union_payload_fields(variants: &[(Ident, Fields, Expr)]) -> R
             continue;
         }
 
-        let mut field_name = variant_ident.to_string();
-        field_name.make_ascii_lowercase();
-        if field_name == "_empty" {
-            push_error(
-                &mut errors,
-                syn::Error::new(
-                    variant_ident.span(),
-                    "COM enum payload variant generates reserved union field `_empty`",
-                ),
-            );
-            continue;
-        }
-
+        let field_name = union_payload_field(variant_ident).to_string();
         if let Some((_, previous_variant)) = fields
             .iter()
             .find(|(previous_name, _)| previous_name == &field_name)
