@@ -1801,9 +1801,9 @@ fn tagged_com_enum_converts_unit_tuple_and_named_variants() {
 #[test]
 fn tagged_com_enum_raw_construction_is_an_explicit_unsafe_escape_hatch() {
     let payload = TestMutationPayload {
-        childadded: core::mem::ManuallyDrop::new(TestMutationChildAddedPayload { _0: 17, _1: 4 }),
+        __nc_childadded: core::mem::ManuallyDrop::new(TestMutationChildAddedPayload { _0: 17, _1: 4 }),
     };
-    // SAFETY: `ChildAdded` selects the initialized `childadded` member, whose
+    // SAFETY: `ChildAdded` selects the initialized `__nc_childadded` member, whose
     // integer fields contain valid, fully initialized values.
     let abi =
         unsafe { TestMutationAbi::from_raw_parts_unchecked(TestMutationTag::ChildAdded, payload) };
