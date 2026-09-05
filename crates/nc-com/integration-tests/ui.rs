@@ -1,6 +1,10 @@
 #[test]
 fn ui_errors_are_stable() {
     let t = trybuild::TestCases::new();
+    t.pass("integration-tests/ui/class_generic_owned.rs");
+    t.compile_fail("integration-tests/ui/class_generic_borrowed.rs");
+    t.compile_fail("integration-tests/ui/class_generic_descriptor.rs");
+    t.compile_fail("integration-tests/ui/class_lifetime.rs");
 
     if !rustc_is_nightly() {
         t.compile_fail("integration-tests/ui/class_missing_impl.rs");

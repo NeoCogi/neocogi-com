@@ -22,6 +22,29 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
     let class_ident = &input.ident;
     let class_vis = create_visibility(&input.vis);
     let storage_ident = format_ident!("{class_ident}ComObject");
+    // Rust implementation generics stay inside the allocating binary. A registered
+    // descriptor cannot choose type arguments, and COM pointers cannot carry the
+    // lifetime of borrowed application storage.
+    let generic = !input.generics.params.is_empty();
+    if generic && args.descriptor.is_some() {
+        return syn::Error::new_spanned(&input.generics,
+            "generic COM implementation classes cannot declare a registered class descriptor")
+            .to_compile_error();
+    }
+    if input.generics.lifetimes().next().is_some() {
+        return syn::Error::new_spanned(&input.generics,
+            "COM implementation classes must own their state; lifetime parameters are not supported")
+            .to_compile_error();
+    }
+    let mut generics = input.generics.clone();
+    if generic {
+        let (_, types, _) = input.generics.split_for_impl();
+        generics.make_where_clause().predicates.push(syn::parse_quote!(#class_ident #types: 'static));
+    }
+    let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
+    let class_type = quote! { #class_ident #type_generics };
+    let storage_type = quote! { #storage_ident #type_generics };
+
     let declared_threading_model = if args.thread_safe {
         quote! { #nc::ThreadSafe }
     } else {
@@ -30,38 +53,44 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
     // All generated pointer types, descriptor metadata, and constructor checks
     // project through this one class-level threading declaration.
     let pointer_threading_model = quote! {
-        <#class_ident as #nc::ComClass>::Threading
+        <#class_type as #nc::ComClass>::Threading
     };
     let class_threading = quote! {
-        <<#class_ident as #nc::ComClass>::Threading as #nc::ThreadingModel>::ABI_THREADING_MODE
+        <<#class_type as #nc::ComClass>::Threading as #nc::ThreadingModel>::ABI_THREADING_MODE
             .as_raw()
     };
     let com_class_impl = quote! {
         // SAFETY: This associated mode is generated from the class attribute and
         // is reused by every generated pointer, descriptor, and constructor.
-        unsafe impl #nc::ComClass for #class_ident {
+        unsafe impl #impl_generics #nc::ComClass for #class_type #where_clause {
             type Threading = #declared_threading_model;
         }
     };
     let is_unit_struct = matches!(input.fields, Fields::Unit);
     // Query order and exported metadata use the same derived-first ancestry.
     // Shared bases are advertised once even when several branches expose them.
-    let interface_chains = args.interfaces.iter().map(|iface| {
+    let declared_chains = args.interfaces.iter().map(|iface| {
         let abi = &iface.abi_path;
         quote! { &#abi::INTERFACE_CHAIN }
     });
+    let interface_chains = quote! { &[
+        &[&#nc::IUnknown::INTERFACE_DESCRIPTOR],
+        #(#declared_chains,)*
+    ] };
     let thread_safe_marker_impl = args.thread_safe.then(|| {
-        quote! {
+        let assertion = (!generic).then(|| quote! {
             const _: fn() = || {
-                // Forces a compile-time proof for the generated thread-safe marker.
+                // Additional direct diagnostic for ordinary nongeneric classes.
                 fn assert_thread_safe<T: Send + Sync>() {}
-                assert_thread_safe::<#class_ident>();
+                assert_thread_safe::<#class_type>();
             };
-
-            // SAFETY: The compile-time assertion above requires the Rust class
-            // to be `Send + Sync`; the user is also responsible for the
-            // `ThreadSafeComObject` contract on exposed method behavior.
-            unsafe impl #nc::ThreadSafeComObject for #class_ident {}
+        });
+        quote! {
+            #assertion
+            // SAFETY: ThreadSafeComObject's Send + Sync supertraits prove the
+            // bounds for every permitted specialization. Interface behavior must
+            // also uphold the documented concurrent-call contract.
+            unsafe impl #impl_generics #nc::ThreadSafeComObject for #class_type #where_clause {}
         }
     });
     // Every class can be constructed from an initialized Rust value. Unit
@@ -83,14 +112,17 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
         let interfaces_for = &iface.interfaces_for_path;
         let field = &iface.field_ident;
         quote! {
-            #field: #interfaces_for::<#class_ident>::__nc_new()
+            #field: #interfaces_for::<#class_type>::__nc_new()
         }
     });
 
     let interface_fields = args.interfaces.iter().map(|iface| {
         let interfaces_for = &iface.interfaces_for_path;
         let field = &iface.field_ident;
-        quote! { #field: #interfaces_for<#class_ident> }
+        quote! {
+            /// Concrete interface headers and inherited projections for this exact stored implementation.
+            #field: #interfaces_for<#class_type>
+        }
     });
 
     // The object pointer is not known until the Box allocation exists. Headers
@@ -169,7 +201,7 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
             let default_value = if is_unit_struct {
                 quote! { #class_ident }
             } else {
-                quote! { <#class_ident as ::core::default::Default>::default() }
+                quote! { <#class_type as ::core::default::Default>::default() }
             };
             let generated_constructor = if descriptor.constructor.function.is_some() {
                 quote! {}
@@ -246,26 +278,27 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
 
         // Storage order is private but still uses `repr(C)` to keep pointer
         // arithmetic and field addresses predictable for generated ABI thunks.
+        /// One owned allocation for this exact implementation and all of its concrete interface projections.
         #[repr(C)]
-        struct #storage_ident {
+        struct #storage_ident #impl_generics #where_clause {
+            /// Allocation-wide ownership count; final Release destroys the stored specialization once.
             ref_count: ::core::sync::atomic::AtomicU32,
+            /// Canonical identity shared by every interface and inherited base projection.
             unknown: #nc::IUnknown,
             #(#interface_fields,)*
-            value: #class_ident,
+            /// Owned Rust state; no reference into a caller's stack escapes through the COM pointer.
+            value: #class_type,
         }
 
-        impl #class_ident {
+        impl #impl_generics #class_type #where_clause {
             /// Static ancestry inputs; canonical IUnknown always comes first.
-            const COM_INTERFACE_CHAINS: &'static [&'static [&'static #nc::NcInterfaceDescriptor]] = &[
-                &[&#nc::IUnknown::INTERFACE_DESCRIPTOR],
-                #(#interface_chains,)*
-            ];
+            const COM_INTERFACE_CHAINS: &'static [&'static [&'static #nc::NcInterfaceDescriptor]] = #interface_chains;
 
             /// Number of unique contracts, including automatically exposed bases.
             pub const COM_INTERFACE_COUNT: usize = #nc::__nc_class_interface_count(Self::COM_INTERFACE_CHAINS);
 
             /// All supported contracts in deterministic QueryInterface order.
-            pub const COM_INTERFACES: [#nc::NcClassInterfaceDescriptor; Self::COM_INTERFACE_COUNT] =
+            pub const COM_INTERFACES: [#nc::NcClassInterfaceDescriptor; #nc::__nc_class_interface_count(#interface_chains)] =
                 #nc::__nc_class_interfaces(Self::COM_INTERFACE_CHAINS);
 
             #class_descriptor_items
@@ -275,7 +308,7 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
                 let object = #nc::__alloc::boxed::Box::new(#storage_ident {
                     ref_count: ::core::sync::atomic::AtomicU32::new(1),
                     unknown: #nc::IUnknown {
-                        vtable: &#storage_ident::UNKNOWN_VTABLE,
+                        vtable: &<#storage_type>::UNKNOWN_VTABLE,
                         object: core::ptr::null_mut(),
                     },
                     #(#interface_inits,)*
@@ -309,12 +342,12 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
         // SAFETY: This impl is generated together with the private storage
         // layout above. Every object pointer accepted here is the back-pointer
         // installed in one of that storage allocation's interface headers.
-        unsafe impl #nc::ComAbiObject for #class_ident {
+        unsafe impl #impl_generics #nc::ComAbiObject for #class_type #where_clause {
             // The interface thunk has only the opaque object pointer. This
             // method maps it back to the Rust value so the original trait impl
             // can be called.
             unsafe fn value_from_abi_object(object: *mut core::ffi::c_void) -> *mut Self {
-                let storage = object.cast::<#storage_ident>();
+                let storage = object.cast::<#storage_type>();
                 // SAFETY: `object` is guaranteed by the generated interface
                 // header to point at this class's storage allocation.
                 unsafe { core::ptr::addr_of_mut!((*storage).value) }
@@ -333,7 +366,7 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
                 // SAFETY: `out` was checked non-null and is valid for one
                 // pointer write under the raw ABI contract.
                 unsafe { *out = core::ptr::null_mut(); }
-                let storage = object.cast::<#storage_ident>();
+                let storage = object.cast::<#storage_type>();
                 // SAFETY: `interface_id` was checked non-null and is readable
                 // for this call.
                 let interface_id = unsafe { &*interface_id };
@@ -362,7 +395,7 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
                 if object.is_null() {
                     return 0;
                 }
-                let storage = object.cast::<#storage_ident>();
+                let storage = object.cast::<#storage_type>();
                 // SAFETY: `object` is a live generated storage pointer whose
                 // refcount field remains valid until final Release.
                 unsafe { #nc::__com_add_ref_count(&(*storage).ref_count) }
@@ -375,7 +408,7 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
                 if object.is_null() {
                     return 0;
                 }
-                let storage = object.cast::<#storage_ident>();
+                let storage = object.cast::<#storage_type>();
                 // SAFETY: `object` is a live generated storage pointer. A zero
                 // remaining count grants this call exclusive final-drop rights.
                 let Some(remaining) = (unsafe { #nc::__com_release_ref_count(&(*storage).ref_count) }) else {
@@ -394,7 +427,7 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
         #com_class_impl
         #thread_safe_marker_impl
 
-        impl #storage_ident {
+        impl #impl_generics #storage_type #where_clause {
             // The standalone IUnknown header uses this vtable. Interface
             // headers use their interface-specific vtables, which embed the
             // same three lifecycle operations as the first field.
@@ -422,7 +455,7 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
                 // null `object`, `interface_id`, and `out` before
                 // dereferencing.
                 unsafe {
-                    <#class_ident as #nc::ComAbiObject>::query_interface_from_abi_object(
+                    <#class_type as #nc::ComAbiObject>::query_interface_from_abi_object(
                         object,
                         interface_id,
                         out,
@@ -439,7 +472,7 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
                 // this class and carries the storage back-pointer.
                 let object = unsafe { (*this).object };
                 // SAFETY: Delegates to generated storage refcount handling.
-                unsafe { <#class_ident as #nc::ComAbiObject>::add_ref_from_abi_object(object) }
+                unsafe { <#class_type as #nc::ComAbiObject>::add_ref_from_abi_object(object) }
             }
 
             // Routes IUnknown Release to final-drop-aware generated storage.
@@ -451,7 +484,7 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
                 // this class and carries the storage back-pointer.
                 let object = unsafe { (*this).object };
                 // SAFETY: Delegates to generated storage refcount handling.
-                unsafe { <#class_ident as #nc::ComAbiObject>::release_from_abi_object(object) }
+                unsafe { <#class_type as #nc::ComAbiObject>::release_from_abi_object(object) }
             }
         }
     }

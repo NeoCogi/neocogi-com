@@ -258,6 +258,42 @@ point, not an alternative contract-authoring path.
 `#[com_class]` generates object storage and constructors. Unit structs receive
 `create()`. Structs with fields receive `from_value(value)`.
 
+Unregistered implementation classes may have Rust type or const parameters,
+default type arguments, and ordinary `where` bounds. Their exposed interfaces
+remain concrete ABI contracts. This supports an application-owned typed handler
+without putting generics, a Rust trait object, or borrowed stack state on the
+binary boundary:
+
+```rust
+#[com_class(interfaces(IButtonSink))]
+struct ButtonSink<State: ButtonHandler> {
+    state: State,
+}
+impl<State: ButtonHandler> IButtonSink for ButtonSink<State> {
+    fn submitted(&self, label: ComRef<'_, INcStringAbi>) -> Result<(), NcStatus> {
+        self.state.submitted(label)
+    }
+}
+```
+
+Here `ButtonHandler` is an ordinary application-local trait with an owned concrete
+implementation, and `IButtonSink` is a separately declared concrete COM interface.
+`ButtonSink::from_value(...)` allocates that exact specialization. It preserves
+inherited interface calls, canonical identity, threading policy and final-release
+destruction. Type/const arguments do not change interface IDs or layouts.
+
+The generated implementation requires the complete stored value to be `'static`.
+A type argument cannot smuggle a short-lived reference into a retainable COM
+pointer. Class lifetime parameters are rejected explicitly. Use owned state or
+owned shared state such as `Rc<RefCell<State>>`, and borrow it only during the
+local handler call. `thread_safe` classes must still prove `Send + Sync` for all
+permitted specializations and honor the concurrent-call contract.
+
+Generic implementation classes cannot declare registered class descriptors:
+a plugin constructor has no Rust type arguments. Use a concrete registered
+factory to construct owned generic helper objects when needed. This adds no
+generic interfaces, type-name lookup, or runtime registration of monomorphizations.
+
 ## ABI Rules
 
 Interface methods must currently follow this shape:
