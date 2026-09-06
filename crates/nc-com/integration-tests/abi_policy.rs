@@ -4,6 +4,57 @@ use nc_com::{
 };
 use std::fmt::Write;
 
+mod external_fields {
+    use nc_com::{ComPtr, NcCopyFromBufferOffset, NcStatus, com_class, com_interface, com_struct};
+
+    // Models a C-layout dependency type with no nc-com traits.
+    #[repr(C)]
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    struct Pair {
+        x: f32,
+        y: f32,
+    }
+
+    #[com_struct(c_struct)]
+    #[derive(Debug, PartialEq)]
+    struct Sample {
+        pairs: [Pair; 2],
+    }
+
+    #[com_interface(auto_guid = "nc.tests.abi_policy.ExternalFields:v1")]
+    trait IExternalFields {
+        fn echo(&self, value: Sample) -> Result<Sample, NcStatus>;
+        fn sum(&self, values: NcCopyFromBufferOffset<'_, Sample>) -> Result<f32, NcStatus>;
+    }
+
+    #[com_class(interfaces(IExternalFields))]
+    struct ExternalFields;
+
+    impl IExternalFields for ExternalFields {
+        fn echo(&self, value: Sample) -> Result<Sample, NcStatus> {
+            Ok(value)
+        }
+        fn sum(&self, values: NcCopyFromBufferOffset<'_, Sample>) -> Result<f32, NcStatus> {
+            Ok(values.as_slice().iter().flat_map(|value| value.pairs).map(|pair| pair.x + pair.y).sum())
+        }
+    }
+
+    #[test]
+    fn external_c_fields_pass_by_value_and_buffer_without_com_traits() {
+        let interface: ComPtr<IExternalFieldsAbi> = ExternalFields::from_value(ExternalFields).query().unwrap();
+        let value = Sample {
+            pairs: [Pair { x: 1.25, y: -2.5 }, Pair { x: 4.0, y: 0.125 }],
+        };
+        assert_eq!(interface.echo(value).unwrap(), value);
+        assert_eq!(interface.sum(NcCopyFromBufferOffset::new(0, &[value, value])).unwrap(), 5.75);
+    }
+
+    #[test]
+    fn c_struct_rejects_rust_layout_fields() {
+        trybuild::TestCases::new().compile_fail("integration-tests/ui/struct_c_layout_rust_field.rs");
+    }
+}
+
 #[com_interface(auto_guid = "nc.tests.abi_policy.Value:v1")]
 pub trait IPolicyValue {
     fn value(&self) -> Result<i32, NcStatus>;

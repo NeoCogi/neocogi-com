@@ -78,6 +78,17 @@ implements `ComStruct`, `AbiType`, and `AbiPlainValue`. Use
 `#[com_struct(packed)]`, `#[com_struct(packed(N))]`, or
 `#[com_struct(align(N))]` when a contract requires non-default layout.
 
+By default, each field must implement `AbiPlainValue`.
+`#[com_struct(c_struct)]` accepts external C-layout fields without nc-com traits
+or annotations. It checks nested FFI layouts at compile time with rustc's
+`improper_ctypes_definitions` lint promoted to an error; `Copy` and syntactic
+field checks still apply. The author must ensure external types contain no
+hidden pointers, references, or ownership obligations. In this mode, field
+fingerprints contain only size and alignment; the enclosing record also records
+field order and offsets. Incompatible changes invisible to that metadata require
+a new interface identity. See the [external-field guide](../README.md#external-c-layout-fields)
+for an example and the precise limits of this option.
+
 `#[com_enum]` keeps a Rust payload enum for local use and generates an explicit
 tag + union ABI representation next to it. The generated `NameAbi` keeps its
 tag/payload fields opaque so safe Rust cannot select an uninitialized or invalid

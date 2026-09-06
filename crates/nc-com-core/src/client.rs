@@ -15,8 +15,8 @@ use crate::{ComInterface, ThreadLocal, ThreadSafe, ThreadingModel};
 ///
 /// # Safety
 ///
-/// Client<M> must be a non-Copy, non-Clone repr(transparent) wrapper around
-/// NcClientPointer<Self, M>. Its safe operations may only borrow the live
+/// `Client<M>` must be a non-Copy, non-Clone `repr(transparent)` wrapper around
+/// `NcClientPointer<Self, M>`. Its safe operations may only borrow the live
 /// interface and may not manufacture an owning reference or an escaping
 /// ComRef. Inherited views must preserve the exact base vtable prefix and the
 /// supplied threading capability. The generated macro establishes these rules.

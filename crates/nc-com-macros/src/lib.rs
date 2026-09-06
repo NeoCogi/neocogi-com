@@ -14,8 +14,9 @@
 //!   `thread_safe` to generate `ComPtr<_, ThreadSafe>` constructors. Generated
 //!   class descriptors record the same mode for checked dynamic construction.
 //! - [`com_struct`] marks a fixed-size record as ABI plain data, owns its
-//!   `repr(C)`/packing/alignment choice, and records its physical layout after
-//!   verifying that every field implements `nc_com::AbiPlainValue`.
+//!   `repr(C)`/packing/alignment choice, and records its physical layout. It
+//!   checks fields through `nc_com::AbiPlainValue` by default, or through
+//!   compiler FFI layout checks with the `c_struct` option.
 //! - [`com_enum`] keeps a Rust payload enum for ergonomic code and generates an
 //!   explicit tag + union ABI representation next to it.
 //! - [`plugin`] assembles generated class descriptors into one static plugin
@@ -234,15 +235,29 @@ pub fn plugin(input: TokenStream) -> TokenStream {
 /// Defines a fixed-size ABI-safe record.
 ///
 /// The macro owns the struct representation, derives `Clone, Copy` when those
-/// derives are not already listed, verifies every field implements
-/// `nc_com::AbiPlainValue`, records the physical size/alignment/field offsets in
-/// `nc_com::ComStruct`, and then implements `nc_com::AbiType` and
-/// `nc_com::AbiPlainValue` for the struct.
+/// derives are not already listed, records the physical size/alignment/field
+/// offsets in `nc_com::ComStruct`, and implements `nc_com::AbiType` and
+/// `nc_com::AbiPlainValue` for the struct. By default, it verifies every field
+/// implements `nc_com::AbiPlainValue`.
 ///
 /// Accepted layout forms are `#[com_struct]`, `#[com_struct(packed)]`,
 /// `#[com_struct(packed(N))]`, and `#[com_struct(align(N))]`. Do not also write
 /// a raw `#[repr(...)]` attribute; the macro rejects it so the representation and
 /// generated layout metadata have one source of truth.
+///
+/// `#[com_struct(c_struct)]` accepts external C-layout field types without COM
+/// traits or macro annotations. The option can be combined with packing and
+/// alignment options. The compiler checks the record's FFI layout, including
+/// nested field layouts, through `improper_ctypes_definitions`, promoted to an
+/// error. An incompatible Rust-layout field fails to compile; `Copy` and syntactic
+/// field checks still apply. The author must ensure fields contain no hidden
+/// pointers, references, or ownership duties, which C layout alone cannot prove.
+/// In this mode, every field is fingerprinted by size and alignment, with field
+/// order and offsets recorded by the enclosing struct. Field internals and
+/// scalar type identities are not hashed. An incompatible change preserving
+/// this metadata requires a new interface identity. Dependency versions may
+/// differ only while their actual layouts and value semantics remain compatible.
+/// The checks add no runtime conversion or allocation.
 ///
 /// Use this for small plain records. Variable-size data, borrowed data, raw
 /// addresses, and values with ownership or release obligations should be modeled

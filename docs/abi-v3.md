@@ -436,7 +436,8 @@ unless pointer-sized semantics are intentional.
 User-defined plain values may be created by:
 
 - `#[com_struct]`, for fixed-layout `repr(C)` records of plain fields
-  with optional macro-owned `packed`, `packed(N)`, or `align(N)` layout
+  with optional macro-owned `packed`, `packed(N)`, or `align(N)` layout;
+  `#[com_struct(c_struct)]` permits external C-layout fields without COM traits
 - `com_int_enum!`, for transparent integer newtypes that preserve unknown values
 - `#[com_enum]`, for tagged payload values with explicit `repr(C)` ABI
   representations
@@ -461,9 +462,24 @@ pub struct PacketHeader {
 `#[com_struct(align(N))]`; raw `#[repr(...)]` attributes on the input struct are
 rejected so the generated layout metadata and Rust representation cannot drift.
 
+By default, every field must implement `AbiPlainValue`. With
+`#[com_struct(c_struct)]`, fields need no nc-com traits or macro annotations.
+Instead, generated code checks the whole record's FFI layout with rustc's
+`improper_ctypes_definitions` lint promoted to an error, including nested field
+layouts. An outer C representation does not make a nested Rust-layout struct
+C-compatible. `Copy` requirements and syntactic rejection of references,
+pointers, and ownership-bearing fields remain in effect. The option can be
+combined with the packing or alignment options above.
+
 Plain values must be `Copy + 'static`, must not contain Rust references, raw
 pointers, borrowed addresses, implicit allocator ownership, or Rust drop glue,
 and must not require cleanup across the ABI boundary.
+
+For `c_struct`, the contract author must ensure those plain-value requirements
+also hold inside external types: FFI layout checks cannot prove the absence of
+hidden pointers or ownership protocols. Different dependency versions are
+compatible only if their actual layouts and value semantics remain compatible.
+See the [external-field example](../README.md#external-c-layout-fields).
 
 `#[com_enum]` creates a Rust enum plus an explicit tagged ABI representation.
 For an enum named `MyEnum`, the generated physical ABI shape is:
@@ -1122,6 +1138,16 @@ Return {
 Generated `#[com_struct]` types implement `ComStruct` with compile-time physical
 layout metadata and implement `AbiType` as
 `Aggregate(hash(Aggregate { Struct }, Layout { size, align }, Field { index, offset, ty }...))`.
+
+In the default mode, each field's `ty` is its `AbiPlainValue` ABI type. With
+`#[com_struct(c_struct)]`, every field's `ty` is instead
+`Aggregate(hash(Layout { size: size_of::<Field>(), align: align_of::<Field>() }))`.
+The enclosing record still hashes its size, alignment, field order, and offsets.
+The field fingerprint does not describe internal fields or distinguish scalar
+types of equal size and alignment. An incompatible change invisible to this
+metadata requires a new interface identity; matching hashes alone cannot detect
+it. These layout checks and fingerprints are computed at compile time.
+
 Generated `#[com_enum]` ABI representations hash their payload structs, payload
 union, tagged representation layout, tag field, payload field, and ordered
 variant tag/type records using `Aggregate { Struct }`, `Aggregate { Union }`, and

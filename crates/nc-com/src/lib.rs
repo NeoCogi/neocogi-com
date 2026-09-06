@@ -295,10 +295,10 @@
 //! unload or hot reload. Successful modules remain mapped for the process
 //! lifetime; failed post-open activation pins the module before aborting.
 //!
-//! Fixed-size plain records can use `com_struct`. The macro verifies that
-//! every field implements [`AbiPlainValue`], owns the Rust representation, records
-//! size/alignment/field offsets in [`ComStruct`], and then implements [`AbiType`]
-//! and [`AbiPlainValue`] for the struct:
+//! Fixed-size plain records can use `com_struct`. The macro owns the Rust
+//! representation, records size/alignment/field offsets in [`ComStruct`], and
+//! implements [`AbiType`] and [`AbiPlainValue`] for the struct. By default, it
+//! verifies that every field implements [`AbiPlainValue`]:
 //!
 //! ```
 //! use nc_com::com_struct;
@@ -317,6 +317,43 @@
 //! `#[com_struct(align(N))]` only when that physical layout is part of the
 //! contract. The generated aggregate ABI hash includes the struct size,
 //! alignment, field order, field offsets, and field ABI types.
+//!
+//! For external C-layout fields without nc-com traits, use
+//! `#[com_struct(c_struct)]`:
+//!
+//! ```
+//! use nc_com::com_struct;
+//!
+//! // Represents a dependency's type with no nc-com annotations or traits.
+//! #[repr(C)]
+//! #[derive(Clone, Copy)]
+//! pub struct Vec2f {
+//!     pub x: f32,
+//!     pub y: f32,
+//! }
+//!
+//! #[com_struct(c_struct)]
+//! pub struct Vertex {
+//!     pub position: Vec2f,
+//!     pub uv: Vec2f,
+//! }
+//! ```
+//!
+//! The generated record implements the COM traits. Its external field types
+//! need none. The compiler checks nested FFI layouts through
+//! `improper_ctypes_definitions`, promoted to an error, so an incompatible
+//! Rust-layout field fails to compile. `Copy` and syntactic field checks still
+//! apply. The author must ensure external fields contain no hidden pointers,
+//! references, borrowed addresses, or ownership/release obligations. C layout
+//! alone cannot prove those plain-value requirements.
+//!
+//! In this mode, every field is fingerprinted by size and alignment; the outer
+//! record also records field order and offsets. Field internals and scalar type
+//! identities are not hashed. Incompatible changes preserving this metadata
+//! require a new interface identity. Dependency versions may differ only while
+//! their actual layouts and value semantics remain compatible. The checks add
+//! no runtime conversion or allocation. The option can be combined with packing
+//! or alignment options.
 //!
 //! Enum-like ABI scalar values should use transparent integer newtypes generated
 //! by [`com_int_enum!`]:

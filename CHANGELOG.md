@@ -7,6 +7,10 @@ contract.
 
 ## Unreleased
 
+- Added `#[com_struct(c_struct)]` for external C-layout fields without nc-com
+  traits, with compiler checks for nested FFI layouts. Documented the author's
+  plain-value obligations and the limits of field size/alignment fingerprints;
+  nc-com needs no dependency on the external type's library.
 - Defined explicit runtime resource ceilings of 1,024 retained dynamic modules
   and 64 simultaneous debug messengers, with fatal module activation exhaustion,
   recoverable messenger capacity errors, checked monotonic handles, and

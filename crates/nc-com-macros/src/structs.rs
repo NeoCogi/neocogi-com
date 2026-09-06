@@ -36,17 +36,38 @@ pub(crate) fn expand_com_struct(
     let struct_ident = &input.ident;
     let field_layouts = com_struct_field_layouts(&input.fields);
     let field_layout_parts = field_layouts.iter().map(|(index, member, ty)| {
+        let field_type = if args.c_struct {
+            quote! {
+                #nc::NcAbiType::Aggregate(#nc::NcAbiHash::from_abi_parts(&[
+                    #nc::NcAbiHashPart::Layout {
+                        size: core::mem::size_of::<#ty>(),
+                        align: core::mem::align_of::<#ty>(),
+                    },
+                ]))
+            }
+        } else {
+            quote! { #nc::__nc_abi_plain_type::<#ty>() }
+        };
         quote! {
             #nc::NcAbiFieldLayout {
                 index: #index,
                 offset: core::mem::offset_of!(#struct_ident, #member),
-                ty: #nc::__nc_abi_plain_type::<#ty>(),
+                ty: #field_type,
             }
         }
     });
 
+    let layout_check = args.c_struct.then(|| quote! {
+        const _: extern "C" fn(#struct_ident) = {
+            #[deny(improper_ctypes_definitions)]
+            extern "C" fn check(_: #struct_ident) {}
+            check
+        };
+    });
+
     Ok(quote! {
         #input
+        #layout_check
 
         // SAFETY: `#[com_struct]` generates the representation and layout
         // metadata from compiler layout facts for this struct.
@@ -62,7 +83,8 @@ pub(crate) fn expand_com_struct(
 
         // SAFETY: `#[com_struct]` rejects generics and pointer/reference/owned
         // fields, and `ComStruct` supplies the physical layout used by the
-        // aggregate ABI type hash.
+        // aggregate ABI type hash. With `c_struct`, the compiler checks C layout
+        // and the author guarantees durable plain-value semantics.
         unsafe impl #nc::AbiType for #struct_ident {
             const ABI_TYPE: #nc::NcAbiType = #nc::__nc_abi_com_struct_type::<Self>();
         }

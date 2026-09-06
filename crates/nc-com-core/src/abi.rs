@@ -46,6 +46,12 @@ pub unsafe trait AbiPlainValue: AbiType {}
 /// representation of `Self`, and every field type must be the field's canonical
 /// ABI type. Prefer using `#[com_struct]`, which generates this implementation
 /// from the compiler's layout facts.
+///
+/// With `#[com_struct(c_struct)]`, each field's ABI type is an opaque aggregate
+/// fingerprint of its size and alignment. It does not describe field internals
+/// or distinguish scalar types of equal size and alignment. The contract author
+/// must use a new interface identity for incompatible changes invisible to that
+/// metadata and ensure external fields satisfy the plain-value requirements.
 pub unsafe trait ComStruct: Copy + 'static {
     /// Physical ABI layout for this COM struct.
     const ABI_STRUCT_LAYOUT: NcAbiStructLayout;

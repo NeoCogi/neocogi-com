@@ -76,7 +76,11 @@ automatic dependency-name resolution and an explicit facade override.
   output slot remains unwritten on this contract violation.
 - Plain values must implement the ABI marker traits. Use `com_struct` for fixed
   records, `com_int_enum!` for transparent integer values, and `com_enum` for
-  explicit tag/payload layouts.
+  explicit tag/payload layouts. `#[com_struct(c_struct)]` lets a record contain
+  external C-layout fields without nc-com traits. It checks nested FFI layouts;
+  authors must ensure plain-value semantics and use a new interface identity
+  for incompatible changes its field size/alignment fingerprints cannot detect.
+  See the `com_struct` API docs.
 - Use `ComRef<'_, IFooAbi>` for borrowed interface parameters and
   `ComPtr<IFooAbi>` for owned interface returns.
 - Use bounded copy views for call-scoped buffers and COM interfaces such as

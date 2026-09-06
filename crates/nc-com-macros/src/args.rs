@@ -80,6 +80,8 @@ pub(crate) struct StructArgs {
     pub(crate) runtime_crate: Option<Path>,
     /// Requested C, packed, or explicitly aligned representation.
     pub(crate) repr: StructReprArgs,
+    /// Check external field layouts through the compiler instead of COM traits.
+    pub(crate) c_struct: bool,
 }
 
 /// Supported physical layout modifiers for generated COM structs.
@@ -160,6 +162,7 @@ impl Parse for StructArgs {
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let mut runtime_crate = None;
         let mut repr = None;
+        let mut c_struct = false;
 
         while !input.is_empty() {
             let keyword: Ident = input.parse()?;
@@ -169,6 +172,11 @@ impl Parse for StructArgs {
                 }
                 input.parse::<Token![=]>()?;
                 runtime_crate = Some(input.parse()?);
+            } else if keyword == "c_struct" {
+                if c_struct {
+                    return Err(syn::Error::new(keyword.span(), "duplicate c_struct"));
+                }
+                c_struct = true;
             } else if keyword == "packed" {
                 if repr.is_some() {
                     return Err(syn::Error::new(
@@ -207,7 +215,7 @@ impl Parse for StructArgs {
             } else {
                 return Err(syn::Error::new(
                     keyword.span(),
-                    "expected packed, packed(N), align(N), or nc_com = path",
+                    "expected c_struct, packed, packed(N), align(N), or nc_com = path",
                 ));
             }
 
@@ -220,6 +228,7 @@ impl Parse for StructArgs {
         Ok(Self {
             runtime_crate,
             repr: repr.unwrap_or(StructReprArgs::C),
+            c_struct,
         })
     }
 }

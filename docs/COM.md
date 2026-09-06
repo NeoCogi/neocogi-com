@@ -845,9 +845,9 @@ pub struct Rect {
 ```
 
 The macro owns the C-compatible representation, derives `Clone` and `Copy` when
-they are not already listed, verifies that every field implements
-`AbiPlainValue`, records physical size/alignment/field offsets in `ComStruct`,
-and implements `AbiType` and `AbiPlainValue` for the struct.
+they are not already listed, records physical size/alignment/field offsets in
+`ComStruct`, and implements `AbiType` and `AbiPlainValue` for the struct. By
+default, it verifies that every field implements `AbiPlainValue`.
 
 Use `#[com_struct(packed)]`, `#[com_struct(packed(N))]`, or
 `#[com_struct(align(N))]` when a contract requires non-default layout. Do not add
@@ -855,9 +855,9 @@ a raw `#[repr(...)]` attribute; the macro is the single source of truth for the
 representation. Aggregate ABI hashes include size, alignment, field order, field
 offsets, and field ABI types.
 
-Struct fields are durable copied data, so they use the stricter
-`AbiPlainValue` marker rather than the lower-level `AbiType` marker. These are
-rejected as fields:
+Struct fields are durable copied data, so the default check uses the stricter
+`AbiPlainValue` marker rather than the lower-level `AbiType` marker. The macro
+also rejects these types when they appear in field syntax:
 
 - Rust references
 - raw pointers
@@ -870,6 +870,52 @@ rejected as fields:
 Use `#[com_struct]` for small plain values such as points, rectangles, colors,
 IDs, counters, and options. Use COM interfaces for variable-size data, borrowed
 data, owned resources, or anything with explicit lifetime or release behavior.
+
+### External C-layout fields
+
+Use `#[com_struct(c_struct)]` when a record contains C-layout types from a
+dependency that does not implement nc-com traits:
+
+```rust
+use nc_com::com_struct;
+
+// Represents a dependency's type, with no nc-com dependency or traits.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Vec2f {
+    pub x: f32,
+    pub y: f32,
+}
+
+#[com_struct(c_struct)]
+pub struct Vertex {
+    pub position: Vec2f,
+    pub uv: Vec2f,
+}
+```
+
+`c_struct` is an option on `com_struct`. The enclosing record receives the COM
+traits; its field types need no nc-com annotations or trait implementations.
+This lets contract crates use existing C-layout math types directly without
+coupling nc-com to a math library or converting between duplicate records.
+The option also works with `packed`, `packed(N)`, or `align(N)`.
+
+The macro checks the whole record with rustc's `improper_ctypes_definitions`
+lint promoted to an error. An incompatible nested Rust-layout struct fails to
+compile: the outer `repr(C)` does not change the layout of its fields. `Copy`
+requirements and the syntactic field rejections above still apply. These checks
+run at compile time and add no runtime conversion or allocation.
+
+C layout alone does not establish plain-value semantics. The contract author
+must ensure external fields contain no hidden pointers, references, borrowed
+addresses, or ownership/release obligations, including inside nested types.
+
+In this mode, **every field** is fingerprinted by its size and alignment, along
+with its index and offset in the enclosing record. Field internals and scalar
+type identities are not hashed. An incompatible field change that preserves
+size and alignment therefore requires a new interface identity. Dependency
+versions may differ only while the actual field layouts and value semantics
+remain compatible; `repr(C)` does not freeze a dependency's future definitions.
 
 ## Object Lifetime
 
