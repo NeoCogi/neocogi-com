@@ -1,16 +1,16 @@
 //! Ordered Cargo subprocesses and artifact discovery for local and registry sources.
 //!
 //! This module runs inside the installed command, not inside a Cargo build script.
-//! Each selected library is a separate Cargo invocation so its features remain
-//! independent of the application's features. A common target directory retains
-//! Cargo's cache, including compatible rebuilt standard-library artifacts.
+//! The runtime is prepared first, then compatible plugins and the application share
+//! one Cargo feature graph. Thin cdylib roots re-export component Rust libraries so
+//! Cargo can apply LTO to the deployed output without recompiling their source.
 
 use std::{
     collections::BTreeMap,
     fs,
     io::{BufRead, BufReader},
     path::{Path, PathBuf},
-    process::Stdio,
+    process::{Command, Stdio},
 };
 use serde::{Deserialize, Serialize};
 use crate::{Result, cli::Options, config::ComponentSpec, project::Project};
@@ -40,6 +40,9 @@ pub(crate) struct Artifact {
     pub files: Vec<PathBuf>,
     /// Executable path supplied explicitly by Cargo for an application target.
     pub executable: Option<PathBuf>,
+    /// Owns an isolated snapshot until deployment finishes; dropping it removes only
+    /// the temporary copy, after all configured libraries have been installed.
+    pub storage: Option<tempfile::TempDir>,
 }
 
 impl Artifact {
@@ -92,7 +95,7 @@ impl Artifact {
             .collect();
         match libraries.as_slice() {
             [path] => Ok(path.as_path()),
-            _ => Err("Cargo did not report exactly one cdylib; declare crate-type = [\"rlib\", \"cdylib\"]".into()),
+            _ => Err("Cargo did not report exactly one shared-library artifact".into()),
         }
     }
 
@@ -119,6 +122,8 @@ enum Message {
         filenames: Vec<PathBuf>,
         /// Binary path, if this message describes an executable.
         executable: Option<PathBuf>,
+        /// Cargo's cache result; phase progress must not imply actual compilation.
+        fresh: bool,
     },
     /// Rustc diagnostic whose rendered form should remain visible to the user.
     #[serde(rename = "compiler-message")]
@@ -165,6 +170,26 @@ struct ResolvedGraph {
     nodes: Vec<ResolvedNode>,
 }
 
+impl ResolvedGraph {
+    /// Finds a direct dependency by Cargo's renamed edge key, never by parsing IDs.
+    fn edge(&self, root: &str, name: &str) -> Result<String> {
+        self.nodes
+            .iter()
+            .find(|node| node.id == root)
+            .and_then(|node| node.deps.iter().find(|edge| edge.name == name))
+            .map(|edge| edge.pkg.clone())
+            .ok_or_else(|| format!("resolver has no dependency named {name}").into())
+    }
+}
+
+/// Only authored feature names are needed to request an application's default root.
+#[derive(Deserialize)]
+struct ApplicationFeatures {
+    /// Feature definitions remain Cargo-owned; an absent table means no default feature.
+    #[serde(default)]
+    features: BTreeMap<String, Vec<String>>,
+}
+
 /// One resolved package and its direct dependency relationships.
 #[derive(Deserialize)]
 struct ResolvedNode {
@@ -186,29 +211,47 @@ struct ResolvedEdge {
 /// Minimal source identity needed to reuse an already-declared Cargo dependency.
 #[derive(Deserialize)]
 struct ResolvedPackage {
+    /// Cargo's opaque identity used to locate a resolved component's library target.
+    id: String,
     /// Actual package name, independent of dependency renaming in the application.
     name: String,
     /// Cargo-fetched manifest; its parent is a read-only source input to our build.
     manifest_path: PathBuf,
+    /// Declared outputs distinguish importable Rust libraries from binary-only crates.
+    targets: Vec<ArtifactTarget>,
 }
 
-/// Standard Cargo profile tables copied into generated component workspaces.
+/// Cargo profiles and source overrides copied into generated workspaces.
 #[derive(Default, Deserialize, Serialize)]
 struct Profiles {
     /// Cargo owns the schema inside each profile; TOML values are preserved verbatim.
     #[serde(default)]
     profile: BTreeMap<String, toml::Table>,
+    /// Workspace source overrides must also apply when the application is selected
+    /// through a generated workspace. Cargo owns each override's remaining schema.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    patch: BTreeMap<String, BTreeMap<String, toml::Table>>,
+    /// Preserve legacy exact-version replacements for existing consumer workspaces.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    replace: BTreeMap<String, toml::Table>,
 }
 
-/// A self-contained resolver project used for an explicitly versioned/path component.
+/// A Cargo-managed workspace for a component root or the complete shared assembly.
 #[derive(Serialize)]
 struct GeneratedManifest {
     /// Private resolver package; only its selected dependency supplies staged artifacts.
     package: GeneratedPackage,
     /// An empty workspace prevents accidental inheritance from the consumer workspace.
     workspace: BTreeMap<String, String>,
-    /// One component per resolver project preserves independent feature selection.
+    /// Component roots or application dependencies with their requested features.
     dependencies: BTreeMap<String, Dependency>,
+    /// A component wrapper has one pure cdylib target, allowing Cargo's normal LTO.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    lib: Option<GeneratedLibrary>,
+    /// An inert target makes a resolver package valid; only its dependency targets
+    /// are selected for compilation when it participates in an assembly build.
+    #[serde(skip_serializing_if = "Vec::is_empty", rename = "bin")]
+    binaries: Vec<GeneratedBinary>,
     /// The consumer's profiles keep local and registry component settings aligned.
     #[serde(flatten)]
     profiles: Profiles,
@@ -219,7 +262,7 @@ struct GeneratedManifest {
 struct GeneratedPackage {
     /// A name distinct from the selected component.
     name: String,
-    /// Fixed local version; component versions are locked separately by Cargo.
+    /// Fixed local version; Cargo locks the actual component dependency versions.
     version: &'static str,
     /// Explicit edition avoids warnings and keeps resolver behavior predictable.
     edition: &'static str,
@@ -227,10 +270,59 @@ struct GeneratedPackage {
     publish: bool,
     /// Disable library autodiscovery, including stale lib.rs from older tool versions.
     autolib: bool,
+    /// Disable stale/generated binary autodiscovery when a resolver becomes a library.
+    autobins: bool,
+}
+
+/// Pure shared-library root importing the original package's Rust API and C exports.
+#[derive(Serialize)]
+struct GeneratedLibrary {
+    /// Unique wrapper name; runtime linker aliases retain the original logical name.
+    name: String,
+    /// Always cdylib alone, because rustc rejects LTO with a simultaneous rlib output.
+    #[serde(rename = "crate-type")]
+    crate_types: Vec<&'static str>,
+    /// Documented, generated re-export source relative to its private manifest.
+    path: &'static str,
+}
+
+/// Inert root selected alongside the real application to unify their dependencies.
+#[derive(Serialize)]
+struct GeneratedBinary {
+    /// Distinct from the application's binary so Cargo outputs cannot overwrite it.
+    name: String,
+    /// Private source file; this executable is never deployed or run.
+    path: &'static str,
+}
+
+/// Resolved wrapper inputs retained while preparing the assembly's shared graph.
+struct PreparedComponent {
+    /// Private wrapper manifest whose dependency selects the original source/features.
+    manifest: PathBuf,
+    /// Exact selected library identity, either the wrapper or a native-only component.
+    id: String,
+    /// Private package name used in the assembly resolver's dependency declaration.
+    package: String,
+    /// Original library name, including custom Cargo lib names, for runtime aliases.
+    logical_name: String,
+    /// Explicit request to preserve this plugin's independent feature graph.
+    isolated: bool,
+    /// Dependency selected by the assembly: a wrapper or an existing pure cdylib.
+    dependency: Dependency,
+    /// Pure cdylib implementations need an inert binary resolver, not a Rust import.
+    binary: bool,
+}
+
+/// Requested artifact in a Cargo stream containing many packages and target kinds.
+enum Selection {
+    /// A shared library with the original component's logical linker name.
+    Library(String),
+    /// The configured application executable; other binaries remain build artifacts.
+    Binary(String),
 }
 
 /// Cargo-compatible dependency declaration translated from our typed source config.
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "kebab-case")]
 struct Dependency {
     /// Actual package name even when the generated dependency key is renamed.
@@ -355,26 +447,6 @@ impl<'a> Builder<'a> {
         })
     }
 
-    /// Builds a configured component as a root package and requires a shared artifact.
-    pub fn component(&self, spec: &ComponentSpec, runtime_dir: Option<&Path>) -> Result<Artifact> {
-        let manifest = if spec.version.is_some() || spec.path.is_some() {
-            self.generated_manifest(spec)?
-        } else {
-            if self.project.packages.iter().any(|package| package.name == spec.package) {
-                self.project.manifest.clone()
-            } else {
-                // Reuse Cargo's fetched sources for a named dependency, without guessing
-                // a registry cache layout or writing inside that immutable source tree.
-                let mut resolved = spec.clone();
-                resolved.path = Some(self.dependency_source(&spec.package)?);
-                self.generated_manifest(&resolved)?
-            }
-        };
-        let artifact = self.compile(&manifest, &spec.package, None, &spec.features, spec.default_features, runtime_dir)?;
-        artifact.library()?;
-        Ok(artifact)
-    }
-
     /// Resolves a named dependency from the application graph, rejecting multiple
     /// versions as ambiguous. Explicit path/version configuration disambiguates them.
     fn dependency_source(&self, name: &str) -> Result<PathBuf> {
@@ -412,123 +484,330 @@ impl<'a> Builder<'a> {
         }
     }
 
-    /// Links the application only after a completed runtime has an established directory.
-    pub fn application(&self, runtime_dir: &Path) -> Result<Artifact> {
-        let app = &self.project.assembly.application;
-        self.compile(
-            &self.project.manifest,
-            app.package.as_deref().unwrap(),
-            app.bin.as_deref(),
-            &app.features,
-            app.default_features,
-            Some(runtime_dir),
-        )
+    /// Builds the runtime or an explicitly isolated plugin through its pure cdylib root.
+    pub fn component(&self, spec: &ComponentSpec, runtime_dir: Option<&Path>) -> Result<Artifact> {
+        let prepared = self.prepare(spec)?;
+        self.build_component(&prepared, runtime_dir)
     }
 
-    /// Writes a stable, Cargo-resolved source project and retains its lockfile between runs.
-    fn generated_manifest(&self, spec: &ComponentSpec) -> Result<PathBuf> {
-        let directory = self.state.join("sources").join(&spec.package);
-        let profiles: Profiles = toml::from_str(&fs::read_to_string(&self.project.manifest)?)?;
-        let dependency = Dependency {
+    /// Resolves a source declaration without guessing registry cache locations.
+    fn source(&self, spec: &ComponentSpec) -> Result<Dependency> {
+        let path = if let Some(path) = &spec.path {
+            Some(self.project.base.join(path).canonicalize()?)
+        } else if spec.version.is_none() {
+            Some(
+                if let Some(package) = self.project.packages.iter().find(|package| package.name == spec.package) {
+                    package.manifest_path.parent().ok_or("package manifest has no parent")?.to_owned()
+                } else {
+                    self.dependency_source(&spec.package)?
+                },
+            )
+        } else {
+            None
+        };
+        Ok(Dependency {
             package: spec.package.clone(),
             version: spec.version.clone(),
-            path: spec.path.as_ref().map(|path| self.project.base.join(path).canonicalize()).transpose()?,
+            path,
             registry: spec.registry.clone(),
             features: spec.features.clone(),
             default_features: spec.default_features,
-        };
-        let manifest = GeneratedManifest {
+        })
+    }
+
+    /// Creates a documented private manifest with the consumer's Cargo profiles.
+    fn manifest(&self, package: String, dependencies: BTreeMap<String, Dependency>) -> Result<GeneratedManifest> {
+        let mut profiles: Profiles = toml::from_str(&fs::read_to_string(&self.project.manifest)?)?;
+        let base = self.project.manifest.parent().unwrap();
+        // Relative override paths originally belong to the consumer workspace, not
+        // the generated source directory. Preserve that meaning when copying them.
+        for replacement in profiles
+            .patch
+            .values_mut()
+            .flat_map(|registry| registry.values_mut())
+            .chain(profiles.replace.values_mut())
+        {
+            if let Some(toml::Value::String(path)) = replacement.get_mut("path") {
+                *path = base.join(&*path).canonicalize()?.to_str().ok_or("override path must be UTF-8")?.into();
+            }
+        }
+        Ok(GeneratedManifest {
             package: GeneratedPackage {
-                name: format!("nc-com-resolver-{}", spec.package),
+                name: package,
                 version: "0.0.0",
                 edition: "2024",
                 publish: false,
                 autolib: false,
+                autobins: false,
             },
             workspace: BTreeMap::from([("resolver".into(), "3".into())]),
-            dependencies: BTreeMap::from([("component".into(), dependency)]),
+            dependencies,
+            lib: None,
+            binaries: Vec::new(),
             profiles,
-        };
-        write_changed(
-            &directory.join("src/main.rs"),
-            b"//! Generated dependency resolver; this executable is never staged.\n/// Keeps the resolver root compatible with application LTO builds.\nfn main() {}\n",
-        )?;
-        let path = directory.join("Cargo.toml");
-        write_changed(&path, toml::to_string(&manifest)?.as_bytes())?;
-        Ok(path)
+        })
     }
 
-    /// Resolves an exact package ID, streams diagnostics, and selects its final artifact.
-    fn compile(
-        &self,
-        manifest: &Path,
-        package: &str,
-        binary: Option<&str>,
-        features: &[String],
-        defaults: bool,
-        runtime_dir: Option<&Path>,
-    ) -> Result<Artifact> {
-        eprintln!("Building {package} ({})", self.options.profile);
-        // Cargo's resolved edge supplies the exact component identity, even when a
-        // transitive dependency has another version of the same package name.
-        let generated = manifest != self.project.manifest;
-        let mut resolve = self.options.cargo();
-        resolve.args(["metadata", "--format-version", "1", "--manifest-path"]).arg(manifest);
-        self.options.policy(&mut resolve);
-        let resolved = resolve.output()?;
-        if !resolved.status.success() {
-            return Err(format!("resolving {package}: {}", String::from_utf8_lossy(&resolved.stderr)).into());
+    /// Seeds resolver locks from the consumer's dependency selections and refreshes
+    /// them only when that lock changes. Locked builds never silently replace a lock.
+    fn write_manifest(&self, path: &Path, manifest: &GeneratedManifest) -> Result<()> {
+        write_changed(path, toml::to_string(manifest)?.as_bytes())?;
+        let directory = path.parent().unwrap();
+        let application = self.project.manifest.with_file_name("Cargo.lock");
+        let seed = fs::read(&application)?;
+        let previous = directory.join("application.lock");
+        if fs::read(&previous).is_ok_and(|bytes| bytes == seed) {
+            return Ok(());
         }
-        let id = if generated {
-            let sources: ResolvedSources = serde_json::from_slice(&resolved.stdout)?;
-            let graph = sources.resolve.ok_or("Cargo did not resolve the generated component graph")?;
-            let root = graph.root.ok_or("generated component graph has no root")?;
-            graph
-                .nodes
-                .into_iter()
-                .find(|node| node.id == root)
-                .and_then(|node| node.deps.into_iter().find(|edge| edge.name == "component"))
-                .ok_or("generated project has no resolved component dependency")?
-                .pkg
+        if self.options.locked {
+            return Err(format!(
+                "{} needs its initial lock or an updated application lock; build once without --locked",
+                path.display()
+            )
+            .into());
+        }
+        // Cargo adds private resolver packages and keeps compatible locked versions.
+        // A separate seed records the consumer lock without mistaking Cargo's updates
+        // to the generated graph for a change to the application itself.
+        write_changed(&directory.join("Cargo.lock"), &seed)?;
+        write_changed(&previous, &seed)
+    }
+
+    /// Resolves metadata under the same offline/lock policies as compilation.
+    fn resolve(&self, manifest: &Path) -> Result<ResolvedSources> {
+        let mut command = self.options.cargo();
+        command.args(["metadata", "--format-version", "1", "--manifest-path"]).arg(manifest);
+        self.options.policy(&mut command);
+        let output = command.output()?;
+        if !output.status.success() {
+            return Err(format!("resolving {}: {}", manifest.display(), String::from_utf8_lossy(&output.stderr)).into());
+        }
+        Ok(serde_json::from_slice(&output.stdout)?)
+    }
+
+    /// Generates a pure cdylib re-export root; Cargo owns its compilation and cache.
+    /// Re-exporting retains the component's public C symbols and its original crate
+    /// identity, including descriptor names and package-relative compile-time inputs.
+    fn prepare(&self, spec: &ComponentSpec) -> Result<PreparedComponent> {
+        // Resolve the consumer before seeding any generated lock, including on the
+        // first run of a binary-only application that has no Cargo.lock yet.
+        self.resolve(&self.project.manifest)?;
+        let directory = self.state.join("sources").join(&spec.package);
+        let path = directory.join("Cargo.toml");
+        let package = format!("nc-com-resolver-{}", spec.package);
+        let mut manifest = self.manifest(package.clone(), BTreeMap::from([("component".into(), self.source(spec)?)]))?;
+        // Keep a stable initial name across runs. Custom logical names are discovered
+        // from the resolved dependency rather than inferred from its package spelling.
+        manifest.lib = Some(GeneratedLibrary {
+            name: format!("nc_com_shared_{}", spec.package.replace('-', "_")),
+            crate_types: vec!["cdylib"],
+            path: "src/lib.rs",
+        });
+        write_changed(
+            &directory.join("src/lib.rs"),
+            b"//! Generated shared-library root; implementation remains in its original crate.\n\
+              /// Preserve the component's public C exports while allowing cdylib LTO.\n\
+              pub use component::*;\n",
+        )?;
+        self.write_manifest(&path, &manifest)?;
+        let sources = self.resolve(&path)?;
+        let graph = sources.resolve.as_ref().ok_or("component resolver has no graph")?;
+        let root = graph.root.as_ref().ok_or("component resolver has no root")?;
+        let component = graph.edge(root, "component")?;
+        let original = sources
+            .packages
+            .iter()
+            .find(|package| package.id == component)
+            .ok_or("resolved component package is missing")?;
+        let library = original
+            .targets
+            .iter()
+            .find(|target| target.crate_types.iter().any(|kind| matches!(kind.as_str(), "rlib" | "lib" | "cdylib")))
+            .ok_or("components must expose a Rust library or cdylib")?;
+        let binary = !library.crate_types.iter().any(|kind| kind == "rlib" || kind == "lib");
+        let dependency = if binary {
+            // A pure cdylib already receives Cargo's LTO and cannot be imported as
+            // Rust. Keep its original artifact rather than generating a wrapper.
+            manifest.lib = None;
+            manifest.binaries.push(GeneratedBinary {
+                name: package.clone(),
+                path: "src/main.rs",
+            });
+            write_changed(
+                &directory.join("src/main.rs"),
+                b"//! Resolves a native-only dependency without importing it as Rust.\n/// This executable is never deployed.\nfn main() {}\n",
+            )?;
+            self.write_manifest(&path, &manifest)?;
+            manifest.dependencies["component"].clone()
         } else {
-            self.project
-                .packages
-                .iter()
-                .find(|candidate| candidate.name == package)
-                .ok_or("selected application/component is not a workspace package")?
-                .id
-                .clone()
+            Dependency {
+                package: package.clone(),
+                version: None,
+                path: Some(directory),
+                registry: None,
+                features: Vec::new(),
+                default_features: false,
+            }
         };
+        Ok(PreparedComponent {
+            manifest: path,
+            id: if binary { component } else { root.clone() },
+            package,
+            logical_name: library.name.clone(),
+            isolated: spec.isolated,
+            dependency,
+            binary,
+        })
+    }
+
+    /// Compiles one independent root, used before the application can link its runtime.
+    fn build_component(&self, component: &PreparedComponent, runtime_dir: Option<&Path>) -> Result<Artifact> {
+        let mut command = self.cargo_build(&component.manifest, runtime_dir);
+        if component.binary {
+            // Select the resolver for its feature requests, but compile only the
+            // native dependency. No dummy binary needs to link an unimportable cdylib.
+            command.args(["-p", &component.package, "-p", &component.id, "--lib", "--no-default-features"]);
+        } else {
+            command.arg("--lib");
+        }
+        let mut artifacts = self.collect(
+            command,
+            BTreeMap::from([(component.id.clone(), Selection::Library(component.logical_name.clone()))]),
+            &component.package,
+        )?;
+        artifacts.remove(&component.id).ok_or("Cargo reported no component cdylib".into())
+    }
+
+    /// Builds compatible plugins and the executable in one dependency/feature graph.
+    /// Explicitly isolated plugins retain separate graphs, while the normal Cargo
+    /// dependency declarations remain responsible for feature unification and locking.
+    pub fn application(&self, runtime_dir: &Path) -> Result<(Vec<Artifact>, Artifact)> {
+        let components = self
+            .project
+            .assembly
+            .plugins
+            .iter()
+            .map(|component| self.prepare(&component.spec()))
+            .collect::<Result<Vec<_>>>()?;
+        let app = &self.project.assembly.application;
+        let application = self
+            .project
+            .packages
+            .iter()
+            .find(|package| Some(&package.name) == app.package.as_ref())
+            .ok_or("application is not a workspace package")?;
+        let directory = self.state.join("sources/assembly");
+        let path = directory.join("Cargo.toml");
+        let root_name = format!("nc-com-assembly-{}", application.name);
+        let mut dependencies = BTreeMap::from([(
+            "application".into(),
+            Dependency {
+                package: application.name.clone(),
+                version: None,
+                path: Some(application.manifest_path.parent().ok_or("application manifest has no parent")?.into()),
+                registry: None,
+                features: app.features.clone(),
+                default_features: app.default_features,
+            },
+        )]);
+        let mut isolated = BTreeMap::new();
+        for (index, component) in components.iter().enumerate() {
+            if component.isolated {
+                // Native-only components can share Cargo output names with another
+                // feature graph. Retain their files before any later Cargo invocation.
+                let built = self.build_component(component, Some(runtime_dir))?;
+                let directory = tempfile::Builder::new().prefix(".isolated-").tempdir_in(&self.state)?;
+                let mut retained = crate::assembly::snapshot(built, directory.path())?;
+                retained.storage = Some(directory);
+                isolated.insert(index, retained);
+            } else {
+                dependencies.insert(format!("plugin_{index}"), component.dependency.clone());
+            }
+        }
+        let mut manifest = self.manifest(root_name.clone(), dependencies)?;
+        manifest.binaries.push(GeneratedBinary {
+            name: root_name.clone(),
+            path: "src/main.rs",
+        });
+        write_changed(
+            &directory.join("src/main.rs"),
+            b"//! Generated assembly resolver; this executable is never deployed.\n\
+              /// Selects all component dependencies in the application's feature graph.\n\
+              fn main() {}\n",
+        )?;
+        self.write_manifest(&path, &manifest)?;
+        let sources = self.resolve(&path)?;
+        let graph = sources.resolve.ok_or("assembly resolver has no graph")?;
+        let root = graph.root.as_ref().ok_or("assembly resolver has no root")?;
+        // Binary-only dependencies have no library edge in Cargo's resolve nodes,
+        // but remain selectable packages in the resolver's package collection.
+        let app_id = application.id.clone();
+        let mut selections = BTreeMap::from([(app_id.clone(), Selection::Binary(app.bin.clone().unwrap()))]);
+        let mut plugin_ids = BTreeMap::new();
+        for (index, component) in components.iter().enumerate().filter(|(_, component)| !component.isolated) {
+            let id = graph.edge(root, &format!("plugin_{index}"))?;
+            selections.insert(id.clone(), Selection::Library(component.logical_name.clone()));
+            plugin_ids.insert(index, id);
+        }
+        let mut command = self.cargo_build(&path, Some(runtime_dir));
+        // The resolver participates in feature selection but has no selected target.
+        // Explicit library roots avoid compiling an inert binary with cdylib externs.
+        command.args([
+            "-p",
+            root,
+            "-p",
+            &app_id,
+            "--lib",
+            "--bin",
+            app.bin.as_deref().unwrap(),
+            "--no-default-features",
+        ]);
+        for id in plugin_ids.values() {
+            command.args(["-p", id]);
+        }
+        // The selected application may be binary-only, in which case Cargo ignores
+        // its library dependency but still needs its configured root-package features.
+        let mut features = app.features.clone();
+        if app.default_features {
+            // Metadata describes whether the package actually declares a default feature.
+            // Enabling an absent feature explicitly would differ from Cargo's defaults.
+            let authored: ApplicationFeatures = toml::from_str(&fs::read_to_string(&application.manifest_path)?)?;
+            if authored.features.contains_key("default") {
+                features.push("default".into());
+            }
+        }
+        if !features.is_empty() {
+            command.args([
+                "--features",
+                &features.iter().map(|feature| format!("application/{feature}")).collect::<Vec<_>>().join(","),
+            ]);
+        }
+        let mut artifacts = self.collect(command, selections, "application and shared plugins")?;
+        let executable = artifacts.remove(&app_id).ok_or("Cargo reported no application executable")?;
+        let mut plugins = Vec::new();
+        for index in 0..components.len() {
+            plugins.push(if let Some(artifact) = isolated.remove(&index) {
+                artifact
+            } else {
+                artifacts.remove(&plugin_ids[&index]).ok_or("Cargo reported no plugin cdylib")?
+            });
+        }
+        Ok((plugins, executable))
+    }
+
+    /// Supplies identical target/profile/compiler settings to every generated Cargo root.
+    fn cargo_build(&self, manifest: &Path, runtime_dir: Option<&Path>) -> Command {
         let mut command = self.options.cargo();
         command
             .args(["build", "--manifest-path"])
             .arg(manifest)
-            .args(["--profile", &self.options.profile, "--target", &self.target]);
-        // Generated projects must build the resolver root: the dependency declaration
-        // then owns features, and Cargo emits the dependency's cdylib artifact too.
-        if !generated {
-            command.args(["-p", &id]);
-        }
-        command
+            .args(["--profile", &self.options.profile, "--target", &self.target])
             .arg("--target-dir")
             .arg(&self.project.target_dir)
-            .arg("--message-format=json-render-diagnostics");
-        command.env("CARGO_ENCODED_RUSTFLAGS", &self.flags);
+            .arg("--message-format=json-render-diagnostics")
+            .env("CARGO_ENCODED_RUSTFLAGS", &self.flags);
         if let Some(directory) = runtime_dir {
             command.env("NC_COM_RUNTIME_LINK_DIR", directory);
-        }
-        if generated {
-            command.args(["--bin", &format!("nc-com-resolver-{package}")]);
-        } else if let Some(binary) = binary {
-            command.args(["--bin", binary]);
-        } else {
-            command.arg("--lib");
-        }
-        if !generated && !defaults {
-            command.arg("--no-default-features");
-        }
-        if !generated && !features.is_empty() {
-            command.args(["--features", &features.join(",")]);
         }
         if self.options.profile == "min-size" {
             command.args([
@@ -552,10 +831,16 @@ impl<'a> Builder<'a> {
             }
         }
         self.options.policy(&mut command);
+        command
+    }
+
+    /// Drains Cargo's stream, preserving diagnostics and reporting real cache results.
+    fn collect(&self, mut command: Command, selections: BTreeMap<String, Selection>, label: &str) -> Result<BTreeMap<String, Artifact>> {
+        eprintln!("Checking {label} ({})", self.options.profile);
         let mut child = command.stdout(Stdio::piped()).stderr(Stdio::inherit()).spawn()?;
-        let mut artifact = None;
-        // Drain stdout before waiting to avoid pipe deadlocks. A malformed compiler
-        // message is reported after waiting, so no failed subprocess is left behind.
+        let mut artifacts = BTreeMap::new();
+        let mut compiled = 0;
+        let mut reused = 0;
         let read_result = (|| -> Result<()> {
             for line in BufReader::new(child.stdout.take().unwrap()).lines() {
                 let line = line?;
@@ -572,18 +857,27 @@ impl<'a> Builder<'a> {
                         target,
                         filenames,
                         executable,
-                    } if package_id == id => {
-                        let selected = binary.map_or_else(
-                            || target.crate_types.iter().any(|kind| kind == "cdylib"),
-                            |name| target.name == name && executable.is_some(),
-                        );
-                        if selected {
-                            artifact = Some(Artifact {
-                                target_name: target.name,
+                        fresh,
+                    } => {
+                        if fresh {
+                            reused += 1;
+                        } else {
+                            compiled += 1;
+                        }
+                        let logical_name = match selections.get(&package_id) {
+                            Some(Selection::Library(name)) if target.crate_types.iter().any(|kind| kind == "cdylib") => name,
+                            Some(Selection::Binary(name)) if target.name == *name && executable.is_some() => name,
+                            _ => continue,
+                        };
+                        artifacts.insert(
+                            package_id,
+                            Artifact {
+                                target_name: logical_name.clone(),
                                 files: filenames,
                                 executable,
-                            });
-                        }
+                                storage: None,
+                            },
+                        );
                     }
                     Message::Diagnostic {
                         message: Diagnostic { rendered: Some(text) },
@@ -593,15 +887,20 @@ impl<'a> Builder<'a> {
             }
             Ok(())
         })();
+        // A parse/I/O failure must not leave a compiler process running or a full pipe.
         if read_result.is_err() {
             let _ = child.kill();
         }
         let status = child.wait()?;
         read_result?;
         if !status.success() {
-            return Err(format!("{package} build failed ({status})").into());
+            return Err(format!("{label} build failed ({status})").into());
         }
-        artifact.ok_or_else(|| format!("Cargo reported no requested artifact for {package}; components must export a cdylib").into())
+        if artifacts.len() != selections.len() {
+            return Err(format!("Cargo did not report every requested artifact for {label}").into());
+        }
+        eprintln!("{label}: {compiled} compiled, {reused} cached Cargo targets");
+        Ok(artifacts)
     }
 }
 
@@ -628,6 +927,7 @@ mod tests {
                 target_name: "nc_com_runtime".into(),
                 files: vec![format!("nc_com_runtime{suffix}.dll").into(), format!("nc_com_runtime{suffix}.dll.lib").into()],
                 executable: None,
+                storage: None,
             };
             let aliases = artifact.aliases().unwrap();
             assert!(aliases.iter().any(|(_, name)| name == "nc_com_runtime.lib"));

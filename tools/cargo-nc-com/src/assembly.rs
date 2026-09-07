@@ -46,20 +46,13 @@ pub(crate) fn build(builder: &Builder<'_>) -> Result<PathBuf> {
     }
     // Supplying the same runtime search path to every subsequent phase also handles
     // applications whose ordinary dependencies unify nc-com/runtime into plugins.
-    let mut plugins = Vec::new();
-    for (index, component) in builder.project.assembly.plugins.iter().enumerate() {
-        plugins.push(snapshot(
-            builder.component(&component.spec(), Some(&link_dir))?,
-            &snapshots.path().join(format!("plugin-{index}")),
-        )?);
-    }
-    let application = builder.application(&link_dir)?;
+    let (plugins, application) = builder.application(&link_dir)?;
     install(builder, &runtime, &plugins, &application)
 }
 
 /// Retains a component before later Cargo invocations can replace shared output names
 /// with another feature combination. Only native files enter the private snapshot.
-fn snapshot(artifact: Artifact, directory: &Path) -> Result<Artifact> {
+pub(crate) fn snapshot(artifact: Artifact, directory: &Path) -> Result<Artifact> {
     fs::create_dir_all(directory)?;
     let mut files = Vec::new();
     for source in artifact.native_files() {
@@ -71,6 +64,7 @@ fn snapshot(artifact: Artifact, directory: &Path) -> Result<Artifact> {
         target_name: artifact.target_name,
         files,
         executable: None,
+        storage: None,
     })
 }
 

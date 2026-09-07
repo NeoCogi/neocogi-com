@@ -79,7 +79,7 @@ impl Default for Application {
 pub(crate) enum Component {
     /// Name of a workspace package or resolved dependency, with default features enabled.
     Name(String),
-    /// Source, feature, and default-feature choices for an independent library build.
+    /// Source and feature choices, with optional isolation from the shared graph.
     Detailed(ComponentSpec),
 }
 
@@ -95,12 +95,16 @@ pub(crate) struct ComponentSpec {
     pub path: Option<PathBuf>,
     /// Named Cargo registry; omission means crates.io for a versioned source.
     pub registry: Option<String>,
-    /// Features used only for this component's build.
+    /// Features requested for this component; compatible assembly dependencies unify.
     #[serde(default)]
     pub features: Vec<String>,
     /// Whether to activate the component's default features.
     #[serde(default = "enabled")]
     pub default_features: bool,
+    /// Build this plugin in a separate feature graph instead of the application graph.
+    /// This preserves intentionally different transitive features at additional cost.
+    #[serde(default)]
+    pub isolated: bool,
 }
 
 /// Supplies Cargo's default behavior for omitted boolean configuration fields.
@@ -119,6 +123,7 @@ impl Component {
                 registry: None,
                 features: Vec::new(),
                 default_features: true,
+                isolated: false,
             },
             Self::Detailed(spec) => spec.clone(),
         }

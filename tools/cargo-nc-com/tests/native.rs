@@ -37,7 +37,7 @@ impl Consumer {
         write(
             &root.join("Cargo.toml"),
             &format!(
-                "[package]\nname='consumer'\nversion='0.1.0'\nedition='2024'\n[workspace]\n\
+                "[package]\nname='consumer'\nversion='0.1.0'\nedition='2024'\n[workspace]\nexclude=['provider','dependent']\n\
              [dependencies]\nnc-com-runtime-sys={{path={sys}}}\n\
              [package.metadata.nc-com]\nruntime={{package='nc-com-runtime',path={runtime}}}\n\
              plugins=[{{package='dependent',path='dependent',features=['dependent']}},{{package='provider',path='provider'}}]\n\
@@ -103,8 +103,10 @@ fn external_consumer_build_run_and_failed_updates() {
     let plugin_list = fs::read_to_string(destination.join("plugins.txt")).unwrap();
     let names: Vec<_> = plugin_list.lines().collect();
     assert_eq!(names.len(), 2);
-    assert!(names[0].contains("custom_provider"));
-    assert!(names[1].contains("custom_dependent"));
+    // The generated roots have private names; Cargo still imports each component's
+    // custom Rust library target and preserves its original descriptor identity.
+    assert!(names[0].contains("nc_com_shared_provider"));
+    assert!(names[1].contains("nc_com_shared_dependent"));
     let executable = destination.join(format!("consumer{}", std::env::consts::EXE_SUFFIX));
     let relocated = consumer.temporary.path().join("relocated assembly");
     copy_sources(&destination, &relocated);
@@ -125,8 +127,21 @@ fn external_consumer_build_run_and_failed_updates() {
     // All generated resolver lockfiles now exist, so --locked must reuse them.
     let second = consumer.build(&["build", "--offline", "--locked"]);
     assert_eq!(stage(&second), destination);
+    assert!(
+        !String::from_utf8_lossy(&second.stderr).contains("Compiling "),
+        "unchanged assemblies must reuse every compiled target: {}",
+        String::from_utf8_lossy(&second.stderr)
+    );
     let status = consumer.command().args(["run", "--offline", "--locked", "--", "23"]).output().unwrap().status;
     assert_eq!(status.code(), Some(23));
+    // Even a valid edit to the consumer lock must not silently replace the resolver's
+    // recorded seed during --locked. An unlocked build explicitly accepts the refresh.
+    let lock = consumer.root.join("Cargo.lock");
+    write(&lock, &(fs::read_to_string(&lock).unwrap() + "\n# consumer lock refreshed\n"));
+    let stale = consumer.command().args(["build", "--offline", "--locked"]).output().unwrap();
+    assert!(!stale.status.success());
+    assert!(String::from_utf8_lossy(&stale.stderr).contains("updated application lock"));
+    consumer.build(&["build", "--offline"]);
     let before = fs::read(&executable).unwrap();
     let failed = consumer
         .command()
@@ -157,8 +172,21 @@ fn external_consumer_build_run_and_failed_updates() {
 #[test]
 fn release_and_foreign_target_validation() {
     let consumer = Consumer::new();
+    let manifest = consumer.root.join("Cargo.toml");
+    write(&manifest, &(fs::read_to_string(&manifest).unwrap() + "\n[profile.release]\nlto='fat'\n"));
+    write(&consumer.root.join(".cargo/config.toml"), "[term]\nverbose=true\n");
     let output = consumer.build(&["build", "--offline", "--release"]);
     assert_eq!(stage(&output).file_name().unwrap(), "release");
+    let diagnostics = String::from_utf8_lossy(&output.stderr);
+    for name in ["nc_com_runtime", "provider", "dependent"] {
+        let root = format!("--crate-name nc_com_shared_{name} ");
+        let invocation = diagnostics
+            .lines()
+            .find(|line| line.contains(&root))
+            .expect("Cargo reports the shared root's rustc command");
+        assert!(invocation.contains("--crate-type cdylib"), "{invocation}");
+        assert!(invocation.contains("-C lto=fat"), "the deployed library must receive LTO: {invocation}");
+    }
     let failed = consumer
         .command()
         .args(["build", "--offline", "--target", "wasm32-unknown-unknown"])
@@ -166,6 +194,73 @@ fn release_and_foreign_target_validation() {
         .unwrap();
     assert!(!failed.status.success());
     assert!(String::from_utf8_lossy(&failed.stderr).contains("cannot be inspected"));
+}
+
+/// Ordinary application dependencies and configured components share one feature
+/// graph, including rlib-only implementations; explicit isolation preserves another.
+#[test]
+fn shared_features_and_explicit_isolation() {
+    for isolated in [false, true] {
+        let consumer = Consumer::new();
+        let manifest = consumer.root.join("Cargo.toml");
+        let condition = if isolated { "forbid-shared" } else { "expect-shared" };
+        let text = fs::read_to_string(&manifest)
+            .unwrap()
+            .replace("[dependencies]\n", "[dependencies]\nprovider={path='provider',features=['shared']}\n")
+            .replace(
+                "package='provider',path='provider'",
+                &format!("package='provider',path='provider',features=['{condition}'],isolated={isolated}"),
+            );
+        write(&manifest, &text);
+        let provider = consumer.root.join("provider/Cargo.toml");
+        let text = fs::read_to_string(&provider)
+            .unwrap()
+            .replace("['rlib','cdylib']", "['rlib']")
+            .replace("dependent=[]", "dependent=[]\nshared=[]\nexpect-shared=[]\nforbid-shared=[]");
+        write(&provider, &text);
+        let source = consumer.root.join("provider/src/lib.rs");
+        let text = fs::read_to_string(&source).unwrap()
+            + "\n\
+            #[cfg(all(feature=\"expect-shared\",not(feature=\"shared\")))]\n\
+            compile_error!(\"application features did not reach the shared graph\");\n\
+            #[cfg(all(feature=\"forbid-shared\",feature=\"shared\"))]\n\
+            compile_error!(\"isolated features were unified\");\n";
+        write(&source, &text);
+        consumer.build(&["run", "--offline"]);
+        let warm = consumer.build(&["build", "--offline", "--locked"]);
+        assert!(!String::from_utf8_lossy(&warm.stderr).contains("Compiling "));
+        if isolated {
+            // Removing isolation must actually merge the mutually exclusive features.
+            write(&manifest, &fs::read_to_string(&manifest).unwrap().replace("isolated=true", "isolated=false"));
+            let failed = consumer.command().args(["build", "--offline"]).output().unwrap();
+            assert!(!failed.status.success());
+            assert!(String::from_utf8_lossy(&failed.stderr).contains("isolated features were unified"));
+        }
+    }
+}
+
+/// Existing cdylib-only packages remain supported without requiring a Rust API.
+/// Both grouped and isolated paths must retain their original native exports.
+#[test]
+fn native_only_components() {
+    let consumer = Consumer::new();
+    let provider = consumer.root.join("provider/Cargo.toml");
+    write(&provider, &fs::read_to_string(&provider).unwrap().replace("['rlib','cdylib']", "['cdylib']"));
+    consumer.build(&["run", "--offline"]);
+    let warm = consumer.build(&["build", "--offline", "--locked"]);
+    assert!(
+        !String::from_utf8_lossy(&warm.stderr).contains("Compiling "),
+        "{}",
+        String::from_utf8_lossy(&warm.stderr)
+    );
+    let manifest = consumer.root.join("Cargo.toml");
+    write(
+        &manifest,
+        &fs::read_to_string(&manifest)
+            .unwrap()
+            .replace("package='provider',path='provider'", "package='provider',path='provider',isolated=true"),
+    );
+    consumer.build(&["run", "--offline"]);
 }
 
 /// Copies fixture source trees without modifying the repository's original crates.
@@ -238,6 +333,18 @@ fn registry_components_with_offline_source_replacement() {
             .unwrap()
             .contains("registry+https://github.com/rust-lang/crates.io-index")
     );
+    // Consumer source overrides must retain their original relative-path meaning in
+    // every generated workspace, including the shared application/component graph.
+    let patched = consumer.root.join("patched-provider");
+    copy_sources(&vendor.join("provider"), &patched);
+    let manifest = consumer.root.join("Cargo.toml");
+    write(
+        &manifest,
+        &(fs::read_to_string(&manifest).unwrap() + "\n[patch.crates-io]\nprovider={path='patched-provider'}\n"),
+    );
+    let patched_output = consumer.build(&["run", "--offline", "--config", "registry.toml"]);
+    assert!(String::from_utf8_lossy(&patched_output.stderr).contains("patched-provider"));
+    consumer.build(&["build", "--offline", "--locked", "--config", "registry.toml"]);
     // The short metadata form also works when Cargo.toml already declares the sources.
     let manifest = consumer.root.join("Cargo.toml");
     let content = fs::read_to_string(&manifest).unwrap().replace(
@@ -259,10 +366,18 @@ fn registry_components_with_offline_source_replacement() {
 #[ignore = "requires a nightly toolchain with rust-src on x86_64 Linux"]
 fn nightly_min_size_without_workspace_configuration() {
     let consumer = Consumer::new();
+    write(&consumer.root.join(".cargo/config.toml"), "[term]\nverbose=true\n");
     let output = consumer.build(&["run", "--offline", "--profile", "min-size"]);
     assert!(String::from_utf8_lossy(&output.stdout).contains("runtime=1; external asset"));
+    for name in ["nc_com_runtime", "provider", "dependent"] {
+        let root = format!("--crate-name nc_com_shared_{name} ");
+        let diagnostics = String::from_utf8_lossy(&output.stderr);
+        let invocation = diagnostics.lines().find(|line| line.contains(&root)).expect("shared root is compiled");
+        assert!(invocation.contains("-C lto=fat"), "{invocation}");
+    }
     let rebuilt = consumer.build(&["run", "--offline", "--locked", "--profile", "min-size"]);
     let diagnostics = String::from_utf8_lossy(&rebuilt.stderr);
+    assert!(!diagnostics.contains("Compiling "), "{diagnostics}");
     for name in ["core", "std"] {
         let needle = format!("Compiling {name} v0.0.0");
         assert_eq!(diagnostics.lines().filter(|line| line.contains(&needle)).count(), 0, "{diagnostics}");

@@ -34,10 +34,13 @@ assets = [{ from = "assets", to = "assets" }]
 String components select workspace packages or unambiguous packages in the
 application's resolved dependency graph. For a resolved dependency, the tool uses
 Cargo's fetched source directory as read-only input to a generated build project.
-Feature choices remain explicit in our configuration, independently of host
-feature unification. Multiple resolved versions require an explicit source.
+Feature choices remain explicit in our configuration. Plugins and the application
+normally share Cargo's feature unification, so shared dependencies compile with
+one compatible feature set. Multiple resolved versions require an explicit source.
 Detailed components support
-`package`, `path`, `version`, `registry`, `features`, and `default-features`.
+`package`, `path`, `version`, `registry`, `features`, `default-features`, and `isolated`.
+Set `isolated = true` on a plugin that intentionally needs a different feature
+graph. Its independent build can require additional dependency compilations.
 Application settings live in `application` and support `package`, `bin`,
 `features`, and `default-features`. The application package and binary are
 inferred only when unambiguous. Paths are relative to the owning manifest or
@@ -57,9 +60,14 @@ assets = [{ from = "assets", to = "assets" }]
 Build it with `cargo nc-com build --config nc-com.toml --release`. An explicit
 `version` uses registry resolution even when a workspace member has the same name.
 An explicit `path` selects local source; when both are supplied Cargo also checks
-that the local package satisfies the version requirement. Components should
-declare `[lib] crate-type = ["rlib", "cdylib"]`; the command requires a reported
-`cdylib` artifact and never stages the component's Rust `rlib`.
+that the local package satisfies the version requirement. Components may expose
+an ordinary Rust library (`rlib`/`lib`), both `rlib` and `cdylib`, or only `cdylib`.
+For Rust libraries, the tool generates a small pure `cdylib` root that re-exports
+the component. This preserves its public C exports and original crate identity
+while allowing Cargo to apply the configured LTO. Existing cdylib-only components
+are built directly. Rust `rlib` files and resolver executables are never staged.
+Mixed-output implementations still emit their original `.so`/DLL as part of
+Cargo's normal dependency build; the deployed output is the optimized root.
 
 For multiple applications, use `default-assembly = "NAME"` and
 `[assemblies.NAME]` inside the metadata/configuration table. Select another with
@@ -77,9 +85,13 @@ The CLI is a separate publishable Cargo package. Publishing requires its
 versioned `nc-com-runtime` and `nc-com-core` dependencies to be available in the
 registry first. This repository does not publish anything during a build.
 
-The tool builds the runtime, selected plugins, then the application. It supplies
-`NC_COM_RUNTIME_LINK_DIR` to the latter phases and uses Cargo's JSON messages to
-locate artifacts, including fresh cached artifacts and custom library names.
+The tool prepares the runtime, then builds the application and compatible plugins
+in one Cargo invocation. It supplies `NC_COM_RUNTIME_LINK_DIR` for native linking
+and uses Cargo's JSON messages to locate artifacts, including fresh cached
+artifacts and custom library names. Explicitly isolated plugins build separately
+and are snapshotted before the application can overwrite shared output filenames.
+Phase messages say `Checking`; completion reports compiled and cached Cargo
+targets, rather than implying that every phase recompiles its packages.
 It preserves environment `CARGO_ENCODED_RUSTFLAGS` (or `RUSTFLAGS`) and adds native
 loader paths. These environment flags take precedence over target rustflags in
 Cargo configuration. On Linux the executable uses `$ORIGIN`; macOS uses
@@ -89,15 +101,20 @@ Registry dependency artifacts may have hashed names: conventional runtime linker
 aliases are staged alongside the originals, using hard links where available.
 Separate debug-symbol files and directories are retained when Cargo reports them.
 
-Explicit `path` or `version` components are dependencies in generated, independent
-Cargo projects. Cargo resolves their versions and downloads their sources; our
-tool does not implement a registry client or require nightly artifact dependencies.
-These generated projects retain their Cargo.lock files under the selected target
-directory. `--locked` requires these lockfiles and the application lockfile to
-already exist and be current. Preserve the generated `sources` directories with
-their lockfiles when using locked builds; cleaning the target directory removes
-them. `--offline` applies to every Cargo invocation; `--frozen` combines both rules.
-The application's workspace profile tables are copied into generated projects.
+Component roots and the shared assembly resolver are generated Cargo projects.
+Cargo resolves their versions and downloads their sources; our tool does not
+implement a registry client or require nightly artifact dependencies. Generated
+projects retain Cargo.lock under `sources/PACKAGE` and `sources/assembly` in the
+managed state directory. Their initial version selections are seeded from the
+application's Cargo.lock; compatible existing versions are retained when Cargo
+adds the resolver packages. A changed application lock refreshes those seeds on
+the next unlocked build. `--locked` requires current application and generated
+locks and rejects a missing or changed seed, including the first build after
+upgrading from an older resolver layout. Preserve the generated `sources`
+directories for locked builds; cleaning the target directory removes them.
+`--offline` applies to every Cargo invocation; `--frozen` combines both rules.
+Workspace profiles, `[patch]`, and `[replace]` tables are preserved in generated
+projects, with relative override paths resolved against the original workspace.
 
 Outputs are managed under
 `TARGET/nc-com/APPLICATION/ASSEMBLY/VARIANTS/dist/COMPILER/TARGET/PROFILE`.
@@ -106,6 +123,9 @@ generated resolver manifests live alongside `dist`. The entire configured
 runtime/plugin build shares Cargo's target directory and compatible compilation
 cache. Cargo may compile different standard-library variants for separate graphs;
 sharing a cache does not guarantee a single std compilation on a clean build.
+The demo runtime and application declarations use the same default-feature setting
+to avoid unnecessary runtime variants. Non-embedded demos do not build the asset
+generator's host facade.
 `--target-dir` overrides Cargo's configured target directory.
 
 Each assembly contains the executable, runtime, plugins, configured assets, and
