@@ -1,7 +1,8 @@
 # nc-com-runtime
 
 `nc-com-runtime` contains the process-global runtime implementation exported by
-the `libnc_com_runtime` shared library.
+the `libnc_com_shared_runtime` shared library. The Cargo package is
+`nc-com-runtime`; its Rust library target is `nc_com_shared_runtime`.
 
 It owns the parts that need an operating-system runtime:
 

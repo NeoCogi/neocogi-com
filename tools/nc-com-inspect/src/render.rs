@@ -3,7 +3,7 @@
 use std::fmt::Write as _;
 
 use nc_com_core::NcAbiThreadingMode;
-use nc_com_runtime::{ClassInspection, InterfaceInspection, MethodInspection, PluginInspection};
+use nc_com_shared_runtime::{ClassInspection, InterfaceInspection, MethodInspection, PluginInspection};
 
 use crate::compat::CompatibilityReport;
 use crate::schema::{InspectionArtifactV2, SCHEMA, SCHEMA_VERSION, format_hash};
@@ -172,7 +172,7 @@ fn render_method_text(out: &mut String, method: &MethodInspection) {
 mod tests {
     use super::*;
     use nc_com_core::{NcAbiHash, NcGuid, NcInterfaceId};
-    use nc_com_runtime::{ClassInspection, ClassInterfaceInspection, InterfaceInspection};
+    use nc_com_shared_runtime::{ClassInspection, ClassInterfaceInspection, InterfaceInspection};
 
     fn inspection_with_thread_safe_class() -> PluginInspection {
         PluginInspection {

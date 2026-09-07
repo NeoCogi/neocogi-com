@@ -13,6 +13,8 @@ keywords = ["com", "abi", "ffi", "plugin"]
 categories = ["api-bindings", "development-tools::ffi"]
 
 [lib]
+# One Rust/native library name is shared by direct builds and assembly roots.
+name = "nc_com_shared_runtime"
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]

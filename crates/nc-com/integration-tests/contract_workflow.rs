@@ -89,7 +89,7 @@ fn dylib_path_with_runtime_link_dir(var: &str, runtime_link_dir: &Path) -> OsStr
 
 fn remove_stale_runtime_library(target_dir: &Path) {
     let filename = format!(
-        "{}nc_com_runtime{}",
+        "{}nc_com_shared_runtime{}",
         env::consts::DLL_PREFIX,
         env::consts::DLL_SUFFIX
     );

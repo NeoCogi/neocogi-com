@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use nc_com_core::NcGuid;
-use nc_com_runtime::PluginInspection;
+use nc_com_shared_runtime::PluginInspection;
 use serde::Serialize;
 
 pub(crate) const PLAN_SCHEMA: &str = "nc-com.load-plan";

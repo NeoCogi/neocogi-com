@@ -21,9 +21,9 @@ pub use nc_com_core::{
 // Keep the implementation in the link graph so the exact same exported C
 // symbols resolve from its rlib. No alternate tables or catalog are introduced.
 #[cfg(feature = "static-runtime")]
-extern crate nc_com_runtime as _;
+extern crate nc_com_shared_runtime as _;
 
-#[cfg_attr(all(not(test), not(feature = "static-runtime")), link(name = "nc_com_runtime"))]
+#[cfg_attr(all(not(test), not(feature = "static-runtime")), link(name = "nc_com_shared_runtime"))]
 unsafe extern "C" {
     /// Returns the runtime shared-library ABI generation.
     pub fn nc_com_runtime_abi_version() -> u32;

@@ -277,7 +277,7 @@ struct GeneratedPackage {
 /// Pure shared-library root importing the original package's Rust API and C exports.
 #[derive(Serialize)]
 struct GeneratedLibrary {
-    /// Unique wrapper name; runtime linker aliases retain the original logical name.
+    /// Plugins use a private name; the runtime uses its native linker name directly.
     name: String,
     /// Always cdylib alone, because rustc rejects LTO with a simultaneous rlib output.
     #[serde(rename = "crate-type")]
@@ -484,9 +484,9 @@ impl<'a> Builder<'a> {
         }
     }
 
-    /// Builds the runtime or an explicitly isolated plugin through its pure cdylib root.
+    /// Builds the runtime through a pure cdylib root with its final native name.
     pub fn component(&self, spec: &ComponentSpec, runtime_dir: Option<&Path>) -> Result<Artifact> {
-        let prepared = self.prepare(spec)?;
+        let prepared = self.prepare(spec, true)?;
         self.build_component(&prepared, runtime_dir)
     }
 
@@ -588,7 +588,9 @@ impl<'a> Builder<'a> {
     /// Generates a pure cdylib re-export root; Cargo owns its compilation and cache.
     /// Re-exporting retains the component's public C symbols and its original crate
     /// identity, including descriptor names and package-relative compile-time inputs.
-    fn prepare(&self, spec: &ComponentSpec) -> Result<PreparedComponent> {
+    /// `runtime` selects the original library name so its loader and linker agree
+    /// without deploying a second filename for the same shared library.
+    fn prepare(&self, spec: &ComponentSpec, runtime: bool) -> Result<PreparedComponent> {
         // Resolve the consumer before seeding any generated lock, including on the
         // first run of a binary-only application that has no Cargo.lock yet.
         self.resolve(&self.project.manifest)?;
@@ -625,6 +627,12 @@ impl<'a> Builder<'a> {
             .find(|target| target.crate_types.iter().any(|kind| matches!(kind.as_str(), "rlib" | "lib" | "cdylib")))
             .ok_or("components must expose a Rust library or cdylib")?;
         let binary = !library.crate_types.iter().any(|kind| kind == "rlib" || kind == "lib");
+        if runtime && !binary {
+            // The dependency's hashed artifact stays in deps; the selected cdylib
+            // root owns the conventional top-level name and platform loader identity.
+            manifest.lib.as_mut().unwrap().name = library.name.clone();
+            self.write_manifest(&path, &manifest)?;
+        }
         let dependency = if binary {
             // A pure cdylib already receives Cargo's LTO and cannot be imported as
             // Rust. Keep its original artifact rather than generating a wrapper.
@@ -687,7 +695,7 @@ impl<'a> Builder<'a> {
             .assembly
             .plugins
             .iter()
-            .map(|component| self.prepare(&component.spec()))
+            .map(|component| self.prepare(&component.spec(), false))
             .collect::<Result<Vec<_>>>()?;
         let app = &self.project.assembly.application;
         let application = self
@@ -924,15 +932,18 @@ mod tests {
     fn windows_import_library_aliases() {
         for suffix in ["", "-123abc"] {
             let artifact = Artifact {
-                target_name: "nc_com_runtime".into(),
-                files: vec![format!("nc_com_runtime{suffix}.dll").into(), format!("nc_com_runtime{suffix}.dll.lib").into()],
+                target_name: "nc_com_shared_runtime".into(),
+                files: vec![
+                    format!("nc_com_shared_runtime{suffix}.dll").into(),
+                    format!("nc_com_shared_runtime{suffix}.dll.lib").into(),
+                ],
                 executable: None,
                 storage: None,
             };
             let aliases = artifact.aliases().unwrap();
-            assert!(aliases.iter().any(|(_, name)| name == "nc_com_runtime.lib"));
+            assert!(aliases.iter().any(|(_, name)| name == "nc_com_shared_runtime.lib"));
             assert_eq!(
-                aliases.iter().filter(|(_, name)| name == "nc_com_runtime.dll").count(),
+                aliases.iter().filter(|(_, name)| name == "nc_com_shared_runtime.dll").count(),
                 usize::from(!suffix.is_empty())
             );
         }

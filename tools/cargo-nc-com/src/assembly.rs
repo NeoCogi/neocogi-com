@@ -157,10 +157,10 @@ pub(crate) fn inspect(arguments: &[std::ffi::OsString]) -> Result<()> {
     for library in libraries {
         // SAFETY: The assembly command explicitly selected this native component.
         // Descriptor validation and owned metadata copying are provided by the runtime.
-        inspections.push(unsafe { nc_com_runtime::inspect_plugin_library(Path::new(library))? });
+        inspections.push(unsafe { nc_com_shared_runtime::inspect_plugin_library(Path::new(library))? });
     }
     let mut manifest = String::new();
-    for id in nc_com_runtime::plan_plugin_load_order(&inspections)? {
+    for id in nc_com_shared_runtime::plan_plugin_load_order(&inspections)? {
         let index = inspections
             .iter()
             .position(|plugin| plugin.plugin_id == id)

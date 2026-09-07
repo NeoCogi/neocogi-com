@@ -12,7 +12,7 @@ use nc_com_core::{
     IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, NcAbiHash, NcAbiThreadingMode,
     NcGuid, NcInterfaceId, guid_from_qualified_name,
 };
-use nc_com_runtime::PluginInspection;
+use nc_com_shared_runtime::PluginInspection;
 use serde::{Deserialize, Serialize};
 
 pub(crate) const SCHEMA: &str = "nc-com.inspection";

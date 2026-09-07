@@ -43,7 +43,7 @@
 //! cross-platform ABI pattern.
 //!
 //! With the `runtime` feature, `nc-com` exposes the process-global
-//! `Runtime` facade backed by the linked `libnc_com_runtime` shared library.
+//! `Runtime` facade backed by the linked `libnc_com_shared_runtime` shared library.
 //! Hosts still choose which plugin descriptors to accept, but successful dynamic
 //! plugin loads remain mapped until process exit.
 //!

@@ -1259,7 +1259,7 @@ Feature behavior:
   allocated.
 - `macros`: re-exports `nc-com-macros`.
 - `runtime`: enables `std` and the process-global `Runtime` facade backed
-  by the linked `libnc_com_runtime` C ABI. It requires an already built runtime
+  by the linked `libnc_com_shared_runtime` C ABI. It requires an already built runtime
   shared library on the native link path and discoverable by the platform loader.
 - `no_std`: supported when `std` is disabled; generated interfaces and `ComPtr`
   work without allocation, while generated classes require `alloc` and

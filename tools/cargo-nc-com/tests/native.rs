@@ -100,6 +100,17 @@ fn external_consumer_build_run_and_failed_updates() {
     let consumer = Consumer::new();
     let output = consumer.build(&["build", "--offline"]);
     let destination = stage(&output);
+    // A single runtime filename must suffice even after relocating the assembly
+    // and hiding all build outputs; the launch below checks its loader identity.
+    let runtimes: Vec<_> = fs::read_dir(&destination)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| (name.contains("nc_com_runtime") || name.contains("nc_com_shared_runtime")) && name.ends_with(std::env::consts::DLL_SUFFIX))
+        .collect();
+    assert_eq!(
+        runtimes,
+        [format!("{}nc_com_shared_runtime{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX)]
+    );
     let plugin_list = fs::read_to_string(destination.join("plugins.txt")).unwrap();
     let names: Vec<_> = plugin_list.lines().collect();
     assert_eq!(names.len(), 2);
@@ -178,11 +189,11 @@ fn release_and_foreign_target_validation() {
     let output = consumer.build(&["build", "--offline", "--release"]);
     assert_eq!(stage(&output).file_name().unwrap(), "release");
     let diagnostics = String::from_utf8_lossy(&output.stderr);
-    for name in ["nc_com_runtime", "provider", "dependent"] {
-        let root = format!("--crate-name nc_com_shared_{name} ");
+    for name in ["nc_com_shared_runtime", "nc_com_shared_provider", "nc_com_shared_dependent"] {
+        let root = format!("--crate-name {name} ");
         let invocation = diagnostics
             .lines()
-            .find(|line| line.contains(&root))
+            .find(|line| line.contains(&root) && !line.contains("--crate-type rlib"))
             .expect("Cargo reports the shared root's rustc command");
         assert!(invocation.contains("--crate-type cdylib"), "{invocation}");
         assert!(invocation.contains("-C lto=fat"), "the deployed library must receive LTO: {invocation}");
@@ -288,7 +299,9 @@ fn registry_components_with_offline_source_replacement() {
         let directory = vendor.join(name);
         let extra = match name {
             "nc-com-core" => "[features]\ndefault=[]\nalloc=[]\nstd=['alloc']\n",
-            "nc-com-runtime" => "[lib]\ncrate-type=['rlib','cdylib']\n[dependencies]\nnc-com-core={version='0.1.0',features=['std']}\n",
+            "nc-com-runtime" => {
+                "[lib]\nname='nc_com_shared_runtime'\ncrate-type=['rlib','cdylib']\n[dependencies]\nnc-com-core={version='0.1.0',features=['std']}\n"
+            }
             "provider" => "[lib]\nname='custom_provider'\ncrate-type=['rlib','cdylib']\n[features]\ndependent=[]\n[dependencies]\nnc-com-core='0.1.0'\n",
             _ => "[lib]\nname='custom_dependent'\ncrate-type=['rlib','cdylib']\n[features]\ndependent=[]\n[dependencies]\nnc-com-core='0.1.0'\n",
         };
@@ -369,10 +382,13 @@ fn nightly_min_size_without_workspace_configuration() {
     write(&consumer.root.join(".cargo/config.toml"), "[term]\nverbose=true\n");
     let output = consumer.build(&["run", "--offline", "--profile", "min-size"]);
     assert!(String::from_utf8_lossy(&output.stdout).contains("runtime=1; external asset"));
-    for name in ["nc_com_runtime", "provider", "dependent"] {
-        let root = format!("--crate-name nc_com_shared_{name} ");
+    for name in ["nc_com_shared_runtime", "nc_com_shared_provider", "nc_com_shared_dependent"] {
+        let root = format!("--crate-name {name} ");
         let diagnostics = String::from_utf8_lossy(&output.stderr);
-        let invocation = diagnostics.lines().find(|line| line.contains(&root)).expect("shared root is compiled");
+        let invocation = diagnostics
+            .lines()
+            .find(|line| line.contains(&root) && !line.contains("--crate-type rlib"))
+            .expect("shared root is compiled");
         assert!(invocation.contains("-C lto=fat"), "{invocation}");
     }
     let rebuilt = consumer.build(&["run", "--offline", "--locked", "--profile", "min-size"]);

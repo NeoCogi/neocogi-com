@@ -97,8 +97,9 @@ loader paths. These environment flags take precedence over target rustflags in
 Cargo configuration. On Linux the executable uses `$ORIGIN`; macOS uses
 `@loader_path` with Rust's `@rpath` dylib identities. Windows uses adjacent DLLs
 and the runtime's import library, including a conventional MSVC `.lib` alias.
-Registry dependency artifacts may have hashed names: conventional runtime linker
-aliases are staged alongside the originals, using hard links where available.
+The runtime root uses `nc_com_shared_runtime` directly, producing one deployed
+runtime library (`libnc_com_shared_runtime.so` on Linux). Its generated LTO root
+and direct Cargo builds use the same name; no second runtime filename is staged.
 Separate debug-symbol files and directories are retained when Cargo reports them.
 
 Component roots and the shared assembly resolver are generated Cargo projects.

@@ -24,15 +24,15 @@ $runtimeDir = [IO.Path]::GetFullPath((Join-Path $targetDir "debug"))
 $runtimeDepsDir = Join-Path $runtimeDir "deps"
 
 # rustc's MSVC cdylib output may use the `.dll.lib` suffix while a native
-# `#[link(name = "nc_com_runtime")]` lookup requests `nc_com_runtime.lib`.
+# `#[link(name = "nc_com_shared_runtime")]` lookup requests `nc_com_shared_runtime.lib`.
 $importLibraries = Get-ChildItem -Path @($runtimeDir, $runtimeDepsDir) `
-    -Filter "nc_com_runtime.dll.lib" -ErrorAction SilentlyContinue
+    -Filter "nc_com_shared_runtime.dll.lib" -ErrorAction SilentlyContinue
 foreach ($importLibrary in $importLibraries) {
     Copy-Item $importLibrary.FullName `
-        (Join-Path $importLibrary.DirectoryName "nc_com_runtime.lib") -Force
+        (Join-Path $importLibrary.DirectoryName "nc_com_shared_runtime.lib") -Force
 }
-if (-not (Test-Path (Join-Path $runtimeDir "nc_com_runtime.lib")) -and
-    -not (Test-Path (Join-Path $runtimeDepsDir "nc_com_runtime.lib"))) {
+if (-not (Test-Path (Join-Path $runtimeDir "nc_com_shared_runtime.lib")) -and
+    -not (Test-Path (Join-Path $runtimeDepsDir "nc_com_shared_runtime.lib"))) {
     throw "nc-com-runtime import library was not produced"
 }
 

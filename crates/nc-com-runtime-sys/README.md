@@ -1,7 +1,7 @@
 # nc-com-runtime-sys
 
 `nc-com-runtime-sys` contains link-time declarations for the C ABI exported by a
-`libnc_com_runtime` shared library.
+`libnc_com_shared_runtime` shared library.
 
 This crate intentionally has no runtime implementation. It re-exports
 `nc-com-core` ABI types and declares `nc_com_runtime_abi_version` plus the five

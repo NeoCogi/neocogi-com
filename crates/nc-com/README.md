@@ -101,7 +101,7 @@ automatic dependency-name resolution and an explicit facade override.
 ## Runtime And Plugins
 
 The optional `runtime` feature exposes the stateless `Runtime` facade over the
-separately built and linked `libnc_com_runtime` shared library. The shared
+separately built and linked `libnc_com_shared_runtime` shared library. The shared
 runtime owns process-global registry state. Successfully loaded modules remain
 mapped until process exit; unload and hot reload are not ABI-v2 operations.
 
