@@ -8,6 +8,8 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(clippy::missing_docs_in_private_items)]
 
+mod assembly;
+mod build;
 mod cli;
 mod config;
 mod project;
@@ -31,14 +33,29 @@ fn main() -> ExitCode {
 
 /// Parses both Cargo's subcommand invocation and direct executable invocations.
 fn execute() -> Result<()> {
-    let Some(options) = cli::Options::parse(std::env::args_os().skip(1))? else {
+    let mut arguments = std::env::args_os().skip(1).peekable();
+    // Inspection runs in a short-lived child because the runtime deliberately pins
+    // loaded modules until process exit; Windows then permits staging renames too.
+    if arguments.peek().is_some_and(|argument| argument == "__inspect") {
+        arguments.next();
+        return assembly::inspect(&arguments.collect::<Vec<_>>());
+    }
+    let Some(options) = cli::Options::parse(arguments)? else {
         return Ok(());
     };
     let project = project::Project::load(&options)?;
     // A plan resolves configuration without compiling or inspecting component code.
     match options.command {
         cli::Command::Plan => println!("{}", serde_json::to_string_pretty(&project)?),
-        _ => return Err("build and run are not implemented in this configuration-only revision".into()),
+        cli::Command::Build | cli::Command::Run => {
+            let builder = build::Builder::new(&project, &options)?;
+            let executable = assembly::build(&builder)?;
+            if options.command == cli::Command::Run {
+                let status = std::process::Command::new(executable).args(&options.arguments).status()?;
+                // Preserve the application's exit code for scripts and CI callers.
+                std::process::exit(status.code().unwrap_or(1));
+            }
+        }
     }
     Ok(())
 }

@@ -147,6 +147,8 @@ pub(crate) struct Variant {
     pub component_features: BTreeMap<String, Vec<String>>,
     /// Additional plugin libraries needed by this variant.
     pub additional_plugins: Vec<Component>,
+    /// Removes configured plugins, for variants whose resources are embedded instead.
+    pub omit_plugins: Vec<String>,
     /// Replaces staged resources; an empty list selects no external resources.
     pub assets: Option<Vec<Asset>>,
 }
@@ -185,6 +187,14 @@ impl Assembly {
             }
             self.application.features.extend(variant.add_application_features);
             self.plugins.extend(variant.additional_plugins);
+            for package in variant.omit_plugins {
+                let index = self
+                    .plugins
+                    .iter()
+                    .position(|component| component.spec().package == package)
+                    .ok_or_else(|| format!("variant {name:?} omits unknown plugin {package:?}"))?;
+                self.plugins.remove(index);
+            }
             // Expand shorthand only when an override needs to alter its feature list.
             for (package, features) in variant.component_features {
                 let component = std::iter::once(&mut self.runtime)
