@@ -126,6 +126,8 @@ sharing a cache does not guarantee a single std compilation on a clean build.
 The demo runtime and application declarations use the same default-feature setting
 to avoid unnecessary runtime variants. Non-embedded demos do not build the asset
 generator's host facade.
+See the checkout's measured build comparison
+for compiler counts, shared-library sizes, and reproduction commands.
 `--target-dir` overrides Cargo's configured target directory.
 
 Each assembly contains the executable, runtime, plugins, configured assets, and
