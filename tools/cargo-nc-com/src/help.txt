@@ -1,0 +1,21 @@
+cargo nc-com [plan|build|run] [OPTIONS] [-- APPLICATION_ARGS]
+
+  --manifest-path PATH  Application or workspace Cargo.toml
+  --config PATH         Read nc-com TOML instead of Cargo metadata
+  -p, --package NAME    Select the application package
+  --assembly NAME       Select a named assembly
+  --variant NAME        Apply a configured variant (repeatable, in order)
+  --release             Use Cargo's release profile
+  --profile NAME        dev (default), release, min-size, or a Cargo profile
+  --toolchain NAME      Launch Cargo through rustup with this toolchain
+  --target TRIPLE       Native target (foreign-target inspection is unsupported)
+  --target-dir PATH     Override Cargo's build cache directory
+  --offline             Disallow Cargo network access
+  --locked              Require existing, unchanged lockfiles
+  --frozen              Both --offline and --locked
+  -h, --help            Show this help
+  -V, --version         Show the tool version
+
+min-size defaults to nightly and requires its rust-src component. It uses the
+bundled x86_64 Linux target and optimization settings, without a workspace alias.
+Run arguments must follow --. The child inherits the caller's working directory.
