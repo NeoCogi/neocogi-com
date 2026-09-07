@@ -3,7 +3,7 @@
 Build an executable and its nc-com runtime/plugins as separate shared libraries,
 then assemble their artifacts and resources beside the executable.
 
-Install from this checkout with `cargo install --path tools/cargo-nc-com --locked`.
+Install from this checkout with `cargo install --path tools/cargo-nc-com`.
 After publication, users can install with `cargo install cargo-nc-com --locked`.
 
 ```sh
@@ -31,12 +31,35 @@ plugins = [{ package = "my-plugin", features = ["dynamic-plugin"] }]
 assets = [{ from = "assets", to = "assets" }]
 ```
 
-String components select workspace packages. Detailed components support
+String components select workspace packages or unambiguous packages in the
+application's resolved dependency graph. For a resolved dependency, the tool uses
+Cargo's fetched source directory as read-only input to a generated build project.
+Feature choices remain explicit in our configuration, independently of host
+feature unification. Multiple resolved versions require an explicit source.
+Detailed components support
 `package`, `path`, `version`, `registry`, `features`, and `default-features`.
 Application settings live in `application` and support `package`, `bin`,
 `features`, and `default-features`. The application package and binary are
 inferred only when unambiguous. Paths are relative to the owning manifest or
 standalone configuration file.
+
+A standalone file contains the assembly directly, without the metadata prefix.
+For example, after publishing the referenced component versions:
+
+```toml
+# nc-com.toml
+application = { package = "my-app", bin = "my-app" }
+runtime = { package = "nc-com-runtime", version = "=0.1.0" }
+plugins = [{ package = "my-plugin", version = "=1.0.0", features = ["dynamic-plugin"] }]
+assets = [{ from = "assets", to = "assets" }]
+```
+
+Build it with `cargo nc-com build --config nc-com.toml --release`. An explicit
+`version` uses registry resolution even when a workspace member has the same name.
+An explicit `path` selects local source; when both are supplied Cargo also checks
+that the local package satisfies the version requirement. Components should
+declare `[lib] crate-type = ["rlib", "cdylib"]`; the command requires a reported
+`cdylib` artifact and never stages the component's Rust `rlib`.
 
 For multiple applications, use `default-assembly = "NAME"` and
 `[assemblies.NAME]` inside the metadata/configuration table. Select another with
@@ -60,9 +83,11 @@ locate artifacts, including fresh cached artifacts and custom library names.
 It preserves environment `CARGO_ENCODED_RUSTFLAGS` (or `RUSTFLAGS`) and adds native
 loader paths. These environment flags take precedence over target rustflags in
 Cargo configuration. On Linux the executable uses `$ORIGIN`; macOS uses
-`@loader_path`; Windows uses adjacent DLLs and the runtime's import library.
+`@loader_path` with Rust's `@rpath` dylib identities. Windows uses adjacent DLLs
+and the runtime's import library, including a conventional MSVC `.lib` alias.
 Registry dependency artifacts may have hashed names: conventional runtime linker
 aliases are staged alongside the originals, using hard links where available.
+Separate debug-symbol files and directories are retained when Cargo reports them.
 
 Explicit `path` or `version` components are dependencies in generated, independent
 Cargo projects. Cargo resolves their versions and downloads their sources; our
@@ -97,7 +122,7 @@ System dependencies such as SDL and graphics drivers are not bundled automatical
 arguments after `--`, and preserves ordinary application exit codes. Applications
 must locate their resources relative to their executable, as the demos do.
 
-Validation commands:
+Validation commands from this repository checkout:
 
 ```sh
 cargo test -p cargo-nc-com
@@ -106,6 +131,9 @@ cargo test -p cargo-nc-com --test native nightly_min_size -- --ignored
 ```
 
 The native tests build an external consumer, check actual dynamic runtime linking
-and resource lookup, exercise reordered descriptors and failed updates, and verify
+and resource lookup after relocating the assembly and hiding the build cache,
+exercise reordered descriptors and failed updates, and verify
 versioned dependencies through an offline Cargo directory-source replacement.
 The optional nightly test also checks reuse of core and std on a locked rebuild.
+Native fixtures reference the checkout's ABI sources and are excluded from the
+published package; the portable configuration tests remain included.

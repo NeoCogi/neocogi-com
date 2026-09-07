@@ -101,3 +101,23 @@ fn command_line_errors_and_help() {
     }
     assert!(fixture.run(&["nc-com", "--help"]).status.success());
 }
+
+/// Workspace catalogs select named executables and variants can remove unused plugins.
+#[test]
+fn workspace_catalog_and_plugin_omission() {
+    let fixture = Fixture::new(
+        "[workspace.metadata.nc-com]\ndefault-assembly='demo'\n\
+        [workspace.metadata.nc-com.assemblies.demo]\nruntime='runtime'\nplugins=['ui','assets']\n\
+        [workspace.metadata.nc-com.assemblies.demo.variants.embedded]\n\
+        add-application-features=['embedded']\nomit-plugins=['assets']\nassets=[]\n",
+    );
+    let output = fixture.run(&["plan", "--offline", "--variant", "embedded"]);
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let plan: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(plan["name"], "demo");
+    assert_eq!(plan["assembly"]["plugins"], serde_json::json!(["ui"]));
+    assert_eq!(plan["assembly"]["application"]["features"], serde_json::json!(["embedded"]));
+    let invalid = fixture.run(&["plan", "--offline", "--assembly", "absent"]);
+    assert!(!invalid.status.success());
+    assert!(String::from_utf8_lossy(&invalid.stderr).contains("unknown assembly"));
+}

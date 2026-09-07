@@ -77,7 +77,7 @@ impl Default for Application {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(untagged)]
 pub(crate) enum Component {
-    /// Name of a package in the application workspace, with default features enabled.
+    /// Name of a workspace package or resolved dependency, with default features enabled.
     Name(String),
     /// Source, feature, and default-feature choices for an independent library build.
     Detailed(ComponentSpec),
@@ -89,7 +89,7 @@ pub(crate) enum Component {
 pub(crate) struct ComponentSpec {
     /// Cargo package name; custom library target names are discovered from artifacts.
     pub package: String,
-    /// Registry version requirement; omission selects a local workspace member.
+    /// Registry version requirement; omission selects a workspace member or resolved dependency.
     pub version: Option<String>,
     /// Local crate directory relative to the configuration owner; takes precedence over version.
     pub path: Option<PathBuf>,

@@ -68,6 +68,7 @@ impl Consumer {
     fn command(&self) -> Command {
         let mut command = Command::new(env!("CARGO_BIN_EXE_cargo-nc-com"));
         command.current_dir(&self.root).env("CARGO_TARGET_DIR", self.temporary.path().join("cache"));
+        command.env("CARGO_TERM_COLOR", "never");
         command
     }
 
@@ -105,12 +106,20 @@ fn external_consumer_build_run_and_failed_updates() {
     assert!(names[0].contains("custom_provider"));
     assert!(names[1].contains("custom_dependent"));
     let executable = destination.join(format!("consumer{}", std::env::consts::EXE_SUFFIX));
-    let launched = Command::new(&executable)
+    let relocated = consumer.temporary.path().join("relocated assembly");
+    copy_sources(&destination, &relocated);
+    let cache = consumer.temporary.path().join("cache");
+    let hidden_cache = consumer.temporary.path().join("hidden-cache");
+    fs::rename(&cache, &hidden_cache).unwrap();
+    let launched = Command::new(relocated.join(executable.file_name().unwrap()))
         .current_dir(consumer.temporary.path())
         .env_remove("LD_LIBRARY_PATH")
         .env_remove("DYLD_LIBRARY_PATH")
         .output()
         .unwrap();
+    // Restore the cache before checking status so subsequent locked-build checks keep
+    // their original artifacts. During execution, every original build path was absent.
+    fs::rename(hidden_cache, cache).unwrap();
     assert!(launched.status.success(), "{}", String::from_utf8_lossy(&launched.stderr));
     assert_eq!(String::from_utf8(launched.stdout).unwrap(), "runtime=1; external asset\n");
     // All generated resolver lockfiles now exist, so --locked must reuse them.
@@ -229,6 +238,19 @@ fn registry_components_with_offline_source_replacement() {
             .unwrap()
             .contains("registry+https://github.com/rust-lang/crates.io-index")
     );
+    // The short metadata form also works when Cargo.toml already declares the sources.
+    let manifest = consumer.root.join("Cargo.toml");
+    let content = fs::read_to_string(&manifest).unwrap().replace(
+        "[dependencies]\n",
+        "[features]\nenable-plugin=['dep:dependent']\n[dependencies]\nnc-com-runtime='=0.1.0'\nprovider='=0.1.0'\ndependent={version='=0.1.0',features=['dependent'],optional=true}\n",
+    );
+    fs::write(manifest, content).unwrap();
+    write(
+        &consumer.root.join("declared.toml"),
+        "runtime='nc-com-runtime'\nplugins=[{package='dependent',features=['dependent']},'provider']\nassets=[{from='assets',to='assets'}]\n[application]\nfeatures=['enable-plugin']\n",
+    );
+    let output = consumer.build(&["run", "--offline", "--config", "declared.toml"]);
+    assert!(String::from_utf8_lossy(&output.stdout).contains("runtime=1; external asset"));
 }
 
 /// The bundled nightly preset must work in a consumer with no .cargo aliases or

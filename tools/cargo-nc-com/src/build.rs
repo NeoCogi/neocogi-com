@@ -49,18 +49,38 @@ impl Artifact {
     pub fn aliases(&self) -> Result<Vec<(PathBuf, String)>> {
         let library = self.library()?;
         let stem = library.file_stem().and_then(|stem| stem.to_str()).ok_or("runtime filename must be UTF-8")?;
-        let logical = format!("{}{}", std::env::consts::DLL_PREFIX, self.target_name);
-        let mut aliases = Vec::new();
-        if stem != logical {
-            for file in self.native_files() {
-                let name = file.file_name().and_then(|name| name.to_str()).ok_or("native filename must be UTF-8")?;
-                let alias = name.replace(stem, &logical);
-                if alias != name {
-                    aliases.push((file.clone(), alias));
-                }
+        let prefix = if library.extension().is_some_and(|extension| extension == "dll") {
+            ""
+        } else {
+            "lib"
+        };
+        let logical = format!("{prefix}{}", self.target_name);
+        let mut aliases = BTreeMap::new();
+        for file in self.native_files().filter(|file| {
+            matches!(
+                file.extension().and_then(|extension| extension.to_str()),
+                Some("so" | "dylib" | "dll" | "lib" | "a")
+            )
+        }) {
+            let name = file.file_name().and_then(|name| name.to_str()).ok_or("native filename must be UTF-8")?;
+            let alias = name.replace(stem, &logical);
+            if alias != name {
+                aliases.insert(alias, file.clone());
+            }
+            // MSVC produces foo.dll.lib while an ordinary #[link(name="foo")]
+            // can request foo.lib. Provide both names, including for unhashed artifacts.
+            if name.ends_with(".dll.lib") {
+                aliases.insert(format!("{}.lib", self.target_name), file.clone());
             }
         }
-        Ok(aliases)
+        // Cargo may already report a conventional companion name. Avoid aliases that
+        // would collide with an original file or duplicate another companion alias.
+        for file in self.native_files() {
+            if let Some(name) = file.file_name().and_then(|name| name.to_str()) {
+                aliases.remove(name);
+            }
+        }
+        Ok(aliases.into_iter().map(|(alias, source)| (source, alias)).collect())
     }
 
     /// Identifies the loadable shared library without assuming its Cargo directory.
@@ -125,6 +145,51 @@ struct ArtifactTarget {
 struct Diagnostic {
     /// Human-readable warning/error text, including source spans when available.
     rendered: Option<String>,
+}
+
+/// Source locations from Cargo's resolved application dependency graph.
+#[derive(Deserialize)]
+struct ResolvedSources {
+    /// All resolved packages, including dependencies outside the local workspace.
+    packages: Vec<ResolvedPackage>,
+    /// Resolved edges identify the generated project's direct component precisely.
+    resolve: Option<ResolvedGraph>,
+}
+
+/// Cargo's dependency graph, used without interpreting its opaque package IDs.
+#[derive(Deserialize)]
+struct ResolvedGraph {
+    /// Generated package root; virtual application workspaces may have no root.
+    root: Option<String>,
+    /// Nodes with renamed dependency keys and their exact package identities.
+    nodes: Vec<ResolvedNode>,
+}
+
+/// One resolved package and its direct dependency relationships.
+#[derive(Deserialize)]
+struct ResolvedNode {
+    /// Exact Cargo package identifier for this node.
+    id: String,
+    /// Direct edges; the generated project's `component` edge is authoritative.
+    deps: Vec<ResolvedEdge>,
+}
+
+/// A Cargo dependency key mapped to one resolved package version/source.
+#[derive(Deserialize)]
+struct ResolvedEdge {
+    /// Dependency name as seen by the containing crate, including renaming.
+    name: String,
+    /// Exact target package ID, even when multiple versions share a package name.
+    pkg: String,
+}
+
+/// Minimal source identity needed to reuse an already-declared Cargo dependency.
+#[derive(Deserialize)]
+struct ResolvedPackage {
+    /// Actual package name, independent of dependency renaming in the application.
+    name: String,
+    /// Cargo-fetched manifest; its parent is a read-only source input to our build.
+    manifest_path: PathBuf,
 }
 
 /// Standard Cargo profile tables copied into generated component workspaces.
@@ -261,7 +326,9 @@ impl<'a> Builder<'a> {
             flags.extend(["-C".into(), "link-arg=-Wl,-rpath,$ORIGIN".into()]);
         }
         if host.contains("apple") {
-            flags.extend(["-C".into(), "link-arg=-Wl,-rpath,@loader_path".into()]);
+            // Rust emits @rpath dylib identities only with -Crpath. The explicit
+            // @loader_path search then finds the staged library after relocation.
+            flags.extend(["-Crpath".into(), "-C".into(), "link-arg=-Wl,-rpath,@loader_path".into()]);
         }
         if min_size {
             flags.extend(
@@ -293,14 +360,56 @@ impl<'a> Builder<'a> {
         let manifest = if spec.version.is_some() || spec.path.is_some() {
             self.generated_manifest(spec)?
         } else {
-            if !self.project.packages.iter().any(|package| package.name == spec.package) {
-                return Err(format!("component {:?} is not a workspace member; specify path or version", spec.package).into());
+            if self.project.packages.iter().any(|package| package.name == spec.package) {
+                self.project.manifest.clone()
+            } else {
+                // Reuse Cargo's fetched sources for a named dependency, without guessing
+                // a registry cache layout or writing inside that immutable source tree.
+                let mut resolved = spec.clone();
+                resolved.path = Some(self.dependency_source(&spec.package)?);
+                self.generated_manifest(&resolved)?
             }
-            self.project.manifest.clone()
         };
         let artifact = self.compile(&manifest, &spec.package, None, &spec.features, spec.default_features, runtime_dir)?;
         artifact.library()?;
         Ok(artifact)
+    }
+
+    /// Resolves a named dependency from the application graph, rejecting multiple
+    /// versions as ambiguous. Explicit path/version configuration disambiguates them.
+    fn dependency_source(&self, name: &str) -> Result<PathBuf> {
+        let mut command = self.options.cargo();
+        command
+            .args(["metadata", "--format-version", "1", "--manifest-path"])
+            .arg(&self.project.manifest);
+        // Optional component dependencies must be visible under the same application
+        // feature selection that will be used for the eventual executable build.
+        let application = &self.project.assembly.application;
+        if !application.default_features {
+            command.arg("--no-default-features");
+        }
+        if !application.features.is_empty() {
+            let package = application.package.as_ref().unwrap();
+            let features = application
+                .features
+                .iter()
+                .map(|feature| format!("{package}/{feature}"))
+                .collect::<Vec<_>>()
+                .join(",");
+            command.args(["--features", &features]);
+        }
+        self.options.policy(&mut command);
+        let output = command.output()?;
+        if !output.status.success() {
+            return Err(format!("resolving component {name}: {}", String::from_utf8_lossy(&output.stderr)).into());
+        }
+        let sources: ResolvedSources = serde_json::from_slice(&output.stdout)?;
+        let candidates: Vec<_> = sources.packages.into_iter().filter(|package| package.name == name).collect();
+        match candidates.as_slice() {
+            [package] => Ok(package.manifest_path.parent().ok_or("component manifest has no directory")?.to_owned()),
+            [] => Err(format!("component {name:?} is not in the application graph; specify path or version").into()),
+            _ => Err(format!("component {name:?} has multiple resolved versions; specify path or version").into()),
+        }
     }
 
     /// Links the application only after a completed runtime has an established directory.
@@ -359,8 +468,10 @@ impl<'a> Builder<'a> {
         defaults: bool,
         runtime_dir: Option<&Path>,
     ) -> Result<Artifact> {
-        // Metadata performs normal Cargo resolution for generated projects. pkgid then
-        // supplies a stable identity, avoiding fragile parsing of package-ID strings.
+        eprintln!("Building {package} ({})", self.options.profile);
+        // Cargo's resolved edge supplies the exact component identity, even when a
+        // transitive dependency has another version of the same package name.
+        let generated = manifest != self.project.manifest;
         let mut resolve = self.options.cargo();
         resolve.args(["metadata", "--format-version", "1", "--manifest-path"]).arg(manifest);
         self.options.policy(&mut resolve);
@@ -368,14 +479,26 @@ impl<'a> Builder<'a> {
         if !resolved.status.success() {
             return Err(format!("resolving {package}: {}", String::from_utf8_lossy(&resolved.stderr)).into());
         }
-        let mut identify = self.options.cargo();
-        identify.args(["pkgid", "--manifest-path"]).arg(manifest).args(["-p", package]);
-        self.options.policy(&mut identify);
-        let identified = identify.output()?;
-        if !identified.status.success() {
-            return Err(String::from_utf8_lossy(&identified.stderr).into_owned().into());
-        }
-        let id = String::from_utf8(identified.stdout)?.trim().to_owned();
+        let id = if generated {
+            let sources: ResolvedSources = serde_json::from_slice(&resolved.stdout)?;
+            let graph = sources.resolve.ok_or("Cargo did not resolve the generated component graph")?;
+            let root = graph.root.ok_or("generated component graph has no root")?;
+            graph
+                .nodes
+                .into_iter()
+                .find(|node| node.id == root)
+                .and_then(|node| node.deps.into_iter().find(|edge| edge.name == "component"))
+                .ok_or("generated project has no resolved component dependency")?
+                .pkg
+        } else {
+            self.project
+                .packages
+                .iter()
+                .find(|candidate| candidate.name == package)
+                .ok_or("selected application/component is not a workspace package")?
+                .id
+                .clone()
+        };
         let mut command = self.options.cargo();
         command
             .args(["build", "--manifest-path"])
@@ -383,7 +506,6 @@ impl<'a> Builder<'a> {
             .args(["--profile", &self.options.profile, "--target", &self.target]);
         // Generated projects must build the resolver root: the dependency declaration
         // then owns features, and Cargo emits the dependency's cdylib artifact too.
-        let generated = manifest != self.project.manifest;
         if !generated {
             command.args(["-p", &id]);
         }
@@ -430,7 +552,6 @@ impl<'a> Builder<'a> {
             }
         }
         self.options.policy(&mut command);
-        eprintln!("Building {package} ({})", self.options.profile);
         let mut child = command.stdout(Stdio::piped()).stderr(Stdio::inherit()).spawn()?;
         let mut artifact = None;
         // Drain stdout before waiting to avoid pipe deadlocks. A malformed compiler
@@ -492,4 +613,28 @@ pub(crate) fn write_changed(path: &Path, bytes: &[u8]) -> Result<()> {
     fs::create_dir_all(path.parent().ok_or("generated file has no parent")?)?;
     fs::write(path, bytes)?;
     Ok(())
+}
+
+/// Platform filename contracts can be checked independently of the native test host.
+#[cfg(test)]
+mod tests {
+    use super::Artifact;
+
+    /// MSVC import libraries need a conventional link-name alias, with or without a hash.
+    #[test]
+    fn windows_import_library_aliases() {
+        for suffix in ["", "-123abc"] {
+            let artifact = Artifact {
+                target_name: "nc_com_runtime".into(),
+                files: vec![format!("nc_com_runtime{suffix}.dll").into(), format!("nc_com_runtime{suffix}.dll.lib").into()],
+                executable: None,
+            };
+            let aliases = artifact.aliases().unwrap();
+            assert!(aliases.iter().any(|(_, name)| name == "nc_com_runtime.lib"));
+            assert_eq!(
+                aliases.iter().filter(|(_, name)| name == "nc_com_runtime.dll").count(),
+                usize::from(!suffix.is_empty())
+            );
+        }
+    }
 }

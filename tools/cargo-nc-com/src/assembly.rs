@@ -37,7 +37,7 @@ pub(crate) fn build(builder: &Builder<'_>) -> Result<PathBuf> {
     )?;
     let link_dir = builder.destination.parent().unwrap().join(format!("link-{}", builder.options.profile));
     fs::create_dir_all(&link_dir)?;
-    for path in runtime.native_files() {
+    for path in runtime.native_files().filter(|path| path.is_file()) {
         let destination = link_dir.join(filename(path)?);
         write_changed(&destination, &fs::read(path)?)?;
     }
@@ -64,7 +64,7 @@ fn snapshot(artifact: Artifact, directory: &Path) -> Result<Artifact> {
     let mut files = Vec::new();
     for source in artifact.native_files() {
         let destination = directory.join(filename(source)?);
-        copy_file(source, &destination)?;
+        copy_tree(source, &destination)?;
         files.push(destination);
     }
     Ok(Artifact {
@@ -83,7 +83,7 @@ fn install(builder: &Builder<'_>, runtime: &Artifact, plugins: &[Artifact], appl
     write_new(&pending.path().join(MARKER), owner.as_bytes())?;
     for artifact in std::iter::once(runtime).chain(plugins) {
         for path in artifact.native_files() {
-            copy_file(path, &pending.path().join(filename(path)?))?;
+            copy_tree(path, &pending.path().join(filename(path)?))?;
         }
     }
     for (source, alias) in runtime.aliases()? {
@@ -98,6 +98,15 @@ fn install(builder: &Builder<'_>, runtime: &Artifact, plugins: &[Artifact], appl
     let executable = application.executable.as_ref().ok_or("Cargo did not report an application executable")?;
     let executable_name = filename(executable)?;
     copy_file(executable, &pending.path().join(executable_name))?;
+    // Cargo may report separate PDB/dSYM/DWP debug data. Preserve reported symbol
+    // files and bundles without guessing filenames in Cargo's output directory.
+    for symbols in application
+        .files
+        .iter()
+        .filter(|path| matches!(path.extension().and_then(|extension| extension.to_str()), Some("pdb" | "dSYM" | "dwp")))
+    {
+        copy_tree(symbols, &pending.path().join(filename(symbols)?))?;
+    }
     // Inspect staged libraries in a child process. Its exit releases the runtime's
     // pinned modules before replacement, which is essential for Windows file locks.
     let mut inspector = std::process::Command::new(std::env::current_exe()?);
