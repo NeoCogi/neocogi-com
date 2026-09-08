@@ -170,44 +170,59 @@ impl IMultiplier for Calculator {
     }
 }
 
-#[com_interface(auto_guid = "nc.tests.com_usage.MacroPluginEcho:v1")]
-pub trait IMacroPluginEcho {
+/// Registered unit class used to exercise macro-generated plugin descriptors.
+#[com_class(auto_guid = "nc.tests.com_usage.MacroPluginEcho:class:v1")]
+pub trait MacroPluginEcho {
+    /// Creates the stateless echo implementation.
+    #[constructor]
+    fn new() -> Result<Self, NcStatus>;
+
+    /// Returns the fixture's fixed answer.
     fn answer(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_object(
-    class_id(auto_guid = "nc.tests.com_usage.MacroPluginEcho:class:v1"),
-    name = "nc.tests.com_usage.MacroPluginEcho:class:v1",
-    version = "1.0.0",
-    constructor(args = none),
-    interfaces(IMacroPluginEcho)
-)]
-pub struct MacroPluginEcho;
+/// Private unit storage for the callable echo class.
+#[com_object(MacroPluginEcho)]
+pub struct MacroPluginEchoObject;
 
-impl IMacroPluginEcho for MacroPluginEcho {
+impl MacroPluginEcho for MacroPluginEchoObject {
+    /// Creates the unit implementation without hidden constructor policy.
+    fn new() -> Result<Self, NcStatus> {
+        Ok(Self)
+    }
+
+    /// Returns the fixture's fixed answer.
     fn answer(&self) -> Result<u32, NcStatus> {
         Ok(314)
     }
 }
 
-#[com_interface(auto_guid = "nc.tests.com_usage.MacroPluginDefault:v1")]
-pub trait IMacroPluginDefault {
+/// Registered non-unit class used to exercise no-argument typed construction.
+#[com_class(auto_guid = "nc.tests.com_usage.MacroPluginDefault:class:v1")]
+pub trait MacroPluginDefault {
+    /// Creates the implementation with its documented default value.
+    #[constructor]
+    fn new() -> Result<Self, NcStatus>;
+
+    /// Returns the value initialized by the constructor.
     fn value(&self) -> Result<u32, NcStatus>;
 }
 
+/// Private state for the callable default-value fixture.
 #[derive(Default)]
-#[com_object(
-    class_id(auto_guid = "nc.tests.com_usage.MacroPluginDefault:class:v1"),
-    name = "nc.tests.com_usage.MacroPluginDefault:class:v1",
-    version = "1.0.0",
-    constructor(args = none, default),
-    interfaces(IMacroPluginDefault)
-)]
-pub struct MacroPluginDefault {
+#[com_object(MacroPluginDefault)]
+pub struct MacroPluginDefaultObject {
+    /// Value returned through the class projection after construction.
     value: u32,
 }
 
-impl IMacroPluginDefault for MacroPluginDefault {
+impl MacroPluginDefault for MacroPluginDefaultObject {
+    /// Uses the ordinary Rust default as the explicit class implementation policy.
+    fn new() -> Result<Self, NcStatus> {
+        Ok(Self::default())
+    }
+
+    /// Returns the constructor-initialized value.
     fn value(&self) -> Result<u32, NcStatus> {
         Ok(self.value)
     }
@@ -264,7 +279,7 @@ plugin! {
     name = "nc.tests.com_usage.macro_plugin:v1",
     version = "1.0.0",
     dependencies = [CALCULATOR_PLUGIN_ID],
-    classes = [MacroPluginEcho, CallableCounterObject],
+    classes = [MacroPluginEchoObject, CallableCounterObject],
 }
 
 const CALCULATOR_PLUGIN_ID: NcGuid =
@@ -272,8 +287,6 @@ const CALCULATOR_PLUGIN_ID: NcGuid =
 
 const CALCULATOR_CLASS_ID: NcGuid =
     nc_com::guid_from_qualified_name("nc.tests.com_usage.Calculator");
-const THREAD_SAFE_CALCULATOR_CLASS_ID: NcGuid =
-    nc_com::guid_from_qualified_name("nc.tests.com_usage.ThreadSafeCalculator");
 
 static CALCULATOR_CLASSES: [NcClassDescriptor; 2] = [
     NcClassDescriptor {
@@ -286,7 +299,7 @@ static CALCULATOR_CLASSES: [NcClassDescriptor; 2] = [
         interface_count: Calculator::COM_INTERFACES.len() as u32,
         interfaces: Calculator::COM_INTERFACES.as_ptr(),
     },
-    ThreadSafeCalculator::CLASS_DESCRIPTOR,
+    ThreadSafeCalculatorObject::CLASS_DESCRIPTOR,
 ];
 
 static CALCULATOR_CLASS_TABLE: NcClassTable = NcClassTable {
@@ -431,17 +444,27 @@ unsafe extern "C" fn failing_custom_constructor(_class: *const NcClassDescriptor
     NC_E_TEST_FAIL
 }
 
-#[com_object(
-    thread_safe,
-    class_id(THREAD_SAFE_CALCULATOR_CLASS_ID),
-    name = "nc.tests.com_usage.ThreadSafeCalculator",
-    version = "1.0.0",
-    constructor(args = none),
-    interfaces(ICalculator)
-)]
-pub struct ThreadSafeCalculator;
+/// Registered calculator class whose objects may cross thread boundaries.
+#[com_class(auto_guid = "nc.tests.com_usage.ThreadSafeCalculator")]
+pub trait ThreadSafeCalculator: ICalculator {
+    /// Creates the stateless calculator implementation.
+    #[constructor]
+    fn new() -> Result<Self, NcStatus>;
+}
 
-impl ICalculator for ThreadSafeCalculator {
+/// Private thread-safe unit storage for the registered calculator class.
+#[com_object(thread_safe, ThreadSafeCalculator)]
+pub struct ThreadSafeCalculatorObject;
+
+impl ThreadSafeCalculator for ThreadSafeCalculatorObject {
+    /// Creates the unit implementation without auxiliary state.
+    fn new() -> Result<Self, NcStatus> {
+        Ok(Self)
+    }
+}
+
+impl ICalculator for ThreadSafeCalculatorObject {
+    /// Adds two operands without accessing mutable state.
     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus> {
         Ok(a + b)
     }
@@ -650,7 +673,7 @@ fn thread_safe_classes_produce_send_sync_comptrs() {
     assert_send_sync::<ComPtr<IUnknown, ThreadSafe>>();
     assert_send_sync::<ComPtr<ICalculatorAbi, ThreadSafe>>();
 
-    let unknown: ComPtr<IUnknown, ThreadSafe> = ThreadSafeCalculator::create();
+    let unknown: ComPtr<IUnknown, ThreadSafe> = ThreadSafeCalculatorObject::create();
     let calculator: ComPtr<ICalculatorAbi, ThreadSafe> = unknown.query().unwrap();
 
     let handle = std::thread::spawn(move || calculator.add(21, 21).unwrap());
@@ -669,16 +692,17 @@ fn generated_class_threading_is_the_pointer_and_descriptor_source_of_truth() {
     fn assert_thread_safe_class<C: ThreadSafeComObject>() {}
 
     assert_class_mode::<Calculator, ThreadLocal>();
-    assert_class_mode::<ThreadSafeCalculator, ThreadSafe>();
-    assert_thread_safe_class::<ThreadSafeCalculator>();
+    assert_class_mode::<ThreadSafeCalculatorObject, ThreadSafe>();
+    assert_thread_safe_class::<ThreadSafeCalculatorObject>();
 
     assert_eq!(
-        MacroPluginEcho::CLASS_DESCRIPTOR.threading,
-        <<MacroPluginEcho as ComClass>::Threading as ThreadingModel>::ABI_THREADING_MODE.as_raw()
+        MacroPluginEchoObject::CLASS_DESCRIPTOR.threading,
+        <<MacroPluginEchoObject as ComClass>::Threading as ThreadingModel>::ABI_THREADING_MODE
+            .as_raw()
     );
     assert_eq!(
-        ThreadSafeCalculator::CLASS_DESCRIPTOR.threading,
-        <<ThreadSafeCalculator as ComClass>::Threading as ThreadingModel>::ABI_THREADING_MODE
+        ThreadSafeCalculatorObject::CLASS_DESCRIPTOR.threading,
+        <<ThreadSafeCalculatorObject as ComClass>::Threading as ThreadingModel>::ABI_THREADING_MODE
             .as_raw()
     );
 }
@@ -921,11 +945,11 @@ fn generated_metadata_describes_interfaces_and_classes() {
     assert_eq!(calculator_descriptor.abi_hash, ICalculatorAbi::ABI_HASH);
     assert_eq!(multiplier_descriptor.interface_id, IMultiplierAbi::IID);
     assert_eq!(
-        MacroPluginEcho::CLASS_DESCRIPTOR.threading,
+        MacroPluginEchoObject::CLASS_DESCRIPTOR.threading,
         NC_ABI_THREADING_THREAD_LOCAL
     );
     assert_eq!(
-        ThreadSafeCalculator::CLASS_DESCRIPTOR.threading,
+        ThreadSafeCalculatorObject::CLASS_DESCRIPTOR.threading,
         NC_ABI_THREADING_THREAD_SAFE
     );
 }
@@ -1126,7 +1150,7 @@ fn runtime_registers_plugin_and_constructs_objects() {
             .inspection()
             .plugin_class_ids(CALCULATOR_PLUGIN.plugin_id)
             .unwrap(),
-        vec![CALCULATOR_CLASS_ID, THREAD_SAFE_CALCULATOR_CLASS_ID]
+        vec![CALCULATOR_CLASS_ID, ThreadSafeCalculatorAbi::CLASS_ID]
     );
     let class_interfaces = runtime
         .inspection()
@@ -1182,7 +1206,7 @@ fn runtime_registers_plugin_and_constructs_objects() {
     assert_eq!(class_info.threading, NcAbiThreadingMode::ThreadLocal);
     let thread_safe_class_info = runtime
         .inspection()
-        .class_info(THREAD_SAFE_CALCULATOR_CLASS_ID)
+        .class_info(ThreadSafeCalculatorAbi::CLASS_ID)
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1215,12 +1239,17 @@ fn runtime_registers_plugin_and_constructs_objects() {
     );
 
     let thread_safe_calculator = runtime
-        .construct_class_as_with_model::<ICalculatorAbi, ThreadSafe>(THREAD_SAFE_CALCULATOR_CLASS_ID, ())
+        .construct_class_as_with_model::<ICalculatorAbi, ThreadSafe>(
+            ThreadSafeCalculatorAbi::CLASS_ID,
+            (),
+        )
         .unwrap();
     let thread_result = std::thread::spawn(move || thread_safe_calculator.add(20, 22).unwrap());
     assert_eq!(thread_result.join().unwrap(), 42);
 
-    let downgraded_calculator = runtime.construct_class_as::<ICalculatorAbi>(THREAD_SAFE_CALCULATOR_CLASS_ID, ()).unwrap();
+    let downgraded_calculator = runtime
+        .construct_class_as::<ICalculatorAbi>(ThreadSafeCalculatorAbi::CLASS_ID, ())
+        .unwrap();
     assert_eq!(downgraded_calculator.add(40, 2).unwrap(), 42);
 
     let constructed_unknown = runtime.construct_class_as::<IUnknown>(CALCULATOR_CLASS_ID, ()).unwrap();
@@ -1311,14 +1340,17 @@ fn plugin_macro_descriptor_registers_and_constructs_class() {
     );
     assert_eq!(unsafe { runtime.register_plugin_descriptor(&CALCULATOR_PLUGIN) }, NC_OK);
 
-    assert_eq!(MacroPluginEcho::class_descriptor().class_id, MacroPluginEcho::CLASS_ID);
+    assert_eq!(
+        MacroPluginEchoObject::class_descriptor().class_id,
+        MacroPluginEchoAbi::CLASS_ID
+    );
     assert_eq!(unsafe { runtime.register_plugin_descriptor(descriptor) }, NC_OK);
     assert_eq!(
         runtime.inspection().plugin_dependency_ids(descriptor.plugin_id).unwrap(),
         vec![CALCULATOR_PLUGIN_ID]
     );
     runtime
-        .require_interface_type::<IMacroPluginEchoAbi>(MacroPluginEcho::CLASS_ID)
+        .require_interface_type::<MacroPluginEchoAbi>(MacroPluginEchoAbi::CLASS_ID)
         .unwrap();
     runtime
         .require_interface_type::<ICalculatorAbi>(CallableCounterAbi::CLASS_ID)
@@ -1327,7 +1359,7 @@ fn plugin_macro_descriptor_registers_and_constructs_class() {
         .require_interface_type::<IMultiplierAbi>(CallableCounterAbi::CLASS_ID)
         .unwrap();
 
-    let echo = runtime.construct_class_as::<IMacroPluginEchoAbi>(MacroPluginEcho::CLASS_ID, ()).unwrap();
+    let echo = runtime.construct::<MacroPluginEchoAbi>(()).unwrap();
     assert_eq!(echo.answer(), Ok(314));
 
     assert_eq!(
@@ -1342,7 +1374,7 @@ fn plugin_macro_descriptor_registers_and_constructs_class() {
         CallableCounterObject::CLASS_DESCRIPTOR.class_version,
         NcStaticUtf8::from_static(env!("CARGO_PKG_VERSION"))
     );
-    let label = [b'o', b'k'];
+    let label = *b"ok";
     let calculator = Calculator::create().query::<ICalculatorAbi>().unwrap();
     let arguments = CallableCounterAbi::arguments(40, NcCopyFromBufferOffset::new(0, &label), calculator.as_com_ref()).unwrap();
     let counter = runtime.construct::<CallableCounterAbi>(arguments).unwrap();
@@ -1358,8 +1390,8 @@ fn plugin_macro_descriptor_registers_and_constructs_class() {
 }
 
 #[test]
-fn generated_default_descriptor_constructor_constructs_non_unit_class() {
-    let descriptor = MacroPluginDefault::class_descriptor();
+fn typed_no_argument_constructor_constructs_non_unit_class() {
+    let descriptor = MacroPluginDefaultObject::class_descriptor();
     let construct = descriptor.construct.unwrap();
     let mut out = core::ptr::null_mut();
 
@@ -1368,13 +1400,13 @@ fn generated_default_descriptor_constructor_constructs_non_unit_class() {
     assert!(!out.is_null());
 
     let unknown = unsafe { ComPtr::<IUnknown>::from_raw_owned(out) }.unwrap();
-    let defaulted = unknown.query::<IMacroPluginDefaultAbi>().unwrap();
+    let defaulted = unknown.query::<MacroPluginDefaultAbi>().unwrap();
     assert_eq!(defaulted.value(), Ok(0));
 }
 
 #[test]
 fn generated_constructor_rejects_descriptor_threading_mismatch() {
-    let mut descriptor = ThreadSafeCalculator::CLASS_DESCRIPTOR;
+    let mut descriptor = ThreadSafeCalculatorObject::CLASS_DESCRIPTOR;
     descriptor.threading = NC_ABI_THREADING_THREAD_LOCAL;
     let construct = descriptor.construct.unwrap();
     let mut out = core::ptr::dangling_mut();

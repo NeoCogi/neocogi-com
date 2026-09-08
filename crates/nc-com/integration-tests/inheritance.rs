@@ -1,7 +1,8 @@
 //! Single-base layout, identity and ownership checks across generated interfaces.
 
 use nc_com::{
-    com_object, com_interface, ComInterface, ComPtr, ComRef, IUnknown, NcStatus, NC_E_NOINTERFACE,
+    com_class, com_interface, com_object, ComInterface, ComPtr, ComRef, IUnknown, NcStatus,
+    NC_E_NOINTERFACE,
 };
 use std::{cell::Cell, rc::Rc};
 
@@ -33,20 +34,29 @@ pub trait IToggle: IButton {
     fn copy_value(&self, source: ComRef<'_, contract::IWidgetAbi>) -> Result<(), NcStatus>;
 }
 
-#[com_object(
-    class_id(auto_guid = "nc.tests.inheritance.Toggle"),
-    name = "nc.tests.inheritance.Toggle",
-    version = "0.1.0",
-    constructor(args = none, default),
-    interfaces(IToggle, contract::IWidget)
-)]
+/// Callable leaf class requiring the complete reusable toggle protocol.
+#[com_class(auto_guid = "nc.tests.inheritance.Toggle")]
+trait RegisteredToggle: IToggle {
+    /// Creates the fixture with its empty state and drop observer.
+    #[constructor]
+    fn new() -> Result<Self, NcStatus>;
+}
+
+#[com_object(RegisteredToggle)]
 #[derive(Default)]
-/// Explicitly repeating an inherited base exercises metadata deduplication.
+/// Concrete storage whose class supertrait supplies the inherited interface chain.
 struct Toggle {
     /// Authoritative state shared by every COM projection.
     value: Cell<u32>,
     /// Observation retained after the one allocation is finally released.
     drops: Rc<Cell<u32>>,
+}
+
+impl RegisteredToggle for Toggle {
+    /// Makes the implementation's default initialization policy explicit.
+    fn new() -> Result<Self, NcStatus> {
+        Ok(Self::default())
+    }
 }
 
 impl Drop for Toggle {
@@ -110,7 +120,7 @@ fn inherited_methods_and_queries_share_one_allocation() {
         widget.as_mut_ptr(),
         button.query::<contract::IWidgetAbi>().unwrap().as_mut_ptr()
     );
-    assert_eq!(Toggle::COM_INTERFACE_COUNT, 4);
+    assert_eq!(Toggle::COM_INTERFACE_COUNT, 5);
     // Independent physical base projections advertise their own exact identity.
     unsafe {
         nc_com::raw::validate_interface::<IToggleAbi>(toggle.as_mut_ptr()).unwrap();
@@ -148,8 +158,8 @@ fn inherited_vtable_is_a_physical_prefix_and_hashes_the_base() {
     assert_eq!(IToggleAbi::INTERFACE_CHAIN.len(), 3);
 }
 
-// The exported table includes all inherited contracts even though only the leaf
-// needs to be named by an ordinary class declaration.
+// The exported table includes every inherited protocol even though the callable
+// class names only its leaf supertrait.
 nc_com::plugin! {
     plugin_id(auto_guid = "nc.tests.inheritance.Plugin:v1"),
     name = "nc.tests.inheritance.Plugin:v1",
@@ -172,11 +182,12 @@ fn descriptor_validation_requires_matching_acyclic_base_contracts() {
             unsafe { *entry.interface_descriptor }
         })
         .collect();
-    // The table is IUnknown, Toggle, Button, Widget. Exercise a missing base,
-    // a mismatched full base identity, and a cycle without following raw links.
+    // The table is IUnknown, RegisteredToggle, Toggle, Button, Widget. Corrupt
+    // Button's base to exercise a missing contract, a mismatched identity, and
+    // a cycle without following raw links.
     for case in 0..3 {
-        let original = contracts[2].base;
-        contracts[2].base = match case {
+        let original = contracts[3].base;
+        contracts[3].base = match case {
             0 => nc_com::NcInterfaceId::new(
                 nc_com::guid_from_qualified_name("nc.tests.inheritance.Missing:v1"),
                 original.abi_hash,
@@ -202,6 +213,6 @@ fn descriptor_validation_requires_matching_acyclic_base_contracts() {
         };
         assert!(status.is_err());
         assert!(found);
-        contracts[2].base = original;
+        contracts[3].base = original;
     }
 }
