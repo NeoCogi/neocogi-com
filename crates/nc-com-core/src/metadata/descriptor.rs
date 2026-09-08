@@ -120,6 +120,8 @@ impl NcStaticUtf8 {
 pub struct NcMethodDescriptor {
     /// Static method name metadata.
     pub name: NcStaticUtf8,
+    /// One of the `NC_ABI_RECEIVER_*` values describing Rust dispatch access.
+    pub receiver: u32,
     /// Number of logical method parameters.
     pub param_count: u32,
     /// Pointer to `param_count` typed parameter descriptors.
@@ -375,7 +377,7 @@ pub struct NcPluginDependencyDescriptor {
 
 /// Static descriptor for one plugin shared library.
 ///
-/// core ABI v4 descriptors are declarative: they contain no initialization callback
+/// core ABI v5 descriptors are declarative: they contain no initialization callback
 /// or path resolver. Hard dependency IDs describe activation order but never
 /// trigger recursive loading.
 #[repr(C)]
@@ -441,15 +443,16 @@ pub type NcGetPluginDescriptor =
 mod tests {
     use crate::NcGuid;
     use crate::{
-        NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION,
+        NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL,
+        NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION,
         NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiHash,
-        NcAbiHashPart, NcAbiPassing, NcAbiThreadingMode, NcAbiType, NcClassDescriptor,
+        NcAbiHashPart, NcAbiPassing, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcClassDescriptor,
         NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor, NcPluginDescriptor,
     };
 
     #[test]
     fn core_abi_identity_is_stable() {
-        assert_eq!(NC_COM_CORE_ABI_VERSION, 4);
+        assert_eq!(NC_COM_CORE_ABI_VERSION, 5);
         assert_eq!(NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, "nc_get_plugin_descriptor");
     }
 
@@ -478,6 +481,21 @@ mod tests {
             Some(NcAbiThreadingMode::ThreadSafe)
         );
         assert_eq!(NcAbiThreadingMode::from_raw(u32::MAX), None);
+    }
+
+    #[test]
+    fn receiver_modes_are_stable_and_change_method_hashes() {
+        assert_eq!(NcAbiReceiver::Shared.as_raw(), NC_ABI_RECEIVER_SHARED);
+        assert_eq!(NcAbiReceiver::Mutable.as_raw(), NC_ABI_RECEIVER_MUTABLE);
+        assert_eq!(NcAbiReceiver::from_raw(2), None);
+
+        let shared = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Receiver {
+            receiver: NcAbiReceiver::Shared,
+        }]);
+        let mutable = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Receiver {
+            receiver: NcAbiReceiver::Mutable,
+        }]);
+        assert_ne!(shared, mutable);
     }
 
     #[test]

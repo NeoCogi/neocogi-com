@@ -16,9 +16,9 @@ use crate::hash::NcAbiHash;
 
 /// Current experimental draft core ABI version.
 ///
-/// This identifies the current binary generation; it does not mean core ABI v4 has
+/// This identifies the current binary generation; it does not mean core ABI v5 has
 /// reached its ratification milestone.
-pub const NC_COM_CORE_ABI_VERSION: u32 = 4;
+pub const NC_COM_CORE_ABI_VERSION: u32 = 5;
 
 /// Exported symbol name for an unversioned plugin descriptor provider.
 pub const NC_GET_PLUGIN_DESCRIPTOR_SYMBOL: &str = "nc_get_plugin_descriptor";
@@ -73,6 +73,11 @@ pub enum NcAbiHashPart<'a> {
         index: u32,
         /// Source-level method name encoded as UTF-8.
         name: &'a str,
+    },
+    /// Rust access contract enforced while dispatching one method.
+    Receiver {
+        /// Whether the implementation is observed or mutated by the call.
+        receiver: NcAbiReceiver,
     },
     /// Method argument contract.
     Arg {
@@ -230,6 +235,34 @@ pub enum NcAbiThreadingMode {
     ThreadSafe,
 }
 
+/// Borrowing permission required by one generated COM method.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NcAbiReceiver {
+    /// The method receives `&self` and may overlap other shared calls.
+    Shared,
+    /// The method receives `&mut self` and requires exclusive object access.
+    Mutable,
+}
+
+impl NcAbiReceiver {
+    /// Returns the C-stable `NC_ABI_RECEIVER_*` value.
+    pub const fn as_raw(self) -> u32 {
+        match self {
+            Self::Shared => NC_ABI_RECEIVER_SHARED,
+            Self::Mutable => NC_ABI_RECEIVER_MUTABLE,
+        }
+    }
+
+    /// Decodes one C-stable `NC_ABI_RECEIVER_*` value.
+    pub const fn from_raw(value: u32) -> Option<Self> {
+        match value {
+            NC_ABI_RECEIVER_SHARED => Some(Self::Shared),
+            NC_ABI_RECEIVER_MUTABLE => Some(Self::Mutable),
+            _ => None,
+        }
+    }
+}
+
 impl NcAbiThreadingMode {
     /// Returns the C-stable `NC_ABI_THREADING_*` value.
     pub const fn as_raw(self) -> u32 {
@@ -318,6 +351,11 @@ pub const NC_ABI_PASSING_COM_PTR_OUT: u32 = 0x06;
 pub const NC_ABI_THREADING_THREAD_LOCAL: u32 = 0x00;
 /// C-stable threading value permitting cross-thread calls and final release.
 pub const NC_ABI_THREADING_THREAD_SAFE: u32 = 0x01;
+
+/// C-stable method receiver value for shared `&self` dispatch.
+pub const NC_ABI_RECEIVER_SHARED: u32 = 0x00;
+/// C-stable method receiver value for exclusive `&mut self` dispatch.
+pub const NC_ABI_RECEIVER_MUTABLE: u32 = 0x01;
 
 /// C-stable typed ABI descriptor for one method argument or return type.
 #[repr(C)]

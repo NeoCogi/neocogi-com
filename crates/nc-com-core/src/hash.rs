@@ -411,6 +411,7 @@ impl NcSha256 {
             NcAbiHashPart::Interface { iid } => self.update_byte(0x01).update_guid(iid),
             NcAbiHashPart::BaseInterface { interface } => self.update_byte(0x0a).update_guid(interface.iid).update_hash(interface.abi_hash),
             NcAbiHashPart::Method { index, name } => self.update_byte(0x02).update_u32(index).update_str(name),
+            NcAbiHashPart::Receiver { receiver } => self.update_byte(0x0b).update_receiver(receiver),
             NcAbiHashPart::Arg { index, passing, ty } => self.update_byte(0x03).update_u32(index).update_passing(passing).update_abi_type(ty),
             NcAbiHashPart::Return { passing, ty } => self.update_byte(0x04).update_passing(passing).update_abi_type(ty),
             NcAbiHashPart::Status => self.update_byte(0x05),
@@ -476,6 +477,14 @@ impl NcSha256 {
         match mode {
             NcAbiThreadingMode::ThreadLocal => self.update_byte(0x00),
             NcAbiThreadingMode::ThreadSafe => self.update_byte(0x01),
+        }
+    }
+
+    /// Serializes the stable tag for a method receiver mode.
+    const fn update_receiver(self, receiver: crate::NcAbiReceiver) -> Self {
+        match receiver {
+            crate::NcAbiReceiver::Shared => self.update_byte(0x00),
+            crate::NcAbiReceiver::Mutable => self.update_byte(0x01),
         }
     }
 

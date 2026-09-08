@@ -11,7 +11,9 @@ use syn::{
     Attribute, FnArg, Ident, ItemTrait, Pat, Result, ReturnType, TraitItem, TraitItemFn, Type,
 };
 
-use crate::model::{AbiArg, AbiArgKind, AbiConstructor, AbiMethod, AbiReturn, AbiReturnKind};
+use crate::model::{
+    AbiArg, AbiArgKind, AbiConstructor, AbiMethod, AbiReceiver, AbiReturn, AbiReturnKind,
+};
 use crate::plain_data::{PlainAbiTypeContext, validate_plain_abi_type};
 use crate::util::push_error;
 
@@ -21,7 +23,7 @@ fn parse_abi_method(method: &TraitItemFn) -> Result<AbiMethod> {
     // all actionable problems instead of forcing a compile/fix cycle per item.
     let mut errors = None;
     validate_method_modifiers(method, &mut errors);
-    validate_receiver(method, &mut errors);
+    let receiver = validate_receiver(method, &mut errors);
 
     let args = match parse_abi_args(method) {
         Ok(args) => args,
@@ -49,6 +51,7 @@ fn parse_abi_method(method: &TraitItemFn) -> Result<AbiMethod> {
     Ok(AbiMethod {
         ident: method.sig.ident.clone(),
         doc_attrs: method_doc_attrs(&method.attrs),
+        receiver,
         args,
         ok,
     })
@@ -210,8 +213,8 @@ fn validate_com_trait(input: &ItemTrait, errors: &mut Option<syn::Error>) {
     }
 }
 
-/// Requires exactly one ordinary shared `&self` receiver.
-fn validate_receiver(method: &TraitItemFn, errors: &mut Option<syn::Error>) {
+/// Validates one shared or mutable borrowed receiver and records its dispatch mode.
+fn validate_receiver(method: &TraitItemFn, errors: &mut Option<syn::Error>) -> AbiReceiver {
     match method.sig.inputs.first() {
         Some(FnArg::Receiver(receiver)) => {
             let has_explicit_lifetime = receiver
@@ -219,25 +222,32 @@ fn validate_receiver(method: &TraitItemFn, errors: &mut Option<syn::Error>) {
                 .as_ref()
                 .and_then(|(_, lifetime)| lifetime.as_ref())
                 .is_some();
-            if receiver.reference.is_none()
-                || receiver.mutability.is_some()
-                || receiver.colon_token.is_some()
-                || has_explicit_lifetime
-            {
+            if receiver.reference.is_none() || receiver.colon_token.is_some() || has_explicit_lifetime {
                 push_error(
                     errors,
-                    syn::Error::new_spanned(receiver, "COM methods currently require `&self`"),
+                    syn::Error::new_spanned(receiver, "COM methods require `&self` or `&mut self`"),
                 );
             }
+            if receiver.mutability.is_some() {
+                AbiReceiver::Mutable
+            } else {
+                AbiReceiver::Shared
+            }
         }
-        Some(arg) => push_error(
-            errors,
-            syn::Error::new_spanned(arg, "COM methods must take `&self` as the first parameter"),
-        ),
-        None => push_error(
-            errors,
-            syn::Error::new_spanned(&method.sig.ident, "COM methods must take `&self`"),
-        ),
+        Some(arg) => {
+            push_error(
+                errors,
+                syn::Error::new_spanned(arg, "COM methods must take `&self` or `&mut self` as the first parameter"),
+            );
+            AbiReceiver::Shared
+        }
+        None => {
+            push_error(
+                errors,
+                syn::Error::new_spanned(&method.sig.ident, "COM methods must take `&self` or `&mut self`"),
+            );
+            AbiReceiver::Shared
+        }
     }
 }
 

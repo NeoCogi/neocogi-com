@@ -47,7 +47,7 @@ fn ui_errors_are_stable() {
     t.compile_fail("integration-tests/ui/interface_generated_name_collision.rs");
     t.compile_fail("integration-tests/ui/interface_lifecycle_method_collision.rs");
     t.pass("integration-tests/ui/interface_noncolliding_generated_names.rs");
-    t.compile_fail("integration-tests/ui/interface_mut_receiver.rs");
+    t.pass("integration-tests/ui/interface_mut_receiver.rs");
     t.compile_fail("integration-tests/ui/interface_manual_safe_impl.rs");
     t.compile_fail("integration-tests/ui/interface_malformed_qualified_names.rs");
     t.compile_fail("integration-tests/ui/interface_nested_vec_arg.rs");

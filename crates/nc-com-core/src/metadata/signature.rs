@@ -14,7 +14,8 @@ use core::fmt::Write;
 use crate::{
     NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET,
     NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT, NC_ABI_PASSING_VALUE,
-    NC_ABI_PASSING_VOID, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
+    NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
+    NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
     NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8,
     NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE,
     NC_ABI_TYPE_NC_ABI_HASH, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8,
@@ -33,7 +34,7 @@ use alloc::string::String;
 ///
 /// # Safety
 ///
-/// Every pointer transitively reached through `method` must satisfy the core-ABI-v4
+/// Every pointer transitively reached through `method` must satisfy the core-ABI-v5
 /// descriptor contract for the duration of this call. In particular, a
 /// non-empty method or parameter name must point to its declared number of
 /// readable bytes, and nonzero `param_count` requires `params` to point to that
@@ -56,8 +57,13 @@ pub unsafe fn format_method_signature(method: &NcMethodDescriptor) -> Result<Str
     let mut out = String::new();
     out.push_str(method_name);
     out.push('(');
+    match method.receiver {
+        NC_ABI_RECEIVER_SHARED => {}
+        NC_ABI_RECEIVER_MUTABLE => out.push_str("&mut self"),
+        _ => return Err(NC_E_INVALID_ARG),
+    }
     for (index, param) in params.iter().enumerate() {
-        if index != 0 {
+        if index != 0 || method.receiver == NC_ABI_RECEIVER_MUTABLE {
             out.push_str(", ");
         }
         // SAFETY: Each parameter is in the caller-validated descriptor graph,

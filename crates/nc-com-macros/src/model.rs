@@ -13,10 +13,21 @@ pub(crate) struct AbiMethod {
     pub(crate) ident: Ident,
     /// User documentation propagated to generated safe and raw methods.
     pub(crate) doc_attrs: Vec<Attribute>,
+    /// Borrowing permission required while dispatching the method.
+    pub(crate) receiver: AbiReceiver,
     /// Parameters in source and vtable order.
     pub(crate) args: Vec<AbiArg>,
     /// Successful payload; failure is always represented by `NcStatus`.
     pub(crate) ok: AbiReturn,
+}
+
+/// Borrowing mode declared by one COM method receiver.
+#[derive(Clone, Copy)]
+pub(crate) enum AbiReceiver {
+    /// The method observes its implementation through a shared borrow.
+    Shared,
+    /// The method may mutate its implementation through an exclusive borrow.
+    Mutable,
 }
 
 /// One validated callable-class constructor after ABI lowering.

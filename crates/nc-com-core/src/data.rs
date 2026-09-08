@@ -10,7 +10,7 @@ use core::ffi::c_void;
 use crate::guid::{NcGuid, guid_from_qualified_name};
 use crate::hash::NcAbiHash;
 use crate::metadata::{
-    NcAbiHashPart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiType, NcAbiTypeDescriptor,
+    NcAbiHashPart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiType, NcAbiTypeDescriptor,
     NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor,
     NcMethodReturnDescriptor, NcStaticUtf8,
 };
@@ -101,6 +101,9 @@ impl INcBytesAbi {
             index: 0,
             name: "len",
         },
+        NcAbiHashPart::Receiver {
+            receiver: NcAbiReceiver::Shared,
+        },
         NcAbiHashPart::Return {
             passing: NcAbiPassing::Out,
             ty: NcAbiType::U64,
@@ -109,6 +112,9 @@ impl INcBytesAbi {
         NcAbiHashPart::Method {
             index: 1,
             name: "byte_at",
+        },
+        NcAbiHashPart::Receiver {
+            receiver: NcAbiReceiver::Shared,
         },
         NcAbiHashPart::Arg {
             index: 0,
@@ -123,6 +129,9 @@ impl INcBytesAbi {
         NcAbiHashPart::Method {
             index: 2,
             name: "copy_to",
+        },
+        NcAbiHashPart::Receiver {
+            receiver: NcAbiReceiver::Shared,
         },
         NcAbiHashPart::Arg {
             index: 0,
@@ -175,18 +184,21 @@ impl INcBytesAbi {
     pub const METHOD_DESCRIPTORS: [NcMethodDescriptor; 3] = [
         NcMethodDescriptor {
             name: NcStaticUtf8::from_static("len"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: Self::LEN_PARAMS.len() as u32,
             params: Self::LEN_PARAMS.as_ptr(),
             returns: Self::LEN_RETURN,
         },
         NcMethodDescriptor {
             name: NcStaticUtf8::from_static("byte_at"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: Self::BYTE_AT_PARAMS.len() as u32,
             params: Self::BYTE_AT_PARAMS.as_ptr(),
             returns: Self::BYTE_AT_RETURN,
         },
         NcMethodDescriptor {
             name: NcStaticUtf8::from_static("copy_to"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: Self::COPY_TO_PARAMS.len() as u32,
             params: Self::COPY_TO_PARAMS.as_ptr(),
             returns: Self::COPY_TO_RETURN,
@@ -279,6 +291,9 @@ impl INcStringAbi {
             index: 0,
             name: "byte_len",
         },
+        NcAbiHashPart::Receiver {
+            receiver: NcAbiReceiver::Shared,
+        },
         NcAbiHashPart::Return {
             passing: NcAbiPassing::Out,
             ty: NcAbiType::U64,
@@ -287,6 +302,9 @@ impl INcStringAbi {
         NcAbiHashPart::Method {
             index: 1,
             name: "byte_at",
+        },
+        NcAbiHashPart::Receiver {
+            receiver: NcAbiReceiver::Shared,
         },
         NcAbiHashPart::Arg {
             index: 0,
@@ -301,6 +319,9 @@ impl INcStringAbi {
         NcAbiHashPart::Method {
             index: 2,
             name: "copy_to",
+        },
+        NcAbiHashPart::Receiver {
+            receiver: NcAbiReceiver::Shared,
         },
         NcAbiHashPart::Arg {
             index: 0,
@@ -353,18 +374,21 @@ impl INcStringAbi {
     pub const METHOD_DESCRIPTORS: [NcMethodDescriptor; 3] = [
         NcMethodDescriptor {
             name: NcStaticUtf8::from_static("byte_len"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: Self::BYTE_LEN_PARAMS.len() as u32,
             params: Self::BYTE_LEN_PARAMS.as_ptr(),
             returns: Self::BYTE_LEN_RETURN,
         },
         NcMethodDescriptor {
             name: NcStaticUtf8::from_static("byte_at"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: Self::BYTE_AT_PARAMS.len() as u32,
             params: Self::BYTE_AT_PARAMS.as_ptr(),
             returns: Self::BYTE_AT_RETURN,
         },
         NcMethodDescriptor {
             name: NcStaticUtf8::from_static("copy_to"),
+            receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: Self::COPY_TO_PARAMS.len() as u32,
             params: Self::COPY_TO_PARAMS.as_ptr(),
             returns: Self::COPY_TO_RETURN,
@@ -405,7 +429,7 @@ mod tests {
         );
         assert_eq!(
             INcBytesAbi::ABI_HASH.bytes,
-            [0x6a, 0xa1, 0x0a, 0x90, 0xea, 0xb4, 0xc2, 0xbc, 0x00, 0x1f, 0x86, 0x2c, 0x4a, 0x33, 0x32, 0x1d, 0x60, 0x02, 0xae, 0xfb, 0xdf, 0xa2, 0x71, 0x45, 0xfb, 0x09, 0x0b, 0x48, 0x04, 0x1d, 0x87, 0xfc,]
+            [0x87, 0x03, 0xd4, 0xdb, 0xcf, 0x04, 0x8c, 0x6c, 0x27, 0xe5, 0x56, 0x45, 0x0b, 0xf0, 0x45, 0xe7, 0xaa, 0x0d, 0x88, 0x97, 0x43, 0x96, 0xa5, 0x41, 0x59, 0x19, 0xe2, 0xb4, 0x36, 0x7c, 0x2f, 0x9c,]
         );
         assert_eq!(
             INcBytesAbi::INTERFACE_DESCRIPTOR.interface_id,
@@ -430,7 +454,7 @@ mod tests {
         );
         assert_eq!(
             INcStringAbi::ABI_HASH.bytes,
-            [0x85, 0x57, 0x41, 0x99, 0x1f, 0x89, 0xe0, 0x9e, 0x40, 0x14, 0x30, 0xd0, 0x4d, 0x18, 0x7b, 0x0b, 0x9b, 0xe2, 0xb7, 0xfb, 0x7a, 0xfb, 0x44, 0x9d, 0x65, 0xed, 0x89, 0x2e, 0x37, 0x9d, 0x3d, 0x3a,]
+            [0xfb, 0xe5, 0xe1, 0xef, 0xee, 0x49, 0xc4, 0xed, 0xed, 0x6a, 0x6e, 0x33, 0x5b, 0x88, 0xbc, 0x00, 0x26, 0x48, 0x13, 0x4d, 0x95, 0x52, 0xc3, 0x6b, 0x39, 0xff, 0x9c, 0xa0, 0xd6, 0x90, 0x0f, 0x76,]
         );
         assert_eq!(
             INcStringAbi::INTERFACE_DESCRIPTOR.interface_id,

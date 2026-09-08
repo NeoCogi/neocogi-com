@@ -101,7 +101,7 @@
 //!
 //! # Build Compatibility
 //!
-//! core ABI v4 is currently an experimental pre-alpha draft. The generated C-shaped
+//! core ABI v5 is currently an experimental pre-alpha draft. The generated C-shaped
 //! surface is the intended compatibility boundary, but cross-release
 //! compatibility does not begin until an explicitly named future ratification
 //! milestone. Draft golden vectors prevent accidental drift within the current
@@ -228,6 +228,9 @@
 //! [`com_int_enum!`]. Borrowed interface arguments use [`ComRef`]; returned
 //! interface references use [`ComPtr`]. Bounded call-scoped buffers use
 //! [`NcCopyFromBufferOffset`] and [`NcCopyToBufferOffset`].
+//! Shared `&self` methods may overlap. Mutable `&mut self` methods require a
+//! mutable smart-pointer view and receive exclusive generated object access;
+//! conflicting or reentrant calls return [`NC_E_BUSY`].
 //! Methods named `query_interface`, `add_ref`, or `release` are reserved for
 //! generated `IUnknown` lifecycle thunks. Parameter names remain readable in
 //! generated ABI signatures; a focused macro error is emitted only when a name
@@ -265,14 +268,14 @@
 //! `Inspection::loaded_module`, or query descriptor metadata directly with
 //! `Inspection::plugin_info`. Statically registered plugins have plugin
 //! metadata but no loaded-module path.
-//! Runtime core ABI v4 retains at most [`NC_COM_RUNTIME_MAX_LOADED_MODULES`] dynamic
+//! Runtime core ABI v5 retains at most [`NC_COM_RUNTIME_MAX_LOADED_MODULES`] dynamic
 //! modules and permits at most
 //! [`NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS`] simultaneous debug messenger
 //! registrations. Exceeding the module limit is a fatal live-activation error;
 //! debug messenger capacity exhaustion returns [`NC_E_OUT_OF_RANGE`].
 //! Callers then use hash-checked `QueryInterface` to obtain the interface they
 //! need.
-//! core ABI v4 plugin descriptors are declarative and have no initialization hook.
+//! core ABI v5 plugin descriptors are declarative and have no initialization hook.
 //! They may declare hard dependency plugin IDs. Registration requires those IDs
 //! to exist already but never discovers paths or loads dependencies recursively.
 //! Native loader dependencies remain distinct from nc-com dependencies.
@@ -449,7 +452,8 @@ pub use nc_com_core::{
     IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
     NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET,
     NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT, NC_ABI_PASSING_VALUE,
-    NC_ABI_PASSING_VOID, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
+    NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
+    NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
     NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8,
     NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE,
     NC_ABI_TYPE_NC_ABI_HASH, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8,
@@ -459,11 +463,11 @@ pub use nc_com_core::{
     NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO,
     NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME,
     NC_DEBUG_TYPE_VALIDATION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN,
-    NC_E_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG,
+    NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG,
     NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE,
     NC_E_POINTER, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiAggregateKind,
     NcAbiFieldLayout, NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiPassingDescriptor,
-    NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcClassDescriptor,
+    NcAbiReceiver, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcClassDescriptor,
     NcClassInfoV1, NcClassInterfaceDescriptor, NcClassTable, NcConstructorFn, NcDebugApiV1,
     NcDebugCallbackV1, NcDebugMessageV1, NcDebugMessengerCreateInfoV1, NcDescriptorPath,
     NcDescriptorValidationIssue, NcDescriptorValidationKind, NcGetPluginDescriptor, NcGuid,
@@ -477,7 +481,8 @@ pub use nc_com_core::{
     validate_qualified_name, validate_version_text,
 };
 pub use object::{
-    __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComClass, ThreadSafeComObject,
+    __ComCallGate, __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComClass,
+    ThreadSafeComObject,
 };
 #[cfg(feature = "runtime")]
 pub use runtime::{

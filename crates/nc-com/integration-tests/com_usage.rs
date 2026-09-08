@@ -2,15 +2,14 @@ use nc_com::{
     ComClass, ComClassContract, ComInterface, ComPtr, ComRef, ComStruct, IUnknown,
     NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET,
     NC_ABI_PASSING_VOID, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
-    NC_ABI_TYPE_U8, NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG,
+    NC_ABI_TYPE_U8, NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INVALID_ARG,
     NC_E_INVALID_TAG, NC_E_NOINTERFACE, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK, NcAbiHash,
-    NcAbiHashPart, NcAbiPassing, NcAbiThreadingMode, NcAbiType, NcClassDescriptor, NcClassTable,
+    NcAbiHashPart, NcAbiPassing, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcClassDescriptor, NcClassTable,
     NcConstructorFn, NcCopyFromBufferOffset, NcCopyToBufferOffset, NcGuid, NcInterfaceId,
     NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, Runtime, ThreadLocal,
     ThreadSafe, ThreadSafeComObject, ThreadingModel, com_class, com_enum, com_int_enum, com_object,
     com_interface, com_struct, format_method_signature, plugin,
 };
-use std::cell::RefCell;
 use std::ffi::c_void;
 use std::fmt::Write;
 use std::sync::{
@@ -151,8 +150,19 @@ pub trait IReferenceConsumer {
 
 #[com_interface(auto_guid = "nc.tests.com_usage.BufferStore:v1")]
 pub trait IBufferStore {
-    fn write(&self, input: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus>;
+    fn write(&mut self, input: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus>;
     fn read(&self, output: NcCopyToBufferOffset<'_, u8>) -> Result<(), NcStatus>;
+}
+
+#[com_interface(auto_guid = "nc.tests.com_usage.MutableCounter:v1")]
+/// Mutable counter used to verify object-wide alias and reentry arbitration.
+pub trait IMutableCounter {
+    /// Increments directly owned state without implementation-side interior mutability.
+    fn increment(&mut self) -> Result<u32, NcStatus>;
+    /// Reads the current state through a shared call.
+    fn value(&self) -> Result<u32, NcStatus>;
+    /// Attempts a shared call through another pointer while this mutable call is active.
+    fn probe_reentry(&mut self, alias: ComRef<'_, IMutableCounterAbi>) -> Result<NcStatus, NcStatus>;
 }
 
 #[com_object(interfaces(ICalculator, IMultiplier))]
@@ -600,36 +610,57 @@ impl IReferenceConsumer for ReferenceConsumer {
 
 #[com_object(interfaces(IBufferStore))]
 pub struct BufferStore {
-    bytes: RefCell<Vec<u8>>,
+    bytes: Vec<u8>,
 }
 
 impl BufferStore {
     fn with_bytes(bytes: Vec<u8>) -> ComPtr<IUnknown> {
-        Self::from_value(Self {
-            bytes: RefCell::new(bytes),
-        })
+        Self::from_value(Self { bytes })
     }
 }
 
 impl IBufferStore for BufferStore {
-    fn write(&self, input: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
+    fn write(&mut self, input: NcCopyFromBufferOffset<'_, u8>) -> Result<(), NcStatus> {
         let offset = usize::try_from(input.offset()).map_err(|_| NC_E_OUT_OF_RANGE)?;
         let end = offset.checked_add(input.len()).ok_or(NC_E_OUT_OF_RANGE)?;
-        let mut bytes = self.bytes.borrow_mut();
-        if bytes.len() < end {
-            bytes.resize(end, 0);
+        if self.bytes.len() < end {
+            self.bytes.resize(end, 0);
         }
-        bytes[offset..end].copy_from_slice(input.as_slice());
+        self.bytes[offset..end].copy_from_slice(input.as_slice());
         Ok(())
     }
 
     fn read(&self, mut output: NcCopyToBufferOffset<'_, u8>) -> Result<(), NcStatus> {
         let offset = usize::try_from(output.offset()).map_err(|_| NC_E_OUT_OF_RANGE)?;
         let end = offset.checked_add(output.len()).ok_or(NC_E_OUT_OF_RANGE)?;
-        let bytes = self.bytes.borrow();
-        let source = bytes.get(offset..end).ok_or(NC_E_OUT_OF_RANGE)?;
+        let source = self.bytes.get(offset..end).ok_or(NC_E_OUT_OF_RANGE)?;
         output.as_mut_slice().copy_from_slice(source);
         Ok(())
+    }
+}
+
+#[com_object(interfaces(IMutableCounter))]
+/// Concrete mutable state stored directly in generated COM object storage.
+pub struct MutableCounter {
+    /// Current counter value mutated only through exclusive COM dispatch.
+    value: u32,
+}
+
+impl IMutableCounter for MutableCounter {
+    /// Mutates the field through the contract's exclusive Rust receiver.
+    fn increment(&mut self) -> Result<u32, NcStatus> {
+        self.value += 1;
+        Ok(self.value)
+    }
+
+    /// Observes the field without excluding other shared calls.
+    fn value(&self) -> Result<u32, NcStatus> {
+        Ok(self.value)
+    }
+
+    /// Reports the gate status produced by a conflicting reentrant shared call.
+    fn probe_reentry(&mut self, alias: ComRef<'_, IMutableCounterAbi>) -> Result<NcStatus, NcStatus> {
+        Ok(alias.value().expect_err("mutable dispatch must exclude reentrant shared access"))
     }
 }
 
@@ -964,6 +995,9 @@ fn generated_interface_hashes_include_referenced_interface_iids() {
             index: 0,
             name: "borrowed_value",
         },
+        NcAbiHashPart::Receiver {
+            receiver: NcAbiReceiver::Shared,
+        },
         NcAbiHashPart::Arg {
             index: 0,
             passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
@@ -977,6 +1011,9 @@ fn generated_interface_hashes_include_referenced_interface_iids() {
         NcAbiHashPart::Method {
             index: 1,
             name: "make_tracked",
+        },
+        NcAbiHashPart::Receiver {
+            receiver: NcAbiReceiver::Shared,
         },
         NcAbiHashPart::Arg {
             index: 0,
@@ -992,6 +1029,7 @@ fn generated_interface_hashes_include_referenced_interface_iids() {
     let with_different_referenced_iid = NcAbiHash::from_abi_parts(&[
         NcAbiHashPart::Interface { iid: IReferenceConsumerAbi::IID },
         NcAbiHashPart::Method { index: 0, name: "borrowed_value" },
+        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
         NcAbiHashPart::Arg {
             index: 0,
             passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
@@ -1005,6 +1043,9 @@ fn generated_interface_hashes_include_referenced_interface_iids() {
         NcAbiHashPart::Method {
             index: 1,
             name: "make_tracked",
+        },
+        NcAbiHashPart::Receiver {
+            receiver: NcAbiReceiver::Shared,
         },
         NcAbiHashPart::Arg {
             index: 0,
@@ -1053,7 +1094,7 @@ fn generated_buffer_parameters_are_safe_and_described_as_typed_abi() {
         // SAFETY: Macro-generated method descriptors and their transitive
         // metadata are immutable static values.
         unsafe { format_method_signature(&methods[0]) }.unwrap(),
-        "write(input: copy_from_buffer_offset<u8>) -> void status"
+        "write(&mut self, input: copy_from_buffer_offset<u8>) -> void status"
     );
 
     assert_eq!(methods[1].param_count, 1);
@@ -1078,7 +1119,7 @@ fn generated_buffer_parameters_are_safe_and_described_as_typed_abi() {
     );
 
     let unknown = BufferStore::with_bytes(vec![1, 2, 3, 4]);
-    let store = unknown.query::<IBufferStoreAbi>().unwrap();
+    let mut store = unknown.query::<IBufferStoreAbi>().unwrap();
 
     store
         .write(NcCopyFromBufferOffset::new(2, &[9, 8, 7]))
@@ -1111,6 +1152,18 @@ fn generated_buffer_parameters_are_safe_and_described_as_typed_abi() {
         .read(NcCopyToBufferOffset::new(32, &mut too_large))
         .unwrap_err();
     assert_eq!(status, NC_E_OUT_OF_RANGE);
+}
+
+#[test]
+fn mutable_methods_own_plain_state_and_reject_conflicting_reentry() {
+    let unknown = MutableCounter::from_value(MutableCounter { value: 4 });
+    let mut counter = unknown.query::<IMutableCounterAbi>().unwrap();
+    let alias = counter.clone();
+
+    assert_eq!(counter.increment(), Ok(5));
+    assert_eq!(counter.value(), Ok(5));
+    assert_eq!(counter.probe_reentry(alias.as_com_ref()), Ok(NC_E_BUSY));
+    assert_eq!(alias.value(), Ok(5));
 }
 
 #[test]

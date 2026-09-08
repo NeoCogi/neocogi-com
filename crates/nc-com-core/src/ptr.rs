@@ -182,6 +182,16 @@ impl<T: crate::ComClientInterface, M: ThreadingModel> core::ops::Deref for ComPt
     }
 }
 
+impl<T: crate::ComClientInterface, M: ThreadingModel> core::ops::DerefMut for ComPtr<T, M> {
+    /// Lends a mutable method view without claiming exclusive ownership of the COM object.
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        // SAFETY: The generated view is transparent over this pointer word.
+        // Object-level exclusivity is enforced by the callee's dispatch gate,
+        // because another independently owned COM pointer may still exist.
+        unsafe { &mut *core::ptr::from_mut(&mut self.ptr).cast::<Self::Target>() }
+    }
+}
+
 impl<T: crate::ComClientInterface, M: ThreadingModel> core::ops::Deref for ComRef<'_, T, M> {
     type Target = T::Client<M>;
     /// Lends inherited methods within the existing borrow's lifetime.
@@ -189,6 +199,16 @@ impl<T: crate::ComClientInterface, M: ThreadingModel> core::ops::Deref for ComRe
         // SAFETY: The certified view shares the pointer word, capability and
         // lifetime of this live ComRef; it cannot manufacture another owner.
         unsafe { &*core::ptr::from_ref(&self.ptr).cast::<Self::Target>() }
+    }
+}
+
+impl<T: crate::ComClientInterface, M: ThreadingModel> core::ops::DerefMut for ComRef<'_, T, M> {
+    /// Lends a mutable method view for the duration of this borrowed handle.
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        // SAFETY: The generated view is transparent over this pointer word.
+        // The callee's generated dispatch gate arbitrates aliases, including
+        // copies of this non-owning handle.
+        unsafe { &mut *core::ptr::from_mut(&mut self.ptr).cast::<Self::Target>() }
     }
 }
 
@@ -221,7 +241,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
     /// prefix. No typed vtable slot is read before the identity check succeeds.
     ///
     /// # Safety
-    /// `ptr` must be null or own one reference to a live core-ABI-4 interface
+    /// `ptr` must be null or own one reference to a live core-ABI-5 interface
     /// header. Its common prefix must be valid, even when it is not interface T.
     /// The caller guarantees the threading capability M of the returned object.
     #[doc(hidden)]
@@ -367,7 +387,7 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
     /// Checks an incoming pointer's complete identity without acquiring ownership.
     ///
     /// # Safety
-    /// A non-null pointer must have a live core-ABI-4 common header/vtable for
+    /// A non-null pointer must have a live core-ABI-5 common header/vtable for
     /// lifetime 'a and carry threading capability M. Its typed slots may differ
     /// from T; they are never called unless the full identity matches.
     #[doc(hidden)]

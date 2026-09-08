@@ -252,11 +252,13 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
         struct #storage_ident #impl_generics #where_clause {
             /// Allocation-wide ownership count; final Release destroys the stored specialization once.
             ref_count: ::core::sync::atomic::AtomicU32,
+            /// Generated borrow authority shared by every interface projection.
+            call_gate: #nc::__ComCallGate,
             /// Canonical identity shared by every interface and inherited base projection.
             unknown: #nc::IUnknown,
             #(#interface_fields,)*
             /// Owned Rust state; no reference into a caller's stack escapes through the COM pointer.
-            value: #class_type,
+            value: core::cell::UnsafeCell<#class_type>,
         }
 
         impl #impl_generics #class_type #where_clause {
@@ -276,12 +278,13 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
             #class_vis fn from_value(value: Self) -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
                 let object = #nc::__alloc::boxed::Box::new(#storage_ident {
                     ref_count: ::core::sync::atomic::AtomicU32::new(1),
+                    call_gate: #nc::__ComCallGate::new(),
                     unknown: #nc::IUnknown {
                         vtable: &<#storage_type>::UNKNOWN_VTABLE,
                         object: core::ptr::null_mut(),
                     },
                     #(#interface_inits,)*
-                    value,
+                    value: core::cell::UnsafeCell::new(value),
                 });
 
                 let raw = #nc::__alloc::boxed::Box::into_raw(object);
@@ -312,14 +315,38 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
         // layout above. Every object pointer accepted here is the back-pointer
         // installed in one of that storage allocation's interface headers.
         unsafe impl #impl_generics #nc::ComAbiObject for #class_type #where_clause {
-            // The interface thunk has only the opaque object pointer. This
-            // method maps it back to the Rust value so the original trait impl
-            // can be called.
-            unsafe fn value_from_abi_object(object: *mut core::ffi::c_void) -> *mut Self {
+            // The generated gate permits concurrent observers but rejects a
+            // shared call while a mutable call owns the implementation.
+            unsafe fn with_abi_ref<R>(
+                object: *mut core::ffi::c_void,
+                call: impl FnOnce(&Self) -> R,
+            ) -> Result<R, #nc::NcStatus> {
                 let storage = object.cast::<#storage_type>();
-                // SAFETY: `object` is guaranteed by the generated interface
-                // header to point at this class's storage allocation.
-                unsafe { core::ptr::addr_of_mut!((*storage).value) }
+                // SAFETY: The caller guarantees that `object` points to this
+                // generated storage, whose gate and value live together.
+                let storage = unsafe { &*storage };
+                storage.call_gate.shared(|| {
+                    // SAFETY: The gate excludes mutable calls while this shared
+                    // lease is active, so the stored value may be observed.
+                    call(unsafe { &*storage.value.get() })
+                })
+            }
+
+            // The generated gate grants exactly one mutable call only while no
+            // shared or mutable call is active on any interface projection.
+            unsafe fn with_abi_mut<R>(
+                object: *mut core::ffi::c_void,
+                call: impl FnOnce(&mut Self) -> R,
+            ) -> Result<R, #nc::NcStatus> {
+                let storage = object.cast::<#storage_type>();
+                // SAFETY: The caller guarantees that `object` points to this
+                // generated storage, whose gate and value live together.
+                let storage = unsafe { &*storage };
+                storage.call_gate.exclusive(|| {
+                    // SAFETY: The exclusive gate lease proves no other Rust
+                    // borrow of the stored value is active during this call.
+                    call(unsafe { &mut *storage.value.get() })
+                })
             }
 
             // Central QueryInterface implementation for the class. All

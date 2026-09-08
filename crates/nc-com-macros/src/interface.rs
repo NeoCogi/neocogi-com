@@ -12,7 +12,7 @@ use crate::abi_method::{
     parse_abi_trait_item, raw_vtable_method_docs, safe_method_docs, validate_interface_trait,
 };
 use crate::args::InterfaceArgs;
-use crate::model::{AbiArgKind, AbiMethod, AbiReturnKind};
+use crate::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind};
 use crate::util::{
     checked_u32_len, collect_syn_results, interface_field, interface_guid, push_error, runtime_crate_path,
 };
@@ -127,6 +127,14 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
                     unsafe { &*core::ptr::from_ref(self).cast::<Self::Target>() }
                 }
             }
+
+            impl<M: #nc::ThreadingModel> core::ops::DerefMut for #client_ident<M> {
+                fn deref_mut(&mut self) -> &mut Self::Target {
+                    // SAFETY: Both views are transparent pointer words and the
+                    // mutable borrow remains tied to this derived client view.
+                    unsafe { &mut *core::ptr::from_mut(self).cast::<Self::Target>() }
+                }
+            }
         };
         storage_base = quote! {
             /// Base projections share this class's allocation and reference count.
@@ -192,11 +200,16 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
     let method_descriptors = methods.iter().zip(&method_param_counts).enumerate().map(|(index, (method, param_count))| {
         let index = index as u32;
         let method_ident = &method.ident;
+        let receiver = match method.receiver {
+            AbiReceiver::Shared => quote! { #nc::NC_ABI_RECEIVER_SHARED },
+            AbiReceiver::Mutable => quote! { #nc::NC_ABI_RECEIVER_MUTABLE },
+        };
         let params_ident = method_params_const_ident(index as usize);
         let return_ident = method_return_const_ident(index as usize);
         quote! {
             #nc::NcMethodDescriptor {
                 name: #nc::NcStaticUtf8::from_static(stringify!(#method_ident)),
+                receiver: #receiver,
                 param_count: #param_count,
                 params: Self::#params_ident.as_ptr(),
                 returns: Self::#return_ident,
@@ -243,11 +256,16 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
     // A thunk adapts one C ABI vtable call back into the Rust trait method.
     // It recovers the owning generated storage through the interface header's
     // opaque `object` pointer, then asks `ComAbiObject` for the concrete Rust
-    // value. Panics are intentionally not caught here; the non-unwind C ABI
-    // boundary follows Rust's normal panic and ABI unwind rules.
+    // value through the generated object-wide borrow gate. Panics are
+    // intentionally not caught here; the non-unwind C ABI boundary follows
+    // Rust's normal panic and ABI unwind rules.
     let thunks = methods.iter().map(|method| {
         let method_ident = &method.ident;
         let thunk_ident = format_ident!("{method_ident}_thunk");
+        // Mixed-site names cannot collide with source parameters that happen
+        // to use the same spelling after buffer lowering.
+        let object_ident = syn::Ident::new("__nc_dispatch_object", proc_macro2::Span::mixed_site());
+        let value_ident = syn::Ident::new("__nc_dispatch_value", proc_macro2::Span::mixed_site());
         let params = method.args.iter().flat_map(raw_vtable_arg_params);
         let arg_conversions = method.args.iter().filter_map(|arg| match &arg.kind {
             AbiArgKind::Plain => None,
@@ -323,7 +341,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
                 })
             }
         });
-        let arg_names = method.args.iter().map(|arg| &arg.ident);
+        let arg_names = method.args.iter().map(|arg| &arg.ident).collect::<Vec<_>>();
         let out_param = match &method.ok.kind {
             AbiReturnKind::Void => quote! {},
             AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => {
@@ -365,6 +383,18 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
                 }
             },
         };
+        let dispatch = match method.receiver {
+            AbiReceiver::Shared => quote! {
+                <T as #nc::ComAbiObject>::with_abi_ref(#object_ident, |#value_ident| {
+                    <T as #trait_ident>::#method_ident(#value_ident, #(#arg_names),*)
+                })
+            },
+            AbiReceiver::Mutable => quote! {
+                <T as #nc::ComAbiObject>::with_abi_mut(#object_ident, |#value_ident| {
+                    <T as #trait_ident>::#method_ident(#value_ident, #(#arg_names),*)
+                })
+            },
+        };
         quote! {
             // Raw vtable entry that validates ABI pointers, reconstructs safe
             // parameters, invokes the Rust trait method, and lowers its result.
@@ -377,19 +407,18 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
 
                 // SAFETY: `this` was checked non-null above and is a generated
                 // interface header for this vtable call.
-                let object = unsafe { (*this).object };
-                if object.is_null() {
+                let #object_ident = unsafe { (*this).object };
+                if #object_ident.is_null() {
                     return #nc::NC_E_POINTER;
                 }
-                // SAFETY: The object pointer came from a generated interface
-                // header; `ComAbiObject` maps it back to the Rust value.
-                let __nc_value = unsafe {
-                    <T as #nc::ComAbiObject>::value_from_abi_object(object)
-                };
                 #(#arg_conversions)*
-                // SAFETY: `__nc_value` points at the Rust value stored inside
-                // live generated COM storage for this call.
-                let result = unsafe { <T as #trait_ident>::#method_ident(&*__nc_value, #(#arg_names),*) };
+                // SAFETY: The object pointer came from a generated interface
+                // header. `ComAbiObject` validates the requested Rust borrow
+                // against every call active on the same allocation.
+                let result = match unsafe { #dispatch } {
+                    Ok(result) => result,
+                    Err(status) => return status,
+                };
                 match result {
                     #success_arm
                     // Rust `Result::Err` must map to a negative ABI status.
@@ -431,12 +460,13 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
             quote! { #ident: #ty }
         });
         let ret = &method.ok.rust_ty;
+        let receiver = safe_receiver(method.receiver);
         quote! {
             #(#user_docs)*
             #(#generated_docs)*
             // Declares the safe smart-pointer forwarding surface generated for
             // this source trait method.
-            fn #method_ident(&self, #(#args),*) -> Result<#ret, #nc::NcStatus>;
+            fn #method_ident(#receiver, #(#args),*) -> Result<#ret, #nc::NcStatus>;
         }
     });
 
@@ -710,11 +740,12 @@ fn safe_method_implementations(
             .flat_map(safe_vtable_call_args)
             .collect::<Vec<_>>();
         let rust_ret = &method.ok.rust_ty;
+        let receiver = safe_receiver(method.receiver);
         match &method.ok.kind {
             AbiReturnKind::Void => quote! {
                 // Implements the safe extension trait by forwarding to the raw
                 // status-only vtable slot.
-                fn #method_ident(&self, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
+                fn #method_ident(#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
                     #(#arg_preparations)*
                     let this = #pointer;
                     // SAFETY: `self` holds a live interface reference. The raw
@@ -754,7 +785,7 @@ fn safe_method_implementations(
                 quote! {
                     // Implements the safe extension trait with a local output
                     // slot that is read only after ABI success.
-                    fn #method_ident(&self, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
+                    fn #method_ident(#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
                         #(#arg_preparations)*
                         let mut __nc_out = core::mem::MaybeUninit::<#abi_ret>::uninit();
                         let this = #pointer;
@@ -780,6 +811,14 @@ fn safe_method_implementations(
     }).collect::<Vec<_>>()
 }
 
+/// Emits the safe Rust receiver corresponding to one validated COM method.
+fn safe_receiver(receiver: AbiReceiver) -> proc_macro2::TokenStream {
+    match receiver {
+        AbiReceiver::Shared => quote! { &self },
+        AbiReceiver::Mutable => quote! { &mut self },
+    }
+}
+
 /// Emits the ordered logical hash grammar for one lowered method.
 fn method_hash_parts(
     nc: &syn::Path,
@@ -793,6 +832,15 @@ fn method_hash_parts(
         #nc::NcAbiHashPart::Method {
             index: #index,
             name: stringify!(#method_ident),
+        }
+    });
+    let receiver = match method.receiver {
+        AbiReceiver::Shared => quote! { #nc::NcAbiReceiver::Shared },
+        AbiReceiver::Mutable => quote! { #nc::NcAbiReceiver::Mutable },
+    };
+    parts.push(quote! {
+        #nc::NcAbiHashPart::Receiver {
+            receiver: #receiver,
         }
     });
     for (arg_index, arg) in method.args.iter().enumerate() {

@@ -193,12 +193,12 @@ unsafe extern "C" fn(this: *mut IFlushableAbi) -> NcStatus
 `nc-com` is not a C SDK generator. The ABI is C-compatible and is tested from
 native C, but the focus is Rust components using a C ABI as the stable
 compatibility layer across independently built Rust artifacts after an explicit
-ABI ratification milestone. The current ABI-v4 definition is still a pre-alpha
+ABI ratification milestone. The current ABI-v5 definition is still a pre-alpha
 draft.
 
 C header generation, language bindings, and C-first distribution should be a
 separate project/tooling layer that consumes original contract definitions or
-other build-time inputs. ABI-v4 runtime descriptors are validation metadata,
+other build-time inputs. ABI-v5 runtime descriptors are validation metadata,
 not a reflection schema, and are never intended for reverse generation of
 source declarations. This crate should remain focused on defining and enforcing
 the Rust-side ABI model.
@@ -214,7 +214,7 @@ This root README is the canonical long-form usage guide and the only place that
 maintains the exact local/CI compatibility-test matrix. The published
 `nc-com` crate README is a shorter package entry point, crate-level rustdoc owns
 compiled API examples and feature-sensitive API documentation, and
-[`docs/abi-v4.md`](docs/abi-v4.md) is the normative ABI specification. Shorter
+[`docs/abi-v5.md`](docs/abi-v5.md) is the normative ABI specification. Shorter
 documents link here for detailed workflows instead of copying exact test rows.
 
 ## Example
@@ -351,9 +351,10 @@ destruction. Type/const arguments do not change interface IDs or layouts.
 
 The generated implementation requires the complete stored value to be `'static`.
 A type argument cannot smuggle a short-lived reference into a retainable COM
-pointer. Class lifetime parameters are rejected explicitly. Use owned state or
-owned shared state such as `Rc<RefCell<State>>`, and borrow it only during the
-local handler call. `thread_safe` classes must still prove `Send + Sync` for all
+pointer. Class lifetime parameters are rejected explicitly. Prefer directly
+owned state with `&mut self` methods when the COM operation mutates it. Shared
+ownership remains available when it is part of the implementation's actual
+domain model. `thread_safe` classes must still prove `Send + Sync` for all
 permitted specializations and honor the concurrent-call contract.
 
 Generic implementation classes cannot declare registered class descriptors:
@@ -363,11 +364,18 @@ generic interfaces, type-name lookup, or runtime registration of monomorphizatio
 
 ## ABI Rules
 
-Interface methods must currently follow this shape:
+Interface methods use a shared receiver for observation or a mutable receiver
+for mutation:
 
 ```rust
 fn method(&self, args...) -> Result<T, NcStatus>;
+fn mutate(&mut self, args...) -> Result<T, NcStatus>;
 ```
+
+Generated object storage arbitrates calls across every cloned interface pointer.
+Shared calls may overlap; a mutable call receives exclusive access or returns
+`NC_E_BUSY` when another call is active. Safe Rust callers must mutably borrow
+their `ComPtr` or `ComRef` handle to invoke an `&mut self` method.
 
 Unsupported trait shapes are rejected by the macro:
 
@@ -376,7 +384,7 @@ Unsupported trait shapes are rejected by the macro:
 - default method bodies
 - `async`, `const`, `unsafe`, or `extern` methods
 - non-method trait items
-- receivers other than `&self`
+- receivers other than `&self` or `&mut self`
 - methods named `query_interface`, `add_ref`, or `release`
 - parameter names that collide with an actual generated adapter binding or
   lowered buffer slot
@@ -461,15 +469,14 @@ call:
 
 ```rust
 use nc_com::{ComPtr, ComRef, NcStatus};
-use std::cell::RefCell;
 
 pub struct Document {
-    children: RefCell<Vec<ComPtr<INodeAbi>>>,
+    children: Vec<ComPtr<INodeAbi>>,
 }
 
 impl ITree for Document {
-    fn append_child(&self, node: ComRef<'_, INodeAbi>) -> Result<(), NcStatus> {
-        self.children.borrow_mut().push(node.add_ref());
+    fn append_child(&mut self, node: ComRef<'_, INodeAbi>) -> Result<(), NcStatus> {
+        self.children.push(node.add_ref());
         Ok(())
     }
 
@@ -643,7 +650,7 @@ Callable class contracts derive their descriptor name and class ID from one
 `auto_guid = "stable.Name:v1"` input. Implementations use
 `#[com_object(Class)]` and cannot restate the class ID, name, version,
 constructor policy, or public projections. Core
-ABI v4 descriptors are declarative and have no initialization callback.
+ABI v5 descriptors are declarative and have no initialization callback.
 
 The `plugin!` macro emits `pub fn plugin_descriptor() -> &'static
 nc_com::NcPluginDescriptor` for static registration. It exports no dynamic
@@ -822,7 +829,7 @@ let base = &loaded[0];
 # let _ = base;
 ```
 
-core ABI v4 does not discover paths or recursively load plugin dependencies. Use
+core ABI v5 does not discover paths or recursively load plugin dependencies. Use
 `nc-com-inspect plan` to validate dependencies and produce this explicit order.
 Live activation calls must not be nested: native loader initialization and the
 descriptor entrypoint must not directly or indirectly call nc-com loading while
@@ -1136,11 +1143,11 @@ break. Create a new interface version instead.
 
 ## ABI Compatibility Policy
 
-The current draft core ABI v4 specification lives in
-[`docs/abi-v4.md`](docs/abi-v4.md). core ABI v4 uses an unversioned plugin descriptor
-entrypoint. core ABI v4 is an experimental pre-alpha draft and has not been
+The current draft core ABI v5 specification lives in
+[`docs/abi-v5.md`](docs/abi-v5.md). core ABI v5 uses an unversioned plugin descriptor
+entrypoint. core ABI v5 is an experimental pre-alpha draft and has not been
 ratified. Cross-release compatibility begins only when a named release/tag and
-changelog entry explicitly establish the ABI-v4 freeze baseline. Until then,
+changelog entry explicitly establish the ABI-v5 freeze baseline. Until then,
 breaking draft changes and intentional golden-vector updates are permitted;
 hosts and plugins from different nc-com source releases are not guaranteed to
 interoperate.
@@ -1159,7 +1166,7 @@ offsets, passing modes, void versus `out` returns, `ComRef` borrowed parameters,
 `ComPtr` owned returns, safe buffer passing modes, referenced interface IIDs and
 ABI hashes, and the `NcStatus` status convention.
 
-The hash input grammar is itself part of the ABI policy. Once core ABI v4 has been
+The hash input grammar is itself part of the ABI policy. Once core ABI v5 has been
 ratified and an interface has been published, changing how `nc-com`
 canonicalizes the same Rust interface into hash input is an ABI-policy event,
 even if the generated vtable layout would
@@ -1566,7 +1573,7 @@ scripts/test-quality.sh
 
 It runs formatting, Clippy over all targets and features with warnings denied,
 the supported reduced-feature checks, compiled normative examples embedded in
-`docs/abi-v4.md`, repository-local Markdown links, and rustdoc with warnings
+`docs/abi-v5.md`, repository-local Markdown links, and rustdoc with warnings
 and missing public documentation denied for the workspace/all-feature, facade
 default-feature, no-default, and alloc-only modes. Each shipped Rust crate also
 denies `missing_docs` at its crate root, so ordinary checks reject undocumented

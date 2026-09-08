@@ -8,9 +8,110 @@
 //! public only as hidden macro support and are not the ordinary end-user API.
 
 use core::ffi::c_void;
-use core::sync::atomic::{AtomicU32, Ordering};
+use core::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
-use nc_com_core::{NcInterfaceId, NcStatus, ThreadSafe, ThreadingModel};
+use nc_com_core::{NC_E_BUSY, NcInterfaceId, NcStatus, ThreadSafe, ThreadingModel};
+
+/// Sentinel held while one generated COM method has exclusive object access.
+const EXCLUSIVE_CALL: usize = usize::MAX;
+
+#[doc(hidden)]
+/// Per-object borrow gate used by generated interface thunks.
+///
+/// Shared calls may overlap. A mutable call succeeds only while no other call
+/// is active, which prevents cloned COM pointers or foreign reentry from
+/// manufacturing overlapping Rust borrows of the stored implementation.
+pub struct __ComCallGate {
+    /// Zero means idle, `EXCLUSIVE_CALL` means mutable, and other values count readers.
+    state: AtomicUsize,
+}
+
+impl __ComCallGate {
+    /// Creates an idle gate for a newly allocated COM object.
+    pub const fn new() -> Self {
+        Self {
+            state: AtomicUsize::new(0),
+        }
+    }
+
+    /// Runs one shared call, or reports contention with an active mutable call.
+    pub fn shared<R>(&self, call: impl FnOnce() -> R) -> Result<R, NcStatus> {
+        let guard = self.try_shared()?;
+        let result = call();
+        drop(guard);
+        Ok(result)
+    }
+
+    /// Runs one exclusive call, or reports contention with any active call.
+    pub fn exclusive<R>(&self, call: impl FnOnce() -> R) -> Result<R, NcStatus> {
+        let guard = self.try_exclusive()?;
+        let result = call();
+        drop(guard);
+        Ok(result)
+    }
+
+    /// Acquires one reader slot without blocking or permitting counter overflow.
+    fn try_shared(&self) -> Result<SharedCall<'_>, NcStatus> {
+        let mut current = self.state.load(Ordering::Acquire);
+        loop {
+            if current == EXCLUSIVE_CALL || current == EXCLUSIVE_CALL - 1 {
+                return Err(NC_E_BUSY);
+            }
+            match self.state.compare_exchange_weak(
+                current,
+                current + 1,
+                Ordering::Acquire,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => return Ok(SharedCall { gate: self }),
+                Err(observed) => current = observed,
+            }
+        }
+    }
+
+    /// Acquires the unique writer sentinel without waiting on active readers.
+    fn try_exclusive(&self) -> Result<ExclusiveCall<'_>, NcStatus> {
+        self.state
+            .compare_exchange(0, EXCLUSIVE_CALL, Ordering::Acquire, Ordering::Relaxed)
+            .map(|_| ExclusiveCall { gate: self })
+            .map_err(|_| NC_E_BUSY)
+    }
+}
+
+impl Default for __ComCallGate {
+    /// Creates the same idle gate as [`__ComCallGate::new`].
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Active shared-call lease that restores its reader slot on every return path.
+struct SharedCall<'a> {
+    /// Gate whose reader count this lease owns.
+    gate: &'a __ComCallGate,
+}
+
+impl Drop for SharedCall<'_> {
+    /// Releases exactly one reader slot after the delegated Rust call ends.
+    fn drop(&mut self) {
+        let previous = self.gate.state.fetch_sub(1, Ordering::Release);
+        debug_assert!(previous > 0 && previous != EXCLUSIVE_CALL);
+    }
+}
+
+/// Active mutable-call lease that restores the idle state on every return path.
+struct ExclusiveCall<'a> {
+    /// Gate whose exclusive sentinel this lease owns.
+    gate: &'a __ComCallGate,
+}
+
+impl Drop for ExclusiveCall<'_> {
+    /// Releases the exclusive sentinel after the delegated Rust call ends.
+    fn drop(&mut self) {
+        let previous = self.gate.state.swap(0, Ordering::Release);
+        debug_assert_eq!(previous, EXCLUSIVE_CALL);
+    }
+}
 
 #[doc(hidden)]
 /// Atomically increments a live COM object's reference count.
@@ -79,13 +180,27 @@ pub fn __com_release_ref_count(ref_count: &AtomicU32) -> Option<u32> {
 /// Interface thunks receive an opaque object pointer and use this trait to
 /// recover the Rust implementation and delegate IUnknown behavior.
 pub unsafe trait ComAbiObject: Sized {
-    /// Returns a pointer to the Rust value stored in generated object storage.
+    /// Runs a closure with shared access to the Rust value in generated storage.
     ///
     /// # Safety
     ///
     /// `object` must be an opaque storage pointer originally produced by the
     /// matching generated `#[com_object]` implementation.
-    unsafe fn value_from_abi_object(object: *mut c_void) -> *mut Self;
+    unsafe fn with_abi_ref<R>(
+        object: *mut c_void,
+        call: impl FnOnce(&Self) -> R,
+    ) -> Result<R, NcStatus>;
+
+    /// Runs a closure with exclusive access to the Rust value in generated storage.
+    ///
+    /// # Safety
+    ///
+    /// `object` must be an opaque storage pointer originally produced by the
+    /// matching generated `#[com_object]` implementation.
+    unsafe fn with_abi_mut<R>(
+        object: *mut c_void,
+        call: impl FnOnce(&mut Self) -> R,
+    ) -> Result<R, NcStatus>;
 
     /// Implements `QueryInterface` for generated interface thunks.
     ///
@@ -176,4 +291,28 @@ pub unsafe trait ComClass: ComAbiObject {
 pub unsafe trait ThreadSafeComObject:
     ComClass<Threading = ThreadSafe> + Send + Sync
 {
+}
+
+#[cfg(test)]
+mod tests {
+    use super::__ComCallGate;
+    use crate::NC_E_BUSY;
+
+    /// Confirms shared calls compose while an exclusive call requires an idle object.
+    #[test]
+    fn call_gate_enforces_rust_borrowing_across_reentry() {
+        let gate = __ComCallGate::new();
+
+        gate.shared(|| {
+            assert_eq!(gate.shared(|| 7), Ok(7));
+            assert_eq!(gate.exclusive(|| ()), Err(NC_E_BUSY));
+        })
+        .unwrap();
+
+        gate.exclusive(|| {
+            assert_eq!(gate.shared(|| ()), Err(NC_E_BUSY));
+            assert_eq!(gate.exclusive(|| ()), Err(NC_E_BUSY));
+        })
+        .unwrap();
+    }
 }

@@ -20,13 +20,14 @@ use crate::object::{IID_IUNKNOWN, IUNKNOWN_ABI_HASH, IUNKNOWN_QUALIFIED_NAME};
 use crate::{
     NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET,
     NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT, NC_ABI_PASSING_VALUE,
-    NC_ABI_PASSING_VOID, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
+    NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
+    NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
     NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8,
     NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE,
     NC_ABI_TYPE_NC_ABI_HASH, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8,
     NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID,
     NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiHash,
-    NcAbiHashPart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiThreadingMode, NcAbiType,
+    NcAbiHashPart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType,
     NcAbiTypeDescriptor, NcClassDescriptor, NcClassInterfaceDescriptor, NcClassTable,
     NcInterfaceDescriptor, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor,
     NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus,
@@ -172,6 +173,8 @@ pub enum NcDescriptorValidationKind {
     NullInterfaceMethods,
     /// Method-name bytes are not valid UTF-8.
     InvalidMethodNameUtf8,
+    /// A method descriptor contains an unknown receiver mode.
+    InvalidMethodReceiver,
     /// A nonzero parameter count has a null parameter-table pointer.
     NullMethodParams,
     /// Parameter-name bytes are not valid UTF-8.
@@ -826,6 +829,13 @@ fn validate_method_descriptor<R>(
             reporter,
         )
     };
+    if !matches!(method.receiver, NC_ABI_RECEIVER_SHARED | NC_ABI_RECEIVER_MUTABLE) {
+        reporter.issue(
+            NC_E_INVALID_ARG,
+            path,
+            NcDescriptorValidationKind::InvalidMethodReceiver,
+        );
+    }
     validate_method_return(
         class_index,
         interface_index,
@@ -1133,6 +1143,8 @@ unsafe fn hash_interface_descriptor(
             index: method_index as u32,
             name: method_name,
         });
+        let receiver = NcAbiReceiver::from_raw(method.receiver).ok_or(NC_E_INVALID_ARG)?;
+        hasher = hasher.update_abi_hash_part(NcAbiHashPart::Receiver { receiver });
 
         let params = unsafe {
             // SAFETY: The caller validated the method parameter pointer/count
@@ -1175,7 +1187,7 @@ fn descriptor_passing(passing: NcAbiPassingDescriptor) -> Result<NcAbiPassing, N
     }
 }
 
-/// Converts a raw threading tag, rejecting values outside core ABI v4.
+/// Converts a raw threading tag, rejecting values outside core ABI v5.
 fn descriptor_threading_mode(threading: u32) -> Result<NcAbiThreadingMode, NcStatus> {
     NcAbiThreadingMode::from_raw(threading).ok_or(NC_E_INVALID_ARG)
 }
@@ -1264,6 +1276,9 @@ mod tests {
             index: 0,
             name: "add",
         },
+        NcAbiHashPart::Receiver {
+            receiver: NcAbiReceiver::Shared,
+        },
         NcAbiHashPart::Arg {
             index: 0,
             passing: NcAbiPassing::Value,
@@ -1294,6 +1309,7 @@ mod tests {
     ];
     static DESCRIBED_INTERFACE_METHODS: [NcMethodDescriptor; 1] = [NcMethodDescriptor {
         name: NcStaticUtf8::from_static("add"),
+        receiver: NC_ABI_RECEIVER_SHARED,
         param_count: DESCRIBED_INTERFACE_PARAMS.len() as u32,
         params: DESCRIBED_INTERFACE_PARAMS.as_ptr(),
         returns: NcMethodReturnDescriptor {
@@ -1715,6 +1731,9 @@ mod tests {
                 index: 0,
                 name: "not_root",
             },
+            NcAbiHashPart::Receiver {
+                receiver: NcAbiReceiver::Shared,
+            },
             NcAbiHashPart::Return {
                 passing: NcAbiPassing::Void,
                 ty: NcAbiType::Void,
@@ -1723,6 +1742,7 @@ mod tests {
         ]);
         static INVALID_IUNKNOWN_METHOD: [NcMethodDescriptor; 1] = [NcMethodDescriptor {
             name: NcStaticUtf8::from_static("not_root"),
+            receiver: NC_ABI_RECEIVER_SHARED,
             param_count: 0,
             params: core::ptr::null(),
             returns: NcMethodReturnDescriptor {
