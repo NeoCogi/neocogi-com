@@ -7,6 +7,9 @@ contract.
 
 ## Unreleased
 
+- Migrated the multi-plugin examples to callable class contracts shared by
+  hosts and implementations, removing their parallel class-ID constants and
+  one-object interfaces.
 - Added `#[com_struct(c_struct)]` for external C-layout fields without nc-com
   traits, with compiler checks for nested FFI layouts. Documented the author's
   plain-value obligations and the limits of field size/alignment fingerprints;

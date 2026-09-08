@@ -1,27 +1,32 @@
-use nc_com::{NcGuid, NcStatus, com_object, com_interface};
-
-const EXTRA_CLASS_ID: NcGuid = nc_com::guid_from_qualified_name("nc.examples.multi.Extra");
+use nc_com::{NcGuid, NcStatus, com_class, com_object};
 
 const COMPONENT_PLUGIN_EXTRA_ID: NcGuid =
     nc_com::guid_from_qualified_name("nc.examples.multi.extra");
 
 const STATE_PLUGIN_ID: NcGuid = nc_com::guid_from_qualified_name("nc.examples.multi.state");
 
-#[com_interface(auto_guid = "nc.examples.multi.Extra:v1")]
-pub trait IMultiExtra {
+/// Callable extra-value contract shared with the independently compiled host.
+#[com_class(auto_guid = "nc.examples.multi.Extra:v1")]
+pub trait MultiExtra {
+    /// Creates the stateless example value provider.
+    #[constructor]
+    fn new() -> Result<Self, NcStatus>;
+
+    /// Returns the component's fixed demonstration value.
     fn extra(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_object(
-    class_id(EXTRA_CLASS_ID),
-    name = "nc.examples.multi.Extra",
-    version = "1.0.0",
-    constructor(args = none),
-    interfaces(IMultiExtra)
-)]
-pub struct MultiExtra;
+/// Private storage implementing the public callable extra-value contract.
+#[com_object(MultiExtra)]
+pub struct MultiExtraObject;
 
-impl IMultiExtra for MultiExtra {
+impl MultiExtra for MultiExtraObject {
+    /// Creates the unit implementation without auxiliary constructor state.
+    fn new() -> Result<Self, NcStatus> {
+        Ok(Self)
+    }
+
+    /// Returns the fixed value used to identify this component.
     fn extra(&self) -> Result<u32, NcStatus> {
         Ok(19)
     }
@@ -32,7 +37,7 @@ nc_com::plugin! {
     name = "nc.examples.multi.extra",
     version = "1.0.0",
     dependencies = [STATE_PLUGIN_ID],
-    classes = [MultiExtra],
+    classes = [MultiExtraObject],
 }
 
 // This crate is the final shared library, so it owns the sole dynamic entrypoint.

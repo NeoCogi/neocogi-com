@@ -800,7 +800,9 @@ LD_LIBRARY_PATH=target/debug \
 ```
 
 The host explicitly loads all five plugin paths in the supplied order and
-verifies every class through the same process-global runtime.
+verifies every class through the same process-global runtime. Each plugin and
+the host independently declare the same callable class contract, so no
+companion one-class interface or handwritten class ID is required.
 
 ### Startup Loading
 

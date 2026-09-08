@@ -16,47 +16,67 @@ fn main() {
 
 #[cfg(all(unix, not(miri)))]
 mod multi_host {
-    use nc_com::{NcGuid, NcStatus, Runtime, com_interface};
+    use nc_com::{NcStatus, Runtime, com_class};
     use std::env;
     use std::path::PathBuf;
 
-    const COUNTER_CLASS_ID: NcGuid = nc_com::guid_from_qualified_name("nc.examples.multi.Counter");
-
-    const FLAG_CLASS_ID: NcGuid = nc_com::guid_from_qualified_name("nc.examples.multi.Flag");
-
-    const METRIC_CLASS_ID: NcGuid = nc_com::guid_from_qualified_name("nc.examples.multi.Metric");
-
-    const STATE_CLASS_ID: NcGuid = nc_com::guid_from_qualified_name("nc.examples.multi.State");
-
-    const EXTRA_CLASS_ID: NcGuid = nc_com::guid_from_qualified_name("nc.examples.multi.Extra");
-
+    /// Callable counter contract mirrored from its independently built plugin.
     #[allow(dead_code)]
-    #[com_interface(auto_guid = "nc.examples.multi.Counter:v1")]
-    pub trait IMultiCounter {
+    #[com_class(auto_guid = "nc.examples.multi.Counter:v1")]
+    pub trait MultiCounter {
+        /// Creates the plugin's stateless counter.
+        #[constructor]
+        fn new() -> Result<Self, NcStatus>;
+
+        /// Returns the counter value supplied by the component.
         fn value(&self) -> Result<u32, NcStatus>;
     }
 
+    /// Callable flag contract mirrored from its independently built plugin.
     #[allow(dead_code)]
-    #[com_interface(auto_guid = "nc.examples.multi.Flag:v1")]
-    pub trait IMultiFlag {
+    #[com_class(auto_guid = "nc.examples.multi.Flag:v1")]
+    pub trait MultiFlag {
+        /// Creates the plugin's stateless flag provider.
+        #[constructor]
+        fn new() -> Result<Self, NcStatus>;
+
+        /// Returns the flag supplied by the component.
         fn flag(&self) -> Result<u32, NcStatus>;
     }
 
+    /// Callable metric contract mirrored from its independently built plugin.
     #[allow(dead_code)]
-    #[com_interface(auto_guid = "nc.examples.multi.Metric:v1")]
-    pub trait IMultiMetric {
+    #[com_class(auto_guid = "nc.examples.multi.Metric:v1")]
+    pub trait MultiMetric {
+        /// Creates the plugin's stateless metric provider.
+        #[constructor]
+        fn new() -> Result<Self, NcStatus>;
+
+        /// Returns the metric supplied by the component.
         fn metric(&self) -> Result<u32, NcStatus>;
     }
 
+    /// Callable state contract mirrored from its independently built plugin.
     #[allow(dead_code)]
-    #[com_interface(auto_guid = "nc.examples.multi.State:v1")]
-    pub trait IMultiState {
+    #[com_class(auto_guid = "nc.examples.multi.State:v1")]
+    pub trait MultiState {
+        /// Creates the plugin's stateless state provider.
+        #[constructor]
+        fn new() -> Result<Self, NcStatus>;
+
+        /// Returns the state supplied by the component.
         fn state(&self) -> Result<u32, NcStatus>;
     }
 
+    /// Callable extra-value contract mirrored from its independently built plugin.
     #[allow(dead_code)]
-    #[com_interface(auto_guid = "nc.examples.multi.Extra:v1")]
-    pub trait IMultiExtra {
+    #[com_class(auto_guid = "nc.examples.multi.Extra:v1")]
+    pub trait MultiExtra {
+        /// Creates the plugin's stateless extra-value provider.
+        #[constructor]
+        fn new() -> Result<Self, NcStatus>;
+
+        /// Returns the extra value supplied by the component.
         fn extra(&self) -> Result<u32, NcStatus>;
     }
 
@@ -77,19 +97,19 @@ mod multi_host {
         assert_eq!(loaded.len(), paths.len());
 
         runtime
-            .require_interface_type::<IMultiCounterAbi>(COUNTER_CLASS_ID)
+            .require_interface_type::<MultiCounterAbi>(MultiCounterAbi::CLASS_ID)
             .expect("counter class registered");
         runtime
-            .require_interface_type::<IMultiFlagAbi>(FLAG_CLASS_ID)
+            .require_interface_type::<MultiFlagAbi>(MultiFlagAbi::CLASS_ID)
             .expect("flag class registered");
         runtime
-            .require_interface_type::<IMultiMetricAbi>(METRIC_CLASS_ID)
+            .require_interface_type::<MultiMetricAbi>(MultiMetricAbi::CLASS_ID)
             .expect("metric class registered");
         runtime
-            .require_interface_type::<IMultiStateAbi>(STATE_CLASS_ID)
+            .require_interface_type::<MultiStateAbi>(MultiStateAbi::CLASS_ID)
             .expect("state class registered");
         runtime
-            .require_interface_type::<IMultiExtraAbi>(EXTRA_CLASS_ID)
+            .require_interface_type::<MultiExtraAbi>(MultiExtraAbi::CLASS_ID)
             .expect("extra class registered");
 
         for plugin in loaded {

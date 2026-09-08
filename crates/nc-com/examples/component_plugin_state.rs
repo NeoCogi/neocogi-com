@@ -1,27 +1,32 @@
-use nc_com::{NcGuid, NcStatus, com_object, com_interface};
-
-const STATE_CLASS_ID: NcGuid = nc_com::guid_from_qualified_name("nc.examples.multi.State");
+use nc_com::{NcGuid, NcStatus, com_class, com_object};
 
 const COMPONENT_PLUGIN_STATE_ID: NcGuid =
     nc_com::guid_from_qualified_name("nc.examples.multi.state");
 
 const METRIC_PLUGIN_ID: NcGuid = nc_com::guid_from_qualified_name("nc.examples.multi.metric");
 
-#[com_interface(auto_guid = "nc.examples.multi.State:v1")]
-pub trait IMultiState {
+/// Callable state contract shared with the independently compiled host.
+#[com_class(auto_guid = "nc.examples.multi.State:v1")]
+pub trait MultiState {
+    /// Creates the stateless example state provider.
+    #[constructor]
+    fn new() -> Result<Self, NcStatus>;
+
+    /// Returns the component's fixed demonstration state.
     fn state(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_object(
-    class_id(STATE_CLASS_ID),
-    name = "nc.examples.multi.State",
-    version = "1.0.0",
-    constructor(args = none),
-    interfaces(IMultiState)
-)]
-pub struct MultiState;
+/// Private storage implementing the public callable state contract.
+#[com_object(MultiState)]
+pub struct MultiStateObject;
 
-impl IMultiState for MultiState {
+impl MultiState for MultiStateObject {
+    /// Creates the unit implementation without auxiliary constructor state.
+    fn new() -> Result<Self, NcStatus> {
+        Ok(Self)
+    }
+
+    /// Returns the fixed value used to identify this component.
     fn state(&self) -> Result<u32, NcStatus> {
         Ok(13)
     }
@@ -32,7 +37,7 @@ nc_com::plugin! {
     name = "nc.examples.multi.state",
     version = "1.0.0",
     dependencies = [METRIC_PLUGIN_ID],
-    classes = [MultiState],
+    classes = [MultiStateObject],
 }
 
 // This crate is the final shared library, so it owns the sole dynamic entrypoint.
