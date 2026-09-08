@@ -117,11 +117,7 @@ library root to export `nc_get_plugin_descriptor`:
 ```rust
 use nc_com::{NcStatus, com_class};
 
-#[com_class(
-    class_id(auto_guid = "example.Echo:class:v1"),
-    name = "example.Echo:class:v1",
-    version = "1.0.0"
-)]
+#[com_class(auto_guid = "example.Echo:class:v1")]
 pub trait Echo {
     #[constructor]
     fn new(code: u32) -> Result<Self, NcStatus>;
@@ -152,11 +148,9 @@ nc_com::plugin! {
 }
 ```
 
-`class_id(...)` and `plugin_id(...)` accept an explicit UUID string,
-`auto_guid = "stable.Name:v1"`, or a path to an `NcGuid` constant. Every form
-is checked against the adjacent normative `name`; explicit values are golden
-pins, not arbitrary IDs. Contract crates should define constant paths with
-`guid_from_qualified_name` so hosts and plugins share one source of identity.
+Callable class contracts derive their descriptor name and class ID from their
+single `auto_guid = "stable.Name:v1"` input. `plugin_id(...)` and legacy
+descriptor-bearing class structs retain their explicit identity forms.
 The optional `dependencies = [...]` list contains hard
 plugin IDs that must already be registered. It never triggers path discovery or
 recursive loading. core ABI v4 descriptors remain declarative and have no

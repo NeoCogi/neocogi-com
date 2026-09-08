@@ -189,11 +189,7 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// occur on any thread.
 ///
 /// ```text
-/// #[com_class(
-///     class_id(auto_guid = "example.Calculator:v1"),
-///     name = "example.Calculator:v1",
-///     version = "1.0.0",
-/// )]
+/// #[com_class(auto_guid = "example.Calculator:v1")]
 /// pub trait Calculator {
 ///     #[constructor]
 ///     fn new(initial: i32) -> Result<Self, NcStatus>;
@@ -229,10 +225,9 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// The older explicit descriptor form remains available for low-level
 /// no-argument classes. Typed constructors belong on callable class contracts.
-/// Every `class_id(...)` form is checked against the descriptor's normative
-/// `name`; constant paths should be defined with
-/// `nc_com::guid_from_qualified_name`. Descriptor `name` and `version` literals
-/// are validated during macro expansion.
+/// A callable contract's `auto_guid` text supplies both its normative name and
+/// stable class identity. Its descriptor version is the declaring crate's
+/// package version.
 #[proc_macro_attribute]
 pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as Item);

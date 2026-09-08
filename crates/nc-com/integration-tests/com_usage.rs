@@ -213,11 +213,7 @@ impl IMacroPluginDefault for MacroPluginDefault {
     }
 }
 
-#[com_class(
-    class_id(auto_guid = "nc.tests.com_usage.CallableCounter:v1"),
-    name = "nc.tests.com_usage.CallableCounter:v1",
-    version = "1.0.0"
-)]
+#[com_class(auto_guid = "nc.tests.com_usage.CallableCounter:v1")]
 /// A registered class whose primary methods require no companion interface.
 pub trait CallableCounter {
     /// Creates a counter holding one caller-supplied value.
@@ -1321,6 +1317,10 @@ fn plugin_macro_descriptor_registers_and_constructs_class() {
     assert_eq!(
         CallableCounterObject::CLASS_DESCRIPTOR.qualified_name,
         NcStaticUtf8::from_static(CallableCounterAbi::CLASS_QUALIFIED_NAME)
+    );
+    assert_eq!(
+        CallableCounterObject::CLASS_DESCRIPTOR.class_version,
+        NcStaticUtf8::from_static(env!("CARGO_PKG_VERSION"))
     );
     let label = [b'o', b'k'];
     let calculator = Calculator::create().query::<ICalculatorAbi>().unwrap();

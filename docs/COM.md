@@ -267,11 +267,7 @@ class. The shared contract crate declares the class once:
 ```rust
 use nc_com::{NcStatus, com_class};
 
-#[com_class(
-    class_id(auto_guid = "example.Counter:v1"),
-    name = "example.Counter:v1",
-    version = "1.0.0"
-)]
+#[com_class(auto_guid = "example.Counter:v1")]
 pub trait Counter {
     #[constructor]
     fn new(initial: u32) -> Result<Self, NcStatus>;
@@ -284,11 +280,7 @@ The implementation crate keeps its state private and binds it to that contract:
 
 ```rust
 # use nc_com::{NcStatus, com_class};
-# #[com_class(
-#     class_id(auto_guid = "example.Counter:v1"),
-#     name = "example.Counter:v1",
-#     version = "1.0.0"
-# )]
+# #[com_class(auto_guid = "example.Counter:v1")]
 # pub trait Counter {
 #     #[constructor]
 #     fn new(initial: u32) -> Result<Self, NcStatus>;
@@ -612,11 +604,7 @@ A shared library exposes a plugin descriptor through one entrypoint. The plugin
 descriptor carries the core ABI version, plugin identity, and the class table:
 
 ```rust
-#[nc_com::com_class(
-    class_id(auto_guid = "example.Widget:class:v1"),
-    name = "example.Widget:class:v1",
-    version = "1.0.0"
-)]
+#[nc_com::com_class(auto_guid = "example.Widget:class:v1")]
 pub trait Widget {
     #[constructor]
     fn new(width: u32) -> Result<Self, nc_com::NcStatus>;
@@ -648,12 +636,10 @@ nc_com::plugin! {
 }
 ```
 
-`class_id(...)` and `plugin_id(...)` may use an explicit UUID string,
-`auto_guid = "stable.Name:v1"`, or a path to an `NcGuid` constant. Every form
-must match the adjacent normative qualified name. Contract crates should define
-constant paths with `guid_from_qualified_name` so hosts and plugins share one
-source of identity. core ABI v4 descriptors are declarative and have no
-initialization callback.
+Callable class contracts derive their descriptor name and class ID from one
+`auto_guid = "stable.Name:v1"` input. `plugin_id(...)` and legacy
+descriptor-bearing class structs retain their explicit identity forms. Core
+ABI v4 descriptors are declarative and have no initialization callback.
 
 The `plugin!` macro emits `pub fn plugin_descriptor() -> &'static
 nc_com::NcPluginDescriptor` for static registration. It exports no dynamic

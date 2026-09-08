@@ -9,10 +9,10 @@ use quote::{format_ident, quote};
 use syn::{ItemTrait, Result, TraitItem, TraitItemFn};
 
 use crate::abi_method::{parse_abi_trait_item, parse_class_constructor, validate_interface_trait};
-use crate::args::{ClassContractArgs, InterfaceArgs};
+use crate::args::{ClassContractArgs, InterfaceArgs, InterfaceGuid};
 use crate::interface::{expand_com_interface_with_methods, validate_callable_methods};
 use crate::model::{AbiArg, AbiArgKind, AbiConstructor};
-use crate::util::{push_error, runtime_crate_path, stable_guid, validate_version_literal};
+use crate::util::{push_error, runtime_crate_path, stable_guid};
 
 /// Generates one primary class projection, constructor frame, and registry identity.
 pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: ItemTrait) -> Result<proc_macro2::TokenStream> {
@@ -20,8 +20,14 @@ pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: Item
     let class_trait_ident = input.ident.clone();
     let class_vis = input.vis.clone();
     let class_abi_ident = format_ident!("{}Abi", input.ident);
-    let class_id = stable_guid(args.class_id.clone(), &args.name, &nc)?;
-    validate_version_literal(&args.version)?;
+    let qualified_name = args.auto_guid;
+    let class_id = stable_guid(
+        InterfaceGuid::AutoGuid {
+            value: qualified_name.clone(),
+        },
+        &qualified_name,
+        &nc,
+    )?;
 
     let mut errors = None;
     validate_interface_trait(&input, &mut errors);
@@ -65,8 +71,10 @@ pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: Item
     // wrappers identical without exposing a redundant one-off interface.
     let callable = expand_com_interface_with_methods(
         InterfaceArgs {
-            guid: args.class_id,
-            qualified_name: args.name.clone(),
+            guid: InterfaceGuid::AutoGuid {
+                value: qualified_name.clone(),
+            },
+            qualified_name: qualified_name.clone(),
             runtime_crate: args.runtime_crate,
         },
         input,
@@ -85,9 +93,6 @@ pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: Item
         let arguments_ident = format_ident!("{}Arguments", class_abi_ident);
         quote! { #arguments_ident<'a> }
     };
-    let qualified_name = args.name;
-    let version = args.version;
-
     Ok(quote! {
         #callable
         #constructor_tokens
@@ -102,7 +107,7 @@ pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: Item
             const CONSTRUCTOR_ABI_HASH: #nc::NcAbiHash =
                 #class_abi_ident::CONSTRUCTOR_ABI_HASH;
             const QUALIFIED_NAME: &'static str = #qualified_name;
-            const VERSION: &'static str = #version;
+            const VERSION: &'static str = env!("CARGO_PKG_VERSION");
         }
 
         impl #class_abi_ident {

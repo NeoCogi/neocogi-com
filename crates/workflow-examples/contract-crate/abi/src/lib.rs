@@ -35,7 +35,7 @@ pub trait IContractValue {
 // This is the constructible cross-boundary class used by the example. Its
 // constructor is part of the same shared contract as its callable methods, so
 // no one-off constructor object or duplicate primary interface is required.
-#[com_class(class_id(auto_guid = "nc.tests.contract.Widget"), name = "nc.tests.contract.Widget", version = "1.0.0")]
+#[com_class(auto_guid = "nc.tests.contract.Widget")]
 pub trait ContractWidget {
     /// Creates a widget from one plain ABI seed value.
     #[constructor]

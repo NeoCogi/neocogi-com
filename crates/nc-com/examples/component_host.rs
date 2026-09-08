@@ -21,7 +21,7 @@ mod unix_host {
 
     /// Callable class contract mirrored from the dynamically loaded component.
     #[allow(dead_code)]
-    #[com_class(class_id(auto_guid = "nc.examples.component.Greeter"), name = "nc.examples.component.Greeter", version = "1.0.0")]
+    #[com_class(auto_guid = "nc.examples.component.Greeter")]
     pub trait Greeter {
         /// Creates a greeter from one plain seed value.
         #[constructor]

@@ -28,12 +28,8 @@ pub(crate) struct ClassArgs {
 /// The trait supplies the method signatures while these fields supply the
 /// registry identity shared by hosts and implementations.
 pub(crate) struct ClassContractArgs {
-    /// Explicit, derived, or path-based stable class identity.
-    pub(crate) class_id: InterfaceGuid,
-    /// Normative class qualified name.
-    pub(crate) name: LitStr,
-    /// Class contract version text.
-    pub(crate) version: LitStr,
+    /// Normative class name used to derive its stable registry identity.
+    pub(crate) auto_guid: LitStr,
     /// Optional path overriding automatic `nc-com` crate discovery.
     pub(crate) runtime_crate: Option<Path>,
 }
@@ -321,34 +317,19 @@ impl Parse for InterfaceArgs {
 }
 
 impl Parse for ClassContractArgs {
-    /// Parses the stable identity of a no-argument callable class contract.
+    /// Parses one derived class identity and an optional runtime crate override.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let mut class_id = None;
-        let mut name = None;
-        let mut version = None;
+        let mut auto_guid = None;
         let mut runtime_crate = None;
 
         while !input.is_empty() {
             let keyword: Ident = input.parse()?;
-            if keyword == "class_id" {
-                if class_id.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate class_id(...)"));
-                }
-                let content;
-                parenthesized!(content in input);
-                class_id = Some(parse_guid_arg(&content, "class_id")?);
-            } else if keyword == "name" {
-                if name.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate name = ..."));
+            if keyword == "auto_guid" {
+                if auto_guid.is_some() {
+                    return Err(syn::Error::new(keyword.span(), "duplicate auto_guid = ..."));
                 }
                 input.parse::<Token![=]>()?;
-                name = Some(input.parse()?);
-            } else if keyword == "version" {
-                if version.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate version = ..."));
-                }
-                input.parse::<Token![=]>()?;
-                version = Some(input.parse()?);
+                auto_guid = Some(input.parse()?);
             } else if keyword == "nc_com" {
                 if runtime_crate.is_some() {
                     return Err(syn::Error::new(keyword.span(), "duplicate nc_com = ..."));
@@ -358,7 +339,7 @@ impl Parse for ClassContractArgs {
             } else {
                 return Err(syn::Error::new(
                     keyword.span(),
-                    "expected class_id(...), name = ..., version = ..., or nc_com = path",
+                    "expected auto_guid = \"stable.name:v1\" or nc_com = path",
                 ));
             }
 
@@ -369,11 +350,9 @@ impl Parse for ClassContractArgs {
         }
 
         Ok(Self {
-            class_id: class_id
-                .ok_or_else(|| syn::Error::new(input.span(), "expected class_id(...)"))?,
-            name: name.ok_or_else(|| syn::Error::new(input.span(), "expected name = ..."))?,
-            version: version
-                .ok_or_else(|| syn::Error::new(input.span(), "expected version = ..."))?,
+            auto_guid: auto_guid.ok_or_else(|| {
+                syn::Error::new(input.span(), "expected auto_guid = \"stable.name:v1\"")
+            })?,
             runtime_crate,
         })
     }

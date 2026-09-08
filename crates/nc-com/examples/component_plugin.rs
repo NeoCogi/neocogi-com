@@ -3,7 +3,7 @@ use nc_com::{NcGuid, NcStatus, com_class};
 const COMPONENT_PLUGIN_ID: NcGuid = nc_com::guid_from_qualified_name("nc.examples.component");
 
 /// Dynamically linked class contract shared verbatim with its hosts.
-#[com_class(class_id(auto_guid = "nc.examples.component.Greeter"), name = "nc.examples.component.Greeter", version = "1.0.0")]
+#[com_class(auto_guid = "nc.examples.component.Greeter")]
 pub trait Greeter {
     /// Creates a greeter from one caller-supplied seed.
     #[constructor]
