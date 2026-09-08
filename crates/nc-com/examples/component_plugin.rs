@@ -14,7 +14,7 @@ pub trait Greeter {
 }
 
 /// Private plugin state behind the public callable class projection.
-#[com_class(thread_safe, contract(Greeter), interfaces())]
+#[com_class(thread_safe, contract(Greeter))]
 pub struct GreeterObject {
     /// Value returned by `greeting_code` after construction.
     greeting_code: u32,

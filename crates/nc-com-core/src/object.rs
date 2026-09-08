@@ -163,8 +163,9 @@ pub unsafe trait ComInterface {
 /// `CLASS_ID` must identify the registered class whose primary projection is
 /// `Self`. `QUALIFIED_NAME` and `VERSION` must be the exact validated static
 /// text published by that class's descriptor. Implementations must expose
-/// `Self::INTERFACE_ID` in the class interface table so construction can
-/// validate the returned primary projection before safe code receives it.
+/// every chain in `INTERFACE_CHAINS` on the same identity, including
+/// `Self::INTERFACE_ID`, so construction can validate the returned primary
+/// projection before safe code receives it.
 pub unsafe trait ComClassContract: ComInterface {
     /// Borrowed, typed arguments accepted by this class constructor.
     type Arguments<'a>: ComClassArguments;
@@ -180,6 +181,12 @@ pub unsafe trait ComClassContract: ComInterface {
 
     /// Static class contract version stored in registry metadata.
     const VERSION: &'static str;
+
+    /// Complete interface ancestry lists required by every implementation.
+    ///
+    /// The callable class projection and each additional class supertrait are
+    /// separate `QueryInterface` capabilities on one COM identity.
+    const INTERFACE_CHAINS: &'static [&'static [&'static crate::NcInterfaceDescriptor]];
 
     /// ABI hash of the constructor frame, or zero for no arguments.
     const CONSTRUCTOR_ABI_HASH: NcAbiHash;

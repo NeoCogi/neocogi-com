@@ -286,7 +286,7 @@ The implementation crate keeps its state private and binds it to that contract:
 #     fn new(initial: u32) -> Result<Self, NcStatus>;
 #     fn value(&self) -> Result<u32, NcStatus>;
 # }
-#[com_class(contract(Counter), interfaces())]
+#[com_class(contract(Counter))]
 struct CounterObject {
     initial: u32,
 }
@@ -303,8 +303,10 @@ impl Counter for CounterObject {
 ```
 
 `contract(Counter)` automatically installs the primary `CounterAbi` projection
-and copies the class ID, name, and version into the implementation descriptor.
-`interfaces(...)` contains only additional capabilities that callers may query.
+and copies the class ID, name, version, and required interface set into the
+implementation descriptor. Every class supertrait is a separate
+`QueryInterface` projection on the same object; the implementation struct does
+not repeat that list.
 After registering the containing plugin, a host activates and calls the class
 without spelling its ID or querying a companion interface:
 
@@ -612,7 +614,7 @@ pub trait Widget {
     fn width(&self) -> Result<u32, nc_com::NcStatus>;
 }
 
-#[nc_com::com_class(contract(Widget), interfaces())]
+#[nc_com::com_class(contract(Widget))]
 pub struct WidgetObject {
     width: u32,
 }

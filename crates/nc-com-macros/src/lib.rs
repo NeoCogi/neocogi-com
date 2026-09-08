@@ -184,9 +184,9 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// On a trait, this macro defines the primary callable surface and stable
 /// registry identity shared by hosts and implementations. On a struct,
 /// `contract(Class)` creates its reference-counted implementation storage and
-/// descriptor. `interfaces(...)` then lists only additional queried
-/// capabilities. Add `thread_safe` when every call and final destruction may
-/// occur on any thread.
+/// descriptor. Class trait supertraits declare the interface capabilities that
+/// every implementation must expose through `QueryInterface`. Add
+/// `thread_safe` when every call and final destruction may occur on any thread.
 ///
 /// ```text
 /// #[com_class(auto_guid = "example.Calculator:v1")]
@@ -197,7 +197,7 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
 /// }
 ///
-/// #[com_class(contract(Calculator), interfaces())]
+/// #[com_class(contract(Calculator))]
 /// pub struct CalculatorObject {
 ///     value: i32,
 /// }
@@ -215,11 +215,9 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// `NC_ABI_THREADING_THREAD_SAFE` through the generated
 /// `ComClass::Threading` associated type, which also determines their
 /// constructor pointer type.
-/// `IUnknown` is implicit and must not be listed: generated class metadata
-/// contains its canonical descriptor exactly once, followed by the listed
-/// interfaces in declaration order. Duplicate interface entries are rejected,
-/// and listed interface paths must have distinct final names because those
-/// names determine generated storage fields and companion ABI types.
+/// `IUnknown` is implicit and must not be listed. A callable implementation
+/// must not repeat its contract's interfaces on the struct attribute; the
+/// contract is the sole source of its queryable surface.
 /// Every class receives `from_value(value: Self)`. Unit structs also receive a
 /// zero-argument `create()` shortcut.
 ///

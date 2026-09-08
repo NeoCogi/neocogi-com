@@ -366,9 +366,10 @@ impl Parse for ClassArgs {
     /// associated-type paths that the generated names cannot represent.
     ///
     /// Descriptor metadata is optional and all-or-nothing. A `contract(...)`
-    /// path supplies the preferred class identity, constructor frame, and
-    /// primary projection. The explicit identity form is limited to legacy
-    /// no-argument descriptors.
+    /// path supplies the class identity, constructor frame, primary projection,
+    /// and required interface set. Contract-backed implementations therefore
+    /// reject even an empty `interfaces(...)` list. The explicit identity form
+    /// is limited to legacy no-argument descriptors.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let mut interfaces = None;
         let mut thread_safe = false;
@@ -463,17 +464,17 @@ impl Parse for ClassArgs {
             input.parse::<Token![,]>()?;
         }
 
+        // Preserve whether the author wrote the option before normalizing its
+        // contents. An empty list is still redundant on a callable contract.
+        let interfaces_were_declared = interfaces.is_some();
         let mut interfaces = interfaces.unwrap_or_default();
         let descriptor = match (contract, class_id, name, version, constructor) {
             (Some(contract), None, None, None, None) => {
                 let primary = ClassInterface::from_path(contract)?;
-                if interfaces
-                    .iter()
-                    .any(|interface| interface.field_ident == primary.field_ident)
-                {
+                if interfaces_were_declared {
                     return Err(syn::Error::new(
-                        primary.field_ident.span(),
-                        "the primary class contract is implicit; remove it from interfaces(...)"
+                        input.span(),
+                        "a callable class declares required interfaces as trait supertraits; remove interfaces(...) from its implementation",
                     ));
                 }
                 let abi_path = primary.abi_path.clone();

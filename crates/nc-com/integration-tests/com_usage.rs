@@ -215,7 +215,7 @@ impl IMacroPluginDefault for MacroPluginDefault {
 
 #[com_class(auto_guid = "nc.tests.com_usage.CallableCounter:v1")]
 /// A registered class whose primary methods require no companion interface.
-pub trait CallableCounter {
+pub trait CallableCounter: ICalculator + IMultiplier {
     /// Creates a counter holding one caller-supplied value.
     #[constructor]
     fn new(value: u32, label: NcCopyFromBufferOffset<'_, u8>, calculator: ComRef<'_, ICalculatorAbi>) -> Result<Self, NcStatus>;
@@ -224,7 +224,7 @@ pub trait CallableCounter {
     fn answer(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_class(contract(CallableCounter), interfaces())]
+#[com_class(contract(CallableCounter))]
 /// Private state object implementing the shared callable class contract.
 pub struct CallableCounterObject {
     /// Fixed answer supplied by the typed constructor frame.
@@ -242,6 +242,20 @@ impl CallableCounter for CallableCounterObject {
     /// Implements the class method directly on the private plugin object.
     fn answer(&self) -> Result<u32, NcStatus> {
         Ok(self.value)
+    }
+}
+
+impl ICalculator for CallableCounterObject {
+    /// Uses the constructor value to prove the primary base projection reaches the same state.
+    fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus> {
+        Ok(self.value as i32 + a + b)
+    }
+}
+
+impl IMultiplier for CallableCounterObject {
+    /// Returns a sibling-interface result derived from the same constructor state.
+    fn multiply(&self, a: i32, b: i32) -> Result<i32, NcStatus> {
+        Ok(self.value as i32 + a * b)
     }
 }
 
@@ -1306,6 +1320,12 @@ fn plugin_macro_descriptor_registers_and_constructs_class() {
     runtime
         .require_interface_type::<IMacroPluginEchoAbi>(MacroPluginEcho::CLASS_ID)
         .unwrap();
+    runtime
+        .require_interface_type::<ICalculatorAbi>(CallableCounterAbi::CLASS_ID)
+        .unwrap();
+    runtime
+        .require_interface_type::<IMultiplierAbi>(CallableCounterAbi::CLASS_ID)
+        .unwrap();
 
     let echo = runtime.construct_class_as::<IMacroPluginEchoAbi>(MacroPluginEcho::CLASS_ID, ()).unwrap();
     assert_eq!(echo.answer(), Ok(314));
@@ -1327,6 +1347,14 @@ fn plugin_macro_descriptor_registers_and_constructs_class() {
     let arguments = CallableCounterAbi::arguments(40, NcCopyFromBufferOffset::new(0, &label), calculator.as_com_ref()).unwrap();
     let counter = runtime.construct::<CallableCounterAbi>(arguments).unwrap();
     assert_eq!(counter.answer(), Ok(42));
+    let calculator_projection = counter.query::<ICalculatorAbi>().unwrap();
+    let multiplier_projection = counter.query::<IMultiplierAbi>().unwrap();
+    assert_eq!(calculator_projection.add(1, 2), Ok(45));
+    assert_eq!(multiplier_projection.multiply(2, 3), Ok(48));
+    assert_eq!(
+        calculator_projection.query::<IUnknown>().unwrap().as_ptr(),
+        multiplier_projection.query::<IUnknown>().unwrap().as_ptr()
+    );
 }
 
 #[test]

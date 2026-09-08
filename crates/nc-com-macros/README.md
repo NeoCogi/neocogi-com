@@ -53,13 +53,14 @@ wraps the private implementation in generated COM object storage with:
   `class_descriptor() -> &'static NcClassDescriptor`
 
 A contract-backed implementation uses
-`#[com_class(contract(Class), interfaces(...))]`. The class trait declares one
+`#[com_class(contract(Class))]`. The class trait declares one
 `#[constructor]` function. Its parameters generate a typed, lifetime-safe
 constructor frame and an `arguments(...)` builder on the generated `ClassAbi`
 type; the constructor itself is excluded from the method vtable.
 The contract is automatically its first non-`IUnknown` projection and supplies
-the descriptor's class ID, name, version, and constructor ABI hash. The explicit
-interface list is therefore reserved for additional queried capabilities.
+the descriptor's class ID, name, version, constructor ABI hash, and required
+interface set. Supertraits on the class declaration become separate queryable
+projections on the same object; the implementation struct does not repeat them.
 
 `IUnknown` is implicit in `#[com_class(interfaces(...))]`. The generated
 interface table contains its canonical descriptor first, followed by the listed
@@ -125,7 +126,7 @@ pub trait Echo {
     fn code(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_class(contract(Echo), interfaces())]
+#[com_class(contract(Echo))]
 pub struct EchoObject {
     code: u32,
 }

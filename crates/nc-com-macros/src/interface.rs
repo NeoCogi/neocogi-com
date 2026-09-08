@@ -14,7 +14,7 @@ use crate::abi_method::{
 use crate::args::InterfaceArgs;
 use crate::model::{AbiArgKind, AbiMethod, AbiReturnKind};
 use crate::util::{
-    checked_u32_len, collect_syn_results, interface_guid, push_error, runtime_crate_path,
+    checked_u32_len, collect_syn_results, interface_field, interface_guid, push_error, runtime_crate_path,
 };
 
 /// Expands one validated interface trait into its complete Rust and C ABI surface.
@@ -62,13 +62,28 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
     let guid = interface_guid(args.guid, &qualified_name, &nc)?;
     // Single inheritance has one unambiguous physical prefix. Generated names
     // retain the original module path, so bases may live in another crate.
-    let base = match input.supertraits.first() {
-        None => None,
-        Some(TypeParamBound::Trait(bound)) if bound.modifier == TraitBoundModifier::None
-            && bound.lifetimes.is_none()
-            && bound.path.segments.iter().all(|segment| matches!(segment.arguments, PathArguments::None)) => Some(&bound.path),
-        Some(bound) => return Err(syn::Error::new_spanned(bound, "expected one nongeneric generated COM base interface")),
-    };
+    let interface_paths = input
+        .supertraits
+        .iter()
+        .map(|bound| match bound {
+            TypeParamBound::Trait(bound)
+                if bound.modifier == TraitBoundModifier::None
+                    && bound.lifetimes.is_none()
+                    && bound.path.segments.iter().all(|segment| matches!(segment.arguments, PathArguments::None)) => Ok(bound.path.clone()),
+            _ => Err(syn::Error::new_spanned(bound, "expected a nongeneric generated COM interface")),
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let base = interface_paths.first();
+    // Callable class contracts may require more than the one physical vtable
+    // base. Each later supertrait is stored and queried as a sibling COM
+    // projection. Ordinary interfaces reject such declarations before this
+    // shared generator is entered.
+    let additional_interfaces = interface_paths.iter().skip(1).map(|path| {
+        let abi = generated_path(path, "Abi");
+        let interfaces_for = generated_path(path, "InterfacesFor");
+        let field = interface_field(path);
+        (abi, interfaces_for, field)
+    }).collect::<Vec<_>>();
     let mut base_identity = quote! { #nc::NcInterfaceId::NONE };
     let mut base_chain = quote! { &[] };
     let mut prefix_field = quote! {
@@ -87,7 +102,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
     let mut storage_base = quote! {};
     let mut storage_base_init = quote! {};
     let mut storage_base_set = quote! {};
-    let mut storage_base_query = quote! { Ok(core::ptr::null_mut()) };
+    let mut storage_base_query = quote! {};
     if let Some(base) = base {
         let base_abi = generated_path(base, "Abi");
         let base_vtable = generated_path(base, "VTable");
@@ -119,8 +134,29 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
         };
         storage_base_init = quote! { base: #base_interfaces::<T>::__nc_new(), };
         storage_base_set = quote! { self.base.set_object(object); };
-        storage_base_query = quote! { self.base.query(interface) };
+        storage_base_query = quote! {
+            let projection = self.base.query(interface)?;
+            if !projection.is_null() {
+                return Ok(projection);
+            }
+        };
     }
+    let additional_storage = additional_interfaces.iter().map(|(_, interfaces_for, field)| quote! {
+        #[doc = "Required sibling interface projections sharing this class allocation."]
+        #field: #interfaces_for<T>,
+    });
+    let additional_storage_init = additional_interfaces.iter().map(|(_, interfaces_for, field)| quote! {
+        #field: #interfaces_for::<T>::__nc_new(),
+    });
+    let additional_storage_set = additional_interfaces.iter().map(|(_, _, field)| quote! {
+        self.#field.set_object(object);
+    });
+    let additional_storage_query = additional_interfaces.iter().map(|(_, _, field)| quote! {
+        let projection = self.#field.query(interface)?;
+        if !projection.is_null() {
+            return Ok(projection);
+        }
+    });
 
     let method_count =
         checked_u32_len(methods.len(), trait_ident.span(), "interface method count")?;
@@ -508,6 +544,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
             /// Projection whose header advertises this exact interface contract.
             own: #abi_ident,
             #storage_base
+            #(#additional_storage)*
             /// Associates the thunk implementor without owning a second value.
             implementor: core::marker::PhantomData<fn() -> T>,
         }
@@ -518,6 +555,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
                 Self {
                     own: #abi_ident { vtable: &#vtable_for_ident::<T>::VTABLE, object: core::ptr::null_mut() },
                     #storage_base_init
+                    #(#additional_storage_init)*
                     implementor: core::marker::PhantomData,
                 }
             }
@@ -528,6 +566,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
             pub fn set_object(&mut self, object: *mut core::ffi::c_void) {
                 self.own.object = object;
                 #storage_base_set
+                #(#additional_storage_set)*
             }
 
             /// Finds a checked projection without changing the reference count.
@@ -539,6 +578,8 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
                     return Ok(core::ptr::from_ref(&self.own).cast_mut().cast());
                 }
                 #storage_base_query
+                #(#additional_storage_query)*
+                Ok(core::ptr::null_mut())
             }
         }
 

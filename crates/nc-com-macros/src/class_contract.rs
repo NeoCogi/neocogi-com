@@ -6,9 +6,9 @@
 //! have the same safe two-pointer header and C vtable representation.
 
 use quote::{format_ident, quote};
-use syn::{ItemTrait, Result, TraitItem, TraitItemFn};
+use syn::{ItemTrait, PathArguments, Result, TraitBoundModifier, TraitItem, TraitItemFn, TypeParamBound};
 
-use crate::abi_method::{parse_abi_trait_item, parse_class_constructor, validate_interface_trait};
+use crate::abi_method::{parse_abi_trait_item, parse_class_constructor, validate_class_contract_trait};
 use crate::args::{ClassContractArgs, InterfaceArgs, InterfaceGuid};
 use crate::interface::{expand_com_interface_with_methods, validate_callable_methods};
 use crate::model::{AbiArg, AbiArgKind, AbiConstructor};
@@ -20,6 +20,23 @@ pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: Item
     let class_trait_ident = input.ident.clone();
     let class_vis = input.vis.clone();
     let class_abi_ident = format_ident!("{}Abi", input.ident);
+    let required_interface_abis = input
+        .supertraits
+        .iter()
+        .skip(1)
+        .map(|bound| match bound {
+            TypeParamBound::Trait(bound)
+                if bound.modifier == TraitBoundModifier::None
+                    && bound.lifetimes.is_none()
+                    && bound.path.segments.iter().all(|segment| matches!(segment.arguments, PathArguments::None)) => {
+                        let mut abi = bound.path.clone();
+                        let last = abi.segments.last_mut().expect("validated trait paths have a final segment");
+                        last.ident = format_ident!("{}Abi", last.ident);
+                        Ok(abi)
+                    }
+            _ => Err(syn::Error::new_spanned(bound, "expected a nongeneric generated COM interface")),
+        })
+        .collect::<Result<Vec<_>>>()?;
     let qualified_name = args.auto_guid;
     let class_id = stable_guid(
         InterfaceGuid::AutoGuid {
@@ -30,7 +47,7 @@ pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: Item
     )?;
 
     let mut errors = None;
-    validate_interface_trait(&input, &mut errors);
+    validate_class_contract_trait(&input, &mut errors);
     let mut constructor = None;
     let mut methods = Vec::new();
     for item in &mut input.items {
@@ -108,6 +125,11 @@ pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: Item
                 #class_abi_ident::CONSTRUCTOR_ABI_HASH;
             const QUALIFIED_NAME: &'static str = #qualified_name;
             const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+            const INTERFACE_CHAINS: &'static [&'static [&'static #nc::NcInterfaceDescriptor]] = &[
+                &[&#nc::IUnknown::INTERFACE_DESCRIPTOR],
+                &#class_abi_ident::INTERFACE_CHAIN,
+                #(&#required_interface_abis::INTERFACE_CHAIN,)*
+            ];
         }
 
         impl #class_abi_ident {

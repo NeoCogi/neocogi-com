@@ -67,14 +67,21 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
     let is_unit_struct = matches!(input.fields, Fields::Unit);
     // Query order and exported metadata use the same derived-first ancestry.
     // Shared bases are advertised once even when several branches expose them.
-    let declared_chains = args.interfaces.iter().map(|iface| {
-        let abi = &iface.abi_path;
-        quote! { &#abi::INTERFACE_CHAIN }
-    });
-    let interface_chains = quote! { &[
-        &[&#nc::IUnknown::INTERFACE_DESCRIPTOR],
-        #(#declared_chains,)*
-    ] };
+    let interface_chains = if let Some(ClassDescriptorArgs::Contract { abi_path }) = args.descriptor.as_ref() {
+        // The contract is the sole authority for its callable projection and
+        // required interface supertraits. The implementation struct must not
+        // repeat that public boundary.
+        quote! { <#abi_path as #nc::ComClassContract>::INTERFACE_CHAINS }
+    } else {
+        let declared_chains = args.interfaces.iter().map(|iface| {
+            let abi = &iface.abi_path;
+            quote! { &#abi::INTERFACE_CHAIN }
+        });
+        quote! { &[
+            &[&#nc::IUnknown::INTERFACE_DESCRIPTOR],
+            #(#declared_chains,)*
+        ] }
+    };
     let thread_safe_marker_impl = args.thread_safe.then(|| {
         let assertion = (!generic).then(|| quote! {
             const _: fn() = || {
