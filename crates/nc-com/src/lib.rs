@@ -443,7 +443,8 @@ pub use macros::{com_class, com_enum, com_interface, com_struct, plugin};
 pub use nc_com_core::format_method_signature;
 pub use nc_com_core::{
     __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type,
-    AbiPlainValue, AbiType, ComClientInterface, NcClientPointer, ComInterface, ComPtr, ComRef, ComStruct, IID_INC_BYTES, IID_INC_STRING,
+    AbiPlainValue, AbiType, ComClassContract, ComClientInterface, NcClientPointer, ComInterface,
+    ComPtr, ComRef, ComStruct, IID_INC_BYTES, IID_INC_STRING,
     IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable,
     IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
     NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET,

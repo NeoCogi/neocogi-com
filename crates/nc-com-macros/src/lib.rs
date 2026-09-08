@@ -125,11 +125,12 @@
 #![deny(missing_docs)]
 
 use proc_macro::TokenStream;
-use syn::{ItemEnum, ItemStruct, ItemTrait, parse_macro_input};
+use syn::{Item, ItemEnum, ItemStruct, ItemTrait, parse_macro_input};
 
 mod abi_method;
 mod args;
 mod class;
+mod class_contract;
 mod enums;
 mod interface;
 mod model;
@@ -138,8 +139,9 @@ mod plugin;
 mod structs;
 mod util;
 
-use args::{ClassArgs, EnumArgs, InterfaceArgs, StructArgs};
+use args::{ClassArgs, ClassContractArgs, EnumArgs, InterfaceArgs, StructArgs};
 use class::expand_com_class;
+use class_contract::expand_com_class_contract;
 use enums::expand_com_enum;
 use interface::expand_com_interface;
 use plugin::{PluginArgs, expand_plugin};
@@ -177,12 +179,35 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-/// Defines a COM class from a Rust struct.
+/// Defines a callable COM class contract or its concrete object storage.
 ///
-/// The macro creates object storage, reference counting, `IUnknown`, and
-/// `QueryInterface` support for the interfaces listed in
-/// `interfaces(IFoo, module::IBar)`. Add `thread_safe` for classes whose methods
-/// may be called from any thread: `#[com_class(thread_safe, interfaces(IFoo))]`.
+/// On a trait, this macro defines the primary callable surface and stable
+/// registry identity shared by hosts and implementations. On a struct,
+/// `contract(Class)` creates its reference-counted implementation storage and
+/// descriptor. `interfaces(...)` then lists only additional queried
+/// capabilities. Add `thread_safe` when every call and final destruction may
+/// occur on any thread.
+///
+/// ```text
+/// #[com_class(
+///     class_id(auto_guid = "example.Calculator:v1"),
+///     name = "example.Calculator:v1",
+///     version = "1.0.0",
+/// )]
+/// pub trait Calculator {
+///     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
+/// }
+///
+/// #[com_class(
+///     contract(Calculator),
+///     constructor(args = none),
+///     interfaces(),
+/// )]
+/// pub struct CalculatorObject;
+/// ```
+///
+/// Struct expansion creates object storage, reference counting, `IUnknown`, and
+/// `QueryInterface` support.
 /// Generated class descriptors record `NC_ABI_THREADING_THREAD_LOCAL` or
 /// `NC_ABI_THREADING_THREAD_SAFE` through the generated
 /// `ComClass::Threading` associated type, which also determines their
@@ -205,9 +230,26 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// are validated during macro expansion.
 #[proc_macro_attribute]
 pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as ClassArgs);
-    let input = parse_macro_input!(item as ItemStruct);
-    expand_com_class(args, input).into()
+    let input = parse_macro_input!(item as Item);
+    match input {
+        Item::Trait(input) => {
+            let args = parse_macro_input!(attr as ClassContractArgs);
+            match expand_com_class_contract(args, input) {
+                Ok(tokens) => tokens.into(),
+                Err(err) => err.to_compile_error().into(),
+            }
+        }
+        Item::Struct(input) => {
+            let args = parse_macro_input!(attr as ClassArgs);
+            expand_com_class(args, input).into()
+        }
+        other => syn::Error::new_spanned(
+            other,
+            "com_class can only define a class contract trait or an implementation struct",
+        )
+        .to_compile_error()
+        .into(),
+    }
 }
 
 /// Defines static plugin metadata from generated class descriptors.

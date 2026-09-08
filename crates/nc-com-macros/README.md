@@ -37,7 +37,10 @@ versus `out` returns, `ComRef` borrowed parameters, `ComPtr` owned returns, safe
 buffer passing modes, COM threading mode, referenced interface IDs, and
 referenced interface ABI hashes.
 
-`#[com_class]` wraps a Rust struct in generated COM object storage with:
+`#[com_class]` has two related forms. On a trait it declares one registered
+class's primary callable contract and generates the same C-shaped call machinery
+without requiring a separately authored `IClass` interface. On a struct it
+wraps the private implementation in generated COM object storage with:
 
 - `IUnknown`
 - one ABI header per exposed interface
@@ -48,6 +51,12 @@ referenced interface ABI hashes.
 - optional generated class descriptors when `class_id(...)`, `name`,
   `version`, and `constructor(...)` are provided, including
   `class_descriptor() -> &'static NcClassDescriptor`
+
+A contract-backed implementation uses
+`#[com_class(contract(Class), constructor(args = none), interfaces(...))]`.
+The contract is automatically its first non-`IUnknown` projection and supplies
+the descriptor's class ID, name, and version. The explicit interface list is
+therefore reserved for additional queried capabilities.
 
 `IUnknown` is implicit in `#[com_class(interfaces(...))]`. The generated
 interface table contains its canonical descriptor first, followed by the listed

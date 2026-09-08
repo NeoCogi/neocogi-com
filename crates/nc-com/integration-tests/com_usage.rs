@@ -1,5 +1,5 @@
 use nc_com::{
-    ComClass, ComInterface, ComPtr, ComRef, ComStruct, IUnknown,
+    ComClass, ComClassContract, ComInterface, ComPtr, ComRef, ComStruct, IUnknown,
     NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET,
     NC_ABI_PASSING_VOID, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
     NC_ABI_TYPE_U8, NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG,
@@ -213,12 +213,38 @@ impl IMacroPluginDefault for MacroPluginDefault {
     }
 }
 
+#[com_class(
+    class_id(auto_guid = "nc.tests.com_usage.CallableCounter:v1"),
+    name = "nc.tests.com_usage.CallableCounter:v1",
+    version = "1.0.0"
+)]
+/// A registered class whose primary methods require no companion interface.
+pub trait CallableCounter {
+    /// Returns the fixed value supplied by this test implementation.
+    fn answer(&self) -> Result<u32, NcStatus>;
+}
+
+#[com_class(
+    contract(CallableCounter),
+    constructor(args = none),
+    interfaces()
+)]
+/// Private state object implementing the shared callable class contract.
+pub struct CallableCounterObject;
+
+impl CallableCounter for CallableCounterObject {
+    /// Implements the class method directly on the private plugin object.
+    fn answer(&self) -> Result<u32, NcStatus> {
+        Ok(42)
+    }
+}
+
 plugin! {
     plugin_id(auto_guid = "nc.tests.com_usage.macro_plugin:v1"),
     name = "nc.tests.com_usage.macro_plugin:v1",
     version = "1.0.0",
     dependencies = [CALCULATOR_PLUGIN_ID],
-    classes = [MacroPluginEcho],
+    classes = [MacroPluginEcho, CallableCounterObject],
 }
 
 const CALCULATOR_PLUGIN_ID: NcGuid =
@@ -1345,6 +1371,17 @@ fn plugin_macro_descriptor_registers_and_constructs_class() {
             .unwrap()
     };
     assert_eq!(echo.answer(), Ok(314));
+
+    assert_eq!(
+        CallableCounterObject::CLASS_ID,
+        <CallableCounterAbi as ComClassContract>::CLASS_ID
+    );
+    assert_eq!(
+        CallableCounterObject::CLASS_DESCRIPTOR.qualified_name,
+        NcStaticUtf8::from_static(CallableCounterAbi::CLASS_QUALIFIED_NAME)
+    );
+    let counter = runtime.construct::<CallableCounterAbi>().unwrap();
+    assert_eq!(counter.answer(), Ok(42));
 }
 
 #[test]

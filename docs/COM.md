@@ -258,6 +258,65 @@ point, not an alternative contract-authoring path.
 `#[com_class]` generates object storage and constructors. Unit structs receive
 `create()`. Structs with fields receive `from_value(value)`.
 
+### Callable class contracts
+
+Use `#[com_class]` on a trait when one registered class owns the callable
+surface. This avoids declaring a one-off `IThing` interface merely to call the
+class. The shared contract crate declares the class once:
+
+```rust
+use nc_com::{NcStatus, com_class};
+
+#[com_class(
+    class_id(auto_guid = "example.Counter:v1"),
+    name = "example.Counter:v1",
+    version = "1.0.0"
+)]
+pub trait Counter {
+    fn value(&self) -> Result<u32, NcStatus>;
+}
+```
+
+The implementation crate keeps its state private and binds it to that contract:
+
+```rust
+# use nc_com::{NcStatus, com_class};
+# #[com_class(
+#     class_id(auto_guid = "example.Counter:v1"),
+#     name = "example.Counter:v1",
+#     version = "1.0.0"
+# )]
+# pub trait Counter { fn value(&self) -> Result<u32, NcStatus>; }
+#[com_class(
+    contract(Counter),
+    constructor(args = none),
+    interfaces()
+)]
+struct CounterObject;
+
+impl Counter for CounterObject {
+    fn value(&self) -> Result<u32, NcStatus> {
+        Ok(42)
+    }
+}
+```
+
+`contract(Counter)` automatically installs the primary `CounterAbi` projection
+and copies the class ID, name, and version into the implementation descriptor.
+`interfaces(...)` contains only additional capabilities that callers may query.
+After registering the containing plugin, a host activates and calls the class
+without spelling its ID or querying a companion interface:
+
+```rust,ignore
+let counter = nc_com::Runtime::global().construct::<CounterAbi>()?;
+assert_eq!(counter.value()?, 42);
+```
+
+Callable class contracts currently use no-argument activation. Constructor
+parameters will use generated typed argument frames; applications should not
+introduce `Any`, property bags, or hand-written argument interfaces around this
+temporary limitation.
+
 Unregistered implementation classes may have Rust type or const parameters,
 default type arguments, and ordinary `where` bounds. Their exposed interfaces
 remain concrete ABI contracts. This supports an application-owned typed handler

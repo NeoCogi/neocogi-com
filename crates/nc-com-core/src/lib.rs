@@ -81,8 +81,8 @@ pub use metadata::{
     validate_plugin_descriptor_with_issues,
 };
 pub use object::{
-    ComInterface, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown,
-    IUnknownVTable,
+    ComClassContract, ComInterface, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID,
+    IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
 };
 pub use ptr::{ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};
 pub use runtime_abi::{

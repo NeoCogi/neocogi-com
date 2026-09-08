@@ -23,6 +23,21 @@ pub(crate) struct ClassArgs {
     pub(crate) descriptor: Option<ClassDescriptorArgs>,
 }
 
+/// Parsed identity for a callable class contract declared on a Rust trait.
+///
+/// The trait supplies the method signatures while these fields supply the
+/// registry identity shared by hosts and implementations.
+pub(crate) struct ClassContractArgs {
+    /// Explicit, derived, or path-based stable class identity.
+    pub(crate) class_id: InterfaceGuid,
+    /// Normative class qualified name.
+    pub(crate) name: LitStr,
+    /// Class contract version text.
+    pub(crate) version: LitStr,
+    /// Optional path overriding automatic `nc-com` crate discovery.
+    pub(crate) runtime_crate: Option<Path>,
+}
+
 /// Generated paths and storage-field name for one class interface.
 pub(crate) struct ClassInterface {
     /// Path to the macro-generated C-shaped interface header.
@@ -34,15 +49,25 @@ pub(crate) struct ClassInterface {
 }
 
 /// Optional descriptor metadata attached to a generated COM class.
-pub(crate) struct ClassDescriptorArgs {
-    /// Explicit, derived, or path-based stable class identity.
-    pub(crate) class_id: InterfaceGuid,
-    /// Normative class qualified name.
-    pub(crate) name: LitStr,
-    /// Class implementation version text.
-    pub(crate) version: LitStr,
-    /// Constructor argument and factory configuration.
-    pub(crate) constructor: ClassConstructorArgs,
+pub(crate) enum ClassDescriptorArgs {
+    /// An implementation-owned identity written directly on its struct.
+    Explicit {
+        /// Explicit, derived, or path-based stable class identity.
+        class_id: InterfaceGuid,
+        /// Normative class qualified name.
+        name: LitStr,
+        /// Class implementation version text.
+        version: LitStr,
+        /// Constructor argument and factory configuration.
+        constructor: ClassConstructorArgs,
+    },
+    /// An implementation of one shared callable class contract.
+    Contract {
+        /// Generated ABI path carrying the shared class identity and methods.
+        abi_path: Path,
+        /// Constructor implementation policy for this concrete object.
+        constructor: ClassConstructorArgs,
+    },
 }
 
 /// Parsed constructor policy for a descriptor-bearing class.
@@ -310,6 +335,65 @@ impl Parse for InterfaceArgs {
     }
 }
 
+impl Parse for ClassContractArgs {
+    /// Parses the stable identity of a no-argument callable class contract.
+    fn parse(input: ParseStream<'_>) -> Result<Self> {
+        let mut class_id = None;
+        let mut name = None;
+        let mut version = None;
+        let mut runtime_crate = None;
+
+        while !input.is_empty() {
+            let keyword: Ident = input.parse()?;
+            if keyword == "class_id" {
+                if class_id.is_some() {
+                    return Err(syn::Error::new(keyword.span(), "duplicate class_id(...)"));
+                }
+                let content;
+                parenthesized!(content in input);
+                class_id = Some(parse_guid_arg(&content, "class_id")?);
+            } else if keyword == "name" {
+                if name.is_some() {
+                    return Err(syn::Error::new(keyword.span(), "duplicate name = ..."));
+                }
+                input.parse::<Token![=]>()?;
+                name = Some(input.parse()?);
+            } else if keyword == "version" {
+                if version.is_some() {
+                    return Err(syn::Error::new(keyword.span(), "duplicate version = ..."));
+                }
+                input.parse::<Token![=]>()?;
+                version = Some(input.parse()?);
+            } else if keyword == "nc_com" {
+                if runtime_crate.is_some() {
+                    return Err(syn::Error::new(keyword.span(), "duplicate nc_com = ..."));
+                }
+                input.parse::<Token![=]>()?;
+                runtime_crate = Some(input.parse()?);
+            } else {
+                return Err(syn::Error::new(
+                    keyword.span(),
+                    "expected class_id(...), name = ..., version = ..., or nc_com = path",
+                ));
+            }
+
+            if input.is_empty() {
+                break;
+            }
+            input.parse::<Token![,]>()?;
+        }
+
+        Ok(Self {
+            class_id: class_id
+                .ok_or_else(|| syn::Error::new(input.span(), "expected class_id(...)"))?,
+            name: name.ok_or_else(|| syn::Error::new(input.span(), "expected name = ..."))?,
+            version: version
+                .ok_or_else(|| syn::Error::new(input.span(), "expected version = ..."))?,
+            runtime_crate,
+        })
+    }
+}
+
 impl Parse for ClassArgs {
     /// Parses `interfaces(IFoo, module::IBar)` with optional `thread_safe`.
     ///
@@ -329,6 +413,7 @@ impl Parse for ClassArgs {
         let mut name = None;
         let mut version = None;
         let mut constructor = None;
+        let mut contract = None;
 
         while !input.is_empty() {
             let keyword: Ident = input.parse()?;
@@ -387,10 +472,24 @@ impl Parse for ClassArgs {
                 let content;
                 parenthesized!(content in input);
                 constructor = Some(content.parse()?);
+            } else if keyword == "contract" {
+                if contract.is_some() {
+                    return Err(syn::Error::new(keyword.span(), "duplicate contract(...)"));
+                }
+                let content;
+                parenthesized!(content in input);
+                let path = Path::parse_mod_style(&content)?;
+                if !content.is_empty() {
+                    return Err(syn::Error::new(
+                        content.span(),
+                        "expected one class contract path",
+                    ));
+                }
+                contract = Some(path);
             } else {
                 return Err(syn::Error::new(
                     keyword.span(),
-                    "expected interfaces(...), thread_safe, class_id(...), name = ..., version = ..., constructor(...), or nc_com = path",
+                    "expected contract(...), interfaces(...), thread_safe, class_id(...), name = ..., version = ..., constructor(...), or nc_com = path",
                 ));
             }
 
@@ -400,17 +499,40 @@ impl Parse for ClassArgs {
             input.parse::<Token![,]>()?;
         }
 
-        let interfaces =
-            interfaces.ok_or_else(|| syn::Error::new(input.span(), "expected interfaces(...)"))?;
-        let descriptor = match (class_id, name, version, constructor) {
-            (None, None, None, None) => None,
-            (Some(class_id), Some(name), Some(version), Some(constructor)) => {
-                Some(ClassDescriptorArgs {
+        let mut interfaces = interfaces.unwrap_or_default();
+        let descriptor = match (contract, class_id, name, version, constructor) {
+            (Some(contract), None, None, None, Some(constructor)) => {
+                let primary = ClassInterface::from_path(contract)?;
+                if interfaces
+                    .iter()
+                    .any(|interface| interface.field_ident == primary.field_ident)
+                {
+                    return Err(syn::Error::new(
+                        primary.field_ident.span(),
+                        "the primary class contract is implicit; remove it from interfaces(...)"
+                    ));
+                }
+                let abi_path = primary.abi_path.clone();
+                interfaces.insert(0, primary);
+                Some(ClassDescriptorArgs::Contract {
+                    abi_path,
+                    constructor,
+                })
+            }
+            (None, None, None, None, None) => None,
+            (None, Some(class_id), Some(name), Some(version), Some(constructor)) => {
+                Some(ClassDescriptorArgs::Explicit {
                     class_id,
                     name,
                     version,
                     constructor,
                 })
+            }
+            (Some(_), _, _, _, _) => {
+                return Err(syn::Error::new(
+                    input.span(),
+                    "contract(...) supplies class identity and requires constructor(...); remove class_id, name, and version",
+                ));
             }
             _ => {
                 return Err(syn::Error::new(

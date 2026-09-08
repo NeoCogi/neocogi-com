@@ -12,7 +12,8 @@ use std::string::String;
 use std::vec::Vec;
 
 use crate::{
-    ComInterface, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER,
+    ComClassContract, ComInterface, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION,
+    NC_E_INSUFFICIENT_BUFFER,
     NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER,
     NcDebugApiV1, NcGuid, NcInspectionApiV1, NcInterfaceId, NcPluginDescriptor, NcPluginRegistryV1,
     NcRuntimeApiV1, NcStatus, NcTypeRegistryV1, NcUtf8View, ThreadLocal, ThreadingModel,
@@ -321,6 +322,19 @@ impl Runtime {
         class_id: NcGuid,
     ) -> Result<(), NcStatus> {
         self.require_interface(class_id, T::INTERFACE_ID)
+    }
+
+    /// Constructs the registered class described by callable contract `C`.
+    ///
+    /// The shared class contract supplies both registry identity and primary
+    /// callable ABI, so the caller neither repeats a class ID nor queries a
+    /// separately declared one-off interface. This entrypoint accepts the
+    /// no-argument constructor contract represented by `C`.
+    pub fn construct<C: ComClassContract>(&self) -> Result<ComPtr<C>, NcStatus> {
+        // SAFETY: A no-argument class contract requires a null argument pointer.
+        // `construct_class_as` validates the returned primary projection against
+        // C's complete generated ABI identity before exposing it to safe code.
+        unsafe { self.construct_class_as::<C>(C::CLASS_ID, core::ptr::null_mut()) }
     }
 
     /// Constructs an object from a registered class.

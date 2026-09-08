@@ -145,6 +145,43 @@ pub unsafe trait ComInterface {
     fn iunknown(this: *mut Self) -> *mut IUnknown;
 }
 
+/// Describes the primary callable ABI of one registered COM class.
+///
+/// A class contract is also a valid COM pointer projection, so it reuses the
+/// same header, vtable, ownership, and safe-call machinery as optional
+/// interfaces. The distinction is semantic and registry-visible: a class
+/// contract has one construction identity and is the typed result of activating
+/// that class. Authors declare it directly with `#[com_class]`; they do not
+/// write a matching one-off interface.
+///
+/// Optional interfaces remain useful when several classes expose the same
+/// capability through `QueryInterface`. They are not required merely to call a
+/// class's own methods.
+///
+/// # Safety
+///
+/// `CLASS_ID` must identify the registered class whose primary projection is
+/// `Self`. `QUALIFIED_NAME` and `VERSION` must be the exact validated static
+/// text published by that class's descriptor. Implementations must expose
+/// `Self::INTERFACE_ID` in the class interface table so construction can
+/// validate the returned primary projection before safe code receives it.
+pub unsafe trait ComClassContract: ComInterface {
+    /// Stable registry identity used to activate this class.
+    const CLASS_ID: NcGuid;
+
+    /// SHA-256 hash of the class's primary callable ABI.
+    const CLASS_ABI_HASH: NcAbiHash = Self::ABI_HASH;
+
+    /// Normative static class name stored in registry metadata.
+    const QUALIFIED_NAME: &'static str;
+
+    /// Static class contract version stored in registry metadata.
+    const VERSION: &'static str;
+
+    /// Constructor argument identity used by the current runtime transport.
+    const CONSTRUCTOR_ARGUMENTS: NcInterfaceId = NcInterfaceId::NONE;
+}
+
 // SAFETY: `IUnknown` is the canonical interface header and vtable prefix. Its
 // pointer conversion is the identity operation, and the constants describe the
 // exact built-in root-interface contract.
