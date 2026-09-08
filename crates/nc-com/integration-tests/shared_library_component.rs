@@ -1,7 +1,6 @@
 use nc_com::{
-    ComInterface, ComPtr, IUnknown, NC_E_INVALID_ARG, NC_E_NOINTERFACE, NC_E_POINTER, NC_OK,
-    NcClassDescriptor, NcGuid, NcPluginDescriptor, NcStatus, Runtime, com_class, com_interface,
-    validate_plugin_descriptor_with_issues,
+    ComPtr, IUnknown, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiType, NcClassDescriptor, NcGuid, NcPluginDescriptor,
+    NcStatus, Runtime, com_interface, validate_plugin_descriptor_with_issues,
 };
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
@@ -33,34 +32,17 @@ pub trait IWidget {
     fn value(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_interface(auto_guid = "nc.tests.shared_component.WidgetArgs:v1")]
-pub trait IWidgetArgs {
-    fn base(&self) -> Result<u32, NcStatus>;
-}
+const WIDGET_CONSTRUCTOR_ABI_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Arg {
+    index: 0,
+    passing: NcAbiPassing::Value,
+    ty: NcAbiType::U32,
+}]);
 
-#[com_class(interfaces(IWidgetArgs))]
-pub struct WidgetArgs {
+/// Concrete immutable frame matching the dynamically loaded constructor.
+#[repr(C)]
+struct WidgetArguments {
+    /// Base value consumed synchronously by the plugin.
     base: u32,
-}
-
-impl IWidgetArgs for WidgetArgs {
-    fn base(&self) -> Result<u32, NcStatus> {
-        Ok(self.base)
-    }
-}
-
-#[com_interface(auto_guid = "nc.tests.shared_component.Unrelated:v1")]
-pub trait IUnrelated {
-    fn value(&self) -> Result<u32, NcStatus>;
-}
-
-#[com_class(interfaces(IUnrelated))]
-pub struct UnrelatedArgs;
-
-impl IUnrelated for UnrelatedArgs {
-    fn value(&self) -> Result<u32, NcStatus> {
-        Ok(0)
-    }
 }
 
 #[test]
@@ -85,16 +67,12 @@ fn host_loads_shared_library_class_table_and_constructs_class() {
 
     let class = &classes[0];
     assert_eq!(class.class_id, WIDGET_CLASS_ID);
-    assert_eq!(class.constructor_args, IWidgetArgsAbi::INTERFACE_ID);
-    assert_eq!(
-        unsafe { class.qualified_name_str() }.unwrap(),
-        "nc.tests.shared_component.TestWidget"
-    );
+    assert_eq!(class.constructor_abi_hash, WIDGET_CONSTRUCTOR_ABI_HASH);
+    assert_eq!(unsafe { class.qualified_name_str() }.unwrap(), "nc.tests.shared_component.TestWidget");
 
     constructor_rejects_null_output(class);
     constructor_rejects_wrong_class_descriptor(class);
     constructor_rejects_missing_arguments(class);
-    constructor_rejects_wrong_argument_interface(class);
     constructor_returns_owned_unknown(class);
 }
 
@@ -132,10 +110,10 @@ fn runtime_loads_shared_library_and_constructs_class() {
     assert_eq!(inspected_class.plugin_id, loaded.plugin_id());
     assert_eq!(inspected_class.module_id, Some(loaded.module_id()));
 
-    let args = WidgetArgs::from_value(WidgetArgs { base: 32 });
+    let arguments = WidgetArguments { base: 32 };
     let unknown = unsafe {
         runtime
-            .construct_class(WIDGET_CLASS_ID, args.as_mut_ptr())
+            .construct_class_raw(WIDGET_CLASS_ID, WIDGET_CONSTRUCTOR_ABI_HASH, core::ptr::from_ref(&arguments).cast())
             .unwrap()
     };
     let widget = unknown.query::<IWidgetAbi>().unwrap();
@@ -238,19 +216,19 @@ fn runtime_aborts_when_mapped_plugin_registration_fails() {
 
 fn constructor_rejects_null_output(class: &NcClassDescriptor) {
     let constructor = class.construct.unwrap();
-    let args = WidgetArgs::from_value(WidgetArgs { base: 5 });
-    let status = unsafe { constructor(class, args.as_mut_ptr(), std::ptr::null_mut()) };
+    let arguments = WidgetArguments { base: 5 };
+    let status = unsafe { constructor(class, core::ptr::from_ref(&arguments).cast(), std::ptr::null_mut()) };
     assert_eq!(status, NC_E_POINTER);
 }
 
 fn constructor_rejects_wrong_class_descriptor(class: &NcClassDescriptor) {
     let constructor = class.construct.unwrap();
-    let args = WidgetArgs::from_value(WidgetArgs { base: 5 });
+    let arguments = WidgetArguments { base: 5 };
     let mut wrong_class = *class;
     wrong_class.class_id = WRONG_CLASS_ID;
     let mut out = std::ptr::dangling_mut();
 
-    let status = unsafe { constructor(&wrong_class, args.as_mut_ptr(), &mut out) };
+    let status = unsafe { constructor(&wrong_class, core::ptr::from_ref(&arguments).cast(), &mut out) };
 
     assert_eq!(status, NC_E_INVALID_ARG);
     assert!(out.is_null());
@@ -260,29 +238,18 @@ fn constructor_rejects_missing_arguments(class: &NcClassDescriptor) {
     let constructor = class.construct.unwrap();
     let mut out = std::ptr::dangling_mut();
 
-    let status = unsafe { constructor(class, std::ptr::null_mut(), &mut out) };
+    let status = unsafe { constructor(class, std::ptr::null(), &mut out) };
 
     assert_eq!(status, NC_E_INVALID_ARG);
     assert!(out.is_null());
 }
 
-fn constructor_rejects_wrong_argument_interface(class: &NcClassDescriptor) {
-    let constructor = class.construct.unwrap();
-    let unrelated = UnrelatedArgs::create();
-    let mut out = std::ptr::dangling_mut();
-
-    let status = unsafe { constructor(class, unrelated.as_mut_ptr(), &mut out) };
-
-    assert_eq!(status, NC_E_NOINTERFACE);
-    assert!(out.is_null());
-}
-
 fn constructor_returns_owned_unknown(class: &NcClassDescriptor) {
     let constructor = class.construct.unwrap();
-    let args = WidgetArgs::from_value(WidgetArgs { base: 32 });
+    let arguments = WidgetArguments { base: 32 };
     let mut out = std::ptr::null_mut();
 
-    let status = unsafe { constructor(class, args.as_mut_ptr(), &mut out) };
+    let status = unsafe { constructor(class, core::ptr::from_ref(&arguments).cast(), &mut out) };
 
     assert_eq!(status, NC_OK);
     assert!(!out.is_null());

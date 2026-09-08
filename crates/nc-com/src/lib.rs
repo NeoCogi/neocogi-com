@@ -101,7 +101,7 @@
 //!
 //! # Build Compatibility
 //!
-//! core ABI v3 is currently an experimental pre-alpha draft. The generated C-shaped
+//! core ABI v4 is currently an experimental pre-alpha draft. The generated C-shaped
 //! surface is the intended compatibility boundary, but cross-release
 //! compatibility does not begin until an explicitly named future ratification
 //! milestone. Draft golden vectors prevent accidental drift within the current
@@ -265,14 +265,14 @@
 //! `Inspection::loaded_module`, or query descriptor metadata directly with
 //! `Inspection::plugin_info`. Statically registered plugins have plugin
 //! metadata but no loaded-module path.
-//! Runtime core ABI v3 retains at most [`NC_COM_RUNTIME_MAX_LOADED_MODULES`] dynamic
+//! Runtime core ABI v4 retains at most [`NC_COM_RUNTIME_MAX_LOADED_MODULES`] dynamic
 //! modules and permits at most
 //! [`NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS`] simultaneous debug messenger
 //! registrations. Exceeding the module limit is a fatal live-activation error;
 //! debug messenger capacity exhaustion returns [`NC_E_OUT_OF_RANGE`].
 //! Callers then use hash-checked `QueryInterface` to obtain the interface they
 //! need.
-//! core ABI v3 plugin descriptors are declarative and have no initialization hook.
+//! core ABI v4 plugin descriptors are declarative and have no initialization hook.
 //! They may declare hard dependency plugin IDs. Registration requires those IDs
 //! to exist already but never discovers paths or loads dependencies recursively.
 //! Native loader dependencies remain distinct from nc-com dependencies.
@@ -443,8 +443,8 @@ pub use macros::{com_class, com_enum, com_interface, com_struct, plugin};
 pub use nc_com_core::format_method_signature;
 pub use nc_com_core::{
     __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type,
-    AbiPlainValue, AbiType, ComClassContract, ComClientInterface, NcClientPointer, ComInterface,
-    ComPtr, ComRef, ComStruct, IID_INC_BYTES, IID_INC_STRING,
+    AbiPlainValue, AbiType, ComClassArguments, ComClassContract, ComClientInterface,
+    NcClientPointer, ComInterface, ComPtr, ComRef, ComStruct, IID_INC_BYTES, IID_INC_STRING,
     IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable,
     IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
     NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET,
@@ -473,8 +473,8 @@ pub use nc_com_core::{
     NcQualifiedNameError, NcRuntimeApiV1, NcStaticUtf8, NcStatus, NcTypeRegistryV1, NcUtf8View,
     NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING,
     ThreadLocal, ThreadSafe, ThreadingModel, construct_class_checked, guid_from_qualified_name,
-    query_constructor_arguments, raw, return_plugin_descriptor, validate_constructor_arguments,
-    validate_plugin_descriptor_with_issues, validate_qualified_name, validate_version_text,
+    raw, return_plugin_descriptor, validate_plugin_descriptor_with_issues,
+    validate_qualified_name, validate_version_text,
 };
 pub use object::{
     __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComClass, ThreadSafeComObject,

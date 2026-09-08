@@ -12,11 +12,9 @@ use std::string::String;
 use std::vec::Vec;
 
 use crate::{
-    ComClassContract, ComInterface, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION,
-    NC_E_INSUFFICIENT_BUFFER,
-    NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER,
-    NcDebugApiV1, NcGuid, NcInspectionApiV1, NcInterfaceId, NcPluginDescriptor, NcPluginRegistryV1,
-    NcRuntimeApiV1, NcStatus, NcTypeRegistryV1, NcUtf8View, ThreadLocal, ThreadingModel,
+    ComClassArguments, ComClassContract, ComInterface, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG,
+    NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NcDebugApiV1, NcGuid, NcInspectionApiV1, NcInterfaceId, NcPluginDescriptor,
+    NcPluginRegistryV1, NcRuntimeApiV1, NcStatus, NcTypeRegistryV1, NcUtf8View, ThreadLocal, ThreadingModel,
 };
 use nc_com_runtime_sys as runtime_sys;
 
@@ -328,50 +326,113 @@ impl Runtime {
     ///
     /// The shared class contract supplies both registry identity and primary
     /// callable ABI, so the caller neither repeats a class ID nor queries a
-    /// separately declared one-off interface. This entrypoint accepts the
-    /// no-argument constructor contract represented by `C`.
-    pub fn construct<C: ComClassContract>(&self) -> Result<ComPtr<C>, NcStatus> {
-        // SAFETY: A no-argument class contract requires a null argument pointer.
-        // `construct_class_as` validates the returned primary projection against
-        // C's complete generated ABI identity before exposing it to safe code.
-        unsafe { self.construct_class_as::<C>(C::CLASS_ID, core::ptr::null_mut()) }
+    /// separately declared one-off interface. The generated argument wrapper
+    /// statically binds the constructor frame to `C`.
+    pub fn construct<'a, C: ComClassContract>(
+        &self,
+        arguments: C::Arguments<'a>,
+    ) -> Result<ComPtr<C>, NcStatus> {
+        self.construct_with_model::<C, ThreadLocal>(arguments)
     }
 
-    /// Constructs an object from a registered class.
+    /// Constructs a callable class with an explicit pointer threading capability.
     ///
-    /// # Safety
-    ///
-    /// `arguments`, when non-null, must be a valid borrowed `IUnknown` pointer.
-    pub unsafe fn construct_class(
+    /// The requested capability is checked against the class descriptor before
+    /// plugin code runs. A thread-safe result is available only for a class
+    /// whose implementation descriptor promises thread-safe storage and calls.
+    pub fn construct_with_model<'a, C, M>(&self, arguments: C::Arguments<'a>) -> Result<ComPtr<C, M>, NcStatus>
+    where
+        C: ComClassContract,
+        M: ThreadingModel,
+    {
+        self.construct_class_as_with_model::<C, M>(C::CLASS_ID, arguments)
+    }
+
+    /// Constructs an object from a registered class and typed argument frame.
+    pub fn construct_class(
         &self,
         class_id: NcGuid,
-        arguments: *mut IUnknown,
+        arguments: impl ComClassArguments,
     ) -> Result<ComPtr<IUnknown>, NcStatus> {
-        // SAFETY: This forwards the caller's borrowed argument contract while
-        // requesting the conservative thread-local pointer capability.
-        unsafe { self.construct_class_with_model::<ThreadLocal>(class_id, arguments) }
+        // SAFETY: The unsafe argument trait binds its hash to a frame pointer
+        // that remains valid while `arguments` is borrowed by this call.
+        unsafe {
+            self.construct_class_raw(
+                class_id,
+                class_arguments_abi_hash(&arguments),
+                arguments.as_abi_ptr(),
+            )
+        }
     }
 
-    /// Constructs an object with threading capability `M`.
+    /// Constructs an object with threading capability `M` and typed arguments.
     ///
     /// A thread-local request is valid for every registered class. A
     /// thread-safe request succeeds only when the class descriptor promises
     /// that constructed objects support cross-thread calls and destruction.
+    pub fn construct_class_with_model<M: ThreadingModel>(
+        &self,
+        class_id: NcGuid,
+        arguments: impl ComClassArguments,
+    ) -> Result<ComPtr<IUnknown, M>, NcStatus> {
+        // SAFETY: The unsafe argument trait binds its hash to a frame pointer
+        // that remains valid while `arguments` is borrowed by this call.
+        unsafe {
+            self.construct_class_with_model_raw::<M>(
+                class_id,
+                class_arguments_abi_hash(&arguments),
+                arguments.as_abi_ptr(),
+            )
+        }
+    }
+
+    /// Constructs an object from an explicitly erased constructor frame.
     ///
     /// # Safety
     ///
-    /// `arguments`, when non-null, must be a valid borrowed `IUnknown` pointer.
-    pub unsafe fn construct_class_with_model<M: ThreadingModel>(
+    /// `arguments`, when non-null, must point to an immutable constructor frame
+    /// matching `constructor_abi_hash` for the duration of this call.
+    pub unsafe fn construct_class_raw(
         &self,
         class_id: NcGuid,
-        arguments: *mut IUnknown,
+        constructor_abi_hash: crate::NcAbiHash,
+        arguments: *const core::ffi::c_void,
+    ) -> Result<ComPtr<IUnknown>, NcStatus> {
+        // SAFETY: This forwards the caller's raw frame contract while
+        // requesting the conservative thread-local pointer capability.
+        unsafe {
+            self.construct_class_with_model_raw::<ThreadLocal>(
+                class_id,
+                constructor_abi_hash,
+                arguments,
+            )
+        }
+    }
+
+    /// Constructs an object from an erased frame with threading capability `M`.
+    ///
+    /// # Safety
+    ///
+    /// `arguments`, when non-null, must point to an immutable constructor frame
+    /// matching `constructor_abi_hash` for the duration of this call.
+    pub unsafe fn construct_class_with_model_raw<M: ThreadingModel>(
+        &self,
+        class_id: NcGuid,
+        constructor_abi_hash: crate::NcAbiHash,
+        arguments: *const core::ffi::c_void,
     ) -> Result<ComPtr<IUnknown, M>, NcStatus> {
         let mut out = core::ptr::null_mut();
         let requested_threading = M::ABI_THREADING_MODE.as_raw();
         // SAFETY: The caller supplies the borrowed argument contract and `out`
         // is valid for one pointer write.
         let status = unsafe {
-            (self.runtime_api().construct_class)(class_id, requested_threading, arguments, &mut out)
+            (self.runtime_api().construct_class)(
+                class_id,
+                requested_threading,
+                constructor_abi_hash,
+                arguments,
+                &mut out,
+            )
         };
         status_to_result(status)?;
         // SAFETY: A successful runtime construction returns one owned reference.
@@ -379,37 +440,27 @@ impl Runtime {
     }
 
     /// Constructs an object, then validates and queries generated interface `T`.
-    ///
-    /// # Safety
-    ///
-    /// `arguments`, when non-null, must be a valid borrowed `IUnknown` pointer.
-    pub unsafe fn construct_class_as<T: ComInterface>(
+    pub fn construct_class_as<T: ComInterface>(
         &self,
         class_id: NcGuid,
-        arguments: *mut IUnknown,
+        arguments: impl ComClassArguments,
     ) -> Result<ComPtr<T>, NcStatus> {
-        // SAFETY: This forwards the caller's borrowed argument contract.
-        let unknown = unsafe { self.construct_class(class_id, arguments)? };
+        let unknown = self.construct_class(class_id, arguments)?;
         self.query_validated::<T, _>(class_id, &unknown)
     }
 
     /// Constructs an object with threading capability `M`, then validates and
     /// queries generated interface `T` while preserving that capability.
-    ///
-    /// # Safety
-    ///
-    /// `arguments`, when non-null, must be a valid borrowed `IUnknown` pointer.
-    pub unsafe fn construct_class_as_with_model<T, M>(
+    pub fn construct_class_as_with_model<T, M>(
         &self,
         class_id: NcGuid,
-        arguments: *mut IUnknown,
+        arguments: impl ComClassArguments,
     ) -> Result<ComPtr<T, M>, NcStatus>
     where
         T: ComInterface,
         M: ThreadingModel,
     {
-        // SAFETY: This forwards the caller's borrowed argument contract.
-        let unknown = unsafe { self.construct_class_with_model::<M>(class_id, arguments)? };
+        let unknown = self.construct_class_with_model::<M>(class_id, arguments)?;
         self.query_validated::<T, M>(class_id, &unknown)
     }
 
@@ -453,6 +504,14 @@ impl Runtime {
             NC_COM_RUNTIME_ABI_VERSION
         );
     }
+}
+
+/// Reads a constructor wrapper's compile-time ABI identity without permitting
+/// a value-dependent or overridable hash.
+fn class_arguments_abi_hash<A: ComClassArguments>(_: &A) -> crate::NcAbiHash {
+    // The unsafe trait implementation ties this associated constant to the
+    // exact frame returned by `as_abi_ptr`.
+    A::ABI_HASH
 }
 
 /// Reports an unrecoverable live-activation failure and aborts the process.

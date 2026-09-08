@@ -195,16 +195,23 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     version = "1.0.0",
 /// )]
 /// pub trait Calculator {
+///     #[constructor]
+///     fn new(initial: i32) -> Result<Self, NcStatus>;
+///
 ///     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
 /// }
 ///
-/// #[com_class(
-///     contract(Calculator),
-///     constructor(args = none),
-///     interfaces(),
-/// )]
-/// pub struct CalculatorObject;
+/// #[com_class(contract(Calculator), interfaces())]
+/// pub struct CalculatorObject {
+///     value: i32,
+/// }
 /// ```
+///
+/// The trait's one `#[constructor]` function is not a vtable method. Instead,
+/// the macro generates a typed borrowed frame and an `arguments(...)` builder
+/// on `CalculatorAbi`. Hosts activate it with
+/// `Runtime::construct::<CalculatorAbi>(arguments)`. No constructor argument
+/// interface or one-off primary interface declaration is involved.
 ///
 /// Struct expansion creates object storage, reference counting, `IUnknown`, and
 /// `QueryInterface` support.
@@ -220,10 +227,8 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Every class receives `from_value(value: Self)`. Unit structs also receive a
 /// zero-argument `create()` shortcut.
 ///
-/// Class descriptors with `constructor(args = none)` get a generated raw
-/// constructor for unit structs. Non-unit structs must either opt into
-/// `constructor(args = none, default)` and implement `Default`, or provide
-/// `function = path`.
+/// The older explicit descriptor form remains available for low-level
+/// no-argument classes. Typed constructors belong on callable class contracts.
 /// Every `class_id(...)` form is checked against the descriptor's normative
 /// `name`; constant paths should be defined with
 /// `nc_com::guid_from_qualified_name`. Descriptor `name` and `version` literals
@@ -261,7 +266,7 @@ pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// hosts. A final shared library calls `nc_com::export_plugin!` separately to
 /// export `nc_get_plugin_descriptor`; static assemblies omit that export.
 ///
-/// core ABI v3 plugin descriptors contain declarative metadata only. The optional
+/// core ABI v4 plugin descriptors contain declarative metadata only. The optional
 /// `dependencies = [PLUGIN_ID, ...]` list declares hard dependencies that must
 /// already be registered. It never causes recursive loading.
 /// Every `plugin_id(...)` form is checked against the plugin's normative

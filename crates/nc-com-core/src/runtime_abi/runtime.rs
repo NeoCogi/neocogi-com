@@ -10,7 +10,7 @@
 //! `nc_com_runtime_abi_version`. The leading `size` permits append-only table
 //! growth within runtime ABI v1.
 
-use crate::{IUnknown, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus};
+use crate::{IUnknown, NcAbiHash, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus};
 
 /// Process-global runtime operations for runtime ABI v1.
 #[repr(C)]
@@ -39,7 +39,8 @@ pub struct NcRuntimeApiV1 {
     pub construct_class: unsafe extern "C" fn(
         class_id: NcGuid,
         requested_threading: u32,
-        arguments: *mut IUnknown,
+        constructor_abi_hash: NcAbiHash,
+        arguments: *const core::ffi::c_void,
         out: *mut *mut IUnknown,
     ) -> NcStatus,
 }

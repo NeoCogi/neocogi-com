@@ -49,8 +49,8 @@ pub struct ClassInspection {
     pub qualified_name: String,
     /// Static class version metadata copied into owned storage.
     pub class_version: String,
-    /// Constructor argument interface identity, or [`NcInterfaceId::NONE`] for no arguments.
-    pub constructor_args: NcInterfaceId,
+    /// Constructor-frame ABI hash, or [`NcAbiHash::ZERO`] for no arguments.
+    pub constructor_abi_hash: NcAbiHash,
     /// Threading capability promised by constructed objects.
     pub threading: NcAbiThreadingMode,
     /// Interfaces implemented by this class.
@@ -294,7 +294,7 @@ fn copy_class(path: &Path, class: &NcClassDescriptor) -> Result<ClassInspection,
         class_id: class.class_id,
         qualified_name,
         class_version,
-        constructor_args: class.constructor_args,
+        constructor_abi_hash: class.constructor_abi_hash,
         threading,
         interfaces: copied_interfaces,
     })

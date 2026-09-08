@@ -15,7 +15,7 @@
 //! graph for reconstructing source declarations or generating headers from a
 //! plugin binary.
 //!
-//! core ABI v3 is currently an experimental pre-alpha draft. The core ABI version
+//! core ABI v4 is currently an experimental pre-alpha draft. The core ABI version
 //! identifies its current binary generation, not a ratified compatibility
 //! baseline. Cross-release compatibility begins only at an explicitly named
 //! future ratification milestone.
@@ -46,8 +46,7 @@ pub use abi::{
 };
 pub use client::{ComClientInterface, NcClientPointer};
 pub use constructor::{
-    construct_class_checked, query_constructor_arguments, return_plugin_descriptor,
-    validate_constructor_arguments,
+    construct_class_checked, return_plugin_descriptor,
 };
 pub use data::{
     IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable,
@@ -81,7 +80,7 @@ pub use metadata::{
     validate_plugin_descriptor_with_issues,
 };
 pub use object::{
-    ComClassContract, ComInterface, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID,
+    ComClassArguments, ComClassContract, ComInterface, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID,
     IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
 };
 pub use ptr::{ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};

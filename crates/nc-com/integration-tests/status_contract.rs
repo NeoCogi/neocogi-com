@@ -1,7 +1,6 @@
 use nc_com::{
-    ComPtr, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK,
-    NcClassDescriptor, NcGuid, NcInterfaceId, NcStaticUtf8, NcStatus, ThreadLocal, com_class,
-    com_interface, construct_class_checked,
+    ComPtr, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiHash, NcClassDescriptor, NcGuid, NcStaticUtf8, NcStatus,
+    ThreadLocal, com_class, com_interface, construct_class_checked,
 };
 
 #[com_interface(auto_guid = "nc.tests.status_contract.InvalidStatus:v1")]
@@ -28,26 +27,17 @@ impl IInvalidStatus for InvalidStatusObject {
     }
 }
 
-const CONSTRUCTOR_CLASS_ID: NcGuid =
-    nc_com::guid_from_qualified_name("nc.tests.status_contract.Constructor");
+const CONSTRUCTOR_CLASS_ID: NcGuid = nc_com::guid_from_qualified_name("nc.tests.status_contract.Constructor");
 
-unsafe extern "C" fn unused_constructor(
-    _class: *const NcClassDescriptor,
-    _arguments: *mut IUnknown,
-    out: *mut *mut IUnknown,
-) -> NcStatus {
-    if out.is_null() {
-        NC_E_POINTER
-    } else {
-        NC_E_INVALID_ARG
-    }
+unsafe extern "C" fn unused_constructor(_class: *const NcClassDescriptor, _arguments: *const core::ffi::c_void, out: *mut *mut IUnknown) -> NcStatus {
+    if out.is_null() { NC_E_POINTER } else { NC_E_INVALID_ARG }
 }
 
 static CONSTRUCTOR_DESCRIPTOR: NcClassDescriptor = NcClassDescriptor {
     class_id: CONSTRUCTOR_CLASS_ID,
     qualified_name: NcStaticUtf8::from_static("nc.tests.status_contract.Constructor"),
     class_version: NcStaticUtf8::from_static("1.0.0"),
-    constructor_args: NcInterfaceId::NONE,
+    constructor_abi_hash: NcAbiHash::ZERO,
     threading: NC_ABI_THREADING_THREAD_LOCAL,
     construct: Some(unused_constructor),
     interface_count: 0,
@@ -95,10 +85,10 @@ fn checked_constructor_normalizes_non_negative_result_errors_and_clears_output()
         let status = unsafe {
             construct_class_checked::<ThreadLocal, _>(
                 &CONSTRUCTOR_DESCRIPTOR,
-                core::ptr::null_mut(),
+                core::ptr::null(),
                 &mut out,
                 CONSTRUCTOR_CLASS_ID,
-                NcInterfaceId::NONE,
+                NcAbiHash::ZERO,
                 |_arguments| Err(invalid_error),
             )
         };
@@ -114,10 +104,10 @@ fn checked_constructor_success_publishes_a_non_null_owned_output() {
     let status = unsafe {
         construct_class_checked::<ThreadLocal, _>(
             &CONSTRUCTOR_DESCRIPTOR,
-            core::ptr::null_mut(),
+            core::ptr::null(),
             &mut out,
             CONSTRUCTOR_CLASS_ID,
-            NcInterfaceId::NONE,
+            NcAbiHash::ZERO,
             |_arguments| Ok(InvalidStatusObject::create()),
         )
     };

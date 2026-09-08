@@ -11,35 +11,24 @@ fn main() {
 #[cfg(unix)]
 mod unix_host {
     use nc_com::{
-        ComPtr, IUnknown, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcClassDescriptor,
-        NcGetPluginDescriptor, NcPluginDescriptor, NcStatus, com_class, com_interface,
-        validate_plugin_descriptor_with_issues,
+        ComClassArguments, ComPtr, IUnknown, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcClassDescriptor, NcGetPluginDescriptor, NcPluginDescriptor, NcStatus,
+        com_class, validate_plugin_descriptor_with_issues,
     };
     use std::env;
     use std::ffi::{CStr, CString, c_char, c_int, c_void};
     use std::os::unix::ffi::OsStrExt;
     use std::path::Path;
 
+    /// Callable class contract mirrored from the dynamically loaded component.
     #[allow(dead_code)]
-    #[com_interface(auto_guid = "nc.examples.component.Greeter:v1")]
-    pub trait IGreeter {
+    #[com_class(class_id(auto_guid = "nc.examples.component.Greeter"), name = "nc.examples.component.Greeter", version = "1.0.0")]
+    pub trait Greeter {
+        /// Creates a greeter from one plain seed value.
+        #[constructor]
+        fn new(seed: u32) -> Result<Self, NcStatus>;
+
+        /// Returns the code computed by the plugin implementation.
         fn greeting_code(&self) -> Result<u32, NcStatus>;
-    }
-
-    #[com_interface(auto_guid = "nc.examples.component.GreeterArgs:v1")]
-    pub trait IGreeterArgs {
-        fn seed(&self) -> Result<u32, NcStatus>;
-    }
-
-    #[com_class(interfaces(IGreeterArgs))]
-    pub struct GreeterArgs {
-        seed: u32,
-    }
-
-    impl IGreeterArgs for GreeterArgs {
-        fn seed(&self) -> Result<u32, NcStatus> {
-            Ok(self.seed)
-        }
     }
 
     pub fn run() {
@@ -79,15 +68,15 @@ mod unix_host {
         unsafe { &*plugin }
     }
 
-    fn construct_greeter(class: &NcClassDescriptor) -> ComPtr<IGreeterAbi> {
-        let args: ComPtr<IUnknown> = GreeterArgs::from_value(GreeterArgs { seed: 23 });
+    fn construct_greeter(class: &NcClassDescriptor) -> ComPtr<GreeterAbi> {
+        let arguments = GreeterAbi::arguments(23).expect("valid constructor arguments");
+        assert_eq!(class.constructor_abi_hash, GreeterAbi::CONSTRUCTOR_ABI_HASH);
         let constructor = class.construct.expect("class has constructor");
         let mut out = std::ptr::null_mut();
-        let status = unsafe { constructor(class, args.as_mut_ptr(), &mut out) };
+        let status = unsafe { constructor(class, arguments.as_abi_ptr(), &mut out) };
         assert!(status.is_ok(), "constructor failed: {status}");
-        let unknown =
-            unsafe { ComPtr::<IUnknown>::from_raw_owned(out) }.expect("constructor output");
-        unknown.query::<IGreeterAbi>().expect("constructed greeter")
+        let unknown = unsafe { ComPtr::<IUnknown>::from_raw_owned(out) }.expect("constructor output");
+        unknown.query::<GreeterAbi>().expect("constructed greeter")
     }
 
     #[link(name = "dl")]

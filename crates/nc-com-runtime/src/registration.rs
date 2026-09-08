@@ -473,18 +473,14 @@ mod tests {
     static TEST_CONSTRUCTOR_CALLS: AtomicUsize = AtomicUsize::new(0);
     static MULTI_PLUGIN_CONSTRUCTOR_CALLS: AtomicUsize = AtomicUsize::new(0);
 
-    unsafe extern "C" fn test_constructor(
-        _class: *const NcClassDescriptor,
-        _arguments: *mut IUnknown,
-        _out: *mut *mut IUnknown,
-    ) -> NcStatus {
+    unsafe extern "C" fn test_constructor(_class: *const NcClassDescriptor, _arguments: *const core::ffi::c_void, _out: *mut *mut IUnknown) -> NcStatus {
         TEST_CONSTRUCTOR_CALLS.fetch_add(1, Ordering::SeqCst);
         NC_E_INVALID_ARG
     }
 
     unsafe extern "C" fn multi_plugin_test_constructor(
         _class: *const NcClassDescriptor,
-        _arguments: *mut IUnknown,
+        _arguments: *const core::ffi::c_void,
         _out: *mut *mut IUnknown,
     ) -> NcStatus {
         MULTI_PLUGIN_CONSTRUCTOR_CALLS.fetch_add(1, Ordering::SeqCst);
@@ -522,7 +518,7 @@ mod tests {
             class_id: CLASS_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.registry.ModuleIndexedClass"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_args: NcInterfaceId::NONE,
+            constructor_abi_hash: NcAbiHash::ZERO,
             threading: nc_com_core::NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(test_constructor),
             interface_count: CLASS_INTERFACES.len() as u32,
@@ -609,31 +605,18 @@ mod tests {
             crate::inspection::class_info(&runtime.read_catalog().type_registry, CLASS_ID).unwrap();
         assert_eq!(class_info.plugin_id, PLUGIN_ID);
         assert_eq!(class_info.module_id, MODULE_ID.get());
-        assert_eq!(class_info.constructor_args, NcInterfaceId::NONE);
-        assert_eq!(
-            class_info.threading,
-            nc_com_core::NC_ABI_THREADING_THREAD_LOCAL
-        );
+        assert_eq!(class_info.constructor_abi_hash, NcAbiHash::ZERO);
+        assert_eq!(class_info.threading, nc_com_core::NC_ABI_THREADING_THREAD_LOCAL);
 
         let mut out = core::ptr::null_mut();
-        let class = crate::construction::resolve_class(
-            &runtime.read_catalog().type_registry,
-            CLASS_ID,
-            nc_com_core::NC_ABI_THREADING_THREAD_SAFE,
-        );
-        let status =
-            unsafe { crate::construction::construct_class(class, core::ptr::null_mut(), &mut out) };
+        let class = crate::construction::resolve_class(&runtime.read_catalog().type_registry, CLASS_ID, nc_com_core::NC_ABI_THREADING_THREAD_SAFE);
+        let status = unsafe { crate::construction::construct_class(class, NcAbiHash::ZERO, core::ptr::null(), &mut out) };
         assert_eq!(status, NC_E_INVALID_ARG);
         assert!(out.is_null());
         assert_eq!(TEST_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
 
-        let class = crate::construction::resolve_class(
-            &runtime.read_catalog().type_registry,
-            CLASS_ID,
-            u32::MAX,
-        );
-        let status =
-            unsafe { crate::construction::construct_class(class, core::ptr::null_mut(), &mut out) };
+        let class = crate::construction::resolve_class(&runtime.read_catalog().type_registry, CLASS_ID, u32::MAX);
+        let status = unsafe { crate::construction::construct_class(class, NcAbiHash::ZERO, core::ptr::null(), &mut out) };
         assert_eq!(status, NC_E_INVALID_ARG);
         assert!(out.is_null());
         assert_eq!(TEST_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
@@ -832,7 +815,7 @@ mod tests {
                     class_id: $id,
                     qualified_name: NcStaticUtf8::from_static($name),
                     class_version: NcStaticUtf8::from_static("1.0.0"),
-                    constructor_args: NcInterfaceId::NONE,
+                    constructor_abi_hash: NcAbiHash::ZERO,
                     threading: nc_com_core::NC_ABI_THREADING_THREAD_LOCAL,
                     construct: Some(multi_plugin_test_constructor),
                     interface_count: CLASS_INTERFACES.len() as u32,
@@ -1097,7 +1080,7 @@ mod tests {
             nc_com_core::NC_ABI_THREADING_THREAD_LOCAL,
         );
         assert_eq!(
-            unsafe { crate::construction::construct_class(class, core::ptr::null_mut(), &mut out) },
+            unsafe { crate::construction::construct_class(class, NcAbiHash::ZERO, core::ptr::null(), &mut out,) },
             NC_E_INVALID_ARG
         );
         assert!(out.is_null());
@@ -1259,7 +1242,7 @@ mod tests {
                     class_id: nc_com_core::guid_from_qualified_name(name),
                     qualified_name: benchmark_text(name),
                     class_version: NcStaticUtf8::from_static("1.0.0"),
-                    constructor_args: NcInterfaceId::NONE,
+                    constructor_abi_hash: NcAbiHash::ZERO,
                     threading: nc_com_core::NC_ABI_THREADING_THREAD_LOCAL,
                     construct: Some(test_constructor),
                     interface_count: CLASS_INTERFACES.len() as u32,

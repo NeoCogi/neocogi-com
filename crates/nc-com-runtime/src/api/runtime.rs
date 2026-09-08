@@ -100,7 +100,8 @@ pub(super) unsafe extern "C" fn require_interface(
 pub(super) unsafe extern "C" fn construct_class(
     class_id: NcGuid,
     requested_threading: u32,
-    arguments: *mut IUnknown,
+    constructor_abi_hash: nc_com_core::NcAbiHash,
+    arguments: *const core::ffi::c_void,
     out: *mut *mut IUnknown,
 ) -> NcStatus {
     // Resolve under the catalog read lock, then release it before invoking the
@@ -109,8 +110,8 @@ pub(super) unsafe extern "C" fn construct_class(
         let catalog = RuntimeState::global().read_catalog();
         construction::resolve_class(&catalog.type_registry, class_id, requested_threading)
     };
-    // SAFETY: This forwards the caller's borrowed argument and output contracts.
-    let status = unsafe { construction::construct_class(class, arguments, out) };
+    // SAFETY: This forwards the caller's borrowed frame and output contracts.
+    let status = unsafe { construction::construct_class(class, constructor_abi_hash, arguments, out) };
     if status.is_err() {
         emit_error(
             NC_DEBUG_TYPE_RUNTIME,

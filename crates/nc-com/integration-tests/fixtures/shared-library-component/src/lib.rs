@@ -1,7 +1,6 @@
 use nc_com::{
-    ComInterface, ComPtr, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION,
-    NcClassDescriptor, NcClassTable, NcConstructorFn, NcGetPluginDescriptor, NcGuid,
-    NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, com_class,
+    ComPtr, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiType, NcClassDescriptor,
+    NcClassTable, NcConstructorFn, NcGetPluginDescriptor, NcGuid, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, com_class,
     com_interface,
 };
 
@@ -13,9 +12,17 @@ pub trait IWidget {
     fn value(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_interface(auto_guid = "nc.tests.shared_component.WidgetArgs:v1")]
-pub trait IWidgetArgs {
-    fn base(&self) -> Result<u32, NcStatus>;
+const WIDGET_CONSTRUCTOR_ABI_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Arg {
+    index: 0,
+    passing: NcAbiPassing::Value,
+    ty: NcAbiType::U32,
+}]);
+
+/// Concrete constructor frame shared structurally with the host fixture.
+#[repr(C)]
+struct WidgetArguments {
+    /// Base value copied into the constructed widget.
+    base: u32,
 }
 
 #[com_class(interfaces(IWidget))]
@@ -33,7 +40,7 @@ static CLASSES: [NcClassDescriptor; 1] = [NcClassDescriptor {
     class_id: WIDGET_CLASS_ID,
     qualified_name: NcStaticUtf8::from_static("nc.tests.shared_component.TestWidget"),
     class_version: NcStaticUtf8::from_static("1.0.0"),
-    constructor_args: IWidgetArgsAbi::INTERFACE_ID,
+    constructor_abi_hash: WIDGET_CONSTRUCTOR_ABI_HASH,
     threading: NC_ABI_THREADING_THREAD_LOCAL,
     construct: Some(construct_widget as NcConstructorFn),
     interface_count: Widget::COM_INTERFACES.len() as u32,
@@ -81,25 +88,14 @@ pub unsafe extern "C" fn nc_get_plugin_descriptor(out: *mut *const NcPluginDescr
 
 const _: NcGetPluginDescriptor = nc_get_plugin_descriptor;
 
-unsafe extern "C" fn construct_widget(
-    class: *const NcClassDescriptor,
-    arguments: *mut IUnknown,
-    out: *mut *mut IUnknown,
-) -> NcStatus {
+unsafe extern "C" fn construct_widget(class: *const NcClassDescriptor, arguments: *const core::ffi::c_void, out: *mut *mut IUnknown) -> NcStatus {
     unsafe {
-        nc_com::construct_class_checked(
-            class,
-            arguments,
-            out,
-            WIDGET_CLASS_ID,
-            IWidgetArgsAbi::INTERFACE_ID,
-            |arguments| {
-                let args = nc_com::query_constructor_arguments::<IWidgetArgsAbi>(arguments)?;
-                let unknown: ComPtr<IUnknown> = Widget::from_value(Widget {
-                    value: args.base()? + 10,
-                });
-                Ok(unknown)
-            },
-        )
+        nc_com::construct_class_checked(class, arguments, out, WIDGET_CLASS_ID, WIDGET_CONSTRUCTOR_ABI_HASH, |arguments| {
+            // SAFETY: The checked wrapper matched this non-null frame's ABI
+            // hash before the plugin reads its `repr(C)` fields.
+            let args = &*arguments.cast::<WidgetArguments>();
+            let unknown: ComPtr<IUnknown> = Widget::from_value(Widget { value: args.base + 10 });
+            Ok(unknown)
+        })
     }
 }

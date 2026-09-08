@@ -6,10 +6,10 @@ use nc_com_core::NcAbiThreadingMode;
 use nc_com_shared_runtime::{ClassInspection, InterfaceInspection, MethodInspection, PluginInspection};
 
 use crate::compat::CompatibilityReport;
-use crate::schema::{InspectionArtifactV2, SCHEMA, SCHEMA_VERSION, format_hash};
+use crate::schema::{InspectionArtifactV3, SCHEMA, SCHEMA_VERSION, format_hash};
 
 pub(crate) fn render_json(inspection: &PluginInspection) -> Result<String, serde_json::Error> {
-    let json = InspectionArtifactV2::from(inspection);
+    let json = InspectionArtifactV3::from(inspection);
     let mut rendered = serde_json::to_string_pretty(&json)?;
     rendered.push('\n');
     Ok(rendered)
@@ -129,14 +129,7 @@ fn render_class_text(out: &mut String, class: &ClassInspection) {
         }
     )
     .unwrap();
-    writeln!(out, "    constructor_args:").unwrap();
-    writeln!(out, "      iid: {}", class.constructor_args.iid).unwrap();
-    writeln!(
-        out,
-        "      abi_hash: {}",
-        format_hash(class.constructor_args.abi_hash)
-    )
-    .unwrap();
+    writeln!(out, "    constructor_abi_hash: {}", format_hash(class.constructor_abi_hash)).unwrap();
     writeln!(out, "    interfaces:").unwrap();
     if class.interfaces.is_empty() {
         writeln!(out, "      (none)").unwrap();
@@ -185,7 +178,7 @@ mod tests {
                 class_id: NcGuid::from_fields(5, 6, 7, [8; 8]),
                 qualified_name: "nc.tests.inspect.ThreadSafeClass".to_string(),
                 class_version: "1.0.0".to_string(),
-                constructor_args: NcInterfaceId::NONE,
+                constructor_abi_hash: NcAbiHash::ZERO,
                 threading: NcAbiThreadingMode::ThreadSafe,
                 interfaces: vec![ClassInterfaceInspection {
                     interface_id: NcGuid::from_fields(9, 10, 11, [12; 8]),

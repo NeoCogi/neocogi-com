@@ -65,30 +65,15 @@ pub(crate) enum ClassDescriptorArgs {
     Contract {
         /// Generated ABI path carrying the shared class identity and methods.
         abi_path: Path,
-        /// Constructor implementation policy for this concrete object.
-        constructor: ClassConstructorArgs,
     },
 }
 
 /// Parsed constructor policy for a descriptor-bearing class.
 pub(crate) struct ClassConstructorArgs {
-    /// Required argument interface, or no arguments.
-    pub(crate) arguments: ConstructorArguments,
     /// Optional user factory invoked by the generated constructor thunk.
     pub(crate) function: Option<Path>,
     /// Whether a no-argument class should be built with `Default`.
     pub(crate) use_default: bool,
-}
-
-/// Constructor argument interface selection.
-pub(crate) enum ConstructorArguments {
-    /// The constructor rejects non-null argument objects.
-    None,
-    /// The constructor requires an object supporting the generated ABI interface.
-    Interface {
-        /// Path to the required generated interface header.
-        abi_path: Path,
-    },
 }
 
 /// Parsed options for `#[com_enum]`.
@@ -401,10 +386,10 @@ impl Parse for ClassArgs {
     /// now. That covers `interfaces(dom::INode)` without accepting generic or
     /// associated-type paths that the generated names cannot represent.
     ///
-    /// Descriptor metadata is optional and all-or-nothing. Existing classes can
-    /// keep using `#[com_class(interfaces(...))]`; classes that opt into
-    /// `class_id(...)`, `name`, `version`, and `constructor(...)` get generated
-    /// class metadata for `plugin!` to assemble.
+    /// Descriptor metadata is optional and all-or-nothing. A `contract(...)`
+    /// path supplies the preferred class identity, constructor frame, and
+    /// primary projection. The explicit identity form is limited to legacy
+    /// no-argument descriptors.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let mut interfaces = None;
         let mut thread_safe = false;
@@ -501,7 +486,7 @@ impl Parse for ClassArgs {
 
         let mut interfaces = interfaces.unwrap_or_default();
         let descriptor = match (contract, class_id, name, version, constructor) {
-            (Some(contract), None, None, None, Some(constructor)) => {
+            (Some(contract), None, None, None, None) => {
                 let primary = ClassInterface::from_path(contract)?;
                 if interfaces
                     .iter()
@@ -514,10 +499,7 @@ impl Parse for ClassArgs {
                 }
                 let abi_path = primary.abi_path.clone();
                 interfaces.insert(0, primary);
-                Some(ClassDescriptorArgs::Contract {
-                    abi_path,
-                    constructor,
-                })
+                Some(ClassDescriptorArgs::Contract { abi_path })
             }
             (None, None, None, None, None) => None,
             (None, Some(class_id), Some(name), Some(version), Some(constructor)) => {
@@ -531,7 +513,7 @@ impl Parse for ClassArgs {
             (Some(_), _, _, _, _) => {
                 return Err(syn::Error::new(
                     input.span(),
-                    "contract(...) supplies class identity and requires constructor(...); remove class_id, name, and version",
+                    "contract(...) supplies class identity and constructor; remove class_id, name, version, and constructor(...)",
                 ));
             }
             _ => {
@@ -554,18 +536,25 @@ impl Parse for ClassArgs {
 impl Parse for ClassConstructorArgs {
     /// Parses and cross-validates constructor argument and factory options.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let mut arguments = None;
+        let mut has_no_arguments = false;
         let mut function = None;
         let mut use_default = false;
 
         while !input.is_empty() {
             let keyword: Ident = input.parse()?;
             if keyword == "args" {
-                if arguments.is_some() {
+                if has_no_arguments {
                     return Err(syn::Error::new(keyword.span(), "duplicate args = ..."));
                 }
                 input.parse::<Token![=]>()?;
-                arguments = Some(ConstructorArguments::parse_value(input)?);
+                let value: Ident = input.parse()?;
+                if value != "none" {
+                    return Err(syn::Error::new(
+                        value.span(),
+                        "explicit class constructors support only `args = none`; declare typed constructors on a callable class contract",
+                    ));
+                }
+                has_no_arguments = true;
             } else if keyword == "function" {
                 if function.is_some() {
                     return Err(syn::Error::new(keyword.span(), "duplicate function = ..."));
@@ -578,10 +567,7 @@ impl Parse for ClassConstructorArgs {
                 }
                 use_default = true;
             } else {
-                return Err(syn::Error::new(
-                    keyword.span(),
-                    "expected args = none, args = IArgs, function = path, or default",
-                ));
+                return Err(syn::Error::new(keyword.span(), "expected args = none, function = path, or default"));
             }
 
             if input.is_empty() {
@@ -590,51 +576,16 @@ impl Parse for ClassConstructorArgs {
             input.parse::<Token![,]>()?;
         }
 
-        let arguments =
-            arguments.ok_or_else(|| syn::Error::new(input.span(), "expected args = ..."))?;
+        if !has_no_arguments {
+            return Err(syn::Error::new(input.span(), "expected args = none"));
+        }
         if function.is_some() && use_default {
             return Err(syn::Error::new(
                 input.span(),
                 "constructor default cannot be combined with function = path",
             ));
         }
-        if use_default && !matches!(arguments, ConstructorArguments::None) {
-            return Err(syn::Error::new(
-                input.span(),
-                "constructor default is only valid with args = none",
-            ));
-        }
-        if function.is_none() && !matches!(arguments, ConstructorArguments::None) {
-            return Err(syn::Error::new(
-                input.span(),
-                "constructor(args = Interface) also needs function = path",
-            ));
-        }
-
-        Ok(Self {
-            arguments,
-            function,
-            use_default,
-        })
-    }
-}
-
-impl ConstructorArguments {
-    /// Parses either the `none` sentinel or an interface path.
-    fn parse_value(input: ParseStream<'_>) -> Result<Self> {
-        if input.peek(Ident) {
-            let fork = input.fork();
-            let ident: Ident = fork.parse()?;
-            if ident == "none" {
-                input.parse::<Ident>()?;
-                return Ok(Self::None);
-            }
-        }
-
-        let path = Path::parse_mod_style(input)?;
-        Ok(Self::Interface {
-            abi_path: interface_abi_path(&path)?,
-        })
+        Ok(Self { function, use_default })
     }
 }
 

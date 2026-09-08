@@ -18,10 +18,34 @@ use crate::util::{
 };
 
 /// Expands one validated interface trait into its complete Rust and C ABI surface.
-pub(crate) fn expand_com_interface(
-    args: InterfaceArgs,
-    input: ItemTrait,
-) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Result<proc_macro2::TokenStream> {
+    let mut errors = None;
+    validate_interface_trait(&input, &mut errors);
+
+    // Every item on an ordinary interface is a callable vtable method. Class
+    // contracts use the lowered entrypoint below after removing their single
+    // constructor declaration from this list.
+    let methods = match collect_syn_results(input.items.iter().map(parse_abi_trait_item)) {
+        Ok(methods) => methods,
+        Err(err) => {
+            push_error(&mut errors, err);
+            Vec::new()
+        }
+    };
+    validate_callable_methods(&input, &methods, &mut errors);
+    if let Some(errors) = errors {
+        return Err(errors);
+    }
+
+    expand_com_interface_with_methods(args, input, methods)
+}
+
+/// Generates a callable projection from an already validated method list.
+///
+/// Class contracts call this after parsing their constructor separately. The
+/// emitted source trait remains intact, while only `methods` become vtable
+/// slots, descriptors, hashes, thunks, and safe client methods.
+pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: ItemTrait, methods: Vec<AbiMethod>) -> Result<proc_macro2::TokenStream> {
     // Generated names are deliberately mechanical and predictable. A trait
     // named `IFoo` produces `IFooAbi`, `IFooVTable`, `IFooVtblFor<T>`, and
     // `IFooComPtrExt`.
@@ -36,36 +60,6 @@ pub(crate) fn expand_com_interface(
     let interfaces_ident = format_ident!("{trait_ident}InterfacesFor");
     let qualified_name = args.qualified_name;
     let guid = interface_guid(args.guid, &qualified_name, &nc)?;
-    let mut errors = None;
-
-    validate_interface_trait(&input, &mut errors);
-
-    // Only plain trait methods participate in the ABI. Anything else would be
-    // invisible to the generated C vtable, so reject it at the user-written
-    // trait item instead of silently dropping it.
-    let methods = match collect_syn_results(input.items.iter().map(parse_abi_trait_item)) {
-        Ok(methods) => methods,
-        Err(err) => {
-            push_error(&mut errors, err);
-            Vec::new()
-        }
-    };
-
-    validate_generated_method_identifiers(&methods, &mut errors);
-    // Vtable prefix fields are physical ABI members, so a local method cannot
-    // use their name. Report the source method instead of duplicate generated fields.
-    let prefix_name = if input.supertraits.is_empty() { "unknown" } else { "base" };
-    for method in &methods {
-        if method.ident == prefix_name {
-            push_error(&mut errors, syn::Error::new(method.ident.span(), format!("COM method conflicts with the generated `{prefix_name}` vtable prefix")));
-        }
-    }
-
-
-    if let Some(errors) = errors {
-        return Err(errors);
-    }
-
     // Single inheritance has one unambiguous physical prefix. Generated names
     // retain the original module path, so bases may live in another crate.
     let base = match input.supertraits.first() {
@@ -633,6 +627,26 @@ pub(crate) fn expand_com_interface(
             #(#ext_methods)*
         }
     })
+}
+
+/// Checks names shared by ordinary interfaces and callable class projections.
+pub(crate) fn validate_callable_methods(input: &ItemTrait, methods: &[AbiMethod], errors: &mut Option<syn::Error>) {
+    validate_generated_method_identifiers(methods, errors);
+    // Vtable prefix fields are physical ABI members, so a local method cannot
+    // use their name. Report the source method instead of duplicate generated
+    // fields.
+    let prefix_name = if input.supertraits.is_empty() { "unknown" } else { "base" };
+    for method in methods {
+        if method.ident == prefix_name {
+            push_error(
+                errors,
+                syn::Error::new(
+                    method.ident.span(),
+                    format!("COM method conflicts with the generated `{prefix_name}` vtable prefix"),
+                ),
+            );
+        }
+    }
 }
 
 /// Generates one synchronous call lowering reused by owning, borrowed and inherited clients.

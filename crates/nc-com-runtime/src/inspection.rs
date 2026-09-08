@@ -61,7 +61,7 @@ pub(crate) fn class_info(registry: &TypeRegistry, class_id: NcGuid) -> Option<Nc
         module_id: registered.module_id.map_or(0, LoadedModuleId::get),
         qualified_name: static_utf8_view(class.qualified_name),
         version: static_utf8_view(class.class_version),
-        constructor_args: class.constructor_args,
+        constructor_abi_hash: class.constructor_abi_hash,
         threading: class.threading,
     })
 }

@@ -177,16 +177,13 @@ impl NcInterfaceDescriptor {
 /// # Safety
 ///
 /// `class` must point to the descriptor that owns this constructor.
-/// `arguments`, when non-null, must be a borrowed `IUnknown` pointer valid for
-/// the call. `out` must be valid for one pointer write. On success, `out`
+/// `arguments`, when non-null, must point to the immutable constructor frame
+/// described by [`NcClassDescriptor::constructor_abi_hash`] and remain valid
+/// for the call. `out` must be valid for one pointer write. On success, `out`
 /// receives one owned `IUnknown` reference that the caller must eventually
 /// release. The constructed object must satisfy the owning class descriptor's
 /// declared threading capability.
-pub type NcConstructorFn = unsafe extern "C" fn(
-    class: *const NcClassDescriptor,
-    arguments: *mut IUnknown,
-    out: *mut *mut IUnknown,
-) -> NcStatus;
+pub type NcConstructorFn = unsafe extern "C" fn(class: *const NcClassDescriptor, arguments: *const core::ffi::c_void, out: *mut *mut IUnknown) -> NcStatus;
 
 /// Static descriptor connecting one class to one implemented interface.
 #[repr(C)]
@@ -210,9 +207,9 @@ pub struct NcClassDescriptor {
     pub qualified_name: NcStaticUtf8,
     /// Static class version metadata.
     pub class_version: NcStaticUtf8,
-    /// Constructor argument interface identity, or [`NcInterfaceId::NONE`] for
-    /// no arguments.
-    pub constructor_args: NcInterfaceId,
+    /// ABI hash of the immutable constructor frame, or [`NcAbiHash::ZERO`] for
+    /// a constructor with no arguments.
+    pub constructor_abi_hash: NcAbiHash,
     /// Threading capability promised by constructed objects.
     ///
     /// This is one of `NC_ABI_THREADING_THREAD_LOCAL` or
@@ -378,7 +375,7 @@ pub struct NcPluginDependencyDescriptor {
 
 /// Static descriptor for one plugin shared library.
 ///
-/// core ABI v3 descriptors are declarative: they contain no initialization callback
+/// core ABI v4 descriptors are declarative: they contain no initialization callback
 /// or path resolver. Hard dependency IDs describe activation order but never
 /// trigger recursive loading.
 #[repr(C)]
@@ -452,7 +449,7 @@ mod tests {
 
     #[test]
     fn core_abi_identity_is_stable() {
-        assert_eq!(NC_COM_CORE_ABI_VERSION, 3);
+        assert_eq!(NC_COM_CORE_ABI_VERSION, 4);
         assert_eq!(NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, "nc_get_plugin_descriptor");
     }
 
@@ -487,42 +484,30 @@ mod tests {
     fn class_descriptor_c_layout_includes_threading_field() {
         #[cfg(target_pointer_width = "64")]
         {
-            assert_eq!(core::mem::size_of::<NcClassDescriptor>(), 128);
+            assert_eq!(core::mem::size_of::<NcClassDescriptor>(), 112);
             assert_eq!(core::mem::align_of::<NcClassDescriptor>(), 8);
             assert_eq!(core::mem::offset_of!(NcClassDescriptor, class_id), 0);
             assert_eq!(core::mem::offset_of!(NcClassDescriptor, qualified_name), 16);
             assert_eq!(core::mem::offset_of!(NcClassDescriptor, class_version), 32);
-            assert_eq!(
-                core::mem::offset_of!(NcClassDescriptor, constructor_args),
-                48
-            );
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, threading), 96);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, construct), 104);
-            assert_eq!(
-                core::mem::offset_of!(NcClassDescriptor, interface_count),
-                112
-            );
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interfaces), 120);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, constructor_abi_hash), 48);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, threading), 80);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, construct), 88);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interface_count), 96);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interfaces), 104);
         }
 
         #[cfg(target_pointer_width = "32")]
         {
-            assert_eq!(core::mem::size_of::<NcClassDescriptor>(), 96);
+            assert_eq!(core::mem::size_of::<NcClassDescriptor>(), 80);
             assert_eq!(core::mem::align_of::<NcClassDescriptor>(), 4);
             assert_eq!(core::mem::offset_of!(NcClassDescriptor, class_id), 0);
             assert_eq!(core::mem::offset_of!(NcClassDescriptor, qualified_name), 16);
             assert_eq!(core::mem::offset_of!(NcClassDescriptor, class_version), 24);
-            assert_eq!(
-                core::mem::offset_of!(NcClassDescriptor, constructor_args),
-                32
-            );
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, threading), 80);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, construct), 84);
-            assert_eq!(
-                core::mem::offset_of!(NcClassDescriptor, interface_count),
-                88
-            );
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interfaces), 92);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, constructor_abi_hash), 32);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, threading), 64);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, construct), 68);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interface_count), 72);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interfaces), 76);
         }
     }
 

@@ -1,16 +1,15 @@
 //! Shared validation and ownership rules for descriptor entrypoints and constructors.
 //!
 //! Plugin macros and generated class thunks use these helpers to publish static
-//! descriptors, validate constructor argument interfaces, query typed argument
-//! objects, and convert successful Rust construction into one ABI-owned
-//! `IUnknown` reference while keeping failure outputs null.
+//! descriptors, validate typed constructor frames, and convert successful Rust
+//! construction into one ABI-owned `IUnknown` reference while keeping failure
+//! outputs null.
 
-use crate::{
-    ComInterface, IUnknown, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcClassDescriptor,
-    NcInterfaceId, NcPluginDescriptor, NcStatus, validate_plugin_descriptor_with_issues,
-};
+use core::ffi::c_void;
 
-use crate::ptr::{ComPtr, ThreadingModel, raw};
+use crate::{IUnknown, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiHash, NcClassDescriptor, NcPluginDescriptor, NcStatus, validate_plugin_descriptor_with_issues};
+
+use crate::ptr::{ComPtr, ThreadingModel};
 
 /// Writes a static plugin descriptor through the standard descriptor entrypoint ABI.
 ///
@@ -44,81 +43,10 @@ pub unsafe fn return_plugin_descriptor(
     NC_OK
 }
 
-/// Validates constructor arguments against a class descriptor's expected
-/// argument interface ID and ABI hash.
-///
-/// # Safety
-///
-/// `arguments`, when non-null, must be a valid borrowed `IUnknown` pointer.
-pub unsafe fn validate_constructor_arguments(
-    arguments: *mut IUnknown,
-    expected_args: NcInterfaceId,
-) -> NcStatus {
-    if expected_args.iid.is_nil() {
-        if expected_args.abi_hash != crate::NcAbiHash::ZERO {
-            return NC_E_INVALID_ARG;
-        }
-        return if arguments.is_null() {
-            NC_OK
-        } else {
-            NC_E_INVALID_ARG
-        };
-    }
-
-    if arguments.is_null() {
-        return NC_E_INVALID_ARG;
-    }
-
-    let mut out = core::ptr::null_mut();
-    // SAFETY: `arguments` was checked non-null and the caller guarantees it is a
-    // live borrowed `IUnknown`; `out` is a local pointer slot for the returned
-    // owned reference.
-    let status =
-        unsafe { ((*(*arguments).vtable).query_interface)(arguments, &expected_args, &mut out) };
-    if status.is_err() {
-        return status;
-    }
-    if out.is_null() {
-        return NC_E_POINTER;
-    }
-
-    // SAFETY: A successful `QueryInterface` returned one owned reference in
-    // `out`; validation only needed to prove support, so release it now.
-    unsafe { raw::release::<IUnknown>(out.cast::<IUnknown>()) };
-    NC_OK
-}
-
-/// Queries typed constructor arguments from a borrowed raw `IUnknown` pointer.
-///
-/// # Safety
-///
-/// `arguments` must be null or a valid borrowed `IUnknown` pointer. The returned
-/// [`ComPtr`] owns a new reference.
-pub unsafe fn query_constructor_arguments<T: ComInterface>(
-    arguments: *mut IUnknown,
-) -> Result<ComPtr<T>, NcStatus> {
-    if arguments.is_null() {
-        return Err(NC_E_POINTER);
-    }
-
-    let mut out = core::ptr::null_mut();
-    // SAFETY: `arguments` was checked non-null and the caller guarantees a live
-    // borrowed `IUnknown`. On success, `QueryInterface` writes one owned
-    // reference to `out`.
-    let status =
-        unsafe { ((*(*arguments).vtable).query_interface)(arguments, &T::INTERFACE_ID, &mut out) };
-    if status.is_err() {
-        return Err(status);
-    }
-    // SAFETY: Successful `QueryInterface` transfers one owned reference for the
-    // requested interface; null is still handled defensively as `NC_E_POINTER`.
-    unsafe { ComPtr::<T>::__nc_from_raw_owned_checked(out.cast::<T>()) }
-}
-
 /// Implements a checked class constructor wrapper.
 ///
-/// The wrapper validates the descriptor pointer, class ID, constructor argument
-/// interface identity, declared threading mode, and output pointer before
+/// The wrapper validates the descriptor pointer, class ID, constructor-frame
+/// hash, declared threading mode, and output pointer before
 /// calling `build`. On success it writes one owned `IUnknown` reference to
 /// `out`; on failure it leaves `out` null. `build` must return a negative
 /// [`NcStatus`] in `Result::Err`. A non-negative error value violates that Rust
@@ -126,20 +54,21 @@ pub unsafe fn query_constructor_arguments<T: ComInterface>(
 ///
 /// # Safety
 ///
-/// `class` must be null or point to a readable class descriptor. `arguments`,
-/// when non-null, must be a valid borrowed `IUnknown` pointer. `out` must be
-/// null or valid for writing one owned `IUnknown` pointer.
+/// `class` must be null or point to a readable class descriptor. A non-null
+/// `arguments` pointer must identify a frame matching `expected_arguments` and
+/// remain readable for `build`. `out` must be null or valid for writing one
+/// owned `IUnknown` pointer.
 pub unsafe fn construct_class_checked<M, F>(
     class: *const NcClassDescriptor,
-    arguments: *mut IUnknown,
+    arguments: *const c_void,
     out: *mut *mut IUnknown,
     expected_class_id: crate::NcGuid,
-    expected_args: NcInterfaceId,
+    expected_arguments: NcAbiHash,
     build: F,
 ) -> NcStatus
 where
     M: ThreadingModel,
-    F: FnOnce(*mut IUnknown) -> Result<ComPtr<IUnknown, M>, NcStatus>,
+    F: FnOnce(*const c_void) -> Result<ComPtr<IUnknown, M>, NcStatus>,
 {
     if out.is_null() {
         return NC_E_POINTER;
@@ -158,7 +87,7 @@ where
     if class.class_id != expected_class_id {
         return NC_E_INVALID_ARG;
     }
-    if class.constructor_args != expected_args {
+    if class.constructor_abi_hash != expected_arguments {
         return NC_E_INVALID_ARG;
     }
     if class.threading != M::ABI_THREADING_MODE.as_raw() {
@@ -168,12 +97,10 @@ where
         return NC_E_INVALID_ARG;
     }
 
-    // SAFETY: The caller guarantees `arguments`, when non-null, is a live
-    // borrowed `IUnknown`; this helper only validates the expected interface
-    // identity contract.
-    let status = unsafe { validate_constructor_arguments(arguments, expected_args) };
-    if status.is_err() {
-        return status;
+    // A zero hash denotes the one valid empty frame representation: null. Every
+    // typed frame has a non-zero hash and therefore requires a non-null pointer.
+    if arguments.is_null() != (expected_arguments == NcAbiHash::ZERO) {
+        return NC_E_INVALID_ARG;
     }
 
     match build(arguments) {

@@ -221,7 +221,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
     /// prefix. No typed vtable slot is read before the identity check succeeds.
     ///
     /// # Safety
-    /// `ptr` must be null or own one reference to a live core-ABI-2 interface
+    /// `ptr` must be null or own one reference to a live core-ABI-4 interface
     /// header. Its common prefix must be valid, even when it is not interface T.
     /// The caller guarantees the threading capability M of the returned object.
     #[doc(hidden)]
@@ -367,7 +367,7 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
     /// Checks an incoming pointer's complete identity without acquiring ownership.
     ///
     /// # Safety
-    /// A non-null pointer must have a live core-ABI-2 common header/vtable for
+    /// A non-null pointer must have a live core-ABI-4 common header/vtable for
     /// lifetime 'a and carry threading capability M. Its typed slots may differ
     /// from T; they are never called unless the full identity matches.
     #[doc(hidden)]

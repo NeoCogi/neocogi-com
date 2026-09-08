@@ -246,15 +246,12 @@ mod tests {
     fn runtime_operations_use_values_and_validate_outputs() {
         let runtime = unsafe { &*nc_com_get_runtime_api_v1() };
         assert_eq!(
-            unsafe { (runtime.require_interface)(NcGuid::nil(), NcInterfaceId::NONE) },
-            NC_E_NOT_FOUND
-        );
-        assert_eq!(
             unsafe {
                 (runtime.construct_class)(
                     NcGuid::nil(),
                     nc_com_core::NC_ABI_THREADING_THREAD_LOCAL,
-                    ptr::null_mut(),
+                    nc_com_core::NcAbiHash::ZERO,
+                    ptr::null(),
                     ptr::null_mut(),
                 )
             },

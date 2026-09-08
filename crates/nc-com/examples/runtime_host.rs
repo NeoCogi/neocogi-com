@@ -10,36 +10,20 @@ fn main() {
 
 #[cfg(unix)]
 mod runtime_host {
-    use nc_com::{
-        ComInterface, ComPtr, IUnknown, NC_COM_CORE_ABI_VERSION, NC_COM_RUNTIME_ABI_VERSION,
-        NcGuid, NcStatus, Runtime, ThreadSafe, com_class, com_interface,
-    };
+    use nc_com::{ComInterface, NC_COM_CORE_ABI_VERSION, NC_COM_RUNTIME_ABI_VERSION, NcStatus, Runtime, ThreadSafe, com_class};
     use std::env;
     use std::path::Path;
 
-    const GREETER_CLASS_ID: NcGuid =
-        nc_com::guid_from_qualified_name("nc.examples.component.Greeter");
-
+    /// Callable class contract shared with the dynamically loaded component.
     #[allow(dead_code)]
-    #[com_interface(auto_guid = "nc.examples.component.Greeter:v1")]
-    pub trait IGreeter {
+    #[com_class(class_id(auto_guid = "nc.examples.component.Greeter"), name = "nc.examples.component.Greeter", version = "1.0.0")]
+    pub trait Greeter {
+        /// Creates a greeter from one plain seed value.
+        #[constructor]
+        fn new(seed: u32) -> Result<Self, NcStatus>;
+
+        /// Returns the code computed by the plugin implementation.
         fn greeting_code(&self) -> Result<u32, NcStatus>;
-    }
-
-    #[com_interface(auto_guid = "nc.examples.component.GreeterArgs:v1")]
-    pub trait IGreeterArgs {
-        fn seed(&self) -> Result<u32, NcStatus>;
-    }
-
-    #[com_class(interfaces(IGreeterArgs))]
-    pub struct GreeterArgs {
-        seed: u32,
-    }
-
-    impl IGreeterArgs for GreeterArgs {
-        fn seed(&self) -> Result<u32, NcStatus> {
-            Ok(self.seed)
-        }
     }
 
     pub fn run() {
@@ -71,22 +55,12 @@ mod runtime_host {
         println!("path: {}", loaded.path().display());
 
         let classes = runtime.inspection().class_ids_in_module(module_id).unwrap();
-        assert!(
-            classes.contains(&GREETER_CLASS_ID),
-            "runtime inspection did not report the greeter class"
-        );
+        assert!(classes.contains(&GreeterAbi::CLASS_ID), "runtime inspection did not report the greeter class");
 
-        let class_module_id = runtime
-            .inspection()
-            .module_id_for_class(GREETER_CLASS_ID)
-            .unwrap();
+        let class_module_id = runtime.inspection().module_id_for_class(GreeterAbi::CLASS_ID).unwrap();
         assert_eq!(class_module_id, Some(module_id));
 
-        let class_info = runtime
-            .inspection()
-            .class_info(GREETER_CLASS_ID)
-            .unwrap()
-            .expect("greeter class info");
+        let class_info = runtime.inspection().class_info(GreeterAbi::CLASS_ID).unwrap().expect("greeter class info");
         assert_eq!(class_info.threading, nc_com::NcAbiThreadingMode::ThreadSafe);
 
         let interfaces = runtime
@@ -94,24 +68,16 @@ mod runtime_host {
             .interface_ids_in_module(module_id)
             .unwrap();
         assert!(
-            interfaces.contains(&IGreeterAbi::INTERFACE_ID),
-            "runtime inspection did not report the greeter interface"
+            interfaces.contains(&GreeterAbi::INTERFACE_ID),
+            "runtime inspection did not report the greeter class projection"
         );
-        runtime
-            .require_interface(GREETER_CLASS_ID, IGreeterAbi::INTERFACE_ID)
-            .unwrap();
+        runtime.require_interface(GreeterAbi::CLASS_ID, GreeterAbi::INTERFACE_ID).unwrap();
 
-        let args: ComPtr<IUnknown> = GreeterArgs::from_value(GreeterArgs { seed: 23 });
-        let greeter = unsafe {
-            runtime.construct_class_as_with_model::<IGreeterAbi, ThreadSafe>(
-                GREETER_CLASS_ID,
-                args.as_mut_ptr(),
-            )
-        }
-        .expect("construct thread-safe greeter");
-        let greeting_code = std::thread::spawn(move || greeter.greeting_code().unwrap())
-            .join()
-            .expect("greeter worker");
+        let arguments = GreeterAbi::arguments(23).expect("valid constructor arguments");
+        let greeter = runtime
+            .construct_with_model::<GreeterAbi, ThreadSafe>(arguments)
+            .expect("construct thread-safe greeter");
+        let greeting_code = std::thread::spawn(move || greeter.greeting_code().unwrap()).join().expect("greeter worker");
         println!("greeting code: {greeting_code}");
     }
 }

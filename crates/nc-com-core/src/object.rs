@@ -166,6 +166,9 @@ pub unsafe trait ComInterface {
 /// `Self::INTERFACE_ID` in the class interface table so construction can
 /// validate the returned primary projection before safe code receives it.
 pub unsafe trait ComClassContract: ComInterface {
+    /// Borrowed, typed arguments accepted by this class constructor.
+    type Arguments<'a>: ComClassArguments;
+
     /// Stable registry identity used to activate this class.
     const CLASS_ID: NcGuid;
 
@@ -178,8 +181,40 @@ pub unsafe trait ComClassContract: ComInterface {
     /// Static class contract version stored in registry metadata.
     const VERSION: &'static str;
 
-    /// Constructor argument identity used by the current runtime transport.
-    const CONSTRUCTOR_ARGUMENTS: NcInterfaceId = NcInterfaceId::NONE;
+    /// ABI hash of the constructor frame, or zero for no arguments.
+    const CONSTRUCTOR_ABI_HASH: NcAbiHash;
+}
+
+/// Supplies one immutable, call-scoped constructor frame to the COM runtime.
+///
+/// Class macros implement this trait for generated argument wrappers. The
+/// wrapper retains the Rust lifetimes of borrowed buffers and COM references,
+/// while this small erased boundary lets the runtime route any class without a
+/// type registry, reflection system, or dynamically typed value bag.
+///
+/// # Safety
+///
+/// For non-zero [`Self::ABI_HASH`], [`Self::as_abi_ptr`] must return a non-null
+/// pointer to a frame whose exact layout is described by that hash. The frame
+/// and every borrow reachable from it must remain valid and immutable through
+/// the constructor call. A zero hash must return null and denotes no arguments.
+pub unsafe trait ComClassArguments {
+    /// ABI hash describing the pointed-to constructor frame.
+    const ABI_HASH: NcAbiHash;
+
+    /// Returns the raw frame pointer borrowed for one constructor call.
+    fn as_abi_ptr(&self) -> *const c_void;
+}
+
+// SAFETY: Unit is the canonical no-argument representation. Its zero hash and
+// null pointer agree with the runtime's empty-frame contract.
+unsafe impl ComClassArguments for () {
+    const ABI_HASH: NcAbiHash = NcAbiHash::ZERO;
+
+    /// Returns null because this value carries no constructor frame.
+    fn as_abi_ptr(&self) -> *const c_void {
+        core::ptr::null()
+    }
 }
 
 // SAFETY: `IUnknown` is the canonical interface header and vtable prefix. Its

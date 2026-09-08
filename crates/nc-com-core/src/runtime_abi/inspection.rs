@@ -10,7 +10,7 @@
 use core::ffi::c_void;
 
 use super::NcUtf8View;
-use crate::{NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus};
+use crate::{NcAbiHash, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus};
 
 /// Callback that receives one validated plugin descriptor during inspection.
 ///
@@ -59,8 +59,8 @@ pub struct NcClassInfoV1 {
     pub qualified_name: NcUtf8View,
     /// Class version text.
     pub version: NcUtf8View,
-    /// Constructor argument interface, or [`NcInterfaceId::NONE`].
-    pub constructor_args: NcInterfaceId,
+    /// Constructor-frame ABI hash, or [`NcAbiHash::ZERO`] for no arguments.
+    pub constructor_abi_hash: NcAbiHash,
     /// Declared class threading capability (`NC_ABI_THREADING_*`).
     pub threading: u32,
 }
@@ -141,15 +141,15 @@ mod tests {
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn class_info_v1_c_layout_includes_threading_field() {
-        assert_eq!(core::mem::size_of::<NcClassInfoV1>(), 128);
+        assert_eq!(core::mem::size_of::<NcClassInfoV1>(), 112);
         assert_eq!(core::mem::align_of::<NcClassInfoV1>(), 8);
         assert_eq!(core::mem::offset_of!(NcClassInfoV1, class_id), 0);
         assert_eq!(core::mem::offset_of!(NcClassInfoV1, plugin_id), 16);
         assert_eq!(core::mem::offset_of!(NcClassInfoV1, module_id), 32);
         assert_eq!(core::mem::offset_of!(NcClassInfoV1, qualified_name), 40);
         assert_eq!(core::mem::offset_of!(NcClassInfoV1, version), 56);
-        assert_eq!(core::mem::offset_of!(NcClassInfoV1, constructor_args), 72);
-        assert_eq!(core::mem::offset_of!(NcClassInfoV1, threading), 120);
+        assert_eq!(core::mem::offset_of!(NcClassInfoV1, constructor_abi_hash), 72);
+        assert_eq!(core::mem::offset_of!(NcClassInfoV1, threading), 104);
     }
 
     #[test]

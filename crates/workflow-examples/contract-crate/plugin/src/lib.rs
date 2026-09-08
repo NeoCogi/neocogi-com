@@ -1,8 +1,5 @@
-use contract_abi::{
-    CONTRACT_PLUGIN_ID, CONTRACT_WIDGET_CLASS_ID, ContractPoint, IContractValue, IContractValueAbi,
-    IContractValueComPtrExt, IContractWidget, IContractWidgetArgsAbi, IContractWidgetArgsComPtrExt,
-};
-use nc_com::{ComInterface, ComPtr, ComRef, IUnknown, NcClassDescriptor, NcStatus, com_class};
+use contract_abi::{CONTRACT_PLUGIN_ID, ContractPoint, ContractWidget, IContractValue, IContractValueAbi, IContractValueComPtrExt};
+use nc_com::{ComPtr, ComRef, IUnknown, NcStatus, com_class};
 
 // Plugin-owned value object returned through IContractValueAbi. The host does
 // not know this Rust type exists; it only receives the COM interface pointer.
@@ -17,20 +14,20 @@ impl IContractValue for PluginValue {
     }
 }
 
-// Concrete plugin implementation of the published widget contract. The seed is
-// supplied by the host through the IContractWidgetArgs constructor object.
-#[com_class(
-    class_id(CONTRACT_WIDGET_CLASS_ID),
-    name = "nc.tests.contract.Widget",
-    version = "1.0.0",
-    constructor(args = contract_abi::IContractWidgetArgs, function = construct_widget),
-    interfaces(contract_abi::IContractWidget)
-)]
+// Concrete plugin implementation of the published widget class. The generated
+// class thunk decodes the shared typed constructor frame before calling `new`.
+#[com_class(contract(contract_abi::ContractWidget), interfaces())]
 pub struct PluginWidget {
+    /// Seed copied from the host's typed constructor frame.
     seed: u32,
 }
 
-impl IContractWidget for PluginWidget {
+impl ContractWidget for PluginWidget {
+    /// Creates the private implementation value from the shared class contract.
+    fn new(seed: u32) -> Result<Self, NcStatus> {
+        Ok(Self { seed })
+    }
+
     fn add(&self, left: u32, right: u32) -> Result<u32, NcStatus> {
         Ok(self.seed + left + right)
     }
@@ -55,32 +52,6 @@ impl IContractWidget for PluginWidget {
             value: self.seed + value,
         });
         unknown.query()
-    }
-}
-
-unsafe extern "C" fn construct_widget(
-    class: *const NcClassDescriptor,
-    arguments: *mut IUnknown,
-    out: *mut *mut IUnknown,
-) -> NcStatus {
-    unsafe {
-        // The helper checks class identity, constructor argument identity,
-        // nulls, and panic boundaries before returning an owned IUnknown to the
-        // host.
-        nc_com::construct_class_checked(
-            class,
-            arguments,
-            out,
-            PluginWidget::CLASS_ID,
-            IContractWidgetArgsAbi::INTERFACE_ID,
-            |arguments| {
-                let args =
-                    nc_com::query_constructor_arguments::<IContractWidgetArgsAbi>(arguments)?;
-                let seed = args.seed()?;
-                let unknown: ComPtr<IUnknown> = PluginWidget::from_value(PluginWidget { seed });
-                Ok(unknown)
-            },
-        )
     }
 }
 

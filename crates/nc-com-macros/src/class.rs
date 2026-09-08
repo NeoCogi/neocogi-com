@@ -8,10 +8,8 @@
 use quote::{format_ident, quote};
 use syn::{Fields, ItemStruct};
 
-use crate::args::{ClassArgs, ClassDescriptorArgs, ConstructorArguments};
-use crate::util::{
-    create_visibility, runtime_crate_path, stable_guid, validate_version_literal,
-};
+use crate::args::{ClassArgs, ClassDescriptorArgs};
+use crate::util::{create_visibility, runtime_crate_path, stable_guid, validate_version_literal};
 
 /// Generates object storage, lifecycle thunks, interfaces, and optional metadata.
 pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro2::TokenStream {
@@ -161,13 +159,8 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
     let (class_descriptor_items, class_descriptor_module_items) = match args.descriptor.as_ref() {
         None => (quote! {}, quote! {}),
         Some(descriptor) => {
-            let (class_id, name, version, constructor, constructor_args) = match descriptor {
-                ClassDescriptorArgs::Explicit {
-                    class_id,
-                    name,
-                    version,
-                    constructor,
-                } => {
+            let (class_id, name, version, constructor, contract, constructor_abi_hash) = match descriptor {
+                ClassDescriptorArgs::Explicit { class_id, name, version, constructor } => {
                     let class_id = match stable_guid(class_id.clone(), name, &nc) {
                         Ok(class_id) => class_id,
                         Err(err) => return err.to_compile_error(),
@@ -175,39 +168,23 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
                     if let Err(err) = validate_version_literal(version) {
                         return err.to_compile_error();
                     }
-                    let constructor_args = match &constructor.arguments {
-                        ConstructorArguments::None => quote! { #nc::NcInterfaceId::NONE },
-                        ConstructorArguments::Interface { abi_path } => {
-                            quote! { <#abi_path as #nc::ComInterface>::INTERFACE_ID }
-                        }
-                    };
                     (
                         class_id,
                         quote! { #name },
                         quote! { #version },
-                        constructor,
-                        constructor_args,
+                        Some(constructor),
+                        None,
+                        quote! { #nc::NcAbiHash::ZERO },
                     )
                 }
-                ClassDescriptorArgs::Contract {
-                    abi_path,
-                    constructor,
-                } => {
-                    if !matches!(constructor.arguments, ConstructorArguments::None) {
-                        return syn::Error::new_spanned(
-                            abi_path,
-                            "callable class contracts currently support only constructor(args = none)",
-                        )
-                        .to_compile_error();
-                    }
-                    (
-                        quote! { <#abi_path as #nc::ComClassContract>::CLASS_ID },
-                        quote! { <#abi_path as #nc::ComClassContract>::QUALIFIED_NAME },
-                        quote! { <#abi_path as #nc::ComClassContract>::VERSION },
-                        constructor,
-                        quote! { <#abi_path as #nc::ComClassContract>::CONSTRUCTOR_ARGUMENTS },
-                    )
-                }
+                ClassDescriptorArgs::Contract { abi_path } => (
+                    quote! { <#abi_path as #nc::ComClassContract>::CLASS_ID },
+                    quote! { <#abi_path as #nc::ComClassContract>::QUALIFIED_NAME },
+                    quote! { <#abi_path as #nc::ComClassContract>::VERSION },
+                    None,
+                    Some(abi_path),
+                    quote! { <#abi_path as #nc::ComClassContract>::CONSTRUCTOR_ABI_HASH },
+                ),
             };
             let generated_constructor_ident = format_ident!(
                 "__nc_com_construct_{}",
@@ -216,35 +193,46 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
             let descriptor_static_ident =
                 format_ident!("__NC_COM_CLASS_DESCRIPTOR_{}", class_ident);
             let constructor_fn = constructor
-                .function
-                .as_ref()
+                .and_then(|constructor| constructor.function.as_ref())
                 .map(|function| quote! { #function })
                 .unwrap_or_else(|| quote! { Self::#generated_constructor_ident });
-            if !is_unit_struct
-                && constructor.function.is_none()
-                && !constructor.use_default
-            {
-                return syn::Error::new_spanned(
-                    class_ident,
-                    "generated no-argument constructors for non-unit COM classes require `constructor(args = none, default)` or `constructor(..., function = path)`",
-                )
-                .to_compile_error();
+            if let Some(constructor) = constructor {
+                if !is_unit_struct && constructor.function.is_none() && !constructor.use_default {
+                    return syn::Error::new_spanned(
+                        class_ident,
+                        "generated no-argument constructors for non-unit COM classes require `constructor(args = none, default)` or `constructor(..., function = path)`",
+                    )
+                    .to_compile_error();
+                }
             }
             let default_value = if is_unit_struct {
                 quote! { #class_ident }
             } else {
                 quote! { <#class_type as ::core::default::Default>::default() }
             };
-            let generated_constructor = if constructor.function.is_some() {
+            let build_value = match contract {
+                Some(abi_path) => quote! {
+                    // SAFETY: `construct_class_checked` matched the descriptor's
+                    // generated constructor hash and pointer shape before this
+                    // contract-specific frame decoder is entered.
+                    let value = unsafe {
+                        #abi_path::__nc_construct::<#class_type>(_arguments)?
+                    };
+                },
+                None => quote! {
+                    let value = #default_value;
+                },
+            };
+            let generated_constructor = if constructor.and_then(|constructor| constructor.function.as_ref()).is_some() {
                 quote! {}
             } else {
                 quote! {
-                    // Default descriptor constructors are intentionally limited
-                    // to `args = none`: the macro can allocate the COM object,
-                    // but it cannot invent domain-specific argument parsing.
+                    // Generated constructors either decode their callable class
+                    // contract or create an explicitly declared no-argument
+                    // legacy class value.
                     unsafe extern "C" fn #generated_constructor_ident(
                         class: *const #nc::NcClassDescriptor,
-                        arguments: *mut #nc::IUnknown,
+                        arguments: *const core::ffi::c_void,
                         out: *mut *mut #nc::IUnknown,
                     ) -> #nc::NcStatus {
                         // SAFETY: This is the raw constructor entrypoint stored
@@ -257,9 +245,9 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
                                 arguments,
                                 out,
                                 #class_ident::CLASS_ID,
-                                #nc::NcInterfaceId::NONE,
+                                #constructor_abi_hash,
                                 |_arguments| {
-                                    let value = #default_value;
+                                    #build_value
                                     let unknown = #class_ident::from_value(value);
                                     Ok(unknown)
                                 },
@@ -278,7 +266,7 @@ pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro
                     class_id: Self::CLASS_ID,
                     qualified_name: #nc::NcStaticUtf8::from_static(#name),
                     class_version: #nc::NcStaticUtf8::from_static(#version),
-                    constructor_args: #constructor_args,
+                    constructor_abi_hash: #constructor_abi_hash,
                     threading: #class_threading,
                     construct: Some(#constructor_fn as #nc::NcConstructorFn),
                     interface_count: Self::COM_INTERFACE_COUNT as u32,

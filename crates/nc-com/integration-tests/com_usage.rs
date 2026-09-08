@@ -220,22 +220,32 @@ impl IMacroPluginDefault for MacroPluginDefault {
 )]
 /// A registered class whose primary methods require no companion interface.
 pub trait CallableCounter {
+    /// Creates a counter holding one caller-supplied value.
+    #[constructor]
+    fn new(value: u32, label: NcCopyFromBufferOffset<'_, u8>, calculator: ComRef<'_, ICalculatorAbi>) -> Result<Self, NcStatus>;
+
     /// Returns the fixed value supplied by this test implementation.
     fn answer(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_class(
-    contract(CallableCounter),
-    constructor(args = none),
-    interfaces()
-)]
+#[com_class(contract(CallableCounter), interfaces())]
 /// Private state object implementing the shared callable class contract.
-pub struct CallableCounterObject;
+pub struct CallableCounterObject {
+    /// Fixed answer supplied by the typed constructor frame.
+    value: u32,
+}
 
 impl CallableCounter for CallableCounterObject {
+    /// Creates the stateless implementation value.
+    fn new(value: u32, label: NcCopyFromBufferOffset<'_, u8>, calculator: ComRef<'_, ICalculatorAbi>) -> Result<Self, NcStatus> {
+        Ok(Self {
+            value: value + label.len() as u32 + calculator.add(0, 0)? as u32,
+        })
+    }
+
     /// Implements the class method directly on the private plugin object.
     fn answer(&self) -> Result<u32, NcStatus> {
-        Ok(42)
+        Ok(self.value)
     }
 }
 
@@ -260,7 +270,7 @@ static CALCULATOR_CLASSES: [NcClassDescriptor; 2] = [
         class_id: CALCULATOR_CLASS_ID,
         qualified_name: NcStaticUtf8::from_static("nc.tests.com_usage.Calculator"),
         class_version: NcStaticUtf8::from_static("1.0.0"),
-        constructor_args: NcInterfaceId::NONE,
+        constructor_abi_hash: NcAbiHash::ZERO,
         threading: NC_ABI_THREADING_THREAD_LOCAL,
         construct: Some(construct_calculator_class as NcConstructorFn),
         interface_count: Calculator::COM_INTERFACES.len() as u32,
@@ -284,14 +294,22 @@ static CALCULATOR_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
     class_table: &CALCULATOR_CLASS_TABLE,
 };
 
-const UNCHECKED_NO_ARGS_CLASS_ID: NcGuid =
-    nc_com::guid_from_qualified_name("nc.tests.com_usage.UncheckedNoArgs");
-const UNCHECKED_ARGS_CLASS_ID: NcGuid =
-    nc_com::guid_from_qualified_name("nc.tests.com_usage.UncheckedArgs");
-const UNCHECKED_WRONG_HASH_ARGS_CLASS_ID: NcGuid =
-    nc_com::guid_from_qualified_name("nc.tests.com_usage.UncheckedWrongHashArgs");
-const WRONG_TRACKED_INTERFACE_ID: NcInterfaceId =
-    NcInterfaceId::new(ITrackedAbi::IID, NcAbiHash::from_bytes([0x5a; 32]));
+const UNCHECKED_NO_ARGS_CLASS_ID: NcGuid = nc_com::guid_from_qualified_name("nc.tests.com_usage.UncheckedNoArgs");
+const UNCHECKED_ARGS_CLASS_ID: NcGuid = nc_com::guid_from_qualified_name("nc.tests.com_usage.UncheckedArgs");
+const UNCHECKED_WRONG_HASH_ARGS_CLASS_ID: NcGuid = nc_com::guid_from_qualified_name("nc.tests.com_usage.UncheckedWrongHashArgs");
+const TRACKED_CONSTRUCTOR_ABI_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Arg {
+    index: 0,
+    passing: NcAbiPassing::Value,
+    ty: NcAbiType::U32,
+}]);
+const WRONG_TRACKED_CONSTRUCTOR_ABI_HASH: NcAbiHash = NcAbiHash::from_bytes([0x5a; 32]);
+
+/// Concrete immutable frame used to exercise low-level runtime validation.
+#[repr(C)]
+struct TrackedConstructorFrame {
+    /// Plain seed copied into the frame by the caller.
+    value: u32,
+}
 
 static UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS: AtomicUsize = AtomicUsize::new(0);
 
@@ -300,7 +318,7 @@ static UNCHECKED_CONSTRUCTOR_CLASSES: [NcClassDescriptor; 3] = [
         class_id: UNCHECKED_NO_ARGS_CLASS_ID,
         qualified_name: NcStaticUtf8::from_static("nc.tests.com_usage.UncheckedNoArgs"),
         class_version: NcStaticUtf8::from_static("1.0.0"),
-        constructor_args: NcInterfaceId::NONE,
+        constructor_abi_hash: NcAbiHash::ZERO,
         threading: NC_ABI_THREADING_THREAD_LOCAL,
         construct: Some(unchecked_custom_constructor as NcConstructorFn),
         interface_count: Calculator::COM_INTERFACES.len() as u32,
@@ -310,7 +328,7 @@ static UNCHECKED_CONSTRUCTOR_CLASSES: [NcClassDescriptor; 3] = [
         class_id: UNCHECKED_ARGS_CLASS_ID,
         qualified_name: NcStaticUtf8::from_static("nc.tests.com_usage.UncheckedArgs"),
         class_version: NcStaticUtf8::from_static("1.0.0"),
-        constructor_args: ITrackedAbi::INTERFACE_ID,
+        constructor_abi_hash: TRACKED_CONSTRUCTOR_ABI_HASH,
         threading: NC_ABI_THREADING_THREAD_LOCAL,
         construct: Some(unchecked_custom_constructor as NcConstructorFn),
         interface_count: Calculator::COM_INTERFACES.len() as u32,
@@ -320,7 +338,7 @@ static UNCHECKED_CONSTRUCTOR_CLASSES: [NcClassDescriptor; 3] = [
         class_id: UNCHECKED_WRONG_HASH_ARGS_CLASS_ID,
         qualified_name: NcStaticUtf8::from_static("nc.tests.com_usage.UncheckedWrongHashArgs"),
         class_version: NcStaticUtf8::from_static("1.0.0"),
-        constructor_args: WRONG_TRACKED_INTERFACE_ID,
+        constructor_abi_hash: WRONG_TRACKED_CONSTRUCTOR_ABI_HASH,
         threading: NC_ABI_THREADING_THREAD_LOCAL,
         construct: Some(unchecked_custom_constructor as NcConstructorFn),
         interface_count: Calculator::COM_INTERFACES.len() as u32,
@@ -350,7 +368,7 @@ static FAILING_CONSTRUCTOR_CLASSES: [NcClassDescriptor; 1] = [NcClassDescriptor 
     class_id: FAILING_CONSTRUCTOR_CLASS_ID,
     qualified_name: NcStaticUtf8::from_static("nc.tests.com_usage.FailingConstructor"),
     class_version: NcStaticUtf8::from_static("1.0.0"),
-    constructor_args: NcInterfaceId::NONE,
+    constructor_abi_hash: NcAbiHash::ZERO,
     threading: NC_ABI_THREADING_THREAD_LOCAL,
     construct: Some(failing_custom_constructor as NcConstructorFn),
     interface_count: Calculator::COM_INTERFACES.len() as u32,
@@ -372,31 +390,16 @@ static FAILING_CONSTRUCTOR_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
     class_table: &FAILING_CONSTRUCTOR_CLASS_TABLE,
 };
 
-unsafe extern "C" fn construct_calculator_class(
-    class: *const NcClassDescriptor,
-    arguments: *mut IUnknown,
-    out: *mut *mut IUnknown,
-) -> NcStatus {
+unsafe extern "C" fn construct_calculator_class(class: *const NcClassDescriptor, arguments: *const c_void, out: *mut *mut IUnknown) -> NcStatus {
     unsafe {
-        nc_com::construct_class_checked(
-            class,
-            arguments,
-            out,
-            CALCULATOR_CLASS_ID,
-            NcInterfaceId::NONE,
-            |_arguments| {
-                let unknown: ComPtr<IUnknown> = Calculator::from_value(Calculator);
-                Ok(unknown)
-            },
-        )
+        nc_com::construct_class_checked(class, arguments, out, CALCULATOR_CLASS_ID, NcAbiHash::ZERO, |_arguments| {
+            let unknown: ComPtr<IUnknown> = Calculator::from_value(Calculator);
+            Ok(unknown)
+        })
     }
 }
 
-unsafe extern "C" fn unchecked_custom_constructor(
-    _class: *const NcClassDescriptor,
-    _arguments: *mut IUnknown,
-    out: *mut *mut IUnknown,
-) -> NcStatus {
+unsafe extern "C" fn unchecked_custom_constructor(_class: *const NcClassDescriptor, _arguments: *const c_void, out: *mut *mut IUnknown) -> NcStatus {
     UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.fetch_add(1, Ordering::SeqCst);
     if out.is_null() {
         return NC_E_POINTER;
@@ -408,11 +411,7 @@ unsafe extern "C" fn unchecked_custom_constructor(
     NC_OK
 }
 
-unsafe extern "C" fn failing_custom_constructor(
-    _class: *const NcClassDescriptor,
-    _arguments: *mut IUnknown,
-    out: *mut *mut IUnknown,
-) -> NcStatus {
+unsafe extern "C" fn failing_custom_constructor(_class: *const NcClassDescriptor, _arguments: *const c_void, out: *mut *mut IUnknown) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -725,11 +724,7 @@ fn runtime_is_shareable_as_process_wide_state() {
 
     let construction_runtime = runtime;
     let construction_thread = std::thread::spawn(move || {
-        let calculator = unsafe {
-            construction_runtime
-                .construct_class_as::<ICalculatorAbi>(CALCULATOR_CLASS_ID, core::ptr::null_mut())
-                .unwrap()
-        };
+        let calculator = construction_runtime.construct_class_as::<ICalculatorAbi>(CALCULATOR_CLASS_ID, ()).unwrap();
         calculator.add(20, 22).unwrap()
     });
 
@@ -1173,7 +1168,7 @@ fn runtime_registers_plugin_and_constructs_objects() {
         .unwrap();
     assert_eq!(class_info.plugin_id, CALCULATOR_PLUGIN.plugin_id);
     assert_eq!(class_info.module_id, None);
-    assert_eq!(class_info.constructor_args, NcInterfaceId::NONE);
+    assert_eq!(class_info.constructor_abi_hash, NcAbiHash::ZERO);
     assert_eq!(class_info.threading, NcAbiThreadingMode::ThreadLocal);
     let thread_safe_class_info = runtime
         .inspection()
@@ -1199,50 +1194,26 @@ fn runtime_registers_plugin_and_constructs_objects() {
         Err(NC_E_ABI_VERSION)
     );
 
-    let calculator = unsafe {
-        runtime
-            .construct_class_as::<ICalculatorAbi>(CALCULATOR_CLASS_ID, core::ptr::null_mut())
-            .unwrap()
-    };
+    let calculator = runtime.construct_class_as::<ICalculatorAbi>(CALCULATOR_CLASS_ID, ()).unwrap();
     assert_eq!(calculator.add(19, 23).unwrap(), 42);
 
     assert_eq!(
-        unsafe {
-            runtime.construct_class_as_with_model::<ICalculatorAbi, ThreadSafe>(
-                CALCULATOR_CLASS_ID,
-                core::ptr::null_mut(),
-            )
-        }
-        .unwrap_err(),
+        runtime
+            .construct_class_as_with_model::<ICalculatorAbi, ThreadSafe>(CALCULATOR_CLASS_ID, (),)
+            .unwrap_err(),
         NC_E_INVALID_ARG
     );
 
-    let thread_safe_calculator = unsafe {
-        runtime
-            .construct_class_as_with_model::<ICalculatorAbi, ThreadSafe>(
-                THREAD_SAFE_CALCULATOR_CLASS_ID,
-                core::ptr::null_mut(),
-            )
-            .unwrap()
-    };
+    let thread_safe_calculator = runtime
+        .construct_class_as_with_model::<ICalculatorAbi, ThreadSafe>(THREAD_SAFE_CALCULATOR_CLASS_ID, ())
+        .unwrap();
     let thread_result = std::thread::spawn(move || thread_safe_calculator.add(20, 22).unwrap());
     assert_eq!(thread_result.join().unwrap(), 42);
 
-    let downgraded_calculator = unsafe {
-        runtime
-            .construct_class_as::<ICalculatorAbi>(
-                THREAD_SAFE_CALCULATOR_CLASS_ID,
-                core::ptr::null_mut(),
-            )
-            .unwrap()
-    };
+    let downgraded_calculator = runtime.construct_class_as::<ICalculatorAbi>(THREAD_SAFE_CALCULATOR_CLASS_ID, ()).unwrap();
     assert_eq!(downgraded_calculator.add(40, 2).unwrap(), 42);
 
-    let constructed_unknown = unsafe {
-        runtime
-            .construct_class_as::<IUnknown>(CALCULATOR_CLASS_ID, core::ptr::null_mut())
-            .unwrap()
-    };
+    let constructed_unknown = runtime.construct_class_as::<IUnknown>(CALCULATOR_CLASS_ID, ()).unwrap();
     assert!(constructed_unknown.query::<ICalculatorAbi>().is_ok());
 
     let local_unknown: ComPtr<IUnknown> = Calculator::create();
@@ -1259,14 +1230,8 @@ fn runtime_registers_plugin_and_constructs_objects() {
     .unwrap();
     assert_eq!(adopted.add(20, 22).unwrap(), 42);
 
-    let unknown = unsafe {
-        runtime
-            .construct_class(CALCULATOR_CLASS_ID, core::ptr::null_mut())
-            .unwrap()
-    };
-    let err = runtime
-        .query_validated::<IUnsupportedAbi, _>(CALCULATOR_CLASS_ID, &unknown)
-        .unwrap_err();
+    let unknown = runtime.construct_class(CALCULATOR_CLASS_ID, ()).unwrap();
+    let err = runtime.query_validated::<IUnsupportedAbi, _>(CALCULATOR_CLASS_ID, &unknown).unwrap_err();
     assert_eq!(err, NC_E_NOINTERFACE);
 }
 
@@ -1281,39 +1246,25 @@ fn runtime_enforces_constructor_argument_contract_before_custom_constructor() {
         NC_OK
     );
 
-    let unexpected_args: ComPtr<IUnknown> = Calculator::create();
-    let err = unsafe {
-        runtime.construct_class(UNCHECKED_NO_ARGS_CLASS_ID, unexpected_args.as_mut_ptr())
-    }
-    .unwrap_err();
+    let frame = TrackedConstructorFrame { value: 99 };
+    let frame_pointer = core::ptr::from_ref(&frame).cast();
+    let err = unsafe { runtime.construct_class_raw(UNCHECKED_NO_ARGS_CLASS_ID, NcAbiHash::ZERO, frame_pointer) }.unwrap_err();
     assert_eq!(err, NC_E_INVALID_ARG);
     assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
 
-    let err = unsafe { runtime.construct_class(UNCHECKED_ARGS_CLASS_ID, core::ptr::null_mut()) }
-        .unwrap_err();
+    let err = unsafe { runtime.construct_class_raw(UNCHECKED_ARGS_CLASS_ID, TRACKED_CONSTRUCTOR_ABI_HASH, core::ptr::null()) }.unwrap_err();
     assert_eq!(err, NC_E_INVALID_ARG);
     assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
 
-    let wrong_args: ComPtr<IUnknown> = Calculator::create();
-    let err = unsafe { runtime.construct_class(UNCHECKED_ARGS_CLASS_ID, wrong_args.as_mut_ptr()) }
-        .unwrap_err();
-    assert_eq!(err, NC_E_NOINTERFACE);
-    assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
-
-    let tracked_args: ComPtr<IUnknown> = TrackedObject::from_value(TrackedObject { value: 99 });
-    let err = unsafe {
-        runtime.construct_class(
-            UNCHECKED_WRONG_HASH_ARGS_CLASS_ID,
-            tracked_args.as_mut_ptr(),
-        )
-    }
-    .unwrap_err();
+    let err = unsafe { runtime.construct_class_raw(UNCHECKED_ARGS_CLASS_ID, WRONG_TRACKED_CONSTRUCTOR_ABI_HASH, frame_pointer) }.unwrap_err();
     assert_eq!(err, NC_E_ABI_VERSION);
     assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
 
-    let unknown =
-        unsafe { runtime.construct_class(UNCHECKED_ARGS_CLASS_ID, tracked_args.as_mut_ptr()) }
-            .unwrap();
+    let err = unsafe { runtime.construct_class_raw(UNCHECKED_WRONG_HASH_ARGS_CLASS_ID, TRACKED_CONSTRUCTOR_ABI_HASH, frame_pointer) }.unwrap_err();
+    assert_eq!(err, NC_E_ABI_VERSION);
+    assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
+
+    let unknown = unsafe { runtime.construct_class_raw(UNCHECKED_ARGS_CLASS_ID, TRACKED_CONSTRUCTOR_ABI_HASH, frame_pointer) }.unwrap();
     assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 1);
 
     let calculator = runtime
@@ -1331,9 +1282,7 @@ fn runtime_propagates_custom_constructor_failure() {
         NC_OK
     );
 
-    let error =
-        unsafe { runtime.construct_class(FAILING_CONSTRUCTOR_CLASS_ID, core::ptr::null_mut()) }
-            .unwrap_err();
+    let error = runtime.construct_class(FAILING_CONSTRUCTOR_CLASS_ID, ()).unwrap_err();
 
     assert_eq!(error, NC_E_TEST_FAIL);
 }
@@ -1362,14 +1311,7 @@ fn plugin_macro_descriptor_registers_and_constructs_class() {
         .require_interface_type::<IMacroPluginEchoAbi>(MacroPluginEcho::CLASS_ID)
         .unwrap();
 
-    let echo = unsafe {
-        runtime
-            .construct_class_as::<IMacroPluginEchoAbi>(
-                MacroPluginEcho::CLASS_ID,
-                core::ptr::null_mut(),
-            )
-            .unwrap()
-    };
+    let echo = runtime.construct_class_as::<IMacroPluginEchoAbi>(MacroPluginEcho::CLASS_ID, ()).unwrap();
     assert_eq!(echo.answer(), Ok(314));
 
     assert_eq!(
@@ -1380,7 +1322,10 @@ fn plugin_macro_descriptor_registers_and_constructs_class() {
         CallableCounterObject::CLASS_DESCRIPTOR.qualified_name,
         NcStaticUtf8::from_static(CallableCounterAbi::CLASS_QUALIFIED_NAME)
     );
-    let counter = runtime.construct::<CallableCounterAbi>().unwrap();
+    let label = [b'o', b'k'];
+    let calculator = Calculator::create().query::<ICalculatorAbi>().unwrap();
+    let arguments = CallableCounterAbi::arguments(40, NcCopyFromBufferOffset::new(0, &label), calculator.as_com_ref()).unwrap();
+    let counter = runtime.construct::<CallableCounterAbi>(arguments).unwrap();
     assert_eq!(counter.answer(), Ok(42));
 }
 

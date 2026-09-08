@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::schema::{ArtifactClass, ArtifactInterface, ArtifactThreading, InspectionArtifactV2};
+use crate::schema::{ArtifactClass, ArtifactInterface, ArtifactThreading, InspectionArtifactV3};
 
 #[derive(Debug, Default, Eq, PartialEq)]
 pub(crate) struct CompatibilityReport {
@@ -21,10 +21,7 @@ impl CompatibilityReport {
     }
 }
 
-pub(crate) fn check_compatibility(
-    old: &InspectionArtifactV2,
-    new: &InspectionArtifactV2,
-) -> CompatibilityReport {
+pub(crate) fn check_compatibility(old: &InspectionArtifactV3, new: &InspectionArtifactV3) -> CompatibilityReport {
     let mut report = CompatibilityReport::default();
 
     if old.plugin.id != new.plugin.id {
@@ -66,11 +63,7 @@ pub(crate) fn check_compatibility(
     report
 }
 
-fn compare_dependencies(
-    report: &mut CompatibilityReport,
-    old: &InspectionArtifactV2,
-    new: &InspectionArtifactV2,
-) {
+fn compare_dependencies(report: &mut CompatibilityReport, old: &InspectionArtifactV3, new: &InspectionArtifactV3) {
     let old: BTreeSet<_> = old.plugin.dependencies.iter().collect();
     let new: BTreeSet<_> = new.plugin.dependencies.iter().collect();
     for dependency in new.difference(&old) {
@@ -107,19 +100,11 @@ fn compare_classes(report: &mut CompatibilityReport, old: &[ArtifactClass], new:
     }
 }
 
-fn compare_class(
-    report: &mut CompatibilityReport,
-    id: &str,
-    old: &ArtifactClass,
-    new: &ArtifactClass,
-) {
-    if old.constructor_args != new.constructor_args {
+fn compare_class(report: &mut CompatibilityReport, id: &str, old: &ArtifactClass, new: &ArtifactClass) {
+    if old.constructor_abi_hash != new.constructor_abi_hash {
         report.breaking.push(format!(
-            "class {id} constructor interface changed: {}/{} -> {}/{}",
-            old.constructor_args.iid,
-            old.constructor_args.abi_hash,
-            new.constructor_args.iid,
-            new.constructor_args.abi_hash
+            "class {id} constructor ABI changed: {} -> {}",
+            old.constructor_abi_hash, new.constructor_abi_hash
         ));
     }
     match (old.threading, new.threading) {
@@ -193,7 +178,7 @@ fn map_by<'a, T>(values: &'a [T], key: impl Fn(&'a T) -> &'a str) -> BTreeMap<&'
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::{ArtifactInterfaceId, ArtifactMethod, sample_artifact};
+    use crate::schema::{ArtifactMethod, sample_artifact};
     use nc_com_core::guid_from_qualified_name;
 
     #[test]
@@ -253,10 +238,7 @@ mod tests {
     fn constructor_and_threading_downgrades_are_breaking() {
         let old = sample_artifact();
         let mut new = old.clone();
-        new.classes[0].constructor_args = ArtifactInterfaceId {
-            iid: new.classes[0].interfaces[1].id.clone(),
-            abi_hash: new.classes[0].interfaces[1].abi_hash.clone(),
-        };
+        new.classes[0].constructor_abi_hash = "22".repeat(32);
         new.classes[0].threading = ArtifactThreading::ThreadSafe;
         let strengthened = check_compatibility(&old, &new);
         assert_eq!(strengthened.breaking.len(), 1);

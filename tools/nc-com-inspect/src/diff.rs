@@ -2,15 +2,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::schema::{
-    ArtifactClass, ArtifactInterface, ArtifactInterfaceId, ArtifactMethod, ArtifactPlugin,
-    InspectionArtifactV2,
-};
+use crate::schema::{ArtifactClass, ArtifactInterface, ArtifactInterfaceId, ArtifactMethod, ArtifactPlugin, InspectionArtifactV3};
 
-pub(crate) fn diff_inspections(
-    old: &InspectionArtifactV2,
-    new: &InspectionArtifactV2,
-) -> Vec<String> {
+pub(crate) fn diff_inspections(old: &InspectionArtifactV3, new: &InspectionArtifactV3) -> Vec<String> {
     // Artifact validation runs before this function, so identity-keyed maps
     // cannot silently normalize duplicate entries.
     let mut differences = Vec::new();
@@ -92,30 +86,15 @@ fn diff_classes(differences: &mut Vec<String>, old: &[ArtifactClass], new: &[Art
 fn diff_class(differences: &mut Vec<String>, id: &str, old: &ArtifactClass, new: &ArtifactClass) {
     let path = format!("class {id}");
     push_changed_str(differences, &format!("{path}.name"), &old.name, &new.name);
+    push_changed_str(differences, &format!("{path}.version"), &old.version, &new.version);
+    push_changed_debug(differences, &format!("{path}.threading"), &old.threading, &new.threading);
     push_changed_str(
         differences,
-        &format!("{path}.version"),
-        &old.version,
-        &new.version,
+        &format!("{path}.constructor_abi_hash"),
+        &old.constructor_abi_hash,
+        &new.constructor_abi_hash,
     );
-    push_changed_debug(
-        differences,
-        &format!("{path}.threading"),
-        &old.threading,
-        &new.threading,
-    );
-    diff_interface_id(
-        differences,
-        &format!("{path}.constructor_args"),
-        &old.constructor_args,
-        &new.constructor_args,
-    );
-    diff_interfaces(
-        differences,
-        &format!("{path}.interface"),
-        &old.interfaces,
-        &new.interfaces,
-    );
+    diff_interfaces(differences, &format!("{path}.interface"), &old.interfaces, &new.interfaces);
 }
 
 fn diff_interfaces(

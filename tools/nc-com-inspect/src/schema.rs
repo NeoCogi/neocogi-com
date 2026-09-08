@@ -16,12 +16,12 @@ use nc_com_shared_runtime::PluginInspection;
 use serde::{Deserialize, Serialize};
 
 pub(crate) const SCHEMA: &str = "nc-com.inspection";
-pub(crate) const SCHEMA_VERSION: u32 = 2;
+pub(crate) const SCHEMA_VERSION: u32 = 3;
 const PRODUCER: &str = "nc-com-inspect";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct InspectionArtifactV2 {
+pub(crate) struct InspectionArtifactV3 {
     pub(crate) schema: String,
     pub(crate) schema_version: u32,
     pub(crate) producer: ArtifactProducer,
@@ -68,7 +68,7 @@ pub(crate) struct ArtifactClass {
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) version: String,
-    pub(crate) constructor_args: ArtifactInterfaceId,
+    pub(crate) constructor_abi_hash: String,
     pub(crate) threading: ArtifactThreading,
     pub(crate) interfaces: Vec<ArtifactInterface>,
 }
@@ -130,7 +130,7 @@ impl std::fmt::Display for ArtifactValidationError {
 
 impl std::error::Error for ArtifactValidationError {}
 
-impl From<&PluginInspection> for InspectionArtifactV2 {
+impl From<&PluginInspection> for InspectionArtifactV3 {
     fn from(value: &PluginInspection) -> Self {
         let mut dependencies: Vec<_> = value.dependencies.iter().map(ToString::to_string).collect();
         dependencies.sort();
@@ -168,7 +168,7 @@ impl From<&PluginInspection> for InspectionArtifactV2 {
                     id: class.class_id.to_string(),
                     name: class.qualified_name.clone(),
                     version: class.class_version.clone(),
-                    constructor_args: artifact_interface_id(class.constructor_args),
+                    constructor_abi_hash: format_hash(class.constructor_abi_hash),
                     threading: artifact_threading(class.threading),
                     interfaces,
                 }
@@ -204,7 +204,7 @@ impl From<&PluginInspection> for InspectionArtifactV2 {
     }
 }
 
-impl InspectionArtifactV2 {
+impl InspectionArtifactV3 {
     pub(crate) fn validate(&self) -> Result<(), ArtifactValidationError> {
         self.validate_envelope()?;
 
@@ -235,18 +235,8 @@ impl InspectionArtifactV2 {
                     "duplicate class ID",
                 ));
             }
-            insert_identity(
-                &mut id_to_name,
-                &mut name_to_id,
-                class_id,
-                &class.name,
-                &class_path,
-            )?;
-            validate_interface_id(
-                &class.constructor_args,
-                &format!("{class_path}.constructor_args"),
-                true,
-            )?;
+            insert_identity(&mut id_to_name, &mut name_to_id, class_id, &class.name, &class_path)?;
+            parse_hash(&class.constructor_abi_hash, &format!("{class_path}.constructor_abi_hash"))?;
 
             let mut interface_ids = BTreeSet::new();
             let mut iunknown_count = 0;
@@ -579,11 +569,11 @@ pub(crate) fn format_hash(hash: NcAbiHash) -> String {
 }
 
 #[cfg(test)]
-pub(crate) fn sample_artifact() -> InspectionArtifactV2 {
+pub(crate) fn sample_artifact() -> InspectionArtifactV3 {
     let plugin_name = "example.plugin";
     let class_name = "example.Foo";
     let interface_name = "example.FooInterface:v1";
-    InspectionArtifactV2 {
+    InspectionArtifactV3 {
         schema: SCHEMA.to_string(),
         schema_version: SCHEMA_VERSION,
         producer: ArtifactProducer {
@@ -606,7 +596,7 @@ pub(crate) fn sample_artifact() -> InspectionArtifactV2 {
             id: guid_from_qualified_name(class_name).to_string(),
             name: class_name.to_string(),
             version: "1.0.0".to_string(),
-            constructor_args: artifact_interface_id(NcInterfaceId::NONE),
+            constructor_abi_hash: format_hash(NcAbiHash::ZERO),
             threading: ArtifactThreading::ThreadLocal,
             interfaces: vec![
                 ArtifactInterface {
@@ -641,7 +631,7 @@ mod tests {
         let artifact = sample_artifact();
         artifact.validate().unwrap();
         let json = serde_json::to_vec(&artifact).unwrap();
-        let parsed: InspectionArtifactV2 = serde_json::from_slice(&json).unwrap();
+        let parsed: InspectionArtifactV3 = serde_json::from_slice(&json).unwrap();
         parsed.validate().unwrap();
         assert_eq!(parsed, artifact);
     }
@@ -649,10 +639,8 @@ mod tests {
     #[test]
     fn rejects_unknown_fields_and_schema_versions() {
         let mut json = serde_json::to_value(sample_artifact()).unwrap();
-        json.as_object_mut()
-            .unwrap()
-            .insert("unexpected".to_string(), serde_json::Value::Bool(true));
-        assert!(serde_json::from_value::<InspectionArtifactV2>(json).is_err());
+        json.as_object_mut().unwrap().insert("unexpected".to_string(), serde_json::Value::Bool(true));
+        assert!(serde_json::from_value::<InspectionArtifactV3>(json).is_err());
 
         let mut artifact = sample_artifact();
         artifact.schema_version += 1;

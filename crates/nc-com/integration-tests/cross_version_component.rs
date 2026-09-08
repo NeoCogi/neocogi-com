@@ -1,7 +1,6 @@
 use nc_com::{
-    ComInterface, ComPtr, ComRef, IUnknown, NC_ABI_THREADING_THREAD_SAFE, NC_OK, NcClassDescriptor,
-    NcGuid, NcPluginDescriptor, NcStatus, Runtime, ThreadSafe, com_class, com_interface,
-    validate_plugin_descriptor_with_issues,
+    ComInterface, ComPtr, ComRef, IUnknown, NC_ABI_THREADING_THREAD_SAFE, NC_OK, NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiType, NcClassDescriptor, NcGuid,
+    NcPluginDescriptor, NcStatus, Runtime, ThreadSafe, com_class, com_interface, validate_plugin_descriptor_with_issues,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -20,9 +19,17 @@ pub trait ICrossVersionNumber {
     fn value(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_interface(auto_guid = "nc.tests.cross_version.Args:v1")]
-pub trait ICrossVersionArgs {
-    fn seed(&self) -> Result<u32, NcStatus>;
+const SERVICE_CONSTRUCTOR_ABI_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Arg {
+    index: 0,
+    passing: NcAbiPassing::Value,
+    ty: NcAbiType::U32,
+}]);
+
+/// Concrete immutable frame matching the cross-version service constructor.
+#[repr(C)]
+struct ServiceArguments {
+    /// Seed consumed synchronously by the plugin.
+    seed: u32,
 }
 
 #[com_interface(auto_guid = "nc.tests.cross_version.Service:v1")]
@@ -31,17 +38,6 @@ pub trait ICrossVersionService {
     fn reset(&self) -> Result<(), NcStatus>;
     fn read_number(&self, number: ComRef<'_, ICrossVersionNumberAbi>) -> Result<u32, NcStatus>;
     fn make_number(&self, value: u32) -> Result<ComPtr<ICrossVersionNumberAbi>, NcStatus>;
-}
-
-#[com_class(interfaces(ICrossVersionArgs))]
-pub struct CrossVersionArgs {
-    seed: u32,
-}
-
-impl ICrossVersionArgs for CrossVersionArgs {
-    fn seed(&self) -> Result<u32, NcStatus> {
-        Ok(self.seed)
-    }
 }
 
 #[com_class(interfaces(ICrossVersionNumber))]
@@ -202,7 +198,7 @@ fn exercise_descriptor_entrypoint(library: &Library) {
 
     let class = &classes[0];
     assert_eq!(class.class_id, CROSS_VERSION_CLASS_ID);
-    assert_eq!(class.constructor_args, ICrossVersionArgsAbi::INTERFACE_ID);
+    assert_eq!(class.constructor_abi_hash, SERVICE_CONSTRUCTOR_ABI_HASH);
     assert_eq!(class.threading, NC_ABI_THREADING_THREAD_SAFE);
     require_class_interface::<ICrossVersionServiceAbi>(class);
 
@@ -220,31 +216,23 @@ fn exercise_runtime_loader(library_path: &Path) {
         .require_interface_type::<ICrossVersionServiceAbi>(CROSS_VERSION_CLASS_ID)
         .unwrap();
 
-    let args: ComPtr<IUnknown> = CrossVersionArgs::from_value(CrossVersionArgs { seed: 11 });
+    let arguments = ServiceArguments { seed: 11 };
+    let arguments_pointer = core::ptr::from_ref(&arguments).cast();
     let unknown = unsafe {
         runtime
-            .construct_class(CROSS_VERSION_CLASS_ID, args.as_mut_ptr())
+            .construct_class_raw(CROSS_VERSION_CLASS_ID, SERVICE_CONSTRUCTOR_ABI_HASH, arguments_pointer)
             .expect("registry output")
     };
-    let service = unknown
-        .query::<ICrossVersionServiceAbi>()
-        .expect("registry-constructed cross-version service");
+    let service = unknown.query::<ICrossVersionServiceAbi>().expect("registry-constructed cross-version service");
     exercise_service(service);
 
-    let thread_safe_service = unsafe {
+    let thread_safe_unknown = unsafe {
         runtime
-            .construct_class_as_with_model::<ICrossVersionServiceAbi, ThreadSafe>(
-                CROSS_VERSION_CLASS_ID,
-                args.as_mut_ptr(),
-            )
+            .construct_class_with_model_raw::<ThreadSafe>(CROSS_VERSION_CLASS_ID, SERVICE_CONSTRUCTOR_ABI_HASH, arguments_pointer)
             .expect("thread-safe registry output")
     };
-    assert_eq!(
-        std::thread::spawn(move || thread_safe_service.add(10, 21))
-            .join()
-            .unwrap(),
-        Ok(42)
-    );
+    let thread_safe_service = thread_safe_unknown.query::<ICrossVersionServiceAbi>().expect("thread-safe service projection");
+    assert_eq!(std::thread::spawn(move || thread_safe_service.add(10, 21)).join().unwrap(), Ok(42));
 }
 
 fn exercise_service(service: ComPtr<ICrossVersionServiceAbi>) {
@@ -273,10 +261,10 @@ fn require_class_interface<T: ComInterface>(class: &NcClassDescriptor) {
 }
 
 fn construct_service_from_descriptor(class: &NcClassDescriptor) -> ComPtr<ICrossVersionServiceAbi> {
-    let args: ComPtr<IUnknown> = CrossVersionArgs::from_value(CrossVersionArgs { seed: 11 });
+    let arguments = ServiceArguments { seed: 11 };
     let constructor = class.construct.expect("class has constructor");
     let mut out = std::ptr::null_mut();
-    let status = unsafe { constructor(class, args.as_mut_ptr(), &mut out) };
+    let status = unsafe { constructor(class, core::ptr::from_ref(&arguments).cast(), &mut out) };
     assert_eq!(status, NC_OK);
     assert!(!out.is_null());
     let unknown = unsafe { ComPtr::<IUnknown>::from_raw_owned(out) }.expect("constructor output");

@@ -140,10 +140,6 @@ pub enum NcDescriptorValidationKind {
     InvalidClassVersion,
     /// A class descriptor has no constructor function.
     MissingConstructor,
-    /// A constructor advertises an ABI hash while its argument IID is nil.
-    ConstructorArgsHashWithoutInterface,
-    /// A constructor argument IID is non-nil but its ABI hash is zero.
-    ZeroConstructorArgsAbiHash,
     /// A class threading field is not a defined `NC_ABI_THREADING_*` value.
     InvalidClassThreading,
     /// A nonzero class interface count has a null mapping-table pointer.
@@ -529,21 +525,6 @@ fn validate_class_descriptor<R>(
             NC_E_INVALID_ARG,
             path,
             NcDescriptorValidationKind::MissingConstructor,
-        );
-    }
-    if class.constructor_args.iid.is_nil() {
-        if class.constructor_args.abi_hash != NcAbiHash::ZERO {
-            reporter.issue(
-                NC_E_INVALID_ARG,
-                path,
-                NcDescriptorValidationKind::ConstructorArgsHashWithoutInterface,
-            );
-        }
-    } else if class.constructor_args.abi_hash == NcAbiHash::ZERO {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            path,
-            NcDescriptorValidationKind::ZeroConstructorArgsAbiHash,
         );
     }
     if NcAbiThreadingMode::from_raw(class.threading).is_none() {
@@ -1194,7 +1175,7 @@ fn descriptor_passing(passing: NcAbiPassingDescriptor) -> Result<NcAbiPassing, N
     }
 }
 
-/// Converts a raw threading tag, rejecting values outside core ABI v3.
+/// Converts a raw threading tag, rejecting values outside core ABI v4.
 fn descriptor_threading_mode(threading: u32) -> Result<NcAbiThreadingMode, NcStatus> {
     NcAbiThreadingMode::from_raw(threading).ok_or(NC_E_INVALID_ARG)
 }
@@ -1321,11 +1302,7 @@ mod tests {
         },
     }];
 
-    unsafe extern "C" fn dummy_constructor(
-        _class: *const NcClassDescriptor,
-        _arguments: *mut IUnknown,
-        _out: *mut *mut IUnknown,
-    ) -> NcStatus {
+    unsafe extern "C" fn dummy_constructor(_class: *const NcClassDescriptor, _arguments: *const core::ffi::c_void, _out: *mut *mut IUnknown) -> NcStatus {
         NC_E_INVALID_ARG
     }
 
@@ -1462,7 +1439,7 @@ mod tests {
             class_id: CLASS_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.Class"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_args: crate::NcInterfaceId::NONE,
+            constructor_abi_hash: crate::NcAbiHash::ZERO,
             threading: NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(dummy_constructor),
             interface_count: CLASS_INTERFACES.len() as u32,
@@ -1518,7 +1495,7 @@ mod tests {
             class_id: guid_from_qualified_name("nc.tests.ValidClass"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.ValidClass"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_args: crate::NcInterfaceId::NONE,
+            constructor_abi_hash: crate::NcAbiHash::ZERO,
             threading: NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(dummy_constructor),
             interface_count: VALID_CLASS_INTERFACES.len() as u32,
@@ -1561,7 +1538,7 @@ mod tests {
             class_id: guid_from_qualified_name("nc.tests.MismatchedClass"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.MismatchedClass"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_args: crate::NcInterfaceId::NONE,
+            constructor_abi_hash: crate::NcAbiHash::ZERO,
             threading: NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(dummy_constructor),
             interface_count: MISMATCHED_CLASS_INTERFACES.len() as u32,
@@ -1604,7 +1581,7 @@ mod tests {
             class_id: guid_from_qualified_name("nc.tests.InvalidThreading"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.InvalidThreading"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_args: crate::NcInterfaceId::NONE,
+            constructor_abi_hash: crate::NcAbiHash::ZERO,
             threading: 0xffff_ffff,
             construct: Some(dummy_constructor),
             interface_count: CLASS_INTERFACES.len() as u32,
@@ -1662,7 +1639,7 @@ mod tests {
             class_id: guid_from_qualified_name("nc.tests.Identity.WrongClass"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.Identity.Class"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_args: crate::NcInterfaceId::NONE,
+            constructor_abi_hash: crate::NcAbiHash::ZERO,
             threading: NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(dummy_constructor),
             interface_count: INTERFACES.len() as u32,
@@ -1701,7 +1678,7 @@ mod tests {
             class_id: guid_from_qualified_name("nc.tests.MissingIUnknown"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.MissingIUnknown"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_args: crate::NcInterfaceId::NONE,
+            constructor_abi_hash: crate::NcAbiHash::ZERO,
             threading: NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(dummy_constructor),
             interface_count: 0,
@@ -1769,7 +1746,7 @@ mod tests {
             class_id: guid_from_qualified_name("nc.tests.InvalidIUnknown"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.InvalidIUnknown"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_args: crate::NcInterfaceId::NONE,
+            constructor_abi_hash: crate::NcAbiHash::ZERO,
             threading: NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(dummy_constructor),
             interface_count: INVALID_IUNKNOWN_INTERFACES.len() as u32,
@@ -1809,7 +1786,7 @@ mod tests {
             class_id: guid_from_qualified_name("nc.tests.DuplicateIUnknown"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.DuplicateIUnknown"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_args: crate::NcInterfaceId::NONE,
+            constructor_abi_hash: crate::NcAbiHash::ZERO,
             threading: NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(dummy_constructor),
             interface_count: DUPLICATE_IUNKNOWN_INTERFACES.len() as u32,
