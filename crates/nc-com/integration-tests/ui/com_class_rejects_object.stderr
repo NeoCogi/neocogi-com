@@ -1,0 +1,5 @@
+error: com_class declares only callable class traits; use com_object for an implementation struct
+ --> integration-tests/ui/com_class_rejects_object.rs:5:8
+  |
+5 | struct LegacyObject;
+  |        ^^^^^^^^^^^^

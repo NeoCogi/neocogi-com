@@ -303,7 +303,7 @@ impl Counter for CounterObject {
 }
 ```
 
-`contract(Counter)` automatically installs the primary `CounterAbi` projection
+`#[com_object(Counter)]` automatically installs the primary `CounterAbi` projection
 and copies the class ID, name, version, and required interface set into the
 implementation descriptor. Every class supertrait is a separate
 `QueryInterface` projection on the same object; the implementation struct does

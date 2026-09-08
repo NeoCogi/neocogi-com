@@ -1,6 +1,7 @@
 #[test]
 fn ui_errors_are_stable() {
     let t = trybuild::TestCases::new();
+    t.compile_fail("integration-tests/ui/com_class_rejects_object.rs");
     t.pass("integration-tests/ui/class_generic_owned.rs");
     t.compile_fail("integration-tests/ui/class_generic_borrowed.rs");
     t.compile_fail("integration-tests/ui/class_generic_descriptor.rs");

@@ -10,8 +10,8 @@
 //! - [`com_class`] declares a callable class contract with a typed constructor.
 //! - [`com_object`] wraps a Rust implementation struct in generated storage containing
 //!   `IUnknown`, one header per exposed interface, an atomic reference count,
-//!   and the original Rust value. It also generates class interface metadata
-//!   from `interfaces(...)`. Classes are thread-local by default; add
+//!   and the original Rust value. It also generates object interface metadata
+//!   from `interfaces(...)`. Objects are thread-local by default; add
 //!   `thread_safe` to generate `ComPtr<_, ThreadSafe>` constructors. Generated
 //!   class descriptors record the same mode for checked dynamic construction.
 //! - [`com_struct`] marks a fixed-size record as ABI plain data, owns its
@@ -130,21 +130,21 @@ use syn::{Item, ItemEnum, ItemStruct, ItemTrait, parse_macro_input};
 
 mod abi_method;
 mod args;
-mod class;
 mod class_contract;
 mod enums;
 mod interface;
 mod model;
+mod object;
 mod plain_data;
 mod plugin;
 mod structs;
 mod util;
 
 use args::{ClassArgs, ClassContractArgs, EnumArgs, InterfaceArgs, StructArgs};
-use class::expand_com_class;
 use class_contract::expand_com_class_contract;
 use enums::expand_com_enum;
 use interface::expand_com_interface;
+use object::expand_com_object;
 use plugin::{PluginArgs, expand_plugin};
 use structs::expand_com_struct;
 
@@ -180,14 +180,12 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-/// Defines a callable COM class contract or its concrete object storage.
+/// Defines a callable COM class contract on a trait.
 ///
-/// On a trait, this macro defines the primary callable surface and stable
-/// registry identity shared by hosts and implementations. On a struct,
-/// `contract(Class)` creates its reference-counted implementation storage and
-/// descriptor. Class trait supertraits declare the interface capabilities that
-/// every implementation must expose through `QueryInterface`. Add
-/// `thread_safe` when every call and final destruction may occur on any thread.
+/// The class declaration owns the primary callable surface, typed constructor,
+/// and stable registry identity shared by hosts and implementations. Trait
+/// supertraits declare the interface capabilities that every implementation
+/// must expose through `QueryInterface`.
 ///
 /// ```text
 /// #[com_class(auto_guid = "example.Calculator:v1")]
@@ -210,50 +208,38 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// `Runtime::construct::<CalculatorAbi>(arguments)`. No constructor argument
 /// interface or one-off primary interface declaration is involved.
 ///
-/// Struct expansion creates object storage, reference counting, `IUnknown`, and
-/// `QueryInterface` support.
-/// Generated class descriptors record `NC_ABI_THREADING_THREAD_LOCAL` or
-/// `NC_ABI_THREADING_THREAD_SAFE` through the generated
-/// `ComClass::Threading` associated type, which also determines their
-/// constructor pointer type.
-/// `IUnknown` is implicit and must not be listed. A callable implementation
-/// must not repeat its contract's interfaces on the struct attribute; the
-/// contract is the sole source of its queryable surface.
-/// Every class receives `from_value(value: Self)`. Unit structs also receive a
-/// zero-argument `create()` shortcut.
-///
-/// The older explicit descriptor form remains available for low-level
-/// no-argument classes. Typed constructors belong on callable class contracts.
 /// A callable contract's `auto_guid` text supplies both its normative name and
 /// stable class identity. Its descriptor version is the declaring crate's
 /// package version.
 #[proc_macro_attribute]
 pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as Item);
-    match input {
-        Item::Trait(input) => {
-            let args = parse_macro_input!(attr as ClassContractArgs);
-            match expand_com_class_contract(args, input) {
-                Ok(tokens) => tokens.into(),
-                Err(err) => err.to_compile_error().into(),
-            }
-        }
+    let item = parse_macro_input!(item as Item);
+    let input = match item {
+        Item::Trait(input) => input,
         Item::Struct(input) => {
-            let args = parse_macro_input!(attr as ClassArgs);
-            expand_com_class(args, input).into()
+            return syn::Error::new_spanned(
+                input.ident,
+                "com_class declares only callable class traits; use com_object for an implementation struct",
+            )
+            .to_compile_error()
+            .into();
         }
-        other => syn::Error::new_spanned(
-            other,
-            "com_class can only define a class contract trait or an implementation struct",
-        )
-        .to_compile_error()
-        .into(),
+        other => {
+            return syn::Error::new_spanned(other, "com_class can only declare a callable class trait")
+                .to_compile_error()
+                .into();
+        }
+    };
+    let args = parse_macro_input!(attr as ClassContractArgs);
+    match expand_com_class_contract(args, input) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
     }
 }
 
 /// Defines concrete COM object storage for a Rust implementation struct.
 ///
-/// `contract(Class)` implements one callable class contract without repeating
+/// A bare `Class` path implements one callable class contract without repeating
 /// its identity, constructor, or required protocol list. `interfaces(...)`
 /// exposes an object made only from shared interface contracts. Object storage
 /// is thread-local by default; `thread_safe` requires the stored Rust value to
@@ -278,7 +264,7 @@ pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as ClassArgs);
     let input = parse_macro_input!(item as ItemStruct);
-    expand_com_class(args, input).into()
+    expand_com_object(args, input).into()
 }
 
 /// Defines static plugin metadata from generated class descriptors.

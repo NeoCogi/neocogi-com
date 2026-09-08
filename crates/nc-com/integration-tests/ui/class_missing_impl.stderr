@@ -4,8 +4,8 @@ error[E0599]: the associated function or constant `__nc_new` exists for struct `
 3 | #[com_interface(auto_guid = "nc.tests.ui.MissingImpl:v1")]
   | ---------------------------------------------------------- associated function or constant `__nc_new` not found for this struct
 ...
-8 | #[com_class(interfaces(IMissingImpl))]
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ associated function or constant cannot be called on `IMissingImplInterfacesFor<MissingImpl>` due to unsatisfied trait bounds
+8 | #[com_object(interfaces(IMissingImpl))]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ associated function or constant cannot be called on `IMissingImplInterfacesFor<MissingImpl>` due to unsatisfied trait bounds
 9 | pub struct MissingImpl;
   | ---------------------- doesn't satisfy `MissingImpl: IMissingImpl`
   |
@@ -21,4 +21,4 @@ note: the trait `IMissingImpl` must be implemented
   |
 4 | pub trait IMissingImpl {
   | ^^^^^^^^^^^^^^^^^^^^^^
-  = note: this error originates in the attribute macro `com_class` (in Nightly builds, run with -Z macro-backtrace for more info)
+  = note: this error originates in the attribute macro `com_object` (in Nightly builds, run with -Z macro-backtrace for more info)

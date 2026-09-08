@@ -48,7 +48,7 @@ implementation struct in generated COM object storage with:
 - `QueryInterface`
 - constructors such as `from_value` and, for unit structs, `create`
 - generated class interface metadata
-- generated class descriptors when a callable `contract(...)` is provided,
+- generated class descriptors when a callable class path is provided,
   including
   `class_descriptor() -> &'static NcClassDescriptor`
 

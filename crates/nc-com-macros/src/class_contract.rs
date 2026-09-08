@@ -115,7 +115,7 @@ pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: Item
         #constructor_tokens
 
         // SAFETY: The primary projection and constructor frame above are
-        // generated from this exact class declaration. A `contract(...)`
+        // generated from this exact class declaration. A `com_object(Class)`
         // implementation publishes the same identities and frame decoder.
         unsafe impl #nc::ComClassContract for #class_abi_ident {
             type Arguments<'a> = #arguments_type;

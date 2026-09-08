@@ -1,5 +1,5 @@
 error: IUnknown is implicit for every COM class; remove it from interfaces(...)
- --> integration-tests/ui/class_explicit_iunknown.rs:3:24
+ --> integration-tests/ui/class_explicit_iunknown.rs:3:25
   |
-3 | #[com_class(interfaces(nc_com::IUnknown))]
-  |                        ^^^^^^^^^^^^^^^^
+3 | #[com_object(interfaces(nc_com::IUnknown))]
+  |                         ^^^^^^^^^^^^^^^^

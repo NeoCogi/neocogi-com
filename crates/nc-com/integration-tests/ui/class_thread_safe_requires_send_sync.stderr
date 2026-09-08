@@ -53,9 +53,9 @@ note: required because it appears within the type `NotActuallyThreadSafe`
 note: required by a bound in `assert_thread_safe`
   --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:9:1
    |
- 9 | #[com_class(thread_safe, interfaces(IThreadSafeRequiresSendSync))]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_thread_safe`
-   = note: this error originates in the attribute macro `com_class` (in Nightly builds, run with -Z macro-backtrace for more info)
+ 9 | #[com_object(thread_safe, interfaces(IThreadSafeRequiresSendSync))]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_thread_safe`
+   = note: this error originates in the attribute macro `com_object` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: `Rc<u32>` cannot be shared between threads safely
   --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
@@ -72,6 +72,6 @@ note: required because it appears within the type `NotActuallyThreadSafe`
 note: required by a bound in `assert_thread_safe`
   --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:9:1
    |
- 9 | #[com_class(thread_safe, interfaces(IThreadSafeRequiresSendSync))]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_thread_safe`
-   = note: this error originates in the attribute macro `com_class` (in Nightly builds, run with -Z macro-backtrace for more info)
+ 9 | #[com_object(thread_safe, interfaces(IThreadSafeRequiresSendSync))]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_thread_safe`
+   = note: this error originates in the attribute macro `com_object` (in Nightly builds, run with -Z macro-backtrace for more info)

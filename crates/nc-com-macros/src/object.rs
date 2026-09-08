@@ -1,4 +1,4 @@
-//! Expansion of Rust structs into reference-counted multi-interface COM classes.
+//! Expansion of Rust structs into reference-counted multi-interface COM objects.
 //!
 //! The generator builds one private allocation containing an atomic reference
 //! count, an `IUnknown` header, headers for each declared interface and its ancestors, and the Rust
@@ -12,7 +12,7 @@ use crate::args::{ClassArgs, ClassDescriptorArgs};
 use crate::util::{create_visibility, runtime_crate_path, stable_guid, validate_version_literal};
 
 /// Generates object storage, lifecycle thunks, interfaces, and optional metadata.
-pub(crate) fn expand_com_class(args: ClassArgs, input: ItemStruct) -> proc_macro2::TokenStream {
+pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macro2::TokenStream {
     // `FooComObject` is intentionally private generated storage. Users see the
     // original Rust `Foo` plus COM interface pointers; the storage layout is an
     // implementation detail owned by this macro.
