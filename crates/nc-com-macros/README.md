@@ -48,15 +48,18 @@ wraps the private implementation in generated COM object storage with:
 - `QueryInterface`
 - constructors such as `from_value` and, for unit structs, `create`
 - generated class interface metadata
-- optional generated class descriptors when `class_id(...)`, `name`,
-  `version`, and `constructor(...)` are provided, including
+- generated class descriptors when a callable `contract(...)` is provided,
+  including
   `class_descriptor() -> &'static NcClassDescriptor`
 
 A contract-backed implementation uses
-`#[com_class(contract(Class), constructor(args = none), interfaces(...))]`.
+`#[com_class(contract(Class), interfaces(...))]`. The class trait declares one
+`#[constructor]` function. Its parameters generate a typed, lifetime-safe
+constructor frame and an `arguments(...)` builder on the generated `ClassAbi`
+type; the constructor itself is excluded from the method vtable.
 The contract is automatically its first non-`IUnknown` projection and supplies
-the descriptor's class ID, name, and version. The explicit interface list is
-therefore reserved for additional queried capabilities.
+the descriptor's class ID, name, version, and constructor ABI hash. The explicit
+interface list is therefore reserved for additional queried capabilities.
 
 `IUnknown` is implicit in `#[com_class(interfaces(...))]`. The generated
 interface table contains its canonical descriptor first, followed by the listed
@@ -112,21 +115,40 @@ for in-process hosts. Call `nc_com::export_plugin!()` at the final shared
 library root to export `nc_get_plugin_descriptor`:
 
 ```rust
+use nc_com::{NcStatus, com_class};
+
 #[com_class(
     class_id(auto_guid = "example.Echo:class:v1"),
     name = "example.Echo:class:v1",
-    version = "1.0.0",
-    constructor(args = none),
-    interfaces(IEcho)
+    version = "1.0.0"
 )]
-pub struct Echo;
+pub trait Echo {
+    #[constructor]
+    fn new(code: u32) -> Result<Self, NcStatus>;
 
-plugin! {
+    fn code(&self) -> Result<u32, NcStatus>;
+}
+
+#[com_class(contract(Echo), interfaces())]
+pub struct EchoObject {
+    code: u32,
+}
+
+impl Echo for EchoObject {
+    fn new(code: u32) -> Result<Self, NcStatus> {
+        Ok(Self { code })
+    }
+
+    fn code(&self) -> Result<u32, NcStatus> {
+        Ok(self.code)
+    }
+}
+
+nc_com::plugin! {
     plugin_id(auto_guid = "example.echo_plugin:v1"),
     name = "example.echo_plugin:v1",
     version = "1.0.0",
-    dependencies = [FOUNDATION_PLUGIN_ID],
-    classes = [Echo],
+    classes = [EchoObject],
 }
 ```
 
@@ -137,7 +159,7 @@ pins, not arbitrary IDs. Contract crates should define constant paths with
 `guid_from_qualified_name` so hosts and plugins share one source of identity.
 The optional `dependencies = [...]` list contains hard
 plugin IDs that must already be registered. It never triggers path discovery or
-recursive loading. core ABI v3 descriptors remain declarative and have no
+recursive loading. core ABI v4 descriptors remain declarative and have no
 initialization hook.
 
 ## ABI Lowering

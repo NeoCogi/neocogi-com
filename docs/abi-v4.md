@@ -1,12 +1,12 @@
-# nc-com core ABI v3 Specification
+# nc-com core ABI v4 Specification
 
 Status: experimental draft (pre-alpha; not ratified)
 
-Core ABI version: `NC_COM_CORE_ABI_VERSION = 3`
+Core ABI version: `NC_COM_CORE_ABI_VERSION = 4`
 
 Dynamic plugin descriptor symbol: `nc_get_plugin_descriptor`
 
-This document specifies the same-process C-shaped ABI used by `nc-com` core ABI v3.
+This document specifies the same-process C-shaped ABI used by `nc-com` core ABI v4.
 It is intended to be precise enough for host/plugin authors, future nc-com
 maintainers, and independent tooling that validates or inspects runtime
 contracts.
@@ -41,14 +41,14 @@ The words "must", "must not", "should", and "may" are normative.
 - Draft means the ABI design may change incompatibly and carries no
   cross-release compatibility promise.
 - Ratified means a named release, source tag, and changelog entry have frozen
-  core ABI v3 as a compatibility baseline.
+  core ABI v4 as a compatibility baseline.
 - Published means introduced at or after that ratification baseline. Repository
   examples, draft golden vectors, and pre-alpha artifacts are not published ABI
   commitments merely because they are visible or distributed.
 
 ## 2. Scope
 
-nc-com core ABI v3 defines an explicit Rust-to-Rust component boundary by using a
+nc-com core ABI v4 defines an explicit Rust-to-Rust component boundary by using a
 C-shaped ABI. The Rust compiler's native ABI is not part of the contract.
 
 The explicit boundary consists of:
@@ -80,17 +80,17 @@ another explicit protocol. Bounded call-scoped copy buffers may cross through
 the `CopyFromBufferOffset<T>` and `CopyToBufferOffset<T>` passing modes. The
 built-in read-only byte and string interfaces are specified in section 15.
 
-ABI-v3 descriptor metadata exists for runtime identity, compatibility
+ABI-v4 descriptor metadata exists for runtime identity, compatibility
 validation, registration, construction, and inspection. It is deliberately not
 a source-level reflection schema. In particular, aggregate hashes are opaque,
 one-way compatibility fingerprints: runtime consumers compare and propagate
 them but do not reconstruct aggregate names, fields, variants, or declarations
-from them. Core ABI v3 does not define reverse generation of C headers, Rust types,
+from them. Core ABI v4 does not define reverse generation of C headers, Rust types,
 or other language bindings from a plugin binary or inspection artifact.
 
 ## 3. Process ABI Requirements
 
-nc-com core ABI v3 is a same-process raw pointer ABI. A host and component are
+nc-com core ABI v4 is a same-process raw pointer ABI. A host and component are
 compatible only when they share the same process ABI:
 
 - target architecture
@@ -118,11 +118,11 @@ artifacts when the explicit ABI surface is unchanged:
   errors
 
 Cross-architecture, cross-endian, cross-process, or cross-machine
-communication requires a serialization or RPC layer and is outside core ABI v3.
+communication requires a serialization or RPC layer and is outside core ABI v4.
 
 ### 3.1 Rust-to-Rust trust boundary
 
-Core ABI v3 is a Rust-to-Rust plugin contract. Supported hosts, runtimes, and
+Core ABI v4 is a Rust-to-Rust plugin contract. Supported hosts, runtimes, and
 plugins use nc-com's safe wrappers and generated ABI implementations on both
 sides of the shared-library boundary. The C-shaped records, raw pointers, and
 `extern "C"` functions provide a stable process ABI; they do not define a
@@ -176,7 +176,7 @@ change.
 
 The native C conformance fixture, or a deliberately handwritten unsafe adapter,
 must declare the same fields and function signatures using the corresponding
-target C types. core ABI v3 does not generate C headers, and a stale or incorrect
+target C types. core ABI v4 does not generate C headers, and a stale or incorrect
 independently maintained C declaration does not make the specified Rust/C
 representation ambiguous. Representative native-C calls and targeted layout
 assertions are useful regression tests, especially for a changed root record or
@@ -188,14 +188,14 @@ authority.
 
 ## 4. Core Versioning
 
-The v3 core ABI version is:
+The v4 core ABI version is:
 
 ```rust
-pub const NC_COM_CORE_ABI_VERSION: u32 = 3;
+pub const NC_COM_CORE_ABI_VERSION: u32 = 4;
 ```
 
-This value identifies the current draft binary generation; the number `3` is
-not a claim that core ABI v3 has been ratified. Before ratification, hosts and
+This value identifies the current draft binary generation; the number `4` is
+not a claim that core ABI v4 has been ratified. Before ratification, hosts and
 plugins built from different nc-com source releases are not guaranteed to
 interoperate, even when both report this value. After an unreleased draft ABI
 change, every host and plugin artifact must be rebuilt together. Once a draft
@@ -203,7 +203,7 @@ build has been distributed, a later incompatible binary shape must use a
 different ABI discriminator so stale artifacts are rejected rather than
 misinterpreted.
 
-No ABI-v3 ratification milestone has occurred. Ratification requires an
+No ABI-v4 ratification milestone has occurred. Ratification requires an
 explicit status change in this document, a named source tag/release, a changelog
 entry identifying the compatibility baseline, and locked golden vectors for
 the ratified contract. Until then, breaking draft changes and intentional
@@ -264,7 +264,7 @@ Rust adapters use `Result<T, NcStatus>` to preserve unknown component errors.
 The `Err` variant must contain a negative status. A Rust adapter that receives
 `Err(status)` with a non-negative value must return `NC_E_INVALID_ARG` across
 the ABI instead of forwarding the invalid success status. Negative values,
-including unknown errors, are preserved. core ABI v3 intentionally retains
+including unknown errors, are preserved. core ABI v4 intentionally retains
 `NcStatus` rather than introducing a separate negative-only Rust error type;
 normalization at each user-controlled `Result`-to-status boundary enforces the
 required invariant without changing the C-shaped ABI type.
@@ -297,8 +297,8 @@ pub const NC_GUID_NIL: NcGuid = NcGuid::from_fields(0, 0, 0, [0; 8]);
 ```
 
 The nil GUID must not be used as a valid plugin ID, class ID, or interface ID.
-core ABI v3 uses nil as an
-explicit sentinel for "constructor takes no arguments".
+The all-zero `NcAbiHash` is the separate constructor sentinel for “takes no
+arguments.”
 
 External textual GUIDs use canonical UUID format:
 
@@ -383,7 +383,7 @@ reserved qualified name is exactly `IUnknown`, and its IID remains the
 conventional non-v5 value. User-defined metadata may not claim that reserved
 IID/name pair except through the canonical root descriptor.
 
-The v3 built-in COM interface identities are:
+The v4 built-in COM interface identities are:
 
 | Interface | Qualified name | IID | ABI hash |
 | --- | --- | --- | --- |
@@ -419,7 +419,7 @@ every bit pattern is valid, that arbitrary storage is initialized, or that a
 tagged union's tag and active member agree. Consumers must establish those
 validity properties before materializing a typed Rust payload.
 
-The built-in v3 plain value set is:
+The built-in v4 plain value set is:
 
 - `bool`
 - `u8`, `u16`, `u32`, `u64`, `usize`
@@ -542,7 +542,7 @@ every tag with `#[com_tag(...)]`.
 
 ## 8. Object Model
 
-Every COM object implements `IUnknown`. The v3 `IUnknown` header is:
+Every COM object implements `IUnknown`. The v4 `IUnknown` header is:
 
 ```rust,ignore
 #[repr(C)]
@@ -552,7 +552,7 @@ pub struct IUnknown {
 }
 ```
 
-The v3 `IUnknown` vtable is:
+The v4 `IUnknown` vtable is:
 
 ```rust,ignore
 #[repr(C)]
@@ -588,7 +588,7 @@ pub struct IUnknownVTable {
   and transfers no reference.
 - Null, dangling, misaligned, aliased, or otherwise invalid arguments violate
   the caller contract. Implementations may reject some such inputs defensively,
-  but core ABI v3 specifies no status or output postcondition for an invalid call.
+  but core ABI v4 specifies no status or output postcondition for an invalid call.
 - The returned pointer may have a different address from the input interface
   pointer.
 - The call does not consume the borrowed reference represented by `this`.
@@ -1189,12 +1189,12 @@ whose advertised `abi_hash` does not match.
 
 ## 12. Descriptor Layouts
 
-All public descriptor structs are `repr(C)` exact v3 layouts. They do not carry
+All public descriptor structs are `repr(C)` exact v4 layouts. They do not carry
 per-descriptor `size` fields. Consumers interpret descriptor fields only after
 the plugin `core_abi_version` matches the host's supported
 `NC_COM_CORE_ABI_VERSION`.
 
-Existing v3 fields must not be reordered, removed, appended to, or
+Existing v4 fields must not be reordered, removed, appended to, or
 reinterpreted without a core ABI break.
 
 Fields declared as `Option<extern "C" fn>` use the nullable function-pointer
@@ -1217,7 +1217,7 @@ while the descriptor is visible to the host.
 
 Conforming producer metadata that is specified as text must be valid UTF-8.
 The core descriptor validator checks pointer/count consistency and UTF-8 before
-metadata is accepted. It also applies these v3 metadata policies:
+metadata is accepted. It also applies these v4 metadata policies:
 
 - Plugin, class, and interface qualified names contain `1..=1024` bytes.
 - A qualified name is a sequence of nonempty segments separated by `.` or `:`.
@@ -1359,7 +1359,7 @@ at 120); on a 32-bit target it is 112 bytes (base at 56, count at 104, methods a
 ```rust,ignore
 pub type NcConstructorFn = unsafe extern "C" fn(
     class: *const NcClassDescriptor,
-    arguments: *mut IUnknown,
+    arguments: *const c_void,
     out: *mut *mut IUnknown,
 ) -> NcStatus;
 ```
@@ -1367,8 +1367,12 @@ pub type NcConstructorFn = unsafe extern "C" fn(
 The constructor receives:
 
 - the class descriptor that owns the constructor
-- an optional borrowed `IUnknown` constructor argument object
+- a call-scoped pointer to the immutable constructor frame, or null for no arguments
 - an output slot for an owned `IUnknown` reference
+
+The frame pointer is not self-describing. The caller host passes the frame's ABI
+hash separately, and the runtime must match it against
+`NcClassDescriptor::constructor_abi_hash` before calling this function.
 
 `out` must be non-null and valid for one pointer write; a constructor called
 with a null `out` must fail with `NC_E_POINTER`. On success, `out` receives one
@@ -1397,7 +1401,7 @@ pub struct NcClassDescriptor {
     pub class_id: NcGuid,
     pub qualified_name: NcStaticUtf8,
     pub class_version: NcStaticUtf8,
-    pub constructor_args: NcInterfaceId,
+    pub constructor_abi_hash: NcAbiHash,
     pub threading: u32,
     pub construct: Option<NcConstructorFn>,
     pub interface_count: u32,
@@ -1429,10 +1433,18 @@ part of an interface ABI hash; the core ABI defines no class-interface-set signa
 hash. Handwritten descriptor producers may use another order, but must still
 provide exactly one canonical `IUnknown` and no duplicate IID.
 
-`constructor_args == NcInterfaceId::NONE` means the constructor takes no
-argument object. Otherwise, `arguments` passed to the constructor must be a
-borrowed `IUnknown` that supports the full `constructor_args` identity through
-`QueryInterface`. A successful constructor must return an object satisfying the
+For a constructor with parameters, `constructor_abi_hash` is
+`NcAbiHash::from_abi_parts` over one `NcAbiHashPart::Arg` per logical parameter
+in declaration order. Each part records its zero-based index, passing mode, and
+ABI type according to sections 7, 10, and 11. Parameter names and physical
+padding are not hash inputs. A constructor with no parameters uses
+`NcAbiHash::ZERO` instead of hashing an empty part list.
+
+`constructor_abi_hash == NcAbiHash::ZERO` means the constructor takes no
+arguments and its `arguments` pointer must be null. A nonzero hash identifies
+the complete ordered parameter contract of an immutable constructor frame, and
+its `arguments` pointer must be non-null. The frame and any nested borrows remain
+valid only for the constructor call. A successful constructor must return an object satisfying the
 class descriptor's threading promise. This is an unsafe producer contract:
 structural validation can validate the tag but cannot prove the behavior of
 plugin code. `#[com_class(thread_safe, ...)]` is the supported generated path and
@@ -1497,7 +1509,7 @@ non-null.
 Descriptor pointer fields must remain valid while the plugin is registered and
 while any plugin-created objects or factories may call plugin code.
 
-Plugin descriptors carry explicit hard dependency plugin IDs. core ABI v3 does not
+Plugin descriptors carry explicit hard dependency plugin IDs. core ABI v4 does not
 search for, resolve paths for, or recursively load those dependencies. An
 inspector can combine descriptors from an application-selected artifact set,
 reject duplicate IDs, missing dependencies, and cycles, and produce a
@@ -1515,7 +1527,7 @@ nc-com live activation calls must not be nested. While a host call to
 initialization or the plugin descriptor entrypoint must not directly or
 indirectly call nc-com live activation again. This is a trusted-plugin
 precondition, not a dependency-resolution mechanism. It applies whether the
-nested call targets the same library or a different one. core ABI v3 implementations
+nested call targets the same library or a different one. core ABI v4 implementations
 are not required to detect or diagnose a violation. Automatic mapping of ordinary
 native dependencies by the operating-system loader is permitted and is not a
 nested nc-com activation; those libraries remain outside the nc-com registry
@@ -1533,7 +1545,7 @@ The Rust `plugin!` macro only generates descriptors. A final dynamic-library
 root invokes `nc_com::export_plugin!()` (or passes an explicit descriptor function
 path). Static plugin assemblies omit that export and register the same metadata.
 
-A dynamic v3 plugin exports:
+A dynamic v4 plugin exports:
 
 ```rust,ignore
 pub unsafe extern "C" fn nc_get_plugin_descriptor(
@@ -1582,7 +1594,7 @@ A host must reject at least:
   requires a descriptor
 - nil class or interface IDs where forbidden
 - missing class constructors
-- invalid constructor argument interface identities
+- invalid constructor frame hashes or pointer shapes at activation
 - invalid class threading values
 - invalid referenced interface identities in typed method descriptors
 - interface ABI hashes that do not match typed method descriptors
@@ -1594,7 +1606,7 @@ The default `Runtime` performs additional policy validation described in
 section 14.
 
 Loading a dynamic library is a trust boundary. Platform loader code may run
-before `nc_get_plugin_descriptor` is queried. core ABI v3 descriptor validation is
+before `nc_get_plugin_descriptor` is queried. core ABI v4 descriptor validation is
 for trusted plugin metadata shape, not hostile plugin isolation. It does not
 sandbox plugin code, prove plugin trustworthiness, or make an untrusted shared
 library safe to load.
@@ -1608,7 +1620,7 @@ produce a recoverable validation error.
 
 ## 14. Runtime API and Registry Policy
 
-core ABI v3 does not define an operating-system registry, package database, or
+core ABI v4 does not define an operating-system registry, package database, or
 activation service. `nc-com-runtime` owns one private process-global runtime
 state containing separate plugin and type registries plus debug callback state.
 Rust callers use the `nc-com` `Runtime` facade and its `PluginRegistry`,
@@ -1672,7 +1684,7 @@ prefix is unchanged; a shorter table must not be read beyond its advertised
 size.
 
 All five tables target the same process-global runtime state. Loading multiple
-runtime shared libraries creates independent process-global runtime instances; core ABI v3
+runtime shared libraries creates independent process-global runtime instances; core ABI v4
 does not merge them.
 
 Runtime ABI v1 publishes two process-resource ceilings:
@@ -1704,7 +1716,8 @@ pub struct NcRuntimeApiV1 {
         unsafe extern "C" fn(
             NcGuid,
             u32,
-            *mut IUnknown,
+            NcAbiHash,
+            *const c_void,
             *mut *mut IUnknown,
         ) -> NcStatus,
 }
@@ -1728,7 +1741,7 @@ dynamic activation acquire exclusive publication access, so every individual
 runtime operation observes catalog state from before or after a commit, never
 during it. Count/fill enumeration order is therefore independent of hash-map
 iteration. Indexed lookup and precomputed relationship slices are implementation
-details: they do not change any core ABI v3 table, descriptor, status, or ordering
+details: they do not change any core ABI v4 table, descriptor, status, or ordering
 rule.
 
 The first successful registration owns its plugin ID and class IDs. Repeating
@@ -1781,15 +1794,18 @@ load attempt.
 `NC_E_NOINTERFACE` when the class does not implement the IID, and
 `NC_E_ABI_VERSION` when the IID exists with a different ABI hash.
 
-`construct_class` takes the requested pointer threading capability between the
-class ID and constructor arguments. Thread-local is accepted for either class
+`construct_class` takes the requested pointer threading capability and
+constructor ABI hash between the class ID and constructor frame pointer.
+Thread-local is accepted for either class
 mode. Thread-safe is accepted only when the registered class descriptor declares
 `NC_ABI_THREADING_THREAD_SAFE`. Unknown requested values and attempts to upgrade
 a thread-local class return `NC_E_INVALID_ARG` before the plugin constructor is
 invoked. The function clears `*out` before fallible work. A missing class returns
-`NC_E_NOT_FOUND`. `arguments`, when non-null, is one borrowed `IUnknown` valid
-for the call. On success, `out` receives one owned `IUnknown` reference with at
-least the requested threading capability.
+`NC_E_NOT_FOUND`. A hash that differs from the registered descriptor returns
+`NC_E_ABI_VERSION` before plugin code runs. Zero hash requires a null frame
+pointer; a nonzero hash requires a non-null pointer borrowed only for the call.
+On success, `out` receives one owned `IUnknown` reference with at least the
+requested threading capability.
 
 Runtime ABI v1 has no transactional C batch-loading operation. The Rust facade
 provides sequential convenience loading for a dependency-first plan. A later
@@ -1972,7 +1988,7 @@ pub struct NcClassInfoV1 {
     pub module_id: u64,
     pub qualified_name: NcUtf8View,
     pub version: NcUtf8View,
-    pub constructor_args: NcInterfaceId,
+    pub constructor_abi_hash: NcAbiHash,
     pub threading: u32,
 }
 ```
@@ -1986,11 +2002,11 @@ section 14.6.
 Info lookups return `NC_E_POINTER` for null output and `NC_E_NOT_FOUND` for a
 missing identity. A class `module_id` of zero denotes static registration.
 Returned UTF-8 views remain valid until the runtime shared library is unloaded;
-callers must not modify or free them. core ABI v3 does not support plugin unload.
+callers must not modify or free them. core ABI v4 does not support plugin unload.
 
 The `nc-com-inspect` JSON file is a versioned tooling artifact, not another ABI
-core v3 memory layout and not a source-reconstruction format. Its schema version is
-independent of `NC_COM_CORE_ABI_VERSION`. A schema-v2 artifact records the producing
+core v4 memory layout and not a source-reconstruction format. Its schema version is
+independent of `NC_COM_CORE_ABI_VERSION`. A schema-v3 artifact records the producing
 tool version, target triple, pointer width, endianness, core ABI version, and
 owned plugin/class/interface identities, ABI hashes, and method diagnostics.
 Readers must reject unknown fields and unsupported schema versions and must
@@ -2002,7 +2018,7 @@ aggregate definitions. Human-readable method signatures are derived diagnostics
 only and are not reverse-parsed to reconstruct or independently validate an
 interface contract. The inspector validates the complete typed descriptor and
 recomputes its advertised interface hash while the library is mapped, before
-writing the artifact. core ABI v3 does not promise that an inspection artifact can
+writing the artifact. core ABI v4 does not promise that an inspection artifact can
 recreate Rust traits, C declarations, vtables, aggregate layouts, or source
 definitions.
 
@@ -2013,7 +2029,7 @@ artifact. Compatibility mode uses the interface `(IID, ABI hash)` pair as the
 complete interface-contract authority; it does not parse method diagnostics.
 
 Compatibility requires the same plugin ID, target facts, and core ABI version.
-Every old class ID must remain present with the same constructor interface. A
+Every old class ID must remain present with the same constructor-frame ABI hash. A
 `thread_safe` class must not become `thread_local`. For each old class, every
 old interface IID must remain on that class with the same ABI hash. Removing a
 class or interface, changing an existing IID's hash, changing constructor
@@ -2119,7 +2135,7 @@ make arbitrary non-null pointers safe.
 
 ## 15. Built-In Data Interfaces
 
-core ABI v3 defines two common read-only data interfaces.
+core ABI v4 defines two common read-only data interfaces.
 
 ### 15.1 `INcBytesAbi`
 
@@ -2252,7 +2268,7 @@ classes and interfaces came from that module. These IDs are not part of the
 cross-process ABI and are not passed to constructors or stored in generated
 object storage.
 
-core ABI v3 intentionally does not support explicit plugin unload or hot reload.
+core ABI v4 intentionally does not support explicit plugin unload or hot reload.
 Dynamic library unload is not a reliable rollback boundary for in-process
 plugins: loading a library may run platform loader code, initialize globals or
 thread-local state, register callbacks, start threads, publish function
@@ -2287,30 +2303,30 @@ Generated descriptor constructors use `construct_class_checked`. That helper:
 - clears `*out` before fallible work
 - rejects null `class` with `NC_E_POINTER`
 - validates the expected class ID
-- validates the expected constructor argument interface identity
+- validates the expected constructor-frame ABI hash
 - validates that a constructor exists
 - validates argument shape
 - writes one owned `IUnknown` pointer on success
 - preserves negative errors returned by the Rust builder and normalizes a
   non-negative status carried by `Result::Err` to `NC_E_INVALID_ARG`
 
-If `constructor_args == NcInterfaceId::NONE`, `arguments` must be null. If
-`constructor_args` is not `NcInterfaceId::NONE`, `arguments` must be non-null
-and must support that full interface identity through `QueryInterface`. The
-validation query releases the temporary owned reference immediately.
+If `constructor_abi_hash == NcAbiHash::ZERO`, `arguments` must be null. A
+nonzero constructor hash requires a non-null frame pointer. The caller must
+keep the frame and every nested buffer or COM borrow readable and immutable
+until the constructor returns.
 
-Construction through `Runtime` or `NcRuntimeApiV1::construct_class`
-performs this descriptor-declared argument validation before calling the raw
-class constructor, including custom constructor functions. Direct manual calls
-to an `NcConstructorFn` remain the caller's responsibility.
+Construction through `Runtime` or `NcRuntimeApiV1::construct_class` performs
+this descriptor-declared hash and pointer-shape validation before calling the
+raw class constructor. Direct manual calls to an `NcConstructorFn` remain the
+caller's responsibility.
 
-Default macro-generated descriptor constructors are available only for
-no-argument construction. Classes that need domain-specific constructor
-arguments must provide a custom constructor function. In Rust macro syntax,
-non-unit classes must explicitly opt into default construction with
-`constructor(args = none, default)` and implement `Default`; otherwise the class
-must provide `function = path`. This `Default` opt-in is a Rust macro policy, not
-an ABI requirement.
+The supported typed Rust path declares one `#[constructor]` function on a
+callable `#[com_class]` trait. The macro lowers its ordered parameters into a
+private `repr(C)` frame, generates a lifetime-bound wrapper and an
+`arguments(...)` builder, stores the frame hash in the class descriptor, and
+decodes the frame inside the implementation library. The frame supports plain
+ABI values, immutable call-scoped buffers, and borrowed COM references. It is
+not a COM object and has no runtime reflection or dynamically typed value bag.
 
 ## 18. Threading Model
 
@@ -2365,7 +2381,7 @@ Both levels are required. `ComClass::Threading` can describe the producer while
 the concrete class type is statically known, but an interface pointer erases
 that class type. The interface type `T` cannot replace it because multiple
 classes with different threading promises may implement the same interface.
-Nor can the raw pointer replace it: core ABI v3 deliberately gives both modes the
+Nor can the raw pointer replace it: core ABI v4 deliberately gives both modes the
 same representation and stores no per-pointer threading tag. The `ComPtr` or
 `ComRef` marker therefore carries the validated producer evidence through class
 type erasure so Rust can enforce `Send` and `Sync` without a runtime check on
@@ -2388,7 +2404,7 @@ descriptor producers that declare `THREAD_SAFE` assume this unsafe contract.
 
 The built-in process-global runtime is thread-safe.
 
-core ABI v3 does not define COM apartments, thread affinity marshaling, or an
+core ABI v4 does not define COM apartments, thread affinity marshaling, or an
 inter-thread proxy system.
 
 ## 19. Panic and Error Boundaries
@@ -2420,7 +2436,7 @@ registries merely because the operating-system loader mapped them.
 Load or validation failures abort because dynamic loading may already have run
 unsafe process-mutating code.
 
-core ABI v3 does not define:
+core ABI v4 does not define:
 
 - search paths
 - platform-specific file extensions
@@ -2456,7 +2472,7 @@ contracts exposed by those libraries.
 ## 21. ABI Evolution Rules
 
 The no-mutation rules in this section apply to published contracts beginning at
-the explicit ABI-v3 ratification baseline. During the experimental draft phase,
+the explicit ABI-v4 ratification baseline. During the experimental draft phase,
 they describe the intended post-freeze policy rather than a promise of
 compatibility with earlier pre-alpha revisions.
 
@@ -2529,7 +2545,7 @@ The contract crate should not contain:
 - heap-owned Rust containers crossing the boundary
 - host-specific activation policy
 
-Recommended release policy after ABI-v3 ratification:
+Recommended release policy after ABI-v4 ratification:
 
 - patch releases change documentation, tests, or non-ABI internals only
 - minor releases add side-by-side interfaces, classes, records, or enum values
@@ -2557,7 +2573,7 @@ Golden tests should assert:
 The ABI is C-compatible when C declarations exactly match the current core layouts,
 calling convention, status values, ownership rules, and pointer lifetimes.
 
-core ABI v3 does not currently define a canonical generated C header format. Header
+core ABI v4 does not currently define a canonical generated C header format. Header
 generation is a tooling layer on top of this specification. C consumers are
 responsible for using matching declarations and for obeying COM reference
 ownership.
@@ -2569,7 +2585,7 @@ the exact mapping.
 
 ## 24. Non-Goals
 
-core ABI v3 does not specify:
+core ABI v4 does not specify:
 
 - Windows COM apartments
 - Windows registry activation
@@ -2592,7 +2608,7 @@ core ABI v3 does not specify:
 
 ## 25. Application Responsibilities
 
-The v3 core ABI is suitable for same-process Rust component boundaries. It
+The v4 core ABI is suitable for same-process Rust component boundaries. It
 deliberately does not define an application shell, package manager, plugin
 marketplace, or operating-system style activation database.
 

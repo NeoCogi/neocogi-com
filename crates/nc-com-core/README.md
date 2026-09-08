@@ -1,7 +1,7 @@
 # nc-com-core
 
 `nc-com-core` contains the small C-shaped ABI contract used by `nc-com` hosts
-and plugins. core ABI v3 is currently an experimental pre-alpha draft, not a
+and plugins. core ABI v4 is currently an experimental pre-alpha draft, not a
 ratified cross-release compatibility promise.
 
 This crate is intentionally minimal. It defines the C-shaped types that must be
@@ -20,6 +20,7 @@ live in `nc-com`.
 - static UTF-8 metadata
 - method descriptors with typed parameter/return metadata, plus interface,
   class, class-table, and plugin descriptors
+- immutable typed constructor frames identified by a class descriptor hash
 - runtime, plugin registry, type registry, inspection, and debug API v1 table layouts
 - `NC_COM_CORE_ABI_VERSION` and `NC_COM_RUNTIME_ABI_VERSION`
 - `nc_get_plugin_descriptor` symbol and function signature
@@ -63,7 +64,7 @@ Ordinary component contracts should use `#[com_interface]` from `nc-com`, which
 generates the implementation. Handwritten implementations are reserved for
 low-level foreign-interface adapters and require an explicit `unsafe impl`.
 
-core ABI v3 plugin descriptors contain declarative metadata only. Hosts explicitly
+core ABI v4 plugin descriptors contain declarative metadata only. Hosts explicitly
 load dependencies before dependents; registration does not discover or load
 dependencies.
 

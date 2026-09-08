@@ -29,6 +29,12 @@ process-global registries untouched. The descriptor graph is valid only for the
 callback contract, while the opened module itself remains pinned until process
 exit.
 
+Class activation compares the caller's constructor-frame ABI hash with the
+class descriptor before invoking plugin code. A zero hash requires a null frame
+pointer; a nonzero hash requires an immutable frame pointer. The runtime never
+interprets frame fields or queries a constructor-argument object: the generated
+class contract owns the frame layout and decodes it in the defining plugin.
+
 The crate has no optional features; the runtime C ABI exports are always
 compiled.
 
@@ -39,7 +45,7 @@ catalog `RwLock` permits concurrent reads and publishes static registration or
 dynamic activation as a blocking write transaction. A successful activation
 makes its retained native handle, module provenance, plugin, classes,
 relationships, and identity mappings visible together. No hash-map iteration
-order is exposed through core ABI v3.
+order is exposed through core ABI v4.
 
 Plugin loading, descriptor invocation, and descriptor validation happen before
 the catalog write lock is acquired. nc-com never invokes plugin constructors,

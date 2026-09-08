@@ -192,12 +192,12 @@ unsafe extern "C" fn(this: *mut IFlushableAbi) -> NcStatus
 `nc-com` is not a C SDK generator. The ABI is C-compatible and is tested from
 native C, but the focus is Rust components using a C ABI as the stable
 compatibility layer across independently built Rust artifacts after an explicit
-ABI ratification milestone. The current ABI-v3 definition is still a pre-alpha
+ABI ratification milestone. The current ABI-v4 definition is still a pre-alpha
 draft.
 
 C header generation, language bindings, and C-first distribution should be a
 separate project/tooling layer that consumes original contract definitions or
-other build-time inputs. ABI-v3 runtime descriptors are validation metadata,
+other build-time inputs. ABI-v4 runtime descriptors are validation metadata,
 not a reflection schema, and are never intended for reverse generation of
 source declarations. This crate should remain focused on defining and enforcing
 the Rust-side ABI model.
@@ -213,7 +213,7 @@ This root README is the canonical long-form usage guide and the only place that
 maintains the exact local/CI compatibility-test matrix. The published
 `nc-com` crate README is a shorter package entry point, crate-level rustdoc owns
 compiled API examples and feature-sensitive API documentation, and
-[`docs/abi-v3.md`](docs/abi-v3.md) is the normative ABI specification. Shorter
+[`docs/abi-v4.md`](docs/abi-v4.md) is the normative ABI specification. Shorter
 documents link here for detailed workflows instead of copying exact test rows.
 
 ## Example
@@ -273,6 +273,9 @@ use nc_com::{NcStatus, com_class};
     version = "1.0.0"
 )]
 pub trait Counter {
+    #[constructor]
+    fn new(initial: u32) -> Result<Self, NcStatus>;
+
     fn value(&self) -> Result<u32, NcStatus>;
 }
 ```
@@ -286,17 +289,23 @@ The implementation crate keeps its state private and binds it to that contract:
 #     name = "example.Counter:v1",
 #     version = "1.0.0"
 # )]
-# pub trait Counter { fn value(&self) -> Result<u32, NcStatus>; }
-#[com_class(
-    contract(Counter),
-    constructor(args = none),
-    interfaces()
-)]
-struct CounterObject;
+# pub trait Counter {
+#     #[constructor]
+#     fn new(initial: u32) -> Result<Self, NcStatus>;
+#     fn value(&self) -> Result<u32, NcStatus>;
+# }
+#[com_class(contract(Counter), interfaces())]
+struct CounterObject {
+    initial: u32,
+}
 
 impl Counter for CounterObject {
+    fn new(initial: u32) -> Result<Self, NcStatus> {
+        Ok(Self { initial })
+    }
+
     fn value(&self) -> Result<u32, NcStatus> {
-        Ok(42)
+        Ok(self.initial)
     }
 }
 ```
@@ -308,14 +317,18 @@ After registering the containing plugin, a host activates and calls the class
 without spelling its ID or querying a companion interface:
 
 ```rust,ignore
-let counter = nc_com::Runtime::global().construct::<CounterAbi>()?;
+let arguments = CounterAbi::arguments(42)?;
+let counter = nc_com::Runtime::global().construct::<CounterAbi>(arguments)?;
 assert_eq!(counter.value()?, 42);
 ```
 
-Callable class contracts currently use no-argument activation. Constructor
-parameters will use generated typed argument frames; applications should not
-introduce `Any`, property bags, or hand-written argument interfaces around this
-temporary limitation.
+The `#[constructor]` function is not placed in the class vtable. Its parameters
+instead generate a private `repr(C)` frame, a lifetime-safe argument wrapper,
+and the `CounterAbi::arguments(...)` builder. Plain ABI values,
+`NcCopyFromBufferOffset<'_, T>`, and `ComRef<'_, T>` are supported. The runtime
+passes the immutable frame only for the constructor call and verifies its ABI
+hash before entering plugin code. There is no `Any`, reflection, property bag,
+or constructor-argument COM object.
 
 Unregistered implementation classes may have Rust type or const parameters,
 default type arguments, and ordinary `where` bounds. Their exposed interfaces
@@ -602,18 +615,36 @@ descriptor carries the core ABI version, plugin identity, and the class table:
 #[nc_com::com_class(
     class_id(auto_guid = "example.Widget:class:v1"),
     name = "example.Widget:class:v1",
-    version = "1.0.0",
-    constructor(args = none),
-    interfaces(IWidget)
+    version = "1.0.0"
 )]
-pub struct Widget;
+pub trait Widget {
+    #[constructor]
+    fn new(width: u32) -> Result<Self, nc_com::NcStatus>;
+
+    fn width(&self) -> Result<u32, nc_com::NcStatus>;
+}
+
+#[nc_com::com_class(contract(Widget), interfaces())]
+pub struct WidgetObject {
+    width: u32,
+}
+
+impl Widget for WidgetObject {
+    fn new(width: u32) -> Result<Self, nc_com::NcStatus> {
+        Ok(Self { width })
+    }
+
+    fn width(&self) -> Result<u32, nc_com::NcStatus> {
+        Ok(self.width)
+    }
+}
 
 nc_com::plugin! {
     plugin_id(auto_guid = "example.widget_plugin:v1"),
     name = "example.widget_plugin:v1",
     version = "1.0.0",
     dependencies = [FOUNDATION_PLUGIN_ID],
-    classes = [Widget],
+    classes = [WidgetObject],
 }
 ```
 
@@ -621,7 +652,7 @@ nc_com::plugin! {
 `auto_guid = "stable.Name:v1"`, or a path to an `NcGuid` constant. Every form
 must match the adjacent normative qualified name. Contract crates should define
 constant paths with `guid_from_qualified_name` so hosts and plugins share one
-source of identity. core ABI v3 descriptors are declarative and have no
+source of identity. core ABI v4 descriptors are declarative and have no
 initialization callback.
 
 The `plugin!` macro emits `pub fn plugin_descriptor() -> &'static
@@ -640,8 +671,7 @@ behind the final library's dynamic feature when supporting both modes.
 
 The class table enumerates constructible classes. Each class descriptor carries
 a stable class ID, static qualified name/version metadata, the constructor
-argument interface identity, generated interface metadata, and a constructor
-function:
+frame ABI hash, generated interface metadata, and a constructor function:
 
 Every class interface table contains the canonical `IUnknown` descriptor
 exactly once. `#[com_class]` inserts it first, then preserves the source order of
@@ -650,14 +680,14 @@ are rejected.
 
 ```rust
 static CLASSES: [nc_com::NcClassDescriptor; 1] = [nc_com::NcClassDescriptor {
-    class_id: WIDGET_CLASS_ID,
+    class_id: WidgetAbi::CLASS_ID,
     qualified_name: nc_com::NcStaticUtf8::from_static("example.Widget"),
     class_version: nc_com::NcStaticUtf8::from_static("1.0.0"),
-    constructor_args: IWidgetArgsAbi::INTERFACE_ID,
+    constructor_abi_hash: WidgetAbi::CONSTRUCTOR_ABI_HASH,
     threading: nc_com::NC_ABI_THREADING_THREAD_LOCAL,
     construct: Some(construct_widget),
-    interface_count: Widget::COM_INTERFACES.len() as u32,
-    interfaces: Widget::COM_INTERFACES.as_ptr(),
+    interface_count: WidgetObject::COM_INTERFACES.len() as u32,
+    interfaces: WidgetObject::COM_INTERFACES.as_ptr(),
 }];
 
 static CLASS_TABLE: nc_com::NcClassTable = nc_com::NcClassTable {
@@ -690,40 +720,30 @@ External contracts remain visible as constructor arguments, method arguments,
 return values, or explicit capability interfaces; their interface IDs and ABI
 hashes remain the binary contract.
 
-The constructor receives the descriptor it is being called through, an optional
-borrowed `IUnknown` for constructor arguments, and an output slot for the new
-object's owned `IUnknown`:
+The generated constructor receives the descriptor it is being called through,
+an erased pointer to the immutable constructor frame, and an output slot for the
+new object's owned `IUnknown`:
 
-```rust
+```rust,ignore
 unsafe extern "C" fn construct_widget(
     class: *const nc_com::NcClassDescriptor,
-    arguments: *mut nc_com::IUnknown,
+    arguments: *const core::ffi::c_void,
     out: *mut *mut nc_com::IUnknown,
-) -> nc_com::NcStatus {
-    unsafe {
-        nc_com::construct_class_checked(
-            class,
-            arguments,
-            out,
-            WIDGET_CLASS_ID,
-            IWidgetArgsAbi::INTERFACE_ID,
-            |arguments| {
-                let args =
-                    nc_com::query_constructor_arguments::<IWidgetArgsAbi>(arguments)?;
-                Ok(Widget::from_value(Widget::new(args.width()?)))
-            },
-        )
-    }
-}
+) -> nc_com::NcStatus;
 ```
+
+Application code normally never writes this function. The class macro emits it,
+checks the descriptor and frame hash, decodes the generated frame, invokes the
+trait constructor, and publishes the resulting owned COM object.
 
 Constructor rules:
 
 - The constructor validates that `class.class_id` is the class it knows how to
   build.
-- Constructor arguments are COM objects. `NcInterfaceId::NONE` means no
-  arguments are accepted. Otherwise the borrowed argument object must support
-  the declared full interface identity through `QueryInterface`.
+- `NcAbiHash::ZERO` plus a null pointer is the canonical no-argument frame.
+- A typed constructor uses a non-zero generated ABI hash and a non-null frame
+  pointer. The runtime rejects a hash or pointer-shape mismatch before plugin
+  code runs.
 - Success writes one owned `IUnknown`; callers use hash-checked
   `QueryInterface` for the interface they need.
 - Failure clears `out`.
@@ -809,7 +829,7 @@ let base = &loaded[0];
 # let _ = base;
 ```
 
-core ABI v3 does not discover paths or recursively load plugin dependencies. Use
+core ABI v4 does not discover paths or recursively load plugin dependencies. Use
 `nc-com-inspect plan` to validate dependencies and produce this explicit order.
 Live activation calls must not be nested: native loader initialization and the
 descriptor entrypoint must not directly or indirectly call nc-com loading while
@@ -1123,17 +1143,17 @@ break. Create a new interface version instead.
 
 ## ABI Compatibility Policy
 
-The current draft core ABI v3 specification lives in
-[`docs/abi-v3.md`](docs/abi-v3.md). core ABI v3 uses an unversioned plugin descriptor
-entrypoint. core ABI v3 is an experimental pre-alpha draft and has not been
+The current draft core ABI v4 specification lives in
+[`docs/abi-v4.md`](docs/abi-v4.md). core ABI v4 uses an unversioned plugin descriptor
+entrypoint. core ABI v4 is an experimental pre-alpha draft and has not been
 ratified. Cross-release compatibility begins only when a named release/tag and
-changelog entry explicitly establish the ABI-v3 freeze baseline. Until then,
+changelog entry explicitly establish the ABI-v4 freeze baseline. Until then,
 breaking draft changes and intentional golden-vector updates are permitted;
 hosts and plugins from different nc-com source releases are not guaranteed to
 interoperate.
 `IUnknown::QueryInterface` receives an `NcInterfaceId`, which pairs the IID
-with the expected interface ABI hash. Class descriptors carry constructor
-arguments as the same `NcInterfaceId` shape.
+with the expected interface ABI hash. Class descriptors carry a separate hash
+for their immutable typed constructor frame.
 
 For interfaces, binary compatibility is identified by the pair:
 
@@ -1146,7 +1166,7 @@ offsets, passing modes, void versus `out` returns, `ComRef` borrowed parameters,
 `ComPtr` owned returns, safe buffer passing modes, referenced interface IIDs and
 ABI hashes, and the `NcStatus` status convention.
 
-The hash input grammar is itself part of the ABI policy. Once core ABI v3 has been
+The hash input grammar is itself part of the ABI policy. Once core ABI v4 has been
 ratified and an interface has been published, changing how `nc-com`
 canonicalizes the same Rust interface into hash input is an ABI-policy event,
 even if the generated vtable layout would
@@ -1553,7 +1573,7 @@ scripts/test-quality.sh
 
 It runs formatting, Clippy over all targets and features with warnings denied,
 the supported reduced-feature checks, compiled normative examples embedded in
-`docs/abi-v3.md`, repository-local Markdown links, and rustdoc with warnings
+`docs/abi-v4.md`, repository-local Markdown links, and rustdoc with warnings
 and missing public documentation denied for the workspace/all-feature, facade
 default-feature, no-default, and alloc-only modes. Each shipped Rust crate also
 denies `missing_docs` at its crate root, so ordinary checks reject undocumented
