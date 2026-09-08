@@ -6,7 +6,7 @@ Most users should not depend on this crate directly. Depend on `nc-com` and use
 the macros re-exported from there:
 
 ```rust
-use nc_com::{com_class, com_interface, com_struct, com_enum, plugin};
+use nc_com::{com_class, com_enum, com_interface, com_object, com_struct, plugin};
 ```
 
 Direct use is mainly useful for development of the `nc-com` workspace itself or
@@ -37,10 +37,10 @@ versus `out` returns, `ComRef` borrowed parameters, `ComPtr` owned returns, safe
 buffer passing modes, COM threading mode, referenced interface IDs, and
 referenced interface ABI hashes.
 
-`#[com_class]` has two related forms. On a trait it declares one registered
-class's primary callable contract and generates the same C-shaped call machinery
-without requiring a separately authored `IClass` interface. On a struct it
-wraps the private implementation in generated COM object storage with:
+`#[com_class]` declares one registered class's primary callable contract on a
+trait and generates the same C-shaped call machinery without requiring a
+separately authored `IClass` interface. `#[com_object]` wraps a private
+implementation struct in generated COM object storage with:
 
 - `IUnknown`
 - one ABI header per exposed interface
@@ -53,7 +53,7 @@ wraps the private implementation in generated COM object storage with:
   `class_descriptor() -> &'static NcClassDescriptor`
 
 A contract-backed implementation uses
-`#[com_class(contract(Class))]`. The class trait declares one
+`#[com_object(contract(Class))]`. The class trait declares one
 `#[constructor]` function. Its parameters generate a typed, lifetime-safe
 constructor frame and an `arguments(...)` builder on the generated `ClassAbi`
 type; the constructor itself is excluded from the method vtable.
@@ -62,23 +62,23 @@ the descriptor's class ID, name, version, constructor ABI hash, and required
 interface set. Supertraits on the class declaration become separate queryable
 projections on the same object; the implementation struct does not repeat them.
 
-`IUnknown` is implicit in `#[com_class(interfaces(...))]`. The generated
+`IUnknown` is implicit in `#[com_object(interfaces(...))]`. The generated
 interface table contains its canonical descriptor first, followed by the listed
 interfaces in declaration order. Explicit `IUnknown` and duplicate entries are
 rejected. Listed paths must also have distinct final names because those names
 determine generated storage fields and companion ABI types.
 
-Classes are thread-local by default. `#[com_class(thread_safe, ...)]` requires
+Objects are thread-local by default. `#[com_object(thread_safe, ...)]` requires
 the Rust value to be `Send + Sync`, returns `ComPtr<_, ThreadSafe>`, and records
 the choice once as `ComClass::Threading`. Generated constructor pointer types,
 constructor validation, and `NC_ABI_THREADING_THREAD_SAFE` descriptor metadata
 all derive from that associated type so dynamic hosts can request the capability
 without an unchecked raw-pointer conversion.
 
-| Class declaration | `ComClass::Threading` | Generated pointer | Descriptor threading |
+| Object declaration | `ComClass::Threading` | Generated pointer | Descriptor threading |
 |---|---|---|---|
-| `#[com_class(...)]` | `ThreadLocal` | `ComPtr<_, ThreadLocal>` | `THREAD_LOCAL` |
-| `#[com_class(thread_safe, ...)]` | `ThreadSafe` | `ComPtr<_, ThreadSafe>` | `THREAD_SAFE` |
+| `#[com_object(...)]` | `ThreadLocal` | `ComPtr<_, ThreadLocal>` | `THREAD_LOCAL` |
+| `#[com_object(thread_safe, ...)]` | `ThreadSafe` | `ComPtr<_, ThreadSafe>` | `THREAD_SAFE` |
 
 The associated type keeps generation internally consistent while the class is
 known. The pointer still needs its own marker because returning an interface

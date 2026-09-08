@@ -438,7 +438,7 @@ pub use data::{
     INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString,
 };
 #[cfg(feature = "macros")]
-pub use macros::{com_class, com_enum, com_interface, com_struct, plugin};
+pub use macros::{com_class, com_enum, com_interface, com_object, com_struct, plugin};
 #[cfg(feature = "alloc")]
 pub use nc_com_core::format_method_signature;
 pub use nc_com_core::{

@@ -11,7 +11,7 @@ use syn::{Ident, LitInt, LitStr, Path, Result, Token, Type, parenthesized};
 
 use crate::util::{interface_field, path_with_last_ident};
 
-/// Parsed options for `#[com_class]`.
+/// Parsed options for concrete `#[com_object]` storage generation.
 pub(crate) struct ClassArgs {
     /// Explicit interface list after deriving ABI and vtable helper paths.
     pub(crate) interfaces: Vec<ClassInterface>,

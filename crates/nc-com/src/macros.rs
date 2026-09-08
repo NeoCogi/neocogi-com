@@ -7,7 +7,7 @@
 //! participating in the `AbiType` and `AbiPlainValue` contracts.
 
 #[cfg(feature = "macros")]
-pub use nc_com_macros::{com_class, com_enum, com_interface, com_struct, plugin};
+pub use nc_com_macros::{com_class, com_enum, com_interface, com_object, com_struct, plugin};
 
 /// Defines an ABI-stable enum-like integer newtype.
 ///

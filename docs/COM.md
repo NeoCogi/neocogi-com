@@ -144,7 +144,8 @@ policy.
 - `#[com_interface]` for defining a Rust implementation trait and generating a
   C-compatible `*Abi` interface header, `*VTable`, and safe `ComPtr` extension
   methods.
-- `#[com_class]` for wrapping a Rust struct in generated COM object storage with
+- `#[com_class]` for declaring a callable class contract with a typed constructor.
+- `#[com_object]` for wrapping a Rust struct in generated COM object storage with
   `IUnknown`, hash-checked `QueryInterface`, one header per exposed interface,
   and atomic reference counting.
 - `ComPtr<T>` for owned COM references.
@@ -219,14 +220,14 @@ documents link here for detailed workflows instead of copying exact test rows.
 ## Example
 
 ```rust
-use nc_com::{ComPtr, IUnknown, NcStatus, com_class, com_interface};
+use nc_com::{ComPtr, IUnknown, NcStatus, com_interface, com_object};
 
 #[com_interface(auto_guid = "example.Calculator:v1")]
 pub trait ICalculator {
     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
 }
 
-#[com_class(interfaces(ICalculator))]
+#[com_object(interfaces(ICalculator))]
 pub struct Calculator;
 
 impl ICalculator for Calculator {
@@ -255,7 +256,7 @@ It also generates the unsafe `ComInterface` implementation for
 safe. Manually implementing `ComInterface` is an advanced unsafe FFI extension
 point, not an alternative contract-authoring path.
 
-`#[com_class]` generates object storage and constructors. Unit structs receive
+`#[com_object]` generates object storage and constructors. Unit structs receive
 `create()`. Structs with fields receive `from_value(value)`.
 
 ### Callable class contracts
@@ -279,14 +280,14 @@ pub trait Counter {
 The implementation crate keeps its state private and binds it to that contract:
 
 ```rust
-# use nc_com::{NcStatus, com_class};
+# use nc_com::{NcStatus, com_class, com_object};
 # #[com_class(auto_guid = "example.Counter:v1")]
 # pub trait Counter {
 #     #[constructor]
 #     fn new(initial: u32) -> Result<Self, NcStatus>;
 #     fn value(&self) -> Result<u32, NcStatus>;
 # }
-#[com_class(contract(Counter))]
+#[com_object(contract(Counter))]
 struct CounterObject {
     initial: u32,
 }

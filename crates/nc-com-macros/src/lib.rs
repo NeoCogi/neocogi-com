@@ -7,7 +7,8 @@
 //!   contract and generates a C-compatible `*Abi` interface type, `*VTable`,
 //!   safe `ComPtr` extension methods, static interface ABI metadata, and the
 //!   `unsafe impl nc_com::ComInterface` that certifies their raw invariants.
-//! - [`com_class`] wraps a Rust struct in generated storage containing
+//! - [`com_class`] declares a callable class contract with a typed constructor.
+//! - [`com_object`] wraps a Rust implementation struct in generated storage containing
 //!   `IUnknown`, one header per exposed interface, an atomic reference count,
 //!   and the original Rust value. It also generates class interface metadata
 //!   from `interfaces(...)`. Classes are thread-local by default; add
@@ -248,6 +249,36 @@ pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
         .to_compile_error()
         .into(),
     }
+}
+
+/// Defines concrete COM object storage for a Rust implementation struct.
+///
+/// `contract(Class)` implements one callable class contract without repeating
+/// its identity, constructor, or required protocol list. `interfaces(...)`
+/// exposes an object made only from shared interface contracts. Object storage
+/// is thread-local by default; `thread_safe` requires the stored Rust value to
+/// satisfy the corresponding concurrency contract.
+///
+/// ```text
+/// #[com_object(contract(Calculator))]
+/// pub struct CalculatorObject {
+///     value: i32,
+/// }
+///
+/// #[com_object(interfaces(IEventSink))]
+/// struct EventSink {
+///     pending: bool,
+/// }
+/// ```
+///
+/// The generated allocation owns its reference count, `IUnknown` header,
+/// queryable projections, and original Rust value. Registering the object is a
+/// separate plugin-assembly decision.
+#[proc_macro_attribute]
+pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as ClassArgs);
+    let input = parse_macro_input!(item as ItemStruct);
+    expand_com_class(args, input).into()
 }
 
 /// Defines static plugin metadata from generated class descriptors.

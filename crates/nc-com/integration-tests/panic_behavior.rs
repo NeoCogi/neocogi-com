@@ -1,6 +1,6 @@
 #![cfg(unix)]
 
-use nc_com::{ComPtr, IUnknown, NcStatus, com_class, com_interface};
+use nc_com::{ComPtr, IUnknown, NcStatus, com_interface, com_object};
 use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, Output};
 
@@ -14,7 +14,7 @@ pub trait IPanics {
     fn panic_now(&self) -> Result<(), NcStatus>;
 }
 
-#[com_class(interfaces(IPanics))]
+#[com_object(interfaces(IPanics))]
 pub struct PanickingObject;
 
 impl IPanics for PanickingObject {
@@ -28,7 +28,7 @@ pub trait IDropPanics {
     fn touch(&self) -> Result<(), NcStatus>;
 }
 
-#[com_class(interfaces(IDropPanics))]
+#[com_object(interfaces(IDropPanics))]
 pub struct DropPanickingObject;
 
 impl IDropPanics for DropPanickingObject {
