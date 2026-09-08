@@ -1,4 +1,4 @@
-use nc_com::{ComPtr, IUnknown, NcStatus, com_class, com_enum, com_int_enum, com_interface};
+use nc_com::{ComPtr, IUnknown, NcStatus, com_object, com_enum, com_int_enum, com_interface};
 
 com_int_enum! {
     pub enum ElementKind: u16 {
@@ -19,7 +19,7 @@ pub trait IDocument {
     fn root_id(&self) -> Result<u64, NcStatus>;
 }
 
-#[com_class(interfaces(IElement))]
+#[com_object(interfaces(IElement))]
 pub struct Element {
     id: u64,
     kind: ElementKind,
@@ -44,7 +44,7 @@ impl IElement for Element {
     }
 }
 
-#[com_class(interfaces(IDocument))]
+#[com_object(interfaces(IDocument))]
 pub struct Document {
     root: ComPtr<IElementAbi>,
 }

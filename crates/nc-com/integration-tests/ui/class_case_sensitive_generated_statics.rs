@@ -1,8 +1,8 @@
 #![allow(clippy::upper_case_acronyms)]
 
-use nc_com::com_class;
+use nc_com::com_object;
 
-#[com_class(
+#[com_object(
     class_id(auto_guid = "nc.tests.ui.Foo:class:v1"),
     name = "nc.tests.ui.Foo:class:v1",
     version = "1.0.0",
@@ -11,7 +11,7 @@ use nc_com::com_class;
 )]
 struct Foo;
 
-#[com_class(
+#[com_object(
     class_id(auto_guid = "nc.tests.ui.FOO:class:v1"),
     name = "nc.tests.ui.FOO:class:v1",
     version = "1.0.0",

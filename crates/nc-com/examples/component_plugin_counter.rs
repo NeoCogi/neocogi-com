@@ -1,4 +1,4 @@
-use nc_com::{NcGuid, NcStatus, com_class, com_interface};
+use nc_com::{NcGuid, NcStatus, com_object, com_interface};
 
 const COUNTER_CLASS_ID: NcGuid = nc_com::guid_from_qualified_name("nc.examples.multi.Counter");
 
@@ -9,7 +9,7 @@ pub trait IMultiCounter {
     fn value(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_class(
+#[com_object(
     class_id(COUNTER_CLASS_ID),
     name = "nc.examples.multi.Counter",
     version = "1.0.0",

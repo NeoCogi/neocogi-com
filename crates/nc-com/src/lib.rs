@@ -54,8 +54,8 @@
 //!
 //! COM reference counts are atomic, and the built-in registry is
 //! thread-safe. User object method calls are not assumed to be thread-safe.
-//! [`ComPtr<T>`](ComPtr) is thread-local by default. Classes declared with
-//! `#[com_class(thread_safe, ...)]` produce
+//! [`ComPtr<T>`](ComPtr) is thread-local by default. Objects declared with
+//! `#[com_object(thread_safe, ...)]` produce
 //! `ComPtr<T, ThreadSafe>`, which can be sent and shared across threads.
 //! Generated [`ComClass::Threading`] implementations make that strongest class
 //! capability the source for constructors and descriptor metadata. A
@@ -140,20 +140,20 @@
 //! # Features
 //!
 //! The runtime is `no_std` when the `std` feature is disabled. Generated
-//! interfaces and [`ComPtr`] work without allocation. Generated classes require
-//! the `alloc` feature because `#[com_class]` stores each COM object in a
+//! interfaces and [`ComPtr`] work without allocation. Generated objects require
+//! the `alloc` feature because `#[com_object]` stores each COM object in a
 //! reference-counted heap allocation. `Runtime` requires the `runtime`
 //! feature, which also enables `std`; `std` enables `alloc`.
 //!
 //! ```
-//! use nc_com::{com_class, com_interface, ComPtr, IUnknown, NcStatus};
+//! use nc_com::{com_interface, com_object, ComPtr, IUnknown, NcStatus};
 //!
 //! #[com_interface(auto_guid = "nc.docs.Calculator:v1")]
 //! pub trait ICalculator {
 //!     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
 //! }
 //!
-//! #[com_class(interfaces(ICalculator))]
+//! #[com_object(interfaces(ICalculator))]
 //! pub struct Calculator;
 //!
 //! impl ICalculator for Calculator {
@@ -171,14 +171,14 @@
 //! Classes with fields are created with the generated `from_value` constructor:
 //!
 //! ```
-//! use nc_com::{com_class, com_interface, ComPtr, IUnknown, NcStatus};
+//! use nc_com::{com_interface, com_object, ComPtr, IUnknown, NcStatus};
 //!
 //! #[com_interface(auto_guid = "nc.docs.Counter:v1")]
 //! pub trait ICounter {
 //!     fn value(&self) -> Result<i32, NcStatus>;
 //! }
 //!
-//! #[com_class(interfaces(ICounter))]
+//! #[com_object(interfaces(ICounter))]
 //! pub struct Counter {
 //!     value: i32,
 //! }

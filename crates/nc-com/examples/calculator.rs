@@ -1,4 +1,4 @@
-use nc_com::{ComPtr, IUnknown, NcStatus, com_class, com_interface};
+use nc_com::{ComPtr, IUnknown, NcStatus, com_object, com_interface};
 
 #[com_interface(auto_guid = "nc.examples.calculator.Calculator:v1")]
 pub trait ICalculator {
@@ -16,7 +16,7 @@ pub trait INotImplemented {
     fn noop(&self, value: i32) -> Result<i32, NcStatus>;
 }
 
-#[com_class(interfaces(ICalculator, IFormatter))]
+#[com_object(interfaces(ICalculator, IFormatter))]
 pub struct Calculator;
 
 impl ICalculator for Calculator {

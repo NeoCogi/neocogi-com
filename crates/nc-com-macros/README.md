@@ -53,7 +53,7 @@ implementation struct in generated COM object storage with:
   `class_descriptor() -> &'static NcClassDescriptor`
 
 A contract-backed implementation uses
-`#[com_object(contract(Class))]`. The class trait declares one
+`#[com_object(Class)]`. The class trait declares one
 `#[constructor]` function. Its parameters generate a typed, lifetime-safe
 constructor frame and an `arguments(...)` builder on the generated `ClassAbi`
 type; the constructor itself is excluded from the method vtable.
@@ -116,7 +116,7 @@ for in-process hosts. Call `nc_com::export_plugin!()` at the final shared
 library root to export `nc_get_plugin_descriptor`:
 
 ```rust
-use nc_com::{NcStatus, com_class};
+use nc_com::{NcStatus, com_class, com_object};
 
 #[com_class(auto_guid = "example.Echo:class:v1")]
 pub trait Echo {
@@ -126,7 +126,7 @@ pub trait Echo {
     fn code(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_class(contract(Echo))]
+#[com_object(Echo)]
 pub struct EchoObject {
     code: u32,
 }

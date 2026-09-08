@@ -1,7 +1,7 @@
 //! Single-base layout, identity and ownership checks across generated interfaces.
 
 use nc_com::{
-    com_class, com_interface, ComInterface, ComPtr, ComRef, IUnknown, NcStatus, NC_E_NOINTERFACE,
+    com_object, com_interface, ComInterface, ComPtr, ComRef, IUnknown, NcStatus, NC_E_NOINTERFACE,
 };
 use std::{cell::Cell, rc::Rc};
 
@@ -33,7 +33,7 @@ pub trait IToggle: IButton {
     fn copy_value(&self, source: ComRef<'_, contract::IWidgetAbi>) -> Result<(), NcStatus>;
 }
 
-#[com_class(
+#[com_object(
     class_id(auto_guid = "nc.tests.inheritance.Toggle"),
     name = "nc.tests.inheritance.Toggle",
     version = "0.1.0",

@@ -365,8 +365,8 @@ impl Parse for ClassArgs {
     /// now. That covers `interfaces(dom::INode)` without accepting generic or
     /// associated-type paths that the generated names cannot represent.
     ///
-    /// Descriptor metadata is optional and all-or-nothing. A `contract(...)`
-    /// path supplies the class identity, constructor frame, primary projection,
+    /// Descriptor metadata is optional and all-or-nothing. A bare class path
+    /// supplies the class identity, constructor frame, primary projection,
     /// and required interface set. Contract-backed implementations therefore
     /// reject even an empty `interfaces(...)` list. The explicit identity form
     /// is limited to legacy no-argument descriptors.
@@ -381,6 +381,38 @@ impl Parse for ClassArgs {
         let mut contract = None;
 
         while !input.is_empty() {
+            let starts_qualified_path = input.peek(Token![::])
+                || input.peek(Token![crate])
+                || input.peek(Token![self])
+                || input.peek(Token![super]);
+            let starts_named_path = if input.peek(Ident) {
+                let lookahead = input.fork();
+                let candidate: Ident = lookahead.parse()?;
+                !matches!(
+                    candidate.to_string().as_str(),
+                    "interfaces"
+                        | "thread_safe"
+                        | "nc_com"
+                        | "class_id"
+                        | "name"
+                        | "version"
+                        | "constructor"
+                )
+            } else {
+                false
+            };
+            if starts_qualified_path || starts_named_path {
+                if contract.is_some() {
+                    return Err(syn::Error::new(input.span(), "duplicate class contract path"));
+                }
+                contract = Some(Path::parse_mod_style(input)?);
+                if input.is_empty() {
+                    break;
+                }
+                input.parse::<Token![,]>()?;
+                continue;
+            }
+
             let keyword: Ident = input.parse()?;
             if keyword == "interfaces" {
                 if interfaces.is_some() {
@@ -437,24 +469,10 @@ impl Parse for ClassArgs {
                 let content;
                 parenthesized!(content in input);
                 constructor = Some(content.parse()?);
-            } else if keyword == "contract" {
-                if contract.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate contract(...)"));
-                }
-                let content;
-                parenthesized!(content in input);
-                let path = Path::parse_mod_style(&content)?;
-                if !content.is_empty() {
-                    return Err(syn::Error::new(
-                        content.span(),
-                        "expected one class contract path",
-                    ));
-                }
-                contract = Some(path);
             } else {
                 return Err(syn::Error::new(
                     keyword.span(),
-                    "expected contract(...), interfaces(...), thread_safe, class_id(...), name = ..., version = ..., constructor(...), or nc_com = path",
+                    "expected a class contract path, interfaces(...), thread_safe, class_id(...), name = ..., version = ..., constructor(...), or nc_com = path",
                 ));
             }
 
@@ -493,7 +511,7 @@ impl Parse for ClassArgs {
             (Some(_), _, _, _, _) => {
                 return Err(syn::Error::new(
                     input.span(),
-                    "contract(...) supplies class identity and constructor; remove class_id, name, version, and constructor(...)",
+                    "the class contract path supplies identity and constructor; remove class_id, name, version, and constructor(...)",
                 ));
             }
             _ => {

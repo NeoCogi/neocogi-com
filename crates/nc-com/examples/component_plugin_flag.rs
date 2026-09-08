@@ -1,4 +1,4 @@
-use nc_com::{NcGuid, NcStatus, com_class, com_interface};
+use nc_com::{NcGuid, NcStatus, com_object, com_interface};
 
 const FLAG_CLASS_ID: NcGuid = nc_com::guid_from_qualified_name("nc.examples.multi.Flag");
 
@@ -11,7 +11,7 @@ pub trait IMultiFlag {
     fn flag(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_class(
+#[com_object(
     class_id(FLAG_CLASS_ID),
     name = "nc.examples.multi.Flag",
     version = "1.0.0",

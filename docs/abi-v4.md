@@ -694,7 +694,7 @@ This applies recursively and across contract crates. Use a qualified module
 path when referring to a base declared in another module or crate.
 
 ```rust
-use nc_com::{com_class, com_interface, ComPtr, NcStatus};
+use nc_com::{com_interface, com_object, ComPtr, NcStatus};
 #[com_interface(auto_guid = "nc.tests.spec.Widget:v1")]
 pub trait IWidget {
     fn value(&self) -> Result<u32, NcStatus>;
@@ -703,7 +703,7 @@ pub trait IWidget {
 pub trait IButton: IWidget {
     fn submit(&self) -> Result<(), NcStatus>;
 }
-#[com_class(interfaces(IButton))]
+#[com_object(interfaces(IButton))]
 pub struct Button;
 impl IWidget for Button {
     fn value(&self) -> Result<u32, NcStatus> { Ok(7) }
@@ -1423,7 +1423,7 @@ one canonical `IUnknown` descriptor. Consequently a valid class has
 `interface_count >= 1`, and `interfaces` must point to `interface_count`
 readable descriptors that remain valid while the class descriptor is visible.
 
-`#[com_class(interfaces(...))]` treats `IUnknown` as implicit: users list only
+`#[com_object(interfaces(...))]` treats `IUnknown` as implicit: users list only
 non-root interfaces, and the macro rejects both an explicit `IUnknown` entry and
 duplicate interface entries. Listed paths must have distinct final names because
 those names determine generated fields and companion ABI types. Generated
@@ -1447,7 +1447,7 @@ its `arguments` pointer must be non-null. The frame and any nested borrows remai
 valid only for the constructor call. A successful constructor must return an object satisfying the
 class descriptor's threading promise. This is an unsafe producer contract:
 structural validation can validate the tag but cannot prove the behavior of
-plugin code. `#[com_class(thread_safe, ...)]` is the supported generated path and
+plugin code. `#[com_object(thread_safe, ...)]` is the supported generated path and
 requires the Rust class to be `Send + Sync` in addition to the documented
 concurrent-call and destruction contract.
 
@@ -2356,7 +2356,7 @@ explicitly with `ComPtr::into_thread_local`, `ComPtr::as_thread_local_ref`, or
 pointer and perform no reference-count operation. No safe operation upgrades a
 thread-local pointer to thread-safe.
 
-Classes are thread-local by default. `#[com_class(thread_safe, ...)]` requires
+Objects are thread-local by default. `#[com_object(thread_safe, ...)]` requires
 the Rust class to be `Send + Sync` and generates thread-safe COM pointers. This
 compile-time assertion is necessary but not sufficient: the class author must
 also ensure that every exposed COM method may be called from any thread,

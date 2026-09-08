@@ -198,7 +198,7 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
 /// }
 ///
-/// #[com_class(contract(Calculator))]
+/// #[com_object(Calculator)]
 /// pub struct CalculatorObject {
 ///     value: i32,
 /// }
@@ -260,7 +260,7 @@ pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// satisfy the corresponding concurrency contract.
 ///
 /// ```text
-/// #[com_object(contract(Calculator))]
+/// #[com_object(Calculator)]
 /// pub struct CalculatorObject {
 ///     value: i32,
 /// }
@@ -284,7 +284,7 @@ pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Defines static plugin metadata from generated class descriptors.
 ///
 /// `plugin!` is intentionally a small assembly macro: classes own their class
-/// IDs, interface tables, and constructors through `#[com_class(...)]`; this
+/// IDs, interface tables, and constructors through `#[com_object(...)]`; this
 /// macro copies those descriptors into a plugin-level class table and provides
 /// `pub fn plugin_descriptor() -> &'static NcPluginDescriptor` for in-process
 /// hosts. A final shared library calls `nc_com::export_plugin!` separately to

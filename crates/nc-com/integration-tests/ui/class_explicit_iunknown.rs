@@ -1,6 +1,6 @@
-use nc_com::com_class;
+use nc_com::com_object;
 
-#[com_class(interfaces(nc_com::IUnknown))]
+#[com_object(interfaces(nc_com::IUnknown))]
 pub struct ExplicitRoot;
 
 fn main() {}

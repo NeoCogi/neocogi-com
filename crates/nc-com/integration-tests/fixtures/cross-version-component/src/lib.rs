@@ -1,6 +1,6 @@
 use nc_com::{
     ComPtr, ComRef, IUnknown, NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION, NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiType, NcClassDescriptor,
-    NcClassTable, NcConstructorFn, NcGetPluginDescriptor, NcGuid, NcPluginDescriptor, NcStaticUtf8, NcStatus, ThreadSafe, com_class, com_interface,
+    NcClassTable, NcConstructorFn, NcGetPluginDescriptor, NcGuid, NcPluginDescriptor, NcStaticUtf8, NcStatus, ThreadSafe, com_object, com_interface,
 };
 
 const CROSS_VERSION_CLASS_ID: NcGuid =
@@ -32,7 +32,7 @@ pub trait ICrossVersionService {
     fn make_number(&self, value: u32) -> Result<ComPtr<ICrossVersionNumberAbi>, NcStatus>;
 }
 
-#[com_class(interfaces(ICrossVersionNumber))]
+#[com_object(interfaces(ICrossVersionNumber))]
 pub struct CrossVersionNumber {
     value: u32,
 }
@@ -43,7 +43,7 @@ impl ICrossVersionNumber for CrossVersionNumber {
     }
 }
 
-#[com_class(thread_safe, interfaces(ICrossVersionService))]
+#[com_object(thread_safe, interfaces(ICrossVersionService))]
 pub struct CrossVersionService {
     seed: u32,
 }

@@ -1,6 +1,6 @@
 use nc_com::{
     ComInterface, ComPtr, ComRef, IUnknown, NC_ABI_THREADING_THREAD_SAFE, NC_OK, NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiType, NcClassDescriptor, NcGuid,
-    NcPluginDescriptor, NcStatus, Runtime, ThreadSafe, com_class, com_interface, validate_plugin_descriptor_with_issues,
+    NcPluginDescriptor, NcStatus, Runtime, ThreadSafe, com_object, com_interface, validate_plugin_descriptor_with_issues,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -40,7 +40,7 @@ pub trait ICrossVersionService {
     fn make_number(&self, value: u32) -> Result<ComPtr<ICrossVersionNumberAbi>, NcStatus>;
 }
 
-#[com_class(interfaces(ICrossVersionNumber))]
+#[com_object(interfaces(ICrossVersionNumber))]
 pub struct HostNumber {
     value: u32,
 }

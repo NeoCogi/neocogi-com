@@ -1,4 +1,4 @@
-use nc_com::{NcGuid, NcStatus, com_class};
+use nc_com::{NcGuid, NcStatus, com_class, com_object};
 
 const COMPONENT_PLUGIN_ID: NcGuid = nc_com::guid_from_qualified_name("nc.examples.component");
 
@@ -14,7 +14,7 @@ pub trait Greeter {
 }
 
 /// Private plugin state behind the public callable class projection.
-#[com_class(thread_safe, contract(Greeter))]
+#[com_object(Greeter, thread_safe)]
 pub struct GreeterObject {
     /// Value returned by `greeting_code` after construction.
     greeting_code: u32,

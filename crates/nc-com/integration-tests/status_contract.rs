@@ -1,6 +1,6 @@
 use nc_com::{
     ComPtr, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiHash, NcClassDescriptor, NcGuid, NcStaticUtf8, NcStatus,
-    ThreadLocal, com_class, com_interface, construct_class_checked,
+    ThreadLocal, com_object, com_interface, construct_class_checked,
 };
 
 #[com_interface(auto_guid = "nc.tests.status_contract.InvalidStatus:v1")]
@@ -10,7 +10,7 @@ pub trait IInvalidStatus {
     fn void(&self, status: NcStatus) -> Result<(), NcStatus>;
 }
 
-#[com_class(interfaces(IInvalidStatus))]
+#[com_object(interfaces(IInvalidStatus))]
 pub struct InvalidStatusObject;
 
 impl IInvalidStatus for InvalidStatusObject {

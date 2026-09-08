@@ -1,9 +1,9 @@
 use contract_abi::{CONTRACT_PLUGIN_ID, ContractPoint, ContractWidget, IContractValue, IContractValueAbi, IContractValueComPtrExt};
-use nc_com::{ComPtr, ComRef, IUnknown, NcStatus, com_class};
+use nc_com::{ComPtr, ComRef, IUnknown, NcStatus, com_object};
 
 // Plugin-owned value object returned through IContractValueAbi. The host does
 // not know this Rust type exists; it only receives the COM interface pointer.
-#[com_class(interfaces(contract_abi::IContractValue))]
+#[com_object(interfaces(contract_abi::IContractValue))]
 pub struct PluginValue {
     value: u32,
 }
@@ -16,7 +16,7 @@ impl IContractValue for PluginValue {
 
 // Concrete plugin implementation of the published widget class. The generated
 // class thunk decodes the shared typed constructor frame before calling `new`.
-#[com_class(contract(contract_abi::ContractWidget))]
+#[com_object(contract_abi::ContractWidget)]
 pub struct PluginWidget {
     /// Seed copied from the host's typed constructor frame.
     seed: u32,

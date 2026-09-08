@@ -9,7 +9,7 @@ pub trait IAutoResolved {
     fn add(&self, a: i32, b: i32) -> Result<i32, renamed_nc::NcStatus>;
 }
 
-#[renamed_nc::com_class(interfaces(IAutoResolved))]
+#[renamed_nc::com_object(interfaces(IAutoResolved))]
 pub struct AutoResolved;
 
 impl IAutoResolved for AutoResolved {
@@ -36,7 +36,7 @@ pub trait IOverrideResolved {
     fn value(&self) -> Result<u16, crate::facade::NcStatus>;
 }
 
-#[renamed_nc::com_class(nc_com = crate::facade, thread_safe, interfaces(IOverrideResolved))]
+#[renamed_nc::com_object(nc_com = crate::facade, thread_safe, interfaces(IOverrideResolved))]
 pub struct OverrideResolved;
 
 impl IOverrideResolved for OverrideResolved {

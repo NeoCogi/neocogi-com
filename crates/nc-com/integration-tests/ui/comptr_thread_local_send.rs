@@ -1,11 +1,11 @@
-use nc_com::{ComPtr, IUnknown, NcStatus, com_class, com_interface};
+use nc_com::{ComPtr, IUnknown, NcStatus, com_object, com_interface};
 
 #[com_interface(auto_guid = "nc.tests.ui.ThreadLocalSend:v1")]
 pub trait IThreadLocalSend {
     fn value(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_class(interfaces(IThreadLocalSend))]
+#[com_object(interfaces(IThreadLocalSend))]
 pub struct ThreadLocalObject;
 
 impl IThreadLocalSend for ThreadLocalObject {

@@ -1,6 +1,6 @@
 use nc_com::{
     ComPtr, ComRef, INcBytesAbi, INcBytesComPtrExt, INcStringComPtrExt, IUnknown, NcBytes,
-    NcStatus, NcString, com_class, com_interface,
+    NcStatus, NcString, com_object, com_interface,
 };
 use std::cell::Cell;
 
@@ -17,7 +17,7 @@ pub trait IByteStream {
     fn next_chunk(&self, max_len: u64) -> Result<ComPtr<INcBytesAbi>, NcStatus>;
 }
 
-#[com_class(interfaces(IByteStream))]
+#[com_object(interfaces(IByteStream))]
 pub struct MemoryByteStream {
     bytes: Vec<u8>,
     offset: Cell<usize>,
@@ -58,7 +58,7 @@ impl IByteStream for MemoryByteStream {
     }
 }
 
-#[com_class(interfaces(IByteConsumer))]
+#[com_object(interfaces(IByteConsumer))]
 pub struct ByteCounter;
 
 impl IByteConsumer for ByteCounter {

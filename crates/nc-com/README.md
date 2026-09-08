@@ -26,14 +26,14 @@ guide so they cannot drift across copies.
 ## Quick Example
 
 ```rust
-use nc_com::{ComPtr, IUnknown, NcStatus, com_class, com_interface};
+use nc_com::{ComPtr, IUnknown, NcStatus, com_interface, com_object};
 
 #[com_interface(auto_guid = "example.Calculator:v1")]
 pub trait ICalculator {
     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
 }
 
-#[com_class(interfaces(ICalculator))]
+#[com_object(interfaces(ICalculator))]
 pub struct Calculator;
 
 impl ICalculator for Calculator {
@@ -52,7 +52,7 @@ fn use_component() -> Result<i32, NcStatus> {
 The equivalent crate-level rustdoc example is compiled by the workspace doctest
 suite. `com_interface` generates the portable interface header/vtable and the
 unsafe `ComInterface` certification required by safe `ComPtr` operations.
-`com_class` generates COM object storage, canonical `IUnknown` metadata,
+`com_object` generates COM object storage, canonical `IUnknown` metadata,
 hash-checked `QueryInterface`, and reference counting.
 
 Macro documentation examples are compile-checked in the facade rustdoc, where

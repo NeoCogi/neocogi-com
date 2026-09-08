@@ -1,4 +1,4 @@
-use nc_com::{ComPtr, IUnknown, NcStatus, com_class, com_enum, com_int_enum, com_interface};
+use nc_com::{ComPtr, IUnknown, NcStatus, com_object, com_enum, com_int_enum, com_interface};
 
 com_int_enum! {
     /// Stable node kinds used by this example's COM ABI.
@@ -31,7 +31,7 @@ pub trait IDocument {
     fn root_child_count(&self) -> Result<i32, NcStatus>;
 }
 
-#[com_class(interfaces(IElement))]
+#[com_object(interfaces(IElement))]
 pub struct Element {
     kind: NodeKind,
     children: Vec<ComPtr<IElementAbi>>,
@@ -63,7 +63,7 @@ impl IElement for Element {
     }
 }
 
-#[com_class(interfaces(IDocument))]
+#[com_object(interfaces(IDocument))]
 pub struct Document {
     root: ComPtr<IElementAbi>,
 }

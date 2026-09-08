@@ -84,7 +84,7 @@ pub unsafe trait ComAbiObject: Sized {
     /// # Safety
     ///
     /// `object` must be an opaque storage pointer originally produced by the
-    /// matching generated `#[com_class]` implementation.
+    /// matching generated `#[com_object]` implementation.
     unsafe fn value_from_abi_object(object: *mut c_void) -> *mut Self;
 
     /// Implements `QueryInterface` for generated interface thunks.

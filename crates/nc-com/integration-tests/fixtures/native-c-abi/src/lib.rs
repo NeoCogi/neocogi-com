@@ -1,6 +1,6 @@
 use nc_com::{
     ComPtr, ComRef, NcCopyFromBufferOffset, NcCopyToBufferOffset, NcStatus,
-    NC_E_OUT_OF_RANGE, com_class, com_interface, com_struct,
+    NC_E_OUT_OF_RANGE, com_object, com_interface, com_struct,
 };
 
 #[com_struct]
@@ -27,7 +27,7 @@ pub trait INativeCalculator: INativeValue {
     fn transform(&self, input: NativeAggregate) -> Result<NativeAggregate, NcStatus>;
 }
 
-#[com_class(interfaces(INativeValue))]
+#[com_object(interfaces(INativeValue))]
 pub struct NativeValue {
     value: i32,
 }
@@ -38,7 +38,7 @@ impl INativeValue for NativeValue {
     }
 }
 
-#[com_class(interfaces(INativeCalculator))]
+#[com_object(interfaces(INativeCalculator))]
 pub struct NativeCalculator;
 
 /// Inherited calls use the same concrete calculator allocation from C.

@@ -287,7 +287,7 @@ The implementation crate keeps its state private and binds it to that contract:
 #     fn new(initial: u32) -> Result<Self, NcStatus>;
 #     fn value(&self) -> Result<u32, NcStatus>;
 # }
-#[com_object(contract(Counter))]
+#[com_object(Counter)]
 struct CounterObject {
     initial: u32,
 }
@@ -332,7 +332,7 @@ without putting generics, a Rust trait object, or borrowed stack state on the
 binary boundary:
 
 ```rust
-#[com_class(interfaces(IButtonSink))]
+#[com_object(interfaces(IButtonSink))]
 struct ButtonSink<State: ButtonHandler> {
     state: State,
 }
@@ -615,7 +615,7 @@ pub trait Widget {
     fn width(&self) -> Result<u32, nc_com::NcStatus>;
 }
 
-#[nc_com::com_class(contract(Widget))]
+#[nc_com::com_object(Widget)]
 pub struct WidgetObject {
     width: u32,
 }
@@ -663,7 +663,7 @@ a stable class ID, static qualified name/version metadata, the constructor
 frame ABI hash, generated interface metadata, and a constructor function:
 
 Every class interface table contains the canonical `IUnknown` descriptor
-exactly once. `#[com_class]` inserts it first, then preserves the source order of
+exactly once. `#[com_object]` inserts it first, then preserves the source order of
 the interfaces listed by the user. Explicit `IUnknown` and duplicate entries
 are rejected.
 
@@ -1045,7 +1045,7 @@ If a class implementation is safe to call from multiple threads, including
 concurrent calls, declare it as thread-safe:
 
 ```rust
-#[com_class(thread_safe, interfaces(ICalculator))]
+#[com_object(thread_safe, interfaces(ICalculator))]
 pub struct Calculator;
 ```
 
@@ -1323,7 +1323,7 @@ Feature behavior:
   Panics are not caught by `nc-com`; `panic=abort` aborts at the panic site,
   and an unwinding panic that reaches an `extern "C"` ABI thunk aborts under
   Rust's ABI unwind rules instead of becoming an `NcStatus`.
-- `alloc`: required for `#[com_class]` because generated object storage is heap
+- `alloc`: required for `#[com_object]` because generated object storage is heap
   allocated.
 - `macros`: re-exports `nc-com-macros`.
 - `runtime`: enables `std` and the process-global `Runtime` facade backed

@@ -1,6 +1,6 @@
-use nc_com::com_class;
+use nc_com::com_object;
 
-#[com_class(
+#[com_object(
     class_id(auto_guid = "nc.tests.ui.Invalid Class:v1"),
     name = "nc.tests.ui.Invalid Class:v1",
     version = "1.0.0",

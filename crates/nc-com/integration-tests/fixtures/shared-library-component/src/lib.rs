@@ -1,6 +1,6 @@
 use nc_com::{
     ComPtr, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiType, NcClassDescriptor,
-    NcClassTable, NcConstructorFn, NcGetPluginDescriptor, NcGuid, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, com_class,
+    NcClassTable, NcConstructorFn, NcGetPluginDescriptor, NcGuid, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, com_object,
     com_interface,
 };
 
@@ -25,7 +25,7 @@ struct WidgetArguments {
     base: u32,
 }
 
-#[com_class(interfaces(IWidget))]
+#[com_object(interfaces(IWidget))]
 pub struct Widget {
     value: u32,
 }

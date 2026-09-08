@@ -175,7 +175,7 @@ pub(crate) fn expand_plugin(args: PluginArgs) -> proc_macro2::TokenStream {
 
     quote! {
         // The plugin macro owns the descriptor statics for this compilation
-        // unit. Class descriptors are copied by value from `#[com_class]`
+        // unit. Class descriptors are copied by value from `#[com_object]`
         // output so hosts see one contiguous, immutable class table.
         static NC_COM_PLUGIN_DEPENDENCIES: [#nc::NcPluginDependencyDescriptor; #dependency_count] = [
             #(#dependencies,)*

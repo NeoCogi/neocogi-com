@@ -1,4 +1,4 @@
-use nc_com::{NcGuid, NcStatus, com_class, com_interface};
+use nc_com::{NcGuid, NcStatus, com_object, com_interface};
 
 const EXTRA_CLASS_ID: NcGuid = nc_com::guid_from_qualified_name("nc.examples.multi.Extra");
 
@@ -12,7 +12,7 @@ pub trait IMultiExtra {
     fn extra(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_class(
+#[com_object(
     class_id(EXTRA_CLASS_ID),
     name = "nc.examples.multi.Extra",
     version = "1.0.0",

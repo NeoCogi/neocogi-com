@@ -1,5 +1,5 @@
 //! Concrete interfaces over generic owned state, without generic contracts or registered constructors.
-use nc_com::{com_class, com_interface, ComPtr, NcStatus};
+use nc_com::{com_object, com_interface, ComPtr, NcStatus};
 use std::{cell::Cell, rc::Rc};
 
 #[com_interface(auto_guid = "test.GenericBase:v1")]
@@ -21,7 +21,7 @@ trait Handler {
     /// Reads that same state without a typeless cast.
     fn value(&self) -> u32;
 }
-#[com_class(interfaces(ISink))]
+#[com_object(interfaces(ISink))]
 /// Generic local implementation supports defaults, const parameters and where clauses.
 struct Sink<T = Counter, const SCALE: u32 = 1>
 where
@@ -61,7 +61,7 @@ impl Drop for Counter {
         self.drops.set(self.drops.get() + 1);
     }
 }
-#[com_class(interfaces(IBase), thread_safe)]
+#[com_object(interfaces(IBase), thread_safe)]
 /// Thread-safe generic implementations must prove the existing Send + Sync contract.
 struct Shared<T: Send + Sync + 'static> {
     /// Generic owned data retains its exact concrete destruction behavior.

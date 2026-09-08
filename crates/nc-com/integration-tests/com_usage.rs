@@ -7,7 +7,7 @@ use nc_com::{
     NcAbiHashPart, NcAbiPassing, NcAbiThreadingMode, NcAbiType, NcClassDescriptor, NcClassTable,
     NcConstructorFn, NcCopyFromBufferOffset, NcCopyToBufferOffset, NcGuid, NcInterfaceId,
     NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, Runtime, ThreadLocal,
-    ThreadSafe, ThreadSafeComObject, ThreadingModel, com_class, com_enum, com_int_enum,
+    ThreadSafe, ThreadSafeComObject, ThreadingModel, com_class, com_enum, com_int_enum, com_object,
     com_interface, com_struct, format_method_signature, plugin,
 };
 use std::cell::RefCell;
@@ -155,7 +155,7 @@ pub trait IBufferStore {
     fn read(&self, output: NcCopyToBufferOffset<'_, u8>) -> Result<(), NcStatus>;
 }
 
-#[com_class(interfaces(ICalculator, IMultiplier))]
+#[com_object(interfaces(ICalculator, IMultiplier))]
 pub struct Calculator;
 
 impl ICalculator for Calculator {
@@ -175,7 +175,7 @@ pub trait IMacroPluginEcho {
     fn answer(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_class(
+#[com_object(
     class_id(auto_guid = "nc.tests.com_usage.MacroPluginEcho:class:v1"),
     name = "nc.tests.com_usage.MacroPluginEcho:class:v1",
     version = "1.0.0",
@@ -196,7 +196,7 @@ pub trait IMacroPluginDefault {
 }
 
 #[derive(Default)]
-#[com_class(
+#[com_object(
     class_id(auto_guid = "nc.tests.com_usage.MacroPluginDefault:class:v1"),
     name = "nc.tests.com_usage.MacroPluginDefault:class:v1",
     version = "1.0.0",
@@ -224,7 +224,7 @@ pub trait CallableCounter: ICalculator + IMultiplier {
     fn answer(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_class(contract(CallableCounter))]
+#[com_object(CallableCounter)]
 /// Private state object implementing the shared callable class contract.
 pub struct CallableCounterObject {
     /// Fixed answer supplied by the typed constructor frame.
@@ -431,7 +431,7 @@ unsafe extern "C" fn failing_custom_constructor(_class: *const NcClassDescriptor
     NC_E_TEST_FAIL
 }
 
-#[com_class(
+#[com_object(
     thread_safe,
     class_id(THREAD_SAFE_CALCULATOR_CLASS_ID),
     name = "nc.tests.com_usage.ThreadSafeCalculator",
@@ -447,7 +447,7 @@ impl ICalculator for ThreadSafeCalculator {
     }
 }
 
-#[com_class(interfaces(ITracked))]
+#[com_object(interfaces(ITracked))]
 pub struct TrackedObject {
     value: i32,
 }
@@ -464,7 +464,7 @@ impl Drop for TrackedObject {
     }
 }
 
-#[com_class(interfaces(ILifecycleTracked))]
+#[com_object(interfaces(ILifecycleTracked))]
 pub struct LifecycleTrackedObject {
     value: i32,
     drops: Arc<AtomicUsize>,
@@ -491,7 +491,7 @@ fn lifecycle_tracked(value: i32) -> (ComPtr<IUnknown>, Arc<AtomicUsize>) {
     (unknown, drops)
 }
 
-#[com_class(thread_safe, interfaces(ILifecycleTracked, ITracked))]
+#[com_object(thread_safe, interfaces(ILifecycleTracked, ITracked))]
 pub struct ThreadSafeLifecycleTrackedObject {
     value: i32,
     drops: Arc<AtomicUsize>,
@@ -524,7 +524,7 @@ fn thread_safe_lifecycle_tracked(value: i32) -> (ComPtr<IUnknown, ThreadSafe>, A
     (unknown, drops)
 }
 
-#[com_class(interfaces(IFailable))]
+#[com_object(interfaces(IFailable))]
 pub struct FailableObject;
 
 impl IFailable for FailableObject {
@@ -533,7 +533,7 @@ impl IFailable for FailableObject {
     }
 }
 
-#[com_class(interfaces(IGeometry))]
+#[com_object(interfaces(IGeometry))]
 pub struct Geometry;
 
 impl IGeometry for Geometry {
@@ -547,7 +547,7 @@ impl IGeometry for Geometry {
     }
 }
 
-#[com_class(interfaces(IVoidAction))]
+#[com_object(interfaces(IVoidAction))]
 pub struct VoidAction;
 
 impl IVoidAction for VoidAction {
@@ -561,7 +561,7 @@ impl IVoidAction for VoidAction {
     }
 }
 
-#[com_class(interfaces(IReferenceConsumer))]
+#[com_object(interfaces(IReferenceConsumer))]
 pub struct ReferenceConsumer;
 
 impl IReferenceConsumer for ReferenceConsumer {
@@ -575,7 +575,7 @@ impl IReferenceConsumer for ReferenceConsumer {
     }
 }
 
-#[com_class(interfaces(IBufferStore))]
+#[com_object(interfaces(IBufferStore))]
 pub struct BufferStore {
     bytes: RefCell<Vec<u8>>,
 }
@@ -621,7 +621,7 @@ mod path_interfaces {
     }
 }
 
-#[com_class(interfaces(path_interfaces::dom::IPathElement))]
+#[com_object(interfaces(path_interfaces::dom::IPathElement))]
 pub struct PathElement {
     id: u64,
 }
@@ -1854,7 +1854,7 @@ fn tagged_com_enum_rejects_unknown_tags() {
 }
 
 mod visibility {
-    use nc_com::{ComPtr, IUnknown, NcStatus, com_class, com_interface};
+    use nc_com::{ComPtr, IUnknown, NcStatus, com_interface, com_object};
 
     #[com_interface(auto_guid = "nc.tests.com_usage.visibility.CrateVisible:v1")]
     pub(crate) trait ICrateVisible {
@@ -1871,7 +1871,7 @@ mod visibility {
         fn public_value(&self) -> Result<i32, NcStatus>;
     }
 
-    #[com_class(interfaces(ICrateVisible, IPrivate, IPublic))]
+    #[com_object(interfaces(ICrateVisible, IPrivate, IPublic))]
     pub(crate) struct VisibilityObject;
 
     impl ICrateVisible for VisibilityObject {

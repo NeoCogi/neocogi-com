@@ -5,7 +5,7 @@ use nc_com::{
 use std::fmt::Write;
 
 mod external_fields {
-    use nc_com::{ComPtr, NcCopyFromBufferOffset, NcStatus, com_class, com_interface, com_struct};
+    use nc_com::{ComPtr, NcCopyFromBufferOffset, NcStatus, com_object, com_interface, com_struct};
 
     // Models a C-layout dependency type with no nc-com traits.
     #[repr(C)]
@@ -27,7 +27,7 @@ mod external_fields {
         fn sum(&self, values: NcCopyFromBufferOffset<'_, Sample>) -> Result<f32, NcStatus>;
     }
 
-    #[com_class(interfaces(IExternalFields))]
+    #[com_object(interfaces(IExternalFields))]
     struct ExternalFields;
 
     impl IExternalFields for ExternalFields {

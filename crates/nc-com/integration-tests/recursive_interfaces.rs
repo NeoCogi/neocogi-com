@@ -1,7 +1,7 @@
 //! Recursive contracts and independently compiled contract revisions must remain
 //! usable without permitting calls through an incompatible projected interface.
 
-use nc_com::{ComPtr, ComRef, IUnknown, NcStatus, NC_E_ABI_VERSION, NC_E_NOT_FOUND, com_class, com_interface};
+use nc_com::{ComPtr, ComRef, IUnknown, NcStatus, NC_E_ABI_VERSION, NC_E_NOT_FOUND, com_object, com_interface};
 use std::{cell::Cell, rc::Rc};
 
 /// First revision as understood by the consumer binary.
@@ -29,7 +29,7 @@ pub mod consumer {
         fn produce(&self) -> Result<ComPtr<IValueAbi>, NcStatus>;
     }
 
-    #[com_class(interfaces(IValue))]
+    #[com_object(interfaces(IValue))]
     /// Valid consumer-side value object used as a borrowed argument.
     pub struct Value;
 
@@ -66,7 +66,7 @@ pub mod producer {
         fn produce(&self) -> Result<ComPtr<IValueAbi>, NcStatus>;
     }
 
-    #[com_class(interfaces(IValue))]
+    #[com_object(interfaces(IValue))]
     /// Tracks exactly-once final release of an incompatible owned return.
     pub struct Value {
         /// Shared test observation; stays inside this binary.
@@ -87,7 +87,7 @@ pub mod producer {
         }
     }
 
-    #[com_class(interfaces(IExchange))]
+    #[com_object(interfaces(IExchange))]
     /// Exchange tracks dispatch and transferred-object destruction separately.
     pub struct Exchange {
         /// Number of calls entering the implementation after pointer validation.
@@ -117,7 +117,7 @@ pub trait INode {
     fn echo(&self, node: ComRef<'_, INodeAbi>) -> Result<ComPtr<INodeAbi>, NcStatus>;
 }
 
-#[com_class(interfaces(INode))]
+#[com_object(interfaces(INode))]
 /// Stateless echo node, sufficient to exercise recursion and ownership.
 pub struct Node;
 
@@ -142,7 +142,7 @@ pub trait IRight {
     fn left(&self) -> Result<ComPtr<ILeftAbi>, NcStatus>;
 }
 
-#[com_class(interfaces(ILeft, IRight))]
+#[com_object(interfaces(ILeft, IRight))]
 /// Descriptors and both vtables must evaluate without a const cycle.
 pub struct Pair;
 

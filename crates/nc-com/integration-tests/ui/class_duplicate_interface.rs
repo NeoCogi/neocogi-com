@@ -1,11 +1,11 @@
-use nc_com::{NcStatus, com_class, com_interface};
+use nc_com::{NcStatus, com_object, com_interface};
 
 #[com_interface(auto_guid = "nc.tests.ui.DuplicateClassInterface:v1")]
 pub trait IDuplicateClassInterface {
     fn value(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_class(interfaces(
+#[com_object(interfaces(
     IDuplicateClassInterface,
     IDuplicateClassInterface
 ))]

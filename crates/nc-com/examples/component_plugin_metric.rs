@@ -1,4 +1,4 @@
-use nc_com::{NcGuid, NcStatus, com_class, com_interface};
+use nc_com::{NcGuid, NcStatus, com_object, com_interface};
 
 const METRIC_CLASS_ID: NcGuid = nc_com::guid_from_qualified_name("nc.examples.multi.Metric");
 
@@ -12,7 +12,7 @@ pub trait IMultiMetric {
     fn metric(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_class(
+#[com_object(
     class_id(METRIC_CLASS_ID),
     name = "nc.examples.multi.Metric",
     version = "1.0.0",

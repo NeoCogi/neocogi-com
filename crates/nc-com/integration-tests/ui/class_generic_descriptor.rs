@@ -1,11 +1,11 @@
-use nc_com::{com_class, com_interface, NcStatus};
+use nc_com::{com_object, com_interface, NcStatus};
 
 #[com_interface(auto_guid = "test.GenericDescriptor:v1")]
 trait IRead {
     fn value(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_class(
+#[com_object(
     name = "test.GenericDescriptor:class:v1",
     class_id(auto_guid = "test.GenericDescriptor:class:v1"),
     version = "1.0.0",

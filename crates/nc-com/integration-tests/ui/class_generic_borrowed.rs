@@ -1,11 +1,11 @@
-use nc_com::{com_class, com_interface, NcStatus};
+use nc_com::{com_object, com_interface, NcStatus};
 
 #[com_interface(auto_guid = "test.GenericBorrow:v1")]
 trait IRead {
     fn length(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_class(interfaces(IRead))]
+#[com_object(interfaces(IRead))]
 struct Reader<T: AsRef<str>> {
     value: T,
 }

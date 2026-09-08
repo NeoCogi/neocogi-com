@@ -1,9 +1,9 @@
 use contract_abi::IContractValue;
-use nc_com::{NcStatus, com_class};
+use nc_com::{NcStatus, com_object};
 
 // A host-owned value object passed into the plugin. This demonstrates that COM
 // objects can cross in both directions as long as both sides share the contract.
-#[com_class(interfaces(contract_abi::IContractValue))]
+#[com_object(interfaces(contract_abi::IContractValue))]
 pub struct HostValue {
     value: u32,
 }

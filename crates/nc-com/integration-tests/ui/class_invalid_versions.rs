@@ -1,6 +1,6 @@
-use nc_com::com_class;
+use nc_com::com_object;
 
-#[com_class(
+#[com_object(
     class_id(auto_guid = "nc.tests.ui.EmptyVersion:class:v1"),
     name = "nc.tests.ui.EmptyVersion:class:v1",
     version = "",
@@ -9,7 +9,7 @@ use nc_com::com_class;
 )]
 struct EmptyVersion;
 
-#[com_class(
+#[com_object(
     class_id(auto_guid = "nc.tests.ui.WhitespaceVersion:class:v1"),
     name = "nc.tests.ui.WhitespaceVersion:class:v1",
     version = "1.0 beta",

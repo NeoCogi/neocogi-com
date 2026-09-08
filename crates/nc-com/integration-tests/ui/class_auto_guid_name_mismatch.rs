@@ -1,11 +1,11 @@
-use nc_com::{NcStatus, com_class, com_interface};
+use nc_com::{NcStatus, com_object, com_interface};
 
 #[com_interface(auto_guid = "nc.tests.ui.ClassIdentityMismatch:v1")]
 trait IClassIdentityMismatch {
     fn value(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_class(
+#[com_object(
     class_id(auto_guid = "nc.tests.ui.ClassIdentityMismatch:class:v1"),
     name = "nc.tests.ui.ClassIdentityMismatch",
     version = "1.0.0",
