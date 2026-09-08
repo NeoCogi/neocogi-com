@@ -150,8 +150,9 @@ nc_com::plugin! {
 ```
 
 Callable class contracts derive their descriptor name and class ID from their
-single `auto_guid = "stable.Name:v1"` input. `plugin_id(...)` and legacy
-descriptor-bearing class structs retain their explicit identity forms.
+single `auto_guid = "stable.Name:v1"` input. Concrete implementations use only
+`#[com_object(Class)]`; implementation structs cannot restate class identity,
+version, constructor policy, or public projections.
 The optional `dependencies = [...]` list contains hard
 plugin IDs that must already be registered. It never triggers path discovery or
 recursive loading. core ABI v4 descriptors remain declarative and have no

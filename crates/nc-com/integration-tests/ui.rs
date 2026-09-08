@@ -4,18 +4,18 @@ fn ui_errors_are_stable() {
     t.compile_fail("integration-tests/ui/com_class_rejects_object.rs");
     t.pass("integration-tests/ui/class_generic_owned.rs");
     t.compile_fail("integration-tests/ui/class_generic_borrowed.rs");
-    t.compile_fail("integration-tests/ui/class_generic_descriptor.rs");
+    t.compile_fail("integration-tests/ui/class_generic_contract.rs");
     t.compile_fail("integration-tests/ui/class_lifetime.rs");
 
     if !rustc_is_nightly() {
         t.compile_fail("integration-tests/ui/class_missing_impl.rs");
     }
 
-    t.compile_fail("integration-tests/ui/class_non_unit_descriptor_requires_default.rs");
+    t.pass("integration-tests/ui/class_non_unit_typed_constructor.rs");
     t.compile_fail("integration-tests/ui/class_explicit_iunknown.rs");
     t.compile_fail("integration-tests/ui/class_duplicate_interface.rs");
     t.compile_fail("integration-tests/ui/class_invalid_qualified_name.rs");
-    t.compile_fail("integration-tests/ui/class_invalid_versions.rs");
+    t.compile_fail("integration-tests/ui/class_legacy_descriptor_rejected.rs");
     t.compile_fail("integration-tests/ui/class_thread_safe_requires_send_sync.rs");
     t.compile_fail("integration-tests/ui/comptr_thread_local_send.rs");
     t.compile_fail("integration-tests/ui/enum_comptr_payload.rs");
@@ -72,7 +72,6 @@ fn ui_errors_are_stable() {
     t.compile_fail("integration-tests/ui/plugin_invalid_qualified_name.rs");
     t.compile_fail("integration-tests/ui/plugin_invalid_versions.rs");
     t.compile_fail("integration-tests/ui/plugin_overlong_version.rs");
-    t.compile_fail("integration-tests/ui/class_auto_guid_name_mismatch.rs");
     t.pass("integration-tests/ui/class_case_sensitive_generated_statics.rs");
     t.compile_fail("integration-tests/ui/struct_comref_field.rs");
     t.compile_fail("integration-tests/ui/struct_comptr_field.rs");

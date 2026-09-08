@@ -1,29 +1,50 @@
 #![allow(clippy::upper_case_acronyms)]
 
-use nc_com::com_object;
+use nc_com::{NcStatus, com_class, com_object};
 
-#[com_object(
-    class_id(auto_guid = "nc.tests.ui.Foo:class:v1"),
-    name = "nc.tests.ui.Foo:class:v1",
-    version = "1.0.0",
-    constructor(args = none),
-    interfaces()
-)]
-struct Foo;
+/// Lower-cased callable class identity fixture.
+#[com_class(auto_guid = "nc.tests.ui.Foo:class:v1")]
+trait Foo {
+    /// Creates the lower-cased unit fixture.
+    #[constructor]
+    fn new() -> Result<Self, NcStatus>;
+}
 
-#[com_object(
-    class_id(auto_guid = "nc.tests.ui.FOO:class:v1"),
-    name = "nc.tests.ui.FOO:class:v1",
-    version = "1.0.0",
-    constructor(args = none),
-    interfaces()
-)]
-struct FOO;
+/// Private storage for the lower-cased class identity.
+#[com_object(Foo)]
+struct FooObject;
+
+impl Foo for FooObject {
+    /// Creates the lower-cased unit object.
+    fn new() -> Result<Self, NcStatus> {
+        Ok(Self)
+    }
+}
+
+/// Upper-cased callable class identity fixture.
+#[com_class(auto_guid = "nc.tests.ui.FOO:class:v1")]
+trait FOO {
+    /// Creates the upper-cased unit fixture.
+    #[constructor]
+    fn new() -> Result<Self, NcStatus>;
+}
+
+/// Private storage for the upper-cased class identity.
+#[com_object(FOO)]
+struct FOOObject;
+
+impl FOO for FOOObject {
+    /// Creates the upper-cased unit object.
+    fn new() -> Result<Self, NcStatus> {
+        Ok(Self)
+    }
+}
 
 fn main() {
-    assert_ne!(Foo::CLASS_ID, FOO::CLASS_ID);
+    // Case is part of the qualified name and must remain part of both IDs.
+    assert_ne!(FooObject::CLASS_ID, FOOObject::CLASS_ID);
     assert_ne!(
-        Foo::class_descriptor().class_id,
-        FOO::class_descriptor().class_id
+        FooObject::class_descriptor().class_id,
+        FOOObject::class_descriptor().class_id
     );
 }

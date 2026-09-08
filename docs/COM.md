@@ -640,8 +640,9 @@ nc_com::plugin! {
 ```
 
 Callable class contracts derive their descriptor name and class ID from one
-`auto_guid = "stable.Name:v1"` input. `plugin_id(...)` and legacy
-descriptor-bearing class structs retain their explicit identity forms. Core
+`auto_guid = "stable.Name:v1"` input. Implementations use
+`#[com_object(Class)]` and cannot restate the class ID, name, version,
+constructor policy, or public projections. Core
 ABI v4 descriptors are declarative and have no initialization callback.
 
 The `plugin!` macro emits `pub fn plugin_descriptor() -> &'static
@@ -662,10 +663,11 @@ The class table enumerates constructible classes. Each class descriptor carries
 a stable class ID, static qualified name/version metadata, the constructor
 frame ABI hash, generated interface metadata, and a constructor function:
 
-Every class interface table contains the canonical `IUnknown` descriptor
-exactly once. `#[com_object]` inserts it first, then preserves the source order of
-the interfaces listed by the user. Explicit `IUnknown` and duplicate entries
-are rejected.
+Every object interface table contains the canonical `IUnknown` descriptor
+exactly once. For local interface-only objects, `#[com_object]` inserts it first
+and then preserves the source order of `interfaces(...)`. For registered
+objects, the callable class contract supplies the class projection and required
+protocols. Explicit `IUnknown` and duplicate local entries are rejected.
 
 ```rust
 static CLASSES: [nc_com::NcClassDescriptor; 1] = [nc_com::NcClassDescriptor {

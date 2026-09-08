@@ -1,12 +1,9 @@
-use nc_com::com_object;
+use nc_com::com_class;
 
-#[com_object(
-    class_id(auto_guid = "nc.tests.ui.Invalid Class:v1"),
-    name = "nc.tests.ui.Invalid Class:v1",
-    version = "1.0.0",
-    constructor(args = none),
-    interfaces()
-)]
-struct InvalidClassName;
+#[com_class(auto_guid = "nc.tests.ui.Invalid Class:v1")]
+trait InvalidClassName {
+    #[constructor]
+    fn new() -> Result<Self, nc_com::NcStatus>;
+}
 
 fn main() {}

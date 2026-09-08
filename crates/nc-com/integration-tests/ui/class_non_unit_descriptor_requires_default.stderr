@@ -1,5 +1,0 @@
-error: generated no-argument constructors for non-unit COM classes require `constructor(args = none, default)` or `constructor(..., function = path)`
-  --> integration-tests/ui/class_non_unit_descriptor_requires_default.rs:15:12
-   |
-15 | pub struct NonUnitDescriptorRequiresDefault {
-   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

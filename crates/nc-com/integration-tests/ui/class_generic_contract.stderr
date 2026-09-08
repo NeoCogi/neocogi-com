@@ -1,0 +1,5 @@
+error: generic COM implementation classes cannot declare a callable class contract
+  --> integration-tests/ui/class_generic_contract.rs:13:14
+   |
+13 | struct Reader<T> {
+   |              ^^^

@@ -1,5 +1,0 @@
-error: auto_guid must exactly match the descriptor qualified name
- --> integration-tests/ui/class_auto_guid_name_mismatch.rs:9:26
-  |
-9 |     class_id(auto_guid = "nc.tests.ui.ClassIdentityMismatch:class:v1"),
-  |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

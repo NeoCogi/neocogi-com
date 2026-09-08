@@ -19,8 +19,8 @@ pub(crate) struct ClassArgs {
     pub(crate) thread_safe: bool,
     /// Optional path overriding automatic `nc-com` crate discovery.
     pub(crate) runtime_crate: Option<Path>,
-    /// Optional all-or-nothing class descriptor and constructor metadata.
-    pub(crate) descriptor: Option<ClassDescriptorArgs>,
+    /// Optional generated ABI path for a registered callable class contract.
+    pub(crate) class_contract: Option<Path>,
 }
 
 /// Parsed identity for a callable class contract declared on a Rust trait.
@@ -42,34 +42,6 @@ pub(crate) struct ClassInterface {
     pub(crate) interfaces_for_path: Path,
     /// Collision-checked field identifier used in class storage.
     pub(crate) field_ident: Ident,
-}
-
-/// Optional descriptor metadata attached to a generated COM class.
-pub(crate) enum ClassDescriptorArgs {
-    /// An implementation-owned identity written directly on its struct.
-    Explicit {
-        /// Explicit, derived, or path-based stable class identity.
-        class_id: InterfaceGuid,
-        /// Normative class qualified name.
-        name: LitStr,
-        /// Class implementation version text.
-        version: LitStr,
-        /// Constructor argument and factory configuration.
-        constructor: ClassConstructorArgs,
-    },
-    /// An implementation of one shared callable class contract.
-    Contract {
-        /// Generated ABI path carrying the shared class identity and methods.
-        abi_path: Path,
-    },
-}
-
-/// Parsed constructor policy for a descriptor-bearing class.
-pub(crate) struct ClassConstructorArgs {
-    /// Optional user factory invoked by the generated constructor thunk.
-    pub(crate) function: Option<Path>,
-    /// Whether a no-argument class should be built with `Default`.
-    pub(crate) use_default: bool,
 }
 
 /// Parsed options for `#[com_enum]`.
@@ -359,25 +331,20 @@ impl Parse for ClassContractArgs {
 }
 
 impl Parse for ClassArgs {
-    /// Parses `interfaces(IFoo, module::IBar)` with optional `thread_safe`.
+    /// Parses a callable class path or `interfaces(IFoo, module::IBar)` with optional threading.
     ///
     /// Interface paths are intentionally kept to Rust module-style paths for
     /// now. That covers `interfaces(dom::INode)` without accepting generic or
     /// associated-type paths that the generated names cannot represent.
     ///
-    /// Descriptor metadata is optional and all-or-nothing. A bare class path
-    /// supplies the class identity, constructor frame, primary projection,
-    /// and required interface set. Contract-backed implementations therefore
-    /// reject even an empty `interfaces(...)` list. The explicit identity form
-    /// is limited to legacy no-argument descriptors.
+    /// A bare class path supplies the class identity, constructor frame,
+    /// primary projection, and required interface set. Contract-backed
+    /// implementations therefore reject even an empty `interfaces(...)` list.
+    /// Interface-only local objects do not produce registry descriptors.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let mut interfaces = None;
         let mut thread_safe = false;
         let mut runtime_crate = None;
-        let mut class_id = None;
-        let mut name = None;
-        let mut version = None;
-        let mut constructor = None;
         let mut contract = None;
 
         while !input.is_empty() {
@@ -440,39 +407,10 @@ impl Parse for ClassArgs {
                 }
                 input.parse::<Token![=]>()?;
                 runtime_crate = Some(input.parse()?);
-            } else if keyword == "class_id" {
-                if class_id.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate class_id(...)"));
-                }
-                let content;
-                parenthesized!(content in input);
-                class_id = Some(parse_guid_arg(&content, "class_id")?);
-            } else if keyword == "name" {
-                if name.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate name = ..."));
-                }
-                input.parse::<Token![=]>()?;
-                name = Some(input.parse()?);
-            } else if keyword == "version" {
-                if version.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate version = ..."));
-                }
-                input.parse::<Token![=]>()?;
-                version = Some(input.parse()?);
-            } else if keyword == "constructor" {
-                if constructor.is_some() {
-                    return Err(syn::Error::new(
-                        keyword.span(),
-                        "duplicate constructor(...)",
-                    ));
-                }
-                let content;
-                parenthesized!(content in input);
-                constructor = Some(content.parse()?);
             } else {
                 return Err(syn::Error::new(
                     keyword.span(),
-                    "expected a class contract path, interfaces(...), thread_safe, class_id(...), name = ..., version = ..., constructor(...), or nc_com = path",
+                    "expected a class contract path, interfaces(...), thread_safe, or nc_com = path",
                 ));
             }
 
@@ -486,8 +424,8 @@ impl Parse for ClassArgs {
         // contents. An empty list is still redundant on a callable contract.
         let interfaces_were_declared = interfaces.is_some();
         let mut interfaces = interfaces.unwrap_or_default();
-        let descriptor = match (contract, class_id, name, version, constructor) {
-            (Some(contract), None, None, None, None) => {
+        let class_contract = match contract {
+            Some(contract) => {
                 let primary = ClassInterface::from_path(contract)?;
                 if interfaces_were_declared {
                     return Err(syn::Error::new(
@@ -497,93 +435,17 @@ impl Parse for ClassArgs {
                 }
                 let abi_path = primary.abi_path.clone();
                 interfaces.insert(0, primary);
-                Some(ClassDescriptorArgs::Contract { abi_path })
+                Some(abi_path)
             }
-            (None, None, None, None, None) => None,
-            (None, Some(class_id), Some(name), Some(version), Some(constructor)) => {
-                Some(ClassDescriptorArgs::Explicit {
-                    class_id,
-                    name,
-                    version,
-                    constructor,
-                })
-            }
-            (Some(_), _, _, _, _) => {
-                return Err(syn::Error::new(
-                    input.span(),
-                    "the class contract path supplies identity and constructor; remove class_id, name, version, and constructor(...)",
-                ));
-            }
-            _ => {
-                return Err(syn::Error::new(
-                    input.span(),
-                    "class descriptors require class_id(...), name = ..., version = ..., and constructor(...)",
-                ));
-            }
+            None => None,
         };
 
         Ok(Self {
             interfaces,
             thread_safe,
             runtime_crate,
-            descriptor,
+            class_contract,
         })
-    }
-}
-
-impl Parse for ClassConstructorArgs {
-    /// Parses and cross-validates constructor argument and factory options.
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let mut has_no_arguments = false;
-        let mut function = None;
-        let mut use_default = false;
-
-        while !input.is_empty() {
-            let keyword: Ident = input.parse()?;
-            if keyword == "args" {
-                if has_no_arguments {
-                    return Err(syn::Error::new(keyword.span(), "duplicate args = ..."));
-                }
-                input.parse::<Token![=]>()?;
-                let value: Ident = input.parse()?;
-                if value != "none" {
-                    return Err(syn::Error::new(
-                        value.span(),
-                        "explicit class constructors support only `args = none`; declare typed constructors on a callable class contract",
-                    ));
-                }
-                has_no_arguments = true;
-            } else if keyword == "function" {
-                if function.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate function = ..."));
-                }
-                input.parse::<Token![=]>()?;
-                function = Some(input.parse()?);
-            } else if keyword == "default" {
-                if use_default {
-                    return Err(syn::Error::new(keyword.span(), "duplicate default"));
-                }
-                use_default = true;
-            } else {
-                return Err(syn::Error::new(keyword.span(), "expected args = none, function = path, or default"));
-            }
-
-            if input.is_empty() {
-                break;
-            }
-            input.parse::<Token![,]>()?;
-        }
-
-        if !has_no_arguments {
-            return Err(syn::Error::new(input.span(), "expected args = none"));
-        }
-        if function.is_some() && use_default {
-            return Err(syn::Error::new(
-                input.span(),
-                "constructor default cannot be combined with function = path",
-            ));
-        }
-        Ok(Self { function, use_default })
     }
 }
 

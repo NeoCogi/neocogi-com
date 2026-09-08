@@ -7,6 +7,9 @@ contract.
 
 ## Unreleased
 
+- Removed implementation-owned class descriptor options from `#[com_object]`.
+  Registered implementations now use only `#[com_object(Class)]`; local
+  interface-only objects use `#[com_object(interfaces(...))]`.
 - Migrated the multi-plugin examples to callable class contracts shared by
   hosts and implementations, removing their parallel class-ID constants and
   one-object interfaces.

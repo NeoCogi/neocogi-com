@@ -258,8 +258,8 @@ pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```
 ///
 /// The generated allocation owns its reference count, `IUnknown` header,
-/// queryable projections, and original Rust value. Registering the object is a
-/// separate plugin-assembly decision.
+/// queryable projections, and original Rust value. Only the callable-class form
+/// produces a class descriptor that `plugin!` can register.
 #[proc_macro_attribute]
 pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as ClassArgs);

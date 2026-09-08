@@ -2,14 +2,14 @@
 //!
 //! The generator builds one private allocation containing an atomic reference
 //! count, an `IUnknown` header, headers for each declared interface and its ancestors, and the Rust
-//! value. It emits query/add-ref/release thunks, optional class descriptors and
+//! value. It emits query/add-ref/release thunks, contract-backed class descriptors and
 //! constructors, threading assertions, and safe object-creation helpers.
 
 use quote::{format_ident, quote};
 use syn::{Fields, ItemStruct};
 
-use crate::args::{ClassArgs, ClassDescriptorArgs};
-use crate::util::{create_visibility, runtime_crate_path, stable_guid, validate_version_literal};
+use crate::args::ClassArgs;
+use crate::util::{create_visibility, runtime_crate_path};
 
 /// Generates object storage, lifecycle thunks, interfaces, and optional metadata.
 pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macro2::TokenStream {
@@ -21,12 +21,12 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
     let class_vis = create_visibility(&input.vis);
     let storage_ident = format_ident!("{class_ident}ComObject");
     // Rust implementation generics stay inside the allocating binary. A registered
-    // descriptor cannot choose type arguments, and COM pointers cannot carry the
+    // class contract cannot choose type arguments, and COM pointers cannot carry the
     // lifetime of borrowed application storage.
     let generic = !input.generics.params.is_empty();
-    if generic && args.descriptor.is_some() {
+    if generic && args.class_contract.is_some() {
         return syn::Error::new_spanned(&input.generics,
-            "generic COM implementation classes cannot declare a registered class descriptor")
+            "generic COM implementation classes cannot declare a callable class contract")
             .to_compile_error();
     }
     if input.generics.lifetimes().next().is_some() {
@@ -67,7 +67,7 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
     let is_unit_struct = matches!(input.fields, Fields::Unit);
     // Query order and exported metadata use the same derived-first ancestry.
     // Shared bases are advertised once even when several branches expose them.
-    let interface_chains = if let Some(ClassDescriptorArgs::Contract { abi_path }) = args.descriptor.as_ref() {
+    let interface_chains = if let Some(abi_path) = args.class_contract.as_ref() {
         // The contract is the sole authority for its callable projection and
         // required interface supertraits. The implementation struct must not
         // repeat that public boundary.
@@ -163,119 +163,34 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
             }
         }
     });
-    let (class_descriptor_items, class_descriptor_module_items) = match args.descriptor.as_ref() {
+    let (class_descriptor_items, class_descriptor_module_items) = match args.class_contract.as_ref() {
         None => (quote! {}, quote! {}),
-        Some(descriptor) => {
-            let (class_id, name, version, constructor, contract, constructor_abi_hash) = match descriptor {
-                ClassDescriptorArgs::Explicit { class_id, name, version, constructor } => {
-                    let class_id = match stable_guid(class_id.clone(), name, &nc) {
-                        Ok(class_id) => class_id,
-                        Err(err) => return err.to_compile_error(),
-                    };
-                    if let Err(err) = validate_version_literal(version) {
-                        return err.to_compile_error();
-                    }
-                    (
-                        class_id,
-                        quote! { #name },
-                        quote! { #version },
-                        Some(constructor),
-                        None,
-                        quote! { #nc::NcAbiHash::ZERO },
-                    )
-                }
-                ClassDescriptorArgs::Contract { abi_path } => (
-                    quote! { <#abi_path as #nc::ComClassContract>::CLASS_ID },
-                    quote! { <#abi_path as #nc::ComClassContract>::QUALIFIED_NAME },
-                    quote! { <#abi_path as #nc::ComClassContract>::VERSION },
-                    None,
-                    Some(abi_path),
-                    quote! { <#abi_path as #nc::ComClassContract>::CONSTRUCTOR_ABI_HASH },
-                ),
-            };
+        Some(abi_path) => {
             let generated_constructor_ident = format_ident!(
                 "__nc_com_construct_{}",
                 class_ident.to_string().to_lowercase()
             );
             let descriptor_static_ident =
                 format_ident!("__NC_COM_CLASS_DESCRIPTOR_{}", class_ident);
-            let constructor_fn = constructor
-                .and_then(|constructor| constructor.function.as_ref())
-                .map(|function| quote! { #function })
-                .unwrap_or_else(|| quote! { Self::#generated_constructor_ident });
-            if let Some(constructor) = constructor {
-                if !is_unit_struct && constructor.function.is_none() && !constructor.use_default {
-                    return syn::Error::new_spanned(
-                        class_ident,
-                        "generated no-argument constructors for non-unit COM classes require `constructor(args = none, default)` or `constructor(..., function = path)`",
-                    )
-                    .to_compile_error();
-                }
-            }
-            let default_value = if is_unit_struct {
-                quote! { #class_ident }
-            } else {
-                quote! { <#class_type as ::core::default::Default>::default() }
-            };
-            let build_value = match contract {
-                Some(abi_path) => quote! {
-                    // SAFETY: `construct_class_checked` matched the descriptor's
-                    // generated constructor hash and pointer shape before this
-                    // contract-specific frame decoder is entered.
-                    let value = unsafe {
-                        #abi_path::__nc_construct::<#class_type>(_arguments)?
-                    };
-                },
-                None => quote! {
-                    let value = #default_value;
-                },
-            };
-            let generated_constructor = if constructor.and_then(|constructor| constructor.function.as_ref()).is_some() {
-                quote! {}
-            } else {
-                quote! {
-                    // Generated constructors either decode their callable class
-                    // contract or create an explicitly declared no-argument
-                    // legacy class value.
-                    unsafe extern "C" fn #generated_constructor_ident(
-                        class: *const #nc::NcClassDescriptor,
-                        arguments: *const core::ffi::c_void,
-                        out: *mut *mut #nc::IUnknown,
-                    ) -> #nc::NcStatus {
-                        // SAFETY: This is the raw constructor entrypoint stored
-                        // in the generated class descriptor. The checked helper
-                        // validates descriptor identity, argument shape, and
-                        // output storage before publishing the object pointer.
-                        unsafe {
-                            #nc::construct_class_checked::<#pointer_threading_model, _>(
-                                class,
-                                arguments,
-                                out,
-                                #class_ident::CLASS_ID,
-                                #constructor_abi_hash,
-                                |_arguments| {
-                                    #build_value
-                                    let unknown = #class_ident::from_value(value);
-                                    Ok(unknown)
-                                },
-                            )
-                        }
-                    }
-                }
-            };
 
             let impl_items = quote! {
                 #[doc = "Stable class identifier used by generated class metadata."]
-                pub const CLASS_ID: #nc::NcGuid = #class_id;
+                pub const CLASS_ID: #nc::NcGuid =
+                    <#abi_path as #nc::ComClassContract>::CLASS_ID;
 
                 #[doc = "Class descriptor value consumed by `nc_com::plugin!`."]
                 pub const CLASS_DESCRIPTOR: #nc::NcClassDescriptor = #nc::NcClassDescriptor {
                     class_id: Self::CLASS_ID,
-                    qualified_name: #nc::NcStaticUtf8::from_static(#name),
-                    class_version: #nc::NcStaticUtf8::from_static(#version),
-                    constructor_abi_hash: #constructor_abi_hash,
+                    qualified_name: #nc::NcStaticUtf8::from_static(
+                        <#abi_path as #nc::ComClassContract>::QUALIFIED_NAME,
+                    ),
+                    class_version: #nc::NcStaticUtf8::from_static(
+                        <#abi_path as #nc::ComClassContract>::VERSION,
+                    ),
+                    constructor_abi_hash:
+                        <#abi_path as #nc::ComClassContract>::CONSTRUCTOR_ABI_HASH,
                     threading: #class_threading,
-                    construct: Some(#constructor_fn as #nc::NcConstructorFn),
+                    construct: Some(Self::#generated_constructor_ident as #nc::NcConstructorFn),
                     interface_count: Self::COM_INTERFACE_COUNT as u32,
                     interfaces: Self::COM_INTERFACES.as_ptr(),
                 };
@@ -285,7 +200,34 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
                     &#descriptor_static_ident
                 }
 
-                #generated_constructor
+                /// Decodes the contract frame and publishes one constructed COM object.
+                unsafe extern "C" fn #generated_constructor_ident(
+                    class: *const #nc::NcClassDescriptor,
+                    arguments: *const core::ffi::c_void,
+                    out: *mut *mut #nc::IUnknown,
+                ) -> #nc::NcStatus {
+                    // SAFETY: This raw descriptor entrypoint delegates pointer,
+                    // identity, and frame-shape validation to the common helper
+                    // before the contract-specific decoder reads any arguments.
+                    unsafe {
+                        #nc::construct_class_checked::<#pointer_threading_model, _>(
+                            class,
+                            arguments,
+                            out,
+                            #class_ident::CLASS_ID,
+                            <#abi_path as #nc::ComClassContract>::CONSTRUCTOR_ABI_HASH,
+                            |_arguments| {
+                                // SAFETY: The checked helper matched the class's
+                                // generated constructor hash and pointer shape.
+                                let value = unsafe {
+                                    #abi_path::__nc_construct::<#class_type>(_arguments)?
+                                };
+                                let unknown = #class_ident::from_value(value);
+                                Ok(unknown)
+                            },
+                        )
+                    }
+                }
             };
             let module_items = quote! {
                 // Host registration APIs borrow descriptor pointers beyond the

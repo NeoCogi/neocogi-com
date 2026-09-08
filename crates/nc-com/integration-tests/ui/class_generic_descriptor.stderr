@@ -1,5 +1,0 @@
-error: generic COM implementation classes cannot declare a registered class descriptor
-  --> integration-tests/ui/class_generic_descriptor.rs:15:14
-   |
-15 | struct Reader<T> {
-   |              ^^^
