@@ -27,7 +27,7 @@ fn run_fixture_cargo(cargo: &str, manifest: &Path, target_dir: &Path, operation:
 
     assert!(
         output.status.success(),
-        "renamed runtime fixture cargo {operation} failed\nstatus: {}\nstdout:\n{}\nstderr:\n{}",
+        "runtime path fixture cargo {operation} failed\nstatus: {}\nstdout:\n{}\nstderr:\n{}",
         output.status,
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
@@ -35,9 +35,9 @@ fn run_fixture_cargo(cargo: &str, manifest: &Path, target_dir: &Path, operation:
 }
 
 #[test]
-fn macro_output_and_rustdoc_support_renamed_runtime_dependency() {
-    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("integration-tests/fixtures/renamed-runtime/Cargo.toml");
-    let target_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../target/renamed-runtime-fixture");
+fn macro_output_and_rustdoc_support_an_explicit_runtime_facade() {
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("integration-tests/fixtures/runtime-path/Cargo.toml");
+    let target_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../target/runtime-path-fixture");
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
 
     run_fixture_cargo(&cargo, &manifest, &target_dir, "check", &[], false);

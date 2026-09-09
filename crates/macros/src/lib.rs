@@ -118,10 +118,9 @@
 //! version literals are checked at the same time, so generated descriptors
 //! cannot defer malformed text failures until runtime activation.
 //!
-//! By default, generated code resolves the runtime crate with Cargo metadata, so
-//! renamed dependencies such as `runtime = { package = "neocogi-com", ... }` work.
-//! Use `neocogi_com = path` on `com_interface`, `com_class`, or `com_enum` to point
-//! generated code at an explicit facade or re-export path.
+//! Generated code uses the canonical `::neocogi_com` crate path. Use
+//! `neocogi_com = path` on a macro invocation only when generated code must target
+//! an explicit facade or re-export path. The macros never parse Cargo metadata.
 
 #![deny(missing_docs)]
 

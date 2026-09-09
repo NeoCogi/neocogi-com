@@ -1,33 +1,18 @@
 //! Shared name, identity, visibility, and diagnostic helpers for macro expansion.
 //!
-//! These utilities resolve renamed runtime dependencies, validate stable GUID
-//! and version literals, enforce ABI count widths, derive collision-resistant
-//! generated identifiers, and combine independent `syn` errors so callers see
-//! all actionable problems from one expansion.
+//! These utilities select the canonical or explicitly supplied runtime path,
+//! validate stable GUID and version literals, enforce ABI count widths, derive
+//! collision-resistant generated identifiers, and combine independent `syn`
+//! errors so callers see all actionable problems from one expansion.
 
-use proc_macro_crate::{FoundCrate, crate_name};
 use quote::{format_ident, quote};
 use syn::{Generics, Ident, LitStr, Path, Result, Visibility};
 
 use crate::args::InterfaceGuid;
 
-/// Resolves an explicit or Cargo-renamed path to the public `neocogi-com` crate.
+/// Uses an explicit facade path or the canonical public `neocogi-com` crate name.
 pub(crate) fn runtime_crate_path(override_path: Option<&Path>) -> Path {
-    if let Some(path) = override_path {
-        return path.clone();
-    }
-
-    match crate_name("neocogi-com") {
-        // Example targets in this package are separate crates even though
-        // Cargo reports the package as "itself". Use the stable library crate
-        // path; the runtime exports a hidden self-alias for in-crate expansion.
-        Ok(FoundCrate::Itself) => syn::parse_quote!(::neocogi_com),
-        Ok(FoundCrate::Name(name)) => {
-            let ident = format_ident!("{}", name.replace('-', "_"));
-            syn::parse_quote!(::#ident)
-        }
-        Err(_) => syn::parse_quote!(::neocogi_com),
-    }
+    override_path.cloned().unwrap_or_else(|| syn::parse_quote!(::neocogi_com))
 }
 
 /// Resolves and validates the stable GUID for an interface declaration.

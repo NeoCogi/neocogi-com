@@ -89,8 +89,8 @@ name = "panic_behavior"
 path = "integration-tests/panic_behavior.rs"
 
 [[test]]
-name = "renamed_dependency"
-path = "integration-tests/renamed_dependency.rs"
+name = "runtime_path"
+path = "integration-tests/runtime_path.rs"
 
 [[test]]
 name = "shared_library_component"

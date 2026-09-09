@@ -1584,9 +1584,9 @@ The quality gate compiles the canonical facade macro examples and, through a
 separate non-publishable harness, the ABI specification's blocks marked `rust`;
 `rust,compile_fail` blocks must be rejected, while schematic declarations are
 explicitly `rust,ignore`. The
-renamed-dependency integration test runs both `cargo check` and warning-denied
-rustdoc for generated items using an automatically resolved renamed crate and
-an explicit facade override.
+runtime-path integration test runs both `cargo check` and warning-denied rustdoc
+for generated items using an explicit facade override. Macro expansion otherwise
+uses the canonical `::neocogi_com` path and does not inspect Cargo metadata.
 
 ### Registry Scaling Benchmark
 

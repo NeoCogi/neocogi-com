@@ -57,9 +57,9 @@ hash-checked `QueryInterface`, and reference counting.
 
 Macro documentation examples are compile-checked in the facade rustdoc, where
 the complete public API is available; intentionally incomplete lowering and
-generated-shape sketches are marked as text. The renamed-dependency integration
-fixture also builds its generated rustdoc with warnings denied, covering both
-automatic dependency-name resolution and an explicit facade override.
+generated-shape sketches are marked as text. The runtime-path integration fixture
+also builds its generated rustdoc with warnings denied, covering the explicit
+facade override without parsing Cargo metadata.
 
 ## Boundary Rules
 

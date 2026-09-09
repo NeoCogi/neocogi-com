@@ -214,11 +214,10 @@ The qualified-name string is stored in the interface descriptor and is the
 sole UUIDv5 input. Changing it changes the interface ID. Explicit UUID syntax
 requires `name = "..."` and macro expansion verifies the same derivation.
 
-## Renamed Runtime Crates
+## Explicit Runtime Facades
 
-Generated code normally discovers the `neocogi-com` runtime crate through Cargo
-metadata. If a facade or renamed dependency needs to be used, pass an explicit
-runtime path:
+Generated code uses the canonical `::neocogi_com` crate path without inspecting
+Cargo metadata. If a facade or re-export needs to be used, pass its explicit path:
 
 ```rust
 #[com_interface(auto_guid = "example.Foo:v1", neocogi_com = my_runtime)]
