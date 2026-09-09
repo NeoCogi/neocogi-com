@@ -1,5 +1,0 @@
-error: COM methods cannot return `ComRef`; return `ComPtr<InterfaceAbi>` to transfer an owned interface reference
-  --> integration-tests/ui/interface_comref_return.rs:10:31
-   |
-10 |     fn value(&self) -> Result<nc_com::ComRef<'_, IObjectAbi>, nc_com::NcStatus>;
-   |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

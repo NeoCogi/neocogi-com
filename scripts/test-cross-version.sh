@@ -49,10 +49,10 @@ if [[ -n "${!dylib_path_var:-}" ]]; then
   dylib_path+=":${!dylib_path_var}"
 fi
 
-cargo build -p nc-com-runtime --offline
+cargo build -p neocogi-com-runtime --offline
 
 env \
   RUSTFLAGS="$rustflags" \
   "$dylib_path_var=$dylib_path" \
-  cargo test -p nc-com --test cross_version_component \
+  cargo test -p neocogi-com --test cross_version_component \
     --no-default-features --features macros,std,runtime --offline "$@"

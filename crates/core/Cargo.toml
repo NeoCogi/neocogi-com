@@ -1,0 +1,18 @@
+[package]
+name = "neocogi-com-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/NeoCogi/neocogi-platform"
+homepage = "https://github.com/NeoCogi/neocogi-platform"
+documentation = "https://docs.rs/neocogi-com"
+readme = "README.md"
+description = "Stable core ABI types for neocogi-com"
+keywords = ["com", "abi", "ffi", "plugin"]
+categories = ["api-bindings", "development-tools::ffi"]
+
+[features]
+default = []
+alloc = []
+std = ["alloc"]

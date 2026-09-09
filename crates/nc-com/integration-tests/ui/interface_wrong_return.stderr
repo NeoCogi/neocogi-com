@@ -1,5 +1,0 @@
-error: COM methods must return `Result<T, nc_com::NcStatus>`
- --> integration-tests/ui/interface_wrong_return.rs:5:24
-  |
-5 |     fn value(&self) -> u32;
-  |                        ^^^

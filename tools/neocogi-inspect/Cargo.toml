@@ -1,0 +1,19 @@
+[package]
+name = "neocogi-inspect"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/NeoCogi/neocogi-platform"
+homepage = "https://github.com/NeoCogi/neocogi-platform"
+documentation = "https://docs.rs/neocogi-com"
+readme = "README.md"
+description = "Inspection CLI for neocogi-com plugin shared libraries"
+keywords = ["com", "abi", "ffi", "plugin"]
+categories = ["command-line-utilities", "development-tools::ffi"]
+
+[dependencies]
+neocogi-com-core = { workspace = true, default-features = false, features = ["std"] }
+neocogi-com-runtime = { workspace = true, default-features = false }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }

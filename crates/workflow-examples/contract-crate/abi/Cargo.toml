@@ -1,8 +1,8 @@
 [package]
-name = "nc-com-contract-workflow-abi"
+name = "neocogi-com-contract-workflow-abi"
 version = "0.1.0"
 edition = "2024"
 publish = false
 
 [dependencies]
-nc-com = { path = "../../../nc-com", default-features = false, features = ["macros"] }
+neocogi-com = { path = "../../../api", default-features = false, features = ["macros"] }

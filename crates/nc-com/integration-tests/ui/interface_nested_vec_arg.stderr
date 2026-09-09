@@ -1,5 +1,0 @@
-error: COM method arguments cannot be Vec; model variable-size data as COM interfaces
- --> integration-tests/ui/interface_nested_vec_arg.rs:5:35
-  |
-5 |     fn value(&self, value: Option<Vec<u8>>) -> Result<u32, nc_com::NcStatus>;
-  |                                   ^^^^^^^

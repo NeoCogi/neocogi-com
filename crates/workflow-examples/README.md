@@ -1,6 +1,6 @@
 # Workflow Examples
 
-This directory contains multi-crate examples for recommended `nc-com`
+This directory contains multi-crate examples for recommended `neocogi-com`
 integration workflows. They are ordinary Cargo workspaces and are also exercised
 by integration tests so the examples stay buildable.
 

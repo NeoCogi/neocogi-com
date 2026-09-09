@@ -28,21 +28,21 @@ run_msrv_cargo() {
 }
 
 run_msrv_cargo "all workspace targets and features" \
-  check -p nc-com-core -p nc-com-macros -p nc-com-runtime-sys -p nc-com-runtime -p nc-com -p nc-com-inspect --all-targets --all-features --locked
+  check -p neocogi-com-core -p neocogi-com-macros -p neocogi-com-runtime-sys -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --all-targets --all-features --locked
 run_msrv_cargo "workspace library tests" \
-  test -p nc-com-core -p nc-com-macros -p nc-com-runtime-sys -p nc-com-runtime -p nc-com -p nc-com-inspect --lib --locked
+  test -p neocogi-com-core -p neocogi-com-macros -p neocogi-com-runtime-sys -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --lib --locked
 run_msrv_cargo "ABI v1 normative snippets" \
   test --manifest-path crates/com/tests/abi-spec/Cargo.toml --doc --locked
 run_msrv_cargo "inspector binary tests" \
-  test -p nc-com-inspect --bin nc-com-inspect --locked
-run_msrv_cargo "nc-com default features" \
-  check -p nc-com --locked
-run_msrv_cargo "nc-com without default features" \
-  check -p nc-com --no-default-features --locked
-run_msrv_cargo "nc-com with alloc only" \
-  check -p nc-com --no-default-features --features alloc --locked
-run_msrv_cargo "nc-com-core without default features" \
-  check -p nc-com-core --no-default-features --locked
+  test -p neocogi-inspect --bin neocogi-inspect --locked
+run_msrv_cargo "neocogi-com default features" \
+  check -p neocogi-com --locked
+run_msrv_cargo "neocogi-com without default features" \
+  check -p neocogi-com --no-default-features --locked
+run_msrv_cargo "neocogi-com with alloc only" \
+  check -p neocogi-com --no-default-features --features alloc --locked
+run_msrv_cargo "neocogi-com-core without default features" \
+  check -p neocogi-com-core --no-default-features --locked
 
 echo
 echo "Rust $msrv MSRV suite passed"

@@ -36,8 +36,8 @@ run_workspace_tests() {
   echo
   echo "==> [$toolchain] $row"
   # Do not use --all-features here: the runtime feature intentionally requires
-  # an already built nc-com-runtime shared library on the native link path.
-  cargo "+$toolchain" test -p nc-com-core -p nc-com-macros -p nc-com-runtime-sys -p nc-com-runtime -p nc-com -p nc-com-inspect "$@"
+  # an already built neocogi-com-runtime shared library on the native link path.
+  cargo "+$toolchain" test -p neocogi-com-core -p neocogi-com-macros -p neocogi-com-runtime-sys -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect "$@"
 }
 
 run_linked_facade_smoke_tests() {
@@ -51,7 +51,7 @@ run_linked_facade_smoke_tests() {
   echo
   echo "==> [$toolchain] $row"
 
-  cargo "+$toolchain" build -p nc-com-runtime "${cargo_args[@]}"
+  cargo "+$toolchain" build -p neocogi-com-runtime "${cargo_args[@]}"
 
   local runtime_dir
   runtime_dir="$(cd "$target_dir/$profile" && pwd)"
@@ -88,7 +88,7 @@ run_linked_facade_smoke_tests() {
   local com_usage_test="runtime_is_shareable_as_process_wide_state"
   local shared_library_test="runtime_loads_shared_library_and_constructs_class"
   local listed
-  listed="$(run_linked_cargo test -p nc-com --features runtime \
+  listed="$(run_linked_cargo test -p neocogi-com --features runtime \
     --test com_usage "${cargo_args[@]}" -- --list)"
   printf '%s\n' "$listed"
   if ! grep -Fq "$com_usage_test: test" <<<"$listed"; then
@@ -96,7 +96,7 @@ run_linked_facade_smoke_tests() {
     exit 1
   fi
 
-  listed="$(run_linked_cargo test -p nc-com --features runtime \
+  listed="$(run_linked_cargo test -p neocogi-com --features runtime \
     --test shared_library_component "${cargo_args[@]}" -- --list)"
   printf '%s\n' "$listed"
   if ! grep -Fq "$shared_library_test: test" <<<"$listed"; then
@@ -104,9 +104,9 @@ run_linked_facade_smoke_tests() {
     exit 1
   fi
 
-  run_linked_cargo test -p nc-com --features runtime \
+  run_linked_cargo test -p neocogi-com --features runtime \
     --test com_usage "${cargo_args[@]}" "$com_usage_test" -- --exact
-  run_linked_cargo test -p nc-com --features runtime \
+  run_linked_cargo test -p neocogi-com --features runtime \
     --test shared_library_component "${cargo_args[@]}" "$shared_library_test" -- --exact
 }
 

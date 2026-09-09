@@ -66,21 +66,21 @@ require_miri_test() {
 
 require_miri_test \
   "five_plugin_dependency_chain_plans_and_registers_in_process" \
-  -p nc-com-runtime --lib --all-features "$@"
+  -p neocogi-com-runtime --lib --all-features "$@"
 require_miri_test \
   "multiple_generated_objects_keep_independent_lifetimes" \
-  -p nc-com --test com_usage --no-default-features --features macros,std,runtime "$@"
+  -p neocogi-com --test com_usage --no-default-features --features macros,std,runtime "$@"
 require_miri_test \
   "table_rejects_a_short_allocation_before_forming_a_full_reference" \
-  -p nc-com --lib --no-default-features --features macros,std,runtime "$@"
+  -p neocogi-com --lib --no-default-features --features macros,std,runtime "$@"
 echo "Miri safety sentinels discovered: 3"
 
-run_miri "nc-com-core library" -p nc-com-core --lib --all-features "$@"
-run_miri "nc-com-runtime library" -p nc-com-runtime --lib --all-features "$@"
-run_miri "nc-com library" \
-  -p nc-com --lib --no-default-features --features macros,std,runtime "$@"
+run_miri "neocogi-com-core library" -p neocogi-com-core --lib --all-features "$@"
+run_miri "neocogi-com-runtime library" -p neocogi-com-runtime --lib --all-features "$@"
+run_miri "neocogi-com library" \
+  -p neocogi-com --lib --no-default-features --features macros,std,runtime "$@"
 run_miri "pure Rust COM lifecycle integration tests" \
-  -p nc-com --test com_usage --no-default-features --features macros,std,runtime "$@"
+  -p neocogi-com --test com_usage --no-default-features --features macros,std,runtime "$@"
 
 echo
 echo "safety tests passed"

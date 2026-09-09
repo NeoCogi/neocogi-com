@@ -1,5 +1,5 @@
 use contract_abi::IContractValue;
-use nc_com::{NcStatus, com_object};
+use neocogi_com::{NcStatus, com_object};
 
 // A host-owned value object passed into the plugin. This demonstrates that COM
 // objects can cross in both directions as long as both sides share the contract.
@@ -18,8 +18,8 @@ impl IContractValue for HostValue {
 mod tests {
     use super::HostValue;
     use contract_abi::{ContractPoint, ContractWidgetAbi, ContractWidgetComPtrExt, IContractValueAbi, IContractValueComPtrExt};
-    use nc_com::NC_E_NOINTERFACE;
-    use nc_com::{AbiType, ComInterface, ComPtr, LoadedModuleInfo, NcAbiHash, NcAbiType, Runtime, format_method_signature};
+    use neocogi_com::NC_E_NOINTERFACE;
+    use neocogi_com::{AbiType, ComInterface, ComPtr, LoadedModuleInfo, NcAbiHash, NcAbiType, Runtime, format_method_signature};
     use std::fmt::{Display, Write};
     use std::path::{Path, PathBuf};
     use std::process::Command;
@@ -33,14 +33,14 @@ mod tests {
         assert_eq!(IContractValueAbi::IID.to_string(), "c6d018c2-42df-5d19-83ce-73c797c09102");
         assert_eq!(
             IContractValueAbi::ABI_HASH.bytes,
-            [0x92, 0x9b, 0x4a, 0x08, 0x3d, 0xaa, 0xf2, 0x05, 0xa4, 0x33, 0x76, 0xa4, 0x85, 0xbe, 0x69, 0x91, 0xef, 0xeb, 0xd0, 0x33, 0x3f, 0x23, 0x65, 0x14, 0xc6, 0x4c, 0x23, 0xd7, 0xa3, 0x9f, 0xaa, 0x1d,]
+            [0xa1, 0xa8, 0x5a, 0x37, 0xf5, 0xc3, 0x89, 0x2b, 0x41, 0xe7, 0x40, 0xfd, 0xb1, 0xc7, 0x66, 0x6a, 0x48, 0x99, 0xd5, 0x45, 0xc4, 0x39, 0x4a, 0xfe, 0xff, 0x46, 0xb2, 0xaf, 0x96, 0xde, 0xb9, 0x1f,]
         );
         assert_eq!(ContractWidgetAbi::IID, ContractWidgetAbi::CLASS_ID);
         assert_eq!(
             ContractWidgetAbi::CONSTRUCTOR_ABI_HASH,
-            NcAbiHash::from_abi_parts(&[nc_com::NcAbiHashPart::Arg {
+            NcAbiHash::from_abi_parts(&[neocogi_com::NcAbiHashPart::Arg {
                 index: 0,
-                passing: nc_com::NcAbiPassing::Value,
+                passing: neocogi_com::NcAbiPassing::Value,
                 ty: NcAbiType::U32,
             }])
         );
@@ -197,7 +197,7 @@ mod tests {
             .unwrap_or_else(|status| panic_plugin_contract("constructing required widget", status))
     }
 
-    fn required_call_or_panic<T>(context: &str, result: Result<T, nc_com::NcStatus>) -> T {
+    fn required_call_or_panic<T>(context: &str, result: Result<T, neocogi_com::NcStatus>) -> T {
         result.unwrap_or_else(|status| panic_plugin_contract(context, status))
     }
 

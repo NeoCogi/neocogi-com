@@ -1,0 +1,5 @@
+error: `NcCopyToBufferOffset` parameters must use `'_` as their call-scoped lifetime; named lifetimes, including `'static`, are not supported
+ --> integration-tests/ui/interface_copy_to_buffer_static_lifetime.rs:7:51
+  |
+7 |         output: neocogi_com::NcCopyToBufferOffset<'static, u8>,
+  |                                                   ^^^^^^^

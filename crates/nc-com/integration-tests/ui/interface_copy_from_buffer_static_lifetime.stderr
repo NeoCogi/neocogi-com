@@ -1,5 +1,0 @@
-error: `NcCopyFromBufferOffset` parameters must use `'_` as their call-scoped lifetime; named lifetimes, including `'static`, are not supported
- --> integration-tests/ui/interface_copy_from_buffer_static_lifetime.rs:7:47
-  |
-7 |         input: nc_com::NcCopyFromBufferOffset<'static, u8>,
-  |                                               ^^^^^^^

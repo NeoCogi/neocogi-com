@@ -1,5 +1,0 @@
-error: COM buffer elements cannot be String; buffer elements must be plain ABI values
- --> integration-tests/ui/interface_copy_from_buffer_bad_element.rs:5:63
-  |
-5 |     fn write(&self, input: nc_com::NcCopyFromBufferOffset<'_, String>)
-  |                                                               ^^^^^^

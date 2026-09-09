@@ -1,4 +1,4 @@
-# nc-com core ABI v5 Specification
+# neocogi-com core ABI v5 Specification
 
 Status: experimental draft (pre-alpha; not ratified)
 
@@ -6,8 +6,8 @@ Core ABI version: `NC_COM_CORE_ABI_VERSION = 5`
 
 Dynamic plugin descriptor symbol: `nc_get_plugin_descriptor`
 
-This document specifies the same-process C-shaped ABI used by `nc-com` core ABI v5.
-It is intended to be precise enough for host/plugin authors, future nc-com
+This document specifies the same-process C-shaped ABI used by `neocogi-com` core ABI v5.
+It is intended to be precise enough for host/plugin authors, future neocogi-com
 maintainers, and independent tooling that validates or inspects runtime
 contracts.
 
@@ -48,7 +48,7 @@ The words "must", "must not", "should", and "may" are normative.
 
 ## 2. Scope
 
-nc-com core ABI v5 defines an explicit Rust-to-Rust component boundary by using a
+neocogi-com core ABI v5 defines an explicit Rust-to-Rust component boundary by using a
 C-shaped ABI. The Rust compiler's native ABI is not part of the contract.
 
 The explicit boundary consists of:
@@ -90,7 +90,7 @@ or other language bindings from a plugin binary or inspection artifact.
 
 ## 3. Process ABI Requirements
 
-nc-com core ABI v5 is a same-process raw pointer ABI. A host and component are
+neocogi-com core ABI v5 is a same-process raw pointer ABI. A host and component are
 compatible only when they share the same process ABI:
 
 - target architecture
@@ -123,7 +123,7 @@ communication requires a serialization or RPC layer and is outside core ABI v5.
 ### 3.1 Rust-to-Rust trust boundary
 
 Core ABI v5 is a Rust-to-Rust plugin contract. Supported hosts, runtimes, and
-plugins use nc-com's safe wrappers and generated ABI implementations on both
+plugins use neocogi-com's safe wrappers and generated ABI implementations on both
 sides of the shared-library boundary. The C-shaped records, raw pointers, and
 `extern "C"` functions provide a stable process ABI; they do not define a
 general-purpose defensive C API for mutually untrusted callers.
@@ -134,7 +134,7 @@ input pointer must be non-null, correctly aligned, and point to a live value of
 the declared ABI type that remains readable for the documented call duration. A
 required output pointer must likewise point to suitably aligned writable storage
 for the declared output. Ownership and borrowing requirements are also
-preconditions. nc-com's safe wrappers and generated implementations establish
+preconditions. neocogi-com's safe wrappers and generated implementations establish
 these invariants; independently handwritten unsafe adapters are responsible for
 establishing the same invariants themselves.
 
@@ -145,7 +145,7 @@ postcondition after violating a pointer, lifetime, layout, aliasing, or ownershi
 precondition.
 
 Trust does not bypass version negotiation. Artifacts built with different
-nc-com releases may interoperate only when the core and runtime ABI versions,
+neocogi-com releases may interoperate only when the core and runtime ABI versions,
 interface IDs and ABI hashes, and append-only prefix rules in this specification
 establish compatibility. An incompatible artifact must be rejected before its
 incompatible ABI surface is used.
@@ -196,7 +196,7 @@ pub const NC_COM_CORE_ABI_VERSION: u32 = 5;
 
 This value identifies the current draft binary generation; the number `5` is
 not a claim that core ABI v5 has been ratified. Before ratification, hosts and
-plugins built from different nc-com source releases are not guaranteed to
+plugins built from different neocogi-com source releases are not guaranteed to
 interoperate, even when both report this value. After an unreleased draft ABI
 change, every host and plugin artifact must be rebuilt together. Once a draft
 build has been distributed, a later incompatible binary shape must use a
@@ -293,7 +293,7 @@ deliberately includes them in that qualified name.
 The nil GUID is:
 
 ```rust
-# use nc_com::NcGuid;
+# use neocogi_com::NcGuid;
 pub const NC_GUID_NIL: NcGuid = NcGuid::from_fields(0, 0, 0, [0; 8]);
 ```
 
@@ -320,7 +320,7 @@ the `repr(C)` struct.
 
 ### 6.1 Qualified-name UUIDv5 derivation
 
-The nc-com UUID namespace is:
+The neocogi-com UUID namespace is:
 
 ```text
 720d6b32-1f75-4828-a895-6fb73f8202ee
@@ -339,7 +339,7 @@ replaced with `10` (the RFC variant). `N.as_bytes()` means the exact UTF-8 byte
 sequence. There is no Unicode normalization, case folding, trimming, separator
 replacement, Rust-path expansion, or terminating NUL byte.
 
-[`NC_COM_GUID_NAMESPACE`](../crates/nc-com-core/src/guid.rs) and the `const`,
+[`NC_COM_GUID_NAMESPACE`](../crates/neocogi-com-core/src/guid.rs) and the `const`,
 allocation-free `guid_from_qualified_name` operation are the authoritative core
 implementation. Proc macros and handwritten descriptor producers use the same
 operation.
@@ -347,7 +347,7 @@ operation.
 Both macro forms have identical semantics:
 
 ```rust
-# use nc_com::com_interface;
+# use neocogi_com::com_interface;
 #[com_interface(auto_guid = "example.Calculator:v1")]
 # trait IAutomatic {}
 
@@ -447,7 +447,7 @@ A representative fixed-layout aggregate is declared directly from its ABI
 fields:
 
 ```rust
-use nc_com::com_struct;
+use neocogi_com::com_struct;
 
 #[com_struct]
 #[derive(Debug, PartialEq)]
@@ -464,7 +464,7 @@ pub struct PacketHeader {
 rejected so the generated layout metadata and Rust representation cannot drift.
 
 By default, every field must implement `AbiPlainValue`. With
-`#[com_struct(c_struct)]`, fields need no nc-com traits or macro annotations.
+`#[com_struct(c_struct)]`, fields need no neocogi-com traits or macro annotations.
 Instead, generated code checks the whole record's FFI layout with rustc's
 `improper_ctypes_definitions` lint promoted to an error, including nested field
 layouts. An outer C representation does not make a nested Rust-layout struct
@@ -514,7 +514,7 @@ field, or to the reserved `_empty` field, are rejected during macro expansion.
 The fields are shown above to specify physical ABI layout. Generated Rust code
 represents `MyEnumAbi` as a `repr(transparent)`
 wrapper around a core-owned `repr(C)` tag/payload storage pair whose fields are
-private to `nc-com-core`. The wrapper has the storage pair's ABI, so opacity does
+private to `neocogi-com-core`. The wrapper has the storage pair's ABI, so opacity does
 not change its size, alignment, offsets, ABI hash, or external C shape. Using
 core-owned storage also preserves macro use in local item contexts without
 making the raw fields accessible to the invoking module.
@@ -613,7 +613,7 @@ pub struct IUnknownVTable {
   resurrect the object.
 - The returned `u32` count is diagnostic only.
 
-Generated nc-com objects use atomic `u32` reference counts. Debug builds assert
+Generated neocogi-com objects use atomic `u32` reference counts. Debug builds assert
 on overflow or release-after-zero. Release builds avoid wrapping: `AddRef`
 saturates at `u32::MAX`, and `Release` refuses to underflow. Reaching either
 edge is still a broken ownership contract.
@@ -622,7 +622,7 @@ Any live interface pointer passed to a vtable function must point to a readable
 interface header whose `vtable` points to a vtable with the declared shape. Each
 vtable function pointer must be valid for the duration of the call. The
 `object` field is opaque, but it must be valid for the implementation behind
-that vtable. Generated nc-com objects store a non-null object storage pointer
+that vtable. Generated neocogi-com objects store a non-null object storage pointer
 and return `NC_E_POINTER` defensively from fallible methods when the storage
 pointer is null.
 
@@ -695,7 +695,7 @@ This applies recursively and across contract crates. Use a qualified module
 path when referring to a base declared in another module or crate.
 
 ```rust
-use nc_com::{com_interface, com_object, ComPtr, NcStatus};
+use neocogi_com::{com_interface, com_object, ComPtr, NcStatus};
 #[com_interface(auto_guid = "nc.tests.spec.Widget:v1")]
 pub trait IWidget {
     fn value(&self) -> Result<u32, NcStatus>;
@@ -776,7 +776,7 @@ The call-scoped buffer forms are complete interface inputs and compile as part
 of this specification:
 
 ```rust
-use nc_com::{
+use neocogi_com::{
     NcCopyFromBufferOffset, NcCopyToBufferOffset, NcStatus, com_interface,
 };
 
@@ -855,7 +855,7 @@ must call `AddRef` before retaining a borrowed argument after the call returns.
 The interface macro rejects a `'static` call-scoped borrow:
 
 ```rust,compile_fail
-use nc_com::{ComRef, NcStatus, com_interface};
+use neocogi_com::{ComRef, NcStatus, com_interface};
 
 #[com_interface(auto_guid = "nc.tests.spec.Node:v1")]
 pub trait INode {}
@@ -956,7 +956,7 @@ pub enum NcAbiPassing {
 The digest algorithm is SHA-256 over:
 
 ```text
-"nc-com:abi-hash:v2\0"
+"neocogi-com:abi-hash:v2\0"
 typed_part_0
 typed_part_1
 ...
@@ -1244,7 +1244,7 @@ metadata is accepted. It also applies these v5 metadata policies:
 - Plugin and class version text contains `1..=128` ASCII graphic bytes; spaces
   and control characters are not allowed.
 
-`nc-com-core` exposes the allocation-free const functions
+`neocogi-com-core` exposes the allocation-free const functions
 `validate_qualified_name` and `validate_version_text` as the shared reference
 implementation of this policy. The interface, class, and plugin proc macros
 apply those functions to descriptor literals during macro expansion. Direct
@@ -1495,7 +1495,7 @@ pub struct NcPluginDependencyDescriptor {
 }
 ```
 
-Each entry declares one hard nc-com plugin dependency. `plugin_id` must be
+Each entry declares one hard neocogi-com plugin dependency. `plugin_id` must be
 non-nil, must not equal the containing plugin's ID, and must not be repeated in
 the same dependency table. Dependencies are activation-order metadata only:
 they do not name a path, version range, package, class, or interface, and they
@@ -1540,18 +1540,18 @@ every declared direct dependency is already registered; absence returns
 activation.
 
 A native shared-library dependency mapped automatically by an operating-system
-loader is not thereby registered as an nc-com plugin. Native loader dependencies
-and declarative nc-com dependencies are distinct.
+loader is not thereby registered as an neocogi-com plugin. Native loader dependencies
+and declarative neocogi-com dependencies are distinct.
 
-nc-com live activation calls must not be nested. While a host call to
+neocogi-com live activation calls must not be nested. While a host call to
 `load_plugin_library_utf8` is in progress, code reached through native loader
 initialization or the plugin descriptor entrypoint must not directly or
-indirectly call nc-com live activation again. This is a trusted-plugin
+indirectly call neocogi-com live activation again. This is a trusted-plugin
 precondition, not a dependency-resolution mechanism. It applies whether the
 nested call targets the same library or a different one. core ABI v5 implementations
 are not required to detect or diagnose a violation. Automatic mapping of ordinary
 native dependencies by the operating-system loader is permitted and is not a
-nested nc-com activation; those libraries remain outside the nc-com registry
+nested neocogi-com activation; those libraries remain outside the neocogi-com registry
 unless the host activates their descriptors in separate calls.
 
 Required external contracts must be represented in the ABI surface itself:
@@ -1563,7 +1563,7 @@ activation order; they do not replace interface compatibility checks.
 ## 13. Plugin Descriptor Entrypoint
 
 The Rust `plugin!` macro only generates descriptors. A final dynamic-library
-root invokes `nc_com::export_plugin!()` (or passes an explicit descriptor function
+root invokes `neocogi_com::export_plugin!()` (or passes an explicit descriptor function
 path). Static plugin assemblies omit that export and register the same metadata.
 
 A dynamic v5 plugin exports:
@@ -1582,8 +1582,8 @@ Entrypoint rules:
 - The metadata must remain valid while the shared library is loaded.
 - The metadata must describe core ABI 3 when returned from the descriptor
   symbol.
-- The entrypoint is a declarative metadata accessor. It must not call nc-com
-  registration or loading APIs, recursively load declared nc-com dependencies,
+- The entrypoint is a declarative metadata accessor. It must not call neocogi-com
+  registration or loading APIs, recursively load declared neocogi-com dependencies,
   construct plugin objects, or perform plugin initialization. Normal native
   dependencies mapped by the operating-system loader remain outside this rule.
 
@@ -1592,7 +1592,7 @@ including pointer/count shape, UTF-8 and naming policy, identity uniqueness,
 typed method metadata, and recomputed interface hashes. It writes the descriptor
 pointer only on success.
 
-Descriptor validation remains available in the allocation-free `nc-com-core`
+Descriptor validation remains available in the allocation-free `neocogi-com-core`
 configuration. When `alloc` is enabled, the reference implementation uses
 `alloc::collections::BTreeSet` for duplicate dependency, class, and per-class
 interface detection; without `alloc` it uses an allocation-free prefix scan.
@@ -1642,9 +1642,9 @@ produce a recoverable validation error.
 ## 14. Runtime API and Registry Policy
 
 core ABI v5 does not define an operating-system registry, package database, or
-activation service. `nc-com-runtime` owns one private process-global runtime
+activation service. `neocogi-com-runtime` owns one private process-global runtime
 state containing separate plugin and type registries plus debug callback state.
-Rust callers use the `nc-com` `Runtime` facade and its `PluginRegistry`,
+Rust callers use the `neocogi-com` `Runtime` facade and its `PluginRegistry`,
 `TypeRegistry`, `Inspection`, and `Debug` views. C callers discover five
 immutable function tables through six exported symbols:
 
@@ -1661,7 +1661,7 @@ The Rust facade keeps those raw tables private and groups operations by
 responsibility:
 
 ```rust,ignore
-let runtime = nc_com::Runtime::global();
+let runtime = neocogi_com::Runtime::global();
 
 let plugins = runtime.plugin_registry().plugin_ids()?;
 let classes = runtime.type_registry().class_ids()?;
@@ -1669,7 +1669,7 @@ let plugin = runtime.inspection().plugin_info(plugins[0])?;
 let diagnostics = runtime.debug();
 
 # let _ = (classes, plugin, diagnostics);
-# Ok::<(), nc_com::NcStatus>(())
+# Ok::<(), neocogi_com::NcStatus>(())
 ```
 
 `Runtime` owns registration, loading, interface validation, and construction.
@@ -1711,7 +1711,7 @@ does not merge them.
 Runtime ABI v1 publishes two process-resource ceilings:
 
 ```rust
-use nc_com::{
+use neocogi_com::{
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS,
     NC_COM_RUNTIME_MAX_LOADED_MODULES,
 };
@@ -1797,7 +1797,7 @@ In particular, native loader initialization and `nc_get_plugin_descriptor` must
 not directly or indirectly invoke `load_plugin_library_utf8`. Hosts activate an
 explicit dependency-first sequence through separate calls. Ordinary native
 dependencies loaded internally by the operating-system loader do not violate
-this rule, but they do not become registered nc-com plugins.
+this rule, but they do not become registered neocogi-com plugins.
 
 Once live activation attempts to open the supplied path, failure is process
 fatal. Platform loading, symbol discovery, descriptor entrypoint, metadata
@@ -1899,7 +1899,7 @@ cannot force unbounded allocation or retries. Count functions with an identity
 argument return zero for both a missing identity and an identity with no related
 objects; inspection record lookup distinguishes absence with `NC_E_NOT_FOUND`.
 
-The `nc-com` Rust runtime facade applies a host policy of at most
+The `neocogi-com` Rust runtime facade applies a host policy of at most
 `NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS` (65,536) elements per enumeration and
 `NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES` (8) retries after the initial fill
 attempt. It returns `NC_E_OUT_OF_RANGE` for a larger reported count,
@@ -1958,7 +1958,7 @@ registered class. Macro-generated classes report `IUnknown` first.
 `inspect_plugin_library_utf8` takes an explicit UTF-8 path, opens the trusted
 library, resolves `nc_get_plugin_descriptor`, and validates the complete
 descriptor graph through the same validation gate used for live activation.
-It does not register the plugin, construct objects, or follow declared nc-com
+It does not register the plugin, construct objects, or follow declared neocogi-com
 dependencies. On success it invokes the non-null callback synchronously exactly
 once and returns the callback's `NcStatus` unchanged. The `user_data` pointer is
 passed through unchanged and may be null.
@@ -2025,7 +2025,7 @@ missing identity. A class `module_id` of zero denotes static registration.
 Returned UTF-8 views remain valid until the runtime shared library is unloaded;
 callers must not modify or free them. core ABI v5 does not support plugin unload.
 
-The `nc-com-inspect` JSON file is a versioned tooling artifact, not another ABI
+The `neocogi-inspect` JSON file is a versioned tooling artifact, not another ABI
 core v5 memory layout and not a source-reconstruction format. Its schema version is
 independent of `NC_COM_CORE_ABI_VERSION`. A schema-v3 artifact records the producing
 tool version, target triple, pointer width, endianness, core ABI version, and
@@ -2207,7 +2207,7 @@ The implementation must validate the complete request before writing: success
 writes exactly `len` bytes, while any failure leaves the caller's output buffer
 unchanged.
 
-The allocation-backed `nc-com` Rust facade limits the convenience `to_vec` and
+The allocation-backed `neocogi-com` Rust facade limits the convenience `to_vec` and
 `to_i8_vec` copies to `NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES` (64 MiB). Their
 `to_vec_bounded` and `to_i8_vec_bounded` variants let the caller select another
 maximum. A reported length over the selected limit or outside Rust `Vec`
@@ -2265,7 +2265,7 @@ bytes, while any failure leaves the caller's output buffer unchanged. This
 guarantees that copying a complete conforming string requires a bounded number
 of ABI calls rather than one `byte_at` call per byte.
 
-Standard nc-com string objects also support `INcBytesAbi` for the same UTF-8
+Standard neocogi-com string objects also support `INcBytesAbi` for the same UTF-8
 byte sequence as an additional queryable capability; consumers do not need that
 optional interface to copy an `INcStringAbi` efficiently.
 
@@ -2306,8 +2306,8 @@ operation.
 Non-registering inspection is a separate fallible operation. The shared runtime
 opens trusted plugin code, calls only the descriptor entrypoint, validates the
 descriptor graph, and exposes it synchronously to the caller without registering
-the plugin or following declared nc-com dependencies. Tooling such as
-`nc-com-inspect` copies that borrowed metadata into owned records. Opened
+the plugin or following declared neocogi-com dependencies. Tooling such as
+`neocogi-inspect` copies that borrowed metadata into owned records. Opened
 inspection handles remain pinned until the inspector process exits, which is the
 reliable unload boundary. Batch planning inspects every selected artifact and
 reports every ordinary load or validation error it
@@ -2432,7 +2432,7 @@ inter-thread proxy system.
 
 Expected cross-boundary failures must be returned as `NcStatus`.
 
-nc-com does not catch panics in generated ABI thunks. With `panic=abort`, the
+neocogi-com does not catch panics in generated ABI thunks. With `panic=abort`, the
 process aborts at the panic site. With unwinding enabled, a panic that reaches a
 non-unwind `extern "C"` ABI boundary aborts under Rust's ABI unwind rules.
 
@@ -2452,7 +2452,7 @@ Hosts should inspect the application-selected artifact set, validate its hard
 dependency graph, and pass the resulting deterministic order to
 `Runtime::load_plugin_libraries`. Registration verifies but never searches for
 or loads missing dependencies. Native dependencies loaded by the platform
-remain distinct from nc-com registration and are not added to the plugin/type
+remain distinct from neocogi-com registration and are not added to the plugin/type
 registries merely because the operating-system loader mapped them.
 Load or validation failures abort because dynamic loading may already have run
 unsafe process-mutating code.
@@ -2487,7 +2487,7 @@ a sandbox and does not make an untrusted library safe to load.
 
 Directory scanning, discovery paths, downloading, installation, signing,
 certificate verification, allowlists, and plugin management are application
-policy. `nc-com` accepts explicit trusted paths and validates the in-process ABI
+policy. `neocogi-com` accepts explicit trusted paths and validates the in-process ABI
 contracts exposed by those libraries.
 
 ## 21. ABI Evolution Rules
@@ -2649,5 +2649,5 @@ policy for:
 - application capability interfaces such as logging, diagnostics, cancellation,
   configuration, collections, streams, and dependency/capability discovery
 
-Those policies can be built on top of `nc-com`, but they are outside the raw ABI
+Those policies can be built on top of `neocogi-com`, but they are outside the raw ABI
 contract.

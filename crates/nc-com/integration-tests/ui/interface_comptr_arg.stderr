@@ -1,5 +1,0 @@
-error: COM method arguments cannot take `ComPtr`; use `ComRef<'_, InterfaceAbi>` for borrowed interface parameters and call `add_ref()` if the callee must retain the object
-  --> integration-tests/ui/interface_comptr_arg.rs:10:29
-   |
-10 |     fn value(&self, object: nc_com::ComPtr<IObjectAbi>) -> Result<u32, nc_com::NcStatus>;
-   |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^

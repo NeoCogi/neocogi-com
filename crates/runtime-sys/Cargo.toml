@@ -1,0 +1,22 @@
+[package]
+name = "neocogi-com-runtime-sys"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/NeoCogi/neocogi-platform"
+homepage = "https://github.com/NeoCogi/neocogi-platform"
+documentation = "https://docs.rs/neocogi-com"
+readme = "README.md"
+description = "Link-time C ABI bindings for the neocogi-com runtime shared library"
+keywords = ["com", "abi", "ffi", "plugin"]
+categories = ["api-bindings", "development-tools::ffi"]
+
+[dependencies]
+neocogi-com-core = { workspace = true, default-features = false }
+
+neocogi-com-runtime = { workspace = true, optional = true }
+
+[features]
+# Bind the same C symbols from one linked implementation instead of a shared library.
+static-runtime = ["dep:neocogi-com-runtime"]

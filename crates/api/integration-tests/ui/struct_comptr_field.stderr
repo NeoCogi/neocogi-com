@@ -1,0 +1,5 @@
+error: COM struct fields cannot be ComPtr; store owned interface references in COM objects instead
+ --> integration-tests/ui/struct_comptr_field.rs:5:12
+  |
+5 |     value: neocogi_com::ComPtr<neocogi_com::IUnknown>,
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

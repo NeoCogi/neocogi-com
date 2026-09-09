@@ -18,7 +18,7 @@ if ! command -v rustup >/dev/null 2>&1 || ! rustup run nightly cargo --version >
 fi
 
 target_dir="${CARGO_TARGET_DIR:-target/linked-runtime}"
-cargo build -p nc-com-runtime --locked --target-dir "$target_dir"
+cargo build -p neocogi-com-runtime --locked --target-dir "$target_dir"
 
 runtime_dir="$(cd "$target_dir/debug" && pwd)"
 runtime_deps_dir="$runtime_dir/deps"
@@ -49,7 +49,7 @@ run_linked_cargo() {
     cargo "$@"
 }
 
-listed="$(run_linked_cargo test -p nc-com --features runtime --locked \
+listed="$(run_linked_cargo test -p neocogi-com --features runtime --locked \
   --target-dir "$target_dir" -- --list)"
 printf '%s\n' "$listed"
 
@@ -67,6 +67,6 @@ for required_test in "${required_tests[@]}"; do
   fi
 done
 
-run_linked_cargo test -p nc-com --features runtime --locked --target-dir "$target_dir"
+run_linked_cargo test -p neocogi-com --features runtime --locked --target-dir "$target_dir"
 
 echo "linked-runtime test suite passed"

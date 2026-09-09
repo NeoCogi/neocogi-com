@@ -6,12 +6,12 @@
 //! plugins both depend on it, but it intentionally contains no implementations,
 //! loader code, or host policy.
 
-use nc_com::{ComPtr, ComRef, NcGuid, NcStatus, com_object, com_interface, com_struct};
+use neocogi_com::{ComPtr, ComRef, NcGuid, NcStatus, com_class, com_interface, com_struct};
 
 // Stable plugin identity derived from its descriptor qualified name. Hosts can
 // use this for allowlists, dependency metadata, or diagnostics, but it is
 // distinct from class/interface identity.
-pub const CONTRACT_PLUGIN_ID: NcGuid = nc_com::guid_from_qualified_name("nc.tests.contract.plugin");
+pub const CONTRACT_PLUGIN_ID: NcGuid = neocogi_com::guid_from_qualified_name("nc.tests.contract.plugin");
 
 // Stable class identity derived from its descriptor qualified name. The host
 // asks the registry for this class, then separately verifies the interface ABI
@@ -35,7 +35,7 @@ pub trait IContractValue {
 // This is the constructible cross-boundary class used by the example. Its
 // constructor is part of the same shared contract as its callable methods, so
 // no one-off constructor object or duplicate primary interface is required.
-#[com_object(auto_guid = "nc.tests.contract.Widget")]
+#[com_class(auto_guid = "nc.tests.contract.Widget")]
 pub trait ContractWidget {
     /// Creates a widget from one plain ABI seed value.
     #[constructor]

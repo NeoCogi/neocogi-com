@@ -51,23 +51,23 @@ run_sanitizer() {
   shift 2
 
   run_sanitized_test "$sanitizer" "$label" "$target_dir" \
-    "nc-com-core library" \
-    -p nc-com-core --lib --all-features "$@"
+    "neocogi-com-core library" \
+    -p neocogi-com-core --lib --all-features "$@"
   run_sanitized_test "$sanitizer" "$label" "$target_dir" \
-    "nc-com-runtime library" \
-    -p nc-com-runtime --lib --all-features "$@"
+    "neocogi-com-runtime library" \
+    -p neocogi-com-runtime --lib --all-features "$@"
   run_sanitized_build "$sanitizer" "$label" "$target_dir" \
-    "nc-com-runtime shared library" \
-    -p nc-com-runtime --all-features
+    "neocogi-com-runtime shared library" \
+    -p neocogi-com-runtime --all-features
   run_sanitized_build "$sanitizer" "$label" "$target_dir" \
     "multi-plugin shared libraries" \
-    -p nc-com --example component_plugin_counter --example component_plugin_flag \
+    -p neocogi-com --example component_plugin_counter --example component_plugin_flag \
     --example component_plugin_extra --example component_plugin_metric \
     --example component_plugin_state \
     --no-default-features --features macros,std,runtime
   run_sanitized_run "$sanitizer" "$label" "$target_dir" \
     "multi-plugin host example" \
-    -p nc-com --example multi_plugin_host \
+    -p neocogi-com --example multi_plugin_host \
     --no-default-features --features macros,std,runtime -- \
     "$target_dir/$target/debug/examples/libcomponent_plugin_counter.so" \
     "$target_dir/$target/debug/examples/libcomponent_plugin_flag.so" \
@@ -75,11 +75,11 @@ run_sanitizer() {
     "$target_dir/$target/debug/examples/libcomponent_plugin_state.so" \
     "$target_dir/$target/debug/examples/libcomponent_plugin_extra.so"
   run_sanitized_test "$sanitizer" "$label" "$target_dir" \
-    "nc-com library" \
-    -p nc-com --lib --no-default-features --features macros,std,runtime "$@"
+    "neocogi-com library" \
+    -p neocogi-com --lib --no-default-features --features macros,std,runtime "$@"
   run_sanitized_test "$sanitizer" "$label" "$target_dir" \
     "pure Rust COM lifecycle integration tests" \
-    -p nc-com --test com_usage --no-default-features --features macros,std,runtime "$@"
+    -p neocogi-com --test com_usage --no-default-features --features macros,std,runtime "$@"
 }
 
 run_sanitized_build() {

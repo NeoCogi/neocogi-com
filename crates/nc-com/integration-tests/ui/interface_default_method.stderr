@@ -1,8 +1,0 @@
-error: COM methods cannot have default bodies
- --> integration-tests/ui/interface_default_method.rs:5:54
-  |
-5 |       fn value(&self) -> Result<u32, nc_com::NcStatus> {
-  |  ______________________________________________________^
-6 | |         Ok(1)
-7 | |     }
-  | |_____^

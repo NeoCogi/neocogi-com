@@ -1,5 +1,0 @@
-error: expected a class contract path, interfaces(...), thread_safe, or nc_com = path
- --> integration-tests/ui/class_legacy_descriptor_rejected.rs:5:5
-  |
-5 |     class_id(auto_guid = "nc.tests.ui.LegacyDescriptor:v1"),
-  |     ^^^^^^^^

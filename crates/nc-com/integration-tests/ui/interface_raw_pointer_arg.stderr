@@ -1,5 +1,0 @@
-error: COM method arguments cannot be raw pointers; model pointed-to data as COM interfaces
- --> integration-tests/ui/interface_raw_pointer_arg.rs:5:26
-  |
-5 |     fn value(&self, ptr: *const u8) -> Result<u32, nc_com::NcStatus>;
-  |                          ^^^^^^^^^

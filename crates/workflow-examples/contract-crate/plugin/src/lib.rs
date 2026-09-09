@@ -1,5 +1,5 @@
 use contract_abi::{CONTRACT_PLUGIN_ID, ContractPoint, ContractWidget, IContractValue, IContractValueAbi, IContractValueComPtrExt};
-use nc_com::{ComPtr, ComRef, IUnknown, NcStatus, com_object};
+use neocogi_com::{ComPtr, ComRef, IUnknown, NcStatus, com_object};
 
 // Plugin-owned value object returned through IContractValueAbi. The host does
 // not know this Rust type exists; it only receives the COM interface pointer.
@@ -55,7 +55,7 @@ impl ContractWidget for PluginWidget {
     }
 }
 
-nc_com::plugin! {
+neocogi_com::plugin! {
     plugin_id(CONTRACT_PLUGIN_ID),
     name = "nc.tests.contract.plugin",
     version = "1.0.0",
@@ -63,4 +63,4 @@ nc_com::plugin! {
 }
 
 // This crate is the final shared library, so it owns the sole dynamic entrypoint.
-nc_com::export_plugin!();
+neocogi_com::export_plugin!();

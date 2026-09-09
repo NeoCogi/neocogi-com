@@ -1,5 +1,5 @@
 [package]
-name = "nc-com-abi-spec-tests"
+name = "neocogi-com-abi-spec-tests"
 version = "0.0.0"
 edition = "2024"
 rust-version = "1.85"
@@ -8,4 +8,4 @@ publish = false
 [workspace]
 
 [dependencies]
-nc-com = { path = "../../nc-com" }
+neocogi-com = { path = "../../api" }

@@ -1,6 +1,6 @@
-# nc-com
+# neocogi-com
 
-`nc-com` is a small COM-style runtime for cross-platform Rust components that
+`neocogi-com` is a small COM-style runtime for cross-platform Rust components that
 need an explicit binary boundary intended for long-term compatibility after ABI
 ratification.
 
@@ -12,12 +12,12 @@ interface headers, vtables, status codes, and reference-counted object lifetime.
 
 This crate is not trying to expose Rust trait objects across a binary boundary.
 Rust trait object layout, enum layout, `String`, `Vec<T>`, slices, references,
-and allocator ownership are not stable ABI contracts. `nc-com` keeps those out
+and allocator ownership are not stable ABI contracts. `neocogi-com` keeps those out
 of the boundary and generates a C-shaped ABI instead.
 
 ## Component Pattern
 
-`nc-com` uses Rust as the contract authoring language, but the Rust ABI is not
+`neocogi-com` uses Rust as the contract authoring language, but the Rust ABI is not
 the contract. A trait marked with `#[com_interface]` is lowered into an explicit
 C-shaped interface: a `#[repr(C)]` header, a vtable, `extern "C"` function
 pointers, `NcStatus` returns, GUID identity, and an ABI hash.
@@ -43,20 +43,20 @@ drop. If the callee needs to keep it, it explicitly calls `add_ref()` to obtain 
 the ABI ownership protocol explicit.
 
 This is different from crates such as `abi_stable` or `stabby`, which try to make
-a useful subset of Rust-shaped APIs stable across a dynamic boundary. `nc-com`
+a useful subset of Rust-shaped APIs stable across a dynamic boundary. `neocogi-com`
 does not stabilize Rust trait objects, `String`, `Vec<T>`, slices, futures, enum
 layout, allocator ownership, or Rust drop behavior. Those remain implementation
 details behind the component boundary.
 
 The pattern is closer to the WebAssembly Component Model in spirit: define a
 typed component contract, lower it to an explicit ABI shape, and keep
-implementation language details private. The difference is that `nc-com` is a trusted
+implementation language details private. The difference is that `neocogi-com` is a trusted
 same-process native ABI for Rust components, not a sandboxed language-neutral
 WebAssembly runtime.
 
 ## Scope
 
-`nc-com` is Rust-to-Rust component ABI glue. It is intended for hosts and
+`neocogi-com` is Rust-to-Rust component ABI glue. It is intended for hosts and
 components that are both written in Rust but cannot share Rust-native ABI
 assumptions because they are built separately.
 
@@ -97,8 +97,8 @@ Loading returns an owned summary with both module provenance and plugin
 descriptor metadata:
 
 ```rust
-fn show_plugin(path: &std::path::Path) -> Result<(), nc_com::NcStatus> {
-    let runtime = nc_com::Runtime::global();
+fn show_plugin(path: &std::path::Path) -> Result<(), neocogi_com::NcStatus> {
+    let runtime = neocogi_com::Runtime::global();
     let loaded = unsafe { runtime.load_plugin_library(path) };
 
     println!("module {}: {}", loaded.module_id(), loaded.path().display());
@@ -139,7 +139,7 @@ policy.
 
 ## What It Does
 
-`nc-com` provides:
+`neocogi-com` provides:
 
 - `#[com_interface]` for defining a Rust implementation trait and generating a
   C-compatible `*Abi` interface header, `*VTable`, and safe `ComPtr` extension
@@ -190,7 +190,7 @@ unsafe extern "C" fn(this: *mut IFlushableAbi) -> NcStatus
 
 ## What It Is Not
 
-`nc-com` is not a C SDK generator. The ABI is C-compatible and is tested from
+`neocogi-com` is not a C SDK generator. The ABI is C-compatible and is tested from
 native C, but the focus is Rust components using a C ABI as the stable
 compatibility layer across independently built Rust artifacts after an explicit
 ABI ratification milestone. The current ABI-v5 definition is still a pre-alpha
@@ -212,7 +212,7 @@ COM object model: interface IDs, hash-checked `QueryInterface`, `AddRef`,
 
 This root README is the canonical long-form usage guide and the only place that
 maintains the exact local/CI compatibility-test matrix. The published
-`nc-com` crate README is a shorter package entry point, crate-level rustdoc owns
+`neocogi-com` crate README is a shorter package entry point, crate-level rustdoc owns
 compiled API examples and feature-sensitive API documentation, and
 [`docs/abi-v5.md`](docs/abi-v5.md) is the normative ABI specification. Shorter
 documents link here for detailed workflows instead of copying exact test rows.
@@ -220,7 +220,7 @@ documents link here for detailed workflows instead of copying exact test rows.
 ## Example
 
 ```rust
-use nc_com::{ComPtr, IUnknown, NcStatus, com_interface, com_object};
+use neocogi_com::{ComPtr, IUnknown, NcStatus, com_interface, com_object};
 
 #[com_interface(auto_guid = "example.Calculator:v1")]
 pub trait ICalculator {
@@ -266,7 +266,7 @@ surface. This avoids declaring a one-off `IThing` interface merely to call the
 class. The shared contract crate declares the class once:
 
 ```rust
-use nc_com::{NcStatus, com_class};
+use neocogi_com::{NcStatus, com_class};
 
 #[com_class(auto_guid = "example.Counter:v1")]
 pub trait Counter {
@@ -280,7 +280,7 @@ pub trait Counter {
 The implementation crate keeps its state private and binds it to that contract:
 
 ```rust
-# use nc_com::{NcStatus, com_class, com_object};
+# use neocogi_com::{NcStatus, com_class, com_object};
 # #[com_class(auto_guid = "example.Counter:v1")]
 # pub trait Counter {
 #     #[constructor]
@@ -313,7 +313,7 @@ without spelling its ID or querying a companion interface:
 
 ```rust,ignore
 let arguments = CounterAbi::arguments(42)?;
-let counter = nc_com::Runtime::global().construct::<CounterAbi>(arguments)?;
+let counter = neocogi_com::Runtime::global().construct::<CounterAbi>(arguments)?;
 assert_eq!(counter.value()?, 42);
 ```
 
@@ -440,7 +440,7 @@ the anonymous `'_` lifetime and rejects named lifetimes, including `'static`, so
 safe implementations cannot retain the borrow itself:
 
 ```rust
-use nc_com::{ComPtr, ComRef, NcStatus, com_interface};
+use neocogi_com::{ComPtr, ComRef, NcStatus, com_interface};
 
 #[com_interface(auto_guid = "example.Node:v1")]
 pub trait INode {
@@ -468,7 +468,7 @@ For example, a document can own nodes by taking its own reference during the
 call:
 
 ```rust
-use nc_com::{ComPtr, ComRef, NcStatus};
+use neocogi_com::{ComPtr, ComRef, NcStatus};
 
 pub struct Document {
     children: Vec<ComPtr<INodeAbi>>,
@@ -491,11 +491,11 @@ Cloning `ComRef` itself only copies the borrowed view. It does not call
 
 ## Asynchronous Work
 
-Async Rust futures do not cross the `nc-com` ABI. `Future`, `Pin`, executor
+Async Rust futures do not cross the `neocogi-com` ABI. `Future`, `Pin`, executor
 wakers, async trait lowering, and borrowed future state are Rust implementation
 details, not stable binary contracts.
 
-Keep core `nc-com` interfaces as bounded synchronous vtable calls that return
+Keep core `neocogi-com` interfaces as bounded synchronous vtable calls that return
 `NcStatus`. Model asynchronous work as explicit COM objects instead:
 
 - operation objects with state, cancellation, and result interfaces
@@ -503,7 +503,7 @@ Keep core `nc-com` interfaces as bounded synchronous vtable calls that return
 - byte streams or domain-specific progress/state interfaces
 - state machines whose state is queried through normal COM methods
 
-A future `nc-com-async` extension crate can provide standard operation,
+A future `neocogi-com-async` extension crate can provide standard operation,
 completion, cancellation, and Rust `.await` adapter helpers on top of these
 ordinary COM interfaces. The core ABI should remain executor-neutral and should
 not expose Rust `Future` values directly.
@@ -528,10 +528,10 @@ This includes:
 Rust `String`, `Vec<T>`, slices, and references encode layout, allocator,
 capacity, provenance, and lifetime assumptions that are not stable across
 independently compiled Rust artifacts. Raw byte pointers have similar problems
-unless they are produced by an explicit `nc-com` passing mode that names the
+unless they are produced by an explicit `neocogi-com` passing mode that names the
 offset, length, element type, mutability, and call-scoped lifetime.
 
-For common read-only data, `nc-com` provides `INcBytesAbi`/`NcBytes` for
+For common read-only data, `neocogi-com` provides `INcBytesAbi`/`NcBytes` for
 `Vec<u8>` and bit-preserving `Vec<i8>`, plus `INcStringAbi`/`NcString` for
 UTF-8 strings. Both interfaces provide bounded bulk copying into caller-owned
 storage. Standard `NcString` objects can additionally be queried for
@@ -541,7 +541,7 @@ efficient copying.
 Model domain-specific variable-size data with explicit interfaces:
 
 ```rust
-use nc_com::{ComRef, NcCopyToBufferOffset, NcStatus, com_interface};
+use neocogi_com::{ComRef, NcCopyToBufferOffset, NcStatus, com_interface};
 
 #[com_interface(auto_guid = "example.ReadOnlyBytes:v1")]
 pub trait IReadOnlyBytes {
@@ -559,7 +559,7 @@ pub trait IByteConsumer {
 A UTF-8 string can be a semantic interface over bytes:
 
 ```rust
-use nc_com::{ComPtr, NcCopyToBufferOffset, NcStatus, com_interface};
+use neocogi_com::{ComPtr, NcCopyToBufferOffset, NcStatus, com_interface};
 
 #[com_interface(auto_guid = "example.Utf8String:v1")]
 pub trait IUtf8String {
@@ -587,7 +587,7 @@ in-limit allocation returns `NC_E_OUT_OF_MEMORY`.
 Streams should return owned byte objects in caller-bounded chunks:
 
 ```rust
-use nc_com::{ComPtr, INcBytesAbi, NcStatus, com_interface};
+use neocogi_com::{ComPtr, INcBytesAbi, NcStatus, com_interface};
 
 #[com_interface(auto_guid = "example.ByteStream:v1")]
 pub trait IByteStream {
@@ -614,30 +614,30 @@ A shared library exposes a plugin descriptor through one entrypoint. The plugin
 descriptor carries the core ABI version, plugin identity, and the class table:
 
 ```rust
-#[nc_com::com_class(auto_guid = "example.Widget:class:v1")]
+#[neocogi_com::com_class(auto_guid = "example.Widget:class:v1")]
 pub trait Widget {
     #[constructor]
-    fn new(width: u32) -> Result<Self, nc_com::NcStatus>;
+    fn new(width: u32) -> Result<Self, neocogi_com::NcStatus>;
 
-    fn width(&self) -> Result<u32, nc_com::NcStatus>;
+    fn width(&self) -> Result<u32, neocogi_com::NcStatus>;
 }
 
-#[nc_com::com_object(Widget)]
+#[neocogi_com::com_object(Widget)]
 pub struct WidgetObject {
     width: u32,
 }
 
 impl Widget for WidgetObject {
-    fn new(width: u32) -> Result<Self, nc_com::NcStatus> {
+    fn new(width: u32) -> Result<Self, neocogi_com::NcStatus> {
         Ok(Self { width })
     }
 
-    fn width(&self) -> Result<u32, nc_com::NcStatus> {
+    fn width(&self) -> Result<u32, neocogi_com::NcStatus> {
         Ok(self.width)
     }
 }
 
-nc_com::plugin! {
+neocogi_com::plugin! {
     plugin_id(auto_guid = "example.widget_plugin:v1"),
     name = "example.widget_plugin:v1",
     version = "1.0.0",
@@ -653,14 +653,14 @@ constructor policy, or public projections. Core
 ABI v5 descriptors are declarative and have no initialization callback.
 
 The `plugin!` macro emits `pub fn plugin_descriptor() -> &'static
-nc_com::NcPluginDescriptor` for static registration. It exports no dynamic
+neocogi_com::NcPluginDescriptor` for static registration. It exports no dynamic
 symbol, so several plugin implementations can be linked into one binary.
 The final shared-library root publishes its one dynamic entrypoint explicitly:
 
 ```rust,ignore
-nc_com::export_plugin!();
+neocogi_com::export_plugin!();
 // Or select a descriptor in another module/crate:
-// nc_com::export_plugin!(implementation::plugin_descriptor);
+// neocogi_com::export_plugin!(implementation::plugin_descriptor);
 ```
 
 Both deployment modes use the same descriptor and validation. Keep the export
@@ -677,27 +677,27 @@ objects, the callable class contract supplies the class projection and required
 protocols. Explicit `IUnknown` and duplicate local entries are rejected.
 
 ```rust
-static CLASSES: [nc_com::NcClassDescriptor; 1] = [nc_com::NcClassDescriptor {
+static CLASSES: [neocogi_com::NcClassDescriptor; 1] = [neocogi_com::NcClassDescriptor {
     class_id: WidgetAbi::CLASS_ID,
-    qualified_name: nc_com::NcStaticUtf8::from_static("example.Widget"),
-    class_version: nc_com::NcStaticUtf8::from_static("1.0.0"),
+    qualified_name: neocogi_com::NcStaticUtf8::from_static("example.Widget"),
+    class_version: neocogi_com::NcStaticUtf8::from_static("1.0.0"),
     constructor_abi_hash: WidgetAbi::CONSTRUCTOR_ABI_HASH,
-    threading: nc_com::NC_ABI_THREADING_THREAD_LOCAL,
+    threading: neocogi_com::NC_ABI_THREADING_THREAD_LOCAL,
     construct: Some(construct_widget),
     interface_count: WidgetObject::COM_INTERFACES.len() as u32,
     interfaces: WidgetObject::COM_INTERFACES.as_ptr(),
 }];
 
-static CLASS_TABLE: nc_com::NcClassTable = nc_com::NcClassTable {
+static CLASS_TABLE: neocogi_com::NcClassTable = neocogi_com::NcClassTable {
     class_count: CLASSES.len() as u32,
     classes: CLASSES.as_ptr(),
 };
 
-static PLUGIN: nc_com::NcPluginDescriptor = nc_com::NcPluginDescriptor {
-    core_abi_version: nc_com::NC_COM_CORE_ABI_VERSION,
+static PLUGIN: neocogi_com::NcPluginDescriptor = neocogi_com::NcPluginDescriptor {
+    core_abi_version: neocogi_com::NC_COM_CORE_ABI_VERSION,
     plugin_id: PLUGIN_ID,
-    qualified_name: nc_com::NcStaticUtf8::from_static("example.widget_plugin"),
-    plugin_version: nc_com::NcStaticUtf8::from_static("1.0.0"),
+    qualified_name: neocogi_com::NcStaticUtf8::from_static("example.widget_plugin"),
+    plugin_version: neocogi_com::NcStaticUtf8::from_static("1.0.0"),
     dependency_count: 0,
     dependencies: core::ptr::null(),
     class_table: &CLASS_TABLE,
@@ -724,10 +724,10 @@ new object's owned `IUnknown`:
 
 ```rust,ignore
 unsafe extern "C" fn construct_widget(
-    class: *const nc_com::NcClassDescriptor,
+    class: *const neocogi_com::NcClassDescriptor,
     arguments: *const core::ffi::c_void,
-    out: *mut *mut nc_com::IUnknown,
-) -> nc_com::NcStatus;
+    out: *mut *mut neocogi_com::IUnknown,
+) -> neocogi_com::NcStatus;
 ```
 
 Application code normally never writes this function. The class macro emits it,
@@ -760,7 +760,7 @@ shared-library examples.
 
 ### Running The Shared Library Example
 
-The examples use the default `nc-com` feature set, including `std` and the proc
+The examples use the default `neocogi-com` feature set, including `std` and the proc
 macros. They are intentionally not supported under
 `--no-default-features`; feature-minimal checks should target the library, not
 the examples.
@@ -791,15 +791,15 @@ hosts that want the process-global runtime to own loaded libraries.
 Build the plugins and run the multi-plugin host example:
 
 ```sh
-cargo build -p nc-com-runtime
+cargo build -p neocogi-com-runtime
 NC_COM_RUNTIME_LINK_DIR="$(pwd)/target/debug" \
-  cargo build -p nc-com --example component_plugin_counter \
+  cargo build -p neocogi-com --example component_plugin_counter \
   --example component_plugin_flag --example component_plugin_extra \
   --example component_plugin_metric --example component_plugin_state \
   --no-default-features --features macros,std,runtime
 LD_LIBRARY_PATH=target/debug \
   NC_COM_RUNTIME_LINK_DIR="$(pwd)/target/debug" \
-  cargo run -p nc-com --example multi_plugin_host \
+  cargo run -p neocogi-com --example multi_plugin_host \
   --no-default-features --features macros,std,runtime -- \
   target/debug/examples/libcomponent_plugin_counter.so \
   target/debug/examples/libcomponent_plugin_flag.so \
@@ -818,7 +818,7 @@ companion one-class interface or handwritten class ID is required.
 Bundled required plugins should be loaded before normal host operation:
 
 ```rust
-let runtime = nc_com::Runtime::global();
+let runtime = neocogi_com::Runtime::global();
 let loaded = unsafe {
     runtime.load_plugin_libraries([
         "plugins/base.so",
@@ -830,13 +830,13 @@ let base = &loaded[0];
 ```
 
 core ABI v5 does not discover paths or recursively load plugin dependencies. Use
-`nc-com-inspect plan` to validate dependencies and produce this explicit order.
+`neocogi-inspect plan` to validate dependencies and produce this explicit order.
 Live activation calls must not be nested: native loader initialization and the
-descriptor entrypoint must not directly or indirectly call nc-com loading while
+descriptor entrypoint must not directly or indirectly call neocogi-com loading while
 another activation is in progress. If the operating-system loader maps a native
 shared-library dependency automatically, that library is
-still not registered as an nc-com plugin; the host must explicitly load its
-nc-com descriptor when its classes are required through the runtime. Required
+still not registered as an neocogi-com plugin; the host must explicitly load its
+neocogi-com descriptor when its classes are required through the runtime. Required
 cross-plugin contracts should be expressed through constructor arguments and
 COM capability interfaces. Declarative dependency resolution is deferred to a
 future ABI generation.
@@ -853,12 +853,12 @@ retried without a partial catalog entry.
 This is not a process rollback boundary. Loading a dynamic library can run
 platform loader code, initialize globals or TLS, register callbacks, start
 threads, or otherwise mutate process state before validation later fails.
-`nc-com` therefore does not support dynamic plugin unload or hot reload. The
+`neocogi-com` therefore does not support dynamic plugin unload or hot reload. The
 live loader emits the diagnostic, pins any opened module, and aborts on failure.
 
 Directory scanning, plugin discovery paths, downloading, installation,
 signature verification, certificate policy, allowlists, and plugin management UI
-are application responsibilities. `nc-com` loads the explicit trusted paths the
+are application responsibilities. `neocogi-com` loads the explicit trusted paths the
 host gives it and validates the in-process ABI contracts it finds there.
 
 ### Inspecting Shared Libraries
@@ -871,22 +871,22 @@ descriptor graph is borrowed only inside the visitor; copy any data needed
 afterward. Opened handles remain pinned until process exit, and normal platform
 loader code may run even though nothing is registered.
 
-`nc-com-inspect` reads the actual plugin shared library, resolves
+`neocogi-inspect` reads the actual plugin shared library, resolves
 `nc_get_plugin_descriptor`, validates the descriptor graph, and copies the
 plugin/dependency/class/interface/method metadata into an owned JSON or text
 artifact. It does not register the plugin, construct objects, or follow declared
-nc-com dependencies. Opened handles remain pinned until the short-lived
+neocogi-com dependencies. Opened handles remain pinned until the short-lived
 inspector process exits. Loading can still run normal platform loader code.
 Inspection is therefore useful for trusted artifacts and diagnostics, not for
 making an untrusted shared library safe to load.
 
 ```sh
-cargo run -p nc-com-inspect -- dump target/debug/examples/libcomponent_plugin.so
-cargo run -p nc-com-inspect -- dump target/debug/examples/libcomponent_plugin.so --format text
-cargo run -p nc-com-inspect -- check target/debug/examples/libcomponent_plugin.so
-cargo run -p nc-com-inspect -- plan plugins/base.so plugins/tools.so
-cargo run -p nc-com-inspect -- diff old.nccom.json new.nccom.json
-cargo run -p nc-com-inspect -- diff old.nccom.json new.nccom.json --compat
+cargo run -p neocogi-inspect -- dump target/debug/examples/libcomponent_plugin.so
+cargo run -p neocogi-inspect -- dump target/debug/examples/libcomponent_plugin.so --format text
+cargo run -p neocogi-inspect -- check target/debug/examples/libcomponent_plugin.so
+cargo run -p neocogi-inspect -- plan plugins/base.so plugins/tools.so
+cargo run -p neocogi-inspect -- diff old.nccom.json new.nccom.json
+cargo run -p neocogi-inspect -- diff old.nccom.json new.nccom.json --compat
 ```
 
 JSON artifacts use a strict versioned schema. They record the producer and core
@@ -911,7 +911,7 @@ Use `#[com_struct]` for small fixed-size records that should cross the ABI by
 value:
 
 ```rust
-use nc_com::com_struct;
+use neocogi_com::com_struct;
 
 #[com_struct]
 #[derive(Debug, PartialEq)]
@@ -953,12 +953,12 @@ data, owned resources, or anything with explicit lifetime or release behavior.
 ### External C-layout fields
 
 Use `#[com_struct(c_struct)]` when a record contains C-layout types from a
-dependency that does not implement nc-com traits:
+dependency that does not implement neocogi-com traits:
 
 ```rust
-use nc_com::com_struct;
+use neocogi_com::com_struct;
 
-// Represents a dependency's type, with no nc-com dependency or traits.
+// Represents a dependency's type, with no neocogi-com dependency or traits.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Vec2f {
@@ -974,9 +974,9 @@ pub struct Vertex {
 ```
 
 `c_struct` is an option on `com_struct`. The enclosing record receives the COM
-traits; its field types need no nc-com annotations or trait implementations.
+traits; its field types need no neocogi-com annotations or trait implementations.
 This lets contract crates use existing C-layout math types directly without
-coupling nc-com to a math library or converting between duplicate records.
+coupling neocogi-com to a math library or converting between duplicate records.
 The option also works with `packed`, `packed(N)`, or `align(N)`.
 
 The macro checks the whole record with rustc's `improper_ctypes_definitions`
@@ -1149,7 +1149,7 @@ entrypoint. core ABI v5 is an experimental pre-alpha draft and has not been
 ratified. Cross-release compatibility begins only when a named release/tag and
 changelog entry explicitly establish the ABI-v5 freeze baseline. Until then,
 breaking draft changes and intentional golden-vector updates are permitted;
-hosts and plugins from different nc-com source releases are not guaranteed to
+hosts and plugins from different neocogi-com source releases are not guaranteed to
 interoperate.
 `IUnknown::QueryInterface` receives an `NcInterfaceId`, which pairs the IID
 with the expected interface ABI hash. Class descriptors carry a separate hash
@@ -1167,7 +1167,7 @@ offsets, passing modes, void versus `out` returns, `ComRef` borrowed parameters,
 ABI hashes, and the `NcStatus` status convention.
 
 The hash input grammar is itself part of the ABI policy. Once core ABI v5 has been
-ratified and an interface has been published, changing how `nc-com`
+ratified and an interface has been published, changing how `neocogi-com`
 canonicalizes the same Rust interface into hash input is an ABI-policy event,
 even if the generated vtable layout would
 otherwise be unchanged. Golden tests should cover representative interface IDs,
@@ -1207,7 +1207,7 @@ new versioned interface name and therefore a new IID:
 - changing a referenced interface IID (referenced contract hashes are checked at pointer boundaries)
 - changing whether success returns through an `out` pointer or is void
 
-Adding a method to the end of a vtable is still an ABI change for `nc-com`
+Adding a method to the end of a vtable is still an ABI change for `neocogi-com`
 interfaces. Keep the old interface available and expose a new side-by-side
 interface such as `example.IFooNext`.
 
@@ -1243,7 +1243,7 @@ At object adoption boundaries, validate the registered class/interface contract
 before normal typed use:
 
 ```rust
-use nc_com::{ComInterface, ComPtr, IUnknown, NcGuid, NcStatus, Runtime};
+use neocogi_com::{ComInterface, ComPtr, IUnknown, NcGuid, NcStatus, Runtime};
 
 /// # Safety
 /// `raw_unknown` must transfer exactly one owned `IUnknown` reference.
@@ -1266,11 +1266,11 @@ adoption path.
 `NcGuid` supports canonical UUID formatting and parsing:
 
 ```rust
-use nc_com::NcGuid;
+use neocogi_com::NcGuid;
 
 let iid: NcGuid = "7b3fb46c-83ab-49e1-a5c8-2bc6d7380d2e".parse()?;
 assert_eq!(iid.to_string(), "7b3fb46c-83ab-49e1-a5c8-2bc6d7380d2e");
-# Ok::<(), nc_com::ParseGuidError>(())
+# Ok::<(), neocogi_com::ParseGuidError>(())
 ```
 
 For logs, manifests, or external metadata, use `to_uuid_bytes()` and
@@ -1283,7 +1283,7 @@ Use `com_int_enum!` for enum-like scalar values that must preserve unknown
 values:
 
 ```rust
-use nc_com::com_int_enum;
+use neocogi_com::com_int_enum;
 
 com_int_enum! {
     pub enum NodeKind: u16 {
@@ -1298,7 +1298,7 @@ Use `#[com_enum]` for tagged payload values with an explicit C-shaped
 representation:
 
 ```rust
-use nc_com::com_enum;
+use neocogi_com::com_enum;
 
 #[com_enum(tag = u32)]
 #[derive(Debug, PartialEq)]
@@ -1331,12 +1331,12 @@ default = ["macros", "std"]
 Feature behavior:
 
 - `std`: enables `alloc` and standard-library integrations.
-  Panics are not caught by `nc-com`; `panic=abort` aborts at the panic site,
+  Panics are not caught by `neocogi-com`; `panic=abort` aborts at the panic site,
   and an unwinding panic that reaches an `extern "C"` ABI thunk aborts under
   Rust's ABI unwind rules instead of becoming an `NcStatus`.
 - `alloc`: required for `#[com_object]` because generated object storage is heap
   allocated.
-- `macros`: re-exports `nc-com-macros`.
+- `macros`: re-exports `neocogi-com-macros`.
 - `runtime`: enables `std` and the process-global `Runtime` facade backed
   by the linked `libnc_com_shared_runtime` C ABI. It requires an already built runtime
   shared library on the native link path and discoverable by the platform loader.
@@ -1347,7 +1347,7 @@ Feature behavior:
 The core descriptor validator remains available without `alloc`. Allocation-
 enabled builds use `alloc::collections::BTreeSet` to accelerate duplicate
 detection while preserving the same diagnostics. Runtime registry hash indexes
-live only in the intentionally `std`-only `nc-com-runtime` implementation; they
+live only in the intentionally `std`-only `neocogi-com-runtime` implementation; they
 do not change the reduced-feature facade or ABI crates.
 
 ## C Interop Status
@@ -1380,7 +1380,7 @@ C-shaped ABI boundary, which becomes stable across releases after ratification:
 - builds that use different optimization settings or link-time choices
 
 After ratification, compatibility applies only to the explicit C-shaped surface
-generated by `nc-com`. Do not pass Rust-owned containers, borrowed Rust
+generated by `neocogi-com`. Do not pass Rust-owned containers, borrowed Rust
 references, trait objects, or allocation ownership across the boundary unless
 they are wrapped in an explicit COM interface with defined ownership rules.
 
@@ -1483,10 +1483,10 @@ scripts/test-linked-runtime.sh
 ./scripts/test-linked-runtime.ps1
 ```
 
-Both scripts build the `nc-com-runtime` shared library, configure the native
+Both scripts build the `neocogi-com-runtime` shared library, configure the native
 link and platform loader paths, enumerate the all-feature tests, assert that
 representative runtime and dynamic-library tests were discovered, and then run
-`cargo test -p nc-com --all-features --locked`. Stable and nightly toolchains
+`cargo test -p neocogi-com --all-features --locked`. Stable and nightly toolchains
 are required because the cross-version fixture builds producers with both. CI
 runs the same linked suite on Linux, macOS, and Windows in addition to the
 ordinary workspace matrix.
@@ -1494,7 +1494,7 @@ ordinary workspace matrix.
 ## Build Compatibility Matrix
 
 This matrix describes what may differ between independently built host and
-component artifacts while preserving the `nc-com` ABI contract.
+component artifacts while preserving the `neocogi-com` ABI contract.
 
 The executable local matrix is:
 
@@ -1525,8 +1525,8 @@ rustup toolchain install stable nightly
 The script runs workspace test targets for both toolchains. For each toolchain
 it runs a default dev test row, then release rows for `panic=unwind` and
 `panic=abort` crossed with `lto=off`, `lto=thin`, and `lto=fat`. Every row also
-builds the real `nc-com-runtime` shared library with the same profile and flags,
-links a runtime-enabled `nc-com` facade test binary against it, calls the
+builds the real `neocogi-com-runtime` shared library with the same profile and flags,
+links a runtime-enabled `neocogi-com` facade test binary against it, calls the
 process-global runtime API, and loads and invokes a fixture plugin. Test-name
 sentinels make the matrix fail if either linked smoke test is not discovered.
 Each linked row has its own target and native-loader paths so artifacts from a
@@ -1550,14 +1550,14 @@ without modifying it.
 | Build factor | Can differ across artifacts? | Notes |
 | --- | --- | --- |
 | Rust compiler version | Yes | The ABI is C-shaped, not Rust-native. Local tests cover stable and nightly producers, including selected release build-flag skews. The generated `NC_COM_CORE_ABI_VERSION` and interface ABI hashes still have to match the host's expectations. |
-| Cargo dependency graph | Yes | Implementation dependencies are private. Types that cross the boundary must be lowered to `nc-com` ABI types or COM interfaces. |
-| `nc-com-core` ABI version | Only if compatible | Plugin descriptors carry `NC_COM_CORE_ABI_VERSION`; hosts reject incompatible core ABI versions. |
+| Cargo dependency graph | Yes | Implementation dependencies are private. Types that cross the boundary must be lowered to `neocogi-com` ABI types or COM interfaces. |
+| `neocogi-com-core` ABI version | Only if compatible | Plugin descriptors carry `NC_COM_CORE_ABI_VERSION`; hosts reject incompatible core ABI versions. |
 | Interface method order, types, GUID, ABI hash | No | This is the actual interface contract. Changing it creates a different ABI and should use a new interface version or GUID. |
 | `opt-level` | Yes | Optimization level is private to each artifact. It must not change the explicit `repr(C)` ABI surface. |
 | LTO | Yes, within an artifact | LTO can optimize code inside the host or component, but the ABI boundary is still the generated `extern "C"` vtable. Proc macros run at compile time and are not part of the target artifact that LTO links. |
 | Codegen units and incremental compilation | Yes | These affect how Rust builds an artifact, not the C-shaped interface layout. |
 | Debug assertions | Yes | They may change local checking behavior, but they are not part of the ABI. Do not rely on debug-only panics for cross-component error handling. |
-| `panic=abort` vs `panic=unwind` | Mixed builds are callable, but panics are not recoverable ABI errors | `nc-com` does not catch panics. `panic=abort` aborts at the panic site. With unwinding, a panic that reaches an `extern "C"` thunk aborts under Rust's ABI unwind rules. Use `NcStatus` for expected failures. |
+| `panic=abort` vs `panic=unwind` | Mixed builds are callable, but panics are not recoverable ABI errors | `neocogi-com` does not catch panics. `panic=abort` aborts at the panic site. With unwinding, a panic that reaches an `extern "C"` thunk aborts under Rust's ABI unwind rules. Use `NcStatus` for expected failures. |
 | `std`, `alloc`, `no_std` features | Yes, when the exposed ABI is unchanged | Generated interfaces and `ComPtr` work without allocation. Generated classes require `alloc`. No `std` type crosses the ABI boundary. |
 | Dynamic vs static linking | Yes | Shared-library plugins and statically linked components can both use the same descriptors and vtables. Do not rely on Rust symbol or type identity across the boundary. |
 | Target triple, pointer width, endianness, C calling convention | No for one process boundary | Host and component must be built for the same process ABI. Cross-architecture or cross-endian communication needs a serialization/RPC layer, not raw vtables. |
@@ -1630,8 +1630,8 @@ rustup toolchain install nightly
 rustup +nightly component add miri rust-src
 ```
 
-The script runs Miri over pure Rust targets: `nc-com-core`, `nc-com-runtime`,
-`nc-com`, and the Rust-only COM lifecycle integration tests. Discovery
+The script runs Miri over pure Rust targets: `neocogi-com-core`, `neocogi-com-runtime`,
+`neocogi-com`, and the Rust-only COM lifecycle integration tests. Discovery
 sentinels require a five-descriptor dependency-planning/registration test and a
 five-object generated COM lifecycle test, so a feature or `cfg` change cannot
 silently reduce those rows to empty targets. The script intentionally excludes
@@ -1655,8 +1655,8 @@ rustup toolchain install nightly
 rustup +nightly component add rust-src
 ```
 
-The script runs AddressSanitizer and ThreadSanitizer over `nc-com-core`,
-`nc-com-runtime`, `nc-com`, and the Rust-only COM lifecycle integration tests. It uses
+The script runs AddressSanitizer and ThreadSanitizer over `neocogi-com-core`,
+`neocogi-com-runtime`, `neocogi-com`, and the Rust-only COM lifecycle integration tests. It uses
 target-specific sanitizer flags and `-Z build-std` so proc macros are not
 instrumented as host tools while the test binaries and standard library are
 built with matching sanitizer ABI settings. AddressSanitizer leak detection is
@@ -1680,7 +1680,7 @@ be retained explicitly; it must never wrap a stack-borrowing COM implementation.
 
 ### Runtime deployment modes
 
-`runtime` links the shared runtime. Build `nc-com-runtime` first, provide its
+`runtime` links the shared runtime. Build `neocogi-com-runtime` first, provide its
 link directory, and package that one library alongside native plugins. UI/plugin
 implementation crates normally need only contracts, objects, and macros.
 
@@ -1695,8 +1695,8 @@ for native shared deployment because it enables `static-runtime` too.
 Mode-specific verification:
 
 ```sh
-cargo test -p nc-com --features static-runtime --test com_usage --test plugin_assembly
-cargo check -p nc-com --features static-runtime --target wasm32-unknown-unknown
+cargo test -p neocogi-com --features static-runtime --test com_usage --test plugin_assembly
+cargo check -p neocogi-com --features static-runtime --target wasm32-unknown-unknown
 # The linked-runtime script builds/tests the independent shared mode.
 crates/com/scripts/test-linked-runtime.sh
 ```

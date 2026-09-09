@@ -16,10 +16,10 @@ contract.
 - Migrated registered-class integration fixtures to callable contracts,
   including no-argument non-unit construction, inherited protocols, and
   thread-safe implementations.
-- Added `#[com_struct(c_struct)]` for external C-layout fields without nc-com
+- Added `#[com_struct(c_struct)]` for external C-layout fields without neocogi-com
   traits, with compiler checks for nested FFI layouts. Documented the author's
   plain-value obligations and the limits of field size/alignment fingerprints;
-  nc-com needs no dependency on the external type's library.
+  neocogi-com needs no dependency on the external type's library.
 - Defined explicit runtime resource ceilings of 1,024 retained dynamic modules
   and 64 simultaneous debug messengers, with fatal module activation exhaustion,
   recoverable messenger capacity errors, checked monotonic handles, and
@@ -38,7 +38,7 @@ contract.
 - Rejected named lifetimes, including `'static`, on generated `ComRef`,
   `NcCopyFromBufferOffset`, and `NcCopyToBufferOffset` interface parameters so
   call-scoped raw ABI pointers and buffers cannot escape through safe Rust.
-- Initial `nc-com` runtime and macro crates for Rust-to-Rust compatibility
+- Initial `neocogi-com` runtime and macro crates for Rust-to-Rust compatibility
   through a portable C ABI.
 - Made `ComInterface` an unsealed unsafe trait and taught `#[com_interface]` to
   generate its audited unsafe implementation, preventing safe handwritten
