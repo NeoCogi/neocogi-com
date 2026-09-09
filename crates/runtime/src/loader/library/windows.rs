@@ -51,25 +51,18 @@ impl DynamicLibrary {
         wide.push(0);
         // SAFETY: `wide` is a NUL-terminated UTF-16 path.
         let handle = unsafe { LoadLibraryW(wide.as_ptr()) };
-        NonNull::new(handle)
-            .map(|handle| Self { handle })
-            .ok_or_else(|| Error {
-                kind: PluginLoadErrorKind::OpenLibrary,
-                message: last_error(),
-            })
+        NonNull::new(handle).map(|handle| Self { handle }).ok_or_else(|| Error {
+            kind: PluginLoadErrorKind::OpenLibrary,
+            message: last_error(),
+        })
     }
 
     /// Resolves one trusted NUL-free export name from the live module.
     pub(in crate::loader) unsafe fn symbol(&self, symbol: &[u8]) -> Result<*mut c_void, String> {
-        let symbol = CString::new(symbol)
-            .map_err(|_| "symbol name contains an interior NUL byte".to_string())?;
+        let symbol = CString::new(symbol).map_err(|_| "symbol name contains an interior NUL byte".to_string())?;
         // SAFETY: `self.handle` is live and `symbol` is NUL-terminated.
         let ptr = unsafe { GetProcAddress(self.handle.as_ptr(), symbol.as_ptr()) };
-        if ptr.is_null() {
-            Err(last_error())
-        } else {
-            Ok(ptr)
-        }
+        if ptr.is_null() { Err(last_error()) } else { Ok(ptr) }
     }
 }
 

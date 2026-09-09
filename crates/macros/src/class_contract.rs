@@ -28,23 +28,18 @@ pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: Item
             TypeParamBound::Trait(bound)
                 if bound.modifier == TraitBoundModifier::None
                     && bound.lifetimes.is_none()
-                    && bound.path.segments.iter().all(|segment| matches!(segment.arguments, PathArguments::None)) => {
-                        let mut abi = bound.path.clone();
-                        let last = abi.segments.last_mut().expect("validated trait paths have a final segment");
-                        last.ident = format_ident!("{}Abi", last.ident);
-                        Ok(abi)
-                    }
+                    && bound.path.segments.iter().all(|segment| matches!(segment.arguments, PathArguments::None)) =>
+            {
+                let mut abi = bound.path.clone();
+                let last = abi.segments.last_mut().expect("validated trait paths have a final segment");
+                last.ident = format_ident!("{}Abi", last.ident);
+                Ok(abi)
+            }
             _ => Err(syn::Error::new_spanned(bound, "expected a nongeneric generated COM interface")),
         })
         .collect::<Result<Vec<_>>>()?;
     let qualified_name = args.auto_guid;
-    let class_id = stable_guid(
-        InterfaceGuid::AutoGuid {
-            value: qualified_name.clone(),
-        },
-        &qualified_name,
-        &nc,
-    )?;
+    let class_id = stable_guid(InterfaceGuid::AutoGuid { value: qualified_name.clone() }, &qualified_name, &nc)?;
 
     let mut errors = None;
     validate_class_contract_trait(&input, &mut errors);
@@ -88,22 +83,14 @@ pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: Item
     // wrappers identical without exposing a redundant one-off interface.
     let callable = expand_com_interface_with_methods(
         InterfaceArgs {
-            guid: InterfaceGuid::AutoGuid {
-                value: qualified_name.clone(),
-            },
+            guid: InterfaceGuid::AutoGuid { value: qualified_name.clone() },
             qualified_name: qualified_name.clone(),
             runtime_crate: args.runtime_crate,
         },
         input,
         methods,
     )?;
-    let constructor_tokens = constructor_tokens(
-        &nc,
-        &class_vis,
-        &class_trait_ident,
-        &class_abi_ident,
-        &constructor,
-    );
+    let constructor_tokens = constructor_tokens(&nc, &class_vis, &class_trait_ident, &class_abi_ident, &constructor);
     let arguments_type = if constructor.args.is_empty() {
         quote! { () }
     } else {

@@ -14,9 +14,8 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::vec::Vec;
 
 use neocogi_com_core::{
-    NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_TYPE_ALL,
-    NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK, NcDebugCallbackV1, NcDebugMessageV1,
-    NcDebugMessengerCreateInfoV1, NcStatus,
+    NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_TYPE_ALL, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK,
+    NcDebugCallbackV1, NcDebugMessageV1, NcDebugMessengerCreateInfoV1, NcStatus,
 };
 
 use crate::state::RuntimeState;
@@ -57,10 +56,7 @@ impl Messenger {
 
     /// Marks one callback in flight unless destruction already deactivated it.
     fn begin_callback(&self) -> Option<CallbackGuard<'_>> {
-        let mut lifecycle = self
-            .lifecycle
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut lifecycle = self.lifecycle.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         if !lifecycle.active {
             return None;
         }
@@ -70,16 +66,10 @@ impl Messenger {
 
     /// Prevents new callbacks and blocks until every current invocation exits.
     fn deactivate_and_wait(&self) {
-        let mut lifecycle = self
-            .lifecycle
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut lifecycle = self.lifecycle.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         lifecycle.active = false;
         while lifecycle.in_flight != 0 {
-            lifecycle = self
-                .idle
-                .wait(lifecycle)
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            lifecycle = self.idle.wait(lifecycle).unwrap_or_else(|poisoned| poisoned.into_inner());
         }
     }
 }
@@ -93,11 +83,7 @@ struct CallbackGuard<'a> {
 impl Drop for CallbackGuard<'_> {
     /// Completes one callback and wakes destroyers when the count reaches zero.
     fn drop(&mut self) {
-        let mut lifecycle = self
-            .messenger
-            .lifecycle
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut lifecycle = self.messenger.lifecycle.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         lifecycle.in_flight -= 1;
         if lifecycle.in_flight == 0 {
             self.messenger.idle.notify_all();
@@ -128,19 +114,12 @@ impl DebugState {
     /// Creates an empty registry with a selected next handle for edge-case tests.
     fn with_next_handle(next_handle: u64) -> Self {
         Self {
-            registry: Mutex::new(DebugRegistry {
-                next_handle,
-                messengers: Vec::new(),
-            }),
+            registry: Mutex::new(DebugRegistry { next_handle, messengers: Vec::new() }),
         }
     }
 
     /// Validates raw creation data, reserves a slot, and publishes a handle.
-    unsafe fn create_messenger(
-        &self,
-        create_info: *const NcDebugMessengerCreateInfoV1,
-        out_handle: *mut u64,
-    ) -> NcStatus {
+    unsafe fn create_messenger(&self, create_info: *const NcDebugMessengerCreateInfoV1, out_handle: *mut u64) -> NcStatus {
         if out_handle.is_null() {
             return NC_E_POINTER;
         }
@@ -178,10 +157,7 @@ impl DebugState {
             message_type_mask: create_info.message_type_mask,
             callback,
             user_data: create_info.user_data,
-            lifecycle: Mutex::new(MessengerLifecycle {
-                active: true,
-                in_flight: 0,
-            }),
+            lifecycle: Mutex::new(MessengerLifecycle { active: true, in_flight: 0 }),
             idle: Condvar::new(),
         }));
         // SAFETY: `out_handle` was checked and remains valid for this call.
@@ -193,11 +169,7 @@ impl DebugState {
     fn destroy_messenger(&self, handle: u64) {
         let messenger = {
             let registry = self.lock_registry();
-            let Some(messenger) = registry
-                .messengers
-                .iter()
-                .find(|messenger| messenger.handle == handle)
-            else {
+            let Some(messenger) = registry.messengers.iter().find(|messenger| messenger.handle == handle) else {
                 return;
             };
             Arc::clone(messenger)
@@ -209,11 +181,7 @@ impl DebugState {
         messenger.deactivate_and_wait();
 
         let mut registry = self.lock_registry();
-        if let Some(index) = registry
-            .messengers
-            .iter()
-            .position(|registered| Arc::ptr_eq(registered, &messenger))
-        {
+        if let Some(index) = registry.messengers.iter().position(|registered| Arc::ptr_eq(registered, &messenger)) {
             registry.messengers.remove(index);
         }
     }
@@ -246,23 +214,14 @@ impl DebugState {
 
     /// Acquires the registry mutex while recovering usable state after poisoning.
     fn lock_registry(&self) -> std::sync::MutexGuard<'_, DebugRegistry> {
-        self.registry
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+        self.registry.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 }
 
 /// C table adapter for creating a process-global debug messenger.
-pub(crate) unsafe extern "C" fn create_messenger(
-    create_info: *const NcDebugMessengerCreateInfoV1,
-    out_handle: *mut u64,
-) -> NcStatus {
+pub(crate) unsafe extern "C" fn create_messenger(create_info: *const NcDebugMessengerCreateInfoV1, out_handle: *mut u64) -> NcStatus {
     // SAFETY: The C caller supplies the create-info and output-pointer contracts.
-    unsafe {
-        RuntimeState::global()
-            .debug()
-            .create_messenger(create_info, out_handle)
-    }
+    unsafe { RuntimeState::global().debug().create_messenger(create_info, out_handle) }
 }
 
 /// C table adapter that destroys a messenger and waits for callback quiescence.
@@ -272,37 +231,22 @@ pub(crate) unsafe extern "C" fn destroy_messenger(handle: u64) {
 
 /// Sends a borrowed diagnostic through every matching active messenger.
 pub(crate) fn emit(severity: u32, message_type: u32, message: &NcDebugMessageV1) {
-    RuntimeState::global()
-        .debug()
-        .emit(severity, message_type, message);
+    RuntimeState::global().debug().emit(severity, message_type, message);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-    use neocogi_com_core::{
-        NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_RUNTIME, NcDebugMessengerCreateInfoV1, NcUtf8View,
-    };
+    use neocogi_com_core::{NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_RUNTIME, NcDebugMessengerCreateInfoV1, NcUtf8View};
     use std::sync::{Arc, Barrier};
 
-    unsafe extern "C" fn count_callback(
-        _severity: u32,
-        _message_type: u32,
-        _message: *const NcDebugMessageV1,
-        user_data: *mut c_void,
-    ) {
+    unsafe extern "C" fn count_callback(_severity: u32, _message_type: u32, _message: *const NcDebugMessageV1, user_data: *mut c_void) {
         // SAFETY: The test installs a pointer to a live `AtomicUsize`.
         unsafe { &*(user_data.cast::<AtomicUsize>()) }.fetch_add(1, Ordering::Relaxed);
     }
 
-    unsafe extern "C" fn noop_callback(
-        _severity: u32,
-        _message_type: u32,
-        _message: *const NcDebugMessageV1,
-        _user_data: *mut c_void,
-    ) {
-    }
+    unsafe extern "C" fn noop_callback(_severity: u32, _message_type: u32, _message: *const NcDebugMessageV1, _user_data: *mut c_void) {}
 
     #[test]
     fn messenger_filters_and_stops_after_destroy() {
@@ -348,22 +292,13 @@ mod tests {
         }
 
         let mut rejected = 99;
-        assert_eq!(
-            unsafe { debug.create_messenger(&info, &mut rejected) },
-            NC_E_OUT_OF_RANGE
-        );
+        assert_eq!(unsafe { debug.create_messenger(&info, &mut rejected) }, NC_E_OUT_OF_RANGE);
         assert_eq!(rejected, 0);
 
         debug.destroy_messenger(handles.pop().unwrap());
         let mut replacement = 0;
-        assert_eq!(
-            unsafe { debug.create_messenger(&info, &mut replacement) },
-            NC_OK
-        );
-        assert_eq!(
-            replacement,
-            NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS as u64 + 1
-        );
+        assert_eq!(unsafe { debug.create_messenger(&info, &mut replacement) }, NC_OK);
+        assert_eq!(replacement, NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS as u64 + 1);
     }
 
     #[test]
@@ -379,19 +314,13 @@ mod tests {
         };
 
         let mut final_handle = 0;
-        assert_eq!(
-            unsafe { debug.create_messenger(&info, &mut final_handle) },
-            NC_OK
-        );
+        assert_eq!(unsafe { debug.create_messenger(&info, &mut final_handle) }, NC_OK);
         assert_eq!(final_handle, u64::MAX);
         debug.destroy_messenger(final_handle);
 
         for _ in 0..2 {
             let mut rejected = 99;
-            assert_eq!(
-                unsafe { debug.create_messenger(&info, &mut rejected) },
-                NC_E_OUT_OF_RANGE
-            );
+            assert_eq!(unsafe { debug.create_messenger(&info, &mut rejected) }, NC_E_OUT_OF_RANGE);
             assert_eq!(rejected, 0);
         }
     }
@@ -421,22 +350,18 @@ mod tests {
         }
         start.wait();
 
-        let results = workers
-            .into_iter()
-            .map(|worker| worker.join().unwrap())
-            .collect::<Vec<_>>();
+        let results = workers.into_iter().map(|worker| worker.join().unwrap()).collect::<Vec<_>>();
         let mut handles = results
             .iter()
             .filter_map(|(status, handle)| (*status == NC_OK).then_some(*handle))
             .collect::<Vec<_>>();
         handles.sort_unstable();
-        assert_eq!(
-            handles,
-            (1..=NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS as u64).collect::<Vec<_>>()
+        assert_eq!(handles, (1..=NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS as u64).collect::<Vec<_>>());
+        assert!(
+            results
+                .iter()
+                .all(|(status, handle)| { (*status == NC_OK && *handle != 0) || (*status == NC_E_OUT_OF_RANGE && *handle == 0) })
         );
-        assert!(results.iter().all(|(status, handle)| {
-            (*status == NC_OK && *handle != 0) || (*status == NC_E_OUT_OF_RANGE && *handle == 0)
-        }));
     }
 
     struct BlockingCallback {
@@ -444,12 +369,7 @@ mod tests {
         release: Barrier,
     }
 
-    unsafe extern "C" fn blocking_callback(
-        _severity: u32,
-        _message_type: u32,
-        _message: *const NcDebugMessageV1,
-        user_data: *mut c_void,
-    ) {
+    unsafe extern "C" fn blocking_callback(_severity: u32, _message_type: u32, _message: *const NcDebugMessageV1, user_data: *mut c_void) {
         // SAFETY: The test retains the `Arc` that owns this value until all
         // callback and destruction threads have joined.
         let state = unsafe { &*user_data.cast::<BlockingCallback>() };
@@ -498,11 +418,7 @@ mod tests {
                 let registry = debug.lock_registry();
                 Arc::clone(&registry.messengers[0])
             };
-            let active = messenger
-                .lifecycle
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .active;
+            let active = messenger.lifecycle.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).active;
             if !active {
                 break;
             }

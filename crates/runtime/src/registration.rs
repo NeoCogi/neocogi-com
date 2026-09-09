@@ -9,10 +9,7 @@ use std::collections::HashMap;
 use std::string::String;
 use std::vec::Vec;
 
-use neocogi_com_core::{
-    NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_OK, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus,
-    validate_plugin_descriptor_with_issues,
-};
+use neocogi_com_core::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_OK, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus, validate_plugin_descriptor_with_issues};
 
 use crate::loader::LoadedModuleId;
 use crate::plugin_registry::RegisteredPlugin;
@@ -131,14 +128,8 @@ impl RegistrationIdentityBatch {
 
     /// Inserts an idempotent mapping or rejects either direction of conflict.
     fn push(&mut self, id: NcGuid, name: &str) -> Result<(), NcStatus> {
-        if self
-            .identity_index_by_id
-            .get(&id)
-            .is_some_and(|index| self.names_by_id[*index].name != name)
-            || self
-                .ids_by_name
-                .get(name)
-                .is_some_and(|existing| *existing != id)
+        if self.identity_index_by_id.get(&id).is_some_and(|index| self.names_by_id[*index].name != name)
+            || self.ids_by_name.get(name).is_some_and(|existing| *existing != id)
         {
             return Err(NC_E_INVALID_ARG);
         }
@@ -150,10 +141,7 @@ impl RegistrationIdentityBatch {
         let index = self.names_by_id.len();
         self.identity_index_by_id.insert(id, index);
         self.ids_by_name.insert(name.to_owned(), id);
-        self.names_by_id.push(RegistrationIdentity {
-            id,
-            name: name.to_owned(),
-        });
+        self.names_by_id.push(RegistrationIdentity { id, name: name.to_owned() });
         Ok(())
     }
 
@@ -186,8 +174,7 @@ pub(crate) unsafe fn build_plugin_registration_batch(
     // SAFETY: Successful validation rejected null and established readability.
     let descriptor = unsafe { &*plugin };
     // SAFETY: Successful validation established valid static UTF-8 metadata.
-    let qualified_name = unsafe { descriptor.qualified_name.as_str() }
-        .map_err(PluginRegistrationBatchError::metadata)?;
+    let qualified_name = unsafe { descriptor.qualified_name.as_str() }.map_err(PluginRegistrationBatchError::metadata)?;
     // SAFETY: Validation established the dependency pointer/count invariant.
     let dependency_ids = unsafe { descriptor.dependencies() }
         .map_err(PluginRegistrationBatchError::metadata)?
@@ -196,8 +183,7 @@ pub(crate) unsafe fn build_plugin_registration_batch(
         .collect();
 
     // SAFETY: Validation established the class-table pointer and class slice.
-    let class_descriptors = unsafe { (&*descriptor.class_table).classes() }
-        .map_err(PluginRegistrationBatchError::metadata)?;
+    let class_descriptors = unsafe { (&*descriptor.class_table).classes() }.map_err(PluginRegistrationBatchError::metadata)?;
     let mut identities = RegistrationIdentityBatch::with_capacity(class_descriptors.len() + 1);
     identities
         .push(descriptor.plugin_id, qualified_name)
@@ -209,30 +195,23 @@ pub(crate) unsafe fn build_plugin_registration_batch(
     // for the transaction-locked phase.
     for class in class_descriptors {
         // SAFETY: Validation established valid class text and interface tables.
-        let class_name = unsafe { class.qualified_name.as_str() }
-            .map_err(PluginRegistrationBatchError::metadata)?;
+        let class_name = unsafe { class.qualified_name.as_str() }.map_err(PluginRegistrationBatchError::metadata)?;
         identities
             .push(class.class_id, class_name)
             .map_err(PluginRegistrationBatchError::registration)?;
 
         // SAFETY: The class descriptor passed full graph validation above.
-        let class_interfaces =
-            unsafe { class.interfaces() }.map_err(PluginRegistrationBatchError::metadata)?;
+        let class_interfaces = unsafe { class.interfaces() }.map_err(PluginRegistrationBatchError::metadata)?;
         let mut interface_ids = Vec::with_capacity(class_interfaces.len());
         for class_interface in class_interfaces {
             // SAFETY: Full validation rejected null interface descriptor pointers.
-            let interface = unsafe { class_interface.interface_descriptor() }
-                .map_err(PluginRegistrationBatchError::metadata)?;
+            let interface = unsafe { class_interface.interface_descriptor() }.map_err(PluginRegistrationBatchError::metadata)?;
             // SAFETY: Full validation established valid interface text.
-            let interface_name = unsafe { interface.qualified_name.as_str() }
-                .map_err(PluginRegistrationBatchError::metadata)?;
+            let interface_name = unsafe { interface.qualified_name.as_str() }.map_err(PluginRegistrationBatchError::metadata)?;
             identities
                 .push(interface.interface_id, interface_name)
                 .map_err(PluginRegistrationBatchError::registration)?;
-            interface_ids.push(NcInterfaceId::new(
-                interface.interface_id,
-                interface.abi_hash,
-            ));
+            interface_ids.push(NcInterfaceId::new(interface.interface_id, interface.abi_hash));
         }
 
         classes.push(RegisteredClass {
@@ -317,20 +296,14 @@ impl RuntimeState {
     }
 
     /// Publishes a prevalidated static registration under one catalog write lock.
-    pub(crate) fn commit_plugin_registration_batch(
-        &self,
-        batch: PluginRegistrationBatch,
-    ) -> NcStatus {
+    pub(crate) fn commit_plugin_registration_batch(&self, batch: PluginRegistrationBatch) -> NcStatus {
         self.write_catalog().commit_plugin_registration_batch(batch)
     }
 }
 
 impl RuntimeCatalog {
     /// Checks current state and publishes one prevalidated batch.
-    pub(crate) fn commit_plugin_registration_batch(
-        &mut self,
-        mut batch: PluginRegistrationBatch,
-    ) -> NcStatus {
+    pub(crate) fn commit_plugin_registration_batch(&mut self, mut batch: PluginRegistrationBatch) -> NcStatus {
         // All raw traversal, hashing, string copying, and record assembly has
         // completed. The enclosing write guard protects state-dependent checks
         // and publication of every catalog projection.
@@ -338,9 +311,7 @@ impl RuntimeCatalog {
         if let Err(status) = self.validate_registered_dependencies(&batch.plugin.dependency_ids) {
             return status;
         }
-        if let Err(status) =
-            validate_registered_identity_mappings(&batch.identities, &self.registration)
-        {
+        if let Err(status) = validate_registered_identity_mappings(&batch.identities, &self.registration) {
             return status;
         }
 
@@ -352,11 +323,7 @@ impl RuntimeCatalog {
             return NC_OK;
         }
 
-        let PluginRegistrationBatch {
-            plugin,
-            classes,
-            identities,
-        } = batch;
+        let PluginRegistrationBatch { plugin, classes, identities } = batch;
         self.insert_plugin_and_classes((!plugin_registered).then_some(plugin), classes);
         register_identity_mappings(&mut self.registration, identities);
         NC_OK
@@ -364,20 +331,14 @@ impl RuntimeCatalog {
 
     /// Requires every declared hard dependency to be registered already.
     fn validate_registered_dependencies(&self, dependency_ids: &[NcGuid]) -> Result<(), NcStatus> {
-        if dependency_ids
-            .iter()
-            .any(|dependency_id| !self.plugin_registry.contains_plugin(*dependency_id))
-        {
+        if dependency_ids.iter().any(|dependency_id| !self.plugin_registry.contains_plugin(*dependency_id)) {
             return Err(NC_E_NOT_FOUND);
         }
         Ok(())
     }
 
     /// Removes exact idempotent records and rejects conflicting existing records.
-    fn retain_new_registration_records(
-        &self,
-        batch: &mut PluginRegistrationBatch,
-    ) -> Result<bool, NcStatus> {
+    fn retain_new_registration_records(&self, batch: &mut PluginRegistrationBatch) -> Result<bool, NcStatus> {
         let existing_plugin = self.plugin_registry.plugin(batch.plugin.plugin_id);
         if existing_plugin.is_some_and(|registered| registered.plugin != batch.plugin.plugin) {
             return Err(NC_E_INVALID_ARG);
@@ -402,11 +363,7 @@ impl RuntimeCatalog {
     }
 
     /// Publishes plugin and class records inside the enclosing catalog transaction.
-    fn insert_plugin_and_classes(
-        &mut self,
-        plugin: Option<RegisteredPlugin>,
-        classes: Vec<RegisteredClass>,
-    ) {
+    fn insert_plugin_and_classes(&mut self, plugin: Option<RegisteredPlugin>, classes: Vec<RegisteredClass>) {
         if let Some(plugin) = plugin {
             self.plugin_registry.insert(plugin);
         }
@@ -415,19 +372,10 @@ impl RuntimeCatalog {
 }
 
 /// Checks a batch's GUID/name mappings against all previously committed mappings.
-fn validate_registered_identity_mappings(
-    identities: &RegistrationIdentities,
-    registration: &RegistrationState,
-) -> Result<(), NcStatus> {
+fn validate_registered_identity_mappings(identities: &RegistrationIdentities, registration: &RegistrationState) -> Result<(), NcStatus> {
     for identity in &identities.names_by_id {
-        if registration
-            .name_by_id
-            .get(&identity.id)
-            .is_some_and(|name| name != &identity.name)
-            || registration
-                .id_by_name
-                .get(&identity.name)
-                .is_some_and(|id| *id != identity.id)
+        if registration.name_by_id.get(&identity.id).is_some_and(|name| name != &identity.name)
+            || registration.id_by_name.get(&identity.name).is_some_and(|id| *id != identity.id)
         {
             return Err(NC_E_INVALID_ARG);
         }
@@ -441,15 +389,9 @@ fn registered_class_view_matches(existing: &RegisteredClassView, class: &Registe
 }
 
 /// Inserts newly observed bidirectional identity mappings after a successful commit.
-fn register_identity_mappings(
-    registration: &mut RegistrationState,
-    identities: RegistrationIdentities,
-) {
+fn register_identity_mappings(registration: &mut RegistrationState, identities: RegistrationIdentities) {
     for identity in identities.names_by_id {
-        registration
-            .name_by_id
-            .entry(identity.id)
-            .or_insert(identity.name);
+        registration.name_by_id.entry(identity.id).or_insert(identity.name);
     }
     for (name, id) in identities.ids_by_name {
         registration.id_by_name.entry(name).or_insert(id);
@@ -460,9 +402,8 @@ fn register_identity_mappings(
 mod tests {
     use super::*;
     use neocogi_com_core::{
-        IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NcAbiHash, NcAbiHashPart,
-        NcClassDescriptor, NcClassInterfaceDescriptor, NcClassTable, NcInterfaceDescriptor,
-        NcInterfaceId, NcPluginDependencyDescriptor, NcStaticUtf8,
+        IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NcAbiHash, NcAbiHashPart, NcClassDescriptor, NcClassInterfaceDescriptor, NcClassTable,
+        NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor, NcStaticUtf8,
     };
     use std::rc::Rc;
     use std::sync::{
@@ -490,14 +431,10 @@ mod tests {
     #[test]
     fn module_id_indexes_registered_class_metadata() {
         const MODULE_ID: LoadedModuleId = LoadedModuleId::from_raw(77);
-        const PLUGIN_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.tests.registry.module_indexed_plugin");
-        const CLASS_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.tests.registry.ModuleIndexedClass");
-        const INTERFACE_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.tests.registry.ModuleIndexedInterface");
-        const INTERFACE_HASH: NcAbiHash =
-            NcAbiHash::from_abi_parts(&[NcAbiHashPart::Interface { iid: INTERFACE_ID }]);
+        const PLUGIN_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.tests.registry.module_indexed_plugin");
+        const CLASS_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.tests.registry.ModuleIndexedClass");
+        const INTERFACE_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.tests.registry.ModuleIndexedInterface");
+        const INTERFACE_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Interface { iid: INTERFACE_ID }]);
         static INTERFACE: NcInterfaceDescriptor = NcInterfaceDescriptor {
             interface_id: INTERFACE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.registry.ModuleIndexedInterface"),
@@ -510,9 +447,7 @@ mod tests {
             NcClassInterfaceDescriptor {
                 interface_descriptor: &IUnknown::INTERFACE_DESCRIPTOR,
             },
-            NcClassInterfaceDescriptor {
-                interface_descriptor: &INTERFACE,
-            },
+            NcClassInterfaceDescriptor { interface_descriptor: &INTERFACE },
         ];
         static CLASSES: [NcClassDescriptor; 1] = [NcClassDescriptor {
             class_id: CLASS_ID,
@@ -540,69 +475,35 @@ mod tests {
 
         let runtime = RuntimeState::new();
         TEST_CONSTRUCTOR_CALLS.store(0, Ordering::SeqCst);
-        let batch = unsafe { build_plugin_registration_batch(&PLUGIN, Some(MODULE_ID)) }
-            .unwrap_or_else(|error| panic!("batch failed with {}", error.status()));
+        let batch = unsafe { build_plugin_registration_batch(&PLUGIN, Some(MODULE_ID)) }.unwrap_or_else(|error| panic!("batch failed with {}", error.status()));
         let status = runtime.commit_plugin_registration_batch(batch);
         assert_eq!(status, NC_OK);
+        assert_eq!(runtime.read_catalog().plugin_registry.registered_plugin_ids(), vec![PLUGIN_ID]);
+        assert_eq!(runtime.read_catalog().type_registry.registered_class_ids(), vec![CLASS_ID]);
         assert_eq!(
-            runtime
-                .read_catalog()
-                .plugin_registry
-                .registered_plugin_ids(),
-            vec![PLUGIN_ID]
-        );
-        assert_eq!(
-            runtime.read_catalog().type_registry.registered_class_ids(),
-            vec![CLASS_ID]
-        );
-        assert_eq!(
-            runtime
-                .read_catalog()
-                .type_registry
-                .registered_interface_ids()
-                .unwrap(),
-            vec![
-                IUnknown::INTERFACE_ID,
-                NcInterfaceId::new(INTERFACE_ID, INTERFACE_HASH),
-            ]
+            runtime.read_catalog().type_registry.registered_interface_ids().unwrap(),
+            vec![IUnknown::INTERFACE_ID, NcInterfaceId::new(INTERFACE_ID, INTERFACE_HASH),]
         );
         assert_eq!(
             crate::inspection::plugin_class_ids(&runtime.read_catalog().type_registry, PLUGIN_ID,),
             vec![CLASS_ID]
         );
         assert_eq!(
-            crate::inspection::class_interface_ids(
-                &runtime.read_catalog().type_registry,
-                CLASS_ID,
-            )
-            .unwrap(),
-            vec![
-                IUnknown::INTERFACE_ID,
-                NcInterfaceId::new(INTERFACE_ID, INTERFACE_HASH),
-            ]
+            crate::inspection::class_interface_ids(&runtime.read_catalog().type_registry, CLASS_ID,).unwrap(),
+            vec![IUnknown::INTERFACE_ID, NcInterfaceId::new(INTERFACE_ID, INTERFACE_HASH),]
         );
         assert_eq!(
-            crate::inspection::interface_implementor_class_ids(
-                &runtime.read_catalog().type_registry,
-                IUnknown::INTERFACE_ID,
-            )
-            .unwrap(),
+            crate::inspection::interface_implementor_class_ids(&runtime.read_catalog().type_registry, IUnknown::INTERFACE_ID,).unwrap(),
             vec![CLASS_ID]
         );
         assert_eq!(
-            crate::inspection::interface_implementor_class_ids(
-                &runtime.read_catalog().type_registry,
-                NcInterfaceId::new(INTERFACE_ID, INTERFACE_HASH),
-            )
-            .unwrap(),
+            crate::inspection::interface_implementor_class_ids(&runtime.read_catalog().type_registry, NcInterfaceId::new(INTERFACE_ID, INTERFACE_HASH),)
+                .unwrap(),
             vec![CLASS_ID]
         );
-        let plugin_info =
-            crate::inspection::plugin_info(&runtime.read_catalog().plugin_registry, PLUGIN_ID)
-                .unwrap();
+        let plugin_info = crate::inspection::plugin_info(&runtime.read_catalog().plugin_registry, PLUGIN_ID).unwrap();
         assert_eq!(plugin_info.plugin_id, PLUGIN_ID);
-        let class_info =
-            crate::inspection::class_info(&runtime.read_catalog().type_registry, CLASS_ID).unwrap();
+        let class_info = crate::inspection::class_info(&runtime.read_catalog().type_registry, CLASS_ID).unwrap();
         assert_eq!(class_info.plugin_id, PLUGIN_ID);
         assert_eq!(class_info.module_id, MODULE_ID.get());
         assert_eq!(class_info.constructor_abi_hash, NcAbiHash::ZERO);
@@ -624,8 +525,7 @@ mod tests {
 
     #[test]
     fn runtime_rejects_a_second_descriptor_with_the_same_plugin_id() {
-        const PLUGIN_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.tests.registry.same_id");
+        const PLUGIN_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.tests.registry.same_id");
         static EMPTY_CLASSES: NcClassTable = NcClassTable {
             class_count: 0,
             classes: core::ptr::null(),
@@ -650,27 +550,14 @@ mod tests {
         };
 
         let runtime = RuntimeState::new();
-        assert_eq!(
-            unsafe { runtime.register_plugin_descriptor(&PLUGIN_A) },
-            NC_OK
-        );
-        assert_eq!(
-            unsafe { runtime.register_plugin_descriptor(&PLUGIN_B) },
-            NC_E_INVALID_ARG
-        );
-        assert_eq!(
-            runtime
-                .read_catalog()
-                .plugin_registry
-                .registered_plugin_ids(),
-            vec![PLUGIN_ID]
-        );
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(&PLUGIN_A) }, NC_OK);
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(&PLUGIN_B) }, NC_E_INVALID_ARG);
+        assert_eq!(runtime.read_catalog().plugin_registry.registered_plugin_ids(), vec![PLUGIN_ID]);
     }
 
     #[test]
     fn exact_reregistration_is_idempotent() {
-        const PLUGIN_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.tests.registry.idempotent_plugin");
+        const PLUGIN_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.tests.registry.idempotent_plugin");
         static EMPTY_CLASSES: NcClassTable = NcClassTable {
             class_count: 0,
             classes: core::ptr::null(),
@@ -687,37 +574,23 @@ mod tests {
 
         let runtime = RuntimeState::new();
         reset_registration_validation_calls();
-        assert_eq!(
-            unsafe { runtime.register_plugin_descriptor(&PLUGIN) },
-            NC_OK
-        );
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(&PLUGIN) }, NC_OK);
         assert_eq!(registration_validation_calls(), 1);
         reset_registration_validation_calls();
-        assert_eq!(
-            unsafe { runtime.register_plugin_descriptor(&PLUGIN) },
-            NC_OK
-        );
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(&PLUGIN) }, NC_OK);
         assert_eq!(registration_validation_calls(), 1);
-        assert_eq!(
-            runtime
-                .read_catalog()
-                .plugin_registry
-                .registered_plugin_ids(),
-            vec![PLUGIN_ID]
-        );
+        assert_eq!(runtime.read_catalog().plugin_registry.registered_plugin_ids(), vec![PLUGIN_ID]);
     }
 
     #[test]
     fn dependency_must_be_registered_before_dependent() {
         const BASE_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.tests.registry.base");
-        const DEPENDENT_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.tests.registry.dependent");
+        const DEPENDENT_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.tests.registry.dependent");
         static EMPTY_CLASSES: NcClassTable = NcClassTable {
             class_count: 0,
             classes: core::ptr::null(),
         };
-        static DEPENDENCIES: [NcPluginDependencyDescriptor; 1] =
-            [NcPluginDependencyDescriptor { plugin_id: BASE_ID }];
+        static DEPENDENCIES: [NcPluginDependencyDescriptor; 1] = [NcPluginDependencyDescriptor { plugin_id: BASE_ID }];
         static BASE: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
             plugin_id: BASE_ID,
@@ -738,59 +611,29 @@ mod tests {
         };
 
         let runtime = RuntimeState::new();
-        assert_eq!(
-            unsafe { runtime.register_plugin_descriptor(&DEPENDENT) },
-            NC_E_NOT_FOUND
-        );
-        assert!(
-            runtime
-                .read_catalog()
-                .plugin_registry
-                .registered_plugin_ids()
-                .is_empty()
-        );
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(&DEPENDENT) }, NC_E_NOT_FOUND);
+        assert!(runtime.read_catalog().plugin_registry.registered_plugin_ids().is_empty());
         assert_eq!(unsafe { runtime.register_plugin_descriptor(&BASE) }, NC_OK);
-        assert_eq!(
-            unsafe { runtime.register_plugin_descriptor(&DEPENDENT) },
-            NC_OK
-        );
-        assert_eq!(
-            runtime
-                .read_catalog()
-                .plugin_registry
-                .registered_plugin_ids(),
-            vec![BASE_ID, DEPENDENT_ID]
-        );
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(&DEPENDENT) }, NC_OK);
+        assert_eq!(runtime.read_catalog().plugin_registry.registered_plugin_ids(), vec![BASE_ID, DEPENDENT_ID]);
     }
 
     #[test]
     fn five_plugin_dependency_chain_plans_and_registers_in_process() {
         use crate::{PluginInspection, plan_plugin_load_order};
 
-        const COUNTER_PLUGIN_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.examples.multi.counter");
-        const FLAG_PLUGIN_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.examples.multi.flag");
-        const METRIC_PLUGIN_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.examples.multi.metric");
-        const STATE_PLUGIN_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.examples.multi.state");
-        const EXTRA_PLUGIN_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.examples.multi.extra");
-        const COUNTER_CLASS_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.examples.multi.Counter");
-        const FLAG_CLASS_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.examples.multi.Flag");
-        const METRIC_CLASS_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.examples.multi.Metric");
-        const STATE_CLASS_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.examples.multi.State");
-        const EXTRA_CLASS_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.examples.multi.Extra");
-        const INTERFACE_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.tests.registry.MultiPluginInterface");
-        const INTERFACE_HASH: NcAbiHash =
-            NcAbiHash::from_abi_parts(&[NcAbiHashPart::Interface { iid: INTERFACE_ID }]);
+        const COUNTER_PLUGIN_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.examples.multi.counter");
+        const FLAG_PLUGIN_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.examples.multi.flag");
+        const METRIC_PLUGIN_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.examples.multi.metric");
+        const STATE_PLUGIN_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.examples.multi.state");
+        const EXTRA_PLUGIN_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.examples.multi.extra");
+        const COUNTER_CLASS_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.examples.multi.Counter");
+        const FLAG_CLASS_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.examples.multi.Flag");
+        const METRIC_CLASS_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.examples.multi.Metric");
+        const STATE_CLASS_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.examples.multi.State");
+        const EXTRA_CLASS_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.examples.multi.Extra");
+        const INTERFACE_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.tests.registry.MultiPluginInterface");
+        const INTERFACE_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Interface { iid: INTERFACE_ID }]);
 
         static INTERFACE: NcInterfaceDescriptor = NcInterfaceDescriptor {
             interface_id: INTERFACE_ID,
@@ -804,9 +647,7 @@ mod tests {
             NcClassInterfaceDescriptor {
                 interface_descriptor: &IUnknown::INTERFACE_DESCRIPTOR,
             },
-            NcClassInterfaceDescriptor {
-                interface_descriptor: &INTERFACE,
-            },
+            NcClassInterfaceDescriptor { interface_descriptor: &INTERFACE },
         ];
 
         macro_rules! class_table {
@@ -828,54 +669,17 @@ mod tests {
             };
         }
 
-        class_table!(
-            COUNTER_CLASSES,
-            COUNTER_CLASS_TABLE,
-            COUNTER_CLASS_ID,
-            "nc.examples.multi.Counter"
-        );
-        class_table!(
-            FLAG_CLASSES,
-            FLAG_CLASS_TABLE,
-            FLAG_CLASS_ID,
-            "nc.examples.multi.Flag"
-        );
-        class_table!(
-            METRIC_CLASSES,
-            METRIC_CLASS_TABLE,
-            METRIC_CLASS_ID,
-            "nc.examples.multi.Metric"
-        );
-        class_table!(
-            STATE_CLASSES,
-            STATE_CLASS_TABLE,
-            STATE_CLASS_ID,
-            "nc.examples.multi.State"
-        );
-        class_table!(
-            EXTRA_CLASSES,
-            EXTRA_CLASS_TABLE,
-            EXTRA_CLASS_ID,
-            "nc.examples.multi.Extra"
-        );
+        class_table!(COUNTER_CLASSES, COUNTER_CLASS_TABLE, COUNTER_CLASS_ID, "nc.examples.multi.Counter");
+        class_table!(FLAG_CLASSES, FLAG_CLASS_TABLE, FLAG_CLASS_ID, "nc.examples.multi.Flag");
+        class_table!(METRIC_CLASSES, METRIC_CLASS_TABLE, METRIC_CLASS_ID, "nc.examples.multi.Metric");
+        class_table!(STATE_CLASSES, STATE_CLASS_TABLE, STATE_CLASS_ID, "nc.examples.multi.State");
+        class_table!(EXTRA_CLASSES, EXTRA_CLASS_TABLE, EXTRA_CLASS_ID, "nc.examples.multi.Extra");
 
         static EMPTY_DEPENDENCIES: [NcPluginDependencyDescriptor; 0] = [];
-        static FLAG_DEPENDENCIES: [NcPluginDependencyDescriptor; 1] =
-            [NcPluginDependencyDescriptor {
-                plugin_id: COUNTER_PLUGIN_ID,
-            }];
-        static METRIC_DEPENDENCIES: [NcPluginDependencyDescriptor; 1] =
-            [NcPluginDependencyDescriptor {
-                plugin_id: FLAG_PLUGIN_ID,
-            }];
-        static STATE_DEPENDENCIES: [NcPluginDependencyDescriptor; 1] =
-            [NcPluginDependencyDescriptor {
-                plugin_id: METRIC_PLUGIN_ID,
-            }];
-        static EXTRA_DEPENDENCIES: [NcPluginDependencyDescriptor; 1] =
-            [NcPluginDependencyDescriptor {
-                plugin_id: STATE_PLUGIN_ID,
-            }];
+        static FLAG_DEPENDENCIES: [NcPluginDependencyDescriptor; 1] = [NcPluginDependencyDescriptor { plugin_id: COUNTER_PLUGIN_ID }];
+        static METRIC_DEPENDENCIES: [NcPluginDependencyDescriptor; 1] = [NcPluginDependencyDescriptor { plugin_id: FLAG_PLUGIN_ID }];
+        static STATE_DEPENDENCIES: [NcPluginDependencyDescriptor; 1] = [NcPluginDependencyDescriptor { plugin_id: METRIC_PLUGIN_ID }];
+        static EXTRA_DEPENDENCIES: [NcPluginDependencyDescriptor; 1] = [NcPluginDependencyDescriptor { plugin_id: STATE_PLUGIN_ID }];
 
         macro_rules! plugin {
             ($plugin:ident, $id:ident, $name:literal, $dependencies:expr, $table:ident) => {
@@ -898,13 +702,7 @@ mod tests {
             EMPTY_DEPENDENCIES,
             COUNTER_CLASS_TABLE
         );
-        plugin!(
-            FLAG_PLUGIN,
-            FLAG_PLUGIN_ID,
-            "nc.examples.multi.flag",
-            FLAG_DEPENDENCIES,
-            FLAG_CLASS_TABLE
-        );
+        plugin!(FLAG_PLUGIN, FLAG_PLUGIN_ID, "nc.examples.multi.flag", FLAG_DEPENDENCIES, FLAG_CLASS_TABLE);
         plugin!(
             METRIC_PLUGIN,
             METRIC_PLUGIN_ID,
@@ -912,26 +710,10 @@ mod tests {
             METRIC_DEPENDENCIES,
             METRIC_CLASS_TABLE
         );
-        plugin!(
-            STATE_PLUGIN,
-            STATE_PLUGIN_ID,
-            "nc.examples.multi.state",
-            STATE_DEPENDENCIES,
-            STATE_CLASS_TABLE
-        );
-        plugin!(
-            EXTRA_PLUGIN,
-            EXTRA_PLUGIN_ID,
-            "nc.examples.multi.extra",
-            EXTRA_DEPENDENCIES,
-            EXTRA_CLASS_TABLE
-        );
+        plugin!(STATE_PLUGIN, STATE_PLUGIN_ID, "nc.examples.multi.state", STATE_DEPENDENCIES, STATE_CLASS_TABLE);
+        plugin!(EXTRA_PLUGIN, EXTRA_PLUGIN_ID, "nc.examples.multi.extra", EXTRA_DEPENDENCIES, EXTRA_CLASS_TABLE);
 
-        fn inspected(
-            plugin_id: NcGuid,
-            qualified_name: &str,
-            dependencies: &[NcGuid],
-        ) -> PluginInspection {
+        fn inspected(plugin_id: NcGuid, qualified_name: &str, dependencies: &[NcGuid]) -> PluginInspection {
             PluginInspection {
                 core_abi_version: NC_COM_CORE_ABI_VERSION,
                 plugin_id,
@@ -943,132 +725,48 @@ mod tests {
         }
 
         let inspected_plugins = [
-            inspected(
-                EXTRA_PLUGIN_ID,
-                "nc.examples.multi.extra",
-                &[STATE_PLUGIN_ID],
-            ),
-            inspected(
-                STATE_PLUGIN_ID,
-                "nc.examples.multi.state",
-                &[METRIC_PLUGIN_ID],
-            ),
-            inspected(
-                METRIC_PLUGIN_ID,
-                "nc.examples.multi.metric",
-                &[FLAG_PLUGIN_ID],
-            ),
-            inspected(
-                FLAG_PLUGIN_ID,
-                "nc.examples.multi.flag",
-                &[COUNTER_PLUGIN_ID],
-            ),
+            inspected(EXTRA_PLUGIN_ID, "nc.examples.multi.extra", &[STATE_PLUGIN_ID]),
+            inspected(STATE_PLUGIN_ID, "nc.examples.multi.state", &[METRIC_PLUGIN_ID]),
+            inspected(METRIC_PLUGIN_ID, "nc.examples.multi.metric", &[FLAG_PLUGIN_ID]),
+            inspected(FLAG_PLUGIN_ID, "nc.examples.multi.flag", &[COUNTER_PLUGIN_ID]),
             inspected(COUNTER_PLUGIN_ID, "nc.examples.multi.counter", &[]),
         ];
-        let expected_order = [
-            COUNTER_PLUGIN_ID,
-            FLAG_PLUGIN_ID,
-            METRIC_PLUGIN_ID,
-            STATE_PLUGIN_ID,
-            EXTRA_PLUGIN_ID,
-        ];
-        assert_eq!(
-            plan_plugin_load_order(&inspected_plugins).unwrap(),
-            expected_order
-        );
+        let expected_order = [COUNTER_PLUGIN_ID, FLAG_PLUGIN_ID, METRIC_PLUGIN_ID, STATE_PLUGIN_ID, EXTRA_PLUGIN_ID];
+        assert_eq!(plan_plugin_load_order(&inspected_plugins).unwrap(), expected_order);
 
-        let descriptors = [
-            &COUNTER_PLUGIN,
-            &FLAG_PLUGIN,
-            &METRIC_PLUGIN,
-            &STATE_PLUGIN,
-            &EXTRA_PLUGIN,
-        ];
+        let descriptors = [&COUNTER_PLUGIN, &FLAG_PLUGIN, &METRIC_PLUGIN, &STATE_PLUGIN, &EXTRA_PLUGIN];
         let runtime = RuntimeState::new();
-        assert_eq!(
-            unsafe { runtime.register_plugin_descriptor(&EXTRA_PLUGIN) },
-            NC_E_NOT_FOUND
-        );
-        assert!(
-            runtime
-                .read_catalog()
-                .plugin_registry
-                .registered_plugin_ids()
-                .is_empty()
-        );
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(&EXTRA_PLUGIN) }, NC_E_NOT_FOUND);
+        assert!(runtime.read_catalog().plugin_registry.registered_plugin_ids().is_empty());
 
         for plugin_id in expected_order {
-            let descriptor = descriptors
-                .iter()
-                .copied()
-                .find(|descriptor| descriptor.plugin_id == plugin_id)
-                .unwrap();
-            assert_eq!(
-                unsafe { runtime.register_plugin_descriptor(descriptor) },
-                NC_OK
-            );
+            let descriptor = descriptors.iter().copied().find(|descriptor| descriptor.plugin_id == plugin_id).unwrap();
+            assert_eq!(unsafe { runtime.register_plugin_descriptor(descriptor) }, NC_OK);
         }
 
-        assert_eq!(
-            runtime
-                .read_catalog()
-                .plugin_registry
-                .registered_plugin_ids(),
-            expected_order
-        );
+        assert_eq!(runtime.read_catalog().plugin_registry.registered_plugin_ids(), expected_order);
         assert_eq!(
             runtime.read_catalog().type_registry.registered_class_ids(),
-            [
-                COUNTER_CLASS_ID,
-                FLAG_CLASS_ID,
-                METRIC_CLASS_ID,
-                STATE_CLASS_ID,
-                EXTRA_CLASS_ID,
-            ]
+            [COUNTER_CLASS_ID, FLAG_CLASS_ID, METRIC_CLASS_ID, STATE_CLASS_ID, EXTRA_CLASS_ID,]
         );
         assert_eq!(
-            crate::inspection::plugin_dependency_ids(
-                &runtime.read_catalog().plugin_registry,
-                EXTRA_PLUGIN_ID,
-            )
-            .unwrap(),
+            crate::inspection::plugin_dependency_ids(&runtime.read_catalog().plugin_registry, EXTRA_PLUGIN_ID,).unwrap(),
             vec![STATE_PLUGIN_ID]
         );
         assert_eq!(
-            crate::inspection::plugin_class_ids(
-                &runtime.read_catalog().type_registry,
-                METRIC_PLUGIN_ID,
-            ),
+            crate::inspection::plugin_class_ids(&runtime.read_catalog().type_registry, METRIC_PLUGIN_ID,),
             vec![METRIC_CLASS_ID]
         );
         assert_eq!(
-            crate::inspection::class_interface_ids(
-                &runtime.read_catalog().type_registry,
-                STATE_CLASS_ID,
-            )
-            .unwrap(),
-            vec![
-                IUnknown::INTERFACE_ID,
-                NcInterfaceId::new(INTERFACE_ID, INTERFACE_HASH),
-            ]
+            crate::inspection::class_interface_ids(&runtime.read_catalog().type_registry, STATE_CLASS_ID,).unwrap(),
+            vec![IUnknown::INTERFACE_ID, NcInterfaceId::new(INTERFACE_ID, INTERFACE_HASH),]
         );
         assert_eq!(
-            crate::inspection::interface_implementor_class_ids(
-                &runtime.read_catalog().type_registry,
-                NcInterfaceId::new(INTERFACE_ID, INTERFACE_HASH),
-            )
-            .unwrap(),
-            vec![
-                COUNTER_CLASS_ID,
-                FLAG_CLASS_ID,
-                METRIC_CLASS_ID,
-                STATE_CLASS_ID,
-                EXTRA_CLASS_ID,
-            ]
+            crate::inspection::interface_implementor_class_ids(&runtime.read_catalog().type_registry, NcInterfaceId::new(INTERFACE_ID, INTERFACE_HASH),)
+                .unwrap(),
+            vec![COUNTER_CLASS_ID, FLAG_CLASS_ID, METRIC_CLASS_ID, STATE_CLASS_ID, EXTRA_CLASS_ID,]
         );
-        let class_info =
-            crate::inspection::class_info(&runtime.read_catalog().type_registry, EXTRA_CLASS_ID)
-                .unwrap();
+        let class_info = crate::inspection::class_info(&runtime.read_catalog().type_registry, EXTRA_CLASS_ID).unwrap();
         assert_eq!(class_info.plugin_id, EXTRA_PLUGIN_ID);
         assert_eq!(class_info.module_id, 0);
 
@@ -1087,33 +785,15 @@ mod tests {
         assert_eq!(MULTI_PLUGIN_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 1);
 
         for descriptor in descriptors {
-            assert_eq!(
-                unsafe { runtime.register_plugin_descriptor(descriptor) },
-                NC_OK
-            );
+            assert_eq!(unsafe { runtime.register_plugin_descriptor(descriptor) }, NC_OK);
         }
-        assert_eq!(
-            runtime
-                .read_catalog()
-                .plugin_registry
-                .registered_plugin_ids()
-                .len(),
-            5
-        );
-        assert_eq!(
-            runtime
-                .read_catalog()
-                .type_registry
-                .registered_class_ids()
-                .len(),
-            5
-        );
+        assert_eq!(runtime.read_catalog().plugin_registry.registered_plugin_ids().len(), 5);
+        assert_eq!(runtime.read_catalog().type_registry.registered_class_ids().len(), 5);
     }
 
     #[test]
     fn simultaneous_exact_registration_is_blocking_and_idempotent() {
-        const PLUGIN_ID: NcGuid =
-            neocogi_com_core::guid_from_qualified_name("nc.tests.registry.concurrent_plugin");
+        const PLUGIN_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.tests.registry.concurrent_plugin");
         static EMPTY_CLASSES: NcClassTable = NcClassTable {
             class_count: 0,
             classes: core::ptr::null(),
@@ -1145,13 +825,7 @@ mod tests {
         for thread in threads {
             assert_eq!(thread.join().unwrap(), NC_OK);
         }
-        assert_eq!(
-            runtime
-                .read_catalog()
-                .plugin_registry
-                .registered_plugin_ids(),
-            vec![PLUGIN_ID]
-        );
+        assert_eq!(runtime.read_catalog().plugin_registry.registered_plugin_ids(), vec![PLUGIN_ID]);
     }
 
     #[test]
@@ -1161,14 +835,8 @@ mod tests {
         let mut identities = RegistrationIdentityBatch::with_capacity(2);
         assert!(identities.push(id_a, "nc.tests.Identity").is_ok());
         assert!(identities.push(id_a, "nc.tests.Identity").is_ok());
-        assert_eq!(
-            identities.push(id_a, "nc.tests.OtherIdentity"),
-            Err(NC_E_INVALID_ARG)
-        );
-        assert_eq!(
-            identities.push(id_b, "nc.tests.Identity"),
-            Err(NC_E_INVALID_ARG)
-        );
+        assert_eq!(identities.push(id_a, "nc.tests.OtherIdentity"), Err(NC_E_INVALID_ARG));
+        assert_eq!(identities.push(id_b, "nc.tests.Identity"), Err(NC_E_INVALID_ARG));
     }
 
     #[test]
@@ -1176,14 +844,8 @@ mod tests {
         static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION + 1,
             plugin_id: NcGuid::nil(),
-            qualified_name: NcStaticUtf8 {
-                data: core::ptr::null(),
-                len: 1,
-            },
-            plugin_version: NcStaticUtf8 {
-                data: core::ptr::null(),
-                len: 1,
-            },
+            qualified_name: NcStaticUtf8 { data: core::ptr::null(), len: 1 },
+            plugin_version: NcStaticUtf8 { data: core::ptr::null(), len: 1 },
             dependency_count: 0,
             dependencies: core::ptr::null(),
             class_table: core::ptr::null(),
@@ -1191,25 +853,10 @@ mod tests {
 
         let runtime = RuntimeState::new();
         reset_registration_validation_calls();
-        assert_eq!(
-            unsafe { runtime.register_plugin_descriptor(&PLUGIN) },
-            NC_E_ABI_VERSION
-        );
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(&PLUGIN) }, NC_E_ABI_VERSION);
         assert_eq!(registration_validation_calls(), 1);
-        assert!(
-            runtime
-                .read_catalog()
-                .plugin_registry
-                .registered_plugin_ids()
-                .is_empty()
-        );
-        assert!(
-            runtime
-                .read_catalog()
-                .type_registry
-                .registered_class_ids()
-                .is_empty()
-        );
+        assert!(runtime.read_catalog().plugin_registry.registered_plugin_ids().is_empty());
+        assert!(runtime.read_catalog().type_registry.registered_class_ids().is_empty());
     }
 
     struct RegistrationBenchmarkFixture {
@@ -1221,10 +868,9 @@ mod tests {
 
     impl RegistrationBenchmarkFixture {
         fn new(class_count: usize) -> Self {
-            static CLASS_INTERFACES: [NcClassInterfaceDescriptor; 1] =
-                [NcClassInterfaceDescriptor {
-                    interface_descriptor: &IUnknown::INTERFACE_DESCRIPTOR,
-                }];
+            static CLASS_INTERFACES: [NcClassInterfaceDescriptor; 1] = [NcClassInterfaceDescriptor {
+                interface_descriptor: &IUnknown::INTERFACE_DESCRIPTOR,
+            }];
 
             // The descriptors below retain raw pointers into this graph. Use
             // shared allocations so moving fixture fields or reallocating the
@@ -1285,9 +931,7 @@ mod tests {
     fn class_collision_rejects_the_entire_registration_batch() {
         let first = RegistrationBenchmarkFixture::new(1);
         let mut conflicting = RegistrationBenchmarkFixture::new(2);
-        conflicting
-            ._names
-            .push("nc.tests.registry.benchmark_plugin_conflict".into());
+        conflicting._names.push("nc.tests.registry.benchmark_plugin_conflict".into());
         let conflicting_name = conflicting._names.last().unwrap();
         conflicting.plugin.plugin_id = neocogi_com_core::guid_from_qualified_name(conflicting_name);
         conflicting.plugin.qualified_name = benchmark_text(conflicting_name);
@@ -1298,39 +942,12 @@ mod tests {
         let otherwise_new_class_id = conflicting._classes[1].class_id;
         let runtime = RuntimeState::new();
 
-        assert_eq!(
-            unsafe { runtime.register_plugin_descriptor(first.plugin.as_ref()) },
-            NC_OK
-        );
-        assert_eq!(
-            unsafe { runtime.register_plugin_descriptor(conflicting.plugin.as_ref()) },
-            NC_E_INVALID_ARG
-        );
-        assert_eq!(
-            runtime
-                .read_catalog()
-                .plugin_registry
-                .registered_plugin_ids(),
-            vec![first_plugin_id]
-        );
-        assert!(
-            !runtime
-                .read_catalog()
-                .plugin_registry
-                .registered_plugin_ids()
-                .contains(&conflicting_plugin_id)
-        );
-        assert_eq!(
-            runtime.read_catalog().type_registry.registered_class_ids(),
-            vec![existing_class_id]
-        );
-        assert!(
-            !runtime
-                .read_catalog()
-                .type_registry
-                .registered_class_ids()
-                .contains(&otherwise_new_class_id)
-        );
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(first.plugin.as_ref()) }, NC_OK);
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(conflicting.plugin.as_ref()) }, NC_E_INVALID_ARG);
+        assert_eq!(runtime.read_catalog().plugin_registry.registered_plugin_ids(), vec![first_plugin_id]);
+        assert!(!runtime.read_catalog().plugin_registry.registered_plugin_ids().contains(&conflicting_plugin_id));
+        assert_eq!(runtime.read_catalog().type_registry.registered_class_ids(), vec![existing_class_id]);
+        assert!(!runtime.read_catalog().type_registry.registered_class_ids().contains(&otherwise_new_class_id));
     }
 
     #[test]
@@ -1344,27 +961,16 @@ mod tests {
             let runtime = RuntimeState::new();
             let total_start = Instant::now();
             let prepare_start = Instant::now();
-            let batch = unsafe {
-                build_plugin_registration_batch(black_box(fixture.plugin.as_ref()), None)
-            }
-            .unwrap_or_else(|error| panic!("batch failed with {}", error.status()));
+            let batch = unsafe { build_plugin_registration_batch(black_box(fixture.plugin.as_ref()), None) }
+                .unwrap_or_else(|error| panic!("batch failed with {}", error.status()));
             let prepare = prepare_start.elapsed();
             let commit_start = Instant::now();
             let status = runtime.commit_plugin_registration_batch(batch);
             let commit = commit_start.elapsed();
             let total = total_start.elapsed();
             assert_eq!(status, NC_OK);
-            assert_eq!(
-                runtime
-                    .read_catalog()
-                    .type_registry
-                    .registered_class_ids()
-                    .len(),
-                class_count
-            );
-            println!(
-                "plugin_classes={class_count:>5} prepare={prepare:?} commit={commit:?} total={total:?}"
-            );
+            assert_eq!(runtime.read_catalog().type_registry.registered_class_ids().len(), class_count);
+            println!("plugin_classes={class_count:>5} prepare={prepare:?} commit={commit:?} total={total:?}");
         }
     }
 }

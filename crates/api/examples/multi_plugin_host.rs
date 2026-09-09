@@ -81,14 +81,9 @@ mod multi_host {
     }
 
     pub fn run() {
-        let paths = env::args_os()
-            .skip(1)
-            .map(PathBuf::from)
-            .collect::<Vec<_>>();
+        let paths = env::args_os().skip(1).map(PathBuf::from).collect::<Vec<_>>();
         if paths.len() != 5 {
-            eprintln!(
-                "usage: cargo run --example multi_plugin_host -- <plugin-a> <plugin-b> <plugin-c> <plugin-d> <plugin-e>"
-            );
+            eprintln!("usage: cargo run --example multi_plugin_host -- <plugin-a> <plugin-b> <plugin-c> <plugin-d> <plugin-e>");
             std::process::exit(2);
         }
 
@@ -113,12 +108,7 @@ mod multi_host {
             .expect("extra class registered");
 
         for plugin in loaded {
-            println!(
-                "{} {} {}",
-                plugin.module_id(),
-                plugin.qualified_name(),
-                plugin.plugin_version()
-            );
+            println!("{} {} {}", plugin.module_id(), plugin.qualified_name(), plugin.plugin_version());
         }
     }
 }

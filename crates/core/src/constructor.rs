@@ -18,10 +18,7 @@ use crate::ptr::{ComPtr, ThreadingModel};
 /// `out` must be null or valid for writing one descriptor pointer. `plugin`
 /// must point to static metadata that remains valid while the shared library is
 /// loaded.
-pub unsafe fn return_plugin_descriptor(
-    out: *mut *const NcPluginDescriptor,
-    plugin: &'static NcPluginDescriptor,
-) -> NcStatus {
+pub unsafe fn return_plugin_descriptor(out: *mut *const NcPluginDescriptor, plugin: &'static NcPluginDescriptor) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }

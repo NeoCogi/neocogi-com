@@ -27,18 +27,11 @@ const fn repeated(chains: &[&[&NcInterfaceDescriptor]], chain: usize, item: usiz
     let current = chains[chain][item];
     let mut previous_chain = 0;
     while previous_chain <= chain {
-        let limit = if previous_chain == chain {
-            item
-        } else {
-            chains[previous_chain].len()
-        };
+        let limit = if previous_chain == chain { item } else { chains[previous_chain].len() };
         let mut previous_item = 0;
         while previous_item < limit {
             let previous = chains[previous_chain][previous_item];
-            if bytes_equal(
-                &current.interface_id.to_uuid_bytes(),
-                &previous.interface_id.to_uuid_bytes(),
-            ) {
+            if bytes_equal(&current.interface_id.to_uuid_bytes(), &previous.interface_id.to_uuid_bytes()) {
                 assert!(
                     bytes_equal(&current.abi_hash.bytes, &previous.abi_hash.bytes),
                     "conflicting inherited interface contracts"
@@ -82,22 +75,14 @@ pub const fn __nc_class_interface_count(chains: &[&[&NcInterfaceDescriptor]]) ->
         }
         chain += 1;
     }
-    assert!(
-        count <= u32::MAX as usize,
-        "class interface count exceeds the ABI limit"
-    );
+    assert!(count <= u32::MAX as usize, "class interface count exceeds the ABI limit");
     count
 }
 
 /// Emits one metadata row per distinct IID in the same order used by queries.
 #[doc(hidden)]
-pub const fn __nc_class_interfaces<const N: usize>(
-    chains: &[&[&'static NcInterfaceDescriptor]],
-) -> [NcClassInterfaceDescriptor; N] {
-    assert!(
-        N == __nc_class_interface_count(chains),
-        "invalid class interface count"
-    );
+pub const fn __nc_class_interfaces<const N: usize>(chains: &[&[&'static NcInterfaceDescriptor]]) -> [NcClassInterfaceDescriptor; N] {
+    assert!(N == __nc_class_interface_count(chains), "invalid class interface count");
     let mut result = [NcClassInterfaceDescriptor { interface_descriptor: core::ptr::null() }; N];
     let mut output = 0;
     let mut chain = 0;

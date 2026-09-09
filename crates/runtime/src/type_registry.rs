@@ -77,33 +77,17 @@ impl TypeRegistry {
     }
 
     /// Borrows distinct interface identities under the catalog read guard.
-    pub(crate) fn with_registered_interface_ids<R>(
-        &self,
-        read: impl FnOnce(&[NcInterfaceId]) -> R,
-    ) -> R {
+    pub(crate) fn with_registered_interface_ids<R>(&self, read: impl FnOnce(&[NcInterfaceId]) -> R) -> R {
         read(&self.state.interface_ids)
     }
 
     /// Borrows class IDs associated with a plugin, or an empty slice if absent.
-    pub(crate) fn with_plugin_class_ids<R>(
-        &self,
-        plugin_id: NcGuid,
-        read: impl FnOnce(&[NcGuid]) -> R,
-    ) -> R {
-        read(
-            self.state
-                .class_ids_by_plugin
-                .get(&plugin_id)
-                .map_or(&[], Vec::as_slice),
-        )
+    pub(crate) fn with_plugin_class_ids<R>(&self, plugin_id: NcGuid, read: impl FnOnce(&[NcGuid]) -> R) -> R {
+        read(self.state.class_ids_by_plugin.get(&plugin_id).map_or(&[], Vec::as_slice))
     }
 
     /// Borrows interface identities associated with a class, or an empty slice.
-    pub(crate) fn with_class_interface_ids<R>(
-        &self,
-        class_id: NcGuid,
-        read: impl FnOnce(&[NcInterfaceId]) -> R,
-    ) -> R {
+    pub(crate) fn with_class_interface_ids<R>(&self, class_id: NcGuid, read: impl FnOnce(&[NcInterfaceId]) -> R) -> R {
         let interfaces = self
             .state
             .class_by_id
@@ -114,17 +98,8 @@ impl TypeRegistry {
     }
 
     /// Borrows implementing class IDs for an interface, or an empty slice.
-    pub(crate) fn with_interface_implementor_class_ids<R>(
-        &self,
-        interface_id: NcInterfaceId,
-        read: impl FnOnce(&[NcGuid]) -> R,
-    ) -> R {
-        read(
-            self.state
-                .implementors_by_interface
-                .get(&interface_id)
-                .map_or(&[], Vec::as_slice),
-        )
+    pub(crate) fn with_interface_implementor_class_ids<R>(&self, interface_id: NcInterfaceId, read: impl FnOnce(&[NcGuid]) -> R) -> R {
+        read(self.state.implementors_by_interface.get(&interface_id).map_or(&[], Vec::as_slice))
     }
 
     /// Looks up a copyable class descriptor/provenance projection.
@@ -152,10 +127,7 @@ impl TypeRegistry {
 
     #[cfg(test)]
     /// Copies implementing class IDs in direct registry tests.
-    pub(crate) fn interface_implementor_class_ids(
-        &self,
-        interface_id: NcInterfaceId,
-    ) -> Vec<NcGuid> {
+    pub(crate) fn interface_implementor_class_ids(&self, interface_id: NcInterfaceId) -> Vec<NcGuid> {
         self.with_interface_implementor_class_ids(interface_id, <[NcGuid]>::to_vec)
     }
 
@@ -170,21 +142,13 @@ impl TypeRegistry {
 
             state.class_ids.push(class_id);
             state.class_by_id.insert(class_id, class_index);
-            state
-                .class_ids_by_plugin
-                .entry(plugin_id)
-                .or_default()
-                .push(class_id);
+            state.class_ids_by_plugin.entry(plugin_id).or_default().push(class_id);
 
             for interface_id in class.interface_ids.iter().copied() {
                 if state.known_interfaces.insert(interface_id) {
                     state.interface_ids.push(interface_id);
                 }
-                state
-                    .implementors_by_interface
-                    .entry(interface_id)
-                    .or_default()
-                    .push(class_id);
+                state.implementors_by_interface.entry(interface_id).or_default().push(class_id);
             }
             state.classes.push(class);
         }
@@ -242,10 +206,7 @@ mod tests {
     fn interface(index: u32) -> NcInterfaceId {
         let mut hash = [0_u8; 32];
         hash[..4].copy_from_slice(&index.wrapping_add(1).to_le_bytes());
-        NcInterfaceId::new(
-            guid(index.wrapping_add(1_000_000)),
-            NcAbiHash::from_bytes(hash),
-        )
+        NcInterfaceId::new(guid(index.wrapping_add(1_000_000)), NcAbiHash::from_bytes(hash))
     }
 
     fn records(count: usize) -> Vec<RegisteredClass> {
@@ -266,10 +227,7 @@ mod tests {
         let mut registry = TypeRegistry::new();
         registry.insert_classes(records(12));
 
-        assert_eq!(
-            registry.registered_class_ids(),
-            (0..12).map(guid).collect::<Vec<_>>()
-        );
+        assert_eq!(registry.registered_class_ids(), (0..12).map(guid).collect::<Vec<_>>());
         assert_eq!(registry.class(guid(7)).unwrap().class_id, guid(7));
         assert_eq!(registry.plugin_class_ids(guid(500_003)), vec![guid(3)],);
         assert_eq!(
@@ -304,8 +262,7 @@ mod tests {
             let shared = interface(u32::MAX - 1);
             let start = Instant::now();
             for _ in 0..rounds {
-                registry
-                    .with_interface_implementor_class_ids(shared, |values| black_box(values.len()));
+                registry.with_interface_implementor_class_ids(shared, |values| black_box(values.len()));
                 registry.with_registered_interface_ids(|values| black_box(values.len()));
             }
             let relationships = start.elapsed();

@@ -11,10 +11,7 @@
 //! computes ABI hashes in `const` contexts.
 
 use crate::guid::NcGuid;
-use crate::metadata::{
-    NcAbiAggregateKind, NcAbiFieldLayout, NcAbiHashPart, NcAbiPassing, NcAbiStructLayout,
-    NcAbiThreadingMode, NcAbiType,
-};
+use crate::metadata::{NcAbiAggregateKind, NcAbiFieldLayout, NcAbiHashPart, NcAbiPassing, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType};
 
 const NC_ABI_HASH_SCHEMA: &[u8] = b"neocogi-com:abi-hash:v2\0";
 
@@ -38,18 +35,10 @@ impl NcAbiHash {
     /// Returns whether all digest bytes are zero.
     pub const fn is_zero(self) -> bool {
         let bytes = self.bytes;
-        let word0 = u64::from_ne_bytes([
-            bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-        ]);
-        let word1 = u64::from_ne_bytes([
-            bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15],
-        ]);
-        let word2 = u64::from_ne_bytes([
-            bytes[16], bytes[17], bytes[18], bytes[19], bytes[20], bytes[21], bytes[22], bytes[23],
-        ]);
-        let word3 = u64::from_ne_bytes([
-            bytes[24], bytes[25], bytes[26], bytes[27], bytes[28], bytes[29], bytes[30], bytes[31],
-        ]);
+        let word0 = u64::from_ne_bytes([bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]]);
+        let word1 = u64::from_ne_bytes([bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]]);
+        let word2 = u64::from_ne_bytes([bytes[16], bytes[17], bytes[18], bytes[19], bytes[20], bytes[21], bytes[22], bytes[23]]);
+        let word3 = u64::from_ne_bytes([bytes[24], bytes[25], bytes[26], bytes[27], bytes[28], bytes[29], bytes[30], bytes[31]]);
 
         (word0 | word1 | word2 | word3) == 0
     }
@@ -75,12 +64,7 @@ impl NcAbiHash {
     /// the observable ABI facts that must match across independently built
     /// artifacts: aggregate kind, size, alignment, field order, field offset, and
     /// field ABI type.
-    pub const fn from_aggregate_layout(
-        kind: NcAbiAggregateKind,
-        size: usize,
-        align: usize,
-        fields: &[NcAbiFieldLayout],
-    ) -> Self {
+    pub const fn from_aggregate_layout(kind: NcAbiAggregateKind, size: usize, align: usize, fields: &[NcAbiFieldLayout]) -> Self {
         let mut hasher = NcSha256::new()
             .update(NC_ABI_HASH_SCHEMA)
             .update_abi_hash_part(NcAbiHashPart::Aggregate { kind })
@@ -100,12 +84,7 @@ impl NcAbiHash {
 
     /// Hashes a macro-generated COM struct layout.
     pub const fn from_struct_layout(layout: NcAbiStructLayout) -> Self {
-        Self::from_aggregate_layout(
-            NcAbiAggregateKind::Struct,
-            layout.size,
-            layout.align,
-            layout.fields,
-        )
+        Self::from_aggregate_layout(NcAbiAggregateKind::Struct, layout.size, layout.align, layout.fields)
     }
 }
 
@@ -308,27 +287,15 @@ impl NcSha256 {
         let mut index = 0;
         while index < 16 {
             let offset = index * 4;
-            words[index] = u32::from_be_bytes([
-                self.block[offset],
-                self.block[offset + 1],
-                self.block[offset + 2],
-                self.block[offset + 3],
-            ]);
+            words[index] = u32::from_be_bytes([self.block[offset], self.block[offset + 1], self.block[offset + 2], self.block[offset + 3]]);
             index += 1;
         }
 
         // Extend the 16 input words into the 64-word message schedule.
         while index < 64 {
-            let s0 = words[index - 15].rotate_right(7)
-                ^ words[index - 15].rotate_right(18)
-                ^ (words[index - 15] >> 3);
-            let s1 = words[index - 2].rotate_right(17)
-                ^ words[index - 2].rotate_right(19)
-                ^ (words[index - 2] >> 10);
-            words[index] = words[index - 16]
-                .wrapping_add(s0)
-                .wrapping_add(words[index - 7])
-                .wrapping_add(s1);
+            let s0 = words[index - 15].rotate_right(7) ^ words[index - 15].rotate_right(18) ^ (words[index - 15] >> 3);
+            let s1 = words[index - 2].rotate_right(17) ^ words[index - 2].rotate_right(19) ^ (words[index - 2] >> 10);
+            words[index] = words[index - 16].wrapping_add(s0).wrapping_add(words[index - 7]).wrapping_add(s1);
             index += 1;
         }
 
@@ -345,11 +312,7 @@ impl NcSha256 {
         while index < 64 {
             let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
             let ch = (e & f) ^ ((!e) & g);
-            let temp1 = h
-                .wrapping_add(s1)
-                .wrapping_add(ch)
-                .wrapping_add(SHA256_K[index])
-                .wrapping_add(words[index]);
+            let temp1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(SHA256_K[index]).wrapping_add(words[index]);
             let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
             let maj = (a & b) ^ (a & c) ^ (b & c);
             let temp2 = s0.wrapping_add(maj);
@@ -415,20 +378,9 @@ impl NcSha256 {
             NcAbiHashPart::Arg { index, passing, ty } => self.update_byte(0x03).update_u32(index).update_passing(passing).update_abi_type(ty),
             NcAbiHashPart::Return { passing, ty } => self.update_byte(0x04).update_passing(passing).update_abi_type(ty),
             NcAbiHashPart::Status => self.update_byte(0x05),
-            NcAbiHashPart::Layout { size, align } => self
-                .update_byte(0x06)
-                .update_usize(size)
-                .update_usize(align),
-            NcAbiHashPart::Field { index, offset, ty } => self
-                .update_byte(0x07)
-                .update_u32(index)
-                .update_usize(offset)
-                .update_abi_type(ty),
-            NcAbiHashPart::Variant { index, tag, ty } => self
-                .update_byte(0x08)
-                .update_u32(index)
-                .update_i128(tag)
-                .update_abi_type(ty),
+            NcAbiHashPart::Layout { size, align } => self.update_byte(0x06).update_usize(size).update_usize(align),
+            NcAbiHashPart::Field { index, offset, ty } => self.update_byte(0x07).update_u32(index).update_usize(offset).update_abi_type(ty),
+            NcAbiHashPart::Variant { index, tag, ty } => self.update_byte(0x08).update_u32(index).update_i128(tag).update_abi_type(ty),
             NcAbiHashPart::Aggregate { kind } => self.update_byte(0x09).update_aggregate_kind(kind),
         }
     }
@@ -501,24 +453,30 @@ impl NcSha256 {
 #[cfg(test)]
 mod tests {
     use super::{NcAbiHash, NcSha256};
-    use crate::{
-        NcAbiAggregateKind, NcAbiHashPart, NcAbiPassing, NcAbiThreadingMode, NcAbiType, NcGuid,
-    };
+    use crate::{NcAbiAggregateKind, NcAbiHashPart, NcAbiPassing, NcAbiThreadingMode, NcAbiType, NcGuid};
 
     #[test]
     fn inherited_contract_hash_matches_independent_serialization() {
         // Golden computed with Python hashlib over the documented wire grammar:
         // domain + 0x01 + UUID bytes 0..15 + 0x0a + UUID bytes 16..31 + [42; 32].
         let hash = NcAbiHash::from_abi_parts(&[
-            NcAbiHashPart::Interface { iid: NcGuid::from_uuid_bytes(core::array::from_fn(|i| i as u8)) },
-            NcAbiHashPart::BaseInterface { interface: crate::NcInterfaceId::new(
-                NcGuid::from_uuid_bytes(core::array::from_fn(|i| (i + 16) as u8)), NcAbiHash::from_bytes([42; 32]),
-            ) },
+            NcAbiHashPart::Interface {
+                iid: NcGuid::from_uuid_bytes(core::array::from_fn(|i| i as u8)),
+            },
+            NcAbiHashPart::BaseInterface {
+                interface: crate::NcInterfaceId::new(
+                    NcGuid::from_uuid_bytes(core::array::from_fn(|i| (i + 16) as u8)),
+                    NcAbiHash::from_bytes([42; 32]),
+                ),
+            },
         ]);
-        assert_eq!(hash.bytes, [
-            0xfd, 0x4e, 0xc7, 0x74, 0x14, 0x90, 0xe8, 0x08, 0x6d, 0x72, 0x38, 0x27, 0x74, 0x1d, 0x49, 0xf9,
-            0x31, 0x7f, 0x20, 0x2a, 0xcc, 0x97, 0xab, 0xc5, 0xf2, 0x0e, 0x9f, 0x8b, 0xc0, 0xef, 0x7f, 0xbf,
-        ]);
+        assert_eq!(
+            hash.bytes,
+            [
+                0xfd, 0x4e, 0xc7, 0x74, 0x14, 0x90, 0xe8, 0x08, 0x6d, 0x72, 0x38, 0x27, 0x74, 0x1d, 0x49, 0xf9, 0x31, 0x7f, 0x20, 0x2a, 0xcc, 0x97, 0xab, 0xc5,
+                0xf2, 0x0e, 0x9f, 0x8b, 0xc0, 0xef, 0x7f, 0xbf,
+            ]
+        );
     }
 
     // Expected SHA-256 digests for input bytes `0, 1, 2, ... len - 1`.
@@ -702,9 +660,8 @@ mod tests {
         assert_eq!(
             NcSha256::new().update(b"abc").finalize(),
             [
-                0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde, 0x5d, 0xae,
-                0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c, 0xb4, 0x10, 0xff, 0x61,
-                0xf2, 0x00, 0x15, 0xad,
+                0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
+                0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad,
             ]
         );
     }
@@ -733,10 +690,7 @@ mod tests {
         let nested_hash = NcAbiHash::from_bytes([0x5a; 32]);
         let hash = NcAbiHash::from_abi_parts(&[
             NcAbiHashPart::Interface { iid },
-            NcAbiHashPart::Method {
-                index: 7,
-                name: "grammar",
-            },
+            NcAbiHashPart::Method { index: 7, name: "grammar" },
             NcAbiHashPart::Arg {
                 index: 3,
                 passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadSafe },
@@ -753,14 +707,8 @@ mod tests {
                 offset: 16,
                 ty: NcAbiType::Bool,
             },
-            NcAbiHashPart::Variant {
-                index: 4,
-                tag: -2,
-                ty: NcAbiType::U16,
-            },
-            NcAbiHashPart::Aggregate {
-                kind: NcAbiAggregateKind::TaggedEnum,
-            },
+            NcAbiHashPart::Variant { index: 4, tag: -2, ty: NcAbiType::U16 },
+            NcAbiHashPart::Aggregate { kind: NcAbiAggregateKind::TaggedEnum },
         ]);
         let actual = hash.bytes.iter().map(|byte| std::format!("{byte:02x}")).collect::<std::string::String>();
         assert_eq!(actual, "b1082d3722c7d86902132c1654cde80bd4ec8a2a6659412cb292c14cc939bb3d");

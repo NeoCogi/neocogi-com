@@ -22,12 +22,10 @@ pub struct NcPluginRegistryV1 {
     /// Returns the number of registered plugin IDs.
     pub plugin_count: unsafe extern "C" fn() -> usize,
     /// Copies registered plugin IDs to caller-owned storage.
-    pub plugin_ids:
-        unsafe extern "C" fn(out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus,
+    pub plugin_ids: unsafe extern "C" fn(out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus,
     /// Returns the number of retained loaded modules, which cannot exceed
     /// [`NC_COM_RUNTIME_MAX_LOADED_MODULES`].
     pub loaded_module_count: unsafe extern "C" fn() -> usize,
     /// Copies retained loaded-module IDs to caller-owned storage.
-    pub loaded_module_ids:
-        unsafe extern "C" fn(out: *mut u64, capacity: usize, out_len: *mut usize) -> NcStatus,
+    pub loaded_module_ids: unsafe extern "C" fn(out: *mut u64, capacity: usize, out_len: *mut usize) -> NcStatus,
 }

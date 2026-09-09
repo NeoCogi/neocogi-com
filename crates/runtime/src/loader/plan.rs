@@ -57,20 +57,11 @@ impl fmt::Display for PluginDependencyPlanError {
                 first_name,
                 second_id,
                 second_name,
-            } => write!(
-                f,
-                "identity mapping conflict: {first_id} is `{first_name}`, but {second_id} is `{second_name}`"
-            ),
+            } => write!(f, "identity mapping conflict: {first_id} is `{first_name}`, but {second_id} is `{second_name}`"),
             Self::DuplicatePluginId { plugin_id } => {
                 write!(f, "multiple artifacts claim plugin {plugin_id}")
             }
-            Self::MissingDependency {
-                plugin_id,
-                dependency_id,
-            } => write!(
-                f,
-                "plugin {plugin_id} requires missing plugin {dependency_id}"
-            ),
+            Self::MissingDependency { plugin_id, dependency_id } => write!(f, "plugin {plugin_id} requires missing plugin {dependency_id}"),
             Self::DependencyCycle { plugin_ids } => {
                 write!(f, "plugin dependency cycle among")?;
                 for plugin_id in plugin_ids {
@@ -92,16 +83,12 @@ impl std::error::Error for PluginDependencyPlanError {}
 /// one qualified name associated with multiple GUIDs anywhere in the selected
 /// plugin/class/interface metadata. Independent nodes are ordered by GUID field
 /// value so filesystem enumeration order cannot affect the result.
-pub fn plan_plugin_load_order(
-    plugins: &[PluginInspection],
-) -> Result<Vec<NcGuid>, PluginDependencyPlanError> {
+pub fn plan_plugin_load_order(plugins: &[PluginInspection]) -> Result<Vec<NcGuid>, PluginDependencyPlanError> {
     validate_identity_mappings(plugins)?;
     let mut by_id = HashMap::with_capacity(plugins.len());
     for (index, plugin) in plugins.iter().enumerate() {
         if by_id.insert(plugin.plugin_id, index).is_some() {
-            return Err(PluginDependencyPlanError::DuplicatePluginId {
-                plugin_id: plugin.plugin_id,
-            });
+            return Err(PluginDependencyPlanError::DuplicatePluginId { plugin_id: plugin.plugin_id });
         }
     }
 
@@ -155,19 +142,14 @@ pub fn plan_plugin_load_order(
 }
 
 /// Enforces a one-to-one mapping between every reachable GUID and qualified name.
-fn validate_identity_mappings(
-    plugins: &[PluginInspection],
-) -> Result<(), PluginDependencyPlanError> {
+fn validate_identity_mappings(plugins: &[PluginInspection]) -> Result<(), PluginDependencyPlanError> {
     let mut identities = Vec::new();
     for plugin in plugins {
         identities.push((plugin.plugin_id, plugin.qualified_name.as_str()));
         for class in &plugin.classes {
             identities.push((class.class_id, class.qualified_name.as_str()));
             for interface in &class.interfaces {
-                identities.push((
-                    interface.interface_id,
-                    interface.interface.qualified_name.as_str(),
-                ));
+                identities.push((interface.interface_id, interface.interface.qualified_name.as_str()));
             }
         }
     }
@@ -213,16 +195,8 @@ mod tests {
 
     #[test]
     fn orders_dependencies_before_dependents_deterministically() {
-        let plugins = [
-            plugin(3, &[2]),
-            plugin(2, &[1]),
-            plugin(4, &[]),
-            plugin(1, &[]),
-        ];
-        assert_eq!(
-            plan_plugin_load_order(&plugins).unwrap(),
-            vec![guid(1), guid(2), guid(3), guid(4)]
-        );
+        let plugins = [plugin(3, &[2]), plugin(2, &[1]), plugin(4, &[]), plugin(1, &[])];
+        assert_eq!(plan_plugin_load_order(&plugins).unwrap(), vec![guid(1), guid(2), guid(3), guid(4)]);
     }
 
     #[test]
@@ -240,9 +214,7 @@ mod tests {
     fn rejects_cycles() {
         assert_eq!(
             plan_plugin_load_order(&[plugin(2, &[1]), plugin(1, &[2])]),
-            Err(PluginDependencyPlanError::DependencyCycle {
-                plugin_ids: vec![guid(1), guid(2)],
-            })
+            Err(PluginDependencyPlanError::DependencyCycle { plugin_ids: vec![guid(1), guid(2)] })
         );
     }
 

@@ -71,14 +71,10 @@ impl PlainAbiTypeContext {
             let subject = self.subject();
             return match ty {
                 ProhibitedPlainAbiType::Reference => {
-                    format!(
-                        "{subject} cannot be Rust references; buffer elements must be plain ABI values"
-                    )
+                    format!("{subject} cannot be Rust references; buffer elements must be plain ABI values")
                 }
                 ProhibitedPlainAbiType::RawPointer => {
-                    format!(
-                        "{subject} cannot be raw pointers; buffer elements must be plain ABI values"
-                    )
+                    format!("{subject} cannot be raw pointers; buffer elements must be plain ABI values")
                 }
                 ProhibitedPlainAbiType::Slice => {
                     format!("{subject} cannot be slices; buffer elements must be plain ABI values")
@@ -101,9 +97,7 @@ impl PlainAbiTypeContext {
         let subject = self.subject();
         match ty {
             ProhibitedPlainAbiType::Reference => {
-                format!(
-                    "{subject} cannot be Rust references; model borrowed data as COM interfaces"
-                )
+                format!("{subject} cannot be Rust references; model borrowed data as COM interfaces")
             }
             ProhibitedPlainAbiType::RawPointer => {
                 format!("{subject} cannot be raw pointers; model pointed-to data as COM interfaces")
@@ -118,14 +112,10 @@ impl PlainAbiTypeContext {
                 format!("{subject} cannot be Vec; model variable-size data as COM interfaces")
             }
             ProhibitedPlainAbiType::ComPtr => {
-                format!(
-                    "{subject} cannot be ComPtr; store owned interface references in COM objects instead"
-                )
+                format!("{subject} cannot be ComPtr; store owned interface references in COM objects instead")
             }
             ProhibitedPlainAbiType::ComRef => {
-                format!(
-                    "{subject} cannot be ComRef; borrowed interface references are call-scoped method parameters"
-                )
+                format!("{subject} cannot be ComRef; borrowed interface references are call-scoped method parameters")
             }
         }
     }
@@ -141,11 +131,7 @@ pub(crate) fn payload_field_types(fields: &Fields) -> Vec<&Type> {
 }
 
 /// Reports every field that contains syntactically prohibited Rust-only data.
-pub(crate) fn validate_plain_abi_fields(
-    fields: &Fields,
-    context: PlainAbiTypeContext,
-    errors: &mut Option<syn::Error>,
-) {
+pub(crate) fn validate_plain_abi_fields(fields: &Fields, context: PlainAbiTypeContext, errors: &mut Option<syn::Error>) {
     for ty in payload_field_types(fields) {
         if let Err(err) = validate_plain_abi_type(ty, context) {
             push_error(errors, err);
@@ -156,10 +142,7 @@ pub(crate) fn validate_plain_abi_fields(
 /// Rejects the first ownership-bearing type nested anywhere inside `ty`.
 pub(crate) fn validate_plain_abi_type(ty: &Type, context: PlainAbiTypeContext) -> syn::Result<()> {
     if let Some(prohibited) = prohibited_plain_abi_type(ty) {
-        Err(syn::Error::new_spanned(
-            prohibited.ty,
-            context.prohibited_message(prohibited.kind),
-        ))
+        Err(syn::Error::new_spanned(prohibited.ty, context.prohibited_message(prohibited.kind)))
     } else {
         Ok(())
     }
@@ -193,10 +176,7 @@ fn prohibited_plain_abi_type(ty: &Type) -> Option<ProhibitedPlainAbiTypeAt<'_>> 
                 _ => {}
             }
 
-            path.path
-                .segments
-                .iter()
-                .find_map(|segment| prohibited_in_path_arguments(&segment.arguments))
+            path.path.segments.iter().find_map(|segment| prohibited_in_path_arguments(&segment.arguments))
         }
         Type::Tuple(tuple) => tuple.elems.iter().find_map(prohibited_plain_abi_type),
         _ => None,
@@ -209,30 +189,19 @@ fn prohibited_at(ty: &Type, kind: ProhibitedPlainAbiType) -> ProhibitedPlainAbiT
 }
 
 /// Searches angle-bracketed or function-style path arguments recursively.
-fn prohibited_in_path_arguments(
-    arguments: &syn::PathArguments,
-) -> Option<ProhibitedPlainAbiTypeAt<'_>> {
+fn prohibited_in_path_arguments(arguments: &syn::PathArguments) -> Option<ProhibitedPlainAbiTypeAt<'_>> {
     match arguments {
         syn::PathArguments::None => None,
-        syn::PathArguments::AngleBracketed(arguments) => arguments
-            .args
-            .iter()
-            .find_map(prohibited_in_generic_argument),
-        syn::PathArguments::Parenthesized(arguments) => arguments
-            .inputs
-            .iter()
-            .find_map(prohibited_plain_abi_type)
-            .or_else(|| match &arguments.output {
-                syn::ReturnType::Default => None,
-                syn::ReturnType::Type(_, ty) => prohibited_plain_abi_type(ty),
-            }),
+        syn::PathArguments::AngleBracketed(arguments) => arguments.args.iter().find_map(prohibited_in_generic_argument),
+        syn::PathArguments::Parenthesized(arguments) => arguments.inputs.iter().find_map(prohibited_plain_abi_type).or_else(|| match &arguments.output {
+            syn::ReturnType::Default => None,
+            syn::ReturnType::Type(_, ty) => prohibited_plain_abi_type(ty),
+        }),
     }
 }
 
 /// Searches one generic argument, including associated bindings and constraints.
-fn prohibited_in_generic_argument(
-    argument: &syn::GenericArgument,
-) -> Option<ProhibitedPlainAbiTypeAt<'_>> {
+fn prohibited_in_generic_argument(argument: &syn::GenericArgument) -> Option<ProhibitedPlainAbiTypeAt<'_>> {
     // Associated type bindings and constraints can themselves contain generic
     // arguments, so inspect both their bindings and nested argument lists.
     match argument {
@@ -240,24 +209,13 @@ fn prohibited_in_generic_argument(
         syn::GenericArgument::AssocType(assoc) => assoc
             .generics
             .as_ref()
-            .and_then(|generics| {
-                generics
-                    .args
-                    .iter()
-                    .find_map(prohibited_in_generic_argument)
-            })
+            .and_then(|generics| generics.args.iter().find_map(prohibited_in_generic_argument))
             .or_else(|| prohibited_plain_abi_type(&assoc.ty)),
-        syn::GenericArgument::Constraint(constraint) => {
-            constraint.generics.as_ref().and_then(|generics| {
-                generics
-                    .args
-                    .iter()
-                    .find_map(prohibited_in_generic_argument)
-            })
-        }
-        syn::GenericArgument::Lifetime(_)
-        | syn::GenericArgument::Const(_)
-        | syn::GenericArgument::AssocConst(_) => None,
+        syn::GenericArgument::Constraint(constraint) => constraint
+            .generics
+            .as_ref()
+            .and_then(|generics| generics.args.iter().find_map(prohibited_in_generic_argument)),
+        syn::GenericArgument::Lifetime(_) | syn::GenericArgument::Const(_) | syn::GenericArgument::AssocConst(_) => None,
         _ => None,
     }
 }

@@ -53,18 +53,13 @@ mod unix_host {
         println!("greeting code: {}", greeter.greeting_code().unwrap());
     }
 
-    unsafe fn load_plugin_descriptor(
-        get_plugin_descriptor: NcGetPluginDescriptor,
-    ) -> &'static NcPluginDescriptor {
+    unsafe fn load_plugin_descriptor(get_plugin_descriptor: NcGetPluginDescriptor) -> &'static NcPluginDescriptor {
         let mut plugin = std::ptr::null();
         let status = unsafe { get_plugin_descriptor(&mut plugin) };
         assert!(status.is_ok(), "plugin descriptor failed: {status}");
         assert!(!plugin.is_null(), "plugin descriptor pointer was null");
         let status = unsafe { validate_plugin_descriptor_with_issues(plugin, |_| {}) };
-        assert!(
-            status.is_ok(),
-            "plugin descriptor validation failed: {status}"
-        );
+        assert!(status.is_ok(), "plugin descriptor validation failed: {status}");
         unsafe { &*plugin }
     }
 
@@ -95,8 +90,7 @@ mod unix_host {
 
     impl Library {
         fn open(path: &Path) -> Self {
-            let path =
-                CString::new(path.as_os_str().as_bytes()).expect("path contains no NUL bytes");
+            let path = CString::new(path.as_os_str().as_bytes()).expect("path contains no NUL bytes");
             let handle = unsafe { dlopen(path.as_ptr(), RTLD_NOW) };
             assert!(!handle.is_null(), "dlopen failed: {}", dl_error());
             Self { handle }
@@ -123,8 +117,6 @@ mod unix_host {
         if error.is_null() {
             return "unknown dynamic loader error".to_string();
         }
-        unsafe { CStr::from_ptr(error) }
-            .to_string_lossy()
-            .into_owned()
+        unsafe { CStr::from_ptr(error) }.to_string_lossy().into_owned()
     }
 }

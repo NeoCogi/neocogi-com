@@ -18,11 +18,7 @@ use neocogi_com_core::{
 use crate::type_registry::TypeRegistry;
 
 /// Requires that a registered class expose the exact requested IID/hash pair.
-pub(crate) fn require_interface(
-    registry: &TypeRegistry,
-    class_id: NcGuid,
-    interface_id: NcInterfaceId,
-) -> Result<(), NcStatus> {
+pub(crate) fn require_interface(registry: &TypeRegistry, class_id: NcGuid, interface_id: NcInterfaceId) -> Result<(), NcStatus> {
     let Some(interfaces) = registry.class_interface_ids(class_id) else {
         return Err(NC_E_NOT_FOUND);
     };
@@ -30,11 +26,7 @@ pub(crate) fn require_interface(
 }
 
 /// Resolves and validates one class without invoking plugin code.
-pub(crate) fn resolve_class(
-    registry: &TypeRegistry,
-    class_id: NcGuid,
-    requested_threading: u32,
-) -> Result<*const NcClassDescriptor, NcStatus> {
+pub(crate) fn resolve_class(registry: &TypeRegistry, class_id: NcGuid, requested_threading: u32) -> Result<*const NcClassDescriptor, NcStatus> {
     let Some(class) = registry.class(class_id) else {
         return Err(NC_E_NOT_FOUND);
     };
@@ -84,10 +76,7 @@ fn threading_request_is_compatible(declared: u32, requested: u32) -> bool {
 }
 
 /// Distinguishes a missing IID from an IID present with a mismatched ABI hash.
-fn require_interface_in_ids(
-    interfaces: &[NcInterfaceId],
-    interface_id: NcInterfaceId,
-) -> Result<(), NcStatus> {
+fn require_interface_in_ids(interfaces: &[NcInterfaceId], interface_id: NcInterfaceId) -> Result<(), NcStatus> {
     for registered in interfaces {
         if registered.iid != interface_id.iid {
             continue;

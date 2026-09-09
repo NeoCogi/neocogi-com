@@ -40,11 +40,7 @@ impl NcStatus {
     /// [`NC_E_INVALID_ARG`]. This keeps a malformed `Err(success)` from being
     /// observed by an ABI caller as proof that an output slot was initialized.
     pub const fn normalize_error(self) -> Self {
-        if self.is_err() {
-            self
-        } else {
-            NC_E_INVALID_ARG
-        }
+        if self.is_err() { self } else { NC_E_INVALID_ARG }
     }
 
     /// Returns `true` when this status is one of the built-in `neocogi-com` codes.
@@ -139,9 +135,8 @@ pub const NC_E_BUSY: NcStatus = NcStatus::from_code(-11);
 #[cfg(test)]
 mod tests {
     use super::{
-        NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG,
-        NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE,
-        NC_E_POINTER, NC_OK, NcStatus,
+        NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND,
+        NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK, NcStatus,
     };
 
     #[test]

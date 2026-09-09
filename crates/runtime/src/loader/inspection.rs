@@ -15,10 +15,8 @@ use std::string::String;
 use std::vec::Vec;
 
 use neocogi_com_core::{
-    NC_E_INVALID_ARG, NC_E_POINTER, NcAbiHash, NcAbiThreadingMode, NcClassDescriptor,
-    NcClassInterfaceDescriptor, NcGuid, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor,
-    NcPluginDescriptor, NcStaticUtf8, NcStatus, format_method_signature,
-    validate_plugin_descriptor_with_issues,
+    NC_E_INVALID_ARG, NC_E_POINTER, NcAbiHash, NcAbiThreadingMode, NcClassDescriptor, NcClassInterfaceDescriptor, NcGuid, NcInterfaceDescriptor, NcInterfaceId,
+    NcMethodDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, format_method_signature, validate_plugin_descriptor_with_issues,
 };
 
 use super::{LoadedModule, PluginLoadError, PluginLoadErrorKind, plugin_descriptor_from_module};
@@ -106,9 +104,7 @@ pub struct MethodInspection {
 /// `path` must identify a trusted neocogi-com plugin library. Loading a dynamic
 /// library can run arbitrary platform loader code, and the exported descriptor
 /// symbol is trusted FFI metadata until validation rejects it.
-pub unsafe fn inspect_plugin_library(
-    path: impl AsRef<Path>,
-) -> Result<PluginInspection, PluginLoadError> {
+pub unsafe fn inspect_plugin_library(path: impl AsRef<Path>) -> Result<PluginInspection, PluginLoadError> {
     let path = path.as_ref();
     // SAFETY: The caller trusts this library as an neocogi-com plugin.
     let plugin = unsafe { inspect_plugin_descriptor(path)? };
@@ -129,9 +125,7 @@ pub unsafe fn inspect_plugin_library(
 /// `path` must identify a trusted neocogi-com plugin library. Loading a dynamic
 /// library can run arbitrary platform loader code, and the returned pointer is
 /// meaningful only while the pinned module remains mapped.
-pub(crate) unsafe fn inspect_plugin_descriptor(
-    path: &Path,
-) -> Result<*const NcPluginDescriptor, PluginLoadError> {
+pub(crate) unsafe fn inspect_plugin_descriptor(path: &Path) -> Result<*const NcPluginDescriptor, PluginLoadError> {
     // Inspection uses process exit as its unload boundary. `ManuallyDrop` is
     // established immediately after a successful open so later errors and
     // unwinding cannot call `dlclose`/`FreeLibrary` while plugin code may have
@@ -155,9 +149,7 @@ pub(crate) unsafe fn inspect_plugin_descriptor(
 }
 
 /// Runs the shared whole-graph descriptor validation gate without collecting issues.
-pub(super) unsafe fn validate_descriptor(
-    plugin: *const NcPluginDescriptor,
-) -> Result<(), NcStatus> {
+pub(super) unsafe fn validate_descriptor(plugin: *const NcPluginDescriptor) -> Result<(), NcStatus> {
     // Loading and offline inspection intentionally share this validation gate;
     // they must not disagree about which descriptor graphs are readable.
     // SAFETY: `plugin` came from the loaded module's descriptor entrypoint and
@@ -170,38 +162,16 @@ pub(super) unsafe fn validate_descriptor(
 }
 
 /// Copies one validated plugin root and all reachable metadata into owned records.
-unsafe fn inspection_from_descriptor(
-    path: &Path,
-    plugin: &NcPluginDescriptor,
-) -> Result<PluginInspection, PluginLoadError> {
+unsafe fn inspection_from_descriptor(path: &Path, plugin: &NcPluginDescriptor) -> Result<PluginInspection, PluginLoadError> {
     // SAFETY: The caller keeps the module live and validated this descriptor.
-    let qualified_name = unsafe {
-        copy_static_utf8(
-            path,
-            plugin.qualified_name,
-            "plugin qualified name is not valid static UTF-8",
-        )?
-    };
+    let qualified_name = unsafe { copy_static_utf8(path, plugin.qualified_name, "plugin qualified name is not valid static UTF-8")? };
     // SAFETY: Same validated descriptor graph as above.
-    let plugin_version = unsafe {
-        copy_static_utf8(
-            path,
-            plugin.plugin_version,
-            "plugin version is not valid static UTF-8",
-        )?
-    };
+    let plugin_version = unsafe { copy_static_utf8(path, plugin.plugin_version, "plugin version is not valid static UTF-8")? };
 
     // SAFETY: Validation proved the dependency table is readable while the
     // inspection process keeps the module pinned.
     let dependencies = unsafe { plugin.dependencies() }
-        .map_err(|status| {
-            PluginLoadError::new(
-                PluginLoadErrorKind::Metadata,
-                path,
-                Some(status),
-                "plugin dependency table is invalid",
-            )
-        })?
+        .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), "plugin dependency table is invalid"))?
         .iter()
         .map(|dependency| dependency.plugin_id)
         .collect();
@@ -220,10 +190,7 @@ unsafe fn inspection_from_descriptor(
 }
 
 /// Copies the validated class table in descriptor order.
-unsafe fn copy_classes(
-    path: &Path,
-    plugin: &NcPluginDescriptor,
-) -> Result<Vec<ClassInspection>, PluginLoadError> {
+unsafe fn copy_classes(path: &Path, plugin: &NcPluginDescriptor) -> Result<Vec<ClassInspection>, PluginLoadError> {
     if plugin.class_table.is_null() {
         return Err(PluginLoadError::new(
             PluginLoadErrorKind::Metadata,
@@ -235,14 +202,8 @@ unsafe fn copy_classes(
     // SAFETY: Validation proved this class table pointer is readable.
     let class_table = unsafe { &*plugin.class_table };
     // SAFETY: The class table was validated before this copy.
-    let classes = unsafe { class_table.classes() }.map_err(|status| {
-        PluginLoadError::new(
-            PluginLoadErrorKind::Metadata,
-            path,
-            Some(status),
-            "plugin class table is invalid",
-        )
-    })?;
+    let classes = unsafe { class_table.classes() }
+        .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), "plugin class table is invalid"))?;
     let mut out = Vec::with_capacity(classes.len());
     for class in classes {
         out.push(copy_class(path, class)?);
@@ -253,43 +214,19 @@ unsafe fn copy_classes(
 /// Copies one class's text, constructor contract, threading, and interfaces.
 fn copy_class(path: &Path, class: &NcClassDescriptor) -> Result<ClassInspection, PluginLoadError> {
     // SAFETY: The descriptor was validated before this copy.
-    let qualified_name = unsafe {
-        copy_static_utf8(
-            path,
-            class.qualified_name,
-            "class qualified name is not valid static UTF-8",
-        )?
-    };
+    let qualified_name = unsafe { copy_static_utf8(path, class.qualified_name, "class qualified name is not valid static UTF-8")? };
     // SAFETY: The descriptor was validated before this copy.
-    let class_version = unsafe {
-        copy_static_utf8(
-            path,
-            class.class_version,
-            "class version is not valid static UTF-8",
-        )?
-    };
+    let class_version = unsafe { copy_static_utf8(path, class.class_version, "class version is not valid static UTF-8")? };
 
-    let interfaces = unsafe { class.interfaces() }.map_err(|status| {
-        PluginLoadError::new(
-            PluginLoadErrorKind::Metadata,
-            path,
-            Some(status),
-            "class interface table is invalid",
-        )
-    })?;
+    let interfaces = unsafe { class.interfaces() }
+        .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), "class interface table is invalid"))?;
     let mut copied_interfaces = Vec::with_capacity(interfaces.len());
     for interface in interfaces {
         copied_interfaces.push(copy_class_interface(path, interface)?);
     }
 
-    let threading = NcAbiThreadingMode::from_raw(class.threading).ok_or_else(|| {
-        PluginLoadError::new(
-            PluginLoadErrorKind::Metadata,
-            path,
-            Some(NC_E_INVALID_ARG),
-            "class threading mode is invalid",
-        )
-    })?;
+    let threading = NcAbiThreadingMode::from_raw(class.threading)
+        .ok_or_else(|| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(NC_E_INVALID_ARG), "class threading mode is invalid"))?;
     Ok(ClassInspection {
         class_id: class.class_id,
         qualified_name,
@@ -301,10 +238,7 @@ fn copy_class(path: &Path, class: &NcClassDescriptor) -> Result<ClassInspection,
 }
 
 /// Copies one class/interface edge and its referenced interface metadata.
-fn copy_class_interface(
-    path: &Path,
-    class_interface: &NcClassInterfaceDescriptor,
-) -> Result<ClassInterfaceInspection, PluginLoadError> {
+fn copy_class_interface(path: &Path, class_interface: &NcClassInterfaceDescriptor) -> Result<ClassInterfaceInspection, PluginLoadError> {
     if class_interface.interface_descriptor.is_null() {
         return Err(PluginLoadError::new(
             PluginLoadErrorKind::Metadata,
@@ -324,26 +258,11 @@ fn copy_class_interface(
 }
 
 /// Copies one interface identity, ABI hash, name, and ordered methods.
-fn copy_interface(
-    path: &Path,
-    interface: &NcInterfaceDescriptor,
-) -> Result<InterfaceInspection, PluginLoadError> {
+fn copy_interface(path: &Path, interface: &NcInterfaceDescriptor) -> Result<InterfaceInspection, PluginLoadError> {
     // SAFETY: The descriptor was validated before this copy.
-    let qualified_name = unsafe {
-        copy_static_utf8(
-            path,
-            interface.qualified_name,
-            "interface qualified name is not valid static UTF-8",
-        )?
-    };
-    let methods = unsafe { interface.methods() }.map_err(|status| {
-        PluginLoadError::new(
-            PluginLoadErrorKind::Metadata,
-            path,
-            Some(status),
-            "interface method table is invalid",
-        )
-    })?;
+    let qualified_name = unsafe { copy_static_utf8(path, interface.qualified_name, "interface qualified name is not valid static UTF-8")? };
+    let methods = unsafe { interface.methods() }
+        .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), "interface method table is invalid"))?;
     let mut copied_methods = Vec::with_capacity(methods.len());
     for (index, method) in methods.iter().enumerate() {
         copied_methods.push(copy_method(path, index as u32, method)?);
@@ -359,43 +278,22 @@ fn copy_interface(
 }
 
 /// Copies one method name and renders its validated diagnostic signature.
-fn copy_method(
-    path: &Path,
-    index: u32,
-    method: &NcMethodDescriptor,
-) -> Result<MethodInspection, PluginLoadError> {
+fn copy_method(path: &Path, index: u32, method: &NcMethodDescriptor) -> Result<MethodInspection, PluginLoadError> {
     // SAFETY: The descriptor was validated before this copy.
-    let name =
-        unsafe { copy_static_utf8(path, method.name, "method name is not valid static UTF-8")? };
+    let name = unsafe { copy_static_utf8(path, method.name, "method name is not valid static UTF-8")? };
     // SAFETY: The loaded module remains mapped for this copy, and validation
     // established the method descriptor's complete pointer graph.
-    let signature = unsafe { format_method_signature(method) }.map_err(|status| {
-        PluginLoadError::new(
-            PluginLoadErrorKind::Metadata,
-            path,
-            Some(status),
-            "method typed ABI descriptors are invalid",
-        )
-    })?;
+    let signature = unsafe { format_method_signature(method) }
+        .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), "method typed ABI descriptors are invalid"))?;
 
-    Ok(MethodInspection {
-        index,
-        name,
-        signature,
-    })
+    Ok(MethodInspection { index, name, signature })
 }
 
 /// Copies validated module-owned static UTF-8 into independent `String` storage.
-unsafe fn copy_static_utf8(
-    path: &Path,
-    value: NcStaticUtf8,
-    message: &'static str,
-) -> Result<String, PluginLoadError> {
+unsafe fn copy_static_utf8(path: &Path, value: NcStaticUtf8, message: &'static str) -> Result<String, PluginLoadError> {
     // SAFETY: The caller guarantees the descriptor graph remains live for this
     // copy. UTF-8 validity is checked by `as_str`.
     unsafe { value.as_str() }
         .map(str::to_owned)
-        .map_err(|status| {
-            PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), message)
-        })
+        .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), message))
 }

@@ -78,16 +78,12 @@ impl RuntimeState {
 
     /// Acquires a coherent read snapshot of the complete runtime catalog.
     pub(crate) fn read_catalog(&self) -> RwLockReadGuard<'_, RuntimeCatalog> {
-        self.catalog
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+        self.catalog.read().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     /// Acquires exclusive publication access to the complete runtime catalog.
     pub(crate) fn write_catalog(&self) -> RwLockWriteGuard<'_, RuntimeCatalog> {
-        self.catalog
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+        self.catalog.write().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     /// Borrows the debug messenger registry owned by this runtime.
@@ -135,14 +131,8 @@ mod tests {
                     class: core::ptr::null(),
                     interface_ids: vec![NcInterfaceId::NONE],
                 }]);
-                catalog
-                    .registration
-                    .name_by_id
-                    .insert(plugin_id, "test.plugin".into());
-                catalog
-                    .registration
-                    .id_by_name
-                    .insert("test.plugin".into(), plugin_id);
+                catalog.registration.name_by_id.insert(plugin_id, "test.plugin".into());
+                catalog.registration.id_by_name.insert("test.plugin".into(), plugin_id);
                 catalog.plugin_registry.store_loaded_module(
                     LoadedModule::test_stub(),
                     LoadedModuleInfo::new(module_id, PathBuf::from("test-plugin"), plugin_id),
@@ -165,13 +155,6 @@ mod tests {
         let module_id = class.module_id.unwrap();
         let module = catalog.plugin_registry.module(module_id).unwrap();
         assert_eq!(module.plugin_id, plugin_id);
-        assert_eq!(
-            catalog
-                .registration
-                .name_by_id
-                .get(&plugin_id)
-                .map(String::as_str),
-            Some("test.plugin")
-        );
+        assert_eq!(catalog.registration.name_by_id.get(&plugin_id).map(String::as_str), Some("test.plugin"));
     }
 }

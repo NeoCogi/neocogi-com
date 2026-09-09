@@ -49,12 +49,7 @@ pub struct PluginLoadError {
 
 impl PluginLoadError {
     /// Creates an error while normalizing owned path and message storage.
-    pub(super) fn new(
-        kind: PluginLoadErrorKind,
-        path: impl Into<PathBuf>,
-        status: Option<NcStatus>,
-        message: impl Into<String>,
-    ) -> Self {
+    pub(super) fn new(kind: PluginLoadErrorKind, path: impl Into<PathBuf>, status: Option<NcStatus>, message: impl Into<String>) -> Self {
         Self {
             kind,
             path: path.into(),
@@ -89,21 +84,8 @@ impl core::fmt::Display for PluginLoadError {
     /// Formats phase, path, detail, and the optional ABI status.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.status {
-            Some(status) => write!(
-                f,
-                "{:?} while loading {}: {} ({})",
-                self.kind,
-                self.path.display(),
-                self.message,
-                status
-            ),
-            None => write!(
-                f,
-                "{:?} while loading {}: {}",
-                self.kind,
-                self.path.display(),
-                self.message
-            ),
+            Some(status) => write!(f, "{:?} while loading {}: {} ({})", self.kind, self.path.display(), self.message, status),
+            None => write!(f, "{:?} while loading {}: {}", self.kind, self.path.display(), self.message),
         }
     }
 }

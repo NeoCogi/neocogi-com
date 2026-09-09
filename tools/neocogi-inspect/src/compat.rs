@@ -25,39 +25,22 @@ pub(crate) fn check_compatibility(old: &InspectionArtifactV3, new: &InspectionAr
     let mut report = CompatibilityReport::default();
 
     if old.plugin.id != new.plugin.id {
-        report.breaking.push(format!(
-            "plugin identity changed: {} -> {}",
-            old.plugin.id, new.plugin.id
-        ));
+        report.breaking.push(format!("plugin identity changed: {} -> {}", old.plugin.id, new.plugin.id));
         return report;
     }
     if old.core_abi_version != new.core_abi_version {
-        report.breaking.push(format!(
-            "core ABI version changed: {} -> {}",
-            old.core_abi_version, new.core_abi_version
-        ));
+        report
+            .breaking
+            .push(format!("core ABI version changed: {} -> {}", old.core_abi_version, new.core_abi_version));
         return report;
     }
     if old.target != new.target {
-        report.breaking.push(format!(
-            "target ABI changed: {:?} -> {:?}",
-            old.target, new.target
-        ));
+        report.breaking.push(format!("target ABI changed: {:?} -> {:?}", old.target, new.target));
         return report;
     }
 
-    push_diagnostic_change(
-        &mut report,
-        "producer version",
-        &old.producer.version,
-        &new.producer.version,
-    );
-    push_diagnostic_change(
-        &mut report,
-        "plugin version",
-        &old.plugin.version,
-        &new.plugin.version,
-    );
+    push_diagnostic_change(&mut report, "producer version", &old.producer.version, &new.producer.version);
+    push_diagnostic_change(&mut report, "plugin version", &old.plugin.version, &new.plugin.version);
     compare_dependencies(&mut report, old, new);
     compare_classes(&mut report, &old.classes, &new.classes);
     report
@@ -67,14 +50,12 @@ fn compare_dependencies(report: &mut CompatibilityReport, old: &InspectionArtifa
     let old: BTreeSet<_> = old.plugin.dependencies.iter().collect();
     let new: BTreeSet<_> = new.plugin.dependencies.iter().collect();
     for dependency in new.difference(&old) {
-        report.breaking.push(format!(
-            "added hard plugin dependency {dependency}; existing activation plans may fail"
-        ));
+        report
+            .breaking
+            .push(format!("added hard plugin dependency {dependency}; existing activation plans may fail"));
     }
     for dependency in old.difference(&new) {
-        report
-            .additive
-            .push(format!("removed hard plugin dependency {dependency}"));
+        report.additive.push(format!("removed hard plugin dependency {dependency}"));
     }
 }
 
@@ -84,18 +65,14 @@ fn compare_classes(report: &mut CompatibilityReport, old: &[ArtifactClass], new:
 
     for (id, old_class) in &old {
         let Some(new_class) = new.get(id) else {
-            report
-                .breaking
-                .push(format!("removed class {id} ({})", old_class.name));
+            report.breaking.push(format!("removed class {id} ({})", old_class.name));
             continue;
         };
         compare_class(report, id, old_class, new_class);
     }
     for (id, new_class) in &new {
         if !old.contains_key(id) {
-            report
-                .additive
-                .push(format!("added class {id} ({})", new_class.name));
+            report.additive.push(format!("added class {id} ({})", new_class.name));
         }
     }
 }
@@ -108,38 +85,27 @@ fn compare_class(report: &mut CompatibilityReport, id: &str, old: &ArtifactClass
         ));
     }
     match (old.threading, new.threading) {
-        (ArtifactThreading::ThreadSafe, ArtifactThreading::ThreadLocal) => report.breaking.push(
-            format!("class {id} threading weakened: thread_safe -> thread_local"),
-        ),
-        (ArtifactThreading::ThreadLocal, ArtifactThreading::ThreadSafe) => report.additive.push(
-            format!("class {id} threading strengthened: thread_local -> thread_safe"),
-        ),
+        (ArtifactThreading::ThreadSafe, ArtifactThreading::ThreadLocal) => {
+            report.breaking.push(format!("class {id} threading weakened: thread_safe -> thread_local"))
+        }
+        (ArtifactThreading::ThreadLocal, ArtifactThreading::ThreadSafe) => {
+            report.additive.push(format!("class {id} threading strengthened: thread_local -> thread_safe"))
+        }
         _ => {}
     }
-    push_diagnostic_change(
-        report,
-        &format!("class {id} version"),
-        &old.version,
-        &new.version,
-    );
+    push_diagnostic_change(report, &format!("class {id} version"), &old.version, &new.version);
     compare_interfaces(report, id, &old.interfaces, &new.interfaces);
 }
 
-fn compare_interfaces(
-    report: &mut CompatibilityReport,
-    class_id: &str,
-    old: &[ArtifactInterface],
-    new: &[ArtifactInterface],
-) {
+fn compare_interfaces(report: &mut CompatibilityReport, class_id: &str, old: &[ArtifactInterface], new: &[ArtifactInterface]) {
     let old = map_by(old, |interface| interface.id.as_str());
     let new = map_by(new, |interface| interface.id.as_str());
 
     for (iid, old_interface) in &old {
         let Some(new_interface) = new.get(iid) else {
-            report.breaking.push(format!(
-                "class {class_id} removed interface {iid} ({})",
-                old_interface.name
-            ));
+            report
+                .breaking
+                .push(format!("class {class_id} removed interface {iid} ({})", old_interface.name));
             continue;
         };
         if old_interface.abi_hash != new_interface.abi_hash {
@@ -155,19 +121,14 @@ fn compare_interfaces(
     }
     for (iid, new_interface) in &new {
         if !old.contains_key(iid) {
-            report.additive.push(format!(
-                "class {class_id} added interface {iid} ({})",
-                new_interface.name
-            ));
+            report.additive.push(format!("class {class_id} added interface {iid} ({})", new_interface.name));
         }
     }
 }
 
 fn push_diagnostic_change(report: &mut CompatibilityReport, label: &str, old: &str, new: &str) {
     if old != new {
-        report
-            .diagnostic
-            .push(format!("{label} changed: {old:?} -> {new:?}"));
+        report.diagnostic.push(format!("{label} changed: {old:?} -> {new:?}"));
     }
 }
 
@@ -183,10 +144,7 @@ mod tests {
 
     #[test]
     fn identical_artifacts_are_compatible() {
-        assert_eq!(
-            check_compatibility(&sample_artifact(), &sample_artifact()),
-            CompatibilityReport::default()
-        );
+        assert_eq!(check_compatibility(&sample_artifact(), &sample_artifact()), CompatibilityReport::default());
     }
 
     #[test]
@@ -261,10 +219,7 @@ mod tests {
 
         let report = check_compatibility(&new, &old);
         assert!(report.is_compatible());
-        assert_eq!(
-            report.additive,
-            vec![format!("removed hard plugin dependency {dependency}")]
-        );
+        assert_eq!(report.additive, vec![format!("removed hard plugin dependency {dependency}")]);
     }
 
     #[test]

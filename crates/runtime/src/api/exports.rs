@@ -9,14 +9,9 @@
 //! A caller must compare it with the generation it understands before invoking
 //! a versioned getter; a v2 runtime is not assumed to preserve v1 table shapes.
 
-use neocogi_com_core::{
-    NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV1, NcInspectionApiV1, NcPluginRegistryV1,
-    NcRuntimeApiV1, NcTypeRegistryV1,
-};
+use neocogi_com_core::{NC_COM_RUNTIME_ABI_VERSION, NcDebugApiV1, NcInspectionApiV1, NcPluginRegistryV1, NcRuntimeApiV1, NcTypeRegistryV1};
 
-use super::{
-    DEBUG_API_V1, INSPECTION_API_V1, PLUGIN_REGISTRY_V1, RUNTIME_API_V1, TYPE_REGISTRY_V1,
-};
+use super::{DEBUG_API_V1, INSPECTION_API_V1, PLUGIN_REGISTRY_V1, RUNTIME_API_V1, TYPE_REGISTRY_V1};
 
 /// Returns the runtime shared-library ABI generation.
 ///

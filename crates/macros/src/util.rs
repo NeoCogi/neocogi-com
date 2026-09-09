@@ -31,27 +31,15 @@ pub(crate) fn runtime_crate_path(override_path: Option<&Path>) -> Path {
 }
 
 /// Resolves and validates the stable GUID for an interface declaration.
-pub(crate) fn interface_guid(
-    attr: InterfaceGuid,
-    qualified_name: &syn::LitStr,
-    nc: &Path,
-) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn interface_guid(attr: InterfaceGuid, qualified_name: &syn::LitStr, nc: &Path) -> Result<proc_macro2::TokenStream> {
     stable_guid(attr, qualified_name, nc)
 }
 
 /// Validates a qualified name and emits its matching explicit, derived, or path GUID.
-pub(crate) fn stable_guid(
-    attr: InterfaceGuid,
-    qualified_name: &syn::LitStr,
-    nc: &Path,
-) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn stable_guid(attr: InterfaceGuid, qualified_name: &syn::LitStr, nc: &Path) -> Result<proc_macro2::TokenStream> {
     let name = qualified_name.value();
-    neocogi_com_core::validate_qualified_name(&name).map_err(|error| {
-        syn::Error::new(
-            qualified_name.span(),
-            format!("invalid descriptor qualified name: {error}"),
-        )
-    })?;
+    neocogi_com_core::validate_qualified_name(&name)
+        .map_err(|error| syn::Error::new(qualified_name.span(), format!("invalid descriptor qualified name: {error}")))?;
     let expected = neocogi_com_core::guid_from_qualified_name(&name);
     match attr {
         InterfaceGuid::Explicit(value) => {
@@ -62,19 +50,14 @@ pub(crate) fn stable_guid(
             if actual != expected {
                 return Err(syn::Error::new(
                     value.span(),
-                    format!(
-                        "explicit UUID does not match qualified name `{name}`; expected {expected}"
-                    ),
+                    format!("explicit UUID does not match qualified name `{name}`; expected {expected}"),
                 ));
             }
             guid_tokens(actual, nc)
         }
         InterfaceGuid::AutoGuid { value } => {
             if value.value() != name {
-                return Err(syn::Error::new(
-                    value.span(),
-                    "auto_guid must exactly match the descriptor qualified name",
-                ));
+                return Err(syn::Error::new(value.span(), "auto_guid must exactly match the descriptor qualified name"));
             }
             Ok(quote! { #nc::guid_from_qualified_name(#qualified_name) })
         }
@@ -102,26 +85,12 @@ pub(crate) fn stable_guid(
 
 /// Applies core descriptor version policy at the literal's source span.
 pub(crate) fn validate_version_literal(version: &LitStr) -> Result<()> {
-    neocogi_com_core::validate_version_text(&version.value()).map_err(|error| {
-        syn::Error::new(
-            version.span(),
-            format!("invalid descriptor version: {error}"),
-        )
-    })
+    neocogi_com_core::validate_version_text(&version.value()).map_err(|error| syn::Error::new(version.span(), format!("invalid descriptor version: {error}")))
 }
 
 /// Converts a generated table length to the ABI's `u32` count domain.
-pub(crate) fn checked_u32_len(
-    len: usize,
-    span: proc_macro2::Span,
-    description: &str,
-) -> Result<u32> {
-    u32::try_from(len).map_err(|_| {
-        syn::Error::new(
-            span,
-            format!("{description} exceeds the ABI limit of {}", u32::MAX),
-        )
-    })
+pub(crate) fn checked_u32_len(len: usize, span: proc_macro2::Span, description: &str) -> Result<u32> {
+    u32::try_from(len).map_err(|_| syn::Error::new(span, format!("{description} exceeds the ABI limit of {}", u32::MAX)))
 }
 
 /// Emits a field-wise GUID literal independent of host memory byte order.
@@ -231,24 +200,12 @@ pub(crate) fn sha256(input: &[u8]) -> [u8; 32] {
         let mut words = [0u32; 64];
         for (index, word) in words.iter_mut().take(16).enumerate() {
             let start = index * 4;
-            *word = u32::from_be_bytes([
-                chunk[start],
-                chunk[start + 1],
-                chunk[start + 2],
-                chunk[start + 3],
-            ]);
+            *word = u32::from_be_bytes([chunk[start], chunk[start + 1], chunk[start + 2], chunk[start + 3]]);
         }
         for index in 16..64 {
-            let s0 = words[index - 15].rotate_right(7)
-                ^ words[index - 15].rotate_right(18)
-                ^ (words[index - 15] >> 3);
-            let s1 = words[index - 2].rotate_right(17)
-                ^ words[index - 2].rotate_right(19)
-                ^ (words[index - 2] >> 10);
-            words[index] = words[index - 16]
-                .wrapping_add(s0)
-                .wrapping_add(words[index - 7])
-                .wrapping_add(s1);
+            let s0 = words[index - 15].rotate_right(7) ^ words[index - 15].rotate_right(18) ^ (words[index - 15] >> 3);
+            let s1 = words[index - 2].rotate_right(17) ^ words[index - 2].rotate_right(19) ^ (words[index - 2] >> 10);
+            words[index] = words[index - 16].wrapping_add(s0).wrapping_add(words[index - 7]).wrapping_add(s1);
         }
 
         let mut a = h[0];
@@ -263,11 +220,7 @@ pub(crate) fn sha256(input: &[u8]) -> [u8; 32] {
         for index in 0..64 {
             let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
             let ch = (e & f) ^ ((!e) & g);
-            let temp1 = hh
-                .wrapping_add(s1)
-                .wrapping_add(ch)
-                .wrapping_add(K[index])
-                .wrapping_add(words[index]);
+            let temp1 = hh.wrapping_add(s1).wrapping_add(ch).wrapping_add(K[index]).wrapping_add(words[index]);
             let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
             let maj = (a & b) ^ (a & c) ^ (b & c);
             let temp2 = s0.wrapping_add(maj);
@@ -300,9 +253,7 @@ pub(crate) fn sha256(input: &[u8]) -> [u8; 32] {
 }
 
 /// Collects successful values while combining every `syn::Error` encountered.
-pub(crate) fn collect_syn_results<T>(
-    values: impl IntoIterator<Item = Result<T>>,
-) -> Result<Vec<T>> {
+pub(crate) fn collect_syn_results<T>(values: impl IntoIterator<Item = Result<T>>) -> Result<Vec<T>> {
     let mut items = Vec::new();
     let mut errors = None;
 
@@ -313,11 +264,7 @@ pub(crate) fn collect_syn_results<T>(
         }
     }
 
-    if let Some(errors) = errors {
-        Err(errors)
-    } else {
-        Ok(items)
-    }
+    if let Some(errors) = errors { Err(errors) } else { Ok(items) }
 }
 
 /// Inserts or combines one error into an optional aggregate diagnostic.
@@ -334,10 +281,7 @@ pub(crate) fn validate_no_generics(generics: &Generics, subject: &str) -> Result
     let mut errors = None;
 
     if !generics.params.is_empty() {
-        push_error(
-            &mut errors,
-            syn::Error::new_spanned(generics, format!("{subject} cannot be generic")),
-        );
+        push_error(&mut errors, syn::Error::new_spanned(generics, format!("{subject} cannot be generic")));
     }
     if let Some(where_clause) = &generics.where_clause {
         push_error(
@@ -346,20 +290,13 @@ pub(crate) fn validate_no_generics(generics: &Generics, subject: &str) -> Result
         );
     }
 
-    if let Some(errors) = errors {
-        Err(errors)
-    } else {
-        Ok(())
-    }
+    if let Some(errors) = errors { Err(errors) } else { Ok(()) }
 }
 
 /// Clones a path and replaces its final identifier while retaining qualification.
 pub(crate) fn path_with_last_ident(path: &Path, ident: Ident) -> Path {
     let mut path = path.clone();
-    let last = path
-        .segments
-        .last_mut()
-        .expect("class interface path has at least one segment");
+    let last = path.segments.last_mut().expect("class interface path has at least one segment");
     last.ident = ident;
     path
 }
@@ -370,11 +307,7 @@ pub(crate) fn interface_field(path: &Path) -> Ident {
     if path.leading_colon.is_some() {
         parts.push("root".to_string());
     }
-    parts.extend(
-        path.segments
-            .iter()
-            .map(|segment| segment.ident.to_string()),
-    );
+    parts.extend(path.segments.iter().map(|segment| segment.ident.to_string()));
 
     let mut name = String::from("__nc_interface");
     for part in parts {
@@ -406,29 +339,21 @@ mod tests {
         assert_eq!(
             sha256(b"abc"),
             [
-                0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde, 0x5d, 0xae,
-                0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c, 0xb4, 0x10, 0xff, 0x61,
-                0xf2, 0x00, 0x15, 0xad,
+                0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
+                0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad,
             ]
         );
     }
 
     #[test]
     fn u32_lengths_are_checked_before_codegen() {
-        assert_eq!(
-            checked_u32_len(u32::MAX as usize, proc_macro2::Span::call_site(), "test").unwrap(),
-            u32::MAX
-        );
+        assert_eq!(checked_u32_len(u32::MAX as usize, proc_macro2::Span::call_site(), "test").unwrap(), u32::MAX);
 
         #[cfg(target_pointer_width = "64")]
         assert_eq!(
-            checked_u32_len(
-                u32::MAX as usize + 1,
-                proc_macro2::Span::call_site(),
-                "test count",
-            )
-            .unwrap_err()
-            .to_string(),
+            checked_u32_len(u32::MAX as usize + 1, proc_macro2::Span::call_site(), "test count",)
+                .unwrap_err()
+                .to_string(),
             "test count exceeds the ABI limit of 4294967295"
         );
     }

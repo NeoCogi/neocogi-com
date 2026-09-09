@@ -17,14 +17,10 @@ use core::ffi::c_void;
 use std::path::{Path, PathBuf};
 
 use neocogi_com_core::{
-    NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_E_OUT_OF_RANGE, NC_E_POINTER,
-    NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcGetPluginDescriptor, NcGuid, NcPluginDescriptor,
+    NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcGetPluginDescriptor, NcGuid, NcPluginDescriptor,
 };
 
-use crate::registration::{
-    PluginRegistrationBatch, PluginRegistrationBatchError, PluginRegistrationBatchErrorKind,
-    build_plugin_registration_batch,
-};
+use crate::registration::{PluginRegistrationBatch, PluginRegistrationBatchError, PluginRegistrationBatchErrorKind, build_plugin_registration_batch};
 use crate::state::RuntimeState;
 
 mod error;
@@ -34,10 +30,7 @@ mod plan;
 
 pub use error::{PluginLoadError, PluginLoadErrorKind};
 pub(crate) use inspection::inspect_plugin_descriptor;
-pub use inspection::{
-    ClassInspection, ClassInterfaceInspection, InterfaceInspection, MethodInspection,
-    PluginInspection, inspect_plugin_library,
-};
+pub use inspection::{ClassInspection, ClassInterfaceInspection, InterfaceInspection, MethodInspection, PluginInspection, inspect_plugin_library};
 pub use plan::{PluginDependencyPlanError, plan_plugin_load_order};
 
 /// Process-local identifier for a plugin library retained by the runtime.
@@ -81,11 +74,7 @@ pub(crate) struct LoadedModuleInfo {
 impl LoadedModuleInfo {
     /// Creates retained provenance for one successfully activated module.
     pub(crate) fn new(module_id: LoadedModuleId, path: PathBuf, plugin_id: NcGuid) -> Self {
-        Self {
-            module_id,
-            path,
-            plugin_id,
-        }
+        Self { module_id, path, plugin_id }
     }
 
     /// Returns the process-local loaded module identifier.
@@ -116,11 +105,8 @@ impl LoadedModule {
     fn open(path: &Path) -> Result<Self, PluginLoadError> {
         // Live activation and offline inspection decide separately whether the
         // opened handle is committed or pinned until process termination.
-        let library = library::DynamicLibrary::open(path)
-            .map_err(|error| PluginLoadError::new(error.kind, path, None, error.message))?;
-        Ok(Self {
-            _library: Some(library),
-        })
+        let library = library::DynamicLibrary::open(path).map_err(|error| PluginLoadError::new(error.kind, path, None, error.message))?;
+        Ok(Self { _library: Some(library) })
     }
 
     #[cfg(test)]
@@ -130,10 +116,7 @@ impl LoadedModule {
     }
 
     /// Resolves and types the standard plugin descriptor entrypoint.
-    unsafe fn get_plugin_descriptor(
-        &self,
-        path: &Path,
-    ) -> Result<NcGetPluginDescriptor, PluginLoadError> {
+    unsafe fn get_plugin_descriptor(&self, path: &Path) -> Result<NcGetPluginDescriptor, PluginLoadError> {
         // SAFETY: The caller is loading an neocogi-com plugin and will call the
         // returned symbol using the exact C ABI type defined by neocogi-com-core.
         let symbol = unsafe {
@@ -142,9 +125,7 @@ impl LoadedModule {
                 .expect("opened modules own a native handle")
                 .symbol(NC_GET_PLUGIN_DESCRIPTOR_SYMBOL.as_bytes())
         }
-        .map_err(|message| {
-            PluginLoadError::new(PluginLoadErrorKind::FindSymbol, path, None, message)
-        })?;
+        .map_err(|message| PluginLoadError::new(PluginLoadErrorKind::FindSymbol, path, None, message))?;
 
         // SAFETY: The symbol was resolved by name from a trusted neocogi-com plugin
         // and is expected to have the standard descriptor-provider signature.
@@ -172,43 +153,29 @@ impl RuntimeState {
     /// library can run arbitrary platform loader code, and the exported
     /// descriptor symbol is trusted FFI metadata until validation rejects it.
     /// That code must not directly or indirectly start nested neocogi-com activation.
-    pub unsafe fn load_plugin_library(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> Result<LoadedModuleId, PluginLoadError> {
+    pub unsafe fn load_plugin_library(&self, path: impl AsRef<Path>) -> Result<LoadedModuleId, PluginLoadError> {
         let path = path.as_ref();
         let mut module = Some(LoadedModule::open(path)?);
         let activation = (|| {
             // SAFETY: The caller trusts this library as an neocogi-com plugin.
-            let plugin = unsafe {
-                plugin_descriptor_from_module(
-                    module.as_ref().expect("opened module remains owned"),
-                    path,
-                )?
-            };
+            let plugin = unsafe { plugin_descriptor_from_module(module.as_ref().expect("opened module remains owned"), path)? };
             // SAFETY: A successful descriptor entrypoint returned a non-null
             // descriptor pointer. The module remains loaded by `module` while
             // descriptor traversal and batch construction run without locks.
-            let mut batch =
-                unsafe { plugin_registration_batch_from_descriptor(path, plugin, None)? };
+            let mut batch = unsafe { plugin_registration_batch_from_descriptor(path, plugin, None)? };
 
             // Dynamic activation is one blocking catalog publication. No plugin
             // code runs under this guard: opening, symbol invocation, and full
             // descriptor validation all completed above.
             let mut catalog = self.write_catalog();
-            let module_id = catalog
-                .plugin_registry
-                .allocate_loaded_module_id()
-                .ok_or_else(|| {
-                    PluginLoadError::new(
-                        PluginLoadErrorKind::ResourceLimit,
-                        path,
-                        Some(NC_E_OUT_OF_RANGE),
-                        format!(
-                            "runtime loaded-module limit of {NC_COM_RUNTIME_MAX_LOADED_MODULES} reached"
-                        ),
-                    )
-                })?;
+            let module_id = catalog.plugin_registry.allocate_loaded_module_id().ok_or_else(|| {
+                PluginLoadError::new(
+                    PluginLoadErrorKind::ResourceLimit,
+                    path,
+                    Some(NC_E_OUT_OF_RANGE),
+                    format!("runtime loaded-module limit of {NC_COM_RUNTIME_MAX_LOADED_MODULES} reached"),
+                )
+            })?;
             batch.set_module_id(module_id);
             let loaded = loaded_module_info_from_registration_batch(path, &batch, module_id);
             let status = catalog.commit_plugin_registration_batch(batch);
@@ -220,12 +187,9 @@ impl RuntimeState {
                     "runtime registration rejected the plugin descriptor",
                 ));
             }
-            catalog.plugin_registry.store_loaded_module(
-                module
-                    .take()
-                    .expect("successful activation owns its module"),
-                loaded,
-            );
+            catalog
+                .plugin_registry
+                .store_loaded_module(module.take().expect("successful activation owns its module"), loaded);
             Ok(module_id)
         })();
 
@@ -243,10 +207,7 @@ impl RuntimeState {
 }
 
 /// Calls the standard entrypoint and requires a successful non-null descriptor.
-unsafe fn plugin_descriptor_from_module(
-    module: &LoadedModule,
-    path: &Path,
-) -> Result<*const NcPluginDescriptor, PluginLoadError> {
+unsafe fn plugin_descriptor_from_module(module: &LoadedModule, path: &Path) -> Result<*const NcPluginDescriptor, PluginLoadError> {
     // Symbol resolution and invocation are kept together so the function
     // pointer never escapes the module ownership/pinning boundary.
     // SAFETY: The caller trusts this library as an neocogi-com plugin.
@@ -285,34 +246,20 @@ unsafe fn plugin_registration_batch_from_descriptor(
     // SAFETY: `plugin` came from the loaded module's descriptor entrypoint.
     // Batch construction validates and projects the descriptor graph exactly
     // once while the module remains live.
-    unsafe { build_plugin_registration_batch(plugin, module_id) }
-        .map_err(|error| plugin_registration_batch_error(path, error))
+    unsafe { build_plugin_registration_batch(plugin, module_id) }.map_err(|error| plugin_registration_batch_error(path, error))
 }
 
 /// Converts batch validation/registration failures into path-aware loader errors.
-fn plugin_registration_batch_error(
-    path: &Path,
-    error: PluginRegistrationBatchError,
-) -> PluginLoadError {
+fn plugin_registration_batch_error(path: &Path, error: PluginRegistrationBatchError) -> PluginLoadError {
     let (kind, message) = match error.kind() {
-        PluginRegistrationBatchErrorKind::Metadata => (
-            PluginLoadErrorKind::Metadata,
-            "plugin descriptor failed load validation",
-        ),
-        PluginRegistrationBatchErrorKind::Registration => (
-            PluginLoadErrorKind::Registration,
-            "runtime registration rejected the plugin descriptor",
-        ),
+        PluginRegistrationBatchErrorKind::Metadata => (PluginLoadErrorKind::Metadata, "plugin descriptor failed load validation"),
+        PluginRegistrationBatchErrorKind::Registration => (PluginLoadErrorKind::Registration, "runtime registration rejected the plugin descriptor"),
     };
     PluginLoadError::new(kind, path, Some(error.status()), message)
 }
 
 /// Builds retained module provenance from a validated registration batch.
-fn loaded_module_info_from_registration_batch(
-    path: &Path,
-    batch: &PluginRegistrationBatch,
-    module_id: LoadedModuleId,
-) -> LoadedModuleInfo {
+fn loaded_module_info_from_registration_batch(path: &Path, batch: &PluginRegistrationBatch, module_id: LoadedModuleId) -> LoadedModuleInfo {
     LoadedModuleInfo::new(module_id, path.to_path_buf(), batch.plugin_id())
 }
 
@@ -327,14 +274,8 @@ mod tests {
         static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION + 1,
             plugin_id: NcGuid::nil(),
-            qualified_name: NcStaticUtf8 {
-                data: core::ptr::null(),
-                len: 1,
-            },
-            plugin_version: NcStaticUtf8 {
-                data: core::ptr::null(),
-                len: 1,
-            },
+            qualified_name: NcStaticUtf8 { data: core::ptr::null(), len: 1 },
+            plugin_version: NcStaticUtf8 { data: core::ptr::null(), len: 1 },
             dependency_count: 0,
             dependencies: core::ptr::null(),
             class_table: core::ptr::null(),
@@ -344,13 +285,7 @@ mod tests {
         // deliberately invalid for their lengths; the test asserts core ABI
         // validation stops before text metadata is copied.
         reset_registration_validation_calls();
-        let result = unsafe {
-            plugin_registration_batch_from_descriptor(
-                Path::new("bad-plugin"),
-                &PLUGIN,
-                Some(LoadedModuleId::from_raw(1)),
-            )
-        };
+        let result = unsafe { plugin_registration_batch_from_descriptor(Path::new("bad-plugin"), &PLUGIN, Some(LoadedModuleId::from_raw(1))) };
         let error = match result {
             Ok(_) => panic!("malformed descriptor unexpectedly produced a registration batch"),
             Err(error) => error,

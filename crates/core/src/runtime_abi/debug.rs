@@ -25,8 +25,7 @@ pub const NC_DEBUG_SEVERITY_WARNING: u32 = 1 << 1;
 /// Error diagnostic severity bit.
 pub const NC_DEBUG_SEVERITY_ERROR: u32 = 1 << 2;
 /// All diagnostic severity bits defined by runtime ABI v1.
-pub const NC_DEBUG_SEVERITY_ALL: u32 =
-    NC_DEBUG_SEVERITY_INFO | NC_DEBUG_SEVERITY_WARNING | NC_DEBUG_SEVERITY_ERROR;
+pub const NC_DEBUG_SEVERITY_ALL: u32 = NC_DEBUG_SEVERITY_INFO | NC_DEBUG_SEVERITY_WARNING | NC_DEBUG_SEVERITY_ERROR;
 
 /// General runtime diagnostic type bit.
 pub const NC_DEBUG_TYPE_RUNTIME: u32 = 1 << 0;
@@ -35,8 +34,7 @@ pub const NC_DEBUG_TYPE_PLUGIN: u32 = 1 << 1;
 /// Registry validation diagnostic type bit.
 pub const NC_DEBUG_TYPE_VALIDATION: u32 = 1 << 2;
 /// All diagnostic type bits defined by runtime ABI v1.
-pub const NC_DEBUG_TYPE_ALL: u32 =
-    NC_DEBUG_TYPE_RUNTIME | NC_DEBUG_TYPE_PLUGIN | NC_DEBUG_TYPE_VALIDATION;
+pub const NC_DEBUG_TYPE_ALL: u32 = NC_DEBUG_TYPE_RUNTIME | NC_DEBUG_TYPE_PLUGIN | NC_DEBUG_TYPE_VALIDATION;
 
 /// One diagnostic delivered to an [`NcDebugCallbackV1`].
 #[repr(C)]
@@ -80,12 +78,7 @@ impl NcDebugMessageV1 {
 /// The runtime supplies a non-null message pointer that remains valid only for
 /// this call. Callbacks may run concurrently on any thread and must not destroy
 /// a debug messenger.
-pub type NcDebugCallbackV1 = unsafe extern "C" fn(
-    severity: u32,
-    message_type: u32,
-    message: *const NcDebugMessageV1,
-    user_data: *mut c_void,
-);
+pub type NcDebugCallbackV1 = unsafe extern "C" fn(severity: u32, message_type: u32, message: *const NcDebugMessageV1, user_data: *mut c_void);
 
 /// Configuration used to create one runtime debug messenger.
 #[repr(C)]
@@ -115,10 +108,7 @@ pub struct NcDebugApiV1 {
     /// before create-info validation. Returns `NC_E_OUT_OF_RANGE` when
     /// [`NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS`] are already registered or
     /// the process-local handle space is permanently exhausted.
-    pub create_messenger: unsafe extern "C" fn(
-        create_info: *const NcDebugMessengerCreateInfoV1,
-        out_handle: *mut u64,
-    ) -> NcStatus,
+    pub create_messenger: unsafe extern "C" fn(create_info: *const NcDebugMessengerCreateInfoV1, out_handle: *mut u64) -> NcStatus,
     /// Destroys a messenger and waits for its in-flight callbacks to return.
     ///
     /// Zero and unknown handles are ignored. This function must not be called

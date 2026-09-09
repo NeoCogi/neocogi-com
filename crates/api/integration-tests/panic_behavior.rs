@@ -49,16 +49,9 @@ fn panic_in_generated_abi_thunk_terminates_subprocess() {
         return;
     }
 
-    let output = run_helper(
-        "abi_panic_helper_exits_if_thunk_returns_status",
-        RUN_HELPER_ENV,
-    );
+    let output = run_helper("abi_panic_helper_exits_if_thunk_returns_status", RUN_HELPER_ENV);
 
-    assert_helper_aborted_without_return(
-        &output,
-        THUNK_RETURNED_STATUS_EXIT_CODE,
-        "ABI panic helper",
-    );
+    assert_helper_aborted_without_return(&output, THUNK_RETURNED_STATUS_EXIT_CODE, "ABI panic helper");
 }
 
 #[test]
@@ -67,16 +60,9 @@ fn panic_in_generated_release_thunk_terminates_subprocess() {
         return;
     }
 
-    let output = run_helper(
-        "abi_drop_panic_helper_exits_if_release_returns",
-        RUN_DROP_HELPER_ENV,
-    );
+    let output = run_helper("abi_drop_panic_helper_exits_if_release_returns", RUN_DROP_HELPER_ENV);
 
-    assert_helper_aborted_without_return(
-        &output,
-        RELEASE_RETURNED_EXIT_CODE,
-        "ABI drop panic helper",
-    );
+    assert_helper_aborted_without_return(&output, RELEASE_RETURNED_EXIT_CODE, "ABI drop panic helper");
 }
 
 fn run_helper(test_name: &str, env_name: &str) -> Output {

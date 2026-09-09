@@ -86,10 +86,7 @@ impl PluginRegistry {
         let index = self.loaded_modules.records.len();
         self.loaded_modules.module_ids.push(module_id.get());
         self.loaded_modules.module_by_id.insert(module_id, index);
-        self.loaded_modules.records.push(LoadedModuleRecord {
-            _module: module,
-            loaded,
-        });
+        self.loaded_modules.records.push(LoadedModuleRecord { _module: module, loaded });
     }
 
     /// Borrows the ordered raw module IDs under the enclosing catalog guard.
@@ -99,16 +96,12 @@ impl PluginRegistry {
 
     /// Looks up a borrowed ABI projection for one retained module.
     pub(crate) fn module(&self, module_id: LoadedModuleId) -> Option<LoadedModuleView> {
-        let record =
-            &self.loaded_modules.records[*self.loaded_modules.module_by_id.get(&module_id)?];
+        let record = &self.loaded_modules.records[*self.loaded_modules.module_by_id.get(&module_id)?];
         let path = record.loaded.path().to_str()?;
         Some(LoadedModuleView {
             module_id,
             plugin_id: record.loaded.plugin_id(),
-            path: NcUtf8View {
-                data: path.as_ptr(),
-                len: path.len(),
-            },
+            path: NcUtf8View { data: path.as_ptr(), len: path.len() },
         })
     }
 
@@ -124,11 +117,7 @@ impl PluginRegistry {
     }
 
     /// Borrows one plugin's hard dependency IDs, or an empty slice when absent.
-    pub(crate) fn with_plugin_dependency_ids<R>(
-        &self,
-        plugin_id: NcGuid,
-        read: impl FnOnce(&[NcGuid]) -> R,
-    ) -> R {
+    pub(crate) fn with_plugin_dependency_ids<R>(&self, plugin_id: NcGuid, read: impl FnOnce(&[NcGuid]) -> R) -> R {
         let dependencies = self
             .plugins
             .plugin_by_id
@@ -214,13 +203,10 @@ mod tests {
 
     #[test]
     fn loaded_module_limit_issues_final_id_then_remains_exhausted() {
-        let mut registry =
-            PluginRegistry::with_next_loaded_module_id(NC_COM_RUNTIME_MAX_LOADED_MODULES as u64);
+        let mut registry = PluginRegistry::with_next_loaded_module_id(NC_COM_RUNTIME_MAX_LOADED_MODULES as u64);
 
         assert_eq!(
-            registry
-                .allocate_loaded_module_id()
-                .map(LoadedModuleId::get),
+            registry.allocate_loaded_module_id().map(LoadedModuleId::get),
             Some(NC_COM_RUNTIME_MAX_LOADED_MODULES as u64)
         );
         assert_eq!(registry.allocate_loaded_module_id(), None);

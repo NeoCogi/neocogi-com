@@ -19,14 +19,9 @@ pub struct NcTypeRegistryV1 {
     /// Returns the number of registered class IDs.
     pub class_count: unsafe extern "C" fn() -> usize,
     /// Copies registered class IDs to caller-owned storage.
-    pub class_ids:
-        unsafe extern "C" fn(out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus,
+    pub class_ids: unsafe extern "C" fn(out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus,
     /// Returns the number of distinct registered interface ABI identities.
     pub interface_count: unsafe extern "C" fn() -> usize,
     /// Copies distinct registered interface ABI identities to caller-owned storage.
-    pub interface_ids: unsafe extern "C" fn(
-        out: *mut NcInterfaceId,
-        capacity: usize,
-        out_len: *mut usize,
-    ) -> NcStatus,
+    pub interface_ids: unsafe extern "C" fn(out: *mut NcInterfaceId, capacity: usize, out_len: *mut usize) -> NcStatus,
 }

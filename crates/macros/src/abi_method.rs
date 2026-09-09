@@ -7,13 +7,9 @@
 //! pointers. Later generators consume this model without reinterpreting syntax.
 
 use quote::quote;
-use syn::{
-    Attribute, FnArg, Ident, ItemTrait, Pat, Result, ReturnType, TraitItem, TraitItemFn, Type,
-};
+use syn::{Attribute, FnArg, Ident, ItemTrait, Pat, Result, ReturnType, TraitItem, TraitItemFn, Type};
 
-use crate::model::{
-    AbiArg, AbiArgKind, AbiConstructor, AbiMethod, AbiReceiver, AbiReturn, AbiReturnKind,
-};
+use crate::model::{AbiArg, AbiArgKind, AbiConstructor, AbiMethod, AbiReceiver, AbiReturn, AbiReturnKind};
 use crate::plain_data::{PlainAbiTypeContext, validate_plain_abi_type};
 use crate::util::push_error;
 
@@ -162,10 +158,7 @@ fn validate_method_modifiers(method: &TraitItemFn, errors: &mut Option<syn::Erro
 pub(crate) fn parse_abi_trait_item(item: &TraitItem) -> Result<AbiMethod> {
     match item {
         TraitItem::Fn(method) => parse_abi_method(method),
-        _ => Err(syn::Error::new_spanned(
-            item,
-            "COM interfaces may only contain methods",
-        )),
+        _ => Err(syn::Error::new_spanned(item, "COM interfaces may only contain methods")),
     }
 }
 
@@ -188,28 +181,16 @@ pub(crate) fn validate_class_contract_trait(input: &ItemTrait, errors: &mut Opti
 /// Applies the trait-shape rules shared by every generated COM vtable.
 fn validate_com_trait(input: &ItemTrait, errors: &mut Option<syn::Error>) {
     if let Some(unsafety) = &input.unsafety {
-        push_error(
-            errors,
-            syn::Error::new_spanned(unsafety, "COM interfaces cannot be unsafe"),
-        );
+        push_error(errors, syn::Error::new_spanned(unsafety, "COM interfaces cannot be unsafe"));
     }
     if let Some(auto_token) = &input.auto_token {
-        push_error(
-            errors,
-            syn::Error::new_spanned(auto_token, "COM interfaces cannot be auto traits"),
-        );
+        push_error(errors, syn::Error::new_spanned(auto_token, "COM interfaces cannot be auto traits"));
     }
     if !input.generics.params.is_empty() {
-        push_error(
-            errors,
-            syn::Error::new_spanned(&input.generics, "COM interfaces cannot be generic"),
-        );
+        push_error(errors, syn::Error::new_spanned(&input.generics, "COM interfaces cannot be generic"));
     }
     if let Some(where_clause) = &input.generics.where_clause {
-        push_error(
-            errors,
-            syn::Error::new_spanned(where_clause, "COM interfaces cannot have where clauses"),
-        );
+        push_error(errors, syn::Error::new_spanned(where_clause, "COM interfaces cannot have where clauses"));
     }
 }
 
@@ -217,16 +198,9 @@ fn validate_com_trait(input: &ItemTrait, errors: &mut Option<syn::Error>) {
 fn validate_receiver(method: &TraitItemFn, errors: &mut Option<syn::Error>) -> AbiReceiver {
     match method.sig.inputs.first() {
         Some(FnArg::Receiver(receiver)) => {
-            let has_explicit_lifetime = receiver
-                .reference
-                .as_ref()
-                .and_then(|(_, lifetime)| lifetime.as_ref())
-                .is_some();
+            let has_explicit_lifetime = receiver.reference.as_ref().and_then(|(_, lifetime)| lifetime.as_ref()).is_some();
             if receiver.reference.is_none() || receiver.colon_token.is_some() || has_explicit_lifetime {
-                push_error(
-                    errors,
-                    syn::Error::new_spanned(receiver, "COM methods require `&self` or `&mut self`"),
-                );
+                push_error(errors, syn::Error::new_spanned(receiver, "COM methods require `&self` or `&mut self`"));
             }
             if receiver.mutability.is_some() {
                 AbiReceiver::Mutable
@@ -261,39 +235,25 @@ fn parse_abi_args(method: &TraitItemFn) -> Result<Vec<AbiArg>> {
     for arg in method.sig.inputs.iter().skip(1) {
         match arg {
             FnArg::Typed(typed) => match typed.pat.as_ref() {
-                Pat::Ident(pat)
-                    if pat.by_ref.is_none() && pat.mutability.is_none() && pat.subpat.is_none() =>
-                {
-                    match lower_abi_arg(typed.ty.as_ref().clone()) {
-                        Ok((rust_ty, abi_ty, kind)) => args.push(AbiArg {
-                            ident: pat.ident.clone(),
-                            rust_ty,
-                            abi_ty,
-                            kind,
-                        }),
-                        Err(err) => push_error(&mut errors, err),
-                    }
-                }
+                Pat::Ident(pat) if pat.by_ref.is_none() && pat.mutability.is_none() && pat.subpat.is_none() => match lower_abi_arg(typed.ty.as_ref().clone()) {
+                    Ok((rust_ty, abi_ty, kind)) => args.push(AbiArg {
+                        ident: pat.ident.clone(),
+                        rust_ty,
+                        abi_ty,
+                        kind,
+                    }),
+                    Err(err) => push_error(&mut errors, err),
+                },
                 _ => push_error(
                     &mut errors,
-                    syn::Error::new_spanned(
-                        &typed.pat,
-                        "COM method arguments must be plain identifiers",
-                    ),
+                    syn::Error::new_spanned(&typed.pat, "COM method arguments must be plain identifiers"),
                 ),
             },
-            FnArg::Receiver(receiver) => push_error(
-                &mut errors,
-                syn::Error::new_spanned(receiver, "COM methods can only have one `self` receiver"),
-            ),
+            FnArg::Receiver(receiver) => push_error(&mut errors, syn::Error::new_spanned(receiver, "COM methods can only have one `self` receiver")),
         }
     }
 
-    if let Some(errors) = errors {
-        Err(errors)
-    } else {
-        Ok(args)
-    }
+    if let Some(errors) = errors { Err(errors) } else { Ok(args) }
 }
 
 /// Extracts `T` from the required `Result<T, NcStatus>` return shape.
@@ -315,24 +275,15 @@ fn parse_result_ok_type(method: &TraitItemFn) -> Result<Type> {
     let path = match ty {
         Type::Path(path) => path,
         _ => {
-            return Err(syn::Error::new_spanned(
-                ty,
-                "COM methods must return `Result<T, neocogi_com::NcStatus>`",
-            ));
+            return Err(syn::Error::new_spanned(ty, "COM methods must return `Result<T, neocogi_com::NcStatus>`"));
         }
     };
 
     let Some(segment) = path.path.segments.last() else {
-        return Err(syn::Error::new_spanned(
-            ty,
-            "COM methods must return `Result<T, neocogi_com::NcStatus>`",
-        ));
+        return Err(syn::Error::new_spanned(ty, "COM methods must return `Result<T, neocogi_com::NcStatus>`"));
     };
     if segment.ident != "Result" {
-        return Err(syn::Error::new_spanned(
-            ty,
-            "COM methods must return `Result<T, neocogi_com::NcStatus>`",
-        ));
+        return Err(syn::Error::new_spanned(ty, "COM methods must return `Result<T, neocogi_com::NcStatus>`"));
     }
 
     let syn::PathArguments::AngleBracketed(args) = &segment.arguments else {
@@ -352,26 +303,17 @@ fn parse_result_ok_type(method: &TraitItemFn) -> Result<Type> {
     let ok = match generic_args[0] {
         syn::GenericArgument::Type(ty) => ty.clone(),
         arg => {
-            return Err(syn::Error::new_spanned(
-                arg,
-                "COM method success type must be a type",
-            ));
+            return Err(syn::Error::new_spanned(arg, "COM method success type must be a type"));
         }
     };
     let err = match generic_args[1] {
         syn::GenericArgument::Type(ty) => ty,
         arg => {
-            return Err(syn::Error::new_spanned(
-                arg,
-                "COM method error type must be `neocogi_com::NcStatus`",
-            ));
+            return Err(syn::Error::new_spanned(arg, "COM method error type must be `neocogi_com::NcStatus`"));
         }
     };
     if !is_nc_status_type(err) {
-        return Err(syn::Error::new_spanned(
-            err,
-            "COM method error type must be `neocogi_com::NcStatus`",
-        ));
+        return Err(syn::Error::new_spanned(err, "COM method error type must be `neocogi_com::NcStatus`"));
     }
 
     Ok(ok)
@@ -398,26 +340,14 @@ fn lower_abi_arg(ty: Type) -> Result<(Type, Type, AbiArgKind)> {
         let element_ty = buffer.element_ty;
         validate_plain_abi_type(&element_ty, PlainAbiTypeContext::BufferElement)?;
         let abi_ty = syn::parse_quote! { *const #element_ty };
-        return Ok((
-            ty,
-            abi_ty,
-            AbiArgKind::CopyFromBufferOffset {
-                element_ty: Box::new(element_ty),
-            },
-        ));
+        return Ok((ty, abi_ty, AbiArgKind::CopyFromBufferOffset { element_ty: Box::new(element_ty) }));
     }
 
     if let Some(buffer) = parse_copy_to_buffer_offset_type(&ty)? {
         let element_ty = buffer.element_ty;
         validate_plain_abi_type(&element_ty, PlainAbiTypeContext::BufferElement)?;
         let abi_ty = syn::parse_quote! { *mut #element_ty };
-        return Ok((
-            ty,
-            abi_ty,
-            AbiArgKind::CopyToBufferOffset {
-                element_ty: Box::new(element_ty),
-            },
-        ));
+        return Ok((ty, abi_ty, AbiArgKind::CopyToBufferOffset { element_ty: Box::new(element_ty) }));
     }
 
     if parse_com_ptr_type(&ty)?.is_some() {
@@ -515,27 +445,18 @@ fn parse_com_ref_type(ty: &Type) -> Result<Option<ComRefType>> {
     let interface_ty = match generic_args[1] {
         syn::GenericArgument::Type(ty) => ty.clone(),
         arg => {
-            return Err(syn::Error::new_spanned(
-                arg,
-                "`ComRef` interface parameter must be a type",
-            ));
+            return Err(syn::Error::new_spanned(arg, "`ComRef` interface parameter must be a type"));
         }
     };
     let mode_ty = match generic_args.get(2) {
         Some(syn::GenericArgument::Type(ty)) => Some((*ty).clone()),
         Some(arg) => {
-            return Err(syn::Error::new_spanned(
-                arg,
-                "`ComRef` threading mode parameter must be a type",
-            ));
+            return Err(syn::Error::new_spanned(arg, "`ComRef` threading mode parameter must be a type"));
         }
         None => None,
     };
 
-    Ok(Some(ComRefType {
-        interface_ty,
-        mode_ty,
-    }))
+    Ok(Some(ComRefType { interface_ty, mode_ty }))
 }
 
 /// Parses an immutable source-buffer parameter wrapper.
@@ -557,11 +478,7 @@ fn parse_copy_to_buffer_offset_type(ty: &Type) -> Result<Option<BufferOffsetType
 }
 
 /// Parses the common lifetime and element arguments of either buffer wrapper.
-fn parse_buffer_offset_type(
-    ty: &Type,
-    expected_ident: &str,
-    shape_error: &str,
-) -> Result<Option<BufferOffsetType>> {
+fn parse_buffer_offset_type(ty: &Type, expected_ident: &str, shape_error: &str) -> Result<Option<BufferOffsetType>> {
     let Some(args) = type_generic_args_named(ty, expected_ident) else {
         return Ok(None);
     };
@@ -573,10 +490,7 @@ fn parse_buffer_offset_type(
     let element_ty = match generic_args[1] {
         syn::GenericArgument::Type(ty) => ty.clone(),
         arg => {
-            return Err(syn::Error::new_spanned(
-                arg,
-                "buffer element parameter must be a type",
-            ));
+            return Err(syn::Error::new_spanned(arg, "buffer element parameter must be a type"));
         }
     };
 
@@ -589,9 +503,7 @@ fn require_call_scoped_lifetime(arg: &syn::GenericArgument, wrapper: &str) -> Re
         syn::GenericArgument::Lifetime(lifetime) if lifetime.ident == "_" => Ok(()),
         _ => Err(syn::Error::new_spanned(
             arg,
-            format!(
-                "`{wrapper}` parameters must use `'_` as their call-scoped lifetime; named lifetimes, including `'static`, are not supported"
-            ),
+            format!("`{wrapper}` parameters must use `'_` as their call-scoped lifetime; named lifetimes, including `'static`, are not supported"),
         )),
     }
 }
@@ -611,34 +523,22 @@ fn parse_com_ptr_type(ty: &Type) -> Result<Option<ComPtrType>> {
     let interface_ty = match generic_args[0] {
         syn::GenericArgument::Type(ty) => ty.clone(),
         arg => {
-            return Err(syn::Error::new_spanned(
-                arg,
-                "`ComPtr` interface parameter must be a type",
-            ));
+            return Err(syn::Error::new_spanned(arg, "`ComPtr` interface parameter must be a type"));
         }
     };
     let mode_ty = match generic_args.get(1) {
         Some(syn::GenericArgument::Type(ty)) => Some((*ty).clone()),
         Some(arg) => {
-            return Err(syn::Error::new_spanned(
-                arg,
-                "`ComPtr` threading mode parameter must be a type",
-            ));
+            return Err(syn::Error::new_spanned(arg, "`ComPtr` threading mode parameter must be a type"));
         }
         None => None,
     };
 
-    Ok(Some(ComPtrType {
-        interface_ty,
-        mode_ty,
-    }))
+    Ok(Some(ComPtrType { interface_ty, mode_ty }))
 }
 
 /// Returns angle-bracketed arguments when a type's final segment matches a wrapper.
-fn type_generic_args_named<'a>(
-    ty: &'a Type,
-    expected_ident: &str,
-) -> Option<&'a syn::AngleBracketedGenericArguments> {
+fn type_generic_args_named<'a>(ty: &'a Type, expected_ident: &str) -> Option<&'a syn::AngleBracketedGenericArguments> {
     // Match the terminal segment so aliases such as `neocogi_com::ComPtr<T>` work
     // without coupling macro expansion to one dependency name or import style.
     let Type::Path(path) = ty else {
@@ -661,18 +561,11 @@ fn raw_interface_pointer_ty(interface_ty: &Type) -> Type {
 
 /// Retains only user rustdoc attributes for propagation to generated methods.
 fn method_doc_attrs(attrs: &[Attribute]) -> Vec<Attribute> {
-    attrs
-        .iter()
-        .filter(|attr| attr.path().is_ident("doc"))
-        .cloned()
-        .collect()
+    attrs.iter().filter(|attr| attr.path().is_ident("doc")).cloned().collect()
 }
 
 /// Generates rustdoc describing one unsafe raw vtable slot and its contracts.
-pub(crate) fn raw_vtable_method_docs(
-    trait_ident: &Ident,
-    method: &AbiMethod,
-) -> Vec<proc_macro2::TokenStream> {
+pub(crate) fn raw_vtable_method_docs(trait_ident: &Ident, method: &AbiMethod) -> Vec<proc_macro2::TokenStream> {
     let method_ident = &method.ident;
     let arg_docs = method.args.iter().flat_map(raw_vtable_arg_docs);
     let status_doc = match &method.ok.kind {
@@ -761,10 +654,7 @@ fn raw_vtable_return_docs(ok: &AbiReturn) -> Vec<proc_macro2::TokenStream> {
 }
 
 /// Generates rustdoc for a safe trait method or smart-pointer forwarding method.
-pub(crate) fn safe_method_docs(
-    trait_ident: &Ident,
-    method: &AbiMethod,
-) -> Vec<proc_macro2::TokenStream> {
+pub(crate) fn safe_method_docs(trait_ident: &Ident, method: &AbiMethod) -> Vec<proc_macro2::TokenStream> {
     let method_ident = &method.ident;
     let arg_docs = method.args.iter().flat_map(safe_arg_docs);
     let wrapper_doc = match &method.ok.kind {
@@ -846,11 +736,7 @@ fn safe_return_docs(ok: &AbiReturn) -> Vec<proc_macro2::TokenStream> {
 /// Recognizes `NcStatus` by the final segment of a possibly qualified path.
 fn is_nc_status_type(ty: &Type) -> bool {
     match ty {
-        Type::Path(path) => path
-            .path
-            .segments
-            .last()
-            .is_some_and(|segment| segment.ident == "NcStatus"),
+        Type::Path(path) => path.path.segments.last().is_some_and(|segment| segment.ident == "NcStatus"),
         _ => false,
     }
 }

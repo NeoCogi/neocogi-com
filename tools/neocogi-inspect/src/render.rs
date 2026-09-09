@@ -19,29 +19,10 @@ pub(crate) fn render_text(inspection: &PluginInspection) -> String {
     let mut out = String::new();
     writeln!(out, "schema: {SCHEMA}").unwrap();
     writeln!(out, "schema_version: {SCHEMA_VERSION}").unwrap();
-    writeln!(
-        out,
-        "producer: neocogi-inspect {}",
-        env!("CARGO_PKG_VERSION")
-    )
-    .unwrap();
+    writeln!(out, "producer: neocogi-inspect {}", env!("CARGO_PKG_VERSION")).unwrap();
     writeln!(out, "target: {}", env!("NC_COM_INSPECT_TARGET")).unwrap();
-    writeln!(
-        out,
-        "  pointer_width: {}",
-        core::mem::size_of::<usize>() * 8
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "  endianness: {}",
-        if cfg!(target_endian = "little") {
-            "little"
-        } else {
-            "big"
-        }
-    )
-    .unwrap();
+    writeln!(out, "  pointer_width: {}", core::mem::size_of::<usize>() * 8).unwrap();
+    writeln!(out, "  endianness: {}", if cfg!(target_endian = "little") { "little" } else { "big" }).unwrap();
     writeln!(out, "plugin: {}", inspection.qualified_name).unwrap();
     writeln!(out, "  id: {}", inspection.plugin_id).unwrap();
     writeln!(out, "  version: {}", inspection.plugin_version).unwrap();
@@ -68,13 +49,7 @@ pub(crate) fn render_text(inspection: &PluginInspection) -> String {
 
 pub(crate) fn render_diff(differences: &[String]) -> String {
     let mut out = String::new();
-    writeln!(
-        out,
-        "{} difference{}",
-        differences.len(),
-        if differences.len() == 1 { "" } else { "s" }
-    )
-    .unwrap();
+    writeln!(out, "{} difference{}", differences.len(), if differences.len() == 1 { "" } else { "s" }).unwrap();
     for difference in differences {
         writeln!(out, "{difference}").unwrap();
     }
@@ -83,22 +58,9 @@ pub(crate) fn render_diff(differences: &[String]) -> String {
 
 pub(crate) fn render_compatibility(report: &CompatibilityReport) -> String {
     let mut out = String::new();
-    writeln!(
-        out,
-        "compatibility: {}",
-        if report.is_compatible() {
-            "compatible"
-        } else {
-            "breaking"
-        }
-    )
-    .unwrap();
+    writeln!(out, "compatibility: {}", if report.is_compatible() { "compatible" } else { "breaking" }).unwrap();
     render_compatibility_group(&mut out, "breaking", &report.breaking);
-    render_compatibility_group(
-        &mut out,
-        "compatible additions and relaxations",
-        &report.additive,
-    );
+    render_compatibility_group(&mut out, "compatible additions and relaxations", &report.additive);
     render_compatibility_group(&mut out, "diagnostic", &report.diagnostic);
     if report.breaking.is_empty() && report.additive.is_empty() && report.diagnostic.is_empty() {
         writeln!(out, "no compatibility-relevant changes").unwrap();
@@ -152,7 +114,9 @@ fn render_interface_text(out: &mut String, interface: &InterfaceInspection) {
     if interface.methods.is_empty() {
         writeln!(out, "          (none)").unwrap();
     } else {
-        for method in &interface.methods { render_method_text(out, method); }
+        for method in &interface.methods {
+            render_method_text(out, method);
+        }
     }
 }
 
@@ -200,16 +164,8 @@ mod tests {
 
         assert!(render_text(&inspection).contains("    threading: thread_safe\n"));
         assert!(render_text(&inspection).contains("      - nc.tests.inspect.Interface:v1\n"));
-        assert!(
-            render_json(&inspection)
-                .unwrap()
-                .contains("\"threading\": \"thread_safe\"")
-        );
-        assert!(
-            render_json(&inspection)
-                .unwrap()
-                .contains("\"name\": \"nc.tests.inspect.Interface:v1\"")
-        );
+        assert!(render_json(&inspection).unwrap().contains("\"threading\": \"thread_safe\""));
+        assert!(render_json(&inspection).unwrap().contains("\"name\": \"nc.tests.inspect.Interface:v1\""));
     }
 
     #[test]
@@ -223,9 +179,7 @@ mod tests {
         let rendered = render_compatibility(&report);
         assert!(rendered.starts_with("compatibility: breaking\n"));
         assert!(rendered.contains("breaking:\n  - removed old interface\n"));
-        assert!(
-            rendered.contains("compatible additions and relaxations:\n  - added new interface\n")
-        );
+        assert!(rendered.contains("compatible additions and relaxations:\n  - added new interface\n"));
         assert!(rendered.contains("diagnostic:\n  - version changed\n"));
     }
 }

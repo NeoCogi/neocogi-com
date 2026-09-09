@@ -61,20 +61,12 @@ impl Parse for PluginArgs {
                 version = Some(input.parse()?);
             } else if keyword == "dependencies" {
                 if dependencies.is_some() {
-                    return Err(syn::Error::new(
-                        keyword.span(),
-                        "duplicate dependencies = [...]",
-                    ));
+                    return Err(syn::Error::new(keyword.span(), "duplicate dependencies = [...]"));
                 }
                 input.parse::<Token![=]>()?;
                 let content;
                 bracketed!(content in input);
-                dependencies = Some(
-                    content
-                        .parse_terminated(Path::parse_mod_style, Token![,])?
-                        .into_iter()
-                        .collect::<Vec<_>>(),
-                );
+                dependencies = Some(content.parse_terminated(Path::parse_mod_style, Token![,])?.into_iter().collect::<Vec<_>>());
             } else if keyword == "classes" {
                 if classes.is_some() {
                     return Err(syn::Error::new(keyword.span(), "duplicate classes = [...]"));
@@ -82,12 +74,7 @@ impl Parse for PluginArgs {
                 input.parse::<Token![=]>()?;
                 let content;
                 bracketed!(content in input);
-                classes = Some(
-                    content
-                        .parse_terminated(Path::parse_mod_style, Token![,])?
-                        .into_iter()
-                        .collect::<Vec<_>>(),
-                );
+                classes = Some(content.parse_terminated(Path::parse_mod_style, Token![,])?.into_iter().collect::<Vec<_>>());
             } else if keyword == "neocogi_com" {
                 if runtime_crate.is_some() {
                     return Err(syn::Error::new(keyword.span(), "duplicate neocogi_com = ..."));
@@ -114,22 +101,16 @@ impl Parse for PluginArgs {
                 .iter()
                 .any(|other| other.to_token_stream().to_string() == dependency_tokens)
             {
-                return Err(syn::Error::new(
-                    dependency.span(),
-                    "duplicate plugin dependency path",
-                ));
+                return Err(syn::Error::new(dependency.span(), "duplicate plugin dependency path"));
             }
         }
 
         Ok(Self {
-            plugin_id: plugin_id
-                .ok_or_else(|| syn::Error::new(input.span(), "expected plugin_id(...)"))?,
+            plugin_id: plugin_id.ok_or_else(|| syn::Error::new(input.span(), "expected plugin_id(...)"))?,
             name: name.ok_or_else(|| syn::Error::new(input.span(), "expected name = ..."))?,
-            version: version
-                .ok_or_else(|| syn::Error::new(input.span(), "expected version = ..."))?,
+            version: version.ok_or_else(|| syn::Error::new(input.span(), "expected version = ..."))?,
             dependencies,
-            classes: classes
-                .ok_or_else(|| syn::Error::new(input.span(), "expected classes = [...]"))?,
+            classes: classes.ok_or_else(|| syn::Error::new(input.span(), "expected classes = [...]"))?,
             runtime_crate,
         })
     }
@@ -145,19 +126,14 @@ pub(crate) fn expand_plugin(args: PluginArgs) -> proc_macro2::TokenStream {
     if let Err(err) = validate_version_literal(&args.version) {
         return err.to_compile_error();
     }
-    let dependency_count_u32 = match checked_u32_len(
-        args.dependencies.len(),
-        args.name.span(),
-        "plugin dependency count",
-    ) {
+    let dependency_count_u32 = match checked_u32_len(args.dependencies.len(), args.name.span(), "plugin dependency count") {
         Ok(count) => count,
         Err(err) => return err.to_compile_error(),
     };
-    let class_count_u32 =
-        match checked_u32_len(args.classes.len(), args.name.span(), "plugin class count") {
-            Ok(count) => count,
-            Err(err) => return err.to_compile_error(),
-        };
+    let class_count_u32 = match checked_u32_len(args.classes.len(), args.name.span(), "plugin class count") {
+        Ok(count) => count,
+        Err(err) => return err.to_compile_error(),
+    };
     let name = args.name;
     let version = args.version;
     let dependency_count = args.dependencies.len();

@@ -40,9 +40,7 @@ pub struct Element {
 impl Element {
     fn create_element(kind: NodeKind, children: Vec<ComPtr<IElementAbi>>) -> ComPtr<IElementAbi> {
         let unknown: ComPtr<IUnknown> = Element::from_value(Self { kind, children });
-        unknown
-            .query::<IElementAbi>()
-            .expect("Element exposes IElement")
+        unknown.query::<IElementAbi>().expect("Element exposes IElement")
     }
 }
 
@@ -71,9 +69,7 @@ pub struct Document {
 impl Document {
     fn create_document(root: ComPtr<IElementAbi>) -> ComPtr<IDocumentAbi> {
         let unknown: ComPtr<IUnknown> = Document::from_value(Self { root });
-        unknown
-            .query::<IDocumentAbi>()
-            .expect("Document exposes IDocument")
+        unknown.query::<IDocumentAbi>().expect("Document exposes IDocument")
     }
 }
 
@@ -94,10 +90,7 @@ fn main() -> Result<(), NcStatus> {
     let document = Document::create_document(body.clone());
 
     println!("document root kind = {:?}", document.root_kind()?);
-    println!(
-        "document root child count = {}",
-        document.root_child_count()?
-    );
+    println!("document root child count = {}", document.root_child_count()?);
     println!("body first child kind = {:?}", body.first_child_kind()?);
     println!("button child count = {}", button.child_count()?);
 
@@ -108,22 +101,12 @@ fn main() -> Result<(), NcStatus> {
     println!("IUnknown -> IElementAbi kind = {:?}", body_again.kind()?);
 
     let future_kind = NodeKind::from_raw(99);
-    println!(
-        "future node kind {} is known? {}",
-        future_kind.raw(),
-        future_kind.is_known()
-    );
+    println!("future node kind {} is known? {}", future_kind.raw(), future_kind.is_known());
 
-    let mutation = TreeMutation::AttributeChanged {
-        element: 42,
-        name_id: 7,
-    };
+    let mutation = TreeMutation::AttributeChanged { element: 42, name_id: 7 };
     let mutation_abi = TreeMutationAbi::from(mutation);
     println!("mutation ABI tag = {}", mutation_abi.tag().raw());
-    println!(
-        "mutation round trip = {:?}",
-        TreeMutation::try_from(mutation_abi)
-    );
+    println!("mutation round trip = {:?}", TreeMutation::try_from(mutation_abi));
 
     let _ = NodeKind::DOCUMENT;
     Ok(())

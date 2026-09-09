@@ -18,8 +18,5 @@ fn main() {
     let runtime_dir = PathBuf::from(runtime_dir);
 
     println!("cargo:rustc-link-search=native={}", runtime_dir.display());
-    println!(
-        "cargo:rustc-link-search=native={}",
-        runtime_dir.join("deps").display()
-    );
+    println!("cargo:rustc-link-search=native={}", runtime_dir.join("deps").display());
 }

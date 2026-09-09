@@ -77,14 +77,10 @@ fn parse_plan(args: impl Iterator<Item = OsString>) -> Result<Command, String> {
 
     while let Some(arg) = args.next() {
         if arg == OsStr::new("--format") || arg == OsStr::new("-f") {
-            let value = args
-                .next()
-                .ok_or_else(|| "missing value for --format".to_string())?;
+            let value = args.next().ok_or_else(|| "missing value for --format".to_string())?;
             format = parse_format(&value)?;
         } else if arg == OsStr::new("--output") || arg == OsStr::new("-o") {
-            let value = args
-                .next()
-                .ok_or_else(|| "missing value for --output".to_string())?;
+            let value = args.next().ok_or_else(|| "missing value for --output".to_string())?;
             if output.replace(PathBuf::from(value)).is_some() {
                 return Err("duplicate --output".to_string());
             }
@@ -104,11 +100,7 @@ fn parse_plan(args: impl Iterator<Item = OsString>) -> Result<Command, String> {
     if libraries.is_empty() {
         return Err("plan requires at least one library path".to_string());
     }
-    Ok(Command::Plan {
-        libraries,
-        format,
-        output,
-    })
+    Ok(Command::Plan { libraries, format, output })
 }
 
 fn parse_dump(args: impl Iterator<Item = OsString>) -> Result<Command, String> {
@@ -119,14 +111,10 @@ fn parse_dump(args: impl Iterator<Item = OsString>) -> Result<Command, String> {
 
     while let Some(arg) = args.next() {
         if arg == OsStr::new("--format") || arg == OsStr::new("-f") {
-            let value = args
-                .next()
-                .ok_or_else(|| "missing value for --format".to_string())?;
+            let value = args.next().ok_or_else(|| "missing value for --format".to_string())?;
             format = parse_format(&value)?;
         } else if arg == OsStr::new("--output") || arg == OsStr::new("-o") {
-            let value = args
-                .next()
-                .ok_or_else(|| "missing value for --output".to_string())?;
+            let value = args.next().ok_or_else(|| "missing value for --output".to_string())?;
             if output.replace(PathBuf::from(value)).is_some() {
                 return Err("duplicate --output".to_string());
             }
@@ -199,18 +187,14 @@ fn parse_diff(args: impl Iterator<Item = OsString>) -> Result<Command, String> {
 
 fn option_value(arg: &OsString, prefix: &str) -> Option<OsString> {
     let value = arg.to_string_lossy();
-    value
-        .strip_prefix(prefix)
-        .map(|value| OsString::from(value.to_owned()))
+    value.strip_prefix(prefix).map(|value| OsString::from(value.to_owned()))
 }
 
 fn parse_format(value: &OsString) -> Result<OutputFormat, String> {
     match value.to_string_lossy().as_ref() {
         "json" => Ok(OutputFormat::Json),
         "text" => Ok(OutputFormat::Text),
-        other => Err(format!(
-            "unknown output format `{other}`; expected json or text"
-        )),
+        other => Err(format!("unknown output format `{other}`; expected json or text")),
     }
 }
 
@@ -220,15 +204,10 @@ mod tests {
 
     #[test]
     fn dump_defaults_to_json() {
-        let command = parse_args(["neocogi-inspect", "dump", "plugin.so"].map(OsString::from))
-            .expect("parsed command");
+        let command = parse_args(["neocogi-inspect", "dump", "plugin.so"].map(OsString::from)).expect("parsed command");
 
         match command {
-            Command::Dump {
-                library,
-                format,
-                output,
-            } => {
+            Command::Dump { library, format, output } => {
                 assert_eq!(library, PathBuf::from("plugin.so"));
                 assert!(matches!(format, OutputFormat::Json));
                 assert!(output.is_none());
@@ -241,26 +220,11 @@ mod tests {
 
     #[test]
     fn dump_accepts_text_output_file() {
-        let command = parse_args(
-            [
-                "neocogi-inspect",
-                "dump",
-                "plugin.so",
-                "--format",
-                "text",
-                "--output",
-                "plugin.txt",
-            ]
-            .map(OsString::from),
-        )
-        .expect("parsed command");
+        let command =
+            parse_args(["neocogi-inspect", "dump", "plugin.so", "--format", "text", "--output", "plugin.txt"].map(OsString::from)).expect("parsed command");
 
         match command {
-            Command::Dump {
-                library,
-                format,
-                output,
-            } => {
+            Command::Dump { library, format, output } => {
                 assert_eq!(library, PathBuf::from("plugin.so"));
                 assert!(matches!(format, OutputFormat::Text));
                 assert_eq!(output, Some(PathBuf::from("plugin.txt")));
@@ -273,9 +237,7 @@ mod tests {
 
     #[test]
     fn diff_accepts_two_json_paths() {
-        let command =
-            parse_args(["neocogi-inspect", "diff", "old.json", "new.json"].map(OsString::from))
-                .expect("parsed command");
+        let command = parse_args(["neocogi-inspect", "diff", "old.json", "new.json"].map(OsString::from)).expect("parsed command");
 
         match command {
             Command::Diff { old, new, mode } => {
@@ -291,10 +253,7 @@ mod tests {
 
     #[test]
     fn diff_accepts_directional_compatibility_mode() {
-        let command = parse_args(
-            ["neocogi-inspect", "diff", "--compat", "old.json", "new.json"].map(OsString::from),
-        )
-        .expect("parsed command");
+        let command = parse_args(["neocogi-inspect", "diff", "--compat", "old.json", "new.json"].map(OsString::from)).expect("parsed command");
 
         match command {
             Command::Diff { old, new, mode } => {
@@ -310,16 +269,9 @@ mod tests {
 
     #[test]
     fn plan_accepts_multiple_libraries() {
-        let command = parse_args(
-            ["neocogi-inspect", "plan", "b.so", "a.so", "--format", "text"].map(OsString::from),
-        )
-        .expect("parsed command");
+        let command = parse_args(["neocogi-inspect", "plan", "b.so", "a.so", "--format", "text"].map(OsString::from)).expect("parsed command");
         match command {
-            Command::Plan {
-                libraries,
-                format,
-                output,
-            } => {
+            Command::Plan { libraries, format, output } => {
                 assert_eq!(libraries, [PathBuf::from("b.so"), PathBuf::from("a.so")]);
                 assert!(matches!(format, OutputFormat::Text));
                 assert!(output.is_none());

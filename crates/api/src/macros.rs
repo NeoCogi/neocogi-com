@@ -131,7 +131,9 @@ macro_rules! com_int_enum {
 /// ```
 #[macro_export]
 macro_rules! export_plugin {
-    () => { $crate::export_plugin!(plugin_descriptor); };
+    () => {
+        $crate::export_plugin!(plugin_descriptor);
+    };
     ($descriptor:path) => {
         /// Returns validated, immutable metadata through the dynamic plugin ABI.
         ///
@@ -139,9 +141,7 @@ macro_rules! export_plugin {
         /// `out` must be null or writable for one descriptor pointer. The module
         /// containing the descriptor must stay loaded while its metadata is used.
         #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn nc_get_plugin_descriptor(
-            out: *mut *const $crate::NcPluginDescriptor,
-        ) -> $crate::NcStatus {
+        pub unsafe extern "C" fn nc_get_plugin_descriptor(out: *mut *const $crate::NcPluginDescriptor) -> $crate::NcStatus {
             // SAFETY: The descriptor function returns static metadata, and the
             // caller supplies the output storage. The shared helper validates
             // the same descriptor used for static registration.

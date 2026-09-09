@@ -19,7 +19,4 @@ pub use inheritance::*;
 #[cfg(feature = "alloc")]
 pub use signature::format_method_signature;
 pub use text::*;
-pub use validation::{
-    NcDescriptorPath, NcDescriptorValidationIssue, NcDescriptorValidationKind,
-    validate_plugin_descriptor_with_issues,
-};
+pub use validation::{NcDescriptorPath, NcDescriptorValidationIssue, NcDescriptorValidationKind, validate_plugin_descriptor_with_issues};

@@ -1,9 +1,6 @@
 //! Single-base layout, identity and ownership checks across generated interfaces.
 
-use neocogi_com::{
-    com_class, com_interface, com_object, ComInterface, ComPtr, ComRef, IUnknown, NcStatus,
-    NC_E_NOINTERFACE,
-};
+use neocogi_com::{com_class, com_interface, com_object, ComInterface, ComPtr, ComRef, IUnknown, NcStatus, NC_E_NOINTERFACE};
 use std::{cell::Cell, rc::Rc};
 
 /// A separate module exercises fully qualified base companion paths.
@@ -108,18 +105,9 @@ fn inherited_methods_and_queries_share_one_allocation() {
     assert_eq!(button.value(), Ok(19));
     toggle.copy_value(widget.as_com_ref()).unwrap();
     assert_eq!(toggle.button().unwrap().value(), Ok(19));
-    assert_eq!(
-        widget.query::<IUnknown>().unwrap().as_mut_ptr(),
-        unknown.as_mut_ptr()
-    );
-    assert_eq!(
-        button.query::<IUnknown>().unwrap().as_mut_ptr(),
-        unknown.as_mut_ptr()
-    );
-    assert_eq!(
-        widget.as_mut_ptr(),
-        button.query::<contract::IWidgetAbi>().unwrap().as_mut_ptr()
-    );
+    assert_eq!(widget.query::<IUnknown>().unwrap().as_mut_ptr(), unknown.as_mut_ptr());
+    assert_eq!(button.query::<IUnknown>().unwrap().as_mut_ptr(), unknown.as_mut_ptr());
+    assert_eq!(widget.as_mut_ptr(), button.query::<contract::IWidgetAbi>().unwrap().as_mut_ptr());
     assert_eq!(Toggle::COM_INTERFACE_COUNT, 5);
     // Independent physical base projections advertise their own exact identity.
     unsafe {
@@ -139,22 +127,10 @@ fn inherited_methods_and_queries_share_one_allocation() {
 #[test]
 fn inherited_vtable_is_a_physical_prefix_and_hashes_the_base() {
     assert_eq!(std::mem::offset_of!(IButtonVTable, base), 0);
-    assert_eq!(
-        std::mem::offset_of!(IButtonVTable, set_value),
-        std::mem::size_of::<contract::IWidgetVTable>()
-    );
-    assert_eq!(
-        std::mem::offset_of!(IToggleVTable, copy_value),
-        std::mem::size_of::<IButtonVTable>()
-    );
-    assert_eq!(
-        IButtonAbi::INTERFACE_DESCRIPTOR.base,
-        contract::IWidgetAbi::INTERFACE_ID
-    );
-    assert_eq!(
-        IToggleAbi::INTERFACE_DESCRIPTOR.base,
-        IButtonAbi::INTERFACE_ID
-    );
+    assert_eq!(std::mem::offset_of!(IButtonVTable, set_value), std::mem::size_of::<contract::IWidgetVTable>());
+    assert_eq!(std::mem::offset_of!(IToggleVTable, copy_value), std::mem::size_of::<IButtonVTable>());
+    assert_eq!(IButtonAbi::INTERFACE_DESCRIPTOR.base, contract::IWidgetAbi::INTERFACE_ID);
+    assert_eq!(IToggleAbi::INTERFACE_DESCRIPTOR.base, IButtonAbi::INTERFACE_ID);
     assert_eq!(IToggleAbi::INTERFACE_CHAIN.len(), 3);
 }
 
@@ -188,10 +164,7 @@ fn descriptor_validation_requires_matching_acyclic_base_contracts() {
     for case in 0..3 {
         let original = contracts[3].base;
         contracts[3].base = match case {
-            0 => neocogi_com::NcInterfaceId::new(
-                neocogi_com::guid_from_qualified_name("nc.tests.inheritance.Missing:v1"),
-                original.abi_hash,
-            ),
+            0 => neocogi_com::NcInterfaceId::new(neocogi_com::guid_from_qualified_name("nc.tests.inheritance.Missing:v1"), original.abi_hash),
             1 => neocogi_com::NcInterfaceId::new(original.iid, IButtonAbi::ABI_HASH),
             _ => IToggleAbi::INTERFACE_ID,
         };

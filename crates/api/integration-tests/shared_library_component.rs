@@ -10,17 +10,10 @@ use std::process::Command;
 mod support;
 use support::Library;
 
-const WIDGET_CLASS_ID: NcGuid =
-    neocogi_com::guid_from_qualified_name("nc.tests.shared_component.TestWidget");
-const SHARED_COMPONENT_PLUGIN_ID: NcGuid =
-    neocogi_com::guid_from_qualified_name("nc.tests.shared_component");
+const WIDGET_CLASS_ID: NcGuid = neocogi_com::guid_from_qualified_name("nc.tests.shared_component.TestWidget");
+const SHARED_COMPONENT_PLUGIN_ID: NcGuid = neocogi_com::guid_from_qualified_name("nc.tests.shared_component");
 
-const WRONG_CLASS_ID: NcGuid = NcGuid::from_fields(
-    0x6c7d_b736,
-    0x5af7,
-    0x4f5f,
-    [0xb1, 0xeb, 0xf0, 0x48, 0x2b, 0xa7, 0x19, 0x7f],
-);
+const WRONG_CLASS_ID: NcGuid = NcGuid::from_fields(0x6c7d_b736, 0x5af7, 0x4f5f, [0xb1, 0xeb, 0xf0, 0x48, 0x2b, 0xa7, 0x19, 0x7f]);
 
 const RUN_FATAL_LOAD_HELPER_ENV: &str = "NC_COM_RUN_FATAL_LOAD_HELPER";
 const RUN_DESCRIPTOR_INSPECTION_HELPER_ENV: &str = "NC_COM_RUN_DESCRIPTOR_INSPECTION_HELPER";
@@ -55,10 +48,7 @@ fn host_loads_shared_library_class_table_and_constructs_class() {
     let status = unsafe { get_plugin_descriptor(&mut plugin) };
     assert_eq!(status, NC_OK);
     assert!(!plugin.is_null());
-    assert_eq!(
-        unsafe { validate_plugin_descriptor_with_issues(plugin, |_| {}) },
-        NC_OK
-    );
+    assert_eq!(unsafe { validate_plugin_descriptor_with_issues(plugin, |_| {}) }, NC_OK);
 
     let plugin: &NcPluginDescriptor = unsafe { &*plugin };
     let table = unsafe { &*plugin.class_table };
@@ -135,21 +125,11 @@ fn runtime_exposes_validated_descriptor_without_registration() {
             let class_table = unsafe { &*plugin.class_table };
             // SAFETY: The class table was included in that validation.
             let classes = unsafe { class_table.classes()? };
-            Ok::<_, NcStatus>((
-                plugin.plugin_id,
-                qualified_name,
-                classes.len(),
-                classes[0].class_id,
-            ))
+            Ok::<_, NcStatus>((plugin.plugin_id, qualified_name, classes.len(), classes[0].class_id))
         };
         // SAFETY: The shared-component fixture is trusted test code. Every
         // descriptor borrow is consumed within the synchronous callback.
-        let observed = unsafe {
-            runtime
-                .inspection()
-                .with_plugin_library_descriptor(&library_path, visitor)
-        }
-        .unwrap();
+        let observed = unsafe { runtime.inspection().with_plugin_library_descriptor(&library_path, visitor) }.unwrap();
 
         assert_eq!(observed.0, SHARED_COMPONENT_PLUGIN_ID);
         assert_eq!(observed.1, "nc.tests.shared_component");
@@ -260,10 +240,8 @@ fn constructor_returns_owned_unknown(class: &NcClassDescriptor) {
 }
 
 fn build_fixture() -> PathBuf {
-    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("integration-tests/fixtures/shared-library-component/Cargo.toml");
-    let target_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../target/shared-library-component-fixture");
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("integration-tests/fixtures/shared-library-component/Cargo.toml");
+    let target_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../target/shared-library-component-fixture");
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
 
     let output = Command::new(cargo)

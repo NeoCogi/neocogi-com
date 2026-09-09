@@ -28,9 +28,7 @@ pub struct Element {
 impl Element {
     fn create_element(id: u64, kind: ElementKind) -> ComPtr<IElementAbi> {
         let unknown: ComPtr<IUnknown> = Element::from_value(Self { id, kind });
-        unknown
-            .query::<IElementAbi>()
-            .expect("Element exposes IElement")
+        unknown.query::<IElementAbi>().expect("Element exposes IElement")
     }
 }
 
@@ -52,9 +50,7 @@ pub struct Document {
 impl Document {
     fn create_document(root: ComPtr<IElementAbi>) -> ComPtr<IDocumentAbi> {
         let unknown: ComPtr<IUnknown> = Document::from_value(Self { root });
-        unknown
-            .query::<IDocumentAbi>()
-            .expect("Document exposes IDocument")
+        unknown.query::<IDocumentAbi>().expect("Document exposes IDocument")
     }
 }
 
@@ -93,17 +89,12 @@ fn main() -> Result<(), NcStatus> {
     let button = Element::create_element(2, ElementKind::BUTTON);
     let document = Document::create_document(root.clone());
 
-    let element_selection = Selection::Element {
-        id: button.id()?,
-        kind: button.kind()?,
-    };
+    let element_selection = Selection::Element { id: button.id()?, kind: button.kind()? };
     let element_abi = SelectionAbi::from(element_selection);
     println!("element selection ABI tag = {}", element_abi.tag().raw());
     describe(Selection::try_from(element_abi)?)?;
 
-    let document_selection = Selection::Document {
-        root_id: document.root_id()?,
-    };
+    let document_selection = Selection::Document { root_id: document.root_id()? };
     let document_abi = SelectionAbi::from(document_selection);
     println!("document selection ABI tag = {}", document_abi.tag().raw());
     describe(Selection::try_from(document_abi)?)?;

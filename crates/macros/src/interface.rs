@@ -8,14 +8,10 @@
 use quote::{format_ident, quote};
 use syn::{ItemTrait, Result, TypeParamBound, TraitBoundModifier, PathArguments};
 
-use crate::abi_method::{
-    parse_abi_trait_item, raw_vtable_method_docs, safe_method_docs, validate_interface_trait,
-};
+use crate::abi_method::{parse_abi_trait_item, raw_vtable_method_docs, safe_method_docs, validate_interface_trait};
 use crate::args::InterfaceArgs;
 use crate::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind};
-use crate::util::{
-    checked_u32_len, collect_syn_results, interface_field, interface_guid, push_error, runtime_crate_path,
-};
+use crate::util::{checked_u32_len, collect_syn_results, interface_field, interface_guid, push_error, runtime_crate_path};
 
 /// Expands one validated interface trait into its complete Rust and C ABI surface.
 pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Result<proc_macro2::TokenStream> {
@@ -69,7 +65,10 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
             TypeParamBound::Trait(bound)
                 if bound.modifier == TraitBoundModifier::None
                     && bound.lifetimes.is_none()
-                    && bound.path.segments.iter().all(|segment| matches!(segment.arguments, PathArguments::None)) => Ok(bound.path.clone()),
+                    && bound.path.segments.iter().all(|segment| matches!(segment.arguments, PathArguments::None)) =>
+            {
+                Ok(bound.path.clone())
+            }
             _ => Err(syn::Error::new_spanned(bound, "expected a nongeneric generated COM interface")),
         })
         .collect::<Result<Vec<_>>>()?;
@@ -78,12 +77,16 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
     // base. Each later supertrait is stored and queried as a sibling COM
     // projection. Ordinary interfaces reject such declarations before this
     // shared generator is entered.
-    let additional_interfaces = interface_paths.iter().skip(1).map(|path| {
-        let abi = generated_path(path, "Abi");
-        let interfaces_for = generated_path(path, "InterfacesFor");
-        let field = interface_field(path);
-        (abi, interfaces_for, field)
-    }).collect::<Vec<_>>();
+    let additional_interfaces = interface_paths
+        .iter()
+        .skip(1)
+        .map(|path| {
+            let abi = generated_path(path, "Abi");
+            let interfaces_for = generated_path(path, "InterfacesFor");
+            let field = interface_field(path);
+            (abi, interfaces_for, field)
+        })
+        .collect::<Vec<_>>();
     let mut base_identity = quote! { #nc::NcInterfaceId::NONE };
     let mut base_chain = quote! { &[] };
     let mut prefix_field = quote! {
@@ -149,41 +152,40 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
             }
         };
     }
-    let additional_storage = additional_interfaces.iter().map(|(_, interfaces_for, field)| quote! {
-        #[doc = "Required sibling interface projections sharing this class allocation."]
-        #field: #interfaces_for<T>,
+    let additional_storage = additional_interfaces.iter().map(|(_, interfaces_for, field)| {
+        quote! {
+            #[doc = "Required sibling interface projections sharing this class allocation."]
+            #field: #interfaces_for<T>,
+        }
     });
-    let additional_storage_init = additional_interfaces.iter().map(|(_, interfaces_for, field)| quote! {
-        #field: #interfaces_for::<T>::__nc_new(),
+    let additional_storage_init = additional_interfaces.iter().map(|(_, interfaces_for, field)| {
+        quote! {
+            #field: #interfaces_for::<T>::__nc_new(),
+        }
     });
-    let additional_storage_set = additional_interfaces.iter().map(|(_, _, field)| quote! {
-        self.#field.set_object(object);
+    let additional_storage_set = additional_interfaces.iter().map(|(_, _, field)| {
+        quote! {
+            self.#field.set_object(object);
+        }
     });
-    let additional_storage_query = additional_interfaces.iter().map(|(_, _, field)| quote! {
-        let projection = self.#field.query(interface)?;
-        if !projection.is_null() {
-            return Ok(projection);
+    let additional_storage_query = additional_interfaces.iter().map(|(_, _, field)| {
+        quote! {
+            let projection = self.#field.query(interface)?;
+            if !projection.is_null() {
+                return Ok(projection);
+            }
         }
     });
 
-    let method_count =
-        checked_u32_len(methods.len(), trait_ident.span(), "interface method count")?;
+    let method_count = checked_u32_len(methods.len(), trait_ident.span(), "interface method count")?;
     let method_param_counts = methods
         .iter()
         .map(|method| checked_u32_len(method.args.len(), method.ident.span(), "interface method parameter count"))
         .collect::<Result<Vec<_>>>()?;
     for method in &methods {
-        checked_u32_len(
-            method.ident.to_string().len(),
-            method.ident.span(),
-            "interface method name length",
-        )?;
+        checked_u32_len(method.ident.to_string().len(), method.ident.span(), "interface method name length")?;
         for argument in &method.args {
-            checked_u32_len(
-                argument.ident.to_string().len(),
-                argument.ident.span(),
-                "interface parameter name length",
-            )?;
+            checked_u32_len(argument.ident.to_string().len(), argument.ident.span(), "interface parameter name length")?;
         }
     }
 
@@ -313,10 +315,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
                     };
                 })
             }
-            AbiArgKind::ComRef {
-                interface_ty,
-                mode_ty,
-            } => {
+            AbiArgKind::ComRef { interface_ty, mode_ty } => {
                 let ident = &arg.ident;
                 let interface_ty = interface_ty.as_ref();
                 let mode_ty = mode_ty
@@ -721,94 +720,89 @@ pub(crate) fn validate_callable_methods(input: &ItemTrait, methods: &[AbiMethod]
 }
 
 /// Generates one synchronous call lowering reused by owning, borrowed and inherited clients.
-fn safe_method_implementations(
-    nc: &syn::Path,
-    methods: &[AbiMethod],
-    pointer: proc_macro2::TokenStream,
-) -> Vec<proc_macro2::TokenStream> {
-    methods.iter().map(|method| {
-        let method_ident = &method.ident;
-        let args = method.args.iter().map(|arg| {
-            let ident = &arg.ident;
-            let ty = &arg.rust_ty;
-            quote! { #ident: #ty }
-        });
-        let arg_preparations = method.args.iter().filter_map(safe_arg_preparation);
-        let arg_names = method
-            .args
-            .iter()
-            .flat_map(safe_vtable_call_args)
-            .collect::<Vec<_>>();
-        let rust_ret = &method.ok.rust_ty;
-        let receiver = safe_receiver(method.receiver);
-        match &method.ok.kind {
-            AbiReturnKind::Void => quote! {
-                // Implements the safe extension trait by forwarding to the raw
-                // status-only vtable slot.
-                fn #method_ident(#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
-                    #(#arg_preparations)*
-                    let this = #pointer;
-                    // SAFETY: `self` holds a live interface reference. The raw
-                    // vtable method receives borrowed pointers valid for this
-                    // call and returns only an `NcStatus`.
-                    let status = unsafe {
-                        ((*(*this).vtable).#method_ident)(
-                            this,
-                            #(#arg_names,)*
-                        )
-                    };
-                    if status.is_ok() {
-                        Ok(())
-                    } else {
-                        Err(status)
-                    }
-                }
-            },
-            AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => {
-                let abi_ret = &method.ok.abi_ty;
-                let success_return = match &method.ok.kind {
-                    AbiReturnKind::Plain => quote! {
-                        // SAFETY: The raw method returned success, which is the
-                        // ABI contract that it initialized the out slot.
-                        Ok(unsafe { __nc_out.assume_init() })
-                    },
-                    AbiReturnKind::ComPtr { .. } => quote! {
-                        // SAFETY: The raw method returned success, which is the
-                        // ABI contract that it initialized the out slot.
-                        let __nc_out = unsafe { __nc_out.assume_init() };
-                        // SAFETY: Successful COM pointer returns transfer one
-                        // owned reference to the caller.
-                        unsafe { <#rust_ret>::__nc_from_raw_owned_checked(__nc_out) }
-                    },
-                    AbiReturnKind::Void => unreachable!(),
-                };
-                quote! {
-                    // Implements the safe extension trait with a local output
-                    // slot that is read only after ABI success.
+fn safe_method_implementations(nc: &syn::Path, methods: &[AbiMethod], pointer: proc_macro2::TokenStream) -> Vec<proc_macro2::TokenStream> {
+    methods
+        .iter()
+        .map(|method| {
+            let method_ident = &method.ident;
+            let args = method.args.iter().map(|arg| {
+                let ident = &arg.ident;
+                let ty = &arg.rust_ty;
+                quote! { #ident: #ty }
+            });
+            let arg_preparations = method.args.iter().filter_map(safe_arg_preparation);
+            let arg_names = method.args.iter().flat_map(safe_vtable_call_args).collect::<Vec<_>>();
+            let rust_ret = &method.ok.rust_ty;
+            let receiver = safe_receiver(method.receiver);
+            match &method.ok.kind {
+                AbiReturnKind::Void => quote! {
+                    // Implements the safe extension trait by forwarding to the raw
+                    // status-only vtable slot.
                     fn #method_ident(#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
                         #(#arg_preparations)*
-                        let mut __nc_out = core::mem::MaybeUninit::<#abi_ret>::uninit();
                         let this = #pointer;
-                        // SAFETY: `self` holds a live interface reference. The
-                        // out pointer targets local storage that remains valid
-                        // until the call returns.
+                        // SAFETY: `self` holds a live interface reference. The raw
+                        // vtable method receives borrowed pointers valid for this
+                        // call and returns only an `NcStatus`.
                         let status = unsafe {
                             ((*(*this).vtable).#method_ident)(
                                 this,
                                 #(#arg_names,)*
-                                __nc_out.as_mut_ptr(),
                             )
                         };
                         if status.is_ok() {
-                            #success_return
+                            Ok(())
                         } else {
                             Err(status)
                         }
                     }
+                },
+                AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => {
+                    let abi_ret = &method.ok.abi_ty;
+                    let success_return = match &method.ok.kind {
+                        AbiReturnKind::Plain => quote! {
+                            // SAFETY: The raw method returned success, which is the
+                            // ABI contract that it initialized the out slot.
+                            Ok(unsafe { __nc_out.assume_init() })
+                        },
+                        AbiReturnKind::ComPtr { .. } => quote! {
+                            // SAFETY: The raw method returned success, which is the
+                            // ABI contract that it initialized the out slot.
+                            let __nc_out = unsafe { __nc_out.assume_init() };
+                            // SAFETY: Successful COM pointer returns transfer one
+                            // owned reference to the caller.
+                            unsafe { <#rust_ret>::__nc_from_raw_owned_checked(__nc_out) }
+                        },
+                        AbiReturnKind::Void => unreachable!(),
+                    };
+                    quote! {
+                        // Implements the safe extension trait with a local output
+                        // slot that is read only after ABI success.
+                        fn #method_ident(#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
+                            #(#arg_preparations)*
+                            let mut __nc_out = core::mem::MaybeUninit::<#abi_ret>::uninit();
+                            let this = #pointer;
+                            // SAFETY: `self` holds a live interface reference. The
+                            // out pointer targets local storage that remains valid
+                            // until the call returns.
+                            let status = unsafe {
+                                ((*(*this).vtable).#method_ident)(
+                                    this,
+                                    #(#arg_names,)*
+                                    __nc_out.as_mut_ptr(),
+                                )
+                            };
+                            if status.is_ok() {
+                                #success_return
+                            } else {
+                                Err(status)
+                            }
+                        }
+                    }
                 }
             }
-        }
-    }).collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>()
 }
 
 /// Emits the safe Rust receiver corresponding to one validated COM method.
@@ -820,11 +814,7 @@ fn safe_receiver(receiver: AbiReceiver) -> proc_macro2::TokenStream {
 }
 
 /// Emits the ordered logical hash grammar for one lowered method.
-fn method_hash_parts(
-    nc: &syn::Path,
-    index: usize,
-    method: &AbiMethod,
-) -> Vec<proc_macro2::TokenStream> {
+fn method_hash_parts(nc: &syn::Path, index: usize, method: &AbiMethod) -> Vec<proc_macro2::TokenStream> {
     let mut parts = Vec::new();
     let index = index as u32;
     let method_ident = &method.ident;
@@ -876,10 +866,7 @@ fn method_hash_parts(
                     }
                 });
             }
-            AbiArgKind::ComRef {
-                interface_ty,
-                mode_ty,
-            } => {
+            AbiArgKind::ComRef { interface_ty, mode_ty } => {
                 let interface_ty = interface_ty.as_ref();
                 let mode = threading_mode_expr(nc, mode_ty.as_deref());
                 parts.push(quote! {
@@ -914,10 +901,7 @@ fn method_hash_parts(
                 }
             });
         }
-        AbiReturnKind::ComPtr {
-            interface_ty,
-            mode_ty,
-        } => {
+        AbiReturnKind::ComPtr { interface_ty, mode_ty } => {
             let interface_ty = interface_ty.as_ref();
             let mode = threading_mode_expr(nc, mode_ty.as_deref());
             parts.push(quote! {
@@ -937,17 +921,10 @@ fn method_hash_parts(
 }
 
 /// Emits private parameter and return descriptor constants for one method.
-fn method_abi_descriptor_consts(
-    nc: &syn::Path,
-    index: usize,
-    method: &AbiMethod,
-) -> proc_macro2::TokenStream {
+fn method_abi_descriptor_consts(nc: &syn::Path, index: usize, method: &AbiMethod) -> proc_macro2::TokenStream {
     let params_ident = method_params_const_ident(index);
     let return_ident = method_return_const_ident(index);
-    let params = method
-        .args
-        .iter()
-        .map(|arg| method_param_descriptor(nc, arg));
+    let params = method.args.iter().map(|arg| method_param_descriptor(nc, arg));
     let param_count = method.args.len();
     let returns = method_return_descriptor(nc, method);
     quote! {
@@ -1019,8 +996,7 @@ fn arg_type_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_macro
                 #nc::NcAbiTypeDescriptor::from_abi_type(#nc::__nc_abi_type::<#ty>())
             }
         }
-        AbiArgKind::CopyFromBufferOffset { element_ty }
-        | AbiArgKind::CopyToBufferOffset { element_ty } => {
+        AbiArgKind::CopyFromBufferOffset { element_ty } | AbiArgKind::CopyToBufferOffset { element_ty } => {
             let element_ty = element_ty.as_ref();
             quote! {
                 #nc::NcAbiTypeDescriptor::from_abi_type(#nc::__nc_abi_plain_type::<#element_ty>())
@@ -1140,16 +1116,8 @@ fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
     match &arg.kind {
         AbiArgKind::Plain => vec![quote! { #ident }],
         AbiArgKind::ComRef { .. } => vec![quote! { #ident.as_mut_ptr() }],
-        AbiArgKind::CopyFromBufferOffset { .. } => vec![
-            quote! { #ident.offset() },
-            quote! { #ident.__nc_len_u64()? },
-            quote! { #ident.as_ptr() },
-        ],
-        AbiArgKind::CopyToBufferOffset { .. } => vec![
-            quote! { #ident.offset() },
-            quote! { #ident.__nc_len_u64()? },
-            quote! { #ident.__nc_mut_ptr() },
-        ],
+        AbiArgKind::CopyFromBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.__nc_len_u64()? }, quote! { #ident.as_ptr() }],
+        AbiArgKind::CopyToBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.__nc_len_u64()? }, quote! { #ident.__nc_mut_ptr() }],
     }
 }
 
@@ -1172,17 +1140,12 @@ fn buffer_ptr_ident(ident: &syn::Ident) -> syn::Ident {
 fn validate_generated_method_identifiers(methods: &[AbiMethod], errors: &mut Option<syn::Error>) {
     for method in methods {
         let method_name = method.ident.to_string();
-        if matches!(
-            method_name.as_str(),
-            "query_interface" | "add_ref" | "release"
-        ) {
+        if matches!(method_name.as_str(), "query_interface" | "add_ref" | "release") {
             push_error(
                 errors,
                 syn::Error::new(
                     method.ident.span(),
-                    format!(
-                        "COM method `{method_name}` conflicts with the generated IUnknown lifecycle thunk"
-                    ),
+                    format!("COM method `{method_name}` conflicts with the generated IUnknown lifecycle thunk"),
                 ),
             );
         }
@@ -1202,18 +1165,12 @@ fn validate_generated_method_identifiers(methods: &[AbiMethod], errors: &mut Opt
             if let Some(generated) = fixed_collision {
                 push_error(
                     errors,
-                    syn::Error::new(
-                        arg.ident.span(),
-                        format!("COM method parameter `{arg_name}` conflicts with {generated}"),
-                    ),
+                    syn::Error::new(arg.ident.span(), format!("COM method parameter `{arg_name}` conflicts with {generated}")),
                 );
             }
 
             for (raw_name, derived) in raw_parameter_names(arg) {
-                if let Some((_, previous_ident, previous_derived)) = raw_names
-                    .iter()
-                    .find(|(previous_name, _, _)| previous_name == &raw_name)
-                {
+                if let Some((_, previous_ident, previous_derived)) = raw_names.iter().find(|(previous_name, _, _)| previous_name == &raw_name) {
                     let current_origin = if derived {
                         format!("buffer parameter `{}` generates", arg.ident)
                     } else {
@@ -1228,9 +1185,7 @@ fn validate_generated_method_identifiers(methods: &[AbiMethod], errors: &mut Opt
                         errors,
                         syn::Error::new(
                             arg.ident.span(),
-                            format!(
-                                "{current_origin} raw ABI parameter `{raw_name}`, which conflicts with {previous_origin}"
-                            ),
+                            format!("{current_origin} raw ABI parameter `{raw_name}`, which conflicts with {previous_origin}"),
                         ),
                     );
                 } else {

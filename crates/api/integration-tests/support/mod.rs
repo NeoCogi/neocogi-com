@@ -9,14 +9,13 @@ pub(crate) struct Library {
 
 impl Library {
     pub(crate) fn open(path: &Path) -> Self {
-        let handle = platform::open(path)
-            .unwrap_or_else(|error| panic!("failed to open {}: {error}", path.display()));
+        let handle = platform::open(path).unwrap_or_else(|error| panic!("failed to open {}: {error}", path.display()));
         Self { handle }
     }
 
     pub(crate) fn get_plugin_descriptor(&self) -> NcGetPluginDescriptor {
-        let pointer = platform::symbol(self.handle, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL)
-            .unwrap_or_else(|error| panic!("failed to resolve plugin descriptor: {error}"));
+        let pointer =
+            platform::symbol(self.handle, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL).unwrap_or_else(|error| panic!("failed to resolve plugin descriptor: {error}"));
         // SAFETY: The symbol name and ABI-v1 contract require this exact
         // function-pointer type, and the library remains loaded through self.
         unsafe { core::mem::transmute::<*mut core::ffi::c_void, NcGetPluginDescriptor>(pointer) }
@@ -51,11 +50,7 @@ mod platform {
         let path = CString::new(path.as_os_str().as_bytes()).map_err(|_| "path contains NUL")?;
         // SAFETY: The path is a live NUL-terminated C string for this call.
         let handle = unsafe { dlopen(path.as_ptr(), RTLD_NOW) };
-        if handle.is_null() {
-            Err(last_error())
-        } else {
-            Ok(handle)
-        }
+        if handle.is_null() { Err(last_error()) } else { Ok(handle) }
     }
 
     pub(super) fn symbol(handle: Handle, name: &str) -> Result<*mut c_void, String> {
@@ -65,11 +60,7 @@ mod platform {
         let _ = unsafe { dlerror() };
         // SAFETY: `handle` is live and `name` is NUL-terminated for this call.
         let pointer = unsafe { dlsym(handle, name.as_ptr()) };
-        if pointer.is_null() {
-            Err(last_error())
-        } else {
-            Ok(pointer)
-        }
+        if pointer.is_null() { Err(last_error()) } else { Ok(pointer) }
     }
 
     pub(super) fn close(handle: Handle) {
@@ -85,9 +76,7 @@ mod platform {
             "unknown dynamic-loader error".to_string()
         } else {
             // SAFETY: Established above.
-            unsafe { CStr::from_ptr(error) }
-                .to_string_lossy()
-                .into_owned()
+            unsafe { CStr::from_ptr(error) }.to_string_lossy().into_owned()
         }
     }
 }
@@ -112,22 +101,14 @@ mod platform {
         let path: Vec<_> = path.as_os_str().encode_wide().chain([0]).collect();
         // SAFETY: The path is a live NUL-terminated UTF-16 string for this call.
         let handle = unsafe { LoadLibraryW(path.as_ptr()) };
-        if handle.is_null() {
-            Err(last_error())
-        } else {
-            Ok(handle)
-        }
+        if handle.is_null() { Err(last_error()) } else { Ok(handle) }
     }
 
     pub(super) fn symbol(handle: Handle, name: &str) -> Result<*mut c_void, String> {
         let name = CString::new(name).map_err(|_| "symbol contains NUL")?;
         // SAFETY: `handle` is live and `name` is NUL-terminated for this call.
         let pointer = unsafe { GetProcAddress(handle, name.as_ptr()) };
-        if pointer.is_null() {
-            Err(last_error())
-        } else {
-            Ok(pointer)
-        }
+        if pointer.is_null() { Err(last_error()) } else { Ok(pointer) }
     }
 
     pub(super) fn close(handle: Handle) {

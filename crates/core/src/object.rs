@@ -13,23 +13,16 @@ use crate::metadata::{NcAbiHashPart, NcInterfaceDescriptor, NcInterfaceId, NcSta
 use crate::status::NcStatus;
 
 /// Interface identifier for [`IUnknown`].
-pub const IID_IUNKNOWN: NcGuid = NcGuid::from_fields(
-    0x0000_0000,
-    0x0000,
-    0x0000,
-    [0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46],
-);
+pub const IID_IUNKNOWN: NcGuid = NcGuid::from_fields(0x0000_0000, 0x0000, 0x0000, [0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46]);
 
 /// Reserved normative qualified name for [`IUnknown`].
 pub const IUNKNOWN_QUALIFIED_NAME: &str = "IUnknown";
 
 /// ABI contract hash for [`IUnknown`].
-pub const IUNKNOWN_ABI_HASH: NcAbiHash =
-    NcAbiHash::from_abi_parts(&[NcAbiHashPart::Interface { iid: IID_IUNKNOWN }]);
+pub const IUNKNOWN_ABI_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Interface { iid: IID_IUNKNOWN }]);
 
 /// Interface identity for [`IUnknown`].
-pub const IUNKNOWN_INTERFACE_ID: NcInterfaceId =
-    NcInterfaceId::new(IID_IUNKNOWN, IUNKNOWN_ABI_HASH);
+pub const IUNKNOWN_INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(IID_IUNKNOWN, IUNKNOWN_ABI_HASH);
 
 /// The base interface implemented by every COM object.
 #[repr(C)]
@@ -61,11 +54,7 @@ pub struct IUnknownVTable {
     /// null and transfers no reference. Null or otherwise invalid arguments
     /// violate this safety contract even when an implementation rejects them
     /// defensively.
-    pub query_interface: unsafe extern "C" fn(
-        this: *mut IUnknown,
-        interface_id: *const NcInterfaceId,
-        out: *mut *mut c_void,
-    ) -> NcStatus,
+    pub query_interface: unsafe extern "C" fn(this: *mut IUnknown, interface_id: *const NcInterfaceId, out: *mut *mut c_void) -> NcStatus,
 
     /// Increments the object's reference count and returns the new count.
     ///
@@ -260,34 +249,26 @@ impl IUnknown {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ComInterface, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown,
-    };
+    use super::{ComInterface, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown};
 
     #[test]
     fn iunknown_interface_identity_is_stable() {
         assert_eq!(IID_IUNKNOWN, <IUnknown as ComInterface>::IID);
         assert_eq!(
             IID_IUNKNOWN.to_uuid_bytes(),
-            [
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x46,
-            ]
+            [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46,]
         );
         assert_eq!(
             IUnknown::ABI_HASH.bytes,
-            [0x7c, 0x07, 0x6b, 0x86, 0x36, 0xac, 0x22, 0x3b, 0x15, 0x5d, 0xe0, 0x50, 0xeb, 0x04, 0x26, 0x08, 0x09, 0x37, 0x57, 0xb7, 0xd6, 0x9d, 0x09, 0xc0, 0xf6, 0x4c, 0xee, 0xd0, 0xe1, 0xf0, 0xd8, 0x4e,]
+            [
+                0x7c, 0x07, 0x6b, 0x86, 0x36, 0xac, 0x22, 0x3b, 0x15, 0x5d, 0xe0, 0x50, 0xeb, 0x04, 0x26, 0x08, 0x09, 0x37, 0x57, 0xb7, 0xd6, 0x9d, 0x09, 0xc0,
+                0xf6, 0x4c, 0xee, 0xd0, 0xe1, 0xf0, 0xd8, 0x4e,
+            ]
         );
-        assert_eq!(
-            IUNKNOWN_INTERFACE_ID,
-            <IUnknown as ComInterface>::INTERFACE_ID
-        );
+        assert_eq!(IUNKNOWN_INTERFACE_ID, <IUnknown as ComInterface>::INTERFACE_ID);
         assert_eq!(IUNKNOWN_INTERFACE_ID, IUnknown::INTERFACE_ID);
         assert_eq!(IUnknown::INTERFACE_DESCRIPTOR.interface_id, IID_IUNKNOWN);
-        assert_eq!(
-            unsafe { IUnknown::INTERFACE_DESCRIPTOR.qualified_name.as_str() },
-            Ok(IUNKNOWN_QUALIFIED_NAME)
-        );
+        assert_eq!(unsafe { IUnknown::INTERFACE_DESCRIPTOR.qualified_name.as_str() }, Ok(IUNKNOWN_QUALIFIED_NAME));
         assert_eq!(IUnknown::INTERFACE_DESCRIPTOR.abi_hash, IUnknown::ABI_HASH);
         assert_eq!(IUnknown::INTERFACE_DESCRIPTOR.method_count, 0);
         assert!(IUnknown::INTERFACE_DESCRIPTOR.methods.is_null());

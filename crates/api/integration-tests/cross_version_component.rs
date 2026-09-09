@@ -9,8 +9,7 @@ use std::process::Command;
 mod support;
 use support::Library;
 
-const CROSS_VERSION_CLASS_ID: NcGuid =
-    neocogi_com::guid_from_qualified_name("nc.tests.cross_version.Service");
+const CROSS_VERSION_CLASS_ID: NcGuid = neocogi_com::guid_from_qualified_name("nc.tests.cross_version.Service");
 const RUN_ISOLATED_HELPER_ENV: &str = "NC_COM_RUN_CROSS_VERSION_HELPER";
 const ISOLATED_COMPLETION_PREFIX: &str = "cross-version paths completed: ";
 
@@ -60,10 +59,7 @@ struct FixtureBuild {
 #[derive(Clone, Copy)]
 enum FixtureProfile {
     Debug,
-    Release {
-        panic: &'static str,
-        lto: &'static str,
-    },
+    Release { panic: &'static str, lto: &'static str },
 }
 
 impl FixtureBuild {
@@ -109,18 +105,12 @@ impl FixtureBuild {
 
 #[test]
 fn stable_debug_producer_component_is_abi_compatible() {
-    exercise_cross_version_component_isolated(
-        FixtureBuild::debug("stable"),
-        "stable_debug_producer_component_is_abi_compatible",
-    );
+    exercise_cross_version_component_isolated(FixtureBuild::debug("stable"), "stable_debug_producer_component_is_abi_compatible");
 }
 
 #[test]
 fn nightly_debug_producer_component_is_abi_compatible() {
-    exercise_cross_version_component_isolated(
-        FixtureBuild::debug("nightly"),
-        "nightly_debug_producer_component_is_abi_compatible",
-    );
+    exercise_cross_version_component_isolated(FixtureBuild::debug("nightly"), "nightly_debug_producer_component_is_abi_compatible");
 }
 
 #[test]
@@ -153,9 +143,7 @@ fn exercise_cross_version_component_isolated(build: FixtureBuild, test_name: &st
         .arg("--nocapture")
         .env(RUN_ISOLATED_HELPER_ENV, &label)
         .output()
-        .unwrap_or_else(|error| {
-            panic!("failed to run isolated cross-version helper `{label}`: {error}")
-        });
+        .unwrap_or_else(|error| panic!("failed to run isolated cross-version helper `{label}`: {error}"));
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
@@ -186,10 +174,7 @@ fn exercise_descriptor_entrypoint(library: &Library) {
     let status = unsafe { get_plugin_descriptor(&mut plugin) };
     assert_eq!(status, NC_OK);
     assert!(!plugin.is_null());
-    assert_eq!(
-        unsafe { validate_plugin_descriptor_with_issues(plugin, |_| {}) },
-        NC_OK
-    );
+    assert_eq!(unsafe { validate_plugin_descriptor_with_issues(plugin, |_| {}) }, NC_OK);
 
     let plugin: &NcPluginDescriptor = unsafe { &*plugin };
     let table = unsafe { &*plugin.class_table };
@@ -212,9 +197,7 @@ fn exercise_runtime_loader(library_path: &Path) {
     assert_eq!(loaded.qualified_name(), "nc.tests.cross_version");
     assert_eq!(loaded.plugin_version(), "1.0.0");
 
-    runtime
-        .require_interface_type::<ICrossVersionServiceAbi>(CROSS_VERSION_CLASS_ID)
-        .unwrap();
+    runtime.require_interface_type::<ICrossVersionServiceAbi>(CROSS_VERSION_CLASS_ID).unwrap();
 
     let arguments = ServiceArguments { seed: 11 };
     let arguments_pointer = core::ptr::from_ref(&arguments).cast();
@@ -239,9 +222,7 @@ fn exercise_service(service: ComPtr<ICrossVersionServiceAbi>) {
     assert_eq!(service.add(2, 5), Ok(18));
     assert_eq!(service.reset(), Ok(()));
 
-    let host_number = HostNumber::from_value(HostNumber { value: 7 })
-        .query::<ICrossVersionNumberAbi>()
-        .unwrap();
+    let host_number = HostNumber::from_value(HostNumber { value: 7 }).query::<ICrossVersionNumberAbi>().unwrap();
     assert_eq!(service.read_number(host_number.as_com_ref()), Ok(18));
 
     let returned_number = service.make_number(31).unwrap();
@@ -249,8 +230,7 @@ fn exercise_service(service: ComPtr<ICrossVersionServiceAbi>) {
 }
 
 fn require_class_interface<T: ComInterface>(class: &NcClassDescriptor) {
-    let interfaces =
-        unsafe { std::slice::from_raw_parts(class.interfaces, class.interface_count as usize) };
+    let interfaces = unsafe { std::slice::from_raw_parts(class.interfaces, class.interface_count as usize) };
     let descriptor = interfaces
         .iter()
         .map(|interface| unsafe { &*interface.interface_descriptor })
@@ -268,20 +248,16 @@ fn construct_service_from_descriptor(class: &NcClassDescriptor) -> ComPtr<ICross
     assert_eq!(status, NC_OK);
     assert!(!out.is_null());
     let unknown = unsafe { ComPtr::<IUnknown>::from_raw_owned(out) }.expect("constructor output");
-    unknown
-        .query::<ICrossVersionServiceAbi>()
-        .expect("constructed cross-version service")
+    unknown.query::<ICrossVersionServiceAbi>().expect("constructed cross-version service")
 }
 
 fn build_fixture(build: FixtureBuild) -> PathBuf {
     require_toolchain(build.toolchain);
 
-    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("integration-tests/fixtures/cross-version-component");
+    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("integration-tests/fixtures/cross-version-component");
     let manifest = fixture_dir.join("Cargo.toml");
     let lockfile = fixture_dir.join("Cargo.lock");
-    let lockfile_before = fs::read(&lockfile)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", lockfile.display()));
+    let lockfile_before = fs::read(&lockfile).unwrap_or_else(|error| panic!("failed to read {}: {error}", lockfile.display()));
     let target_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../../target/cross-version-component-fixture")
         .join(build.target_dir_name());
@@ -305,16 +281,14 @@ fn build_fixture(build: FixtureBuild) -> PathBuf {
     }
 
     let label = build.label();
-    let output = command.output()
-        .unwrap_or_else(|error| {
-            panic!(
-                "failed to invoke rustup run {} cargo build for cross-version fixture ({label}): {error}",
-                build.toolchain,
-            )
-        });
+    let output = command.output().unwrap_or_else(|error| {
+        panic!(
+            "failed to invoke rustup run {} cargo build for cross-version fixture ({label}): {error}",
+            build.toolchain,
+        )
+    });
 
-    let lockfile_after = fs::read(&lockfile)
-        .unwrap_or_else(|error| panic!("failed to reread {}: {error}", lockfile.display()));
+    let lockfile_after = fs::read(&lockfile).unwrap_or_else(|error| panic!("failed to reread {}: {error}", lockfile.display()));
     assert_eq!(
         lockfile_after,
         lockfile_before,

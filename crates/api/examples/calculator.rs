@@ -56,10 +56,7 @@ fn main() -> Result<(), NcStatus> {
     println!("dropped clone");
 
     let unsupported = unknown.query::<INotImplementedAbi>();
-    println!(
-        "query IUnknown -> INotImplementedAbi supported? {}",
-        unsupported.is_ok()
-    );
+    println!("query IUnknown -> INotImplementedAbi supported? {}", unsupported.is_ok());
 
     Ok(())
 }

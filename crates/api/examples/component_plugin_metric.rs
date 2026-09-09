@@ -1,7 +1,6 @@
 use neocogi_com::{NcGuid, NcStatus, com_class, com_object};
 
-const COMPONENT_PLUGIN_METRIC_ID: NcGuid =
-    neocogi_com::guid_from_qualified_name("nc.examples.multi.metric");
+const COMPONENT_PLUGIN_METRIC_ID: NcGuid = neocogi_com::guid_from_qualified_name("nc.examples.multi.metric");
 
 const FLAG_PLUGIN_ID: NcGuid = neocogi_com::guid_from_qualified_name("nc.examples.multi.flag");
 

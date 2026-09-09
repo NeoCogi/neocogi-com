@@ -13,9 +13,7 @@
 #[cfg(test)]
 use std::vec::Vec;
 
-use neocogi_com_core::{
-    NcClassInfoV1, NcGuid, NcModuleInfoV1, NcPluginInfoV1, NcStaticUtf8, NcUtf8View,
-};
+use neocogi_com_core::{NcClassInfoV1, NcGuid, NcModuleInfoV1, NcPluginInfoV1, NcStaticUtf8, NcUtf8View};
 #[cfg(test)]
 use neocogi_com_core::{NcInterfaceId, NcStatus};
 
@@ -37,10 +35,7 @@ pub(crate) fn plugin_info(registry: &PluginRegistry, plugin_id: NcGuid) -> Optio
 }
 
 /// Projects one retained module record into its path and plugin provenance.
-pub(crate) fn module_info(
-    registry: &PluginRegistry,
-    module_id: LoadedModuleId,
-) -> Option<NcModuleInfoV1> {
+pub(crate) fn module_info(registry: &PluginRegistry, module_id: LoadedModuleId) -> Option<NcModuleInfoV1> {
     let loaded = registry.module(module_id)?;
     Some(NcModuleInfoV1 {
         module_id: loaded.module_id.get(),
@@ -74,19 +69,13 @@ pub(crate) fn plugin_class_ids(registry: &TypeRegistry, plugin_id: NcGuid) -> Ve
 
 #[cfg(test)]
 /// Returns hard dependency IDs copied from one registered plugin descriptor.
-pub(crate) fn plugin_dependency_ids(
-    registry: &PluginRegistry,
-    plugin_id: NcGuid,
-) -> Result<Vec<NcGuid>, NcStatus> {
+pub(crate) fn plugin_dependency_ids(registry: &PluginRegistry, plugin_id: NcGuid) -> Result<Vec<NcGuid>, NcStatus> {
     Ok(registry.with_plugin_dependency_ids(plugin_id, <[NcGuid]>::to_vec))
 }
 
 #[cfg(test)]
 /// Returns canonical interface identities exposed by one registered class.
-pub(crate) fn class_interface_ids(
-    registry: &TypeRegistry,
-    class_id: NcGuid,
-) -> Result<Vec<NcInterfaceId>, NcStatus> {
+pub(crate) fn class_interface_ids(registry: &TypeRegistry, class_id: NcGuid) -> Result<Vec<NcInterfaceId>, NcStatus> {
     // Relationship count APIs use zero for both an absent class and a class
     // with no interfaces; record lookup is the operation that distinguishes
     // absence with NC_E_NOT_FOUND.
@@ -95,10 +84,7 @@ pub(crate) fn class_interface_ids(
 
 #[cfg(test)]
 /// Returns class IDs implementing an interface in registration order.
-pub(crate) fn interface_implementor_class_ids(
-    registry: &TypeRegistry,
-    interface_id: NcInterfaceId,
-) -> Result<Vec<NcGuid>, NcStatus> {
+pub(crate) fn interface_implementor_class_ids(registry: &TypeRegistry, interface_id: NcInterfaceId) -> Result<Vec<NcGuid>, NcStatus> {
     Ok(registry.interface_implementor_class_ids(interface_id))
 }
 

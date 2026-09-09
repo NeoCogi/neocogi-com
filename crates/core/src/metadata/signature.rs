@@ -12,16 +12,12 @@
 use core::fmt::Write;
 
 use crate::{
-    NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET,
-    NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT, NC_ABI_PASSING_VALUE,
-    NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
-    NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
-    NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8,
-    NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE,
-    NC_ABI_TYPE_NC_ABI_HASH, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8,
-    NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID,
-    NC_E_INVALID_ARG, NcAbiHash, NcAbiPassingDescriptor, NcAbiTypeDescriptor, NcMethodDescriptor,
-    NcMethodParamDescriptor, NcMethodReturnDescriptor, NcStatus,
+    NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT,
+    NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
+    NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64,
+    NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_ABI_HASH, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16,
+    NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_E_INVALID_ARG, NcAbiHash, NcAbiPassingDescriptor, NcAbiTypeDescriptor,
+    NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcStatus,
 };
 
 use alloc::string::String;
@@ -77,9 +73,7 @@ pub unsafe fn format_method_signature(method: &NcMethodDescriptor) -> Result<Str
 }
 
 /// Borrows the method parameter table after forwarding the caller's graph contract.
-unsafe fn method_params(
-    method: &NcMethodDescriptor,
-) -> Result<&[NcMethodParamDescriptor], NcStatus> {
+unsafe fn method_params(method: &NcMethodDescriptor) -> Result<&[NcMethodParamDescriptor], NcStatus> {
     // SAFETY: The caller guarantees that the method's parameter pointer/count
     // pair is readable for the returned borrow.
     unsafe { method.params() }
@@ -125,11 +119,7 @@ fn write_return(out: &mut String, returns: &NcMethodReturnDescriptor) -> Result<
 }
 
 /// Appends one supported parameter passing mode and its nested type.
-fn write_passing_type(
-    out: &mut String,
-    passing: NcAbiPassingDescriptor,
-    ty: &NcAbiTypeDescriptor,
-) -> Result<(), NcStatus> {
+fn write_passing_type(out: &mut String, passing: NcAbiPassingDescriptor, ty: &NcAbiTypeDescriptor) -> Result<(), NcStatus> {
     match passing.tag {
         NC_ABI_PASSING_VALUE => {
             validate_threading_local(passing.threading)?;
@@ -234,10 +224,7 @@ fn validate_non_interface_value_type(ty: &NcAbiTypeDescriptor) -> Result<(), NcS
 
 /// Requires a non-nil interface identity with a nonzero ABI hash.
 fn validate_interface_type(ty: &NcAbiTypeDescriptor) -> Result<(), NcStatus> {
-    if ty.tag != NC_ABI_TYPE_INTERFACE
-        || ty.interface.iid.is_nil()
-        || ty.interface.abi_hash.bytes == [0; 32]
-    {
+    if ty.tag != NC_ABI_TYPE_INTERFACE || ty.interface.iid.is_nil() || ty.interface.abi_hash.bytes == [0; 32] {
         Err(NC_E_INVALID_ARG)
     } else {
         Ok(())

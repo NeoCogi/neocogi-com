@@ -7,9 +7,8 @@
 //! registration, requirement checks, and construction return ordinary statuses.
 
 use neocogi_com_core::{
-    IUnknown, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION,
-    NC_E_INVALID_ARG, NC_E_LOAD_FAILED, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK, NcGuid,
-    NcInterfaceId, NcPluginDescriptor, NcStatus,
+    IUnknown, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_E_INVALID_ARG, NC_E_LOAD_FAILED, NC_E_OUT_OF_RANGE, NC_E_POINTER,
+    NC_OK, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus,
 };
 
 use crate::construction;
@@ -19,28 +18,18 @@ use crate::state::RuntimeState;
 use super::{emit_error, path_from_utf8};
 
 /// Validates and atomically registers one caller-owned static descriptor graph.
-pub(super) unsafe extern "C" fn register_plugin_descriptor(
-    plugin: *const NcPluginDescriptor,
-) -> NcStatus {
+pub(super) unsafe extern "C" fn register_plugin_descriptor(plugin: *const NcPluginDescriptor) -> NcStatus {
     // SAFETY: The caller provides the descriptor lifetime and readability
     // contract required by the registry.
     let status = unsafe { RuntimeState::global().register_plugin_descriptor(plugin) };
     if status.is_err() {
-        emit_error(
-            NC_DEBUG_TYPE_VALIDATION,
-            status,
-            "plugin descriptor registration failed",
-        );
+        emit_error(NC_DEBUG_TYPE_VALIDATION, status, "plugin descriptor registration failed");
     }
     status
 }
 
 /// Performs required live activation and aborts after any load/registration failure.
-pub(super) unsafe extern "C" fn load_plugin_library_utf8(
-    path: *const u8,
-    path_len: usize,
-    out_module_id: *mut u64,
-) -> NcStatus {
+pub(super) unsafe extern "C" fn load_plugin_library_utf8(path: *const u8, path_len: usize, out_module_id: *mut u64) -> NcStatus {
     if out_module_id.is_null() {
         return NC_E_POINTER;
     }
@@ -61,9 +50,7 @@ pub(super) unsafe extern "C" fn load_plugin_library_utf8(
             NC_OK
         }
         Err(error) => {
-            let status = error
-                .status()
-                .unwrap_or_else(|| load_error_status(error.kind()));
+            let status = error.status().unwrap_or_else(|| load_error_status(error.kind()));
             eprintln!("fatal neocogi-com plugin activation failure: {error}");
             emit_error(NC_DEBUG_TYPE_PLUGIN, status, &error.to_string());
             // Required live activation is fail-fatal. An opened library has
@@ -75,10 +62,7 @@ pub(super) unsafe extern "C" fn load_plugin_library_utf8(
 }
 
 /// Checks a registered class against one complete interface identity.
-pub(super) unsafe extern "C" fn require_interface(
-    class_id: NcGuid,
-    interface_id: NcInterfaceId,
-) -> NcStatus {
+pub(super) unsafe extern "C" fn require_interface(class_id: NcGuid, interface_id: NcInterfaceId) -> NcStatus {
     let result = {
         let catalog = RuntimeState::global().read_catalog();
         construction::require_interface(&catalog.type_registry, class_id, interface_id)
@@ -86,11 +70,7 @@ pub(super) unsafe extern "C" fn require_interface(
     match result {
         Ok(()) => NC_OK,
         Err(status) => {
-            emit_error(
-                NC_DEBUG_TYPE_VALIDATION,
-                status,
-                "registered class does not satisfy the requested interface",
-            );
+            emit_error(NC_DEBUG_TYPE_VALIDATION, status, "registered class does not satisfy the requested interface");
             status
         }
     }
@@ -113,11 +93,7 @@ pub(super) unsafe extern "C" fn construct_class(
     // SAFETY: This forwards the caller's borrowed frame and output contracts.
     let status = unsafe { construction::construct_class(class, constructor_abi_hash, arguments, out) };
     if status.is_err() {
-        emit_error(
-            NC_DEBUG_TYPE_RUNTIME,
-            status,
-            "registered class construction failed",
-        );
+        emit_error(NC_DEBUG_TYPE_RUNTIME, status, "registered class construction failed");
     }
     status
 }
@@ -127,10 +103,9 @@ pub(super) fn load_error_status(kind: PluginLoadErrorKind) -> NcStatus {
     // Platform diagnostics remain available through the debug callback. The C
     // status preserves only categories standardized by the runtime ABI.
     match kind {
-        PluginLoadErrorKind::OpenLibrary
-        | PluginLoadErrorKind::FindSymbol
-        | PluginLoadErrorKind::Entrypoint
-        | PluginLoadErrorKind::UnsupportedPlatform => NC_E_LOAD_FAILED,
+        PluginLoadErrorKind::OpenLibrary | PluginLoadErrorKind::FindSymbol | PluginLoadErrorKind::Entrypoint | PluginLoadErrorKind::UnsupportedPlatform => {
+            NC_E_LOAD_FAILED
+        }
         PluginLoadErrorKind::Metadata | PluginLoadErrorKind::Registration => NC_E_INVALID_ARG,
         PluginLoadErrorKind::ResourceLimit => NC_E_OUT_OF_RANGE,
     }
@@ -142,9 +117,6 @@ mod tests {
 
     #[test]
     fn loaded_module_capacity_maps_to_out_of_range() {
-        assert_eq!(
-            load_error_status(PluginLoadErrorKind::ResourceLimit),
-            NC_E_OUT_OF_RANGE
-        );
+        assert_eq!(load_error_status(PluginLoadErrorKind::ResourceLimit), NC_E_OUT_OF_RANGE);
     }
 }

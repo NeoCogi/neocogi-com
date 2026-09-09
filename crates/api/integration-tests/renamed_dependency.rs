@@ -1,14 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn run_fixture_cargo(
-    cargo: &str,
-    manifest: &Path,
-    target_dir: &Path,
-    operation: &str,
-    args: &[&str],
-    deny_rustdoc_warnings: bool,
-) {
+fn run_fixture_cargo(cargo: &str, manifest: &Path, target_dir: &Path, operation: &str, args: &[&str], deny_rustdoc_warnings: bool) {
     let mut command = Command::new(cargo);
     command
         .arg(operation)
@@ -30,9 +23,7 @@ fn run_fixture_cargo(
         command.env("RUSTDOCFLAGS", rustdocflags);
     }
 
-    let output = command
-        .output()
-        .unwrap_or_else(|error| panic!("failed to run cargo {operation}: {error}"));
+    let output = command.output().unwrap_or_else(|error| panic!("failed to run cargo {operation}: {error}"));
 
     assert!(
         output.status.success(),
@@ -45,10 +36,8 @@ fn run_fixture_cargo(
 
 #[test]
 fn macro_output_and_rustdoc_support_renamed_runtime_dependency() {
-    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("integration-tests/fixtures/renamed-runtime/Cargo.toml");
-    let target_dir =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../target/renamed-runtime-fixture");
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("integration-tests/fixtures/renamed-runtime/Cargo.toml");
+    let target_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../target/renamed-runtime-fixture");
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
 
     run_fixture_cargo(&cargo, &manifest, &target_dir, "check", &[], false);

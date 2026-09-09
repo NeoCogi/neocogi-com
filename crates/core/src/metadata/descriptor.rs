@@ -59,10 +59,7 @@ unsafe impl Sync for NcStaticUtf8 {}
 
 impl NcStaticUtf8 {
     /// Empty static UTF-8 metadata.
-    pub const EMPTY: Self = Self {
-        data: core::ptr::null(),
-        len: 0,
-    };
+    pub const EMPTY: Self = Self { data: core::ptr::null(), len: 0 };
 
     /// Creates static UTF-8 metadata from a string literal or other static
     /// string.
@@ -422,9 +419,7 @@ impl NcPluginDescriptor {
         }
         // SAFETY: The caller supplies the table readability/lifetime contract;
         // the null/count invariant was checked above.
-        Ok(unsafe {
-            core::slice::from_raw_parts(self.dependencies, self.dependency_count as usize)
-        })
+        Ok(unsafe { core::slice::from_raw_parts(self.dependencies, self.dependency_count as usize) })
     }
 }
 
@@ -436,18 +431,15 @@ impl NcPluginDescriptor {
 /// `out` must be valid for one descriptor pointer write. On success, `out`
 /// receives a pointer to immutable plugin metadata that remains valid while the
 /// shared library is loaded.
-pub type NcGetPluginDescriptor =
-    unsafe extern "C" fn(out: *mut *const NcPluginDescriptor) -> NcStatus;
+pub type NcGetPluginDescriptor = unsafe extern "C" fn(out: *mut *const NcPluginDescriptor) -> NcStatus;
 
 #[cfg(test)]
 mod tests {
     use crate::NcGuid;
     use crate::{
-        NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL,
-        NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION,
-        NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiHash,
-        NcAbiHashPart, NcAbiPassing, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcClassDescriptor,
-        NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor, NcPluginDescriptor,
+        NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION,
+        NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiReceiver, NcAbiThreadingMode,
+        NcAbiType, NcClassDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor, NcPluginDescriptor,
     };
 
     #[test]
@@ -464,22 +456,13 @@ mod tests {
 
     #[test]
     fn threading_mode_raw_values_are_stable_and_checked() {
-        assert_eq!(
-            NcAbiThreadingMode::ThreadLocal.as_raw(),
-            NC_ABI_THREADING_THREAD_LOCAL
-        );
-        assert_eq!(
-            NcAbiThreadingMode::ThreadSafe.as_raw(),
-            NC_ABI_THREADING_THREAD_SAFE
-        );
+        assert_eq!(NcAbiThreadingMode::ThreadLocal.as_raw(), NC_ABI_THREADING_THREAD_LOCAL);
+        assert_eq!(NcAbiThreadingMode::ThreadSafe.as_raw(), NC_ABI_THREADING_THREAD_SAFE);
         assert_eq!(
             NcAbiThreadingMode::from_raw(NC_ABI_THREADING_THREAD_LOCAL),
             Some(NcAbiThreadingMode::ThreadLocal)
         );
-        assert_eq!(
-            NcAbiThreadingMode::from_raw(NC_ABI_THREADING_THREAD_SAFE),
-            Some(NcAbiThreadingMode::ThreadSafe)
-        );
+        assert_eq!(NcAbiThreadingMode::from_raw(NC_ABI_THREADING_THREAD_SAFE), Some(NcAbiThreadingMode::ThreadSafe));
         assert_eq!(NcAbiThreadingMode::from_raw(u32::MAX), None);
     }
 
@@ -489,12 +472,8 @@ mod tests {
         assert_eq!(NcAbiReceiver::Mutable.as_raw(), NC_ABI_RECEIVER_MUTABLE);
         assert_eq!(NcAbiReceiver::from_raw(2), None);
 
-        let shared = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Receiver {
-            receiver: NcAbiReceiver::Shared,
-        }]);
-        let mutable = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Receiver {
-            receiver: NcAbiReceiver::Mutable,
-        }]);
+        let shared = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared }]);
+        let mutable = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Mutable }]);
         assert_ne!(shared, mutable);
     }
 
@@ -535,19 +514,10 @@ mod tests {
         {
             assert_eq!(core::mem::size_of::<NcInterfaceDescriptor>(), 128);
             assert_eq!(core::mem::align_of::<NcInterfaceDescriptor>(), 8);
-            assert_eq!(
-                core::mem::offset_of!(NcInterfaceDescriptor, interface_id),
-                0
-            );
-            assert_eq!(
-                core::mem::offset_of!(NcInterfaceDescriptor, qualified_name),
-                16
-            );
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, interface_id), 0);
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, qualified_name), 16);
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, abi_hash), 32);
-            assert_eq!(
-                core::mem::offset_of!(NcInterfaceDescriptor, method_count),
-                112
-            );
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, method_count), 112);
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, methods), 120);
         }
 
@@ -555,19 +525,10 @@ mod tests {
         {
             assert_eq!(core::mem::size_of::<NcInterfaceDescriptor>(), 112);
             assert_eq!(core::mem::align_of::<NcInterfaceDescriptor>(), 4);
-            assert_eq!(
-                core::mem::offset_of!(NcInterfaceDescriptor, interface_id),
-                0
-            );
-            assert_eq!(
-                core::mem::offset_of!(NcInterfaceDescriptor, qualified_name),
-                16
-            );
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, interface_id), 0);
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, qualified_name), 16);
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, abi_hash), 24);
-            assert_eq!(
-                core::mem::offset_of!(NcInterfaceDescriptor, method_count),
-                104
-            );
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, method_count), 104);
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, methods), 108);
         }
     }
@@ -576,32 +537,17 @@ mod tests {
     fn plugin_dependency_and_descriptor_c_layouts_are_stable() {
         assert_eq!(core::mem::size_of::<NcPluginDependencyDescriptor>(), 16);
         assert_eq!(core::mem::align_of::<NcPluginDependencyDescriptor>(), 4);
-        assert_eq!(
-            core::mem::offset_of!(NcPluginDependencyDescriptor, plugin_id),
-            0
-        );
+        assert_eq!(core::mem::offset_of!(NcPluginDependencyDescriptor, plugin_id), 0);
 
         #[cfg(target_pointer_width = "64")]
         {
             assert_eq!(core::mem::size_of::<NcPluginDescriptor>(), 80);
             assert_eq!(core::mem::align_of::<NcPluginDescriptor>(), 8);
-            assert_eq!(
-                core::mem::offset_of!(NcPluginDescriptor, core_abi_version),
-                0
-            );
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, core_abi_version), 0);
             assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_id), 4);
-            assert_eq!(
-                core::mem::offset_of!(NcPluginDescriptor, qualified_name),
-                24
-            );
-            assert_eq!(
-                core::mem::offset_of!(NcPluginDescriptor, plugin_version),
-                40
-            );
-            assert_eq!(
-                core::mem::offset_of!(NcPluginDescriptor, dependency_count),
-                56
-            );
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, qualified_name), 24);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_version), 40);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependency_count), 56);
             assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependencies), 64);
             assert_eq!(core::mem::offset_of!(NcPluginDescriptor, class_table), 72);
         }
@@ -610,23 +556,11 @@ mod tests {
         {
             assert_eq!(core::mem::size_of::<NcPluginDescriptor>(), 48);
             assert_eq!(core::mem::align_of::<NcPluginDescriptor>(), 4);
-            assert_eq!(
-                core::mem::offset_of!(NcPluginDescriptor, core_abi_version),
-                0
-            );
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, core_abi_version), 0);
             assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_id), 4);
-            assert_eq!(
-                core::mem::offset_of!(NcPluginDescriptor, qualified_name),
-                20
-            );
-            assert_eq!(
-                core::mem::offset_of!(NcPluginDescriptor, plugin_version),
-                28
-            );
-            assert_eq!(
-                core::mem::offset_of!(NcPluginDescriptor, dependency_count),
-                36
-            );
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, qualified_name), 20);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_version), 28);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependency_count), 36);
             assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependencies), 40);
             assert_eq!(core::mem::offset_of!(NcPluginDescriptor, class_table), 44);
         }
@@ -635,10 +569,7 @@ mod tests {
     #[test]
     fn method_hash_changes_for_method_identity_and_status() {
         let base = NcAbiHash::from_abi_parts(&[
-            NcAbiHashPart::Method {
-                index: 0,
-                name: "load",
-            },
+            NcAbiHashPart::Method { index: 0, name: "load" },
             NcAbiHashPart::Return {
                 passing: NcAbiPassing::Out,
                 ty: NcAbiType::U32,
@@ -649,10 +580,7 @@ mod tests {
         assert_ne!(
             base,
             NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method {
-                    index: 1,
-                    name: "load",
-                },
+                NcAbiHashPart::Method { index: 1, name: "load" },
                 NcAbiHashPart::Return {
                     passing: NcAbiPassing::Out,
                     ty: NcAbiType::U32,
@@ -663,10 +591,7 @@ mod tests {
         assert_ne!(
             base,
             NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method {
-                    index: 0,
-                    name: "store",
-                },
+                NcAbiHashPart::Method { index: 0, name: "store" },
                 NcAbiHashPart::Return {
                     passing: NcAbiPassing::Out,
                     ty: NcAbiType::U32,
@@ -677,10 +602,7 @@ mod tests {
         assert_ne!(
             base,
             NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method {
-                    index: 0,
-                    name: "load",
-                },
+                NcAbiHashPart::Method { index: 0, name: "load" },
                 NcAbiHashPart::Return {
                     passing: NcAbiPassing::Out,
                     ty: NcAbiType::U32,
@@ -692,10 +614,7 @@ mod tests {
     #[test]
     fn method_hash_changes_for_argument_and_return_contracts() {
         let base = NcAbiHash::from_abi_parts(&[
-            NcAbiHashPart::Method {
-                index: 0,
-                name: "calculate",
-            },
+            NcAbiHashPart::Method { index: 0, name: "calculate" },
             NcAbiHashPart::Arg {
                 index: 0,
                 passing: NcAbiPassing::Value,
@@ -716,10 +635,7 @@ mod tests {
         assert_ne!(
             base,
             NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method {
-                    index: 0,
-                    name: "calculate",
-                },
+                NcAbiHashPart::Method { index: 0, name: "calculate" },
                 NcAbiHashPart::Arg {
                     index: 0,
                     passing: NcAbiPassing::Value,
@@ -740,10 +656,7 @@ mod tests {
         assert_ne!(
             base,
             NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method {
-                    index: 0,
-                    name: "calculate",
-                },
+                NcAbiHashPart::Method { index: 0, name: "calculate" },
                 NcAbiHashPart::Arg {
                     index: 1,
                     passing: NcAbiPassing::Value,
@@ -764,10 +677,7 @@ mod tests {
         assert_ne!(
             base,
             NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method {
-                    index: 0,
-                    name: "calculate",
-                },
+                NcAbiHashPart::Method { index: 0, name: "calculate" },
                 NcAbiHashPart::Arg {
                     index: 0,
                     passing: NcAbiPassing::Value,
@@ -788,10 +698,7 @@ mod tests {
         assert_ne!(
             base,
             NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method {
-                    index: 0,
-                    name: "calculate",
-                },
+                NcAbiHashPart::Method { index: 0, name: "calculate" },
                 NcAbiHashPart::Arg {
                     index: 0,
                     passing: NcAbiPassing::Value,
@@ -817,13 +724,8 @@ mod tests {
         let other_interface_guid = guid(2);
 
         let base = NcAbiHash::from_abi_parts(&[
-            NcAbiHashPart::Interface {
-                iid: interface_guid,
-            },
-            NcAbiHashPart::Method {
-                index: 0,
-                name: "consume",
-            },
+            NcAbiHashPart::Interface { iid: interface_guid },
+            NcAbiHashPart::Method { index: 0, name: "consume" },
             NcAbiHashPart::Arg {
                 index: 0,
                 passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
@@ -839,13 +741,8 @@ mod tests {
         assert_ne!(
             base,
             NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Interface {
-                    iid: other_interface_guid,
-                },
-                NcAbiHashPart::Method {
-                    index: 0,
-                    name: "consume",
-                },
+                NcAbiHashPart::Interface { iid: other_interface_guid },
+                NcAbiHashPart::Method { index: 0, name: "consume" },
                 NcAbiHashPart::Arg {
                     index: 0,
                     passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
@@ -861,13 +758,8 @@ mod tests {
         assert_ne!(
             base,
             NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Interface {
-                    iid: interface_guid,
-                },
-                NcAbiHashPart::Method {
-                    index: 0,
-                    name: "consume",
-                },
+                NcAbiHashPart::Interface { iid: interface_guid },
+                NcAbiHashPart::Method { index: 0, name: "consume" },
                 NcAbiHashPart::Arg {
                     index: 0,
                     passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadSafe },
@@ -883,13 +775,8 @@ mod tests {
         assert_ne!(
             base,
             NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Interface {
-                    iid: interface_guid,
-                },
-                NcAbiHashPart::Method {
-                    index: 0,
-                    name: "consume",
-                },
+                NcAbiHashPart::Interface { iid: interface_guid },
+                NcAbiHashPart::Method { index: 0, name: "consume" },
                 NcAbiHashPart::Arg {
                     index: 0,
                     passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
@@ -905,13 +792,8 @@ mod tests {
         assert_ne!(
             base,
             NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Interface {
-                    iid: interface_guid,
-                },
-                NcAbiHashPart::Method {
-                    index: 0,
-                    name: "consume",
-                },
+                NcAbiHashPart::Interface { iid: interface_guid },
+                NcAbiHashPart::Method { index: 0, name: "consume" },
                 NcAbiHashPart::Arg {
                     index: 0,
                     passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
@@ -930,10 +812,7 @@ mod tests {
     fn method_hash_changes_for_offset_buffer_contracts() {
         fn offset_buffer_hash(passing: NcAbiPassing, index: u32, ty: NcAbiType) -> NcAbiHash {
             NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method {
-                    index: 0,
-                    name: "copy",
-                },
+                NcAbiHashPart::Method { index: 0, name: "copy" },
                 NcAbiHashPart::Arg { index, passing, ty },
                 NcAbiHashPart::Return {
                     passing: NcAbiPassing::Void,
@@ -945,15 +824,8 @@ mod tests {
 
         fn offset_buffer_hash_without_status(passing: NcAbiPassing) -> NcAbiHash {
             NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method {
-                    index: 0,
-                    name: "copy",
-                },
-                NcAbiHashPart::Arg {
-                    index: 0,
-                    passing,
-                    ty: NcAbiType::U8,
-                },
+                NcAbiHashPart::Method { index: 0, name: "copy" },
+                NcAbiHashPart::Arg { index: 0, passing, ty: NcAbiType::U8 },
                 NcAbiHashPart::Return {
                     passing: NcAbiPassing::Void,
                     ty: NcAbiType::Void,
@@ -965,10 +837,7 @@ mod tests {
         let copy_from = offset_buffer_hash(NcAbiPassing::CopyFromBufferOffset, 0, NcAbiType::U8);
         assert_ne!(copy_to, copy_from);
 
-        for passing in [
-            NcAbiPassing::CopyToBufferOffset,
-            NcAbiPassing::CopyFromBufferOffset,
-        ] {
+        for passing in [NcAbiPassing::CopyToBufferOffset, NcAbiPassing::CopyFromBufferOffset] {
             let base = offset_buffer_hash(passing, 0, NcAbiType::U8);
 
             assert_ne!(base, offset_buffer_hash(passing, 1, NcAbiType::U8));
@@ -977,10 +846,7 @@ mod tests {
             assert_ne!(
                 base,
                 NcAbiHash::from_abi_parts(&[
-                    NcAbiHashPart::Method {
-                        index: 0,
-                        name: "copy",
-                    },
+                    NcAbiHashPart::Method { index: 0, name: "copy" },
                     NcAbiHashPart::Arg {
                         index: 0,
                         passing: NcAbiPassing::Value,
@@ -998,13 +864,7 @@ mod tests {
 
     #[test]
     fn aggregate_hash_changes_for_structural_shape_and_variants() {
-        fn aggregate_hash(
-            kind: NcAbiAggregateKind,
-            size: usize,
-            align: usize,
-            fields: [NcAbiFieldLayout; 2],
-            variants: [NcAbiHashPart<'_>; 2],
-        ) -> NcAbiHash {
+        fn aggregate_hash(kind: NcAbiAggregateKind, size: usize, align: usize, fields: [NcAbiFieldLayout; 2], variants: [NcAbiHashPart<'_>; 2]) -> NcAbiHash {
             NcAbiHash::from_abi_parts(&[
                 NcAbiHashPart::Aggregate { kind },
                 NcAbiHashPart::Layout { size, align },
@@ -1023,48 +883,24 @@ mod tests {
             ])
         }
 
-        let payload_a_fields = [NcAbiFieldLayout {
-            index: 0,
-            offset: 0,
-            ty: NcAbiType::U32,
-        }];
-        let payload_b_fields = [NcAbiFieldLayout {
-            index: 0,
-            offset: 0,
-            ty: NcAbiType::U64,
-        }];
-        let payload_a =
-            NcAbiHash::from_aggregate_layout(NcAbiAggregateKind::Struct, 4, 4, &payload_a_fields);
-        let payload_b =
-            NcAbiHash::from_aggregate_layout(NcAbiAggregateKind::Struct, 8, 8, &payload_b_fields);
-        assert_ne!(
-            payload_a,
-            NcAbiHash::from_aggregate_layout(NcAbiAggregateKind::Struct, 8, 4, &payload_a_fields)
-        );
-        assert_ne!(
-            payload_a,
-            NcAbiHash::from_aggregate_layout(NcAbiAggregateKind::Struct, 4, 8, &payload_a_fields)
-        );
+        let payload_a_fields = [NcAbiFieldLayout { index: 0, offset: 0, ty: NcAbiType::U32 }];
+        let payload_b_fields = [NcAbiFieldLayout { index: 0, offset: 0, ty: NcAbiType::U64 }];
+        let payload_a = NcAbiHash::from_aggregate_layout(NcAbiAggregateKind::Struct, 4, 4, &payload_a_fields);
+        let payload_b = NcAbiHash::from_aggregate_layout(NcAbiAggregateKind::Struct, 8, 8, &payload_b_fields);
+        assert_ne!(payload_a, NcAbiHash::from_aggregate_layout(NcAbiAggregateKind::Struct, 8, 4, &payload_a_fields));
+        assert_ne!(payload_a, NcAbiHash::from_aggregate_layout(NcAbiAggregateKind::Struct, 4, 8, &payload_a_fields));
         assert_ne!(
             payload_a,
             NcAbiHash::from_aggregate_layout(
                 NcAbiAggregateKind::Struct,
                 4,
                 4,
-                &[NcAbiFieldLayout {
-                    index: 0,
-                    offset: 1,
-                    ty: NcAbiType::U32,
-                }],
+                &[NcAbiFieldLayout { index: 0, offset: 1, ty: NcAbiType::U32 }],
             )
         );
 
         let base_fields = [
-            NcAbiFieldLayout {
-                index: 0,
-                offset: 0,
-                ty: NcAbiType::U32,
-            },
+            NcAbiFieldLayout { index: 0, offset: 0, ty: NcAbiType::U32 },
             NcAbiFieldLayout {
                 index: 1,
                 offset: 8,
@@ -1072,29 +908,16 @@ mod tests {
             },
         ];
         let base_variants = [
-            NcAbiHashPart::Variant {
-                index: 0,
-                tag: 1,
-                ty: NcAbiType::Void,
-            },
+            NcAbiHashPart::Variant { index: 0, tag: 1, ty: NcAbiType::Void },
             NcAbiHashPart::Variant {
                 index: 1,
                 tag: 2,
                 ty: NcAbiType::Aggregate(payload_a),
             },
         ];
-        let base = aggregate_hash(
-            NcAbiAggregateKind::TaggedEnum,
-            16,
-            8,
-            base_fields,
-            base_variants,
-        );
+        let base = aggregate_hash(NcAbiAggregateKind::TaggedEnum, 16, 8, base_fields, base_variants);
 
-        assert_ne!(
-            base,
-            aggregate_hash(NcAbiAggregateKind::Union, 16, 8, base_fields, base_variants,)
-        );
+        assert_ne!(base, aggregate_hash(NcAbiAggregateKind::Union, 16, 8, base_fields, base_variants,));
         assert_ne!(
             base,
             aggregate_hash(
@@ -1107,11 +930,7 @@ mod tests {
                         offset: 8,
                         ty: NcAbiType::Aggregate(payload_a),
                     },
-                    NcAbiFieldLayout {
-                        index: 0,
-                        offset: 0,
-                        ty: NcAbiType::U32,
-                    },
+                    NcAbiFieldLayout { index: 0, offset: 0, ty: NcAbiType::U32 },
                 ],
                 base_variants,
             )
@@ -1123,11 +942,7 @@ mod tests {
                 16,
                 8,
                 [
-                    NcAbiFieldLayout {
-                        index: 0,
-                        offset: 4,
-                        ty: NcAbiType::U32,
-                    },
+                    NcAbiFieldLayout { index: 0, offset: 4, ty: NcAbiType::U32 },
                     NcAbiFieldLayout {
                         index: 1,
                         offset: 8,
@@ -1145,11 +960,7 @@ mod tests {
                 8,
                 base_fields,
                 [
-                    NcAbiHashPart::Variant {
-                        index: 0,
-                        tag: 7,
-                        ty: NcAbiType::Void,
-                    },
+                    NcAbiHashPart::Variant { index: 0, tag: 7, ty: NcAbiType::Void },
                     NcAbiHashPart::Variant {
                         index: 1,
                         tag: 2,
@@ -1166,11 +977,7 @@ mod tests {
                 8,
                 base_fields,
                 [
-                    NcAbiHashPart::Variant {
-                        index: 0,
-                        tag: 1,
-                        ty: NcAbiType::Void,
-                    },
+                    NcAbiHashPart::Variant { index: 0, tag: 1, ty: NcAbiType::Void },
                     NcAbiHashPart::Variant {
                         index: 1,
                         tag: 2,

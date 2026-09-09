@@ -333,8 +333,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
         // SAFETY: `self` owns a live interface pointer, so its `IUnknown`
         // prefix and vtable remain valid for the duration of this call. A
         // successful `QueryInterface` writes one owned reference to `out`.
-        let status =
-            unsafe { ((*(*unknown).vtable).query_interface)(unknown, &U::INTERFACE_ID, &mut out) };
+        let status = unsafe { ((*(*unknown).vtable).query_interface)(unknown, &U::INTERFACE_ID, &mut out) };
         if status.is_ok() {
             // SAFETY: Successful `QueryInterface` transfers ownership of one
             // reference for the requested interface. Null is still guarded and

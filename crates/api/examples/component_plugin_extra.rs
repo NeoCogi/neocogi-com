@@ -1,7 +1,6 @@
 use neocogi_com::{NcGuid, NcStatus, com_class, com_object};
 
-const COMPONENT_PLUGIN_EXTRA_ID: NcGuid =
-    neocogi_com::guid_from_qualified_name("nc.examples.multi.extra");
+const COMPONENT_PLUGIN_EXTRA_ID: NcGuid = neocogi_com::guid_from_qualified_name("nc.examples.multi.extra");
 
 const STATE_PLUGIN_ID: NcGuid = neocogi_com::guid_from_qualified_name("nc.examples.multi.state");
 

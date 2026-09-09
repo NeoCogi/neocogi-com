@@ -10,8 +10,8 @@
 use core::{ffi::c_void, ptr};
 
 use neocogi_com_core::{
-    NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcClassInfoV1, NcGuid,
-    NcInspectPluginDescriptorCallbackV1, NcInterfaceId, NcModuleInfoV1, NcPluginInfoV1, NcStatus,
+    NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcClassInfoV1, NcGuid, NcInspectPluginDescriptorCallbackV1, NcInterfaceId, NcModuleInfoV1,
+    NcPluginInfoV1, NcStatus,
 };
 
 use crate::inspection as runtime_inspection;
@@ -40,9 +40,7 @@ pub(super) unsafe extern "C" fn inspect_plugin_library_utf8(
     let plugin = match unsafe { inspect_plugin_descriptor(path) } {
         Ok(plugin) => plugin,
         Err(error) => {
-            let status = error
-                .status()
-                .unwrap_or_else(|| load_error_status(error.kind()));
+            let status = error.status().unwrap_or_else(|| load_error_status(error.kind()));
             emit_error(NC_DEBUG_TYPE_PLUGIN, status, &error.to_string());
             return status;
         }
@@ -54,10 +52,7 @@ pub(super) unsafe extern "C" fn inspect_plugin_library_utf8(
 }
 
 /// Writes borrowed descriptor metadata for one registered plugin.
-pub(super) unsafe extern "C" fn plugin_info(
-    plugin_id: NcGuid,
-    out: *mut NcPluginInfoV1,
-) -> NcStatus {
+pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPluginInfoV1) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -119,12 +114,7 @@ pub(super) unsafe extern "C" fn plugin_dependency_count(plugin_id: NcGuid) -> us
 }
 
 /// Copies a plugin's hard dependency IDs using the count/fill contract.
-pub(super) unsafe extern "C" fn plugin_dependency_ids(
-    plugin_id: NcGuid,
-    out: *mut NcGuid,
-    capacity: usize,
-    out_len: *mut usize,
-) -> NcStatus {
+pub(super) unsafe extern "C" fn plugin_dependency_ids(plugin_id: NcGuid, out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus {
     RuntimeState::global()
         .read_catalog()
         .plugin_registry
@@ -135,19 +125,11 @@ pub(super) unsafe extern "C" fn plugin_dependency_ids(
 }
 
 /// Copies class IDs registered by a plugin using the count/fill contract.
-pub(super) unsafe extern "C" fn plugin_class_ids(
-    plugin_id: NcGuid,
-    out: *mut NcGuid,
-    capacity: usize,
-    out_len: *mut usize,
-) -> NcStatus {
-    RuntimeState::global()
-        .read_catalog()
-        .type_registry
-        .with_plugin_class_ids(plugin_id, |values| {
-            // SAFETY: The caller provides the output-buffer contract.
-            unsafe { copy_slice_to_out(values, out, capacity, out_len) }
-        })
+pub(super) unsafe extern "C" fn plugin_class_ids(plugin_id: NcGuid, out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus {
+    RuntimeState::global().read_catalog().type_registry.with_plugin_class_ids(plugin_id, |values| {
+        // SAFETY: The caller provides the output-buffer contract.
+        unsafe { copy_slice_to_out(values, out, capacity, out_len) }
+    })
 }
 
 /// Returns the number of canonical interface identities exposed by a class.
@@ -159,12 +141,7 @@ pub(super) unsafe extern "C" fn class_interface_count(class_id: NcGuid) -> usize
 }
 
 /// Copies a class's interface identities using the count/fill contract.
-pub(super) unsafe extern "C" fn class_interface_ids(
-    class_id: NcGuid,
-    out: *mut NcInterfaceId,
-    capacity: usize,
-    out_len: *mut usize,
-) -> NcStatus {
+pub(super) unsafe extern "C" fn class_interface_ids(class_id: NcGuid, out: *mut NcInterfaceId, capacity: usize, out_len: *mut usize) -> NcStatus {
     RuntimeState::global()
         .read_catalog()
         .type_registry
@@ -175,9 +152,7 @@ pub(super) unsafe extern "C" fn class_interface_ids(
 }
 
 /// Returns the number of registered classes implementing an interface identity.
-pub(super) unsafe extern "C" fn interface_implementor_class_count(
-    interface_id: NcInterfaceId,
-) -> usize {
+pub(super) unsafe extern "C" fn interface_implementor_class_count(interface_id: NcInterfaceId) -> usize {
     RuntimeState::global()
         .read_catalog()
         .type_registry

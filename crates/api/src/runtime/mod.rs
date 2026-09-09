@@ -262,9 +262,7 @@ impl Runtime {
         let mut module_id = 0;
         // SAFETY: The UTF-8 path is readable for this call and the output slot
         // is valid. The caller accepted the trusted-library requirement.
-        let status = unsafe {
-            (self.runtime_api().load_plugin_library_utf8)(path.as_ptr(), path.len(), &mut module_id)
-        };
+        let status = unsafe { (self.runtime_api().load_plugin_library_utf8)(path.as_ptr(), path.len(), &mut module_id) };
         if status.is_err() {
             fatal_plugin_load(status);
         }
@@ -305,20 +303,13 @@ impl Runtime {
     }
 
     /// Verifies that a registered class supports an interface ABI identity.
-    pub fn require_interface(
-        &self,
-        class_id: NcGuid,
-        interface_id: NcInterfaceId,
-    ) -> Result<(), NcStatus> {
+    pub fn require_interface(&self, class_id: NcGuid, interface_id: NcInterfaceId) -> Result<(), NcStatus> {
         // SAFETY: Both identities are passed by value.
         status_to_result(unsafe { (self.runtime_api().require_interface)(class_id, interface_id) })
     }
 
     /// Verifies that a registered class supports generated interface `T`.
-    pub fn require_interface_type<T: ComInterface>(
-        &self,
-        class_id: NcGuid,
-    ) -> Result<(), NcStatus> {
+    pub fn require_interface_type<T: ComInterface>(&self, class_id: NcGuid) -> Result<(), NcStatus> {
         self.require_interface(class_id, T::INTERFACE_ID)
     }
 
@@ -328,10 +319,7 @@ impl Runtime {
     /// callable ABI, so the caller neither repeats a class ID nor queries a
     /// separately declared one-off interface. The generated argument wrapper
     /// statically binds the constructor frame to `C`.
-    pub fn construct<'a, C: ComClassContract>(
-        &self,
-        arguments: C::Arguments<'a>,
-    ) -> Result<ComPtr<C>, NcStatus> {
+    pub fn construct<'a, C: ComClassContract>(&self, arguments: C::Arguments<'a>) -> Result<ComPtr<C>, NcStatus> {
         self.construct_with_model::<C, ThreadLocal>(arguments)
     }
 
@@ -349,20 +337,10 @@ impl Runtime {
     }
 
     /// Constructs an object from a registered class and typed argument frame.
-    pub fn construct_class(
-        &self,
-        class_id: NcGuid,
-        arguments: impl ComClassArguments,
-    ) -> Result<ComPtr<IUnknown>, NcStatus> {
+    pub fn construct_class(&self, class_id: NcGuid, arguments: impl ComClassArguments) -> Result<ComPtr<IUnknown>, NcStatus> {
         // SAFETY: The unsafe argument trait binds its hash to a frame pointer
         // that remains valid while `arguments` is borrowed by this call.
-        unsafe {
-            self.construct_class_raw(
-                class_id,
-                class_arguments_abi_hash(&arguments),
-                arguments.as_abi_ptr(),
-            )
-        }
+        unsafe { self.construct_class_raw(class_id, class_arguments_abi_hash(&arguments), arguments.as_abi_ptr()) }
     }
 
     /// Constructs an object with threading capability `M` and typed arguments.
@@ -370,20 +348,10 @@ impl Runtime {
     /// A thread-local request is valid for every registered class. A
     /// thread-safe request succeeds only when the class descriptor promises
     /// that constructed objects support cross-thread calls and destruction.
-    pub fn construct_class_with_model<M: ThreadingModel>(
-        &self,
-        class_id: NcGuid,
-        arguments: impl ComClassArguments,
-    ) -> Result<ComPtr<IUnknown, M>, NcStatus> {
+    pub fn construct_class_with_model<M: ThreadingModel>(&self, class_id: NcGuid, arguments: impl ComClassArguments) -> Result<ComPtr<IUnknown, M>, NcStatus> {
         // SAFETY: The unsafe argument trait binds its hash to a frame pointer
         // that remains valid while `arguments` is borrowed by this call.
-        unsafe {
-            self.construct_class_with_model_raw::<M>(
-                class_id,
-                class_arguments_abi_hash(&arguments),
-                arguments.as_abi_ptr(),
-            )
-        }
+        unsafe { self.construct_class_with_model_raw::<M>(class_id, class_arguments_abi_hash(&arguments), arguments.as_abi_ptr()) }
     }
 
     /// Constructs an object from an explicitly erased constructor frame.
@@ -400,13 +368,7 @@ impl Runtime {
     ) -> Result<ComPtr<IUnknown>, NcStatus> {
         // SAFETY: This forwards the caller's raw frame contract while
         // requesting the conservative thread-local pointer capability.
-        unsafe {
-            self.construct_class_with_model_raw::<ThreadLocal>(
-                class_id,
-                constructor_abi_hash,
-                arguments,
-            )
-        }
+        unsafe { self.construct_class_with_model_raw::<ThreadLocal>(class_id, constructor_abi_hash, arguments) }
     }
 
     /// Constructs an object from an erased frame with threading capability `M`.
@@ -425,37 +387,21 @@ impl Runtime {
         let requested_threading = M::ABI_THREADING_MODE.as_raw();
         // SAFETY: The caller supplies the borrowed argument contract and `out`
         // is valid for one pointer write.
-        let status = unsafe {
-            (self.runtime_api().construct_class)(
-                class_id,
-                requested_threading,
-                constructor_abi_hash,
-                arguments,
-                &mut out,
-            )
-        };
+        let status = unsafe { (self.runtime_api().construct_class)(class_id, requested_threading, constructor_abi_hash, arguments, &mut out) };
         status_to_result(status)?;
         // SAFETY: A successful runtime construction returns one owned reference.
         unsafe { ComPtr::<IUnknown, M>::__nc_from_raw_owned_checked(out) }
     }
 
     /// Constructs an object, then validates and queries generated interface `T`.
-    pub fn construct_class_as<T: ComInterface>(
-        &self,
-        class_id: NcGuid,
-        arguments: impl ComClassArguments,
-    ) -> Result<ComPtr<T>, NcStatus> {
+    pub fn construct_class_as<T: ComInterface>(&self, class_id: NcGuid, arguments: impl ComClassArguments) -> Result<ComPtr<T>, NcStatus> {
         let unknown = self.construct_class(class_id, arguments)?;
         self.query_validated::<T, _>(class_id, &unknown)
     }
 
     /// Constructs an object with threading capability `M`, then validates and
     /// queries generated interface `T` while preserving that capability.
-    pub fn construct_class_as_with_model<T, M>(
-        &self,
-        class_id: NcGuid,
-        arguments: impl ComClassArguments,
-    ) -> Result<ComPtr<T, M>, NcStatus>
+    pub fn construct_class_as_with_model<T, M>(&self, class_id: NcGuid, arguments: impl ComClassArguments) -> Result<ComPtr<T, M>, NcStatus>
     where
         T: ComInterface,
         M: ThreadingModel,
@@ -465,11 +411,7 @@ impl Runtime {
     }
 
     /// Validates and queries an existing object for generated interface `T`.
-    pub fn query_validated<T, M>(
-        &self,
-        class_id: NcGuid,
-        object: &ComPtr<IUnknown, M>,
-    ) -> Result<ComPtr<T, M>, NcStatus>
+    pub fn query_validated<T, M>(&self, class_id: NcGuid, object: &ComPtr<IUnknown, M>) -> Result<ComPtr<T, M>, NcStatus>
     where
         T: ComInterface,
         M: ThreadingModel,
@@ -483,11 +425,7 @@ impl Runtime {
     /// # Safety
     ///
     /// `object` must be null or one owned `IUnknown` reference.
-    pub unsafe fn adopt_unknown_as<T: ComInterface>(
-        &self,
-        class_id: NcGuid,
-        object: *mut IUnknown,
-    ) -> Result<ComPtr<T>, NcStatus> {
+    pub unsafe fn adopt_unknown_as<T: ComInterface>(&self, class_id: NcGuid, object: *mut IUnknown) -> Result<ComPtr<T>, NcStatus> {
         // SAFETY: The caller transfers one owned reference when non-null.
         let unknown = unsafe { ComPtr::<IUnknown>::__nc_from_raw_owned_checked(object) }?;
         self.query_validated::<T, _>(class_id, &unknown)
@@ -529,10 +467,7 @@ fn fatal_plugin_load(detail: impl fmt::Display) -> ! {
 /// readable leading `usize` reporting its actual byte size. When that size is at
 /// least `size_of::<T>()`, the known prefix must be a valid `T`.
 unsafe fn table<T>(table: *const T) -> &'static T {
-    assert!(
-        !table.is_null(),
-        "compatible neocogi-com runtime returned a null API table"
-    );
+    assert!(!table.is_null(), "compatible neocogi-com runtime returned a null API table");
 
     // Read only the common size prefix through the raw pointer. Creating `&T`
     // before this check would already require the backing allocation to contain
@@ -568,10 +503,7 @@ fn status_to_result(status: NcStatus) -> Result<(), NcStatus> {
 ///
 /// Append-only registry growth is retried only while the required capacity
 /// grows strictly and remains within the facade's resource policy.
-fn read_vec<T: Copy>(
-    count: impl Fn() -> usize,
-    fill: impl Fn(*mut T, usize, *mut usize) -> NcStatus,
-) -> Result<Vec<T>, NcStatus> {
+fn read_vec<T: Copy>(count: impl Fn() -> usize, fill: impl Fn(*mut T, usize, *mut usize) -> NcStatus) -> Result<Vec<T>, NcStatus> {
     // Registry state is append-only and may grow after `count`. Retry only when
     // the required capacity makes strict progress, and never expose partially
     // initialized vectors.
@@ -618,9 +550,7 @@ fn checked_enumeration_capacity(capacity: usize) -> Result<usize, NcStatus> {
 /// Reserves an exact vector capacity and maps allocation failure to ABI status.
 fn try_vec_with_capacity<T>(capacity: usize) -> Result<Vec<T>, NcStatus> {
     let mut values = Vec::new();
-    values
-        .try_reserve_exact(capacity)
-        .map_err(|_| NC_E_OUT_OF_MEMORY)?;
+    values.try_reserve_exact(capacity).map_err(|_| NC_E_OUT_OF_MEMORY)?;
     Ok(values)
 }
 
@@ -653,8 +583,7 @@ mod tests {
     use std::panic::catch_unwind;
 
     use super::{
-        NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES,
-        NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, read_utf8_view, read_vec, table,
+        NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES, NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, read_utf8_view, read_vec, table,
     };
     use crate::{NC_E_INSUFFICIENT_BUFFER, NC_E_OUT_OF_RANGE, NC_OK, NcStatus, NcUtf8View};
 
@@ -704,8 +633,7 @@ mod tests {
     fn table_accepts_an_append_only_extension() {
         // SAFETY: The extended allocation begins with a complete `TestApiTable`
         // prefix and remains immutable for the process lifetime.
-        let table =
-            unsafe { table(core::ptr::from_ref(&EXTENDED_TEST_API_TABLE).cast::<TestApiTable>()) };
+        let table = unsafe { table(core::ptr::from_ref(&EXTENDED_TEST_API_TABLE).cast::<TestApiTable>()) };
 
         assert_eq!(table.value, 42);
     }
@@ -728,11 +656,7 @@ mod tests {
             // the table prefix, and readable for its advertised leading `size`.
             // It intentionally does not contain the remainder of `TestApiTable`;
             // the checked conversion must reject it using only that prefix.
-            unsafe {
-                table::<TestApiTable>(
-                    core::ptr::from_ref(&SHORT_TEST_API_TABLE).cast::<TestApiTable>(),
-                )
-            }
+            unsafe { table::<TestApiTable>(core::ptr::from_ref(&SHORT_TEST_API_TABLE).cast::<TestApiTable>()) }
         });
 
         assert!(result.is_err());

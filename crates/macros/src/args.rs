@@ -116,10 +116,7 @@ impl Parse for EnumArgs {
                 input.parse::<Token![=]>()?;
                 runtime_crate = Some(input.parse()?);
             } else {
-                return Err(syn::Error::new(
-                    keyword.span(),
-                    "expected tag = integer_type or neocogi_com = path",
-                ));
+                return Err(syn::Error::new(keyword.span(), "expected tag = integer_type or neocogi_com = path"));
             }
 
             if input.is_empty() {
@@ -157,10 +154,7 @@ impl Parse for StructArgs {
                 c_struct = true;
             } else if keyword == "packed" {
                 if repr.is_some() {
-                    return Err(syn::Error::new(
-                        keyword.span(),
-                        "duplicate COM struct layout option",
-                    ));
+                    return Err(syn::Error::new(keyword.span(), "duplicate COM struct layout option"));
                 }
 
                 let packed = if input.peek(syn::token::Paren) {
@@ -177,10 +171,7 @@ impl Parse for StructArgs {
                 repr = Some(StructReprArgs::Packed(packed));
             } else if keyword == "align" {
                 if repr.is_some() {
-                    return Err(syn::Error::new(
-                        keyword.span(),
-                        "duplicate COM struct layout option",
-                    ));
+                    return Err(syn::Error::new(keyword.span(), "duplicate COM struct layout option"));
                 }
 
                 let content;
@@ -234,19 +225,13 @@ impl Parse for InterfaceArgs {
                     input.parse::<Token![=]>()?;
                     let value: LitStr = input.parse()?;
                     if qualified_name.is_some() {
-                        return Err(syn::Error::new(
-                            value.span(),
-                            "auto_guid already supplies the qualified name",
-                        ));
+                        return Err(syn::Error::new(value.span(), "auto_guid already supplies the qualified name"));
                     }
                     qualified_name = Some(value.clone());
                     guid = Some(InterfaceGuid::AutoGuid { value });
                 } else if keyword == "name" {
                     if qualified_name.is_some() {
-                        return Err(syn::Error::new(
-                            keyword.span(),
-                            "duplicate interface qualified name",
-                        ));
+                        return Err(syn::Error::new(keyword.span(), "duplicate interface qualified name"));
                     }
                     input.parse::<Token![=]>()?;
                     qualified_name = Some(input.parse()?);
@@ -271,18 +256,8 @@ impl Parse for InterfaceArgs {
         }
 
         Ok(Self {
-            guid: guid.ok_or_else(|| {
-                syn::Error::new(
-                    input.span(),
-                    "expected UUID string or auto_guid = \"stable.name:v1\"",
-                )
-            })?,
-            qualified_name: qualified_name.ok_or_else(|| {
-                syn::Error::new(
-                    input.span(),
-                    "explicit interface UUIDs require name = \"stable.name:v1\"",
-                )
-            })?,
+            guid: guid.ok_or_else(|| syn::Error::new(input.span(), "expected UUID string or auto_guid = \"stable.name:v1\""))?,
+            qualified_name: qualified_name.ok_or_else(|| syn::Error::new(input.span(), "explicit interface UUIDs require name = \"stable.name:v1\""))?,
             runtime_crate,
         })
     }
@@ -309,10 +284,7 @@ impl Parse for ClassContractArgs {
                 input.parse::<Token![=]>()?;
                 runtime_crate = Some(input.parse()?);
             } else {
-                return Err(syn::Error::new(
-                    keyword.span(),
-                    "expected auto_guid = \"stable.name:v1\" or neocogi_com = path",
-                ));
+                return Err(syn::Error::new(keyword.span(), "expected auto_guid = \"stable.name:v1\" or neocogi_com = path"));
             }
 
             if input.is_empty() {
@@ -322,9 +294,7 @@ impl Parse for ClassContractArgs {
         }
 
         Ok(Self {
-            auto_guid: auto_guid.ok_or_else(|| {
-                syn::Error::new(input.span(), "expected auto_guid = \"stable.name:v1\"")
-            })?,
+            auto_guid: auto_guid.ok_or_else(|| syn::Error::new(input.span(), "expected auto_guid = \"stable.name:v1\""))?,
             runtime_crate,
         })
     }
@@ -348,22 +318,13 @@ impl Parse for ClassArgs {
         let mut contract = None;
 
         while !input.is_empty() {
-            let starts_qualified_path = input.peek(Token![::])
-                || input.peek(Token![crate])
-                || input.peek(Token![self])
-                || input.peek(Token![super]);
+            let starts_qualified_path = input.peek(Token![::]) || input.peek(Token![crate]) || input.peek(Token![self]) || input.peek(Token![super]);
             let starts_named_path = if input.peek(Ident) {
                 let lookahead = input.fork();
                 let candidate: Ident = lookahead.parse()?;
                 !matches!(
                     candidate.to_string().as_str(),
-                    "interfaces"
-                        | "thread_safe"
-                        | "neocogi_com"
-                        | "class_id"
-                        | "name"
-                        | "version"
-                        | "constructor"
+                    "interfaces" | "thread_safe" | "neocogi_com" | "class_id" | "name" | "version" | "constructor"
                 )
             } else {
                 false
@@ -390,12 +351,7 @@ impl Parse for ClassArgs {
                 parenthesized!(content in input);
                 let paths = content.parse_terminated(Path::parse_mod_style, Token![,])?;
                 validate_class_interface_paths(paths.iter())?;
-                interfaces = Some(
-                    paths
-                        .into_iter()
-                        .map(ClassInterface::from_path)
-                        .collect::<Result<Vec<_>>>()?,
-                );
+                interfaces = Some(paths.into_iter().map(ClassInterface::from_path).collect::<Result<Vec<_>>>()?);
             } else if keyword == "thread_safe" {
                 if thread_safe {
                     return Err(syn::Error::new(keyword.span(), "duplicate thread_safe"));
@@ -483,16 +439,10 @@ fn validate_class_interface_paths<'a>(paths: impl Iterator<Item = &'a Path>) -> 
         let path_key = path.to_token_stream().to_string();
         let name_key = last.ident.to_string();
         if seen_paths.contains(&path_key) {
-            return Err(syn::Error::new_spanned(
-                path,
-                "duplicate COM interface in interfaces(...)",
-            ));
+            return Err(syn::Error::new_spanned(path, "duplicate COM interface in interfaces(...)"));
         }
         if seen_names.contains(&name_key) {
-            return Err(syn::Error::new_spanned(
-                path,
-                "COM interfaces in one class must have distinct final path names",
-            ));
+            return Err(syn::Error::new_spanned(path, "COM interfaces in one class must have distinct final path names"));
         }
         seen_paths.push(path_key);
         seen_names.push(name_key);
@@ -531,9 +481,7 @@ pub(crate) fn parse_guid_arg(input: ParseStream<'_>, name: &str) -> Result<Inter
         if keyword == "auto_guid" && fork.peek(Token![=]) {
             input.parse::<Ident>()?;
             input.parse::<Token![=]>()?;
-            InterfaceGuid::AutoGuid {
-                value: input.parse()?,
-            }
+            InterfaceGuid::AutoGuid { value: input.parse()? }
         } else {
             InterfaceGuid::Path(Path::parse_mod_style(input)?)
         }
@@ -542,10 +490,7 @@ pub(crate) fn parse_guid_arg(input: ParseStream<'_>, name: &str) -> Result<Inter
     if !input.is_empty() {
         input.parse::<Token![,]>()?;
         if !input.is_empty() {
-            return Err(syn::Error::new(
-                input.span(),
-                format!("unexpected extra tokens in {name}(...)"),
-            ));
+            return Err(syn::Error::new(input.span(), format!("unexpected extra tokens in {name}(...)")));
         }
     }
 

@@ -29,9 +29,7 @@ pub struct __ComCallGate {
 impl __ComCallGate {
     /// Creates an idle gate for a newly allocated COM object.
     pub const fn new() -> Self {
-        Self {
-            state: AtomicUsize::new(0),
-        }
+        Self { state: AtomicUsize::new(0) }
     }
 
     /// Runs one shared call, or reports contention with an active mutable call.
@@ -57,12 +55,7 @@ impl __ComCallGate {
             if current == EXCLUSIVE_CALL || current == EXCLUSIVE_CALL - 1 {
                 return Err(NC_E_BUSY);
             }
-            match self.state.compare_exchange_weak(
-                current,
-                current + 1,
-                Ordering::Acquire,
-                Ordering::Relaxed,
-            ) {
+            match self.state.compare_exchange_weak(current, current + 1, Ordering::Acquire, Ordering::Relaxed) {
                 Ok(_) => return Ok(SharedCall { gate: self }),
                 Err(observed) => current = observed,
             }
@@ -156,12 +149,7 @@ pub fn __com_release_ref_count(ref_count: &AtomicU32) -> Option<u32> {
         let remaining = current.saturating_sub(1);
         // Successful decrements release this reference's prior accesses.
         // The final decrement also acquires the release sequence before drop.
-        match ref_count.compare_exchange_weak(
-            current,
-            remaining,
-            Ordering::AcqRel,
-            Ordering::Relaxed,
-        ) {
+        match ref_count.compare_exchange_weak(current, remaining, Ordering::AcqRel, Ordering::Relaxed) {
             Ok(_) => return Some(remaining),
             Err(observed) => current = observed,
         }
@@ -186,10 +174,7 @@ pub unsafe trait ComAbiObject: Sized {
     ///
     /// `object` must be an opaque storage pointer originally produced by the
     /// matching generated `#[com_object]` implementation.
-    unsafe fn with_abi_ref<R>(
-        object: *mut c_void,
-        call: impl FnOnce(&Self) -> R,
-    ) -> Result<R, NcStatus>;
+    unsafe fn with_abi_ref<R>(object: *mut c_void, call: impl FnOnce(&Self) -> R) -> Result<R, NcStatus>;
 
     /// Runs a closure with exclusive access to the Rust value in generated storage.
     ///
@@ -197,10 +182,7 @@ pub unsafe trait ComAbiObject: Sized {
     ///
     /// `object` must be an opaque storage pointer originally produced by the
     /// matching generated `#[com_object]` implementation.
-    unsafe fn with_abi_mut<R>(
-        object: *mut c_void,
-        call: impl FnOnce(&mut Self) -> R,
-    ) -> Result<R, NcStatus>;
+    unsafe fn with_abi_mut<R>(object: *mut c_void, call: impl FnOnce(&mut Self) -> R) -> Result<R, NcStatus>;
 
     /// Implements `QueryInterface` for generated interface thunks.
     ///
@@ -213,11 +195,7 @@ pub unsafe trait ComAbiObject: Sized {
     /// status leaves `*out` null and transfers no reference. Null or otherwise
     /// invalid arguments violate this safety contract even when an
     /// implementation rejects them defensively.
-    unsafe fn query_interface_from_abi_object(
-        object: *mut c_void,
-        interface_id: *const NcInterfaceId,
-        out: *mut *mut c_void,
-    ) -> NcStatus;
+    unsafe fn query_interface_from_abi_object(object: *mut c_void, interface_id: *const NcInterfaceId, out: *mut *mut c_void) -> NcStatus;
 
     /// Increments the reference count for generated object storage.
     ///
@@ -288,10 +266,7 @@ pub unsafe trait ComClass: ComAbiObject {
 /// interface pointers. This usually means the object is immutable, internally
 /// synchronized, or otherwise free of thread-affine state. Its [`ComClass`]
 /// implementation must identify [`ThreadSafe`] as the class capability.
-pub unsafe trait ThreadSafeComObject:
-    ComClass<Threading = ThreadSafe> + Send + Sync
-{
-}
+pub unsafe trait ThreadSafeComObject: ComClass<Threading = ThreadSafe> + Send + Sync {}
 
 #[cfg(test)]
 mod tests {

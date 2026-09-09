@@ -28,9 +28,7 @@ mod runtime_host {
 
     pub fn run() {
         let Some(plugin_path) = env::args_os().nth(1) else {
-            eprintln!(
-                "usage: LD_LIBRARY_PATH=<runtime-dir> cargo run --example runtime_host --features runtime -- <component shared library>"
-            );
+            eprintln!("usage: LD_LIBRARY_PATH=<runtime-dir> cargo run --example runtime_host --features runtime -- <component shared library>");
             return;
         };
         let plugin_path = Path::new(&plugin_path);
@@ -47,11 +45,7 @@ mod runtime_host {
         let loaded = unsafe { runtime.load_plugin_library(plugin_path) };
         let module_id = loaded.module_id();
         println!("loaded module: {}", module_id);
-        println!(
-            "plugin: {} {}",
-            loaded.qualified_name(),
-            loaded.plugin_version()
-        );
+        println!("plugin: {} {}", loaded.qualified_name(), loaded.plugin_version());
         println!("path: {}", loaded.path().display());
 
         let classes = runtime.inspection().class_ids_in_module(module_id).unwrap();
@@ -63,10 +57,7 @@ mod runtime_host {
         let class_info = runtime.inspection().class_info(GreeterAbi::CLASS_ID).unwrap().expect("greeter class info");
         assert_eq!(class_info.threading, neocogi_com::NcAbiThreadingMode::ThreadSafe);
 
-        let interfaces = runtime
-            .inspection()
-            .interface_ids_in_module(module_id)
-            .unwrap();
+        let interfaces = runtime.inspection().interface_ids_in_module(module_id).unwrap();
         assert!(
             interfaces.contains(&GreeterAbi::INTERFACE_ID),
             "runtime inspection did not report the greeter class projection"

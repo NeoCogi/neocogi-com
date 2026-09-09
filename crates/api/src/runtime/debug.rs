@@ -33,10 +33,7 @@ impl<'runtime> Debug<'runtime> {
     /// The callback and `user_data` in `create_info` must remain valid for all
     /// matching calls until the returned messenger is dropped. Debug callbacks
     /// must not drop their own messenger or otherwise destroy a debug messenger.
-    pub unsafe fn create_messenger(
-        self,
-        create_info: &NcDebugMessengerCreateInfoV1,
-    ) -> Result<DebugMessenger, NcStatus> {
+    pub unsafe fn create_messenger(self, create_info: &NcDebugMessengerCreateInfoV1) -> Result<DebugMessenger, NcStatus> {
         let api = self.runtime.debug_api();
         let mut handle = 0;
         // SAFETY: The caller guarantees callback/user-data validity, and the
@@ -62,9 +59,7 @@ pub struct DebugMessenger {
 impl core::fmt::Debug for DebugMessenger {
     /// Formats the diagnostic handle without exposing the raw API table.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("DebugMessenger")
-            .field("handle", &self.handle)
-            .finish_non_exhaustive()
+        f.debug_struct("DebugMessenger").field("handle", &self.handle).finish_non_exhaustive()
     }
 }
 

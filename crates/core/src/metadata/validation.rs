@@ -18,20 +18,14 @@ use crate::hash::NcAbiHasher;
 use crate::metadata::{validate_qualified_name, validate_version_text};
 use crate::object::{IID_IUNKNOWN, IUNKNOWN_ABI_HASH, IUNKNOWN_QUALIFIED_NAME};
 use crate::{
-    NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET,
-    NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT, NC_ABI_PASSING_VALUE,
-    NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
-    NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
-    NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8,
-    NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE,
-    NC_ABI_TYPE_NC_ABI_HASH, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8,
-    NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID,
-    NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiHash,
-    NcAbiHashPart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType,
-    NcAbiTypeDescriptor, NcClassDescriptor, NcClassInterfaceDescriptor, NcClassTable,
-    NcInterfaceDescriptor, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor,
-    NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus,
-    guid_from_qualified_name,
+    NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT,
+    NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
+    NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64,
+    NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_ABI_HASH, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16,
+    NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK,
+    NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcClassDescriptor,
+    NcClassInterfaceDescriptor, NcClassTable, NcInterfaceDescriptor, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor,
+    NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name,
 };
 
 /// Location of a descriptor validation issue in a plugin descriptor graph.
@@ -224,12 +218,7 @@ where
     }
 
     /// Records an issue, preserves the first status, and notifies the callback.
-    fn issue(
-        &mut self,
-        status: NcStatus,
-        path: NcDescriptorPath,
-        kind: NcDescriptorValidationKind,
-    ) {
+    fn issue(&mut self, status: NcStatus, path: NcDescriptorPath, kind: NcDescriptorValidationKind) {
         if self.first_error.is_ok() {
             self.first_error = status;
         }
@@ -254,18 +243,11 @@ where
 /// `plugin` must be null or point to readable [`NcPluginDescriptor`] metadata.
 /// If descriptor counts are nonzero, the corresponding table pointers must be
 /// readable for those counts.
-pub unsafe fn validate_plugin_descriptor_with_issues(
-    plugin: *const NcPluginDescriptor,
-    report: impl FnMut(NcDescriptorValidationIssue),
-) -> NcStatus {
+pub unsafe fn validate_plugin_descriptor_with_issues(plugin: *const NcPluginDescriptor, report: impl FnMut(NcDescriptorValidationIssue)) -> NcStatus {
     let mut reporter = IssueReporter::new(report);
 
     if plugin.is_null() {
-        reporter.issue(
-            NC_E_POINTER,
-            NcDescriptorPath::Plugin,
-            NcDescriptorValidationKind::NullPluginDescriptor,
-        );
+        reporter.issue(NC_E_POINTER, NcDescriptorPath::Plugin, NcDescriptorValidationKind::NullPluginDescriptor);
         return reporter.first_error;
     }
 
@@ -282,19 +264,11 @@ where
     R: FnMut(NcDescriptorValidationIssue),
 {
     if plugin.core_abi_version != NC_COM_CORE_ABI_VERSION {
-        reporter.issue(
-            NC_E_ABI_VERSION,
-            NcDescriptorPath::Plugin,
-            NcDescriptorValidationKind::CoreAbiVersionMismatch,
-        );
+        reporter.issue(NC_E_ABI_VERSION, NcDescriptorPath::Plugin, NcDescriptorValidationKind::CoreAbiVersionMismatch);
         return;
     }
     if plugin.plugin_id.is_nil() {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            NcDescriptorPath::Plugin,
-            NcDescriptorValidationKind::NilPluginId,
-        );
+        reporter.issue(NC_E_INVALID_ARG, NcDescriptorPath::Plugin, NcDescriptorValidationKind::NilPluginId);
     }
 
     if let Some(name) = unsafe {
@@ -329,22 +303,13 @@ where
             reporter,
         )
     } {
-        validate_version_text_with_issue(
-            version,
-            NcDescriptorPath::Plugin,
-            NcDescriptorValidationKind::InvalidPluginVersion,
-            reporter,
-        );
+        validate_version_text_with_issue(version, NcDescriptorPath::Plugin, NcDescriptorValidationKind::InvalidPluginVersion, reporter);
     }
 
     validate_plugin_dependencies(plugin, reporter);
 
     if plugin.class_table.is_null() {
-        reporter.issue(
-            NC_E_POINTER,
-            NcDescriptorPath::ClassTable,
-            NcDescriptorValidationKind::NullClassTable,
-        );
+        reporter.issue(NC_E_POINTER, NcDescriptorPath::ClassTable, NcDescriptorValidationKind::NullClassTable);
         return;
     }
 
@@ -362,18 +327,12 @@ where
     let dependencies = if plugin.dependency_count == 0 {
         &[]
     } else if plugin.dependencies.is_null() {
-        reporter.issue(
-            NC_E_POINTER,
-            NcDescriptorPath::Plugin,
-            NcDescriptorValidationKind::NullPluginDependencies,
-        );
+        reporter.issue(NC_E_POINTER, NcDescriptorPath::Plugin, NcDescriptorValidationKind::NullPluginDependencies);
         return;
     } else {
         // SAFETY: Nonzero count has a non-null table pointer, and the caller's
         // descriptor graph contract makes the declared entries readable.
-        unsafe {
-            core::slice::from_raw_parts(plugin.dependencies, plugin.dependency_count as usize)
-        }
+        unsafe { core::slice::from_raw_parts(plugin.dependencies, plugin.dependency_count as usize) }
     };
 
     #[cfg(feature = "alloc")]
@@ -382,9 +341,7 @@ where
         #[cfg(feature = "alloc")]
         let duplicate = !seen.insert(guid_key(dependency.plugin_id));
         #[cfg(not(feature = "alloc"))]
-        let duplicate = dependencies[..dependency_index]
-            .iter()
-            .any(|other| other.plugin_id == dependency.plugin_id);
+        let duplicate = dependencies[..dependency_index].iter().any(|other| other.plugin_id == dependency.plugin_id);
         validate_plugin_dependency(plugin, dependency_index, dependency, duplicate, reporter);
     }
 }
@@ -403,23 +360,11 @@ fn validate_plugin_dependency<R>(
         dependency_index: dependency_index as u32,
     };
     if dependency.plugin_id.is_nil() {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            path,
-            NcDescriptorValidationKind::NilPluginDependencyId,
-        );
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::NilPluginDependencyId);
     } else if dependency.plugin_id == plugin.plugin_id {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            path,
-            NcDescriptorValidationKind::SelfPluginDependency,
-        );
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::SelfPluginDependency);
     } else if duplicate {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            path,
-            NcDescriptorValidationKind::DuplicatePluginDependencyId,
-        );
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::DuplicatePluginDependencyId);
     }
 }
 
@@ -431,11 +376,7 @@ where
     let classes = if table.class_count == 0 {
         &[]
     } else if table.classes.is_null() {
-        reporter.issue(
-            NC_E_POINTER,
-            NcDescriptorPath::ClassTable,
-            NcDescriptorValidationKind::NullClassTableClasses,
-        );
+        reporter.issue(NC_E_POINTER, NcDescriptorPath::ClassTable, NcDescriptorValidationKind::NullClassTableClasses);
         return;
     } else {
         // SAFETY: Nonzero `class_count` has a non-null class table pointer, and
@@ -449,103 +390,48 @@ where
         #[cfg(feature = "alloc")]
         let duplicate = !seen.insert(guid_key(class.class_id));
         #[cfg(not(feature = "alloc"))]
-        let duplicate = classes[..class_index]
-            .iter()
-            .any(|other| other.class_id == class.class_id);
+        let duplicate = classes[..class_index].iter().any(|other| other.class_id == class.class_id);
         validate_class_descriptor(class_index, class, duplicate, reporter);
     }
 }
 
 /// Validates one class's identity, text, constructor, threading, and interfaces.
-fn validate_class_descriptor<R>(
-    class_index: usize,
-    class: &NcClassDescriptor,
-    duplicate: bool,
-    reporter: &mut IssueReporter<R>,
-) where
+fn validate_class_descriptor<R>(class_index: usize, class: &NcClassDescriptor, duplicate: bool, reporter: &mut IssueReporter<R>)
+where
     R: FnMut(NcDescriptorValidationIssue),
 {
-    let path = NcDescriptorPath::Class {
-        class_index: class_index as u32,
-    };
+    let path = NcDescriptorPath::Class { class_index: class_index as u32 };
 
     if class.class_id.is_nil() {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            path,
-            NcDescriptorValidationKind::NilClassId,
-        );
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::NilClassId);
     } else if duplicate {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            path,
-            NcDescriptorValidationKind::DuplicateClassId,
-        );
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::DuplicateClassId);
     }
 
-    if let Some(name) = unsafe {
-        validate_static_text(
-            class.qualified_name,
-            path,
-            NcDescriptorValidationKind::InvalidClassQualifiedNameUtf8,
-            reporter,
-        )
-    } {
+    if let Some(name) = unsafe { validate_static_text(class.qualified_name, path, NcDescriptorValidationKind::InvalidClassQualifiedNameUtf8, reporter) } {
         let name_is_valid = validate_qualified_name(name).is_ok();
         if !name_is_valid {
-            reporter.issue(
-                NC_E_INVALID_ARG,
-                path,
-                NcDescriptorValidationKind::InvalidClassQualifiedName,
-            );
+            reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidClassQualifiedName);
         }
         if name_is_valid && class.class_id != guid_from_qualified_name(name) {
-            reporter.issue(
-                NC_E_INVALID_ARG,
-                path,
-                NcDescriptorValidationKind::ClassIdQualifiedNameMismatch,
-            );
+            reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::ClassIdQualifiedNameMismatch);
         }
     }
-    if let Some(version) = unsafe {
-        validate_static_text(
-            class.class_version,
-            path,
-            NcDescriptorValidationKind::InvalidClassVersionUtf8,
-            reporter,
-        )
-    } {
-        validate_version_text_with_issue(
-            version,
-            path,
-            NcDescriptorValidationKind::InvalidClassVersion,
-            reporter,
-        );
+    if let Some(version) = unsafe { validate_static_text(class.class_version, path, NcDescriptorValidationKind::InvalidClassVersionUtf8, reporter) } {
+        validate_version_text_with_issue(version, path, NcDescriptorValidationKind::InvalidClassVersion, reporter);
     }
 
     if class.construct.is_none() {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            path,
-            NcDescriptorValidationKind::MissingConstructor,
-        );
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::MissingConstructor);
     }
     if NcAbiThreadingMode::from_raw(class.threading).is_none() {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            path,
-            NcDescriptorValidationKind::InvalidClassThreading,
-        );
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidClassThreading);
     }
 
     let interfaces = if class.interface_count == 0 {
         &[]
     } else if class.interfaces.is_null() {
-        reporter.issue(
-            NC_E_POINTER,
-            path,
-            NcDescriptorValidationKind::NullClassInterfaces,
-        );
+        reporter.issue(NC_E_POINTER, path, NcDescriptorValidationKind::NullClassInterfaces);
         return;
     } else {
         // SAFETY: Nonzero `interface_count` has a non-null table pointer, and
@@ -581,13 +467,7 @@ fn validate_class_descriptor<R>(
                 unsafe { (*other.interface_descriptor).interface_id == interface.interface_id }
             })
         };
-        validate_class_interface_descriptor(
-            class_index as u32,
-            interface_index,
-            class_interface,
-            duplicate,
-            reporter,
-        );
+        validate_class_interface_descriptor(class_index as u32, interface_index, class_interface, duplicate, reporter);
     }
 
     let mut has_iunknown = false;
@@ -603,7 +483,10 @@ fn validate_class_descriptor<R>(
         if !unsafe { valid_interface_ancestry(interface, interfaces) } {
             reporter.issue(
                 NC_E_ABI_VERSION,
-                NcDescriptorPath::Interface { class_index: class_index as u32, interface_index: interface_index as u32 },
+                NcDescriptorPath::Interface {
+                    class_index: class_index as u32,
+                    interface_index: interface_index as u32,
+                },
                 NcDescriptorValidationKind::InvalidInterfaceBase,
             );
         }
@@ -611,13 +494,8 @@ fn validate_class_descriptor<R>(
             continue;
         }
         has_iunknown = true;
-        let name_is_canonical =
-            unsafe { interface.qualified_name.as_str() } == Ok(IUNKNOWN_QUALIFIED_NAME);
-        if interface.abi_hash != IUNKNOWN_ABI_HASH
-            || !interface.base.is_none()
-            || interface.method_count != 0
-            || !name_is_canonical
-        {
+        let name_is_canonical = unsafe { interface.qualified_name.as_str() } == Ok(IUNKNOWN_QUALIFIED_NAME);
+        if interface.abi_hash != IUNKNOWN_ABI_HASH || !interface.base.is_none() || interface.method_count != 0 || !name_is_canonical {
             reporter.issue(
                 NC_E_ABI_VERSION,
                 NcDescriptorPath::Interface {
@@ -629,11 +507,7 @@ fn validate_class_descriptor<R>(
         }
     }
     if !has_iunknown {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            path,
-            NcDescriptorValidationKind::MissingIUnknownInterface,
-        );
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::MissingIUnknownInterface);
     }
 }
 
@@ -644,22 +518,30 @@ fn validate_class_descriptor<R>(
 unsafe fn valid_interface_ancestry(mut current: &NcInterfaceDescriptor, interfaces: &[NcClassInterfaceDescriptor]) -> bool {
     for _ in 0..interfaces.len() {
         let base = current.base;
-        if base.is_none() { return true; }
+        if base.is_none() {
+            return true;
+        }
         if base.iid.is_nil() || base.abi_hash.is_zero() || base.iid == IID_IUNKNOWN {
             return false;
         }
         let mut found = None;
         for candidate in interfaces {
-            if candidate.interface_descriptor.is_null() { continue; }
+            if candidate.interface_descriptor.is_null() {
+                continue;
+            }
             // SAFETY: The caller guarantees this existing class-table pointer.
             let candidate = unsafe { &*candidate.interface_descriptor };
             if candidate.interface_id == base.iid {
-                if candidate.abi_hash != base.abi_hash { return false; }
+                if candidate.abi_hash != base.abi_hash {
+                    return false;
+                }
                 found = Some(candidate);
                 break;
             }
         }
-        let Some(parent) = found else { return false; };
+        let Some(parent) = found else {
+            return false;
+        };
         current = parent;
     }
     false
@@ -681,11 +563,7 @@ fn validate_class_interface_descriptor<R>(
     };
 
     if class_interface.interface_descriptor.is_null() {
-        reporter.issue(
-            NC_E_POINTER,
-            path,
-            NcDescriptorValidationKind::NullInterfaceDescriptor,
-        );
+        reporter.issue(NC_E_POINTER, path, NcDescriptorValidationKind::NullInterfaceDescriptor);
         return;
     }
 
@@ -694,35 +572,20 @@ fn validate_class_interface_descriptor<R>(
     let interface = unsafe { &*class_interface.interface_descriptor };
     validate_interface_descriptor(class_index, interface_index as u32, interface, reporter);
     if duplicate {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            path,
-            NcDescriptorValidationKind::DuplicateInterfaceId,
-        );
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::DuplicateInterfaceId);
     }
 }
 
 /// Validates interface identity, text, methods, and the recomputed ABI hash.
-fn validate_interface_descriptor<R>(
-    class_index: u32,
-    interface_index: u32,
-    interface: &NcInterfaceDescriptor,
-    reporter: &mut IssueReporter<R>,
-) where
+fn validate_interface_descriptor<R>(class_index: u32, interface_index: u32, interface: &NcInterfaceDescriptor, reporter: &mut IssueReporter<R>)
+where
     R: FnMut(NcDescriptorValidationIssue),
 {
-    let path = NcDescriptorPath::Interface {
-        class_index,
-        interface_index,
-    };
+    let path = NcDescriptorPath::Interface { class_index, interface_index };
     let issue_count_before = reporter.issue_count();
 
     if interface.interface_id.is_nil() {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            path,
-            NcDescriptorValidationKind::NilInterfaceDescriptorId,
-        );
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::NilInterfaceDescriptorId);
     }
     if let Some(name) = unsafe {
         validate_static_text(
@@ -734,40 +597,23 @@ fn validate_interface_descriptor<R>(
     } {
         let name_is_valid = validate_qualified_name(name).is_ok();
         if !name_is_valid {
-            reporter.issue(
-                NC_E_INVALID_ARG,
-                path,
-                NcDescriptorValidationKind::InvalidInterfaceQualifiedName,
-            );
+            reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidInterfaceQualifiedName);
         }
         if name_is_valid
             && interface.interface_id != IID_IUNKNOWN
-            && (name == IUNKNOWN_QUALIFIED_NAME
-                || interface.interface_id != guid_from_qualified_name(name))
+            && (name == IUNKNOWN_QUALIFIED_NAME || interface.interface_id != guid_from_qualified_name(name))
         {
-            reporter.issue(
-                NC_E_INVALID_ARG,
-                path,
-                NcDescriptorValidationKind::InterfaceIdQualifiedNameMismatch,
-            );
+            reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InterfaceIdQualifiedNameMismatch);
         }
     }
     if interface.abi_hash == NcAbiHash::ZERO {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            path,
-            NcDescriptorValidationKind::ZeroInterfaceAbiHash,
-        );
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::ZeroInterfaceAbiHash);
     }
 
     let methods = if interface.method_count == 0 {
         &[]
     } else if interface.methods.is_null() {
-        reporter.issue(
-            NC_E_POINTER,
-            path,
-            NcDescriptorValidationKind::NullInterfaceMethods,
-        );
+        reporter.issue(NC_E_POINTER, path, NcDescriptorValidationKind::NullInterfaceMethods);
         return;
     } else {
         // SAFETY: Nonzero `method_count` has a non-null table pointer, and the
@@ -776,13 +622,7 @@ fn validate_interface_descriptor<R>(
     };
 
     for (method_index, method) in methods.iter().enumerate() {
-        validate_method_descriptor(
-            class_index,
-            interface_index,
-            method_index as u32,
-            method,
-            reporter,
-        );
+        validate_method_descriptor(class_index, interface_index, method_index as u32, method, reporter);
     }
 
     if reporter.issue_count() == issue_count_before && interface.abi_hash != NcAbiHash::ZERO {
@@ -792,11 +632,7 @@ fn validate_interface_descriptor<R>(
         // metadata.
         match unsafe { hash_interface_descriptor(interface, methods) } {
             Ok(expected_hash) if expected_hash == interface.abi_hash => {}
-            Ok(_) => reporter.issue(
-                NC_E_ABI_VERSION,
-                path,
-                NcDescriptorValidationKind::InterfaceAbiHashMismatch,
-            ),
+            Ok(_) => reporter.issue(NC_E_ABI_VERSION, path, NcDescriptorValidationKind::InterfaceAbiHashMismatch),
             Err(_) => {
                 // The earlier validation pass should have reported the precise
                 // malformed descriptor. Avoid adding a second generic issue.
@@ -806,13 +642,8 @@ fn validate_interface_descriptor<R>(
 }
 
 /// Validates one method name, return contract, and parameter table.
-fn validate_method_descriptor<R>(
-    class_index: u32,
-    interface_index: u32,
-    method_index: u32,
-    method: &NcMethodDescriptor,
-    reporter: &mut IssueReporter<R>,
-) where
+fn validate_method_descriptor<R>(class_index: u32, interface_index: u32, method_index: u32, method: &NcMethodDescriptor, reporter: &mut IssueReporter<R>)
+where
     R: FnMut(NcDescriptorValidationIssue),
 {
     let path = NcDescriptorPath::Method {
@@ -821,37 +652,16 @@ fn validate_method_descriptor<R>(
         method_index,
     };
 
-    let _ = unsafe {
-        validate_static_text(
-            method.name,
-            path,
-            NcDescriptorValidationKind::InvalidMethodNameUtf8,
-            reporter,
-        )
-    };
+    let _ = unsafe { validate_static_text(method.name, path, NcDescriptorValidationKind::InvalidMethodNameUtf8, reporter) };
     if !matches!(method.receiver, NC_ABI_RECEIVER_SHARED | NC_ABI_RECEIVER_MUTABLE) {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            path,
-            NcDescriptorValidationKind::InvalidMethodReceiver,
-        );
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidMethodReceiver);
     }
-    validate_method_return(
-        class_index,
-        interface_index,
-        method_index,
-        &method.returns,
-        reporter,
-    );
+    validate_method_return(class_index, interface_index, method_index, &method.returns, reporter);
 
     let params = if method.param_count == 0 {
         &[]
     } else if method.params.is_null() {
-        reporter.issue(
-            NC_E_POINTER,
-            path,
-            NcDescriptorValidationKind::NullMethodParams,
-        );
+        reporter.issue(NC_E_POINTER, path, NcDescriptorValidationKind::NullMethodParams);
         return;
     } else {
         // SAFETY: Nonzero `param_count` has a non-null table pointer, and the
@@ -860,14 +670,7 @@ fn validate_method_descriptor<R>(
     };
 
     for (param_index, param) in params.iter().enumerate() {
-        validate_method_param(
-            class_index,
-            interface_index,
-            method_index,
-            param_index as u32,
-            param,
-            reporter,
-        );
+        validate_method_param(class_index, interface_index, method_index, param_index as u32, param, reporter);
     }
 }
 
@@ -889,14 +692,7 @@ fn validate_method_param<R>(
         param_index,
     };
 
-    let _ = unsafe {
-        validate_static_text(
-            param.name,
-            path,
-            NcDescriptorValidationKind::InvalidParamNameUtf8,
-            reporter,
-        )
-    };
+    let _ = unsafe { validate_static_text(param.name, path, NcDescriptorValidationKind::InvalidParamNameUtf8, reporter) };
 
     let passing_ok = validate_abi_passing_descriptor(param.passing, path, reporter);
     let ty_ok = validate_abi_type_descriptor(&param.ty, path, reporter);
@@ -905,32 +701,21 @@ fn validate_method_param<R>(
     }
 
     match param.passing.tag {
-        NC_ABI_PASSING_VALUE
-        | NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET
-        | NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET => {
+        NC_ABI_PASSING_VALUE | NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET | NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET => {
             validate_non_interface_value_type(&param.ty, path, reporter);
         }
         NC_ABI_PASSING_COM_REF => {
             validate_interface_type(&param.ty, path, reporter);
         }
         _ => {
-            reporter.issue(
-                NC_E_INVALID_ARG,
-                path,
-                NcDescriptorValidationKind::InvalidAbiPassing,
-            );
+            reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidAbiPassing);
         }
     }
 }
 
 /// Validates the supported void, value-out, or COM-pointer return shape.
-fn validate_method_return<R>(
-    class_index: u32,
-    interface_index: u32,
-    method_index: u32,
-    returns: &NcMethodReturnDescriptor,
-    reporter: &mut IssueReporter<R>,
-) where
+fn validate_method_return<R>(class_index: u32, interface_index: u32, method_index: u32, returns: &NcMethodReturnDescriptor, reporter: &mut IssueReporter<R>)
+where
     R: FnMut(NcDescriptorValidationIssue),
 {
     let path = NcDescriptorPath::Return {
@@ -948,11 +733,7 @@ fn validate_method_return<R>(
     match returns.passing.tag {
         NC_ABI_PASSING_VOID => {
             if returns.ty.tag != NC_ABI_TYPE_VOID {
-                reporter.issue(
-                    NC_E_INVALID_ARG,
-                    path,
-                    NcDescriptorValidationKind::InvalidValueType,
-                );
+                reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidValueType);
             }
         }
         NC_ABI_PASSING_OUT => {
@@ -962,74 +743,42 @@ fn validate_method_return<R>(
             validate_interface_type(&returns.ty, path, reporter);
         }
         _ => {
-            reporter.issue(
-                NC_E_INVALID_ARG,
-                path,
-                NcDescriptorValidationKind::InvalidAbiPassing,
-            );
+            reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidAbiPassing);
         }
     }
 }
 
 /// Checks a raw passing tag and its associated threading field.
-fn validate_abi_passing_descriptor<R>(
-    passing: NcAbiPassingDescriptor,
-    path: NcDescriptorPath,
-    reporter: &mut IssueReporter<R>,
-) -> bool
+fn validate_abi_passing_descriptor<R>(passing: NcAbiPassingDescriptor, path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
 where
     R: FnMut(NcDescriptorValidationIssue),
 {
     match passing.tag {
-        NC_ABI_PASSING_VOID
-        | NC_ABI_PASSING_VALUE
-        | NC_ABI_PASSING_OUT
-        | NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET
-        | NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET
+        NC_ABI_PASSING_VOID | NC_ABI_PASSING_VALUE | NC_ABI_PASSING_OUT | NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET | NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET
             if passing.threading == NC_ABI_THREADING_THREAD_LOCAL =>
         {
             true
         }
-        NC_ABI_PASSING_VOID
-        | NC_ABI_PASSING_VALUE
-        | NC_ABI_PASSING_OUT
-        | NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET
-        | NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET => {
-            reporter.issue(
-                NC_E_INVALID_ARG,
-                path,
-                NcDescriptorValidationKind::InvalidAbiPassing,
-            );
+        NC_ABI_PASSING_VOID | NC_ABI_PASSING_VALUE | NC_ABI_PASSING_OUT | NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET | NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET => {
+            reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidAbiPassing);
             false
         }
         NC_ABI_PASSING_COM_REF | NC_ABI_PASSING_COM_PTR_OUT => match passing.threading {
             NC_ABI_THREADING_THREAD_LOCAL | NC_ABI_THREADING_THREAD_SAFE => true,
             _ => {
-                reporter.issue(
-                    NC_E_INVALID_ARG,
-                    path,
-                    NcDescriptorValidationKind::InvalidAbiPassing,
-                );
+                reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidAbiPassing);
                 false
             }
         },
         _ => {
-            reporter.issue(
-                NC_E_INVALID_ARG,
-                path,
-                NcDescriptorValidationKind::InvalidAbiPassing,
-            );
+            reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidAbiPassing);
             false
         }
     }
 }
 
 /// Checks a raw ABI type tag and any nested aggregate/interface identity.
-fn validate_abi_type_descriptor<R>(
-    ty: &NcAbiTypeDescriptor,
-    path: NcDescriptorPath,
-    reporter: &mut IssueReporter<R>,
-) -> bool
+fn validate_abi_type_descriptor<R>(ty: &NcAbiTypeDescriptor, path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
 where
     R: FnMut(NcDescriptorValidationIssue),
 {
@@ -1053,11 +802,7 @@ where
         | NC_ABI_TYPE_NC_ABI_HASH => true,
         NC_ABI_TYPE_AGGREGATE => {
             if ty.aggregate_hash == NcAbiHash::ZERO {
-                reporter.issue(
-                    NC_E_INVALID_ARG,
-                    path,
-                    NcDescriptorValidationKind::InvalidAbiType,
-                );
+                reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidAbiType);
                 false
             } else {
                 true
@@ -1065,31 +810,19 @@ where
         }
         NC_ABI_TYPE_INTERFACE => validate_interface_type(ty, path, reporter),
         _ => {
-            reporter.issue(
-                NC_E_INVALID_ARG,
-                path,
-                NcDescriptorValidationKind::InvalidAbiType,
-            );
+            reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidAbiType);
             false
         }
     }
 }
 
 /// Rejects void and interface descriptors from direct value positions.
-fn validate_non_interface_value_type<R>(
-    ty: &NcAbiTypeDescriptor,
-    path: NcDescriptorPath,
-    reporter: &mut IssueReporter<R>,
-) -> bool
+fn validate_non_interface_value_type<R>(ty: &NcAbiTypeDescriptor, path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
 where
     R: FnMut(NcDescriptorValidationIssue),
 {
     if ty.tag == NC_ABI_TYPE_VOID || ty.tag == NC_ABI_TYPE_INTERFACE {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            path,
-            NcDescriptorValidationKind::InvalidValueType,
-        );
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidValueType);
         false
     } else {
         true
@@ -1097,23 +830,12 @@ where
 }
 
 /// Requires a complete, non-nil interface type descriptor.
-fn validate_interface_type<R>(
-    ty: &NcAbiTypeDescriptor,
-    path: NcDescriptorPath,
-    reporter: &mut IssueReporter<R>,
-) -> bool
+fn validate_interface_type<R>(ty: &NcAbiTypeDescriptor, path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
 where
     R: FnMut(NcDescriptorValidationIssue),
 {
-    if ty.tag != NC_ABI_TYPE_INTERFACE
-        || ty.interface.iid.is_nil()
-        || ty.interface.abi_hash == NcAbiHash::ZERO
-    {
-        reporter.issue(
-            NC_E_INVALID_ARG,
-            path,
-            NcDescriptorValidationKind::InvalidInterfaceType,
-        );
+    if ty.tag != NC_ABI_TYPE_INTERFACE || ty.interface.iid.is_nil() || ty.interface.abi_hash == NcAbiHash::ZERO {
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidInterfaceType);
         false
     } else {
         true
@@ -1121,13 +843,8 @@ where
 }
 
 /// Reconstructs the canonical logical hash stream from a validated interface.
-unsafe fn hash_interface_descriptor(
-    interface: &NcInterfaceDescriptor,
-    methods: &[NcMethodDescriptor],
-) -> Result<NcAbiHash, NcStatus> {
-    let mut hasher = NcAbiHasher::new().update_abi_hash_part(NcAbiHashPart::Interface {
-        iid: interface.interface_id,
-    });
+unsafe fn hash_interface_descriptor(interface: &NcInterfaceDescriptor, methods: &[NcMethodDescriptor]) -> Result<NcAbiHash, NcStatus> {
+    let mut hasher = NcAbiHasher::new().update_abi_hash_part(NcAbiHashPart::Interface { iid: interface.interface_id });
 
     if !interface.base.is_none() {
         hasher = hasher.update_abi_hash_part(NcAbiHashPart::BaseInterface { interface: interface.base });
@@ -1246,12 +963,8 @@ where
 }
 
 /// Applies version-text policy and translates failure into a descriptor issue.
-fn validate_version_text_with_issue<R>(
-    value: &str,
-    path: NcDescriptorPath,
-    kind: NcDescriptorValidationKind,
-    reporter: &mut IssueReporter<R>,
-) where
+fn validate_version_text_with_issue<R>(value: &str, path: NcDescriptorPath, kind: NcDescriptorValidationKind, reporter: &mut IssueReporter<R>)
+where
     R: FnMut(NcDescriptorValidationIssue),
 {
     if validate_version_text(value).is_err() {
@@ -1272,13 +985,8 @@ mod tests {
     const INTERFACE_ID: NcGuid = guid_from_qualified_name("nc.tests.Interface");
     const DESCRIBED_INTERFACE_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[
         NcAbiHashPart::Interface { iid: INTERFACE_ID },
-        NcAbiHashPart::Method {
-            index: 0,
-            name: "add",
-        },
-        NcAbiHashPart::Receiver {
-            receiver: NcAbiReceiver::Shared,
-        },
+        NcAbiHashPart::Method { index: 0, name: "add" },
+        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
         NcAbiHashPart::Arg {
             index: 0,
             passing: NcAbiPassing::Value,
@@ -1326,12 +1034,9 @@ mod tests {
         interface_descriptor: &IUnknown::INTERFACE_DESCRIPTOR,
     };
 
-    fn collect_issues(
-        plugin: *const NcPluginDescriptor,
-    ) -> (NcStatus, Vec<NcDescriptorValidationIssue>) {
+    fn collect_issues(plugin: *const NcPluginDescriptor) -> (NcStatus, Vec<NcDescriptorValidationIssue>) {
         let mut issues = Vec::new();
-        let status =
-            unsafe { validate_plugin_descriptor_with_issues(plugin, |issue| issues.push(issue)) };
+        let status = unsafe { validate_plugin_descriptor_with_issues(plugin, |issue| issues.push(issue)) };
         (status, issues)
     }
 
@@ -1397,18 +1102,10 @@ mod tests {
         const PLUGIN_ID: NcGuid = guid_from_qualified_name("nc.tests.Dependencies");
         const OTHER_ID: NcGuid = NcGuid::from_fields(5, 6, 7, [8; 8]);
         static DEPENDENCIES: [NcPluginDependencyDescriptor; 4] = [
-            NcPluginDependencyDescriptor {
-                plugin_id: NcGuid::nil(),
-            },
-            NcPluginDependencyDescriptor {
-                plugin_id: PLUGIN_ID,
-            },
-            NcPluginDependencyDescriptor {
-                plugin_id: OTHER_ID,
-            },
-            NcPluginDependencyDescriptor {
-                plugin_id: OTHER_ID,
-            },
+            NcPluginDependencyDescriptor { plugin_id: NcGuid::nil() },
+            NcPluginDependencyDescriptor { plugin_id: PLUGIN_ID },
+            NcPluginDependencyDescriptor { plugin_id: OTHER_ID },
+            NcPluginDependencyDescriptor { plugin_id: OTHER_ID },
         ];
         static CLASS_TABLE: NcClassTable = NcClassTable {
             class_count: 0,
@@ -1445,12 +1142,7 @@ mod tests {
             method_count: 0,
             methods: core::ptr::null(),
         };
-        static CLASS_INTERFACES: [NcClassInterfaceDescriptor; 2] = [
-            IUNKNOWN_CLASS_INTERFACE,
-            NcClassInterfaceDescriptor {
-                interface_descriptor: &INTERFACE,
-            },
-        ];
+        static CLASS_INTERFACES: [NcClassInterfaceDescriptor; 2] = [IUNKNOWN_CLASS_INTERFACE, NcClassInterfaceDescriptor { interface_descriptor: &INTERFACE }];
         static CLASSES: [NcClassDescriptor; 1] = [NcClassDescriptor {
             class_id: CLASS_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.Class"),
@@ -1482,10 +1174,7 @@ mod tests {
             issues,
             std::vec![NcDescriptorValidationIssue {
                 status: NC_E_INVALID_ARG,
-                path: NcDescriptorPath::Interface {
-                    class_index: 0,
-                    interface_index: 1,
-                },
+                path: NcDescriptorPath::Interface { class_index: 0, interface_index: 1 },
                 kind: NcDescriptorValidationKind::ZeroInterfaceAbiHash,
             }]
         );
@@ -1501,12 +1190,8 @@ mod tests {
             method_count: DESCRIBED_INTERFACE_METHODS.len() as u32,
             methods: DESCRIBED_INTERFACE_METHODS.as_ptr(),
         };
-        static VALID_CLASS_INTERFACES: [NcClassInterfaceDescriptor; 2] = [
-            IUNKNOWN_CLASS_INTERFACE,
-            NcClassInterfaceDescriptor {
-                interface_descriptor: &VALID_INTERFACE,
-            },
-        ];
+        static VALID_CLASS_INTERFACES: [NcClassInterfaceDescriptor; 2] =
+            [IUNKNOWN_CLASS_INTERFACE, NcClassInterfaceDescriptor { interface_descriptor: &VALID_INTERFACE }];
         static VALID_CLASSES: [NcClassDescriptor; 1] = [NcClassDescriptor {
             class_id: guid_from_qualified_name("nc.tests.ValidClass"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.ValidClass"),
@@ -1581,10 +1266,7 @@ mod tests {
             issues,
             std::vec![NcDescriptorValidationIssue {
                 status: NC_E_ABI_VERSION,
-                path: NcDescriptorPath::Interface {
-                    class_index: 0,
-                    interface_index: 1,
-                },
+                path: NcDescriptorPath::Interface { class_index: 0, interface_index: 1 },
                 kind: NcDescriptorValidationKind::InterfaceAbiHashMismatch,
             }]
         );
@@ -1631,12 +1313,8 @@ mod tests {
 
     #[test]
     fn descriptor_ids_must_match_their_qualified_names() {
-        const WRONG_INTERFACE_ID: NcGuid =
-            guid_from_qualified_name("nc.tests.Identity.WrongInterface");
-        const WRONG_INTERFACE_HASH: NcAbiHash =
-            NcAbiHash::from_abi_parts(&[NcAbiHashPart::Interface {
-                iid: WRONG_INTERFACE_ID,
-            }]);
+        const WRONG_INTERFACE_ID: NcGuid = guid_from_qualified_name("nc.tests.Identity.WrongInterface");
+        const WRONG_INTERFACE_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Interface { iid: WRONG_INTERFACE_ID }]);
         static INTERFACE: NcInterfaceDescriptor = NcInterfaceDescriptor {
             interface_id: WRONG_INTERFACE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.Identity.Interface"),
@@ -1645,12 +1323,7 @@ mod tests {
             method_count: 0,
             methods: core::ptr::null(),
         };
-        static INTERFACES: [NcClassInterfaceDescriptor; 2] = [
-            IUNKNOWN_CLASS_INTERFACE,
-            NcClassInterfaceDescriptor {
-                interface_descriptor: &INTERFACE,
-            },
-        ];
+        static INTERFACES: [NcClassInterfaceDescriptor; 2] = [IUNKNOWN_CLASS_INTERFACE, NcClassInterfaceDescriptor { interface_descriptor: &INTERFACE }];
         static CLASSES: [NcClassDescriptor; 1] = [NcClassDescriptor {
             class_id: guid_from_qualified_name("nc.tests.Identity.WrongClass"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.Identity.Class"),
@@ -1677,15 +1350,21 @@ mod tests {
 
         let (status, issues) = collect_issues(&PLUGIN);
         assert_eq!(status, NC_E_INVALID_ARG);
-        assert!(issues.iter().any(|issue| {
-            issue.kind == NcDescriptorValidationKind::PluginIdQualifiedNameMismatch
-        }));
-        assert!(issues.iter().any(|issue| {
-            issue.kind == NcDescriptorValidationKind::ClassIdQualifiedNameMismatch
-        }));
-        assert!(issues.iter().any(|issue| {
-            issue.kind == NcDescriptorValidationKind::InterfaceIdQualifiedNameMismatch
-        }));
+        assert!(
+            issues
+                .iter()
+                .any(|issue| { issue.kind == NcDescriptorValidationKind::PluginIdQualifiedNameMismatch })
+        );
+        assert!(
+            issues
+                .iter()
+                .any(|issue| { issue.kind == NcDescriptorValidationKind::ClassIdQualifiedNameMismatch })
+        );
+        assert!(
+            issues
+                .iter()
+                .any(|issue| { issue.kind == NcDescriptorValidationKind::InterfaceIdQualifiedNameMismatch })
+        );
     }
 
     #[test]
@@ -1727,13 +1406,8 @@ mod tests {
 
         const INVALID_IUNKNOWN_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[
             NcAbiHashPart::Interface { iid: IID_IUNKNOWN },
-            NcAbiHashPart::Method {
-                index: 0,
-                name: "not_root",
-            },
-            NcAbiHashPart::Receiver {
-                receiver: NcAbiReceiver::Shared,
-            },
+            NcAbiHashPart::Method { index: 0, name: "not_root" },
+            NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
             NcAbiHashPart::Return {
                 passing: NcAbiPassing::Void,
                 ty: NcAbiType::Void,
@@ -1758,10 +1432,7 @@ mod tests {
             method_count: INVALID_IUNKNOWN_METHOD.len() as u32,
             methods: INVALID_IUNKNOWN_METHOD.as_ptr(),
         };
-        static INVALID_IUNKNOWN_INTERFACES: [NcClassInterfaceDescriptor; 1] =
-            [NcClassInterfaceDescriptor {
-                interface_descriptor: &INVALID_IUNKNOWN,
-            }];
+        static INVALID_IUNKNOWN_INTERFACES: [NcClassInterfaceDescriptor; 1] = [NcClassInterfaceDescriptor { interface_descriptor: &INVALID_IUNKNOWN }];
         static INVALID_IUNKNOWN_CLASS: [NcClassDescriptor; 1] = [NcClassDescriptor {
             class_id: guid_from_qualified_name("nc.tests.InvalidIUnknown"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.InvalidIUnknown"),
@@ -1792,16 +1463,12 @@ mod tests {
             issues,
             std::vec![NcDescriptorValidationIssue {
                 status: NC_E_ABI_VERSION,
-                path: NcDescriptorPath::Interface {
-                    class_index: 0,
-                    interface_index: 0,
-                },
+                path: NcDescriptorPath::Interface { class_index: 0, interface_index: 0 },
                 kind: NcDescriptorValidationKind::InvalidIUnknownInterface,
             }]
         );
 
-        static DUPLICATE_IUNKNOWN_INTERFACES: [NcClassInterfaceDescriptor; 2] =
-            [IUNKNOWN_CLASS_INTERFACE, IUNKNOWN_CLASS_INTERFACE];
+        static DUPLICATE_IUNKNOWN_INTERFACES: [NcClassInterfaceDescriptor; 2] = [IUNKNOWN_CLASS_INTERFACE, IUNKNOWN_CLASS_INTERFACE];
         static DUPLICATE_IUNKNOWN_CLASS: [NcClassDescriptor; 1] = [NcClassDescriptor {
             class_id: guid_from_qualified_name("nc.tests.DuplicateIUnknown"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.DuplicateIUnknown"),
@@ -1832,10 +1499,7 @@ mod tests {
             issues,
             std::vec![NcDescriptorValidationIssue {
                 status: NC_E_INVALID_ARG,
-                path: NcDescriptorPath::ClassInterface {
-                    class_index: 0,
-                    interface_index: 1,
-                },
+                path: NcDescriptorPath::ClassInterface { class_index: 0, interface_index: 1 },
                 kind: NcDescriptorValidationKind::DuplicateInterfaceId,
             }]
         );

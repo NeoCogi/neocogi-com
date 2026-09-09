@@ -25,14 +25,14 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
     // lifetime of borrowed application storage.
     let generic = !input.generics.params.is_empty();
     if generic && args.class_contract.is_some() {
-        return syn::Error::new_spanned(&input.generics,
-            "generic COM implementation classes cannot declare a callable class contract")
-            .to_compile_error();
+        return syn::Error::new_spanned(&input.generics, "generic COM implementation classes cannot declare a callable class contract").to_compile_error();
     }
     if input.generics.lifetimes().next().is_some() {
-        return syn::Error::new_spanned(&input.generics,
-            "COM implementation classes must own their state; lifetime parameters are not supported")
-            .to_compile_error();
+        return syn::Error::new_spanned(
+            &input.generics,
+            "COM implementation classes must own their state; lifetime parameters are not supported",
+        )
+        .to_compile_error();
     }
     let mut generics = input.generics.clone();
     if generic {
@@ -83,12 +83,14 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
         ] }
     };
     let thread_safe_marker_impl = args.thread_safe.then(|| {
-        let assertion = (!generic).then(|| quote! {
-            const _: fn() = || {
-                // Additional direct diagnostic for ordinary nongeneric classes.
-                fn assert_thread_safe<T: Send + Sync>() {}
-                assert_thread_safe::<#class_type>();
-            };
+        let assertion = (!generic).then(|| {
+            quote! {
+                const _: fn() = || {
+                    // Additional direct diagnostic for ordinary nongeneric classes.
+                    fn assert_thread_safe<T: Send + Sync>() {}
+                    assert_thread_safe::<#class_type>();
+                };
+            }
         });
         quote! {
             #assertion
@@ -166,12 +168,8 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
     let (class_descriptor_items, class_descriptor_module_items) = match args.class_contract.as_ref() {
         None => (quote! {}, quote! {}),
         Some(abi_path) => {
-            let generated_constructor_ident = format_ident!(
-                "__nc_com_construct_{}",
-                class_ident.to_string().to_lowercase()
-            );
-            let descriptor_static_ident =
-                format_ident!("__NC_COM_CLASS_DESCRIPTOR_{}", class_ident);
+            let generated_constructor_ident = format_ident!("__nc_com_construct_{}", class_ident.to_string().to_lowercase());
+            let descriptor_static_ident = format_ident!("__NC_COM_CLASS_DESCRIPTOR_{}", class_ident);
 
             let impl_items = quote! {
                 #[doc = "Stable class identifier used by generated class metadata."]

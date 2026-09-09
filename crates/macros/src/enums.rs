@@ -14,29 +14,18 @@ use crate::plain_data::{PlainAbiTypeContext, validate_plain_abi_fields};
 use crate::util::{checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
 
 /// Validates an enum and emits its stable raw representation and conversions.
-pub(crate) fn expand_com_enum(
-    args: EnumArgs,
-    mut input: ItemEnum,
-) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<proc_macro2::TokenStream> {
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
     validate_com_enum(&input)?;
     let enum_ident = &input.ident;
-    checked_u32_len(
-        input.variants.len(),
-        enum_ident.span(),
-        "COM enum variant count",
-    )?;
+    checked_u32_len(input.variants.len(), enum_ident.span(), "COM enum variant count")?;
     for variant in &input.variants {
         let field_count = match &variant.fields {
             Fields::Unit => 0,
             Fields::Unnamed(fields) => fields.unnamed.len(),
             Fields::Named(fields) => fields.named.len(),
         };
-        checked_u32_len(
-            field_count,
-            variant.ident.span(),
-            "COM enum payload field count",
-        )?;
+        checked_u32_len(field_count, variant.ident.span(), "COM enum payload field count")?;
     }
     let vis = &input.vis;
     let tag_ty = &args.tag;
@@ -85,166 +74,156 @@ pub(crate) fn expand_com_enum(
         }
     });
 
-    let payload_structs = variants
-        .iter()
-        .filter_map(|(variant_ident, fields, _)| match fields {
-            Fields::Unit => None,
-            Fields::Unnamed(unnamed) => {
-                let struct_ident = variant_payload_ident(enum_ident, variant_ident);
-                let field_layout_parts = unnamed.unnamed.iter().enumerate().map(|(index, field)| {
-                    let index = index as u32;
-                    let field_ident = tuple_payload_field(index as usize);
-                    let ty = &field.ty;
-                    quote! {
-                        #nc::NcAbiFieldLayout {
-                            index: #index,
-                            offset: core::mem::offset_of!(#struct_ident, #field_ident),
-                            ty: #nc::__nc_abi_plain_type::<#ty>(),
-                        }
+    let payload_structs = variants.iter().filter_map(|(variant_ident, fields, _)| match fields {
+        Fields::Unit => None,
+        Fields::Unnamed(unnamed) => {
+            let struct_ident = variant_payload_ident(enum_ident, variant_ident);
+            let field_layout_parts = unnamed.unnamed.iter().enumerate().map(|(index, field)| {
+                let index = index as u32;
+                let field_ident = tuple_payload_field(index as usize);
+                let ty = &field.ty;
+                quote! {
+                    #nc::NcAbiFieldLayout {
+                        index: #index,
+                        offset: core::mem::offset_of!(#struct_ident, #field_ident),
+                        ty: #nc::__nc_abi_plain_type::<#ty>(),
                     }
-                });
-                let struct_fields = unnamed.unnamed.iter().enumerate().map(|(index, field)| {
-                    let field_ident = tuple_payload_field(index);
-                    let ty = &field.ty;
-                    // Preserve author semantics on the public wire field while
-                    // documenting its generated position even without source docs.
-                    let docs = field.attrs.iter().filter(|attr| attr.path().is_ident("doc"));
-                    quote! {
-                        #[doc = concat!("Copied tuple payload field ", stringify!(#index), ".")]
-                        #(#docs)*
-                        pub #field_ident: #ty
-                    }
-                });
-                Some(quote! {
-                    #[repr(C)]
-                    #[derive(Clone, Copy)]
-                    #[doc = concat!("ABI payload for [`", stringify!(#enum_ident), "::", stringify!(#variant_ident), "`].")]
-                    #vis struct #struct_ident {
-                        #(#struct_fields,)*
-                    }
+                }
+            });
+            let struct_fields = unnamed.unnamed.iter().enumerate().map(|(index, field)| {
+                let field_ident = tuple_payload_field(index);
+                let ty = &field.ty;
+                // Preserve author semantics on the public wire field while
+                // documenting its generated position even without source docs.
+                let docs = field.attrs.iter().filter(|attr| attr.path().is_ident("doc"));
+                quote! {
+                    #[doc = concat!("Copied tuple payload field ", stringify!(#index), ".")]
+                    #(#docs)*
+                    pub #field_ident: #ty
+                }
+            });
+            Some(quote! {
+                #[repr(C)]
+                #[derive(Clone, Copy)]
+                #[doc = concat!("ABI payload for [`", stringify!(#enum_ident), "::", stringify!(#variant_ident), "`].")]
+                #vis struct #struct_ident {
+                    #(#struct_fields,)*
+                }
 
-                    // SAFETY: The generated payload struct is `repr(C)`, and
-                    // layout metadata is computed from compiler layout facts.
-                    unsafe impl #nc::ComStruct for #struct_ident {
-                        const ABI_STRUCT_LAYOUT: #nc::NcAbiStructLayout = #nc::NcAbiStructLayout {
-                            size: core::mem::size_of::<Self>(),
-                            align: core::mem::align_of::<Self>(),
-                            fields: &[
-                                #(#field_layout_parts,)*
-                            ],
-                        };
-                    }
+                // SAFETY: The generated payload struct is `repr(C)`, and
+                // layout metadata is computed from compiler layout facts.
+                unsafe impl #nc::ComStruct for #struct_ident {
+                    const ABI_STRUCT_LAYOUT: #nc::NcAbiStructLayout = #nc::NcAbiStructLayout {
+                        size: core::mem::size_of::<Self>(),
+                        align: core::mem::align_of::<Self>(),
+                        fields: &[
+                            #(#field_layout_parts,)*
+                        ],
+                    };
+                }
 
-                    // SAFETY: The generated ABI type hash requires every
-                    // payload field to be a plain ABI value and includes the
-                    // payload's physical layout.
-                    unsafe impl #nc::AbiType for #struct_ident {
-                        const ABI_TYPE: #nc::NcAbiType = #nc::__nc_abi_com_struct_type::<Self>();
+                // SAFETY: The generated ABI type hash requires every
+                // payload field to be a plain ABI value and includes the
+                // payload's physical layout.
+                unsafe impl #nc::AbiType for #struct_ident {
+                    const ABI_TYPE: #nc::NcAbiType = #nc::__nc_abi_com_struct_type::<Self>();
+                }
+                // SAFETY: The payload is a fixed-layout aggregate of plain
+                // ABI values with no release protocol.
+                unsafe impl #nc::AbiPlainValue for #struct_ident {}
+            })
+        }
+        Fields::Named(named) => {
+            let struct_ident = variant_payload_ident(enum_ident, variant_ident);
+            let field_layout_parts = named.named.iter().enumerate().map(|(index, field)| {
+                let index = index as u32;
+                let field_ident = field.ident.as_ref().expect("named field has an ident");
+                let ty = &field.ty;
+                quote! {
+                    #nc::NcAbiFieldLayout {
+                        index: #index,
+                        offset: core::mem::offset_of!(#struct_ident, #field_ident),
+                        ty: #nc::__nc_abi_plain_type::<#ty>(),
                     }
-                    // SAFETY: The payload is a fixed-layout aggregate of plain
-                    // ABI values with no release protocol.
-                    unsafe impl #nc::AbiPlainValue for #struct_ident {}
-                })
-            }
-            Fields::Named(named) => {
-                let struct_ident = variant_payload_ident(enum_ident, variant_ident);
-                let field_layout_parts = named.named.iter().enumerate().map(|(index, field)| {
-                    let index = index as u32;
-                    let field_ident = field.ident.as_ref().expect("named field has an ident");
-                    let ty = &field.ty;
-                    quote! {
-                        #nc::NcAbiFieldLayout {
-                            index: #index,
-                            offset: core::mem::offset_of!(#struct_ident, #field_ident),
-                            ty: #nc::__nc_abi_plain_type::<#ty>(),
-                        }
-                    }
-                });
-                let struct_fields = named.named.iter().map(|field| {
-                    let field_ident = field.ident.as_ref().expect("named field has an ident");
-                    let ty = &field.ty;
-                    // Only documentation is copied: conditional/layout attributes
-                    // must not silently change the separately validated ABI shape.
-                    let docs = field.attrs.iter().filter(|attr| attr.path().is_ident("doc"));
-                    quote! {
-                        #[doc = concat!("Copied payload field `", stringify!(#field_ident), "`.")]
-                        #(#docs)*
-                        pub #field_ident: #ty
-                    }
-                });
-                Some(quote! {
-                    #[repr(C)]
-                    #[derive(Clone, Copy)]
-                    #[doc = concat!("ABI payload for [`", stringify!(#enum_ident), "::", stringify!(#variant_ident), "`].")]
-                    #vis struct #struct_ident {
-                        #(#struct_fields,)*
-                    }
+                }
+            });
+            let struct_fields = named.named.iter().map(|field| {
+                let field_ident = field.ident.as_ref().expect("named field has an ident");
+                let ty = &field.ty;
+                // Only documentation is copied: conditional/layout attributes
+                // must not silently change the separately validated ABI shape.
+                let docs = field.attrs.iter().filter(|attr| attr.path().is_ident("doc"));
+                quote! {
+                    #[doc = concat!("Copied payload field `", stringify!(#field_ident), "`.")]
+                    #(#docs)*
+                    pub #field_ident: #ty
+                }
+            });
+            Some(quote! {
+                #[repr(C)]
+                #[derive(Clone, Copy)]
+                #[doc = concat!("ABI payload for [`", stringify!(#enum_ident), "::", stringify!(#variant_ident), "`].")]
+                #vis struct #struct_ident {
+                    #(#struct_fields,)*
+                }
 
-                    // SAFETY: The generated payload struct is `repr(C)`, and
-                    // layout metadata is computed from compiler layout facts.
-                    unsafe impl #nc::ComStruct for #struct_ident {
-                        const ABI_STRUCT_LAYOUT: #nc::NcAbiStructLayout = #nc::NcAbiStructLayout {
-                            size: core::mem::size_of::<Self>(),
-                            align: core::mem::align_of::<Self>(),
-                            fields: &[
-                                #(#field_layout_parts,)*
-                            ],
-                        };
-                    }
+                // SAFETY: The generated payload struct is `repr(C)`, and
+                // layout metadata is computed from compiler layout facts.
+                unsafe impl #nc::ComStruct for #struct_ident {
+                    const ABI_STRUCT_LAYOUT: #nc::NcAbiStructLayout = #nc::NcAbiStructLayout {
+                        size: core::mem::size_of::<Self>(),
+                        align: core::mem::align_of::<Self>(),
+                        fields: &[
+                            #(#field_layout_parts,)*
+                        ],
+                    };
+                }
 
-                    // SAFETY: The generated ABI type hash requires every
-                    // payload field to be a plain ABI value and includes the
-                    // payload's physical layout.
-                    unsafe impl #nc::AbiType for #struct_ident {
-                        const ABI_TYPE: #nc::NcAbiType = #nc::__nc_abi_com_struct_type::<Self>();
-                    }
-                    // SAFETY: The payload is a fixed-layout aggregate of plain
-                    // ABI values with no release protocol.
-                    unsafe impl #nc::AbiPlainValue for #struct_ident {}
-                })
-            }
-        });
+                // SAFETY: The generated ABI type hash requires every
+                // payload field to be a plain ABI value and includes the
+                // payload's physical layout.
+                unsafe impl #nc::AbiType for #struct_ident {
+                    const ABI_TYPE: #nc::NcAbiType = #nc::__nc_abi_com_struct_type::<Self>();
+                }
+                // SAFETY: The payload is a fixed-layout aggregate of plain
+                // ABI values with no release protocol.
+                unsafe impl #nc::AbiPlainValue for #struct_ident {}
+            })
+        }
+    });
 
     let payload_struct_idents = variants
         .iter()
         .filter(|(_, fields, _)| !matches!(fields, Fields::Unit))
         .map(|(variant_ident, _, _)| variant_payload_ident(enum_ident, variant_ident))
         .collect::<Vec<_>>();
-    let payload_union_hash_parts =
-        payload_struct_idents
-            .iter()
-            .enumerate()
-            .map(|(index, struct_ident)| {
-                let index = index as u32;
-                quote! {
-                    #nc::NcAbiFieldLayout {
-                        index: #index,
-                        offset: 0usize,
-                        ty: #nc::__nc_abi_plain_type::<#struct_ident>(),
-                    }
-                }
-            });
-    let variant_hash_parts =
-        variants
-            .iter()
-            .enumerate()
-            .map(|(index, (variant_ident, fields, tag_value))| {
-                let index = index as u32;
-                let ty = match fields {
-                    Fields::Unit => quote! { #nc::NcAbiType::Void },
-                    Fields::Unnamed(_) | Fields::Named(_) => {
-                        let struct_ident = variant_payload_ident(enum_ident, variant_ident);
-                        quote! { #nc::__nc_abi_plain_type::<#struct_ident>() }
-                    }
-                };
-                quote! {
-                    #nc::NcAbiHashPart::Variant {
-                        index: #index,
-                        tag: (#tag_value) as i128,
-                        ty: #ty,
-                    }
-                }
-            });
+    let payload_union_hash_parts = payload_struct_idents.iter().enumerate().map(|(index, struct_ident)| {
+        let index = index as u32;
+        quote! {
+            #nc::NcAbiFieldLayout {
+                index: #index,
+                offset: 0usize,
+                ty: #nc::__nc_abi_plain_type::<#struct_ident>(),
+            }
+        }
+    });
+    let variant_hash_parts = variants.iter().enumerate().map(|(index, (variant_ident, fields, tag_value))| {
+        let index = index as u32;
+        let ty = match fields {
+            Fields::Unit => quote! { #nc::NcAbiType::Void },
+            Fields::Unnamed(_) | Fields::Named(_) => {
+                let struct_ident = variant_payload_ident(enum_ident, variant_ident);
+                quote! { #nc::__nc_abi_plain_type::<#struct_ident>() }
+            }
+        };
+        quote! {
+            #nc::NcAbiHashPart::Variant {
+                index: #index,
+                tag: (#tag_value) as i128,
+                ty: #ty,
+            }
+        }
+    });
 
     let union_fields = variants.iter().filter_map(|(variant_ident, fields, _)| {
         if matches!(fields, Fields::Unit) {
@@ -604,11 +583,7 @@ fn validate_com_enum(input: &ItemEnum) -> Result<()> {
         push_error(&mut errors, err);
     }
 
-    if let Some(errors) = errors {
-        Err(errors)
-    } else {
-        Ok(())
-    }
+    if let Some(errors) = errors { Err(errors) } else { Ok(()) }
 }
 
 /// Validates every payload field as a durable plain ABI value.
@@ -619,11 +594,7 @@ fn validate_com_enum_payloads(variants: &[(Ident, Fields, Expr)]) -> Result<()> 
         validate_plain_abi_fields(fields, PlainAbiTypeContext::EnumPayload, &mut errors);
     }
 
-    if let Some(errors) = errors {
-        Err(errors)
-    } else {
-        Ok(())
-    }
+    if let Some(errors) = errors { Err(errors) } else { Ok(()) }
 }
 
 /// Diagnoses duplicate tags when both expressions can be evaluated syntactically.
@@ -637,9 +608,7 @@ fn validate_unique_literal_tags(variants: &[(Ident, Fields, Expr)]) -> Result<()
         if let Some((_, previous_variant)) = seen.iter().find(|(seen_tag, _)| *seen_tag == tag) {
             return Err(syn::Error::new(
                 tag_value.span(),
-                format!(
-                    "duplicate COM enum tag value; `{previous_variant}` already uses tag {tag}"
-                ),
+                format!("duplicate COM enum tag value; `{previous_variant}` already uses tag {tag}"),
             ));
         }
         seen.push((tag, variant_ident));
@@ -676,25 +645,19 @@ fn variant_tag(attrs: &[Attribute]) -> Result<Option<Expr>> {
     let mut tag = None;
     for attr in attrs.iter().filter(|attr| attr.path().is_ident("com_tag")) {
         if tag.is_some() {
-            return Err(syn::Error::new_spanned(
-                attr,
-                "duplicate #[com_tag(...)] attribute",
-            ));
+            return Err(syn::Error::new_spanned(attr, "duplicate #[com_tag(...)] attribute"));
         }
-        tag = Some(attr.parse_args::<Expr>().map_err(|err| {
-            syn::Error::new(attr.span(), format!("expected #[com_tag(value)]: {err}"))
-        })?);
+        tag = Some(
+            attr.parse_args::<Expr>()
+                .map_err(|err| syn::Error::new(attr.span(), format!("expected #[com_tag(value)]: {err}")))?,
+        );
     }
     Ok(tag)
 }
 
 /// Removes macro-only tag attributes before re-emitting the user's enum.
 fn strip_com_enum_attrs(attrs: &[Attribute]) -> Vec<Attribute> {
-    attrs
-        .iter()
-        .filter(|attr| !attr.path().is_ident("com_tag"))
-        .cloned()
-        .collect()
+    attrs.iter().filter(|attr| !attr.path().is_ident("com_tag")).cloned().collect()
 }
 
 /// Builds the private payload struct name for one variant.
@@ -722,10 +685,7 @@ fn validate_unique_union_payload_fields(variants: &[(Ident, Fields, Expr)]) -> R
         }
 
         let field_name = union_payload_field(variant_ident).to_string();
-        if let Some((_, previous_variant)) = fields
-            .iter()
-            .find(|(previous_name, _)| previous_name == &field_name)
-        {
+        if let Some((_, previous_variant)) = fields.iter().find(|(previous_name, _)| previous_name == &field_name) {
             push_error(
                 &mut errors,
                 syn::Error::new(

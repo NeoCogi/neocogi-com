@@ -12,15 +12,11 @@ mod runtime;
 mod type_registry;
 
 pub use debug::{
-    NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR,
-    NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN,
-    NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV1, NcDebugCallbackV1,
-    NcDebugMessageV1, NcDebugMessengerCreateInfoV1,
+    NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING,
+    NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1,
+    NcDebugMessengerCreateInfoV1,
 };
-pub use inspection::{
-    NcClassInfoV1, NcInspectPluginDescriptorCallbackV1, NcInspectionApiV1, NcModuleInfoV1,
-    NcPluginInfoV1,
-};
+pub use inspection::{NcClassInfoV1, NcInspectPluginDescriptorCallbackV1, NcInspectionApiV1, NcModuleInfoV1, NcPluginInfoV1};
 pub use plugin_registry::{NC_COM_RUNTIME_MAX_LOADED_MODULES, NcPluginRegistryV1};
 pub use runtime::NcRuntimeApiV1;
 pub use type_registry::NcTypeRegistryV1;
@@ -46,10 +42,7 @@ pub struct NcUtf8View {
 
 impl NcUtf8View {
     /// Empty UTF-8 view.
-    pub const EMPTY: Self = Self {
-        data: core::ptr::null(),
-        len: 0,
-    };
+    pub const EMPTY: Self = Self { data: core::ptr::null(), len: 0 };
 }
 
 // SAFETY: An `NcUtf8View` only provides immutable access. Its producer owns the

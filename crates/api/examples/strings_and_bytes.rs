@@ -1,7 +1,4 @@
-use neocogi_com::{
-    ComPtr, ComRef, INcBytesAbi, INcBytesComPtrExt, INcStringComPtrExt, IUnknown, NcBytes,
-    NcStatus, NcString, com_object, com_interface,
-};
+use neocogi_com::{ComPtr, ComRef, INcBytesAbi, INcBytesComPtrExt, INcStringComPtrExt, IUnknown, NcBytes, NcStatus, NcString, com_object, com_interface};
 use std::cell::Cell;
 
 const NC_E_EXAMPLE_INVALID_ARG_CODE: i32 = -101;
@@ -25,13 +22,8 @@ pub struct MemoryByteStream {
 
 impl MemoryByteStream {
     fn create_stream(bytes: Vec<u8>) -> ComPtr<IByteStreamAbi> {
-        let unknown: ComPtr<IUnknown> = MemoryByteStream::from_value(Self {
-            bytes,
-            offset: Cell::new(0),
-        });
-        unknown
-            .query::<IByteStreamAbi>()
-            .expect("MemoryByteStream exposes IByteStream")
+        let unknown: ComPtr<IUnknown> = MemoryByteStream::from_value(Self { bytes, offset: Cell::new(0) });
+        unknown.query::<IByteStreamAbi>().expect("MemoryByteStream exposes IByteStream")
     }
 }
 
@@ -46,11 +38,7 @@ impl IByteStream for MemoryByteStream {
             return Ok(NcBytes::from_vec(Vec::new()));
         }
 
-        let requested = if max_len > usize::MAX as u64 {
-            usize::MAX
-        } else {
-            max_len as usize
-        };
+        let requested = if max_len > usize::MAX as u64 { usize::MAX } else { max_len as usize };
         let end = start + requested.min(self.bytes.len() - start);
         self.offset.set(end);
 

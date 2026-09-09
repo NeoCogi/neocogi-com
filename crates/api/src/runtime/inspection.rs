@@ -20,9 +20,7 @@ use crate::{
     NcPluginDescriptor, NcPluginInfoV1, NcStatus,
 };
 
-use super::{
-    LoadedModuleId, LoadedModuleInfo, Runtime, read_utf8_view, read_vec, status_to_result,
-};
+use super::{LoadedModuleId, LoadedModuleInfo, Runtime, read_utf8_view, read_vec, status_to_result};
 
 /// Owned descriptor metadata for one registered plugin.
 ///
@@ -74,10 +72,7 @@ struct DescriptorVisitContext<F, R> {
 }
 
 /// Adapts the inspection ABI's descriptor visitor to a Rust `FnOnce` closure.
-unsafe extern "C" fn visit_plugin_descriptor<F, R>(
-    plugin: *const NcPluginDescriptor,
-    user_data: *mut core::ffi::c_void,
-) -> NcStatus
+unsafe extern "C" fn visit_plugin_descriptor<F, R>(plugin: *const NcPluginDescriptor, user_data: *mut core::ffi::c_void) -> NcStatus
 where
     F: FnOnce(&NcPluginDescriptor) -> Result<R, NcStatus>,
 {
@@ -128,19 +123,12 @@ impl<'runtime> Inspection<'runtime> {
     /// `path` must identify trusted code. Opening a dynamic library may execute
     /// arbitrary platform loader code. `visitor` must not panic because Rust
     /// panics cannot unwind through the C callback boundary.
-    pub unsafe fn with_plugin_library_descriptor<R, F>(
-        self,
-        path: impl AsRef<Path>,
-        visitor: F,
-    ) -> Result<R, NcStatus>
+    pub unsafe fn with_plugin_library_descriptor<R, F>(self, path: impl AsRef<Path>, visitor: F) -> Result<R, NcStatus>
     where
         F: FnOnce(&NcPluginDescriptor) -> Result<R, NcStatus>,
     {
         let path = path.as_ref().to_str().ok_or(NC_E_INVALID_ARG)?;
-        let mut context = DescriptorVisitContext {
-            visitor: Some(visitor),
-            result: None,
-        };
+        let mut context = DescriptorVisitContext { visitor: Some(visitor), result: None };
         // SAFETY: The caller accepted the trusted-library requirement. The
         // stack context stays live for the runtime's synchronous callback.
         let status = unsafe {
@@ -204,10 +192,7 @@ impl<'runtime> Inspection<'runtime> {
     /// Module inspection supplies the path and plugin ID; plugin inspection
     /// supplies the qualified name and version. The returned summary owns all
     /// text from both records.
-    pub fn loaded_module(
-        self,
-        module_id: LoadedModuleId,
-    ) -> Result<Option<LoadedModuleInfo>, NcStatus> {
+    pub fn loaded_module(self, module_id: LoadedModuleId) -> Result<Option<LoadedModuleInfo>, NcStatus> {
         match self.loaded_module_required(module_id) {
             Ok(module) => Ok(Some(module)),
             Err(NC_E_NOT_FOUND) => Ok(None),
@@ -225,10 +210,7 @@ impl<'runtime> Inspection<'runtime> {
     pub fn class_ids_in_module(self, module_id: LoadedModuleId) -> Result<Vec<NcGuid>, NcStatus> {
         let mut result = Vec::new();
         for class_id in self.runtime.type_registry().class_ids()? {
-            if self
-                .raw_class_info(class_id)?
-                .is_some_and(|info| info.module_id == module_id.get())
-            {
+            if self.raw_class_info(class_id)?.is_some_and(|info| info.module_id == module_id.get()) {
                 result.push(class_id);
             }
         }
@@ -236,10 +218,7 @@ impl<'runtime> Inspection<'runtime> {
     }
 
     /// Returns distinct interface ABI identities exposed by one loaded module.
-    pub fn interface_ids_in_module(
-        self,
-        module_id: LoadedModuleId,
-    ) -> Result<Vec<NcInterfaceId>, NcStatus> {
+    pub fn interface_ids_in_module(self, module_id: LoadedModuleId) -> Result<Vec<NcInterfaceId>, NcStatus> {
         let mut result = Vec::new();
         let mut known = HashSet::new();
         for class_id in self.class_ids_in_module(module_id)? {
@@ -257,9 +236,7 @@ impl<'runtime> Inspection<'runtime> {
         let api = self.runtime.inspection_api();
         read_vec(
             || unsafe { (api.plugin_class_count)(plugin_id) },
-            |out, capacity, out_len| unsafe {
-                (api.plugin_class_ids)(plugin_id, out, capacity, out_len)
-            },
+            |out, capacity, out_len| unsafe { (api.plugin_class_ids)(plugin_id, out, capacity, out_len) },
         )
     }
 
@@ -268,9 +245,7 @@ impl<'runtime> Inspection<'runtime> {
         let api = self.runtime.inspection_api();
         read_vec(
             || unsafe { (api.plugin_dependency_count)(plugin_id) },
-            |out, capacity, out_len| unsafe {
-                (api.plugin_dependency_ids)(plugin_id, out, capacity, out_len)
-            },
+            |out, capacity, out_len| unsafe { (api.plugin_dependency_ids)(plugin_id, out, capacity, out_len) },
         )
     }
 
@@ -279,31 +254,21 @@ impl<'runtime> Inspection<'runtime> {
         let api = self.runtime.inspection_api();
         read_vec(
             || unsafe { (api.class_interface_count)(class_id) },
-            |out, capacity, out_len| unsafe {
-                (api.class_interface_ids)(class_id, out, capacity, out_len)
-            },
+            |out, capacity, out_len| unsafe { (api.class_interface_ids)(class_id, out, capacity, out_len) },
         )
     }
 
     /// Returns IDs of classes implementing one interface ABI identity.
-    pub fn interface_implementor_class_ids(
-        self,
-        interface_id: NcInterfaceId,
-    ) -> Result<Vec<NcGuid>, NcStatus> {
+    pub fn interface_implementor_class_ids(self, interface_id: NcInterfaceId) -> Result<Vec<NcGuid>, NcStatus> {
         let api = self.runtime.inspection_api();
         read_vec(
             || unsafe { (api.interface_implementor_class_count)(interface_id) },
-            |out, capacity, out_len| unsafe {
-                (api.interface_implementor_class_ids)(interface_id, out, capacity, out_len)
-            },
+            |out, capacity, out_len| unsafe { (api.interface_implementor_class_ids)(interface_id, out, capacity, out_len) },
         )
     }
 
     /// Joins a required raw module record with its plugin descriptor metadata.
-    fn loaded_module_required(
-        self,
-        module_id: LoadedModuleId,
-    ) -> Result<LoadedModuleInfo, NcStatus> {
+    fn loaded_module_required(self, module_id: LoadedModuleId) -> Result<LoadedModuleInfo, NcStatus> {
         // A loaded module and its plugin record are committed together. Treat a
         // missing half as NC_E_NOT_FOUND rather than manufacturing partial data.
         let module = self.raw_module_info(module_id)?.ok_or(NC_E_NOT_FOUND)?;
@@ -323,8 +288,7 @@ impl<'runtime> Inspection<'runtime> {
         // initializes the slot only when it returns success.
         let mut out = core::mem::MaybeUninit::uninit();
         // SAFETY: `out` is valid for one initialized record on success.
-        let status =
-            unsafe { (self.runtime.inspection_api().plugin_info)(plugin_id, out.as_mut_ptr()) };
+        let status = unsafe { (self.runtime.inspection_api().plugin_info)(plugin_id, out.as_mut_ptr()) };
         if status == NC_E_NOT_FOUND {
             return Ok(None);
         }
@@ -334,15 +298,10 @@ impl<'runtime> Inspection<'runtime> {
     }
 
     /// Retrieves one borrowed-text module record from the raw inspection table.
-    fn raw_module_info(
-        self,
-        module_id: LoadedModuleId,
-    ) -> Result<Option<NcModuleInfoV1>, NcStatus> {
+    fn raw_module_info(self, module_id: LoadedModuleId) -> Result<Option<NcModuleInfoV1>, NcStatus> {
         let mut out = core::mem::MaybeUninit::uninit();
         // SAFETY: `out` is valid for one initialized record on success.
-        let status = unsafe {
-            (self.runtime.inspection_api().module_info)(module_id.get(), out.as_mut_ptr())
-        };
+        let status = unsafe { (self.runtime.inspection_api().module_info)(module_id.get(), out.as_mut_ptr()) };
         if status == NC_E_NOT_FOUND {
             return Ok(None);
         }
@@ -355,8 +314,7 @@ impl<'runtime> Inspection<'runtime> {
     fn raw_class_info(self, class_id: NcGuid) -> Result<Option<NcClassInfoV1>, NcStatus> {
         let mut out = core::mem::MaybeUninit::uninit();
         // SAFETY: `out` is valid for one initialized record on success.
-        let status =
-            unsafe { (self.runtime.inspection_api().class_info)(class_id, out.as_mut_ptr()) };
+        let status = unsafe { (self.runtime.inspection_api().class_info)(class_id, out.as_mut_ptr()) };
         if status == NC_E_NOT_FOUND {
             return Ok(None);
         }

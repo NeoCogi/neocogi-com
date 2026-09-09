@@ -75,15 +75,10 @@ fn main() {
 fn run() -> Result<(), CliError> {
     let command = parse_args(std::env::args_os()).map_err(CliError::Usage)?;
     match command {
-        Command::Dump {
-            library,
-            format,
-            output,
-        } => {
+        Command::Dump { library, format, output } => {
             // SAFETY: The user explicitly asks the inspector to load this
             // shared library. The runtime reads only neocogi-com descriptor metadata.
-            let inspection =
-                unsafe { inspect_plugin_library(&library) }.map_err(CliError::Inspect)?;
+            let inspection = unsafe { inspect_plugin_library(&library) }.map_err(CliError::Inspect)?;
             let rendered = match format {
                 OutputFormat::Json => render_json(&inspection).map_err(CliError::Json)?,
                 OutputFormat::Text => render_text(&inspection),
@@ -97,25 +92,16 @@ fn run() -> Result<(), CliError> {
         Command::Check { library } => {
             // SAFETY: The user explicitly asks the inspector to load this
             // shared library. The runtime reads only neocogi-com descriptor metadata.
-            let inspection =
-                unsafe { inspect_plugin_library(&library) }.map_err(CliError::Inspect)?;
+            let inspection = unsafe { inspect_plugin_library(&library) }.map_err(CliError::Inspect)?;
             println!(
                 "{}: ok ({}, {} class{})",
                 library.display(),
                 inspection.qualified_name,
                 inspection.classes.len(),
-                if inspection.classes.len() == 1 {
-                    ""
-                } else {
-                    "es"
-                }
+                if inspection.classes.len() == 1 { "" } else { "es" }
             );
         }
-        Command::Plan {
-            libraries,
-            format,
-            output,
-        } => {
+        Command::Plan { libraries, format, output } => {
             let mut artifacts = Vec::with_capacity(libraries.len());
             let mut errors = Vec::new();
             for library in libraries {
@@ -129,15 +115,10 @@ fn run() -> Result<(), CliError> {
             if !errors.is_empty() {
                 return Err(CliError::PlanInspection(errors));
             }
-            let inspections: Vec<_> = artifacts
-                .iter()
-                .map(|(_, inspection)| inspection.clone())
-                .collect();
+            let inspections: Vec<_> = artifacts.iter().map(|(_, inspection)| inspection.clone()).collect();
             let order = plan_plugin_load_order(&inspections).map_err(CliError::Plan)?;
             let rendered = match format {
-                OutputFormat::Json => {
-                    render_plan_json(&artifacts, &order).map_err(CliError::Json)?
-                }
+                OutputFormat::Json => render_plan_json(&artifacts, &order).map_err(CliError::Json)?,
                 OutputFormat::Text => render_plan_text(&artifacts, &order),
             };
             if let Some(output) = output {

@@ -68,11 +68,7 @@ impl<'a, T> NcCopyFromBufferOffset<'a, T> {
     ///
     /// When `len` is nonzero, `ptr` must be valid for `len` readable `T`
     /// elements for the duration of the generated ABI call.
-    pub unsafe fn __nc_from_raw_parts(
-        offset: u64,
-        ptr: *const T,
-        len: u64,
-    ) -> Result<Self, NcStatus> {
+    pub unsafe fn __nc_from_raw_parts(offset: u64, ptr: *const T, len: u64) -> Result<Self, NcStatus> {
         let len = usize::try_from(len).map_err(|_| NC_E_OUT_OF_RANGE)?;
         if len != 0 && ptr.is_null() {
             return Err(NC_E_POINTER);
@@ -164,11 +160,7 @@ impl<'a, T> NcCopyToBufferOffset<'a, T> {
     ///
     /// When `len` is nonzero, `ptr` must be valid for `len` writable `T`
     /// elements for the duration of the generated ABI call.
-    pub unsafe fn __nc_from_raw_parts(
-        offset: u64,
-        ptr: *mut T,
-        len: u64,
-    ) -> Result<Self, NcStatus> {
+    pub unsafe fn __nc_from_raw_parts(offset: u64, ptr: *mut T, len: u64) -> Result<Self, NcStatus> {
         let len = usize::try_from(len).map_err(|_| NC_E_OUT_OF_RANGE)?;
         if len != 0 && ptr.is_null() {
             return Err(NC_E_POINTER);

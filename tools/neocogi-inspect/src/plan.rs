@@ -33,10 +33,7 @@ struct JsonLoadEntry<'a> {
     path: String,
 }
 
-pub(crate) fn render_plan_json(
-    artifacts: &[(PathBuf, PluginInspection)],
-    order: &[NcGuid],
-) -> Result<String, serde_json::Error> {
+pub(crate) fn render_plan_json(artifacts: &[(PathBuf, PluginInspection)], order: &[NcGuid]) -> Result<String, serde_json::Error> {
     let by_id = artifacts_by_id(artifacts);
     let mut plugins: Vec<_> = artifacts.iter().collect();
     plugins.sort_by_key(|(_, plugin)| plugin.plugin_id.to_string());
@@ -49,11 +46,7 @@ pub(crate) fn render_plan_json(
                 name: &plugin.qualified_name,
                 version: &plugin.plugin_version,
                 path: path.display().to_string(),
-                dependencies: plugin
-                    .dependencies
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect(),
+                dependencies: plugin.dependencies.iter().map(ToString::to_string).collect(),
             })
             .collect(),
         load_order: order
@@ -73,34 +66,18 @@ pub(crate) fn render_plan_json(
     Ok(rendered)
 }
 
-pub(crate) fn render_plan_text(
-    artifacts: &[(PathBuf, PluginInspection)],
-    order: &[NcGuid],
-) -> String {
+pub(crate) fn render_plan_text(artifacts: &[(PathBuf, PluginInspection)], order: &[NcGuid]) -> String {
     let by_id = artifacts_by_id(artifacts);
     let mut out = String::new();
     writeln!(out, "schema: {PLAN_SCHEMA}").unwrap();
     writeln!(out, "load_order:").unwrap();
     for (position, plugin_id) in order.iter().enumerate() {
         let (path, plugin) = by_id[plugin_id];
-        writeln!(
-            out,
-            "  {}. {} ({}) [{}]",
-            position + 1,
-            plugin.qualified_name,
-            plugin_id,
-            path.display()
-        )
-        .unwrap();
+        writeln!(out, "  {}. {} ({}) [{}]", position + 1, plugin.qualified_name, plugin_id, path.display()).unwrap();
     }
     out
 }
 
-fn artifacts_by_id(
-    artifacts: &[(PathBuf, PluginInspection)],
-) -> HashMap<NcGuid, (&Path, &PluginInspection)> {
-    artifacts
-        .iter()
-        .map(|(path, plugin)| (plugin.plugin_id, (path.as_path(), plugin)))
-        .collect()
+fn artifacts_by_id(artifacts: &[(PathBuf, PluginInspection)]) -> HashMap<NcGuid, (&Path, &PluginInspection)> {
+    artifacts.iter().map(|(path, plugin)| (plugin.plugin_id, (path.as_path(), plugin))).collect()
 }

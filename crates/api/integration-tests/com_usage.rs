@@ -1,14 +1,11 @@
 use neocogi_com::{
-    ComClass, ComClassContract, ComInterface, ComPtr, ComRef, ComStruct, IUnknown,
-    NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET,
-    NC_ABI_PASSING_VOID, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
-    NC_ABI_TYPE_U8, NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INVALID_ARG,
-    NC_E_INVALID_TAG, NC_E_NOINTERFACE, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK, NcAbiHash,
-    NcAbiHashPart, NcAbiPassing, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcClassDescriptor, NcClassTable,
-    NcConstructorFn, NcCopyFromBufferOffset, NcCopyToBufferOffset, NcGuid, NcInterfaceId,
-    NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, Runtime, ThreadLocal,
-    ThreadSafe, ThreadSafeComObject, ThreadingModel, com_class, com_enum, com_int_enum, com_object,
-    com_interface, com_struct, format_method_signature, plugin,
+    ComClass, ComClassContract, ComInterface, ComPtr, ComRef, ComStruct, IUnknown, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET,
+    NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_VOID, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_U8, NC_ABI_TYPE_VOID,
+    NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_NOINTERFACE, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK,
+    NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcClassDescriptor, NcClassTable, NcConstructorFn,
+    NcCopyFromBufferOffset, NcCopyToBufferOffset, NcGuid, NcInterfaceId, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, Runtime,
+    ThreadLocal, ThreadSafe, ThreadSafeComObject, ThreadingModel, com_class, com_enum, com_int_enum, com_object, com_interface, com_struct,
+    format_method_signature, plugin,
 };
 use std::ffi::c_void;
 use std::fmt::Write;
@@ -98,10 +95,7 @@ pub struct TestAlignedHeader {
     pub len: u32,
 }
 
-#[com_interface(
-    "bd15576f-7f3e-5eb1-8151-b6abb1e38e66",
-    name = "nc.tests.com_usage.Calculator:v1"
-)]
+#[com_interface("bd15576f-7f3e-5eb1-8151-b6abb1e38e66", name = "nc.tests.com_usage.Calculator:v1")]
 pub trait ICalculator {
     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
 }
@@ -292,11 +286,9 @@ plugin! {
     classes = [MacroPluginEchoObject, CallableCounterObject],
 }
 
-const CALCULATOR_PLUGIN_ID: NcGuid =
-    neocogi_com::guid_from_qualified_name("nc.tests.com_usage.calculator_plugin");
+const CALCULATOR_PLUGIN_ID: NcGuid = neocogi_com::guid_from_qualified_name("nc.tests.com_usage.calculator_plugin");
 
-const CALCULATOR_CLASS_ID: NcGuid =
-    neocogi_com::guid_from_qualified_name("nc.tests.com_usage.Calculator");
+const CALCULATOR_CLASS_ID: NcGuid = neocogi_com::guid_from_qualified_name("nc.tests.com_usage.Calculator");
 
 static CALCULATOR_CLASSES: [NcClassDescriptor; 2] = [
     NcClassDescriptor {
@@ -394,8 +386,7 @@ static UNCHECKED_CONSTRUCTOR_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
     class_table: &UNCHECKED_CONSTRUCTOR_CLASS_TABLE,
 };
 
-const FAILING_CONSTRUCTOR_CLASS_ID: NcGuid =
-    neocogi_com::guid_from_qualified_name("nc.tests.com_usage.FailingConstructor");
+const FAILING_CONSTRUCTOR_CLASS_ID: NcGuid = neocogi_com::guid_from_qualified_name("nc.tests.com_usage.FailingConstructor");
 
 static FAILING_CONSTRUCTOR_CLASSES: [NcClassDescriptor; 1] = [NcClassDescriptor {
     class_id: FAILING_CONSTRUCTOR_CLASS_ID,
@@ -517,10 +508,7 @@ impl Drop for LifecycleTrackedObject {
 
 fn lifecycle_tracked(value: i32) -> (ComPtr<IUnknown>, Arc<AtomicUsize>) {
     let drops = Arc::new(AtomicUsize::new(0));
-    let unknown = LifecycleTrackedObject::from_value(LifecycleTrackedObject {
-        value,
-        drops: Arc::clone(&drops),
-    });
+    let unknown = LifecycleTrackedObject::from_value(LifecycleTrackedObject { value, drops: Arc::clone(&drops) });
     (unknown, drops)
 }
 
@@ -550,10 +538,7 @@ impl Drop for ThreadSafeLifecycleTrackedObject {
 
 fn thread_safe_lifecycle_tracked(value: i32) -> (ComPtr<IUnknown, ThreadSafe>, Arc<AtomicUsize>) {
     let drops = Arc::new(AtomicUsize::new(0));
-    let unknown = ThreadSafeLifecycleTrackedObject::from_value(ThreadSafeLifecycleTrackedObject {
-        value,
-        drops: Arc::clone(&drops),
-    });
+    let unknown = ThreadSafeLifecycleTrackedObject::from_value(ThreadSafeLifecycleTrackedObject { value, drops: Arc::clone(&drops) });
     (unknown, drops)
 }
 
@@ -728,13 +713,11 @@ fn generated_class_threading_is_the_pointer_and_descriptor_source_of_truth() {
 
     assert_eq!(
         MacroPluginEchoObject::CLASS_DESCRIPTOR.threading,
-        <<MacroPluginEchoObject as ComClass>::Threading as ThreadingModel>::ABI_THREADING_MODE
-            .as_raw()
+        <<MacroPluginEchoObject as ComClass>::Threading as ThreadingModel>::ABI_THREADING_MODE.as_raw()
     );
     assert_eq!(
         ThreadSafeCalculatorObject::CLASS_DESCRIPTOR.threading,
-        <<ThreadSafeCalculatorObject as ComClass>::Threading as ThreadingModel>::ABI_THREADING_MODE
-            .as_raw()
+        <<ThreadSafeCalculatorObject as ComClass>::Threading as ThreadingModel>::ABI_THREADING_MODE.as_raw()
     );
 }
 
@@ -763,8 +746,7 @@ fn borrowed_thread_safe_pointer_weakening_preserves_lifetime_and_mode() {
     let (unknown, drops) = thread_safe_lifecycle_tracked(808);
 
     let from_owner: ComPtr<IUnknown, ThreadLocal> = unknown.as_thread_local_ref().add_ref();
-    let from_borrow: ComPtr<IUnknown, ThreadLocal> =
-        unknown.as_com_ref().into_thread_local().add_ref();
+    let from_borrow: ComPtr<IUnknown, ThreadLocal> = unknown.as_com_ref().into_thread_local().add_ref();
 
     drop(unknown);
     assert_eq!(drops.load(Ordering::SeqCst), 0);
@@ -782,10 +764,7 @@ fn runtime_is_shareable_as_process_wide_state() {
     assert_send_sync::<Runtime>();
 
     let runtime = Runtime::global();
-    assert_eq!(
-        unsafe { runtime.register_plugin_descriptor(&CALCULATOR_PLUGIN) },
-        NC_OK
-    );
+    assert_eq!(unsafe { runtime.register_plugin_descriptor(&CALCULATOR_PLUGIN) }, NC_OK);
 
     let construction_runtime = runtime;
     let construction_thread = std::thread::spawn(move || {
@@ -795,9 +774,7 @@ fn runtime_is_shareable_as_process_wide_state() {
 
     let validation_runtime = runtime;
     let validation_thread = std::thread::spawn(move || {
-        validation_runtime
-            .require_interface_type::<ICalculatorAbi>(CALCULATOR_CLASS_ID)
-            .unwrap();
+        validation_runtime.require_interface_type::<ICalculatorAbi>(CALCULATOR_CLASS_ID).unwrap();
     });
 
     assert_eq!(construction_thread.join().unwrap(), 42);
@@ -816,28 +793,18 @@ fn com_class_accepts_interface_paths() {
 
 #[test]
 fn com_ref_arguments_are_borrowed_interface_parameters() {
-    let consumer = ReferenceConsumer::create()
-        .query::<IReferenceConsumerAbi>()
-        .unwrap();
-    let tracked = TrackedObject::from_value(TrackedObject { value: 55 })
-        .query::<ITrackedAbi>()
-        .unwrap();
+    let consumer = ReferenceConsumer::create().query::<IReferenceConsumerAbi>().unwrap();
+    let tracked = TrackedObject::from_value(TrackedObject { value: 55 }).query::<ITrackedAbi>().unwrap();
 
     assert_eq!(consumer.borrowed_value(tracked.as_com_ref()).unwrap(), 55);
 
-    let thread_safe_tracked =
-        ThreadSafeLifecycleTrackedObject::from_value(ThreadSafeLifecycleTrackedObject {
-            value: 56,
-            drops: Arc::new(AtomicUsize::new(0)),
-        })
-        .query::<ITrackedAbi>()
-        .unwrap();
-    assert_eq!(
-        consumer
-            .borrowed_value(thread_safe_tracked.as_thread_local_ref())
-            .unwrap(),
-        56
-    );
+    let thread_safe_tracked = ThreadSafeLifecycleTrackedObject::from_value(ThreadSafeLifecycleTrackedObject {
+        value: 56,
+        drops: Arc::new(AtomicUsize::new(0)),
+    })
+    .query::<ITrackedAbi>()
+    .unwrap();
+    assert_eq!(consumer.borrowed_value(thread_safe_tracked.as_thread_local_ref()).unwrap(), 56);
 
     let raw = consumer.as_mut_ptr();
     let mut out = 0;
@@ -847,9 +814,7 @@ fn com_ref_arguments_are_borrowed_interface_parameters() {
 
 #[test]
 fn com_ptr_returns_transfer_owned_interface_references() {
-    let consumer = ReferenceConsumer::create()
-        .query::<IReferenceConsumerAbi>()
-        .unwrap();
+    let consumer = ReferenceConsumer::create().query::<IReferenceConsumerAbi>().unwrap();
 
     let tracked = consumer.make_tracked(64).unwrap();
 
@@ -859,33 +824,16 @@ fn com_ptr_returns_transfer_owned_interface_references() {
 #[test]
 fn com_struct_records_cross_interface_methods_by_value() {
     let geometry = Geometry::create().query::<IGeometryAbi>().unwrap();
-    let rect = TestRect {
-        x: 10,
-        y: 20,
-        width: 30,
-        height: 40,
-    };
+    let rect = TestRect { x: 10, y: 20, width: 30, height: 40 };
 
     let moved = geometry.translate(rect, TestDelta(-3, 7)).unwrap();
 
-    assert_eq!(
-        moved,
-        TestRect {
-            x: 7,
-            y: 27,
-            width: 30,
-            height: 40,
-        }
-    );
+    assert_eq!(moved, TestRect { x: 7, y: 27, width: 30, height: 40 });
 }
 
 #[test]
 fn com_struct_layout_options_are_part_of_the_abi_type() {
-    fn assert_header_layout<T: ComStruct + neocogi_com::AbiType>(
-        size: usize,
-        align: usize,
-        len_offset: usize,
-    ) {
+    fn assert_header_layout<T: ComStruct + neocogi_com::AbiType>(size: usize, align: usize, len_offset: usize) {
         let layout = <T as ComStruct>::ABI_STRUCT_LAYOUT;
         assert_eq!(layout.size, size);
         assert_eq!(layout.align, align);
@@ -920,19 +868,10 @@ fn com_struct_layout_options_are_part_of_the_abi_type() {
 
 #[test]
 fn generated_interface_and_vtable_keep_iunknown_prefix_layout() {
-    assert_eq!(
-        core::mem::size_of::<ICalculatorAbi>(),
-        core::mem::size_of::<IUnknown>()
-    );
-    assert_eq!(
-        core::mem::align_of::<ICalculatorAbi>(),
-        core::mem::align_of::<IUnknown>()
-    );
+    assert_eq!(core::mem::size_of::<ICalculatorAbi>(), core::mem::size_of::<IUnknown>());
+    assert_eq!(core::mem::align_of::<ICalculatorAbi>(), core::mem::align_of::<IUnknown>());
     assert_eq!(core::mem::offset_of!(ICalculatorAbi, vtable), 0);
-    assert_eq!(
-        core::mem::offset_of!(ICalculatorAbi, object),
-        core::mem::offset_of!(IUnknown, object)
-    );
+    assert_eq!(core::mem::offset_of!(ICalculatorAbi, object), core::mem::offset_of!(IUnknown, object));
     assert_eq!(core::mem::offset_of!(ICalculatorVTable, unknown), 0);
 
     assert!(ICalculatorAbi::iunknown(core::ptr::null_mut()).is_null());
@@ -944,10 +883,7 @@ fn generated_interface_and_vtable_keep_iunknown_prefix_layout() {
 fn generated_metadata_describes_interfaces_and_classes() {
     assert_ne!(ICalculatorAbi::ABI_HASH, NcAbiHash::ZERO);
     assert_ne!(ICalculatorAbi::ABI_HASH, IMultiplierAbi::ABI_HASH);
-    assert_eq!(
-        ICalculatorAbi::INTERFACE_DESCRIPTOR.interface_id,
-        ICalculatorAbi::IID
-    );
+    assert_eq!(ICalculatorAbi::INTERFACE_DESCRIPTOR.interface_id, ICalculatorAbi::IID);
     assert_eq!(ICalculatorAbi::INTERFACE_DESCRIPTOR.method_count, 1);
     assert!(!ICalculatorAbi::INTERFACE_DESCRIPTOR.methods.is_null());
 
@@ -975,29 +911,16 @@ fn generated_metadata_describes_interfaces_and_classes() {
     assert_eq!(calculator_descriptor.interface_id, ICalculatorAbi::IID);
     assert_eq!(calculator_descriptor.abi_hash, ICalculatorAbi::ABI_HASH);
     assert_eq!(multiplier_descriptor.interface_id, IMultiplierAbi::IID);
-    assert_eq!(
-        MacroPluginEchoObject::CLASS_DESCRIPTOR.threading,
-        NC_ABI_THREADING_THREAD_LOCAL
-    );
-    assert_eq!(
-        ThreadSafeCalculatorObject::CLASS_DESCRIPTOR.threading,
-        NC_ABI_THREADING_THREAD_SAFE
-    );
+    assert_eq!(MacroPluginEchoObject::CLASS_DESCRIPTOR.threading, NC_ABI_THREADING_THREAD_LOCAL);
+    assert_eq!(ThreadSafeCalculatorObject::CLASS_DESCRIPTOR.threading, NC_ABI_THREADING_THREAD_SAFE);
 }
 
 #[test]
 fn generated_interface_hashes_include_referenced_interface_iids() {
     let expected = NcAbiHash::from_abi_parts(&[
-        NcAbiHashPart::Interface {
-            iid: IReferenceConsumerAbi::IID,
-        },
-        NcAbiHashPart::Method {
-            index: 0,
-            name: "borrowed_value",
-        },
-        NcAbiHashPart::Receiver {
-            receiver: NcAbiReceiver::Shared,
-        },
+        NcAbiHashPart::Interface { iid: IReferenceConsumerAbi::IID },
+        NcAbiHashPart::Method { index: 0, name: "borrowed_value" },
+        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
         NcAbiHashPart::Arg {
             index: 0,
             passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
@@ -1008,13 +931,8 @@ fn generated_interface_hashes_include_referenced_interface_iids() {
             ty: NcAbiType::I32,
         },
         NcAbiHashPart::Status,
-        NcAbiHashPart::Method {
-            index: 1,
-            name: "make_tracked",
-        },
-        NcAbiHashPart::Receiver {
-            receiver: NcAbiReceiver::Shared,
-        },
+        NcAbiHashPart::Method { index: 1, name: "make_tracked" },
+        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
         NcAbiHashPart::Arg {
             index: 0,
             passing: NcAbiPassing::Value,
@@ -1040,13 +958,8 @@ fn generated_interface_hashes_include_referenced_interface_iids() {
             ty: NcAbiType::I32,
         },
         NcAbiHashPart::Status,
-        NcAbiHashPart::Method {
-            index: 1,
-            name: "make_tracked",
-        },
-        NcAbiHashPart::Receiver {
-            receiver: NcAbiReceiver::Shared,
-        },
+        NcAbiHashPart::Method { index: 1, name: "make_tracked" },
+        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
         NcAbiHashPart::Arg {
             index: 0,
             passing: NcAbiPassing::Value,
@@ -1079,14 +992,8 @@ fn generated_buffer_parameters_are_safe_and_described_as_typed_abi() {
     assert_eq!(methods[0].param_count, 1);
     let write_params = unsafe { std::slice::from_raw_parts(methods[0].params, 1) };
     assert_eq!(unsafe { write_params[0].name.as_str() }.unwrap(), "input");
-    assert_eq!(
-        write_params[0].passing.tag,
-        NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET
-    );
-    assert_eq!(
-        write_params[0].passing.threading,
-        NC_ABI_THREADING_THREAD_LOCAL
-    );
+    assert_eq!(write_params[0].passing.tag, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET);
+    assert_eq!(write_params[0].passing.threading, NC_ABI_THREADING_THREAD_LOCAL);
     assert_eq!(write_params[0].ty.tag, NC_ABI_TYPE_U8);
     assert_eq!(methods[0].returns.passing.tag, NC_ABI_PASSING_VOID);
     assert_eq!(methods[0].returns.ty.tag, NC_ABI_TYPE_VOID);
@@ -1100,14 +1007,8 @@ fn generated_buffer_parameters_are_safe_and_described_as_typed_abi() {
     assert_eq!(methods[1].param_count, 1);
     let read_params = unsafe { std::slice::from_raw_parts(methods[1].params, 1) };
     assert_eq!(unsafe { read_params[0].name.as_str() }.unwrap(), "output");
-    assert_eq!(
-        read_params[0].passing.tag,
-        NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET
-    );
-    assert_eq!(
-        read_params[0].passing.threading,
-        NC_ABI_THREADING_THREAD_LOCAL
-    );
+    assert_eq!(read_params[0].passing.tag, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET);
+    assert_eq!(read_params[0].passing.threading, NC_ABI_THREADING_THREAD_LOCAL);
     assert_eq!(read_params[0].ty.tag, NC_ABI_TYPE_U8);
     assert_eq!(methods[1].returns.passing.tag, NC_ABI_PASSING_VOID);
     assert_eq!(methods[1].returns.ty.tag, NC_ABI_TYPE_VOID);
@@ -1121,9 +1022,7 @@ fn generated_buffer_parameters_are_safe_and_described_as_typed_abi() {
     let unknown = BufferStore::with_bytes(vec![1, 2, 3, 4]);
     let mut store = unknown.query::<IBufferStoreAbi>().unwrap();
 
-    store
-        .write(NcCopyFromBufferOffset::new(2, &[9, 8, 7]))
-        .unwrap();
+    store.write(NcCopyFromBufferOffset::new(2, &[9, 8, 7])).unwrap();
 
     let mut out = [0; 5];
     store.read(NcCopyToBufferOffset::new(0, &mut out)).unwrap();
@@ -1131,14 +1030,11 @@ fn generated_buffer_parameters_are_safe_and_described_as_typed_abi() {
 
     let raw = store.as_mut_ptr();
     let raw_input = [6, 5];
-    let status =
-        unsafe { ((*(*raw).vtable).write)(raw, 1, raw_input.len() as u64, raw_input.as_ptr()) };
+    let status = unsafe { ((*(*raw).vtable).write)(raw, 1, raw_input.len() as u64, raw_input.as_ptr()) };
     assert_eq!(status, NC_OK);
 
     let mut raw_output = [0; 2];
-    let status = unsafe {
-        ((*(*raw).vtable).read)(raw, 1, raw_output.len() as u64, raw_output.as_mut_ptr())
-    };
+    let status = unsafe { ((*(*raw).vtable).read)(raw, 1, raw_output.len() as u64, raw_output.as_mut_ptr()) };
     assert_eq!(status, NC_OK);
     assert_eq!(raw_output, raw_input);
 
@@ -1148,9 +1044,7 @@ fn generated_buffer_parameters_are_safe_and_described_as_typed_abi() {
     assert_eq!(status, NC_E_POINTER);
 
     let mut too_large = [0; 1];
-    let status = store
-        .read(NcCopyToBufferOffset::new(32, &mut too_large))
-        .unwrap_err();
+    let status = store.read(NcCopyToBufferOffset::new(32, &mut too_large)).unwrap_err();
     assert_eq!(status, NC_E_OUT_OF_RANGE);
 }
 
@@ -1171,52 +1065,22 @@ fn mutable_methods_own_plain_state_and_reject_conflicting_reentry() {
 fn runtime_registers_plugin_and_constructs_objects() {
     let runtime = Runtime::global();
 
-    assert_eq!(
-        unsafe { runtime.register_plugin_descriptor(&CALCULATOR_PLUGIN) },
-        NC_OK
-    );
-    assert!(
-        runtime
-            .plugin_registry()
-            .plugin_ids()
-            .unwrap()
-            .contains(&CALCULATOR_PLUGIN.plugin_id)
-    );
-    assert!(
-        runtime
-            .type_registry()
-            .class_ids()
-            .unwrap()
-            .contains(&CALCULATOR_CLASS_ID)
-    );
+    assert_eq!(unsafe { runtime.register_plugin_descriptor(&CALCULATOR_PLUGIN) }, NC_OK);
+    assert!(runtime.plugin_registry().plugin_ids().unwrap().contains(&CALCULATOR_PLUGIN.plugin_id));
+    assert!(runtime.type_registry().class_ids().unwrap().contains(&CALCULATOR_CLASS_ID));
     let registered_interfaces = runtime.type_registry().interface_ids().unwrap();
     assert!(registered_interfaces.contains(&ICalculatorAbi::INTERFACE_ID));
     assert_eq!(
-        registered_interfaces
-            .iter()
-            .filter(|interface| **interface == IUnknown::INTERFACE_ID)
-            .count(),
+        registered_interfaces.iter().filter(|interface| **interface == IUnknown::INTERFACE_ID).count(),
         1
     );
     assert_eq!(
-        runtime
-            .inspection()
-            .plugin_class_ids(CALCULATOR_PLUGIN.plugin_id)
-            .unwrap(),
+        runtime.inspection().plugin_class_ids(CALCULATOR_PLUGIN.plugin_id).unwrap(),
         vec![CALCULATOR_CLASS_ID, ThreadSafeCalculatorAbi::CLASS_ID]
     );
-    let class_interfaces = runtime
-        .inspection()
-        .class_interface_ids(CALCULATOR_CLASS_ID)
-        .unwrap();
+    let class_interfaces = runtime.inspection().class_interface_ids(CALCULATOR_CLASS_ID).unwrap();
     assert_eq!(class_interfaces[0], IUnknown::INTERFACE_ID);
-    assert_eq!(
-        class_interfaces
-            .iter()
-            .filter(|interface| **interface == IUnknown::INTERFACE_ID)
-            .count(),
-        1
-    );
+    assert_eq!(class_interfaces.iter().filter(|interface| **interface == IUnknown::INTERFACE_ID).count(), 1);
     assert!(class_interfaces.contains(&ICalculatorAbi::INTERFACE_ID));
     assert!(
         runtime
@@ -1232,52 +1096,21 @@ fn runtime_registers_plugin_and_constructs_objects() {
             .unwrap()
             .contains(&CALCULATOR_CLASS_ID)
     );
-    assert_eq!(
-        runtime
-            .inspection()
-            .module_id_for_class(CALCULATOR_CLASS_ID)
-            .unwrap(),
-        None
-    );
-    let plugin_info = runtime
-        .inspection()
-        .plugin_info(CALCULATOR_PLUGIN.plugin_id)
-        .unwrap()
-        .unwrap();
-    assert_eq!(
-        plugin_info.qualified_name,
-        "nc.tests.com_usage.calculator_plugin"
-    );
-    let class_info = runtime
-        .inspection()
-        .class_info(CALCULATOR_CLASS_ID)
-        .unwrap()
-        .unwrap();
+    assert_eq!(runtime.inspection().module_id_for_class(CALCULATOR_CLASS_ID).unwrap(), None);
+    let plugin_info = runtime.inspection().plugin_info(CALCULATOR_PLUGIN.plugin_id).unwrap().unwrap();
+    assert_eq!(plugin_info.qualified_name, "nc.tests.com_usage.calculator_plugin");
+    let class_info = runtime.inspection().class_info(CALCULATOR_CLASS_ID).unwrap().unwrap();
     assert_eq!(class_info.plugin_id, CALCULATOR_PLUGIN.plugin_id);
     assert_eq!(class_info.module_id, None);
     assert_eq!(class_info.constructor_abi_hash, NcAbiHash::ZERO);
     assert_eq!(class_info.threading, NcAbiThreadingMode::ThreadLocal);
-    let thread_safe_class_info = runtime
-        .inspection()
-        .class_info(ThreadSafeCalculatorAbi::CLASS_ID)
-        .unwrap()
-        .unwrap();
-    assert_eq!(
-        thread_safe_class_info.threading,
-        NcAbiThreadingMode::ThreadSafe
-    );
-    runtime
-        .require_interface_type::<ICalculatorAbi>(CALCULATOR_CLASS_ID)
-        .unwrap();
-    runtime
-        .require_interface_type::<IUnknown>(CALCULATOR_CLASS_ID)
-        .unwrap();
+    let thread_safe_class_info = runtime.inspection().class_info(ThreadSafeCalculatorAbi::CLASS_ID).unwrap().unwrap();
+    assert_eq!(thread_safe_class_info.threading, NcAbiThreadingMode::ThreadSafe);
+    runtime.require_interface_type::<ICalculatorAbi>(CALCULATOR_CLASS_ID).unwrap();
+    runtime.require_interface_type::<IUnknown>(CALCULATOR_CLASS_ID).unwrap();
 
     assert_eq!(
-        runtime.require_interface(
-            CALCULATOR_CLASS_ID,
-            NcInterfaceId::new(ICalculatorAbi::IID, NcAbiHash::ZERO),
-        ),
+        runtime.require_interface(CALCULATOR_CLASS_ID, NcInterfaceId::new(ICalculatorAbi::IID, NcAbiHash::ZERO),),
         Err(NC_E_ABI_VERSION)
     );
 
@@ -1292,26 +1125,19 @@ fn runtime_registers_plugin_and_constructs_objects() {
     );
 
     let thread_safe_calculator = runtime
-        .construct_class_as_with_model::<ICalculatorAbi, ThreadSafe>(
-            ThreadSafeCalculatorAbi::CLASS_ID,
-            (),
-        )
+        .construct_class_as_with_model::<ICalculatorAbi, ThreadSafe>(ThreadSafeCalculatorAbi::CLASS_ID, ())
         .unwrap();
     let thread_result = std::thread::spawn(move || thread_safe_calculator.add(20, 22).unwrap());
     assert_eq!(thread_result.join().unwrap(), 42);
 
-    let downgraded_calculator = runtime
-        .construct_class_as::<ICalculatorAbi>(ThreadSafeCalculatorAbi::CLASS_ID, ())
-        .unwrap();
+    let downgraded_calculator = runtime.construct_class_as::<ICalculatorAbi>(ThreadSafeCalculatorAbi::CLASS_ID, ()).unwrap();
     assert_eq!(downgraded_calculator.add(40, 2).unwrap(), 42);
 
     let constructed_unknown = runtime.construct_class_as::<IUnknown>(CALCULATOR_CLASS_ID, ()).unwrap();
     assert!(constructed_unknown.query::<ICalculatorAbi>().is_ok());
 
     let local_unknown: ComPtr<IUnknown> = Calculator::create();
-    let validated = runtime
-        .query_validated::<ICalculatorAbi, _>(CALCULATOR_CLASS_ID, &local_unknown)
-        .unwrap();
+    let validated = runtime.query_validated::<ICalculatorAbi, _>(CALCULATOR_CLASS_ID, &local_unknown).unwrap();
     assert_eq!(validated.add(2, 5).unwrap(), 7);
 
     let raw_unknown = Calculator::create().into_raw();
@@ -1333,10 +1159,7 @@ fn runtime_enforces_constructor_argument_contract_before_custom_constructor() {
     UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.store(0, Ordering::SeqCst);
     let runtime = Runtime::global();
 
-    assert_eq!(
-        unsafe { runtime.register_plugin_descriptor(&UNCHECKED_CONSTRUCTOR_PLUGIN) },
-        NC_OK
-    );
+    assert_eq!(unsafe { runtime.register_plugin_descriptor(&UNCHECKED_CONSTRUCTOR_PLUGIN) }, NC_OK);
 
     let frame = TrackedConstructorFrame { value: 99 };
     let frame_pointer = core::ptr::from_ref(&frame).cast();
@@ -1359,9 +1182,7 @@ fn runtime_enforces_constructor_argument_contract_before_custom_constructor() {
     let unknown = unsafe { runtime.construct_class_raw(UNCHECKED_ARGS_CLASS_ID, TRACKED_CONSTRUCTOR_ABI_HASH, frame_pointer) }.unwrap();
     assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 1);
 
-    let calculator = runtime
-        .query_validated::<ICalculatorAbi, _>(UNCHECKED_ARGS_CLASS_ID, &unknown)
-        .unwrap();
+    let calculator = runtime.query_validated::<ICalculatorAbi, _>(UNCHECKED_ARGS_CLASS_ID, &unknown).unwrap();
     assert_eq!(calculator.add(20, 22).unwrap(), 42);
 }
 
@@ -1369,10 +1190,7 @@ fn runtime_enforces_constructor_argument_contract_before_custom_constructor() {
 #[cfg_attr(miri, ignore = "Miri cannot call the linked runtime C ABI")]
 fn runtime_propagates_custom_constructor_failure() {
     let runtime = Runtime::global();
-    assert_eq!(
-        unsafe { runtime.register_plugin_descriptor(&FAILING_CONSTRUCTOR_PLUGIN) },
-        NC_OK
-    );
+    assert_eq!(unsafe { runtime.register_plugin_descriptor(&FAILING_CONSTRUCTOR_PLUGIN) }, NC_OK);
 
     let error = runtime.construct_class(FAILING_CONSTRUCTOR_CLASS_ID, ()).unwrap_err();
 
@@ -1387,38 +1205,24 @@ fn plugin_macro_descriptor_registers_and_constructs_class() {
 
     assert_eq!(
         unsafe { descriptor.dependencies() }.unwrap(),
-        &[NcPluginDependencyDescriptor {
-            plugin_id: CALCULATOR_PLUGIN_ID,
-        }]
+        &[NcPluginDependencyDescriptor { plugin_id: CALCULATOR_PLUGIN_ID }]
     );
     assert_eq!(unsafe { runtime.register_plugin_descriptor(&CALCULATOR_PLUGIN) }, NC_OK);
 
-    assert_eq!(
-        MacroPluginEchoObject::class_descriptor().class_id,
-        MacroPluginEchoAbi::CLASS_ID
-    );
+    assert_eq!(MacroPluginEchoObject::class_descriptor().class_id, MacroPluginEchoAbi::CLASS_ID);
     assert_eq!(unsafe { runtime.register_plugin_descriptor(descriptor) }, NC_OK);
     assert_eq!(
         runtime.inspection().plugin_dependency_ids(descriptor.plugin_id).unwrap(),
         vec![CALCULATOR_PLUGIN_ID]
     );
-    runtime
-        .require_interface_type::<MacroPluginEchoAbi>(MacroPluginEchoAbi::CLASS_ID)
-        .unwrap();
-    runtime
-        .require_interface_type::<ICalculatorAbi>(CallableCounterAbi::CLASS_ID)
-        .unwrap();
-    runtime
-        .require_interface_type::<IMultiplierAbi>(CallableCounterAbi::CLASS_ID)
-        .unwrap();
+    runtime.require_interface_type::<MacroPluginEchoAbi>(MacroPluginEchoAbi::CLASS_ID).unwrap();
+    runtime.require_interface_type::<ICalculatorAbi>(CallableCounterAbi::CLASS_ID).unwrap();
+    runtime.require_interface_type::<IMultiplierAbi>(CallableCounterAbi::CLASS_ID).unwrap();
 
     let echo = runtime.construct::<MacroPluginEchoAbi>(()).unwrap();
     assert_eq!(echo.answer(), Ok(314));
 
-    assert_eq!(
-        CallableCounterObject::CLASS_ID,
-        <CallableCounterAbi as ComClassContract>::CLASS_ID
-    );
+    assert_eq!(CallableCounterObject::CLASS_ID, <CallableCounterAbi as ComClassContract>::CLASS_ID);
     assert_eq!(
         CallableCounterObject::CLASS_DESCRIPTOR.qualified_name,
         NcStaticUtf8::from_static(CallableCounterAbi::CLASS_QUALIFIED_NAME)
@@ -1498,8 +1302,7 @@ fn query_interface_clears_out_on_lookup_failure() {
 
     let mut out = (&mut sentinel as *mut u8).cast::<c_void>();
     let unsupported_calculator_id = NcInterfaceId::new(ICalculatorAbi::IID, NcAbiHash::ZERO);
-    let status =
-        unsafe { ((*(*raw).vtable).query_interface)(raw, &unsupported_calculator_id, &mut out) };
+    let status = unsafe { ((*(*raw).vtable).query_interface)(raw, &unsupported_calculator_id, &mut out) };
     assert_eq!(status, NC_E_ABI_VERSION);
     assert!(out.is_null());
 }
@@ -1525,14 +1328,8 @@ fn raw_interface_methods_reject_invalid_pointers() {
     assert_eq!(status, NC_E_POINTER);
 
     let unknown_raw = unknown.as_mut_ptr();
-    assert_eq!(
-        unsafe { ((*(*unknown_raw).vtable).add_ref)(core::ptr::null_mut()) },
-        0
-    );
-    assert_eq!(
-        unsafe { ((*(*unknown_raw).vtable).release)(core::ptr::null_mut()) },
-        0
-    );
+    assert_eq!(unsafe { ((*(*unknown_raw).vtable).add_ref)(core::ptr::null_mut()) }, 0);
+    assert_eq!(unsafe { ((*(*unknown_raw).vtable).release)(core::ptr::null_mut()) }, 0);
 }
 
 #[test]
@@ -1749,10 +1546,7 @@ fn failed_query_interface_stress_does_not_leak_or_release_owner() {
     let (unknown, drops) = lifecycle_tracked(404);
 
     for _ in 0..128 {
-        assert_eq!(
-            unknown.query::<IUnsupportedAbi>().unwrap_err(),
-            NC_E_NOINTERFACE
-        );
+        assert_eq!(unknown.query::<IUnsupportedAbi>().unwrap_err(), NC_E_NOINTERFACE);
         assert_eq!(drops.load(Ordering::SeqCst), 0);
     }
 
@@ -1792,10 +1586,7 @@ fn interface_queries_preserve_failure_status() {
     let unknown = Calculator::create();
 
     assert!(unknown.query::<ICalculatorAbi>().is_ok());
-    assert!(matches!(
-        unknown.query::<IUnsupportedAbi>(),
-        Err(NC_E_NOINTERFACE)
-    ));
+    assert!(matches!(unknown.query::<IUnsupportedAbi>(), Err(NC_E_NOINTERFACE)));
 }
 
 #[test]
@@ -1857,40 +1648,22 @@ fn tagged_com_enum_converts_unit_tuple_and_named_variants() {
         payload: TestMutationPayload,
     }
 
-    assert_eq!(
-        core::mem::size_of::<TestMutationAbi>(),
-        core::mem::size_of::<TestMutationAbiLayout>()
-    );
-    assert_eq!(
-        core::mem::align_of::<TestMutationAbi>(),
-        core::mem::align_of::<TestMutationAbiLayout>()
-    );
+    assert_eq!(core::mem::size_of::<TestMutationAbi>(), core::mem::size_of::<TestMutationAbiLayout>());
+    assert_eq!(core::mem::align_of::<TestMutationAbi>(), core::mem::align_of::<TestMutationAbiLayout>());
     assert_eq!(TestMutationAbi::TAG_OFFSET, 0);
-    assert_eq!(
-        TestMutationAbi::PAYLOAD_OFFSET,
-        core::mem::offset_of!(TestMutationAbiLayout, payload)
-    );
+    assert_eq!(TestMutationAbi::PAYLOAD_OFFSET, core::mem::offset_of!(TestMutationAbiLayout, payload));
 
     let none_abi = TestMutationAbi::from(TestMutation::None);
     assert_eq!(none_abi.tag().raw(), 10);
-    assert_eq!(
-        TestMutation::try_from(none_abi).unwrap(),
-        TestMutation::None
-    );
+    assert_eq!(TestMutation::try_from(none_abi).unwrap(), TestMutation::None);
 
     let child_abi = TestMutationAbi::from(TestMutation::ChildAdded(7, 2));
     assert_eq!(child_abi.tag(), TestMutationTag::ChildAdded);
-    assert_eq!(
-        TestMutation::try_from(child_abi).unwrap(),
-        TestMutation::ChildAdded(7, 2)
-    );
+    assert_eq!(TestMutation::try_from(child_abi).unwrap(), TestMutation::ChildAdded(7, 2));
 
     let text_abi = TestMutationAbi::from(TestMutation::TextChanged { node: 9, len: 12 });
     assert_eq!(text_abi.tag(), TestMutationTag::TextChanged);
-    assert_eq!(
-        TestMutation::try_from(text_abi).unwrap(),
-        TestMutation::TextChanged { node: 9, len: 12 }
-    );
+    assert_eq!(TestMutation::try_from(text_abi).unwrap(), TestMutation::TextChanged { node: 9, len: 12 });
 }
 
 #[test]
@@ -1900,31 +1673,21 @@ fn tagged_com_enum_raw_construction_is_an_explicit_unsafe_escape_hatch() {
     };
     // SAFETY: `ChildAdded` selects the initialized `__nc_childadded` member, whose
     // integer fields contain valid, fully initialized values.
-    let abi =
-        unsafe { TestMutationAbi::from_raw_parts_unchecked(TestMutationTag::ChildAdded, payload) };
+    let abi = unsafe { TestMutationAbi::from_raw_parts_unchecked(TestMutationTag::ChildAdded, payload) };
 
     assert_eq!(abi.tag(), TestMutationTag::ChildAdded);
-    assert_eq!(
-        TestMutation::try_from(abi),
-        Ok(TestMutation::ChildAdded(17, 4))
-    );
+    assert_eq!(TestMutation::try_from(abi), Ok(TestMutation::ChildAdded(17, 4)));
 }
 
 #[test]
 fn tagged_com_enum_round_trips_valid_restricted_payload_values() {
     let flag = TestScalarPayloadAbi::from(TestScalarPayload::Flag(true));
     assert_eq!(flag.tag(), TestScalarPayloadTag::Flag);
-    assert_eq!(
-        TestScalarPayload::try_from(flag),
-        Ok(TestScalarPayload::Flag(true))
-    );
+    assert_eq!(TestScalarPayload::try_from(flag), Ok(TestScalarPayload::Flag(true)));
 
     let byte = TestScalarPayloadAbi::from(TestScalarPayload::Byte(2));
     assert_eq!(byte.tag(), TestScalarPayloadTag::Byte);
-    assert_eq!(
-        TestScalarPayload::try_from(byte),
-        Ok(TestScalarPayload::Byte(2))
-    );
+    assert_eq!(TestScalarPayload::try_from(byte), Ok(TestScalarPayload::Byte(2)));
 }
 
 #[test]

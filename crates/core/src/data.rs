@@ -10,9 +10,8 @@ use core::ffi::c_void;
 use crate::guid::{NcGuid, guid_from_qualified_name};
 use crate::hash::NcAbiHash;
 use crate::metadata::{
-    NcAbiHashPart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiType, NcAbiTypeDescriptor,
-    NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor,
-    NcMethodReturnDescriptor, NcStaticUtf8,
+    NcAbiHashPart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiType, NcAbiTypeDescriptor, NcInterfaceDescriptor, NcInterfaceId,
+    NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcStaticUtf8,
 };
 use crate::object::{ComInterface, IUnknown, IUnknownVTable};
 use crate::status::NcStatus;
@@ -70,12 +69,7 @@ pub struct INcBytesVTable {
     /// nonzero, `out` must be valid for `len` byte writes and must not overlap
     /// the source byte range exposed by `this`. Implementations must validate
     /// the complete request before writing so failures leave `out` unchanged.
-    pub copy_to: unsafe extern "C" fn(
-        this: *mut INcBytesAbi,
-        offset: u64,
-        len: u64,
-        out: *mut u8,
-    ) -> NcStatus,
+    pub copy_to: unsafe extern "C" fn(this: *mut INcBytesAbi, offset: u64, len: u64, out: *mut u8) -> NcStatus,
 }
 
 // SAFETY: `INcBytesAbi` is a `repr(C)` interface header with an
@@ -97,25 +91,15 @@ impl INcBytesAbi {
     /// SHA-256 hash of this interface's typed ABI contract.
     pub const ABI_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[
         NcAbiHashPart::Interface { iid: IID_INC_BYTES },
-        NcAbiHashPart::Method {
-            index: 0,
-            name: "len",
-        },
-        NcAbiHashPart::Receiver {
-            receiver: NcAbiReceiver::Shared,
-        },
+        NcAbiHashPart::Method { index: 0, name: "len" },
+        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
         NcAbiHashPart::Return {
             passing: NcAbiPassing::Out,
             ty: NcAbiType::U64,
         },
         NcAbiHashPart::Status,
-        NcAbiHashPart::Method {
-            index: 1,
-            name: "byte_at",
-        },
-        NcAbiHashPart::Receiver {
-            receiver: NcAbiReceiver::Shared,
-        },
+        NcAbiHashPart::Method { index: 1, name: "byte_at" },
+        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
         NcAbiHashPart::Arg {
             index: 0,
             passing: NcAbiPassing::Value,
@@ -126,13 +110,8 @@ impl INcBytesAbi {
             ty: NcAbiType::U8,
         },
         NcAbiHashPart::Status,
-        NcAbiHashPart::Method {
-            index: 2,
-            name: "copy_to",
-        },
-        NcAbiHashPart::Receiver {
-            receiver: NcAbiReceiver::Shared,
-        },
+        NcAbiHashPart::Method { index: 2, name: "copy_to" },
+        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
         NcAbiHashPart::Arg {
             index: 0,
             passing: NcAbiPassing::CopyToBufferOffset,
@@ -248,8 +227,7 @@ pub struct INcStringVTable {
     ///
     /// `this` must be a live string interface pointer. `out` must be valid for
     /// one `u8` write.
-    pub byte_at:
-        unsafe extern "C" fn(this: *mut INcStringAbi, index: u64, out: *mut u8) -> NcStatus,
+    pub byte_at: unsafe extern "C" fn(this: *mut INcStringAbi, index: u64, out: *mut u8) -> NcStatus,
     /// Copies `len` UTF-8 bytes starting at `offset` into `out`.
     ///
     /// # Safety
@@ -258,12 +236,7 @@ pub struct INcStringVTable {
     /// `out` must be valid for `len` byte writes and must not overlap the
     /// source byte range exposed by `this`. Implementations must validate the
     /// complete request before writing so failures leave `out` unchanged.
-    pub copy_to: unsafe extern "C" fn(
-        this: *mut INcStringAbi,
-        offset: u64,
-        len: u64,
-        out: *mut u8,
-    ) -> NcStatus,
+    pub copy_to: unsafe extern "C" fn(this: *mut INcStringAbi, offset: u64, len: u64, out: *mut u8) -> NcStatus,
 }
 
 // SAFETY: `INcStringAbi` is a `repr(C)` interface header with an
@@ -284,28 +257,16 @@ unsafe impl ComInterface for INcStringAbi {
 impl INcStringAbi {
     /// SHA-256 hash of this interface's typed ABI contract.
     pub const ABI_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[
-        NcAbiHashPart::Interface {
-            iid: IID_INC_STRING,
-        },
-        NcAbiHashPart::Method {
-            index: 0,
-            name: "byte_len",
-        },
-        NcAbiHashPart::Receiver {
-            receiver: NcAbiReceiver::Shared,
-        },
+        NcAbiHashPart::Interface { iid: IID_INC_STRING },
+        NcAbiHashPart::Method { index: 0, name: "byte_len" },
+        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
         NcAbiHashPart::Return {
             passing: NcAbiPassing::Out,
             ty: NcAbiType::U64,
         },
         NcAbiHashPart::Status,
-        NcAbiHashPart::Method {
-            index: 1,
-            name: "byte_at",
-        },
-        NcAbiHashPart::Receiver {
-            receiver: NcAbiReceiver::Shared,
-        },
+        NcAbiHashPart::Method { index: 1, name: "byte_at" },
+        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
         NcAbiHashPart::Arg {
             index: 0,
             passing: NcAbiPassing::Value,
@@ -316,13 +277,8 @@ impl INcStringAbi {
             ty: NcAbiType::U8,
         },
         NcAbiHashPart::Status,
-        NcAbiHashPart::Method {
-            index: 2,
-            name: "copy_to",
-        },
-        NcAbiHashPart::Receiver {
-            receiver: NcAbiReceiver::Shared,
-        },
+        NcAbiHashPart::Method { index: 2, name: "copy_to" },
+        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
         NcAbiHashPart::Arg {
             index: 0,
             passing: NcAbiPassing::CopyToBufferOffset,
@@ -408,19 +364,13 @@ impl INcStringAbi {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ComInterface, IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcStringAbi,
-        QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING,
-    };
+    use super::{ComInterface, IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcStringAbi, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
 
     #[test]
     fn builtin_data_interface_identities_are_stable() {
         assert_eq!(
             IID_INC_BYTES.to_uuid_bytes(),
-            [
-                0xb0, 0xb0, 0xd6, 0xd2, 0xf1, 0x70, 0x54, 0xe9, 0xb6, 0xd5, 0x14, 0x3f, 0x94, 0x52,
-                0xb9, 0x51,
-            ]
+            [0xb0, 0xb0, 0xd6, 0xd2, 0xf1, 0x70, 0x54, 0xe9, 0xb6, 0xd5, 0x14, 0x3f, 0x94, 0x52, 0xb9, 0x51,]
         );
         assert_eq!(IID_INC_BYTES, <INcBytesAbi as ComInterface>::IID);
         assert_eq!(
@@ -429,23 +379,17 @@ mod tests {
         );
         assert_eq!(
             INcBytesAbi::ABI_HASH.bytes,
-            [0x87, 0x03, 0xd4, 0xdb, 0xcf, 0x04, 0x8c, 0x6c, 0x27, 0xe5, 0x56, 0x45, 0x0b, 0xf0, 0x45, 0xe7, 0xaa, 0x0d, 0x88, 0x97, 0x43, 0x96, 0xa5, 0x41, 0x59, 0x19, 0xe2, 0xb4, 0x36, 0x7c, 0x2f, 0x9c,]
+            [
+                0x87, 0x03, 0xd4, 0xdb, 0xcf, 0x04, 0x8c, 0x6c, 0x27, 0xe5, 0x56, 0x45, 0x0b, 0xf0, 0x45, 0xe7, 0xaa, 0x0d, 0x88, 0x97, 0x43, 0x96, 0xa5, 0x41,
+                0x59, 0x19, 0xe2, 0xb4, 0x36, 0x7c, 0x2f, 0x9c,
+            ]
         );
-        assert_eq!(
-            INcBytesAbi::INTERFACE_DESCRIPTOR.interface_id,
-            <INcBytesAbi as ComInterface>::IID
-        );
-        assert_eq!(
-            INcBytesAbi::INTERFACE_DESCRIPTOR.abi_hash,
-            INcBytesAbi::ABI_HASH
-        );
+        assert_eq!(INcBytesAbi::INTERFACE_DESCRIPTOR.interface_id, <INcBytesAbi as ComInterface>::IID);
+        assert_eq!(INcBytesAbi::INTERFACE_DESCRIPTOR.abi_hash, INcBytesAbi::ABI_HASH);
 
         assert_eq!(
             IID_INC_STRING.to_uuid_bytes(),
-            [
-                0x01, 0xa5, 0xb1, 0x8c, 0xbe, 0x18, 0x5d, 0x39, 0xb7, 0x1f, 0x20, 0x2d, 0xf7, 0xc8,
-                0x46, 0x64,
-            ]
+            [0x01, 0xa5, 0xb1, 0x8c, 0xbe, 0x18, 0x5d, 0x39, 0xb7, 0x1f, 0x20, 0x2d, 0xf7, 0xc8, 0x46, 0x64,]
         );
         assert_eq!(IID_INC_STRING, <INcStringAbi as ComInterface>::IID);
         assert_eq!(
@@ -454,16 +398,13 @@ mod tests {
         );
         assert_eq!(
             INcStringAbi::ABI_HASH.bytes,
-            [0xfb, 0xe5, 0xe1, 0xef, 0xee, 0x49, 0xc4, 0xed, 0xed, 0x6a, 0x6e, 0x33, 0x5b, 0x88, 0xbc, 0x00, 0x26, 0x48, 0x13, 0x4d, 0x95, 0x52, 0xc3, 0x6b, 0x39, 0xff, 0x9c, 0xa0, 0xd6, 0x90, 0x0f, 0x76,]
+            [
+                0xfb, 0xe5, 0xe1, 0xef, 0xee, 0x49, 0xc4, 0xed, 0xed, 0x6a, 0x6e, 0x33, 0x5b, 0x88, 0xbc, 0x00, 0x26, 0x48, 0x13, 0x4d, 0x95, 0x52, 0xc3, 0x6b,
+                0x39, 0xff, 0x9c, 0xa0, 0xd6, 0x90, 0x0f, 0x76,
+            ]
         );
-        assert_eq!(
-            INcStringAbi::INTERFACE_DESCRIPTOR.interface_id,
-            <INcStringAbi as ComInterface>::IID
-        );
-        assert_eq!(
-            INcStringAbi::INTERFACE_DESCRIPTOR.abi_hash,
-            INcStringAbi::ABI_HASH
-        );
+        assert_eq!(INcStringAbi::INTERFACE_DESCRIPTOR.interface_id, <INcStringAbi as ComInterface>::IID);
+        assert_eq!(INcStringAbi::INTERFACE_DESCRIPTOR.abi_hash, INcStringAbi::ABI_HASH);
         assert_eq!(INcStringAbi::INTERFACE_DESCRIPTOR.method_count, 3);
         // SAFETY: The built-in interface descriptor references its static
         // three-element method table.
@@ -480,9 +421,7 @@ mod tests {
         let copy_params = unsafe { core::slice::from_raw_parts(methods[2].params, 1) };
         assert_eq!(
             copy_params[0].passing,
-            crate::NcAbiPassingDescriptor::from_abi_passing(
-                crate::NcAbiPassing::CopyToBufferOffset
-            )
+            crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::CopyToBufferOffset)
         );
     }
 

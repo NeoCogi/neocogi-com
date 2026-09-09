@@ -58,78 +58,41 @@ fn release_ref_count_does_not_underflow_at_zero() {
 
 #[test]
 fn nc_guid_formats_canonical_uuid_text() {
-    let guid = NcGuid::from_fields(
-        0x7b3f_b46c,
-        0x83ab,
-        0x49e1,
-        [0xa5, 0xc8, 0x2b, 0xc6, 0xd7, 0x38, 0x0d, 0x2e],
-    );
+    let guid = NcGuid::from_fields(0x7b3f_b46c, 0x83ab, 0x49e1, [0xa5, 0xc8, 0x2b, 0xc6, 0xd7, 0x38, 0x0d, 0x2e]);
 
     assert_eq!(guid.to_string(), "7b3fb46c-83ab-49e1-a5c8-2bc6d7380d2e");
 }
 
 #[test]
 fn nc_guid_parses_lowercase_and_uppercase_uuid_text() {
-    let expected = NcGuid::from_fields(
-        0x7b3f_b46c,
-        0x83ab,
-        0x49e1,
-        [0xa5, 0xc8, 0x2b, 0xc6, 0xd7, 0x38, 0x0d, 0x2e],
-    );
+    let expected = NcGuid::from_fields(0x7b3f_b46c, 0x83ab, 0x49e1, [0xa5, 0xc8, 0x2b, 0xc6, 0xd7, 0x38, 0x0d, 0x2e]);
 
-    assert_eq!(
-        "7b3fb46c-83ab-49e1-a5c8-2bc6d7380d2e"
-            .parse::<NcGuid>()
-            .unwrap(),
-        expected
-    );
-    assert_eq!(
-        "7B3FB46C-83AB-49E1-A5C8-2BC6D7380D2E"
-            .parse::<NcGuid>()
-            .unwrap(),
-        expected
-    );
+    assert_eq!("7b3fb46c-83ab-49e1-a5c8-2bc6d7380d2e".parse::<NcGuid>().unwrap(), expected);
+    assert_eq!("7B3FB46C-83AB-49E1-A5C8-2BC6D7380D2E".parse::<NcGuid>().unwrap(), expected);
 }
 
 #[test]
 fn nc_guid_rejects_non_canonical_uuid_text() {
     assert_eq!(
-        "7b3fb46c83ab49e1a5c82bc6d7380d2e"
-            .parse::<NcGuid>()
-            .unwrap_err(),
+        "7b3fb46c83ab49e1a5c82bc6d7380d2e".parse::<NcGuid>().unwrap_err(),
         ParseGuidError::InvalidLength { len: 32 }
     );
     assert_eq!(
-        "7b3fb46c_83ab-49e1-a5c8-2bc6d7380d2e"
-            .parse::<NcGuid>()
-            .unwrap_err(),
+        "7b3fb46c_83ab-49e1-a5c8-2bc6d7380d2e".parse::<NcGuid>().unwrap_err(),
         ParseGuidError::InvalidHyphen { index: 8 }
     );
     assert_eq!(
-        "7b3fb46c-83ab-49e1-a5c8-2bc6d7380d2x"
-            .parse::<NcGuid>()
-            .unwrap_err(),
+        "7b3fb46c-83ab-49e1-a5c8-2bc6d7380d2x".parse::<NcGuid>().unwrap_err(),
         ParseGuidError::InvalidHex { index: 35 }
     );
 }
 
 #[test]
 fn nc_guid_uuid_bytes_are_canonical_not_native_memory_order() {
-    let bytes = [
-        0x7b, 0x3f, 0xb4, 0x6c, 0x83, 0xab, 0x49, 0xe1, 0xa5, 0xc8, 0x2b, 0xc6, 0xd7, 0x38, 0x0d,
-        0x2e,
-    ];
+    let bytes = [0x7b, 0x3f, 0xb4, 0x6c, 0x83, 0xab, 0x49, 0xe1, 0xa5, 0xc8, 0x2b, 0xc6, 0xd7, 0x38, 0x0d, 0x2e];
     let guid = NcGuid::from_uuid_bytes(bytes);
 
-    assert_eq!(
-        guid.fields(),
-        (
-            0x7b3f_b46c,
-            0x83ab,
-            0x49e1,
-            [0xa5, 0xc8, 0x2b, 0xc6, 0xd7, 0x38, 0x0d, 0x2e]
-        )
-    );
+    assert_eq!(guid.fields(), (0x7b3f_b46c, 0x83ab, 0x49e1, [0xa5, 0xc8, 0x2b, 0xc6, 0xd7, 0x38, 0x0d, 0x2e]));
     assert_eq!(guid.to_uuid_bytes(), bytes);
     assert_eq!(guid.to_string(), "7b3fb46c-83ab-49e1-a5c8-2bc6d7380d2e");
 }
@@ -138,25 +101,14 @@ fn nc_guid_uuid_bytes_are_canonical_not_native_memory_order() {
 fn nc_guid_nil_is_all_zeroes() {
     assert_eq!(NcGuid::nil(), NC_GUID_NIL);
     assert!(NcGuid::nil().is_nil());
-    assert_eq!(
-        NcGuid::nil().to_string(),
-        "00000000-0000-0000-0000-000000000000"
-    );
+    assert_eq!(NcGuid::nil().to_string(), "00000000-0000-0000-0000-000000000000");
 }
 
 #[test]
 fn iunknown_iid_constant_matches_com_interface_iid() {
     assert_eq!(IID_IUNKNOWN, <IUnknown as ComInterface>::IID);
-    assert_eq!(
-        IID_IUNKNOWN.to_string(),
-        "00000000-0000-0000-c000-000000000046"
-    );
-    assert_eq!(
-        "00000000-0000-0000-c000-000000000046"
-            .parse::<NcGuid>()
-            .unwrap(),
-        IID_IUNKNOWN
-    );
+    assert_eq!(IID_IUNKNOWN.to_string(), "00000000-0000-0000-c000-000000000046");
+    assert_eq!("00000000-0000-0000-c000-000000000046".parse::<NcGuid>().unwrap(), IID_IUNKNOWN);
 }
 
 #[test]
@@ -196,10 +148,7 @@ fn nc_status_names_builtin_status_constants() {
 #[test]
 fn nc_status_display_includes_name_and_code() {
     assert_eq!(NC_E_POINTER.to_string(), "NC_E_POINTER(-2)");
-    assert_eq!(
-        UNKNOWN_TEST_STATUS.to_string(),
-        format!("NC_STATUS_UNKNOWN({UNKNOWN_TEST_STATUS_CODE})")
-    );
+    assert_eq!(UNKNOWN_TEST_STATUS.to_string(), format!("NC_STATUS_UNKNOWN({UNKNOWN_TEST_STATUS_CODE})"));
 }
 
 #[test]
@@ -217,10 +166,7 @@ fn nc_bytes_wraps_vec_u8_and_vec_i8() {
     assert_eq!(slice, [127, 128]);
     let mut empty = [];
     bytes.copy_to(4, &mut empty).unwrap();
-    assert_eq!(
-        bytes.copy_to(3, &mut [0; 2]).unwrap_err(),
-        NC_E_OUT_OF_RANGE
-    );
+    assert_eq!(bytes.copy_to(3, &mut [0; 2]).unwrap_err(), NC_E_OUT_OF_RANGE);
     assert_eq!(bytes.to_vec().unwrap(), vec![0, 127, 128, 255]);
     assert_eq!(bytes.to_vec_bounded(4).unwrap(), vec![0, 127, 128, 255]);
     assert_eq!(bytes.to_vec_bounded(3).unwrap_err(), NC_E_OUT_OF_RANGE);
@@ -248,24 +194,15 @@ fn nc_string_wraps_utf8_and_queries_as_bytes() {
     let mut empty = [];
     text.copy_to(6, &mut empty).unwrap();
     let mut unchanged = [0xaa; 2];
-    assert_eq!(
-        text.copy_to(5, &mut unchanged).unwrap_err(),
-        NC_E_OUT_OF_RANGE
-    );
+    assert_eq!(text.copy_to(5, &mut unchanged).unwrap_err(), NC_E_OUT_OF_RANGE);
     assert_eq!(unchanged, [0xaa; 2]);
     let raw = text.as_mut_ptr();
     // SAFETY: `raw` is a live string interface. A zero-length copy permits a
     // null output pointer.
-    assert_eq!(
-        unsafe { ((*(*raw).vtable).copy_to)(raw, 6, 0, core::ptr::null_mut()) },
-        NC_OK
-    );
+    assert_eq!(unsafe { ((*(*raw).vtable).copy_to)(raw, 6, 0, core::ptr::null_mut()) }, NC_OK);
     // SAFETY: `raw` is live; the call rejects the null nonempty output before
     // attempting a write.
-    assert_eq!(
-        unsafe { ((*(*raw).vtable).copy_to)(raw, 0, 1, core::ptr::null_mut()) },
-        NC_E_POINTER
-    );
+    assert_eq!(unsafe { ((*(*raw).vtable).copy_to)(raw, 0, 1, core::ptr::null_mut()) }, NC_E_POINTER);
     let mut overflow_unchanged = [0xbb; 2];
     // SAFETY: `raw` is live and `overflow_unchanged` is valid for two writes;
     // the overflowing range is rejected before writing.
@@ -287,11 +224,7 @@ struct BulkStringProbe {
     copy_to_calls: AtomicUsize,
 }
 
-unsafe extern "C" fn probe_string_query_interface(
-    this: *mut IUnknown,
-    interface_id: *const NcInterfaceId,
-    out: *mut *mut c_void,
-) -> NcStatus {
+unsafe extern "C" fn probe_string_query_interface(this: *mut IUnknown, interface_id: *const NcInterfaceId, out: *mut *mut c_void) -> NcStatus {
     if this.is_null() || interface_id.is_null() || out.is_null() {
         return NC_E_POINTER;
     }
@@ -340,11 +273,7 @@ unsafe extern "C" fn probe_string_len(this: *mut INcStringAbi, out: *mut u64) ->
     NC_OK
 }
 
-unsafe extern "C" fn probe_string_byte_at(
-    this: *mut INcStringAbi,
-    index: u64,
-    out: *mut u8,
-) -> NcStatus {
+unsafe extern "C" fn probe_string_byte_at(this: *mut INcStringAbi, index: u64, out: *mut u8) -> NcStatus {
     if this.is_null() || out.is_null() {
         return NC_E_POINTER;
     }
@@ -362,12 +291,7 @@ unsafe extern "C" fn probe_string_byte_at(
     NC_OK
 }
 
-unsafe extern "C" fn probe_string_copy_to(
-    this: *mut INcStringAbi,
-    offset: u64,
-    len: u64,
-    out: *mut u8,
-) -> NcStatus {
+unsafe extern "C" fn probe_string_copy_to(this: *mut INcStringAbi, offset: u64, len: u64, out: *mut u8) -> NcStatus {
     if this.is_null() {
         return NC_E_POINTER;
     }
@@ -448,10 +372,7 @@ fn foreign_string_rejects_unrepresentable_reported_lengths_before_copying() {
     let string = unsafe { ComPtr::<INcStringAbi>::from_raw_owned(&mut interface) }.unwrap();
 
     assert_eq!(string.to_bytes().unwrap_err(), NC_E_OUT_OF_RANGE);
-    assert_eq!(
-        string.to_bytes_bounded(usize::MAX).unwrap_err(),
-        NC_E_OUT_OF_RANGE
-    );
+    assert_eq!(string.to_bytes_bounded(usize::MAX).unwrap_err(), NC_E_OUT_OF_RANGE);
     assert_eq!(probe.copy_to_calls.load(Ordering::Relaxed), 0);
 }
 
@@ -502,8 +423,5 @@ fn plugin_descriptor_rejects_incompatible_core_abi_version() {
         class_table: &CLASS_TABLE,
     };
 
-    assert_eq!(
-        unsafe { validate_plugin_descriptor_with_issues(&PLUGIN, |_| {}) },
-        NC_E_ABI_VERSION
-    );
+    assert_eq!(unsafe { validate_plugin_descriptor_with_issues(&PLUGIN, |_| {}) }, NC_E_ABI_VERSION);
 }

@@ -49,18 +49,9 @@ impl fmt::Display for NcQualifiedNameError {
                 formatter,
                 "qualified name is {len} bytes; the maximum is {NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN}"
             ),
-            Self::InvalidSegmentStart { index } => write!(
-                formatter,
-                "qualified-name segment at byte {index} must start with an ASCII letter or `_`"
-            ),
-            Self::InvalidCharacter { index } => write!(
-                formatter,
-                "qualified name contains a disallowed character at byte {index}"
-            ),
-            Self::TrailingSeparator { index } => write!(
-                formatter,
-                "qualified name ends with a separator at byte {index}"
-            ),
+            Self::InvalidSegmentStart { index } => write!(formatter, "qualified-name segment at byte {index} must start with an ASCII letter or `_`"),
+            Self::InvalidCharacter { index } => write!(formatter, "qualified name contains a disallowed character at byte {index}"),
+            Self::TrailingSeparator { index } => write!(formatter, "qualified name ends with a separator at byte {index}"),
         }
     }
 }
@@ -90,14 +81,8 @@ impl fmt::Display for NcVersionTextError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Empty => formatter.write_str("version text must not be empty"),
-            Self::TooLong { len } => write!(
-                formatter,
-                "version text is {len} bytes; the maximum is {NC_DESCRIPTOR_VERSION_MAX_LEN}"
-            ),
-            Self::InvalidCharacter { index } => write!(
-                formatter,
-                "version text contains a non-graphic ASCII byte at byte {index}"
-            ),
+            Self::TooLong { len } => write!(formatter, "version text is {len} bytes; the maximum is {NC_DESCRIPTOR_VERSION_MAX_LEN}"),
+            Self::InvalidCharacter { index } => write!(formatter, "version text contains a non-graphic ASCII byte at byte {index}"),
         }
     }
 }
@@ -139,9 +124,7 @@ pub const fn validate_qualified_name(value: &str) -> Result<(), NcQualifiedNameE
     }
 
     if expect_segment_start {
-        return Err(NcQualifiedNameError::TrailingSeparator {
-            index: bytes.len() - 1,
-        });
+        return Err(NcQualifiedNameError::TrailingSeparator { index: bytes.len() - 1 });
     }
     Ok(())
 }
@@ -189,8 +172,7 @@ mod tests {
     use super::*;
     use std::string::ToString;
 
-    const VALID_NAME: Result<(), NcQualifiedNameError> =
-        validate_qualified_name("example.image.Decoder:v1");
+    const VALID_NAME: Result<(), NcQualifiedNameError> = validate_qualified_name("example.image.Decoder:v1");
     const VALID_VERSION: Result<(), NcVersionTextError> = validate_version_text("1.2.3-alpha+4");
 
     #[test]
@@ -201,14 +183,8 @@ mod tests {
 
     #[test]
     fn qualified_name_policy_reports_precise_failures() {
-        assert_eq!(
-            validate_qualified_name(""),
-            Err(NcQualifiedNameError::Empty)
-        );
-        assert_eq!(
-            validate_qualified_name(".example"),
-            Err(NcQualifiedNameError::InvalidSegmentStart { index: 0 })
-        );
+        assert_eq!(validate_qualified_name(""), Err(NcQualifiedNameError::Empty));
+        assert_eq!(validate_qualified_name(".example"), Err(NcQualifiedNameError::InvalidSegmentStart { index: 0 }));
         assert_eq!(
             validate_qualified_name("example::Decoder"),
             Err(NcQualifiedNameError::InvalidSegmentStart { index: 8 })
@@ -236,23 +212,15 @@ mod tests {
     #[test]
     fn version_text_policy_reports_precise_failures() {
         assert_eq!(validate_version_text(""), Err(NcVersionTextError::Empty));
-        assert_eq!(
-            validate_version_text("1.0 beta"),
-            Err(NcVersionTextError::InvalidCharacter { index: 3 })
-        );
-        assert_eq!(
-            validate_version_text("1.β"),
-            Err(NcVersionTextError::InvalidCharacter { index: 2 })
-        );
+        assert_eq!(validate_version_text("1.0 beta"), Err(NcVersionTextError::InvalidCharacter { index: 3 }));
+        assert_eq!(validate_version_text("1.β"), Err(NcVersionTextError::InvalidCharacter { index: 2 }));
 
         let maximum = "v".repeat(NC_DESCRIPTOR_VERSION_MAX_LEN);
         assert_eq!(validate_version_text(&maximum), Ok(()));
         let overlong = "v".repeat(NC_DESCRIPTOR_VERSION_MAX_LEN + 1);
         assert_eq!(
             validate_version_text(&overlong),
-            Err(NcVersionTextError::TooLong {
-                len: NC_DESCRIPTOR_VERSION_MAX_LEN + 1,
-            })
+            Err(NcVersionTextError::TooLong { len: NC_DESCRIPTOR_VERSION_MAX_LEN + 1 })
         );
 
         assert_eq!(

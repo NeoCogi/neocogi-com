@@ -18,8 +18,7 @@ use crate::{NcAbiHash, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus};
 /// duration of the callback. The callback must not retain those pointers. The
 /// runtime passes `user_data` through unchanged and returns the callback's
 /// status to the caller. The callback must not unwind across the ABI boundary.
-pub type NcInspectPluginDescriptorCallbackV1 =
-    unsafe extern "C" fn(plugin: *const NcPluginDescriptor, user_data: *mut c_void) -> NcStatus;
+pub type NcInspectPluginDescriptorCallbackV1 = unsafe extern "C" fn(plugin: *const NcPluginDescriptor, user_data: *mut c_void) -> NcStatus;
 
 /// Inspection record for one registered plugin.
 #[repr(C)]
@@ -80,40 +79,19 @@ pub struct NcInspectionApiV1 {
     /// Returns the number of hard dependencies declared by one plugin.
     pub plugin_dependency_count: unsafe extern "C" fn(plugin_id: NcGuid) -> usize,
     /// Copies hard dependency plugin IDs declared by one plugin.
-    pub plugin_dependency_ids: unsafe extern "C" fn(
-        plugin_id: NcGuid,
-        out: *mut NcGuid,
-        capacity: usize,
-        out_len: *mut usize,
-    ) -> NcStatus,
+    pub plugin_dependency_ids: unsafe extern "C" fn(plugin_id: NcGuid, out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus,
     /// Returns the number of classes registered by one plugin.
     pub plugin_class_count: unsafe extern "C" fn(plugin_id: NcGuid) -> usize,
     /// Copies class IDs registered by one plugin.
-    pub plugin_class_ids: unsafe extern "C" fn(
-        plugin_id: NcGuid,
-        out: *mut NcGuid,
-        capacity: usize,
-        out_len: *mut usize,
-    ) -> NcStatus,
+    pub plugin_class_ids: unsafe extern "C" fn(plugin_id: NcGuid, out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus,
     /// Returns the number of interfaces implemented by one class.
     pub class_interface_count: unsafe extern "C" fn(class_id: NcGuid) -> usize,
     /// Copies interface ABI identities implemented by one class.
-    pub class_interface_ids: unsafe extern "C" fn(
-        class_id: NcGuid,
-        out: *mut NcInterfaceId,
-        capacity: usize,
-        out_len: *mut usize,
-    ) -> NcStatus,
+    pub class_interface_ids: unsafe extern "C" fn(class_id: NcGuid, out: *mut NcInterfaceId, capacity: usize, out_len: *mut usize) -> NcStatus,
     /// Returns the number of registered classes implementing one interface.
-    pub interface_implementor_class_count:
-        unsafe extern "C" fn(interface_id: NcInterfaceId) -> usize,
+    pub interface_implementor_class_count: unsafe extern "C" fn(interface_id: NcInterfaceId) -> usize,
     /// Copies IDs of registered classes implementing one interface.
-    pub interface_implementor_class_ids: unsafe extern "C" fn(
-        interface_id: NcInterfaceId,
-        out: *mut NcGuid,
-        capacity: usize,
-        out_len: *mut usize,
-    ) -> NcStatus,
+    pub interface_implementor_class_ids: unsafe extern "C" fn(interface_id: NcInterfaceId, out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus,
     /// Opens and validates a trusted plugin library without registering it.
     ///
     /// On success, `callback` is invoked synchronously exactly once with the
@@ -126,12 +104,8 @@ pub struct NcInspectionApiV1 {
     /// NUL. `callback` must obey [`NcInspectPluginDescriptorCallbackV1`]'s
     /// pointer, lifetime, and no-unwind contract. `user_data` is passed through
     /// unchanged and may be null.
-    pub inspect_plugin_library_utf8: unsafe extern "C" fn(
-        path: *const u8,
-        path_len: usize,
-        callback: Option<NcInspectPluginDescriptorCallbackV1>,
-        user_data: *mut c_void,
-    ) -> NcStatus,
+    pub inspect_plugin_library_utf8:
+        unsafe extern "C" fn(path: *const u8, path_len: usize, callback: Option<NcInspectPluginDescriptorCallbackV1>, user_data: *mut c_void) -> NcStatus,
 }
 
 #[cfg(test)]
@@ -157,9 +131,6 @@ mod tests {
     fn inspection_api_v1_appends_descriptor_inspection() {
         assert_eq!(core::mem::size_of::<NcInspectionApiV1>(), 104);
         assert_eq!(core::mem::align_of::<NcInspectionApiV1>(), 8);
-        assert_eq!(
-            core::mem::offset_of!(NcInspectionApiV1, inspect_plugin_library_utf8),
-            96
-        );
+        assert_eq!(core::mem::offset_of!(NcInspectionApiV1, inspect_plugin_library_utf8), 96);
     }
 }

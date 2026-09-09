@@ -79,17 +79,28 @@ unsafe extern "C" fn additions(this: *mut ICounterAbi, out: *mut u32) -> NcStatu
 }
 
 /// Immutable table whose prefix describes this exact projected interface.
-static VTABLE: IDerivedCounterVTable = IDerivedCounterVTable { base: ICounterVTable {
-    unknown: IUnknownVTable { interface_id: &IDerivedCounterAbi::INTERFACE_ID, query_interface: query, add_ref, release },
-    additions,
-} };
+static VTABLE: IDerivedCounterVTable = IDerivedCounterVTable {
+    base: ICounterVTable {
+        unknown: IUnknownVTable {
+            interface_id: &IDerivedCounterAbi::INTERFACE_ID,
+            query_interface: query,
+            add_ref,
+            release,
+        },
+        additions,
+    },
+};
 
 #[test]
 fn borrowed_generated_calls_perform_no_lifecycle_operations() {
     let counts = Rc::new(Counts::default());
     let allocation = Box::into_raw(Box::new(Counter {
-        header: IDerivedCounterAbi { vtable: &VTABLE, object: std::ptr::null_mut() },
-        references: Cell::new(1), counts: counts.clone(),
+        header: IDerivedCounterAbi {
+            vtable: &VTABLE,
+            object: std::ptr::null_mut(),
+        },
+        references: Cell::new(1),
+        counts: counts.clone(),
     }));
     // SAFETY: The allocation is private until its fully initialized header is published.
     let owner = unsafe {

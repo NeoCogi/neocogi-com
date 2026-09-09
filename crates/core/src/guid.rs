@@ -26,9 +26,8 @@ pub const NC_GUID_NIL: NcGuid = NcGuid::from_fields(0, 0, 0, [0; 8]);
 ///
 /// User-defined plugin, class, and interface identifiers are UUIDv5 values
 /// derived from this namespace and their exact qualified-name UTF-8 bytes.
-pub const NC_COM_GUID_NAMESPACE: NcGuid = NcGuid::from_uuid_bytes([
-    0x72, 0x0d, 0x6b, 0x32, 0x1f, 0x75, 0x48, 0x28, 0xa8, 0x95, 0x6f, 0xb7, 0x3f, 0x82, 0x02, 0xee,
-]);
+pub const NC_COM_GUID_NAMESPACE: NcGuid =
+    NcGuid::from_uuid_bytes([0x72, 0x0d, 0x6b, 0x32, 0x1f, 0x75, 0x48, 0x28, 0xa8, 0x95, 0x6f, 0xb7, 0x3f, 0x82, 0x02, 0xee]);
 
 /// Derives the UUIDv5 ABI identity for an exact qualified name.
 ///
@@ -48,13 +47,7 @@ pub const fn guid_from_qualified_name(qualified_name: &str) -> NcGuid {
     let padded_len = (message_len + 9).div_ceil(64) * 64;
     let bit_len = (message_len as u64) * 8;
 
-    let mut state = [
-        0x6745_2301u32,
-        0xefcd_ab89u32,
-        0x98ba_dcfeu32,
-        0x1032_5476u32,
-        0xc3d2_e1f0u32,
-    ];
+    let mut state = [0x6745_2301u32, 0xefcd_ab89u32, 0x98ba_dcfeu32, 0x1032_5476u32, 0xc3d2_e1f0u32];
     let mut block_start = 0;
     while block_start < padded_len {
         let mut block = [0u8; 64];
@@ -100,18 +93,11 @@ const fn sha1_compress(state: &mut [u32; 5], block: &[u8; 64]) {
     let mut index = 0;
     while index < 16 {
         let start = index * 4;
-        words[index] = u32::from_be_bytes([
-            block[start],
-            block[start + 1],
-            block[start + 2],
-            block[start + 3],
-        ]);
+        words[index] = u32::from_be_bytes([block[start], block[start + 1], block[start + 2], block[start + 3]]);
         index += 1;
     }
     while index < 80 {
-        words[index] =
-            (words[index - 3] ^ words[index - 8] ^ words[index - 14] ^ words[index - 16])
-                .rotate_left(1);
+        words[index] = (words[index - 3] ^ words[index - 8] ^ words[index - 14] ^ words[index - 16]).rotate_left(1);
         index += 1;
     }
 
@@ -131,12 +117,7 @@ const fn sha1_compress(state: &mut [u32; 5], block: &[u8; 64]) {
         } else {
             (b ^ c ^ d, 0xca62_c1d6)
         };
-        let next = a
-            .rotate_left(5)
-            .wrapping_add(f)
-            .wrapping_add(e)
-            .wrapping_add(k)
-            .wrapping_add(words[index]);
+        let next = a.rotate_left(5).wrapping_add(f).wrapping_add(e).wrapping_add(k).wrapping_add(words[index]);
         e = d;
         d = c;
         c = b.rotate_left(30);
@@ -174,12 +155,7 @@ impl NcGuid {
 
     /// Creates a GUID from its C-compatible field representation.
     pub const fn from_fields(data1: u32, data2: u16, data3: u16, data4: [u8; 8]) -> Self {
-        Self {
-            data1,
-            data2,
-            data3,
-            data4,
-        }
+        Self { data1, data2, data3, data4 }
     }
 
     /// Returns this GUID's C-compatible field representation.
@@ -193,10 +169,7 @@ impl NcGuid {
             data1: u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
             data2: u16::from_be_bytes([bytes[4], bytes[5]]),
             data3: u16::from_be_bytes([bytes[6], bytes[7]]),
-            data4: [
-                bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14],
-                bytes[15],
-            ],
+            data4: [bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]],
         }
     }
 
@@ -346,8 +319,7 @@ fn parse_hex_u16(bytes: &[u8], start: usize, end: usize) -> Result<u16, ParseGui
 
 /// Parses two adjacent hexadecimal digits into one byte.
 fn parse_hex_byte(bytes: &[u8], start: usize) -> Result<u8, ParseGuidError> {
-    Ok((parse_hex_nibble(bytes[start], start)? << 4)
-        | parse_hex_nibble(bytes[start + 1], start + 1)?)
+    Ok((parse_hex_nibble(bytes[start], start)? << 4) | parse_hex_nibble(bytes[start + 1], start + 1)?)
 }
 
 /// Converts one ASCII hexadecimal digit while preserving its source index.
@@ -380,10 +352,7 @@ mod tests {
             "d3105b2d-858f-5b6c-a2cb-be35b0e4dde9"
         );
         assert_eq!(
-            guid_from_qualified_name(
-                "nc.tests.LongSegmentLongSegmentLongSegmentLongSegmentLongSegmentLongSegmentLongSegmentLongSegment:v1"
-            )
-            .to_string(),
+            guid_from_qualified_name("nc.tests.LongSegmentLongSegmentLongSegmentLongSegmentLongSegmentLongSegmentLongSegmentLongSegment:v1").to_string(),
             "ef6cbe80-1ed8-5ed5-bc3d-942a3f998eae"
         );
     }
