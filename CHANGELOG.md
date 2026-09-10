@@ -11,6 +11,9 @@ contract.
   validation choices over one canonical typed contract stream. Every choice
   retains the same pointer/count descriptor ABI; cargo-neocogi applies one
   mode consistently to the application, runtime, and plugins.
+- Added `dynamic` and `monolith` assembly linkage. Monoliths require unchecked
+  COM validation, link the runtime and implementation rlibs into one executable,
+  and stage no Neocogi shared libraries or plugin manifest.
 - Removed implementation-owned class descriptor options from `#[com_object]`.
   Registered implementations now use only `#[com_object(Class)]`; local
   interface-only objects use `#[com_object(interfaces(...))]`.
