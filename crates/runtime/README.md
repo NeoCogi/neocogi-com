@@ -1,8 +1,8 @@
 # neocogi-com-runtime
 
-`neocogi-com-runtime` contains the process-global runtime implementation exported by
-the `libnc_com_shared_runtime` shared library. The Cargo package is
-`neocogi-com-runtime`; its Rust library target is `nc_com_shared_runtime`.
+`neocogi-com-runtime` contains the process-global runtime implementation linked
+into the `libnc_com_shared_runtime` assembly library. The Cargo package is
+`neocogi-com-runtime`; its Rust implementation target is `nc_com_shared_runtime`.
 
 It owns the parts that need an operating-system runtime:
 
@@ -17,10 +17,9 @@ It owns the parts that need an operating-system runtime:
 Most component and host authors should depend on `neocogi-com` instead. The public
 Rust facade is `neocogi_com::Runtime`, which calls the shared runtime
 through `neocogi-com-runtime-sys`; its plugin registry, type registry, inspection,
-and debug operations are exposed as separate contextual views. The
-`neocogi-com-runtime` rlib remains available for
-workspace tooling such as descriptor inspection, but its concrete registry type
-is not the supported host-facing API.
+and debug operations are exposed as separate contextual views.
+The `neocogi-com-runtime` rlib supports workspace tooling such as descriptor
+inspection, but its concrete registry type is not the supported host-facing API.
 
 The shared inspection table also provides a non-registering operation for
 trusted plugin libraries. It opens and validates the plugin, invokes a caller
@@ -60,9 +59,9 @@ The runtime is intentionally `std`-only. This indexing does not change the
 `no_std` support of `neocogi-com-core`, `neocogi-com-runtime-sys`, or the reduced-feature
 `neocogi-com` facade.
 
-The crate builds both an `rlib` for workspace tooling and a `cdylib` for the
-shared process-global runtime. Runtime calls should go through the
-`cdylib` C ABI.
+The crate builds one `rlib` for workspace tooling and assembly composition.
+`cargo-neocogi` links that implementation into the assembly's sole runtime
+`cdylib`; runtime calls should go through that shared library's C ABI.
 
 Module provenance and plugin metadata have separate authoritative sources.
 `NcModuleInfoV1` exposes a loaded module's process-local ID, plugin ID, and the
