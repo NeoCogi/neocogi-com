@@ -7,7 +7,7 @@
 //! implementation surface; the generated `*Abi` types are the portable ABI
 //! surface.
 //! `com_interface` also generates the `unsafe impl` of [`ComInterface`] that
-//! certifies the header, vtable prefix, identity/hash, lifetime, and [`IUnknown`]
+//! certifies the header, vtable prefix, identity/signature, lifetime, and [`IUnknown`]
 //! conversion invariants relied on by safe [`ComPtr`] operations. The trait is
 //! unsealed for low-level FFI adapters, but handwritten implementations are an
 //! unsafe extension point rather than the normal interface-definition path.
@@ -32,7 +32,7 @@
 //!
 //! The explicit contract is the generated C-shaped surface: `#[repr(C)]`
 //! interface headers, `extern "C"` vtable functions, explicit [`NcStatus`]
-//! values, GUIDs, ABI hashes, reference-counted object lifetime, and host-owned
+//! values, GUIDs, ABI signatures, reference-counted object lifetime, and host-owned
 //! plugin/class metadata. Rust traits, generics, trait objects, references,
 //! `String`, `Vec<T>`, slices, allocator ownership, and unwinding panics are
 //! local implementation details and must not cross the ABI boundary.
@@ -49,7 +49,7 @@
 //!
 //! Interface casts are performed through [`IUnknown`] / `QueryInterface`, not by
 //! pointer casts. `QueryInterface` checks both interface ID and generated ABI
-//! hash before returning a typed pointer. A single object can expose several
+//! signature before returning a typed pointer. A single object can expose several
 //! interfaces at different addresses inside the same allocation.
 //!
 //! COM reference counts are atomic, and the built-in registry is
@@ -101,7 +101,7 @@
 //!
 //! # Build Compatibility
 //!
-//! core ABI v5 is currently an experimental pre-alpha draft. The generated C-shaped
+//! core ABI v6 is currently an experimental pre-alpha draft. The generated C-shaped
 //! surface is the intended compatibility boundary, but cross-release
 //! compatibility does not begin until an explicitly named future ratification
 //! milestone. Draft golden vectors prevent accidental drift within the current
@@ -116,14 +116,14 @@
 //!
 //! These factors must match or be treated as a new ABI contract: target process
 //! ABI, pointer width, endianness, C calling convention, `NC_COM_CORE_ABI_VERSION`,
-//! interface GUIDs, method order, lowered method types, and interface ABI hashes.
+//! interface GUIDs, method order, lowered method types, and interface ABI signatures.
 //! Incompatible core ABI generations use a new core ABI version. A future ABI
 //! may also use a different descriptor symbol if the entrypoint function shape
 //! or discovery rules change.
 //!
 //! Once ratified, published interface contracts must not be mutated in place.
 //! Adding a method, changing method order or lowered types, changing ownership
-//! semantics, or changing the ABI hash grammar requires a new versioned
+//! semantics, or changing the ABI signature grammar requires a new versioned
 //! interface ID. Built-in status-code numbers are stable once published and
 //! must not be renumbered.
 //! or reused.
@@ -254,7 +254,7 @@
 //! [`NC_GET_PLUGIN_DESCRIPTOR_SYMBOL`] entrypoint. The descriptor records the
 //! [`NC_COM_CORE_ABI_VERSION`], plugin identity, and a static [`NcClassTable`]
 //! of [`NcClassDescriptor`] values. Generated interfaces expose
-//! `ABI_HASH`, typed method descriptors, rendered diagnostic method signature
+//! `ABI_SIGNATURE`, typed method descriptors, rendered diagnostic method signature
 //! text, and [`NcInterfaceDescriptor`]
 //! metadata; generated classes expose `COM_INTERFACES` metadata containing the
 //! canonical [`IUnknown`] descriptor first, followed by their `interfaces(...)`
@@ -268,14 +268,14 @@
 //! `Inspection::loaded_module`, or query descriptor metadata directly with
 //! `Inspection::plugin_info`. Statically registered plugins have plugin
 //! metadata but no loaded-module path.
-//! Runtime core ABI v5 retains at most [`NC_COM_RUNTIME_MAX_LOADED_MODULES`] dynamic
+//! Runtime core ABI v6 retains at most [`NC_COM_RUNTIME_MAX_LOADED_MODULES`] dynamic
 //! modules and permits at most
 //! [`NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS`] simultaneous debug messenger
 //! registrations. Exceeding the module limit is a fatal live-activation error;
 //! debug messenger capacity exhaustion returns [`NC_E_OUT_OF_RANGE`].
-//! Callers then use hash-checked `QueryInterface` to obtain the interface they
+//! Callers then use signature-checked `QueryInterface` to obtain the interface they
 //! need.
-//! core ABI v5 plugin descriptors are declarative and have no initialization hook.
+//! core ABI v6 plugin descriptors are declarative and have no initialization hook.
 //! They may declare hard dependency plugin IDs. Registration requires those IDs
 //! to exist already but never discovers paths or loads dependencies recursively.
 //! Native loader dependencies remain distinct from neocogi-com dependencies.
@@ -291,7 +291,7 @@
 //! registration failure emits its diagnostic and aborts the process.
 //! Required cross-plugin contracts should appear in constructor arguments,
 //! method arguments, return values, or dependency/capability interfaces so the generated
-//! interface IDs and ABI hashes describe the actual binary dependency.
+//! interface IDs and ABI signatures describe the actual binary dependency.
 //!
 //! Loading a dynamic library can run platform loader code that mutates
 //! process-global state. `neocogi-com` therefore does not support dynamic plugin
@@ -318,7 +318,7 @@
 //!
 //! Use `#[com_struct(packed)]`, `#[com_struct(packed(N))]`, or
 //! `#[com_struct(align(N))]` only when that physical layout is part of the
-//! contract. The generated aggregate ABI hash includes the struct size,
+//! contract. The generated aggregate ABI signature includes the struct size,
 //! alignment, field order, field offsets, and field ABI types.
 //!
 //! For external C-layout fields without neocogi-com traits, use
@@ -350,9 +350,9 @@
 //! references, borrowed addresses, or ownership/release obligations. C layout
 //! alone cannot prove those plain-value requirements.
 //!
-//! In this mode, every field is fingerprinted by size and alignment; the outer
+//! In this mode, every field is represented by size and alignment; the outer
 //! record also records field order and offsets. Field internals and scalar type
-//! identities are not hashed. Incompatible changes preserving this metadata
+//! identities are not encoded. Incompatible changes preserving this metadata
 //! require a new interface identity. Dependency versions may differ only while
 //! their actual layouts and value semantics remain compatible. The checks add
 //! no runtime conversion or allocation. The option can be combined with packing
@@ -443,27 +443,27 @@ pub use macros::{ComDeserialize, com_class, com_enum, com_interface, com_object,
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::format_method_signature;
 pub use neocogi_com_core::{
-    __NcAbiHashPrefix, __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClassArguments,
+    __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClassArguments, abi_signature,
     ComClassContract, ComClientInterface, ComDeserialize, ComDeserializer, ComEnum, ComInterface, ComPtr, ComRecord, ComRecordAccess, ComRef, ComSequence,
     ComSequenceAccess, ComStruct, ComVariantAccess, NcClientPointer, IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi,
     INcStringVTable, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF,
     NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID,
     NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL,
     NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE,
-    NC_ABI_TYPE_NC_ABI_HASH, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE,
-    NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_COM_GUID_NAMESPACE, NC_COM_RUNTIME_ABI_VERSION, NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS,
-    NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL,
-    NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN,
-    NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND,
-    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiHash,
-    NcAbiHashPart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor,
-    NcClassDescriptor, NcClassInfoV1, NcClassInterfaceDescriptor, NcClassTable, NcConstructorFn, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1,
-    NcDebugMessengerCreateInfoV1, NcDescriptorPath, NcDescriptorValidationIssue, NcDescriptorValidationKind, NcGetPluginDescriptor, NcGuid,
-    NcInspectPluginDescriptorCallbackV1, NcInspectionApiV1, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor,
-    NcMethodReturnDescriptor, NcModuleInfoV1, NcPluginDependencyDescriptor, NcPluginDescriptor, NcPluginInfoV1, NcPluginRegistryV1, NcQualifiedNameError,
-    NcRuntimeApiV1, NcStaticUtf8, NcStatus, NcTypeRegistryV1, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES,
-    QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel, construct_class_checked, guid_from_qualified_name, raw, return_plugin_descriptor,
-    validate_plugin_descriptor_with_issues, validate_qualified_name, validate_version_text,
+    NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID,
+    NC_COM_CORE_ABI_VERSION, NC_COM_GUID_NAMESPACE, NC_COM_RUNTIME_ABI_VERSION, NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_LOADED_MODULES,
+    NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN,
+    NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN, NC_E_ABI_VERSION, NC_E_BUSY,
+    NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE,
+    NC_E_POINTER, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiSignature, NcAbiSignaturePart, NcAbiPassing,
+    NcAbiPassingDescriptor, NcAbiReceiver, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcClassDescriptor, NcClassInfoV1,
+    NcClassInterfaceDescriptor, NcClassTable, NcConstructorFn, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1, NcDebugMessengerCreateInfoV1,
+    NcDescriptorPath, NcDescriptorValidationIssue, NcDescriptorValidationKind, NcGetPluginDescriptor, NcGuid, NcInspectPluginDescriptorCallbackV1,
+    NcInspectionApiV1, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcModuleInfoV1,
+    NcPluginDependencyDescriptor, NcPluginDescriptor, NcPluginInfoV1, NcPluginRegistryV1, NcQualifiedNameError, NcRuntimeApiV1, NcStaticUtf8, NcStatus,
+    NcTypeRegistryV1, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe,
+    ThreadingModel, construct_class_checked, guid_from_qualified_name, raw, return_plugin_descriptor, validate_plugin_descriptor_with_issues,
+    validate_qualified_name, validate_version_text,
 };
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{ComMap, ComMapAccess};

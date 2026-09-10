@@ -33,7 +33,7 @@ const fn repeated(chains: &[&[&NcInterfaceDescriptor]], chain: usize, item: usiz
             let previous = chains[previous_chain][previous_item];
             if bytes_equal(&current.interface_id.to_uuid_bytes(), &previous.interface_id.to_uuid_bytes()) {
                 assert!(
-                    bytes_equal(&current.abi_hash.bytes, &previous.abi_hash.bytes),
+                    current.abi_signature.__const_eq(previous.abi_signature),
                     "conflicting inherited interface contracts"
                 );
                 return true;
@@ -45,7 +45,7 @@ const fn repeated(chains: &[&[&NcInterfaceDescriptor]], chain: usize, item: usiz
     false
 }
 
-/// Const-compatible byte equality for GUIDs and fingerprints.
+/// Const-compatible byte equality for GUIDs and signatures.
 const fn bytes_equal(left: &[u8], right: &[u8]) -> bool {
     if left.len() != right.len() {
         return false;

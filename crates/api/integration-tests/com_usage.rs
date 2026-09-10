@@ -2,13 +2,12 @@ use neocogi_com::{
     ComClass, ComClassContract, ComInterface, ComPtr, ComRef, ComStruct, IUnknown, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET,
     NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_VOID, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_U8, NC_ABI_TYPE_VOID,
     NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_NOINTERFACE, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK,
-    NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcClassDescriptor, NcClassTable, NcConstructorFn,
+    NcAbiSignature, NcAbiSignaturePart, NcAbiPassing, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcClassDescriptor, NcClassTable, NcConstructorFn,
     NcCopyFromBufferOffset, NcCopyToBufferOffset, NcGuid, NcInterfaceId, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, Runtime,
     ThreadLocal, ThreadSafe, ThreadSafeComObject, ThreadingModel, com_class, com_enum, com_int_enum, com_object, com_interface, com_struct,
     format_method_signature, plugin,
 };
 use std::ffi::c_void;
-use std::fmt::Write;
 use std::sync::{
     Arc, Barrier,
     atomic::{AtomicUsize, Ordering},
@@ -21,12 +20,11 @@ const NC_E_TEST_VOID_FAIL_CODE: i32 = -88;
 const NC_E_TEST_FAIL: NcStatus = NcStatus::from_code(NC_E_TEST_FAIL_CODE);
 const NC_E_TEST_VOID_FAIL: NcStatus = NcStatus::from_code(NC_E_TEST_VOID_FAIL_CODE);
 
-fn hash_hex(hash: NcAbiHash) -> String {
-    let mut out = String::with_capacity(64);
-    for byte in hash.bytes {
-        let _ = write!(out, "{byte:02x}");
-    }
-    out
+fn signature_text(signature: NcAbiSignature) -> String {
+    // SAFETY: Generated signatures reference immutable static storage in this
+    // test component for the duration of the process.
+    let bytes = unsafe { signature.as_bytes() }.expect("valid generated signature view");
+    std::str::from_utf8(bytes).expect("canonical signatures are UTF-8").to_owned()
 }
 
 com_int_enum! {
@@ -295,7 +293,7 @@ static CALCULATOR_CLASSES: [NcClassDescriptor; 2] = [
         class_id: CALCULATOR_CLASS_ID,
         qualified_name: NcStaticUtf8::from_static("nc.tests.com_usage.Calculator"),
         class_version: NcStaticUtf8::from_static("1.0.0"),
-        constructor_abi_hash: NcAbiHash::ZERO,
+        constructor_abi_signature: NcAbiSignature::EMPTY,
         threading: NC_ABI_THREADING_THREAD_LOCAL,
         construct: Some(construct_calculator_class as NcConstructorFn),
         interface_count: Calculator::COM_INTERFACES.len() as u32,
@@ -321,13 +319,13 @@ static CALCULATOR_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
 
 const UNCHECKED_NO_ARGS_CLASS_ID: NcGuid = neocogi_com::guid_from_qualified_name("nc.tests.com_usage.UncheckedNoArgs");
 const UNCHECKED_ARGS_CLASS_ID: NcGuid = neocogi_com::guid_from_qualified_name("nc.tests.com_usage.UncheckedArgs");
-const UNCHECKED_WRONG_HASH_ARGS_CLASS_ID: NcGuid = neocogi_com::guid_from_qualified_name("nc.tests.com_usage.UncheckedWrongHashArgs");
-const TRACKED_CONSTRUCTOR_ABI_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Arg {
+const UNCHECKED_WRONG_SIGNATURE_ARGS_CLASS_ID: NcGuid = neocogi_com::guid_from_qualified_name("nc.tests.com_usage.UncheckedWrongSignatureArgs");
+const TRACKED_CONSTRUCTOR_ABI_SIGNATURE: NcAbiSignature = neocogi_com::abi_signature!(&[NcAbiSignaturePart::Arg {
     index: 0,
     passing: NcAbiPassing::Value,
     ty: NcAbiType::U32,
 }]);
-const WRONG_TRACKED_CONSTRUCTOR_ABI_HASH: NcAbiHash = NcAbiHash::from_bytes([0x5a; 32]);
+const WRONG_TRACKED_CONSTRUCTOR_ABI_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static_str("ncabi1;wrong-constructor");
 
 /// Concrete immutable frame used to exercise low-level runtime validation.
 #[repr(C)]
@@ -343,7 +341,7 @@ static UNCHECKED_CONSTRUCTOR_CLASSES: [NcClassDescriptor; 3] = [
         class_id: UNCHECKED_NO_ARGS_CLASS_ID,
         qualified_name: NcStaticUtf8::from_static("nc.tests.com_usage.UncheckedNoArgs"),
         class_version: NcStaticUtf8::from_static("1.0.0"),
-        constructor_abi_hash: NcAbiHash::ZERO,
+        constructor_abi_signature: NcAbiSignature::EMPTY,
         threading: NC_ABI_THREADING_THREAD_LOCAL,
         construct: Some(unchecked_custom_constructor as NcConstructorFn),
         interface_count: Calculator::COM_INTERFACES.len() as u32,
@@ -353,17 +351,17 @@ static UNCHECKED_CONSTRUCTOR_CLASSES: [NcClassDescriptor; 3] = [
         class_id: UNCHECKED_ARGS_CLASS_ID,
         qualified_name: NcStaticUtf8::from_static("nc.tests.com_usage.UncheckedArgs"),
         class_version: NcStaticUtf8::from_static("1.0.0"),
-        constructor_abi_hash: TRACKED_CONSTRUCTOR_ABI_HASH,
+        constructor_abi_signature: TRACKED_CONSTRUCTOR_ABI_SIGNATURE,
         threading: NC_ABI_THREADING_THREAD_LOCAL,
         construct: Some(unchecked_custom_constructor as NcConstructorFn),
         interface_count: Calculator::COM_INTERFACES.len() as u32,
         interfaces: Calculator::COM_INTERFACES.as_ptr(),
     },
     NcClassDescriptor {
-        class_id: UNCHECKED_WRONG_HASH_ARGS_CLASS_ID,
-        qualified_name: NcStaticUtf8::from_static("nc.tests.com_usage.UncheckedWrongHashArgs"),
+        class_id: UNCHECKED_WRONG_SIGNATURE_ARGS_CLASS_ID,
+        qualified_name: NcStaticUtf8::from_static("nc.tests.com_usage.UncheckedWrongSignatureArgs"),
         class_version: NcStaticUtf8::from_static("1.0.0"),
-        constructor_abi_hash: WRONG_TRACKED_CONSTRUCTOR_ABI_HASH,
+        constructor_abi_signature: WRONG_TRACKED_CONSTRUCTOR_ABI_SIGNATURE,
         threading: NC_ABI_THREADING_THREAD_LOCAL,
         construct: Some(unchecked_custom_constructor as NcConstructorFn),
         interface_count: Calculator::COM_INTERFACES.len() as u32,
@@ -392,7 +390,7 @@ static FAILING_CONSTRUCTOR_CLASSES: [NcClassDescriptor; 1] = [NcClassDescriptor 
     class_id: FAILING_CONSTRUCTOR_CLASS_ID,
     qualified_name: NcStaticUtf8::from_static("nc.tests.com_usage.FailingConstructor"),
     class_version: NcStaticUtf8::from_static("1.0.0"),
-    constructor_abi_hash: NcAbiHash::ZERO,
+    constructor_abi_signature: NcAbiSignature::EMPTY,
     threading: NC_ABI_THREADING_THREAD_LOCAL,
     construct: Some(failing_custom_constructor as NcConstructorFn),
     interface_count: Calculator::COM_INTERFACES.len() as u32,
@@ -416,7 +414,7 @@ static FAILING_CONSTRUCTOR_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
 
 unsafe extern "C" fn construct_calculator_class(class: *const NcClassDescriptor, arguments: *const c_void, out: *mut *mut IUnknown) -> NcStatus {
     unsafe {
-        neocogi_com::construct_class_checked(class, arguments, out, CALCULATOR_CLASS_ID, NcAbiHash::ZERO, |_arguments| {
+        neocogi_com::construct_class_checked(class, arguments, out, CALCULATOR_CLASS_ID, NcAbiSignature::EMPTY, |_arguments| {
             let unknown: ComPtr<IUnknown> = Calculator::from_value(Calculator);
             Ok(unknown)
         })
@@ -846,7 +844,7 @@ fn com_struct_layout_options_are_part_of_the_abi_type() {
         assert_eq!(layout.fields[1].ty, NcAbiType::U32);
         assert_eq!(
             <T as neocogi_com::AbiType>::ABI_TYPE,
-            NcAbiType::Aggregate(NcAbiHash::from_struct_layout(layout))
+            NcAbiType::Aggregate(<T as ComStruct>::ABI_SIGNATURE)
         );
     }
 
@@ -881,8 +879,8 @@ fn generated_interface_and_vtable_keep_iunknown_prefix_layout() {
 
 #[test]
 fn generated_metadata_describes_interfaces_and_classes() {
-    assert_ne!(ICalculatorAbi::ABI_HASH, NcAbiHash::ZERO);
-    assert_ne!(ICalculatorAbi::ABI_HASH, IMultiplierAbi::ABI_HASH);
+    assert_ne!(ICalculatorAbi::ABI_SIGNATURE, NcAbiSignature::EMPTY);
+    assert_ne!(ICalculatorAbi::ABI_SIGNATURE, IMultiplierAbi::ABI_SIGNATURE);
     assert_eq!(ICalculatorAbi::INTERFACE_DESCRIPTOR.interface_id, ICalculatorAbi::IID);
     assert_eq!(ICalculatorAbi::INTERFACE_DESCRIPTOR.method_count, 1);
     assert!(!ICalculatorAbi::INTERFACE_DESCRIPTOR.methods.is_null());
@@ -906,73 +904,73 @@ fn generated_metadata_describes_interfaces_and_classes() {
     let calculator_descriptor = unsafe { &*Calculator::COM_INTERFACES[1].interface_descriptor };
     let multiplier_descriptor = unsafe { &*Calculator::COM_INTERFACES[2].interface_descriptor };
     assert_eq!(iunknown_descriptor.interface_id, IUnknown::IID);
-    assert_eq!(iunknown_descriptor.abi_hash, IUnknown::ABI_HASH);
+    assert_eq!(iunknown_descriptor.abi_signature, IUnknown::ABI_SIGNATURE);
     assert_eq!(iunknown_descriptor.method_count, 0);
     assert_eq!(calculator_descriptor.interface_id, ICalculatorAbi::IID);
-    assert_eq!(calculator_descriptor.abi_hash, ICalculatorAbi::ABI_HASH);
+    assert_eq!(calculator_descriptor.abi_signature, ICalculatorAbi::ABI_SIGNATURE);
     assert_eq!(multiplier_descriptor.interface_id, IMultiplierAbi::IID);
     assert_eq!(MacroPluginEchoObject::CLASS_DESCRIPTOR.threading, NC_ABI_THREADING_THREAD_LOCAL);
     assert_eq!(ThreadSafeCalculatorObject::CLASS_DESCRIPTOR.threading, NC_ABI_THREADING_THREAD_SAFE);
 }
 
 #[test]
-fn generated_interface_hashes_include_referenced_interface_iids() {
-    let expected = NcAbiHash::from_abi_parts(&[
-        NcAbiHashPart::Interface { iid: IReferenceConsumerAbi::IID },
-        NcAbiHashPart::Method { index: 0, name: "borrowed_value" },
-        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
-        NcAbiHashPart::Arg {
+fn generated_interface_signatures_include_referenced_interface_iids() {
+    let expected = neocogi_com::abi_signature!(&[
+        NcAbiSignaturePart::Interface { iid: IReferenceConsumerAbi::IID },
+        NcAbiSignaturePart::Method { index: 0, name: "borrowed_value" },
+        NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
+        NcAbiSignaturePart::Arg {
             index: 0,
             passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
             ty: NcAbiType::Interface { iid: ITrackedAbi::IID },
         },
-        NcAbiHashPart::Return {
+        NcAbiSignaturePart::Return {
             passing: NcAbiPassing::Out,
             ty: NcAbiType::I32,
         },
-        NcAbiHashPart::Status,
-        NcAbiHashPart::Method { index: 1, name: "make_tracked" },
-        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
-        NcAbiHashPart::Arg {
+        NcAbiSignaturePart::Status,
+        NcAbiSignaturePart::Method { index: 1, name: "make_tracked" },
+        NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
+        NcAbiSignaturePart::Arg {
             index: 0,
             passing: NcAbiPassing::Value,
             ty: NcAbiType::I32,
         },
-        NcAbiHashPart::Return {
+        NcAbiSignaturePart::Return {
             passing: NcAbiPassing::ComPtrOut { mode: NcAbiThreadingMode::ThreadLocal },
             ty: NcAbiType::Interface { iid: ITrackedAbi::IID },
         },
-        NcAbiHashPart::Status,
+        NcAbiSignaturePart::Status,
     ]);
-    let with_different_referenced_iid = NcAbiHash::from_abi_parts(&[
-        NcAbiHashPart::Interface { iid: IReferenceConsumerAbi::IID },
-        NcAbiHashPart::Method { index: 0, name: "borrowed_value" },
-        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
-        NcAbiHashPart::Arg {
+    let with_different_referenced_iid = neocogi_com::abi_signature!(&[
+        NcAbiSignaturePart::Interface { iid: IReferenceConsumerAbi::IID },
+        NcAbiSignaturePart::Method { index: 0, name: "borrowed_value" },
+        NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
+        NcAbiSignaturePart::Arg {
             index: 0,
             passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
             ty: NcAbiType::Interface { iid: ICalculatorAbi::IID },
         },
-        NcAbiHashPart::Return {
+        NcAbiSignaturePart::Return {
             passing: NcAbiPassing::Out,
             ty: NcAbiType::I32,
         },
-        NcAbiHashPart::Status,
-        NcAbiHashPart::Method { index: 1, name: "make_tracked" },
-        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
-        NcAbiHashPart::Arg {
+        NcAbiSignaturePart::Status,
+        NcAbiSignaturePart::Method { index: 1, name: "make_tracked" },
+        NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
+        NcAbiSignaturePart::Arg {
             index: 0,
             passing: NcAbiPassing::Value,
             ty: NcAbiType::I32,
         },
-        NcAbiHashPart::Return {
+        NcAbiSignaturePart::Return {
             passing: NcAbiPassing::ComPtrOut { mode: NcAbiThreadingMode::ThreadLocal },
             ty: NcAbiType::Interface { iid: ICalculatorAbi::IID },
         },
-        NcAbiHashPart::Status,
+        NcAbiSignaturePart::Status,
     ]);
 
-    assert_eq!(IReferenceConsumerAbi::ABI_HASH, expected);
+    assert_eq!(IReferenceConsumerAbi::ABI_SIGNATURE, expected);
     assert_eq!(
         // SAFETY: Macro-generated method descriptors and their transitive
         // metadata are immutable static values.
@@ -980,10 +978,10 @@ fn generated_interface_hashes_include_referenced_interface_iids() {
         format!(
             "borrowed_value(tracked: com_ref<thread_local, interface<{}, {}>>) -> out<i32> status",
             ITrackedAbi::IID,
-            hash_hex(ITrackedAbi::ABI_HASH)
+            signature_text(ITrackedAbi::ABI_SIGNATURE)
         )
     );
-    assert_ne!(IReferenceConsumerAbi::ABI_HASH, with_different_referenced_iid);
+    assert_ne!(IReferenceConsumerAbi::ABI_SIGNATURE, with_different_referenced_iid);
 }
 
 #[test]
@@ -1102,7 +1100,7 @@ fn runtime_registers_plugin_and_constructs_objects() {
     let class_info = runtime.inspection().class_info(CALCULATOR_CLASS_ID).unwrap().unwrap();
     assert_eq!(class_info.plugin_id, CALCULATOR_PLUGIN.plugin_id);
     assert_eq!(class_info.module_id, None);
-    assert_eq!(class_info.constructor_abi_hash, NcAbiHash::ZERO);
+    assert_eq!(class_info.constructor_abi_signature, NcAbiSignature::EMPTY);
     assert_eq!(class_info.threading, NcAbiThreadingMode::ThreadLocal);
     let thread_safe_class_info = runtime.inspection().class_info(ThreadSafeCalculatorAbi::CLASS_ID).unwrap().unwrap();
     assert_eq!(thread_safe_class_info.threading, NcAbiThreadingMode::ThreadSafe);
@@ -1110,7 +1108,7 @@ fn runtime_registers_plugin_and_constructs_objects() {
     runtime.require_interface_type::<IUnknown>(CALCULATOR_CLASS_ID).unwrap();
 
     assert_eq!(
-        runtime.require_interface(CALCULATOR_CLASS_ID, NcInterfaceId::new(ICalculatorAbi::IID, NcAbiHash::ZERO),),
+        runtime.require_interface(CALCULATOR_CLASS_ID, NcInterfaceId::new(ICalculatorAbi::IID, NcAbiSignature::EMPTY),),
         Err(NC_E_ABI_VERSION)
     );
 
@@ -1163,23 +1161,23 @@ fn runtime_enforces_constructor_argument_contract_before_custom_constructor() {
 
     let frame = TrackedConstructorFrame { value: 99 };
     let frame_pointer = core::ptr::from_ref(&frame).cast();
-    let err = unsafe { runtime.construct_class_raw(UNCHECKED_NO_ARGS_CLASS_ID, NcAbiHash::ZERO, frame_pointer) }.unwrap_err();
+    let err = unsafe { runtime.construct_class_raw(UNCHECKED_NO_ARGS_CLASS_ID, NcAbiSignature::EMPTY, frame_pointer) }.unwrap_err();
     assert_eq!(err, NC_E_INVALID_ARG);
     assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
 
-    let err = unsafe { runtime.construct_class_raw(UNCHECKED_ARGS_CLASS_ID, TRACKED_CONSTRUCTOR_ABI_HASH, core::ptr::null()) }.unwrap_err();
+    let err = unsafe { runtime.construct_class_raw(UNCHECKED_ARGS_CLASS_ID, TRACKED_CONSTRUCTOR_ABI_SIGNATURE, core::ptr::null()) }.unwrap_err();
     assert_eq!(err, NC_E_INVALID_ARG);
     assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
 
-    let err = unsafe { runtime.construct_class_raw(UNCHECKED_ARGS_CLASS_ID, WRONG_TRACKED_CONSTRUCTOR_ABI_HASH, frame_pointer) }.unwrap_err();
+    let err = unsafe { runtime.construct_class_raw(UNCHECKED_ARGS_CLASS_ID, WRONG_TRACKED_CONSTRUCTOR_ABI_SIGNATURE, frame_pointer) }.unwrap_err();
     assert_eq!(err, NC_E_ABI_VERSION);
     assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
 
-    let err = unsafe { runtime.construct_class_raw(UNCHECKED_WRONG_HASH_ARGS_CLASS_ID, TRACKED_CONSTRUCTOR_ABI_HASH, frame_pointer) }.unwrap_err();
+    let err = unsafe { runtime.construct_class_raw(UNCHECKED_WRONG_SIGNATURE_ARGS_CLASS_ID, TRACKED_CONSTRUCTOR_ABI_SIGNATURE, frame_pointer) }.unwrap_err();
     assert_eq!(err, NC_E_ABI_VERSION);
     assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
 
-    let unknown = unsafe { runtime.construct_class_raw(UNCHECKED_ARGS_CLASS_ID, TRACKED_CONSTRUCTOR_ABI_HASH, frame_pointer) }.unwrap();
+    let unknown = unsafe { runtime.construct_class_raw(UNCHECKED_ARGS_CLASS_ID, TRACKED_CONSTRUCTOR_ABI_SIGNATURE, frame_pointer) }.unwrap();
     assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 1);
 
     let calculator = runtime.query_validated::<ICalculatorAbi, _>(UNCHECKED_ARGS_CLASS_ID, &unknown).unwrap();
@@ -1301,7 +1299,7 @@ fn query_interface_clears_out_on_lookup_failure() {
     assert!(out.is_null());
 
     let mut out = (&mut sentinel as *mut u8).cast::<c_void>();
-    let unsupported_calculator_id = NcInterfaceId::new(ICalculatorAbi::IID, NcAbiHash::ZERO);
+    let unsupported_calculator_id = NcInterfaceId::new(ICalculatorAbi::IID, NcAbiSignature::EMPTY);
     let status = unsafe { ((*(*raw).vtable).query_interface)(raw, &unsupported_calculator_id, &mut out) };
     assert_eq!(status, NC_E_ABI_VERSION);
     assert!(out.is_null());

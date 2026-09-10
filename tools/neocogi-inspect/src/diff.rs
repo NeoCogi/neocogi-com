@@ -2,9 +2,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::schema::{ArtifactClass, ArtifactInterface, ArtifactInterfaceId, ArtifactMethod, ArtifactPlugin, InspectionArtifactV3};
+use crate::schema::{ArtifactClass, ArtifactInterface, ArtifactInterfaceId, ArtifactMethod, ArtifactPlugin, InspectionArtifact};
 
-pub(crate) fn diff_inspections(old: &InspectionArtifactV3, new: &InspectionArtifactV3) -> Vec<String> {
+pub(crate) fn diff_inspections(old: &InspectionArtifact, new: &InspectionArtifact) -> Vec<String> {
     // Artifact validation runs before this function, so identity-keyed maps
     // cannot silently normalize duplicate entries.
     let mut differences = Vec::new();
@@ -55,9 +55,9 @@ fn diff_class(differences: &mut Vec<String>, id: &str, old: &ArtifactClass, new:
     push_changed_debug(differences, &format!("{path}.threading"), &old.threading, &new.threading);
     push_changed_str(
         differences,
-        &format!("{path}.constructor_abi_hash"),
-        &old.constructor_abi_hash,
-        &new.constructor_abi_hash,
+        &format!("{path}.constructor_abi_signature"),
+        &old.constructor_abi_signature,
+        &new.constructor_abi_signature,
     );
     diff_interfaces(differences, &format!("{path}.interface"), &old.interfaces, &new.interfaces);
 }
@@ -71,7 +71,7 @@ fn diff_interfaces(differences: &mut Vec<String>, path: &str, old: &[ArtifactInt
                 let interface_path = format!("{path} {id}");
                 diff_interface_id(differences, &format!("{interface_path}.base"), &old.base, &new.base);
                 push_changed_str(differences, &format!("{interface_path}.name"), &old.name, &new.name);
-                push_changed_str(differences, &format!("{interface_path}.abi_hash"), &old.abi_hash, &new.abi_hash);
+                push_changed_str(differences, &format!("{interface_path}.abi_signature"), &old.abi_signature, &new.abi_signature);
                 diff_methods(differences, &format!("{interface_path}.method"), &old.methods, &new.methods);
             }
             (Some(_), None) => differences.push(format!("removed: {path} {id}")),
@@ -101,7 +101,7 @@ fn diff_methods(differences: &mut Vec<String>, path: &str, old: &[ArtifactMethod
 
 fn diff_interface_id(differences: &mut Vec<String>, path: &str, old: &ArtifactInterfaceId, new: &ArtifactInterfaceId) {
     push_changed_str(differences, &format!("{path}.iid"), &old.iid, &new.iid);
-    push_changed_str(differences, &format!("{path}.abi_hash"), &old.abi_hash, &new.abi_hash);
+    push_changed_str(differences, &format!("{path}.abi_signature"), &old.abi_signature, &new.abi_signature);
 }
 
 fn map_by<T>(values: &[T], key: impl Fn(&T) -> String) -> BTreeMap<String, &T> {

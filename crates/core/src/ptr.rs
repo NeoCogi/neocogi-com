@@ -70,7 +70,7 @@ use crate::{ComInterface, NC_E_POINTER, NcAbiThreadingMode, NcStatus};
 /// supported capabilities and must not accept downstream-invented modes with
 /// unspecified semantics.
 pub trait ThreadingModel: sealed::Sealed + 'static {
-    /// Canonical ABI hashing identity for this pointer threading mode.
+    /// Canonical ABI signature identity for this pointer threading mode.
     const ABI_THREADING_MODE: NcAbiThreadingMode;
 }
 
@@ -544,7 +544,7 @@ pub mod raw {
         if identity.iid != T::IID {
             return Err(crate::NC_E_NOINTERFACE);
         }
-        if identity.abi_hash != T::ABI_HASH {
+        if identity.abi_signature != T::ABI_SIGNATURE {
             return Err(crate::NC_E_ABI_VERSION);
         }
         Ok(())

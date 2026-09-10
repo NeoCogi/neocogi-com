@@ -1,5 +1,5 @@
 use neocogi_com::{
-    ComPtr, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiHash, NcClassDescriptor, NcGuid, NcStaticUtf8, NcStatus,
+    ComPtr, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiSignature, NcClassDescriptor, NcGuid, NcStaticUtf8, NcStatus,
     ThreadLocal, com_object, com_interface, construct_class_checked,
 };
 
@@ -37,7 +37,7 @@ static CONSTRUCTOR_DESCRIPTOR: NcClassDescriptor = NcClassDescriptor {
     class_id: CONSTRUCTOR_CLASS_ID,
     qualified_name: NcStaticUtf8::from_static("nc.tests.status_contract.Constructor"),
     class_version: NcStaticUtf8::from_static("1.0.0"),
-    constructor_abi_hash: NcAbiHash::ZERO,
+    constructor_abi_signature: NcAbiSignature::EMPTY,
     threading: NC_ABI_THREADING_THREAD_LOCAL,
     construct: Some(unused_constructor),
     interface_count: 0,
@@ -86,7 +86,7 @@ fn checked_constructor_normalizes_non_negative_result_errors_and_clears_output()
                 core::ptr::null(),
                 &mut out,
                 CONSTRUCTOR_CLASS_ID,
-                NcAbiHash::ZERO,
+                NcAbiSignature::EMPTY,
                 |_arguments| Err(invalid_error),
             )
         };
@@ -105,7 +105,7 @@ fn checked_constructor_success_publishes_a_non_null_owned_output() {
             core::ptr::null(),
             &mut out,
             CONSTRUCTOR_CLASS_ID,
-            NcAbiHash::ZERO,
+            NcAbiSignature::EMPTY,
             |_arguments| Ok(InvalidStatusObject::create()),
         )
     };

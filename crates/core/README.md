@@ -1,7 +1,7 @@
 # neocogi-com-core
 
 `neocogi-com-core` contains the small C-shaped ABI contract used by `neocogi-com` hosts
-and plugins. core ABI v5 is currently an experimental pre-alpha draft, not a
+and plugins. core ABI v6 is currently an experimental pre-alpha draft, not a
 ratified cross-release compatibility promise.
 
 This crate is intentionally minimal. It defines the C-shaped types that must be
@@ -22,7 +22,7 @@ live in `neocogi-com`.
 - static UTF-8 metadata
 - method descriptors with typed parameter/return metadata, plus interface,
   class, class-table, and plugin descriptors
-- immutable typed constructor frames identified by a class descriptor hash
+- immutable typed constructor frames identified by a class descriptor signature
 - runtime, plugin registry, type registry, inspection, and debug API v1 table layouts
 - `NC_COM_CORE_ABI_VERSION` and `NC_COM_RUNTIME_ABI_VERSION`
 - `nc_get_plugin_descriptor` symbol and function signature
@@ -61,12 +61,12 @@ moving an owning pointer can move the thread on which its final `Release` runs.
 
 `ComInterface` is an unsealed unsafe trait because safe `ComPtr` operations rely
 on its implementation to certify the actual interface-header layout, vtable
-prefix, GUID/hash identity, pointer lifetime, and `IUnknown` conversion.
+prefix, GUID/signature identity, pointer lifetime, and `IUnknown` conversion.
 Ordinary component contracts should use `#[com_interface]` from `neocogi-com`, which
 generates the implementation. Handwritten implementations are reserved for
 low-level foreign-interface adapters and require an explicit `unsafe impl`.
 
-core ABI v5 plugin descriptors contain declarative metadata only. Hosts explicitly
+core ABI v6 plugin descriptors contain declarative metadata only. Hosts explicitly
 load dependencies before dependents; registration does not discover or load
 dependencies.
 
@@ -80,15 +80,16 @@ Status values distinguish an invalid resource request
 when mapping allocator failure to the latter; core itself remains
 allocation-free without its optional `alloc` feature.
 
-Interface descriptors use SHA-256 `NcAbiHash` values. Generated `neocogi-com`
-interfaces build those hashes from typed `NcAbiHashPart` records: interface ID,
-method names and order, argument and return types, passing modes, COM threading
-modes, and referenced interface IDs. Grammar v3 separates macro-known declaration
-shape from compiler-resolved layouts and nested identities. Procedural macros
-hash the declaration and first final-hash block natively; constant evaluation
-finishes only the resolved values. Descriptor validation traverses the same two
-streams and rejects mismatches. Typed signature strings remain diagnostic
-metadata.
+Interface descriptors use canonical `NcAbiSignature` byte strings. Generated
+`neocogi-com` interfaces encode those strings from typed `NcAbiSignaturePart`
+records: interface ID, method names and order, argument and return types,
+passing modes, COM threading modes, and referenced interface IDs. Grammar v1
+uses fixed tags and fixed-width hexadecimal values so independently compiled
+producers generate identical, directly comparable signatures. Procedural macros
+emit the declaration records while constant evaluation resolves target layouts
+and nested aggregate or interface signatures. Descriptor validation walks the
+same records once and rejects malformed or mismatched signatures. Rendered
+method signatures remain separate diagnostic metadata.
 The allocation-backed `format_method_signature` helper is unsafe because raw
 descriptor records are publicly constructible: callers must establish every
 transitive pointer/count invariant before formatting. Generated static
@@ -138,7 +139,7 @@ feature enables owned diagnostic helpers such as method signature rendering
 and uses `alloc::collections::BTreeSet` to accelerate duplicate validation. The
 same validator remains available without `alloc`, using an allocation-free
 fallback with identical diagnostics. The optional `std` feature implies
-`alloc` while enabling standard error trait implementations; registry hash
+`alloc` while enabling standard error trait implementations; registry hash-map
 indexes remain in the separate, intentionally `std`-only runtime crate.
 
 ```toml
@@ -171,9 +172,9 @@ registration time, not on every method call.
 must already be registered. The table describes activation order only and never
 causes path discovery or recursive loading.
 
-Binary compatibility is decided by GUIDs and ABI hashes. Names and versions in
+Binary compatibility is decided by GUIDs and canonical ABI signatures. Names and versions in
 descriptors remain useful for diagnostics and host policy, but they do not
-replace GUID/hash checks.
+replace GUID/signature checks.
 
 ## When To Depend On This Crate
 

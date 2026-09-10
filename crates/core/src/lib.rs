@@ -11,16 +11,16 @@
 //! process-global dynamic loading and registry state live in `neocogi-com-runtime`.
 //!
 //! Descriptor metadata supports runtime validation and inspection. Aggregate
-//! hashes are deliberately opaque compatibility fingerprints, not a reflection
-//! graph for reconstructing source declarations or generating headers from a
-//! plugin binary.
+//! signatures expose canonical layout and nested type records, but not a
+//! reflection graph for reconstructing Rust source declarations or generating
+//! complete source-level headers from a plugin binary.
 //!
 //! The separate [`ComDeserialize`] protocol supports static source decoding.
 //! Concrete Rust types recursively construct their members through a
 //! format-specific adapter; it does not reinterpret descriptor metadata, write
 //! through ABI field offsets, or perform runtime class-registry lookup.
 //!
-//! core ABI v5 is currently an experimental pre-alpha draft. The core ABI version
+//! core ABI v6 is currently an experimental pre-alpha draft. The core ABI version
 //! identifies its current binary generation, not a ratified compatibility
 //! baseline. Cross-release compatibility begins only at an explicitly named
 //! future ratification milestone.
@@ -34,11 +34,11 @@ mod constructor;
 mod data;
 mod decode;
 mod guid;
-mod hash;
 mod metadata;
 mod object;
 mod ptr;
 pub mod runtime_abi;
+mod signature;
 mod status;
 
 #[cfg(feature = "alloc")]
@@ -54,18 +54,18 @@ pub use decode::{ComDeserialize, ComDeserializer, ComEnum, ComRecord, ComRecordA
 #[cfg(feature = "alloc")]
 pub use decode::{ComMap, ComMapAccess};
 pub use guid::{NC_COM_GUID_NAMESPACE, NC_GUID_NIL, NcGuid, ParseGuidError, guid_from_qualified_name};
-pub use hash::{__NcAbiHashPrefix, NcAbiHash};
+pub use signature::NcAbiSignature;
 #[cfg(feature = "alloc")]
 pub use metadata::format_method_signature;
 pub use metadata::{
     NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT,
     NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
     NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64,
-    NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_ABI_HASH, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16,
-    NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN,
-    NC_DESCRIPTOR_VERSION_MAX_LEN, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiHashPart, NcAbiPassing, NcAbiPassingDescriptor,
-    NcAbiReceiver, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcClassDescriptor, NcClassInterfaceDescriptor, NcClassTable,
-    NcConstructorFn, NcGetPluginDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor,
+    NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64,
+    NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN,
+    NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiSignaturePart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver,
+    NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcClassDescriptor, NcClassInterfaceDescriptor, NcClassTable, NcConstructorFn,
+    NcGetPluginDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor,
     NcPluginDependencyDescriptor, NcPluginDescriptor, NcQualifiedNameError, NcStaticUtf8, NcVersionTextError, validate_qualified_name, validate_version_text,
 };
 pub use metadata::{NcDescriptorPath, NcDescriptorValidationIssue, NcDescriptorValidationKind, validate_plugin_descriptor_with_issues};

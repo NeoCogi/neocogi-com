@@ -1,70 +1,70 @@
-//! Canonical logical types used to describe and hash COM ABI contracts.
+//! Canonical logical types used to describe COM ABI contracts.
 //!
-//! These enums and records are the semantic vocabulary behind interface hashes:
+//! These enums and records are the semantic vocabulary behind interface signatures:
 //! value types, passing modes, threading promises, aggregate layouts, interface
-//! identities, and the ordered hash grammar. Raw numeric constants mirror each
+//! identities, and the ordered mangle grammar. Raw numeric constants mirror each
 //! stable C representation for consumers that do not use the Rust enums.
 //!
-//! These Rust enums are the normalized input language for ABI hashing. They do
+//! These Rust enums are the normalized input language for ABI mangling. They do
 //! not cross the shared-library boundary directly; their `#[repr(C)]`
 //! descriptor counterparts encode the same information in exported metadata.
-//! Keeping the logical grammar separate makes hashing independent of Rust enum
+//! Keeping the logical grammar separate makes signatures independent of Rust enum
 //! layout and gives validation one canonical interpretation of each tag.
 
 use crate::guid::NcGuid;
-use crate::hash::NcAbiHash;
+use crate::signature::NcAbiSignature;
 
 /// Current experimental draft core ABI version.
 ///
-/// This identifies the current binary generation; it does not mean core ABI v5 has
+/// This identifies the current binary generation; it does not mean core ABI v6 has
 /// reached its ratification milestone.
-pub const NC_COM_CORE_ABI_VERSION: u32 = 5;
+pub const NC_COM_CORE_ABI_VERSION: u32 = 6;
 
 /// Exported symbol name for an unversioned plugin descriptor provider.
 pub const NC_GET_PLUGIN_DESCRIPTOR_SYMBOL: &str = "nc_get_plugin_descriptor";
 
 /// Stable identity for one COM interface ABI contract.
 ///
-/// This pairs the interface GUID with the generated ABI hash that describes the
+/// This pairs the interface GUID with the generated ABI signature that describes the
 /// exact lowered vtable contract.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct NcInterfaceId {
     /// Stable interface GUID.
     pub iid: NcGuid,
-    /// SHA-256 hash of the interface ABI contract.
-    pub abi_hash: NcAbiHash,
+    /// Canonical mangled interface ABI contract.
+    pub abi_signature: NcAbiSignature,
 }
 
 impl NcInterfaceId {
     /// Sentinel used when no interface is present.
     pub const NONE: Self = Self {
         iid: NcGuid::nil(),
-        abi_hash: NcAbiHash::ZERO,
+        abi_signature: NcAbiSignature::EMPTY,
     };
 
-    /// Creates an interface identity from its GUID and ABI hash.
-    pub const fn new(iid: NcGuid, abi_hash: NcAbiHash) -> Self {
-        Self { iid, abi_hash }
+    /// Creates an interface identity from its GUID and ABI signature.
+    pub const fn new(iid: NcGuid, abi_signature: NcAbiSignature) -> Self {
+        Self { iid, abi_signature }
     }
 
     /// Returns whether this is the no-interface sentinel.
     pub const fn is_none(self) -> bool {
-        self.iid.is_nil() && self.abi_hash.is_zero()
+        self.iid.is_nil() && self.abi_signature.is_empty()
     }
 }
 
-/// One canonical typed input fragment for an ABI hash.
+/// One canonical typed input fragment for an ABI signature.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum NcAbiHashPart<'a> {
+pub enum NcAbiSignaturePart<'a> {
     /// Interface identity for an ABI contract.
     Interface {
-        /// Interface GUID whose contract is being hashed.
+        /// Interface GUID whose contract is being described.
         iid: NcGuid,
     },
     /// Full base contract whose vtable occupies the inherited prefix.
     BaseInterface {
-        /// Base IID and hash; changes to any ancestor change the derived hash.
+        /// Base IID and signature; changes to any ancestor change the derived signature.
         interface: NcInterfaceId,
     },
     /// Method identity within an interface vtable.
@@ -151,7 +151,7 @@ pub struct NcAbiStructLayout {
     pub fields: &'static [NcAbiFieldLayout],
 }
 
-/// Canonical ABI type used as an ABI hash input.
+/// Canonical ABI type used as an ABI signature input.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NcAbiType {
     /// No value is present.
@@ -186,10 +186,8 @@ pub enum NcAbiType {
     NcGuid,
     /// [`crate::NcStatus`] value.
     NcStatus,
-    /// [`NcAbiHash`] value.
-    NcAbiHash,
-    /// Structural ABI-safe aggregate hash.
-    Aggregate(NcAbiHash),
+    /// Structural ABI-safe aggregate signature.
+    Aggregate(NcAbiSignature),
     /// COM interface reference or pointer type.
     Interface {
         /// Referenced interface GUID.
@@ -325,11 +323,10 @@ pub const NC_ABI_TYPE_F64: u32 = 0x0d;
 pub const NC_ABI_TYPE_NC_GUID: u32 = 0x0e;
 /// C-stable ABI type tag for [`crate::NcStatus`].
 pub const NC_ABI_TYPE_NC_STATUS: u32 = 0x0f;
-/// C-stable ABI type tag for [`NcAbiHash`].
-pub const NC_ABI_TYPE_NC_ABI_HASH: u32 = 0x10;
-/// C-stable ABI type tag for a structural aggregate hash.
+/// Value `0x10` is reserved because ABI signatures are views, not plain values.
+/// C-stable ABI type tag for a structural aggregate signature.
 pub const NC_ABI_TYPE_AGGREGATE: u32 = 0x11;
-/// C-stable ABI type tag for an interface GUID/hash pair.
+/// C-stable ABI type tag for an interface GUID/signature pair.
 pub const NC_ABI_TYPE_INTERFACE: u32 = 0x12;
 
 /// C-stable passing tag for no success value.
@@ -363,33 +360,33 @@ pub const NC_ABI_RECEIVER_MUTABLE: u32 = 0x01;
 pub struct NcAbiTypeDescriptor {
     /// One of the `NC_ABI_TYPE_*` values.
     pub tag: u32,
-    /// Opaque aggregate hash when `tag == NC_ABI_TYPE_AGGREGATE`.
+    /// Canonical aggregate signature when `tag == NC_ABI_TYPE_AGGREGATE`.
     ///
-    /// Runtime descriptors use this as a one-way compatibility fingerprint;
-    /// it does not expose or permit reconstruction of the aggregate layout.
-    pub aggregate_hash: NcAbiHash,
+    /// Runtime descriptors use this as a canonical compatibility identity. It
+    /// encodes layout and nested type records but not Rust source declarations.
+    pub aggregate_signature: NcAbiSignature,
     /// Interface identity when `tag == NC_ABI_TYPE_INTERFACE`.
     pub interface: NcInterfaceId,
 }
 
 impl NcAbiTypeDescriptor {
-    /// Describes an interface using its complete expected identity. Local hash
+    /// Describes an interface using its complete expected identity. Local signature
     /// grammar uses only the IID, while metadata and pointer checks retain the
-    /// complete hash. Keeping these separate permits recursive contracts.
+    /// complete signature. Keeping these separate permits recursive contracts.
     pub const fn from_interface(interface: NcInterfaceId) -> Self {
         let mut out = Self::from_abi_type(NcAbiType::Interface { iid: interface.iid });
         out.interface = interface;
         out
     }
 
-    /// Builds a descriptor for a local hash-grammar type. An Interface input
-    /// contains only an IID and therefore leaves its hash zero; publish complete
+    /// Builds a descriptor for a local signature-grammar type. An Interface input
+    /// contains only an IID and therefore leaves its signature empty; publish complete
     /// interface metadata with [`Self::from_interface`] instead. Validation rejects
     /// incomplete interface descriptors before plugin registration.
     pub const fn from_abi_type(ty: NcAbiType) -> Self {
         let mut out = Self {
             tag: NC_ABI_TYPE_VOID,
-            aggregate_hash: NcAbiHash::ZERO,
+            aggregate_signature: NcAbiSignature::EMPTY,
             interface: NcInterfaceId::NONE,
         };
         match ty {
@@ -409,14 +406,13 @@ impl NcAbiTypeDescriptor {
             NcAbiType::F64 => out.tag = NC_ABI_TYPE_F64,
             NcAbiType::NcGuid => out.tag = NC_ABI_TYPE_NC_GUID,
             NcAbiType::NcStatus => out.tag = NC_ABI_TYPE_NC_STATUS,
-            NcAbiType::NcAbiHash => out.tag = NC_ABI_TYPE_NC_ABI_HASH,
-            NcAbiType::Aggregate(hash) => {
+            NcAbiType::Aggregate(signature) => {
                 out.tag = NC_ABI_TYPE_AGGREGATE;
-                out.aggregate_hash = hash;
+                out.aggregate_signature = signature;
             }
             NcAbiType::Interface { iid } => {
                 out.tag = NC_ABI_TYPE_INTERFACE;
-                out.interface = NcInterfaceId::new(iid, NcAbiHash::ZERO);
+                out.interface = NcInterfaceId::new(iid, NcAbiSignature::EMPTY);
             }
         }
         out

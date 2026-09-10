@@ -1,5 +1,5 @@
 use neocogi_com::{
-    ComPtr, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiType, NcClassDescriptor,
+    ComPtr, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NcAbiSignature, NcAbiSignaturePart, NcAbiPassing, NcAbiType, NcClassDescriptor,
     NcClassTable, NcConstructorFn, NcGetPluginDescriptor, NcGuid, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, com_object,
     com_interface,
 };
@@ -12,7 +12,7 @@ pub trait IWidget {
     fn value(&self) -> Result<u32, NcStatus>;
 }
 
-const WIDGET_CONSTRUCTOR_ABI_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Arg {
+const WIDGET_CONSTRUCTOR_ABI_SIGNATURE: NcAbiSignature = neocogi_com::abi_signature!(&[NcAbiSignaturePart::Arg {
     index: 0,
     passing: NcAbiPassing::Value,
     ty: NcAbiType::U32,
@@ -40,7 +40,7 @@ static CLASSES: [NcClassDescriptor; 1] = [NcClassDescriptor {
     class_id: WIDGET_CLASS_ID,
     qualified_name: NcStaticUtf8::from_static("nc.tests.shared_component.TestWidget"),
     class_version: NcStaticUtf8::from_static("1.0.0"),
-    constructor_abi_hash: WIDGET_CONSTRUCTOR_ABI_HASH,
+    constructor_abi_signature: WIDGET_CONSTRUCTOR_ABI_SIGNATURE,
     threading: NC_ABI_THREADING_THREAD_LOCAL,
     construct: Some(construct_widget as NcConstructorFn),
     interface_count: Widget::COM_INTERFACES.len() as u32,
@@ -90,9 +90,9 @@ const _: NcGetPluginDescriptor = nc_get_plugin_descriptor;
 
 unsafe extern "C" fn construct_widget(class: *const NcClassDescriptor, arguments: *const core::ffi::c_void, out: *mut *mut IUnknown) -> NcStatus {
     unsafe {
-        neocogi_com::construct_class_checked(class, arguments, out, WIDGET_CLASS_ID, WIDGET_CONSTRUCTOR_ABI_HASH, |arguments| {
+        neocogi_com::construct_class_checked(class, arguments, out, WIDGET_CLASS_ID, WIDGET_CONSTRUCTOR_ABI_SIGNATURE, |arguments| {
             // SAFETY: The checked wrapper matched this non-null frame's ABI
-            // hash before the plugin reads its `repr(C)` fields.
+            // signature before the plugin reads its `repr(C)` fields.
             let args = &*arguments.cast::<WidgetArguments>();
             let unknown: ComPtr<IUnknown> = Widget::from_value(Widget { value: args.base + 10 });
             Ok(unknown)

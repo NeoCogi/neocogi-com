@@ -8,7 +8,7 @@ host/plugin ABI:
 - `plugin`: a `cdylib` that implements the contract and exports
   `nc_get_plugin_descriptor`.
 - `host`: a host-side test crate that consumes the same contract crate, checks
-  golden interface IDs/hashes/method order/signature text, loads the plugin
+  golden interface IDs/signatures/method order/diagnostic text, loads the plugin
   through `Runtime::load_plugin_library`, constructs a class, and performs
   COM method calls.
 

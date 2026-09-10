@@ -6,21 +6,20 @@
 //! reflection contract.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::Write as _;
 
-use neocogi_com_core::{
-    IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, NcAbiHash, NcAbiThreadingMode, NcGuid, NcInterfaceId, guid_from_qualified_name,
-};
+use neocogi_com_core::{IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, NcAbiSignature, NcAbiThreadingMode, NcGuid, guid_from_qualified_name};
+#[cfg(test)]
+use neocogi_com_core::NcInterfaceId;
 use nc_com_shared_runtime::PluginInspection;
 use serde::{Deserialize, Serialize};
 
 pub(crate) const SCHEMA: &str = "neocogi-com.inspection";
-pub(crate) const SCHEMA_VERSION: u32 = 3;
+pub(crate) const SCHEMA_VERSION: u32 = 4;
 const PRODUCER: &str = "neocogi-inspect";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct InspectionArtifactV3 {
+pub(crate) struct InspectionArtifact {
     pub(crate) schema: String,
     pub(crate) schema_version: u32,
     pub(crate) producer: ArtifactProducer,
@@ -67,7 +66,7 @@ pub(crate) struct ArtifactClass {
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) version: String,
-    pub(crate) constructor_abi_hash: String,
+    pub(crate) constructor_abi_signature: String,
     pub(crate) threading: ArtifactThreading,
     pub(crate) interfaces: Vec<ArtifactInterface>,
 }
@@ -76,7 +75,7 @@ pub(crate) struct ArtifactClass {
 #[serde(deny_unknown_fields)]
 pub(crate) struct ArtifactInterfaceId {
     pub(crate) iid: String,
-    pub(crate) abi_hash: String,
+    pub(crate) abi_signature: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -84,7 +83,7 @@ pub(crate) struct ArtifactInterfaceId {
 pub(crate) struct ArtifactInterface {
     pub(crate) id: String,
     pub(crate) name: String,
-    pub(crate) abi_hash: String,
+    pub(crate) abi_signature: String,
     /// Base contract identity; local methods follow this complete prefix.
     pub(crate) base: ArtifactInterfaceId,
     pub(crate) methods: Vec<ArtifactMethod>,
@@ -129,7 +128,7 @@ impl std::fmt::Display for ArtifactValidationError {
 
 impl std::error::Error for ArtifactValidationError {}
 
-impl From<&PluginInspection> for InspectionArtifactV3 {
+impl From<&PluginInspection> for InspectionArtifact {
     fn from(value: &PluginInspection) -> Self {
         let mut dependencies: Vec<_> = value.dependencies.iter().map(ToString::to_string).collect();
         dependencies.sort();
@@ -146,8 +145,11 @@ impl From<&PluginInspection> for InspectionArtifactV3 {
                         ArtifactInterface {
                             id: interface.interface_id.to_string(),
                             name: interface.qualified_name.clone(),
-                            abi_hash: format_hash(interface.abi_hash),
-                            base: artifact_interface_id(interface.base),
+                            abi_signature: interface.abi_signature.clone(),
+                            base: ArtifactInterfaceId {
+                                iid: interface.base.iid.to_string(),
+                                abi_signature: interface.base.abi_signature.clone(),
+                            },
                             methods: interface
                                 .methods
                                 .iter()
@@ -160,12 +162,12 @@ impl From<&PluginInspection> for InspectionArtifactV3 {
                         }
                     })
                     .collect();
-                interfaces.sort_by(|left, right| (&left.id, &left.abi_hash).cmp(&(&right.id, &right.abi_hash)));
+                interfaces.sort_by(|left, right| (&left.id, &left.abi_signature).cmp(&(&right.id, &right.abi_signature)));
                 ArtifactClass {
                     id: class.class_id.to_string(),
                     name: class.qualified_name.clone(),
                     version: class.class_version.clone(),
-                    constructor_abi_hash: format_hash(class.constructor_abi_hash),
+                    constructor_abi_signature: class.constructor_abi_signature.clone(),
                     threading: artifact_threading(class.threading),
                     interfaces,
                 }
@@ -201,7 +203,7 @@ impl From<&PluginInspection> for InspectionArtifactV3 {
     }
 }
 
-impl InspectionArtifactV3 {
+impl InspectionArtifact {
     pub(crate) fn validate(&self) -> Result<(), ArtifactValidationError> {
         self.validate_envelope()?;
 
@@ -224,7 +226,7 @@ impl InspectionArtifactV3 {
                 return Err(ArtifactValidationError::new(format!("{class_path}.id"), "duplicate class ID"));
             }
             insert_identity(&mut id_to_name, &mut name_to_id, class_id, &class.name, &class_path)?;
-            parse_hash(&class.constructor_abi_hash, &format!("{class_path}.constructor_abi_hash"))?;
+            validate_signature(&class.constructor_abi_signature, &format!("{class_path}.constructor_abi_signature"))?;
 
             let mut interface_ids = BTreeSet::new();
             let mut iunknown_count = 0;
@@ -252,7 +254,7 @@ impl InspectionArtifactV3 {
                     current = class
                         .interfaces
                         .iter()
-                        .find(|candidate| candidate.id == current.base.iid && candidate.abi_hash == current.base.abi_hash)
+                        .find(|candidate| candidate.id == current.base.iid && candidate.abi_signature == current.base.abi_signature)
                         .ok_or_else(|| ArtifactValidationError::new(&class_path, "base interface contract is absent or incompatible"))?;
                 }
             }
@@ -316,7 +318,7 @@ fn validate_dependencies(plugin_id: NcGuid, values: &[String]) -> Result<(), Art
 
 fn validate_interface(interface: &ArtifactInterface, path: &str) -> Result<NcGuid, ArtifactValidationError> {
     let iid = parse_guid(&interface.id, &format!("{path}.id"))?;
-    let advertised_hash = parse_hash(&interface.abi_hash, &format!("{path}.abi_hash"))?;
+    let advertised_is_empty = validate_signature(&interface.abi_signature, &format!("{path}.abi_signature"))?;
     let base = validate_interface_id(&interface.base, &format!("{path}.base"), true)?;
     if base.iid == IID_IUNKNOWN {
         return Err(ArtifactValidationError::new(path, "IUnknown is an implicit prefix, not an explicit base"));
@@ -326,8 +328,8 @@ fn validate_interface(interface: &ArtifactInterface, path: &str) -> Result<NcGui
             return Err(ArtifactValidationError::new(path, "IUnknown cannot have a base"));
         }
 
-        if NcInterfaceId::new(iid, advertised_hash) != IUNKNOWN_INTERFACE_ID {
-            return Err(ArtifactValidationError::new(path, "IUnknown must use its reserved IID and ABI hash"));
+        if iid != IUNKNOWN_INTERFACE_ID.iid || interface.abi_signature != format_signature(IUNKNOWN_INTERFACE_ID.abi_signature) {
+            return Err(ArtifactValidationError::new(path, "IUnknown must use its reserved IID and ABI signature"));
         }
         if !interface.methods.is_empty() {
             return Err(ArtifactValidationError::new(
@@ -339,8 +341,11 @@ fn validate_interface(interface: &ArtifactInterface, path: &str) -> Result<NcGui
     }
 
     validate_named_guid(iid, &interface.name, path)?;
-    if advertised_hash == NcAbiHash::ZERO {
-        return Err(ArtifactValidationError::new(format!("{path}.abi_hash"), "interface ABI hash must not be zero"));
+    if advertised_is_empty {
+        return Err(ArtifactValidationError::new(
+            format!("{path}.abi_signature"),
+            "interface ABI signature must not be empty",
+        ));
     }
     for (method_index, method) in interface.methods.iter().enumerate() {
         if method.index != method_index as u32 {
@@ -353,20 +358,38 @@ fn validate_interface(interface: &ArtifactInterface, path: &str) -> Result<NcGui
     Ok(iid)
 }
 
-fn validate_interface_id(value: &ArtifactInterfaceId, path: &str, allow_none: bool) -> Result<NcInterfaceId, ArtifactValidationError> {
+fn validate_interface_id(value: &ArtifactInterfaceId, path: &str, allow_none: bool) -> Result<ValidatedInterfaceId, ArtifactValidationError> {
     let iid = parse_guid(&value.iid, &format!("{path}.iid"))?;
-    let abi_hash = parse_hash(&value.abi_hash, &format!("{path}.abi_hash"))?;
-    let identity = NcInterfaceId::new(iid, abi_hash);
+    let signature_is_empty = validate_signature(&value.abi_signature, &format!("{path}.abi_signature"))?;
+    let identity = ValidatedInterfaceId {
+        iid,
+        is_none: iid.is_nil() && signature_is_empty,
+    };
     if allow_none && identity.is_none() {
         return Ok(identity);
     }
-    if iid.is_nil() || abi_hash == NcAbiHash::ZERO {
+    if iid.is_nil() || signature_is_empty {
         return Err(ArtifactValidationError::new(
             path,
-            "interface identity requires a non-nil IID and nonzero ABI hash",
+            "interface identity requires a non-nil IID and non-empty ABI signature",
         ));
     }
     Ok(identity)
+}
+
+/// Parsed identity facts needed while validating an artifact ancestry graph.
+struct ValidatedInterfaceId {
+    /// Parsed canonical interface GUID.
+    iid: NcGuid,
+    /// Whether both identity fields use their canonical absent values.
+    is_none: bool,
+}
+
+impl ValidatedInterfaceId {
+    /// Returns whether this is the absent-base sentinel.
+    fn is_none(&self) -> bool {
+        self.is_none
+    }
 }
 
 fn validate_named_guid(id: NcGuid, name: &str, path: &str) -> Result<(), ArtifactValidationError> {
@@ -419,18 +442,17 @@ fn parse_guid(value: &str, path: &str) -> Result<NcGuid, ArtifactValidationError
     Ok(guid)
 }
 
-fn parse_hash(value: &str, path: &str) -> Result<NcAbiHash, ArtifactValidationError> {
-    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(ArtifactValidationError::new(path, "ABI hash must contain exactly 64 hexadecimal digits"));
+fn validate_signature(value: &str, path: &str) -> Result<bool, ArtifactValidationError> {
+    if value.is_empty() {
+        return Ok(true);
     }
-    if value.bytes().any(|byte| byte.is_ascii_uppercase()) {
-        return Err(ArtifactValidationError::new(path, "ABI hash must use lowercase hexadecimal text"));
+    if value == "ncabi1;" || !value.starts_with("ncabi1;") {
+        return Err(ArtifactValidationError::new(path, "ABI signature must use the canonical ncabi1 mangle"));
     }
-    let mut bytes = [0; 32];
-    for (index, byte) in bytes.iter_mut().enumerate() {
-        *byte = u8::from_str_radix(&value[index * 2..index * 2 + 2], 16).map_err(|_| ArtifactValidationError::new(path, "invalid ABI hash"))?;
+    if value.chars().any(char::is_control) {
+        return Err(ArtifactValidationError::new(path, "ABI signature must not contain control characters"));
     }
-    Ok(NcAbiHash::from_bytes(bytes))
+    Ok(false)
 }
 
 fn validate_qualified_name(value: &str, path: &str) -> Result<(), ArtifactValidationError> {
@@ -467,10 +489,11 @@ fn validate_version(value: &str, path: &str) -> Result<(), ArtifactValidationErr
     Ok(())
 }
 
+#[cfg(test)]
 fn artifact_interface_id(interface_id: NcInterfaceId) -> ArtifactInterfaceId {
     ArtifactInterfaceId {
         iid: interface_id.iid.to_string(),
-        abi_hash: format_hash(interface_id.abi_hash),
+        abi_signature: format_signature(interface_id.abi_signature),
     }
 }
 
@@ -481,20 +504,19 @@ fn artifact_threading(threading: NcAbiThreadingMode) -> ArtifactThreading {
     }
 }
 
-pub(crate) fn format_hash(hash: NcAbiHash) -> String {
-    let mut out = String::with_capacity(hash.bytes.len() * 2);
-    for byte in hash.bytes {
-        write!(&mut out, "{byte:02x}").unwrap();
-    }
-    out
+pub(crate) fn format_signature(signature: NcAbiSignature) -> String {
+    // SAFETY: Inspection receives validated descriptors from modules pinned
+    // until process exit; built-in and generated local signatures are static.
+    let bytes = unsafe { signature.as_bytes() }.expect("validated ABI signature view");
+    String::from_utf8(bytes.to_vec()).expect("canonical ABI signature is UTF-8")
 }
 
 #[cfg(test)]
-pub(crate) fn sample_artifact() -> InspectionArtifactV3 {
+pub(crate) fn sample_artifact() -> InspectionArtifact {
     let plugin_name = "example.plugin";
     let class_name = "example.Foo";
     let interface_name = "example.FooInterface:v1";
-    InspectionArtifactV3 {
+    InspectionArtifact {
         schema: SCHEMA.to_string(),
         schema_version: SCHEMA_VERSION,
         producer: ArtifactProducer {
@@ -517,20 +539,20 @@ pub(crate) fn sample_artifact() -> InspectionArtifactV3 {
             id: guid_from_qualified_name(class_name).to_string(),
             name: class_name.to_string(),
             version: "1.0.0".to_string(),
-            constructor_abi_hash: format_hash(NcAbiHash::ZERO),
+            constructor_abi_signature: format_signature(NcAbiSignature::EMPTY),
             threading: ArtifactThreading::ThreadLocal,
             interfaces: vec![
                 ArtifactInterface {
                     id: IID_IUNKNOWN.to_string(),
                     name: IUNKNOWN_QUALIFIED_NAME.to_string(),
-                    abi_hash: format_hash(IUNKNOWN_INTERFACE_ID.abi_hash),
+                    abi_signature: format_signature(IUNKNOWN_INTERFACE_ID.abi_signature),
                     base: artifact_interface_id(NcInterfaceId::NONE),
                     methods: Vec::new(),
                 },
                 ArtifactInterface {
                     id: guid_from_qualified_name(interface_name).to_string(),
                     name: interface_name.to_string(),
-                    abi_hash: "11".repeat(32),
+                    abi_signature: "ncabi1;sample-interface".to_string(),
                     base: artifact_interface_id(NcInterfaceId::NONE),
                     methods: vec![ArtifactMethod {
                         index: 0,
@@ -552,7 +574,7 @@ mod tests {
         let artifact = sample_artifact();
         artifact.validate().unwrap();
         let json = serde_json::to_vec(&artifact).unwrap();
-        let parsed: InspectionArtifactV3 = serde_json::from_slice(&json).unwrap();
+        let parsed: InspectionArtifact = serde_json::from_slice(&json).unwrap();
         parsed.validate().unwrap();
         assert_eq!(parsed, artifact);
     }
@@ -561,7 +583,7 @@ mod tests {
     fn rejects_unknown_fields_and_schema_versions() {
         let mut json = serde_json::to_value(sample_artifact()).unwrap();
         json.as_object_mut().unwrap().insert("unexpected".to_string(), serde_json::Value::Bool(true));
-        assert!(serde_json::from_value::<InspectionArtifactV3>(json).is_err());
+        assert!(serde_json::from_value::<InspectionArtifact>(json).is_err());
 
         let mut artifact = sample_artifact();
         artifact.schema_version += 1;
@@ -599,7 +621,7 @@ mod tests {
     }
 
     #[test]
-    fn diagnostic_signatures_are_not_hash_authority() {
+    fn diagnostic_method_text_is_not_signature_authority() {
         let mut artifact = sample_artifact();
         artifact.classes[0].interfaces[1].methods[0].signature = "diagnostic format changed".to_string();
         artifact.validate().unwrap();

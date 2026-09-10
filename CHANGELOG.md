@@ -7,6 +7,10 @@ contract.
 
 ## Unreleased
 
+- Replaced probabilistic ABI fingerprints with canonical `ncabi1;` mangled
+  signatures. Macro expansion now emits typed records into exact-size static
+  storage, descriptor validation verifies them in one allocation-free pass,
+  and inspection schema 4 preserves the owned signature strings.
 - Removed implementation-owned class descriptor options from `#[com_object]`.
   Registered implementations now use only `#[com_object(Class)]`; local
   interface-only objects use `#[com_object(interfaces(...))]`.
@@ -18,7 +22,7 @@ contract.
   thread-safe implementations.
 - Added `#[com_struct(c_struct)]` for external C-layout fields without neocogi-com
   traits, with compiler checks for nested FFI layouts. Documented the author's
-  plain-value obligations and the limits of field size/alignment fingerprints;
+  plain-value obligations and the limits of field size/alignment signatures;
   neocogi-com needs no dependency on the external type's library.
 - Defined explicit runtime resource ceilings of 1,024 retained dynamic modules
   and 64 simultaneous debug messengers, with fatal module activation exhaustion,

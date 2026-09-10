@@ -5,7 +5,7 @@
 //! remain in the separate inspection table.
 //!
 //! Interface entries use the complete [`NcInterfaceId`] rather than a bare IID,
-//! because the ABI hash is part of interface compatibility. Enumeration follows
+//! because the ABI signature is part of interface compatibility. Enumeration follows
 //! the same count-then-fill protocol as the plugin registry.
 
 use crate::{NcGuid, NcInterfaceId, NcStatus};

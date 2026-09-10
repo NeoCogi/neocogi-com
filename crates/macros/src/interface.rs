@@ -3,7 +3,7 @@
 //! A validated trait is lowered into one `repr(C)` interface header and vtable,
 //! per-implementor thunk table, smart-pointer forwarding methods, and immutable
 //! method descriptors. All generated call paths share the normalized lowering
-//! model so pointer ownership, buffer bounds, docs, and ABI hashes stay aligned.
+//! model so pointer ownership, buffer bounds, docs, and ABI signatures stay aligned.
 
 use quote::{format_ident, quote};
 use syn::{ItemTrait, Result, TypeParamBound, TraitBoundModifier, PathArguments};
@@ -11,7 +11,7 @@ use syn::{ItemTrait, Result, TypeParamBound, TraitBoundModifier, PathArguments};
 use crate::abi_method::{parse_abi_trait_item, raw_vtable_method_docs, safe_method_docs, validate_interface_trait};
 use crate::args::InterfaceArgs;
 use crate::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind};
-use crate::util::{abi_hash_prefix_tokens, checked_u32_len, collect_syn_results, interface_field, interface_guid, push_error, runtime_crate_path};
+use crate::util::{abi_signature_static_tokens, checked_u32_len, collect_syn_results, interface_field, interface_guid, push_error, runtime_crate_path};
 
 /// Expands one validated interface trait into its complete Rust and C ABI surface.
 pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Result<proc_macro2::TokenStream> {
@@ -40,7 +40,7 @@ pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Res
 ///
 /// Class contracts call this after parsing their constructor separately. The
 /// emitted source trait remains intact, while only `methods` become vtable
-/// slots, descriptors, hashes, thunks, and safe client methods.
+/// slots, descriptors, signatures, thunks, and safe client methods.
 pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: ItemTrait, methods: Vec<AbiMethod>) -> Result<proc_macro2::TokenStream> {
     // Generated names are deliberately mechanical and predictable. A trait
     // named `IFoo` produces `IFooAbi`, `IFooVTable`, `IFooVtblFor<T>`, and
@@ -55,7 +55,6 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
     let client_ident = format_ident!("{trait_ident}Client");
     let interfaces_ident = format_ident!("{trait_ident}InterfacesFor");
     let qualified_name = args.qualified_name;
-    let schema_iid = neocogi_com_core::guid_from_qualified_name(&qualified_name.value());
     let guid = interface_guid(args.guid, &qualified_name, &nc)?;
     // Single inheritance has one unambiguous physical prefix. Generated names
     // retain the original module path, so bases may live in another crate.
@@ -190,7 +189,11 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
         }
     }
 
-    let method_hash_parts = methods.iter().map(|method| method_dynamic_hash_parts(&nc, method)).collect::<Vec<_>>();
+    let method_signature_parts = methods
+        .iter()
+        .enumerate()
+        .map(|(index, method)| method_signature_parts(&nc, index as u32, method))
+        .collect::<Vec<_>>();
     let method_abi_descriptors = methods
         .iter()
         .enumerate()
@@ -215,40 +218,16 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
             }
         }
     });
-    let method_names = methods.iter().map(|method| method.ident.to_string()).collect::<Vec<_>>();
-    let mut schema_parts = vec![neocogi_com_core::NcAbiHashPart::Interface { iid: schema_iid }];
+    let mut interface_signature_parts = vec![quote! { #nc::NcAbiSignaturePart::Interface { iid: #guid } }];
     if base.is_some() {
-        schema_parts.push(neocogi_com_core::NcAbiHashPart::BaseInterface {
-            interface: neocogi_com_core::NcInterfaceId::NONE,
-        });
+        interface_signature_parts.push(quote! { #nc::NcAbiSignaturePart::BaseInterface { interface: #base_identity } });
     }
-    for ((index, method), method_name) in methods.iter().enumerate().zip(&method_names) {
-        schema_parts.push(neocogi_com_core::NcAbiHashPart::Method { index: index as u32, name: method_name });
-        let receiver = match method.receiver {
-            AbiReceiver::Shared => neocogi_com_core::NcAbiReceiver::Shared,
-            AbiReceiver::Mutable => neocogi_com_core::NcAbiReceiver::Mutable,
-        };
-        schema_parts.push(neocogi_com_core::NcAbiHashPart::Receiver { receiver });
-        schema_parts.extend(method.args.iter().enumerate().map(|(arg_index, _)| neocogi_com_core::NcAbiHashPart::Arg {
-            index: arg_index as u32,
-            passing: neocogi_com_core::NcAbiPassing::Void,
-            ty: neocogi_com_core::NcAbiType::Void,
-        }));
-        schema_parts.push(neocogi_com_core::NcAbiHashPart::Return {
-            passing: neocogi_com_core::NcAbiPassing::Void,
-            ty: neocogi_com_core::NcAbiType::Void,
-        });
-        schema_parts.push(neocogi_com_core::NcAbiHashPart::Status);
+    for parts in &method_signature_parts {
+        interface_signature_parts.extend(parts.iter().cloned());
     }
-    let hash_prefix = abi_hash_prefix_tokens(&schema_parts, &nc);
-
-    let mut interface_hash_parts = Vec::new();
-    if base.is_some() {
-        interface_hash_parts.push(quote! { #nc::NcAbiHashPart::BaseInterface { interface: #base_identity } });
-    }
-    for parts in &method_hash_parts {
-        interface_hash_parts.extend(parts.iter().cloned());
-    }
+    let signature_parts_ident = format_ident!("__nc_{abi_ident}_abi_signature_parts");
+    let signature_bytes_ident = format_ident!("__nc_{abi_ident}_abi_signature_bytes");
+    let signature_static = abi_signature_static_tokens(&signature_parts_ident, &signature_bytes_ident, &interface_signature_parts, &nc);
     let method_count_usize = methods.len();
 
     // Each Rust method contributes one vtable slot. Non-void `Result<T,
@@ -492,6 +471,8 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
     Ok(quote! {
         #input
 
+        #signature_static
+
         // The generated interface header is the pointer type stored in
         // `ComPtr<IFooAbi>`. The first field must remain the vtable pointer so
         // `iunknown()` can reinterpret the header as `IUnknown` for common
@@ -518,12 +499,12 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
         // SAFETY: `com_interface` generates `#abi_ident` as a `repr(C)` header
         // with the same vtable/object prefix as `IUnknown`, generates
         // `#vtable_ident` with `IUnknownVTable` first, and derives the identity
-        // and ABI hash from the exact generated method contract. `iunknown`
+        // and ABI signature from the exact generated method contract. `iunknown`
         // performs only the shared-prefix pointer cast.
         unsafe impl #nc::ComInterface for #abi_ident {
             const IID: #nc::NcGuid = #guid;
             const INTERFACE_ID: #nc::NcInterfaceId =
-                #nc::NcInterfaceId::new(#guid, #abi_ident::ABI_HASH);
+                #nc::NcInterfaceId::new(#guid, #abi_ident::ABI_SIGNATURE);
             type VTable = #vtable_ident;
 
             // All generated interface headers share the same prefix as
@@ -556,10 +537,9 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
         #client_base
 
         impl #abi_ident {
-            #[doc = "SHA-256 hash of this interface's typed ABI contract."]
-            pub const ABI_HASH: #nc::NcAbiHash = #nc::NcAbiHash::__from_abi_prefix(#hash_prefix, &[
-                #(#interface_hash_parts,)*
-            ]);
+            #[doc = "Canonical mangled form of this interface's typed ABI contract."]
+            pub const ABI_SIGNATURE: #nc::NcAbiSignature =
+                #nc::NcAbiSignature::from_static(&#signature_bytes_ident);
 
             #(#method_abi_descriptors)*
 
@@ -572,7 +552,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
             pub const INTERFACE_DESCRIPTOR: #nc::NcInterfaceDescriptor = #nc::NcInterfaceDescriptor {
                 interface_id: <Self as #nc::ComInterface>::IID,
                 qualified_name: #nc::NcStaticUtf8::from_static(#qualified_name),
-                abi_hash: Self::ABI_HASH,
+                abi_signature: Self::ABI_SIGNATURE,
                 base: #base_identity,
                 method_count: #method_count,
                 methods: Self::METHOD_DESCRIPTORS.as_ptr(),
@@ -833,16 +813,29 @@ fn safe_receiver(receiver: AbiReceiver) -> proc_macro2::TokenStream {
     }
 }
 
-/// Emits compiler-resolved hash values for one lowered method.
-fn method_dynamic_hash_parts(nc: &syn::Path, method: &AbiMethod) -> Vec<proc_macro2::TokenStream> {
-    let mut parts = Vec::new();
+/// Emits every canonical signature record for one lowered method.
+fn method_signature_parts(nc: &syn::Path, method_index: u32, method: &AbiMethod) -> Vec<proc_macro2::TokenStream> {
+    let method_ident = &method.ident;
+    let receiver = match method.receiver {
+        AbiReceiver::Shared => quote! { #nc::NcAbiReceiver::Shared },
+        AbiReceiver::Mutable => quote! { #nc::NcAbiReceiver::Mutable },
+    };
+    let mut parts = vec![
+        quote! {
+            #nc::NcAbiSignaturePart::Method {
+                index: #method_index,
+                name: stringify!(#method_ident),
+            }
+        },
+        quote! { #nc::NcAbiSignaturePart::Receiver { receiver: #receiver } },
+    ];
     for (arg_index, arg) in method.args.iter().enumerate() {
         let arg_index = arg_index as u32;
         match &arg.kind {
             AbiArgKind::Plain => {
                 let ty = &arg.abi_ty;
                 parts.push(quote! {
-                    #nc::NcAbiHashPart::Arg {
+                    #nc::NcAbiSignaturePart::Arg {
                         index: #arg_index,
                         passing: #nc::NcAbiPassing::Value,
                         ty: #nc::__nc_abi_type::<#ty>(),
@@ -852,7 +845,7 @@ fn method_dynamic_hash_parts(nc: &syn::Path, method: &AbiMethod) -> Vec<proc_mac
             AbiArgKind::CopyFromBufferOffset { element_ty } => {
                 let element_ty = element_ty.as_ref();
                 parts.push(quote! {
-                    #nc::NcAbiHashPart::Arg {
+                    #nc::NcAbiSignaturePart::Arg {
                         index: #arg_index,
                         passing: #nc::NcAbiPassing::CopyFromBufferOffset,
                         ty: #nc::__nc_abi_plain_type::<#element_ty>(),
@@ -862,7 +855,7 @@ fn method_dynamic_hash_parts(nc: &syn::Path, method: &AbiMethod) -> Vec<proc_mac
             AbiArgKind::CopyToBufferOffset { element_ty } => {
                 let element_ty = element_ty.as_ref();
                 parts.push(quote! {
-                    #nc::NcAbiHashPart::Arg {
+                    #nc::NcAbiSignaturePart::Arg {
                         index: #arg_index,
                         passing: #nc::NcAbiPassing::CopyToBufferOffset,
                         ty: #nc::__nc_abi_plain_type::<#element_ty>(),
@@ -873,7 +866,7 @@ fn method_dynamic_hash_parts(nc: &syn::Path, method: &AbiMethod) -> Vec<proc_mac
                 let interface_ty = interface_ty.as_ref();
                 let mode = threading_mode_expr(nc, mode_ty.as_deref());
                 parts.push(quote! {
-                    #nc::NcAbiHashPart::Arg {
+                    #nc::NcAbiSignaturePart::Arg {
                         index: #arg_index,
                         passing: #nc::NcAbiPassing::ComRef {
                             mode: #mode,
@@ -889,7 +882,7 @@ fn method_dynamic_hash_parts(nc: &syn::Path, method: &AbiMethod) -> Vec<proc_mac
     match &method.ok.kind {
         AbiReturnKind::Void => {
             parts.push(quote! {
-                #nc::NcAbiHashPart::Return {
+                #nc::NcAbiSignaturePart::Return {
                     passing: #nc::NcAbiPassing::Void,
                     ty: #nc::NcAbiType::Void,
                 }
@@ -898,7 +891,7 @@ fn method_dynamic_hash_parts(nc: &syn::Path, method: &AbiMethod) -> Vec<proc_mac
         AbiReturnKind::Plain => {
             let ty = &method.ok.abi_ty;
             parts.push(quote! {
-                #nc::NcAbiHashPart::Return {
+                #nc::NcAbiSignaturePart::Return {
                     passing: #nc::NcAbiPassing::Out,
                     ty: #nc::__nc_abi_type::<#ty>(),
                 }
@@ -908,7 +901,7 @@ fn method_dynamic_hash_parts(nc: &syn::Path, method: &AbiMethod) -> Vec<proc_mac
             let interface_ty = interface_ty.as_ref();
             let mode = threading_mode_expr(nc, mode_ty.as_deref());
             parts.push(quote! {
-                #nc::NcAbiHashPart::Return {
+                #nc::NcAbiSignaturePart::Return {
                     passing: #nc::NcAbiPassing::ComPtrOut {
                         mode: #mode,
                     },
@@ -919,6 +912,7 @@ fn method_dynamic_hash_parts(nc: &syn::Path, method: &AbiMethod) -> Vec<proc_mac
             });
         }
     }
+    parts.push(quote! { #nc::NcAbiSignaturePart::Status });
     parts
 }
 

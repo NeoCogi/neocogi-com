@@ -1,6 +1,6 @@
 //! Stable logical contracts and C-shaped plugin descriptor metadata.
 //!
-//! Logical contract types define what contributes to an interface ABI hash;
+//! Logical contract types define what contributes to an interface ABI signature;
 //! physical descriptors encode those contracts in immutable `repr(C)` records.
 //! This module also centralizes text policy, human-readable signature rendering,
 //! and whole-graph descriptor validation.

@@ -65,7 +65,7 @@ mod unix_host {
 
     fn construct_greeter(class: &NcClassDescriptor) -> ComPtr<GreeterAbi> {
         let arguments = GreeterAbi::arguments(23).expect("valid constructor arguments");
-        assert_eq!(class.constructor_abi_hash, GreeterAbi::CONSTRUCTOR_ABI_HASH);
+        assert_eq!(class.constructor_abi_signature, GreeterAbi::CONSTRUCTOR_ABI_SIGNATURE);
         let constructor = class.construct.expect("class has constructor");
         let mut out = std::ptr::null_mut();
         let status = unsafe { constructor(class, arguments.as_abi_ptr(), &mut out) };

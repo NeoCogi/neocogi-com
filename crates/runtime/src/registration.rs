@@ -211,7 +211,7 @@ pub(crate) unsafe fn build_plugin_registration_batch(
             identities
                 .push(interface.interface_id, interface_name)
                 .map_err(PluginRegistrationBatchError::registration)?;
-            interface_ids.push(NcInterfaceId::new(interface.interface_id, interface.abi_hash));
+            interface_ids.push(NcInterfaceId::new(interface.interface_id, interface.abi_signature));
         }
 
         classes.push(RegisteredClass {
@@ -304,7 +304,7 @@ impl RuntimeState {
 impl RuntimeCatalog {
     /// Checks current state and publishes one prevalidated batch.
     pub(crate) fn commit_plugin_registration_batch(&mut self, mut batch: PluginRegistrationBatch) -> NcStatus {
-        // All raw traversal, hashing, string copying, and record assembly has
+        // All raw traversal, signature validation, string copying, and record assembly has
         // completed. The enclosing write guard protects state-dependent checks
         // and publication of every catalog projection.
 
@@ -402,7 +402,7 @@ fn register_identity_mappings(registration: &mut RegistrationState, identities: 
 mod tests {
     use super::*;
     use neocogi_com_core::{
-        IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NcAbiHash, NcAbiHashPart, NcClassDescriptor, NcClassInterfaceDescriptor, NcClassTable,
+        IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NcAbiSignature, NcAbiSignaturePart, NcClassDescriptor, NcClassInterfaceDescriptor, NcClassTable,
         NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor, NcStaticUtf8,
     };
     use std::rc::Rc;
@@ -434,11 +434,11 @@ mod tests {
         const PLUGIN_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.tests.registry.module_indexed_plugin");
         const CLASS_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.tests.registry.ModuleIndexedClass");
         const INTERFACE_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.tests.registry.ModuleIndexedInterface");
-        const INTERFACE_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Interface { iid: INTERFACE_ID }]);
+        const INTERFACE_SIGNATURE: NcAbiSignature = neocogi_com_core::abi_signature!(&[NcAbiSignaturePart::Interface { iid: INTERFACE_ID }]);
         static INTERFACE: NcInterfaceDescriptor = NcInterfaceDescriptor {
             interface_id: INTERFACE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.registry.ModuleIndexedInterface"),
-            abi_hash: INTERFACE_HASH,
+            abi_signature: INTERFACE_SIGNATURE,
             base: neocogi_com_core::NcInterfaceId::NONE,
             method_count: 0,
             methods: core::ptr::null(),
@@ -453,7 +453,7 @@ mod tests {
             class_id: CLASS_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.registry.ModuleIndexedClass"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_abi_hash: NcAbiHash::ZERO,
+            constructor_abi_signature: NcAbiSignature::EMPTY,
             threading: neocogi_com_core::NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(test_constructor),
             interface_count: CLASS_INTERFACES.len() as u32,
@@ -482,7 +482,7 @@ mod tests {
         assert_eq!(runtime.read_catalog().type_registry.registered_class_ids(), vec![CLASS_ID]);
         assert_eq!(
             runtime.read_catalog().type_registry.registered_interface_ids().unwrap(),
-            vec![IUnknown::INTERFACE_ID, NcInterfaceId::new(INTERFACE_ID, INTERFACE_HASH),]
+            vec![IUnknown::INTERFACE_ID, NcInterfaceId::new(INTERFACE_ID, INTERFACE_SIGNATURE),]
         );
         assert_eq!(
             crate::inspection::plugin_class_ids(&runtime.read_catalog().type_registry, PLUGIN_ID,),
@@ -490,14 +490,14 @@ mod tests {
         );
         assert_eq!(
             crate::inspection::class_interface_ids(&runtime.read_catalog().type_registry, CLASS_ID,).unwrap(),
-            vec![IUnknown::INTERFACE_ID, NcInterfaceId::new(INTERFACE_ID, INTERFACE_HASH),]
+            vec![IUnknown::INTERFACE_ID, NcInterfaceId::new(INTERFACE_ID, INTERFACE_SIGNATURE),]
         );
         assert_eq!(
             crate::inspection::interface_implementor_class_ids(&runtime.read_catalog().type_registry, IUnknown::INTERFACE_ID,).unwrap(),
             vec![CLASS_ID]
         );
         assert_eq!(
-            crate::inspection::interface_implementor_class_ids(&runtime.read_catalog().type_registry, NcInterfaceId::new(INTERFACE_ID, INTERFACE_HASH),)
+            crate::inspection::interface_implementor_class_ids(&runtime.read_catalog().type_registry, NcInterfaceId::new(INTERFACE_ID, INTERFACE_SIGNATURE),)
                 .unwrap(),
             vec![CLASS_ID]
         );
@@ -506,18 +506,18 @@ mod tests {
         let class_info = crate::inspection::class_info(&runtime.read_catalog().type_registry, CLASS_ID).unwrap();
         assert_eq!(class_info.plugin_id, PLUGIN_ID);
         assert_eq!(class_info.module_id, MODULE_ID.get());
-        assert_eq!(class_info.constructor_abi_hash, NcAbiHash::ZERO);
+        assert_eq!(class_info.constructor_abi_signature, NcAbiSignature::EMPTY);
         assert_eq!(class_info.threading, neocogi_com_core::NC_ABI_THREADING_THREAD_LOCAL);
 
         let mut out = core::ptr::null_mut();
         let class = crate::construction::resolve_class(&runtime.read_catalog().type_registry, CLASS_ID, neocogi_com_core::NC_ABI_THREADING_THREAD_SAFE);
-        let status = unsafe { crate::construction::construct_class(class, NcAbiHash::ZERO, core::ptr::null(), &mut out) };
+        let status = unsafe { crate::construction::construct_class(class, NcAbiSignature::EMPTY, core::ptr::null(), &mut out) };
         assert_eq!(status, NC_E_INVALID_ARG);
         assert!(out.is_null());
         assert_eq!(TEST_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
 
         let class = crate::construction::resolve_class(&runtime.read_catalog().type_registry, CLASS_ID, u32::MAX);
-        let status = unsafe { crate::construction::construct_class(class, NcAbiHash::ZERO, core::ptr::null(), &mut out) };
+        let status = unsafe { crate::construction::construct_class(class, NcAbiSignature::EMPTY, core::ptr::null(), &mut out) };
         assert_eq!(status, NC_E_INVALID_ARG);
         assert!(out.is_null());
         assert_eq!(TEST_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
@@ -633,12 +633,12 @@ mod tests {
         const STATE_CLASS_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.examples.multi.State");
         const EXTRA_CLASS_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.examples.multi.Extra");
         const INTERFACE_ID: NcGuid = neocogi_com_core::guid_from_qualified_name("nc.tests.registry.MultiPluginInterface");
-        const INTERFACE_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Interface { iid: INTERFACE_ID }]);
+        const INTERFACE_SIGNATURE: NcAbiSignature = neocogi_com_core::abi_signature!(&[NcAbiSignaturePart::Interface { iid: INTERFACE_ID }]);
 
         static INTERFACE: NcInterfaceDescriptor = NcInterfaceDescriptor {
             interface_id: INTERFACE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.registry.MultiPluginInterface"),
-            abi_hash: INTERFACE_HASH,
+            abi_signature: INTERFACE_SIGNATURE,
             base: neocogi_com_core::NcInterfaceId::NONE,
             method_count: 0,
             methods: core::ptr::null(),
@@ -656,7 +656,7 @@ mod tests {
                     class_id: $id,
                     qualified_name: NcStaticUtf8::from_static($name),
                     class_version: NcStaticUtf8::from_static("1.0.0"),
-                    constructor_abi_hash: NcAbiHash::ZERO,
+                    constructor_abi_signature: NcAbiSignature::EMPTY,
                     threading: neocogi_com_core::NC_ABI_THREADING_THREAD_LOCAL,
                     construct: Some(multi_plugin_test_constructor),
                     interface_count: CLASS_INTERFACES.len() as u32,
@@ -759,10 +759,10 @@ mod tests {
         );
         assert_eq!(
             crate::inspection::class_interface_ids(&runtime.read_catalog().type_registry, STATE_CLASS_ID,).unwrap(),
-            vec![IUnknown::INTERFACE_ID, NcInterfaceId::new(INTERFACE_ID, INTERFACE_HASH),]
+            vec![IUnknown::INTERFACE_ID, NcInterfaceId::new(INTERFACE_ID, INTERFACE_SIGNATURE),]
         );
         assert_eq!(
-            crate::inspection::interface_implementor_class_ids(&runtime.read_catalog().type_registry, NcInterfaceId::new(INTERFACE_ID, INTERFACE_HASH),)
+            crate::inspection::interface_implementor_class_ids(&runtime.read_catalog().type_registry, NcInterfaceId::new(INTERFACE_ID, INTERFACE_SIGNATURE),)
                 .unwrap(),
             vec![COUNTER_CLASS_ID, FLAG_CLASS_ID, METRIC_CLASS_ID, STATE_CLASS_ID, EXTRA_CLASS_ID,]
         );
@@ -778,7 +778,7 @@ mod tests {
             neocogi_com_core::NC_ABI_THREADING_THREAD_LOCAL,
         );
         assert_eq!(
-            unsafe { crate::construction::construct_class(class, NcAbiHash::ZERO, core::ptr::null(), &mut out,) },
+            unsafe { crate::construction::construct_class(class, NcAbiSignature::EMPTY, core::ptr::null(), &mut out,) },
             NC_E_INVALID_ARG
         );
         assert!(out.is_null());
@@ -888,7 +888,7 @@ mod tests {
                     class_id: neocogi_com_core::guid_from_qualified_name(name),
                     qualified_name: benchmark_text(name),
                     class_version: NcStaticUtf8::from_static("1.0.0"),
-                    constructor_abi_hash: NcAbiHash::ZERO,
+                    constructor_abi_signature: NcAbiSignature::EMPTY,
                     threading: neocogi_com_core::NC_ABI_THREADING_THREAD_LOCAL,
                     construct: Some(test_constructor),
                     interface_count: CLASS_INTERFACES.len() as u32,

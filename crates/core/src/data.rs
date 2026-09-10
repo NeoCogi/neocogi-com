@@ -2,15 +2,15 @@
 //!
 //! The module defines their stable identities, C-shaped interface headers and
 //! vtables, and the complete typed method metadata used to calculate and
-//! validate ABI hashes. Concrete allocation-backed Rust implementations live in
+//! validate ABI signatures. Concrete allocation-backed Rust implementations live in
 //! the higher-level `neocogi-com` crate; this core module contains only ABI contracts.
 
 use core::ffi::c_void;
 
 use crate::guid::{NcGuid, guid_from_qualified_name};
-use crate::hash::NcAbiHash;
+use crate::signature::NcAbiSignature;
 use crate::metadata::{
-    NcAbiHashPart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiType, NcAbiTypeDescriptor, NcInterfaceDescriptor, NcInterfaceId,
+    NcAbiSignaturePart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiType, NcAbiTypeDescriptor, NcInterfaceDescriptor, NcInterfaceId,
     NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcStaticUtf8,
 };
 use crate::object::{ComInterface, IUnknown, IUnknownVTable};
@@ -74,10 +74,10 @@ pub struct INcBytesVTable {
 
 // SAFETY: `INcBytesAbi` is a `repr(C)` interface header with an
 // `INcBytesVTable` whose first field is the canonical `IUnknownVTable`. The
-// identity/hash below describe that exact vtable, and `iunknown` only casts the
+// identity/signature below describe that exact vtable, and `iunknown` only casts the
 // shared header prefix without dereferencing it.
 unsafe impl ComInterface for INcBytesAbi {
-    const INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(IID_INC_BYTES, Self::ABI_HASH);
+    const INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(IID_INC_BYTES, Self::ABI_SIGNATURE);
 
     type VTable = INcBytesVTable;
 
@@ -87,42 +87,49 @@ unsafe impl ComInterface for INcBytesAbi {
     }
 }
 
+/// Logical records in the built-in byte-sequence ABI signature.
+const INC_BYTES_SIGNATURE_PARTS: [NcAbiSignaturePart<'static>; 15] = [
+    NcAbiSignaturePart::Interface { iid: IID_INC_BYTES },
+    NcAbiSignaturePart::Method { index: 0, name: "len" },
+    NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
+    NcAbiSignaturePart::Return {
+        passing: NcAbiPassing::Out,
+        ty: NcAbiType::U64,
+    },
+    NcAbiSignaturePart::Status,
+    NcAbiSignaturePart::Method { index: 1, name: "byte_at" },
+    NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
+    NcAbiSignaturePart::Arg {
+        index: 0,
+        passing: NcAbiPassing::Value,
+        ty: NcAbiType::U64,
+    },
+    NcAbiSignaturePart::Return {
+        passing: NcAbiPassing::Out,
+        ty: NcAbiType::U8,
+    },
+    NcAbiSignaturePart::Status,
+    NcAbiSignaturePart::Method { index: 2, name: "copy_to" },
+    NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
+    NcAbiSignaturePart::Arg {
+        index: 0,
+        passing: NcAbiPassing::CopyToBufferOffset,
+        ty: NcAbiType::U8,
+    },
+    NcAbiSignaturePart::Return {
+        passing: NcAbiPassing::Void,
+        ty: NcAbiType::Void,
+    },
+    NcAbiSignaturePart::Status,
+];
+
+/// Exact static storage for the built-in byte-sequence ABI signature.
+static INC_BYTES_SIGNATURE_BYTES: [u8; NcAbiSignature::__encoded_len(&INC_BYTES_SIGNATURE_PARTS)] =
+    NcAbiSignature::__encode::<{ NcAbiSignature::__encoded_len(&INC_BYTES_SIGNATURE_PARTS) }>(&INC_BYTES_SIGNATURE_PARTS);
+
 impl INcBytesAbi {
-    /// SHA-256 hash of this interface's typed ABI contract.
-    pub const ABI_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[
-        NcAbiHashPart::Interface { iid: IID_INC_BYTES },
-        NcAbiHashPart::Method { index: 0, name: "len" },
-        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
-        NcAbiHashPart::Return {
-            passing: NcAbiPassing::Out,
-            ty: NcAbiType::U64,
-        },
-        NcAbiHashPart::Status,
-        NcAbiHashPart::Method { index: 1, name: "byte_at" },
-        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
-        NcAbiHashPart::Arg {
-            index: 0,
-            passing: NcAbiPassing::Value,
-            ty: NcAbiType::U64,
-        },
-        NcAbiHashPart::Return {
-            passing: NcAbiPassing::Out,
-            ty: NcAbiType::U8,
-        },
-        NcAbiHashPart::Status,
-        NcAbiHashPart::Method { index: 2, name: "copy_to" },
-        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
-        NcAbiHashPart::Arg {
-            index: 0,
-            passing: NcAbiPassing::CopyToBufferOffset,
-            ty: NcAbiType::U8,
-        },
-        NcAbiHashPart::Return {
-            passing: NcAbiPassing::Void,
-            ty: NcAbiType::Void,
-        },
-        NcAbiHashPart::Status,
-    ]);
+    /// Canonical mangled form of this interface's typed ABI contract.
+    pub const ABI_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static(&INC_BYTES_SIGNATURE_BYTES);
 
     #[doc(hidden)]
     pub const LEN_PARAMS: [NcMethodParamDescriptor; 0] = [];
@@ -188,7 +195,7 @@ impl INcBytesAbi {
     pub const INTERFACE_DESCRIPTOR: NcInterfaceDescriptor = NcInterfaceDescriptor {
         interface_id: <Self as ComInterface>::IID,
         qualified_name: NcStaticUtf8::from_static(QUALIFIED_NAME_INC_BYTES),
-        abi_hash: Self::ABI_HASH,
+        abi_signature: Self::ABI_SIGNATURE,
         base: crate::NcInterfaceId::NONE,
         method_count: Self::METHOD_DESCRIPTORS.len() as u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
@@ -241,10 +248,10 @@ pub struct INcStringVTable {
 
 // SAFETY: `INcStringAbi` is a `repr(C)` interface header with an
 // `INcStringVTable` whose first field is the canonical `IUnknownVTable`. The
-// identity/hash below describe that exact vtable, and `iunknown` only casts the
+// identity/signature below describe that exact vtable, and `iunknown` only casts the
 // shared header prefix without dereferencing it.
 unsafe impl ComInterface for INcStringAbi {
-    const INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(IID_INC_STRING, Self::ABI_HASH);
+    const INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(IID_INC_STRING, Self::ABI_SIGNATURE);
 
     type VTable = INcStringVTable;
 
@@ -254,42 +261,49 @@ unsafe impl ComInterface for INcStringAbi {
     }
 }
 
+/// Logical records in the built-in UTF-8 string ABI signature.
+const INC_STRING_SIGNATURE_PARTS: [NcAbiSignaturePart<'static>; 15] = [
+    NcAbiSignaturePart::Interface { iid: IID_INC_STRING },
+    NcAbiSignaturePart::Method { index: 0, name: "byte_len" },
+    NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
+    NcAbiSignaturePart::Return {
+        passing: NcAbiPassing::Out,
+        ty: NcAbiType::U64,
+    },
+    NcAbiSignaturePart::Status,
+    NcAbiSignaturePart::Method { index: 1, name: "byte_at" },
+    NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
+    NcAbiSignaturePart::Arg {
+        index: 0,
+        passing: NcAbiPassing::Value,
+        ty: NcAbiType::U64,
+    },
+    NcAbiSignaturePart::Return {
+        passing: NcAbiPassing::Out,
+        ty: NcAbiType::U8,
+    },
+    NcAbiSignaturePart::Status,
+    NcAbiSignaturePart::Method { index: 2, name: "copy_to" },
+    NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
+    NcAbiSignaturePart::Arg {
+        index: 0,
+        passing: NcAbiPassing::CopyToBufferOffset,
+        ty: NcAbiType::U8,
+    },
+    NcAbiSignaturePart::Return {
+        passing: NcAbiPassing::Void,
+        ty: NcAbiType::Void,
+    },
+    NcAbiSignaturePart::Status,
+];
+
+/// Exact static storage for the built-in UTF-8 string ABI signature.
+static INC_STRING_SIGNATURE_BYTES: [u8; NcAbiSignature::__encoded_len(&INC_STRING_SIGNATURE_PARTS)] =
+    NcAbiSignature::__encode::<{ NcAbiSignature::__encoded_len(&INC_STRING_SIGNATURE_PARTS) }>(&INC_STRING_SIGNATURE_PARTS);
+
 impl INcStringAbi {
-    /// SHA-256 hash of this interface's typed ABI contract.
-    pub const ABI_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[
-        NcAbiHashPart::Interface { iid: IID_INC_STRING },
-        NcAbiHashPart::Method { index: 0, name: "byte_len" },
-        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
-        NcAbiHashPart::Return {
-            passing: NcAbiPassing::Out,
-            ty: NcAbiType::U64,
-        },
-        NcAbiHashPart::Status,
-        NcAbiHashPart::Method { index: 1, name: "byte_at" },
-        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
-        NcAbiHashPart::Arg {
-            index: 0,
-            passing: NcAbiPassing::Value,
-            ty: NcAbiType::U64,
-        },
-        NcAbiHashPart::Return {
-            passing: NcAbiPassing::Out,
-            ty: NcAbiType::U8,
-        },
-        NcAbiHashPart::Status,
-        NcAbiHashPart::Method { index: 2, name: "copy_to" },
-        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
-        NcAbiHashPart::Arg {
-            index: 0,
-            passing: NcAbiPassing::CopyToBufferOffset,
-            ty: NcAbiType::U8,
-        },
-        NcAbiHashPart::Return {
-            passing: NcAbiPassing::Void,
-            ty: NcAbiType::Void,
-        },
-        NcAbiHashPart::Status,
-    ]);
+    /// Canonical mangled form of this interface's typed ABI contract.
+    pub const ABI_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static(&INC_STRING_SIGNATURE_BYTES);
 
     #[doc(hidden)]
     pub const BYTE_LEN_PARAMS: [NcMethodParamDescriptor; 0] = [];
@@ -355,7 +369,7 @@ impl INcStringAbi {
     pub const INTERFACE_DESCRIPTOR: NcInterfaceDescriptor = NcInterfaceDescriptor {
         interface_id: <Self as ComInterface>::IID,
         qualified_name: NcStaticUtf8::from_static(QUALIFIED_NAME_INC_STRING),
-        abi_hash: Self::ABI_HASH,
+        abi_signature: Self::ABI_SIGNATURE,
         base: crate::NcInterfaceId::NONE,
         method_count: Self::METHOD_DESCRIPTORS.len() as u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
@@ -377,15 +391,12 @@ mod tests {
             unsafe { INcBytesAbi::INTERFACE_DESCRIPTOR.qualified_name.as_str() },
             Ok(QUALIFIED_NAME_INC_BYTES)
         );
-        assert_eq!(
-            INcBytesAbi::ABI_HASH.bytes,
-            [
-                0x0b, 0xd3, 0xa8, 0xa0, 0x54, 0x7b, 0xd7, 0x1c, 0xd0, 0x63, 0x48, 0x8f, 0xbc, 0xe6, 0xb5, 0xe2, 0xc9, 0x37, 0x3b, 0xa9, 0xf7, 0xf9, 0x87, 0x4e,
-                0x99, 0x14, 0xa0, 0xdb, 0x21, 0x15, 0xe7, 0xa7,
-            ]
-        );
+        // SAFETY: The built-in signature references immutable module-static bytes.
+        let bytes_signature = unsafe { core::str::from_utf8(INcBytesAbi::ABI_SIGNATURE.as_bytes().unwrap()) }.unwrap();
+        assert!(bytes_signature.starts_with("ncabi1;Ib0b0d6d2f17054e9b6d5143f9452b951"));
+        assert!(bytes_signature.contains("copy_to"));
         assert_eq!(INcBytesAbi::INTERFACE_DESCRIPTOR.interface_id, <INcBytesAbi as ComInterface>::IID);
-        assert_eq!(INcBytesAbi::INTERFACE_DESCRIPTOR.abi_hash, INcBytesAbi::ABI_HASH);
+        assert_eq!(INcBytesAbi::INTERFACE_DESCRIPTOR.abi_signature, INcBytesAbi::ABI_SIGNATURE);
 
         assert_eq!(
             IID_INC_STRING.to_uuid_bytes(),
@@ -396,15 +407,13 @@ mod tests {
             unsafe { INcStringAbi::INTERFACE_DESCRIPTOR.qualified_name.as_str() },
             Ok(QUALIFIED_NAME_INC_STRING)
         );
-        assert_eq!(
-            INcStringAbi::ABI_HASH.bytes,
-            [
-                0x53, 0x09, 0x5b, 0xdd, 0xc3, 0xd4, 0xfd, 0x44, 0xd0, 0x30, 0xbd, 0xc8, 0xa6, 0x8b, 0xe4, 0x51, 0xf6, 0xfe, 0x28, 0x44, 0xb2, 0xaa, 0x4c, 0xd4,
-                0x09, 0x79, 0x86, 0x7b, 0xd8, 0x0a, 0x45, 0x9a,
-            ]
-        );
+        // SAFETY: The built-in signature references immutable module-static bytes.
+        let string_signature = unsafe { core::str::from_utf8(INcStringAbi::ABI_SIGNATURE.as_bytes().unwrap()) }.unwrap();
+        assert!(string_signature.starts_with("ncabi1;I01a5b18cbe185d39b71f202df7c84664"));
+        assert!(string_signature.contains("byte_len"));
+        assert_ne!(INcBytesAbi::ABI_SIGNATURE, INcStringAbi::ABI_SIGNATURE);
         assert_eq!(INcStringAbi::INTERFACE_DESCRIPTOR.interface_id, <INcStringAbi as ComInterface>::IID);
-        assert_eq!(INcStringAbi::INTERFACE_DESCRIPTOR.abi_hash, INcStringAbi::ABI_HASH);
+        assert_eq!(INcStringAbi::INTERFACE_DESCRIPTOR.abi_signature, INcStringAbi::ABI_SIGNATURE);
         assert_eq!(INcStringAbi::INTERFACE_DESCRIPTOR.method_count, 3);
         // SAFETY: The built-in interface descriptor references its static
         // three-element method table.

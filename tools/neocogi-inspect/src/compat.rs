@@ -1,12 +1,12 @@
 //! Directional ABI compatibility checks over validated inspection artifacts.
 //!
-//! Interface compatibility is determined exclusively by the `(IID, ABI hash)`
+//! Interface compatibility is determined exclusively by the `(IID, ABI signature)`
 //! identity. Method names and rendered signatures remain diagnostics and never
 //! participate in the compatibility decision.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::schema::{ArtifactClass, ArtifactInterface, ArtifactThreading, InspectionArtifactV3};
+use crate::schema::{ArtifactClass, ArtifactInterface, ArtifactThreading, InspectionArtifact};
 
 #[derive(Debug, Default, Eq, PartialEq)]
 pub(crate) struct CompatibilityReport {
@@ -21,7 +21,7 @@ impl CompatibilityReport {
     }
 }
 
-pub(crate) fn check_compatibility(old: &InspectionArtifactV3, new: &InspectionArtifactV3) -> CompatibilityReport {
+pub(crate) fn check_compatibility(old: &InspectionArtifact, new: &InspectionArtifact) -> CompatibilityReport {
     let mut report = CompatibilityReport::default();
 
     if old.plugin.id != new.plugin.id {
@@ -46,7 +46,7 @@ pub(crate) fn check_compatibility(old: &InspectionArtifactV3, new: &InspectionAr
     report
 }
 
-fn compare_dependencies(report: &mut CompatibilityReport, old: &InspectionArtifactV3, new: &InspectionArtifactV3) {
+fn compare_dependencies(report: &mut CompatibilityReport, old: &InspectionArtifact, new: &InspectionArtifact) {
     let old: BTreeSet<_> = old.plugin.dependencies.iter().collect();
     let new: BTreeSet<_> = new.plugin.dependencies.iter().collect();
     for dependency in new.difference(&old) {
@@ -78,10 +78,10 @@ fn compare_classes(report: &mut CompatibilityReport, old: &[ArtifactClass], new:
 }
 
 fn compare_class(report: &mut CompatibilityReport, id: &str, old: &ArtifactClass, new: &ArtifactClass) {
-    if old.constructor_abi_hash != new.constructor_abi_hash {
+    if old.constructor_abi_signature != new.constructor_abi_signature {
         report.breaking.push(format!(
             "class {id} constructor ABI changed: {} -> {}",
-            old.constructor_abi_hash, new.constructor_abi_hash
+            old.constructor_abi_signature, new.constructor_abi_signature
         ));
     }
     match (old.threading, new.threading) {
@@ -108,14 +108,14 @@ fn compare_interfaces(report: &mut CompatibilityReport, class_id: &str, old: &[A
                 .push(format!("class {class_id} removed interface {iid} ({})", old_interface.name));
             continue;
         };
-        if old_interface.abi_hash != new_interface.abi_hash {
+        if old_interface.abi_signature != new_interface.abi_signature {
             report.breaking.push(format!(
-                "class {class_id} changed interface {iid} ABI hash: {} -> {}",
-                old_interface.abi_hash, new_interface.abi_hash
+                "class {class_id} changed interface {iid} ABI signature: {} -> {}",
+                old_interface.abi_signature, new_interface.abi_signature
             ));
         } else if old_interface.methods != new_interface.methods || old_interface.base != new_interface.base {
             report.diagnostic.push(format!(
-                "class {class_id} interface {iid} diagnostic method metadata changed with an unchanged ABI hash"
+                "class {class_id} interface {iid} diagnostic method metadata changed with an unchanged ABI signature"
             ));
         }
     }
@@ -161,7 +161,7 @@ mod tests {
         new.classes[0].interfaces.push(ArtifactInterface {
             id: guid_from_qualified_name(interface_name).to_string(),
             name: interface_name.to_string(),
-            abi_hash: "22".repeat(32),
+            abi_signature: "ncabi1;added-interface".to_string(),
             base,
             methods: Vec::new(),
         });
@@ -186,17 +186,17 @@ mod tests {
         assert!(!check_compatibility(&old, &removed).is_compatible());
 
         let mut mutated = old.clone();
-        mutated.classes[0].interfaces[1].abi_hash = "22".repeat(32);
+        mutated.classes[0].interfaces[1].abi_signature = "ncabi1;mutated-interface".to_string();
         let report = check_compatibility(&old, &mutated);
         assert!(!report.is_compatible());
-        assert!(report.breaking[0].contains("ABI hash"));
+        assert!(report.breaking[0].contains("ABI signature"));
     }
 
     #[test]
     fn constructor_and_threading_downgrades_are_breaking() {
         let old = sample_artifact();
         let mut new = old.clone();
-        new.classes[0].constructor_abi_hash = "22".repeat(32);
+        new.classes[0].constructor_abi_signature = "ncabi1;constructor".to_string();
         new.classes[0].threading = ArtifactThreading::ThreadSafe;
         let strengthened = check_compatibility(&old, &new);
         assert_eq!(strengthened.breaking.len(), 1);

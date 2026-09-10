@@ -26,7 +26,7 @@ pub struct ContractPoint {
 }
 
 // auto_guid derives a deterministic interface IID from this semantic name.
-// The method list and typed ABI signatures are covered separately by ABI_HASH.
+// The method list and typed ABI signatures are covered separately by ABI_SIGNATURE.
 #[com_interface(auto_guid = "nc.tests.contract.Value:v1")]
 pub trait IContractValue {
     fn value(&self) -> Result<u32, NcStatus>;

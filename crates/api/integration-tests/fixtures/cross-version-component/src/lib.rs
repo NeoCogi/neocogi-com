@@ -1,5 +1,5 @@
 use neocogi_com::{
-    ComPtr, ComRef, IUnknown, NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION, NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiType, NcClassDescriptor,
+    ComPtr, ComRef, IUnknown, NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION, NcAbiSignature, NcAbiSignaturePart, NcAbiPassing, NcAbiType, NcClassDescriptor,
     NcClassTable, NcConstructorFn, NcGetPluginDescriptor, NcGuid, NcPluginDescriptor, NcStaticUtf8, NcStatus, ThreadSafe, com_object, com_interface,
 };
 
@@ -11,7 +11,7 @@ pub trait ICrossVersionNumber {
     fn value(&self) -> Result<u32, NcStatus>;
 }
 
-const SERVICE_CONSTRUCTOR_ABI_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Arg {
+const SERVICE_CONSTRUCTOR_ABI_SIGNATURE: NcAbiSignature = neocogi_com::abi_signature!(&[NcAbiSignaturePart::Arg {
     index: 0,
     passing: NcAbiPassing::Value,
     ty: NcAbiType::U32,
@@ -73,7 +73,7 @@ static CLASSES: [NcClassDescriptor; 1] = [NcClassDescriptor {
     class_id: CROSS_VERSION_CLASS_ID,
     qualified_name: NcStaticUtf8::from_static("nc.tests.cross_version.Service"),
     class_version: NcStaticUtf8::from_static("1.0.0"),
-    constructor_abi_hash: SERVICE_CONSTRUCTOR_ABI_HASH,
+    constructor_abi_signature: SERVICE_CONSTRUCTOR_ABI_SIGNATURE,
     threading: NC_ABI_THREADING_THREAD_SAFE,
     construct: Some(construct_service as NcConstructorFn),
     interface_count: CrossVersionService::COM_INTERFACES.len() as u32,
@@ -104,9 +104,9 @@ const _: NcGetPluginDescriptor = nc_get_plugin_descriptor;
 
 unsafe extern "C" fn construct_service(class: *const NcClassDescriptor, arguments: *const core::ffi::c_void, out: *mut *mut IUnknown) -> NcStatus {
     unsafe {
-        neocogi_com::construct_class_checked(class, arguments, out, CROSS_VERSION_CLASS_ID, SERVICE_CONSTRUCTOR_ABI_HASH, |arguments| {
+        neocogi_com::construct_class_checked(class, arguments, out, CROSS_VERSION_CLASS_ID, SERVICE_CONSTRUCTOR_ABI_SIGNATURE, |arguments| {
             // SAFETY: The checked wrapper matched this non-null frame's ABI
-            // hash before the plugin reads its `repr(C)` fields.
+            // signature before the plugin reads its `repr(C)` fields.
             let args = &*arguments.cast::<ServiceArguments>();
             let unknown: ComPtr<IUnknown, ThreadSafe> = CrossVersionService::from_value(CrossVersionService { seed: args.seed });
             Ok(unknown)

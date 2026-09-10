@@ -6,10 +6,10 @@ use neocogi_com_core::NcAbiThreadingMode;
 use nc_com_shared_runtime::{ClassInspection, InterfaceInspection, MethodInspection, PluginInspection};
 
 use crate::compat::CompatibilityReport;
-use crate::schema::{InspectionArtifactV3, SCHEMA, SCHEMA_VERSION, format_hash};
+use crate::schema::{InspectionArtifact, SCHEMA, SCHEMA_VERSION};
 
 pub(crate) fn render_json(inspection: &PluginInspection) -> Result<String, serde_json::Error> {
-    let json = InspectionArtifactV3::from(inspection);
+    let json = InspectionArtifact::from(inspection);
     let mut rendered = serde_json::to_string_pretty(&json)?;
     rendered.push('\n');
     Ok(rendered)
@@ -91,7 +91,7 @@ fn render_class_text(out: &mut String, class: &ClassInspection) {
         }
     )
     .unwrap();
-    writeln!(out, "    constructor_abi_hash: {}", format_hash(class.constructor_abi_hash)).unwrap();
+    writeln!(out, "    constructor_abi_signature: {}", class.constructor_abi_signature).unwrap();
     writeln!(out, "    interfaces:").unwrap();
     if class.interfaces.is_empty() {
         writeln!(out, "      (none)").unwrap();
@@ -106,9 +106,9 @@ fn render_class_text(out: &mut String, class: &ClassInspection) {
 fn render_interface_text(out: &mut String, interface: &InterfaceInspection) {
     writeln!(out, "      - {}", interface.qualified_name).unwrap();
     writeln!(out, "        id: {}", interface.interface_id).unwrap();
-    writeln!(out, "        abi_hash: {}", format_hash(interface.abi_hash)).unwrap();
+    writeln!(out, "        abi_signature: {}", interface.abi_signature).unwrap();
     if !interface.base.is_none() {
-        writeln!(out, "        base: {} ({})", interface.base.iid, format_hash(interface.base.abi_hash)).unwrap();
+        writeln!(out, "        base: {} ({})", interface.base.iid, interface.base.abi_signature).unwrap();
     }
     writeln!(out, "        methods:").unwrap();
     if interface.methods.is_empty() {
@@ -128,8 +128,8 @@ fn render_method_text(out: &mut String, method: &MethodInspection) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neocogi_com_core::{NcAbiHash, NcGuid, NcInterfaceId};
-    use nc_com_shared_runtime::{ClassInspection, ClassInterfaceInspection, InterfaceInspection};
+    use neocogi_com_core::NcGuid;
+    use nc_com_shared_runtime::{ClassInspection, ClassInterfaceInspection, InterfaceIdentityInspection, InterfaceInspection};
 
     fn inspection_with_thread_safe_class() -> PluginInspection {
         PluginInspection {
@@ -142,15 +142,18 @@ mod tests {
                 class_id: NcGuid::from_fields(5, 6, 7, [8; 8]),
                 qualified_name: "nc.tests.inspect.ThreadSafeClass".to_string(),
                 class_version: "1.0.0".to_string(),
-                constructor_abi_hash: NcAbiHash::ZERO,
+                constructor_abi_signature: String::new(),
                 threading: NcAbiThreadingMode::ThreadSafe,
                 interfaces: vec![ClassInterfaceInspection {
                     interface_id: NcGuid::from_fields(9, 10, 11, [12; 8]),
                     interface: InterfaceInspection {
                         interface_id: NcGuid::from_fields(9, 10, 11, [12; 8]),
                         qualified_name: "nc.tests.inspect.Interface:v1".to_string(),
-                        abi_hash: NcAbiHash::from_bytes([0x44; 32]),
-                        base: NcInterfaceId::NONE,
+                        abi_signature: "ncabi1;render-test".to_string(),
+                        base: InterfaceIdentityInspection {
+                            iid: NcGuid::nil(),
+                            abi_signature: String::new(),
+                        },
                         methods: Vec::new(),
                     },
                 }],

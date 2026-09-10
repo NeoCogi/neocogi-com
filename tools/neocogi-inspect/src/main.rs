@@ -2,7 +2,7 @@
 //!
 //! `dump` and `check` load trusted libraries only long enough to copy descriptor
 //! metadata. `diff` never loads code; it strictly validates versioned serialized
-//! artifacts and compares their identities, hashes, and derived diagnostics for
+//! artifacts and compares their identities, ABI signatures, and derived diagnostics for
 //! deterministic CI output.
 
 #![deny(missing_docs)]
@@ -16,7 +16,7 @@ use crate::compat::check_compatibility;
 use crate::diff::diff_inspections;
 use crate::plan::{render_plan_json, render_plan_text};
 use crate::render::{render_compatibility, render_diff, render_json, render_text};
-use crate::schema::{ArtifactValidationError, InspectionArtifactV3};
+use crate::schema::{ArtifactValidationError, InspectionArtifact};
 
 mod cli;
 mod compat;
@@ -155,9 +155,9 @@ fn run() -> Result<(), CliError> {
     Ok(())
 }
 
-fn read_json(path: &Path) -> Result<InspectionArtifactV3, CliError> {
+fn read_json(path: &Path) -> Result<InspectionArtifact, CliError> {
     let data = std::fs::read(path).map_err(CliError::Io)?;
-    let artifact: InspectionArtifactV3 = serde_json::from_slice(&data).map_err(CliError::Json)?;
+    let artifact: InspectionArtifact = serde_json::from_slice(&data).map_err(CliError::Json)?;
     artifact.validate().map_err(CliError::Artifact)?;
     Ok(artifact)
 }

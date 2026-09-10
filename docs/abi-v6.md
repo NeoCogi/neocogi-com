@@ -1,12 +1,12 @@
-# neocogi-com core ABI v5 Specification
+# neocogi-com core ABI v6 Specification
 
 Status: experimental draft (pre-alpha; not ratified)
 
-Core ABI version: `NC_COM_CORE_ABI_VERSION = 5`
+Core ABI version: `NC_COM_CORE_ABI_VERSION = 6`
 
 Dynamic plugin descriptor symbol: `nc_get_plugin_descriptor`
 
-This document specifies the same-process C-shaped ABI used by `neocogi-com` core ABI v5.
+This document specifies the same-process C-shaped ABI used by `neocogi-com` core ABI v6.
 It is intended to be precise enough for host/plugin authors, future neocogi-com
 maintainers, and independent tooling that validates or inspects runtime
 contracts.
@@ -41,14 +41,14 @@ The words "must", "must not", "should", and "may" are normative.
 - Draft means the ABI design may change incompatibly and carries no
   cross-release compatibility promise.
 - Ratified means a named release, source tag, and changelog entry have frozen
-  core ABI v5 as a compatibility baseline.
+  core ABI v6 as a compatibility baseline.
 - Published means introduced at or after that ratification baseline. Repository
   examples, draft golden vectors, and pre-alpha artifacts are not published ABI
   commitments merely because they are visible or distributed.
 
 ## 2. Scope
 
-neocogi-com core ABI v5 defines an explicit Rust-to-Rust component boundary by using a
+neocogi-com core ABI v6 defines an explicit Rust-to-Rust component boundary by using a
 C-shaped ABI. The Rust compiler's native ABI is not part of the contract.
 
 The explicit boundary consists of:
@@ -58,7 +58,7 @@ The explicit boundary consists of:
 - `extern "C"` vtable functions
 - explicit `NcStatus` return values
 - explicit `NcGuid` identifiers
-- SHA-256 ABI hashes
+- canonical mangled ABI signatures
 - COM-style `QueryInterface`, `AddRef`, and `Release`
 - plugin-owned descriptor metadata and versioned runtime API tables
 
@@ -80,17 +80,17 @@ another explicit protocol. Bounded call-scoped copy buffers may cross through
 the `CopyFromBufferOffset<T>` and `CopyToBufferOffset<T>` passing modes. The
 built-in read-only byte and string interfaces are specified in section 15.
 
-ABI-v5 descriptor metadata exists for runtime identity, compatibility
+ABI-v6 descriptor metadata exists for runtime identity, compatibility
 validation, registration, construction, and inspection. It is deliberately not
-a source-level reflection schema. In particular, aggregate hashes are opaque,
-one-way compatibility fingerprints: runtime consumers compare and propagate
-them but do not reconstruct aggregate names, fields, variants, or declarations
-from them. Core ABI v5 does not define reverse generation of C headers, Rust types,
-or other language bindings from a plugin binary or inspection artifact.
+a source-level reflection schema. Mangled signatures expose canonical ABI facts,
+including physical aggregate layout, but omit source field names, Rust paths,
+implementation details, and declarations. Core ABI v6 does not define reverse
+generation of C headers, Rust types, or other language bindings from a plugin
+binary or inspection artifact.
 
 ## 3. Process ABI Requirements
 
-neocogi-com core ABI v5 is a same-process raw pointer ABI. A host and component are
+neocogi-com core ABI v6 is a same-process raw pointer ABI. A host and component are
 compatible only when they share the same process ABI:
 
 - target architecture
@@ -99,7 +99,7 @@ compatible only when they share the same process ABI:
 - C calling convention for `extern "C"`
 - representation of Rust primitive types used in the ABI surface
 - `NC_COM_CORE_ABI_VERSION`
-- expected interface IDs and interface ABI hashes
+- expected interface IDs and interface ABI signatures
 
 The following may differ between independently built host and component
 artifacts when the explicit ABI surface is unchanged:
@@ -118,11 +118,11 @@ artifacts when the explicit ABI surface is unchanged:
   errors
 
 Cross-architecture, cross-endian, cross-process, or cross-machine
-communication requires a serialization or RPC layer and is outside core ABI v5.
+communication requires a serialization or RPC layer and is outside core ABI v6.
 
 ### 3.1 Rust-to-Rust trust boundary
 
-Core ABI v5 is a Rust-to-Rust plugin contract. Supported hosts, runtimes, and
+Core ABI v6 is a Rust-to-Rust plugin contract. Supported hosts, runtimes, and
 plugins use neocogi-com's safe wrappers and generated ABI implementations on both
 sides of the shared-library boundary. The C-shaped records, raw pointers, and
 `extern "C"` functions provide a stable process ABI; they do not define a
@@ -146,7 +146,7 @@ precondition.
 
 Trust does not bypass version negotiation. Artifacts built with different
 neocogi-com releases may interoperate only when the core and runtime ABI versions,
-interface IDs and ABI hashes, and append-only prefix rules in this specification
+interface IDs and ABI signatures, and append-only prefix rules in this specification
 establish compatibility. An incompatible artifact must be rejected before its
 incompatible ABI surface is used.
 
@@ -166,8 +166,8 @@ field order, field types, function signatures, and semantics specified in this
 document. Numeric sizes, alignments, and offsets are target-specific
 consequences of those declarations, not a second target-independent contract.
 
-Interface ABI hashes protect generated interface contracts, including method
-order and lowered method types. They intentionally do not hash the physical
+Interface ABI signatures protect generated interface contracts, including method
+order and lowered method types. They intentionally do not include the physical
 layout of core descriptor records or runtime API tables. Incompatible core
 record changes are identified by `NC_COM_CORE_ABI_VERSION`; incompatible
 runtime table or exported-function changes are identified by
@@ -176,7 +176,7 @@ change.
 
 The native C conformance fixture, or a deliberately handwritten unsafe adapter,
 must declare the same fields and function signatures using the corresponding
-target C types. core ABI v5 does not generate C headers, and a stale or incorrect
+target C types. core ABI v6 does not generate C headers, and a stale or incorrect
 independently maintained C declaration does not make the specified Rust/C
 representation ambiguous. Representative native-C calls and targeted layout
 assertions are useful regression tests, especially for a changed root record or
@@ -188,14 +188,14 @@ authority.
 
 ## 4. Core Versioning
 
-The v5 core ABI version is:
+The v6 core ABI version is:
 
 ```rust
 pub const NC_COM_CORE_ABI_VERSION: u32 = 5;
 ```
 
 This value identifies the current draft binary generation; the number `5` is
-not a claim that core ABI v5 has been ratified. Before ratification, hosts and
+not a claim that core ABI v6 has been ratified. Before ratification, hosts and
 plugins built from different neocogi-com source releases are not guaranteed to
 interoperate, even when both report this value. After an unreleased draft ABI
 change, every host and plugin artifact must be rebuilt together. Once a draft
@@ -203,7 +203,7 @@ build has been distributed, a later incompatible binary shape must use a
 different ABI discriminator so stale artifacts are rejected rather than
 misinterpreted.
 
-No ABI-v5 ratification milestone has occurred. Ratification requires an
+No ABI-v6 ratification milestone has occurred. Ratification requires an
 explicit status change in this document, a named source tag/release, a changelog
 entry identifying the compatibility baseline, and locked golden vectors for
 the ratified contract. Until then, breaking draft changes and intentional
@@ -246,7 +246,7 @@ Built-in status values are:
 | `NC_E_POINTER` | `-2` | A required raw pointer argument is null. |
 | `NC_E_INVALID_TAG` | `-3` | A tagged ABI enum contains an unknown tag value. |
 | `NC_E_INVALID_ARG` | `-4` | A pointer-level valid value is invalid for the operation. |
-| `NC_E_ABI_VERSION` | `-5` | A core ABI version or interface ABI hash is incompatible. |
+| `NC_E_ABI_VERSION` | `-5` | A core ABI version or interface ABI signature is incompatible. |
 | `NC_E_OUT_OF_RANGE` | `-6` | An index or length is outside its valid range, or a fixed runtime resource capacity is exhausted. |
 | `NC_E_NOT_FOUND` | `-7` | A requested registry entity does not exist. |
 | `NC_E_INSUFFICIENT_BUFFER` | `-8` | Caller-owned output storage is too small for the current result. |
@@ -265,7 +265,7 @@ Rust adapters use `Result<T, NcStatus>` to preserve unknown component errors.
 The `Err` variant must contain a negative status. A Rust adapter that receives
 `Err(status)` with a non-negative value must return `NC_E_INVALID_ARG` across
 the ABI instead of forwarding the invalid success status. Negative values,
-including unknown errors, are preserved. core ABI v5 intentionally retains
+including unknown errors, are preserved. core ABI v6 intentionally retains
 `NcStatus` rather than introducing a separate negative-only Rust error type;
 normalization at each user-controlled `Result`-to-status boundary enforces the
 required invariant without changing the C-shaped ABI type.
@@ -298,8 +298,8 @@ pub const NC_GUID_NIL: NcGuid = NcGuid::from_fields(0, 0, 0, [0; 8]);
 ```
 
 The nil GUID must not be used as a valid plugin ID, class ID, or interface ID.
-The all-zero `NcAbiHash` is the separate constructor sentinel for “takes no
-arguments.”
+`NcAbiSignature::EMPTY` is the separate null/zero-length constructor sentinel
+for “takes no arguments.”
 
 External textual GUIDs use canonical UUID format:
 
@@ -339,7 +339,7 @@ replaced with `10` (the RFC variant). `N.as_bytes()` means the exact UTF-8 byte
 sequence. There is no Unicode normalization, case folding, trimming, separator
 replacement, Rust-path expansion, or terminating NUL byte.
 
-[`NC_COM_GUID_NAMESPACE`](../crates/neocogi-com-core/src/guid.rs) and the `const`,
+[`NC_COM_GUID_NAMESPACE`](../core/src/guid.rs) and the `const`,
 allocation-free `guid_from_qualified_name` operation are the authoritative core
 implementation. Proc macros and handwritten descriptor producers use the same
 operation.
@@ -384,18 +384,20 @@ reserved qualified name is exactly `IUnknown`, and its IID remains the
 conventional non-v5 value. User-defined metadata may not claim that reserved
 IID/name pair except through the canonical root descriptor.
 
-The v5 built-in COM interface identities are:
+The v6 built-in COM interface identities are:
 
-| Interface | Qualified name | IID | ABI hash |
-| --- | --- | --- | --- |
-| `IUnknown` | `IUnknown` | `00000000-0000-0000-c000-000000000046` | `7c076b8636ac223b155de050eb042608093757b7d69d09c0f64ceed0e1f0d84e` |
-| `INcBytesAbi` | `nc.com.INcBytes:v1` | `b0b0d6d2-f170-54e9-b6d5-143f9452b951` | `6aa10a90eab4c2bc001f862c4a33321d6002aefbdfa27145fb090b48041d87fc` |
-| `INcStringAbi` | `nc.com.INcString:v1` | `01a5b18c-be18-5d39-b71f-202df7c84664` | `855741991f89e09e401430d04d187b0b9be2b7fb7afb449d65ed892e379d3d3a` |
+| Interface | Qualified name | IID |
+| --- | --- | --- |
+| `IUnknown` | `IUnknown` | `00000000-0000-0000-c000-000000000046` |
+| `INcBytesAbi` | `nc.com.INcBytes:v1` | `b0b0d6d2-f170-54e9-b6d5-143f9452b951` |
+| `INcStringAbi` | `nc.com.INcString:v1` | `01a5b18c-be18-5d39-b71f-202df7c84664` |
 
-`IUnknown` hashes only its interface IID because it is the root object
-contract. Its canonical `NcInterfaceDescriptor` has that IID and hash,
-the reserved qualified name, `method_count == 0`, and no method table. The byte and string interface hashes
-include their typed vtable methods.
+`IUnknown` signs only its interface IID because it is the root object contract.
+Its canonical mangle is
+`ncabi1;I0000000000000000c000000000000046`. Its canonical
+`NcInterfaceDescriptor` has that IID and signature, the reserved qualified name,
+`method_count == 0`, and no method table. The byte and string interface
+signatures include their typed vtable methods.
 
 Interface compatibility is represented by `NcInterfaceId`:
 
@@ -403,13 +405,13 @@ Interface compatibility is represented by `NcInterfaceId`:
 #[repr(C)]
 pub struct NcInterfaceId {
     pub iid: NcGuid,
-    pub abi_hash: NcAbiHash,
+    pub abi_signature: NcAbiSignature,
 }
 ```
 
-`iid` identifies the interface family. `abi_hash` identifies the exact lowered
-ABI contract for that interface. `NcInterfaceId::NONE` is the nil GUID plus
-zero ABI hash sentinel used where no interface is present.
+`iid` identifies the interface family. `abi_signature` identifies the exact lowered
+ABI contract for that interface. `NcInterfaceId::NONE` is the nil GUID plus an
+empty ABI signature sentinel used where no interface is present.
 
 ## 7. ABI-Safe Values
 
@@ -420,7 +422,7 @@ every bit pattern is valid, that arbitrary storage is initialized, or that a
 tagged union's tag and active member agree. Consumers must establish those
 validity properties before materializing a typed Rust payload.
 
-The built-in v5 plain value set is:
+The built-in v6 plain value set is:
 
 - `bool`
 - `u8`, `u16`, `u32`, `u64`, `usize`
@@ -428,7 +430,6 @@ The built-in v5 plain value set is:
 - `f32`, `f64`
 - `NcGuid`
 - `NcStatus`
-- `NcAbiHash`
 
 `usize` and `isize` are valid only for same-process ABI contracts with matching
 pointer width. Public long-lived interfaces should prefer fixed-width integers
@@ -515,7 +516,7 @@ The fields are shown above to specify physical ABI layout. Generated Rust code
 represents `MyEnumAbi` as a `repr(transparent)`
 wrapper around a core-owned `repr(C)` tag/payload storage pair whose fields are
 private to `neocogi-com-core`. The wrapper has the storage pair's ABI, so opacity does
-not change its size, alignment, offsets, ABI hash, or external C shape. Using
+not change its size, alignment, offsets, ABI signature, or external C shape. Using
 core-owned storage also preserves macro use in local item contexts without
 making the raw fields accessible to the invoking module.
 
@@ -543,7 +544,7 @@ every tag with `#[com_tag(...)]`.
 
 ## 8. Object Model
 
-Every COM object implements `IUnknown`. The v5 `IUnknown` header is:
+Every COM object implements `IUnknown`. The v6 `IUnknown` header is:
 
 ```rust,ignore
 #[repr(C)]
@@ -553,7 +554,7 @@ pub struct IUnknown {
 }
 ```
 
-The v5 `IUnknown` vtable is:
+The v6 `IUnknown` vtable is:
 
 ```rust,ignore
 #[repr(C)]
@@ -589,13 +590,13 @@ pub struct IUnknownVTable {
   and transfers no reference.
 - Null, dangling, misaligned, aliased, or otherwise invalid arguments violate
   the caller contract. Implementations may reject some such inputs defensively,
-  but core ABI v5 specifies no status or output postcondition for an invalid call.
+  but core ABI v6 specifies no status or output postcondition for an invalid call.
 - The returned pointer may have a different address from the input interface
   pointer.
 - The call does not consume the borrowed reference represented by `this`.
 - The caller must eventually release the returned owned reference.
 - Unsupported interface IDs return `NC_E_NOINTERFACE`.
-- Supported interface IDs with incompatible ABI hashes return
+- Supported interface IDs with incompatible ABI signatures return
   `NC_E_ABI_VERSION`.
 
 `AddRef` rules:
@@ -655,7 +656,7 @@ bytes form the `IUnknownVTable` prefix, directly or through inherited bases. Thi
 
 In the Rust binding, `ComInterface` is an unsealed unsafe trait. Implementing it
 asserts that the Rust interface header and vtable have the shapes above, that
-the advertised interface ID and ABI hash describe the actual vtable contract,
+the advertised interface ID and ABI signature describe the actual vtable contract,
 that live interface pointers retain their header, vtable, and object storage,
 and that successful `QueryInterface` results have the required owned-reference
 semantics. `ComInterface::iunknown()` must not dereference its input, must map
@@ -721,7 +722,7 @@ assert_eq!(widget.value().unwrap(), 7);
 
 `IButtonVTable` starts with `base: IWidgetVTable`, followed by `submit`.
 Every class automatically exposes every ancestor. Class metadata deduplicates
-repeated base identities; conflicting hashes for a repeated IID are rejected.
+repeated base identities; conflicting signatures for a repeated IID are rejected.
 All projections retain one allocation, one reference count, and one canonical
 IUnknown identity. Interface inheritance does **not** duplicate or inherit Rust
 struct fields: implementations compose shared concrete state into their class.
@@ -748,13 +749,12 @@ class's interface table, match its full identity, and form an acyclic chain.
 `methods` stores local slots only. Inspection preserves `base` and local method
 indices instead of flattening away the physical prefix boundary.
 
-Hash grammar v3 places tag `0x0a` after the derived Interface record. The schema
-stream records the presence of the base; the resolved-value stream records its
-IID and 32 hash bytes before local method values. This makes changes to any
-inherited ABI invalidate derived contracts. Pointer-valued method references
-still encode only their IID, so a base method may return its derived interface
-without creating a recursive hash. Runtime API table version remains 1 and
-checks the core version before use.
+The `B` record follows the derived `I` record and embeds the base IID, byte
+length, and complete base mangle before local method records. A change to any
+inherited ABI therefore changes every derived signature. Pointer-valued method
+references still encode only their IID, so a base method may return its derived
+interface without creating a recursive signature. Runtime API table version
+remains 1 and checks the core version before use.
 
 ## 10. Interface Method Lowering
 
@@ -898,24 +898,31 @@ non-negative status carried by `Err` is normalized to `NC_E_INVALID_ARG`, and
 the output slot is not written. The same normalization applies to status-only
 void methods.
 
-## 11. ABI Hashes
+## 11. Mangled ABI Signatures
 
-`NcAbiHash` is a SHA-256 digest:
+`NcAbiSignature` is a borrowed view of immutable canonical UTF-8 bytes:
 
-```rust
+```rust,ignore
 #[repr(C)]
-pub struct NcAbiHash {
-    pub bytes: [u8; 32],
+pub struct NcAbiSignature {
+    data: *const u8,
+    len: u32,
 }
 ```
 
-`NcAbiHash::ZERO` is an all-zero sentinel and is invalid for registered
-interface metadata.
+The fields are private in Rust so safe code can construct only views over
+`'static` bytes. Foreign producers must publish the equivalent C layout and
+keep the pointed storage immutable and readable while the component is loaded.
+The record is 16 bytes with 8-byte alignment on supported 64-bit targets and 8
+bytes with 4-byte alignment on supported 32-bit targets.
+`NcAbiSignature::EMPTY` is the canonical null-pointer/zero-length sentinel. It
+is valid for an absent interface identity or a no-argument constructor and is
+invalid for a registered interface or aggregate contract.
 
-Hash inputs are built from typed `NcAbiHashPart` values:
+Signature records are expressed as typed `NcAbiSignaturePart` values:
 
 ```rust,ignore
-pub enum NcAbiHashPart<'a> {
+pub enum NcAbiSignaturePart<'a> {
     Interface { iid: NcGuid },
     BaseInterface { interface: NcInterfaceId },
     Method { index: u32, name: &'a str },
@@ -936,8 +943,7 @@ pub enum NcAbiType {
     F32, F64,
     NcGuid,
     NcStatus,
-    NcAbiHash,
-    Aggregate(NcAbiHash),
+    Aggregate(NcAbiSignature),
     Interface { iid: NcGuid },
 }
 
@@ -952,171 +958,99 @@ pub enum NcAbiPassing {
 }
 ```
 
-Grammar v3 separates declaration shape from values that require compiler type
-or target-layout knowledge. First compute:
+Every non-empty signature begins with the ASCII domain `ncabi1;`, followed by
+records in declaration order. Numeric fields use fixed-width lowercase
+hexadecimal text; widths below are hexadecimal digit counts. GUIDs are the 16
+`NcGuid::to_uuid_bytes()` bytes rendered as 32 lowercase hexadecimal digits.
+Names are raw UTF-8 preceded by their byte length, so the grammar remains
+unambiguous without escaping.
 
 ```text
-schema = SHA-256(
-    "neocogi-com:abi-schema:v3\0"
-    schema_part_0
-    schema_part_1
-    ...
-)
-
-abi_hash = SHA-256(
-    "neocogi-com:abi-hash:v3\0" || [0; 8]
-    || schema
-    || resolved_value_part_0
-    || resolved_value_part_1
-    || ...
-)
+I {guid32}                                      Interface
+B {guid32} {signature_len8} {nested_signature} BaseInterface
+M {index8} {name_len8} {name_utf8}              Method
+R {receiver2}                                   Receiver
+A {index8} {passing} {type}                     Arg
+O {passing} {type}                              Return
+S                                               Status
+L {size16} {align16}                            Layout
+F {index8} {offset16} {type}                    Field
+V {index8} {tag32} {type}                       Variant
+G {aggregate_kind2}                             Aggregate
 ```
 
-The final domain and eight zero bytes occupy 32 bytes. The schema digest fills
-the remainder of the first 64-byte SHA-256 block. Procedural macros compute the
-schema digest and that complete block natively, then emit its eight chaining
-words. This is an implementation optimization only; the formula above is the
-normative digest definition. General handwritten contracts may evaluate both
-passes directly.
+The 32-digit variant tag is the two's-complement `i128` bit pattern. `usize`
+layout values are widened to 64 bits before rendering, which also makes a
+pointer-width change visible through the surrounding target contract.
 
-Schema records encode:
+Types begin with a two-digit tag:
 
 ```text
-0x01 Interface: guid
-0x02 Method: u32 index, str name
-0x03 Arg: u32 index
-0x04 Return
-0x05 Status
-0x06 Layout
-0x07 Field: u32 index
-0x08 Variant: u32 index
-0x09 Aggregate: aggregate_kind
-0x0a BaseInterface
-0x0b Receiver: receiver_mode
+00 Void       01 Bool       02 U8         03 U16
+04 U32        05 U64        06 USize      07 I8
+08 I16        09 I32        0a I64        0b ISize
+0c F32        0d F64        0e NcGuid     0f NcStatus
+10 reserved   11 Aggregate  12 Interface
 ```
 
-Resolved-value records encode only the parts omitted from their corresponding
-schema record:
+`Aggregate` appends `{signature_len8} {nested_signature}`. `Interface` appends
+`{guid32}`. `NcAbiSignature` is deliberately not a plain ABI value: its pointer
+is a component-owned view with a lifetime contract, not durable copied data.
+
+Passing modes begin with a two-digit tag:
 
 ```text
-0x03 Arg: passing, type
-0x04 Return: passing, type
-0x06 Layout: usize size, usize align
-0x07 Field: usize offset, type
-0x08 Variant: i128 tag, type
-0x0a BaseInterface: guid iid, 32 raw hash bytes
+00 Void
+01 Value
+02 Out
+03 CopyFromBufferOffset
+04 CopyToBufferOffset
+05 ComRef {threading2}
+06 ComPtrOut {threading2}
 ```
 
-`Interface`, `Method`, `Receiver`, `Status`, and `Aggregate` have no
-resolved-value record. Record order in both streams follows the original
-`NcAbiHashPart` sequence.
+Receiver, threading, and aggregate-kind values use `00` for shared,
+thread-local, or struct respectively; `01` for mutable, thread-safe, or union;
+and aggregate kind `02` for a tagged enum.
 
-The hash grammar is binary and canonical:
-
-- integer fields are big-endian
-- signed `i128` variant tags are encoded as 16-byte big-endian two's-complement
-  integers
-- layout `usize` values are encoded as unsigned 64-bit big-endian integers
-- strings are `u32` byte length followed by UTF-8 bytes
-- GUIDs are `NcGuid::to_uuid_bytes()`
-- nested hashes are the 32 digest bytes directly
+Procedural macros emit one exact-size static byte array per interface,
+constructor, struct, enum payload, union, and tagged enum. Associated
+`AbiType::ABI_TYPE` constants normalize imports and aliases before encoding;
+rustc evaluates `size_of`, `align_of`, and `offset_of` expressions. No source
+path spelling enters the mangle. The `abi_signature!` macro provides the same
+static construction pattern for handwritten unsafe ABI adapters.
 
 An interface identity is:
 
 - interface ID (`IID`)
-- interface `ABI_HASH`
+- interface `ABI_SIGNATURE`
 
-The local interface hash includes each referenced IID and its passing/threading
-mode. It does not recursively include the referenced interface hash. Generated
-thunks check borrowed arguments against the callee's expected full identity;
-generated callers check owned returns against the caller's expected full identity
-before constructing a typed pointer. Rejected owned returns are released exactly
-once through the common prefix; rejected borrowed arguments transfer no ownership.
-QueryInterface and constructor results receive the same owned-pointer check.
-This permits self-references and mutually recursive contracts without weakening
-checks of actual pointers. Descriptor metadata still records full target hashes.
+The local interface signature includes each referenced IID and its
+passing/threading mode. It does not recursively include the referenced
+interface signature. Generated thunks check borrowed arguments against the
+callee's expected full identity; generated callers check owned returns against
+the caller's expected full identity before constructing a typed pointer.
+Rejected owned returns are released exactly once through the common prefix;
+rejected borrowed arguments transfer no ownership. `QueryInterface` and
+constructor results receive the same owned-pointer check. This permits
+self-references and mutually recursive contracts without weakening checks of
+actual pointers. Descriptor metadata still records full target signatures.
 
 `interface_id` describes the actual projected interface using the vtable, not
 necessarily IUnknown. It points to immutable static metadata. Checking it performs
-no AddRef/Release. The loader must validate core ABI generation 3 before accepting
-descriptors or object pointers: generation 1 vtables lack this identity field, and
-generation 2 descriptors lack the explicit interface-base metadata. The current
-header still contains two pointers; projected identity belongs to its vtable. Raw callers remain
-responsible for live, valid common headers/vtables; these checks cannot make an
-arbitrary address safe. Threading promises remain the producer's obligation.
+no AddRef/Release. The loader validates core ABI generation 6 before accepting
+descriptors or object pointers. The interface header still contains two
+pointers; projected identity belongs to its vtable. Raw callers remain
+responsible for live, valid common headers and vtables; these checks cannot make
+an arbitrary address safe. Threading promises remain the producer's obligation.
 
 Together these fields form `NcInterfaceId`. The GUID alone is not enough to
 prove compatibility because a pre-alpha interface may keep the same family ID
-while its lowered ABI hash changes.
+while its lowered ABI signature changes.
 
-The hash input grammar is itself ABI policy. Changing this grammar is an
+The mangle grammar is itself ABI policy. Changing this grammar is an
 ABI-policy change even if the physical vtable layout would otherwise be the
 same.
-
-Logical typed part tags before the grammar-v3 split:
-
-```text
-0x01 Interface: guid
-0x02 Method: u32 index, str name
-0x03 Arg: u32 index, passing, type
-0x04 Return: passing, type
-0x05 Status
-0x06 Layout: usize size, usize align
-0x07 Field: u32 index, usize offset, type
-0x08 Variant: u32 index, i128 tag, type
-0x09 Aggregate: aggregate_kind
-0x0a BaseInterface: guid iid, 32 raw hash bytes
-0x0b Receiver: receiver_mode
-```
-
-Receiver modes:
-
-```text
-0x00 Shared
-0x01 Mutable
-```
-
-Type tags:
-
-```text
-0x00 Void
-0x01 Bool
-0x02 U8
-0x03 U16
-0x04 U32
-0x05 U64
-0x06 USize
-0x07 I8
-0x08 I16
-0x09 I32
-0x0a I64
-0x0b ISize
-0x0c F32
-0x0d F64
-0x0e NcGuid
-0x0f NcStatus
-0x10 NcAbiHash
-0x11 Aggregate: hash
-0x12 Interface: guid
-```
-
-Passing tags:
-
-```text
-0x00 Void
-0x01 Value
-0x02 Out
-0x03 CopyFromBufferOffset
-0x04 CopyToBufferOffset
-0x05 ComRef: threading_mode
-0x06 ComPtrOut: threading_mode
-```
-
-`NcAbiThreadingMode::{ThreadLocal, ThreadSafe}` encodes as `0x00`, `0x01`.
-`NcAbiAggregateKind::{Struct, Union, TaggedEnum}` encodes as `0x00`, `0x01`,
-`0x02`.
-`Bool` in the type table is an ABI type tag; no runtime Boolean value is
-serialized into an interface or aggregate hash.
 
 `CopyFromBufferOffset` and `CopyToBufferOffset` are logical ABI argument forms
 with fixed lowered shapes. The Rust macro surface exposes them as
@@ -1144,7 +1078,7 @@ otherwise. Generated wrappers validate only length representability and
 null-for-nonzero before constructing Rust slices; non-null pointer readability,
 writability, alignment, and aliasing remain raw ABI caller obligations.
 
-Generated interface hash parts:
+Generated interface signature parts:
 
 ```text
 Interface { iid }
@@ -1154,7 +1088,7 @@ method_abi_parts(method 1)
 ...
 ```
 
-Generated method ABI parts:
+Generated method signature parts:
 
 ```text
 Method { index, name }
@@ -1204,37 +1138,35 @@ Return {
 ```
 
 Generated `#[com_struct]` types implement `ComStruct` with compile-time physical
-layout metadata and implement `AbiType` as
-`Aggregate(hash(Aggregate { Struct }, Layout { size, align }, Field { index, offset, ty }...))`.
+layout metadata and implement `AbiType` as a nested mangle of
+`Aggregate { Struct }`, `Layout { size, align }`, and every ordered
+`Field { index, offset, ty }`.
 
 In the default mode, each field's `ty` is its `AbiPlainValue` ABI type. With
-`#[com_struct(c_struct)]`, every field's `ty` is instead
-`Aggregate(hash(Layout { size: size_of::<Field>(), align: align_of::<Field>() }))`.
-The enclosing record still hashes its size, alignment, field order, and offsets.
-The field fingerprint does not describe internal fields or distinguish scalar
+`#[com_struct(c_struct)]`, every field's `ty` is instead an aggregate signature
+containing `Layout { size: size_of::<Field>(), align: align_of::<Field>() }`.
+The enclosing record still signs its size, alignment, field order, and offsets.
+The opaque field signature does not describe internal fields or distinguish scalar
 types of equal size and alignment. An incompatible change invisible to this
-metadata requires a new interface identity; matching hashes alone cannot detect
-it. The procedural macro computes declaration-shape SHA-256 work natively;
-target layout facts and nested type identities are added by constant evaluation.
+metadata requires a new interface identity; matching signatures alone cannot
+detect it.
 
-Generated `#[com_enum]` ABI representations hash their payload structs, payload
+Generated `#[com_enum]` ABI representations sign their payload structs, payload
 union, tagged representation layout, tag field, payload field, and ordered
 variant tag/type records using `Aggregate { Struct }`, `Aggregate { Union }`, and
 `Aggregate { TaggedEnum }`.
 
-The producer uses this physical layout metadata to calculate the aggregate
-hash. Runtime method descriptors intentionally retain only that hash, not the
-layout graph that produced it. A validator treats a nonzero aggregate hash as
-the declared aggregate identity and incorporates it into the enclosing
-interface hash; it does not and cannot reverse the digest into a type
-definition. `ComStruct::ABI_STRUCT_LAYOUT` is producer-side compile-time
-metadata and is not reachable from `NcPluginDescriptor`.
+The producer uses this physical layout metadata to generate the aggregate
+signature. Runtime method descriptors retain that complete mangle but do not
+publish source field names or Rust declarations. `ComStruct::ABI_STRUCT_LAYOUT`
+is producer-side compile-time metadata and is not separately reachable from
+`NcPluginDescriptor`.
 
-Source spelling, comments, and diagnostic signature strings are not ABI hash
-inputs. The hash records canonical method names, receiver mode, argument order, passing mode,
+Source path spelling, comments, and diagnostic method strings are not ABI
+signature inputs. The mangle records canonical method names, receiver mode, argument order, passing mode,
 value type identity, buffer direction and nullability when represented, COM
 pointer threading mode, aggregate size/alignment/field offsets, and referenced
-interface IID/hash.
+interface IID.
 
 Typed method signature text is diagnostic metadata rendered from
 `NcMethodDescriptor` typed parameter and return descriptors. It currently uses
@@ -1248,22 +1180,23 @@ Return forms are `void`, `out<{type}>`, and
 `com_ptr_out<{mode}, {interface}>`. `copy_from_buffer_offset<{type}>` and
 `copy_to_buffer_offset<{type}>` describe logical safe buffer parameters; their
 physical vtable lowering remains the fixed offset/length/pointer form described
-above. Compatibility authority remains the IID plus ABI hash, not the
+above. Compatibility authority remains the IID plus ABI signature, not the
 diagnostic signature string alone.
 
-Conforming interface descriptors must advertise the ABI hash produced by this
-typed metadata. The default descriptor validator recomputes the interface hash
-from `NcMethodDescriptor` parameter and return metadata and rejects a descriptor
-whose advertised `abi_hash` does not match.
+Conforming interface descriptors must advertise the canonical mangle produced
+by this typed metadata. The default descriptor validator streams the expected
+records once against the advertised bytes, without allocating or performing a
+class-registry lookup, and rejects a descriptor whose `abi_signature` does not
+match.
 
 ## 12. Descriptor Layouts
 
-All public descriptor structs are `repr(C)` exact v5 layouts. They do not carry
+All public descriptor structs are `repr(C)` exact v6 layouts. They do not carry
 per-descriptor `size` fields. Consumers interpret descriptor fields only after
 the plugin `core_abi_version` matches the host's supported
 `NC_COM_CORE_ABI_VERSION`.
 
-Existing v5 fields must not be reordered, removed, appended to, or
+Existing v6 fields must not be reordered, removed, appended to, or
 reinterpreted without a core ABI break.
 
 Fields declared as `Option<extern "C" fn>` use the nullable function-pointer
@@ -1286,7 +1219,7 @@ while the descriptor is visible to the host.
 
 Conforming producer metadata that is specified as text must be valid UTF-8.
 The core descriptor validator checks pointer/count consistency and UTF-8 before
-metadata is accepted. It also applies these v5 metadata policies:
+metadata is accepted. It also applies these v6 metadata policies:
 
 - Plugin, class, and interface qualified names contain `1..=1024` bytes.
 - A qualified name is a sequence of nonempty segments separated by `.` or `:`.
@@ -1312,7 +1245,7 @@ violates this policy is rejected with `NC_E_INVALID_ARG`.
 #[repr(C)]
 pub struct NcAbiTypeDescriptor {
     pub tag: u32,
-    pub aggregate_hash: NcAbiHash,
+    pub aggregate_signature: NcAbiSignature,
     pub interface: NcInterfaceId,
 }
 
@@ -1337,7 +1270,7 @@ pub struct NcMethodReturnDescriptor {
 ```
 
 `NcAbiTypeDescriptor::tag` uses the ABI type tags from section 11.
-`aggregate_hash` is meaningful only for `Aggregate`. `interface` is meaningful
+`aggregate_signature` is meaningful only for `Aggregate`. `interface` is meaningful
 only for `Interface`.
 `NcAbiPassingDescriptor::tag` uses the ABI passing tags from section 11.
 `threading` is meaningful only for `ComRef` and `ComPtrOut`; non-COM passing
@@ -1358,8 +1291,8 @@ Out       + non-Void, non-Interface type
 ComPtrOut + Interface type
 ```
 
-An `Aggregate` type must carry a nonzero aggregate hash. An `Interface` type
-must carry a non-nil IID and nonzero ABI hash. Other combinations are rejected
+An `Aggregate` type must carry a non-empty aggregate signature. An `Interface` type
+must carry a non-nil IID and non-empty ABI signature. Other combinations are rejected
 with `NC_E_INVALID_ARG`.
 
 Parameter order is the array order in `NcMethodDescriptor::params`. Parameter
@@ -1388,7 +1321,7 @@ complete inherited vtable prefix (or IUnknown for root interfaces). If `param_co
 descriptors that remain valid while the descriptor is visible. `returns` stores
 the typed success-return descriptor. Inspection tools render human-readable
 typed signatures from these structured fields. Interface compatibility is the
-interface descriptor's `abi_hash`, not a per-method hash.
+interface descriptor's `abi_signature`, not a per-method compatibility value.
 
 The Rust `format_method_signature` helper is an unsafe raw-descriptor operation.
 Its caller must establish that the method descriptor and every transitive
@@ -1407,7 +1340,7 @@ module pin, or separate lifetime token is required for registered descriptors.
 pub struct NcInterfaceDescriptor {
     pub interface_id: NcGuid,
     pub qualified_name: NcStaticUtf8,
-    pub abi_hash: NcAbiHash,
+    pub abi_signature: NcAbiSignature,
     pub base: NcInterfaceId,
     pub method_count: u32,
     pub methods: *const NcMethodDescriptor,
@@ -1419,12 +1352,12 @@ must point to `method_count` readable descriptors that remain valid while the
 descriptor is visible.
 
 Registered metadata must use a valid normative `qualified_name`, its derived
-non-nil `interface_id`, and a nonzero `abi_hash`.
-The `abi_hash` must match the canonical hash computed from the descriptor's
+non-nil `interface_id`, and a non-empty `abi_signature`.
+The `abi_signature` must match the canonical mangle computed from the descriptor's
 typed method metadata and its explicit `base` identity, when present. On a
-64-bit target this record is 128 bytes (base at 64, method count at 112, methods
-at 120); on a 32-bit target it is 112 bytes (base at 56, count at 104, methods at
-108). The inheritance rules in section 9.1 apply to every producer.
+64-bit target this record is 96 bytes (base at 48, method count at 80, methods
+at 88); on a 32-bit target it is 64 bytes (base at 32, count at 56, methods at
+60). The inheritance rules in section 9.1 apply to every producer.
 
 ### 12.5 `NcConstructorFn`
 
@@ -1443,8 +1376,8 @@ The constructor receives:
 - an output slot for an owned `IUnknown` reference
 
 The frame pointer is not self-describing. The caller host passes the frame's ABI
-hash separately, and the runtime must match it against
-`NcClassDescriptor::constructor_abi_hash` before calling this function.
+signature separately, and the runtime must match it against
+`NcClassDescriptor::constructor_abi_signature` before calling this function.
 
 `out` must be non-null and valid for one pointer write; a constructor called
 with a null `out` must fail with `NC_E_POINTER`. On success, `out` receives one
@@ -1473,7 +1406,7 @@ pub struct NcClassDescriptor {
     pub class_id: NcGuid,
     pub qualified_name: NcStaticUtf8,
     pub class_version: NcStaticUtf8,
-    pub constructor_abi_hash: NcAbiHash,
+    pub constructor_abi_signature: NcAbiSignature,
     pub threading: u32,
     pub construct: Option<NcConstructorFn>,
     pub interface_count: u32,
@@ -1501,19 +1434,19 @@ duplicate interface entries. Listed paths must have distinct final names because
 those names determine generated fields and companion ABI types. Generated
 tables place `IUnknown` first, followed by the listed interfaces in source
 declaration order. This order is observable enumeration metadata but is not
-part of an interface ABI hash; the core ABI defines no class-interface-set signature or
-hash. Handwritten descriptor producers may use another order, but must still
+part of an interface ABI signature; the core ABI defines no class-interface-set
+signature. Handwritten descriptor producers may use another order, but must still
 provide exactly one canonical `IUnknown` and no duplicate IID.
 
-For a constructor with parameters, `constructor_abi_hash` is
-`NcAbiHash::from_abi_parts` over one `NcAbiHashPart::Arg` per logical parameter
+For a constructor with parameters, `constructor_abi_signature` is an
+`abi_signature!` expression containing one `NcAbiSignaturePart::Arg` per logical parameter
 in declaration order. Each part records its zero-based index, passing mode, and
 ABI type according to sections 7, 10, and 11. Parameter names and physical
-padding are not hash inputs. A constructor with no parameters uses
-`NcAbiHash::ZERO` instead of hashing an empty part list.
+padding are not signature inputs. A constructor with no parameters uses
+`NcAbiSignature::EMPTY` instead of producing an empty record stream.
 
-`constructor_abi_hash == NcAbiHash::ZERO` means the constructor takes no
-arguments and its `arguments` pointer must be null. A nonzero hash identifies
+`constructor_abi_signature == NcAbiSignature::EMPTY` means the constructor takes no
+arguments and its `arguments` pointer must be null. A non-empty signature identifies
 the complete ordered parameter contract of an immutable constructor frame, and
 its `arguments` pointer must be non-null. The frame and any nested borrows remain
 valid only for the constructor call. A successful constructor must return an object satisfying the
@@ -1581,7 +1514,7 @@ non-null.
 Descriptor pointer fields must remain valid while the plugin is registered and
 while any plugin-created objects or factories may call plugin code.
 
-Plugin descriptors carry explicit hard dependency plugin IDs. core ABI v5 does not
+Plugin descriptors carry explicit hard dependency plugin IDs. core ABI v6 does not
 search for, resolve paths for, or recursively load those dependencies. An
 inspector can combine descriptors from an application-selected artifact set,
 reject duplicate IDs, missing dependencies, and cycles, and produce a
@@ -1599,7 +1532,7 @@ neocogi-com live activation calls must not be nested. While a host call to
 initialization or the plugin descriptor entrypoint must not directly or
 indirectly call neocogi-com live activation again. This is a trusted-plugin
 precondition, not a dependency-resolution mechanism. It applies whether the
-nested call targets the same library or a different one. core ABI v5 implementations
+nested call targets the same library or a different one. core ABI v6 implementations
 are not required to detect or diagnose a violation. Automatic mapping of ordinary
 native dependencies by the operating-system loader is permitted and is not a
 nested neocogi-com activation; those libraries remain outside the neocogi-com registry
@@ -1608,7 +1541,7 @@ unless the host activates their descriptors in separate calls.
 Required external contracts must be represented in the ABI surface itself:
 constructor arguments, method arguments, return values, dependency interfaces,
 or an application-defined capability interface. The relevant interface IDs and
-ABI hashes are the binary compatibility contract. Plugin dependency IDs define
+ABI signatures are the binary compatibility contract. Plugin dependency IDs define
 activation order; they do not replace interface compatibility checks.
 
 ## 13. Plugin Descriptor Entrypoint
@@ -1617,7 +1550,7 @@ The Rust `plugin!` macro only generates descriptors. A final dynamic-library
 root invokes `neocogi_com::export_plugin!()` (or passes an explicit descriptor function
 path). Static plugin assemblies omit that export and register the same metadata.
 
-A dynamic v5 plugin exports:
+A dynamic v6 plugin exports:
 
 ```rust,ignore
 pub unsafe extern "C" fn nc_get_plugin_descriptor(
@@ -1640,7 +1573,7 @@ Entrypoint rules:
 
 The helper `return_plugin_descriptor` performs full descriptor validation,
 including pointer/count shape, UTF-8 and naming policy, identity uniqueness,
-typed method metadata, and recomputed interface hashes. It writes the descriptor
+typed method metadata, and recomputed interface signatures. It writes the descriptor
 pointer only on success.
 
 Descriptor validation remains available in the allocation-free `neocogi-com-core`
@@ -1666,10 +1599,10 @@ A host must reject at least:
   requires a descriptor
 - nil class or interface IDs where forbidden
 - missing class constructors
-- invalid constructor frame hashes or pointer shapes at activation
+- invalid constructor frame signatures or pointer shapes at activation
 - invalid class threading values
 - invalid referenced interface identities in typed method descriptors
-- interface ABI hashes that do not match typed method descriptors
+- interface ABI signatures that do not match typed method descriptors
 - duplicate class IDs within one plugin
 - duplicate interface IDs within one class
 - invalid UTF-8 in metadata used as text
@@ -1678,7 +1611,7 @@ The default `Runtime` performs additional policy validation described in
 section 14.
 
 Loading a dynamic library is a trust boundary. Platform loader code may run
-before `nc_get_plugin_descriptor` is queried. core ABI v5 descriptor validation is
+before `nc_get_plugin_descriptor` is queried. core ABI v6 descriptor validation is
 for trusted plugin metadata shape, not hostile plugin isolation. It does not
 sandbox plugin code, prove plugin trustworthiness, or make an untrusted shared
 library safe to load.
@@ -1692,7 +1625,7 @@ produce a recoverable validation error.
 
 ## 14. Runtime API and Registry Policy
 
-core ABI v5 does not define an operating-system registry, package database, or
+core ABI v6 does not define an operating-system registry, package database, or
 activation service. `neocogi-com-runtime` owns one private process-global runtime
 state containing separate plugin and type registries plus debug callback state.
 Rust callers use the `neocogi-com` `Runtime` facade and its `PluginRegistry`,
@@ -1756,7 +1689,7 @@ prefix is unchanged; a shorter table must not be read beyond its advertised
 size.
 
 All five tables target the same process-global runtime state. Loading multiple
-runtime shared libraries creates independent process-global runtime instances; core ABI v5
+runtime shared libraries creates independent process-global runtime instances; core ABI v6
 does not merge them.
 
 Runtime ABI v1 publishes two process-resource ceilings:
@@ -1788,7 +1721,7 @@ pub struct NcRuntimeApiV1 {
         unsafe extern "C" fn(
             NcGuid,
             u32,
-            NcAbiHash,
+            NcAbiSignature,
             *const c_void,
             *mut *mut IUnknown,
         ) -> NcStatus,
@@ -1813,7 +1746,7 @@ dynamic activation acquire exclusive publication access, so every individual
 runtime operation observes catalog state from before or after a commit, never
 during it. Count/fill enumeration order is therefore independent of hash-map
 iteration. Indexed lookup and precomputed relationship slices are implementation
-details: they do not change any core ABI v5 table, descriptor, status, or ordering
+details: they do not change any core ABI v6 table, descriptor, status, or ordering
 rule.
 
 The first successful registration owns its plugin ID and class IDs. Repeating
@@ -1864,18 +1797,19 @@ load attempt.
 
 `require_interface` returns `NC_E_NOT_FOUND` when the class is absent,
 `NC_E_NOINTERFACE` when the class does not implement the IID, and
-`NC_E_ABI_VERSION` when the IID exists with a different ABI hash.
+`NC_E_ABI_VERSION` when the IID exists with a different ABI signature.
 
 `construct_class` takes the requested pointer threading capability and
-constructor ABI hash between the class ID and constructor frame pointer.
+constructor ABI signature between the class ID and constructor frame pointer.
 Thread-local is accepted for either class
 mode. Thread-safe is accepted only when the registered class descriptor declares
 `NC_ABI_THREADING_THREAD_SAFE`. Unknown requested values and attempts to upgrade
 a thread-local class return `NC_E_INVALID_ARG` before the plugin constructor is
 invoked. The function clears `*out` before fallible work. A missing class returns
-`NC_E_NOT_FOUND`. A hash that differs from the registered descriptor returns
-`NC_E_ABI_VERSION` before plugin code runs. Zero hash requires a null frame
-pointer; a nonzero hash requires a non-null pointer borrowed only for the call.
+`NC_E_NOT_FOUND`. A signature that differs from the registered descriptor
+returns `NC_E_ABI_VERSION` before plugin code runs. An empty signature requires
+a null frame pointer; a non-empty signature requires a non-null pointer borrowed
+only for the call.
 On success, `out` receives one owned `IUnknown` reference with at least the
 requested threading capability.
 
@@ -2060,7 +1994,7 @@ pub struct NcClassInfoV1 {
     pub module_id: u64,
     pub qualified_name: NcUtf8View,
     pub version: NcUtf8View,
-    pub constructor_abi_hash: NcAbiHash,
+    pub constructor_abi_signature: NcAbiSignature,
     pub threading: u32,
 }
 ```
@@ -2074,13 +2008,14 @@ section 14.6.
 Info lookups return `NC_E_POINTER` for null output and `NC_E_NOT_FOUND` for a
 missing identity. A class `module_id` of zero denotes static registration.
 Returned UTF-8 views remain valid until the runtime shared library is unloaded;
-callers must not modify or free them. core ABI v5 does not support plugin unload.
+callers must not modify or free them. core ABI v6 does not support plugin unload.
 
-The `neocogi-inspect` JSON file is a versioned tooling artifact, not another ABI
-core v5 memory layout and not a source-reconstruction format. Its schema version is
-independent of `NC_COM_CORE_ABI_VERSION`. A schema-v3 artifact records the producing
-tool version, target triple, pointer width, endianness, core ABI version, and
-owned plugin/class/interface identities, ABI hashes, and method diagnostics.
+The `neocogi-inspect` JSON file is a versioned tooling artifact, not another core
+ABI v6 memory layout and not a source-reconstruction format. Its schema version
+is independent of `NC_COM_CORE_ABI_VERSION`. A schema-v4 artifact records the
+producing tool version, target triple, pointer width, endianness, core ABI
+version, and owned plugin/class/interface identities, ABI signature strings,
+and method diagnostics.
 Readers must reject unknown fields and unsupported schema versions and must
 validate identity derivation, duplicate entries, and method indices before
 comparison.
@@ -2089,22 +2024,23 @@ The artifact intentionally does not serialize structured parameter, return, or
 aggregate definitions. Human-readable method signatures are derived diagnostics
 only and are not reverse-parsed to reconstruct or independently validate an
 interface contract. The inspector validates the complete typed descriptor and
-recomputes its advertised interface hash while the library is mapped, before
-writing the artifact. core ABI v5 does not promise that an inspection artifact can
+streams its expected canonical records against the advertised signature while
+the library is mapped, before writing the artifact. Core ABI v6 does not promise
+that an inspection artifact can
 recreate Rust traits, C declarations, vtables, aggregate layouts, or source
 definitions.
 
 Exact artifact equality is not, by itself, an ABI compatibility policy. The
 inspector therefore keeps exact comparison as the default/`--exact` mode and
 provides a directional `--compat` check from an old artifact to a proposed new
-artifact. Compatibility mode uses the interface `(IID, ABI hash)` pair as the
+artifact. Compatibility mode uses the interface `(IID, ABI signature)` pair as the
 complete interface-contract authority; it does not parse method diagnostics.
 
 Compatibility requires the same plugin ID, target facts, and core ABI version.
-Every old class ID must remain present with the same constructor-frame ABI hash. A
+Every old class ID must remain present with the same constructor-frame ABI signature. A
 `thread_safe` class must not become `thread_local`. For each old class, every
-old interface IID must remain on that class with the same ABI hash. Removing a
-class or interface, changing an existing IID's hash, changing constructor
+old interface IID must remain on that class with the same ABI signature. Removing a
+class or interface, changing an existing IID's signature, changing constructor
 arguments, weakening threading, or adding a hard plugin dependency is breaking.
 Adding classes or new side-by-side interface IIDs, strengthening
 `thread_local` to `thread_safe`, removing a hard dependency, and changing tool,
@@ -2207,7 +2143,7 @@ make arbitrary non-null pointers safe.
 
 ## 15. Built-In Data Interfaces
 
-core ABI v5 defines two common read-only data interfaces.
+core ABI v6 defines two common read-only data interfaces.
 
 ### 15.1 `INcBytesAbi`
 
@@ -2340,7 +2276,7 @@ classes and interfaces came from that module. These IDs are not part of the
 cross-process ABI and are not passed to constructors or stored in generated
 object storage.
 
-core ABI v5 intentionally does not support explicit plugin unload or hot reload.
+core ABI v6 intentionally does not support explicit plugin unload or hot reload.
 Dynamic library unload is not a reliable rollback boundary for in-process
 plugins: loading a library may run platform loader code, initialize globals or
 thread-local state, register callbacks, start threads, publish function
@@ -2375,27 +2311,27 @@ Generated descriptor constructors use `construct_class_checked`. That helper:
 - clears `*out` before fallible work
 - rejects null `class` with `NC_E_POINTER`
 - validates the expected class ID
-- validates the expected constructor-frame ABI hash
+- validates the expected constructor-frame ABI signature
 - validates that a constructor exists
 - validates argument shape
 - writes one owned `IUnknown` pointer on success
 - preserves negative errors returned by the Rust builder and normalizes a
   non-negative status carried by `Result::Err` to `NC_E_INVALID_ARG`
 
-If `constructor_abi_hash == NcAbiHash::ZERO`, `arguments` must be null. A
-nonzero constructor hash requires a non-null frame pointer. The caller must
+If `constructor_abi_signature == NcAbiSignature::EMPTY`, `arguments` must be null. A
+non-empty constructor signature requires a non-null frame pointer. The caller must
 keep the frame and every nested buffer or COM borrow readable and immutable
 until the constructor returns.
 
 Construction through `Runtime` or `NcRuntimeApiV1::construct_class` performs
-this descriptor-declared hash and pointer-shape validation before calling the
+this descriptor-declared signature and pointer-shape validation before calling the
 raw class constructor. Direct manual calls to an `NcConstructorFn` remain the
 caller's responsibility.
 
 The supported typed Rust path declares one `#[constructor]` function on a
 callable `#[com_class]` trait. The macro lowers its ordered parameters into a
 private `repr(C)` frame, generates a lifetime-bound wrapper and an
-`arguments(...)` builder, stores the frame hash in the class descriptor, and
+`arguments(...)` builder, stores the frame signature in the class descriptor, and
 decodes the frame inside the implementation library. The frame supports plain
 ABI values, immutable call-scoped buffers, and borrowed COM references. It is
 not a COM object and has no runtime reflection or dynamically typed value bag.
@@ -2453,7 +2389,7 @@ Both levels are required. `ComClass::Threading` can describe the producer while
 the concrete class type is statically known, but an interface pointer erases
 that class type. The interface type `T` cannot replace it because multiple
 classes with different threading promises may implement the same interface.
-Nor can the raw pointer replace it: core ABI v5 deliberately gives both modes the
+Nor can the raw pointer replace it: core ABI v6 deliberately gives both modes the
 same representation and stores no per-pointer threading tag. The `ComPtr` or
 `ComRef` marker therefore carries the validated producer evidence through class
 type erasure so Rust can enforce `Send` and `Sync` without a runtime check on
@@ -2476,7 +2412,7 @@ descriptor producers that declare `THREAD_SAFE` assume this unsafe contract.
 
 The built-in process-global runtime is thread-safe.
 
-core ABI v5 does not define COM apartments, thread affinity marshaling, or an
+core ABI v6 does not define COM apartments, thread affinity marshaling, or an
 inter-thread proxy system.
 
 ## 19. Panic and Error Boundaries
@@ -2508,7 +2444,7 @@ registries merely because the operating-system loader mapped them.
 Load or validation failures abort because dynamic loading may already have run
 unsafe process-mutating code.
 
-core ABI v5 does not define:
+core ABI v6 does not define:
 
 - search paths
 - platform-specific file extensions
@@ -2544,7 +2480,7 @@ contracts exposed by those libraries.
 ## 21. ABI Evolution Rules
 
 The no-mutation rules in this section apply to published contracts beginning at
-the explicit ABI-v5 ratification baseline. During the experimental draft phase,
+the explicit ABI-v6 ratification baseline. During the experimental draft phase,
 they describe the intended post-freeze policy rather than a promise of
 compatibility with earlier pre-alpha revisions.
 
@@ -2559,16 +2495,16 @@ versioned interface ID and therefore a new IID:
 - changing return types
 - changing void versus out-pointer success shape
 - changing borrowed versus owned COM semantics
-- changing a referenced interface IID (referenced contract hashes are checked at pointer boundaries)
-- changing the generated ABI hash grammar
+- changing a referenced interface IID (complete referenced contracts are checked at pointer boundaries)
+- changing the generated ABI mangle grammar
 - changing the meaning of an existing method
 - changing the normative interface qualified name
 
 Adding a method to the end of a vtable is still an ABI break.
 
-The generated interface ABI hash changes when method order or another hashed
+The generated interface ABI signature changes when method order or another signed
 interface-contract input changes. Core descriptor records and runtime API
-tables are outside that hash domain and use the version discriminators below.
+tables are outside that signature domain and use the version discriminators below.
 
 Core ABI changes require a new core ABI version when they change:
 
@@ -2580,7 +2516,7 @@ Core ABI changes require a new core ABI version when they change:
 - object lifetime rules
 - module lifetime rules
 - constructor ownership rules
-- hash serialization rules
+- mangle serialization rules
 
 Runtime API changes require a new runtime ABI generation when they change an
 existing exported getter, table field layout, function signature, or field
@@ -2617,7 +2553,7 @@ The contract crate should not contain:
 - heap-owned Rust containers crossing the boundary
 - host-specific activation policy
 
-Recommended release policy after ABI-v5 ratification:
+Recommended release policy after ABI-v6 ratification:
 
 - patch releases change documentation, tests, or non-ABI internals only
 - minor releases add side-by-side interfaces, classes, records, or enum values
@@ -2633,7 +2569,7 @@ presence does not make the represented identities or layouts published ABI.
 Golden tests should assert:
 
 - interface IDs
-- interface ABI hashes
+- interface ABI signatures
 - method order
 - typed method descriptors and rendered diagnostic signature text
 - class IDs
@@ -2645,7 +2581,7 @@ Golden tests should assert:
 The ABI is C-compatible when C declarations exactly match the current core layouts,
 calling convention, status values, ownership rules, and pointer lifetimes.
 
-core ABI v5 does not currently define a canonical generated C header format. Header
+core ABI v6 does not currently define a canonical generated C header format. Header
 generation is a tooling layer on top of this specification. C consumers are
 responsible for using matching declarations and for obeying COM reference
 ownership.
@@ -2657,7 +2593,7 @@ the exact mapping.
 
 ## 24. Non-Goals
 
-core ABI v5 does not specify:
+core ABI v6 does not specify:
 
 - Windows COM apartments
 - Windows registry activation

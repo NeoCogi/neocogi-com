@@ -16,7 +16,7 @@ pub mod consumer {
     }
 
     #[com_interface(auto_guid = "nc.tests.recursion.Value:v1")]
-    /// The empty derived contract changes its hash when the base changes.
+    /// The empty derived contract changes its signature when the base changes.
     pub trait IValue: IBaseValue {}
     impl IValue for Value {}
 
@@ -46,14 +46,14 @@ pub mod producer {
     use super::*;
 
     #[com_interface(auto_guid = "nc.tests.recursion.BaseValue:v1")]
-    /// The producer's revision returns 64 bits, so its full hash differs.
+    /// The producer's revision returns 64 bits, so its full signature differs.
     pub trait IBaseValue {
         /// Reads the producer's scalar.
         fn value(&self) -> Result<u64, NcStatus>;
     }
 
     #[com_interface(auto_guid = "nc.tests.recursion.Value:v1")]
-    /// The empty derived contract changes its hash when the base changes.
+    /// The empty derived contract changes its signature when the base changes.
     pub trait IValue: IBaseValue {}
     impl IValue for Value {}
 
@@ -173,8 +173,8 @@ fn self_and_mutual_references_compile_and_preserve_identity() {
 #[test]
 fn full_pointer_checks_reject_incompatible_arguments_and_release_owned_returns() {
     use consumer::IExchangeComPtrExt;
-    assert_eq!(consumer::IExchangeAbi::ABI_HASH, producer::IExchangeAbi::ABI_HASH);
-    assert_ne!(consumer::IValueAbi::ABI_HASH, producer::IValueAbi::ABI_HASH);
+    assert_eq!(consumer::IExchangeAbi::ABI_SIGNATURE, producer::IExchangeAbi::ABI_SIGNATURE);
+    assert_ne!(consumer::IValueAbi::ABI_SIGNATURE, producer::IValueAbi::ABI_SIGNATURE);
     let calls = Rc::new(Cell::new(0));
     let drops = Rc::new(Cell::new(0));
     let exchange: ComPtr<consumer::IExchangeAbi> = producer::Exchange::from_value(producer::Exchange {

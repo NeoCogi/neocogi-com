@@ -13,7 +13,7 @@
 
 use super::contract::{NcAbiPassingDescriptor, NcAbiTypeDescriptor, NcInterfaceId};
 use crate::guid::NcGuid;
-use crate::hash::NcAbiHash;
+use crate::signature::NcAbiSignature;
 use crate::object::IUnknown;
 use crate::status::{NC_E_INVALID_ARG, NC_E_POINTER, NcStatus};
 
@@ -140,10 +140,10 @@ pub struct NcInterfaceDescriptor {
     /// Normative qualified name from which `interface_id` is derived; the
     /// canonical root interface instead uses the reserved name `IUnknown`.
     pub qualified_name: NcStaticUtf8,
-    /// SHA-256 hash of the complete lowered interface ABI contract.
+    /// Canonical mangle of the complete lowered interface ABI contract.
     ///
-    /// This must match the canonical hash computed from `methods`.
-    pub abi_hash: NcAbiHash,
+    /// This must match the canonical signature encoded from `methods`.
+    pub abi_signature: NcAbiSignature,
     /// Explicit generated base contract, or `NONE` for the implicit IUnknown root.
     /// Methods below describe only the slots introduced by this interface.
     pub base: NcInterfaceId,
@@ -177,7 +177,7 @@ impl NcInterfaceDescriptor {
 ///
 /// `class` must point to the descriptor that owns this constructor.
 /// `arguments`, when non-null, must point to the immutable constructor frame
-/// described by [`NcClassDescriptor::constructor_abi_hash`] and remain valid
+/// described by [`NcClassDescriptor::constructor_abi_signature`] and remain valid
 /// for the call. `out` must be valid for one pointer write. On success, `out`
 /// receives one owned `IUnknown` reference that the caller must eventually
 /// release. The constructed object must satisfy the owning class descriptor's
@@ -206,9 +206,9 @@ pub struct NcClassDescriptor {
     pub qualified_name: NcStaticUtf8,
     /// Static class version metadata.
     pub class_version: NcStaticUtf8,
-    /// ABI hash of the immutable constructor frame, or [`NcAbiHash::ZERO`] for
+    /// ABI signature of the immutable constructor frame, or [`NcAbiSignature::EMPTY`] for
     /// a constructor with no arguments.
-    pub constructor_abi_hash: NcAbiHash,
+    pub constructor_abi_signature: NcAbiSignature,
     /// Threading capability promised by constructed objects.
     ///
     /// This is one of `NC_ABI_THREADING_THREAD_LOCAL` or
@@ -374,7 +374,7 @@ pub struct NcPluginDependencyDescriptor {
 
 /// Static descriptor for one plugin shared library.
 ///
-/// core ABI v5 descriptors are declarative: they contain no initialization callback
+/// core ABI v6 descriptors are declarative: they contain no initialization callback
 /// or path resolver. Hard dependency IDs describe activation order but never
 /// trigger recursive loading.
 #[repr(C)]
@@ -438,20 +438,20 @@ mod tests {
     use crate::NcGuid;
     use crate::{
         NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION,
-        NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiReceiver, NcAbiThreadingMode,
-        NcAbiType, NcClassDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor, NcPluginDescriptor,
+        NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiSignature, NcAbiSignaturePart, NcAbiPassing, NcAbiReceiver,
+        NcAbiThreadingMode, NcAbiType, NcClassDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor, NcPluginDescriptor,
     };
 
     #[test]
     fn core_abi_identity_is_stable() {
-        assert_eq!(NC_COM_CORE_ABI_VERSION, 5);
+        assert_eq!(NC_COM_CORE_ABI_VERSION, 6);
         assert_eq!(NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, "nc_get_plugin_descriptor");
     }
 
     #[test]
-    fn interface_id_none_requires_nil_iid_and_zero_hash() {
+    fn interface_id_none_requires_nil_iid_and_empty_signature() {
         assert!(NcInterfaceId::NONE.is_none());
-        assert!(!NcInterfaceId::new(NcGuid::nil(), NcAbiHash::from_bytes([0x7a; 32])).is_none());
+        assert!(!NcInterfaceId::new(NcGuid::nil(), NcAbiSignature::from_static_str("ncabi1;test")).is_none());
     }
 
     #[test]
@@ -467,13 +467,13 @@ mod tests {
     }
 
     #[test]
-    fn receiver_modes_are_stable_and_change_method_hashes() {
+    fn receiver_modes_are_stable_and_change_method_signatures() {
         assert_eq!(NcAbiReceiver::Shared.as_raw(), NC_ABI_RECEIVER_SHARED);
         assert_eq!(NcAbiReceiver::Mutable.as_raw(), NC_ABI_RECEIVER_MUTABLE);
         assert_eq!(NcAbiReceiver::from_raw(2), None);
 
-        let shared = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared }]);
-        let mutable = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Mutable }]);
+        let shared = NcAbiSignature::from_abi_parts(&[NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared }]);
+        let mutable = NcAbiSignature::from_abi_parts(&[NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Mutable }]);
         assert_ne!(shared, mutable);
     }
 
@@ -481,30 +481,30 @@ mod tests {
     fn class_descriptor_c_layout_includes_threading_field() {
         #[cfg(target_pointer_width = "64")]
         {
-            assert_eq!(core::mem::size_of::<NcClassDescriptor>(), 112);
+            assert_eq!(core::mem::size_of::<NcClassDescriptor>(), 96);
             assert_eq!(core::mem::align_of::<NcClassDescriptor>(), 8);
             assert_eq!(core::mem::offset_of!(NcClassDescriptor, class_id), 0);
             assert_eq!(core::mem::offset_of!(NcClassDescriptor, qualified_name), 16);
             assert_eq!(core::mem::offset_of!(NcClassDescriptor, class_version), 32);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, constructor_abi_hash), 48);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, threading), 80);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, construct), 88);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interface_count), 96);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interfaces), 104);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, constructor_abi_signature), 48);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, threading), 64);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, construct), 72);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interface_count), 80);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interfaces), 88);
         }
 
         #[cfg(target_pointer_width = "32")]
         {
-            assert_eq!(core::mem::size_of::<NcClassDescriptor>(), 80);
+            assert_eq!(core::mem::size_of::<NcClassDescriptor>(), 56);
             assert_eq!(core::mem::align_of::<NcClassDescriptor>(), 4);
             assert_eq!(core::mem::offset_of!(NcClassDescriptor, class_id), 0);
             assert_eq!(core::mem::offset_of!(NcClassDescriptor, qualified_name), 16);
             assert_eq!(core::mem::offset_of!(NcClassDescriptor, class_version), 24);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, constructor_abi_hash), 32);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, threading), 64);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, construct), 68);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interface_count), 72);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interfaces), 76);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, constructor_abi_signature), 32);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, threading), 40);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, construct), 44);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interface_count), 48);
+            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interfaces), 52);
         }
     }
 
@@ -512,24 +512,24 @@ mod tests {
     fn interface_descriptor_c_layout_includes_qualified_name() {
         #[cfg(target_pointer_width = "64")]
         {
-            assert_eq!(core::mem::size_of::<NcInterfaceDescriptor>(), 128);
+            assert_eq!(core::mem::size_of::<NcInterfaceDescriptor>(), 96);
             assert_eq!(core::mem::align_of::<NcInterfaceDescriptor>(), 8);
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, interface_id), 0);
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, qualified_name), 16);
-            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, abi_hash), 32);
-            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, method_count), 112);
-            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, methods), 120);
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, abi_signature), 32);
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, method_count), 80);
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, methods), 88);
         }
 
         #[cfg(target_pointer_width = "32")]
         {
-            assert_eq!(core::mem::size_of::<NcInterfaceDescriptor>(), 112);
+            assert_eq!(core::mem::size_of::<NcInterfaceDescriptor>(), 64);
             assert_eq!(core::mem::align_of::<NcInterfaceDescriptor>(), 4);
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, interface_id), 0);
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, qualified_name), 16);
-            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, abi_hash), 24);
-            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, method_count), 104);
-            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, methods), 108);
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, abi_signature), 24);
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, method_count), 56);
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, methods), 60);
         }
     }
 
@@ -567,43 +567,43 @@ mod tests {
     }
 
     #[test]
-    fn method_hash_changes_for_method_identity_and_status() {
-        let base = NcAbiHash::from_abi_parts(&[
-            NcAbiHashPart::Method { index: 0, name: "load" },
-            NcAbiHashPart::Return {
+    fn method_signature_changes_for_method_identity_and_status() {
+        let base = NcAbiSignature::from_abi_parts(&[
+            NcAbiSignaturePart::Method { index: 0, name: "load" },
+            NcAbiSignaturePart::Return {
                 passing: NcAbiPassing::Out,
                 ty: NcAbiType::U32,
             },
-            NcAbiHashPart::Status,
+            NcAbiSignaturePart::Status,
         ]);
 
         assert_ne!(
             base,
-            NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method { index: 1, name: "load" },
-                NcAbiHashPart::Return {
+            NcAbiSignature::from_abi_parts(&[
+                NcAbiSignaturePart::Method { index: 1, name: "load" },
+                NcAbiSignaturePart::Return {
                     passing: NcAbiPassing::Out,
                     ty: NcAbiType::U32,
                 },
-                NcAbiHashPart::Status,
+                NcAbiSignaturePart::Status,
             ])
         );
         assert_ne!(
             base,
-            NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method { index: 0, name: "store" },
-                NcAbiHashPart::Return {
+            NcAbiSignature::from_abi_parts(&[
+                NcAbiSignaturePart::Method { index: 0, name: "store" },
+                NcAbiSignaturePart::Return {
                     passing: NcAbiPassing::Out,
                     ty: NcAbiType::U32,
                 },
-                NcAbiHashPart::Status,
+                NcAbiSignaturePart::Status,
             ])
         );
         assert_ne!(
             base,
-            NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method { index: 0, name: "load" },
-                NcAbiHashPart::Return {
+            NcAbiSignature::from_abi_parts(&[
+                NcAbiSignaturePart::Method { index: 0, name: "load" },
+                NcAbiSignaturePart::Return {
                     passing: NcAbiPassing::Out,
                     ty: NcAbiType::U32,
                 },
@@ -612,268 +612,274 @@ mod tests {
     }
 
     #[test]
-    fn method_hash_changes_for_argument_and_return_contracts() {
-        let base = NcAbiHash::from_abi_parts(&[
-            NcAbiHashPart::Method { index: 0, name: "calculate" },
-            NcAbiHashPart::Arg {
+    fn method_signature_changes_for_argument_and_return_contracts() {
+        let base = NcAbiSignature::from_abi_parts(&[
+            NcAbiSignaturePart::Method { index: 0, name: "calculate" },
+            NcAbiSignaturePart::Arg {
                 index: 0,
                 passing: NcAbiPassing::Value,
                 ty: NcAbiType::U32,
             },
-            NcAbiHashPart::Arg {
+            NcAbiSignaturePart::Arg {
                 index: 1,
                 passing: NcAbiPassing::Value,
                 ty: NcAbiType::I32,
             },
-            NcAbiHashPart::Return {
+            NcAbiSignaturePart::Return {
                 passing: NcAbiPassing::Out,
                 ty: NcAbiType::U64,
             },
-            NcAbiHashPart::Status,
+            NcAbiSignaturePart::Status,
         ]);
 
         assert_ne!(
             base,
-            NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method { index: 0, name: "calculate" },
-                NcAbiHashPart::Arg {
+            NcAbiSignature::from_abi_parts(&[
+                NcAbiSignaturePart::Method { index: 0, name: "calculate" },
+                NcAbiSignaturePart::Arg {
                     index: 0,
                     passing: NcAbiPassing::Value,
                     ty: NcAbiType::U64,
                 },
-                NcAbiHashPart::Arg {
+                NcAbiSignaturePart::Arg {
                     index: 1,
                     passing: NcAbiPassing::Value,
                     ty: NcAbiType::I32,
                 },
-                NcAbiHashPart::Return {
+                NcAbiSignaturePart::Return {
                     passing: NcAbiPassing::Out,
                     ty: NcAbiType::U64,
                 },
-                NcAbiHashPart::Status,
+                NcAbiSignaturePart::Status,
             ])
         );
         assert_ne!(
             base,
-            NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method { index: 0, name: "calculate" },
-                NcAbiHashPart::Arg {
+            NcAbiSignature::from_abi_parts(&[
+                NcAbiSignaturePart::Method { index: 0, name: "calculate" },
+                NcAbiSignaturePart::Arg {
                     index: 1,
                     passing: NcAbiPassing::Value,
                     ty: NcAbiType::I32,
                 },
-                NcAbiHashPart::Arg {
+                NcAbiSignaturePart::Arg {
                     index: 0,
                     passing: NcAbiPassing::Value,
                     ty: NcAbiType::U32,
                 },
-                NcAbiHashPart::Return {
+                NcAbiSignaturePart::Return {
                     passing: NcAbiPassing::Out,
                     ty: NcAbiType::U64,
                 },
-                NcAbiHashPart::Status,
+                NcAbiSignaturePart::Status,
             ])
         );
         assert_ne!(
             base,
-            NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method { index: 0, name: "calculate" },
-                NcAbiHashPart::Arg {
+            NcAbiSignature::from_abi_parts(&[
+                NcAbiSignaturePart::Method { index: 0, name: "calculate" },
+                NcAbiSignaturePart::Arg {
                     index: 0,
                     passing: NcAbiPassing::Value,
                     ty: NcAbiType::U32,
                 },
-                NcAbiHashPart::Arg {
+                NcAbiSignaturePart::Arg {
                     index: 1,
                     passing: NcAbiPassing::Value,
                     ty: NcAbiType::I32,
                 },
-                NcAbiHashPart::Return {
+                NcAbiSignaturePart::Return {
                     passing: NcAbiPassing::Out,
                     ty: NcAbiType::U32,
                 },
-                NcAbiHashPart::Status,
+                NcAbiSignaturePart::Status,
             ])
         );
         assert_ne!(
             base,
-            NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method { index: 0, name: "calculate" },
-                NcAbiHashPart::Arg {
+            NcAbiSignature::from_abi_parts(&[
+                NcAbiSignaturePart::Method { index: 0, name: "calculate" },
+                NcAbiSignaturePart::Arg {
                     index: 0,
                     passing: NcAbiPassing::Value,
                     ty: NcAbiType::U32,
                 },
-                NcAbiHashPart::Arg {
+                NcAbiSignaturePart::Arg {
                     index: 1,
                     passing: NcAbiPassing::Value,
                     ty: NcAbiType::I32,
                 },
-                NcAbiHashPart::Return {
+                NcAbiSignaturePart::Return {
                     passing: NcAbiPassing::Void,
                     ty: NcAbiType::Void,
                 },
-                NcAbiHashPart::Status,
+                NcAbiSignaturePart::Status,
             ])
         );
     }
 
     #[test]
-    fn method_hash_changes_for_com_pointer_modes_and_interface_identity() {
+    fn method_signature_changes_for_com_pointer_modes_and_interface_identity() {
         let interface_guid = guid(1);
         let other_interface_guid = guid(2);
 
-        let base = NcAbiHash::from_abi_parts(&[
-            NcAbiHashPart::Interface { iid: interface_guid },
-            NcAbiHashPart::Method { index: 0, name: "consume" },
-            NcAbiHashPart::Arg {
+        let base = NcAbiSignature::from_abi_parts(&[
+            NcAbiSignaturePart::Interface { iid: interface_guid },
+            NcAbiSignaturePart::Method { index: 0, name: "consume" },
+            NcAbiSignaturePart::Arg {
                 index: 0,
                 passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
                 ty: NcAbiType::Interface { iid: interface_guid },
             },
-            NcAbiHashPart::Return {
+            NcAbiSignaturePart::Return {
                 passing: NcAbiPassing::ComPtrOut { mode: NcAbiThreadingMode::ThreadLocal },
                 ty: NcAbiType::Interface { iid: interface_guid },
             },
-            NcAbiHashPart::Status,
+            NcAbiSignaturePart::Status,
         ]);
 
         assert_ne!(
             base,
-            NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Interface { iid: other_interface_guid },
-                NcAbiHashPart::Method { index: 0, name: "consume" },
-                NcAbiHashPart::Arg {
+            NcAbiSignature::from_abi_parts(&[
+                NcAbiSignaturePart::Interface { iid: other_interface_guid },
+                NcAbiSignaturePart::Method { index: 0, name: "consume" },
+                NcAbiSignaturePart::Arg {
                     index: 0,
                     passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
                     ty: NcAbiType::Interface { iid: interface_guid },
                 },
-                NcAbiHashPart::Return {
+                NcAbiSignaturePart::Return {
                     passing: NcAbiPassing::ComPtrOut { mode: NcAbiThreadingMode::ThreadLocal },
                     ty: NcAbiType::Interface { iid: interface_guid },
                 },
-                NcAbiHashPart::Status,
+                NcAbiSignaturePart::Status,
             ])
         );
         assert_ne!(
             base,
-            NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Interface { iid: interface_guid },
-                NcAbiHashPart::Method { index: 0, name: "consume" },
-                NcAbiHashPart::Arg {
+            NcAbiSignature::from_abi_parts(&[
+                NcAbiSignaturePart::Interface { iid: interface_guid },
+                NcAbiSignaturePart::Method { index: 0, name: "consume" },
+                NcAbiSignaturePart::Arg {
                     index: 0,
                     passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadSafe },
                     ty: NcAbiType::Interface { iid: interface_guid },
                 },
-                NcAbiHashPart::Return {
+                NcAbiSignaturePart::Return {
                     passing: NcAbiPassing::ComPtrOut { mode: NcAbiThreadingMode::ThreadLocal },
                     ty: NcAbiType::Interface { iid: interface_guid },
                 },
-                NcAbiHashPart::Status,
+                NcAbiSignaturePart::Status,
             ])
         );
         assert_ne!(
             base,
-            NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Interface { iid: interface_guid },
-                NcAbiHashPart::Method { index: 0, name: "consume" },
-                NcAbiHashPart::Arg {
+            NcAbiSignature::from_abi_parts(&[
+                NcAbiSignaturePart::Interface { iid: interface_guid },
+                NcAbiSignaturePart::Method { index: 0, name: "consume" },
+                NcAbiSignaturePart::Arg {
                     index: 0,
                     passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
                     ty: NcAbiType::Interface { iid: other_interface_guid },
                 },
-                NcAbiHashPart::Return {
+                NcAbiSignaturePart::Return {
                     passing: NcAbiPassing::ComPtrOut { mode: NcAbiThreadingMode::ThreadLocal },
                     ty: NcAbiType::Interface { iid: interface_guid },
                 },
-                NcAbiHashPart::Status,
+                NcAbiSignaturePart::Status,
             ])
         );
         assert_ne!(
             base,
-            NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Interface { iid: interface_guid },
-                NcAbiHashPart::Method { index: 0, name: "consume" },
-                NcAbiHashPart::Arg {
+            NcAbiSignature::from_abi_parts(&[
+                NcAbiSignaturePart::Interface { iid: interface_guid },
+                NcAbiSignaturePart::Method { index: 0, name: "consume" },
+                NcAbiSignaturePart::Arg {
                     index: 0,
                     passing: NcAbiPassing::ComRef { mode: NcAbiThreadingMode::ThreadLocal },
                     ty: NcAbiType::Interface { iid: interface_guid },
                 },
-                NcAbiHashPart::Return {
+                NcAbiSignaturePart::Return {
                     passing: NcAbiPassing::ComPtrOut { mode: NcAbiThreadingMode::ThreadSafe },
                     ty: NcAbiType::Interface { iid: interface_guid },
                 },
-                NcAbiHashPart::Status,
+                NcAbiSignaturePart::Status,
             ])
         );
     }
 
     #[test]
-    fn method_hash_changes_for_offset_buffer_contracts() {
-        fn offset_buffer_hash(passing: NcAbiPassing, index: u32, ty: NcAbiType) -> NcAbiHash {
-            NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method { index: 0, name: "copy" },
-                NcAbiHashPart::Arg { index, passing, ty },
-                NcAbiHashPart::Return {
+    fn method_signature_changes_for_offset_buffer_contracts() {
+        fn offset_buffer_signature(passing: NcAbiPassing, index: u32, ty: NcAbiType) -> NcAbiSignature {
+            NcAbiSignature::from_abi_parts(&[
+                NcAbiSignaturePart::Method { index: 0, name: "copy" },
+                NcAbiSignaturePart::Arg { index, passing, ty },
+                NcAbiSignaturePart::Return {
                     passing: NcAbiPassing::Void,
                     ty: NcAbiType::Void,
                 },
-                NcAbiHashPart::Status,
+                NcAbiSignaturePart::Status,
             ])
         }
 
-        fn offset_buffer_hash_without_status(passing: NcAbiPassing) -> NcAbiHash {
-            NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Method { index: 0, name: "copy" },
-                NcAbiHashPart::Arg { index: 0, passing, ty: NcAbiType::U8 },
-                NcAbiHashPart::Return {
+        fn offset_buffer_signature_without_status(passing: NcAbiPassing) -> NcAbiSignature {
+            NcAbiSignature::from_abi_parts(&[
+                NcAbiSignaturePart::Method { index: 0, name: "copy" },
+                NcAbiSignaturePart::Arg { index: 0, passing, ty: NcAbiType::U8 },
+                NcAbiSignaturePart::Return {
                     passing: NcAbiPassing::Void,
                     ty: NcAbiType::Void,
                 },
             ])
         }
 
-        let copy_to = offset_buffer_hash(NcAbiPassing::CopyToBufferOffset, 0, NcAbiType::U8);
-        let copy_from = offset_buffer_hash(NcAbiPassing::CopyFromBufferOffset, 0, NcAbiType::U8);
+        let copy_to = offset_buffer_signature(NcAbiPassing::CopyToBufferOffset, 0, NcAbiType::U8);
+        let copy_from = offset_buffer_signature(NcAbiPassing::CopyFromBufferOffset, 0, NcAbiType::U8);
         assert_ne!(copy_to, copy_from);
 
         for passing in [NcAbiPassing::CopyToBufferOffset, NcAbiPassing::CopyFromBufferOffset] {
-            let base = offset_buffer_hash(passing, 0, NcAbiType::U8);
+            let base = offset_buffer_signature(passing, 0, NcAbiType::U8);
 
-            assert_ne!(base, offset_buffer_hash(passing, 1, NcAbiType::U8));
-            assert_ne!(base, offset_buffer_hash(passing, 0, NcAbiType::U16));
-            assert_ne!(base, offset_buffer_hash_without_status(passing));
+            assert_ne!(base, offset_buffer_signature(passing, 1, NcAbiType::U8));
+            assert_ne!(base, offset_buffer_signature(passing, 0, NcAbiType::U16));
+            assert_ne!(base, offset_buffer_signature_without_status(passing));
             assert_ne!(
                 base,
-                NcAbiHash::from_abi_parts(&[
-                    NcAbiHashPart::Method { index: 0, name: "copy" },
-                    NcAbiHashPart::Arg {
+                NcAbiSignature::from_abi_parts(&[
+                    NcAbiSignaturePart::Method { index: 0, name: "copy" },
+                    NcAbiSignaturePart::Arg {
                         index: 0,
                         passing: NcAbiPassing::Value,
                         ty: NcAbiType::U8,
                     },
-                    NcAbiHashPart::Return {
+                    NcAbiSignaturePart::Return {
                         passing: NcAbiPassing::Void,
                         ty: NcAbiType::Void,
                     },
-                    NcAbiHashPart::Status,
+                    NcAbiSignaturePart::Status,
                 ])
             );
         }
     }
 
     #[test]
-    fn aggregate_hash_changes_for_structural_shape_and_variants() {
-        fn aggregate_hash(kind: NcAbiAggregateKind, size: usize, align: usize, fields: [NcAbiFieldLayout; 2], variants: [NcAbiHashPart<'_>; 2]) -> NcAbiHash {
-            NcAbiHash::from_abi_parts(&[
-                NcAbiHashPart::Aggregate { kind },
-                NcAbiHashPart::Layout { size, align },
-                NcAbiHashPart::Field {
+    fn aggregate_signature_changes_for_structural_shape_and_variants() {
+        fn aggregate_signature(
+            kind: NcAbiAggregateKind,
+            size: usize,
+            align: usize,
+            fields: [NcAbiFieldLayout; 2],
+            variants: [NcAbiSignaturePart<'_>; 2],
+        ) -> NcAbiSignature {
+            NcAbiSignature::from_abi_parts(&[
+                NcAbiSignaturePart::Aggregate { kind },
+                NcAbiSignaturePart::Layout { size, align },
+                NcAbiSignaturePart::Field {
                     index: fields[0].index,
                     offset: fields[0].offset,
                     ty: fields[0].ty,
                 },
-                NcAbiHashPart::Field {
+                NcAbiSignaturePart::Field {
                     index: fields[1].index,
                     offset: fields[1].offset,
                     ty: fields[1].ty,
@@ -885,13 +891,19 @@ mod tests {
 
         let payload_a_fields = [NcAbiFieldLayout { index: 0, offset: 0, ty: NcAbiType::U32 }];
         let payload_b_fields = [NcAbiFieldLayout { index: 0, offset: 0, ty: NcAbiType::U64 }];
-        let payload_a = NcAbiHash::from_aggregate_layout(NcAbiAggregateKind::Struct, 4, 4, &payload_a_fields);
-        let payload_b = NcAbiHash::from_aggregate_layout(NcAbiAggregateKind::Struct, 8, 8, &payload_b_fields);
-        assert_ne!(payload_a, NcAbiHash::from_aggregate_layout(NcAbiAggregateKind::Struct, 8, 4, &payload_a_fields));
-        assert_ne!(payload_a, NcAbiHash::from_aggregate_layout(NcAbiAggregateKind::Struct, 4, 8, &payload_a_fields));
+        let payload_a = NcAbiSignature::from_aggregate_layout(NcAbiAggregateKind::Struct, 4, 4, &payload_a_fields);
+        let payload_b = NcAbiSignature::from_aggregate_layout(NcAbiAggregateKind::Struct, 8, 8, &payload_b_fields);
         assert_ne!(
             payload_a,
-            NcAbiHash::from_aggregate_layout(
+            NcAbiSignature::from_aggregate_layout(NcAbiAggregateKind::Struct, 8, 4, &payload_a_fields)
+        );
+        assert_ne!(
+            payload_a,
+            NcAbiSignature::from_aggregate_layout(NcAbiAggregateKind::Struct, 4, 8, &payload_a_fields)
+        );
+        assert_ne!(
+            payload_a,
+            NcAbiSignature::from_aggregate_layout(
                 NcAbiAggregateKind::Struct,
                 4,
                 4,
@@ -908,19 +920,19 @@ mod tests {
             },
         ];
         let base_variants = [
-            NcAbiHashPart::Variant { index: 0, tag: 1, ty: NcAbiType::Void },
-            NcAbiHashPart::Variant {
+            NcAbiSignaturePart::Variant { index: 0, tag: 1, ty: NcAbiType::Void },
+            NcAbiSignaturePart::Variant {
                 index: 1,
                 tag: 2,
                 ty: NcAbiType::Aggregate(payload_a),
             },
         ];
-        let base = aggregate_hash(NcAbiAggregateKind::TaggedEnum, 16, 8, base_fields, base_variants);
+        let base = aggregate_signature(NcAbiAggregateKind::TaggedEnum, 16, 8, base_fields, base_variants);
 
-        assert_ne!(base, aggregate_hash(NcAbiAggregateKind::Union, 16, 8, base_fields, base_variants,));
+        assert_ne!(base, aggregate_signature(NcAbiAggregateKind::Union, 16, 8, base_fields, base_variants,));
         assert_ne!(
             base,
-            aggregate_hash(
+            aggregate_signature(
                 NcAbiAggregateKind::TaggedEnum,
                 16,
                 8,
@@ -937,7 +949,7 @@ mod tests {
         );
         assert_ne!(
             base,
-            aggregate_hash(
+            aggregate_signature(
                 NcAbiAggregateKind::TaggedEnum,
                 16,
                 8,
@@ -954,14 +966,14 @@ mod tests {
         );
         assert_ne!(
             base,
-            aggregate_hash(
+            aggregate_signature(
                 NcAbiAggregateKind::TaggedEnum,
                 16,
                 8,
                 base_fields,
                 [
-                    NcAbiHashPart::Variant { index: 0, tag: 7, ty: NcAbiType::Void },
-                    NcAbiHashPart::Variant {
+                    NcAbiSignaturePart::Variant { index: 0, tag: 7, ty: NcAbiType::Void },
+                    NcAbiSignaturePart::Variant {
                         index: 1,
                         tag: 2,
                         ty: NcAbiType::Aggregate(payload_a),
@@ -971,14 +983,14 @@ mod tests {
         );
         assert_ne!(
             base,
-            aggregate_hash(
+            aggregate_signature(
                 NcAbiAggregateKind::TaggedEnum,
                 16,
                 8,
                 base_fields,
                 [
-                    NcAbiHashPart::Variant { index: 0, tag: 1, ty: NcAbiType::Void },
-                    NcAbiHashPart::Variant {
+                    NcAbiSignaturePart::Variant { index: 0, tag: 1, ty: NcAbiType::Void },
+                    NcAbiSignaturePart::Variant {
                         index: 1,
                         tag: 2,
                         ty: NcAbiType::Aggregate(payload_b),

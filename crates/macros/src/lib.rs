@@ -32,8 +32,8 @@
 //! artifacts: different crate graphs, compiler versions, optimization settings,
 //! or linking modes. The generated ABI is C-compatible, but these macros are not
 //! C header generation tooling and they are not Windows COM bindings. Generated
-//! aggregate hashes are runtime compatibility fingerprints, not reflection
-//! metadata from which source declarations can be reconstructed.
+//! aggregate signatures are runtime compatibility identities. They expose only
+//! the canonical ABI records needed for validation, not Rust source declarations.
 //!
 //! Owned or long-lived variable-size data such as strings, byte buffers, arrays,
 //! streams, and documents should be modeled as COM interfaces. Do not pass Rust
@@ -180,7 +180,7 @@ pub fn derive_com_deserialize(item: TokenStream) -> TokenStream {
 /// Generated items inherit the trait visibility, so `pub`, `pub(crate)`, and
 /// private interfaces can be used to model public and internal contracts.
 /// The generated unsafe implementation certifies the header layout, vtable
-/// prefix, interface identity/hash, and `IUnknown` pointer conversion required
+/// prefix, interface identity/signature, and `IUnknown` pointer conversion required
 /// by safe `ComPtr` operations. Defining an interface through this macro does
 /// not require user-written unsafe code.
 ///
@@ -295,7 +295,7 @@ pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// hosts. A final shared library calls `neocogi_com::export_plugin!` separately to
 /// export `nc_get_plugin_descriptor`; static assemblies omit that export.
 ///
-/// core ABI v5 plugin descriptors contain declarative metadata only. The optional
+/// core ABI v6 plugin descriptors contain declarative metadata only. The optional
 /// `dependencies = [PLUGIN_ID, ...]` list declares hard dependencies that must
 /// already be registered. It never causes recursive loading.
 /// Every `plugin_id(...)` form is checked against the plugin's normative
@@ -328,9 +328,9 @@ pub fn plugin(input: TokenStream) -> TokenStream {
 /// error. An incompatible Rust-layout field fails to compile; `Copy` and syntactic
 /// field checks still apply. The author must ensure fields contain no hidden
 /// pointers, references, or ownership duties, which C layout alone cannot prove.
-/// In this mode, every field is fingerprinted by size and alignment, with field
+/// In this mode, every field is represented by size and alignment, with field
 /// order and offsets recorded by the enclosing struct. Field internals and
-/// scalar type identities are not hashed. An incompatible change preserving
+/// scalar type identities are not encoded. An incompatible change preserving
 /// this metadata requires a new interface identity. Dependency versions may
 /// differ only while their actual layouts and value semantics remain compatible.
 /// The checks add no runtime conversion or allocation.

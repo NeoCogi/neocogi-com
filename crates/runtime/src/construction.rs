@@ -12,12 +12,12 @@
 
 use neocogi_com_core::{
     IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_POINTER,
-    NcAbiHash, NcClassDescriptor, NcGuid, NcInterfaceId, NcStatus,
+    NcAbiSignature, NcClassDescriptor, NcGuid, NcInterfaceId, NcStatus,
 };
 
 use crate::type_registry::TypeRegistry;
 
-/// Requires that a registered class expose the exact requested IID/hash pair.
+/// Requires that a registered class expose the exact requested IID/signature pair.
 pub(crate) fn require_interface(registry: &TypeRegistry, class_id: NcGuid, interface_id: NcInterfaceId) -> Result<(), NcStatus> {
     let Some(interfaces) = registry.class_interface_ids(class_id) else {
         return Err(NC_E_NOT_FOUND);
@@ -43,11 +43,11 @@ pub(crate) fn resolve_class(registry: &TypeRegistry, class_id: NcGuid, requested
 /// # Safety
 ///
 /// A non-null `arguments` pointer must identify an immutable frame matching
-/// `constructor_abi_hash` and remain readable through the constructor call.
+/// `constructor_abi_signature` and remain readable through the constructor call.
 /// `out` must be valid for one pointer write.
 pub(crate) unsafe fn construct_class(
     class: Result<*const NcClassDescriptor, NcStatus>,
-    constructor_abi_hash: NcAbiHash,
+    constructor_abi_signature: NcAbiSignature,
     arguments: *const core::ffi::c_void,
     out: *mut *mut IUnknown,
 ) -> NcStatus {
@@ -63,7 +63,7 @@ pub(crate) unsafe fn construct_class(
     // Only the immutable descriptor pointer escaped the catalog guard.
     // Registration and module retention guarantee its lifetime across the call.
     // SAFETY: This forwards the caller's argument and output contracts.
-    unsafe { construct_class_descriptor(class, constructor_abi_hash, arguments, out) }
+    unsafe { construct_class_descriptor(class, constructor_abi_signature, arguments, out) }
 }
 
 /// Applies the capability rule from a class declaration to a host request.
@@ -75,15 +75,15 @@ fn threading_request_is_compatible(declared: u32, requested: u32) -> bool {
     }
 }
 
-/// Distinguishes a missing IID from an IID present with a mismatched ABI hash.
+/// Distinguishes a missing IID from an IID present with a mismatched ABI signature.
 fn require_interface_in_ids(interfaces: &[NcInterfaceId], interface_id: NcInterfaceId) -> Result<(), NcStatus> {
     for registered in interfaces {
         if registered.iid != interface_id.iid {
             continue;
         }
-        // An IID match with a different hash is an ABI-version mismatch, not a
+        // An IID match with a different signature is an ABI-version mismatch, not a
         // missing interface. Returning immediately preserves that distinction.
-        if registered.abi_hash == interface_id.abi_hash {
+        if registered.abi_signature == interface_id.abi_signature {
             return Ok(());
         }
         return Err(NC_E_ABI_VERSION);
@@ -94,7 +94,7 @@ fn require_interface_in_ids(interfaces: &[NcInterfaceId], interface_id: NcInterf
 /// Validates and invokes one immutable registered constructor descriptor.
 unsafe fn construct_class_descriptor(
     class: *const NcClassDescriptor,
-    constructor_abi_hash: NcAbiHash,
+    constructor_abi_signature: NcAbiSignature,
     arguments: *const core::ffi::c_void,
     out: *mut *mut IUnknown,
 ) -> NcStatus {
@@ -111,12 +111,12 @@ unsafe fn construct_class_descriptor(
     let Some(construct) = class.construct else {
         return NC_E_INVALID_ARG;
     };
-    if constructor_abi_hash != class.constructor_abi_hash {
+    if constructor_abi_signature != class.constructor_abi_signature {
         return NC_E_ABI_VERSION;
     }
     // Null is the complete no-argument frame. A typed frame is always non-null,
     // so the pointer shape can be rejected before plugin code sees it.
-    if arguments.is_null() != (constructor_abi_hash == NcAbiHash::ZERO) {
+    if arguments.is_null() != (constructor_abi_signature == NcAbiSignature::EMPTY) {
         return NC_E_INVALID_ARG;
     }
     // SAFETY: The constructor and descriptor came from validated metadata.

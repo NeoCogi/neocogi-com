@@ -2,30 +2,30 @@
 //!
 //! Validation walks every reachable plugin, class, interface, method, passing,
 //! type, and text record; checks pointer/count shapes and cross-record identity
-//! rules; recomputes interface hashes; and reports multiple path-addressed
+//! rules; verifies canonical interface signatures; and reports multiple path-addressed
 //! issues in one pass while preserving the first failing [`NcStatus`].
 //!
 //! Validation walks trusted readable metadata and reports every reachable
 //! issue through a callback while returning the first failing status. It checks
 //! pointer/count shape, naming policy, duplicate identities, typed method
-//! descriptors, and recomputed interface hashes. It is not a memory probe or a
+//! descriptors, and canonical interface signatures. It is not a memory probe or a
 //! sandbox for hostile pointers.
 
 #[cfg(feature = "alloc")]
 use alloc::collections::BTreeSet;
 
-use crate::hash::{NcAbiHasher, NcAbiSchemaHasher};
+use crate::signature::NcAbiSignatureVerifier;
 use crate::metadata::{validate_qualified_name, validate_version_text};
-use crate::object::{IID_IUNKNOWN, IUNKNOWN_ABI_HASH, IUNKNOWN_QUALIFIED_NAME};
+use crate::object::{IID_IUNKNOWN, IUNKNOWN_ABI_SIGNATURE, IUNKNOWN_QUALIFIED_NAME};
 use crate::{
     NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT,
     NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
     NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64,
-    NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_ABI_HASH, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16,
-    NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK,
-    NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcClassDescriptor,
-    NcClassInterfaceDescriptor, NcClassTable, NcInterfaceDescriptor, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor,
-    NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name,
+    NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64,
+    NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiSignature, NcAbiSignaturePart,
+    NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcClassDescriptor, NcClassInterfaceDescriptor,
+    NcClassTable, NcInterfaceDescriptor, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcPluginDependencyDescriptor,
+    NcPluginDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name,
 };
 
 /// Location of a descriptor validation issue in a plugin descriptor graph.
@@ -137,6 +137,8 @@ pub enum NcDescriptorValidationKind {
     MissingConstructor,
     /// A class threading field is not a defined `NC_ABI_THREADING_*` value.
     InvalidClassThreading,
+    /// An ABI signature has an invalid pointer/length shape or mangle prefix.
+    InvalidAbiSignature,
     /// A nonzero class interface count has a null mapping-table pointer.
     NullClassInterfaces,
     /// A class does not expose exactly one canonical `IUnknown` mapping.
@@ -145,7 +147,7 @@ pub enum NcDescriptorValidationKind {
     InvalidIUnknownInterface,
     /// The plugin class table repeats a class GUID.
     DuplicateClassId,
-    /// One class repeats a complete interface GUID/hash identity.
+    /// One class repeats a complete interface GUID/signature identity.
     DuplicateInterfaceId,
     /// A class-interface mapping has a null interface descriptor pointer.
     NullInterfaceDescriptor,
@@ -157,10 +159,10 @@ pub enum NcDescriptorValidationKind {
     InvalidInterfaceQualifiedName,
     /// An interface IID is not derived from its qualified name.
     InterfaceIdQualifiedNameMismatch,
-    /// An interface descriptor advertises the all-zero ABI hash.
-    ZeroInterfaceAbiHash,
-    /// Recomputed typed method metadata does not match the advertised ABI hash.
-    InterfaceAbiHashMismatch,
+    /// An interface descriptor advertises an empty ABI signature.
+    EmptyInterfaceAbiSignature,
+    /// Typed method metadata does not match the advertised ABI signature.
+    InterfaceAbiSignatureMismatch,
     /// A base identity is malformed, absent from its class, incompatible, or cyclic.
     InvalidInterfaceBase,
     /// A nonzero method count has a null method-table pointer.
@@ -427,6 +429,7 @@ where
     if NcAbiThreadingMode::from_raw(class.threading).is_none() {
         reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidClassThreading);
     }
+    validate_signature_view(class.constructor_abi_signature, true, path, reporter);
 
     let interfaces = if class.interface_count == 0 {
         &[]
@@ -495,7 +498,12 @@ where
         }
         has_iunknown = true;
         let name_is_canonical = unsafe { interface.qualified_name.as_str() } == Ok(IUNKNOWN_QUALIFIED_NAME);
-        if interface.abi_hash != IUNKNOWN_ABI_HASH || !interface.base.is_none() || interface.method_count != 0 || !name_is_canonical {
+        if !interface.abi_signature.has_valid_shape()
+            || interface.abi_signature != IUNKNOWN_ABI_SIGNATURE
+            || !interface.base.is_none()
+            || interface.method_count != 0
+            || !name_is_canonical
+        {
             reporter.issue(
                 NC_E_ABI_VERSION,
                 NcDescriptorPath::Interface {
@@ -521,7 +529,7 @@ unsafe fn valid_interface_ancestry(mut current: &NcInterfaceDescriptor, interfac
         if base.is_none() {
             return true;
         }
-        if base.iid.is_nil() || base.abi_hash.is_zero() || base.iid == IID_IUNKNOWN {
+        if base.iid.is_nil() || base.abi_signature.is_empty() || !base.abi_signature.has_valid_shape() || base.iid == IID_IUNKNOWN {
             return false;
         }
         let mut found = None;
@@ -532,7 +540,7 @@ unsafe fn valid_interface_ancestry(mut current: &NcInterfaceDescriptor, interfac
             // SAFETY: The caller guarantees this existing class-table pointer.
             let candidate = unsafe { &*candidate.interface_descriptor };
             if candidate.interface_id == base.iid {
-                if candidate.abi_hash != base.abi_hash {
+                if !candidate.abi_signature.has_valid_shape() || candidate.abi_signature != base.abi_signature {
                     return false;
                 }
                 found = Some(candidate);
@@ -576,7 +584,7 @@ fn validate_class_interface_descriptor<R>(
     }
 }
 
-/// Validates interface identity, text, methods, and the recomputed ABI hash.
+/// Validates interface identity, text, methods, and its canonical ABI signature.
 fn validate_interface_descriptor<R>(class_index: u32, interface_index: u32, interface: &NcInterfaceDescriptor, reporter: &mut IssueReporter<R>)
 where
     R: FnMut(NcDescriptorValidationIssue),
@@ -606,8 +614,9 @@ where
             reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InterfaceIdQualifiedNameMismatch);
         }
     }
-    if interface.abi_hash == NcAbiHash::ZERO {
-        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::ZeroInterfaceAbiHash);
+    let signature_is_valid = validate_signature_view(interface.abi_signature, false, path, reporter);
+    if interface.abi_signature.is_empty() {
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::EmptyInterfaceAbiSignature);
     }
 
     let methods = if interface.method_count == 0 {
@@ -625,14 +634,14 @@ where
         validate_method_descriptor(class_index, interface_index, method_index as u32, method, reporter);
     }
 
-    if reporter.issue_count() == issue_count_before && interface.abi_hash != NcAbiHash::ZERO {
+    if signature_is_valid && reporter.issue_count() == issue_count_before && !interface.abi_signature.is_empty() {
         // SAFETY: The descriptor graph has passed the structural checks in this
         // interface subtree, including UTF-8 method/parameter names and typed
-        // ABI descriptor tags. The hash pass only rereads that validated static
+        // ABI descriptor tags. Signature verification only rereads that validated static
         // metadata.
-        match unsafe { hash_interface_descriptor(interface, methods) } {
-            Ok(expected_hash) if expected_hash == interface.abi_hash => {}
-            Ok(_) => reporter.issue(NC_E_ABI_VERSION, path, NcDescriptorValidationKind::InterfaceAbiHashMismatch),
+        match unsafe { verify_interface_descriptor_signature(interface, methods) } {
+            Ok(true) => {}
+            Ok(false) => reporter.issue(NC_E_ABI_VERSION, path, NcDescriptorValidationKind::InterfaceAbiSignatureMismatch),
             Err(_) => {
                 // The earlier validation pass should have reported the precise
                 // malformed descriptor. Avoid adding a second generic issue.
@@ -777,6 +786,36 @@ where
     }
 }
 
+/// Validates a component-owned signature view before any content comparison.
+fn validate_signature_view<R>(signature: NcAbiSignature, allow_empty: bool, path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
+where
+    R: FnMut(NcDescriptorValidationIssue),
+{
+    if !signature.has_valid_shape() {
+        reporter.issue(NC_E_POINTER, path, NcDescriptorValidationKind::InvalidAbiSignature);
+        return false;
+    }
+    if signature.is_empty() {
+        return allow_empty;
+    }
+
+    // SAFETY: Shape validation rejected null non-empty views, and the public
+    // descriptor-validation contract requires every remaining graph pointer to
+    // be readable while the exporting component is pinned.
+    let bytes = match unsafe { signature.as_bytes() } {
+        Ok(bytes) => bytes,
+        Err(status) => {
+            reporter.issue(status, path, NcDescriptorValidationKind::InvalidAbiSignature);
+            return false;
+        }
+    };
+    if bytes.len() <= b"ncabi1;".len() || !bytes.starts_with(b"ncabi1;") || core::str::from_utf8(bytes).is_err() {
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidAbiSignature);
+        return false;
+    }
+    true
+}
+
 /// Checks a raw ABI type tag and any nested aggregate/interface identity.
 fn validate_abi_type_descriptor<R>(ty: &NcAbiTypeDescriptor, path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
 where
@@ -798,10 +837,9 @@ where
         | NC_ABI_TYPE_F32
         | NC_ABI_TYPE_F64
         | NC_ABI_TYPE_NC_GUID
-        | NC_ABI_TYPE_NC_STATUS
-        | NC_ABI_TYPE_NC_ABI_HASH => true,
+        | NC_ABI_TYPE_NC_STATUS => true,
         NC_ABI_TYPE_AGGREGATE => {
-            if ty.aggregate_hash == NcAbiHash::ZERO {
+            if ty.aggregate_signature.is_empty() || !validate_signature_view(ty.aggregate_signature, false, path, reporter) {
                 reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidAbiType);
                 false
             } else {
@@ -834,7 +872,11 @@ fn validate_interface_type<R>(ty: &NcAbiTypeDescriptor, path: NcDescriptorPath, 
 where
     R: FnMut(NcDescriptorValidationIssue),
 {
-    if ty.tag != NC_ABI_TYPE_INTERFACE || ty.interface.iid.is_nil() || ty.interface.abi_hash == NcAbiHash::ZERO {
+    if ty.tag != NC_ABI_TYPE_INTERFACE
+        || ty.interface.iid.is_nil()
+        || ty.interface.abi_signature.is_empty()
+        || !validate_signature_view(ty.interface.abi_signature, false, path, reporter)
+    {
         reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidInterfaceType);
         false
     } else {
@@ -842,70 +884,64 @@ where
     }
 }
 
-/// Reconstructs the canonical logical hash stream from a validated interface.
-unsafe fn hash_interface_descriptor(interface: &NcInterfaceDescriptor, methods: &[NcMethodDescriptor]) -> Result<NcAbiHash, NcStatus> {
-    let mut schema_hasher = NcAbiSchemaHasher::new();
+/// Verifies an advertised mangle against the canonical records in a descriptor.
+unsafe fn verify_interface_descriptor_signature(interface: &NcInterfaceDescriptor, methods: &[NcMethodDescriptor]) -> Result<bool, NcStatus> {
+    // SAFETY: The descriptor belongs to a pinned component, so a structurally
+    // valid signature view remains readable throughout this synchronous pass.
+    let mut verifier = unsafe { NcAbiSignatureVerifier::new(interface.abi_signature)? };
     unsafe {
         // SAFETY: The caller validated the complete descriptor subtree. The
         // visitor consumes borrowed strings synchronously and retains nothing.
-        visit_interface_hash_parts(interface, methods, |part| schema_hasher.update_abi_hash_part(part))?;
+        visit_interface_signature_parts(interface, methods, |part| verifier.verify_part(part))?;
     }
-    let schema = schema_hasher.finalize();
-
-    let mut hasher = NcAbiHasher::new(schema);
-    unsafe {
-        // SAFETY: The same validated descriptor tree is traversed a second
-        // time to append only compiler-resolved values to the schema digest.
-        visit_interface_hash_parts(interface, methods, |part| hasher.update_abi_hash_part(part))?;
-    }
-    Ok(hasher.finalize())
+    Ok(verifier.finish())
 }
 
-/// Visits every logical hash part reconstructed from an interface descriptor.
+/// Visits every logical signature part reconstructed from an interface descriptor.
 ///
 /// The visitor is called synchronously, so method-name borrows never escape the
 /// validated descriptor traversal.
-unsafe fn visit_interface_hash_parts<F>(interface: &NcInterfaceDescriptor, methods: &[NcMethodDescriptor], mut visit: F) -> Result<(), NcStatus>
+unsafe fn visit_interface_signature_parts<F>(interface: &NcInterfaceDescriptor, methods: &[NcMethodDescriptor], mut visit: F) -> Result<(), NcStatus>
 where
-    F: for<'a> FnMut(NcAbiHashPart<'a>),
+    F: for<'a> FnMut(NcAbiSignaturePart<'a>),
 {
-    visit(NcAbiHashPart::Interface { iid: interface.interface_id });
+    visit(NcAbiSignaturePart::Interface { iid: interface.interface_id });
 
     if !interface.base.is_none() {
-        visit(NcAbiHashPart::BaseInterface { interface: interface.base });
+        visit(NcAbiSignaturePart::BaseInterface { interface: interface.base });
     }
 
     for (method_index, method) in methods.iter().enumerate() {
         let method_name = unsafe {
             // SAFETY: The caller validated method name UTF-8 metadata for this
-            // descriptor subtree before computing the hash.
+            // descriptor subtree before verifying the signature.
             method.name.as_str()?
         };
-        visit(NcAbiHashPart::Method {
+        visit(NcAbiSignaturePart::Method {
             index: method_index as u32,
             name: method_name,
         });
         let receiver = NcAbiReceiver::from_raw(method.receiver).ok_or(NC_E_INVALID_ARG)?;
-        visit(NcAbiHashPart::Receiver { receiver });
+        visit(NcAbiSignaturePart::Receiver { receiver });
 
         let params = unsafe {
             // SAFETY: The caller validated the method parameter pointer/count
-            // pair before computing the hash.
+            // pair before verifying the signature.
             method.params()?
         };
         for (param_index, param) in params.iter().enumerate() {
-            visit(NcAbiHashPart::Arg {
+            visit(NcAbiSignaturePart::Arg {
                 index: param_index as u32,
                 passing: descriptor_passing(param.passing)?,
                 ty: descriptor_type(&param.ty)?,
             });
         }
 
-        visit(NcAbiHashPart::Return {
+        visit(NcAbiSignaturePart::Return {
             passing: descriptor_passing(method.returns.passing)?,
             ty: descriptor_type(&method.returns.ty)?,
         });
-        visit(NcAbiHashPart::Status);
+        visit(NcAbiSignaturePart::Status);
     }
 
     Ok(())
@@ -929,12 +965,12 @@ fn descriptor_passing(passing: NcAbiPassingDescriptor) -> Result<NcAbiPassing, N
     }
 }
 
-/// Converts a raw threading tag, rejecting values outside core ABI v5.
+/// Converts a raw threading tag, rejecting values outside core ABI v6.
 fn descriptor_threading_mode(threading: u32) -> Result<NcAbiThreadingMode, NcStatus> {
     NcAbiThreadingMode::from_raw(threading).ok_or(NC_E_INVALID_ARG)
 }
 
-/// Converts a validated physical type descriptor into its logical hash form.
+/// Converts a validated physical type descriptor into its logical signature form.
 fn descriptor_type(ty: &NcAbiTypeDescriptor) -> Result<NcAbiType, NcStatus> {
     match ty.tag {
         NC_ABI_TYPE_VOID => Ok(NcAbiType::Void),
@@ -953,9 +989,12 @@ fn descriptor_type(ty: &NcAbiTypeDescriptor) -> Result<NcAbiType, NcStatus> {
         NC_ABI_TYPE_F64 => Ok(NcAbiType::F64),
         NC_ABI_TYPE_NC_GUID => Ok(NcAbiType::NcGuid),
         NC_ABI_TYPE_NC_STATUS => Ok(NcAbiType::NcStatus),
-        NC_ABI_TYPE_NC_ABI_HASH => Ok(NcAbiType::NcAbiHash),
-        NC_ABI_TYPE_AGGREGATE if ty.aggregate_hash != NcAbiHash::ZERO => Ok(NcAbiType::Aggregate(ty.aggregate_hash)),
-        NC_ABI_TYPE_INTERFACE if !ty.interface.iid.is_nil() && ty.interface.abi_hash != NcAbiHash::ZERO => Ok(NcAbiType::Interface { iid: ty.interface.iid }),
+        NC_ABI_TYPE_AGGREGATE if !ty.aggregate_signature.is_empty() && ty.aggregate_signature.has_valid_shape() => {
+            Ok(NcAbiType::Aggregate(ty.aggregate_signature))
+        }
+        NC_ABI_TYPE_INTERFACE if !ty.interface.iid.is_nil() && !ty.interface.abi_signature.is_empty() && ty.interface.abi_signature.has_valid_shape() => {
+            Ok(NcAbiType::Interface { iid: ty.interface.iid })
+        }
         _ => Err(NC_E_INVALID_ARG),
     }
 }
@@ -1008,26 +1047,29 @@ mod tests {
     const PLUGIN_ID: NcGuid = guid_from_qualified_name("nc.tests.Plugin");
     const CLASS_ID: NcGuid = guid_from_qualified_name("nc.tests.Class");
     const INTERFACE_ID: NcGuid = guid_from_qualified_name("nc.tests.Interface");
-    const DESCRIBED_INTERFACE_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[
-        NcAbiHashPart::Interface { iid: INTERFACE_ID },
-        NcAbiHashPart::Method { index: 0, name: "add" },
-        NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
-        NcAbiHashPart::Arg {
+    const DESCRIBED_INTERFACE_SIGNATURE_PARTS: [NcAbiSignaturePart<'static>; 7] = [
+        NcAbiSignaturePart::Interface { iid: INTERFACE_ID },
+        NcAbiSignaturePart::Method { index: 0, name: "add" },
+        NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
+        NcAbiSignaturePart::Arg {
             index: 0,
             passing: NcAbiPassing::Value,
             ty: NcAbiType::I32,
         },
-        NcAbiHashPart::Arg {
+        NcAbiSignaturePart::Arg {
             index: 1,
             passing: NcAbiPassing::Value,
             ty: NcAbiType::I32,
         },
-        NcAbiHashPart::Return {
+        NcAbiSignaturePart::Return {
             passing: NcAbiPassing::Out,
             ty: NcAbiType::I32,
         },
-        NcAbiHashPart::Status,
-    ]);
+        NcAbiSignaturePart::Status,
+    ];
+    static DESCRIBED_INTERFACE_SIGNATURE_BYTES: [u8; NcAbiSignature::__encoded_len(&DESCRIBED_INTERFACE_SIGNATURE_PARTS)] =
+        NcAbiSignature::__encode::<{ NcAbiSignature::__encoded_len(&DESCRIBED_INTERFACE_SIGNATURE_PARTS) }>(&DESCRIBED_INTERFACE_SIGNATURE_PARTS);
+    const DESCRIBED_INTERFACE_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static(&DESCRIBED_INTERFACE_SIGNATURE_BYTES);
     static DESCRIBED_INTERFACE_PARAMS: [NcMethodParamDescriptor; 2] = [
         NcMethodParamDescriptor {
             name: NcStaticUtf8::from_static("a"),
@@ -1162,7 +1204,7 @@ mod tests {
         static INTERFACE: NcInterfaceDescriptor = NcInterfaceDescriptor {
             interface_id: INTERFACE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.Interface"),
-            abi_hash: NcAbiHash::ZERO,
+            abi_signature: NcAbiSignature::EMPTY,
             base: crate::NcInterfaceId::NONE,
             method_count: 0,
             methods: core::ptr::null(),
@@ -1172,7 +1214,7 @@ mod tests {
             class_id: CLASS_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.Class"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_abi_hash: crate::NcAbiHash::ZERO,
+            constructor_abi_signature: crate::NcAbiSignature::EMPTY,
             threading: NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(dummy_constructor),
             interface_count: CLASS_INTERFACES.len() as u32,
@@ -1200,17 +1242,17 @@ mod tests {
             std::vec![NcDescriptorValidationIssue {
                 status: NC_E_INVALID_ARG,
                 path: NcDescriptorPath::Interface { class_index: 0, interface_index: 1 },
-                kind: NcDescriptorValidationKind::ZeroInterfaceAbiHash,
+                kind: NcDescriptorValidationKind::EmptyInterfaceAbiSignature,
             }]
         );
     }
 
     #[test]
-    fn interface_descriptor_hash_must_match_typed_metadata() {
+    fn interface_descriptor_signature_must_match_typed_metadata() {
         static VALID_INTERFACE: NcInterfaceDescriptor = NcInterfaceDescriptor {
             interface_id: INTERFACE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.Interface"),
-            abi_hash: DESCRIBED_INTERFACE_HASH,
+            abi_signature: DESCRIBED_INTERFACE_SIGNATURE,
             base: crate::NcInterfaceId::NONE,
             method_count: DESCRIBED_INTERFACE_METHODS.len() as u32,
             methods: DESCRIBED_INTERFACE_METHODS.as_ptr(),
@@ -1221,7 +1263,7 @@ mod tests {
             class_id: guid_from_qualified_name("nc.tests.ValidClass"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.ValidClass"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_abi_hash: crate::NcAbiHash::ZERO,
+            constructor_abi_signature: crate::NcAbiSignature::EMPTY,
             threading: NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(dummy_constructor),
             interface_count: VALID_CLASS_INTERFACES.len() as u32,
@@ -1249,7 +1291,7 @@ mod tests {
         static MISMATCHED_INTERFACE: NcInterfaceDescriptor = NcInterfaceDescriptor {
             interface_id: INTERFACE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.Interface"),
-            abi_hash: NcAbiHash::from_bytes([0x7b; 32]),
+            abi_signature: NcAbiSignature::from_static_str("ncabi1;invalid"),
             base: crate::NcInterfaceId::NONE,
             method_count: DESCRIBED_INTERFACE_METHODS.len() as u32,
             methods: DESCRIBED_INTERFACE_METHODS.as_ptr(),
@@ -1264,7 +1306,7 @@ mod tests {
             class_id: guid_from_qualified_name("nc.tests.MismatchedClass"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.MismatchedClass"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_abi_hash: crate::NcAbiHash::ZERO,
+            constructor_abi_signature: crate::NcAbiSignature::EMPTY,
             threading: NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(dummy_constructor),
             interface_count: MISMATCHED_CLASS_INTERFACES.len() as u32,
@@ -1292,7 +1334,7 @@ mod tests {
             std::vec![NcDescriptorValidationIssue {
                 status: NC_E_ABI_VERSION,
                 path: NcDescriptorPath::Interface { class_index: 0, interface_index: 1 },
-                kind: NcDescriptorValidationKind::InterfaceAbiHashMismatch,
+                kind: NcDescriptorValidationKind::InterfaceAbiSignatureMismatch,
             }]
         );
     }
@@ -1304,7 +1346,7 @@ mod tests {
             class_id: guid_from_qualified_name("nc.tests.InvalidThreading"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.InvalidThreading"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_abi_hash: crate::NcAbiHash::ZERO,
+            constructor_abi_signature: crate::NcAbiSignature::EMPTY,
             threading: 0xffff_ffff,
             construct: Some(dummy_constructor),
             interface_count: CLASS_INTERFACES.len() as u32,
@@ -1339,11 +1381,14 @@ mod tests {
     #[test]
     fn descriptor_ids_must_match_their_qualified_names() {
         const WRONG_INTERFACE_ID: NcGuid = guid_from_qualified_name("nc.tests.Identity.WrongInterface");
-        const WRONG_INTERFACE_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Interface { iid: WRONG_INTERFACE_ID }]);
+        const WRONG_INTERFACE_PARTS: [NcAbiSignaturePart<'static>; 1] = [NcAbiSignaturePart::Interface { iid: WRONG_INTERFACE_ID }];
+        static WRONG_INTERFACE_BYTES: [u8; NcAbiSignature::__encoded_len(&WRONG_INTERFACE_PARTS)] =
+            NcAbiSignature::__encode::<{ NcAbiSignature::__encoded_len(&WRONG_INTERFACE_PARTS) }>(&WRONG_INTERFACE_PARTS);
+        const WRONG_INTERFACE_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static(&WRONG_INTERFACE_BYTES);
         static INTERFACE: NcInterfaceDescriptor = NcInterfaceDescriptor {
             interface_id: WRONG_INTERFACE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.Identity.Interface"),
-            abi_hash: WRONG_INTERFACE_HASH,
+            abi_signature: WRONG_INTERFACE_SIGNATURE,
             base: crate::NcInterfaceId::NONE,
             method_count: 0,
             methods: core::ptr::null(),
@@ -1353,7 +1398,7 @@ mod tests {
             class_id: guid_from_qualified_name("nc.tests.Identity.WrongClass"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.Identity.Class"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_abi_hash: crate::NcAbiHash::ZERO,
+            constructor_abi_signature: crate::NcAbiSignature::EMPTY,
             threading: NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(dummy_constructor),
             interface_count: INTERFACES.len() as u32,
@@ -1398,7 +1443,7 @@ mod tests {
             class_id: guid_from_qualified_name("nc.tests.MissingIUnknown"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.MissingIUnknown"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_abi_hash: crate::NcAbiHash::ZERO,
+            constructor_abi_signature: crate::NcAbiSignature::EMPTY,
             threading: NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(dummy_constructor),
             interface_count: 0,
@@ -1429,16 +1474,19 @@ mod tests {
             }]
         );
 
-        const INVALID_IUNKNOWN_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[
-            NcAbiHashPart::Interface { iid: IID_IUNKNOWN },
-            NcAbiHashPart::Method { index: 0, name: "not_root" },
-            NcAbiHashPart::Receiver { receiver: NcAbiReceiver::Shared },
-            NcAbiHashPart::Return {
+        const INVALID_IUNKNOWN_PARTS: [NcAbiSignaturePart<'static>; 5] = [
+            NcAbiSignaturePart::Interface { iid: IID_IUNKNOWN },
+            NcAbiSignaturePart::Method { index: 0, name: "not_root" },
+            NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
+            NcAbiSignaturePart::Return {
                 passing: NcAbiPassing::Void,
                 ty: NcAbiType::Void,
             },
-            NcAbiHashPart::Status,
-        ]);
+            NcAbiSignaturePart::Status,
+        ];
+        static INVALID_IUNKNOWN_BYTES: [u8; NcAbiSignature::__encoded_len(&INVALID_IUNKNOWN_PARTS)] =
+            NcAbiSignature::__encode::<{ NcAbiSignature::__encoded_len(&INVALID_IUNKNOWN_PARTS) }>(&INVALID_IUNKNOWN_PARTS);
+        const INVALID_IUNKNOWN_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static(&INVALID_IUNKNOWN_BYTES);
         static INVALID_IUNKNOWN_METHOD: [NcMethodDescriptor; 1] = [NcMethodDescriptor {
             name: NcStaticUtf8::from_static("not_root"),
             receiver: NC_ABI_RECEIVER_SHARED,
@@ -1452,7 +1500,7 @@ mod tests {
         static INVALID_IUNKNOWN: NcInterfaceDescriptor = NcInterfaceDescriptor {
             interface_id: IID_IUNKNOWN,
             qualified_name: NcStaticUtf8::from_static("IUnknown"),
-            abi_hash: INVALID_IUNKNOWN_HASH,
+            abi_signature: INVALID_IUNKNOWN_SIGNATURE,
             base: crate::NcInterfaceId::NONE,
             method_count: INVALID_IUNKNOWN_METHOD.len() as u32,
             methods: INVALID_IUNKNOWN_METHOD.as_ptr(),
@@ -1462,7 +1510,7 @@ mod tests {
             class_id: guid_from_qualified_name("nc.tests.InvalidIUnknown"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.InvalidIUnknown"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_abi_hash: crate::NcAbiHash::ZERO,
+            constructor_abi_signature: crate::NcAbiSignature::EMPTY,
             threading: NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(dummy_constructor),
             interface_count: INVALID_IUNKNOWN_INTERFACES.len() as u32,
@@ -1498,7 +1546,7 @@ mod tests {
             class_id: guid_from_qualified_name("nc.tests.DuplicateIUnknown"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.DuplicateIUnknown"),
             class_version: NcStaticUtf8::from_static("1.0.0"),
-            constructor_abi_hash: crate::NcAbiHash::ZERO,
+            constructor_abi_signature: crate::NcAbiSignature::EMPTY,
             threading: NC_ABI_THREADING_THREAD_LOCAL,
             construct: Some(dummy_constructor),
             interface_count: DUPLICATE_IUNKNOWN_INTERFACES.len() as u32,

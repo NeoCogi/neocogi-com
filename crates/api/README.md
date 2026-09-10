@@ -2,7 +2,7 @@
 
 `neocogi-com` is the user-facing crate for cross-platform Rust component interop
 through an explicit C-shaped ABI. It generates COM-style interface headers,
-vtables, status returns, GUID/hash identity, class metadata, and reference-counted
+vtables, status returns, GUID/signature identity, class metadata, and reference-counted
 object storage without exposing Rust trait objects or Rust allocator ownership
 across the binary boundary.
 
@@ -16,7 +16,7 @@ runtime shared library, and inspection CLI.
   feature-sensitive item documentation.
 - The [workspace guide](https://github.com/NeoCogi/neocogi-platform#readme) is the canonical
   long-form guide and owns the exact build/test compatibility matrix.
-- The [core ABI v5 specification](https://github.com/NeoCogi/neocogi-platform/blob/master/crates/com/docs/abi-v5.md)
+- The [core ABI v6 specification](https://github.com/NeoCogi/neocogi-platform/blob/master/crates/com/docs/abi-v6.md)
   is the normative binary contract.
 
 This package README is intentionally a concise entry point. Exact test rows,
@@ -53,7 +53,7 @@ The equivalent crate-level rustdoc example is compiled by the workspace doctest
 suite. `com_interface` generates the portable interface header/vtable and the
 unsafe `ComInterface` certification required by safe `ComPtr` operations.
 `com_object` generates COM object storage, canonical `IUnknown` metadata,
-hash-checked `QueryInterface`, and reference counting.
+signature-checked `QueryInterface`, and reference counting.
 
 Macro documentation examples are compile-checked in the facade rustdoc, where
 the complete public API is available; intentionally incomplete lowering and
@@ -79,7 +79,7 @@ facade override without parsing Cargo metadata.
   explicit tag/payload layouts. `#[com_struct(c_struct)]` lets a record contain
   external C-layout fields without neocogi-com traits. It checks nested FFI layouts;
   authors must ensure plain-value semantics and use a new interface identity
-  for incompatible changes its field size/alignment fingerprints cannot detect.
+  for incompatible changes its field size/alignment signature cannot detect.
   See the `com_struct` API docs.
 - Use `ComRef<'_, IFooAbi>` for borrowed interface parameters and
   `ComPtr<IFooAbi>` for owned interface returns.
@@ -95,7 +95,7 @@ facade override without parsing Cargo metadata.
 - `IUnknown` is the implicit canonical class root. Class macros add it exactly
   once and reject explicit or duplicate interface entries.
 - Interface/class/plugin GUIDs are derived from their normative qualified names.
-  Interface compatibility is the derived IID plus generated ABI hash.
+  Interface compatibility is the derived IID plus generated ABI signature.
 - A panic is not an ABI error. Return `NcStatus` for expected failures.
 
 ## Typed Source Decoding
@@ -125,11 +125,11 @@ plugin binary.
 The optional `runtime` feature exposes the stateless `Runtime` facade over the
 separately built and linked `libnc_com_shared_runtime` shared library. The shared
 runtime owns process-global registry state. Successfully loaded modules remain
-mapped until process exit; unload and hot reload are not core ABI v5 operations.
+mapped until process exit; unload and hot reload are not core ABI v6 operations.
 
 Plugins export `nc_get_plugin_descriptor`. Generated descriptors contain plugin
 identity, explicit hard dependency IDs, classes, constructor contracts,
-threading modes, and interface metadata. core ABI v5 has no plugin initialization
+threading modes, and interface metadata. core ABI v6 has no plugin initialization
 callback and never discovers or recursively loads plugin paths: hosts obtain an
 explicit dependency-first plan and load dependencies before dependents.
 Live activation calls must not be nested. Native loader initialization and the
@@ -182,7 +182,7 @@ and enforced by the packaged `cross_version_component` integration test.
 
 ## Scope And Status
 
-core ABI v5 is an experimental pre-alpha draft. Cross-release compatibility begins
+core ABI v6 is an experimental pre-alpha draft. Cross-release compatibility begins
 only when a named future release explicitly ratifies a baseline. Until then,
 intentional breaking draft changes and golden-vector updates are permitted.
 

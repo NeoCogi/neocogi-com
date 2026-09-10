@@ -16,7 +16,7 @@ use std::string::String;
 use std::vec::Vec;
 
 use crate::{
-    NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcAbiThreadingMode, NcClassInfoV1, NcAbiHash, NcGuid, NcInterfaceId, NcModuleInfoV1,
+    NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcAbiThreadingMode, NcClassInfoV1, NcAbiSignature, NcGuid, NcInterfaceId, NcModuleInfoV1,
     NcPluginDescriptor, NcPluginInfoV1, NcStatus,
 };
 
@@ -50,8 +50,8 @@ pub struct ClassInfo {
     pub qualified_name: String,
     /// Class version text.
     pub version: String,
-    /// Constructor-frame ABI hash, or [`NcAbiHash::ZERO`] for no arguments.
-    pub constructor_abi_hash: NcAbiHash,
+    /// Constructor-frame ABI signature, or [`NcAbiSignature::EMPTY`] for no arguments.
+    pub constructor_abi_signature: NcAbiSignature,
     /// Threading capability promised by constructed objects.
     pub threading: NcAbiThreadingMode,
 }
@@ -167,7 +167,7 @@ impl<'runtime> Inspection<'runtime> {
             module_id: (info.module_id != 0).then(|| LoadedModuleId::from_raw(info.module_id)),
             qualified_name: read_utf8_view(info.qualified_name)?,
             version: read_utf8_view(info.version)?,
-            constructor_abi_hash: info.constructor_abi_hash,
+            constructor_abi_signature: info.constructor_abi_signature,
             threading,
         }))
     }

@@ -185,8 +185,8 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
                     class_version: #nc::NcStaticUtf8::from_static(
                         <#abi_path as #nc::ComClassContract>::VERSION,
                     ),
-                    constructor_abi_hash:
-                        <#abi_path as #nc::ComClassContract>::CONSTRUCTOR_ABI_HASH,
+                    constructor_abi_signature:
+                        <#abi_path as #nc::ComClassContract>::CONSTRUCTOR_ABI_SIGNATURE,
                     threading: #class_threading,
                     construct: Some(Self::#generated_constructor_ident as #nc::NcConstructorFn),
                     interface_count: Self::COM_INTERFACE_COUNT as u32,
@@ -213,10 +213,10 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
                             arguments,
                             out,
                             #class_ident::CLASS_ID,
-                            <#abi_path as #nc::ComClassContract>::CONSTRUCTOR_ABI_HASH,
+                            <#abi_path as #nc::ComClassContract>::CONSTRUCTOR_ABI_SIGNATURE,
                             |_arguments| {
                                 // SAFETY: The checked helper matched the class's
-                                // generated constructor hash and pointer shape.
+                                // generated constructor signature and pointer shape.
                                 let value = unsafe {
                                     #abi_path::__nc_construct::<#class_type>(_arguments)?
                                 };

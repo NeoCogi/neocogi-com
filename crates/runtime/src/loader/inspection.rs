@@ -15,7 +15,7 @@ use std::string::String;
 use std::vec::Vec;
 
 use neocogi_com_core::{
-    NC_E_INVALID_ARG, NC_E_POINTER, NcAbiHash, NcAbiThreadingMode, NcClassDescriptor, NcClassInterfaceDescriptor, NcGuid, NcInterfaceDescriptor, NcInterfaceId,
+    NC_E_INVALID_ARG, NC_E_POINTER, NcAbiSignature, NcAbiThreadingMode, NcClassDescriptor, NcClassInterfaceDescriptor, NcGuid, NcInterfaceDescriptor,
     NcMethodDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, format_method_signature, validate_plugin_descriptor_with_issues,
 };
 
@@ -47,8 +47,8 @@ pub struct ClassInspection {
     pub qualified_name: String,
     /// Static class version metadata copied into owned storage.
     pub class_version: String,
-    /// Constructor-frame ABI hash, or [`NcAbiHash::ZERO`] for no arguments.
-    pub constructor_abi_hash: NcAbiHash,
+    /// Owned constructor-frame ABI mangle, or an empty string for no arguments.
+    pub constructor_abi_signature: String,
     /// Threading capability promised by constructed objects.
     pub threading: NcAbiThreadingMode,
     /// Interfaces implemented by this class.
@@ -64,6 +64,22 @@ pub struct ClassInterfaceInspection {
     pub interface: InterfaceInspection,
 }
 
+/// Owned identity of one optional base-interface contract.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InterfaceIdentityInspection {
+    /// Stable interface GUID, or nil when no base is present.
+    pub iid: NcGuid,
+    /// Owned canonical ABI mangle, or empty when no base is present.
+    pub abi_signature: String,
+}
+
+impl InterfaceIdentityInspection {
+    /// Returns whether this is the canonical absent-base identity.
+    pub fn is_none(&self) -> bool {
+        self.iid.is_nil() && self.abi_signature.is_empty()
+    }
+}
+
 /// Owned metadata for one ABI interface.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InterfaceInspection {
@@ -71,10 +87,10 @@ pub struct InterfaceInspection {
     pub interface_id: NcGuid,
     /// Normative qualified interface name copied into owned storage.
     pub qualified_name: String,
-    /// SHA-256 hash of the complete lowered interface ABI contract.
-    pub abi_hash: NcAbiHash,
+    /// Owned canonical mangle of the complete lowered interface ABI contract.
+    pub abi_signature: String,
     /// Explicit base contract, or NONE for the implicit IUnknown prefix.
-    pub base: NcInterfaceId,
+    pub base: InterfaceIdentityInspection,
     /// Locally introduced method metadata; inherited slots belong to `base`.
     pub methods: Vec<MethodInspection>,
 }
@@ -231,7 +247,7 @@ fn copy_class(path: &Path, class: &NcClassDescriptor) -> Result<ClassInspection,
         class_id: class.class_id,
         qualified_name,
         class_version,
-        constructor_abi_hash: class.constructor_abi_hash,
+        constructor_abi_signature: copy_abi_signature(path, class.constructor_abi_signature, "class constructor ABI signature is invalid")?,
         threading,
         interfaces: copied_interfaces,
     })
@@ -257,7 +273,7 @@ fn copy_class_interface(path: &Path, class_interface: &NcClassInterfaceDescripto
     })
 }
 
-/// Copies one interface identity, ABI hash, name, and ordered methods.
+/// Copies one interface identity, ABI signature, name, and ordered methods.
 fn copy_interface(path: &Path, interface: &NcInterfaceDescriptor) -> Result<InterfaceInspection, PluginLoadError> {
     // SAFETY: The descriptor was validated before this copy.
     let qualified_name = unsafe { copy_static_utf8(path, interface.qualified_name, "interface qualified name is not valid static UTF-8")? };
@@ -271,8 +287,11 @@ fn copy_interface(path: &Path, interface: &NcInterfaceDescriptor) -> Result<Inte
     Ok(InterfaceInspection {
         interface_id: interface.interface_id,
         qualified_name,
-        abi_hash: interface.abi_hash,
-        base: interface.base,
+        abi_signature: copy_abi_signature(path, interface.abi_signature, "interface ABI signature is invalid")?,
+        base: InterfaceIdentityInspection {
+            iid: interface.base.iid,
+            abi_signature: copy_abi_signature(path, interface.base.abi_signature, "base-interface ABI signature is invalid")?,
+        },
         methods: copied_methods,
     })
 }
@@ -287,6 +306,16 @@ fn copy_method(path: &Path, index: u32, method: &NcMethodDescriptor) -> Result<M
         .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), "method typed ABI descriptors are invalid"))?;
 
     Ok(MethodInspection { index, name, signature })
+}
+
+/// Copies one validated component-owned ABI signature into offline storage.
+fn copy_abi_signature(path: &Path, signature: NcAbiSignature, message: &'static str) -> Result<String, PluginLoadError> {
+    // SAFETY: Descriptor validation established the signature view, and the
+    // exporting module remains pinned throughout this synchronous copy.
+    let bytes = unsafe { signature.as_bytes() }.map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), message))?;
+    core::str::from_utf8(bytes)
+        .map(ToOwned::to_owned)
+        .map_err(|_| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(NC_E_INVALID_ARG), message))
 }
 
 /// Copies validated module-owned static UTF-8 into independent `String` storage.

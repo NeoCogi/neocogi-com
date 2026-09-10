@@ -338,9 +338,9 @@ impl Runtime {
 
     /// Constructs an object from a registered class and typed argument frame.
     pub fn construct_class(&self, class_id: NcGuid, arguments: impl ComClassArguments) -> Result<ComPtr<IUnknown>, NcStatus> {
-        // SAFETY: The unsafe argument trait binds its hash to a frame pointer
+        // SAFETY: The unsafe argument trait binds its signature to a frame pointer
         // that remains valid while `arguments` is borrowed by this call.
-        unsafe { self.construct_class_raw(class_id, class_arguments_abi_hash(&arguments), arguments.as_abi_ptr()) }
+        unsafe { self.construct_class_raw(class_id, class_arguments_abi_signature(&arguments), arguments.as_abi_ptr()) }
     }
 
     /// Constructs an object with threading capability `M` and typed arguments.
@@ -349,9 +349,9 @@ impl Runtime {
     /// thread-safe request succeeds only when the class descriptor promises
     /// that constructed objects support cross-thread calls and destruction.
     pub fn construct_class_with_model<M: ThreadingModel>(&self, class_id: NcGuid, arguments: impl ComClassArguments) -> Result<ComPtr<IUnknown, M>, NcStatus> {
-        // SAFETY: The unsafe argument trait binds its hash to a frame pointer
+        // SAFETY: The unsafe argument trait binds its signature to a frame pointer
         // that remains valid while `arguments` is borrowed by this call.
-        unsafe { self.construct_class_with_model_raw::<M>(class_id, class_arguments_abi_hash(&arguments), arguments.as_abi_ptr()) }
+        unsafe { self.construct_class_with_model_raw::<M>(class_id, class_arguments_abi_signature(&arguments), arguments.as_abi_ptr()) }
     }
 
     /// Constructs an object from an explicitly erased constructor frame.
@@ -359,16 +359,16 @@ impl Runtime {
     /// # Safety
     ///
     /// `arguments`, when non-null, must point to an immutable constructor frame
-    /// matching `constructor_abi_hash` for the duration of this call.
+    /// matching `constructor_abi_signature` for the duration of this call.
     pub unsafe fn construct_class_raw(
         &self,
         class_id: NcGuid,
-        constructor_abi_hash: crate::NcAbiHash,
+        constructor_abi_signature: crate::NcAbiSignature,
         arguments: *const core::ffi::c_void,
     ) -> Result<ComPtr<IUnknown>, NcStatus> {
         // SAFETY: This forwards the caller's raw frame contract while
         // requesting the conservative thread-local pointer capability.
-        unsafe { self.construct_class_with_model_raw::<ThreadLocal>(class_id, constructor_abi_hash, arguments) }
+        unsafe { self.construct_class_with_model_raw::<ThreadLocal>(class_id, constructor_abi_signature, arguments) }
     }
 
     /// Constructs an object from an erased frame with threading capability `M`.
@@ -376,18 +376,18 @@ impl Runtime {
     /// # Safety
     ///
     /// `arguments`, when non-null, must point to an immutable constructor frame
-    /// matching `constructor_abi_hash` for the duration of this call.
+    /// matching `constructor_abi_signature` for the duration of this call.
     pub unsafe fn construct_class_with_model_raw<M: ThreadingModel>(
         &self,
         class_id: NcGuid,
-        constructor_abi_hash: crate::NcAbiHash,
+        constructor_abi_signature: crate::NcAbiSignature,
         arguments: *const core::ffi::c_void,
     ) -> Result<ComPtr<IUnknown, M>, NcStatus> {
         let mut out = core::ptr::null_mut();
         let requested_threading = M::ABI_THREADING_MODE.as_raw();
         // SAFETY: The caller supplies the borrowed argument contract and `out`
         // is valid for one pointer write.
-        let status = unsafe { (self.runtime_api().construct_class)(class_id, requested_threading, constructor_abi_hash, arguments, &mut out) };
+        let status = unsafe { (self.runtime_api().construct_class)(class_id, requested_threading, constructor_abi_signature, arguments, &mut out) };
         status_to_result(status)?;
         // SAFETY: A successful runtime construction returns one owned reference.
         unsafe { ComPtr::<IUnknown, M>::__nc_from_raw_owned_checked(out) }
@@ -445,11 +445,11 @@ impl Runtime {
 }
 
 /// Reads a constructor wrapper's compile-time ABI identity without permitting
-/// a value-dependent or overridable hash.
-fn class_arguments_abi_hash<A: ComClassArguments>(_: &A) -> crate::NcAbiHash {
+/// a value-dependent or overridable signature.
+fn class_arguments_abi_signature<A: ComClassArguments>(_: &A) -> crate::NcAbiSignature {
     // The unsafe trait implementation ties this associated constant to the
     // exact frame returned by `as_abi_ptr`.
-    A::ABI_HASH
+    A::ABI_SIGNATURE
 }
 
 /// Reports an unrecoverable live-activation failure and aborts the process.

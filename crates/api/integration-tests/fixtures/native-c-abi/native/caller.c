@@ -5,7 +5,7 @@
 typedef int32_t NcStatus;
 
 typedef struct NcGuid NcGuid;
-typedef struct NcAbiHash NcAbiHash;
+typedef struct NcAbiSignature NcAbiSignature;
 typedef struct NcInterfaceId NcInterfaceId;
 typedef struct NcStaticUtf8 NcStaticUtf8;
 typedef struct NcMethodDescriptor NcMethodDescriptor;
@@ -29,13 +29,14 @@ struct NcGuid {
     uint8_t data4[8];
 };
 
-struct NcAbiHash {
-    uint8_t bytes[32];
+struct NcAbiSignature {
+    const uint8_t *data;
+    uint32_t len;
 };
 
 struct NcInterfaceId {
     NcGuid iid;
-    NcAbiHash abi_hash;
+    NcAbiSignature abi_signature;
 };
 
 struct NcStaticUtf8 {
@@ -46,7 +47,7 @@ struct NcStaticUtf8 {
 struct NcInterfaceDescriptor {
     NcGuid interface_id;
     NcStaticUtf8 qualified_name;
-    NcAbiHash abi_hash;
+    NcAbiSignature abi_signature;
     NcInterfaceId base;
     uint32_t method_count;
     const NcMethodDescriptor *methods;
@@ -66,7 +67,7 @@ struct NcClassDescriptor {
     NcGuid class_id;
     NcStaticUtf8 qualified_name;
     NcStaticUtf8 class_version;
-    NcAbiHash constructor_abi_hash;
+    NcAbiSignature constructor_abi_signature;
     uint32_t threading;
     NcConstructorFn construct;
     uint32_t interface_count;
@@ -251,19 +252,19 @@ _Static_assert(offsetof(NcDebugApiV1Prefix, create_messenger) == sizeof(size_t),
     "NcDebugApiV1 prefix changed");
 
 #if UINTPTR_MAX == UINT64_MAX
-_Static_assert(sizeof(NcInterfaceDescriptor) == 128,
+_Static_assert(sizeof(NcInterfaceDescriptor) == 96,
     "64-bit NcInterfaceDescriptor ABI size changed");
-_Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 112,
+_Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 80,
     "64-bit NcInterfaceDescriptor.method_count ABI offset changed");
-_Static_assert(offsetof(NcInterfaceDescriptor, methods) == 120,
+_Static_assert(offsetof(NcInterfaceDescriptor, methods) == 88,
     "64-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(sizeof(NcClassDescriptor) == 112,
+_Static_assert(sizeof(NcClassDescriptor) == 96,
     "64-bit NcClassDescriptor ABI size changed");
-_Static_assert(offsetof(NcClassDescriptor, threading) == 80,
+_Static_assert(offsetof(NcClassDescriptor, threading) == 64,
     "64-bit NcClassDescriptor.threading ABI offset changed");
-_Static_assert(offsetof(NcClassDescriptor, construct) == 88,
+_Static_assert(offsetof(NcClassDescriptor, construct) == 72,
     "64-bit NcClassDescriptor.construct ABI offset changed");
-_Static_assert(offsetof(NcClassDescriptor, interfaces) == 104,
+_Static_assert(offsetof(NcClassDescriptor, interfaces) == 88,
     "64-bit NcClassDescriptor.interfaces ABI offset changed");
 _Static_assert(sizeof(NcPluginDescriptor) == 80,
     "64-bit NcPluginDescriptor ABI size changed");
@@ -276,19 +277,19 @@ _Static_assert(offsetof(NcPluginDescriptor, class_table) == 72,
 _Static_assert(offsetof(NcRuntimeApiV1Prefix, register_plugin_descriptor) == 16,
     "64-bit NcRuntimeApiV1 registration prefix changed");
 #elif UINTPTR_MAX == UINT32_MAX
-_Static_assert(sizeof(NcInterfaceDescriptor) == 112,
+_Static_assert(sizeof(NcInterfaceDescriptor) == 64,
     "32-bit NcInterfaceDescriptor ABI size changed");
-_Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 104,
+_Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 56,
     "32-bit NcInterfaceDescriptor.method_count ABI offset changed");
-_Static_assert(offsetof(NcInterfaceDescriptor, methods) == 108,
+_Static_assert(offsetof(NcInterfaceDescriptor, methods) == 60,
     "32-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(sizeof(NcClassDescriptor) == 80,
+_Static_assert(sizeof(NcClassDescriptor) == 56,
     "32-bit NcClassDescriptor ABI size changed");
-_Static_assert(offsetof(NcClassDescriptor, threading) == 64,
+_Static_assert(offsetof(NcClassDescriptor, threading) == 40,
     "32-bit NcClassDescriptor.threading ABI offset changed");
-_Static_assert(offsetof(NcClassDescriptor, construct) == 68,
+_Static_assert(offsetof(NcClassDescriptor, construct) == 44,
     "32-bit NcClassDescriptor.construct ABI offset changed");
-_Static_assert(offsetof(NcClassDescriptor, interfaces) == 76,
+_Static_assert(offsetof(NcClassDescriptor, interfaces) == 52,
     "32-bit NcClassDescriptor.interfaces ABI offset changed");
 _Static_assert(sizeof(NcPluginDescriptor) == 48,
     "32-bit NcPluginDescriptor ABI size changed");

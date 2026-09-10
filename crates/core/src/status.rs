@@ -109,7 +109,7 @@ pub const NC_E_INVALID_TAG: NcStatus = NcStatus::from_code(-3);
 pub const NC_E_INVALID_ARG: NcStatus = NcStatus::from_code(-4);
 
 /// Returned when a shared library exposes an incompatible `neocogi-com` ABI version
-/// or an object supports an interface ID with a different ABI hash.
+/// or an object supports an interface ID with a different ABI signature.
 pub const NC_E_ABI_VERSION: NcStatus = NcStatus::from_code(-5);
 
 /// Returned when an index or length is outside its valid range or a fixed

@@ -222,7 +222,7 @@ mod tests {
                 (runtime.construct_class)(
                     NcGuid::nil(),
                     neocogi_com_core::NC_ABI_THREADING_THREAD_LOCAL,
-                    neocogi_com_core::NcAbiHash::ZERO,
+                    neocogi_com_core::NcAbiSignature::EMPTY,
                     ptr::null(),
                     ptr::null_mut(),
                 )

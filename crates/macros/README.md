@@ -22,8 +22,8 @@ generates:
 - `ITraitVTable`: a C-compatible vtable
 - `ITraitComPtrExt`: safe call helpers for `neocogi_com::ComPtr<ITraitAbi>`
 - an `unsafe impl neocogi_com::ComInterface` that certifies the generated header,
-  vtable prefix, interface identity, ABI hash, and `IUnknown` pointer conversion
-- `ABI_HASH`, method descriptors with typed method hashes and typed parameter
+  vtable prefix, interface identity, ABI signature, and `IUnknown` pointer conversion
+- `ABI_SIGNATURE`, method descriptors with typed method signatures and typed parameter
   and return descriptors, plus rendered diagnostic signature text for tools
 
 Using the generated interface and its safe `ComPtr` helpers requires no unsafe
@@ -31,14 +31,14 @@ code. `ComInterface` is unsealed for low-level FFI adapters, but handwritten
 implementations must use `unsafe impl` and uphold its complete safety contract;
 the attribute macro is the supported safe implementation path.
 
-Generated `ABI_HASH` values are SHA-256 hashes of typed ABI parts. They include
-method order, method names, argument and return ABI types, passing modes, void
-versus `out` returns, `ComRef` borrowed parameters, `ComPtr` owned returns, safe
-buffer passing modes, COM threading mode, referenced interface IDs, and
-inherited interface ABI hashes. The macros hash declaration shape and the first
-final-hash block as native host code, then emit the SHA-256 chaining state as
-integer literals. Rust constant evaluation adds only target layouts, aggregate
-hashes, and other values that require resolved type information.
+Generated `ABI_SIGNATURE` values are canonical mangled strings built from typed
+ABI parts. They include method order, method names, argument and return ABI
+types, passing modes, void versus `out` returns, `ComRef` borrowed parameters,
+`ComPtr` owned returns, safe buffer passing modes, COM threading mode,
+referenced interface IDs, and inherited interface signatures. The macros emit
+the declaration records directly, while Rust constant evaluation adds target
+layouts, aggregate signatures, and other values that require resolved type
+information. The result is exact-size static storage, not a runtime allocation.
 
 `#[com_class]` declares one registered class's primary callable contract on a
 trait and generates the same C-shaped call machinery without requiring a
@@ -61,7 +61,7 @@ A contract-backed implementation uses
 constructor frame and an `arguments(...)` builder on the generated `ClassAbi`
 type; the constructor itself is excluded from the method vtable.
 The contract is automatically its first non-`IUnknown` projection and supplies
-the descriptor's class ID, name, version, constructor ABI hash, and required
+the descriptor's class ID, name, version, constructor ABI signature, and required
 interface set. Supertraits on the class declaration become separate queryable
 projections on the same object; the implementation struct does not repeat them.
 
@@ -100,7 +100,7 @@ or annotations. It checks nested FFI layouts at compile time with rustc's
 `improper_ctypes_definitions` lint promoted to an error; `Copy` and syntactic
 field checks still apply. The author must ensure external types contain no
 hidden pointers, references, or ownership obligations. In this mode, field
-fingerprints contain only size and alignment; the enclosing record also records
+signatures contain only size and alignment; the enclosing record also records
 field order and offsets. Incompatible changes invisible to that metadata require
 a new interface identity. See the [external-field guide](../README.md#external-c-layout-fields)
 for an example and the precise limits of this option.
@@ -158,7 +158,7 @@ single `auto_guid = "stable.Name:v1"` input. Concrete implementations use only
 version, constructor policy, or public projections.
 The optional `dependencies = [...]` list contains hard
 plugin IDs that must already be registered. It never triggers path discovery or
-recursive loading. core ABI v5 descriptors remain declarative and have no
+recursive loading. core ABI v6 descriptors remain declarative and have no
 initialization hook.
 
 ## ABI Lowering

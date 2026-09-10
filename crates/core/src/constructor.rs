@@ -7,7 +7,9 @@
 
 use core::ffi::c_void;
 
-use crate::{IUnknown, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiHash, NcClassDescriptor, NcPluginDescriptor, NcStatus, validate_plugin_descriptor_with_issues};
+use crate::{
+    IUnknown, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiSignature, NcClassDescriptor, NcPluginDescriptor, NcStatus, validate_plugin_descriptor_with_issues,
+};
 
 use crate::ptr::{ComPtr, ThreadingModel};
 
@@ -43,7 +45,7 @@ pub unsafe fn return_plugin_descriptor(out: *mut *const NcPluginDescriptor, plug
 /// Implements a checked class constructor wrapper.
 ///
 /// The wrapper validates the descriptor pointer, class ID, constructor-frame
-/// hash, declared threading mode, and output pointer before
+/// signature, declared threading mode, and output pointer before
 /// calling `build`. On success it writes one owned `IUnknown` reference to
 /// `out`; on failure it leaves `out` null. `build` must return a negative
 /// [`NcStatus`] in `Result::Err`. A non-negative error value violates that Rust
@@ -60,7 +62,7 @@ pub unsafe fn construct_class_checked<M, F>(
     arguments: *const c_void,
     out: *mut *mut IUnknown,
     expected_class_id: crate::NcGuid,
-    expected_arguments: NcAbiHash,
+    expected_arguments: NcAbiSignature,
     build: F,
 ) -> NcStatus
 where
@@ -84,7 +86,7 @@ where
     if class.class_id != expected_class_id {
         return NC_E_INVALID_ARG;
     }
-    if class.constructor_abi_hash != expected_arguments {
+    if class.constructor_abi_signature != expected_arguments {
         return NC_E_INVALID_ARG;
     }
     if class.threading != M::ABI_THREADING_MODE.as_raw() {
@@ -94,9 +96,9 @@ where
         return NC_E_INVALID_ARG;
     }
 
-    // A zero hash denotes the one valid empty frame representation: null. Every
-    // typed frame has a non-zero hash and therefore requires a non-null pointer.
-    if arguments.is_null() != (expected_arguments == NcAbiHash::ZERO) {
+    // An empty signature denotes the one valid empty frame representation: null.
+    // Every typed frame has a non-empty signature and requires a non-null pointer.
+    if arguments.is_null() != (expected_arguments == NcAbiSignature::EMPTY) {
         return NC_E_INVALID_ARG;
     }
 

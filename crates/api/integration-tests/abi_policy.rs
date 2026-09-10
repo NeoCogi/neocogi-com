@@ -1,5 +1,4 @@
-use neocogi_com::{ComInterface, ComPtr, ComRef, NcAbiHash, NcStatus, com_interface, format_method_signature, guid_from_qualified_name};
-use std::fmt::Write;
+use neocogi_com::{ComInterface, ComPtr, ComRef, NcAbiSignature, NcStatus, com_interface, format_method_signature, guid_from_qualified_name};
 
 mod external_fields {
     use neocogi_com::{ComPtr, NcCopyFromBufferOffset, NcStatus, com_object, com_interface, com_struct};
@@ -64,16 +63,15 @@ pub trait IPolicyService {
     fn retain(&self, value: ComRef<'_, IPolicyValueAbi>) -> Result<ComPtr<IPolicyValueAbi>, NcStatus>;
 }
 
-fn hash_hex(hash: NcAbiHash) -> String {
-    let mut out = String::with_capacity(64);
-    for byte in hash.bytes {
-        let _ = write!(out, "{byte:02x}");
-    }
-    out
+fn signature_text(signature: NcAbiSignature) -> String {
+    // SAFETY: Macro-generated signatures reference immutable static storage in
+    // this test component for the duration of the process.
+    let bytes = unsafe { signature.as_bytes() }.expect("valid generated signature view");
+    std::str::from_utf8(bytes).expect("canonical signatures are UTF-8").to_owned()
 }
 
 #[test]
-fn generated_interface_iids_and_hashes_are_stable() {
+fn generated_interface_iids_and_signatures_are_stable() {
     assert_eq!(IPolicyValueAbi::IID, guid_from_qualified_name("nc.tests.abi_policy.Value:v1"));
     assert_eq!(
         unsafe { IPolicyValueAbi::INTERFACE_DESCRIPTOR.qualified_name.as_str() }.unwrap(),
@@ -81,20 +79,21 @@ fn generated_interface_iids_and_hashes_are_stable() {
     );
     assert_eq!(IPolicyValueAbi::IID.to_string(), "be3b63c2-5ea1-5ddd-aa6e-803343b38af3");
     assert_eq!(
-        IPolicyValueAbi::ABI_HASH.bytes,
-        [
-            0xbd, 0xf3, 0x34, 0x0c, 0x1c, 0xe6, 0xde, 0x84, 0x27, 0x55, 0x7b, 0x5c, 0x0e, 0xa1, 0x41, 0x47, 0x1c, 0xaa, 0x67, 0x8a, 0x6e, 0x04, 0xaf, 0x2f,
-            0x1f, 0x67, 0xaa, 0x6a, 0x32, 0xca, 0x32, 0xa5,
-        ]
+        signature_text(IPolicyValueAbi::ABI_SIGNATURE),
+        "ncabi1;Ibe3b63c25ea15dddaa6e803343b38af3M0000000000000005valueR00O0209S"
     );
     assert_eq!(IPolicyServiceAbi::IID.to_string(), "e68a0ddb-0d68-5e76-9d03-4186119e1c45");
     assert_eq!(IPolicyServiceAbi::IID, guid_from_qualified_name("nc.tests.abi_policy.Service:v1"));
     assert_eq!(
-        IPolicyServiceAbi::ABI_HASH.bytes,
-        [
-            0xa6, 0x03, 0xd4, 0x22, 0x8d, 0x2a, 0x50, 0xa1, 0x64, 0xd2, 0x01, 0xdf, 0x7a, 0xa5, 0x79, 0xb1, 0x0e, 0xbd, 0x7f, 0x8e, 0xb7, 0x10, 0x28, 0x18,
-            0x34, 0x9d, 0xa1, 0xcf, 0x5d, 0x6d, 0xef, 0x3e,
-        ]
+        signature_text(IPolicyServiceAbi::ABI_SIGNATURE),
+        concat!(
+            "ncabi1;Ie68a0ddb0d685e769d034186119e1c45",
+            "M0000000000000003addR00A000000000109A000000010109O0209S",
+            "M0000000100000005flushR00O0000S",
+            "M0000000200000006retainR00",
+            "A00000000050012be3b63c25ea15dddaa6e803343b38af3",
+            "O060012be3b63c25ea15dddaa6e803343b38af3S",
+        )
     );
 }
 
@@ -131,9 +130,9 @@ fn generated_method_order_and_signatures_are_stable() {
         format!(
             "retain(value: com_ref<thread_local, interface<{}, {}>>) -> com_ptr_out<thread_local, interface<{}, {}>> status",
             IPolicyValueAbi::IID,
-            hash_hex(IPolicyValueAbi::ABI_HASH),
+            signature_text(IPolicyValueAbi::ABI_SIGNATURE),
             IPolicyValueAbi::IID,
-            hash_hex(IPolicyValueAbi::ABI_HASH)
+            signature_text(IPolicyValueAbi::ABI_SIGNATURE)
         )
     );
 }

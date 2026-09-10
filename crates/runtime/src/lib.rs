@@ -42,6 +42,6 @@ mod state;
 mod type_registry;
 
 pub use loader::{
-    ClassInspection, ClassInterfaceInspection, InterfaceInspection, MethodInspection, PluginDependencyPlanError, PluginInspection, PluginLoadError,
-    PluginLoadErrorKind, inspect_plugin_library, plan_plugin_load_order,
+    ClassInspection, ClassInterfaceInspection, InterfaceIdentityInspection, InterfaceInspection, MethodInspection, PluginDependencyPlanError, PluginInspection,
+    PluginLoadError, PluginLoadErrorKind, inspect_plugin_library, plan_plugin_load_order,
 };

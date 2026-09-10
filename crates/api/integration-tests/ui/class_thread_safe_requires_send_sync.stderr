@@ -13,10 +13,8 @@ note: required because it appears within the type `NotActuallyThreadSafe`
 note: required by a bound in `ThreadSafeComObject`
   --> src/object.rs
    |
-   | pub unsafe trait ThreadSafeComObject:
-   |                  ------------------- required by a bound in this trait
-   |     ComClass<Threading = ThreadSafe> + Send + Sync
-   |                                               ^^^^ required by this bound in `ThreadSafeComObject`
+   | pub unsafe trait ThreadSafeComObject: ComClass<Threading = ThreadSafe> + Send + Sync {}
+   |                                                                                 ^^^^ required by this bound in `ThreadSafeComObject`
 
 error[E0277]: `Rc<u32>` cannot be sent between threads safely
   --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
@@ -33,10 +31,8 @@ note: required because it appears within the type `NotActuallyThreadSafe`
 note: required by a bound in `ThreadSafeComObject`
   --> src/object.rs
    |
-   | pub unsafe trait ThreadSafeComObject:
-   |                  ------------------- required by a bound in this trait
-   |     ComClass<Threading = ThreadSafe> + Send + Sync
-   |                                        ^^^^ required by this bound in `ThreadSafeComObject`
+   | pub unsafe trait ThreadSafeComObject: ComClass<Threading = ThreadSafe> + Send + Sync {}
+   |                                                                          ^^^^ required by this bound in `ThreadSafeComObject`
 
 error[E0277]: `Rc<u32>` cannot be sent between threads safely
   --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12

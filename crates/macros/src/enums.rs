@@ -12,7 +12,7 @@ use syn::{Attribute, Expr, Fields, Ident, ItemEnum, Lit, LitInt, LitStr, Result,
 use crate::args::EnumArgs;
 use crate::deserialize::expand_struct as expand_struct_deserialize;
 use crate::plain_data::{PlainAbiTypeContext, validate_plain_abi_fields};
-use crate::util::{aggregate_hash_prefix_tokens, checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
+use crate::util::{abi_signature_static_tokens, checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
 
 /// Validates an enum and emits its stable raw representation and conversions.
 pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<proc_macro2::TokenStream> {
@@ -85,19 +85,47 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
         Fields::Unit => None,
         Fields::Unnamed(unnamed) => {
             let struct_ident = variant_payload_ident(enum_ident, variant_ident);
-            let hash_prefix = aggregate_hash_prefix_tokens(neocogi_com_core::NcAbiAggregateKind::Struct, unnamed.unnamed.len(), 0, &nc);
-            let field_layout_parts = unnamed.unnamed.iter().enumerate().map(|(index, field)| {
+            let field_layout_parts = unnamed
+                .unnamed
+                .iter()
+                .enumerate()
+                .map(|(index, field)| {
+                    let index = index as u32;
+                    let field_ident = tuple_payload_field(index as usize);
+                    let ty = &field.ty;
+                    quote! {
+                        #nc::NcAbiFieldLayout {
+                            index: #index,
+                            offset: core::mem::offset_of!(#struct_ident, #field_ident),
+                            ty: #nc::__nc_abi_plain_type::<#ty>(),
+                        }
+                    }
+                })
+                .collect::<Vec<_>>();
+            let mut signature_parts = vec![
+                quote! { #nc::NcAbiSignaturePart::Aggregate { kind: #nc::NcAbiAggregateKind::Struct } },
+                quote! {
+                    #nc::NcAbiSignaturePart::Layout {
+                        size: core::mem::size_of::<#struct_ident>(),
+                        align: core::mem::align_of::<#struct_ident>(),
+                    }
+                },
+            ];
+            signature_parts.extend(unnamed.unnamed.iter().enumerate().map(|(index, field)| {
                 let index = index as u32;
                 let field_ident = tuple_payload_field(index as usize);
                 let ty = &field.ty;
                 quote! {
-                    #nc::NcAbiFieldLayout {
+                    #nc::NcAbiSignaturePart::Field {
                         index: #index,
                         offset: core::mem::offset_of!(#struct_ident, #field_ident),
                         ty: #nc::__nc_abi_plain_type::<#ty>(),
                     }
                 }
-            });
+            }));
+            let parts_ident = format_ident!("__nc_{struct_ident}_abi_signature_parts");
+            let bytes_ident = format_ident!("__nc_{struct_ident}_abi_signature_bytes");
+            let signature_static = abi_signature_static_tokens(&parts_ident, &bytes_ident, &signature_parts, &nc);
             let struct_fields = unnamed.unnamed.iter().enumerate().map(|(index, field)| {
                 let field_ident = tuple_payload_field(index);
                 let ty = &field.ty;
@@ -111,6 +139,8 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
                 }
             });
             Some(quote! {
+                #signature_static
+
                 #[repr(C)]
                 #[derive(Clone, Copy)]
                 #[doc = concat!("ABI payload for [`", stringify!(#enum_ident), "::", stringify!(#variant_ident), "`].")]
@@ -121,7 +151,8 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
                 // SAFETY: The generated payload struct is `repr(C)`, and
                 // layout metadata is computed from compiler layout facts.
                 unsafe impl #nc::ComStruct for #struct_ident {
-                    const ABI_HASH_PREFIX: #nc::__NcAbiHashPrefix = #hash_prefix;
+                    const ABI_SIGNATURE: #nc::NcAbiSignature =
+                        #nc::NcAbiSignature::from_static(&#bytes_ident);
 
                     const ABI_STRUCT_LAYOUT: #nc::NcAbiStructLayout = #nc::NcAbiStructLayout {
                         size: core::mem::size_of::<Self>(),
@@ -132,7 +163,7 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
                     };
                 }
 
-                // SAFETY: The generated ABI type hash requires every
+                // SAFETY: The generated ABI type signature requires every
                 // payload field to be a plain ABI value and includes the
                 // payload's physical layout.
                 unsafe impl #nc::AbiType for #struct_ident {
@@ -145,19 +176,47 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
         }
         Fields::Named(named) => {
             let struct_ident = variant_payload_ident(enum_ident, variant_ident);
-            let hash_prefix = aggregate_hash_prefix_tokens(neocogi_com_core::NcAbiAggregateKind::Struct, named.named.len(), 0, &nc);
-            let field_layout_parts = named.named.iter().enumerate().map(|(index, field)| {
+            let field_layout_parts = named
+                .named
+                .iter()
+                .enumerate()
+                .map(|(index, field)| {
+                    let index = index as u32;
+                    let field_ident = field.ident.as_ref().expect("named field has an ident");
+                    let ty = &field.ty;
+                    quote! {
+                        #nc::NcAbiFieldLayout {
+                            index: #index,
+                            offset: core::mem::offset_of!(#struct_ident, #field_ident),
+                            ty: #nc::__nc_abi_plain_type::<#ty>(),
+                        }
+                    }
+                })
+                .collect::<Vec<_>>();
+            let mut signature_parts = vec![
+                quote! { #nc::NcAbiSignaturePart::Aggregate { kind: #nc::NcAbiAggregateKind::Struct } },
+                quote! {
+                    #nc::NcAbiSignaturePart::Layout {
+                        size: core::mem::size_of::<#struct_ident>(),
+                        align: core::mem::align_of::<#struct_ident>(),
+                    }
+                },
+            ];
+            signature_parts.extend(named.named.iter().enumerate().map(|(index, field)| {
                 let index = index as u32;
                 let field_ident = field.ident.as_ref().expect("named field has an ident");
                 let ty = &field.ty;
                 quote! {
-                    #nc::NcAbiFieldLayout {
+                    #nc::NcAbiSignaturePart::Field {
                         index: #index,
                         offset: core::mem::offset_of!(#struct_ident, #field_ident),
                         ty: #nc::__nc_abi_plain_type::<#ty>(),
                     }
                 }
-            });
+            }));
+            let parts_ident = format_ident!("__nc_{struct_ident}_abi_signature_parts");
+            let bytes_ident = format_ident!("__nc_{struct_ident}_abi_signature_bytes");
+            let signature_static = abi_signature_static_tokens(&parts_ident, &bytes_ident, &signature_parts, &nc);
             let struct_fields = named.named.iter().map(|field| {
                 let field_ident = field.ident.as_ref().expect("named field has an ident");
                 let ty = &field.ty;
@@ -171,6 +230,8 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
                 }
             });
             Some(quote! {
+                #signature_static
+
                 #[repr(C)]
                 #[derive(Clone, Copy)]
                 #[doc = concat!("ABI payload for [`", stringify!(#enum_ident), "::", stringify!(#variant_ident), "`].")]
@@ -181,7 +242,8 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
                 // SAFETY: The generated payload struct is `repr(C)`, and
                 // layout metadata is computed from compiler layout facts.
                 unsafe impl #nc::ComStruct for #struct_ident {
-                    const ABI_HASH_PREFIX: #nc::__NcAbiHashPrefix = #hash_prefix;
+                    const ABI_SIGNATURE: #nc::NcAbiSignature =
+                        #nc::NcAbiSignature::from_static(&#bytes_ident);
 
                     const ABI_STRUCT_LAYOUT: #nc::NcAbiStructLayout = #nc::NcAbiStructLayout {
                         size: core::mem::size_of::<Self>(),
@@ -192,7 +254,7 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
                     };
                 }
 
-                // SAFETY: The generated ABI type hash requires every
+                // SAFETY: The generated ABI type signature requires every
                 // payload field to be a plain ABI value and includes the
                 // payload's physical layout.
                 unsafe impl #nc::AbiType for #struct_ident {
@@ -210,35 +272,78 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
         .filter(|(_, fields, _)| !matches!(fields, Fields::Unit))
         .map(|(variant_ident, _, _)| variant_payload_ident(enum_ident, variant_ident))
         .collect::<Vec<_>>();
-    let payload_union_prefix = aggregate_hash_prefix_tokens(neocogi_com_core::NcAbiAggregateKind::Union, payload_struct_idents.len(), 0, &nc);
-    let tagged_enum_prefix = aggregate_hash_prefix_tokens(neocogi_com_core::NcAbiAggregateKind::TaggedEnum, 2, variants.len(), &nc);
-    let payload_union_hash_parts = payload_struct_idents.iter().enumerate().map(|(index, struct_ident)| {
+    let mut payload_union_signature_parts = vec![
+        quote! { #nc::NcAbiSignaturePart::Aggregate { kind: #nc::NcAbiAggregateKind::Union } },
+        quote! {
+            #nc::NcAbiSignaturePart::Layout {
+                size: core::mem::size_of::<#payload_ident>(),
+                align: core::mem::align_of::<#payload_ident>(),
+            }
+        },
+    ];
+    payload_union_signature_parts.extend(payload_struct_idents.iter().enumerate().map(|(index, struct_ident)| {
         let index = index as u32;
         quote! {
-            #nc::NcAbiFieldLayout {
+            #nc::NcAbiSignaturePart::Field {
                 index: #index,
                 offset: 0usize,
                 ty: #nc::__nc_abi_plain_type::<#struct_ident>(),
             }
         }
-    });
-    let variant_hash_parts = variants.iter().enumerate().map(|(index, (variant_ident, fields, tag_value))| {
-        let index = index as u32;
-        let ty = match fields {
-            Fields::Unit => quote! { #nc::NcAbiType::Void },
-            Fields::Unnamed(_) | Fields::Named(_) => {
-                let struct_ident = variant_payload_ident(enum_ident, variant_ident);
-                quote! { #nc::__nc_abi_plain_type::<#struct_ident>() }
+    }));
+    let payload_union_parts_ident = format_ident!("__nc_{payload_ident}_abi_signature_parts");
+    let payload_union_bytes_ident = format_ident!("__nc_{payload_ident}_abi_signature_bytes");
+    let payload_union_signature_static =
+        abi_signature_static_tokens(&payload_union_parts_ident, &payload_union_bytes_ident, &payload_union_signature_parts, &nc);
+
+    let variant_signature_parts = variants
+        .iter()
+        .enumerate()
+        .map(|(index, (variant_ident, fields, tag_value))| {
+            let index = index as u32;
+            let ty = match fields {
+                Fields::Unit => quote! { #nc::NcAbiType::Void },
+                Fields::Unnamed(_) | Fields::Named(_) => {
+                    let struct_ident = variant_payload_ident(enum_ident, variant_ident);
+                    quote! { #nc::__nc_abi_plain_type::<#struct_ident>() }
+                }
+            };
+            quote! {
+                #nc::NcAbiSignaturePart::Variant {
+                    index: #index,
+                    tag: (#tag_value) as i128,
+                    ty: #ty,
+                }
             }
-        };
+        })
+        .collect::<Vec<_>>();
+    let mut tagged_enum_signature_parts = vec![
+        quote! { #nc::NcAbiSignaturePart::Aggregate { kind: #nc::NcAbiAggregateKind::TaggedEnum } },
         quote! {
-            #nc::NcAbiHashPart::Variant {
-                index: #index,
-                tag: (#tag_value) as i128,
-                ty: #ty,
+            #nc::NcAbiSignaturePart::Layout {
+                size: core::mem::size_of::<#abi_ident>(),
+                align: core::mem::align_of::<#abi_ident>(),
             }
-        }
-    });
+        },
+        quote! {
+            #nc::NcAbiSignaturePart::Field {
+                index: 0,
+                offset: #abi_ident::TAG_OFFSET,
+                ty: #nc::__nc_abi_plain_type::<#tag_ident>(),
+            }
+        },
+        quote! {
+            #nc::NcAbiSignaturePart::Field {
+                index: 1,
+                offset: #abi_ident::PAYLOAD_OFFSET,
+                ty: #nc::__nc_abi_plain_type::<#payload_ident>(),
+            }
+        },
+    ];
+    tagged_enum_signature_parts.extend(variant_signature_parts.iter().cloned());
+    let tagged_enum_parts_ident = format_ident!("__nc_{abi_ident}_abi_signature_parts");
+    let tagged_enum_bytes_ident = format_ident!("__nc_{abi_ident}_abi_signature_bytes");
+    let tagged_enum_signature_static = abi_signature_static_tokens(&tagged_enum_parts_ident, &tagged_enum_bytes_ident, &tagged_enum_signature_parts, &nc);
 
     let union_fields = variants.iter().filter_map(|(variant_ident, fields, _)| {
         if matches!(fields, Fields::Unit) {
@@ -414,6 +519,9 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
 
         #(#deserialize_payload_impls)*
 
+        #payload_union_signature_static
+        #tagged_enum_signature_static
+
         #[repr(C)]
         #[derive(Clone, Copy)]
         #[doc = concat!("ABI payload union for [`", stringify!(#enum_ident), "`].")]
@@ -423,21 +531,13 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
         }
 
         // SAFETY: The union contains only generated payload structs whose ABI
-        // type hashes require plain ABI values.
+        // type signatures require plain ABI values.
         unsafe impl #nc::AbiType for #payload_ident
         where
             #(#payload_struct_idents: #nc::AbiType,)*
         {
             const ABI_TYPE: #nc::NcAbiType = #nc::NcAbiType::Aggregate(
-                #nc::NcAbiHash::__from_aggregate_layout_prefix(
-                    #payload_union_prefix,
-                    #nc::NcAbiAggregateKind::Union,
-                    core::mem::size_of::<Self>(),
-                    core::mem::align_of::<Self>(),
-                    &[
-                        #(#payload_union_hash_parts,)*
-                    ],
-                ),
+                #nc::NcAbiSignature::from_static(&#payload_union_bytes_ident),
             );
         }
 
@@ -536,26 +636,7 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
             #payload_ident: #nc::AbiType,
         {
             const ABI_TYPE: #nc::NcAbiType = #nc::NcAbiType::Aggregate(
-                #nc::NcAbiHash::__from_abi_prefix(#tagged_enum_prefix, &[
-                    #nc::NcAbiHashPart::Aggregate {
-                        kind: #nc::NcAbiAggregateKind::TaggedEnum,
-                    },
-                    #nc::NcAbiHashPart::Layout {
-                        size: core::mem::size_of::<Self>(),
-                        align: core::mem::align_of::<Self>(),
-                    },
-                    #nc::NcAbiHashPart::Field {
-                        index: 0,
-                        offset: Self::TAG_OFFSET,
-                        ty: #nc::__nc_abi_plain_type::<#tag_ident>(),
-                    },
-                    #nc::NcAbiHashPart::Field {
-                        index: 1,
-                        offset: Self::PAYLOAD_OFFSET,
-                        ty: #nc::__nc_abi_plain_type::<#payload_ident>(),
-                    },
-                    #(#variant_hash_parts,)*
-                ]),
+                #nc::NcAbiSignature::from_static(&#tagged_enum_bytes_ident),
             );
         }
 

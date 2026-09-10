@@ -2,7 +2,7 @@
 //!
 //! The generator owns the representation attribute, ensures fields contain only
 //! durable ABI values, adds `Clone`/`Copy` when absent, and emits compiler-derived
-//! size, alignment, offset, and field-type metadata used for aggregate hashes.
+//! size, alignment, offset, and field-type metadata used for aggregate signatures.
 
 use quote::{format_ident, quote};
 use syn::{Attribute, Fields, Ident, ItemStruct, Member, Result};
@@ -10,7 +10,7 @@ use syn::{Attribute, Fields, Ident, ItemStruct, Member, Result};
 use crate::args::{StructArgs, StructReprArgs};
 use crate::deserialize::expand_struct as expand_struct_deserialize;
 use crate::plain_data::{PlainAbiTypeContext, validate_plain_abi_fields};
-use crate::util::{abi_hash_prefix_tokens, aggregate_hash_prefix_tokens, checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
+use crate::util::{abi_signature_static_tokens, checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
 
 /// Applies layout policy and emits `ComStruct`, `AbiType`, and plain-value impls.
 pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Result<proc_macro2::TokenStream> {
@@ -34,29 +34,60 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
         quote! {}
     };
     let field_layouts = com_struct_field_layouts(&input.fields);
-    let hash_prefix = aggregate_hash_prefix_tokens(neocogi_com_core::NcAbiAggregateKind::Struct, field_layouts.len(), 0, &nc);
-    let opaque_layout_prefix = abi_hash_prefix_tokens(&[neocogi_com_core::NcAbiHashPart::Layout { size: 0, align: 0 }], &nc);
-    let field_layout_parts = field_layouts.iter().map(|(index, member, ty)| {
+    let mut opaque_signature_statics = Vec::new();
+    let mut field_type_expressions = Vec::new();
+    for (index, _, ty) in &field_layouts {
         let field_type = if args.c_struct {
-            quote! {
-                #nc::NcAbiType::Aggregate(#nc::NcAbiHash::__from_abi_prefix(#opaque_layout_prefix, &[
-                    #nc::NcAbiHashPart::Layout {
-                        size: core::mem::size_of::<#ty>(),
-                        align: core::mem::align_of::<#ty>(),
-                    },
-                ]))
-            }
+            let parts_ident = format_ident!("__nc_{struct_ident}_field_{index}_signature_parts");
+            let bytes_ident = format_ident!("__nc_{struct_ident}_field_{index}_signature_bytes");
+            let parts = vec![quote! {
+                #nc::NcAbiSignaturePart::Layout {
+                    size: core::mem::size_of::<#ty>(),
+                    align: core::mem::align_of::<#ty>(),
+                }
+            }];
+            opaque_signature_statics.push(abi_signature_static_tokens(&parts_ident, &bytes_ident, &parts, &nc));
+            quote! { #nc::NcAbiType::Aggregate(#nc::NcAbiSignature::from_static(&#bytes_ident)) }
         } else {
             quote! { #nc::__nc_abi_plain_type::<#ty>() }
         };
+        field_type_expressions.push(field_type);
+    }
+
+    let field_layout_parts = field_layouts
+        .iter()
+        .zip(&field_type_expressions)
+        .map(|((index, member, _), field_type)| {
+            quote! {
+                #nc::NcAbiFieldLayout {
+                    index: #index,
+                    offset: core::mem::offset_of!(#struct_ident, #member),
+                    ty: #field_type,
+                }
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut signature_parts = vec![
+        quote! { #nc::NcAbiSignaturePart::Aggregate { kind: #nc::NcAbiAggregateKind::Struct } },
         quote! {
-            #nc::NcAbiFieldLayout {
+            #nc::NcAbiSignaturePart::Layout {
+                size: core::mem::size_of::<#struct_ident>(),
+                align: core::mem::align_of::<#struct_ident>(),
+            }
+        },
+    ];
+    signature_parts.extend(field_layouts.iter().zip(&field_type_expressions).map(|((index, member, _), field_type)| {
+        quote! {
+            #nc::NcAbiSignaturePart::Field {
                 index: #index,
                 offset: core::mem::offset_of!(#struct_ident, #member),
                 ty: #field_type,
             }
         }
-    });
+    }));
+    let signature_parts_ident = format_ident!("__nc_{struct_ident}_abi_signature_parts");
+    let signature_bytes_ident = format_ident!("__nc_{struct_ident}_abi_signature_bytes");
+    let signature_static = abi_signature_static_tokens(&signature_parts_ident, &signature_bytes_ident, &signature_parts, &nc);
 
     let layout_check = args.c_struct.then(|| {
         quote! {
@@ -71,11 +102,14 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
     Ok(quote! {
         #input
         #layout_check
+        #(#opaque_signature_statics)*
+        #signature_static
 
         // SAFETY: `#[com_struct]` generates the representation and layout
         // metadata from compiler layout facts for this struct.
         unsafe impl #nc::ComStruct for #struct_ident {
-            const ABI_HASH_PREFIX: #nc::__NcAbiHashPrefix = #hash_prefix;
+            const ABI_SIGNATURE: #nc::NcAbiSignature =
+                #nc::NcAbiSignature::from_static(&#signature_bytes_ident);
 
             const ABI_STRUCT_LAYOUT: #nc::NcAbiStructLayout = #nc::NcAbiStructLayout {
                 size: core::mem::size_of::<Self>(),
@@ -88,7 +122,7 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
 
         // SAFETY: `#[com_struct]` rejects generics and pointer/reference/owned
         // fields, and `ComStruct` supplies the physical layout used by the
-        // aggregate ABI type hash. With `c_struct`, the compiler checks C layout
+        // aggregate ABI type signature. With `c_struct`, the compiler checks C layout
         // and the author guarantees durable plain-value semantics.
         unsafe impl #nc::AbiType for #struct_ident {
             const ABI_TYPE: #nc::NcAbiType = #nc::__nc_abi_com_struct_type::<Self>();

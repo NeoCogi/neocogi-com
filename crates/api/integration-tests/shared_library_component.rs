@@ -1,6 +1,6 @@
 use neocogi_com::{
-    ComPtr, IUnknown, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiType, NcClassDescriptor, NcGuid, NcPluginDescriptor,
-    NcStatus, Runtime, com_interface, validate_plugin_descriptor_with_issues,
+    ComPtr, IUnknown, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiSignature, NcAbiSignaturePart, NcAbiPassing, NcAbiType, NcClassDescriptor, NcGuid,
+    NcPluginDescriptor, NcStatus, Runtime, com_interface, validate_plugin_descriptor_with_issues,
 };
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
@@ -25,7 +25,7 @@ pub trait IWidget {
     fn value(&self) -> Result<u32, NcStatus>;
 }
 
-const WIDGET_CONSTRUCTOR_ABI_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Arg {
+const WIDGET_CONSTRUCTOR_ABI_SIGNATURE: NcAbiSignature = neocogi_com::abi_signature!(&[NcAbiSignaturePart::Arg {
     index: 0,
     passing: NcAbiPassing::Value,
     ty: NcAbiType::U32,
@@ -57,7 +57,7 @@ fn host_loads_shared_library_class_table_and_constructs_class() {
 
     let class = &classes[0];
     assert_eq!(class.class_id, WIDGET_CLASS_ID);
-    assert_eq!(class.constructor_abi_hash, WIDGET_CONSTRUCTOR_ABI_HASH);
+    assert_eq!(class.constructor_abi_signature, WIDGET_CONSTRUCTOR_ABI_SIGNATURE);
     assert_eq!(unsafe { class.qualified_name_str() }.unwrap(), "nc.tests.shared_component.TestWidget");
 
     constructor_rejects_null_output(class);
@@ -103,7 +103,7 @@ fn runtime_loads_shared_library_and_constructs_class() {
     let arguments = WidgetArguments { base: 32 };
     let unknown = unsafe {
         runtime
-            .construct_class_raw(WIDGET_CLASS_ID, WIDGET_CONSTRUCTOR_ABI_HASH, core::ptr::from_ref(&arguments).cast())
+            .construct_class_raw(WIDGET_CLASS_ID, WIDGET_CONSTRUCTOR_ABI_SIGNATURE, core::ptr::from_ref(&arguments).cast())
             .unwrap()
     };
     let widget = unknown.query::<IWidgetAbi>().unwrap();

@@ -12,7 +12,7 @@ mod contract {
     pub trait IWidget {
         /// Observes the shared concrete state.
         fn value(&self) -> Result<u32, NcStatus>;
-        /// Returns another button without making ABI hashes recursively expand.
+        /// Returns another button without making ABI signatures recursively expand.
         fn button(&self) -> Result<ComPtr<super::IButtonAbi>, NcStatus>;
     }
 }
@@ -125,7 +125,7 @@ fn inherited_methods_and_queries_share_one_allocation() {
 }
 
 #[test]
-fn inherited_vtable_is_a_physical_prefix_and_hashes_the_base() {
+fn inherited_vtable_is_a_physical_prefix_and_signs_the_base() {
     assert_eq!(std::mem::offset_of!(IButtonVTable, base), 0);
     assert_eq!(std::mem::offset_of!(IButtonVTable, set_value), std::mem::size_of::<contract::IWidgetVTable>());
     assert_eq!(std::mem::offset_of!(IToggleVTable, copy_value), std::mem::size_of::<IButtonVTable>());
@@ -164,8 +164,8 @@ fn descriptor_validation_requires_matching_acyclic_base_contracts() {
     for case in 0..3 {
         let original = contracts[3].base;
         contracts[3].base = match case {
-            0 => neocogi_com::NcInterfaceId::new(neocogi_com::guid_from_qualified_name("nc.tests.inheritance.Missing:v1"), original.abi_hash),
-            1 => neocogi_com::NcInterfaceId::new(original.iid, IButtonAbi::ABI_HASH),
+            0 => neocogi_com::NcInterfaceId::new(neocogi_com::guid_from_qualified_name("nc.tests.inheritance.Missing:v1"), original.abi_signature),
+            1 => neocogi_com::NcInterfaceId::new(original.iid, IButtonAbi::ABI_SIGNATURE),
             _ => IToggleAbi::INTERFACE_ID,
         };
         let entries: Vec<_> = contracts

@@ -6,7 +6,7 @@
 //! inspection tools and compatibility reports.
 //!
 //! Rendered signatures are diagnostic output only. Compatibility is determined
-//! by the typed descriptors and their canonical ABI hash, so this module must
+//! by the typed descriptors and their canonical mangled ABI signature, so this module must
 //! never become a second parser or source of contract truth.
 
 use core::fmt::Write;
@@ -15,9 +15,9 @@ use crate::{
     NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT,
     NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
     NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64,
-    NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_ABI_HASH, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16,
-    NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_E_INVALID_ARG, NcAbiHash, NcAbiPassingDescriptor, NcAbiTypeDescriptor,
-    NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcStatus,
+    NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64,
+    NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_E_INVALID_ARG, NcAbiSignature, NcAbiPassingDescriptor, NcAbiTypeDescriptor, NcMethodDescriptor,
+    NcMethodParamDescriptor, NcMethodReturnDescriptor, NcStatus,
 };
 
 use alloc::string::String;
@@ -30,7 +30,7 @@ use alloc::string::String;
 ///
 /// # Safety
 ///
-/// Every pointer transitively reached through `method` must satisfy the core-ABI-v5
+/// Every pointer transitively reached through `method` must satisfy the core-ABI-v6
 /// descriptor contract for the duration of this call. In particular, a
 /// non-empty method or parameter name must point to its declared number of
 /// readable bytes, and nonzero `param_count` requires `params` to point to that
@@ -174,19 +174,18 @@ fn write_type(out: &mut String, ty: &NcAbiTypeDescriptor) -> Result<(), NcStatus
         NC_ABI_TYPE_F64 => out.push_str("f64"),
         NC_ABI_TYPE_NC_GUID => out.push_str("NcGuid"),
         NC_ABI_TYPE_NC_STATUS => out.push_str("NcStatus"),
-        NC_ABI_TYPE_NC_ABI_HASH => out.push_str("NcAbiHash"),
         NC_ABI_TYPE_AGGREGATE => {
-            if ty.aggregate_hash.bytes == [0; 32] {
+            if ty.aggregate_signature.is_empty() {
                 return Err(NC_E_INVALID_ARG);
             }
             out.push_str("aggregate<");
-            write_hash(out, ty.aggregate_hash);
+            write_signature(out, ty.aggregate_signature)?;
             out.push('>');
         }
         NC_ABI_TYPE_INTERFACE => {
             validate_interface_type(ty)?;
             write!(out, "interface<{}, ", ty.interface.iid).map_err(|_| NC_E_INVALID_ARG)?;
-            write_hash(out, ty.interface.abi_hash);
+            write_signature(out, ty.interface.abi_signature)?;
             out.push('>');
         }
         _ => return Err(NC_E_INVALID_ARG),
@@ -222,18 +221,22 @@ fn validate_non_interface_value_type(ty: &NcAbiTypeDescriptor) -> Result<(), NcS
     }
 }
 
-/// Requires a non-nil interface identity with a nonzero ABI hash.
+/// Requires a non-nil interface identity with a non-empty ABI signature.
 fn validate_interface_type(ty: &NcAbiTypeDescriptor) -> Result<(), NcStatus> {
-    if ty.tag != NC_ABI_TYPE_INTERFACE || ty.interface.iid.is_nil() || ty.interface.abi_hash.bytes == [0; 32] {
+    if ty.tag != NC_ABI_TYPE_INTERFACE || ty.interface.iid.is_nil() || ty.interface.abi_signature.is_empty() {
         Err(NC_E_INVALID_ARG)
     } else {
         Ok(())
     }
 }
 
-/// Appends a lowercase hexadecimal representation of all hash bytes.
-fn write_hash(out: &mut String, hash: NcAbiHash) {
-    for byte in hash.bytes {
-        let _ = write!(out, "{byte:02x}");
-    }
+/// Appends the canonical UTF-8 mangle referenced by a validated descriptor.
+fn write_signature(out: &mut String, signature: NcAbiSignature) -> Result<(), NcStatus> {
+    // SAFETY: This private formatter is reached only through
+    // `format_method_signature`, whose caller guarantees the complete
+    // descriptor graph and its component-owned signature views remain valid.
+    let bytes = unsafe { signature.as_bytes()? };
+    let text = core::str::from_utf8(bytes).map_err(|_| NC_E_INVALID_ARG)?;
+    out.push_str(text);
+    Ok(())
 }

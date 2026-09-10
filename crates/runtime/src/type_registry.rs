@@ -195,7 +195,7 @@ unsafe impl Sync for RegisteredClass {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neocogi_com_core::NcAbiHash;
+    use neocogi_com_core::NcAbiSignature;
     use std::hint::black_box;
     use std::time::Instant;
 
@@ -204,9 +204,8 @@ mod tests {
     }
 
     fn interface(index: u32) -> NcInterfaceId {
-        let mut hash = [0_u8; 32];
-        hash[..4].copy_from_slice(&index.wrapping_add(1).to_le_bytes());
-        NcInterfaceId::new(guid(index.wrapping_add(1_000_000)), NcAbiHash::from_bytes(hash))
+        let bytes = std::format!("ncabi1;test-interface-{index:08x}").into_bytes().into_boxed_slice();
+        NcInterfaceId::new(guid(index.wrapping_add(1_000_000)), NcAbiSignature::from_static(std::boxed::Box::leak(bytes)))
     }
 
     fn records(count: usize) -> Vec<RegisteredClass> {

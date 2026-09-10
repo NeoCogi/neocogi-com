@@ -80,7 +80,7 @@ pub(super) unsafe extern "C" fn require_interface(class_id: NcGuid, interface_id
 pub(super) unsafe extern "C" fn construct_class(
     class_id: NcGuid,
     requested_threading: u32,
-    constructor_abi_hash: neocogi_com_core::NcAbiHash,
+    constructor_abi_signature: neocogi_com_core::NcAbiSignature,
     arguments: *const core::ffi::c_void,
     out: *mut *mut IUnknown,
 ) -> NcStatus {
@@ -91,7 +91,7 @@ pub(super) unsafe extern "C" fn construct_class(
         construction::resolve_class(&catalog.type_registry, class_id, requested_threading)
     };
     // SAFETY: This forwards the caller's borrowed frame and output contracts.
-    let status = unsafe { construction::construct_class(class, constructor_abi_hash, arguments, out) };
+    let status = unsafe { construction::construct_class(class, constructor_abi_signature, arguments, out) };
     if status.is_err() {
         emit_error(NC_DEBUG_TYPE_RUNTIME, status, "registered class construction failed");
     }

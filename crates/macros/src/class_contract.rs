@@ -12,7 +12,7 @@ use crate::abi_method::{parse_abi_trait_item, parse_class_constructor, validate_
 use crate::args::{ClassContractArgs, InterfaceArgs, InterfaceGuid};
 use crate::interface::{expand_com_interface_with_methods, validate_callable_methods};
 use crate::model::{AbiArg, AbiArgKind, AbiConstructor};
-use crate::util::{abi_hash_prefix_tokens, push_error, runtime_crate_path, stable_guid};
+use crate::util::{abi_signature_static_tokens, push_error, runtime_crate_path, stable_guid};
 
 /// Generates one primary class projection, constructor frame, and registry identity.
 pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: ItemTrait) -> Result<proc_macro2::TokenStream> {
@@ -79,7 +79,7 @@ pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: Item
     let constructor = constructor.expect("validated constructor presence");
 
     // Primary class calls and optional interface calls intentionally share one
-    // lowering path. This keeps ownership, method hashes, thunks, and safe
+    // lowering path. This keeps ownership, method signatures, thunks, and safe
     // wrappers identical without exposing a redundant one-off interface.
     let callable = expand_com_interface_with_methods(
         InterfaceArgs {
@@ -108,8 +108,8 @@ pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: Item
             type Arguments<'a> = #arguments_type;
 
             const CLASS_ID: #nc::NcGuid = #class_id;
-            const CONSTRUCTOR_ABI_HASH: #nc::NcAbiHash =
-                #class_abi_ident::CONSTRUCTOR_ABI_HASH;
+            const CONSTRUCTOR_ABI_SIGNATURE: #nc::NcAbiSignature =
+                #class_abi_ident::CONSTRUCTOR_ABI_SIGNATURE;
             const QUALIFIED_NAME: &'static str = #qualified_name;
             const VERSION: &'static str = env!("CARGO_PKG_VERSION");
             const INTERFACE_CHAINS: &'static [&'static [&'static #nc::NcInterfaceDescriptor]] = &[
@@ -124,9 +124,9 @@ pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: Item
             pub const CLASS_ID: #nc::NcGuid =
                 <Self as #nc::ComClassContract>::CLASS_ID;
 
-            /// Hash of the complete primary class method surface.
-            pub const CLASS_ABI_HASH: #nc::NcAbiHash =
-                <Self as #nc::ComClassContract>::CLASS_ABI_HASH;
+            /// Canonical signature of the complete primary class method surface.
+            pub const CLASS_ABI_SIGNATURE: #nc::NcAbiSignature =
+                <Self as #nc::ComClassContract>::CLASS_ABI_SIGNATURE;
 
             /// Normative class name stored in plugin and runtime metadata.
             pub const CLASS_QUALIFIED_NAME: &'static str =
@@ -176,7 +176,7 @@ fn constructor_tokens(
         return quote! {
             impl #class_abi_ident {
                 /// Zero denotes the canonical empty constructor frame.
-                pub const CONSTRUCTOR_ABI_HASH: #nc::NcAbiHash = #nc::NcAbiHash::ZERO;
+                pub const CONSTRUCTOR_ABI_SIGNATURE: #nc::NcAbiSignature = #nc::NcAbiSignature::EMPTY;
 
                 /// Builds the empty argument value for this class constructor.
                 pub const fn arguments() {}
@@ -186,7 +186,7 @@ fn constructor_tokens(
                 /// # Safety
                 ///
                 /// `arguments` must be null, as guaranteed by the checked class
-                /// constructor wrapper for this zero-hash contract.
+                /// constructor wrapper for this empty-signature contract.
                 #[doc(hidden)]
                 pub unsafe fn __nc_construct<T>(
                     arguments: *const core::ffi::c_void,
@@ -227,24 +227,19 @@ fn constructor_tokens(
     let frame_initializers = constructor.args.iter().flat_map(frame_initializers);
     let decoded_arguments = constructor.args.iter().map(|argument| decode_argument(nc, argument));
     let argument_names = constructor.args.iter().map(|argument| &argument.ident);
-    let hash_parts = constructor
+    let signature_parts = constructor
         .args
         .iter()
         .enumerate()
-        .map(|(index, argument)| constructor_hash_part(nc, index, argument));
-    let schema_parts = constructor
-        .args
-        .iter()
-        .enumerate()
-        .map(|(index, _)| neocogi_com_core::NcAbiHashPart::Arg {
-            index: index as u32,
-            passing: neocogi_com_core::NcAbiPassing::Void,
-            ty: neocogi_com_core::NcAbiType::Void,
-        })
-        .collect::<Vec<_>>();
-    let hash_prefix = abi_hash_prefix_tokens(&schema_parts, nc);
+        .map(|(index, argument)| constructor_signature_part(nc, index, argument));
+    let signature_parts = signature_parts.collect::<Vec<_>>();
+    let signature_parts_ident = format_ident!("__nc_{class_abi_ident}_constructor_signature_parts");
+    let signature_bytes_ident = format_ident!("__nc_{class_abi_ident}_constructor_signature_bytes");
+    let signature_static = abi_signature_static_tokens(&signature_parts_ident, &signature_bytes_ident, &signature_parts, nc);
 
     quote! {
+        #signature_static
+
         /// Immutable C-shaped storage borrowed only for one constructor call.
         #[repr(C)]
         struct #frame_ident {
@@ -260,11 +255,11 @@ fn constructor_tokens(
         }
 
         // SAFETY: The generated wrapper owns a `repr(C)` frame whose fields,
-        // passing modes, order, and hash are emitted from the same lowered
+        // passing modes, order, and signature are emitted from the same lowered
         // constructor parameters. `borrow` prevents referenced data from being
         // invalidated while the runtime uses the returned frame pointer.
         unsafe impl<'a> #nc::ComClassArguments for #arguments_ident<'a> {
-            const ABI_HASH: #nc::NcAbiHash = #class_abi_ident::CONSTRUCTOR_ABI_HASH;
+            const ABI_SIGNATURE: #nc::NcAbiSignature = #class_abi_ident::CONSTRUCTOR_ABI_SIGNATURE;
 
             /// Borrows the wrapper's stable frame for one activation call.
             fn as_abi_ptr(&self) -> *const core::ffi::c_void {
@@ -273,11 +268,9 @@ fn constructor_tokens(
         }
 
         impl #class_abi_ident {
-            /// Hash of the constructor's ordered logical parameter contract.
-            pub const CONSTRUCTOR_ABI_HASH: #nc::NcAbiHash =
-                #nc::NcAbiHash::__from_abi_prefix(#hash_prefix, &[
-                    #(#hash_parts,)*
-                ]);
+            /// Canonical mangle of the constructor's ordered parameter contract.
+            pub const CONSTRUCTOR_ABI_SIGNATURE: #nc::NcAbiSignature =
+                #nc::NcAbiSignature::from_static(&#signature_bytes_ident);
 
             #(#constructor_docs)*
             /// Builds a lifetime-safe immutable constructor frame.
@@ -299,7 +292,7 @@ fn constructor_tokens(
             ///
             /// `arguments` must point to a readable generated frame whose nested
             /// borrows remain valid for this call. The checked class constructor
-            /// wrapper establishes the non-null and ABI-hash requirements.
+            /// wrapper establishes the non-null and ABI-signature requirements.
             #[doc(hidden)]
             pub unsafe fn __nc_construct<T>(
                 arguments: *const core::ffi::c_void,
@@ -413,7 +406,7 @@ fn decode_argument(nc: &syn::Path, argument: &AbiArg) -> proc_macro2::TokenStrea
             let ptr = format_ident!("__nc_{ident}_ptr");
             quote! {
                 // SAFETY: Frame validity includes the readable nested buffer
-                // borrow. The checked wrapper already matched the frame hash.
+                // borrow. The checked wrapper already matched the frame signature.
                 let #ident = unsafe {
                     #nc::NcCopyFromBufferOffset::<#element_ty>::__nc_from_raw_parts(
                         frame.#offset,
@@ -442,14 +435,14 @@ fn decode_argument(nc: &syn::Path, argument: &AbiArg) -> proc_macro2::TokenStrea
     }
 }
 
-/// Emits one ordered constructor parameter hash component.
-fn constructor_hash_part(nc: &syn::Path, index: usize, argument: &AbiArg) -> proc_macro2::TokenStream {
+/// Emits one ordered constructor parameter signature component.
+fn constructor_signature_part(nc: &syn::Path, index: usize, argument: &AbiArg) -> proc_macro2::TokenStream {
     let index = index as u32;
     match &argument.kind {
         AbiArgKind::Plain => {
             let ty = &argument.abi_ty;
             quote! {
-                #nc::NcAbiHashPart::Arg {
+                #nc::NcAbiSignaturePart::Arg {
                     index: #index,
                     passing: #nc::NcAbiPassing::Value,
                     ty: #nc::__nc_abi_type::<#ty>(),
@@ -459,7 +452,7 @@ fn constructor_hash_part(nc: &syn::Path, index: usize, argument: &AbiArg) -> pro
         AbiArgKind::CopyFromBufferOffset { element_ty } => {
             let element_ty = element_ty.as_ref();
             quote! {
-                #nc::NcAbiHashPart::Arg {
+                #nc::NcAbiSignaturePart::Arg {
                     index: #index,
                     passing: #nc::NcAbiPassing::CopyFromBufferOffset,
                     ty: #nc::__nc_abi_plain_type::<#element_ty>(),
@@ -477,7 +470,7 @@ fn constructor_hash_part(nc: &syn::Path, index: usize, argument: &AbiArg) -> pro
                 },
             };
             quote! {
-                #nc::NcAbiHashPart::Arg {
+                #nc::NcAbiSignaturePart::Arg {
                     index: #index,
                     passing: #nc::NcAbiPassing::ComRef { mode: #mode },
                     ty: #nc::NcAbiType::Interface {

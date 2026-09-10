@@ -8,8 +8,8 @@
 use core::ffi::c_void;
 
 use crate::guid::NcGuid;
-use crate::hash::NcAbiHash;
-use crate::metadata::{NcAbiHashPart, NcInterfaceDescriptor, NcInterfaceId, NcStaticUtf8};
+use crate::metadata::{NcAbiSignaturePart, NcInterfaceDescriptor, NcInterfaceId, NcStaticUtf8};
+use crate::signature::NcAbiSignature;
 use crate::status::NcStatus;
 
 /// Interface identifier for [`IUnknown`].
@@ -18,11 +18,18 @@ pub const IID_IUNKNOWN: NcGuid = NcGuid::from_fields(0x0000_0000, 0x0000, 0x0000
 /// Reserved normative qualified name for [`IUnknown`].
 pub const IUNKNOWN_QUALIFIED_NAME: &str = "IUnknown";
 
-/// ABI contract hash for [`IUnknown`].
-pub const IUNKNOWN_ABI_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Interface { iid: IID_IUNKNOWN }]);
+/// Logical records in the canonical [`IUnknown`] signature.
+const IUNKNOWN_SIGNATURE_PARTS: [NcAbiSignaturePart<'static>; 1] = [NcAbiSignaturePart::Interface { iid: IID_IUNKNOWN }];
+
+/// Exact static storage for the canonical [`IUnknown`] signature.
+static IUNKNOWN_SIGNATURE_BYTES: [u8; NcAbiSignature::__encoded_len(&IUNKNOWN_SIGNATURE_PARTS)] =
+    NcAbiSignature::__encode::<{ NcAbiSignature::__encoded_len(&IUNKNOWN_SIGNATURE_PARTS) }>(&IUNKNOWN_SIGNATURE_PARTS);
+
+/// Canonical mangled ABI contract for [`IUnknown`].
+pub const IUNKNOWN_ABI_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static(&IUNKNOWN_SIGNATURE_BYTES);
 
 /// Interface identity for [`IUnknown`].
-pub const IUNKNOWN_INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(IID_IUNKNOWN, IUNKNOWN_ABI_HASH);
+pub const IUNKNOWN_INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(IID_IUNKNOWN, IUNKNOWN_ABI_SIGNATURE);
 
 /// The base interface implemented by every COM object.
 #[repr(C)]
@@ -37,7 +44,7 @@ pub struct IUnknown {
 #[repr(C)]
 pub struct IUnknownVTable {
     /// Identity of the actual interface header using this vtable, including its
-    /// complete local contract hash. This points to immutable static metadata;
+    /// complete local contract signature. This points to immutable static metadata;
     /// it describes the projected interface, which may differ from IUnknown.
     pub interface_id: *const NcInterfaceId,
 
@@ -46,7 +53,7 @@ pub struct IUnknownVTable {
     /// # Safety
     ///
     /// `this` must be a live `IUnknown` header for the object being queried.
-    /// `interface_id` must point to the expected interface GUID/hash pair, and
+    /// `interface_id` must point to the expected interface GUID/signature pair, and
     /// `out` must point to a distinct slot valid for one pointer write. Given
     /// those preconditions, the implementation initializes `*out` to null.
     /// `NC_OK` replaces it with one non-null owned interface reference that the
@@ -82,7 +89,7 @@ unsafe impl Sync for IUnknownVTable {}
 ///
 /// Prefer defining interfaces with `#[com_interface]` from the `neocogi-com` crate.
 /// The macro generates this implementation together with the interface header,
-/// vtable, identity, and ABI hash. The trait remains public and unsealed for
+/// vtable, identity, and ABI signature. The trait remains public and unsealed for
 /// low-level foreign-interface adapters, but handwritten implementations are an
 /// unsafe extension point.
 ///
@@ -100,7 +107,7 @@ unsafe impl Sync for IUnknownVTable {}
 /// - `Self` is the exact C-compatible interface header identified by
 ///   [`Self::INTERFACE_ID`]. Its first field is a live pointer to `Self::VTable`,
 ///   and the vtable starts with a valid [`IUnknownVTable`] prefix.
-/// - `Self::INTERFACE_ID`, including its ABI hash, describes the actual vtable
+/// - `Self::INTERFACE_ID`, including its ABI signature, describes the actual vtable
 ///   method order, signatures, passing modes, and referenced interface IIDs.
 ///   Every COM pointer argument/return is checked against its expected full
 ///   identity before invoking any interface-specific method. The common prefix
@@ -124,8 +131,8 @@ pub unsafe trait ComInterface {
     /// Stable interface identifier used by `QueryInterface`.
     const IID: NcGuid = Self::INTERFACE_ID.iid;
 
-    /// SHA-256 hash of this interface's typed ABI contract.
-    const ABI_HASH: NcAbiHash = Self::INTERFACE_ID.abi_hash;
+    /// Canonical mangled form of this interface's typed ABI contract.
+    const ABI_SIGNATURE: NcAbiSignature = Self::INTERFACE_ID.abi_signature;
 
     /// The C-compatible vtable type for this interface.
     type VTable;
@@ -162,8 +169,8 @@ pub unsafe trait ComClassContract: ComInterface {
     /// Stable registry identity used to activate this class.
     const CLASS_ID: NcGuid;
 
-    /// SHA-256 hash of the class's primary callable ABI.
-    const CLASS_ABI_HASH: NcAbiHash = Self::ABI_HASH;
+    /// Canonical mangled form of the class's primary callable ABI.
+    const CLASS_ABI_SIGNATURE: NcAbiSignature = Self::ABI_SIGNATURE;
 
     /// Normative static class name stored in registry metadata.
     const QUALIFIED_NAME: &'static str;
@@ -177,8 +184,8 @@ pub unsafe trait ComClassContract: ComInterface {
     /// separate `QueryInterface` capabilities on one COM identity.
     const INTERFACE_CHAINS: &'static [&'static [&'static crate::NcInterfaceDescriptor]];
 
-    /// ABI hash of the constructor frame, or zero for no arguments.
-    const CONSTRUCTOR_ABI_HASH: NcAbiHash;
+    /// ABI signature of the constructor frame, or empty for no arguments.
+    const CONSTRUCTOR_ABI_SIGNATURE: NcAbiSignature;
 }
 
 /// Supplies one immutable, call-scoped constructor frame to the COM runtime.
@@ -190,22 +197,22 @@ pub unsafe trait ComClassContract: ComInterface {
 ///
 /// # Safety
 ///
-/// For non-zero [`Self::ABI_HASH`], [`Self::as_abi_ptr`] must return a non-null
-/// pointer to a frame whose exact layout is described by that hash. The frame
+/// For non-empty [`Self::ABI_SIGNATURE`], [`Self::as_abi_ptr`] must return a non-null
+/// pointer to a frame whose exact layout is described by that signature. The frame
 /// and every borrow reachable from it must remain valid and immutable through
-/// the constructor call. A zero hash must return null and denotes no arguments.
+/// the constructor call. An empty signature must return null and denotes no arguments.
 pub unsafe trait ComClassArguments {
-    /// ABI hash describing the pointed-to constructor frame.
-    const ABI_HASH: NcAbiHash;
+    /// ABI signature describing the pointed-to constructor frame.
+    const ABI_SIGNATURE: NcAbiSignature;
 
     /// Returns the raw frame pointer borrowed for one constructor call.
     fn as_abi_ptr(&self) -> *const c_void;
 }
 
-// SAFETY: Unit is the canonical no-argument representation. Its zero hash and
+// SAFETY: Unit is the canonical no-argument representation. Its empty signature and
 // null pointer agree with the runtime's empty-frame contract.
 unsafe impl ComClassArguments for () {
-    const ABI_HASH: NcAbiHash = NcAbiHash::ZERO;
+    const ABI_SIGNATURE: NcAbiSignature = NcAbiSignature::EMPTY;
 
     /// Returns null because this value carries no constructor frame.
     fn as_abi_ptr(&self) -> *const c_void {
@@ -228,8 +235,8 @@ unsafe impl ComInterface for IUnknown {
 }
 
 impl IUnknown {
-    /// SHA-256 hash of this interface's typed ABI contract.
-    pub const ABI_HASH: NcAbiHash = IUNKNOWN_ABI_HASH;
+    /// Canonical mangled form of this interface's typed ABI contract.
+    pub const ABI_SIGNATURE: NcAbiSignature = IUNKNOWN_ABI_SIGNATURE;
     /// Stable identity for this interface ABI contract.
     pub const INTERFACE_ID: NcInterfaceId = IUNKNOWN_INTERFACE_ID;
     /// Canonical zero-method descriptor for the root COM interface.
@@ -240,7 +247,7 @@ impl IUnknown {
     pub const INTERFACE_DESCRIPTOR: NcInterfaceDescriptor = NcInterfaceDescriptor {
         interface_id: IID_IUNKNOWN,
         qualified_name: NcStaticUtf8::from_static(IUNKNOWN_QUALIFIED_NAME),
-        abi_hash: IUNKNOWN_ABI_HASH,
+        abi_signature: IUNKNOWN_ABI_SIGNATURE,
         base: crate::NcInterfaceId::NONE,
         method_count: 0,
         methods: core::ptr::null(),
@@ -258,18 +265,16 @@ mod tests {
             IID_IUNKNOWN.to_uuid_bytes(),
             [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46,]
         );
+        // SAFETY: The built-in signature references immutable module-static bytes.
         assert_eq!(
-            IUnknown::ABI_HASH.bytes,
-            [
-                0x32, 0x5f, 0xd2, 0x7e, 0x64, 0xda, 0x5d, 0x12, 0xdc, 0xd7, 0x32, 0xcf, 0xbf, 0x02, 0x92, 0xa8, 0xdb, 0xef, 0xdb, 0x4e, 0x1d, 0xda, 0xa8, 0xec,
-                0x1c, 0xbe, 0xcc, 0x3c, 0x38, 0x96, 0x58, 0x66,
-            ]
+            unsafe { IUnknown::ABI_SIGNATURE.as_bytes() },
+            Ok(b"ncabi1;I0000000000000000c000000000000046".as_slice())
         );
         assert_eq!(IUNKNOWN_INTERFACE_ID, <IUnknown as ComInterface>::INTERFACE_ID);
         assert_eq!(IUNKNOWN_INTERFACE_ID, IUnknown::INTERFACE_ID);
         assert_eq!(IUnknown::INTERFACE_DESCRIPTOR.interface_id, IID_IUNKNOWN);
         assert_eq!(unsafe { IUnknown::INTERFACE_DESCRIPTOR.qualified_name.as_str() }, Ok(IUNKNOWN_QUALIFIED_NAME));
-        assert_eq!(IUnknown::INTERFACE_DESCRIPTOR.abi_hash, IUnknown::ABI_HASH);
+        assert_eq!(IUnknown::INTERFACE_DESCRIPTOR.abi_signature, IUnknown::ABI_SIGNATURE);
         assert_eq!(IUnknown::INTERFACE_DESCRIPTOR.method_count, 0);
         assert!(IUnknown::INTERFACE_DESCRIPTOR.methods.is_null());
     }

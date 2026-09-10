@@ -2,12 +2,12 @@
 //!
 //! This module distinguishes ordinary by-value ABI types, durable plain values,
 //! and macro-generated structs whose compiled layout participates in interface
-//! hashing. It also owns the opaque tag/payload storage used by generated COM
+//! signatures. It also owns the opaque tag/payload storage used by generated COM
 //! enums so safe wrappers can enforce discriminant and payload validity.
 
 use crate::guid::NcGuid;
-use crate::hash::{__NcAbiHashPrefix, NcAbiHash};
 use crate::metadata::{NcAbiStructLayout, NcAbiType};
+use crate::signature::NcAbiSignature;
 use crate::status::NcStatus;
 
 /// Marker for plain values that may cross an `neocogi-com` ABI boundary by value.
@@ -19,7 +19,7 @@ use crate::status::NcStatus;
 /// across the ABI boundary, and must be valid to pass through an `extern "C"`
 /// function signature by value.
 pub unsafe trait AbiType: Copy + 'static {
-    /// Canonical ABI type identity used by interface ABI hashes.
+    /// Canonical ABI type identity used by interface ABI signatures.
     const ABI_TYPE: NcAbiType;
 }
 
@@ -42,25 +42,21 @@ pub unsafe trait AbiPlainValue: AbiType {}
 /// # Safety
 ///
 /// Implementors must describe their actual ABI declaration and layout exactly.
-/// [`Self::ABI_HASH_PREFIX`] must encode the aggregate kind and ordered field
-/// shape. `size`, `align`, and every field offset in
+/// [`Self::ABI_SIGNATURE`] must encode the aggregate kind, compiled layout, and
+/// ordered field shape. `size`, `align`, and every field offset in
 /// [`Self::ABI_STRUCT_LAYOUT`] must match the compiled representation of `Self`,
 /// and every field type must be the field's canonical ABI type. Prefer using
 /// `#[com_struct]`, which generates both values from the declaration and the
 /// compiler's layout facts.
 ///
-/// With `#[com_struct(c_struct)]`, each field's ABI type is an opaque aggregate
-/// fingerprint of its size and alignment. It does not describe field internals
+/// With `#[com_struct(c_struct)]`, each field's ABI type is an aggregate
+/// signature containing its size and alignment. It does not describe field internals
 /// or distinguish scalar types of equal size and alignment. The contract author
 /// must use a new interface identity for incompatible changes invisible to that
 /// metadata and ensure external fields satisfy the plain-value requirements.
 pub unsafe trait ComStruct: Copy + 'static {
-    /// Native-macro SHA-256 prefix state for this struct's declaration shape.
-    ///
-    /// The state is bound to a digest of the aggregate kind, layout marker,
-    /// field count, and ordered field indices. Compiler-resolved size,
-    /// alignment, offsets, and nested ABI types complete the final hash.
-    const ABI_HASH_PREFIX: __NcAbiHashPrefix;
+    /// Canonical mangled ABI signature for the compiled structure.
+    const ABI_SIGNATURE: NcAbiSignature;
 
     /// Physical ABI layout for this COM struct.
     const ABI_STRUCT_LAYOUT: NcAbiStructLayout;
@@ -130,9 +126,9 @@ pub const fn __nc_abi_plain_type<T: AbiPlainValue>() -> NcAbiType {
 }
 
 #[doc(hidden)]
-/// Derives an aggregate ABI identity from a generated COM struct layout.
+/// Returns the aggregate ABI identity generated for a COM struct.
 pub const fn __nc_abi_com_struct_type<T: ComStruct>() -> NcAbiType {
-    NcAbiType::Aggregate(NcAbiHash::__from_struct_layout_prefix(T::ABI_HASH_PREFIX, T::ABI_STRUCT_LAYOUT))
+    NcAbiType::Aggregate(T::ABI_SIGNATURE)
 }
 
 macro_rules! impl_abi_plain_value {
@@ -167,5 +163,4 @@ impl_abi_plain_value!(
     f64 => NcAbiType::F64,
     NcGuid => NcAbiType::NcGuid,
     NcStatus => NcAbiType::NcStatus,
-    NcAbiHash => NcAbiType::NcAbiHash,
 );

@@ -19,8 +19,8 @@ mod tests {
     use super::HostValue;
     use contract_abi::{ContractPoint, ContractWidgetAbi, ContractWidgetComPtrExt, IContractValueAbi, IContractValueComPtrExt};
     use neocogi_com::NC_E_NOINTERFACE;
-    use neocogi_com::{AbiType, ComInterface, ComPtr, LoadedModuleInfo, NcAbiHash, NcAbiType, Runtime, format_method_signature};
-    use std::fmt::{Display, Write};
+    use neocogi_com::{AbiType, ComInterface, ComPtr, LoadedModuleInfo, NcAbiSignature, NcAbiType, Runtime, format_method_signature};
+    use std::fmt::Display;
     use std::path::{Path, PathBuf};
     use std::process::Command;
 
@@ -32,20 +32,20 @@ mod tests {
         assert_eq!(ContractWidgetAbi::CLASS_ID.to_string(), "d3e19d71-73a9-5255-a7a9-69a28313d6ce");
         assert_eq!(IContractValueAbi::IID.to_string(), "c6d018c2-42df-5d19-83ce-73c797c09102");
         assert_eq!(
-            IContractValueAbi::ABI_HASH.bytes,
-            [0xa1, 0xa8, 0x5a, 0x37, 0xf5, 0xc3, 0x89, 0x2b, 0x41, 0xe7, 0x40, 0xfd, 0xb1, 0xc7, 0x66, 0x6a, 0x48, 0x99, 0xd5, 0x45, 0xc4, 0x39, 0x4a, 0xfe, 0xff, 0x46, 0xb2, 0xaf, 0x96, 0xde, 0xb9, 0x1f,]
+            signature_text(IContractValueAbi::ABI_SIGNATURE),
+            "ncabi1;Ic6d018c242df5d1983ce73c797c09102M0000000000000005valueR00O0204S"
         );
         assert_eq!(ContractWidgetAbi::IID, ContractWidgetAbi::CLASS_ID);
         assert_eq!(
-            ContractWidgetAbi::CONSTRUCTOR_ABI_HASH,
-            NcAbiHash::from_abi_parts(&[neocogi_com::NcAbiHashPart::Arg {
+            ContractWidgetAbi::CONSTRUCTOR_ABI_SIGNATURE,
+            neocogi_com::abi_signature!(&[neocogi_com::NcAbiSignaturePart::Arg {
                 index: 0,
                 passing: neocogi_com::NcAbiPassing::Value,
                 ty: NcAbiType::U32,
             }])
         );
 
-        // Method order is part of the vtable layout. The hash catches signature
+        // Method order is part of the vtable layout. The ABI signature catches
         // drift, while these checks make accidental reordering obvious.
         let value_methods = IContractValueAbi::METHOD_DESCRIPTORS;
         assert_eq!(value_methods.len(), 1);
@@ -101,21 +101,20 @@ mod tests {
 
     fn aggregate_type<T: AbiType>() -> String {
         match T::ABI_TYPE {
-            NcAbiType::Aggregate(hash) => format!("aggregate<{}>", hash_hex(hash)),
+            NcAbiType::Aggregate(signature) => format!("aggregate<{}>", signature_text(signature)),
             _ => panic!("expected aggregate ABI type"),
         }
     }
 
     fn interface_type<T: ComInterface>() -> String {
-        format!("interface<{}, {}>", T::IID, hash_hex(T::ABI_HASH))
+        format!("interface<{}, {}>", T::IID, signature_text(T::ABI_SIGNATURE))
     }
 
-    fn hash_hex(hash: NcAbiHash) -> String {
-        let mut out = String::with_capacity(64);
-        for byte in hash.bytes {
-            let _ = write!(out, "{byte:02x}");
-        }
-        out
+    fn signature_text(signature: NcAbiSignature) -> String {
+        // SAFETY: Generated signatures reference immutable static storage in
+        // this test process or in a module pinned by the loaded handle.
+        let bytes = unsafe { signature.as_bytes() }.expect("valid generated signature view");
+        std::str::from_utf8(bytes).expect("canonical signatures are UTF-8").to_owned()
     }
 
     #[test]

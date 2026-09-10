@@ -1,6 +1,6 @@
 use neocogi_com::{
-    ComInterface, ComPtr, ComRef, IUnknown, NC_ABI_THREADING_THREAD_SAFE, NC_OK, NcAbiHash, NcAbiHashPart, NcAbiPassing, NcAbiType, NcClassDescriptor, NcGuid,
-    NcPluginDescriptor, NcStatus, Runtime, ThreadSafe, com_object, com_interface, validate_plugin_descriptor_with_issues,
+    ComInterface, ComPtr, ComRef, IUnknown, NC_ABI_THREADING_THREAD_SAFE, NC_OK, NcAbiSignature, NcAbiSignaturePart, NcAbiPassing, NcAbiType,
+    NcClassDescriptor, NcGuid, NcPluginDescriptor, NcStatus, Runtime, ThreadSafe, com_object, com_interface, validate_plugin_descriptor_with_issues,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -18,7 +18,7 @@ pub trait ICrossVersionNumber {
     fn value(&self) -> Result<u32, NcStatus>;
 }
 
-const SERVICE_CONSTRUCTOR_ABI_HASH: NcAbiHash = NcAbiHash::from_abi_parts(&[NcAbiHashPart::Arg {
+const SERVICE_CONSTRUCTOR_ABI_SIGNATURE: NcAbiSignature = neocogi_com::abi_signature!(&[NcAbiSignaturePart::Arg {
     index: 0,
     passing: NcAbiPassing::Value,
     ty: NcAbiType::U32,
@@ -183,7 +183,7 @@ fn exercise_descriptor_entrypoint(library: &Library) {
 
     let class = &classes[0];
     assert_eq!(class.class_id, CROSS_VERSION_CLASS_ID);
-    assert_eq!(class.constructor_abi_hash, SERVICE_CONSTRUCTOR_ABI_HASH);
+    assert_eq!(class.constructor_abi_signature, SERVICE_CONSTRUCTOR_ABI_SIGNATURE);
     assert_eq!(class.threading, NC_ABI_THREADING_THREAD_SAFE);
     require_class_interface::<ICrossVersionServiceAbi>(class);
 
@@ -203,7 +203,7 @@ fn exercise_runtime_loader(library_path: &Path) {
     let arguments_pointer = core::ptr::from_ref(&arguments).cast();
     let unknown = unsafe {
         runtime
-            .construct_class_raw(CROSS_VERSION_CLASS_ID, SERVICE_CONSTRUCTOR_ABI_HASH, arguments_pointer)
+            .construct_class_raw(CROSS_VERSION_CLASS_ID, SERVICE_CONSTRUCTOR_ABI_SIGNATURE, arguments_pointer)
             .expect("registry output")
     };
     let service = unknown.query::<ICrossVersionServiceAbi>().expect("registry-constructed cross-version service");
@@ -211,7 +211,7 @@ fn exercise_runtime_loader(library_path: &Path) {
 
     let thread_safe_unknown = unsafe {
         runtime
-            .construct_class_with_model_raw::<ThreadSafe>(CROSS_VERSION_CLASS_ID, SERVICE_CONSTRUCTOR_ABI_HASH, arguments_pointer)
+            .construct_class_with_model_raw::<ThreadSafe>(CROSS_VERSION_CLASS_ID, SERVICE_CONSTRUCTOR_ABI_SIGNATURE, arguments_pointer)
             .expect("thread-safe registry output")
     };
     let thread_safe_service = thread_safe_unknown.query::<ICrossVersionServiceAbi>().expect("thread-safe service projection");
@@ -237,7 +237,7 @@ fn require_class_interface<T: ComInterface>(class: &NcClassDescriptor) {
         .find(|descriptor| descriptor.interface_id == T::IID)
         .expect("class exposes expected interface");
     assert_eq!(descriptor.interface_id, T::IID);
-    assert_eq!(descriptor.abi_hash, T::ABI_HASH);
+    assert_eq!(descriptor.abi_signature, T::ABI_SIGNATURE);
 }
 
 fn construct_service_from_descriptor(class: &NcClassDescriptor) -> ComPtr<ICrossVersionServiceAbi> {

@@ -30,7 +30,9 @@ mod plan;
 
 pub use error::{PluginLoadError, PluginLoadErrorKind};
 pub(crate) use inspection::inspect_plugin_descriptor;
-pub use inspection::{ClassInspection, ClassInterfaceInspection, InterfaceInspection, MethodInspection, PluginInspection, inspect_plugin_library};
+pub use inspection::{
+    ClassInspection, ClassInterfaceInspection, InterfaceIdentityInspection, InterfaceInspection, MethodInspection, PluginInspection, inspect_plugin_library,
+};
 pub use plan::{PluginDependencyPlanError, plan_plugin_load_order};
 
 /// Process-local identifier for a plugin library retained by the runtime.
