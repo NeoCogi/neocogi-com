@@ -7,10 +7,10 @@ contract.
 
 ## Unreleased
 
-- Replaced probabilistic ABI fingerprints with canonical `ncabi1;` mangled
-  signatures. Macro expansion now emits typed records into exact-size static
-  storage, descriptor validation verifies them in one allocation-free pass,
-  and inspection schema 4 preserves the owned signature strings.
+- Added assembly-wide `none`, SHA-256, FNV-1a-128, and collision-free mangling
+  validation choices over one canonical typed contract stream. Every choice
+  retains the same pointer/count descriptor ABI; cargo-neocogi applies one
+  mode consistently to the application, runtime, and plugins.
 - Removed implementation-owned class descriptor options from `#[com_object]`.
   Registered implementations now use only `#[com_object(Class)]`; local
   interface-only objects use `#[com_object(interfaces(...))]`.

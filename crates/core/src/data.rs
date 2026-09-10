@@ -128,7 +128,7 @@ static INC_BYTES_SIGNATURE_BYTES: [u8; NcAbiSignature::__encoded_len(&INC_BYTES_
     NcAbiSignature::__encode::<{ NcAbiSignature::__encoded_len(&INC_BYTES_SIGNATURE_PARTS) }>(&INC_BYTES_SIGNATURE_PARTS);
 
 impl INcBytesAbi {
-    /// Canonical mangled form of this interface's typed ABI contract.
+    /// Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static(&INC_BYTES_SIGNATURE_BYTES);
 
     #[doc(hidden)]
@@ -302,7 +302,7 @@ static INC_STRING_SIGNATURE_BYTES: [u8; NcAbiSignature::__encoded_len(&INC_STRIN
     NcAbiSignature::__encode::<{ NcAbiSignature::__encoded_len(&INC_STRING_SIGNATURE_PARTS) }>(&INC_STRING_SIGNATURE_PARTS);
 
 impl INcStringAbi {
-    /// Canonical mangled form of this interface's typed ABI contract.
+    /// Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static(&INC_STRING_SIGNATURE_BYTES);
 
     #[doc(hidden)]
@@ -391,14 +391,16 @@ mod tests {
             unsafe { INcBytesAbi::INTERFACE_DESCRIPTOR.qualified_name.as_str() },
             Ok(QUALIFIED_NAME_INC_BYTES)
         );
-        #[cfg(feature = "abi-validation")]
+        #[cfg(feature = "com-validation-mangling")]
         {
             // SAFETY: The built-in signature references immutable module-static bytes.
             let bytes_signature = unsafe { core::str::from_utf8(INcBytesAbi::ABI_SIGNATURE.as_bytes().unwrap()) }.unwrap();
             assert!(bytes_signature.starts_with("ncabi1;Ib0b0d6d2f17054e9b6d5143f9452b951"));
             assert!(bytes_signature.contains("copy_to"));
         }
-        #[cfg(not(feature = "abi-validation"))]
+        #[cfg(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128"))]
+        assert!(!INcBytesAbi::ABI_SIGNATURE.is_empty());
+        #[cfg(not(feature = "_com-validation-exact"))]
         assert_eq!(INcBytesAbi::ABI_SIGNATURE, crate::NcAbiSignature::UNCHECKED);
         assert_eq!(INcBytesAbi::INTERFACE_DESCRIPTOR.interface_id, <INcBytesAbi as ComInterface>::IID);
         assert_eq!(INcBytesAbi::INTERFACE_DESCRIPTOR.abi_signature, INcBytesAbi::ABI_SIGNATURE);
@@ -412,7 +414,7 @@ mod tests {
             unsafe { INcStringAbi::INTERFACE_DESCRIPTOR.qualified_name.as_str() },
             Ok(QUALIFIED_NAME_INC_STRING)
         );
-        #[cfg(feature = "abi-validation")]
+        #[cfg(feature = "com-validation-mangling")]
         {
             // SAFETY: The built-in signature references immutable module-static bytes.
             let string_signature = unsafe { core::str::from_utf8(INcStringAbi::ABI_SIGNATURE.as_bytes().unwrap()) }.unwrap();
@@ -420,7 +422,12 @@ mod tests {
             assert!(string_signature.contains("byte_len"));
             assert_ne!(INcBytesAbi::ABI_SIGNATURE, INcStringAbi::ABI_SIGNATURE);
         }
-        #[cfg(not(feature = "abi-validation"))]
+        #[cfg(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128"))]
+        {
+            assert!(!INcStringAbi::ABI_SIGNATURE.is_empty());
+            assert_ne!(INcBytesAbi::ABI_SIGNATURE, INcStringAbi::ABI_SIGNATURE);
+        }
+        #[cfg(not(feature = "_com-validation-exact"))]
         assert_eq!(INcStringAbi::ABI_SIGNATURE, crate::NcAbiSignature::UNCHECKED);
         assert_eq!(INcStringAbi::INTERFACE_DESCRIPTOR.interface_id, <INcStringAbi as ComInterface>::IID);
         assert_eq!(INcStringAbi::INTERFACE_DESCRIPTOR.abi_signature, INcStringAbi::ABI_SIGNATURE);

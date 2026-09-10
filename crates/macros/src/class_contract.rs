@@ -268,7 +268,7 @@ fn constructor_tokens(
         }
 
         impl #class_abi_ident {
-            /// Canonical mangle of the constructor's ordered parameter contract.
+            /// Canonical validation signature of the constructor parameter contract.
             pub const CONSTRUCTOR_ABI_SIGNATURE: #nc::NcAbiSignature =
                 #nc::NcAbiSignature::from_static(&#signature_bytes_ident);
 

@@ -5,7 +5,7 @@ use neocogi_com::{
     NcAbiSignature, NcAbiSignaturePart, NcAbiPassing, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcClassDescriptor, NcClassTable, NcConstructorFn,
     NcCopyFromBufferOffset, NcCopyToBufferOffset, NcGuid, NcInterfaceId, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, Runtime,
     ThreadLocal, ThreadSafe, ThreadSafeComObject, ThreadingModel, com_class, com_enum, com_int_enum, com_object, com_interface, com_struct,
-    format_method_signature, plugin,
+    format_abi_signature, format_method_signature, plugin,
 };
 use std::ffi::c_void;
 use std::sync::{
@@ -23,8 +23,7 @@ const NC_E_TEST_VOID_FAIL: NcStatus = NcStatus::from_code(NC_E_TEST_VOID_FAIL_CO
 fn signature_text(signature: NcAbiSignature) -> String {
     // SAFETY: Generated signatures reference immutable static storage in this
     // test component for the duration of the process.
-    let bytes = unsafe { signature.as_bytes() }.expect("valid generated signature view");
-    std::str::from_utf8(bytes).expect("canonical signatures are UTF-8").to_owned()
+    unsafe { format_abi_signature(signature) }.expect("valid generated signature view")
 }
 
 com_int_enum! {
@@ -325,7 +324,11 @@ const TRACKED_CONSTRUCTOR_ABI_SIGNATURE: NcAbiSignature = neocogi_com::abi_signa
     passing: NcAbiPassing::Value,
     ty: NcAbiType::U32,
 }]);
-const WRONG_TRACKED_CONSTRUCTOR_ABI_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static_str("ncabi1;wrong-constructor");
+const WRONG_TRACKED_CONSTRUCTOR_ABI_SIGNATURE: NcAbiSignature = neocogi_com::abi_signature!(&[NcAbiSignaturePart::Arg {
+    index: 0,
+    passing: NcAbiPassing::Value,
+    ty: NcAbiType::U64,
+}]);
 
 /// Concrete immutable frame used to exercise low-level runtime validation.
 #[repr(C)]
@@ -842,10 +845,7 @@ fn com_struct_layout_options_are_part_of_the_abi_type() {
         assert_eq!(layout.fields[1].index, 1);
         assert_eq!(layout.fields[1].offset, len_offset);
         assert_eq!(layout.fields[1].ty, NcAbiType::U32);
-        assert_eq!(
-            <T as neocogi_com::AbiType>::ABI_TYPE,
-            NcAbiType::Aggregate(<T as ComStruct>::ABI_SIGNATURE)
-        );
+        assert_eq!(<T as neocogi_com::AbiType>::ABI_TYPE, NcAbiType::Aggregate(<T as ComStruct>::ABI_SIGNATURE));
     }
 
     assert_header_layout::<TestHeader>(core::mem::size_of::<TestHeader>(), 4, 4);
@@ -853,15 +853,21 @@ fn com_struct_layout_options_are_part_of_the_abi_type() {
     assert_header_layout::<TestPacked2Header>(6, 2, 2);
     assert_header_layout::<TestAlignedHeader>(16, 16, 4);
 
-    let normal = <TestHeader as neocogi_com::AbiType>::ABI_TYPE;
-    let packed = <TestPackedHeader as neocogi_com::AbiType>::ABI_TYPE;
-    let packed2 = <TestPacked2Header as neocogi_com::AbiType>::ABI_TYPE;
-    let aligned = <TestAlignedHeader as neocogi_com::AbiType>::ABI_TYPE;
+    // Exact validation modes encode layout distinctions in the aggregate ABI
+    // identity. The `none` mode deliberately uses one unchecked sentinel for
+    // every generated signature while retaining the descriptive layout above.
+    #[cfg(not(feature = "com-validation-none"))]
+    {
+        let normal = <TestHeader as neocogi_com::AbiType>::ABI_TYPE;
+        let packed = <TestPackedHeader as neocogi_com::AbiType>::ABI_TYPE;
+        let packed2 = <TestPacked2Header as neocogi_com::AbiType>::ABI_TYPE;
+        let aligned = <TestAlignedHeader as neocogi_com::AbiType>::ABI_TYPE;
 
-    assert_ne!(normal, packed);
-    assert_ne!(normal, packed2);
-    assert_ne!(normal, aligned);
-    assert_ne!(packed, packed2);
+        assert_ne!(normal, packed);
+        assert_ne!(normal, packed2);
+        assert_ne!(normal, aligned);
+        assert_ne!(packed, packed2);
+    }
 }
 
 #[test]
@@ -880,6 +886,9 @@ fn generated_interface_and_vtable_keep_iunknown_prefix_layout() {
 #[test]
 fn generated_metadata_describes_interfaces_and_classes() {
     assert_ne!(ICalculatorAbi::ABI_SIGNATURE, NcAbiSignature::EMPTY);
+    // Exact validation modes distinguish interface contracts. The unchecked
+    // mode intentionally gives every generated contract the same sentinel.
+    #[cfg(not(feature = "com-validation-none"))]
     assert_ne!(ICalculatorAbi::ABI_SIGNATURE, IMultiplierAbi::ABI_SIGNATURE);
     assert_eq!(ICalculatorAbi::INTERFACE_DESCRIPTOR.interface_id, ICalculatorAbi::IID);
     assert_eq!(ICalculatorAbi::INTERFACE_DESCRIPTOR.method_count, 1);
@@ -942,6 +951,7 @@ fn generated_interface_signatures_include_referenced_interface_iids() {
         },
         NcAbiSignaturePart::Status,
     ]);
+    #[cfg(not(feature = "com-validation-none"))]
     let with_different_referenced_iid = neocogi_com::abi_signature!(&[
         NcAbiSignaturePart::Interface { iid: IReferenceConsumerAbi::IID },
         NcAbiSignaturePart::Method { index: 0, name: "borrowed_value" },
@@ -981,6 +991,9 @@ fn generated_interface_signatures_include_referenced_interface_iids() {
             signature_text(ITrackedAbi::ABI_SIGNATURE)
         )
     );
+    // A referenced IID participates in exact validation, but is intentionally
+    // discarded when ABI validation is disabled.
+    #[cfg(not(feature = "com-validation-none"))]
     assert_ne!(IReferenceConsumerAbi::ABI_SIGNATURE, with_different_referenced_iid);
 }
 
@@ -1169,13 +1182,17 @@ fn runtime_enforces_constructor_argument_contract_before_custom_constructor() {
     assert_eq!(err, NC_E_INVALID_ARG);
     assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
 
-    let err = unsafe { runtime.construct_class_raw(UNCHECKED_ARGS_CLASS_ID, WRONG_TRACKED_CONSTRUCTOR_ABI_SIGNATURE, frame_pointer) }.unwrap_err();
-    assert_eq!(err, NC_E_ABI_VERSION);
-    assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
+    #[cfg(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling"))]
+    {
+        let err = unsafe { runtime.construct_class_raw(UNCHECKED_ARGS_CLASS_ID, WRONG_TRACKED_CONSTRUCTOR_ABI_SIGNATURE, frame_pointer) }.unwrap_err();
+        assert_eq!(err, NC_E_ABI_VERSION);
+        assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
 
-    let err = unsafe { runtime.construct_class_raw(UNCHECKED_WRONG_SIGNATURE_ARGS_CLASS_ID, TRACKED_CONSTRUCTOR_ABI_SIGNATURE, frame_pointer) }.unwrap_err();
-    assert_eq!(err, NC_E_ABI_VERSION);
-    assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
+        let err =
+            unsafe { runtime.construct_class_raw(UNCHECKED_WRONG_SIGNATURE_ARGS_CLASS_ID, TRACKED_CONSTRUCTOR_ABI_SIGNATURE, frame_pointer) }.unwrap_err();
+        assert_eq!(err, NC_E_ABI_VERSION);
+        assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 0);
+    }
 
     let unknown = unsafe { runtime.construct_class_raw(UNCHECKED_ARGS_CLASS_ID, TRACKED_CONSTRUCTOR_ABI_SIGNATURE, frame_pointer) }.unwrap();
     assert_eq!(UNCHECKED_CUSTOM_CONSTRUCTOR_CALLS.load(Ordering::SeqCst), 1);

@@ -1,4 +1,4 @@
-use neocogi_com::{ComInterface, ComPtr, ComRef, NcAbiSignature, NcStatus, com_interface, format_method_signature, guid_from_qualified_name};
+use neocogi_com::{ComInterface, ComPtr, ComRef, NcAbiSignature, NcStatus, com_interface, format_abi_signature, format_method_signature, guid_from_qualified_name};
 
 mod external_fields {
     use neocogi_com::{ComPtr, NcCopyFromBufferOffset, NcStatus, com_object, com_interface, com_struct};
@@ -66,8 +66,7 @@ pub trait IPolicyService {
 fn signature_text(signature: NcAbiSignature) -> String {
     // SAFETY: Macro-generated signatures reference immutable static storage in
     // this test component for the duration of the process.
-    let bytes = unsafe { signature.as_bytes() }.expect("valid generated signature view");
-    std::str::from_utf8(bytes).expect("canonical signatures are UTF-8").to_owned()
+    unsafe { format_abi_signature(signature) }.expect("valid generated signature view")
 }
 
 #[test]
@@ -78,12 +77,14 @@ fn generated_interface_iids_and_signatures_are_stable() {
         "nc.tests.abi_policy.Value:v1"
     );
     assert_eq!(IPolicyValueAbi::IID.to_string(), "be3b63c2-5ea1-5ddd-aa6e-803343b38af3");
+    #[cfg(feature = "com-validation-mangling")]
     assert_eq!(
         signature_text(IPolicyValueAbi::ABI_SIGNATURE),
         "ncabi1;Ibe3b63c25ea15dddaa6e803343b38af3M0000000000000005valueR00O0209S"
     );
     assert_eq!(IPolicyServiceAbi::IID.to_string(), "e68a0ddb-0d68-5e76-9d03-4186119e1c45");
     assert_eq!(IPolicyServiceAbi::IID, guid_from_qualified_name("nc.tests.abi_policy.Service:v1"));
+    #[cfg(feature = "com-validation-mangling")]
     assert_eq!(
         signature_text(IPolicyServiceAbi::ABI_SIGNATURE),
         concat!(
@@ -95,6 +96,12 @@ fn generated_interface_iids_and_signatures_are_stable() {
             "O060012be3b63c25ea15dddaa6e803343b38af3S",
         )
     );
+    #[cfg(feature = "com-validation-sha-256")]
+    assert!(signature_text(IPolicyServiceAbi::ABI_SIGNATURE).starts_with("sha-256:"));
+    #[cfg(feature = "com-validation-fnv-1a-128")]
+    assert!(signature_text(IPolicyServiceAbi::ABI_SIGNATURE).starts_with("fnv-1a-128:"));
+    #[cfg(feature = "com-validation-none")]
+    assert_eq!(IPolicyServiceAbi::ABI_SIGNATURE, NcAbiSignature::UNCHECKED);
 }
 
 #[test]

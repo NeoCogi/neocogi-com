@@ -6,7 +6,7 @@
 //! inspection tools and compatibility reports.
 //!
 //! Rendered signatures are diagnostic output only. Compatibility is determined
-//! by the typed descriptors and their canonical mangled ABI signature, so this module must
+//! by the typed descriptors and their canonical ABI signature, so this module must
 //! never become a second parser or source of contract truth.
 
 use core::fmt::Write;
@@ -21,6 +21,25 @@ use crate::{
 };
 
 use alloc::string::String;
+
+/// Formats one ABI signature for diagnostics and inspection artifacts.
+///
+/// Mangling and unchecked signatures retain their canonical text. Binary
+/// signatures use a stable algorithm prefix followed by lowercase hexadecimal
+/// bytes. The returned string is diagnostic; compatibility compares the raw
+/// [`NcAbiSignature`] bytes.
+///
+/// # Safety
+///
+/// `signature` must be empty or reference readable immutable bytes for this
+/// call. Generated signatures and validated descriptors from pinned components
+/// satisfy that contract.
+pub unsafe fn format_abi_signature(signature: NcAbiSignature) -> Result<String, NcStatus> {
+    let mut out = String::new();
+    // SAFETY: The caller establishes the signature view's storage contract.
+    unsafe { write_signature(&mut out, signature)? };
+    Ok(out)
+}
 
 /// Renders the diagnostic typed ABI signature for a method descriptor.
 ///
@@ -179,13 +198,17 @@ fn write_type(out: &mut String, ty: &NcAbiTypeDescriptor) -> Result<(), NcStatus
                 return Err(NC_E_INVALID_ARG);
             }
             out.push_str("aggregate<");
-            write_signature(out, ty.aggregate_signature)?;
+            // SAFETY: `format_method_signature` requires the complete nested
+            // descriptor graph, including signature storage, to remain valid.
+            unsafe { write_signature(out, ty.aggregate_signature)? };
             out.push('>');
         }
         NC_ABI_TYPE_INTERFACE => {
             validate_interface_type(ty)?;
             write!(out, "interface<{}, ", ty.interface.iid).map_err(|_| NC_E_INVALID_ARG)?;
-            write_signature(out, ty.interface.abi_signature)?;
+            // SAFETY: The public formatter's graph contract covers this nested
+            // interface signature for the duration of the call.
+            unsafe { write_signature(out, ty.interface.abi_signature)? };
             out.push('>');
         }
         _ => return Err(NC_E_INVALID_ARG),
@@ -230,13 +253,33 @@ fn validate_interface_type(ty: &NcAbiTypeDescriptor) -> Result<(), NcStatus> {
     }
 }
 
-/// Appends the canonical UTF-8 mangle referenced by a validated descriptor.
-fn write_signature(out: &mut String, signature: NcAbiSignature) -> Result<(), NcStatus> {
+/// Appends one readable representation of a validated ABI signature.
+unsafe fn write_signature(out: &mut String, signature: NcAbiSignature) -> Result<(), NcStatus> {
     // SAFETY: This private formatter is reached only through
     // `format_method_signature`, whose caller guarantees the complete
     // descriptor graph and its component-owned signature views remain valid.
     let bytes = unsafe { signature.as_bytes()? };
-    let text = core::str::from_utf8(bytes).map_err(|_| NC_E_INVALID_ARG)?;
-    out.push_str(text);
+    // Empty signatures represent constructors or base-interface references
+    // that have no associated ABI contract. Preserve that absence as an empty
+    // diagnostic string instead of assigning it a validation algorithm.
+    if bytes.is_empty() {
+        return Ok(());
+    }
+    if bytes.starts_with(b"ncabi1;") {
+        let text = core::str::from_utf8(bytes).map_err(|_| NC_E_INVALID_ARG)?;
+        out.push_str(text);
+        return Ok(());
+    }
+    match bytes.len() {
+        16 => out.push_str("fnv-1a-128:"),
+        32 => out.push_str("sha-256:"),
+        _ => return Err(NC_E_INVALID_ARG),
+    }
+    /// Lowercase digits used to format binary signature bytes.
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for byte in bytes {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0x0f) as usize] as char);
+    }
     Ok(())
 }

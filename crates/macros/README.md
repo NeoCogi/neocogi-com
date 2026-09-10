@@ -1,9 +1,10 @@
 # neocogi-com-macros
 
-The optional `abi-validation` feature emits contract-specific ABI signatures.
-Without it, generated non-empty contracts use the core unchecked sentinel and
-avoid target-side constant signature evaluation; all declarations and typed metadata
-are still generated.
+The mutually exclusive `com-validation-none`, `com-validation-sha-256`,
+`com-validation-fnv-1a-128`, and `com-validation-mangling` features select the
+signature representation emitted for every generated contract. `none` uses the
+core unchecked sentinel and avoids target-side signature computation; all typed
+descriptor metadata remains available.
 
 `neocogi-com-macros` implements the procedural macros used by `neocogi-com`.
 
@@ -36,14 +37,16 @@ code. `ComInterface` is unsealed for low-level FFI adapters, but handwritten
 implementations must use `unsafe impl` and uphold its complete safety contract;
 the attribute macro is the supported safe implementation path.
 
-Generated `ABI_SIGNATURE` values are canonical mangled strings built from typed
+Generated `ABI_SIGNATURE` values are canonical validation bytes built from typed
 ABI parts. They include method order, method names, argument and return ABI
 types, passing modes, void versus `out` returns, `ComRef` borrowed parameters,
 `ComPtr` owned returns, safe buffer passing modes, COM threading mode,
 referenced interface IDs, and inherited interface signatures. The macros emit
 the declaration records directly, while Rust constant evaluation adds target
 layouts, aggregate signatures, and other values that require resolved type
-information. The result is exact-size static storage, not a runtime allocation.
+information. Mangling stores this stream directly; SHA-256 and FNV-1a-128 store
+its fixed-size digest. The result is exact-size static storage, not a runtime
+allocation.
 
 `#[com_class]` declares one registered class's primary callable contract on a
 trait and generates the same C-shaped call machinery without requiring a

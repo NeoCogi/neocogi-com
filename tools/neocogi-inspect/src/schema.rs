@@ -7,7 +7,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use neocogi_com_core::{IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, NcAbiSignature, NcAbiThreadingMode, NcGuid, guid_from_qualified_name};
+use neocogi_com_core::{
+    IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, NcAbiSignature, NcAbiThreadingMode, NcGuid, format_abi_signature, guid_from_qualified_name,
+};
 #[cfg(test)]
 use neocogi_com_core::NcInterfaceId;
 use nc_com_shared_runtime::PluginInspection;
@@ -446,13 +448,27 @@ fn validate_signature(value: &str, path: &str) -> Result<bool, ArtifactValidatio
     if value.is_empty() {
         return Ok(true);
     }
+    if let Some(digest) = value.strip_prefix("sha-256:") {
+        return validate_hex_signature(digest, 64, path).map(|()| false);
+    }
+    if let Some(fingerprint) = value.strip_prefix("fnv-1a-128:") {
+        return validate_hex_signature(fingerprint, 32, path).map(|()| false);
+    }
     if value == "ncabi1;" || !value.starts_with("ncabi1;") {
-        return Err(ArtifactValidationError::new(path, "ABI signature must use the canonical ncabi1 mangle"));
+        return Err(ArtifactValidationError::new(path, "ABI signature must use a known canonical representation"));
     }
     if value.chars().any(char::is_control) {
         return Err(ArtifactValidationError::new(path, "ABI signature must not contain control characters"));
     }
     Ok(false)
+}
+
+/// Validates one fixed-width lowercase hexadecimal artifact representation.
+fn validate_hex_signature(value: &str, expected_len: usize, path: &str) -> Result<(), ArtifactValidationError> {
+    if value.len() != expected_len || !value.bytes().all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f')) {
+        return Err(ArtifactValidationError::new(path, "ABI digest has an invalid width or hexadecimal encoding"));
+    }
+    Ok(())
 }
 
 fn validate_qualified_name(value: &str, path: &str) -> Result<(), ArtifactValidationError> {
@@ -507,8 +523,7 @@ fn artifact_threading(threading: NcAbiThreadingMode) -> ArtifactThreading {
 pub(crate) fn format_signature(signature: NcAbiSignature) -> String {
     // SAFETY: Inspection receives validated descriptors from modules pinned
     // until process exit; built-in and generated local signatures are static.
-    let bytes = unsafe { signature.as_bytes() }.expect("validated ABI signature view");
-    String::from_utf8(bytes.to_vec()).expect("canonical ABI signature is UTF-8")
+    unsafe { format_abi_signature(signature) }.expect("validated ABI signature view")
 }
 
 #[cfg(test)]

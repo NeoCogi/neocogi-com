@@ -28,6 +28,19 @@
 #![no_std]
 #![deny(missing_docs)]
 
+#[cfg(any(
+    all(
+        feature = "com-validation-none",
+        any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling")
+    ),
+    all(
+        feature = "com-validation-sha-256",
+        any(feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling")
+    ),
+    all(feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling")
+))]
+compile_error!("COM validation modes are mutually exclusive; select exactly one of none, sha-256, fnv-1a-128, or mangling");
+
 mod abi;
 mod client;
 mod constructor;
@@ -56,7 +69,7 @@ pub use decode::{ComMap, ComMapAccess};
 pub use guid::{NC_COM_GUID_NAMESPACE, NC_GUID_NIL, NcGuid, ParseGuidError, guid_from_qualified_name};
 pub use signature::NcAbiSignature;
 #[cfg(feature = "alloc")]
-pub use metadata::format_method_signature;
+pub use metadata::{format_abi_signature, format_method_signature};
 pub use metadata::{
     NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT,
     NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,

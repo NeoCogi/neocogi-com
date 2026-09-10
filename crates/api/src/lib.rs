@@ -441,7 +441,7 @@ pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_
 #[cfg(feature = "macros")]
 pub use macros::{ComDeserialize, com_class, com_enum, com_interface, com_object, com_struct, plugin};
 #[cfg(feature = "alloc")]
-pub use neocogi_com_core::format_method_signature;
+pub use neocogi_com_core::{format_abi_signature, format_method_signature};
 pub use neocogi_com_core::{
     __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClassArguments, abi_signature,
     ComClassContract, ComClientInterface, ComDeserialize, ComDeserializer, ComEnum, ComInterface, ComPtr, ComRecord, ComRecordAccess, ComRef, ComSequence,

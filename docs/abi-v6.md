@@ -58,7 +58,7 @@ The explicit boundary consists of:
 - `extern "C"` vtable functions
 - explicit `NcStatus` return values
 - explicit `NcGuid` identifiers
-- canonical mangled ABI signatures
+- canonical typed ABI validation signatures
 - COM-style `QueryInterface`, `AddRef`, and `Release`
 - plugin-owned descriptor metadata and versioned runtime API tables
 
@@ -898,9 +898,9 @@ non-negative status carried by `Err` is normalized to `NC_E_INVALID_ARG`, and
 the output slot is not written. The same normalization applies to status-only
 void methods.
 
-## 11. Mangled ABI Signatures
+## 11. ABI Validation Signatures
 
-`NcAbiSignature` is a borrowed view of immutable canonical UTF-8 bytes:
+`NcAbiSignature` is a borrowed view of immutable canonical validation bytes:
 
 ```rust,ignore
 #[repr(C)]
@@ -958,8 +958,8 @@ pub enum NcAbiPassing {
 }
 ```
 
-Every non-empty signature begins with the ASCII domain `ncabi1;`, followed by
-records in declaration order. Numeric fields use fixed-width lowercase
+The canonical record stream begins with the ASCII domain `ncabi1;`, followed
+by records in declaration order. Numeric fields use fixed-width lowercase
 hexadecimal text; widths below are hexadecimal digit counts. GUIDs are the 16
 `NcGuid::to_uuid_bytes()` bytes rendered as 32 lowercase hexadecimal digits.
 Names are raw UTF-8 preceded by their byte length, so the grammar remains
@@ -1014,10 +1014,21 @@ thread-local, or struct respectively; `01` for mutable, thread-safe, or union;
 and aggregate kind `02` for a tagged enum.
 
 Procedural macros emit one exact-size static byte array per interface,
-constructor, struct, enum payload, union, and tagged enum. Associated
+constructor, struct, enum payload, union, and tagged enum. The assembly selects
+exactly one representation:
+
+- `none` stores `ncabi1;unchecked` and does not compare contract contents;
+- `mangling` stores the complete canonical record stream;
+- `sha-256` stores the raw 32-byte digest of
+  `neocogi-com:abi-sha256:v1\0 || canonical_stream`;
+- `fnv-1a-128` stores the raw 16-byte big-endian fingerprint of
+  `neocogi-com:abi-fnv1a128:v1\0 || canonical_stream`.
+
+All four choices retain the same pointer/count view and descriptor layouts.
+They must not be mixed within one runtime/application/plugin graph. Associated
 `AbiType::ABI_TYPE` constants normalize imports and aliases before encoding;
 rustc evaluates `size_of`, `align_of`, and `offset_of` expressions. No source
-path spelling enters the mangle. The `abi_signature!` macro provides the same
+path spelling enters the stream. The `abi_signature!` macro provides the same
 static construction pattern for handwritten unsafe ABI adapters.
 
 An interface identity is:
@@ -1048,7 +1059,7 @@ Together these fields form `NcInterfaceId`. The GUID alone is not enough to
 prove compatibility because a pre-alpha interface may keep the same family ID
 while its lowered ABI signature changes.
 
-The mangle grammar is itself ABI policy. Changing this grammar is an
+The canonical grammar is itself ABI policy. Changing this grammar is an
 ABI-policy change even if the physical vtable layout would otherwise be the
 same.
 
@@ -1138,7 +1149,7 @@ Return {
 ```
 
 Generated `#[com_struct]` types implement `ComStruct` with compile-time physical
-layout metadata and implement `AbiType` as a nested mangle of
+layout metadata and implement `AbiType` as a nested signature of
 `Aggregate { Struct }`, `Layout { size, align }`, and every ordered
 `Field { index, offset, ty }`.
 
@@ -1157,13 +1168,13 @@ variant tag/type records using `Aggregate { Struct }`, `Aggregate { Union }`, an
 `Aggregate { TaggedEnum }`.
 
 The producer uses this physical layout metadata to generate the aggregate
-signature. Runtime method descriptors retain that complete mangle but do not
+signature. Runtime method descriptors retain that complete signature but do not
 publish source field names or Rust declarations. `ComStruct::ABI_STRUCT_LAYOUT`
 is producer-side compile-time metadata and is not separately reachable from
 `NcPluginDescriptor`.
 
 Source path spelling, comments, and diagnostic method strings are not ABI
-signature inputs. The mangle records canonical method names, receiver mode, argument order, passing mode,
+signature inputs. The canonical stream records method names, receiver mode, argument order, passing mode,
 value type identity, buffer direction and nullability when represented, COM
 pointer threading mode, aggregate size/alignment/field offsets, and referenced
 interface IID.
@@ -1183,11 +1194,12 @@ physical vtable lowering remains the fixed offset/length/pointer form described
 above. Compatibility authority remains the IID plus ABI signature, not the
 diagnostic signature string alone.
 
-Conforming interface descriptors must advertise the canonical mangle produced
-by this typed metadata. The default descriptor validator streams the expected
-records once against the advertised bytes, without allocating or performing a
-class-registry lookup, and rejects a descriptor whose `abi_signature` does not
-match.
+Conforming interface descriptors must advertise the selected representation of
+the canonical stream produced by this typed metadata. The descriptor validator
+streams the expected records once against the advertised mangle or digest,
+without allocating or performing a class-registry lookup, and rejects a
+descriptor whose `abi_signature` does not match. `none` retains all structural
+descriptor checks and accepts only the explicit unchecked sentinel.
 
 ## 12. Descriptor Layouts
 
@@ -1353,7 +1365,7 @@ descriptor is visible.
 
 Registered metadata must use a valid normative `qualified_name`, its derived
 non-nil `interface_id`, and a non-empty `abi_signature`.
-The `abi_signature` must match the canonical mangle computed from the descriptor's
+The `abi_signature` must match the selected representation computed from the descriptor's
 typed method metadata and its explicit `base` identity, when present. On a
 64-bit target this record is 96 bytes (base at 48, method count at 80, methods
 at 88); on a 32-bit target it is 64 bytes (base at 32, count at 56, methods at

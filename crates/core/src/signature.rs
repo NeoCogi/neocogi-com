@@ -1,26 +1,32 @@
-//! Canonical mangled ABI signatures shared by macros and runtime validation.
+//! Canonical ABI signatures shared by macros and runtime validation.
 //!
 //! Compatibility is represented by a versioned sequence of typed
-//! [`NcAbiSignaturePart`] records. Procedural macros generate an exactly sized
-//! static UTF-8 buffer for each aggregate, constructor, and interface. Type
-//! aliases and imports resolve through [`crate::AbiType::ABI_TYPE`], while
-//! `size_of`, `align_of`, and `offset_of` values are evaluated by rustc.
+//! [`NcAbiSignaturePart`] records. The selected Cargo feature stores those
+//! records as a collision-free mangle, a SHA-256 digest, an FNV-1a-128
+//! fingerprint, or one explicit unchecked sentinel. Type aliases and imports
+//! resolve through [`crate::AbiType::ABI_TYPE`], while `size_of`, `align_of`,
+//! and `offset_of` values are evaluated by rustc.
 //!
-//! Signatures are compared byte-for-byte. The format is a compact mangle rather
-//! than a source-level Rust type spelling, so equivalent Rust paths cannot
-//! create false ABI differences and no probabilistic hash collision is possible.
+//! Every choice uses the same C-compatible pointer/count view. Signatures are
+//! compared byte-for-byte, so switching validation does not alter descriptor
+//! layouts or add work to update, layout, paint, or other object calls.
 
 use core::hash::{Hash, Hasher};
 
-#[cfg(feature = "abi-validation")]
+#[cfg(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling"))]
 use crate::guid::NcGuid;
 use crate::metadata::NcAbiSignaturePart;
-#[cfg(feature = "abi-validation")]
+#[cfg(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling"))]
 use crate::metadata::{NcAbiAggregateKind, NcAbiPassing, NcAbiThreadingMode, NcAbiType};
 use crate::status::{NC_E_POINTER, NcStatus};
 
+#[cfg(feature = "com-validation-fnv-1a-128")]
+mod fnv1a128;
+#[cfg(feature = "com-validation-sha-256")]
+mod sha256;
+
 /// Versioned prefix for every complete mangled ABI signature.
-#[cfg(feature = "abi-validation")]
+#[cfg(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling"))]
 const NC_ABI_SIGNATURE_DOMAIN: &[u8] = b"ncabi1;";
 
 /// Declares one canonical ABI signature backed by exact-size static storage.
@@ -56,7 +62,7 @@ macro_rules! abi_signature {
 }
 
 /// Maximum number of primitive output tokens required by one logical part.
-#[cfg(feature = "abi-validation")]
+#[cfg(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling"))]
 const MAX_TOKENS_PER_PART: usize = 8;
 
 /// Static canonical ABI signature stored in C-compatible pointer/count form.
@@ -67,7 +73,7 @@ const MAX_TOKENS_PER_PART: usize = 8;
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct NcAbiSignature {
-    /// Pointer to immutable canonical UTF-8 bytes, or null for an empty view.
+    /// Pointer to immutable canonical validation bytes, or null for an empty view.
     data: *const u8,
     /// Number of readable bytes at [`Self::data`].
     len: u32,
@@ -90,7 +96,7 @@ impl NcAbiSignature {
     /// builds while preserving [`Self::EMPTY`] for argument-free constructors.
     pub const UNCHECKED: Self = Self::from_static_str("ncabi1;unchecked");
 
-    /// Creates a signature view over immutable static mangled bytes.
+    /// Creates a signature view over immutable static validation bytes.
     ///
     /// Generated code uses this constructor with the exact-size buffer emitted
     /// for an attributed ABI declaration.
@@ -102,7 +108,7 @@ impl NcAbiSignature {
         }
     }
 
-    /// Creates a signature view from a static mangled string.
+    /// Creates a signature view from a static string.
     pub const fn from_static_str(value: &'static str) -> Self {
         Self::from_static(value.as_bytes())
     }
@@ -127,7 +133,7 @@ impl NcAbiSignature {
         self.data.is_null() == (self.len == 0)
     }
 
-    /// Borrows the mangled signature bytes.
+    /// Borrows the selected validation representation bytes.
     ///
     /// # Safety
     ///
@@ -150,7 +156,17 @@ impl NcAbiSignature {
     /// This operation is public only for code emitted by `neocogi-com-macros`.
     #[doc(hidden)]
     pub const fn __encoded_len(parts: &[NcAbiSignaturePart<'_>]) -> usize {
-        #[cfg(feature = "abi-validation")]
+        #[cfg(feature = "com-validation-sha-256")]
+        {
+            let _ = parts;
+            sha256::SIGNATURE_LEN
+        }
+        #[cfg(feature = "com-validation-fnv-1a-128")]
+        {
+            let _ = parts;
+            fnv1a128::SIGNATURE_LEN
+        }
+        #[cfg(feature = "com-validation-mangling")]
         {
             let mut len = NC_ABI_SIGNATURE_DOMAIN.len();
             let mut part_index = 0;
@@ -166,7 +182,7 @@ impl NcAbiSignature {
             assert!(len <= u32::MAX as usize, "ABI signature exceeds the u32 byte-length limit");
             len
         }
-        #[cfg(not(feature = "abi-validation"))]
+        #[cfg(not(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling")))]
         {
             let _ = parts;
             Self::UNCHECKED.len as usize
@@ -179,7 +195,15 @@ impl NcAbiSignature {
     /// the same const expression for both the array length and this argument.
     #[doc(hidden)]
     pub const fn __encode<const N: usize>(parts: &[NcAbiSignaturePart<'_>]) -> [u8; N] {
-        #[cfg(feature = "abi-validation")]
+        #[cfg(feature = "com-validation-sha-256")]
+        {
+            sha256::encode(parts)
+        }
+        #[cfg(feature = "com-validation-fnv-1a-128")]
+        {
+            fnv1a128::encode(parts)
+        }
+        #[cfg(feature = "com-validation-mangling")]
         {
             assert!(N == Self::__encoded_len(parts), "incorrect ABI signature buffer length");
             let mut writer = SignatureWriter::<N>::new();
@@ -197,7 +221,7 @@ impl NcAbiSignature {
             }
             writer.finish()
         }
-        #[cfg(not(feature = "abi-validation"))]
+        #[cfg(not(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling")))]
         {
             let _ = parts;
             let source = b"ncabi1;unchecked";
@@ -243,14 +267,20 @@ impl NcAbiSignature {
     /// Production signatures are always exact-size compile-time statics. This
     /// helper exists only for core unit tests that compare many runtime-built
     /// variations without obscuring those tests with static declarations.
-    #[cfg(all(test, feature = "abi-validation"))]
+    #[cfg(all(
+        test,
+        any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling")
+    ))]
     pub(crate) fn from_abi_parts(parts: &[NcAbiSignaturePart<'_>]) -> Self {
-        let bytes = encode_owned(parts).into_boxed_slice();
+        let bytes = encode_owned_for_tests(parts).into_boxed_slice();
         Self::from_static(std::boxed::Box::leak(bytes))
     }
 
     /// Encodes aggregate layout records for runtime-built unit-test cases.
-    #[cfg(all(test, feature = "abi-validation"))]
+    #[cfg(all(
+        test,
+        any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling")
+    ))]
     pub(crate) fn from_aggregate_layout(kind: NcAbiAggregateKind, size: usize, align: usize, fields: &[crate::NcAbiFieldLayout]) -> Self {
         let mut parts = std::vec![NcAbiSignaturePart::Aggregate { kind }, NcAbiSignaturePart::Layout { size, align }];
         parts.extend(fields.iter().map(|field| NcAbiSignaturePart::Field {
@@ -283,8 +313,13 @@ impl Hash for NcAbiSignature {
     }
 }
 
-/// Streaming verifier used to check descriptor metadata without allocation.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "com-validation-fnv-1a-128")]
+pub(crate) use fnv1a128::Verifier as NcAbiSignatureVerifier;
+#[cfg(feature = "com-validation-sha-256")]
+pub(crate) use sha256::Verifier as NcAbiSignatureVerifier;
+
+/// Streaming mangle verifier used to check descriptor metadata without allocation.
+#[cfg(feature = "com-validation-mangling")]
 pub(crate) struct NcAbiSignatureVerifier<'a> {
     /// Advertised bytes borrowed from a descriptor owned by a pinned component.
     actual: &'a [u8],
@@ -294,7 +329,7 @@ pub(crate) struct NcAbiSignatureVerifier<'a> {
     matches: bool,
 }
 
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "com-validation-mangling")]
 impl<'a> NcAbiSignatureVerifier<'a> {
     /// Starts verification and consumes the mandatory mangle version prefix.
     ///
@@ -383,7 +418,7 @@ impl<'a> NcAbiSignatureVerifier<'a> {
 }
 
 /// Primitive output operation shared by length calculation and encoding.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 #[derive(Clone, Copy)]
 enum SignatureToken<'a> {
     /// Unused fixed-array slot.
@@ -406,7 +441,7 @@ enum SignatureToken<'a> {
 }
 
 /// Fixed-capacity token sequence for one logical signature record.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 #[derive(Clone, Copy)]
 struct SignatureTokens<'a> {
     /// Primitive tokens in canonical output order.
@@ -415,7 +450,7 @@ struct SignatureTokens<'a> {
     len: usize,
 }
 
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 impl<'a> SignatureTokens<'a> {
     /// Creates an empty token sequence.
     const fn new() -> Self {
@@ -434,7 +469,7 @@ impl<'a> SignatureTokens<'a> {
 }
 
 /// Converts one logical ABI record into canonical primitive output tokens.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 const fn tokens_for_part(part: NcAbiSignaturePart<'_>) -> SignatureTokens<'_> {
     let mut tokens = SignatureTokens::new();
     match part {
@@ -499,7 +534,7 @@ const fn tokens_for_part(part: NcAbiSignaturePart<'_>) -> SignatureTokens<'_> {
 }
 
 /// Appends the canonical token for one ABI type.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 const fn append_type<'a>(tokens: &mut SignatureTokens<'a>, ty: NcAbiType) {
     let tag = match ty {
         NcAbiType::Void => 0x00,
@@ -533,7 +568,7 @@ const fn append_type<'a>(tokens: &mut SignatureTokens<'a>, ty: NcAbiType) {
 }
 
 /// Appends the canonical tokens for one passing mode.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 const fn append_passing<'a>(tokens: &mut SignatureTokens<'a>, passing: NcAbiPassing) {
     let (tag, threading) = match passing {
         NcAbiPassing::Void => (0x00, None),
@@ -551,7 +586,7 @@ const fn append_passing<'a>(tokens: &mut SignatureTokens<'a>, passing: NcAbiPass
 }
 
 /// Appends the canonical token for one threading capability.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 const fn append_threading_mode<'a>(tokens: &mut SignatureTokens<'a>, mode: NcAbiThreadingMode) {
     let tag = match mode {
         NcAbiThreadingMode::ThreadLocal => 0x00,
@@ -561,7 +596,7 @@ const fn append_threading_mode<'a>(tokens: &mut SignatureTokens<'a>, mode: NcAbi
 }
 
 /// Appends the canonical token for one method receiver mode.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 const fn append_receiver<'a>(tokens: &mut SignatureTokens<'a>, receiver: crate::NcAbiReceiver) {
     let tag = match receiver {
         crate::NcAbiReceiver::Shared => 0x00,
@@ -571,7 +606,7 @@ const fn append_receiver<'a>(tokens: &mut SignatureTokens<'a>, receiver: crate::
 }
 
 /// Appends the canonical token for one aggregate category.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 const fn append_aggregate_kind<'a>(tokens: &mut SignatureTokens<'a>, kind: NcAbiAggregateKind) {
     let tag = match kind {
         NcAbiAggregateKind::Struct => 0x00,
@@ -582,7 +617,7 @@ const fn append_aggregate_kind<'a>(tokens: &mut SignatureTokens<'a>, kind: NcAbi
 }
 
 /// Returns the number of output bytes produced by one primitive token.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 const fn token_len(token: SignatureToken<'_>) -> usize {
     match token {
         SignatureToken::Empty => 0,
@@ -594,8 +629,102 @@ const fn token_len(token: SignatureToken<'_>) -> usize {
     }
 }
 
+/// Allocation-free cursor over the canonical mangling byte stream.
+///
+/// Hash implementations consume this cursor directly. They therefore share
+/// the exact grammar with the collision-free mangle without materializing an
+/// intermediate string or duplicating type serialization rules.
+#[cfg(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128"))]
+struct SignatureByteCursor<'slice, 'value> {
+    /// Logical records that remain to be serialized.
+    parts: &'slice [NcAbiSignaturePart<'value>],
+    /// Index of the next logical record to tokenize.
+    part_index: usize,
+    /// Primitive tokens for the current logical record.
+    tokens: SignatureTokens<'value>,
+    /// Index of the current primitive token.
+    token_index: usize,
+    /// Byte offset within the current primitive token.
+    token_offset: usize,
+    /// Byte offset within the shared mangle-domain prefix.
+    domain_offset: usize,
+}
+
+#[cfg(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128"))]
+impl<'slice, 'value> SignatureByteCursor<'slice, 'value> {
+    /// Creates a cursor for a complete signature or one incremental part.
+    const fn new(parts: &'slice [NcAbiSignaturePart<'value>], include_domain: bool) -> Self {
+        Self {
+            parts,
+            part_index: 0,
+            tokens: SignatureTokens::new(),
+            token_index: 0,
+            token_offset: 0,
+            domain_offset: if include_domain { 0 } else { NC_ABI_SIGNATURE_DOMAIN.len() },
+        }
+    }
+
+    /// Returns the next canonical byte, or `None` after the complete stream.
+    const fn next(&mut self) -> Option<u8> {
+        if self.domain_offset < NC_ABI_SIGNATURE_DOMAIN.len() {
+            let byte = NC_ABI_SIGNATURE_DOMAIN[self.domain_offset];
+            self.domain_offset += 1;
+            return Some(byte);
+        }
+
+        loop {
+            if self.token_index < self.tokens.len {
+                let token = self.tokens.values[self.token_index];
+                if self.token_offset < token_len(token) {
+                    let byte = token_byte(token, self.token_offset);
+                    self.token_offset += 1;
+                    return Some(byte);
+                }
+                self.token_index += 1;
+                self.token_offset = 0;
+                continue;
+            }
+            if self.part_index == self.parts.len() {
+                return None;
+            }
+            self.tokens = tokens_for_part(self.parts[self.part_index]);
+            self.part_index += 1;
+            self.token_index = 0;
+            self.token_offset = 0;
+        }
+    }
+}
+
+/// Returns one byte from a primitive signature token.
+#[cfg(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128"))]
+const fn token_byte(token: SignatureToken<'_>, index: usize) -> u8 {
+    match token {
+        SignatureToken::Empty => panic!("empty signature token has no bytes"),
+        SignatureToken::Byte(byte) => {
+            assert!(index == 0, "single-byte signature token index is out of bounds");
+            byte
+        }
+        SignatureToken::Bytes(bytes) => bytes[index],
+        SignatureToken::Signature(signature) => {
+            // SAFETY: Nested signature constants point to immutable static
+            // buffers whose lengths were checked by `from_static`.
+            (unsafe { core::slice::from_raw_parts(signature.data, signature.len as usize) })[index]
+        }
+        SignatureToken::Guid(guid) => {
+            let bytes = guid.to_uuid_bytes();
+            let byte = bytes[index / 2];
+            let shift = if index & 1 == 0 { 4 } else { 0 };
+            hex_digit((byte >> shift) & 0x0f)
+        }
+        SignatureToken::Hex { value, digits } => {
+            let shift = (digits as usize - index - 1) as u32 * 4;
+            hex_digit(((value >> shift) & 0x0f) as u8)
+        }
+    }
+}
+
 /// Exact-size const writer used only while initializing generated statics.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "com-validation-mangling")]
 struct SignatureWriter<const N: usize> {
     /// Output bytes initialized from left to right.
     bytes: [u8; N],
@@ -603,7 +732,7 @@ struct SignatureWriter<const N: usize> {
     len: usize,
 }
 
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "com-validation-mangling")]
 impl<const N: usize> SignatureWriter<N> {
     /// Creates an empty writer for an exact-size result.
     const fn new() -> Self {
@@ -669,14 +798,31 @@ impl<const N: usize> SignatureWriter<N> {
 }
 
 /// Converts one hexadecimal nibble to canonical lowercase ASCII.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 const fn hex_digit(value: u8) -> u8 {
     if value < 10 { b'0' + value } else { b'a' + (value - 10) }
 }
 
 /// Runtime encoder used only by tests that generate many signature variations.
-#[cfg(all(test, feature = "abi-validation"))]
-fn encode_owned(parts: &[NcAbiSignaturePart<'_>]) -> std::vec::Vec<u8> {
+#[cfg(all(test, feature = "_com-validation-exact"))]
+fn encode_owned_for_tests(parts: &[NcAbiSignaturePart<'_>]) -> std::vec::Vec<u8> {
+    #[cfg(feature = "com-validation-mangling")]
+    {
+        return encode_owned_mangle(parts);
+    }
+    #[cfg(feature = "com-validation-fnv-1a-128")]
+    {
+        return fnv1a128::encode::<{ fnv1a128::SIGNATURE_LEN }>(parts).to_vec();
+    }
+    #[cfg(feature = "com-validation-sha-256")]
+    {
+        return sha256::encode::<{ sha256::SIGNATURE_LEN }>(parts).to_vec();
+    }
+}
+
+/// Runtime mangle encoder used only by tests with generated variations.
+#[cfg(all(test, feature = "com-validation-mangling"))]
+fn encode_owned_mangle(parts: &[NcAbiSignaturePart<'_>]) -> std::vec::Vec<u8> {
     let mut bytes = std::vec::Vec::with_capacity(NcAbiSignature::__encoded_len(parts));
     bytes.extend_from_slice(NC_ABI_SIGNATURE_DOMAIN);
     for part in parts {
@@ -689,7 +835,7 @@ fn encode_owned(parts: &[NcAbiSignaturePart<'_>]) -> std::vec::Vec<u8> {
 }
 
 /// Appends one canonical primitive token to a test-owned byte vector.
-#[cfg(all(test, feature = "abi-validation"))]
+#[cfg(all(test, feature = "com-validation-mangling"))]
 fn append_owned_token(bytes: &mut std::vec::Vec<u8>, token: SignatureToken<'_>) {
     match token {
         SignatureToken::Empty => {}
@@ -710,7 +856,7 @@ fn append_owned_token(bytes: &mut std::vec::Vec<u8>, token: SignatureToken<'_>) 
 }
 
 /// Appends one fixed-width lowercase hexadecimal value for the test encoder.
-#[cfg(all(test, feature = "abi-validation"))]
+#[cfg(all(test, feature = "com-validation-mangling"))]
 fn append_owned_hex(bytes: &mut std::vec::Vec<u8>, value: u128, digits: u8) {
     let mut remaining = digits;
     while remaining != 0 {
@@ -720,7 +866,7 @@ fn append_owned_hex(bytes: &mut std::vec::Vec<u8>, value: u128, digits: u8) {
     }
 }
 
-#[cfg(all(test, feature = "abi-validation"))]
+#[cfg(all(test, feature = "com-validation-mangling"))]
 mod tests {
     use super::NcAbiSignature;
     use crate::{NcAbiSignaturePart, NcAbiType, NcGuid};
@@ -753,7 +899,7 @@ mod tests {
     }
 }
 
-#[cfg(all(test, not(feature = "abi-validation")))]
+#[cfg(all(test, not(feature = "_com-validation-exact")))]
 mod unchecked_tests {
     use super::NcAbiSignature;
     use crate::NcAbiSignaturePart;

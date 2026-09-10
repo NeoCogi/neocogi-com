@@ -2,10 +2,10 @@
 //!
 //! These enums and records are the semantic vocabulary behind interface signatures:
 //! value types, passing modes, threading promises, aggregate layouts, interface
-//! identities, and the ordered mangle grammar. Raw numeric constants mirror each
+//! identities, and the ordered validation grammar. Raw numeric constants mirror each
 //! stable C representation for consumers that do not use the Rust enums.
 //!
-//! These Rust enums are the normalized input language for ABI mangling. They do
+//! These Rust enums are the normalized input language for ABI validation. They do
 //! not cross the shared-library boundary directly; their `#[repr(C)]`
 //! descriptor counterparts encode the same information in exported metadata.
 //! Keeping the logical grammar separate makes signatures independent of Rust enum
@@ -32,7 +32,7 @@ pub const NC_GET_PLUGIN_DESCRIPTOR_SYMBOL: &str = "nc_get_plugin_descriptor";
 pub struct NcInterfaceId {
     /// Stable interface GUID.
     pub iid: NcGuid,
-    /// Canonical mangled interface ABI contract.
+    /// Canonical interface ABI validation contract.
     pub abi_signature: NcAbiSignature,
 }
 

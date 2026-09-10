@@ -1,10 +1,11 @@
 # neocogi-com-core
 
-The optional `abi-validation` feature computes contract-specific ABI values and
-requires descriptor signatures to match their typed metadata. Without it, the same
-ABI layouts carry a reserved unchecked sentinel and retain structural descriptor
-validation. This makes the compile-time cost independently measurable without
-removing the metadata required for inspection or safe traversal.
+One of `com-validation-none`, `com-validation-sha-256`,
+`com-validation-fnv-1a-128`, or `com-validation-mangling` selects the
+assembly-wide ABI validation representation. Every mode uses the same ABI view.
+The exact modes require descriptor signatures to match typed metadata; `none`
+uses a reserved unchecked sentinel while retaining structural validation. A
+build with no mode is reserved for representation-neutral inspection tooling.
 
 `neocogi-com-core` contains the small C-shaped ABI contract used by `neocogi-com` hosts
 and plugins. core ABI v6 is currently an experimental pre-alpha draft, not a
@@ -86,16 +87,13 @@ Status values distinguish an invalid resource request
 when mapping allocator failure to the latter; core itself remains
 allocation-free without its optional `alloc` feature.
 
-Interface descriptors use canonical `NcAbiSignature` byte strings. Generated
-`neocogi-com` interfaces encode those strings from typed `NcAbiSignaturePart`
-records: interface ID, method names and order, argument and return types,
-passing modes, COM threading modes, and referenced interface IDs. Grammar v1
-uses fixed tags and fixed-width hexadecimal values so independently compiled
-producers generate identical, directly comparable signatures. Procedural macros
-emit the declaration records while constant evaluation resolves target layouts
-and nested aggregate or interface signatures. Descriptor validation walks the
-same records once and rejects malformed or mismatched signatures. Rendered
-method signatures remain separate diagnostic metadata.
+Interface descriptors use canonical `NcAbiSignature` byte views. Generated
+interfaces serialize typed `NcAbiSignaturePart` records with grammar v1, then
+store the mangle itself or its SHA-256/FNV-1a-128 result. Procedural macros emit
+the records while constant evaluation resolves target layouts and nested
+signatures. Descriptor validation walks the same records once and rejects
+malformed or mismatched signatures. Rendered method signatures remain separate
+diagnostic metadata.
 The allocation-backed `format_method_signature` helper is unsafe because raw
 descriptor records are publicly constructible: callers must establish every
 transitive pointer/count invariant before formatting. Generated static

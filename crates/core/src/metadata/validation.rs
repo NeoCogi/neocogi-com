@@ -16,9 +16,9 @@ use alloc::collections::BTreeSet;
 
 use crate::metadata::{validate_qualified_name, validate_version_text};
 use crate::object::{IID_IUNKNOWN, IUNKNOWN_ABI_SIGNATURE, IUNKNOWN_QUALIFIED_NAME};
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 use crate::signature::NcAbiSignatureVerifier;
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 use crate::{NcAbiSignaturePart, NcAbiPassing, NcAbiReceiver, NcAbiType};
 use crate::{
     NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT,
@@ -140,7 +140,7 @@ pub enum NcDescriptorValidationKind {
     MissingConstructor,
     /// A class threading field is not a defined `NC_ABI_THREADING_*` value.
     InvalidClassThreading,
-    /// An ABI signature has an invalid pointer/length shape or mangle prefix.
+    /// An ABI signature has an invalid pointer/length shape or representation.
     InvalidAbiSignature,
     /// A strict build encountered a deliberately unchecked ABI signature.
     UncheckedAbiSignature,
@@ -208,7 +208,7 @@ struct IssueReporter<R> {
     /// First negative status observed, or `NC_OK` before any issue.
     first_error: NcStatus,
     /// Number of issues emitted so signature validation can detect a clean subtree.
-    #[cfg(feature = "abi-validation")]
+    #[cfg(feature = "_com-validation-exact")]
     issue_count: usize,
 }
 
@@ -221,7 +221,7 @@ where
         Self {
             report,
             first_error: NC_OK,
-            #[cfg(feature = "abi-validation")]
+            #[cfg(feature = "_com-validation-exact")]
             issue_count: 0,
         }
     }
@@ -231,7 +231,7 @@ where
         if self.first_error.is_ok() {
             self.first_error = status;
         }
-        #[cfg(feature = "abi-validation")]
+        #[cfg(feature = "_com-validation-exact")]
         {
             self.issue_count += 1;
         }
@@ -239,7 +239,7 @@ where
     }
 
     /// Returns the number of issues reported so far for signature verification.
-    #[cfg(feature = "abi-validation")]
+    #[cfg(feature = "_com-validation-exact")]
     fn issue_count(&self) -> usize {
         self.issue_count
     }
@@ -510,7 +510,7 @@ where
         has_iunknown = true;
         let name_is_canonical = unsafe { interface.qualified_name.as_str() } == Ok(IUNKNOWN_QUALIFIED_NAME);
         if !interface.abi_signature.has_valid_shape()
-            || (cfg!(feature = "abi-validation") && interface.abi_signature != IUNKNOWN_ABI_SIGNATURE)
+            || (cfg!(feature = "_com-validation-exact") && interface.abi_signature != IUNKNOWN_ABI_SIGNATURE)
             || !interface.base.is_none()
             || interface.method_count != 0
             || !name_is_canonical
@@ -601,7 +601,7 @@ where
     R: FnMut(NcDescriptorValidationIssue),
 {
     let path = NcDescriptorPath::Interface { class_index, interface_index };
-    #[cfg(feature = "abi-validation")]
+    #[cfg(feature = "_com-validation-exact")]
     let issue_count_before = reporter.issue_count();
 
     if interface.interface_id.is_nil() {
@@ -627,7 +627,7 @@ where
         }
     }
     let signature_is_valid = validate_signature_view(interface.abi_signature, false, path, reporter);
-    #[cfg(not(feature = "abi-validation"))]
+    #[cfg(not(feature = "_com-validation-exact"))]
     let _ = signature_is_valid;
     if interface.abi_signature.is_empty() {
         reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::EmptyInterfaceAbiSignature);
@@ -648,7 +648,7 @@ where
         validate_method_descriptor(class_index, interface_index, method_index as u32, method, reporter);
     }
 
-    #[cfg(feature = "abi-validation")]
+    #[cfg(feature = "_com-validation-exact")]
     if signature_is_valid && reporter.issue_count() == issue_count_before && !interface.abi_signature.is_empty() {
         // SAFETY: The descriptor graph has passed the structural checks in this
         // interface subtree, including UTF-8 method/parameter names and typed
@@ -824,11 +824,83 @@ where
             return false;
         }
     };
+    validate_signature_bytes(bytes, path, reporter)
+}
+
+/// Accepts any readable bytes in the representation-neutral inspector build.
+#[cfg(not(any(
+    feature = "com-validation-none",
+    feature = "com-validation-sha-256",
+    feature = "com-validation-fnv-1a-128",
+    feature = "com-validation-mangling"
+)))]
+fn validate_signature_bytes<R>(_bytes: &[u8], _path: NcDescriptorPath, _reporter: &mut IssueReporter<R>) -> bool
+where
+    R: FnMut(NcDescriptorValidationIssue),
+{
+    true
+}
+
+/// Requires the explicit unchecked sentinel in validation-free assemblies.
+#[cfg(feature = "com-validation-none")]
+fn validate_signature_bytes<R>(bytes: &[u8], path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
+where
+    R: FnMut(NcDescriptorValidationIssue),
+{
+    if bytes == b"ncabi1;unchecked" {
+        true
+    } else {
+        reporter.issue(NC_E_ABI_VERSION, path, NcDescriptorValidationKind::InvalidAbiSignature);
+        false
+    }
+}
+
+/// Requires the fixed SHA-256 digest width before exact recomputation.
+#[cfg(feature = "com-validation-sha-256")]
+fn validate_signature_bytes<R>(bytes: &[u8], path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
+where
+    R: FnMut(NcDescriptorValidationIssue),
+{
+    validate_fixed_signature_width(bytes, 32, path, reporter)
+}
+
+/// Requires the fixed FNV-1a-128 fingerprint width before exact recomputation.
+#[cfg(feature = "com-validation-fnv-1a-128")]
+fn validate_signature_bytes<R>(bytes: &[u8], path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
+where
+    R: FnMut(NcDescriptorValidationIssue),
+{
+    validate_fixed_signature_width(bytes, 16, path, reporter)
+}
+
+/// Checks one fixed-width binary signature representation.
+#[cfg(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128"))]
+fn validate_fixed_signature_width<R>(bytes: &[u8], expected: usize, path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
+where
+    R: FnMut(NcDescriptorValidationIssue),
+{
+    if bytes == b"ncabi1;unchecked" {
+        reporter.issue(NC_E_ABI_VERSION, path, NcDescriptorValidationKind::UncheckedAbiSignature);
+        return false;
+    }
+    if bytes.len() == expected {
+        true
+    } else {
+        reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidAbiSignature);
+        false
+    }
+}
+
+/// Checks the version prefix, UTF-8 encoding, and strict mangle sentinel rule.
+#[cfg(feature = "com-validation-mangling")]
+fn validate_signature_bytes<R>(bytes: &[u8], path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
+where
+    R: FnMut(NcDescriptorValidationIssue),
+{
     if bytes.len() <= b"ncabi1;".len() || !bytes.starts_with(b"ncabi1;") || core::str::from_utf8(bytes).is_err() {
         reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidAbiSignature);
         return false;
     }
-    #[cfg(feature = "abi-validation")]
     if bytes == b"ncabi1;unchecked" {
         reporter.issue(NC_E_ABI_VERSION, path, NcDescriptorValidationKind::UncheckedAbiSignature);
         return false;
@@ -904,8 +976,8 @@ where
     }
 }
 
-/// Verifies an advertised mangle against the canonical records in a descriptor.
-#[cfg(feature = "abi-validation")]
+/// Verifies an advertised exact signature against canonical descriptor records.
+#[cfg(feature = "_com-validation-exact")]
 unsafe fn verify_interface_descriptor_signature(interface: &NcInterfaceDescriptor, methods: &[NcMethodDescriptor]) -> Result<bool, NcStatus> {
     // SAFETY: The descriptor belongs to a pinned component, so a structurally
     // valid signature view remains readable throughout this synchronous pass.
@@ -922,7 +994,7 @@ unsafe fn verify_interface_descriptor_signature(interface: &NcInterfaceDescripto
 ///
 /// The visitor is called synchronously, so method-name borrows never escape the
 /// validated descriptor traversal.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 unsafe fn visit_interface_signature_parts<F>(interface: &NcInterfaceDescriptor, methods: &[NcMethodDescriptor], mut visit: F) -> Result<(), NcStatus>
 where
     F: for<'a> FnMut(NcAbiSignaturePart<'a>),
@@ -970,7 +1042,7 @@ where
 }
 
 /// Converts a validated raw passing descriptor into its logical enum.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 fn descriptor_passing(passing: NcAbiPassingDescriptor) -> Result<NcAbiPassing, NcStatus> {
     match passing.tag {
         NC_ABI_PASSING_VOID if passing.threading == NC_ABI_THREADING_THREAD_LOCAL => Ok(NcAbiPassing::Void),
@@ -989,13 +1061,13 @@ fn descriptor_passing(passing: NcAbiPassingDescriptor) -> Result<NcAbiPassing, N
 }
 
 /// Converts a raw threading tag, rejecting values outside core ABI v6.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 fn descriptor_threading_mode(threading: u32) -> Result<NcAbiThreadingMode, NcStatus> {
     NcAbiThreadingMode::from_raw(threading).ok_or(NC_E_INVALID_ARG)
 }
 
 /// Converts a validated physical type descriptor into its logical signature form.
-#[cfg(feature = "abi-validation")]
+#[cfg(feature = "_com-validation-exact")]
 fn descriptor_type(ty: &NcAbiTypeDescriptor) -> Result<NcAbiType, NcStatus> {
     match ty.tag {
         NC_ABI_TYPE_VOID => Ok(NcAbiType::Void),
@@ -1072,7 +1144,7 @@ mod tests {
     const PLUGIN_ID: NcGuid = guid_from_qualified_name("nc.tests.Plugin");
     const CLASS_ID: NcGuid = guid_from_qualified_name("nc.tests.Class");
     const INTERFACE_ID: NcGuid = guid_from_qualified_name("nc.tests.Interface");
-    #[cfg(feature = "abi-validation")]
+    #[cfg(feature = "_com-validation-exact")]
     const DESCRIBED_INTERFACE_SIGNATURE_PARTS: [NcAbiSignaturePart<'static>; 7] = [
         NcAbiSignaturePart::Interface { iid: INTERFACE_ID },
         NcAbiSignaturePart::Method { index: 0, name: "add" },
@@ -1093,12 +1165,12 @@ mod tests {
         },
         NcAbiSignaturePart::Status,
     ];
-    #[cfg(feature = "abi-validation")]
+    #[cfg(feature = "_com-validation-exact")]
     static DESCRIBED_INTERFACE_SIGNATURE_BYTES: [u8; NcAbiSignature::__encoded_len(&DESCRIBED_INTERFACE_SIGNATURE_PARTS)] =
         NcAbiSignature::__encode::<{ NcAbiSignature::__encoded_len(&DESCRIBED_INTERFACE_SIGNATURE_PARTS) }>(&DESCRIBED_INTERFACE_SIGNATURE_PARTS);
-    #[cfg(feature = "abi-validation")]
+    #[cfg(feature = "_com-validation-exact")]
     const DESCRIBED_INTERFACE_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static(&DESCRIBED_INTERFACE_SIGNATURE_BYTES);
-    #[cfg(feature = "abi-validation")]
+    #[cfg(feature = "_com-validation-exact")]
     static DESCRIBED_INTERFACE_PARAMS: [NcMethodParamDescriptor; 2] = [
         NcMethodParamDescriptor {
             name: NcStaticUtf8::from_static("a"),
@@ -1111,7 +1183,7 @@ mod tests {
             ty: NcAbiTypeDescriptor::from_abi_type(NcAbiType::I32),
         },
     ];
-    #[cfg(feature = "abi-validation")]
+    #[cfg(feature = "_com-validation-exact")]
     static DESCRIBED_INTERFACE_METHODS: [NcMethodDescriptor; 1] = [NcMethodDescriptor {
         name: NcStaticUtf8::from_static("add"),
         receiver: NC_ABI_RECEIVER_SHARED,
@@ -1277,7 +1349,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "abi-validation")]
+    #[cfg(feature = "_com-validation-exact")]
     #[test]
     fn interface_descriptor_signature_must_match_typed_metadata() {
         static VALID_INTERFACE: NcInterfaceDescriptor = NcInterfaceDescriptor {
@@ -1322,7 +1394,7 @@ mod tests {
         static MISMATCHED_INTERFACE: NcInterfaceDescriptor = NcInterfaceDescriptor {
             interface_id: INTERFACE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.Interface"),
-            abi_signature: NcAbiSignature::from_static_str("ncabi1;invalid"),
+            abi_signature: IUNKNOWN_ABI_SIGNATURE,
             base: crate::NcInterfaceId::NONE,
             method_count: DESCRIBED_INTERFACE_METHODS.len() as u32,
             methods: DESCRIBED_INTERFACE_METHODS.as_ptr(),
@@ -1370,7 +1442,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "abi-validation")]
+    #[cfg(feature = "_com-validation-exact")]
     #[test]
     fn strict_validation_rejects_unchecked_signatures() {
         let interface = NcInterfaceDescriptor {

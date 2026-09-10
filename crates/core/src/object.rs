@@ -25,7 +25,7 @@ const IUNKNOWN_SIGNATURE_PARTS: [NcAbiSignaturePart<'static>; 1] = [NcAbiSignatu
 static IUNKNOWN_SIGNATURE_BYTES: [u8; NcAbiSignature::__encoded_len(&IUNKNOWN_SIGNATURE_PARTS)] =
     NcAbiSignature::__encode::<{ NcAbiSignature::__encoded_len(&IUNKNOWN_SIGNATURE_PARTS) }>(&IUNKNOWN_SIGNATURE_PARTS);
 
-/// Canonical mangled ABI contract for [`IUnknown`].
+/// Canonical ABI validation contract for [`IUnknown`].
 pub const IUNKNOWN_ABI_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static(&IUNKNOWN_SIGNATURE_BYTES);
 
 /// Interface identity for [`IUnknown`].
@@ -131,7 +131,7 @@ pub unsafe trait ComInterface {
     /// Stable interface identifier used by `QueryInterface`.
     const IID: NcGuid = Self::INTERFACE_ID.iid;
 
-    /// Canonical mangled form of this interface's typed ABI contract.
+    /// Canonical validation form of this interface's typed ABI contract.
     const ABI_SIGNATURE: NcAbiSignature = Self::INTERFACE_ID.abi_signature;
 
     /// The C-compatible vtable type for this interface.
@@ -169,7 +169,7 @@ pub unsafe trait ComClassContract: ComInterface {
     /// Stable registry identity used to activate this class.
     const CLASS_ID: NcGuid;
 
-    /// Canonical mangled form of the class's primary callable ABI.
+    /// Canonical validation form of the class's primary callable ABI.
     const CLASS_ABI_SIGNATURE: NcAbiSignature = Self::ABI_SIGNATURE;
 
     /// Normative static class name stored in registry metadata.
@@ -235,7 +235,7 @@ unsafe impl ComInterface for IUnknown {
 }
 
 impl IUnknown {
-    /// Canonical mangled form of this interface's typed ABI contract.
+    /// Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: NcAbiSignature = IUNKNOWN_ABI_SIGNATURE;
     /// Stable identity for this interface ABI contract.
     pub const INTERFACE_ID: NcInterfaceId = IUNKNOWN_INTERFACE_ID;
@@ -265,7 +265,7 @@ mod tests {
             IID_IUNKNOWN.to_uuid_bytes(),
             [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46,]
         );
-        #[cfg(feature = "abi-validation")]
+        #[cfg(feature = "com-validation-mangling")]
         {
             // SAFETY: The built-in signature references immutable module-static bytes.
             assert_eq!(
@@ -273,7 +273,9 @@ mod tests {
                 Ok(b"ncabi1;I0000000000000000c000000000000046".as_slice())
             );
         }
-        #[cfg(not(feature = "abi-validation"))]
+        #[cfg(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128"))]
+        assert!(!IUnknown::ABI_SIGNATURE.is_empty());
+        #[cfg(not(feature = "_com-validation-exact"))]
         assert_eq!(IUnknown::ABI_SIGNATURE, crate::NcAbiSignature::UNCHECKED);
         assert_eq!(IUNKNOWN_INTERFACE_ID, <IUnknown as ComInterface>::INTERFACE_ID);
         assert_eq!(IUNKNOWN_INTERFACE_ID, IUnknown::INTERFACE_ID);

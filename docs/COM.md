@@ -1,19 +1,20 @@
 # neocogi-com
 
-## Optional ABI validation
+## COM validation modes
 
-The `abi-validation` feature generates a contract-specific ABI signature for
-every interface, constructor, struct, and enum and makes descriptor validation
-recompute those signatures. Without it, generated non-empty contracts carry
-one explicit unchecked sentinel while pointer/count, identity, name, method,
-passing-mode, and type-tag validation remains active. Empty constructors retain
-their distinct empty sentinel so argument-pointer validation is unchanged.
+A deployable graph selects exactly one mutually exclusive feature:
+`com-validation-none`, `com-validation-sha-256`,
+`com-validation-fnv-1a-128`, or `com-validation-mangling`. All modes retain the
+same pointer/count ABI layout. The exact modes
+store either the complete collision-free canonical mangle or a digest of that
+mangle and make descriptor validation recompute it.
 
-Enable or disable this feature consistently for the runtime and the complete
-application/plugin Cargo graph. A validation-enabled runtime rejects unchecked
-component descriptors. The high-level `neocogi-com` crate enables validation by
-default; assembly declarations that disable component default features must add
-`abi-validation` explicitly when strict compatibility checking is required.
+`com-validation-none` stores one explicit unchecked sentinel while preserving
+pointer/count, identity, name, method, passing-mode, and type-tag validation.
+Empty constructors retain their distinct empty sentinel. `cargo-neocogi`
+accepts `com-validation = "none" | "sha-256" | "fnv-1a-128" | "mangling"`
+and applies the corresponding Cargo feature to the runtime, application, and
+every plugin so an assembly cannot silently mix modes.
 
 `neocogi-com` is a small COM-style runtime for cross-platform Rust components that
 need an explicit binary boundary intended for long-term compatibility after ABI

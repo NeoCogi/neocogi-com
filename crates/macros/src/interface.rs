@@ -537,7 +537,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
         #client_base
 
         impl #abi_ident {
-            #[doc = "Canonical mangled form of this interface's typed ABI contract."]
+            #[doc = "Canonical validation form of this interface's typed ABI contract."]
             pub const ABI_SIGNATURE: #nc::NcAbiSignature =
                 #nc::NcAbiSignature::from_static(&#signature_bytes_ident);
 

@@ -55,7 +55,7 @@ pub unsafe trait AbiPlainValue: AbiType {}
 /// must use a new interface identity for incompatible changes invisible to that
 /// metadata and ensure external fields satisfy the plain-value requirements.
 pub unsafe trait ComStruct: Copy + 'static {
-    /// Canonical mangled ABI signature for the compiled structure.
+    /// Canonical ABI validation signature for the compiled structure.
     const ABI_SIGNATURE: NcAbiSignature;
 
     /// Physical ABI layout for this COM struct.
