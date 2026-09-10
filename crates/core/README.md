@@ -15,6 +15,8 @@ live in `neocogi-com`.
 - `NcStatus` and built-in `NC_*` status constants
 - `NcGuid` and GUID parsing/formatting
 - `AbiType` and `AbiPlainValue`
+- format-neutral `ComDeserialize` construction for typed records, enums,
+  options, fixed arrays and, with `alloc`, owned sequences and ordered maps
 - `IUnknown`, `IUnknownVTable`, and `ComInterface`
 - raw read-only byte and UTF-8 string ABI interfaces
 - static UTF-8 metadata
@@ -90,6 +92,25 @@ descriptor records are publicly constructible: callers must establish every
 transitive pointer/count invariant before formatting. Generated static
 descriptors and registered descriptors from modules retained by the runtime
 satisfy that lifetime requirement.
+
+## Typed Source Decoding
+
+`ComDeserialize` is a local Rust construction protocol, not an ABI marshalling
+format and not binary reflection. A source adapter implements `ComDeserializer`
+once. Concrete values then recursively request their declared member types;
+`#[com_struct(deserialize)]`, `#[com_enum(..., deserialize)]`, and
+`#[derive(ComDeserialize)]` generate the record and enum switches.
+
+`Option<T>` and `[T; N]` work without allocation. The `alloc` feature adds
+`String`, `Vec<T>`, `Box<[T]>`, and `BTreeMap<K, V>`. Borrowed slices are
+intentionally absent because a general decoder cannot promise input storage with
+the required lifetime. Decode an owned or fixed-capacity value and validate its
+domain bound instead.
+
+Format adapters own syntax, diagnostics, and allocation limits. Type
+implementations own construction and defaults. Neither side uses `Any`, an
+erased intermediate value tree, descriptor field offsets, or a class registry.
+The protocol therefore adds no lookup to UI update, layout, or paint paths.
 
 ## What Is Not In Core
 

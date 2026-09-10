@@ -8,6 +8,7 @@ use quote::{format_ident, quote};
 use syn::{Attribute, Fields, Ident, ItemStruct, Member, Result};
 
 use crate::args::{StructArgs, StructReprArgs};
+use crate::deserialize::expand_struct as expand_struct_deserialize;
 use crate::plain_data::{PlainAbiTypeContext, validate_plain_abi_fields};
 use crate::util::{checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
 
@@ -27,6 +28,11 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
     }
 
     let struct_ident = &input.ident;
+    let deserialize_impl = if args.deserialize {
+        expand_struct_deserialize(struct_ident, &input.fields, &nc, args.deserialize_default, args.deserialize_sequence)?
+    } else {
+        quote! {}
+    };
     let field_layouts = com_struct_field_layouts(&input.fields);
     let field_layout_parts = field_layouts.iter().map(|(index, member, ty)| {
         let field_type = if args.c_struct {
@@ -86,6 +92,8 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
         // SAFETY: The struct is a fixed-layout aggregate of plain ABI values
         // with no drop glue or release protocol.
         unsafe impl #nc::AbiPlainValue for #struct_ident {}
+
+        #deserialize_impl
     })
 }
 

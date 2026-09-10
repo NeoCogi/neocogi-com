@@ -50,6 +50,8 @@ pub(crate) struct EnumArgs {
     pub(crate) tag: Type,
     /// Optional path overriding automatic `neocogi-com` crate discovery.
     pub(crate) runtime_crate: Option<Path>,
+    /// Whether to generate format-neutral typed decoding for the Rust enum.
+    pub(crate) deserialize: bool,
 }
 
 /// Parsed options for `#[com_struct]`.
@@ -60,6 +62,12 @@ pub(crate) struct StructArgs {
     pub(crate) repr: StructReprArgs,
     /// Check external field layouts through the compiler instead of COM traits.
     pub(crate) c_struct: bool,
+    /// Whether to generate format-neutral typed decoding for the record.
+    pub(crate) deserialize: bool,
+    /// Whether omitted named fields retain their `Default` values.
+    pub(crate) deserialize_default: bool,
+    /// Whether fields decode from an ordered sequence instead of a named record.
+    pub(crate) deserialize_sequence: bool,
 }
 
 /// Supported physical layout modifiers for generated COM structs.
@@ -100,6 +108,7 @@ impl Parse for EnumArgs {
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let mut tag = None;
         let mut runtime_crate = None;
+        let mut deserialize = false;
 
         while !input.is_empty() {
             let keyword: Ident = input.parse()?;
@@ -115,8 +124,16 @@ impl Parse for EnumArgs {
                 }
                 input.parse::<Token![=]>()?;
                 runtime_crate = Some(input.parse()?);
+            } else if keyword == "deserialize" {
+                if deserialize {
+                    return Err(syn::Error::new(keyword.span(), "duplicate deserialize"));
+                }
+                deserialize = true;
             } else {
-                return Err(syn::Error::new(keyword.span(), "expected tag = integer_type or neocogi_com = path"));
+                return Err(syn::Error::new(
+                    keyword.span(),
+                    "expected tag = integer_type, deserialize, or neocogi_com = path",
+                ));
             }
 
             if input.is_empty() {
@@ -128,6 +145,7 @@ impl Parse for EnumArgs {
         Ok(Self {
             tag: tag.ok_or_else(|| syn::Error::new(input.span(), "expected tag = integer_type"))?,
             runtime_crate,
+            deserialize,
         })
     }
 }
@@ -138,6 +156,9 @@ impl Parse for StructArgs {
         let mut runtime_crate = None;
         let mut repr = None;
         let mut c_struct = false;
+        let mut deserialize = false;
+        let mut deserialize_default = false;
+        let mut deserialize_sequence = false;
 
         while !input.is_empty() {
             let keyword: Ident = input.parse()?;
@@ -152,6 +173,21 @@ impl Parse for StructArgs {
                     return Err(syn::Error::new(keyword.span(), "duplicate c_struct"));
                 }
                 c_struct = true;
+            } else if keyword == "deserialize" {
+                if deserialize {
+                    return Err(syn::Error::new(keyword.span(), "duplicate deserialize"));
+                }
+                deserialize = true;
+            } else if keyword == "default" {
+                if deserialize_default {
+                    return Err(syn::Error::new(keyword.span(), "duplicate default"));
+                }
+                deserialize_default = true;
+            } else if keyword == "sequence" {
+                if deserialize_sequence {
+                    return Err(syn::Error::new(keyword.span(), "duplicate sequence"));
+                }
+                deserialize_sequence = true;
             } else if keyword == "packed" {
                 if repr.is_some() {
                     return Err(syn::Error::new(keyword.span(), "duplicate COM struct layout option"));
@@ -184,7 +220,7 @@ impl Parse for StructArgs {
             } else {
                 return Err(syn::Error::new(
                     keyword.span(),
-                    "expected c_struct, packed, packed(N), align(N), or neocogi_com = path",
+                    "expected c_struct, deserialize, default, sequence, packed, packed(N), align(N), or neocogi_com = path",
                 ));
             }
 
@@ -194,10 +230,20 @@ impl Parse for StructArgs {
             input.parse::<Token![,]>()?;
         }
 
+        if (deserialize_default || deserialize_sequence) && !deserialize {
+            return Err(syn::Error::new(input.span(), "default and sequence require deserialize"));
+        }
+        if deserialize_default && deserialize_sequence {
+            return Err(syn::Error::new(input.span(), "default is only supported for named-record decoding"));
+        }
+
         Ok(Self {
             runtime_crate,
             repr: repr.unwrap_or(StructReprArgs::C),
             c_struct,
+            deserialize,
+            deserialize_default,
+            deserialize_sequence,
         })
     }
 }

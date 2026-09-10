@@ -98,6 +98,28 @@ facade override without parsing Cargo metadata.
   Interface compatibility is the derived IID plus generated ABI hash.
 - A panic is not an ABI error. Return `NcStatus` for expected failures.
 
+## Typed Source Decoding
+
+`ComDeserialize` separates concrete Rust construction from an input format.
+Use `#[com_struct(deserialize)]` for an ABI record,
+`#[com_enum(tag = u32, deserialize)]` for a payload enum, and
+`#[derive(ComDeserialize)]` for an ordinary local record or fieldless enum.
+Named records reject unknown, duplicate, and missing fields. Add `default` to a
+COM struct option list, or `#[com_deserialize(default)]` to a derive, when
+omitted fields should retain `Default` values. Add `sequence` for positional
+record input such as a compact RGBA tuple.
+
+An input crate implements `ComDeserializer` once and keeps any framework-specific
+visitor machinery private. The value implementations recursively request exact
+member types. Arrays, options, owned vectors, boxed slices, and ordered maps use
+blanket implementations; borrowed slices do not, because arbitrary input formats
+cannot provide a sound borrow lifetime.
+
+This protocol is separate from COM ABI descriptor metadata. It performs no
+registry lookup, offset-based mutation, `Any` downcast, or erased value-tree
+allocation, and it is not a promise to reconstruct Rust declarations from a
+plugin binary.
+
 ## Runtime And Plugins
 
 The optional `runtime` feature exposes the stateless `Runtime` facade over the

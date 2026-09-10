@@ -125,11 +125,12 @@
 #![deny(missing_docs)]
 
 use proc_macro::TokenStream;
-use syn::{Item, ItemEnum, ItemStruct, ItemTrait, parse_macro_input};
+use syn::{DeriveInput, Item, ItemEnum, ItemStruct, ItemTrait, parse_macro_input};
 
 mod abi_method;
 mod args;
 mod class_contract;
+mod deserialize;
 mod enums;
 mod interface;
 mod model;
@@ -141,11 +142,30 @@ mod util;
 
 use args::{ClassArgs, ClassContractArgs, EnumArgs, InterfaceArgs, StructArgs};
 use class_contract::expand_com_class_contract;
+use deserialize::expand_derive as expand_com_deserialize_derive;
 use enums::expand_com_enum;
 use interface::expand_com_interface;
 use object::expand_com_object;
 use plugin::{PluginArgs, expand_plugin};
 use structs::expand_com_struct;
+
+/// Derives format-neutral, statically typed decoding for a local Rust value.
+///
+/// Named structs decode as records, tuple structs decode as sequences, and
+/// fieldless enums decode by variant name. Use
+/// `#[com_deserialize(default)]` on a named struct to retain `Default` values
+/// for omitted fields, `#[com_deserialize(sequence)]` to decode a named struct
+/// positionally, or `#[com_deserialize(rename_all = "snake_case")]` on an enum.
+/// COM ABI records should normally use `#[com_struct(deserialize)]` instead so
+/// one attribute owns both layout and decoding generation.
+#[proc_macro_derive(ComDeserialize, attributes(com_deserialize))]
+pub fn derive_com_deserialize(item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+    match expand_com_deserialize_derive(input) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
 
 /// Defines a COM interface from a Rust trait.
 ///
@@ -318,6 +338,12 @@ pub fn plugin(input: TokenStream) -> TokenStream {
 /// Use this for small plain records. Variable-size data, borrowed data, raw
 /// addresses, and values with ownership or release obligations should be modeled
 /// as COM interfaces instead.
+///
+/// Add `deserialize` to generate a format-neutral [`ComDeserialize`] constructor.
+/// Named records reject missing fields by default; combine it with `default` to
+/// retain `Default` values for omitted fields, or with `sequence` to decode the
+/// fields positionally. These options affect local source decoding only and do
+/// not change the COM ABI layout.
 #[proc_macro_attribute]
 pub fn com_struct(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as StructArgs);
@@ -361,6 +387,10 @@ pub fn com_struct(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// scalar handles for references to external objects. Raw pointers are rejected
 /// in payloads because they carry lifetime, nullability, and ownership rules not
 /// represented by a durable tagged value.
+///
+/// Add `deserialize` to generate a format-neutral constructor for the original
+/// Rust enum. Fieldless, newtype, tuple, and named variants remain statically
+/// typed throughout decoding; this option does not alter the generated ABI.
 #[proc_macro_attribute]
 pub fn com_enum(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as EnumArgs);

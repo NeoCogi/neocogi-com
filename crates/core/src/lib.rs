@@ -15,6 +15,11 @@
 //! graph for reconstructing source declarations or generating headers from a
 //! plugin binary.
 //!
+//! The separate [`ComDeserialize`] protocol supports static source decoding.
+//! Concrete Rust types recursively construct their members through a
+//! format-specific adapter; it does not reinterpret descriptor metadata, write
+//! through ABI field offsets, or perform runtime class-registry lookup.
+//!
 //! core ABI v5 is currently an experimental pre-alpha draft. The core ABI version
 //! identifies its current binary generation, not a ratified compatibility
 //! baseline. Cross-release compatibility begins only at an explicitly named
@@ -27,6 +32,7 @@ mod abi;
 mod client;
 mod constructor;
 mod data;
+mod decode;
 mod guid;
 mod hash;
 mod metadata;
@@ -44,6 +50,9 @@ pub use abi::{__NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain
 pub use client::{ComClientInterface, NcClientPointer};
 pub use constructor::{construct_class_checked, return_plugin_descriptor};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
+pub use decode::{ComDeserialize, ComDeserializer, ComEnum, ComRecord, ComRecordAccess, ComSequence, ComSequenceAccess, ComVariantAccess};
+#[cfg(feature = "alloc")]
+pub use decode::{ComMap, ComMapAccess};
 pub use guid::{NC_COM_GUID_NAMESPACE, NC_GUID_NIL, NcGuid, ParseGuidError, guid_from_qualified_name};
 pub use hash::NcAbiHash;
 #[cfg(feature = "alloc")]

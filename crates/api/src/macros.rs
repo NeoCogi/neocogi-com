@@ -7,7 +7,7 @@
 //! participating in the `AbiType` and `AbiPlainValue` contracts.
 
 #[cfg(feature = "macros")]
-pub use neocogi_com_macros::{com_class, com_enum, com_interface, com_object, com_struct, plugin};
+pub use neocogi_com_macros::{ComDeserialize, com_class, com_enum, com_interface, com_object, com_struct, plugin};
 
 /// Defines an ABI-stable enum-like integer newtype.
 ///
@@ -113,6 +113,21 @@ macro_rules! com_int_enum {
         where
             $repr: $crate::AbiPlainValue
         {}
+
+        impl $crate::ComDeserialize for $name
+        where
+            $repr: $crate::ComDeserialize,
+        {
+            /// Decodes the raw integer and preserves both known and unknown values.
+            fn com_deserialize<'__nc_de, __NcDecoder>(
+                decoder: __NcDecoder,
+            ) -> core::result::Result<Self, __NcDecoder::Error>
+            where
+                __NcDecoder: $crate::ComDeserializer<'__nc_de>,
+            {
+                <$repr as $crate::ComDeserialize>::com_deserialize(decoder).map(Self::from_raw)
+            }
+        }
     };
 }
 
