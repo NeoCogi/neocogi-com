@@ -13,6 +13,9 @@ keywords = ["com", "abi", "ffi", "plugin"]
 categories = ["api-bindings", "development-tools::ffi"]
 
 [features]
-default = []
+default = ["abi-validation"]
+# Computes and verifies typed ABI signatures. Unchecked builds retain all
+# structural descriptor validation but use one explicit signature sentinel.
+abi-validation = []
 alloc = []
 std = ["alloc"]

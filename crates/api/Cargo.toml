@@ -112,7 +112,10 @@ cc = { version = "=1.2.0", default-features = false }
 trybuild = "1"
 
 [features]
-default = ["macros", "std"]
+default = ["abi-validation", "macros", "std"]
+# Enables contract-specific ABI generation in macros and strict descriptor
+# verification in the target-side core implementation.
+abi-validation = ["neocogi-com-core/abi-validation", "neocogi-com-macros?/abi-validation"]
 macros = ["dep:neocogi-com-macros"]
 std = ["alloc", "neocogi-com-core/std"]
 alloc = ["neocogi-com-core/alloc"]

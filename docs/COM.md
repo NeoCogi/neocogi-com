@@ -1,5 +1,20 @@
 # neocogi-com
 
+## Optional ABI validation
+
+The `abi-validation` feature generates a contract-specific ABI signature for
+every interface, constructor, struct, and enum and makes descriptor validation
+recompute those signatures. Without it, generated non-empty contracts carry
+one explicit unchecked sentinel while pointer/count, identity, name, method,
+passing-mode, and type-tag validation remains active. Empty constructors retain
+their distinct empty sentinel so argument-pointer validation is unchanged.
+
+Enable or disable this feature consistently for the runtime and the complete
+application/plugin Cargo graph. A validation-enabled runtime rejects unchecked
+component descriptors. The high-level `neocogi-com` crate enables validation by
+default; assembly declarations that disable component default features must add
+`abi-validation` explicitly when strict compatibility checking is required.
+
 `neocogi-com` is a small COM-style runtime for cross-platform Rust components that
 need an explicit binary boundary intended for long-term compatibility after ABI
 ratification.

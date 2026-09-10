@@ -1,5 +1,10 @@
 # neocogi-com-macros
 
+The optional `abi-validation` feature emits contract-specific ABI signatures.
+Without it, generated non-empty contracts use the core unchecked sentinel and
+avoid target-side constant signature evaluation; all declarations and typed metadata
+are still generated.
+
 `neocogi-com-macros` implements the procedural macros used by `neocogi-com`.
 
 Most users should not depend on this crate directly. Depend on `neocogi-com` and use

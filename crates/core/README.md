@@ -1,5 +1,11 @@
 # neocogi-com-core
 
+The optional `abi-validation` feature computes contract-specific ABI values and
+requires descriptor signatures to match their typed metadata. Without it, the same
+ABI layouts carry a reserved unchecked sentinel and retain structural descriptor
+validation. This makes the compile-time cost independently measurable without
+removing the metadata required for inspection or safe traversal.
+
 `neocogi-com-core` contains the small C-shaped ABI contract used by `neocogi-com` hosts
 and plugins. core ABI v6 is currently an experimental pre-alpha draft, not a
 ratified cross-release compatibility promise.

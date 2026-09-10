@@ -22,4 +22,6 @@ crate-type = ["rlib"]
 neocogi-com-core = { workspace = true, default-features = false, features = ["std"] }
 
 [features]
-default = []
+default = ["abi-validation"]
+# Rejects unchecked ABI signatures and recomputes descriptor contracts.
+abi-validation = ["neocogi-com-core/abi-validation"]
