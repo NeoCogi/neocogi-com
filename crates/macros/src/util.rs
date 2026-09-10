@@ -15,6 +15,7 @@ use crate::args::InterfaceGuid;
 /// The logical part expressions may contain compiler-evaluated type and layout
 /// constants. Rust therefore resolves aliases, imported paths, sizes,
 /// alignments, and field offsets before initializing the final byte buffer.
+#[cfg(feature = "abi-validation")]
 pub(crate) fn abi_signature_static_tokens(parts_ident: &Ident, bytes_ident: &Ident, parts: &[proc_macro2::TokenStream], nc: &Path) -> proc_macro2::TokenStream {
     let part_count = parts.len();
     quote! {
@@ -25,6 +26,25 @@ pub(crate) fn abi_signature_static_tokens(parts_ident: &Ident, bytes_ident: &Ide
             #nc::NcAbiSignature::__encode::<{
                 #nc::NcAbiSignature::__encoded_len(&#parts_ident)
             }>(&#parts_ident);
+    }
+}
+
+/// Emits only the shared unchecked value when exact mangling is disabled.
+///
+/// Omitting the logical part array prevents rustc from evaluating type and
+/// layout expressions whose sole consumer would have been signature encoding.
+#[cfg(not(feature = "abi-validation"))]
+pub(crate) fn abi_signature_static_tokens(
+    _parts_ident: &Ident,
+    bytes_ident: &Ident,
+    _parts: &[proc_macro2::TokenStream],
+    nc: &Path,
+) -> proc_macro2::TokenStream {
+    quote! {
+        static #bytes_ident: [u8; #nc::NcAbiSignature::__encoded_len(&[])] =
+            #nc::NcAbiSignature::__encode::<{
+                #nc::NcAbiSignature::__encoded_len(&[])
+            }>(&[]);
     }
 }
 

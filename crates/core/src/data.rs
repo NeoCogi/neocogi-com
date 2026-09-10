@@ -391,10 +391,15 @@ mod tests {
             unsafe { INcBytesAbi::INTERFACE_DESCRIPTOR.qualified_name.as_str() },
             Ok(QUALIFIED_NAME_INC_BYTES)
         );
-        // SAFETY: The built-in signature references immutable module-static bytes.
-        let bytes_signature = unsafe { core::str::from_utf8(INcBytesAbi::ABI_SIGNATURE.as_bytes().unwrap()) }.unwrap();
-        assert!(bytes_signature.starts_with("ncabi1;Ib0b0d6d2f17054e9b6d5143f9452b951"));
-        assert!(bytes_signature.contains("copy_to"));
+        #[cfg(feature = "abi-validation")]
+        {
+            // SAFETY: The built-in signature references immutable module-static bytes.
+            let bytes_signature = unsafe { core::str::from_utf8(INcBytesAbi::ABI_SIGNATURE.as_bytes().unwrap()) }.unwrap();
+            assert!(bytes_signature.starts_with("ncabi1;Ib0b0d6d2f17054e9b6d5143f9452b951"));
+            assert!(bytes_signature.contains("copy_to"));
+        }
+        #[cfg(not(feature = "abi-validation"))]
+        assert_eq!(INcBytesAbi::ABI_SIGNATURE, crate::NcAbiSignature::UNCHECKED);
         assert_eq!(INcBytesAbi::INTERFACE_DESCRIPTOR.interface_id, <INcBytesAbi as ComInterface>::IID);
         assert_eq!(INcBytesAbi::INTERFACE_DESCRIPTOR.abi_signature, INcBytesAbi::ABI_SIGNATURE);
 
@@ -407,11 +412,16 @@ mod tests {
             unsafe { INcStringAbi::INTERFACE_DESCRIPTOR.qualified_name.as_str() },
             Ok(QUALIFIED_NAME_INC_STRING)
         );
-        // SAFETY: The built-in signature references immutable module-static bytes.
-        let string_signature = unsafe { core::str::from_utf8(INcStringAbi::ABI_SIGNATURE.as_bytes().unwrap()) }.unwrap();
-        assert!(string_signature.starts_with("ncabi1;I01a5b18cbe185d39b71f202df7c84664"));
-        assert!(string_signature.contains("byte_len"));
-        assert_ne!(INcBytesAbi::ABI_SIGNATURE, INcStringAbi::ABI_SIGNATURE);
+        #[cfg(feature = "abi-validation")]
+        {
+            // SAFETY: The built-in signature references immutable module-static bytes.
+            let string_signature = unsafe { core::str::from_utf8(INcStringAbi::ABI_SIGNATURE.as_bytes().unwrap()) }.unwrap();
+            assert!(string_signature.starts_with("ncabi1;I01a5b18cbe185d39b71f202df7c84664"));
+            assert!(string_signature.contains("byte_len"));
+            assert_ne!(INcBytesAbi::ABI_SIGNATURE, INcStringAbi::ABI_SIGNATURE);
+        }
+        #[cfg(not(feature = "abi-validation"))]
+        assert_eq!(INcStringAbi::ABI_SIGNATURE, crate::NcAbiSignature::UNCHECKED);
         assert_eq!(INcStringAbi::INTERFACE_DESCRIPTOR.interface_id, <INcStringAbi as ComInterface>::IID);
         assert_eq!(INcStringAbi::INTERFACE_DESCRIPTOR.abi_signature, INcStringAbi::ABI_SIGNATURE);
         assert_eq!(INcStringAbi::INTERFACE_DESCRIPTOR.method_count, 3);

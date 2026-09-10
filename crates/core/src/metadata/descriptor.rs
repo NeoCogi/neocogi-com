@@ -436,10 +436,11 @@ pub type NcGetPluginDescriptor = unsafe extern "C" fn(out: *mut *const NcPluginD
 #[cfg(test)]
 mod tests {
     use crate::NcGuid;
+    #[cfg(feature = "abi-validation")]
+    use crate::{NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiSignaturePart, NcAbiPassing, NcAbiReceiver, NcAbiType};
     use crate::{
-        NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION,
-        NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiSignature, NcAbiSignaturePart, NcAbiPassing, NcAbiReceiver,
-        NcAbiThreadingMode, NcAbiType, NcClassDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor, NcPluginDescriptor,
+        NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAbiSignature,
+        NcAbiThreadingMode, NcClassDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor, NcPluginDescriptor,
     };
 
     #[test]
@@ -466,6 +467,7 @@ mod tests {
         assert_eq!(NcAbiThreadingMode::from_raw(u32::MAX), None);
     }
 
+    #[cfg(feature = "abi-validation")]
     #[test]
     fn receiver_modes_are_stable_and_change_method_signatures() {
         assert_eq!(NcAbiReceiver::Shared.as_raw(), NC_ABI_RECEIVER_SHARED);
@@ -566,6 +568,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "abi-validation")]
     #[test]
     fn method_signature_changes_for_method_identity_and_status() {
         let base = NcAbiSignature::from_abi_parts(&[
@@ -611,6 +614,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "abi-validation")]
     #[test]
     fn method_signature_changes_for_argument_and_return_contracts() {
         let base = NcAbiSignature::from_abi_parts(&[
@@ -718,6 +722,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "abi-validation")]
     #[test]
     fn method_signature_changes_for_com_pointer_modes_and_interface_identity() {
         let interface_guid = guid(1);
@@ -808,6 +813,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "abi-validation")]
     #[test]
     fn method_signature_changes_for_offset_buffer_contracts() {
         fn offset_buffer_signature(passing: NcAbiPassing, index: u32, ty: NcAbiType) -> NcAbiSignature {
@@ -862,6 +868,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "abi-validation")]
     #[test]
     fn aggregate_signature_changes_for_structural_shape_and_variants() {
         fn aggregate_signature(
@@ -1000,6 +1007,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "abi-validation")]
     fn guid(byte: u8) -> NcGuid {
         NcGuid::from_fields(0x8c6b_7200 | u32::from(byte), 0x6ce7, 0x42fa, [byte; 8])
     }

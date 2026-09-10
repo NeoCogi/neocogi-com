@@ -265,11 +265,16 @@ mod tests {
             IID_IUNKNOWN.to_uuid_bytes(),
             [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46,]
         );
-        // SAFETY: The built-in signature references immutable module-static bytes.
-        assert_eq!(
-            unsafe { IUnknown::ABI_SIGNATURE.as_bytes() },
-            Ok(b"ncabi1;I0000000000000000c000000000000046".as_slice())
-        );
+        #[cfg(feature = "abi-validation")]
+        {
+            // SAFETY: The built-in signature references immutable module-static bytes.
+            assert_eq!(
+                unsafe { IUnknown::ABI_SIGNATURE.as_bytes() },
+                Ok(b"ncabi1;I0000000000000000c000000000000046".as_slice())
+            );
+        }
+        #[cfg(not(feature = "abi-validation"))]
+        assert_eq!(IUnknown::ABI_SIGNATURE, crate::NcAbiSignature::UNCHECKED);
         assert_eq!(IUNKNOWN_INTERFACE_ID, <IUnknown as ComInterface>::INTERFACE_ID);
         assert_eq!(IUNKNOWN_INTERFACE_ID, IUnknown::INTERFACE_ID);
         assert_eq!(IUnknown::INTERFACE_DESCRIPTOR.interface_id, IID_IUNKNOWN);
