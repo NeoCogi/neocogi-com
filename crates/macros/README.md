@@ -35,7 +35,10 @@ Generated `ABI_HASH` values are SHA-256 hashes of typed ABI parts. They include
 method order, method names, argument and return ABI types, passing modes, void
 versus `out` returns, `ComRef` borrowed parameters, `ComPtr` owned returns, safe
 buffer passing modes, COM threading mode, referenced interface IDs, and
-referenced interface ABI hashes.
+inherited interface ABI hashes. The macros hash declaration shape and the first
+final-hash block as native host code, then emit the SHA-256 chaining state as
+integer literals. Rust constant evaluation adds only target layouts, aggregate
+hashes, and other values that require resolved type information.
 
 `#[com_class]` declares one registered class's primary callable contract on a
 trait and generates the same C-shaped call machinery without requiring a

@@ -83,9 +83,11 @@ allocation-free without its optional `alloc` feature.
 Interface descriptors use SHA-256 `NcAbiHash` values. Generated `neocogi-com`
 interfaces build those hashes from typed `NcAbiHashPart` records: interface ID,
 method names and order, argument and return types, passing modes, COM threading
-modes, and referenced interface IDs/hashes for `ComRef` and `ComPtr`
-relationships. Descriptor validation recomputes the hash from typed method
-metadata and rejects mismatches. Typed signature strings remain diagnostic
+modes, and referenced interface IDs. Grammar v3 separates macro-known declaration
+shape from compiler-resolved layouts and nested identities. Procedural macros
+hash the declaration and first final-hash block natively; constant evaluation
+finishes only the resolved values. Descriptor validation traverses the same two
+streams and rejects mismatches. Typed signature strings remain diagnostic
 metadata.
 The allocation-backed `format_method_signature` helper is unsafe because raw
 descriptor records are publicly constructible: callers must establish every

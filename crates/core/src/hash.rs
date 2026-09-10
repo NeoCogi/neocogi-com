@@ -1,19 +1,29 @@
-//! ABI hash values and the minimal const-evaluable SHA-256 implementation.
+//! ABI hash values and the minimal SHA-256 implementation shared by macros and constants.
 //!
 //! Interface compatibility is represented by a canonical sequence of typed
 //! [`NcAbiHashPart`] records rather than Rust syntax or diagnostic signatures.
-//! This module encodes those records with an explicit schema prefix and hashes
-//! them using an allocation-free SHA-256 engine that also works in constants.
+//! The sequence is split into a declaration schema and compiler-resolved values.
+//! Procedural macros hash the schema and the first final-hash block with native
+//! code, then emit the resulting SHA-256 chaining state. The const evaluator
+//! hashes only target layouts and referenced ABI identities.
 //!
 //! This module owns the public `NcAbiHash` value type, the incremental
-//! descriptor hasher used by validation, and the small in-tree SHA-256 engine
-//! behind them. It intentionally avoids external digest crates because `neocogi-com`
-//! computes ABI hashes in `const` contexts.
+//! descriptor hashers used by validation, and the small in-tree SHA-256 engine
+//! behind them. Keeping one encoder in core ensures native macro expansion,
+//! constant evaluation, and runtime validation cannot disagree about the wire
+//! grammar.
 
 use crate::guid::NcGuid;
 use crate::metadata::{NcAbiAggregateKind, NcAbiFieldLayout, NcAbiHashPart, NcAbiPassing, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType};
 
-const NC_ABI_HASH_SCHEMA: &[u8] = b"neocogi-com:abi-hash:v2\0";
+/// Domain separator for the declaration-shape digest.
+const NC_ABI_SCHEMA_DOMAIN: &[u8] = b"neocogi-com:abi-schema:v3\0";
+
+/// Complete first SHA-256 block for the final schema-plus-values hash.
+///
+/// Eight trailing zero bytes make the versioned domain exactly 32 bytes; the
+/// 32-byte schema digest fills the remainder of the block.
+const NC_ABI_HASH_DOMAIN_BLOCK: &[u8; 32] = b"neocogi-com:abi-hash:v3\0\0\0\0\0\0\0\0\0";
 
 /// SHA-256 ABI hash bytes.
 #[repr(C)]
@@ -21,6 +31,31 @@ const NC_ABI_HASH_SCHEMA: &[u8] = b"neocogi-com:abi-hash:v2\0";
 pub struct NcAbiHash {
     /// Raw SHA-256 digest bytes.
     pub bytes: [u8; 32],
+}
+
+/// Opaque SHA-256 state emitted by the procedural macros.
+///
+/// This type is public only because generated code crosses the facade/core
+/// crate boundary. Its representation is not part of the shared-library ABI.
+#[doc(hidden)]
+#[derive(Clone, Copy)]
+pub struct __NcAbiHashPrefix {
+    /// SHA-256 chaining words after the fixed domain-and-schema block.
+    words: [u32; 8],
+}
+
+impl __NcAbiHashPrefix {
+    /// Reconstructs a prefix from words emitted by a procedural macro.
+    #[doc(hidden)]
+    pub const fn __from_words(words: [u32; 8]) -> Self {
+        Self { words }
+    }
+
+    /// Exposes words to the procedural macro running against the core crate.
+    #[doc(hidden)]
+    pub const fn __words(self) -> [u32; 8] {
+        self.words
+    }
 }
 
 impl NcAbiHash {
@@ -45,17 +80,63 @@ impl NcAbiHash {
 
     /// Hashes canonical typed ABI parts with SHA-256.
     ///
-    /// This helper is primarily used by generated interface metadata. It is
-    /// const so contracts can hash referenced IIDs and aggregate layouts without
-    /// requiring the procedural macro to know those values while expanding.
+    /// This general helper computes both halves in the const evaluator. Generated
+    /// code should use [`Self::__from_abi_prefix`] with the chaining state emitted
+    /// by the procedural macro so only compiler-resolved values remain here.
     pub const fn from_abi_parts(parts: &[NcAbiHashPart<'_>]) -> Self {
-        let mut hasher = NcSha256::new().update(NC_ABI_HASH_SCHEMA);
+        let schema = Self::__schema_from_abi_parts(parts);
+        Self::from_abi_schema(schema, parts)
+    }
+
+    /// Hashes the declaration-shape half of canonical ABI parts.
+    ///
+    /// This is public only for `neocogi-com` procedural macros. Applications
+    /// should use the generated ABI constants instead of calling it directly.
+    #[doc(hidden)]
+    pub const fn __schema_from_abi_parts(parts: &[NcAbiHashPart<'_>]) -> Self {
+        let mut hasher = NcAbiSchemaHasher::new();
         let mut index = 0;
         while index < parts.len() {
-            hasher = hasher.update_abi_hash_part(parts[index]);
+            hasher.update_abi_hash_part(parts[index]);
             index += 1;
         }
-        NcAbiHash::from_bytes(hasher.finalize())
+        hasher.finalize()
+    }
+
+    /// Finishes an ABI hash from a precomputed schema and resolved value parts.
+    ///
+    /// Static declaration text has already been reduced to `schema`; this pass
+    /// incorporates only values that require compiler type or layout knowledge.
+    const fn from_abi_schema(schema: Self, parts: &[NcAbiHashPart<'_>]) -> Self {
+        Self::__from_abi_prefix(Self::__prefix_from_schema(schema), parts)
+    }
+
+    /// Finishes an ABI hash from a native-macro SHA-256 prefix state.
+    ///
+    /// The eight words are the chaining state after hashing the fixed domain
+    /// block and declaration-schema digest. Procedural macros emit this state
+    /// so rustc does not recompress that block for every generated ABI value.
+    #[doc(hidden)]
+    pub const fn __from_abi_prefix(prefix: __NcAbiHashPrefix, parts: &[NcAbiHashPart<'_>]) -> Self {
+        let mut hasher = NcAbiHasher::from_prefix(prefix);
+        let mut index = 0;
+        while index < parts.len() {
+            hasher.update_abi_hash_part(parts[index]);
+            index += 1;
+        }
+        hasher.finalize()
+    }
+
+    /// Computes the final-hash chaining state for one declaration schema.
+    ///
+    /// This operation is exposed only so the procedural macro can perform it
+    /// natively and emit the resulting eight words.
+    #[doc(hidden)]
+    pub const fn __prefix_from_schema(schema: Self) -> __NcAbiHashPrefix {
+        let mut hasher = NcSha256::new();
+        hasher.update(NC_ABI_HASH_DOMAIN_BLOCK);
+        hasher.update(&schema.bytes);
+        __NcAbiHashPrefix::__from_words(hasher.chaining_state())
     }
 
     /// Hashes a physical aggregate layout.
@@ -65,47 +146,111 @@ impl NcAbiHash {
     /// artifacts: aggregate kind, size, alignment, field order, field offset, and
     /// field ABI type.
     pub const fn from_aggregate_layout(kind: NcAbiAggregateKind, size: usize, align: usize, fields: &[NcAbiFieldLayout]) -> Self {
-        let mut hasher = NcSha256::new()
-            .update(NC_ABI_HASH_SCHEMA)
-            .update_abi_hash_part(NcAbiHashPart::Aggregate { kind })
-            .update_abi_hash_part(NcAbiHashPart::Layout { size, align });
+        let mut schema_hasher = NcAbiSchemaHasher::new();
+        schema_hasher.update_abi_hash_part(NcAbiHashPart::Aggregate { kind });
+        schema_hasher.update_abi_hash_part(NcAbiHashPart::Layout { size, align });
         let mut index = 0;
         while index < fields.len() {
             let field = fields[index];
-            hasher = hasher.update_abi_hash_part(NcAbiHashPart::Field {
+            schema_hasher.update_abi_hash_part(NcAbiHashPart::Field {
                 index: field.index,
                 offset: field.offset,
                 ty: field.ty,
             });
             index += 1;
         }
-        NcAbiHash::from_bytes(hasher.finalize())
+        Self::from_aggregate_layout_schema(schema_hasher.finalize(), kind, size, align, fields)
+    }
+
+    /// Hashes an aggregate layout after its declaration schema has been reduced.
+    const fn from_aggregate_layout_schema(schema: Self, kind: NcAbiAggregateKind, size: usize, align: usize, fields: &[NcAbiFieldLayout]) -> Self {
+        Self::__from_aggregate_layout_prefix(Self::__prefix_from_schema(schema), kind, size, align, fields)
+    }
+
+    /// Hashes an aggregate layout from a native-macro SHA-256 prefix state.
+    #[doc(hidden)]
+    pub const fn __from_aggregate_layout_prefix(
+        prefix: __NcAbiHashPrefix,
+        kind: NcAbiAggregateKind,
+        size: usize,
+        align: usize,
+        fields: &[NcAbiFieldLayout],
+    ) -> Self {
+        let mut hasher = NcAbiHasher::from_prefix(prefix);
+        hasher.update_abi_hash_part(NcAbiHashPart::Aggregate { kind });
+        hasher.update_abi_hash_part(NcAbiHashPart::Layout { size, align });
+        let mut index = 0;
+        while index < fields.len() {
+            let field = fields[index];
+            hasher.update_abi_hash_part(NcAbiHashPart::Field {
+                index: field.index,
+                offset: field.offset,
+                ty: field.ty,
+            });
+            index += 1;
+        }
+        hasher.finalize()
     }
 
     /// Hashes a macro-generated COM struct layout.
     pub const fn from_struct_layout(layout: NcAbiStructLayout) -> Self {
         Self::from_aggregate_layout(NcAbiAggregateKind::Struct, layout.size, layout.align, layout.fields)
     }
+
+    /// Hashes a COM struct layout from a native-macro SHA-256 prefix state.
+    #[doc(hidden)]
+    pub const fn __from_struct_layout_prefix(prefix: __NcAbiHashPrefix, layout: NcAbiStructLayout) -> Self {
+        Self::__from_aggregate_layout_prefix(prefix, NcAbiAggregateKind::Struct, layout.size, layout.align, layout.fields)
+    }
 }
 
-/// Incremental ABI hash builder for descriptor validation.
+/// Incremental declaration-schema builder shared by macros and validation.
+pub(crate) struct NcAbiSchemaHasher {
+    /// SHA-256 state containing the schema domain and normalized shape records.
+    inner: NcSha256,
+}
+
+impl NcAbiSchemaHasher {
+    /// Starts a declaration-schema hash with its versioned domain separator.
+    pub(crate) const fn new() -> Self {
+        let mut inner = NcSha256::new();
+        inner.update(NC_ABI_SCHEMA_DOMAIN);
+        Self { inner }
+    }
+
+    /// Appends the declaration-shape portion of one logical contract record.
+    pub(crate) const fn update_abi_hash_part(&mut self, part: NcAbiHashPart<'_>) {
+        self.inner.update_abi_schema_part(part);
+    }
+
+    /// Finalizes the normalized declaration schema.
+    pub(crate) const fn finalize(self) -> NcAbiHash {
+        NcAbiHash::from_bytes(self.inner.finalize())
+    }
+}
+
+/// Incremental resolved-value builder for descriptor validation.
 pub(crate) struct NcAbiHasher {
+    /// SHA-256 state seeded by the final-hash domain and declaration digest.
     inner: NcSha256,
 }
 
 impl NcAbiHasher {
-    /// Starts a descriptor-validation hash with the ABI schema prefix.
-    pub(crate) const fn new() -> Self {
+    /// Starts a final hash bound to one precomputed declaration schema.
+    pub(crate) const fn new(schema: NcAbiHash) -> Self {
+        Self::from_prefix(NcAbiHash::__prefix_from_schema(schema))
+    }
+
+    /// Starts a final hash from an already compressed domain-and-schema block.
+    pub(crate) const fn from_prefix(prefix: __NcAbiHashPrefix) -> Self {
         Self {
-            inner: NcSha256::new().update(NC_ABI_HASH_SCHEMA),
+            inner: NcSha256::from_prefix(prefix.words),
         }
     }
 
-    /// Appends one canonical logical contract record.
-    pub(crate) const fn update_abi_hash_part(self, part: NcAbiHashPart<'_>) -> Self {
-        Self {
-            inner: self.inner.update_abi_hash_part(part),
-        }
+    /// Appends the compiler-resolved portion of one logical contract record.
+    pub(crate) const fn update_abi_hash_part(&mut self, part: NcAbiHashPart<'_>) {
+        self.inner.update_abi_value_part(part);
     }
 
     /// Finalizes the accumulated contract as an [`NcAbiHash`].
@@ -196,8 +341,8 @@ const SHA256_K: [u32; 64] = [
 
 /// Incremental SHA-256 state.
 ///
-/// The type consumes `self` on update/finalize so callers can chain operations
-/// inside `const fn` without mutable references escaping into constants.
+/// Updates mutate local state in place. This avoids repeatedly copying the
+/// block buffer and chaining words in rustc's const evaluator.
 #[derive(Clone, Copy)]
 pub(crate) struct NcSha256 {
     h: [u32; 8],
@@ -217,36 +362,50 @@ impl NcSha256 {
         }
     }
 
+    /// Restores the state after one complete 64-byte prefix block.
+    const fn from_prefix(h: [u32; 8]) -> Self {
+        Self {
+            h,
+            block: [0; 64],
+            block_len: 0,
+            byte_len: 64,
+        }
+    }
+
+    /// Returns the current chaining words after a complete block boundary.
+    const fn chaining_state(self) -> [u32; 8] {
+        assert!(self.block_len == 0, "SHA-256 chaining state requires a block boundary");
+        self.h
+    }
+
     /// Appends a byte slice to the hash input.
-    pub(crate) const fn update(mut self, bytes: &[u8]) -> Self {
+    pub(crate) const fn update(&mut self, bytes: &[u8]) {
         let mut index = 0;
         while index < bytes.len() {
-            self = self.update_byte(bytes[index]);
+            self.update_byte(bytes[index]);
             index += 1;
         }
-        self
     }
 
     /// Appends a single byte and compresses full 64-byte blocks as they fill.
-    pub(crate) const fn update_byte(mut self, byte: u8) -> Self {
+    pub(crate) const fn update_byte(&mut self, byte: u8) {
         self.block[self.block_len] = byte;
         self.block_len += 1;
         self.byte_len += 1;
         if self.block_len == 64 {
-            self = self.process_block();
+            self.process_block();
             self.block_len = 0;
         }
-        self
     }
 
     /// Appends a `u32` in SHA-256's big-endian byte order.
-    pub(crate) const fn update_u32(self, value: u32) -> Self {
-        self.update(&value.to_be_bytes())
+    pub(crate) const fn update_u32(&mut self, value: u32) {
+        self.update(&value.to_be_bytes());
     }
 
     /// Appends a `u64` in SHA-256's big-endian byte order.
-    pub(crate) const fn update_u64(self, value: u64) -> Self {
-        self.update(&value.to_be_bytes())
+    pub(crate) const fn update_u64(&mut self, value: u64) {
+        self.update(&value.to_be_bytes());
     }
 
     /// Finalizes the hash and returns the raw 32-byte SHA-256 digest.
@@ -255,15 +414,15 @@ impl NcSha256 {
 
         // SHA-256 padding is one set bit, zero bytes up to the length slot, and
         // the original input length as a 64-bit big-endian bit count.
-        self = self.update_byte(0x80);
+        self.update_byte(0x80);
         while self.block_len != 56 {
-            self = self.update_byte(0);
+            self.update_byte(0);
         }
 
         let len = bit_len.to_be_bytes();
         let mut index = 0;
         while index < len.len() {
-            self = self.update_byte(len[index]);
+            self.update_byte(len[index]);
             index += 1;
         }
 
@@ -282,7 +441,7 @@ impl NcSha256 {
     }
 
     /// Compresses the current 64-byte block into the chaining state.
-    const fn process_block(mut self) -> Self {
+    const fn process_block(&mut self) {
         let mut words = [0u32; 64];
         let mut index = 0;
         while index < 16 {
@@ -336,57 +495,121 @@ impl NcSha256 {
         self.h[5] = self.h[5].wrapping_add(f);
         self.h[6] = self.h[6].wrapping_add(g);
         self.h[7] = self.h[7].wrapping_add(h);
-        self
     }
 }
 
-// ABI hash serialization tags. These bytes are part of the canonical ABI hash
-// schema and must change only with an explicit schema/version bump.
+// ABI serialization tags are shared by the schema and resolved-value streams.
+// Their interpretation is part of grammar v3 and requires a version bump when
+// changed.
 impl NcSha256 {
     /// Encodes a pointer-sized layout value as a stable big-endian `u64`.
-    const fn update_usize(self, value: usize) -> Self {
-        self.update_u64(value as u64)
+    const fn update_usize(&mut self, value: usize) {
+        self.update_u64(value as u64);
     }
 
     /// Appends a signed variant tag using its full two's-complement width.
-    const fn update_i128(self, value: i128) -> Self {
-        self.update(&value.to_be_bytes())
+    const fn update_i128(&mut self, value: i128) {
+        self.update(&value.to_be_bytes());
     }
 
     /// Appends a length-prefixed UTF-8 string.
-    const fn update_str(self, value: &str) -> Self {
-        self.update_u32(value.len() as u32).update(value.as_bytes())
+    const fn update_str(&mut self, value: &str) {
+        self.update_u32(value.len() as u32);
+        self.update(value.as_bytes());
     }
 
     /// Appends a GUID in canonical UUID byte order.
-    const fn update_guid(self, value: NcGuid) -> Self {
-        self.update(&value.to_uuid_bytes())
+    const fn update_guid(&mut self, value: NcGuid) {
+        self.update(&value.to_uuid_bytes());
     }
 
     /// Appends the raw bytes of a nested ABI hash.
-    const fn update_hash(self, value: NcAbiHash) -> Self {
-        self.update(&value.bytes)
+    const fn update_hash(&mut self, value: NcAbiHash) {
+        self.update(&value.bytes);
     }
 
-    /// Serializes one logical hash-grammar record including its stable tag.
-    const fn update_abi_hash_part(self, part: NcAbiHashPart<'_>) -> Self {
+    /// Serializes the macro-known shape of one logical grammar record.
+    const fn update_abi_schema_part(&mut self, part: NcAbiHashPart<'_>) {
         match part {
-            NcAbiHashPart::Interface { iid } => self.update_byte(0x01).update_guid(iid),
-            NcAbiHashPart::BaseInterface { interface } => self.update_byte(0x0a).update_guid(interface.iid).update_hash(interface.abi_hash),
-            NcAbiHashPart::Method { index, name } => self.update_byte(0x02).update_u32(index).update_str(name),
-            NcAbiHashPart::Receiver { receiver } => self.update_byte(0x0b).update_receiver(receiver),
-            NcAbiHashPart::Arg { index, passing, ty } => self.update_byte(0x03).update_u32(index).update_passing(passing).update_abi_type(ty),
-            NcAbiHashPart::Return { passing, ty } => self.update_byte(0x04).update_passing(passing).update_abi_type(ty),
+            NcAbiHashPart::Interface { iid } => {
+                self.update_byte(0x01);
+                self.update_guid(iid);
+            }
+            NcAbiHashPart::BaseInterface { .. } => self.update_byte(0x0a),
+            NcAbiHashPart::Method { index, name } => {
+                self.update_byte(0x02);
+                self.update_u32(index);
+                self.update_str(name);
+            }
+            NcAbiHashPart::Receiver { receiver } => {
+                self.update_byte(0x0b);
+                self.update_receiver(receiver);
+            }
+            NcAbiHashPart::Arg { index, .. } => {
+                self.update_byte(0x03);
+                self.update_u32(index);
+            }
+            NcAbiHashPart::Return { .. } => self.update_byte(0x04),
             NcAbiHashPart::Status => self.update_byte(0x05),
-            NcAbiHashPart::Layout { size, align } => self.update_byte(0x06).update_usize(size).update_usize(align),
-            NcAbiHashPart::Field { index, offset, ty } => self.update_byte(0x07).update_u32(index).update_usize(offset).update_abi_type(ty),
-            NcAbiHashPart::Variant { index, tag, ty } => self.update_byte(0x08).update_u32(index).update_i128(tag).update_abi_type(ty),
-            NcAbiHashPart::Aggregate { kind } => self.update_byte(0x09).update_aggregate_kind(kind),
+            NcAbiHashPart::Layout { .. } => self.update_byte(0x06),
+            NcAbiHashPart::Field { index, .. } => {
+                self.update_byte(0x07);
+                self.update_u32(index);
+            }
+            NcAbiHashPart::Variant { index, .. } => {
+                self.update_byte(0x08);
+                self.update_u32(index);
+            }
+            NcAbiHashPart::Aggregate { kind } => {
+                self.update_byte(0x09);
+                self.update_aggregate_kind(kind);
+            }
+        }
+    }
+
+    /// Serializes only values that require compiler or dependency knowledge.
+    const fn update_abi_value_part(&mut self, part: NcAbiHashPart<'_>) {
+        match part {
+            NcAbiHashPart::BaseInterface { interface } => {
+                self.update_byte(0x0a);
+                self.update_guid(interface.iid);
+                self.update_hash(interface.abi_hash);
+            }
+            NcAbiHashPart::Arg { passing, ty, .. } => {
+                self.update_byte(0x03);
+                self.update_passing(passing);
+                self.update_abi_type(ty);
+            }
+            NcAbiHashPart::Return { passing, ty } => {
+                self.update_byte(0x04);
+                self.update_passing(passing);
+                self.update_abi_type(ty);
+            }
+            NcAbiHashPart::Layout { size, align } => {
+                self.update_byte(0x06);
+                self.update_usize(size);
+                self.update_usize(align);
+            }
+            NcAbiHashPart::Field { offset, ty, .. } => {
+                self.update_byte(0x07);
+                self.update_usize(offset);
+                self.update_abi_type(ty);
+            }
+            NcAbiHashPart::Variant { tag, ty, .. } => {
+                self.update_byte(0x08);
+                self.update_i128(tag);
+                self.update_abi_type(ty);
+            }
+            NcAbiHashPart::Interface { .. }
+            | NcAbiHashPart::Method { .. }
+            | NcAbiHashPart::Receiver { .. }
+            | NcAbiHashPart::Status
+            | NcAbiHashPart::Aggregate { .. } => {}
         }
     }
 
     /// Serializes a canonical ABI type and any nested identity data.
-    const fn update_abi_type(self, ty: NcAbiType) -> Self {
+    const fn update_abi_type(&mut self, ty: NcAbiType) {
         match ty {
             NcAbiType::Void => self.update_byte(0x00),
             NcAbiType::Bool => self.update_byte(0x01),
@@ -405,27 +628,39 @@ impl NcSha256 {
             NcAbiType::NcGuid => self.update_byte(0x0e),
             NcAbiType::NcStatus => self.update_byte(0x0f),
             NcAbiType::NcAbiHash => self.update_byte(0x10),
-            NcAbiType::Aggregate(hash) => self.update_byte(0x11).update_hash(hash),
+            NcAbiType::Aggregate(hash) => {
+                self.update_byte(0x11);
+                self.update_hash(hash);
+            }
             // Pointer boundaries check full identities; the local grammar terminates at IIDs.
-            NcAbiType::Interface { iid } => self.update_byte(0x12).update_guid(iid),
+            NcAbiType::Interface { iid } => {
+                self.update_byte(0x12);
+                self.update_guid(iid);
+            }
         }
     }
 
     /// Serializes a passing mode and its optional threading capability.
-    const fn update_passing(self, passing: NcAbiPassing) -> Self {
+    const fn update_passing(&mut self, passing: NcAbiPassing) {
         match passing {
             NcAbiPassing::Void => self.update_byte(0x00),
             NcAbiPassing::Value => self.update_byte(0x01),
             NcAbiPassing::Out => self.update_byte(0x02),
             NcAbiPassing::CopyFromBufferOffset => self.update_byte(0x03),
             NcAbiPassing::CopyToBufferOffset => self.update_byte(0x04),
-            NcAbiPassing::ComRef { mode } => self.update_byte(0x05).update_threading_mode(mode),
-            NcAbiPassing::ComPtrOut { mode } => self.update_byte(0x06).update_threading_mode(mode),
+            NcAbiPassing::ComRef { mode } => {
+                self.update_byte(0x05);
+                self.update_threading_mode(mode);
+            }
+            NcAbiPassing::ComPtrOut { mode } => {
+                self.update_byte(0x06);
+                self.update_threading_mode(mode);
+            }
         }
     }
 
     /// Serializes the stable tag for a pointer threading mode.
-    const fn update_threading_mode(self, mode: NcAbiThreadingMode) -> Self {
+    const fn update_threading_mode(&mut self, mode: NcAbiThreadingMode) {
         match mode {
             NcAbiThreadingMode::ThreadLocal => self.update_byte(0x00),
             NcAbiThreadingMode::ThreadSafe => self.update_byte(0x01),
@@ -433,7 +668,7 @@ impl NcSha256 {
     }
 
     /// Serializes the stable tag for a method receiver mode.
-    const fn update_receiver(self, receiver: crate::NcAbiReceiver) -> Self {
+    const fn update_receiver(&mut self, receiver: crate::NcAbiReceiver) {
         match receiver {
             crate::NcAbiReceiver::Shared => self.update_byte(0x00),
             crate::NcAbiReceiver::Mutable => self.update_byte(0x01),
@@ -441,7 +676,7 @@ impl NcSha256 {
     }
 
     /// Serializes the stable tag for an aggregate category.
-    const fn update_aggregate_kind(self, kind: NcAbiAggregateKind) -> Self {
+    const fn update_aggregate_kind(&mut self, kind: NcAbiAggregateKind) {
         match kind {
             NcAbiAggregateKind::Struct => self.update_byte(0x00),
             NcAbiAggregateKind::Union => self.update_byte(0x01),
@@ -457,8 +692,8 @@ mod tests {
 
     #[test]
     fn inherited_contract_hash_matches_independent_serialization() {
-        // Golden computed with Python hashlib over the documented wire grammar:
-        // domain + 0x01 + UUID bytes 0..15 + 0x0a + UUID bytes 16..31 + [42; 32].
+        // Golden computed independently with Python hashlib over the documented
+        // v3 schema and resolved-value streams.
         let hash = NcAbiHash::from_abi_parts(&[
             NcAbiHashPart::Interface {
                 iid: NcGuid::from_uuid_bytes(core::array::from_fn(|i| i as u8)),
@@ -473,8 +708,8 @@ mod tests {
         assert_eq!(
             hash.bytes,
             [
-                0xfd, 0x4e, 0xc7, 0x74, 0x14, 0x90, 0xe8, 0x08, 0x6d, 0x72, 0x38, 0x27, 0x74, 0x1d, 0x49, 0xf9, 0x31, 0x7f, 0x20, 0x2a, 0xcc, 0x97, 0xab, 0xc5,
-                0xf2, 0x0e, 0x9f, 0x8b, 0xc0, 0xef, 0x7f, 0xbf,
+                0x1c, 0xcd, 0x04, 0x81, 0x38, 0xaa, 0x82, 0x65, 0x5f, 0xf3, 0x47, 0xeb, 0x9b, 0x1f, 0x83, 0xd0, 0xf6, 0xe6, 0xac, 0xdc, 0x03, 0x73, 0xfc, 0xbb,
+                0x65, 0xbd, 0x36, 0x93, 0xb1, 0xee, 0x04, 0x19,
             ]
         );
     }
@@ -657,8 +892,10 @@ mod tests {
 
     #[test]
     fn sha256_matches_standard_abc_known_answer() {
+        let mut hasher = NcSha256::new();
+        hasher.update(b"abc");
         assert_eq!(
-            NcSha256::new().update(b"abc").finalize(),
+            hasher.finalize(),
             [
                 0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
                 0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad,
@@ -676,16 +913,14 @@ mod tests {
         }
 
         for (len, expected) in SHA256_PREFIX_LENGTH_VECTORS.iter().enumerate() {
-            assert_eq!(
-                NcSha256::new().update(&bytes[..len]).finalize(),
-                digest_from_hex(expected),
-                "SHA-256 mismatch for prefix length {len}",
-            );
+            let mut hasher = NcSha256::new();
+            hasher.update(&bytes[..len]);
+            assert_eq!(hasher.finalize(), digest_from_hex(expected), "SHA-256 mismatch for prefix length {len}",);
         }
     }
 
     #[test]
-    fn typed_part_tags_match_the_draft_v2_grammar() {
+    fn typed_part_tags_match_the_draft_v3_grammar() {
         let iid = NcGuid::from_fields(0x1234_5678, 0x9abc, 0xdef0, [0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0]);
         let nested_hash = NcAbiHash::from_bytes([0x5a; 32]);
         let hash = NcAbiHash::from_abi_parts(&[
@@ -711,6 +946,6 @@ mod tests {
             NcAbiHashPart::Aggregate { kind: NcAbiAggregateKind::TaggedEnum },
         ]);
         let actual = hash.bytes.iter().map(|byte| std::format!("{byte:02x}")).collect::<std::string::String>();
-        assert_eq!(actual, "b1082d3722c7d86902132c1654cde80bd4ec8a2a6659412cb292c14cc939bb3d");
+        assert_eq!(actual, "e2b8a1b952f71069014343a70df38e563642973f77546adcfe4abaf85ff3f4c7");
     }
 }

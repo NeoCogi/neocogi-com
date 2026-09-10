@@ -10,7 +10,7 @@ use syn::{Attribute, Fields, Ident, ItemStruct, Member, Result};
 use crate::args::{StructArgs, StructReprArgs};
 use crate::deserialize::expand_struct as expand_struct_deserialize;
 use crate::plain_data::{PlainAbiTypeContext, validate_plain_abi_fields};
-use crate::util::{checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
+use crate::util::{abi_hash_prefix_tokens, aggregate_hash_prefix_tokens, checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
 
 /// Applies layout policy and emits `ComStruct`, `AbiType`, and plain-value impls.
 pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Result<proc_macro2::TokenStream> {
@@ -34,10 +34,12 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
         quote! {}
     };
     let field_layouts = com_struct_field_layouts(&input.fields);
+    let hash_prefix = aggregate_hash_prefix_tokens(neocogi_com_core::NcAbiAggregateKind::Struct, field_layouts.len(), 0, &nc);
+    let opaque_layout_prefix = abi_hash_prefix_tokens(&[neocogi_com_core::NcAbiHashPart::Layout { size: 0, align: 0 }], &nc);
     let field_layout_parts = field_layouts.iter().map(|(index, member, ty)| {
         let field_type = if args.c_struct {
             quote! {
-                #nc::NcAbiType::Aggregate(#nc::NcAbiHash::from_abi_parts(&[
+                #nc::NcAbiType::Aggregate(#nc::NcAbiHash::__from_abi_prefix(#opaque_layout_prefix, &[
                     #nc::NcAbiHashPart::Layout {
                         size: core::mem::size_of::<#ty>(),
                         align: core::mem::align_of::<#ty>(),
@@ -73,6 +75,8 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
         // SAFETY: `#[com_struct]` generates the representation and layout
         // metadata from compiler layout facts for this struct.
         unsafe impl #nc::ComStruct for #struct_ident {
+            const ABI_HASH_PREFIX: #nc::__NcAbiHashPrefix = #hash_prefix;
+
             const ABI_STRUCT_LAYOUT: #nc::NcAbiStructLayout = #nc::NcAbiStructLayout {
                 size: core::mem::size_of::<Self>(),
                 align: core::mem::align_of::<Self>(),

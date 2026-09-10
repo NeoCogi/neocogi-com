@@ -12,7 +12,7 @@ use crate::abi_method::{parse_abi_trait_item, parse_class_constructor, validate_
 use crate::args::{ClassContractArgs, InterfaceArgs, InterfaceGuid};
 use crate::interface::{expand_com_interface_with_methods, validate_callable_methods};
 use crate::model::{AbiArg, AbiArgKind, AbiConstructor};
-use crate::util::{push_error, runtime_crate_path, stable_guid};
+use crate::util::{abi_hash_prefix_tokens, push_error, runtime_crate_path, stable_guid};
 
 /// Generates one primary class projection, constructor frame, and registry identity.
 pub(crate) fn expand_com_class_contract(args: ClassContractArgs, mut input: ItemTrait) -> Result<proc_macro2::TokenStream> {
@@ -232,6 +232,17 @@ fn constructor_tokens(
         .iter()
         .enumerate()
         .map(|(index, argument)| constructor_hash_part(nc, index, argument));
+    let schema_parts = constructor
+        .args
+        .iter()
+        .enumerate()
+        .map(|(index, _)| neocogi_com_core::NcAbiHashPart::Arg {
+            index: index as u32,
+            passing: neocogi_com_core::NcAbiPassing::Void,
+            ty: neocogi_com_core::NcAbiType::Void,
+        })
+        .collect::<Vec<_>>();
+    let hash_prefix = abi_hash_prefix_tokens(&schema_parts, nc);
 
     quote! {
         /// Immutable C-shaped storage borrowed only for one constructor call.
@@ -264,7 +275,7 @@ fn constructor_tokens(
         impl #class_abi_ident {
             /// Hash of the constructor's ordered logical parameter contract.
             pub const CONSTRUCTOR_ABI_HASH: #nc::NcAbiHash =
-                #nc::NcAbiHash::from_abi_parts(&[
+                #nc::NcAbiHash::__from_abi_prefix(#hash_prefix, &[
                     #(#hash_parts,)*
                 ]);
 

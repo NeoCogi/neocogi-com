@@ -11,7 +11,7 @@ use syn::{ItemTrait, Result, TypeParamBound, TraitBoundModifier, PathArguments};
 use crate::abi_method::{parse_abi_trait_item, raw_vtable_method_docs, safe_method_docs, validate_interface_trait};
 use crate::args::InterfaceArgs;
 use crate::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind};
-use crate::util::{checked_u32_len, collect_syn_results, interface_field, interface_guid, push_error, runtime_crate_path};
+use crate::util::{abi_hash_prefix_tokens, checked_u32_len, collect_syn_results, interface_field, interface_guid, push_error, runtime_crate_path};
 
 /// Expands one validated interface trait into its complete Rust and C ABI surface.
 pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Result<proc_macro2::TokenStream> {
@@ -55,6 +55,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
     let client_ident = format_ident!("{trait_ident}Client");
     let interfaces_ident = format_ident!("{trait_ident}InterfacesFor");
     let qualified_name = args.qualified_name;
+    let schema_iid = neocogi_com_core::guid_from_qualified_name(&qualified_name.value());
     let guid = interface_guid(args.guid, &qualified_name, &nc)?;
     // Single inheritance has one unambiguous physical prefix. Generated names
     // retain the original module path, so bases may live in another crate.
@@ -189,11 +190,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
         }
     }
 
-    let method_hash_parts = methods
-        .iter()
-        .enumerate()
-        .map(|(index, method)| method_hash_parts(&nc, index, method))
-        .collect::<Vec<_>>();
+    let method_hash_parts = methods.iter().map(|method| method_dynamic_hash_parts(&nc, method)).collect::<Vec<_>>();
     let method_abi_descriptors = methods
         .iter()
         .enumerate()
@@ -218,11 +215,34 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
             }
         }
     });
-    let mut interface_hash_parts = vec![quote! {
-        #nc::NcAbiHashPart::Interface {
-            iid: #guid,
-        }
-    }];
+    let method_names = methods.iter().map(|method| method.ident.to_string()).collect::<Vec<_>>();
+    let mut schema_parts = vec![neocogi_com_core::NcAbiHashPart::Interface { iid: schema_iid }];
+    if base.is_some() {
+        schema_parts.push(neocogi_com_core::NcAbiHashPart::BaseInterface {
+            interface: neocogi_com_core::NcInterfaceId::NONE,
+        });
+    }
+    for ((index, method), method_name) in methods.iter().enumerate().zip(&method_names) {
+        schema_parts.push(neocogi_com_core::NcAbiHashPart::Method { index: index as u32, name: method_name });
+        let receiver = match method.receiver {
+            AbiReceiver::Shared => neocogi_com_core::NcAbiReceiver::Shared,
+            AbiReceiver::Mutable => neocogi_com_core::NcAbiReceiver::Mutable,
+        };
+        schema_parts.push(neocogi_com_core::NcAbiHashPart::Receiver { receiver });
+        schema_parts.extend(method.args.iter().enumerate().map(|(arg_index, _)| neocogi_com_core::NcAbiHashPart::Arg {
+            index: arg_index as u32,
+            passing: neocogi_com_core::NcAbiPassing::Void,
+            ty: neocogi_com_core::NcAbiType::Void,
+        }));
+        schema_parts.push(neocogi_com_core::NcAbiHashPart::Return {
+            passing: neocogi_com_core::NcAbiPassing::Void,
+            ty: neocogi_com_core::NcAbiType::Void,
+        });
+        schema_parts.push(neocogi_com_core::NcAbiHashPart::Status);
+    }
+    let hash_prefix = abi_hash_prefix_tokens(&schema_parts, &nc);
+
+    let mut interface_hash_parts = Vec::new();
     if base.is_some() {
         interface_hash_parts.push(quote! { #nc::NcAbiHashPart::BaseInterface { interface: #base_identity } });
     }
@@ -537,7 +557,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
 
         impl #abi_ident {
             #[doc = "SHA-256 hash of this interface's typed ABI contract."]
-            pub const ABI_HASH: #nc::NcAbiHash = #nc::NcAbiHash::from_abi_parts(&[
+            pub const ABI_HASH: #nc::NcAbiHash = #nc::NcAbiHash::__from_abi_prefix(#hash_prefix, &[
                 #(#interface_hash_parts,)*
             ]);
 
@@ -813,26 +833,9 @@ fn safe_receiver(receiver: AbiReceiver) -> proc_macro2::TokenStream {
     }
 }
 
-/// Emits the ordered logical hash grammar for one lowered method.
-fn method_hash_parts(nc: &syn::Path, index: usize, method: &AbiMethod) -> Vec<proc_macro2::TokenStream> {
+/// Emits compiler-resolved hash values for one lowered method.
+fn method_dynamic_hash_parts(nc: &syn::Path, method: &AbiMethod) -> Vec<proc_macro2::TokenStream> {
     let mut parts = Vec::new();
-    let index = index as u32;
-    let method_ident = &method.ident;
-    parts.push(quote! {
-        #nc::NcAbiHashPart::Method {
-            index: #index,
-            name: stringify!(#method_ident),
-        }
-    });
-    let receiver = match method.receiver {
-        AbiReceiver::Shared => quote! { #nc::NcAbiReceiver::Shared },
-        AbiReceiver::Mutable => quote! { #nc::NcAbiReceiver::Mutable },
-    };
-    parts.push(quote! {
-        #nc::NcAbiHashPart::Receiver {
-            receiver: #receiver,
-        }
-    });
     for (arg_index, arg) in method.args.iter().enumerate() {
         let arg_index = arg_index as u32;
         match &arg.kind {
@@ -916,7 +919,6 @@ fn method_hash_parts(nc: &syn::Path, index: usize, method: &AbiMethod) -> Vec<pr
             });
         }
     }
-    parts.push(quote! { #nc::NcAbiHashPart::Status });
     parts
 }
 

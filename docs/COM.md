@@ -1163,8 +1163,11 @@ For interfaces, binary compatibility is identified by the pair:
 The hash is SHA-256 over the typed ABI contract: interface IID, method order,
 method names, argument and return ABI types, aggregate size/alignment/field
 offsets, passing modes, void versus `out` returns, `ComRef` borrowed parameters,
-`ComPtr` owned returns, safe buffer passing modes, referenced interface IIDs and
-ABI hashes, and the `NcStatus` status convention.
+`ComPtr` owned returns, safe buffer passing modes, referenced interface IIDs,
+inherited interface ABI hashes, and the `NcStatus` status convention. Grammar
+v3 separates declaration shape from compiler-resolved values. Procedural macros
+hash the declaration and first final-hash block natively; const evaluation adds
+only layouts and nested identities unavailable during macro expansion.
 
 The hash input grammar is itself part of the ABI policy. Once core ABI v5 has been
 ratified and an interface has been published, changing how `neocogi-com`

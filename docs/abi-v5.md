@@ -748,14 +748,13 @@ class's interface table, match its full identity, and form an acyclic chain.
 `methods` stores local slots only. Inspection preserves `base` and local method
 indices instead of flattening away the physical prefix boundary.
 
-Hash grammar v2 gains tag `0x0a`: immediately after the derived Interface record,
-encode its base IID and 32 hash bytes, then encode local method records indexed
-from zero. This makes changes to any inherited ABI invalidate derived contracts.
-Pointer-valued method references still encode only their IID, so a base method
-may return its derived interface without creating a recursive hash. Root
-interface hashes and the v2 hash domain remain unchanged. The descriptor layout
-change requires **core ABI 3**; every host, runtime and plugin must be rebuilt.
-Runtime API table version remains 1 and checks the core version before use.
+Hash grammar v3 places tag `0x0a` after the derived Interface record. The schema
+stream records the presence of the base; the resolved-value stream records its
+IID and 32 hash bytes before local method values. This makes changes to any
+inherited ABI invalidate derived contracts. Pointer-valued method references
+still encode only their IID, so a base method may return its derived interface
+without creating a recursive hash. Runtime API table version remains 1 and
+checks the core version before use.
 
 ## 10. Interface Method Lowering
 
@@ -953,14 +952,64 @@ pub enum NcAbiPassing {
 }
 ```
 
-The digest algorithm is SHA-256 over:
+Grammar v3 separates declaration shape from values that require compiler type
+or target-layout knowledge. First compute:
 
 ```text
-"neocogi-com:abi-hash:v2\0"
-typed_part_0
-typed_part_1
-...
+schema = SHA-256(
+    "neocogi-com:abi-schema:v3\0"
+    schema_part_0
+    schema_part_1
+    ...
+)
+
+abi_hash = SHA-256(
+    "neocogi-com:abi-hash:v3\0" || [0; 8]
+    || schema
+    || resolved_value_part_0
+    || resolved_value_part_1
+    || ...
+)
 ```
+
+The final domain and eight zero bytes occupy 32 bytes. The schema digest fills
+the remainder of the first 64-byte SHA-256 block. Procedural macros compute the
+schema digest and that complete block natively, then emit its eight chaining
+words. This is an implementation optimization only; the formula above is the
+normative digest definition. General handwritten contracts may evaluate both
+passes directly.
+
+Schema records encode:
+
+```text
+0x01 Interface: guid
+0x02 Method: u32 index, str name
+0x03 Arg: u32 index
+0x04 Return
+0x05 Status
+0x06 Layout
+0x07 Field: u32 index
+0x08 Variant: u32 index
+0x09 Aggregate: aggregate_kind
+0x0a BaseInterface
+0x0b Receiver: receiver_mode
+```
+
+Resolved-value records encode only the parts omitted from their corresponding
+schema record:
+
+```text
+0x03 Arg: passing, type
+0x04 Return: passing, type
+0x06 Layout: usize size, usize align
+0x07 Field: usize offset, type
+0x08 Variant: i128 tag, type
+0x0a BaseInterface: guid iid, 32 raw hash bytes
+```
+
+`Interface`, `Method`, `Receiver`, `Status`, and `Aggregate` have no
+resolved-value record. Record order in both streams follows the original
+`NcAbiHashPart` sequence.
 
 The hash grammar is binary and canonical:
 
@@ -1004,7 +1053,7 @@ The hash input grammar is itself ABI policy. Changing this grammar is an
 ABI-policy change even if the physical vtable layout would otherwise be the
 same.
 
-Typed part tags:
+Logical typed part tags before the grammar-v3 split:
 
 ```text
 0x01 Interface: guid
@@ -1099,6 +1148,7 @@ Generated interface hash parts:
 
 ```text
 Interface { iid }
+BaseInterface { interface } // only for an explicit generated base
 method_abi_parts(method 0)
 method_abi_parts(method 1)
 ...
@@ -1164,7 +1214,8 @@ The enclosing record still hashes its size, alignment, field order, and offsets.
 The field fingerprint does not describe internal fields or distinguish scalar
 types of equal size and alignment. An incompatible change invisible to this
 metadata requires a new interface identity; matching hashes alone cannot detect
-it. These layout checks and fingerprints are computed at compile time.
+it. The procedural macro computes declaration-shape SHA-256 work natively;
+target layout facts and nested type identities are added by constant evaluation.
 
 Generated `#[com_enum]` ABI representations hash their payload structs, payload
 union, tagged representation layout, tag field, payload field, and ordered

@@ -12,7 +12,7 @@ use syn::{Attribute, Expr, Fields, Ident, ItemEnum, Lit, LitInt, LitStr, Result,
 use crate::args::EnumArgs;
 use crate::deserialize::expand_struct as expand_struct_deserialize;
 use crate::plain_data::{PlainAbiTypeContext, validate_plain_abi_fields};
-use crate::util::{checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
+use crate::util::{aggregate_hash_prefix_tokens, checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
 
 /// Validates an enum and emits its stable raw representation and conversions.
 pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<proc_macro2::TokenStream> {
@@ -85,6 +85,7 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
         Fields::Unit => None,
         Fields::Unnamed(unnamed) => {
             let struct_ident = variant_payload_ident(enum_ident, variant_ident);
+            let hash_prefix = aggregate_hash_prefix_tokens(neocogi_com_core::NcAbiAggregateKind::Struct, unnamed.unnamed.len(), 0, &nc);
             let field_layout_parts = unnamed.unnamed.iter().enumerate().map(|(index, field)| {
                 let index = index as u32;
                 let field_ident = tuple_payload_field(index as usize);
@@ -120,6 +121,8 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
                 // SAFETY: The generated payload struct is `repr(C)`, and
                 // layout metadata is computed from compiler layout facts.
                 unsafe impl #nc::ComStruct for #struct_ident {
+                    const ABI_HASH_PREFIX: #nc::__NcAbiHashPrefix = #hash_prefix;
+
                     const ABI_STRUCT_LAYOUT: #nc::NcAbiStructLayout = #nc::NcAbiStructLayout {
                         size: core::mem::size_of::<Self>(),
                         align: core::mem::align_of::<Self>(),
@@ -142,6 +145,7 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
         }
         Fields::Named(named) => {
             let struct_ident = variant_payload_ident(enum_ident, variant_ident);
+            let hash_prefix = aggregate_hash_prefix_tokens(neocogi_com_core::NcAbiAggregateKind::Struct, named.named.len(), 0, &nc);
             let field_layout_parts = named.named.iter().enumerate().map(|(index, field)| {
                 let index = index as u32;
                 let field_ident = field.ident.as_ref().expect("named field has an ident");
@@ -177,6 +181,8 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
                 // SAFETY: The generated payload struct is `repr(C)`, and
                 // layout metadata is computed from compiler layout facts.
                 unsafe impl #nc::ComStruct for #struct_ident {
+                    const ABI_HASH_PREFIX: #nc::__NcAbiHashPrefix = #hash_prefix;
+
                     const ABI_STRUCT_LAYOUT: #nc::NcAbiStructLayout = #nc::NcAbiStructLayout {
                         size: core::mem::size_of::<Self>(),
                         align: core::mem::align_of::<Self>(),
@@ -204,6 +210,8 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
         .filter(|(_, fields, _)| !matches!(fields, Fields::Unit))
         .map(|(variant_ident, _, _)| variant_payload_ident(enum_ident, variant_ident))
         .collect::<Vec<_>>();
+    let payload_union_prefix = aggregate_hash_prefix_tokens(neocogi_com_core::NcAbiAggregateKind::Union, payload_struct_idents.len(), 0, &nc);
+    let tagged_enum_prefix = aggregate_hash_prefix_tokens(neocogi_com_core::NcAbiAggregateKind::TaggedEnum, 2, variants.len(), &nc);
     let payload_union_hash_parts = payload_struct_idents.iter().enumerate().map(|(index, struct_ident)| {
         let index = index as u32;
         quote! {
@@ -421,7 +429,8 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
             #(#payload_struct_idents: #nc::AbiType,)*
         {
             const ABI_TYPE: #nc::NcAbiType = #nc::NcAbiType::Aggregate(
-                #nc::NcAbiHash::from_aggregate_layout(
+                #nc::NcAbiHash::__from_aggregate_layout_prefix(
+                    #payload_union_prefix,
                     #nc::NcAbiAggregateKind::Union,
                     core::mem::size_of::<Self>(),
                     core::mem::align_of::<Self>(),
@@ -527,7 +536,7 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
             #payload_ident: #nc::AbiType,
         {
             const ABI_TYPE: #nc::NcAbiType = #nc::NcAbiType::Aggregate(
-                #nc::NcAbiHash::from_abi_parts(&[
+                #nc::NcAbiHash::__from_abi_prefix(#tagged_enum_prefix, &[
                     #nc::NcAbiHashPart::Aggregate {
                         kind: #nc::NcAbiAggregateKind::TaggedEnum,
                     },

@@ -6,7 +6,7 @@
 //! enums so safe wrappers can enforce discriminant and payload validity.
 
 use crate::guid::NcGuid;
-use crate::hash::NcAbiHash;
+use crate::hash::{__NcAbiHashPrefix, NcAbiHash};
 use crate::metadata::{NcAbiStructLayout, NcAbiType};
 use crate::status::NcStatus;
 
@@ -41,11 +41,13 @@ pub unsafe trait AbiPlainValue: AbiType {}
 ///
 /// # Safety
 ///
-/// Implementors must describe their actual ABI layout exactly. `size`, `align`,
-/// and every field offset in [`Self::ABI_STRUCT_LAYOUT`] must match the compiled
-/// representation of `Self`, and every field type must be the field's canonical
-/// ABI type. Prefer using `#[com_struct]`, which generates this implementation
-/// from the compiler's layout facts.
+/// Implementors must describe their actual ABI declaration and layout exactly.
+/// [`Self::ABI_HASH_PREFIX`] must encode the aggregate kind and ordered field
+/// shape. `size`, `align`, and every field offset in
+/// [`Self::ABI_STRUCT_LAYOUT`] must match the compiled representation of `Self`,
+/// and every field type must be the field's canonical ABI type. Prefer using
+/// `#[com_struct]`, which generates both values from the declaration and the
+/// compiler's layout facts.
 ///
 /// With `#[com_struct(c_struct)]`, each field's ABI type is an opaque aggregate
 /// fingerprint of its size and alignment. It does not describe field internals
@@ -53,6 +55,13 @@ pub unsafe trait AbiPlainValue: AbiType {}
 /// must use a new interface identity for incompatible changes invisible to that
 /// metadata and ensure external fields satisfy the plain-value requirements.
 pub unsafe trait ComStruct: Copy + 'static {
+    /// Native-macro SHA-256 prefix state for this struct's declaration shape.
+    ///
+    /// The state is bound to a digest of the aggregate kind, layout marker,
+    /// field count, and ordered field indices. Compiler-resolved size,
+    /// alignment, offsets, and nested ABI types complete the final hash.
+    const ABI_HASH_PREFIX: __NcAbiHashPrefix;
+
     /// Physical ABI layout for this COM struct.
     const ABI_STRUCT_LAYOUT: NcAbiStructLayout;
 }
@@ -123,7 +132,7 @@ pub const fn __nc_abi_plain_type<T: AbiPlainValue>() -> NcAbiType {
 #[doc(hidden)]
 /// Derives an aggregate ABI identity from a generated COM struct layout.
 pub const fn __nc_abi_com_struct_type<T: ComStruct>() -> NcAbiType {
-    NcAbiType::Aggregate(NcAbiHash::from_struct_layout(T::ABI_STRUCT_LAYOUT))
+    NcAbiType::Aggregate(NcAbiHash::__from_struct_layout_prefix(T::ABI_HASH_PREFIX, T::ABI_STRUCT_LAYOUT))
 }
 
 macro_rules! impl_abi_plain_value {

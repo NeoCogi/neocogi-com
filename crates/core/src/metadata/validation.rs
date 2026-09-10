@@ -14,7 +14,7 @@
 #[cfg(feature = "alloc")]
 use alloc::collections::BTreeSet;
 
-use crate::hash::NcAbiHasher;
+use crate::hash::{NcAbiHasher, NcAbiSchemaHasher};
 use crate::metadata::{validate_qualified_name, validate_version_text};
 use crate::object::{IID_IUNKNOWN, IUNKNOWN_ABI_HASH, IUNKNOWN_QUALIFIED_NAME};
 use crate::{
@@ -844,10 +844,35 @@ where
 
 /// Reconstructs the canonical logical hash stream from a validated interface.
 unsafe fn hash_interface_descriptor(interface: &NcInterfaceDescriptor, methods: &[NcMethodDescriptor]) -> Result<NcAbiHash, NcStatus> {
-    let mut hasher = NcAbiHasher::new().update_abi_hash_part(NcAbiHashPart::Interface { iid: interface.interface_id });
+    let mut schema_hasher = NcAbiSchemaHasher::new();
+    unsafe {
+        // SAFETY: The caller validated the complete descriptor subtree. The
+        // visitor consumes borrowed strings synchronously and retains nothing.
+        visit_interface_hash_parts(interface, methods, |part| schema_hasher.update_abi_hash_part(part))?;
+    }
+    let schema = schema_hasher.finalize();
+
+    let mut hasher = NcAbiHasher::new(schema);
+    unsafe {
+        // SAFETY: The same validated descriptor tree is traversed a second
+        // time to append only compiler-resolved values to the schema digest.
+        visit_interface_hash_parts(interface, methods, |part| hasher.update_abi_hash_part(part))?;
+    }
+    Ok(hasher.finalize())
+}
+
+/// Visits every logical hash part reconstructed from an interface descriptor.
+///
+/// The visitor is called synchronously, so method-name borrows never escape the
+/// validated descriptor traversal.
+unsafe fn visit_interface_hash_parts<F>(interface: &NcInterfaceDescriptor, methods: &[NcMethodDescriptor], mut visit: F) -> Result<(), NcStatus>
+where
+    F: for<'a> FnMut(NcAbiHashPart<'a>),
+{
+    visit(NcAbiHashPart::Interface { iid: interface.interface_id });
 
     if !interface.base.is_none() {
-        hasher = hasher.update_abi_hash_part(NcAbiHashPart::BaseInterface { interface: interface.base });
+        visit(NcAbiHashPart::BaseInterface { interface: interface.base });
     }
 
     for (method_index, method) in methods.iter().enumerate() {
@@ -856,12 +881,12 @@ unsafe fn hash_interface_descriptor(interface: &NcInterfaceDescriptor, methods: 
             // descriptor subtree before computing the hash.
             method.name.as_str()?
         };
-        hasher = hasher.update_abi_hash_part(NcAbiHashPart::Method {
+        visit(NcAbiHashPart::Method {
             index: method_index as u32,
             name: method_name,
         });
         let receiver = NcAbiReceiver::from_raw(method.receiver).ok_or(NC_E_INVALID_ARG)?;
-        hasher = hasher.update_abi_hash_part(NcAbiHashPart::Receiver { receiver });
+        visit(NcAbiHashPart::Receiver { receiver });
 
         let params = unsafe {
             // SAFETY: The caller validated the method parameter pointer/count
@@ -869,21 +894,21 @@ unsafe fn hash_interface_descriptor(interface: &NcInterfaceDescriptor, methods: 
             method.params()?
         };
         for (param_index, param) in params.iter().enumerate() {
-            hasher = hasher.update_abi_hash_part(NcAbiHashPart::Arg {
+            visit(NcAbiHashPart::Arg {
                 index: param_index as u32,
                 passing: descriptor_passing(param.passing)?,
                 ty: descriptor_type(&param.ty)?,
             });
         }
 
-        hasher = hasher.update_abi_hash_part(NcAbiHashPart::Return {
+        visit(NcAbiHashPart::Return {
             passing: descriptor_passing(method.returns.passing)?,
             ty: descriptor_type(&method.returns.ty)?,
         });
-        hasher = hasher.update_abi_hash_part(NcAbiHashPart::Status);
+        visit(NcAbiHashPart::Status);
     }
 
-    Ok(hasher.finalize())
+    Ok(())
 }
 
 /// Converts a validated raw passing descriptor into its logical enum.

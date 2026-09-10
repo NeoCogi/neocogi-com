@@ -10,6 +10,45 @@ use syn::{Generics, Ident, LitStr, Path, Result, Visibility};
 
 use crate::args::InterfaceGuid;
 
+/// Computes and emits the SHA-256 chaining state after the final-hash prefix.
+///
+/// Emitting these words avoids one interpreted compression block per generated
+/// ABI fingerprint while leaving compiler-resolved values for const evaluation.
+pub(crate) fn abi_hash_prefix_tokens(parts: &[neocogi_com_core::NcAbiHashPart<'_>], nc: &Path) -> proc_macro2::TokenStream {
+    let schema = neocogi_com_core::NcAbiHash::__schema_from_abi_parts(parts);
+    let prefix = neocogi_com_core::NcAbiHash::__prefix_from_schema(schema);
+    let words = prefix.__words();
+    quote! { #nc::__NcAbiHashPrefix::__from_words([#(#words),*]) }
+}
+
+/// Emits the native SHA-256 schema digest for one generated aggregate shape.
+///
+/// Field and variant values are deliberately placeholders: the schema encoder
+/// consumes their ordered indices, while the generated const expression later
+/// supplies sizes, offsets, tags, and nested ABI types.
+pub(crate) fn aggregate_hash_prefix_tokens(
+    kind: neocogi_com_core::NcAbiAggregateKind,
+    field_count: usize,
+    variant_count: usize,
+    nc: &Path,
+) -> proc_macro2::TokenStream {
+    let mut parts = vec![
+        neocogi_com_core::NcAbiHashPart::Aggregate { kind },
+        neocogi_com_core::NcAbiHashPart::Layout { size: 0, align: 0 },
+    ];
+    parts.extend((0..field_count).map(|index| neocogi_com_core::NcAbiHashPart::Field {
+        index: index as u32,
+        offset: 0,
+        ty: neocogi_com_core::NcAbiType::Void,
+    }));
+    parts.extend((0..variant_count).map(|index| neocogi_com_core::NcAbiHashPart::Variant {
+        index: index as u32,
+        tag: 0,
+        ty: neocogi_com_core::NcAbiType::Void,
+    }));
+    abi_hash_prefix_tokens(&parts, nc)
+}
+
 /// Uses an explicit facade path or the canonical public `neocogi-com` crate name.
 pub(crate) fn runtime_crate_path(override_path: Option<&Path>) -> Path {
     override_path.cloned().unwrap_or_else(|| syn::parse_quote!(::neocogi_com))

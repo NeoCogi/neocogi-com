@@ -54,7 +54,7 @@ pub use decode::{ComDeserialize, ComDeserializer, ComEnum, ComRecord, ComRecordA
 #[cfg(feature = "alloc")]
 pub use decode::{ComMap, ComMapAccess};
 pub use guid::{NC_COM_GUID_NAMESPACE, NC_GUID_NIL, NcGuid, ParseGuidError, guid_from_qualified_name};
-pub use hash::NcAbiHash;
+pub use hash::{__NcAbiHashPrefix, NcAbiHash};
 #[cfg(feature = "alloc")]
 pub use metadata::format_method_signature;
 pub use metadata::{

@@ -443,10 +443,10 @@ pub use macros::{ComDeserialize, com_class, com_enum, com_interface, com_object,
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::format_method_signature;
 pub use neocogi_com_core::{
-    __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClassArguments, ComClassContract,
-    ComClientInterface, ComDeserialize, ComDeserializer, ComEnum, ComInterface, ComPtr, ComRecord, ComRecordAccess, ComRef, ComSequence, ComSequenceAccess,
-    ComStruct, ComVariantAccess, NcClientPointer, IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable,
-    IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF,
+    __NcAbiHashPrefix, __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClassArguments,
+    ComClassContract, ComClientInterface, ComDeserialize, ComDeserializer, ComEnum, ComInterface, ComPtr, ComRecord, ComRecordAccess, ComRef, ComSequence,
+    ComSequenceAccess, ComStruct, ComVariantAccess, NcClientPointer, IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi,
+    INcStringVTable, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF,
     NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID,
     NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL,
     NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE,
