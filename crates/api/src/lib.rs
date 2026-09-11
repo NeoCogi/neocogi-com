@@ -439,20 +439,23 @@ pub use buffer::{NcCopyFromBufferOffset, NcCopyToBufferOffset};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
-pub use macros::{ComDeserialize, com_class, com_class_description, com_enum, com_factory, com_factory_description, com_interface, com_object, com_struct, plugin};
+pub use macros::{
+    ComDeserialize, com_class, com_class_description, com_enum, com_factory, com_factory_description, com_interface, com_object, com_struct, factory_plugin,
+    plugin,
+};
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{format_abi_signature, format_method_signature};
 pub use neocogi_com_core::{
     __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClassArguments, abi_signature,
-    ComClassContract, ComClientInterface, ComDeserialize, ComDeserializer, ComEnum, ComFactoryDescription, ComFactoryImplementation, ComInterface,
-    ComObjectDescription, ComPtr, ComRecord, ComRecordAccess, ComRef, ComSequence, ComSequenceAccess, ComStruct, ComVariantAccess, NcClientPointer,
-    IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME,
-    IUnknown, IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET,
-    NC_ABI_PASSING_OUT, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL,
-    NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32,
-    NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32,
-    NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_ABI_VALIDATION_FNV_1A_128, NC_ABI_VALIDATION_MANGLING, NC_ABI_VALIDATION_MODE,
-    NC_ABI_VALIDATION_NONE, NC_ABI_VALIDATION_SHA_256, NC_COM_CORE_ABI_VERSION, NC_COM_GUID_NAMESPACE, NC_COM_RUNTIME_ABI_VERSION,
+    ComClassContract, ComClientInterface, ComDeserialize, ComDeserializer, ComEnum, ComFactoryBootstrap, ComFactoryDescription, ComFactoryImplementation,
+    ComInterface, ComObjectDescription, ComPtr, ComRecord, ComRecordAccess, ComRef, ComSequence, ComSequenceAccess, ComStruct, ComVariantAccess,
+    NcClientPointer, IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID,
+    IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET,
+    NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
+    NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8,
+    NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8,
+    NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_ABI_VALIDATION_FNV_1A_128, NC_ABI_VALIDATION_MANGLING,
+    NC_ABI_VALIDATION_MODE, NC_ABI_VALIDATION_NONE, NC_ABI_VALIDATION_SHA_256, NC_COM_CORE_ABI_VERSION, NC_COM_GUID_NAMESPACE, NC_COM_RUNTIME_ABI_VERSION,
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO,
     NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN,
     NC_DESCRIPTOR_VERSION_MAX_LEN, NC_CONTRACT_DECLARATION_CLASS, NC_CONTRACT_DECLARATION_ENUM, NC_CONTRACT_DECLARATION_FACTORY,
@@ -467,8 +470,8 @@ pub use neocogi_com_core::{
     NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGetPluginDescriptor, NcGuid, NcInspectPluginDescriptorCallbackV1, NcInspectionApiV1,
     NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcModuleInfoV1, NcPluginDependencyDescriptor,
     NcPluginDescriptor, NcPluginInfoV1, NcPluginRegistryV1, NcQualifiedNameError, NcRuntimeApiV1, NcStaticUtf8, NcStatus, NcTypeRegistryV1, NcUtf8View,
-    NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel, construct_class_checked,
-    guid_from_qualified_name, raw, return_plugin_descriptor, return_factory_plugin_description, validate_contract_module_description,
+    NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel,
+    activate_factory_implementation, construct_class_checked, guid_from_qualified_name, raw, return_plugin_descriptor, return_factory_plugin_description,
     validate_factory_plugin_description, validate_plugin_descriptor_with_issues, validate_qualified_name, validate_version_text,
 };
 #[cfg(feature = "alloc")]

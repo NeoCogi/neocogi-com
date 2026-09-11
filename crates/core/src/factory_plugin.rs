@@ -6,8 +6,9 @@
 //! constructor frame is present in this ABI.
 
 use crate::{
-    IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode, NcContractModuleReference, NcGuid,
-    NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name, validate_version_text,
+    ComFactoryBootstrap, ComInterface, IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode,
+    NcContractModuleReference, NcGuid, NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name,
+    validate_version_text,
 };
 
 /// Exported symbol returning a factory-only plugin description.
@@ -20,6 +21,46 @@ pub const NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL: &str = "nc_get_factory_plugi
 /// `out` must be valid for one pointer write. The function must clear it before
 /// fallible work and return one owned `IUnknown` reference only on success.
 pub type NcActivatePluginFactory = unsafe extern "C" fn(out: *mut *mut IUnknown) -> NcStatus;
+
+/// Adapts a safe typed root-factory constructor to the fixed plugin ABI.
+///
+/// The generic is monomorphized in the plugin assembly. The contract library
+/// still owns the factory identity and callable description; this adapter only
+/// transfers the implementation's newly created reference to the runtime.
+///
+/// # Safety
+///
+/// `out` must be valid for one pointer write. It is always cleared before the
+/// implementation's fallible bootstrap code runs.
+pub unsafe extern "C" fn activate_factory_implementation<T>(out: *mut *mut IUnknown) -> NcStatus
+where
+    T: ComFactoryBootstrap,
+{
+    if out.is_null() {
+        return NC_E_POINTER;
+    }
+    // SAFETY: The caller grants one output write and null was rejected above.
+    unsafe { *out = core::ptr::null_mut() };
+    let factory = match T::create_factory() {
+        Ok(factory) => factory,
+        Err(status) => return status.normalize_error(),
+    };
+    // All generated interfaces carry the IUnknown ABI prefix at the same
+    // address. Consuming the typed pointer transfers its existing ownership
+    // into the untyped bootstrap slot without AddRef or Release.
+    let raw_factory = factory.into_raw();
+    let unknown = T::Description::iunknown(raw_factory);
+    if unknown.is_null() {
+        // A valid owned ComPtr cannot contain null. Retain a defensive check at
+        // this unsafe plugin boundary in case a foreign implementation violates
+        // the trait contract.
+        return NC_E_POINTER;
+    }
+    // SAFETY: The caller grants one output write; ownership of the typed COM
+    // pointer was transferred rather than dropped.
+    unsafe { *out = unknown };
+    NC_OK
+}
 
 /// Immutable plugin metadata containing contracts and one root factory.
 #[repr(C)]

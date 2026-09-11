@@ -133,6 +133,7 @@ mod class_contract;
 mod description;
 mod deserialize;
 mod enums;
+mod factory_plugin;
 mod interface;
 mod model;
 mod object;
@@ -146,6 +147,7 @@ use class_contract::expand_com_class_contract;
 use deserialize::expand_derive as expand_com_deserialize_derive;
 use description::{ObjectDescriptionKind, expand_object_description};
 use enums::expand_com_enum;
+use factory_plugin::{FactoryPluginArgs, expand_factory_plugin};
 use interface::expand_com_interface;
 use object::expand_com_object;
 use plugin::{PluginArgs, expand_plugin};
@@ -335,6 +337,17 @@ pub fn com_factory(attr: TokenStream, item: TokenStream) -> TokenStream {
             .into();
     }
     expand_com_object(args, input, true).into()
+}
+
+/// Defines one factory-only plugin from exact IDL modules and a typed root.
+///
+/// The plugin ID is derived from `name` unless `plugin_id(...)` supplies a
+/// checked pin. The root ID and threading capability always come from the IDL
+/// description associated with `factory`; they cannot be overridden here.
+#[proc_macro]
+pub fn factory_plugin(input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(input as FactoryPluginArgs);
+    expand_factory_plugin(args).into()
 }
 
 /// Defines static plugin metadata from generated class descriptors.

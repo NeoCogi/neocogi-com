@@ -9,6 +9,7 @@ use core::ffi::c_void;
 
 use crate::guid::NcGuid;
 use crate::metadata::{NcAbiSignaturePart, NcInterfaceDescriptor, NcInterfaceId, NcStaticUtf8};
+use crate::ptr::ComPtr;
 use crate::signature::NcAbiSignature;
 use crate::status::NcStatus;
 use crate::{ThreadLocal, ThreadSafe, ThreadingModel};
@@ -246,6 +247,18 @@ pub unsafe trait ComFactoryDescription: ComObjectDescription {}
 pub unsafe trait ComFactoryImplementation {
     /// Constructor-free IDL factory description implemented by this Rust type.
     type Description: ComFactoryDescription;
+}
+
+/// Safe construction policy for a plugin's root factory implementation.
+///
+/// `#[com_factory]` implements this trait automatically for unit structs. A
+/// stateful factory can implement it explicitly and initialize private state
+/// without exposing that state or an erased constructor frame through the ABI.
+/// The typed return guarantees that plugin activation cannot accidentally
+/// publish an unrelated COM object as its declared root factory.
+pub trait ComFactoryBootstrap: ComFactoryImplementation + Sized {
+    /// Creates one owned instance of the exact associated factory description.
+    fn create_factory() -> Result<ComPtr<Self::Description, <Self::Description as ComObjectDescription>::Threading>, NcStatus>;
 }
 
 /// Compile-time proof that an implementation satisfies a description's mode.

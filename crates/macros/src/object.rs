@@ -128,6 +128,36 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
             };
         }
     });
+    let factory_implementation = require_factory.then(|| {
+        let description = args.object_description.as_ref().expect("com_factory validates description presence");
+        quote! {
+            // SAFETY: `com_factory` generates the storage and complete
+            // interface projection set directly from this IDL description.
+            unsafe impl #impl_generics #nc::ComFactoryImplementation for #class_type #where_clause {
+                /// Exact IDL factory description implemented by this Rust type.
+                type Description = #description;
+            }
+        }
+    });
+    let unit_factory_bootstrap = (require_factory && is_unit_struct).then(|| {
+        let description = args.object_description.as_ref().expect("com_factory validates description presence");
+        quote! {
+            impl #impl_generics #nc::ComFactoryBootstrap for #class_type #where_clause {
+                /// Creates the stateless root and returns its exact typed factory projection.
+                fn create_factory() -> Result<
+                    #nc::ComPtr<
+                        #description,
+                        <#description as #nc::ComObjectDescription>::Threading,
+                    >,
+                    #nc::NcStatus,
+                > {
+                    // QueryInterface converts the newly allocated IUnknown
+                    // owner into the description's primary factory interface.
+                    Self::create().query::<#description>()
+                }
+            }
+        }
+    });
     // Every class can be constructed from an initialized Rust value. Unit
     // structs also get the ergonomic `create()` shortcut because no fields need
     // caller-provided state.
@@ -449,6 +479,8 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
 
         #com_class_impl
         #thread_safe_marker_impl
+        #factory_implementation
+        #unit_factory_bootstrap
 
         impl #impl_generics #storage_type #where_clause {
             // The standalone IUnknown header uses this vtable. Interface

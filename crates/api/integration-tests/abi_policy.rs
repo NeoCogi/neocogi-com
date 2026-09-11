@@ -1,6 +1,8 @@
 use neocogi_com::{
-    ComInterface, ComPtr, ComRef, NcAbiSignature, NcStatus, com_class_description, com_factory, com_factory_description, com_interface, com_object,
-    format_abi_signature, format_method_signature, guid_from_qualified_name,
+    ComFactoryImplementation, ComInterface, ComPtr, ComRef, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_OK, NcAbiSignature, NcContractFingerprint,
+    NcContractModuleDescription, NcContractModuleReference, NcFactoryPluginDescription, NcStatus, activate_factory_implementation, com_class_description,
+    com_factory, com_factory_description, com_interface, com_object, factory_plugin, format_abi_signature, format_method_signature, guid_from_qualified_name,
+    validate_factory_plugin_description,
 };
 
 mod external_fields {
@@ -123,6 +125,29 @@ impl ValueFactory for ValueFactoryObject {
     }
 }
 
+/// Represents the linked contract getter without resolving it in macro tests.
+unsafe extern "C" fn get_factory_contract() -> *const NcContractModuleDescription {
+    // Descriptor validation does not call contract code. Runtime graph tests
+    // use complete generated modules when exercising registration.
+    core::ptr::null()
+}
+
+/// Exact contract revision referenced by this compile-time plugin fixture.
+const FACTORY_CONTRACT: NcContractModuleReference = NcContractModuleReference {
+    module_id: neocogi_com::NcGuid::from_fields(1, 2, 3, [4; 8]),
+    abi_fingerprint: NcContractFingerprint::new([5; 32]),
+    get: Some(get_factory_contract),
+};
+
+factory_plugin! {
+    name = "nc.tests.factory_plugin",
+    version = "1.0.0",
+    contracts = [FACTORY_CONTRACT],
+    factory = ValueFactoryObject,
+}
+
+neocogi_com::export_factory_plugin!();
+
 /// Confirms factories create described objects without runtime construction.
 #[test]
 fn idl_descriptions_separate_shape_from_construction() {
@@ -133,6 +158,42 @@ fn idl_descriptions_separate_shape_from_construction() {
     assert_eq!(value.value().unwrap(), 29);
     assert_eq!(DescribedValueAbi::OBJECT_QUALIFIED_NAME, "nc.tests.abi_policy.DescribedValue");
     assert_eq!(DescribedValueAbi::OBJECT_VERSION, 3);
+}
+
+/// Confirms factory implementation metadata and typed bootstrap agree.
+#[test]
+fn factory_bootstrap_transfers_the_exact_typed_root() {
+    fn assert_description<T: ComFactoryImplementation<Description = ValueFactoryAbi>>() {}
+    // The generated association lets plugin metadata obtain identity without
+    // repeating a factory ID beside the implementation.
+    assert_description::<ValueFactoryObject>();
+
+    let mut unknown = core::ptr::null_mut::<IUnknown>();
+    // SAFETY: The local output slot accepts one owned IUnknown reference.
+    assert_eq!(unsafe { activate_factory_implementation::<ValueFactoryObject>(&mut unknown) }, NC_OK);
+    // SAFETY: Successful activation transferred exactly one live reference.
+    let unknown = unsafe { ComPtr::<IUnknown>::from_raw_owned(unknown) }.expect("factory activation returned null");
+    let factory = unknown
+        .query::<ValueFactoryAbi>()
+        .expect("activated object omitted its declared factory interface");
+    let value = factory.create(41).expect("factory method failed");
+    assert_eq!(value.value().expect("value method failed"), 41);
+}
+
+/// Confirms plugin metadata derives root identity and capability from IDL.
+#[test]
+fn factory_plugin_metadata_has_no_repeated_root_contract() {
+    let description = factory_plugin_description();
+    assert_eq!(description.root_factory_id, ValueFactoryAbi::OBJECT_ID);
+    assert_eq!(description.root_factory_threading, NC_ABI_THREADING_THREAD_LOCAL);
+    // SAFETY: The macro-generated root and child tables are immutable statics.
+    assert_eq!(unsafe { validate_factory_plugin_description(description) }, NC_OK);
+
+    let mut exported = core::ptr::null::<NcFactoryPluginDescription>();
+    // SAFETY: `exported` supplies one writable pointer slot to the generated
+    // dynamic-library entrypoint.
+    assert_eq!(unsafe { nc_get_factory_plugin_description(&mut exported) }, NC_OK);
+    assert!(core::ptr::eq(exported, description));
 }
 
 fn signature_text(signature: NcAbiSignature) -> String {
