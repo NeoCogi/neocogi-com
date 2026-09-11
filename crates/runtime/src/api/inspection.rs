@@ -1,4 +1,4 @@
-//! C callbacks for querying relationships and descriptor summaries.
+//! C callbacks for querying plugin/module metadata and dependencies.
 //!
 //! Record lookups distinguish missing entities with `NC_E_NOT_FOUND`.
 //! Relationship counts instead use zero for either an absent identity or an
@@ -10,8 +10,7 @@
 use core::{ffi::c_void, ptr};
 
 use neocogi_com_core::{
-    NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcClassInfoV1, NcGuid, NcInspectPluginDescriptorCallbackV1, NcInterfaceId, NcModuleInfoV1,
-    NcPluginInfoV1, NcStatus,
+    NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectPluginDescriptorCallbackV2, NcModuleInfoV2, NcPluginInfoV2, NcStatus,
 };
 
 use crate::inspection as runtime_inspection;
@@ -25,7 +24,7 @@ use super::{copy_slice_to_out, emit_error, path_from_utf8};
 pub(super) unsafe extern "C" fn inspect_plugin_library_utf8(
     path: *const u8,
     path_len: usize,
-    callback: Option<NcInspectPluginDescriptorCallbackV1>,
+    callback: Option<NcInspectPluginDescriptorCallbackV2>,
     user_data: *mut c_void,
 ) -> NcStatus {
     let Some(callback) = callback else {
@@ -52,14 +51,12 @@ pub(super) unsafe extern "C" fn inspect_plugin_library_utf8(
 }
 
 /// Writes borrowed descriptor metadata for one registered plugin.
-pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPluginInfoV1) -> NcStatus {
+pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPluginInfoV2) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
     let catalog = RuntimeState::global().read_catalog();
-    let Some(info) = runtime_inspection::plugin_info(&catalog.plugin_registry, plugin_id)
-        .or_else(|| runtime_inspection::factory_plugin_info(&catalog.factory_plugin_registry, plugin_id))
-    else {
+    let Some(info) = runtime_inspection::factory_plugin_info(&catalog.factory_plugin_registry, plugin_id) else {
         return NC_E_NOT_FOUND;
     };
     // SAFETY: `out` is valid for one write by the caller's contract.
@@ -68,7 +65,7 @@ pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPlugi
 }
 
 /// Writes path and plugin provenance for one retained module ID.
-pub(super) unsafe extern "C" fn module_info(module_id: u64, out: *mut NcModuleInfoV1) -> NcStatus {
+pub(super) unsafe extern "C" fn module_info(module_id: u64, out: *mut NcModuleInfoV2) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -77,108 +74,28 @@ pub(super) unsafe extern "C" fn module_info(module_id: u64, out: *mut NcModuleIn
     }
     let module_id = LoadedModuleId::from_raw(module_id);
     let catalog = RuntimeState::global().read_catalog();
-    let Some(info) = runtime_inspection::module_info(&catalog.plugin_registry, module_id) else {
+    let Some(info) = runtime_inspection::module_info(&catalog.module_registry, module_id) else {
         return NC_E_NOT_FOUND;
     };
     // SAFETY: `out` is valid for one write by the caller's contract.
     unsafe { ptr::write(out, info) };
     NC_OK
-}
-
-/// Writes metadata and provenance for one registered class ID.
-pub(super) unsafe extern "C" fn class_info(class_id: NcGuid, out: *mut NcClassInfoV1) -> NcStatus {
-    if out.is_null() {
-        return NC_E_POINTER;
-    }
-    let catalog = RuntimeState::global().read_catalog();
-    let Some(info) = runtime_inspection::class_info(&catalog.type_registry, class_id) else {
-        return NC_E_NOT_FOUND;
-    };
-    // SAFETY: `out` is valid for one write by the caller's contract.
-    unsafe { ptr::write(out, info) };
-    NC_OK
-}
-
-/// Returns the number of classes currently registered by a plugin.
-pub(super) unsafe extern "C" fn plugin_class_count(plugin_id: NcGuid) -> usize {
-    RuntimeState::global()
-        .read_catalog()
-        .type_registry
-        .with_plugin_class_ids(plugin_id, <[NcGuid]>::len)
 }
 
 /// Returns the number of hard dependency IDs declared by a registered plugin.
 pub(super) unsafe extern "C" fn plugin_dependency_count(plugin_id: NcGuid) -> usize {
-    let catalog = RuntimeState::global().read_catalog();
-    if catalog.factory_plugin_registry.contains_plugin(plugin_id) {
-        catalog.factory_plugin_registry.with_plugin_dependency_ids(plugin_id, <[NcGuid]>::len)
-    } else {
-        catalog.plugin_registry.with_plugin_dependency_ids(plugin_id, <[NcGuid]>::len)
-    }
+    RuntimeState::global()
+        .read_catalog()
+        .factory_plugin_registry
+        .with_plugin_dependency_ids(plugin_id, <[NcGuid]>::len)
 }
 
 /// Copies a plugin's hard dependency IDs using the count/fill contract.
 pub(super) unsafe extern "C" fn plugin_dependency_ids(plugin_id: NcGuid, out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus {
-    let catalog = RuntimeState::global().read_catalog();
-    if catalog.factory_plugin_registry.contains_plugin(plugin_id) {
-        catalog.factory_plugin_registry.with_plugin_dependency_ids(plugin_id, |values| {
-            // SAFETY: The caller provides the output-buffer contract.
-            unsafe { copy_slice_to_out(values, out, capacity, out_len) }
-        })
-    } else {
-        catalog.plugin_registry.with_plugin_dependency_ids(plugin_id, |values| {
-            // SAFETY: The caller provides the output-buffer contract.
-            unsafe { copy_slice_to_out(values, out, capacity, out_len) }
-        })
-    }
-}
-
-/// Copies class IDs registered by a plugin using the count/fill contract.
-pub(super) unsafe extern "C" fn plugin_class_ids(plugin_id: NcGuid, out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus {
-    RuntimeState::global().read_catalog().type_registry.with_plugin_class_ids(plugin_id, |values| {
-        // SAFETY: The caller provides the output-buffer contract.
-        unsafe { copy_slice_to_out(values, out, capacity, out_len) }
-    })
-}
-
-/// Returns the number of canonical interface identities exposed by a class.
-pub(super) unsafe extern "C" fn class_interface_count(class_id: NcGuid) -> usize {
     RuntimeState::global()
         .read_catalog()
-        .type_registry
-        .with_class_interface_ids(class_id, <[NcInterfaceId]>::len)
-}
-
-/// Copies a class's interface identities using the count/fill contract.
-pub(super) unsafe extern "C" fn class_interface_ids(class_id: NcGuid, out: *mut NcInterfaceId, capacity: usize, out_len: *mut usize) -> NcStatus {
-    RuntimeState::global()
-        .read_catalog()
-        .type_registry
-        .with_class_interface_ids(class_id, |values| {
-            // SAFETY: The caller provides the output-buffer contract.
-            unsafe { copy_slice_to_out(values, out, capacity, out_len) }
-        })
-}
-
-/// Returns the number of registered classes implementing an interface identity.
-pub(super) unsafe extern "C" fn interface_implementor_class_count(interface_id: NcInterfaceId) -> usize {
-    RuntimeState::global()
-        .read_catalog()
-        .type_registry
-        .with_interface_implementor_class_ids(interface_id, <[NcGuid]>::len)
-}
-
-/// Copies class IDs implementing an interface using the count/fill contract.
-pub(super) unsafe extern "C" fn interface_implementor_class_ids(
-    interface_id: NcInterfaceId,
-    out: *mut NcGuid,
-    capacity: usize,
-    out_len: *mut usize,
-) -> NcStatus {
-    RuntimeState::global()
-        .read_catalog()
-        .type_registry
-        .with_interface_implementor_class_ids(interface_id, |values| {
+        .factory_plugin_registry
+        .with_plugin_dependency_ids(plugin_id, |values| {
             // SAFETY: The caller provides the output-buffer contract.
             unsafe { copy_slice_to_out(values, out, capacity, out_len) }
         })

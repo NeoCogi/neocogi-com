@@ -6,10 +6,10 @@
 
 use crate::{NcContractModuleDescription, NcGuid, NcStatus};
 
-/// Read-only process-global contract module registry for runtime ABI v1.
+/// Read-only process-global contract module registry for runtime ABI v2.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct NcContractRegistryV1 {
+pub struct NcContractRegistryV2 {
     /// Size of this table in bytes.
     pub size: usize,
     /// Returns the number of registered logical module IDs.

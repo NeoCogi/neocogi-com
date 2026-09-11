@@ -94,31 +94,26 @@ struct NcPluginDescriptor {
     const NcClassTable *class_table;
 };
 
-typedef struct NcRuntimeApiV1Prefix {
+typedef struct NcRuntimeApiV2Prefix {
     size_t size;
     uint32_t core_abi_version;
-    NcStatus (*register_plugin_descriptor)(const NcPluginDescriptor *plugin);
-} NcRuntimeApiV1Prefix;
+    void (*register_contract_module)(void);
+} NcRuntimeApiV2Prefix;
 
-typedef struct NcPluginRegistryV1Prefix {
+typedef struct NcPluginRegistryV2Prefix {
     size_t size;
     size_t (*plugin_count)(void);
-} NcPluginRegistryV1Prefix;
+} NcPluginRegistryV2Prefix;
 
-typedef struct NcTypeRegistryV1Prefix {
-    size_t size;
-    size_t (*class_count)(void);
-} NcTypeRegistryV1Prefix;
-
-typedef struct NcInspectionApiV1Prefix {
+typedef struct NcInspectionApiV2Prefix {
     size_t size;
     void (*plugin_info)(void);
-} NcInspectionApiV1Prefix;
+} NcInspectionApiV2Prefix;
 
-typedef struct NcDebugApiV1Prefix {
+typedef struct NcDebugApiV2Prefix {
     size_t size;
     void (*create_messenger)(void);
-} NcDebugApiV1Prefix;
+} NcDebugApiV2Prefix;
 
 struct IUnknown {
     const IUnknownVTable *vtable;
@@ -220,9 +215,8 @@ typedef struct NativeAbiLayouts {
     size_t plugin_dependencies_offset;
     size_t plugin_class_table_offset;
     size_t runtime_core_abi_version_offset;
-    size_t runtime_register_offset;
+    size_t runtime_contract_register_offset;
     size_t plugin_registry_first_function_offset;
-    size_t type_registry_first_function_offset;
     size_t inspection_first_function_offset;
     size_t debug_first_function_offset;
     size_t aggregate_size;
@@ -240,18 +234,16 @@ _Static_assert(offsetof(NativeAggregate, value) == 8,
 _Static_assert(sizeof(NativeAggregate) == 16,
     "NativeAggregate ABI size changed");
 
-_Static_assert(offsetof(NcRuntimeApiV1Prefix, size) == 0,
-    "NcRuntimeApiV1 must begin with size");
-_Static_assert(offsetof(NcRuntimeApiV1Prefix, core_abi_version) == sizeof(size_t),
-    "NcRuntimeApiV1.core_abi_version prefix changed");
-_Static_assert(offsetof(NcPluginRegistryV1Prefix, plugin_count) == sizeof(size_t),
-    "NcPluginRegistryV1 prefix changed");
-_Static_assert(offsetof(NcTypeRegistryV1Prefix, class_count) == sizeof(size_t),
-    "NcTypeRegistryV1 prefix changed");
-_Static_assert(offsetof(NcInspectionApiV1Prefix, plugin_info) == sizeof(size_t),
-    "NcInspectionApiV1 prefix changed");
-_Static_assert(offsetof(NcDebugApiV1Prefix, create_messenger) == sizeof(size_t),
-    "NcDebugApiV1 prefix changed");
+_Static_assert(offsetof(NcRuntimeApiV2Prefix, size) == 0,
+    "NcRuntimeApiV2 must begin with size");
+_Static_assert(offsetof(NcRuntimeApiV2Prefix, core_abi_version) == sizeof(size_t),
+    "NcRuntimeApiV2.core_abi_version prefix changed");
+_Static_assert(offsetof(NcPluginRegistryV2Prefix, plugin_count) == sizeof(size_t),
+    "NcPluginRegistryV2 prefix changed");
+_Static_assert(offsetof(NcInspectionApiV2Prefix, plugin_info) == sizeof(size_t),
+    "NcInspectionApiV2 prefix changed");
+_Static_assert(offsetof(NcDebugApiV2Prefix, create_messenger) == sizeof(size_t),
+    "NcDebugApiV2 prefix changed");
 
 #if UINTPTR_MAX == UINT64_MAX
 _Static_assert(sizeof(NcInterfaceDescriptor) == 96,
@@ -278,8 +270,8 @@ _Static_assert(offsetof(NcPluginDescriptor, dependencies) == 64,
     "64-bit NcPluginDescriptor.dependencies ABI offset changed");
 _Static_assert(offsetof(NcPluginDescriptor, class_table) == 72,
     "64-bit NcPluginDescriptor.class_table ABI offset changed");
-_Static_assert(offsetof(NcRuntimeApiV1Prefix, register_plugin_descriptor) == 16,
-    "64-bit NcRuntimeApiV1 registration prefix changed");
+_Static_assert(offsetof(NcRuntimeApiV2Prefix, register_contract_module) == 16,
+    "64-bit NcRuntimeApiV2 registration prefix changed");
 #elif UINTPTR_MAX == UINT32_MAX
 _Static_assert(sizeof(NcInterfaceDescriptor) == 64,
     "32-bit NcInterfaceDescriptor ABI size changed");
@@ -305,8 +297,8 @@ _Static_assert(offsetof(NcPluginDescriptor, dependencies) == 44,
     "32-bit NcPluginDescriptor.dependencies ABI offset changed");
 _Static_assert(offsetof(NcPluginDescriptor, class_table) == 48,
     "32-bit NcPluginDescriptor.class_table ABI offset changed");
-_Static_assert(offsetof(NcRuntimeApiV1Prefix, register_plugin_descriptor) == 8,
-    "32-bit NcRuntimeApiV1 registration prefix changed");
+_Static_assert(offsetof(NcRuntimeApiV2Prefix, register_contract_module) == 8,
+    "32-bit NcRuntimeApiV2 registration prefix changed");
 #else
 #error "native C ABI fixture supports only 32-bit and 64-bit targets"
 #endif
@@ -330,12 +322,11 @@ int32_t nc_c_validate_abi_layouts(const NativeAbiLayouts *layouts) {
         layouts->plugin_qualified_name_offset == offsetof(NcPluginDescriptor, qualified_name) &&
         layouts->plugin_dependencies_offset == offsetof(NcPluginDescriptor, dependencies) &&
         layouts->plugin_class_table_offset == offsetof(NcPluginDescriptor, class_table) &&
-        layouts->runtime_core_abi_version_offset == offsetof(NcRuntimeApiV1Prefix, core_abi_version) &&
-        layouts->runtime_register_offset == offsetof(NcRuntimeApiV1Prefix, register_plugin_descriptor) &&
-        layouts->plugin_registry_first_function_offset == offsetof(NcPluginRegistryV1Prefix, plugin_count) &&
-        layouts->type_registry_first_function_offset == offsetof(NcTypeRegistryV1Prefix, class_count) &&
-        layouts->inspection_first_function_offset == offsetof(NcInspectionApiV1Prefix, plugin_info) &&
-        layouts->debug_first_function_offset == offsetof(NcDebugApiV1Prefix, create_messenger) &&
+        layouts->runtime_core_abi_version_offset == offsetof(NcRuntimeApiV2Prefix, core_abi_version) &&
+        layouts->runtime_contract_register_offset == offsetof(NcRuntimeApiV2Prefix, register_contract_module) &&
+        layouts->plugin_registry_first_function_offset == offsetof(NcPluginRegistryV2Prefix, plugin_count) &&
+        layouts->inspection_first_function_offset == offsetof(NcInspectionApiV2Prefix, plugin_info) &&
+        layouts->debug_first_function_offset == offsetof(NcDebugApiV2Prefix, create_messenger) &&
         layouts->aggregate_size == sizeof(NativeAggregate) &&
         layouts->aggregate_align == _Alignof(NativeAggregate) &&
         layouts->aggregate_count_offset == offsetof(NativeAggregate, count) &&

@@ -12,10 +12,9 @@ use std::string::String;
 use std::vec::Vec;
 
 use crate::{
-    ComClassArguments, ComClassContract, ComFactoryDescription, ComInterface, ComObjectDescription, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION,
-    NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NcContractModuleReference,
-    NcContractRegistryV1, NcDebugApiV1, NcFactoryPluginDescription, NcGuid, NcInspectionApiV1, NcInterfaceId, NcPluginDescriptor, NcPluginRegistryV1,
-    NcRuntimeApiV1, NcStatus, NcTypeRegistryV1, NcUtf8View, ThreadLocal, ThreadingModel,
+    ComFactoryDescription, ComObjectDescription, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND,
+    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NcContractModuleReference, NcContractRegistryV2, NcDebugApiV2, NcFactoryPluginDescription, NcGuid,
+    NcInspectionApiV2, NcPluginRegistryV2, NcRuntimeApiV2, NcStatus, NcUtf8View, ThreadingModel,
 };
 use neocogi_com_runtime_sys as runtime_sys;
 
@@ -23,13 +22,11 @@ mod contract_registry;
 mod debug;
 mod inspection;
 mod plugin_registry;
-mod type_registry;
 
 pub use contract_registry::ContractRegistry;
 pub use debug::{Debug, DebugMessenger};
-pub use inspection::{ClassInfo, Inspection, PluginInfo};
+pub use inspection::{Inspection, PluginInfo};
 pub use plugin_registry::PluginRegistry;
-pub use type_registry::TypeRegistry;
 
 /// Maximum number of elements copied by one Rust runtime-facade enumeration.
 ///
@@ -159,55 +156,47 @@ impl Runtime {
     }
 
     /// Returns the linked runtime-operation table.
-    fn runtime_api(&self) -> &'static NcRuntimeApiV1 {
+    fn runtime_api(&self) -> &'static NcRuntimeApiV2 {
         // Do not cache a v1 table before checking the mandatory generation: a
         // future runtime may expose an incompatible discovery/table contract.
-        self.assert_runtime_v1();
+        self.assert_runtime_v2();
         // SAFETY: The runtime version was checked before calling the v1 getter,
         // whose result follows the static size-prefix table contract.
-        let api = unsafe { table(runtime_sys::nc_com_get_runtime_api_v1()) };
+        let api = unsafe { table(runtime_sys::nc_com_get_runtime_api_v2()) };
         assert_eq!(api.core_abi_version, crate::NC_COM_CORE_ABI_VERSION);
         api
     }
 
     /// Returns the linked plugin-registry table.
-    fn plugin_registry_api(&self) -> &'static NcPluginRegistryV1 {
-        self.assert_runtime_v1();
+    fn plugin_registry_api(&self) -> &'static NcPluginRegistryV2 {
+        self.assert_runtime_v2();
         // SAFETY: The runtime version was checked before calling the v1 getter,
         // whose result follows the static size-prefix table contract.
-        unsafe { table(runtime_sys::nc_com_get_plugin_registry_v1()) }
+        unsafe { table(runtime_sys::nc_com_get_plugin_registry_v2()) }
     }
 
     /// Returns the linked canonical contract-registry table.
-    fn contract_registry_api(&self) -> &'static NcContractRegistryV1 {
-        self.assert_runtime_v1();
+    fn contract_registry_api(&self) -> &'static NcContractRegistryV2 {
+        self.assert_runtime_v2();
         // SAFETY: The runtime version was checked before calling the v1 getter,
         // whose result follows the static size-prefix table contract.
-        unsafe { table(runtime_sys::nc_com_get_contract_registry_v1()) }
-    }
-
-    /// Returns the linked type-registry table.
-    fn type_registry_api(&self) -> &'static NcTypeRegistryV1 {
-        self.assert_runtime_v1();
-        // SAFETY: The runtime version was checked before calling the v1 getter,
-        // whose result follows the static size-prefix table contract.
-        unsafe { table(runtime_sys::nc_com_get_type_registry_v1()) }
+        unsafe { table(runtime_sys::nc_com_get_contract_registry_v2()) }
     }
 
     /// Returns the linked inspection table.
-    fn inspection_api(&self) -> &'static NcInspectionApiV1 {
-        self.assert_runtime_v1();
+    fn inspection_api(&self) -> &'static NcInspectionApiV2 {
+        self.assert_runtime_v2();
         // SAFETY: The runtime version was checked before calling the v1 getter,
         // whose result follows the static size-prefix table contract.
-        unsafe { table(runtime_sys::nc_com_get_inspection_api_v1()) }
+        unsafe { table(runtime_sys::nc_com_get_inspection_api_v2()) }
     }
 
     /// Returns the linked debug-messenger table.
-    fn debug_api(&self) -> &'static NcDebugApiV1 {
-        self.assert_runtime_v1();
+    fn debug_api(&self) -> &'static NcDebugApiV2 {
+        self.assert_runtime_v2();
         // SAFETY: The runtime version was checked before calling the v1 getter,
         // whose result follows the static size-prefix table contract.
-        unsafe { table(runtime_sys::nc_com_get_debug_api_v1()) }
+        unsafe { table(runtime_sys::nc_com_get_debug_api_v2()) }
     }
 
     /// Returns the registered-plugin and loaded-module catalog.
@@ -218,11 +207,6 @@ impl Runtime {
     /// Returns the canonical IDL contract module catalog.
     pub fn contract_registry(&self) -> ContractRegistry<'_> {
         ContractRegistry::new(self)
-    }
-
-    /// Returns the registered class and interface catalog.
-    pub fn type_registry(&self) -> TypeRegistry<'_> {
-        TypeRegistry::new(self)
     }
 
     /// Returns runtime relationship and metadata inspection operations.
@@ -294,20 +278,6 @@ impl Runtime {
         unknown.query::<T>()
     }
 
-    /// Registers a static plugin descriptor in the process-global runtime.
-    ///
-    /// Registration is one blocking validation, duplicate-check, and insertion
-    /// transaction. It does not invoke plugin code or load dependencies.
-    /// Declared hard dependency IDs must already be registered.
-    ///
-    /// # Safety
-    ///
-    /// `plugin` and its descriptor graph must remain readable while registered.
-    pub unsafe fn register_plugin_descriptor(&self, plugin: *const NcPluginDescriptor) -> NcStatus {
-        // SAFETY: The caller supplies the descriptor lifetime contract.
-        unsafe { (self.runtime_api().register_plugin_descriptor)(plugin) }
-    }
-
     /// Loads a trusted plugin shared library into the process-global runtime.
     ///
     /// The path must have a nonempty UTF-8 representation without interior NUL
@@ -328,9 +298,8 @@ impl Runtime {
     ///
     /// # Safety
     ///
-    /// `path` must identify trusted neocogi-com plugin code. The runtime
-    /// accepts exactly one factory or legacy class-table description export,
-    /// validates that model, and rejects libraries exporting both or neither.
+    /// `path` must identify trusted neocogi-com factory plugin code. The runtime
+    /// requires the standard generated factory-description export.
     pub unsafe fn load_plugin_library(&self, path: impl AsRef<Path>) -> LoadedModuleInfo {
         let path = path.as_ref();
         let path = path
@@ -353,14 +322,14 @@ impl Runtime {
 
     /// Loads trusted plugin libraries sequentially.
     ///
-    /// ABI v1 performs no path discovery or recursive loading. Callers must
+    /// ABI v2 performs no path discovery or recursive loading. Callers must
     /// supply a dependency-first order, such as one produced by
     /// `neocogi-inspect plan`. Native libraries mapped as
     /// platform dependencies are not automatically registered as neocogi-com
     /// plugins.
     ///
     /// A later failure aborts the process rather than returning partial state.
-    /// The runtime ABI v1 intentionally has no transactional batch-loading call.
+    /// The runtime ABI v2 intentionally has no transactional batch-loading call.
     ///
     /// # Safety
     ///
@@ -379,137 +348,8 @@ impl Runtime {
         loaded
     }
 
-    /// Verifies that a registered class supports an interface ABI identity.
-    pub fn require_interface(&self, class_id: NcGuid, interface_id: NcInterfaceId) -> Result<(), NcStatus> {
-        // SAFETY: Both identities are passed by value.
-        status_to_result(unsafe { (self.runtime_api().require_interface)(class_id, interface_id) })
-    }
-
-    /// Verifies that a registered class supports generated interface `T`.
-    pub fn require_interface_type<T: ComInterface>(&self, class_id: NcGuid) -> Result<(), NcStatus> {
-        self.require_interface(class_id, T::INTERFACE_ID)
-    }
-
-    /// Constructs the registered class described by callable contract `C`.
-    ///
-    /// The shared class contract supplies both registry identity and primary
-    /// callable ABI, so the caller neither repeats a class ID nor queries a
-    /// separately declared one-off interface. The generated argument wrapper
-    /// statically binds the constructor frame to `C`.
-    pub fn construct<'a, C: ComClassContract>(&self, arguments: C::Arguments<'a>) -> Result<ComPtr<C>, NcStatus> {
-        self.construct_with_model::<C, ThreadLocal>(arguments)
-    }
-
-    /// Constructs a callable class with an explicit pointer threading capability.
-    ///
-    /// The requested capability is checked against the class descriptor before
-    /// plugin code runs. A thread-safe result is available only for a class
-    /// whose implementation descriptor promises thread-safe storage and calls.
-    pub fn construct_with_model<'a, C, M>(&self, arguments: C::Arguments<'a>) -> Result<ComPtr<C, M>, NcStatus>
-    where
-        C: ComClassContract,
-        M: ThreadingModel,
-    {
-        self.construct_class_as_with_model::<C, M>(C::CLASS_ID, arguments)
-    }
-
-    /// Constructs an object from a registered class and typed argument frame.
-    pub fn construct_class(&self, class_id: NcGuid, arguments: impl ComClassArguments) -> Result<ComPtr<IUnknown>, NcStatus> {
-        // SAFETY: The unsafe argument trait binds its signature to a frame pointer
-        // that remains valid while `arguments` is borrowed by this call.
-        unsafe { self.construct_class_raw(class_id, class_arguments_abi_signature(&arguments), arguments.as_abi_ptr()) }
-    }
-
-    /// Constructs an object with threading capability `M` and typed arguments.
-    ///
-    /// A thread-local request is valid for every registered class. A
-    /// thread-safe request succeeds only when the class descriptor promises
-    /// that constructed objects support cross-thread calls and destruction.
-    pub fn construct_class_with_model<M: ThreadingModel>(&self, class_id: NcGuid, arguments: impl ComClassArguments) -> Result<ComPtr<IUnknown, M>, NcStatus> {
-        // SAFETY: The unsafe argument trait binds its signature to a frame pointer
-        // that remains valid while `arguments` is borrowed by this call.
-        unsafe { self.construct_class_with_model_raw::<M>(class_id, class_arguments_abi_signature(&arguments), arguments.as_abi_ptr()) }
-    }
-
-    /// Constructs an object from an explicitly erased constructor frame.
-    ///
-    /// # Safety
-    ///
-    /// `arguments`, when non-null, must point to an immutable constructor frame
-    /// matching `constructor_abi_signature` for the duration of this call.
-    pub unsafe fn construct_class_raw(
-        &self,
-        class_id: NcGuid,
-        constructor_abi_signature: crate::NcAbiSignature,
-        arguments: *const core::ffi::c_void,
-    ) -> Result<ComPtr<IUnknown>, NcStatus> {
-        // SAFETY: This forwards the caller's raw frame contract while
-        // requesting the conservative thread-local pointer capability.
-        unsafe { self.construct_class_with_model_raw::<ThreadLocal>(class_id, constructor_abi_signature, arguments) }
-    }
-
-    /// Constructs an object from an erased frame with threading capability `M`.
-    ///
-    /// # Safety
-    ///
-    /// `arguments`, when non-null, must point to an immutable constructor frame
-    /// matching `constructor_abi_signature` for the duration of this call.
-    pub unsafe fn construct_class_with_model_raw<M: ThreadingModel>(
-        &self,
-        class_id: NcGuid,
-        constructor_abi_signature: crate::NcAbiSignature,
-        arguments: *const core::ffi::c_void,
-    ) -> Result<ComPtr<IUnknown, M>, NcStatus> {
-        let mut out = core::ptr::null_mut();
-        let requested_threading = M::ABI_THREADING_MODE.as_raw();
-        // SAFETY: The caller supplies the borrowed argument contract and `out`
-        // is valid for one pointer write.
-        let status = unsafe { (self.runtime_api().construct_class)(class_id, requested_threading, constructor_abi_signature, arguments, &mut out) };
-        status_to_result(status)?;
-        // SAFETY: A successful runtime construction returns one owned reference.
-        unsafe { ComPtr::<IUnknown, M>::__nc_from_raw_owned_checked(out) }
-    }
-
-    /// Constructs an object, then validates and queries generated interface `T`.
-    pub fn construct_class_as<T: ComInterface>(&self, class_id: NcGuid, arguments: impl ComClassArguments) -> Result<ComPtr<T>, NcStatus> {
-        let unknown = self.construct_class(class_id, arguments)?;
-        self.query_validated::<T, _>(class_id, &unknown)
-    }
-
-    /// Constructs an object with threading capability `M`, then validates and
-    /// queries generated interface `T` while preserving that capability.
-    pub fn construct_class_as_with_model<T, M>(&self, class_id: NcGuid, arguments: impl ComClassArguments) -> Result<ComPtr<T, M>, NcStatus>
-    where
-        T: ComInterface,
-        M: ThreadingModel,
-    {
-        let unknown = self.construct_class_with_model::<M>(class_id, arguments)?;
-        self.query_validated::<T, M>(class_id, &unknown)
-    }
-
-    /// Validates and queries an existing object for generated interface `T`.
-    pub fn query_validated<T, M>(&self, class_id: NcGuid, object: &ComPtr<IUnknown, M>) -> Result<ComPtr<T, M>, NcStatus>
-    where
-        T: ComInterface,
-        M: ThreadingModel,
-    {
-        self.require_interface_type::<T>(class_id)?;
-        object.query::<T>()
-    }
-
-    /// Adopts an owned `IUnknown`, then validates and queries interface `T`.
-    ///
-    /// # Safety
-    ///
-    /// `object` must be null or one owned `IUnknown` reference.
-    pub unsafe fn adopt_unknown_as<T: ComInterface>(&self, class_id: NcGuid, object: *mut IUnknown) -> Result<ComPtr<T>, NcStatus> {
-        // SAFETY: The caller transfers one owned reference when non-null.
-        let unknown = unsafe { ComPtr::<IUnknown>::__nc_from_raw_owned_checked(object) }?;
-        self.query_validated::<T, _>(class_id, &unknown)
-    }
-
-    /// Aborts the operation if the linked library does not implement ABI v1.
-    fn assert_runtime_v1(&self) {
+    /// Aborts the operation if the linked library does not implement ABI v2.
+    fn assert_runtime_v2(&self) {
         // ABI mismatch is a linkage/configuration error, not a recoverable
         // plugin status. Fail before dereferencing any version-specific table.
         let found = self.runtime_abi_version();
@@ -519,14 +359,6 @@ impl Runtime {
             NC_COM_RUNTIME_ABI_VERSION
         );
     }
-}
-
-/// Reads a constructor wrapper's compile-time ABI identity without permitting
-/// a value-dependent or overridable signature.
-fn class_arguments_abi_signature<A: ComClassArguments>(_: &A) -> crate::NcAbiSignature {
-    // The unsafe trait implementation ties this associated constant to the
-    // exact frame returned by `as_abi_ptr`.
-    A::ABI_SIGNATURE
 }
 
 /// Reports an unrecoverable live-activation failure and aborts the process.
@@ -561,7 +393,7 @@ unsafe fn table<T>(table: *const T) -> &'static T {
 
 /// Verifies that an append-only versioned table contains every required field.
 fn assert_table_size(found: usize, required: usize) {
-    // V1 tables may grow by appending fields. A larger table is compatible; a
+    // V2 tables may grow by appending fields. A larger table is compatible; a
     // shorter one cannot contain every function pointer this facade calls.
     assert!(
         found >= required,

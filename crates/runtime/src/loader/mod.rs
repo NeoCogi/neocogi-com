@@ -273,14 +273,14 @@ fn register_loaded_factory_plugin(
     }
     let loaded = LoadedModuleInfo::new(module_id, path.to_path_buf(), plugin_id);
     catalog
-        .plugin_registry
+        .module_registry
         .store_loaded_module(module.take().expect("successful activation owns its module"), loaded);
     Ok(module_id)
 }
 
 /// Reserves one process-local handle ID from the common loaded-module store.
 fn allocate_loaded_module_id(catalog: &mut crate::state::RuntimeCatalog, path: &Path) -> Result<LoadedModuleId, PluginLoadError> {
-    catalog.plugin_registry.allocate_loaded_module_id().ok_or_else(|| {
+    catalog.module_registry.allocate_loaded_module_id().ok_or_else(|| {
         PluginLoadError::new(
             PluginLoadErrorKind::ResourceLimit,
             path,

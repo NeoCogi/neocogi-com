@@ -5,10 +5,10 @@
 //! complete factory interface identity before transferring ownership to a host.
 
 use neocogi_com_core::{
-    IUnknown, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcActivatePluginFactory, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcStatus, raw,
+    IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcActivatePluginFactory,
+    NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcStatus, raw,
 };
 
-use crate::construction::threading_request_is_compatible;
 use crate::factory_plugin_registry::FactoryPluginRegistry;
 
 /// Resolves one compatible activation pointer without entering plugin code.
@@ -29,6 +29,15 @@ pub(crate) fn resolve_factory(
         return Err(neocogi_com_core::NC_E_INVALID_ARG);
     }
     description.activate.ok_or(neocogi_com_core::NC_E_INVALID_ARG)
+}
+
+/// Applies the declared factory capability to one host threading request.
+fn threading_request_is_compatible(declared: u32, requested: u32) -> bool {
+    match requested {
+        NC_ABI_THREADING_THREAD_LOCAL => true,
+        NC_ABI_THREADING_THREAD_SAFE => declared == NC_ABI_THREADING_THREAD_SAFE,
+        _ => false,
+    }
 }
 
 /// Invokes a resolved plugin root and verifies its exact interface contract.

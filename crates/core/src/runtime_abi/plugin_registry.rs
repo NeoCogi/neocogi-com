@@ -10,13 +10,13 @@
 
 use crate::{NcGuid, NcStatus};
 
-/// Maximum number of dynamic plugin modules retained by runtime ABI v1.
+/// Maximum number of dynamic plugin modules retained by runtime ABI v2.
 pub const NC_COM_RUNTIME_MAX_LOADED_MODULES: usize = 1_024;
 
-/// Read-only process-global plugin and loaded-module registry for runtime ABI v1.
+/// Read-only process-global plugin and loaded-module registry for runtime ABI v2.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct NcPluginRegistryV1 {
+pub struct NcPluginRegistryV2 {
     /// Size of this table in bytes.
     pub size: usize,
     /// Returns the number of registered plugin IDs.

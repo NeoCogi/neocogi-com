@@ -475,16 +475,16 @@ pub use neocogi_com_core::{
     NC_E_ABI_VERSION, NC_E_BUSY, NC_E_CONTRACT_MISMATCH, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE,
     NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL,
     NC_GUID_NIL, NC_OK, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiSignature, NcAbiSignaturePart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver,
-    NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcAbiValidationMode, NcClassDescriptor, NcActivatePluginFactory, NcClassInfoV1,
+    NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcAbiValidationMode, NcClassDescriptor, NcActivatePluginFactory,
     NcClassInterfaceDescriptor, NcClassTable, NcConstructorFn, NcContractDeclarationDescription, NcContractDependencyDescription, NcContractFingerprint,
-    NcContractModuleDescription, NcContractModuleReference, NcContractRegistryV1, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1,
-    NcDebugMessengerCreateInfoV1, NcDescriptorPath, NcDescriptorValidationIssue, NcDescriptorValidationKind, NcGetContractModuleDescription,
-    NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGetPluginDescriptor, NcGuid, NcInspectPluginDescriptorCallbackV1, NcInspectionApiV1,
-    NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcModuleInfoV1, NcPluginDependencyDescriptor,
-    NcPluginDescriptor, NcPluginInfoV1, NcPluginRegistryV1, NcQualifiedNameError, NcRuntimeApiV1, NcStaticUtf8, NcStatus, NcTypeRegistryV1, NcUtf8View,
-    NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel,
-    activate_factory_implementation, construct_class_checked, guid_from_qualified_name, raw, return_plugin_descriptor, return_factory_plugin_description,
-    validate_factory_plugin_description, validate_plugin_descriptor_with_issues, validate_qualified_name, validate_version_text,
+    NcContractModuleDescription, NcContractModuleReference, NcContractRegistryV2, NcDebugApiV2, NcDebugCallbackV2, NcDebugMessageV2,
+    NcDebugMessengerCreateInfoV2, NcDescriptorPath, NcDescriptorValidationIssue, NcDescriptorValidationKind, NcGetContractModuleDescription,
+    NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGetPluginDescriptor, NcGuid, NcInspectPluginDescriptorCallbackV2, NcInspectionApiV2,
+    NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcModuleInfoV2, NcPluginDependencyDescriptor,
+    NcPluginDescriptor, NcPluginInfoV2, NcPluginRegistryV2, NcQualifiedNameError, NcRuntimeApiV2, NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError,
+    ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel, activate_factory_implementation,
+    construct_class_checked, guid_from_qualified_name, raw, return_plugin_descriptor, return_factory_plugin_description, validate_factory_plugin_description,
+    validate_plugin_descriptor_with_issues, validate_qualified_name, validate_version_text,
 };
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{ComMap, ComMapAccess};
@@ -493,8 +493,8 @@ pub use object::{__ComCallGate, __ComExclusiveLease, __ComSharedLease, __com_add
 pub use neocogi_com_core::__ComSupportsDescriptionThreading;
 #[cfg(feature = "runtime")]
 pub use runtime::{
-    ClassInfo, ContractRegistry, Debug, DebugMessenger, Inspection, LoadedModuleId, LoadedModuleInfo, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS,
-    NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES, NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, PluginInfo, PluginRegistry, Runtime, TypeRegistry,
+    ContractRegistry, Debug, DebugMessenger, Inspection, LoadedModuleId, LoadedModuleInfo, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS,
+    NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES, NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, PluginInfo, PluginRegistry, Runtime,
 };
 
 #[doc(hidden)]

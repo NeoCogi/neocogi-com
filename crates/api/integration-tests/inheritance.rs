@@ -1,6 +1,6 @@
 //! Single-base layout, identity and ownership checks across generated interfaces.
 
-use neocogi_com::{com_class, com_interface, com_object, ComInterface, ComPtr, ComRef, IUnknown, NcStatus, NC_E_NOINTERFACE};
+use neocogi_com::{com_interface, com_object, ComInterface, ComPtr, ComRef, IUnknown, NcStatus, NC_E_NOINTERFACE};
 use std::{cell::Cell, rc::Rc};
 
 /// A separate module exercises fully qualified base companion paths.
@@ -21,39 +21,24 @@ mod contract {
 /// Adds one slot after the complete widget prefix.
 pub trait IButton: contract::IWidget {
     /// Changes state observed through all projections.
-    fn set_value(&self, value: u32) -> Result<(), NcStatus>;
+    fn set_value(&mut self, value: u32) -> Result<(), NcStatus>;
 }
 
 #[com_interface(auto_guid = "nc.tests.inheritance.Toggle:v1")]
 /// A second level verifies recursive vtables and inherited client lookup.
 pub trait IToggle: IButton {
     /// Copies a base value through a checked borrowed argument.
-    fn copy_value(&self, source: ComRef<'_, contract::IWidgetAbi>) -> Result<(), NcStatus>;
+    fn copy_value(&mut self, source: ComRef<'_, contract::IWidgetAbi>) -> Result<(), NcStatus>;
 }
 
-/// Callable leaf class requiring the complete reusable toggle protocol.
-#[com_class(auto_guid = "nc.tests.inheritance.Toggle")]
-trait RegisteredToggle: IToggle {
-    /// Creates the fixture with its empty state and drop observer.
-    #[constructor]
-    fn new() -> Result<Self, NcStatus>;
-}
-
-#[com_object(constructible(RegisteredToggle))]
+#[com_object(interfaces(IToggle))]
 #[derive(Default)]
-/// Concrete storage whose class supertrait supplies the inherited interface chain.
+/// Concrete storage exposing the complete inherited interface chain.
 struct Toggle {
     /// Authoritative state shared by every COM projection.
-    value: Cell<u32>,
+    value: u32,
     /// Observation retained after the one allocation is finally released.
     drops: Rc<Cell<u32>>,
-}
-
-impl RegisteredToggle for Toggle {
-    /// Makes the implementation's default initialization policy explicit.
-    fn new() -> Result<Self, NcStatus> {
-        Ok(Self::default())
-    }
 }
 
 impl Drop for Toggle {
@@ -64,11 +49,11 @@ impl Drop for Toggle {
 
 impl contract::IWidget for Toggle {
     fn value(&self) -> Result<u32, NcStatus> {
-        Ok(self.value.get())
+        Ok(self.value)
     }
     fn button(&self) -> Result<ComPtr<IButtonAbi>, NcStatus> {
         Toggle::from_value(Toggle {
-            value: Cell::new(self.value.get()),
+            value: self.value,
             drops: Rc::new(Cell::new(0)),
         })
         .query()
@@ -76,15 +61,15 @@ impl contract::IWidget for Toggle {
 }
 
 impl IButton for Toggle {
-    fn set_value(&self, value: u32) -> Result<(), NcStatus> {
-        self.value.set(value);
+    fn set_value(&mut self, value: u32) -> Result<(), NcStatus> {
+        self.value = value;
         Ok(())
     }
 }
 
 impl IToggle for Toggle {
-    fn copy_value(&self, source: ComRef<'_, contract::IWidgetAbi>) -> Result<(), NcStatus> {
-        self.value.set(source.value()?);
+    fn copy_value(&mut self, source: ComRef<'_, contract::IWidgetAbi>) -> Result<(), NcStatus> {
+        self.value = source.value()?;
         Ok(())
     }
 }
@@ -92,23 +77,23 @@ impl IToggle for Toggle {
 #[test]
 fn inherited_methods_and_queries_share_one_allocation() {
     let drops = Rc::new(Cell::new(0));
-    let unknown = Toggle::from_value(Toggle {
-        value: Cell::new(7),
-        drops: drops.clone(),
-    });
-    let toggle = unknown.query::<IToggleAbi>().unwrap();
+    let unknown = Toggle::from_value(Toggle { value: 7, drops: drops.clone() });
+    let mut toggle = unknown.query::<IToggleAbi>().unwrap();
     let button = toggle.query::<IButtonAbi>().unwrap();
     let widget = toggle.query::<contract::IWidgetAbi>().unwrap();
     assert_eq!(toggle.value(), Ok(7));
-    toggle.as_com_ref().set_value(19).unwrap();
+    toggle.set_value(19).unwrap();
     assert_eq!(widget.value(), Ok(19));
     assert_eq!(button.value(), Ok(19));
-    toggle.copy_value(widget.as_com_ref()).unwrap();
-    assert_eq!(toggle.button().unwrap().value(), Ok(19));
+    let source = Toggle::from_value(Toggle { value: 23, drops: Rc::new(Cell::new(0)) })
+        .query::<contract::IWidgetAbi>()
+        .unwrap();
+    toggle.copy_value(source.as_com_ref()).unwrap();
+    assert_eq!(toggle.button().unwrap().value(), Ok(23));
     assert_eq!(widget.query::<IUnknown>().unwrap().as_mut_ptr(), unknown.as_mut_ptr());
     assert_eq!(button.query::<IUnknown>().unwrap().as_mut_ptr(), unknown.as_mut_ptr());
     assert_eq!(widget.as_mut_ptr(), button.query::<contract::IWidgetAbi>().unwrap().as_mut_ptr());
-    assert_eq!(Toggle::COM_INTERFACE_COUNT, 5);
+    assert_eq!(Toggle::COM_INTERFACE_COUNT, 4);
     // Independent physical base projections advertise their own exact identity.
     unsafe {
         neocogi_com::raw::validate_interface::<IToggleAbi>(toggle.as_mut_ptr()).unwrap();
@@ -132,60 +117,4 @@ fn inherited_vtable_is_a_physical_prefix_and_signs_the_base() {
     assert_eq!(IButtonAbi::INTERFACE_DESCRIPTOR.base, contract::IWidgetAbi::INTERFACE_ID);
     assert_eq!(IToggleAbi::INTERFACE_DESCRIPTOR.base, IButtonAbi::INTERFACE_ID);
     assert_eq!(IToggleAbi::INTERFACE_CHAIN.len(), 3);
-}
-
-// The exported table includes every inherited protocol even though the callable
-// class names only its leaf supertrait.
-neocogi_com::plugin! {
-    plugin_id(auto_guid = "nc.tests.inheritance.Plugin:v1"),
-    name = "nc.tests.inheritance.Plugin:v1",
-    version = "0.1.0",
-    classes = [Toggle],
-}
-
-#[test]
-fn descriptor_validation_requires_matching_acyclic_base_contracts() {
-    use neocogi_com::{NcClassInterfaceDescriptor, NcClassTable, NcDescriptorValidationKind, NC_OK};
-    // SAFETY: The generated plugin and every nested table are immutable statics.
-    assert_eq!(
-        unsafe { neocogi_com::validate_plugin_descriptor_with_issues(plugin_descriptor(), |_| {}) },
-        NC_OK
-    );
-    let mut contracts: Vec<_> = Toggle::COM_INTERFACES
-        .iter()
-        .map(|entry| {
-            // SAFETY: Generated class metadata contains readable static descriptors.
-            unsafe { *entry.interface_descriptor }
-        })
-        .collect();
-    // The table is IUnknown, RegisteredToggle, Toggle, Button, Widget. Corrupt
-    // Button's base to exercise a missing contract, a mismatched identity, and
-    // a cycle without following raw links.
-    for case in 0..3 {
-        let original = contracts[3].base;
-        contracts[3].base = match case {
-            0 => neocogi_com::NcInterfaceId::new(neocogi_com::guid_from_qualified_name("nc.tests.inheritance.Missing:v1"), original.abi_signature),
-            1 => neocogi_com::NcInterfaceId::new(original.iid, IButtonAbi::ABI_SIGNATURE),
-            _ => IToggleAbi::INTERFACE_ID,
-        };
-        let entries: Vec<_> = contracts
-            .iter()
-            .map(|descriptor| NcClassInterfaceDescriptor { interface_descriptor: descriptor })
-            .collect();
-        let mut class = Toggle::CLASS_DESCRIPTOR;
-        class.interfaces = entries.as_ptr();
-        let table = NcClassTable { class_count: 1, classes: &class };
-        let mut plugin = *plugin_descriptor();
-        plugin.class_table = &table;
-        let mut found = false;
-        // SAFETY: All local descriptor arrays remain readable through validation.
-        let status = unsafe {
-            neocogi_com::validate_plugin_descriptor_with_issues(&plugin, |issue| {
-                found |= issue.kind == NcDescriptorValidationKind::InvalidInterfaceBase;
-            })
-        };
-        assert!(status.is_err());
-        assert!(found);
-        contracts[3].base = original;
-    }
 }

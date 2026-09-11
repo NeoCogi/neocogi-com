@@ -10,21 +10,19 @@ mod debug;
 mod inspection;
 mod plugin_registry;
 mod runtime;
-mod type_registry;
 
-pub use contract_registry::NcContractRegistryV1;
+pub use contract_registry::NcContractRegistryV2;
 pub use debug::{
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING,
-    NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1,
-    NcDebugMessengerCreateInfoV1,
+    NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV2, NcDebugCallbackV2, NcDebugMessageV2,
+    NcDebugMessengerCreateInfoV2,
 };
-pub use inspection::{NcClassInfoV1, NcInspectPluginDescriptorCallbackV1, NcInspectionApiV1, NcModuleInfoV1, NcPluginInfoV1};
-pub use plugin_registry::{NC_COM_RUNTIME_MAX_LOADED_MODULES, NcPluginRegistryV1};
-pub use runtime::NcRuntimeApiV1;
-pub use type_registry::NcTypeRegistryV1;
+pub use inspection::{NcInspectPluginDescriptorCallbackV2, NcInspectionApiV2, NcModuleInfoV2, NcPluginInfoV2};
+pub use plugin_registry::{NC_COM_RUNTIME_MAX_LOADED_MODULES, NcPluginRegistryV2};
+pub use runtime::NcRuntimeApiV2;
 
 /// Runtime shared-library ABI generation implemented by this release.
-pub const NC_COM_RUNTIME_ABI_VERSION: u32 = 1;
+pub const NC_COM_RUNTIME_ABI_VERSION: u32 = 2;
 
 /// Borrowed immutable UTF-8 bytes owned by the runtime.
 ///

@@ -1,17 +1,16 @@
-//! C callbacks for runtime mutation and object construction.
+//! C callbacks for runtime registration, loading, and factory activation.
 //!
 //! These adapters normalize raw-pointer validation, status mapping, and debug
 //! emission before delegating to the Rust implementation. They never expose
 //! Rust errors, paths, or owned containers across the ABI boundary. Live plugin
 //! activation is fail-fatal after detailed diagnostic emission, whereas direct
-//! registration, requirement checks, and construction return ordinary statuses.
+//! registration and factory activation return ordinary statuses.
 
 use neocogi_com_core::{
     IUnknown, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_E_INVALID_ARG, NC_E_LOAD_FAILED, NC_E_OUT_OF_RANGE, NC_E_POINTER,
-    NC_OK, NcContractModuleReference, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus,
+    NC_OK, NcContractModuleReference, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcStatus,
 };
 
-use crate::construction;
 use crate::factory_activation;
 use crate::loader::PluginLoadErrorKind;
 use crate::state::RuntimeState;
@@ -36,17 +35,6 @@ pub(super) unsafe extern "C" fn register_factory_plugin_description(plugin: *con
     let status = unsafe { RuntimeState::global().register_factory_plugin_description(plugin) };
     if status.is_err() {
         emit_error(NC_DEBUG_TYPE_VALIDATION, status, "factory plugin registration failed");
-    }
-    status
-}
-
-/// Validates and atomically registers one caller-owned static descriptor graph.
-pub(super) unsafe extern "C" fn register_plugin_descriptor(plugin: *const NcPluginDescriptor) -> NcStatus {
-    // SAFETY: The caller provides the descriptor lifetime and readability
-    // contract required by the registry.
-    let status = unsafe { RuntimeState::global().register_plugin_descriptor(plugin) };
-    if status.is_err() {
-        emit_error(NC_DEBUG_TYPE_VALIDATION, status, "plugin descriptor registration failed");
     }
     status
 }
@@ -82,43 +70,6 @@ pub(super) unsafe extern "C" fn load_plugin_library_utf8(path: *const u8, path_l
             std::process::abort()
         }
     }
-}
-
-/// Checks a registered class against one complete interface identity.
-pub(super) unsafe extern "C" fn require_interface(class_id: NcGuid, interface_id: NcInterfaceId) -> NcStatus {
-    let result = {
-        let catalog = RuntimeState::global().read_catalog();
-        construction::require_interface(&catalog.type_registry, class_id, interface_id)
-    };
-    match result {
-        Ok(()) => NC_OK,
-        Err(status) => {
-            emit_error(NC_DEBUG_TYPE_VALIDATION, status, "registered class does not satisfy the requested interface");
-            status
-        }
-    }
-}
-
-/// Constructs one registered class after validating threading and arguments.
-pub(super) unsafe extern "C" fn construct_class(
-    class_id: NcGuid,
-    requested_threading: u32,
-    constructor_abi_signature: neocogi_com_core::NcAbiSignature,
-    arguments: *const core::ffi::c_void,
-    out: *mut *mut IUnknown,
-) -> NcStatus {
-    // Resolve under the catalog read lock, then release it before invoking the
-    // plugin constructor or emitting a callback-driven diagnostic.
-    let class = {
-        let catalog = RuntimeState::global().read_catalog();
-        construction::resolve_class(&catalog.type_registry, class_id, requested_threading)
-    };
-    // SAFETY: This forwards the caller's borrowed frame and output contracts.
-    let status = unsafe { construction::construct_class(class, constructor_abi_signature, arguments, out) };
-    if status.is_err() {
-        emit_error(NC_DEBUG_TYPE_RUNTIME, status, "registered class construction failed");
-    }
-    status
 }
 
 /// Resolves and activates one exact typed root factory without holding locks.

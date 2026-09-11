@@ -1,6 +1,6 @@
 //! Stable C symbols exported by the runtime shared library.
 //!
-//! Only the runtime ABI generation function and six immutable table getters
+//! Only the runtime ABI generation function and five immutable table getters
 //! are exported by name. All operations remain private Rust functions reached
 //! through those tables, keeping symbol discovery small and version checks
 //! mandatory before callers dereference versioned layouts.
@@ -9,9 +9,9 @@
 //! A caller must compare it with the generation it understands before invoking
 //! a versioned getter; a v2 runtime is not assumed to preserve v1 table shapes.
 
-use neocogi_com_core::{NC_COM_RUNTIME_ABI_VERSION, NcContractRegistryV1, NcDebugApiV1, NcInspectionApiV1, NcPluginRegistryV1, NcRuntimeApiV1, NcTypeRegistryV1};
+use neocogi_com_core::{NC_COM_RUNTIME_ABI_VERSION, NcContractRegistryV2, NcDebugApiV2, NcInspectionApiV2, NcPluginRegistryV2, NcRuntimeApiV2};
 
-use super::{CONTRACT_REGISTRY_V1, DEBUG_API_V1, INSPECTION_API_V1, PLUGIN_REGISTRY_V1, RUNTIME_API_V1, TYPE_REGISTRY_V1};
+use super::{CONTRACT_REGISTRY_V2, DEBUG_API_V2, INSPECTION_API_V2, PLUGIN_REGISTRY_V2, RUNTIME_API_V2};
 
 /// Returns the runtime shared-library ABI generation.
 ///
@@ -21,38 +21,32 @@ pub extern "C" fn nc_com_runtime_abi_version() -> u32 {
     NC_COM_RUNTIME_ABI_VERSION
 }
 
-/// Returns the immutable runtime-operation table for runtime ABI v1.
+/// Returns the immutable runtime-operation table for runtime ABI v2.
 #[unsafe(no_mangle)]
-pub extern "C" fn nc_com_get_runtime_api_v1() -> *const NcRuntimeApiV1 {
-    &RUNTIME_API_V1
+pub extern "C" fn nc_com_get_runtime_api_v2() -> *const NcRuntimeApiV2 {
+    &RUNTIME_API_V2
 }
 
-/// Returns the immutable contract-registry table for runtime ABI v1.
+/// Returns the immutable contract-registry table for runtime ABI v2.
 #[unsafe(no_mangle)]
-pub extern "C" fn nc_com_get_contract_registry_v1() -> *const NcContractRegistryV1 {
-    &CONTRACT_REGISTRY_V1
+pub extern "C" fn nc_com_get_contract_registry_v2() -> *const NcContractRegistryV2 {
+    &CONTRACT_REGISTRY_V2
 }
 
-/// Returns the immutable plugin-registry table for runtime ABI v1.
+/// Returns the immutable plugin-registry table for runtime ABI v2.
 #[unsafe(no_mangle)]
-pub extern "C" fn nc_com_get_plugin_registry_v1() -> *const NcPluginRegistryV1 {
-    &PLUGIN_REGISTRY_V1
+pub extern "C" fn nc_com_get_plugin_registry_v2() -> *const NcPluginRegistryV2 {
+    &PLUGIN_REGISTRY_V2
 }
 
-/// Returns the immutable type-registry table for runtime ABI v1.
+/// Returns the immutable inspection table for runtime ABI v2.
 #[unsafe(no_mangle)]
-pub extern "C" fn nc_com_get_type_registry_v1() -> *const NcTypeRegistryV1 {
-    &TYPE_REGISTRY_V1
+pub extern "C" fn nc_com_get_inspection_api_v2() -> *const NcInspectionApiV2 {
+    &INSPECTION_API_V2
 }
 
-/// Returns the immutable inspection table for runtime ABI v1.
+/// Returns the immutable debug-messenger table for runtime ABI v2.
 #[unsafe(no_mangle)]
-pub extern "C" fn nc_com_get_inspection_api_v1() -> *const NcInspectionApiV1 {
-    &INSPECTION_API_V1
-}
-
-/// Returns the immutable debug-messenger table for runtime ABI v1.
-#[unsafe(no_mangle)]
-pub extern "C" fn nc_com_get_debug_api_v1() -> *const NcDebugApiV1 {
-    &DEBUG_API_V1
+pub extern "C" fn nc_com_get_debug_api_v2() -> *const NcDebugApiV2 {
+    &DEBUG_API_V2
 }

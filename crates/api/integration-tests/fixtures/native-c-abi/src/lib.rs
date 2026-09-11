@@ -94,9 +94,8 @@ impl INativeCalculator for NativeCalculator {
 mod tests {
     use super::*;
     use neocogi_com::{
-        ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcClassDescriptor, NcDebugApiV1,
-        NcInspectionApiV1, NcInterfaceDescriptor, NcInterfaceId, NcPluginDescriptor,
-        NcPluginRegistryV1, NcRuntimeApiV1, NcTypeRegistryV1,
+        ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcClassDescriptor, NcDebugApiV2,
+        NcInspectionApiV2, NcInterfaceDescriptor, NcInterfaceId, NcPluginDescriptor, NcPluginRegistryV2, NcRuntimeApiV2,
     };
 
     #[repr(C)]
@@ -137,9 +136,8 @@ mod tests {
         plugin_dependencies_offset: usize,
         plugin_class_table_offset: usize,
         runtime_core_abi_version_offset: usize,
-        runtime_register_offset: usize,
+        runtime_contract_register_offset: usize,
         plugin_registry_first_function_offset: usize,
-        type_registry_first_function_offset: usize,
         inspection_first_function_offset: usize,
         debug_first_function_offset: usize,
         aggregate_size: usize,
@@ -184,26 +182,22 @@ mod tests {
             plugin_dependencies_offset: core::mem::offset_of!(NcPluginDescriptor, dependencies),
             plugin_class_table_offset: core::mem::offset_of!(NcPluginDescriptor, class_table),
             runtime_core_abi_version_offset: core::mem::offset_of!(
-                NcRuntimeApiV1,
+                NcRuntimeApiV2,
                 core_abi_version
             ),
-            runtime_register_offset: core::mem::offset_of!(
-                NcRuntimeApiV1,
-                register_plugin_descriptor
+            runtime_contract_register_offset: core::mem::offset_of!(
+                NcRuntimeApiV2,
+                register_contract_module
             ),
             plugin_registry_first_function_offset: core::mem::offset_of!(
-                NcPluginRegistryV1,
+                NcPluginRegistryV2,
                 plugin_count
             ),
-            type_registry_first_function_offset: core::mem::offset_of!(
-                NcTypeRegistryV1,
-                class_count
-            ),
             inspection_first_function_offset: core::mem::offset_of!(
-                NcInspectionApiV1,
+                NcInspectionApiV2,
                 plugin_info
             ),
-            debug_first_function_offset: core::mem::offset_of!(NcDebugApiV1, create_messenger),
+            debug_first_function_offset: core::mem::offset_of!(NcDebugApiV2, create_messenger),
             aggregate_size: core::mem::size_of::<NativeAggregate>(),
             aggregate_align: core::mem::align_of::<NativeAggregate>(),
             aggregate_count_offset: core::mem::offset_of!(NativeAggregate, count),

@@ -10,15 +10,11 @@
 //! Trusted, unregistered libraries can be opened and validated through a
 //! callback-scoped descriptor visitor.
 
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::string::String;
 use std::vec::Vec;
 
-use crate::{
-    NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcAbiThreadingMode, NcClassInfoV1, NcAbiSignature, NcGuid, NcInterfaceId, NcModuleInfoV1,
-    NcPluginDescriptor, NcPluginInfoV1, NcStatus,
-};
+use crate::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcModuleInfoV2, NcPluginDescriptor, NcPluginInfoV2, NcStatus};
 
 use super::{LoadedModuleId, LoadedModuleInfo, Runtime, read_utf8_view, read_vec, status_to_result};
 
@@ -35,25 +31,6 @@ pub struct PluginInfo {
     pub qualified_name: String,
     /// Plugin version text.
     pub version: String,
-}
-
-/// Owned metadata and provenance for one registered class.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ClassInfo {
-    /// Stable class identity.
-    pub class_id: NcGuid,
-    /// Plugin that registered the class.
-    pub plugin_id: NcGuid,
-    /// Loaded module that supplied the class, or `None` for static registration.
-    pub module_id: Option<LoadedModuleId>,
-    /// Qualified class name.
-    pub qualified_name: String,
-    /// Class version text.
-    pub version: String,
-    /// Constructor-frame ABI signature, or [`NcAbiSignature::EMPTY`] for no arguments.
-    pub constructor_abi_signature: NcAbiSignature,
-    /// Threading capability promised by constructed objects.
-    pub threading: NcAbiThreadingMode,
 }
 
 /// Read-only metadata and relationship queries for the runtime state.
@@ -155,23 +132,6 @@ impl<'runtime> Inspection<'runtime> {
         }))
     }
 
-    /// Returns owned metadata and provenance for one registered class.
-    pub fn class_info(self, class_id: NcGuid) -> Result<Option<ClassInfo>, NcStatus> {
-        let Some(info) = self.raw_class_info(class_id)? else {
-            return Ok(None);
-        };
-        let threading = NcAbiThreadingMode::from_raw(info.threading).ok_or(NC_E_INVALID_ARG)?;
-        Ok(Some(ClassInfo {
-            class_id: info.class_id,
-            plugin_id: info.plugin_id,
-            module_id: (info.module_id != 0).then(|| LoadedModuleId::from_raw(info.module_id)),
-            qualified_name: read_utf8_view(info.qualified_name)?,
-            version: read_utf8_view(info.version)?,
-            constructor_abi_signature: info.constructor_abi_signature,
-            threading,
-        }))
-    }
-
     /// Returns retained plugin modules in registry order.
     ///
     /// Each owned summary combines module provenance with the corresponding
@@ -200,70 +160,12 @@ impl<'runtime> Inspection<'runtime> {
         }
     }
 
-    /// Returns the loaded module ID that supplied a class, or `None` for a static
-    /// registration or a missing class.
-    pub fn module_id_for_class(self, class_id: NcGuid) -> Result<Option<LoadedModuleId>, NcStatus> {
-        Ok(self.class_info(class_id)?.and_then(|info| info.module_id))
-    }
-
-    /// Returns registered class IDs supplied by one loaded module.
-    pub fn class_ids_in_module(self, module_id: LoadedModuleId) -> Result<Vec<NcGuid>, NcStatus> {
-        let mut result = Vec::new();
-        for class_id in self.runtime.type_registry().class_ids()? {
-            if self.raw_class_info(class_id)?.is_some_and(|info| info.module_id == module_id.get()) {
-                result.push(class_id);
-            }
-        }
-        Ok(result)
-    }
-
-    /// Returns distinct interface ABI identities exposed by one loaded module.
-    pub fn interface_ids_in_module(self, module_id: LoadedModuleId) -> Result<Vec<NcInterfaceId>, NcStatus> {
-        let mut result = Vec::new();
-        let mut known = HashSet::new();
-        for class_id in self.class_ids_in_module(module_id)? {
-            for interface_id in self.class_interface_ids(class_id)? {
-                if known.insert(interface_id) {
-                    result.push(interface_id);
-                }
-            }
-        }
-        Ok(result)
-    }
-
-    /// Returns IDs of classes registered by one plugin.
-    pub fn plugin_class_ids(self, plugin_id: NcGuid) -> Result<Vec<NcGuid>, NcStatus> {
-        let api = self.runtime.inspection_api();
-        read_vec(
-            || unsafe { (api.plugin_class_count)(plugin_id) },
-            |out, capacity, out_len| unsafe { (api.plugin_class_ids)(plugin_id, out, capacity, out_len) },
-        )
-    }
-
     /// Returns hard dependency plugin IDs declared by one registered plugin.
     pub fn plugin_dependency_ids(self, plugin_id: NcGuid) -> Result<Vec<NcGuid>, NcStatus> {
         let api = self.runtime.inspection_api();
         read_vec(
             || unsafe { (api.plugin_dependency_count)(plugin_id) },
             |out, capacity, out_len| unsafe { (api.plugin_dependency_ids)(plugin_id, out, capacity, out_len) },
-        )
-    }
-
-    /// Returns interface ABI identities implemented by one class.
-    pub fn class_interface_ids(self, class_id: NcGuid) -> Result<Vec<NcInterfaceId>, NcStatus> {
-        let api = self.runtime.inspection_api();
-        read_vec(
-            || unsafe { (api.class_interface_count)(class_id) },
-            |out, capacity, out_len| unsafe { (api.class_interface_ids)(class_id, out, capacity, out_len) },
-        )
-    }
-
-    /// Returns IDs of classes implementing one interface ABI identity.
-    pub fn interface_implementor_class_ids(self, interface_id: NcInterfaceId) -> Result<Vec<NcGuid>, NcStatus> {
-        let api = self.runtime.inspection_api();
-        read_vec(
-            || unsafe { (api.interface_implementor_class_count)(interface_id) },
-            |out, capacity, out_len| unsafe { (api.interface_implementor_class_ids)(interface_id, out, capacity, out_len) },
         )
     }
 
@@ -283,7 +185,7 @@ impl<'runtime> Inspection<'runtime> {
     }
 
     /// Retrieves one borrowed-text plugin record from the raw inspection table.
-    fn raw_plugin_info(self, plugin_id: NcGuid) -> Result<Option<NcPluginInfoV1>, NcStatus> {
+    fn raw_plugin_info(self, plugin_id: NcGuid) -> Result<Option<NcPluginInfoV2>, NcStatus> {
         // MaybeUninit avoids constructing a fake sentinel record; the C contract
         // initializes the slot only when it returns success.
         let mut out = core::mem::MaybeUninit::uninit();
@@ -298,23 +200,10 @@ impl<'runtime> Inspection<'runtime> {
     }
 
     /// Retrieves one borrowed-text module record from the raw inspection table.
-    fn raw_module_info(self, module_id: LoadedModuleId) -> Result<Option<NcModuleInfoV1>, NcStatus> {
+    fn raw_module_info(self, module_id: LoadedModuleId) -> Result<Option<NcModuleInfoV2>, NcStatus> {
         let mut out = core::mem::MaybeUninit::uninit();
         // SAFETY: `out` is valid for one initialized record on success.
         let status = unsafe { (self.runtime.inspection_api().module_info)(module_id.get(), out.as_mut_ptr()) };
-        if status == NC_E_NOT_FOUND {
-            return Ok(None);
-        }
-        status_to_result(status)?;
-        // SAFETY: Successful inspection initialized `out`.
-        Ok(Some(unsafe { out.assume_init() }))
-    }
-
-    /// Retrieves one borrowed-text class record from the raw inspection table.
-    fn raw_class_info(self, class_id: NcGuid) -> Result<Option<NcClassInfoV1>, NcStatus> {
-        let mut out = core::mem::MaybeUninit::uninit();
-        // SAFETY: `out` is valid for one initialized record on success.
-        let status = unsafe { (self.runtime.inspection_api().class_info)(class_id, out.as_mut_ptr()) };
         if status == NC_E_NOT_FOUND {
             return Ok(None);
         }

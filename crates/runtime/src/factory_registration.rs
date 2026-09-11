@@ -137,11 +137,6 @@ impl RuntimeCatalog {
         if let Err(status) = self.validate_plugin_dependencies(&plugin.dependency_ids) {
             return status;
         }
-        if self.plugin_registry.contains_plugin(plugin.plugin_id) {
-            // A logical plugin belongs to exactly one activation model. This
-            // keeps the factory-only path isolated from class-table semantics.
-            return NC_E_INVALID_ARG;
-        }
         if let Some(existing) = self.factory_plugin_registry.plugin(plugin.plugin_id) {
             return if existing.description == plugin.description {
                 NC_OK
