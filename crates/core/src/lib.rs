@@ -47,6 +47,7 @@ mod constructor;
 mod contract_module;
 mod data;
 mod decode;
+mod factory_plugin;
 mod guid;
 mod metadata;
 mod object;
@@ -90,8 +91,8 @@ pub use metadata::{
 };
 pub use metadata::{NcDescriptorPath, NcDescriptorValidationIssue, NcDescriptorValidationKind, validate_plugin_descriptor_with_issues};
 pub use object::{
-    __ComSupportsDescriptionThreading, ComClassArguments, ComClassContract, ComFactoryDescription, ComInterface, ComObjectDescription, IID_IUNKNOWN,
-    IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
+    __ComSupportsDescriptionThreading, ComClassArguments, ComClassContract, ComFactoryDescription, ComFactoryImplementation, ComInterface,
+    ComObjectDescription, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
 };
 pub use ptr::{ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};
 pub use runtime_abi::{
@@ -107,3 +108,7 @@ pub use status::{
 
 #[doc(hidden)]
 pub use metadata::{__nc_interface_chain, __nc_class_interface_count, __nc_class_interfaces};
+pub use factory_plugin::{
+    NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NcActivatePluginFactory, NcFactoryPluginDescription, NcGetFactoryPluginDescription,
+    return_factory_plugin_description, validate_factory_plugin_description,
+};

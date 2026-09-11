@@ -233,6 +233,21 @@ pub unsafe trait ComObjectDescription: ComInterface {
 /// been declared as an IDL `factory`, not merely as an IDL `class`.
 pub unsafe trait ComFactoryDescription: ComObjectDescription {}
 
+/// Compile-time connection between a Rust factory implementation and its IDL description.
+///
+/// `#[com_factory(Factory)]` is the normal and only generated implementation.
+/// Plugin description macros use this association to obtain the root factory ID
+/// and threading capability without asking implementation code to repeat them.
+///
+/// # Safety
+///
+/// `Description` must be the exact IDL factory whose callable interfaces are
+/// implemented by `Self`'s generated COM storage.
+pub unsafe trait ComFactoryImplementation {
+    /// Constructor-free IDL factory description implemented by this Rust type.
+    type Description: ComFactoryDescription;
+}
+
 /// Compile-time proof that an implementation satisfies a description's mode.
 ///
 /// This hidden helper lets generated object storage derive threading from the
