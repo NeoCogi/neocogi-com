@@ -515,20 +515,26 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> core::fmt::Debug for ComRe
 /// pointers.
 pub mod raw {
     use super::ComInterface;
+    use crate::{IUnknown, NcInterfaceId};
 
-    /// Validates the actual projected interface against the receiver's contract.
-    /// This performs no AddRef/Release and never follows interface-specific slots.
+    /// Validates a common COM header against one complete expected interface identity.
+    ///
+    /// This non-generic function is the shared validation body used by every
+    /// typed raw-pointer check. Keeping interface-specific constants in the
+    /// small generic wrapper below prevents the complete pointer and identity
+    /// validation sequence from being generated once per interface type.
     ///
     /// # Safety
-    /// A non-null pointer must have a readable common header and vtable from the
-    /// current core ABI. Non-null identity metadata must be readable and immutable.
-    /// Pointer validity and the core ABI generation are established by the loader
-    /// or raw FFI caller; identity checking cannot validate arbitrary addresses.
-    pub unsafe fn validate_interface<T: ComInterface + ?Sized>(ptr: *mut T) -> Result<(), crate::NcStatus> {
-        if ptr.is_null() {
+    ///
+    /// A non-null `unknown` must have a readable common header and vtable from
+    /// the current core ABI. Non-null identity metadata reached through that
+    /// vtable must remain readable and immutable for the call.
+    #[doc(hidden)]
+    #[inline(never)]
+    pub unsafe fn __nc_validate_iunknown_interface(unknown: *mut IUnknown, expected: &NcInterfaceId) -> Result<(), crate::NcStatus> {
+        if unknown.is_null() {
             return Err(crate::NC_E_POINTER);
         }
-        let unknown = T::iunknown(ptr);
         // SAFETY: Only the common header is read before the identity is known.
         let vtable = unsafe { (*unknown).vtable };
         if vtable.is_null() {
@@ -541,13 +547,33 @@ pub mod raw {
         }
         // SAFETY: Non-null metadata has static immutable storage by contract.
         let identity = unsafe { &*identity };
-        if identity.iid != T::IID {
+        if identity.iid != expected.iid {
             return Err(crate::NC_E_NOINTERFACE);
         }
-        if identity.abi_signature != T::ABI_SIGNATURE {
+        if identity.abi_signature != expected.abi_signature {
             return Err(crate::NC_E_ABI_VERSION);
         }
         Ok(())
+    }
+
+    /// Validates the actual projected interface against the receiver's contract.
+    /// This performs no AddRef/Release and never follows interface-specific slots.
+    ///
+    /// # Safety
+    /// A non-null pointer must have a readable common header and vtable from the
+    /// current core ABI. Non-null identity metadata must be readable and immutable.
+    /// Pointer validity and the core ABI generation are established by the loader
+    /// or raw FFI caller; identity checking cannot validate arbitrary addresses.
+    #[inline(always)]
+    pub unsafe fn validate_interface<T: ComInterface + ?Sized>(ptr: *mut T) -> Result<(), crate::NcStatus> {
+        if ptr.is_null() {
+            return Err(crate::NC_E_POINTER);
+        }
+        let unknown = T::iunknown(ptr);
+        // SAFETY: The caller supplies the common-header validity required by
+        // this wrapper; the generated interface identity is immutable static
+        // metadata for the complete expected contract.
+        unsafe { __nc_validate_iunknown_interface(unknown, &T::INTERFACE_ID) }
     }
 
     /// Calls `AddRef` on a raw interface pointer.
