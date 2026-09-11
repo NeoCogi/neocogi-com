@@ -14,7 +14,7 @@ pub trait MultiCounter {
 }
 
 /// Private storage implementing the public callable counter contract.
-#[com_object(MultiCounter)]
+#[com_object(constructible(MultiCounter))]
 pub struct MultiCounterObject;
 
 impl MultiCounter for MultiCounterObject {

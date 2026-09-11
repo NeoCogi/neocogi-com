@@ -11,7 +11,7 @@ trait Foo {
 }
 
 /// Private storage for the lower-cased class identity.
-#[com_object(Foo)]
+#[com_object(constructible(Foo))]
 struct FooObject;
 
 impl Foo for FooObject {
@@ -30,7 +30,7 @@ trait FOO {
 }
 
 /// Private storage for the upper-cased class identity.
-#[com_object(FOO)]
+#[com_object(constructible(FOO))]
 struct FOOObject;
 
 impl FOO for FOOObject {

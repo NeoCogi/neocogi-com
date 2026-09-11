@@ -1,4 +1,7 @@
-use neocogi_com::{ComInterface, ComPtr, ComRef, NcAbiSignature, NcStatus, com_interface, format_abi_signature, format_method_signature, guid_from_qualified_name};
+use neocogi_com::{
+    ComInterface, ComPtr, ComRef, NcAbiSignature, NcStatus, com_class_description, com_factory, com_factory_description, com_interface, com_object,
+    format_abi_signature, format_method_signature, guid_from_qualified_name,
+};
 
 mod external_fields {
     use neocogi_com::{ComPtr, NcCopyFromBufferOffset, NcStatus, com_object, com_interface, com_struct};
@@ -61,6 +64,75 @@ pub trait IPolicyService {
     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
     fn flush(&self) -> Result<(), NcStatus>;
     fn retain(&self, value: ComRef<'_, IPolicyValueAbi>) -> Result<ComPtr<IPolicyValueAbi>, NcStatus>;
+}
+
+#[com_class_description(
+    id = "9be73186-f123-47bc-8140-4a57825eeb21",
+    name = "nc.tests.abi_policy.DescribedValue",
+    version = 3,
+    threading = local
+)]
+/// Constructor-free class shape used to exercise IDL implementation storage.
+pub trait DescribedValue: IPolicyValue {
+    /// Replaces the stored value through the class's primary projection.
+    fn replace(&mut self, value: i32) -> Result<(), NcStatus>;
+}
+
+#[com_object(DescribedValue)]
+/// Private state implementing a class that can only be obtained from a factory.
+struct DescribedValueObject {
+    /// Current integer returned by both implemented projections.
+    value: i32,
+}
+
+impl IPolicyValue for DescribedValueObject {
+    /// Reads the class's current integer through its required interface.
+    fn value(&self) -> Result<i32, NcStatus> {
+        Ok(self.value)
+    }
+}
+
+impl DescribedValue for DescribedValueObject {
+    /// Mutates the class through its generated exclusive-call thunk.
+    fn replace(&mut self, value: i32) -> Result<(), NcStatus> {
+        self.value = value;
+        Ok(())
+    }
+}
+
+#[com_factory_description(
+    id = "564e2ee9-f2de-4e30-959f-a82315a64394",
+    name = "nc.tests.abi_policy.ValueFactory",
+    version = 1,
+    threading = local
+)]
+/// Typed provider that owns construction policy for `DescribedValue`.
+pub trait ValueFactory {
+    /// Creates one initialized class instance without a runtime class registry.
+    fn create(&self, value: i32) -> Result<ComPtr<DescribedValueAbi>, NcStatus>;
+}
+
+#[com_factory(ValueFactory)]
+/// Stateless factory implementation used by the constructor-free path.
+struct ValueFactoryObject;
+
+impl ValueFactory for ValueFactoryObject {
+    /// Allocates the concrete value directly and returns its typed projection.
+    fn create(&self, value: i32) -> Result<ComPtr<DescribedValueAbi>, NcStatus> {
+        DescribedValueObject::from_value(DescribedValueObject { value }).query()
+    }
+}
+
+/// Confirms factories create described objects without runtime construction.
+#[test]
+fn idl_descriptions_separate_shape_from_construction() {
+    let factory: ComPtr<ValueFactoryAbi> = ValueFactoryObject::from_value(ValueFactoryObject).query().unwrap();
+    let mut value = factory.create(11).unwrap();
+    assert_eq!(value.value().unwrap(), 11);
+    value.replace(29).unwrap();
+    assert_eq!(value.value().unwrap(), 29);
+    assert_eq!(DescribedValueAbi::OBJECT_QUALIFIED_NAME, "nc.tests.abi_policy.DescribedValue");
+    assert_eq!(DescribedValueAbi::OBJECT_VERSION, 3);
 }
 
 fn signature_text(signature: NcAbiSignature) -> String {

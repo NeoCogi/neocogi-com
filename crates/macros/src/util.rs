@@ -103,6 +103,13 @@ pub(crate) fn stable_guid(attr: InterfaceGuid, qualified_name: &syn::LitStr, nc:
             );
             PROVIDED
         }}),
+        InterfaceGuid::Assigned(value) => {
+            let actual = value
+                .value()
+                .parse::<neocogi_com_core::NcGuid>()
+                .map_err(|err| syn::Error::new(value.span(), err))?;
+            guid_tokens(actual, nc)
+        }
     }
 }
 

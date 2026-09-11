@@ -9,7 +9,7 @@ trait GenericDescriptor {
 }
 
 /// Generic storage cannot be selected through a non-generic registry entry.
-#[com_object(GenericDescriptor)]
+#[com_object(constructible(GenericDescriptor))]
 struct Reader<T> {
     /// Arbitrary specialization that a dynamic host could not name.
     value: T,

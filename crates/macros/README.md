@@ -48,7 +48,7 @@ information. Mangling stores this stream directly; SHA-256 and FNV-1a-128 store
 its fixed-size digest. The result is exact-size static storage, not a runtime
 allocation.
 
-`#[com_class]` declares one registered class's primary callable contract on a
+`#[com_class]` declares one legacy registered class's primary callable contract on a
 trait and generates the same C-shaped call machinery without requiring a
 separately authored `IClass` interface. `#[com_object]` wraps a private
 implementation struct in generated COM object storage with:
@@ -63,8 +63,8 @@ implementation struct in generated COM object storage with:
   including
   `class_descriptor() -> &'static NcClassDescriptor`
 
-A contract-backed implementation uses
-`#[com_object(Class)]`. The class trait declares one
+A legacy constructor-backed implementation uses
+`#[com_object(constructible(Class))]`. The class trait declares one
 `#[constructor]` function. Its parameters generate a typed, lifetime-safe
 constructor frame and an `arguments(...)` builder on the generated `ClassAbi`
 type; the constructor itself is excluded from the method vtable.
@@ -72,6 +72,13 @@ The contract is automatically its first non-`IUnknown` projection and supplies
 the descriptor's class ID, name, version, constructor ABI signature, and required
 interface set. Supertraits on the class declaration become separate queryable
 projections on the same object; the implementation struct does not repeat them.
+
+IDL-generated class descriptions contain no constructor. Their implementations
+use `#[com_object(Class)]`; IDL factory descriptions use
+`#[com_factory(Factory)]`. In both cases the description owns identity,
+threading, and required projections, while the implementation macro owns only
+private storage and COM lifetime mechanics. Typed factory methods are the only
+public construction path.
 
 `IUnknown` is implicit in `#[com_object(interfaces(...))]`. The generated
 interface table contains its canonical descriptor first, followed by the listed
@@ -137,7 +144,7 @@ pub trait Echo {
     fn code(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_object(Echo)]
+#[com_object(constructible(Echo))]
 pub struct EchoObject {
     code: u32,
 }
@@ -161,8 +168,8 @@ neocogi_com::plugin! {
 ```
 
 Callable class contracts derive their descriptor name and class ID from their
-single `auto_guid = "stable.Name:v1"` input. Concrete implementations use only
-`#[com_object(Class)]`; implementation structs cannot restate class identity,
+single `auto_guid = "stable.Name:v1"` input. Legacy implementations use
+`#[com_object(constructible(Class))]`; implementation structs cannot restate class identity,
 version, constructor policy, or public projections.
 The optional `dependencies = [...]` list contains hard
 plugin IDs that must already be registered. It never triggers path discovery or

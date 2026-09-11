@@ -39,7 +39,7 @@ trait RegisteredToggle: IToggle {
     fn new() -> Result<Self, NcStatus>;
 }
 
-#[com_object(RegisteredToggle)]
+#[com_object(constructible(RegisteredToggle))]
 #[derive(Default)]
 /// Concrete storage whose class supertrait supplies the inherited interface chain.
 struct Toggle {

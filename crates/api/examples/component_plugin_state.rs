@@ -16,7 +16,7 @@ pub trait MultiState {
 }
 
 /// Private storage implementing the public callable state contract.
-#[com_object(MultiState)]
+#[com_object(constructible(MultiState))]
 pub struct MultiStateObject;
 
 impl MultiState for MultiStateObject {

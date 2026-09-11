@@ -11,8 +11,8 @@ use syn::{Fields, ItemStruct};
 use crate::args::ClassArgs;
 use crate::util::{create_visibility, runtime_crate_path};
 
-/// Generates object storage, lifecycle thunks, interfaces, and optional metadata.
-pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macro2::TokenStream {
+/// Generates object storage, lifecycle thunks, and optional legacy metadata.
+pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_factory: bool) -> proc_macro2::TokenStream {
     // `FooComObject` is intentionally private generated storage. Users see the
     // original Rust `Foo` plus COM interface pointers; the storage layout is an
     // implementation detail owned by this macro.
@@ -35,15 +35,28 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
         .to_compile_error();
     }
     let mut generics = input.generics.clone();
+    let (_, input_type_generics, _) = input.generics.split_for_impl();
     if generic {
         let (_, types, _) = input.generics.split_for_impl();
         generics.make_where_clause().predicates.push(syn::parse_quote!(#class_ident #types: 'static));
+    }
+    if let Some(description) = &args.object_description {
+        // The IDL description owns the threading mode. This bound accepts all
+        // `'static` local implementations and additionally requires Send +
+        // Sync when the description selects the shared threading model.
+        generics.make_where_clause().predicates.push(syn::parse_quote! {
+            #class_ident #input_type_generics: #nc::__ComSupportsDescriptionThreading<
+                <#description as #nc::ComObjectDescription>::Threading
+            >
+        });
     }
     let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
     let class_type = quote! { #class_ident #type_generics };
     let storage_type = quote! { #storage_ident #type_generics };
 
-    let declared_threading_model = if args.thread_safe {
+    let declared_threading_model = if let Some(description) = &args.object_description {
+        quote! { <#description as #nc::ComObjectDescription>::Threading }
+    } else if args.thread_safe {
         quote! { #nc::ThreadSafe }
     } else {
         quote! { #nc::ThreadLocal }
@@ -72,6 +85,10 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
         // required interface supertraits. The implementation struct must not
         // repeat that public boundary.
         quote! { <#abi_path as #nc::ComClassContract>::INTERFACE_CHAINS }
+    } else if let Some(abi_path) = args.object_description.as_ref() {
+        // IDL descriptions contain the complete class/factory projection set;
+        // implementation crates do not repeat that public contract.
+        quote! { <#abi_path as #nc::ComObjectDescription>::INTERFACE_CHAINS }
     } else {
         let declared_chains = args.interfaces.iter().map(|iface| {
             let abi = &iface.abi_path;
@@ -82,7 +99,7 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
             #(#declared_chains,)*
         ] }
     };
-    let thread_safe_marker_impl = args.thread_safe.then(|| {
+    let thread_safe_marker_impl = (args.thread_safe && args.object_description.is_none()).then(|| {
         let assertion = (!generic).then(|| {
             quote! {
                 const _: fn() = || {
@@ -98,6 +115,17 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
             // bounds for every permitted specialization. Interface behavior must
             // also uphold the documented concurrent-call contract.
             unsafe impl #impl_generics #nc::ThreadSafeComObject for #class_type #where_clause {}
+        }
+    });
+    let factory_assertion = require_factory.then(|| {
+        let description = args.object_description.as_ref().expect("com_factory validates description presence");
+        quote! {
+            const _: fn() = || {
+                // This compile-time-only obligation rejects an IDL class passed
+                // accidentally to `com_factory` without adding runtime tags.
+                fn assert_factory<T: #nc::ComFactoryDescription>() {}
+                assert_factory::<#description>();
+            };
         }
     });
     // Every class can be constructed from an initialized Rust value. Unit
@@ -308,6 +336,7 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
         }
 
         #class_descriptor_module_items
+        #factory_assertion
 
         // SAFETY: This impl is generated together with the private storage
         // layout above. Every object pointer accepted here is the back-pointer

@@ -12,7 +12,7 @@ pub trait NonUnitTypedConstructor {
 }
 
 /// Private non-unit storage initialized by the typed constructor.
-#[com_object(NonUnitTypedConstructor)]
+#[com_object(constructible(NonUnitTypedConstructor))]
 pub struct NonUnitTypedConstructorObject {
     /// Value copied from the checked constructor frame.
     value: u32,

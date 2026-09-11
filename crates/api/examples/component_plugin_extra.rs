@@ -16,7 +16,7 @@ pub trait MultiExtra {
 }
 
 /// Private storage implementing the public callable extra-value contract.
-#[com_object(MultiExtra)]
+#[com_object(constructible(MultiExtra))]
 pub struct MultiExtraObject;
 
 impl MultiExtra for MultiExtraObject {

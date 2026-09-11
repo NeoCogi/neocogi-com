@@ -130,6 +130,7 @@ use syn::{DeriveInput, Item, ItemEnum, ItemStruct, ItemTrait, parse_macro_input}
 mod abi_method;
 mod args;
 mod class_contract;
+mod description;
 mod deserialize;
 mod enums;
 mod interface;
@@ -140,9 +141,10 @@ mod plugin;
 mod structs;
 mod util;
 
-use args::{ClassArgs, ClassContractArgs, EnumArgs, InterfaceArgs, StructArgs};
+use args::{ClassArgs, ClassContractArgs, EnumArgs, InterfaceArgs, ObjectDescriptionArgs, StructArgs};
 use class_contract::expand_com_class_contract;
 use deserialize::expand_derive as expand_com_deserialize_derive;
+use description::{ObjectDescriptionKind, expand_object_description};
 use enums::expand_com_enum;
 use interface::expand_com_interface;
 use object::expand_com_object;
@@ -215,7 +217,7 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
 /// }
 ///
-/// #[com_object(Calculator)]
+/// #[com_object(constructible(Calculator))]
 /// pub struct CalculatorObject {
 ///     value: i32,
 /// }
@@ -256,16 +258,47 @@ pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
+/// Defines a constructor-free IDL class description on a generated trait.
+///
+/// This is generator-facing infrastructure. Application authors declare the
+/// class in `.ncidl`; implementation crates use `#[com_object(Class)]`.
+#[doc(hidden)]
+#[proc_macro_attribute]
+pub fn com_class_description(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as ObjectDescriptionArgs);
+    let input = parse_macro_input!(item as ItemTrait);
+    match expand_object_description(args, input, ObjectDescriptionKind::Class) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.to_compile_error().into(),
+    }
+}
+
+/// Defines a constructor-free IDL factory description on a generated trait.
+///
+/// This is generator-facing infrastructure. Implementations use
+/// `#[com_factory(Factory)]`, which verifies this factory marker.
+#[doc(hidden)]
+#[proc_macro_attribute]
+pub fn com_factory_description(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as ObjectDescriptionArgs);
+    let input = parse_macro_input!(item as ItemTrait);
+    match expand_object_description(args, input, ObjectDescriptionKind::Factory) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.to_compile_error().into(),
+    }
+}
+
 /// Defines concrete COM object storage for a Rust implementation struct.
 ///
-/// A bare `Class` path implements one callable class contract without repeating
-/// its identity, constructor, or required protocol list. `interfaces(...)`
-/// exposes an object made only from shared interface contracts. Object storage
-/// is thread-local by default; `thread_safe` requires the stored Rust value to
-/// satisfy the corresponding concurrency contract.
+/// A bare `Class` path implements one constructor-free IDL description without
+/// repeating its identity, threading, or required protocol list.
+/// `constructible(Class)` temporarily identifies a handwritten v7 class while
+/// those contracts migrate to factories. `interfaces(...)` exposes a local
+/// object made only from shared interface contracts. Local object storage is
+/// thread-local by default; an IDL description owns its threading capability.
 ///
 /// ```text
-/// #[com_object(Calculator)]
+/// #[com_object(constructible(Calculator))]
 /// pub struct CalculatorObject {
 ///     value: i32,
 /// }
@@ -277,13 +310,31 @@ pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```
 ///
 /// The generated allocation owns its reference count, `IUnknown` header,
-/// queryable projections, and original Rust value. Only the callable-class form
-/// produces a class descriptor that `plugin!` can register.
+/// queryable projections, and original Rust value. Only the explicit legacy
+/// `constructible(...)` form produces a class descriptor that the v7 `plugin!`
+/// macro can register.
 #[proc_macro_attribute]
 pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as ClassArgs);
     let input = parse_macro_input!(item as ItemStruct);
-    expand_com_object(args, input).into()
+    expand_com_object(args, input, false).into()
+}
+
+/// Defines concrete COM storage for an implementation of an IDL factory.
+///
+/// The factory description owns its public identity, methods, threading, and
+/// required interfaces. This macro owns only private Rust storage and COM
+/// lifetime mechanics; it does not publish a globally callable constructor.
+#[proc_macro_attribute]
+pub fn com_factory(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as ClassArgs);
+    let input = parse_macro_input!(item as ItemStruct);
+    if args.class_contract.is_some() || args.object_description.is_none() {
+        return syn::Error::new_spanned(input.ident, "com_factory requires one IDL factory description path")
+            .to_compile_error()
+            .into();
+    }
+    expand_com_object(args, input, true).into()
 }
 
 /// Defines static plugin metadata from generated class descriptors.

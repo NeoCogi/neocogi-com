@@ -183,7 +183,7 @@ pub trait MacroPluginEcho {
 }
 
 /// Private unit storage for the callable echo class.
-#[com_object(MacroPluginEcho)]
+#[com_object(constructible(MacroPluginEcho))]
 pub struct MacroPluginEchoObject;
 
 impl MacroPluginEcho for MacroPluginEchoObject {
@@ -211,7 +211,7 @@ pub trait MacroPluginDefault {
 
 /// Private state for the callable default-value fixture.
 #[derive(Default)]
-#[com_object(MacroPluginDefault)]
+#[com_object(constructible(MacroPluginDefault))]
 pub struct MacroPluginDefaultObject {
     /// Value returned through the class projection after construction.
     value: u32,
@@ -240,7 +240,7 @@ pub trait CallableCounter: ICalculator + IMultiplier {
     fn answer(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_object(CallableCounter)]
+#[com_object(constructible(CallableCounter))]
 /// Private state object implementing the shared callable class contract.
 pub struct CallableCounterObject {
     /// Fixed answer supplied by the typed constructor frame.
@@ -458,7 +458,7 @@ pub trait ThreadSafeCalculator: ICalculator {
 }
 
 /// Private thread-safe unit storage for the registered calculator class.
-#[com_object(thread_safe, ThreadSafeCalculator)]
+#[com_object(thread_safe, constructible(ThreadSafeCalculator))]
 pub struct ThreadSafeCalculatorObject;
 
 impl ThreadSafeCalculator for ThreadSafeCalculatorObject {

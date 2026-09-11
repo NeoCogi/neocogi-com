@@ -16,7 +16,7 @@ pub trait MultiFlag {
 }
 
 /// Private storage implementing the public callable flag contract.
-#[com_object(MultiFlag)]
+#[com_object(constructible(MultiFlag))]
 pub struct MultiFlagObject;
 
 impl MultiFlag for MultiFlagObject {

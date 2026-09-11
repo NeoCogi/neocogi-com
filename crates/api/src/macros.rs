@@ -7,7 +7,9 @@
 //! participating in the `AbiType` and `AbiPlainValue` contracts.
 
 #[cfg(feature = "macros")]
-pub use neocogi_com_macros::{ComDeserialize, com_class, com_enum, com_interface, com_object, com_struct, plugin};
+pub use neocogi_com_macros::{
+    ComDeserialize, com_class, com_class_description, com_enum, com_factory, com_factory_description, com_interface, com_object, com_struct, plugin,
+};
 
 /// Defines an ABI-stable enum-like integer newtype.
 ///

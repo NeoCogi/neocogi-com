@@ -11,6 +11,7 @@ use crate::guid::NcGuid;
 use crate::metadata::{NcAbiSignaturePart, NcInterfaceDescriptor, NcInterfaceId, NcStaticUtf8};
 use crate::signature::NcAbiSignature;
 use crate::status::NcStatus;
+use crate::{ThreadLocal, ThreadSafe, ThreadingModel};
 
 /// Interface identifier for [`IUnknown`].
 pub const IID_IUNKNOWN: NcGuid = NcGuid::from_fields(0x0000_0000, 0x0000, 0x0000, [0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46]);
@@ -148,7 +149,8 @@ pub unsafe trait ComInterface {
 /// interfaces. The distinction is semantic and registry-visible: a class
 /// contract has one construction identity and is the typed result of activating
 /// that class. Authors declare it directly with `#[com_class]`; they do not
-/// write a matching one-off interface.
+/// write a matching one-off interface. New IDL descriptions do not implement
+/// this legacy constructor-bearing trait.
 ///
 /// Optional interfaces remain useful when several classes expose the same
 /// capability through `QueryInterface`. They are not required merely to call a
@@ -187,6 +189,60 @@ pub unsafe trait ComClassContract: ComInterface {
     /// ABI signature of the constructor frame, or empty for no arguments.
     const CONSTRUCTOR_ABI_SIGNATURE: NcAbiSignature;
 }
+
+/// Compile-time description of one factory-created object shape.
+///
+/// This trait carries only information needed to build and query an object. It
+/// deliberately has no constructor function, erased argument frame, or runtime
+/// registration hook. IDL binding generation implements it for class and
+/// factory ABI projections; implementation crates consume it through
+/// `#[com_object]` or `#[com_factory]`.
+///
+/// # Safety
+///
+/// `OBJECT_ID`, `QUALIFIED_NAME`, `VERSION`, `Threading`, and
+/// `INTERFACE_CHAINS` must describe the exact generated primary projection and
+/// all interfaces that an implementation is required to expose. Every chain
+/// must use immutable static descriptors generated from the same ABI types.
+pub unsafe trait ComObjectDescription: ComInterface {
+    /// Minimum threading capability promised by every implementation.
+    type Threading: ThreadingModel;
+
+    /// Stable identity of the IDL class or factory declaration.
+    const OBJECT_ID: NcGuid;
+
+    /// Exact dotted IDL declaration name without a rewritten prefix or suffix.
+    const QUALIFIED_NAME: &'static str;
+
+    /// Positive declaration version from `#[version]` or `#[id]`.
+    const VERSION: u32;
+
+    /// Complete interface ancestry lists required by every implementation.
+    const INTERFACE_CHAINS: &'static [&'static [&'static crate::NcInterfaceDescriptor]];
+}
+
+/// Marker distinguishing typed factory descriptions from ordinary classes.
+///
+/// Factories use the same COM representation as classes. The separate marker
+/// lets `#[com_factory]` reject an ordinary class at compile time and makes the
+/// construction boundary visible without runtime type erasure.
+///
+/// # Safety
+///
+/// Implementors must already satisfy [`ComObjectDescription`] and must have
+/// been declared as an IDL `factory`, not merely as an IDL `class`.
+pub unsafe trait ComFactoryDescription: ComObjectDescription {}
+
+/// Compile-time proof that an implementation satisfies a description's mode.
+///
+/// This hidden helper lets generated object storage derive threading from the
+/// IDL description. Local objects need only own `'static` state, while shared
+/// objects must also be safe to send and access across threads.
+#[doc(hidden)]
+pub trait __ComSupportsDescriptionThreading<M: ThreadingModel> {}
+
+impl<T: 'static> __ComSupportsDescriptionThreading<ThreadLocal> for T {}
+impl<T: Send + Sync + 'static> __ComSupportsDescriptionThreading<ThreadSafe> for T {}
 
 /// Supplies one immutable, call-scoped constructor frame to the COM runtime.
 ///

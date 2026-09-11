@@ -83,7 +83,10 @@ pub use metadata::{
     NcPluginDescriptor, NcQualifiedNameError, NcStaticUtf8, NcVersionTextError, validate_qualified_name, validate_version_text,
 };
 pub use metadata::{NcDescriptorPath, NcDescriptorValidationIssue, NcDescriptorValidationKind, validate_plugin_descriptor_with_issues};
-pub use object::{ComClassArguments, ComClassContract, ComInterface, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable};
+pub use object::{
+    __ComSupportsDescriptionThreading, ComClassArguments, ComClassContract, ComFactoryDescription, ComInterface, ComObjectDescription, IID_IUNKNOWN,
+    IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
+};
 pub use ptr::{ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};
 pub use runtime_abi::{
     NC_COM_RUNTIME_ABI_VERSION, NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR,

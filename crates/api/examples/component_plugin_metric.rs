@@ -16,7 +16,7 @@ pub trait MultiMetric {
 }
 
 /// Private storage implementing the public callable metric contract.
-#[com_object(MultiMetric)]
+#[com_object(constructible(MultiMetric))]
 pub struct MultiMetricObject;
 
 impl MultiMetric for MultiMetricObject {

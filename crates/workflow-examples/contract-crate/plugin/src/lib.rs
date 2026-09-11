@@ -16,7 +16,7 @@ impl IContractValue for PluginValue {
 
 // Concrete plugin implementation of the published widget class. The generated
 // class thunk decodes the shared typed constructor frame before calling `new`.
-#[com_object(contract_abi::ContractWidget)]
+#[com_object(constructible(contract_abi::ContractWidget))]
 pub struct PluginWidget {
     /// Seed copied from the host's typed constructor frame.
     seed: u32,
