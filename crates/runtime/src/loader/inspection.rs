@@ -8,7 +8,6 @@
 //! callback API, while tooling copies the complete graph into the owned records
 //! defined here.
 
-use std::borrow::ToOwned;
 use std::mem::ManuallyDrop;
 use std::path::Path;
 use std::string::String;
@@ -16,7 +15,7 @@ use std::vec::Vec;
 
 use neocogi_com_core::{
     NC_E_INVALID_ARG, NC_E_POINTER, NcAbiSignature, NcAbiThreadingMode, NcClassDescriptor, NcClassInterfaceDescriptor, NcGuid, NcInterfaceDescriptor,
-    NcMethodDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, format_method_signature, validate_plugin_descriptor_with_issues,
+    NcMethodDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, format_abi_signature, format_method_signature, validate_plugin_descriptor_with_issues,
 };
 
 use super::{LoadedModule, PluginLoadError, PluginLoadErrorKind, plugin_descriptor_from_module};
@@ -312,10 +311,7 @@ fn copy_method(path: &Path, index: u32, method: &NcMethodDescriptor) -> Result<M
 fn copy_abi_signature(path: &Path, signature: NcAbiSignature, message: &'static str) -> Result<String, PluginLoadError> {
     // SAFETY: Descriptor validation established the signature view, and the
     // exporting module remains pinned throughout this synchronous copy.
-    let bytes = unsafe { signature.as_bytes() }.map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), message))?;
-    core::str::from_utf8(bytes)
-        .map(ToOwned::to_owned)
-        .map_err(|_| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(NC_E_INVALID_ARG), message))
+    unsafe { format_abi_signature(signature) }.map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), message))
 }
 
 /// Copies validated module-owned static UTF-8 into independent `String` storage.
@@ -325,4 +321,33 @@ unsafe fn copy_static_utf8(path: &Path, value: NcStaticUtf8, message: &'static s
     unsafe { value.as_str() }
         .map(str::to_owned)
         .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), message))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use neocogi_com_core::NcAbiSignature;
+
+    use super::copy_abi_signature;
+
+    /// Inspection preserves textual signatures and renders binary validation
+    /// fingerprints as stable algorithm-prefixed hexadecimal text.
+    #[test]
+    fn copied_signatures_support_every_validation_representation() {
+        static SHA_256: [u8; 32] = [0xff; 32];
+        static FNV_1A_128: [u8; 16] = [0x80; 16];
+        let path = Path::new("plugin");
+
+        assert_eq!(copy_abi_signature(path, NcAbiSignature::EMPTY, "invalid").unwrap(), "");
+        assert_eq!(copy_abi_signature(path, NcAbiSignature::UNCHECKED, "invalid").unwrap(), "ncabi1;unchecked");
+        assert_eq!(
+            copy_abi_signature(path, NcAbiSignature::from_static(&SHA_256), "invalid").unwrap(),
+            format!("sha-256:{}", "ff".repeat(32))
+        );
+        assert_eq!(
+            copy_abi_signature(path, NcAbiSignature::from_static(&FNV_1A_128), "invalid").unwrap(),
+            format!("fnv-1a-128:{}", "80".repeat(16))
+        );
+    }
 }
