@@ -250,10 +250,22 @@
 //! successful chunk must contain at most `max_len` bytes, and an empty chunk can
 //! represent end-of-stream.
 //!
-//! Shared libraries expose plugins through the
-//! [`NC_GET_PLUGIN_DESCRIPTOR_SYMBOL`] entrypoint. The descriptor records the
-//! [`NC_COM_CORE_ABI_VERSION`], plugin identity, and a static [`NcClassTable`]
-//! of [`NcClassDescriptor`] values. Generated interfaces expose
+//! New IDL plugins expose [`NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL`] through
+//! [`export_factory_plugin!`]. Their [`NcFactoryPluginDescription`] contains
+//! exact [`NcContractModuleReference`] values and one root-factory bootstrap,
+//! with no class table or erased argument frame. [`factory_plugin!`] derives
+//! root identity and threading from the generated IDL factory associated by
+//! [`com_factory`]. Static hosts call
+//! [`Runtime::register_factory_plugin_description`]; dynamic hosts call
+//! [`Runtime::load_plugin_library`], which detects exactly one factory or
+//! legacy class-table entrypoint. Hosts obtain the typed root with
+//! [`Runtime::activate_plugin_factory`] and perform later construction through
+//! ordinary typed factory methods.
+//!
+//! The earlier class-table path exposes [`NC_GET_PLUGIN_DESCRIPTOR_SYMBOL`].
+//! Its descriptor records [`NC_COM_CORE_ABI_VERSION`], plugin identity, and a
+//! static [`NcClassTable`] of [`NcClassDescriptor`] values. It remains isolated
+//! for components migrating to IDL factories. Generated interfaces expose
 //! `ABI_SIGNATURE`, typed method descriptors, rendered diagnostic method signature
 //! text, and [`NcInterfaceDescriptor`]
 //! metadata; generated classes expose `COM_INTERFACES` metadata containing the

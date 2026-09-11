@@ -3,20 +3,23 @@
 `neocogi-inspect` extracts owned descriptor metadata from an actual `neocogi-com`
 plugin shared library.
 
-It resolves `nc_get_plugin_descriptor`, validates the descriptor graph, and
-prints plugin, dependency, class, interface, and method metadata as JSON or
-text. It does not register the plugin, construct plugin objects, or recursively
-load declared neocogi-com dependencies. Opened handles remain pinned until the
-short-lived inspector process exits. Normal native loader behavior can still
-run before the descriptor symbol is queried.
+It detects exactly one `nc_get_factory_plugin_description` or legacy
+`nc_get_plugin_descriptor` export and rejects libraries that expose both or
+neither. Factory output contains the typed root, direct exact contract
+references, and the complete dependency-first canonical module graph, including
+declarations and stored IDL source. Legacy output contains classes, interfaces,
+and method diagnostics. It does not register the plugin, construct objects, or
+recursively load declared neocogi-com plugin dependencies. Opened handles remain
+pinned until the short-lived inspector process exits. Normal native loader
+behavior, including loading a factory plugin's linked contract DSOs, occurs
+before either description symbol is queried.
 
-Class output records the declared `thread_local` or `thread_safe` construction
-capability. JSON output uses the strict, versioned `neocogi-com.inspection` schema
-and records its schema version, producer version, target triple, pointer width,
-endianness, core ABI version, explicit COM validation mode, interface
-identities/signatures, and derived method diagnostics. It intentionally omits structured parameter, return, and aggregate
-definitions. Text output labels the same derived diagnostic text as
-`typed_signature`; signature text is not compatibility authority.
+JSON output uses strict inspection schema 6. Its `activation` enum prevents
+factory and legacy-only fields from being mixed. Common fields record producer,
+target ABI, core ABI, validation mode, plugin identity, version, and hard plugin
+dependencies. Factory contract fingerprints are compatibility authority;
+legacy interface `(IID, ABI signature)` pairs remain compatibility authority.
+Rendered method text is diagnostic and is not reverse-parsed as a contract.
 
 ```sh
 neocogi-inspect dump path/to/plugin.so
@@ -28,30 +31,25 @@ neocogi-inspect diff old.nccom.json new.nccom.json
 neocogi-inspect diff old.nccom.json new.nccom.json --compat
 ```
 
-`plan` rejects mixed COM validation modes, duplicate plugin IDs, missing hard
-dependencies, and cycles, then prints the established common mode and a
-deterministic dependency-first activation order. It inspects every
-supplied artifact before reporting per-artifact failures.
+`plan` rejects mixed COM validation modes, conflicting revisions of one logical
+contract module, duplicate identities, missing hard dependencies, and cycles.
+It then prints the common mode and a deterministic dependency-first activation
+order, regardless of activation model.
 
 `diff` strictly parses and semantically validates both JSON artifacts before
 comparison. Unknown fields, unsupported schema versions, malformed identities,
-duplicate class/interface identities, and noncontiguous method indices are
-rejected. Descriptor structure and each signature's declared representation are
-validated while the library is loaded; editable JSON diagnostics are not
-reverse-parsed to reconstruct that contract.
+duplicate identities, malformed contract graphs, invalid factory roots, and
+noncontiguous legacy method indices are rejected. Native description structure
+and each signature representation are validated while the library is loaded;
+editable JSON diagnostics are not reverse-parsed to reconstruct a contract.
 
 `diff` defaults to exact metadata comparison (`--exact`): it exits with status
 `0` only when there are no differences. `--compat` instead performs a
-directional old-to-new release check. It uses each interface's `(IID, ABI signature)`
-identity, requires old classes and interfaces to remain available, and checks
-constructor, threading, target/core ABI, and hard-dependency compatibility. New
-classes/interfaces and stronger threading are compatible; version labels and
-rendered method diagnostics do not affect the result. Compatibility mode exits
-with status `1` only for a breaking or activation-breaking change.
+directional old-to-new release check. Legacy mode compares classes and interface
+identities. Factory mode compares the root factory and exact module
+fingerprints. Both check threading, target/core ABI, validation mode, and hard
+plugin dependencies. Compatibility mode exits with status `1` for a breaking or
+activation-breaking change.
 
-Inspection schema 5 records the plugin-wide `com_validation` mode and each
-interface's explicit `base` IID/signature and its locally declared methods.
-Inherited methods are found through the base entry
-in the same class. Dumps validate that base contracts exist and are acyclic;
-diffs report base changes explicitly. Schema version and core ABI version are
-independent; current libraries use core ABI 7.
+Schema version and core ABI version are independent; current libraries use
+inspection schema 6 and core ABI 7.

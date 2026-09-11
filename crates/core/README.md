@@ -31,11 +31,16 @@ live in `neocogi-com`.
   class, class-table, and plugin descriptors
 - immutable typed constructor frames identified by a class descriptor signature
 - runtime, plugin registry, type registry, inspection, and debug API v1 table layouts
+- canonical contract-module descriptions and exact fingerprinted getter references
+- factory-only plugin descriptions with one typed root activation operation
 - `NC_COM_CORE_ABI_VERSION` and `NC_COM_RUNTIME_ABI_VERSION`
 - `NcAbiValidationMode` and the plugin's explicit assembly-wide mode
 - `nc_get_plugin_descriptor` symbol and function signature
+- `nc_get_factory_plugin_description` symbol and function signature
 - `validate_plugin_descriptor_with_issues`, the descriptor validator with
   structured issue reporting and an allocation-free configuration
+- `validate_factory_plugin_description`, the allocation-free factory root
+  validator used before contract graph traversal
 
 These types are `#[repr(C)]` or ABI marker traits where appropriate. Descriptor
 structs are exact v1 `repr(C)` layouts. Layout changes require a core ABI
@@ -74,10 +79,19 @@ Ordinary component contracts should use `#[com_interface]` from `neocogi-com`, w
 generates the implementation. Handwritten implementations are reserved for
 low-level foreign-interface adapters and require an explicit `unsafe impl`.
 
-Core ABI v7 plugin descriptors contain declarative metadata only. Each
+Legacy core ABI v7 plugin descriptors contain declarative metadata only. Each
 descriptor records the mode used by all reachable ABI signatures. Hosts
 explicitly load dependencies before dependents; registration does not discover
 or load dependencies.
+
+IDL factory plugins use `NcFactoryPluginDescription` instead. The description
+references exact `NcContractModuleReference` values and one no-argument root
+activation pointer; it has no class table, erased constructor frame, or dynamic
+value container. It records the same explicit validation mode so incompatible
+generated interface representations fail before activation. Native
+`NcContractModuleDescription` graphs contain canonical
+module/declaration identity, threading, source, fingerprints, and exact native
+dependency getters. They contain no Rust implementation code or object state.
 
 Descriptor validation reports trusted metadata shape problems. It is not hostile
 plugin isolation, does not sandbox plugin code, and cannot safely probe
@@ -154,7 +168,16 @@ neocogi-com-core = { version = "0.1", default-features = false }
 
 ## Plugin Discovery
 
-Plugins expose a single descriptor entrypoint:
+Factory-only plugins expose one description entrypoint:
+
+```rust
+pub type NcGetFactoryPluginDescription = unsafe extern "C" fn(
+    out: *mut *const NcFactoryPluginDescription,
+) -> NcStatus;
+```
+
+Its symbol is `nc_get_factory_plugin_description`. Migrating class-table plugins
+continue to expose the older entrypoint:
 
 ```rust
 pub type NcGetPluginDescriptor = unsafe extern "C" fn(

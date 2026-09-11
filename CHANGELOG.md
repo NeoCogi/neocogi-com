@@ -11,9 +11,15 @@ contract.
   validation choices over one canonical typed contract stream. Every choice
   retains the same pointer/count descriptor ABI; cargo-neocogi applies one
   mode consistently to the application, runtime, and plugins.
-- Core ABI v7 records that mode in each plugin descriptor. Inspection schema 5
+- Core ABI v7 records that mode in each plugin description. Inspection schema 6
   serializes it explicitly, and the shared dependency planner rejects mixed-mode
   dynamic assemblies before staging.
+- Added Rust-like `.ncidl` module crates, fingerprint-qualified native contract
+  libraries, canonical runtime module registration, and factory-only plugin
+  activation without runtime class construction or erased argument frames.
+- Made dynamic loading and offline inspection auto-detect exactly one factory or
+  legacy class-table description. Factory inspection records the canonical
+  module graph, and assembly planning rejects conflicting module fingerprints.
 - Added `dynamic` and `monolith` assembly linkage. Monoliths require unchecked
   COM validation, link the runtime and implementation rlibs into one executable,
   and stage no Neocogi shared libraries or plugin manifest.

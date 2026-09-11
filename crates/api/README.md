@@ -127,32 +127,45 @@ separately built and linked `libnc_com_shared_runtime` shared library. The share
 runtime owns process-global registry state. Successfully loaded modules remain
 mapped until process exit; unload and hot reload are not core ABI v7 operations.
 
-Plugins export `nc_get_plugin_descriptor`. Generated descriptors contain plugin
-identity, explicit hard dependency IDs, classes, constructor contracts,
-threading modes, and interface metadata. core ABI v7 has no plugin initialization
-callback and never discovers or recursively loads plugin paths: hosts obtain an
-explicit dependency-first plan and load dependencies before dependents.
+IDL-based plugins export `nc_get_factory_plugin_description`. Their descriptions
+contain plugin identity, explicit hard dependency IDs, exact generated contract
+module references, and one root factory bootstrap. `factory_plugin!` obtains the
+root ID and threading mode from the type associated by `#[com_factory]`; plugin
+authors do not repeat those values. `Runtime::register_factory_plugin_description`
+supports static assemblies, while `Runtime::load_plugin_library` detects this
+description model and maps the DSO plus its fingerprint-qualified contract
+dependencies. Hosts obtain the root through
+`Runtime::activate_plugin_factory::<GeneratedFactoryAbi>` and perform all later
+construction through typed factory methods.
+
+The earlier `nc_get_plugin_descriptor`/`plugin!` class-table path remains
+isolated for components that have not migrated. It contains class constructor
+frames; new IDL components should not add classes to that registry. The common
+loader rejects a DSO exporting both description entrypoints. It does not
+recursively load neocogi-com plugin paths: hosts obtain an explicit
+dependency-first plan and load plugin dependencies before dependents.
 Live activation calls must not be nested. Native loader initialization and the
-descriptor entrypoint must not directly or indirectly call neocogi-com loading;
+description entrypoint must not directly or indirectly call neocogi-com loading;
 operating-system loading of ordinary native dependencies remains permitted and
 does not register them as neocogi-com plugins.
 
-Live activation is fail-fatal. A path, native-loader, symbol, descriptor,
+Live activation is fail-fatal. A path, native-loader, symbol, description,
 dependency, or registration failure emits a diagnostic and aborts rather than
 returning partial runtime state. Inspection is non-registering:
-`Inspection::with_plugin_library_descriptor` opens a trusted artifact, validates
-its descriptor, and exposes that descriptor only during a synchronous callback
-without changing either registry. `neocogi-inspect` copies this kind of metadata
-in its short-lived process and can plan or compare artifacts without treating
-diagnostic text as the compatibility authority.
+`Inspection::with_plugin_library_descriptor` is the callback-scoped legacy
+descriptor view. `neocogi-inspect` auto-detects either activation model and
+copies owned metadata—including a factory's canonical contract module graph—in
+its short-lived process. Neither operation changes a registry.
 
-`Runtime::load_plugin_library` returns an owned `LoadedModuleInfo`. Its module
+Dynamic loading returns an owned `LoadedModuleInfo`. Its module
 ID, path, and plugin ID come from module inspection; its qualified name and
-version come from the registered plugin descriptor through plugin inspection.
+version come from the registered plugin description through plugin inspection.
 Use `runtime.inspection().loaded_module(module_id)` to retrieve the combined
 summary later, or `runtime.inspection().plugin_info(plugin_id)` when only plugin
 metadata is needed. The latter also works for statically registered plugins,
-which do not have a loaded-module path.
+which do not have a loaded-module path. Common plugin enumeration and summary
+inspection include both activation models; factory plugins simply have no
+class-table relationships.
 
 Runtime ABI v1 retains at most 1,024 dynamically loaded modules; exceeding that
 limit is a fatal activation failure. It permits 64 simultaneous debug messenger

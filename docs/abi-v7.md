@@ -1518,7 +1518,7 @@ the dependent descriptor is registered.
 Dependency declaration order has no semantic meaning. Inspection and planning
 tools canonicalize graph output independently of descriptor order.
 
-### 12.10 `NcPluginDescriptor`
+### 12.10 Legacy `NcPluginDescriptor`
 
 ```rust,ignore
 #[repr(C)]
@@ -1576,13 +1576,109 @@ or an application-defined capability interface. The relevant interface IDs and
 ABI signatures are the binary compatibility contract. Plugin dependency IDs define
 activation order; they do not replace interface compatibility checks.
 
-## 13. Plugin Descriptor Entrypoint
+### 12.11 Canonical IDL contract modules
+
+Factory-only plugins link generated, fingerprint-qualified native contract
+libraries. The host and plugin compile typed Rust bindings, but the canonical
+description graph exists only in those libraries:
+
+```rust,ignore
+#[repr(C)]
+pub struct NcContractModuleReference {
+    pub module_id: NcGuid,
+    pub abi_fingerprint: NcContractFingerprint,
+    pub get: Option<NcGetContractModuleDescription>,
+}
+
+#[repr(C)]
+pub struct NcContractDependencyDescription {
+    pub module_id: NcGuid,
+    pub abi_fingerprint: NcContractFingerprint,
+    pub get: Option<NcGetContractModuleDescription>,
+}
+
+#[repr(C)]
+pub struct NcContractDeclarationDescription {
+    pub declaration_id: NcGuid,
+    pub version: u32,
+    pub kind: u32,
+    pub threading: u32,
+    pub qualified_name: NcStaticUtf8,
+}
+
+#[repr(C)]
+pub struct NcContractModuleDescription {
+    pub description_abi_version: u32,
+    pub module_id: NcGuid,
+    pub abi_fingerprint: NcContractFingerprint,
+    pub module_name: NcStaticUtf8,
+    pub dependency_count: u32,
+    pub dependencies: *const NcContractDependencyDescription,
+    pub declaration_count: u32,
+    pub declarations: *const NcContractDeclarationDescription,
+    pub source: NcStaticUtf8,
+}
+```
+
+`NcContractFingerprint` contains exactly 32 SHA-256 bytes. A reference requires
+a non-nil module ID, nonzero fingerprint, and non-null fingerprint-qualified
+getter. Calling the getter must return the same ID and fingerprint. Dependency
+descriptions apply the same rule transitively. Graphs must be acyclic, and one
+logical module ID cannot resolve to two fingerprints or names in one runtime or
+assembly.
+
+Declaration `kind` is one of `STRUCT`, `ENUM`, `INTERFACE`, `CLASS`, or
+`FACTORY`. Classes and factories carry a valid `NC_ABI_THREADING_*` value;
+other declarations carry `NC_CONTRACT_DECLARATION_NO_THREADING`. Declaration
+versions are positive. An ordinary ID is derived from the exact dotted module,
+declared name, and version; `#[id(version, "UUID")]` may pin it explicitly.
+
+The module library stores module/declaration identity, exact dependency
+revisions and getters, threading capabilities, the complete fingerprint, and
+canonical `.ncidl` source. It does not store Rust implementations, object
+state, vtables, constructors, factory activation code, Cargo paths, or mutable
+registry state. Generated Rust bindings contain ABI layouts and typed wrappers
+and import the native getter; they do not embed a second canonical graph.
+
+### 12.12 `NcFactoryPluginDescription`
+
+```rust,ignore
+#[repr(C)]
+pub struct NcFactoryPluginDescription {
+    pub core_abi_version: u32,
+    pub validation_mode: NcAbiValidationMode,
+    pub plugin_id: NcGuid,
+    pub qualified_name: NcStaticUtf8,
+    pub plugin_version: NcStaticUtf8,
+    pub dependency_count: u32,
+    pub dependencies: *const NcPluginDependencyDescriptor,
+    pub contract_count: u32,
+    pub contracts: *const NcContractModuleReference,
+    pub root_factory_id: NcGuid,
+    pub root_factory_threading: u32,
+    pub activate: Option<NcActivatePluginFactory>,
+}
+```
+
+The core ABI version, validation mode, plugin identity, name, version, and hard
+plugin dependencies follow the legacy root rules. At least one direct contract
+reference is required. The full linked graph must contain exactly one
+`FACTORY` declaration matching `root_factory_id` and
+`root_factory_threading`. `activate` is a fixed no-argument operation that
+returns one owned `IUnknown`; its result must answer `QueryInterface` for the
+generated root factory's complete IID/signature.
+
+There is no class table, class ID lookup, erased constructor argument frame, or
+runtime-selected object constructor. After the one bootstrap call, all object
+creation occurs through typed methods on that factory or factories it returns.
+
+## 13. Plugin Description Entrypoints
 
 The Rust `plugin!` macro only generates descriptors. A final dynamic-library
 root invokes `neocogi_com::export_plugin!()` (or passes an explicit descriptor function
 path). Static plugin assemblies omit that export and register the same metadata.
 
-A dynamic v6 plugin exports:
+A dynamic legacy plugin exports:
 
 ```rust,ignore
 pub unsafe extern "C" fn nc_get_plugin_descriptor(
@@ -1596,7 +1692,7 @@ Entrypoint rules:
 - The function should clear `*out` before fallible validation.
 - On success, `out` receives a non-null pointer to immutable plugin metadata.
 - The metadata must remain valid while the shared library is loaded.
-- The metadata must describe core ABI 3 when returned from the descriptor
+- The metadata must describe core ABI 7 when returned from the descriptor
   symbol.
 - The entrypoint is a declarative metadata accessor. It must not call neocogi-com
   registration or loading APIs, recursively load declared neocogi-com dependencies,
@@ -1614,6 +1710,21 @@ configuration. When `alloc` is enabled, the reference implementation uses
 interface detection; without `alloc` it uses an allocation-free prefix scan.
 Both paths report the same statuses, paths, and issue kinds. This is an
 implementation scaling choice and does not change the descriptor ABI.
+
+A dynamic IDL plugin instead invokes `export_factory_plugin!()` and exports:
+
+```rust,ignore
+pub unsafe extern "C" fn nc_get_factory_plugin_description(
+    out: *mut *const NcFactoryPluginDescription,
+) -> NcStatus;
+```
+
+`return_factory_plugin_description` applies the root structural checks before
+publishing the pointer. Live registration then follows every contract getter,
+validates the complete dependency-first graph and root factory declaration,
+and publishes the modules and plugin atomically. A final library must expose
+exactly one factory or legacy entrypoint; exposing both is ambiguous and is
+rejected.
 
 A host must reject at least:
 
@@ -1743,6 +1854,10 @@ assert_eq!(NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, 64);
 pub struct NcRuntimeApiV1 {
     pub size: usize,
     pub core_abi_version: u32,
+    pub register_contract_module:
+        unsafe extern "C" fn(*const NcContractModuleReference) -> NcStatus,
+    pub register_factory_plugin_description:
+        unsafe extern "C" fn(*const NcFactoryPluginDescription) -> NcStatus,
     pub register_plugin_descriptor:
         unsafe extern "C" fn(*const NcPluginDescriptor) -> NcStatus,
     pub load_plugin_library_utf8:
@@ -1757,8 +1872,21 @@ pub struct NcRuntimeApiV1 {
             *const c_void,
             *mut *mut IUnknown,
         ) -> NcStatus,
+    pub activate_factory_plugin:
+        unsafe extern "C" fn(
+            NcGuid,
+            NcInterfaceId,
+            u32,
+            *mut *mut IUnknown,
+        ) -> NcStatus,
 }
 ```
+
+`register_contract_module` validates a complete exact native dependency graph
+before publishing it. `register_factory_plugin_description` performs that same
+graph projection, verifies the root factory declaration, and publishes the
+contract modules plus factory plugin in one transaction. Static descriptions
+and all referenced native code must remain live while registered.
 
 `register_plugin_descriptor` validates and registers static descriptor metadata.
 The descriptor graph must remain live while registered. The reference runtime
@@ -1791,7 +1919,8 @@ to the same class descriptor address under the same plugin; every other reuse
 returns `NC_E_INVALID_ARG`.
 
 `load_plugin_library_utf8` is the required live-activation operation. It loads
-trusted plugin code, obtains and registers its descriptor, retains the shared
+trusted plugin code, probes both standard description symbols, requires exactly
+one, registers the matching factory or legacy model, retains the shared
 library, and writes a nonzero process-local module ID. `out_module_id` must be
 non-null and is set to zero before path validation. The path buffer is not
 NUL-terminated: it must contain exactly `path_len` readable bytes. An empty
@@ -1799,20 +1928,22 @@ path, invalid UTF-8, or an interior NUL byte returns `NC_E_INVALID_ARG`; a null
 path with nonzero length returns `NC_E_POINTER` before a load attempt begins.
 
 Live activation is synchronous and blocking for its caller. Native library
-opening, descriptor entrypoint invocation, and complete descriptor projection
+opening, description entrypoint invocation, and complete metadata projection
 occur without holding the catalog lock. The runtime then acquires exclusive
 catalog publication access, repeats all checks that depend on current state, and
-publishes the retained native handle, module record, plugin record, classes,
-relationships, and identity mappings in one transaction. It releases the write
-lock before returning or invoking plugin constructors, plugin methods, or debug
-callbacks. Consequently, a class carrying a nonzero module ID is never visible
-without the corresponding retained module and plugin provenance.
+publishes the retained native handle, module record, plugin record, contract
+modules or classes, relationships, and identity mappings in one transaction. It
+releases the write lock before returning or invoking plugin constructors,
+plugin methods, or debug callbacks. Consequently, a class carrying a nonzero
+module ID is never visible without the corresponding retained module and plugin
+provenance.
 
 A live activation call must not be nested inside another live activation call.
-In particular, native loader initialization and `nc_get_plugin_descriptor` must
-not directly or indirectly invoke `load_plugin_library_utf8`. Hosts activate an
-explicit dependency-first sequence through separate calls. Ordinary native
-dependencies loaded internally by the operating-system loader do not violate
+In particular, native loader initialization and either description entrypoint
+must not directly or indirectly invoke `load_plugin_library_utf8`. Hosts
+activate an explicit dependency-first plugin sequence through separate calls.
+Ordinary native dependencies, including exact contract DSOs, loaded internally
+by the operating-system loader do not violate
 this rule, but they do not become registered neocogi-com plugins.
 
 Once live activation attempts to open the supplied path, failure is process
@@ -1845,6 +1976,14 @@ only for the call.
 On success, `out` receives one owned `IUnknown` reference with at least the
 requested threading capability.
 
+`activate_factory_plugin` resolves a previously registered factory plugin by
+plugin ID, checks the requested full factory interface identity and threading
+capability, then releases the catalog lock before invoking plugin code. The
+fixed activation function has no argument frame. The runtime verifies the
+returned object's `QueryInterface` result against the requested IID/signature,
+releases a mismatched reference, and transfers exactly one owned reference on
+success.
+
 Runtime ABI v1 has no transactional C batch-loading operation. The Rust facade
 provides sequential convenience loading for a dependency-first plan. A later
 failure aborts the process, so no partially activated state returns to the host.
@@ -1866,7 +2005,9 @@ pub struct NcPluginRegistryV1 {
 }
 ```
 
-Registered plugin IDs are unique registry identities. Loaded module IDs are
+Registered plugin IDs include both factory and legacy activation models and are
+unique registry identities. A factory plugin contributes no class IDs to the
+type registry. Loaded module IDs are
 nonzero process-local diagnostic handles; they are not stable across processes,
 program runs, or runtime instances. The reference runtime issues IDs from `1`
 through `NC_COM_RUNTIME_MAX_LOADED_MODULES` without reuse.
@@ -1929,8 +2070,9 @@ callers. Owned runtime inspection text is similarly limited to
 ### 14.5 Inspection API
 
 Registries answer what exists. Inspection answers metadata, provenance, and
-plugin/class/interface relationships. It can also open a trusted plugin library
-and synchronously expose its validated descriptor without registering it:
+plugin/class/interface relationships. The v1 C callback can also open a trusted
+legacy plugin library and synchronously expose its validated class-table
+descriptor without registering it:
 
 ```rust,ignore
 pub type NcInspectPluginDescriptorCallbackV1 = unsafe extern "C" fn(
@@ -1973,8 +2115,8 @@ exactly once, and querying implementors of that identity reports every
 registered class. Macro-generated classes report `IUnknown` first.
 
 `inspect_plugin_library_utf8` takes an explicit UTF-8 path, opens the trusted
-library, resolves `nc_get_plugin_descriptor`, and validates the complete
-descriptor graph through the same validation gate used for live activation.
+legacy library, resolves `nc_get_plugin_descriptor`, and validates the complete
+class-table descriptor graph through the same gate used for live activation.
 It does not register the plugin, construct objects, or follow declared neocogi-com
 dependencies. On success it invokes the non-null callback synchronously exactly
 once and returns the callback's `NcStatus` unchanged. The `user_data` pointer is
@@ -1994,7 +2136,10 @@ Once the library has opened, its handle remains pinned until process exit even
 if symbol lookup, validation, or the callback later fails. The Rust facade
 exposes this operation as
 `Inspection::with_plugin_library_descriptor` and enforces the callback-scoped
-borrow in its return type.
+borrow in its return type. The owned Rust `inspect_plugin_library` used by
+`neocogi-inspect` and `cargo neocogi` is broader: it auto-detects either
+activation model and copies a factory's complete canonical module graph without
+exposing native pointers.
 
 Inspection text uses borrowed immutable UTF-8 views:
 
@@ -2043,25 +2188,30 @@ Returned UTF-8 views remain valid until the runtime shared library is unloaded;
 callers must not modify or free them. core ABI v7 does not support plugin unload.
 
 The `neocogi-inspect` JSON file is a versioned tooling artifact, not another core
-ABI v7 memory layout and not a source-reconstruction format. Its schema version
-is independent of `NC_COM_CORE_ABI_VERSION`. A schema-v5 artifact records the
+ABI v7 memory layout or an authoritative contract input. Its schema version is
+independent of `NC_COM_CORE_ABI_VERSION`. A schema-v6 artifact records the
 producing tool version, target triple, pointer width, endianness, core ABI
-version, the explicit `com_validation` mode, and owned
-plugin/class/interface identities, ABI signature strings, and method diagnostics.
-Readers must reject unknown fields and unsupported schema versions and must
-validate identity derivation, duplicate entries, and method indices before
-comparison.
+version, the explicit `com_validation` mode, and an explicit activation model.
+A legacy activation owns class/interface identities, ABI signature strings, and
+method diagnostics. A factory activation owns its root identity/threading,
+direct contract references, and the complete dependency-first canonical module
+graph, including declaration metadata and IDL source copied while the library
+is mapped. Readers must reject unknown fields and unsupported schema versions
+and must validate identities, duplicate entries, method indices, and contract
+revision consistency before comparison.
 
-The artifact intentionally does not serialize structured parameter, return, or
-aggregate definitions. Human-readable method signatures are derived diagnostics
-only and are not reverse-parsed to reconstruct or independently validate an
-interface contract. An exact-mode runtime validates complete typed descriptors
-against recomputed canonical signatures. The representation-neutral inspector
-validates descriptor structure and checks every signature against the plugin's
-declared representation while the library is mapped, before writing the
-artifact. Core ABI v7 does not promise that an inspection artifact can
-recreate Rust traits, C declarations, vtables, aggregate layouts, or source
-definitions.
+The artifact intentionally does not independently serialize structured
+parameter, return, or aggregate definitions. Human-readable legacy method
+signatures are derived diagnostics only and are not reverse-parsed to
+reconstruct or independently validate an interface contract. Canonical IDL
+source in a factory module record is a provenance/diagnostic copy of the DSO's
+validated metadata, not a replacement code-generation input. An exact-mode
+runtime validates complete typed descriptors against recomputed canonical
+signatures. The representation-neutral inspector validates descriptor structure
+and checks every signature against the plugin's declared representation while
+the library is mapped, before writing the artifact. Core ABI v7 does not promise
+that an inspection artifact can recreate Rust traits, C declarations, vtables,
+or aggregate layouts.
 
 Exact artifact equality is not, by itself, an ABI compatibility policy. The
 inspector therefore keeps exact comparison as the default/`--exact` mode and
