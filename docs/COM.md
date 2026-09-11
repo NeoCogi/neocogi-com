@@ -393,6 +393,20 @@ Shared calls may overlap; a mutable call receives exclusive access or returns
 `NC_E_BUSY` when another call is active. Safe Rust callers must mutably borrow
 their `ComPtr` or `ComRef` handle to invoke an `&mut self` method.
 
+Each generated thunk acquires an explicit typed shared or exclusive lease before
+forming the implementation reference. The lease owns the call-gate permission,
+releases it on every return path, and invokes the concrete trait implementation
+inside the vtable thunk without a closure-shaped borrow adapter. These leases are
+macro support, not an application object model.
+
+Borrowed COM arguments validate their common header against the expected static
+`NcInterfaceId` through one shared non-generic checker. The typed wrapper supplies
+the expected identity, including its ABI signature, before the callee sees a
+`ComRef`. Neither object dispatch nor argument validation consults the class
+registry. This is equally true for objects implemented in external crates: their
+generated vtables and leases use the same direct path as built-in widgets and
+containers.
+
 Unsupported trait shapes are rejected by the macro:
 
 - generic traits or generic methods
