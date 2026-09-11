@@ -30,8 +30,8 @@ use inspection::{
 use contract_registry::{module_count as contract_module_count, module_description as contract_module_description, module_ids as contract_module_ids};
 use plugin_registry::{loaded_module_count, loaded_module_ids, plugin_count, plugin_ids};
 use runtime::{
-    activate_factory_plugin, construct_class, load_factory_plugin_library_utf8, load_plugin_library_utf8, register_contract_module,
-    register_factory_plugin_description, register_plugin_descriptor, require_interface,
+    activate_factory_plugin, construct_class, load_plugin_library_utf8, register_contract_module, register_factory_plugin_description,
+    register_plugin_descriptor, require_interface,
 };
 use type_registry::{class_count, class_ids, interface_count, interface_ids};
 
@@ -43,7 +43,6 @@ pub(super) static RUNTIME_API_V1: NcRuntimeApiV1 = NcRuntimeApiV1 {
     register_factory_plugin_description,
     register_plugin_descriptor,
     load_plugin_library_utf8,
-    load_factory_plugin_library_utf8,
     require_interface,
     construct_class,
     activate_factory_plugin,

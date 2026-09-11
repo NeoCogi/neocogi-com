@@ -3,7 +3,9 @@
 use std::fmt::Write as _;
 
 use neocogi_com_core::NcAbiThreadingMode;
-use nc_com_shared_runtime::{ClassInspection, InterfaceInspection, MethodInspection, PluginInspection};
+use nc_com_shared_runtime::{
+    ClassInspection, ContractModuleInspection, FactoryInspection, InterfaceInspection, MethodInspection, PluginActivationInspection, PluginInspection,
+};
 
 use crate::compat::CompatibilityReport;
 use crate::schema::{InspectionArtifact, SCHEMA, SCHEMA_VERSION};
@@ -37,15 +39,87 @@ pub(crate) fn render_text(inspection: &PluginInspection) -> String {
         }
     }
 
-    writeln!(out, "classes:").unwrap();
-    if inspection.classes.is_empty() {
-        writeln!(out, "  (none)").unwrap();
-    } else {
-        for class in &inspection.classes {
-            render_class_text(&mut out, class);
+    writeln!(out, "activation: {}", inspection.activation_model()).unwrap();
+    match &inspection.activation {
+        PluginActivationInspection::Factory(factory) => render_factory_text(&mut out, factory),
+        PluginActivationInspection::LegacyClassTable { classes } => {
+            writeln!(out, "classes:").unwrap();
+            if classes.is_empty() {
+                writeln!(out, "  (none)").unwrap();
+            } else {
+                for class in classes {
+                    render_class_text(&mut out, class);
+                }
+            }
         }
     }
     out
+}
+
+/// Renders one factory root and the canonical graph reached through its bindings.
+fn render_factory_text(out: &mut String, factory: &FactoryInspection) {
+    writeln!(out, "root_factory:").unwrap();
+    writeln!(out, "  id: {}", factory.root_factory_id).unwrap();
+    writeln!(out, "  threading: {}", threading_name(factory.root_factory_threading)).unwrap();
+    writeln!(out, "direct_contracts:").unwrap();
+    for contract in &factory.direct_contracts {
+        writeln!(out, "  - {} @ {}", contract.module_id, fingerprint_text(contract.abi_fingerprint.bytes)).unwrap();
+    }
+    writeln!(out, "contract_modules:").unwrap();
+    for module in &factory.modules {
+        render_contract_module_text(out, module);
+    }
+}
+
+/// Renders one canonical contract module without exposing native getter pointers.
+fn render_contract_module_text(out: &mut String, module: &ContractModuleInspection) {
+    writeln!(out, "  - {}", module.module_name).unwrap();
+    writeln!(out, "    id: {}", module.module_id).unwrap();
+    writeln!(out, "    abi_fingerprint: {}", fingerprint_text(module.abi_fingerprint.bytes)).unwrap();
+    writeln!(out, "    dependencies:").unwrap();
+    if module.dependencies.is_empty() {
+        writeln!(out, "      (none)").unwrap();
+    } else {
+        for dependency in &module.dependencies {
+            writeln!(out, "      - {} @ {}", dependency.module_id, fingerprint_text(dependency.abi_fingerprint.bytes)).unwrap();
+        }
+    }
+    writeln!(out, "    declarations:").unwrap();
+    for declaration in &module.declarations {
+        writeln!(
+            out,
+            "      - {} {} v{}",
+            declaration.kind.as_str(),
+            declaration.qualified_name,
+            declaration.version
+        )
+        .unwrap();
+        writeln!(out, "        id: {}", declaration.declaration_id).unwrap();
+        if let Some(threading) = declaration.threading {
+            writeln!(out, "        threading: {}", threading_name(threading)).unwrap();
+        }
+    }
+    writeln!(out, "    source:").unwrap();
+    for line in module.source.lines() {
+        writeln!(out, "      {line}").unwrap();
+    }
+}
+
+/// Returns the IDL spelling of a validated threading capability.
+fn threading_name(threading: NcAbiThreadingMode) -> &'static str {
+    match threading {
+        NcAbiThreadingMode::ThreadLocal => "thread_local",
+        NcAbiThreadingMode::ThreadSafe => "thread_safe",
+    }
+}
+
+/// Formats a contract fingerprint as fixed-width lowercase hexadecimal text.
+fn fingerprint_text(bytes: [u8; 32]) -> String {
+    let mut text = String::with_capacity(64);
+    for byte in bytes {
+        write!(text, "{byte:02x}").expect("writing into String cannot fail");
+    }
+    text
 }
 
 pub(crate) fn render_diff(differences: &[String]) -> String {
@@ -83,15 +157,7 @@ fn render_class_text(out: &mut String, class: &ClassInspection) {
     writeln!(out, "  - {}", class.qualified_name).unwrap();
     writeln!(out, "    id: {}", class.class_id).unwrap();
     writeln!(out, "    version: {}", class.class_version).unwrap();
-    writeln!(
-        out,
-        "    threading: {}",
-        match class.threading {
-            NcAbiThreadingMode::ThreadLocal => "thread_local",
-            NcAbiThreadingMode::ThreadSafe => "thread_safe",
-        }
-    )
-    .unwrap();
+    writeln!(out, "    threading: {}", threading_name(class.threading)).unwrap();
     writeln!(out, "    constructor_abi_signature: {}", class.constructor_abi_signature).unwrap();
     writeln!(out, "    interfaces:").unwrap();
     if class.interfaces.is_empty() {
@@ -140,26 +206,28 @@ mod tests {
             qualified_name: "nc.tests.inspect".to_string(),
             plugin_version: "1.0.0".to_string(),
             dependencies: Vec::new(),
-            classes: vec![ClassInspection {
-                class_id: NcGuid::from_fields(5, 6, 7, [8; 8]),
-                qualified_name: "nc.tests.inspect.ThreadSafeClass".to_string(),
-                class_version: "1.0.0".to_string(),
-                constructor_abi_signature: String::new(),
-                threading: NcAbiThreadingMode::ThreadSafe,
-                interfaces: vec![ClassInterfaceInspection {
-                    interface_id: NcGuid::from_fields(9, 10, 11, [12; 8]),
-                    interface: InterfaceInspection {
+            activation: PluginActivationInspection::LegacyClassTable {
+                classes: vec![ClassInspection {
+                    class_id: NcGuid::from_fields(5, 6, 7, [8; 8]),
+                    qualified_name: "nc.tests.inspect.ThreadSafeClass".to_string(),
+                    class_version: "1.0.0".to_string(),
+                    constructor_abi_signature: String::new(),
+                    threading: NcAbiThreadingMode::ThreadSafe,
+                    interfaces: vec![ClassInterfaceInspection {
                         interface_id: NcGuid::from_fields(9, 10, 11, [12; 8]),
-                        qualified_name: "nc.tests.inspect.Interface:v1".to_string(),
-                        abi_signature: "ncabi1;render-test".to_string(),
-                        base: InterfaceIdentityInspection {
-                            iid: NcGuid::nil(),
-                            abi_signature: String::new(),
+                        interface: InterfaceInspection {
+                            interface_id: NcGuid::from_fields(9, 10, 11, [12; 8]),
+                            qualified_name: "nc.tests.inspect.Interface:v1".to_string(),
+                            abi_signature: "ncabi1;render-test".to_string(),
+                            base: InterfaceIdentityInspection {
+                                iid: NcGuid::nil(),
+                                abi_signature: String::new(),
+                            },
+                            methods: Vec::new(),
                         },
-                        methods: Vec::new(),
-                    },
+                    }],
                 }],
-            }],
+            },
         }
     }
 

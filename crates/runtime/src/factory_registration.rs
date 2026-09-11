@@ -33,6 +33,11 @@ impl FactoryPluginRegistrationBatch {
     pub(crate) fn plugin_id(&self) -> NcGuid {
         self.plugin.plugin_id
     }
+
+    /// Borrows dependency-first canonical module records for offline copying.
+    pub(crate) fn modules(&self) -> &[RegisteredContractModule] {
+        &self.modules
+    }
 }
 
 /// Builds one factory plugin batch without holding runtime locks.

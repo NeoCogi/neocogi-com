@@ -312,10 +312,10 @@ impl Runtime {
     ///
     /// The path must have a nonempty UTF-8 representation without interior NUL
     /// bytes. This is required live activation: any path conversion, loading,
-    /// descriptor, dependency, or registration failure prints/emits its
+    /// description, dependency, or registration failure prints/emits its
     /// diagnostic and aborts the process. Failure never returns.
     /// Live activation calls must not be nested: native loader initialization
-    /// and the plugin descriptor entrypoint must not directly or indirectly
+    /// and the plugin description entrypoint must not directly or indirectly
     /// call this operation while another activation is in progress.
     /// The runtime retains at most
     /// [`crate::NC_COM_RUNTIME_MAX_LOADED_MODULES`] dynamic modules; attempting
@@ -323,12 +323,14 @@ impl Runtime {
     ///
     /// The returned [`LoadedModuleInfo`] is an owned snapshot. Its path comes
     /// from module inspection; its qualified name and version come from the
-    /// registered plugin descriptor through plugin inspection. Call
+    /// registered plugin description through plugin inspection. Call
     /// [`Runtime::inspection`] to query the same module or plugin later.
     ///
     /// # Safety
     ///
-    /// `path` must identify trusted neocogi-com plugin code.
+    /// `path` must identify trusted neocogi-com plugin code. The runtime
+    /// accepts exactly one factory or legacy class-table description export,
+    /// validates that model, and rejects libraries exporting both or neither.
     pub unsafe fn load_plugin_library(&self, path: impl AsRef<Path>) -> LoadedModuleInfo {
         let path = path.as_ref();
         let path = path
@@ -343,34 +345,6 @@ impl Runtime {
         }
         // The C load returns only an opaque module ID. Inspection supplies an
         // owned Rust summary without widening the C operation table.
-        self.inspection()
-            .loaded_module(LoadedModuleId::from_raw(module_id))
-            .and_then(|module| module.ok_or(NC_E_NOT_FOUND))
-            .unwrap_or_else(|status| fatal_plugin_load(status))
-    }
-
-    /// Loads a trusted factory-only plugin library and registers its contracts.
-    ///
-    /// The runtime resolves the factory-specific description symbol, validates
-    /// every exact contract DSO before publication, and retains the plugin
-    /// module for the process lifetime. Any live loading failure is fatal,
-    /// matching [`Self::load_plugin_library`].
-    ///
-    /// # Safety
-    ///
-    /// `path` must identify trusted neocogi-com factory plugin code.
-    pub unsafe fn load_factory_plugin_library(&self, path: impl AsRef<Path>) -> LoadedModuleInfo {
-        let path = path.as_ref();
-        let path = path
-            .to_str()
-            .unwrap_or_else(|| fatal_plugin_load(format_args!("path is not valid UTF-8: {}", path.display())));
-        let mut module_id = 0;
-        // SAFETY: The UTF-8 path and local output slot remain valid for the
-        // synchronous trusted-library activation call.
-        let status = unsafe { (self.runtime_api().load_factory_plugin_library_utf8)(path.as_ptr(), path.len(), &mut module_id) };
-        if status.is_err() {
-            fatal_plugin_load(status);
-        }
         self.inspection()
             .loaded_module(LoadedModuleId::from_raw(module_id))
             .and_then(|module| module.ok_or(NC_E_NOT_FOUND))

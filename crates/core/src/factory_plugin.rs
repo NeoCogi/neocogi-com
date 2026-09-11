@@ -6,10 +6,18 @@
 //! constructor frame is present in this ABI.
 
 use crate::{
-    ComFactoryBootstrap, ComInterface, IUnknown, NC_ABI_VALIDATION_MODE, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK,
-    NcAbiThreadingMode, NcAbiValidationMode, NcContractModuleReference, NcGuid, NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name,
+    ComFactoryBootstrap, ComInterface, IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode,
+    NcAbiValidationMode, NcContractModuleReference, NcGuid, NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name,
     validate_qualified_name, validate_version_text,
 };
+#[cfg(any(
+    test,
+    feature = "com-validation-none",
+    feature = "com-validation-sha-256",
+    feature = "com-validation-fnv-1a-128",
+    feature = "com-validation-mangling"
+))]
+use crate::NC_ABI_VALIDATION_MODE;
 
 /// Exported symbol returning a factory-only plugin description.
 pub const NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL: &str = "nc_get_factory_plugin_description";

@@ -10,11 +10,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use neocogi_com_core::{IID_IUNKNOWN, IUNKNOWN_QUALIFIED_NAME, NcAbiThreadingMode, NcAbiValidationMode, NcGuid, guid_from_qualified_name};
 #[cfg(test)]
 use neocogi_com_core::{NcAbiSignature, NcInterfaceId, format_abi_signature};
-use nc_com_shared_runtime::PluginInspection;
+use nc_com_shared_runtime::{ContractDeclarationKind, PluginActivationInspection, PluginInspection};
 use serde::{Deserialize, Serialize};
 
 pub(crate) const SCHEMA: &str = "neocogi-com.inspection";
-pub(crate) const SCHEMA_VERSION: u32 = 5;
+pub(crate) const SCHEMA_VERSION: u32 = 6;
 const PRODUCER: &str = "neocogi-inspect";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -28,7 +28,8 @@ pub(crate) struct InspectionArtifact {
     /// ABI signature representation used by every contract in this artifact.
     pub(crate) com_validation: ArtifactValidationMode,
     pub(crate) plugin: ArtifactPlugin,
-    pub(crate) classes: Vec<ArtifactClass>,
+    /// Mutually exclusive plugin activation metadata.
+    pub(crate) activation: ArtifactActivation,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -109,6 +110,93 @@ pub(crate) struct ArtifactPlugin {
     pub(crate) dependencies: Vec<String>,
 }
 
+/// Serialized activation model with no meaningless cross-model fields.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ArtifactActivation {
+    /// One typed root factory backed by canonical IDL modules.
+    Factory(ArtifactFactory),
+    /// Historical runtime-constructible class table.
+    LegacyClassTable {
+        /// Constructible classes retained in stable descriptor order.
+        classes: Vec<ArtifactClass>,
+    },
+}
+
+/// Serialized factory identity and complete canonical module graph.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ArtifactFactory {
+    /// Stable IDL identity returned by plugin bootstrap.
+    pub(crate) root_factory_id: String,
+    /// Threading capability promised by the root factory.
+    pub(crate) root_factory_threading: ArtifactThreading,
+    /// Exact module revisions directly referenced by plugin bindings.
+    pub(crate) direct_contracts: Vec<ArtifactContractReference>,
+    /// Complete dependency-first canonical module graph.
+    pub(crate) modules: Vec<ArtifactContractModule>,
+}
+
+/// Serialized identity of one exact contract revision.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ArtifactContractReference {
+    /// Stable logical module identity.
+    pub(crate) module_id: String,
+    /// Lowercase hexadecimal SHA-256 ABI fingerprint.
+    pub(crate) abi_fingerprint: String,
+}
+
+/// Serialized canonical description of one contract module.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ArtifactContractModule {
+    /// Stable logical module identity.
+    pub(crate) id: String,
+    /// Lowercase hexadecimal SHA-256 ABI fingerprint.
+    pub(crate) abi_fingerprint: String,
+    /// Exact dotted logical module name.
+    pub(crate) name: String,
+    /// Direct exact dependencies in canonical order.
+    pub(crate) dependencies: Vec<ArtifactContractReference>,
+    /// Top-level declarations retained in source order.
+    pub(crate) declarations: Vec<ArtifactContractDeclaration>,
+    /// Complete canonical `.ncidl` source stored by the module library.
+    pub(crate) source: String,
+}
+
+/// Serialized identity and capability of one IDL declaration.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ArtifactContractDeclaration {
+    /// Stable derived or explicitly pinned identity.
+    pub(crate) id: String,
+    /// Positive source declaration version.
+    pub(crate) version: u32,
+    /// Rust-like IDL declaration category.
+    pub(crate) kind: ArtifactContractDeclarationKind,
+    /// Class/factory capability; absent for data and interfaces.
+    pub(crate) threading: Option<ArtifactThreading>,
+    /// Exact dotted module and declared name.
+    pub(crate) name: String,
+}
+
+/// Serialized source-level declaration category.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ArtifactContractDeclarationKind {
+    /// C-layout value record.
+    Struct,
+    /// Tagged value union.
+    Enum,
+    /// COM interface trait.
+    Trait,
+    /// Factory-created object contract.
+    Class,
+    /// Plugin or service construction interface.
+    Factory,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct ArtifactClass {
@@ -181,48 +269,40 @@ impl From<&PluginInspection> for InspectionArtifact {
     fn from(value: &PluginInspection) -> Self {
         let mut dependencies: Vec<_> = value.dependencies.iter().map(ToString::to_string).collect();
         dependencies.sort();
-
-        let mut classes: Vec<_> = value
-            .classes
-            .iter()
-            .map(|class| {
-                let mut interfaces: Vec<_> = class
-                    .interfaces
-                    .iter()
-                    .map(|class_interface| {
-                        let interface = &class_interface.interface;
-                        ArtifactInterface {
-                            id: interface.interface_id.to_string(),
-                            name: interface.qualified_name.clone(),
-                            abi_signature: interface.abi_signature.clone(),
-                            base: ArtifactInterfaceId {
-                                iid: interface.base.iid.to_string(),
-                                abi_signature: interface.base.abi_signature.clone(),
-                            },
-                            methods: interface
-                                .methods
+        let activation = match &value.activation {
+            PluginActivationInspection::Factory(factory) => {
+                let mut direct_contracts: Vec<_> = factory.direct_contracts.iter().map(artifact_contract_reference).collect();
+                direct_contracts.sort_by(|left, right| left.module_id.cmp(&right.module_id));
+                ArtifactActivation::Factory(ArtifactFactory {
+                    root_factory_id: factory.root_factory_id.to_string(),
+                    root_factory_threading: artifact_threading(factory.root_factory_threading),
+                    direct_contracts,
+                    modules: factory
+                        .modules
+                        .iter()
+                        .map(|module| ArtifactContractModule {
+                            id: module.module_id.to_string(),
+                            abi_fingerprint: format_fingerprint(module.abi_fingerprint.bytes),
+                            name: module.module_name.clone(),
+                            dependencies: module.dependencies.iter().map(artifact_contract_reference).collect(),
+                            declarations: module
+                                .declarations
                                 .iter()
-                                .map(|method| ArtifactMethod {
-                                    index: method.index,
-                                    name: method.name.clone(),
-                                    signature: method.signature.clone(),
+                                .map(|declaration| ArtifactContractDeclaration {
+                                    id: declaration.declaration_id.to_string(),
+                                    version: declaration.version,
+                                    kind: artifact_declaration_kind(declaration.kind),
+                                    threading: declaration.threading.map(artifact_threading),
+                                    name: declaration.qualified_name.clone(),
                                 })
                                 .collect(),
-                        }
-                    })
-                    .collect();
-                interfaces.sort_by(|left, right| (&left.id, &left.abi_signature).cmp(&(&right.id, &right.abi_signature)));
-                ArtifactClass {
-                    id: class.class_id.to_string(),
-                    name: class.qualified_name.clone(),
-                    version: class.class_version.clone(),
-                    constructor_abi_signature: class.constructor_abi_signature.clone(),
-                    threading: artifact_threading(class.threading),
-                    interfaces,
-                }
-            })
-            .collect();
-        classes.sort_by(|left, right| left.id.cmp(&right.id));
+                            source: module.source.clone(),
+                        })
+                        .collect(),
+                })
+            }
+            PluginActivationInspection::LegacyClassTable { classes } => ArtifactActivation::LegacyClassTable { classes: artifact_classes(classes) },
+        };
 
         Self {
             schema: SCHEMA.to_string(),
@@ -248,9 +328,84 @@ impl From<&PluginInspection> for InspectionArtifact {
                 version: value.plugin_version.clone(),
                 dependencies,
             },
-            classes,
+            activation,
         }
     }
+}
+
+/// Copies and canonically orders the historical class-table inspection graph.
+fn artifact_classes(classes: &[nc_com_shared_runtime::ClassInspection]) -> Vec<ArtifactClass> {
+    let mut classes: Vec<_> = classes
+        .iter()
+        .map(|class| {
+            let mut interfaces: Vec<_> = class
+                .interfaces
+                .iter()
+                .map(|class_interface| {
+                    let interface = &class_interface.interface;
+                    ArtifactInterface {
+                        id: interface.interface_id.to_string(),
+                        name: interface.qualified_name.clone(),
+                        abi_signature: interface.abi_signature.clone(),
+                        base: ArtifactInterfaceId {
+                            iid: interface.base.iid.to_string(),
+                            abi_signature: interface.base.abi_signature.clone(),
+                        },
+                        methods: interface
+                            .methods
+                            .iter()
+                            .map(|method| ArtifactMethod {
+                                index: method.index,
+                                name: method.name.clone(),
+                                signature: method.signature.clone(),
+                            })
+                            .collect(),
+                    }
+                })
+                .collect();
+            interfaces.sort_by(|left, right| (&left.id, &left.abi_signature).cmp(&(&right.id, &right.abi_signature)));
+            ArtifactClass {
+                id: class.class_id.to_string(),
+                name: class.qualified_name.clone(),
+                version: class.class_version.clone(),
+                constructor_abi_signature: class.constructor_abi_signature.clone(),
+                threading: artifact_threading(class.threading),
+                interfaces,
+            }
+        })
+        .collect();
+    classes.sort_by(|left, right| left.id.cmp(&right.id));
+    classes
+}
+
+/// Converts one typed exact module reference to stable text fields.
+fn artifact_contract_reference(value: &nc_com_shared_runtime::ContractReferenceInspection) -> ArtifactContractReference {
+    ArtifactContractReference {
+        module_id: value.module_id.to_string(),
+        abi_fingerprint: format_fingerprint(value.abi_fingerprint.bytes),
+    }
+}
+
+/// Converts one runtime declaration kind to its schema spelling.
+fn artifact_declaration_kind(value: ContractDeclarationKind) -> ArtifactContractDeclarationKind {
+    match value {
+        ContractDeclarationKind::Struct => ArtifactContractDeclarationKind::Struct,
+        ContractDeclarationKind::Enum => ArtifactContractDeclarationKind::Enum,
+        ContractDeclarationKind::Interface => ArtifactContractDeclarationKind::Trait,
+        ContractDeclarationKind::Class => ArtifactContractDeclarationKind::Class,
+        ContractDeclarationKind::Factory => ArtifactContractDeclarationKind::Factory,
+    }
+}
+
+/// Formats a complete fingerprint as fixed-width lowercase hexadecimal text.
+fn format_fingerprint(bytes: [u8; 32]) -> String {
+    use std::fmt::Write as _;
+
+    let mut text = String::with_capacity(64);
+    for byte in bytes {
+        write!(text, "{byte:02x}").expect("writing into String cannot fail");
+    }
+    text
 }
 
 impl InspectionArtifact {
@@ -262,66 +417,18 @@ impl InspectionArtifact {
         validate_version(&self.plugin.version, "plugin.version")?;
         validate_dependencies(plugin_id, &self.plugin.dependencies)?;
 
-        let mut class_ids = BTreeSet::new();
         let mut id_to_name = BTreeMap::<[u8; 16], &str>::new();
         let mut name_to_id = BTreeMap::<&str, NcGuid>::new();
         insert_identity(&mut id_to_name, &mut name_to_id, plugin_id, &self.plugin.name, "plugin")?;
 
-        for (class_index, class) in self.classes.iter().enumerate() {
-            let class_path = format!("classes[{class_index}]");
-            let class_id = parse_guid(&class.id, &format!("{class_path}.id"))?;
-            validate_named_guid(class_id, &class.name, &class_path)?;
-            validate_version(&class.version, &format!("{class_path}.version"))?;
-            if !class_ids.insert(class_id.to_uuid_bytes()) {
-                return Err(ArtifactValidationError::new(format!("{class_path}.id"), "duplicate class ID"));
-            }
-            insert_identity(&mut id_to_name, &mut name_to_id, class_id, &class.name, &class_path)?;
-            validate_signature(
-                &class.constructor_abi_signature,
-                &format!("{class_path}.constructor_abi_signature"),
-                self.com_validation,
-            )?;
-
-            let mut interface_ids = BTreeSet::new();
-            let mut iunknown_count = 0;
-            for (interface_index, interface) in class.interfaces.iter().enumerate() {
-                let interface_path = format!("{class_path}.interfaces[{interface_index}]");
-                let iid = validate_interface(interface, &interface_path, self.com_validation)?;
-                if !interface_ids.insert(iid.to_uuid_bytes()) {
-                    return Err(ArtifactValidationError::new(format!("{interface_path}.id"), "duplicate interface ID in class"));
-                }
-                if iid == IID_IUNKNOWN {
-                    iunknown_count += 1;
-                }
-                insert_identity(&mut id_to_name, &mut name_to_id, iid, &interface.name, &interface_path)?;
-            }
-            // Every inherited identity must resolve in this same class. Bound
-            // traversal by table length so malformed artifacts cannot loop.
-            for interface in &class.interfaces {
-                let mut current = interface;
-                let mut hops = 0;
-                while !validate_interface_id(&current.base, &class_path, true, self.com_validation)?.is_none() {
-                    hops += 1;
-                    if hops >= class.interfaces.len() {
-                        return Err(ArtifactValidationError::new(&class_path, "cyclic interface inheritance"));
-                    }
-                    current = class
-                        .interfaces
-                        .iter()
-                        .find(|candidate| candidate.id == current.base.iid && candidate.abi_signature == current.base.abi_signature)
-                        .ok_or_else(|| ArtifactValidationError::new(&class_path, "base interface contract is absent or incompatible"))?;
-                }
-            }
-            if iunknown_count != 1 {
-                return Err(ArtifactValidationError::new(
-                    format!("{class_path}.interfaces"),
-                    "class must contain exactly one canonical IUnknown interface",
-                ));
-            }
+        match &self.activation {
+            ArtifactActivation::Factory(factory) => validate_factory(factory, &mut id_to_name, &mut name_to_id)?,
+            ArtifactActivation::LegacyClassTable { classes } => validate_classes(classes, self.com_validation, &mut id_to_name, &mut name_to_id)?,
         }
         Ok(())
     }
 
+    /// Validates schema provenance and target-wide ABI facts.
     fn validate_envelope(&self) -> Result<(), ArtifactValidationError> {
         if self.schema != SCHEMA {
             return Err(ArtifactValidationError::new("schema", format!("expected {SCHEMA:?}, found {:?}", self.schema)));
@@ -350,6 +457,216 @@ impl InspectionArtifact {
         }
         Ok(())
     }
+}
+
+/// Validates all legacy constructible class and interface relationships.
+fn validate_classes<'a>(
+    classes: &'a [ArtifactClass],
+    validation_mode: ArtifactValidationMode,
+    id_to_name: &mut BTreeMap<[u8; 16], &'a str>,
+    name_to_id: &mut BTreeMap<&'a str, NcGuid>,
+) -> Result<(), ArtifactValidationError> {
+    let mut class_ids = BTreeSet::new();
+    for (class_index, class) in classes.iter().enumerate() {
+        let class_path = format!("classes[{class_index}]");
+        let class_id = parse_guid(&class.id, &format!("{class_path}.id"))?;
+        validate_named_guid(class_id, &class.name, &class_path)?;
+        validate_version(&class.version, &format!("{class_path}.version"))?;
+        if !class_ids.insert(class_id.to_uuid_bytes()) {
+            return Err(ArtifactValidationError::new(format!("{class_path}.id"), "duplicate class ID"));
+        }
+        insert_identity(id_to_name, name_to_id, class_id, &class.name, &class_path)?;
+        validate_signature(
+            &class.constructor_abi_signature,
+            &format!("{class_path}.constructor_abi_signature"),
+            validation_mode,
+        )?;
+
+        let mut interface_ids = BTreeSet::new();
+        let mut iunknown_count = 0;
+        for (interface_index, interface) in class.interfaces.iter().enumerate() {
+            let interface_path = format!("{class_path}.interfaces[{interface_index}]");
+            let iid = validate_interface(interface, &interface_path, validation_mode)?;
+            if !interface_ids.insert(iid.to_uuid_bytes()) {
+                return Err(ArtifactValidationError::new(format!("{interface_path}.id"), "duplicate interface ID in class"));
+            }
+            if iid == IID_IUNKNOWN {
+                iunknown_count += 1;
+            }
+            insert_identity(id_to_name, name_to_id, iid, &interface.name, &interface_path)?;
+        }
+        // Every inherited identity must resolve in this same class. Bound
+        // traversal by table length so malformed artifacts cannot loop.
+        for interface in &class.interfaces {
+            let mut current = interface;
+            let mut hops = 0;
+            while !validate_interface_id(&current.base, &class_path, true, validation_mode)?.is_none() {
+                hops += 1;
+                if hops >= class.interfaces.len() {
+                    return Err(ArtifactValidationError::new(&class_path, "cyclic interface inheritance"));
+                }
+                current = class
+                    .interfaces
+                    .iter()
+                    .find(|candidate| candidate.id == current.base.iid && candidate.abi_signature == current.base.abi_signature)
+                    .ok_or_else(|| ArtifactValidationError::new(&class_path, "base interface contract is absent or incompatible"))?;
+            }
+        }
+        if iunknown_count != 1 {
+            return Err(ArtifactValidationError::new(
+                format!("{class_path}.interfaces"),
+                "class must contain exactly one canonical IUnknown interface",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Validates a factory root against one complete canonical module graph.
+fn validate_factory<'a>(
+    factory: &'a ArtifactFactory,
+    id_to_name: &mut BTreeMap<[u8; 16], &'a str>,
+    name_to_id: &mut BTreeMap<&'a str, NcGuid>,
+) -> Result<(), ArtifactValidationError> {
+    let root_factory_id = parse_guid(&factory.root_factory_id, "activation.factory.root_factory_id")?;
+    if root_factory_id.is_nil() {
+        return Err(ArtifactValidationError::new(
+            "activation.factory.root_factory_id",
+            "root factory ID must not be nil",
+        ));
+    }
+    if factory.direct_contracts.is_empty() {
+        return Err(ArtifactValidationError::new(
+            "activation.factory.direct_contracts",
+            "factory plugin must directly reference at least one contract module",
+        ));
+    }
+
+    let mut modules_by_id = BTreeMap::<[u8; 16], (usize, &ArtifactContractModule)>::new();
+    let mut module_names = BTreeSet::<&str>::new();
+    let mut declaration_ids = BTreeSet::<[u8; 16]>::new();
+    let mut matching_roots = 0usize;
+    for (module_index, module) in factory.modules.iter().enumerate() {
+        let path = format!("activation.factory.modules[{module_index}]");
+        let module_id = parse_guid(&module.id, &format!("{path}.id"))?;
+        validate_named_guid(module_id, &module.name, &path)?;
+        validate_fingerprint(&module.abi_fingerprint, &format!("{path}.abi_fingerprint"))?;
+        if modules_by_id.insert(module_id.to_uuid_bytes(), (module_index, module)).is_some() {
+            return Err(ArtifactValidationError::new(format!("{path}.id"), "duplicate contract module ID"));
+        }
+        if !module_names.insert(module.name.as_str()) {
+            return Err(ArtifactValidationError::new(format!("{path}.name"), "duplicate contract module name"));
+        }
+        insert_identity(id_to_name, name_to_id, module_id, &module.name, &path)?;
+
+        let mut dependency_ids = BTreeSet::new();
+        for (dependency_index, dependency) in module.dependencies.iter().enumerate() {
+            let dependency_path = format!("{path}.dependencies[{dependency_index}]");
+            let dependency_id = validate_contract_reference(dependency, &dependency_path)?;
+            if !dependency_ids.insert(dependency_id.to_uuid_bytes()) {
+                return Err(ArtifactValidationError::new(
+                    format!("{dependency_path}.module_id"),
+                    "duplicate direct contract dependency",
+                ));
+            }
+            let Some((resolved_index, resolved)) = modules_by_id.get(&dependency_id.to_uuid_bytes()) else {
+                return Err(ArtifactValidationError::new(
+                    dependency_path,
+                    "dependency is absent or does not precede its dependent module",
+                ));
+            };
+            if *resolved_index >= module_index || resolved.abi_fingerprint != dependency.abi_fingerprint {
+                return Err(ArtifactValidationError::new(
+                    dependency_path,
+                    "dependency revision does not match the canonical module graph",
+                ));
+            }
+        }
+
+        for (declaration_index, declaration) in module.declarations.iter().enumerate() {
+            let declaration_path = format!("{path}.declarations[{declaration_index}]");
+            let declaration_id = parse_guid(&declaration.id, &format!("{declaration_path}.id"))?;
+            if declaration_id.is_nil() {
+                return Err(ArtifactValidationError::new(format!("{declaration_path}.id"), "declaration ID must not be nil"));
+            }
+            validate_qualified_name(&declaration.name, &format!("{declaration_path}.name"))?;
+            if declaration.version == 0 {
+                return Err(ArtifactValidationError::new(
+                    format!("{declaration_path}.version"),
+                    "declaration version must be positive",
+                ));
+            }
+            let expects_threading = matches!(
+                declaration.kind,
+                ArtifactContractDeclarationKind::Class | ArtifactContractDeclarationKind::Factory
+            );
+            if declaration.threading.is_some() != expects_threading {
+                return Err(ArtifactValidationError::new(
+                    format!("{declaration_path}.threading"),
+                    "threading is required only for class and factory declarations",
+                ));
+            }
+            if !declaration_ids.insert(declaration_id.to_uuid_bytes()) {
+                return Err(ArtifactValidationError::new(format!("{declaration_path}.id"), "duplicate declaration ID"));
+            }
+            insert_identity(id_to_name, name_to_id, declaration_id, &declaration.name, &declaration_path)?;
+            if declaration_id == root_factory_id {
+                matching_roots += 1;
+                if declaration.kind != ArtifactContractDeclarationKind::Factory || declaration.threading != Some(factory.root_factory_threading) {
+                    return Err(ArtifactValidationError::new(
+                        declaration_path,
+                        "root identity does not name a factory with matching threading",
+                    ));
+                }
+            }
+        }
+    }
+
+    let mut direct_ids = BTreeSet::new();
+    for (index, reference) in factory.direct_contracts.iter().enumerate() {
+        let path = format!("activation.factory.direct_contracts[{index}]");
+        let module_id = validate_contract_reference(reference, &path)?;
+        if !direct_ids.insert(module_id.to_uuid_bytes()) {
+            return Err(ArtifactValidationError::new(format!("{path}.module_id"), "duplicate direct contract reference"));
+        }
+        let Some((_, module)) = modules_by_id.get(&module_id.to_uuid_bytes()) else {
+            return Err(ArtifactValidationError::new(path, "direct contract is absent from the canonical module graph"));
+        };
+        if module.abi_fingerprint != reference.abi_fingerprint {
+            return Err(ArtifactValidationError::new(
+                path,
+                "direct contract revision does not match the canonical module graph",
+            ));
+        }
+    }
+    if matching_roots != 1 {
+        return Err(ArtifactValidationError::new(
+            "activation.factory.root_factory_id",
+            "root factory must occur exactly once in the canonical module graph",
+        ));
+    }
+    Ok(())
+}
+
+/// Validates one exact contract reference and returns its parsed module ID.
+fn validate_contract_reference(reference: &ArtifactContractReference, path: &str) -> Result<NcGuid, ArtifactValidationError> {
+    let module_id = parse_guid(&reference.module_id, &format!("{path}.module_id"))?;
+    if module_id.is_nil() {
+        return Err(ArtifactValidationError::new(format!("{path}.module_id"), "contract module ID must not be nil"));
+    }
+    validate_fingerprint(&reference.abi_fingerprint, &format!("{path}.abi_fingerprint"))?;
+    Ok(module_id)
+}
+
+/// Requires one nonzero lowercase 32-byte hexadecimal digest.
+fn validate_fingerprint(value: &str, path: &str) -> Result<(), ArtifactValidationError> {
+    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {
+        return Err(ArtifactValidationError::new(path, "fingerprint must be 64 lowercase hexadecimal characters"));
+    }
+    if value.bytes().all(|byte| byte == b'0') {
+        return Err(ArtifactValidationError::new(path, "fingerprint must not be zero"));
+    }
+    Ok(())
 }
 
 fn validate_dependencies(plugin_id: NcGuid, values: &[String]) -> Result<(), ArtifactValidationError> {
@@ -622,39 +939,82 @@ pub(crate) fn sample_artifact() -> InspectionArtifact {
             version: "1.0.0".to_string(),
             dependencies: Vec::new(),
         },
-        classes: vec![ArtifactClass {
-            id: guid_from_qualified_name(class_name).to_string(),
-            name: class_name.to_string(),
-            version: "1.0.0".to_string(),
-            constructor_abi_signature: format_signature(NcAbiSignature::EMPTY),
-            threading: ArtifactThreading::ThreadLocal,
-            interfaces: vec![
-                ArtifactInterface {
-                    id: IID_IUNKNOWN.to_string(),
-                    name: IUNKNOWN_QUALIFIED_NAME.to_string(),
-                    abi_signature: "ncabi1;unchecked".to_string(),
-                    base: artifact_interface_id(NcInterfaceId::NONE),
-                    methods: Vec::new(),
-                },
-                ArtifactInterface {
-                    id: guid_from_qualified_name(interface_name).to_string(),
-                    name: interface_name.to_string(),
-                    abi_signature: "ncabi1;unchecked".to_string(),
-                    base: artifact_interface_id(NcInterfaceId::NONE),
-                    methods: vec![ArtifactMethod {
-                        index: 0,
-                        name: "value".to_string(),
-                        signature: "value() -> out<u32> status".to_string(),
-                    }],
-                },
-            ],
-        }],
+        activation: ArtifactActivation::LegacyClassTable {
+            classes: vec![ArtifactClass {
+                id: guid_from_qualified_name(class_name).to_string(),
+                name: class_name.to_string(),
+                version: "1.0.0".to_string(),
+                constructor_abi_signature: format_signature(NcAbiSignature::EMPTY),
+                threading: ArtifactThreading::ThreadLocal,
+                interfaces: vec![
+                    ArtifactInterface {
+                        id: IID_IUNKNOWN.to_string(),
+                        name: IUNKNOWN_QUALIFIED_NAME.to_string(),
+                        abi_signature: "ncabi1;unchecked".to_string(),
+                        base: artifact_interface_id(NcInterfaceId::NONE),
+                        methods: Vec::new(),
+                    },
+                    ArtifactInterface {
+                        id: guid_from_qualified_name(interface_name).to_string(),
+                        name: interface_name.to_string(),
+                        abi_signature: "ncabi1;unchecked".to_string(),
+                        base: artifact_interface_id(NcInterfaceId::NONE),
+                        methods: vec![ArtifactMethod {
+                            index: 0,
+                            name: "value".to_string(),
+                            signature: "value() -> out<u32> status".to_string(),
+                        }],
+                    },
+                ],
+            }],
+        },
     }
+}
+
+/// Builds one valid factory artifact with a single canonical leaf module.
+#[cfg(test)]
+pub(crate) fn sample_factory_artifact() -> InspectionArtifact {
+    let module_name = "example.contract";
+    let factory_name = "example.contract.RootFactory";
+    let module_id = guid_from_qualified_name(module_name).to_string();
+    let fingerprint = "11".repeat(32);
+    let mut artifact = sample_artifact();
+    artifact.activation = ArtifactActivation::Factory(ArtifactFactory {
+        root_factory_id: guid_from_qualified_name(factory_name).to_string(),
+        root_factory_threading: ArtifactThreading::ThreadLocal,
+        direct_contracts: vec![ArtifactContractReference {
+            module_id: module_id.clone(),
+            abi_fingerprint: fingerprint.clone(),
+        }],
+        modules: vec![ArtifactContractModule {
+            id: module_id,
+            abi_fingerprint: fingerprint,
+            name: module_name.to_string(),
+            dependencies: Vec::new(),
+            declarations: vec![ArtifactContractDeclaration {
+                id: guid_from_qualified_name(factory_name).to_string(),
+                version: 1,
+                kind: ArtifactContractDeclarationKind::Factory,
+                threading: Some(ArtifactThreading::ThreadLocal),
+                name: factory_name.to_string(),
+            }],
+            source: "#[version(1)] factory RootFactory {}".to_string(),
+        }],
+    });
+    artifact
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Borrows the legacy fixture classes for malformed-artifact tests.
+    fn legacy_classes_mut(artifact: &mut InspectionArtifact) -> &mut Vec<ArtifactClass> {
+        let ArtifactActivation::LegacyClassTable { classes } = &mut artifact.activation else {
+            panic!("sample artifact must use legacy class-table activation");
+        };
+        classes
+    }
 
     #[test]
     fn sample_artifact_is_valid_and_round_trips() {
@@ -665,6 +1025,28 @@ mod tests {
         parsed.validate().unwrap();
         assert_eq!(parsed, artifact);
         assert!(String::from_utf8(json).unwrap().contains("\"com_validation\":\"none\""));
+    }
+
+    /// Confirms factory artifacts retain and validate the complete IDL graph.
+    #[test]
+    fn factory_artifact_is_valid_and_round_trips() {
+        let artifact = sample_factory_artifact();
+        artifact.validate().unwrap();
+        let json = serde_json::to_vec(&artifact).unwrap();
+        let parsed: InspectionArtifact = serde_json::from_slice(&json).unwrap();
+        parsed.validate().unwrap();
+        assert_eq!(parsed, artifact);
+    }
+
+    /// Confirms the root capability is checked against its canonical declaration.
+    #[test]
+    fn rejects_factory_root_threading_disagreement() {
+        let mut artifact = sample_factory_artifact();
+        let ArtifactActivation::Factory(factory) = &mut artifact.activation else {
+            unreachable!();
+        };
+        factory.root_factory_threading = ArtifactThreading::ThreadSafe;
+        assert!(artifact.validate().unwrap_err().to_string().contains("matching threading"));
     }
 
     #[test]
@@ -702,26 +1084,27 @@ mod tests {
     #[test]
     fn rejects_duplicate_identities_before_diff_maps_are_built() {
         let mut artifact = sample_artifact();
-        artifact.classes.push(artifact.classes[0].clone());
+        let duplicate = legacy_classes_mut(&mut artifact)[0].clone();
+        legacy_classes_mut(&mut artifact).push(duplicate);
         assert!(artifact.validate().unwrap_err().to_string().contains("duplicate class ID"));
 
         let mut artifact = sample_artifact();
-        let duplicate = artifact.classes[0].interfaces[1].clone();
-        artifact.classes[0].interfaces.push(duplicate);
+        let duplicate = legacy_classes_mut(&mut artifact)[0].interfaces[1].clone();
+        legacy_classes_mut(&mut artifact)[0].interfaces.push(duplicate);
         assert!(artifact.validate().unwrap_err().to_string().contains("duplicate interface ID"));
     }
 
     #[test]
     fn rejects_noncontiguous_method_indices() {
         let mut artifact = sample_artifact();
-        artifact.classes[0].interfaces[1].methods[0].index = 1;
+        legacy_classes_mut(&mut artifact)[0].interfaces[1].methods[0].index = 1;
         assert!(artifact.validate().unwrap_err().to_string().contains("expected contiguous method index 0"));
     }
 
     #[test]
     fn diagnostic_method_text_is_not_signature_authority() {
         let mut artifact = sample_artifact();
-        artifact.classes[0].interfaces[1].methods[0].signature = "diagnostic format changed".to_string();
+        legacy_classes_mut(&mut artifact)[0].interfaces[1].methods[0].signature = "diagnostic format changed".to_string();
         artifact.validate().unwrap();
     }
 }

@@ -84,33 +84,6 @@ pub(super) unsafe extern "C" fn load_plugin_library_utf8(path: *const u8, path_l
     }
 }
 
-/// Performs required live activation for one factory-only plugin library.
-pub(super) unsafe extern "C" fn load_factory_plugin_library_utf8(path: *const u8, path_len: usize, out_module_id: *mut u64) -> NcStatus {
-    if out_module_id.is_null() {
-        return NC_E_POINTER;
-    }
-    // SAFETY: The caller grants one output write.
-    unsafe { *out_module_id = 0 };
-    let path = match unsafe { path_from_utf8(path, path_len) } {
-        Ok(path) => path,
-        Err(status) => return status,
-    };
-    // SAFETY: The ABI caller explicitly selected this trusted plugin path.
-    match unsafe { RuntimeState::global().load_factory_plugin_library(path) } {
-        Ok(module_id) => {
-            // SAFETY: The output slot was validated and remains writable.
-            unsafe { *out_module_id = module_id.get() };
-            NC_OK
-        }
-        Err(error) => {
-            let status = error.status().unwrap_or_else(|| load_error_status(error.kind()));
-            eprintln!("fatal neocogi-com factory plugin activation failure: {error}");
-            emit_error(NC_DEBUG_TYPE_PLUGIN, status, &error.to_string());
-            std::process::abort()
-        }
-    }
-}
-
 /// Checks a registered class against one complete interface identity.
 pub(super) unsafe extern "C" fn require_interface(class_id: NcGuid, interface_id: NcInterfaceId) -> NcStatus {
     let result = {

@@ -10,9 +10,9 @@ use std::collections::HashMap;
 use std::string::String;
 use std::vec::Vec;
 
-use neocogi_com_core::{NcAbiValidationMode, NcGuid};
+use neocogi_com_core::{NcAbiValidationMode, NcContractFingerprint, NcGuid};
 
-use super::PluginInspection;
+use super::{PluginActivationInspection, PluginInspection};
 
 /// A collection-level error that prevents construction of a complete plugin
 /// activation order.
@@ -28,6 +28,19 @@ pub enum PluginDependencyPlanError {
         actual_plugin_id: NcGuid,
         /// ABI validation mode declared by the differing plugin.
         actual: NcAbiValidationMode,
+    },
+    /// Two factory plugins require different revisions of one logical module.
+    ContractRevisionMismatch {
+        /// Stable logical contract module identity.
+        module_id: NcGuid,
+        /// Deterministic first plugin requiring this module.
+        expected_plugin_id: NcGuid,
+        /// Exact fingerprint required by the first plugin.
+        expected: NcContractFingerprint,
+        /// First plugin requiring a different revision.
+        actual_plugin_id: NcGuid,
+        /// Conflicting exact fingerprint required by that plugin.
+        actual: NcContractFingerprint,
     },
     /// Two inspected identities disagree about the GUID/name mapping.
     IdentityMappingConflict {
@@ -72,6 +85,18 @@ impl fmt::Display for PluginDependencyPlanError {
                 f,
                 "mixed COM validation modes: plugin {expected_plugin_id} uses {expected}, but plugin {actual_plugin_id} uses {actual}"
             ),
+            Self::ContractRevisionMismatch {
+                module_id,
+                expected_plugin_id,
+                expected,
+                actual_plugin_id,
+                actual,
+            } => write!(
+                f,
+                "conflicting contract module {module_id}: plugin {expected_plugin_id} requires {}, but plugin {actual_plugin_id} requires {}",
+                fingerprint_text(*expected),
+                fingerprint_text(*actual),
+            ),
             Self::IdentityMappingConflict {
                 first_id,
                 first_name,
@@ -105,6 +130,7 @@ impl std::error::Error for PluginDependencyPlanError {}
 /// by GUID field value so filesystem enumeration order cannot affect the result.
 pub fn plan_plugin_load_order(plugins: &[PluginInspection]) -> Result<Vec<NcGuid>, PluginDependencyPlanError> {
     validate_validation_modes(plugins)?;
+    validate_contract_revisions(plugins)?;
     validate_identity_mappings(plugins)?;
     let mut by_id = HashMap::with_capacity(plugins.len());
     for (index, plugin) in plugins.iter().enumerate() {
@@ -162,6 +188,34 @@ pub fn plan_plugin_load_order(plugins: &[PluginInspection]) -> Result<Vec<NcGuid
     Ok(ordered)
 }
 
+/// Requires one exact revision of each logical contract module in an assembly.
+fn validate_contract_revisions(plugins: &[PluginInspection]) -> Result<(), PluginDependencyPlanError> {
+    let mut ordered: Vec<_> = plugins.iter().collect();
+    ordered.sort_by_key(|plugin| guid_key(plugin.plugin_id));
+    let mut revisions = HashMap::<NcGuid, (NcGuid, NcContractFingerprint)>::new();
+    for plugin in ordered {
+        let PluginActivationInspection::Factory(factory) = &plugin.activation else {
+            continue;
+        };
+        for module in &factory.modules {
+            if let Some((expected_plugin_id, expected)) = revisions.get(&module.module_id).copied() {
+                if expected != module.abi_fingerprint {
+                    return Err(PluginDependencyPlanError::ContractRevisionMismatch {
+                        module_id: module.module_id,
+                        expected_plugin_id,
+                        expected,
+                        actual_plugin_id: plugin.plugin_id,
+                        actual: module.abi_fingerprint,
+                    });
+                }
+            } else {
+                revisions.insert(module.module_id, (plugin.plugin_id, module.abi_fingerprint));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Requires one ABI validation representation across an assembly.
 ///
 /// The lowest plugin GUID is the reference and candidates are checked in GUID
@@ -190,10 +244,22 @@ fn validate_identity_mappings(plugins: &[PluginInspection]) -> Result<(), Plugin
     let mut identities = Vec::new();
     for plugin in plugins {
         identities.push((plugin.plugin_id, plugin.qualified_name.as_str()));
-        for class in &plugin.classes {
-            identities.push((class.class_id, class.qualified_name.as_str()));
-            for interface in &class.interfaces {
-                identities.push((interface.interface_id, interface.interface.qualified_name.as_str()));
+        match &plugin.activation {
+            PluginActivationInspection::Factory(factory) => {
+                for module in &factory.modules {
+                    identities.push((module.module_id, module.module_name.as_str()));
+                    for declaration in &module.declarations {
+                        identities.push((declaration.declaration_id, declaration.qualified_name.as_str()));
+                    }
+                }
+            }
+            PluginActivationInspection::LegacyClassTable { classes } => {
+                for class in classes {
+                    identities.push((class.class_id, class.qualified_name.as_str()));
+                    for interface in &class.interfaces {
+                        identities.push((interface.interface_id, interface.interface.qualified_name.as_str()));
+                    }
+                }
             }
         }
     }
@@ -218,9 +284,21 @@ fn guid_key(guid: NcGuid) -> (u32, u16, u16, [u8; 8]) {
     (guid.data1, guid.data2, guid.data3, guid.data4)
 }
 
+/// Formats a contract fingerprint for deterministic planner diagnostics.
+fn fingerprint_text(fingerprint: NcContractFingerprint) -> String {
+    use core::fmt::Write as _;
+
+    let mut text = String::with_capacity(64);
+    for byte in fingerprint.bytes {
+        write!(text, "{byte:02x}").expect("writing into String cannot fail");
+    }
+    text
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::loader::{ContractModuleInspection, FactoryInspection};
 
     fn plugin(id: u32, dependencies: &[u32]) -> PluginInspection {
         PluginInspection {
@@ -230,12 +308,31 @@ mod tests {
             qualified_name: format!("nc.tests.plugin{id}"),
             plugin_version: "1.0.0".to_string(),
             dependencies: dependencies.iter().copied().map(guid).collect(),
-            classes: Vec::new(),
+            activation: PluginActivationInspection::LegacyClassTable { classes: Vec::new() },
         }
     }
 
     fn guid(value: u32) -> NcGuid {
         NcGuid::from_fields(value, 0, 0, [0; 8])
+    }
+
+    /// Constructs one minimal factory plugin requiring an exact module revision.
+    fn factory_plugin(id: u32, fingerprint: u8) -> PluginInspection {
+        let mut plugin = plugin(id, &[]);
+        plugin.activation = PluginActivationInspection::Factory(FactoryInspection {
+            root_factory_id: guid(99),
+            root_factory_threading: neocogi_com_core::NcAbiThreadingMode::ThreadLocal,
+            direct_contracts: Vec::new(),
+            modules: vec![ContractModuleInspection {
+                module_id: guid(50),
+                abi_fingerprint: NcContractFingerprint::new([fingerprint; 32]),
+                module_name: "nc.tests.contract".to_string(),
+                dependencies: Vec::new(),
+                declarations: Vec::new(),
+                source: String::new(),
+            }],
+        });
+        plugin
     }
 
     #[test]
@@ -293,6 +390,21 @@ mod tests {
                 expected: NcAbiValidationMode::SHA_256,
                 actual_plugin_id: guid(2),
                 actual: NcAbiValidationMode::FNV_1A_128,
+            })
+        );
+    }
+
+    /// Confirms staging cannot defer a contract revision collision to live loading.
+    #[test]
+    fn rejects_conflicting_factory_contract_revisions() {
+        assert_eq!(
+            plan_plugin_load_order(&[factory_plugin(2, 2), factory_plugin(1, 1)]),
+            Err(PluginDependencyPlanError::ContractRevisionMismatch {
+                module_id: guid(50),
+                expected_plugin_id: guid(1),
+                expected: NcContractFingerprint::new([1; 32]),
+                actual_plugin_id: guid(2),
+                actual: NcContractFingerprint::new([2; 32]),
             })
         );
     }

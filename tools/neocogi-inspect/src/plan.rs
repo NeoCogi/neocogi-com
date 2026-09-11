@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 
 use neocogi_com_core::NcGuid;
 use nc_com_shared_runtime::PluginInspection;
+#[cfg(test)]
+use nc_com_shared_runtime::PluginActivationInspection;
 use serde::Serialize;
 
 pub(crate) const PLAN_SCHEMA: &str = "neocogi-com.load-plan";
@@ -105,7 +107,7 @@ mod tests {
             qualified_name: "nc.tests.plan".to_string(),
             plugin_version: "1.0.0".to_string(),
             dependencies: Vec::new(),
-            classes: Vec::new(),
+            activation: PluginActivationInspection::LegacyClassTable { classes: Vec::new() },
         }
     }
 

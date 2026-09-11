@@ -728,7 +728,7 @@ mod tests {
                 qualified_name: qualified_name.to_owned(),
                 plugin_version: "1.0.0".to_owned(),
                 dependencies: dependencies.to_vec(),
-                classes: Vec::new(),
+                activation: crate::loader::PluginActivationInspection::LegacyClassTable { classes: Vec::new() },
             }
         }
 

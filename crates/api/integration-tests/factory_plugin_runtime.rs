@@ -75,14 +75,14 @@ fn generated_contract_factory_activates_without_a_class_table() {
     assert_eq!(info.qualified_name, "nc.tests.generated_factory_plugin");
 }
 
-/// Verifies a real plugin DSO loads through the factory-specific symbol path.
+/// Verifies the common loader detects a real factory DSO and its exact contract.
 #[test]
 fn dynamic_factory_plugin_links_the_exact_contract_dso() {
     let library = build_dynamic_fixture();
     let runtime = Runtime::default();
     // SAFETY: The built example is trusted test code and the runtime retains
     // its library plus linked canonical contract module for process lifetime.
-    let loaded = unsafe { runtime.load_factory_plugin_library(&library) };
+    let loaded = unsafe { runtime.load_plugin_library(&library) };
     assert_eq!(loaded.path(), library);
 
     let plugin_id = guid_from_qualified_name("nc.examples.factory_plugin_component");

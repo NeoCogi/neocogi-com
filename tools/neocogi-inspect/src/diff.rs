@@ -2,7 +2,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::schema::{ArtifactClass, ArtifactInterface, ArtifactInterfaceId, ArtifactMethod, ArtifactPlugin, InspectionArtifact};
+use crate::schema::{
+    ArtifactActivation, ArtifactClass, ArtifactContractModule, ArtifactFactory, ArtifactInterface, ArtifactInterfaceId, ArtifactMethod, ArtifactPlugin,
+    InspectionArtifact,
+};
 
 pub(crate) fn diff_inspections(old: &InspectionArtifact, new: &InspectionArtifact) -> Vec<String> {
     // Artifact validation runs before this function, so identity-keyed maps
@@ -18,8 +21,56 @@ pub(crate) fn diff_inspections(old: &InspectionArtifact, new: &InspectionArtifac
     push_changed_display(&mut differences, "core_abi_version", old.core_abi_version, new.core_abi_version);
     push_changed_display(&mut differences, "com_validation", old.com_validation, new.com_validation);
     diff_plugin(&mut differences, &old.plugin, &new.plugin);
-    diff_classes(&mut differences, &old.classes, &new.classes);
+    diff_activation(&mut differences, &old.activation, &new.activation);
     differences
+}
+
+/// Compares only fields meaningful to the selected activation model.
+fn diff_activation(differences: &mut Vec<String>, old: &ArtifactActivation, new: &ArtifactActivation) {
+    match (old, new) {
+        (ArtifactActivation::Factory(old), ArtifactActivation::Factory(new)) => diff_factory(differences, old, new),
+        (ArtifactActivation::LegacyClassTable { classes: old }, ArtifactActivation::LegacyClassTable { classes: new }) => diff_classes(differences, old, new),
+        (ArtifactActivation::Factory(_), ArtifactActivation::LegacyClassTable { .. }) => {
+            differences.push("changed: activation model: factory -> legacy_class_table".to_string())
+        }
+        (ArtifactActivation::LegacyClassTable { .. }, ArtifactActivation::Factory(_)) => {
+            differences.push("changed: activation model: legacy_class_table -> factory".to_string())
+        }
+    }
+}
+
+/// Compares a typed factory root and its exact canonical contract revisions.
+fn diff_factory(differences: &mut Vec<String>, old: &ArtifactFactory, new: &ArtifactFactory) {
+    push_changed_str(differences, "activation.factory.root_factory_id", &old.root_factory_id, &new.root_factory_id);
+    push_changed_debug(
+        differences,
+        "activation.factory.root_factory_threading",
+        &old.root_factory_threading,
+        &new.root_factory_threading,
+    );
+    push_changed_debug(differences, "activation.factory.direct_contracts", &old.direct_contracts, &new.direct_contracts);
+    diff_contract_modules(differences, &old.modules, &new.modules);
+}
+
+/// Compares canonical modules by stable identity and reports field-level changes.
+fn diff_contract_modules(differences: &mut Vec<String>, old: &[ArtifactContractModule], new: &[ArtifactContractModule]) {
+    let old = map_by(old, |module| module.id.clone());
+    let new = map_by(new, |module| module.id.clone());
+    for id in sorted_keys(&old, &new) {
+        match (old.get(&id), new.get(&id)) {
+            (Some(old), Some(new)) => {
+                let path = format!("contract module {id}");
+                push_changed_str(differences, &format!("{path}.name"), &old.name, &new.name);
+                push_changed_str(differences, &format!("{path}.abi_fingerprint"), &old.abi_fingerprint, &new.abi_fingerprint);
+                push_changed_debug(differences, &format!("{path}.dependencies"), &old.dependencies, &new.dependencies);
+                push_changed_debug(differences, &format!("{path}.declarations"), &old.declarations, &new.declarations);
+                push_changed_str(differences, &format!("{path}.source"), &old.source, &new.source);
+            }
+            (Some(old), None) => differences.push(format!("removed: contract module {id} ({})", old.name)),
+            (None, Some(new)) => differences.push(format!("added: contract module {id} ({})", new.name)),
+            (None, None) => unreachable!(),
+        }
+    }
 }
 
 fn diff_plugin(differences: &mut Vec<String>, old: &ArtifactPlugin, new: &ArtifactPlugin) {
@@ -144,19 +195,42 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::{ArtifactClass, sample_artifact};
+    use crate::schema::{ArtifactClass, sample_artifact, sample_factory_artifact};
     use neocogi_com_core::guid_from_qualified_name;
+
+    /// Borrows the legacy fixture classes without hiding activation in product code.
+    fn legacy_classes_mut(artifact: &mut InspectionArtifact) -> &mut Vec<ArtifactClass> {
+        let ArtifactActivation::LegacyClassTable { classes } = &mut artifact.activation else {
+            panic!("sample artifact must use legacy class-table activation");
+        };
+        classes
+    }
 
     #[test]
     fn identical_artifacts_have_no_differences() {
         assert!(diff_inspections(&sample_artifact(), &sample_artifact()).is_empty());
     }
 
+    /// Confirms exact factory comparison names the changed contract fingerprint.
+    #[test]
+    fn reports_factory_contract_fingerprint_changes() {
+        let old = sample_factory_artifact();
+        let mut new = old.clone();
+        let ArtifactActivation::Factory(factory) = &mut new.activation else {
+            unreachable!();
+        };
+        factory.modules[0].abi_fingerprint = "22".repeat(32);
+
+        let differences = diff_inspections(&old, &new);
+
+        assert!(differences.iter().any(|difference| difference.contains("abi_fingerprint")));
+    }
+
     #[test]
     fn reports_method_signature_changes_by_vtable_index() {
         let old = sample_artifact();
         let mut new = sample_artifact();
-        new.classes[0].interfaces[1].methods[0].signature = "value() -> out<u64> status".to_string();
+        legacy_classes_mut(&mut new)[0].interfaces[1].methods[0].signature = "value() -> out<u64> status".to_string();
 
         let differences = diff_inspections(&old, &new);
 
@@ -176,7 +250,7 @@ mod tests {
     fn reports_interface_qualified_name_changes() {
         let old = sample_artifact();
         let mut new = sample_artifact();
-        new.classes[0].interfaces[1].name = "example.RenamedInterface:v1".to_string();
+        legacy_classes_mut(&mut new)[0].interfaces[1].name = "example.RenamedInterface:v1".to_string();
 
         assert!(diff_inspections(&old, &new).iter().any(|difference| difference.contains(".name")));
     }
@@ -185,7 +259,7 @@ mod tests {
     fn reports_class_threading_changes() {
         let old = sample_artifact();
         let mut new = sample_artifact();
-        new.classes[0].threading = crate::schema::ArtifactThreading::ThreadSafe;
+        legacy_classes_mut(&mut new)[0].threading = crate::schema::ArtifactThreading::ThreadSafe;
 
         assert!(diff_inspections(&old, &new).iter().any(|difference| difference.contains(".threading")));
     }
@@ -194,10 +268,10 @@ mod tests {
     fn reports_added_classes() {
         let old = sample_artifact();
         let mut new = sample_artifact();
-        let mut class: ArtifactClass = new.classes[0].clone();
+        let mut class: ArtifactClass = legacy_classes_mut(&mut new)[0].clone();
         class.name = "example.Bar".to_string();
         class.id = guid_from_qualified_name(&class.name).to_string();
-        new.classes.push(class);
+        legacy_classes_mut(&mut new).push(class);
 
         assert!(diff_inspections(&old, &new).iter().any(|difference| difference.starts_with("added: class")));
     }
