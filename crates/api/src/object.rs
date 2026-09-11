@@ -297,37 +297,36 @@ pub unsafe trait ComAbiObject: Sized {
     unsafe fn release_from_abi_object(object: *mut c_void) -> u32;
 }
 
-/// Associates a generated COM implementation class with the strongest
+/// Associates a generated COM implementation object with the strongest
 /// threading capability supported by pointers to its object storage.
 ///
-/// The generated class constructors, descriptor metadata, and checked
-/// constructor thunk all derive their threading mode from this associated type.
-/// A [`ThreadSafe`] class may still be exposed through a conservative
-/// thread-local pointer; the associated type records the maximum capability the
-/// class is allowed to produce.
+/// Generated pointers and IDL description associations derive their threading
+/// mode from this associated type. A [`ThreadSafe`] object may still be exposed
+/// through a conservative thread-local pointer; the associated type records the
+/// maximum capability the implementation is allowed to produce.
 ///
-/// | `Threading` | Generated owner | Descriptor value | Caller permission |
+/// | `Threading` | Generated owner | ABI value | Caller permission |
 /// |---|---|---|---|
 /// | [`crate::ThreadLocal`] | `ComPtr<_, ThreadLocal>` | `THREAD_LOCAL` | Current-thread use only |
 /// | [`ThreadSafe`] | `ComPtr<_, ThreadSafe>` | `THREAD_SAFE` | Cross-thread movement, sharing, calls, and final release |
 ///
 /// This associated type cannot by itself control a pointer forever. Once a
-/// class is exposed through one of its interfaces, the concrete class type is
-/// erased and several classes with different threading models may implement
-/// that same interface. The `ComPtr` or `ComRef` threading parameter carries
-/// this class promise into the erased handle type, where Rust can enforce
-/// `Send` and `Sync`. The class associated type and pointer marker are therefore
+/// object is exposed through one of its interfaces, the concrete implementation
+/// type is erased and several objects with different threading models may
+/// implement that same interface. The `ComPtr` or `ComRef` threading parameter carries
+/// this producer promise into the erased handle type, where Rust can enforce
+/// `Send` and `Sync`. The object associated type and pointer marker are therefore
 /// the producer and consumer halves of one contract, not duplicate state.
 ///
 /// # Safety
 ///
-/// `Threading` must describe every interface header backed by this class's
+/// `Threading` must describe every interface header backed by this implementation's
 /// generated object storage. Selecting [`ThreadSafe`] promises that all exposed
 /// methods may be called concurrently from arbitrary threads and that final
 /// destruction may occur on any thread. IDL-backed implementations derive this
 /// associated type from their canonical description.
 pub unsafe trait ComClass: ComAbiObject {
-    /// Strongest threading capability supported by this class's COM objects.
+    /// Strongest threading capability supported by this implementation's COM objects.
     type Threading: ThreadingModel;
 }
 

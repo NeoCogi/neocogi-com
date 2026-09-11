@@ -32,8 +32,8 @@
 //!
 //! The explicit contract is the generated C-shaped surface: `#[repr(C)]`
 //! interface headers, `extern "C"` vtable functions, explicit [`NcStatus`]
-//! values, GUIDs, ABI signatures, reference-counted object lifetime, and host-owned
-//! plugin/class metadata. Rust traits, generics, trait objects, references,
+//! values, GUIDs, ABI signatures, reference-counted object lifetime, and
+//! immutable contract/plugin descriptions. Rust traits, generics, trait objects, references,
 //! `String`, `Vec<T>`, slices, allocator ownership, and unwinding panics are
 //! local implementation details and must not cross the ABI boundary.
 //!
@@ -44,8 +44,8 @@
 //!
 //! With the `runtime` feature, `neocogi-com` exposes the process-global
 //! `Runtime` facade backed by the linked `libnc_com_shared_runtime` shared library.
-//! Hosts still choose which plugin descriptors to accept, but successful dynamic
-//! plugin loads remain mapped until process exit.
+//! Hosts still choose which factory plugins to accept, but successful dynamic
+//! plugin loads and their exact contract libraries remain mapped until process exit.
 //!
 //! Interface casts are performed through [`IUnknown`] / `QueryInterface`, not by
 //! pointer casts. `QueryInterface` checks both interface ID and generated ABI
@@ -57,14 +57,13 @@
 //! [`ComPtr<T>`](ComPtr) is thread-local by default. Objects declared with
 //! `#[com_object(thread_safe, ...)]` produce
 //! `ComPtr<T, ThreadSafe>`, which can be sent and shared across threads.
-//! Generated [`ComClass::Threading`] implementations make that strongest class
-//! capability the source for constructors and descriptor metadata. A
+//! Generated [`ComClass::Threading`] implementations make that strongest object
+//! capability the source for typed pointers and factory metadata. A
 //! thread-safe pointer can be explicitly weakened to a thread-local owner or
 //! borrow without changing the underlying COM reference.
-//! `Runtime::construct_class` requests a conservative thread-local pointer;
-//! `Runtime::construct_class_with_model` allows an explicit checked request
-//! for `ThreadSafe`. The runtime rejects unsafe upgrades before invoking plugin
-//! constructors.
+//! [`Runtime::activate_plugin_factory`] checks the generated root factory's
+//! identity, signature, and threading capability before returning its typed
+//! pointer. Later construction is expressed by ordinary IDL factory methods.
 //!
 //! | Handle | Owns a COM reference | `Send` | `Sync` | Cross-thread capability |
 //! |---|:---:|:---:|:---:|---|
@@ -77,9 +76,9 @@
 //! methods, and both thread-local and thread-safe classes may implement the same
 //! interface. It also cannot be recovered from the raw ABI pointer, whose
 //! layout contains no threading tag. [`ComClass::Threading`] records the
-//! concrete producer's strongest capability while the class is known; the
-//! pointer marker preserves that evidence after construction and
-//! `QueryInterface` erase the concrete class type. In particular, making the
+//! concrete producer's strongest capability while the implementation is known;
+//! the pointer marker preserves that evidence after a factory return and
+//! `QueryInterface` erase the concrete implementation type. In particular, making the
 //! reference count atomic protects object lifetime but says nothing about
 //! concurrent method access or which thread may run the destructor.
 //!
@@ -294,7 +293,7 @@
 //! `Runtime::load_plugin_libraries`, which loads paths sequentially in an
 //! inspector-produced dependency order. Any load, descriptor, dependency, or
 //! registration failure emits its diagnostic and aborts the process.
-//! Required cross-plugin contracts should appear in constructor arguments,
+//! Required cross-plugin contracts should appear in factory methods, ordinary
 //! method arguments, return values, or dependency/capability interfaces so the generated
 //! interface IDs and ABI signatures describe the actual binary dependency.
 //!

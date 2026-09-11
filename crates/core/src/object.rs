@@ -245,9 +245,9 @@ impl IUnknown {
     pub const INTERFACE_ID: NcInterfaceId = IUNKNOWN_INTERFACE_ID;
     /// Canonical zero-method descriptor for the root COM interface.
     ///
-    /// Every class descriptor contains exactly one mapping to this interface
+    /// Every generated object contains exactly one mapping to this interface
     /// contract. `#[com_object]` inserts that mapping automatically; users list
-    /// only the class's non-root interfaces.
+    /// only the non-root interfaces required by its description.
     pub const INTERFACE_DESCRIPTOR: NcInterfaceDescriptor = NcInterfaceDescriptor {
         interface_id: IID_IUNKNOWN,
         qualified_name: NcStaticUtf8::from_static(IUNKNOWN_QUALIFIED_NAME),

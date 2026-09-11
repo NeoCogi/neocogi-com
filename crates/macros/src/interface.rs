@@ -18,9 +18,8 @@ pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Res
     let mut errors = None;
     validate_interface_trait(&input, &mut errors);
 
-    // Every item on an ordinary interface is a callable vtable method. Class
-    // contracts use the lowered entrypoint below after removing their single
-    // constructor declaration from this list.
+    // Every trait item is a callable vtable method. IDL classes and factories
+    // use the same lowering after the generator attaches description metadata.
     let methods = match collect_syn_results(input.items.iter().map(parse_abi_trait_item)) {
         Ok(methods) => methods,
         Err(err) => {
@@ -38,9 +37,8 @@ pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Res
 
 /// Generates a callable projection from an already validated method list.
 ///
-/// Class contracts call this after parsing their constructor separately. The
-/// emitted source trait remains intact, while only `methods` become vtable
-/// slots, descriptors, signatures, thunks, and safe client methods.
+/// The emitted source trait remains intact, while `methods` become vtable
+/// slots, descriptions, signatures, thunks, and safe client methods.
 pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: ItemTrait, methods: Vec<AbiMethod>) -> Result<proc_macro2::TokenStream> {
     // Generated names are deliberately mechanical and predictable. A trait
     // named `IFoo` produces `IFooAbi`, `IFooVTable`, `IFooVtblFor<T>`, and

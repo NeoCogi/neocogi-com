@@ -427,10 +427,7 @@ impl Parse for ClassArgs {
             let starts_named_path = if input.peek(Ident) {
                 let lookahead = input.fork();
                 let candidate: Ident = lookahead.parse()?;
-                !matches!(
-                    candidate.to_string().as_str(),
-                    "interfaces" | "thread_safe" | "neocogi_com" | "class_id" | "name" | "version" | "constructor"
-                )
+                !matches!(candidate.to_string().as_str(), "interfaces" | "thread_safe" | "neocogi_com")
             } else {
                 false
             };

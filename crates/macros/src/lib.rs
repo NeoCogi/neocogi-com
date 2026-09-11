@@ -9,9 +9,14 @@
 //!   `unsafe impl neocogi_com::ComInterface` that certifies their raw invariants.
 //! - [`com_object`] wraps a Rust implementation struct in generated storage containing
 //!   `IUnknown`, one header per exposed interface, an atomic reference count,
-//!   and the original Rust value. It also generates object interface metadata
-//!   from `interfaces(...)`. Objects are thread-local by default; add
-//!   `thread_safe` to generate `ComPtr<_, ThreadSafe>` constructors. Generated
+//!   and the original Rust value. It derives public projections from an IDL
+//!   description or an explicit local `interfaces(...)` list. Objects are
+//!   thread-local by default; add `thread_safe` to generate
+//!   `ComPtr<_, ThreadSafe>` values for local objects.
+//! - [`com_factory`] associates an implementation with one generated IDL
+//!   factory description.
+//! - [`factory_plugin`] creates immutable plugin metadata for one typed root
+//!   factory; it never generates a class table or erased argument frame.
 //! - [`com_struct`] marks a fixed-size record as ABI plain data, owns its
 //!   `repr(C)`/packing/alignment choice, and records its physical layout. It
 //!   checks fields through `neocogi_com::AbiPlainValue` by default, or through

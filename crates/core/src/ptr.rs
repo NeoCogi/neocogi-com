@@ -26,16 +26,16 @@
 //! representation for thread-local and thread-safe objects and therefore has
 //! no runtime bit from which Rust could infer `Send` or `Sync`. The interface
 //! type `T` cannot provide the answer either: the same interface contract may
-//! be implemented by both a thread-affine class and a thread-safe class. Once a
-//! concrete class has been returned as `ComPtr<T, M>`, its Rust class type has
+//! be implemented by both a thread-affine object and a thread-safe object. Once a
+//! concrete implementation has been returned as `ComPtr<T, M>`, its Rust type has
 //! been erased, so [`crate::ComInterface`] identifies the vtable contract but
 //! not the implementation's threading behavior.
 //!
-//! A class descriptor can carry a runtime threading tag, but Rust auto traits
-//! cannot depend on a field inspected at runtime: a value's `Send` and `Sync`
-//! implementations must be known from its type. Checked constructors bridge
-//! the two systems by validating the descriptor's tag before returning a
-//! statically marked `ComPtr<T, M>`.
+//! An IDL class or factory description carries a threading capability, but Rust
+//! auto traits cannot depend on metadata inspected at runtime: a value's `Send`
+//! and `Sync` implementations must be known from its type. Generated factory
+//! bindings bridge the two systems and return a statically marked
+//! `ComPtr<T, M>` only after activation validation.
 //!
 //! `M` preserves the producer's threading promise across that erasure. Rust can
 //! then decide the auto-trait behavior of the handle at compile time:
@@ -48,8 +48,8 @@
 //!   counting protects only the counter; it does not make methods, contained
 //!   state, foreign resources, or destruction thread-safe.
 //!
-//! `ThreadSafe` is positive evidence supplied by a generated class descriptor,
-//! a checked runtime constructor, or an unsafe raw-pointer boundary. Weakening
+//! `ThreadSafe` is positive evidence supplied by a generated IDL description,
+//! checked factory activation, or an unsafe raw-pointer boundary. Weakening
 //! it to `ThreadLocal` is safe because that removes permissions. The reverse
 //! conversion would invent evidence that the pointer does not contain, so no
 //! safe upgrade is provided. `ThreadLocal` consequently describes the current

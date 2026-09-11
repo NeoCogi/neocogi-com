@@ -317,12 +317,12 @@ pub enum NcAbiPassing {
     },
 }
 
-/// COM pointer and class-construction threading contract.
+/// COM pointer and IDL object/factory threading contract.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NcAbiThreadingMode {
     /// Carries no permission for calls or final release from another thread.
     ///
-    /// For class metadata this is the strongest capability the class promises.
+    /// For object metadata this is the strongest capability the producer promises.
     /// For a pointer it may also be a conservative view of a thread-safe object.
     ThreadLocal,
     /// Positively guarantees that calls and final release may occur from any

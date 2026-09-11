@@ -93,7 +93,7 @@ impl NcAbiSignature {
     ///
     /// The value has the normal mangle prefix and stable static storage, which
     /// lets structural inspection remain identical in checked and unchecked
-    /// builds while preserving [`Self::EMPTY`] for argument-free constructors.
+    /// builds while preserving [`Self::EMPTY`] for absent ABI contracts.
     pub const UNCHECKED: Self = Self::from_static_str("ncabi1;unchecked");
 
     /// Creates a signature view over immutable static validation bytes.

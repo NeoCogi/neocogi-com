@@ -41,13 +41,6 @@ pub struct PluginInspection {
     pub factory: FactoryInspection,
 }
 
-impl PluginInspection {
-    /// Returns the only activation model supported by this runtime generation.
-    pub const fn activation_model(&self) -> &'static str {
-        "factory"
-    }
-}
-
 /// Owned metadata for a plugin's root factory and canonical contract graph.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FactoryInspection {

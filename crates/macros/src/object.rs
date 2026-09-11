@@ -63,8 +63,8 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
         <#class_type as #nc::ComClass>::Threading
     };
     let com_class_impl = quote! {
-        // SAFETY: This associated mode is generated from the class attribute and
-        // is reused by every generated pointer, descriptor, and constructor.
+        // SAFETY: This associated mode is generated from the object attribute
+        // and is reused by every generated pointer and description association.
         unsafe impl #impl_generics #nc::ComClass for #class_type #where_clause {
             type Threading = #declared_threading_model;
         }

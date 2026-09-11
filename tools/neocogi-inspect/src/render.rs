@@ -37,7 +37,7 @@ pub(crate) fn render_text(inspection: &PluginInspection) -> String {
         }
     }
 
-    writeln!(out, "activation: {}", inspection.activation_model()).unwrap();
+    writeln!(out, "activation: factory").unwrap();
     render_factory_text(&mut out, &inspection.factory);
     out
 }

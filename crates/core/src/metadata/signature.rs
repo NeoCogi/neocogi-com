@@ -259,8 +259,8 @@ unsafe fn write_signature(out: &mut String, signature: NcAbiSignature) -> Result
     // `format_method_signature`, whose caller guarantees the complete
     // descriptor graph and its component-owned signature views remain valid.
     let bytes = unsafe { signature.as_bytes()? };
-    // Empty signatures represent constructors or base-interface references
-    // that have no associated ABI contract. Preserve that absence as an empty
+    // Empty signatures represent absent or base-interface references that have
+    // no associated ABI contract. Preserve that absence as an empty
     // diagnostic string instead of assigning it a validation algorithm.
     if bytes.is_empty() {
         return Ok(());
