@@ -48,6 +48,7 @@ fn parses_a_complete_contract_module() {
             factory UiFactory {
                 fn create_button(&self, label: &str, options: WidgetOptions) -> Result<Button>;
                 fn upload(&self, bytes: &[u8]) -> Result<ITexture>;
+                fn read(&self, output: &mut [u8]) -> Result<u32>;
             }
         "#,
     )
@@ -98,6 +99,18 @@ fn parses_a_complete_contract_module() {
     assert_eq!(factory.threading, Threading::Shared);
     assert!(matches!(factory.methods[0].parameters[0].ty, AbiType::Borrowed(_)));
     assert!(matches!(factory.methods[1].parameters[0].ty, AbiType::Slice(_)));
+    assert!(matches!(factory.methods[2].parameters[0].ty, AbiType::OutputSlice(_)));
+}
+
+/// Confirms mutable borrows cannot imply mutable access to foreign objects.
+#[test]
+fn rejects_mutable_object_borrows() {
+    let error = parse_module(
+        Path::new("neocogi/ui.ncidl"),
+        "#[version(1)] trait IWidget {} #[version(1)] factory Factory { fn edit(&self, value: &mut IWidget) -> Result<()>; }",
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("must use `&mut [T]`"));
 }
 
 /// Confirms visibility syntax cannot enter a contract accidentally.

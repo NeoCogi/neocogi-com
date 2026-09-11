@@ -351,9 +351,14 @@ fn lower_type(source: &Type) -> syn::Result<AbiType> {
     match source {
         Type::Tuple(tuple) if tuple.elems.is_empty() => Ok(AbiType::Unit),
         Type::Path(path) if path.qself.is_none() => lower_path_type(&path.path),
-        Type::Reference(reference) if reference.lifetime.is_none() && reference.mutability.is_none() => match reference.elem.as_ref() {
-            Type::Slice(slice) => Ok(AbiType::Slice(Box::new(lower_type(&slice.elem)?))),
-            referent => Ok(AbiType::Borrowed(Box::new(lower_type(referent)?))),
+        Type::Reference(reference) if reference.lifetime.is_none() => match (reference.mutability.is_some(), reference.elem.as_ref()) {
+            (false, Type::Slice(slice)) => Ok(AbiType::Slice(Box::new(lower_type(&slice.elem)?))),
+            (true, Type::Slice(slice)) => Ok(AbiType::OutputSlice(Box::new(lower_type(&slice.elem)?))),
+            (false, referent) => Ok(AbiType::Borrowed(Box::new(lower_type(referent)?))),
+            (true, referent) => Err(syn::Error::new_spanned(
+                referent,
+                "IDL mutable borrows are output buffers and must use `&mut [T]`",
+            )),
         },
         Type::Array(array) => {
             let len = parse_unsigned_integer(&array.len)?;

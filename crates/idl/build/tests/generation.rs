@@ -33,6 +33,7 @@ fn generates_rust_bindings_for_a_module_graph() {
         #[version(3)]
         factory UiFactory {
             fn create(&self, size: Size, texture: &ITexture) -> Result<Button>;
+            fn read(&self, output: &mut [u8]) -> Result<u32>;
         }
     "#;
     let ui = module("neocogi/ui.ncidl", ui_source);
@@ -44,6 +45,7 @@ fn generates_rust_bindings_for_a_module_graph() {
     assert!(generated.contains("com_factory_description"));
     assert!(generated.contains("trait UiFactory"));
     assert!(generated.contains("threading = shared"));
+    assert!(generated.contains("NcCopyToBufferOffset"));
     assert!(!generated.contains("std :: any :: Any"));
     assert!(!generated.contains("constructor"));
 }

@@ -512,7 +512,7 @@ fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], cont
             _ => Err(error(Some(&entries[index].name), format!("{context} must use a copied value type"))),
         },
         AbiType::Array { element, .. } | AbiType::Option(element) => validate_value_type(index, element, entries, context),
-        AbiType::Unit | AbiType::String | AbiType::Borrowed(_) | AbiType::Slice(_) => {
+        AbiType::Unit | AbiType::String | AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) => {
             Err(error(Some(&entries[index].name), format!("{context} must use a copied value type")))
         }
     }
@@ -539,7 +539,7 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
             },
             _ => Err(error(Some(&entries[index].name), format!("{context} has an unsupported borrowed type"))),
         },
-        AbiType::Slice(element) => validate_value_type(index, element, entries, context),
+        AbiType::Slice(element) | AbiType::OutputSlice(element) => validate_value_type(index, element, entries, context),
         AbiType::Array { element, .. } => validate_value_type(index, element, entries, context),
         AbiType::Option(value) => validate_parameter_type(index, value, entries, context),
     }
@@ -555,7 +555,9 @@ fn validate_output_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], con
         },
         AbiType::Array { element, .. } => validate_value_type(index, element, entries, context),
         AbiType::Option(value) => validate_output_type(index, value, entries, context),
-        AbiType::Borrowed(_) | AbiType::Slice(_) => Err(error(Some(&entries[index].name), format!("{context} cannot return a borrowed value"))),
+        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) => {
+            Err(error(Some(&entries[index].name), format!("{context} cannot return a borrowed value")))
+        }
     }
 }
 
@@ -806,6 +808,10 @@ fn encode_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], encoder: &mu
         AbiType::Option(value) => {
             encoder.tag(7);
             encode_type(index, value, entries, encoder)?;
+        }
+        AbiType::OutputSlice(element) => {
+            encoder.tag(8);
+            encode_type(index, element, entries, encoder)?;
         }
     }
     Ok(())

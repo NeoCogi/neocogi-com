@@ -235,6 +235,11 @@ pub enum AbiType {
         /// ABI-safe sequence element type.
         Box<AbiType>,
     ),
+    /// A borrowed writable sequence filled synchronously by the callee.
+    OutputSlice(
+        /// ABI-safe sequence element type.
+        Box<AbiType>,
+    ),
     /// A fixed-size inline array.
     Array {
         /// ABI-safe array element type.

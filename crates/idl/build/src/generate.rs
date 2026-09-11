@@ -322,6 +322,10 @@ fn parameter_type(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType
             let element = value_type(graph, module, element)?;
             Ok(quote! { ::neocogi_com::NcCopyFromBufferOffset<'_, #element> })
         }
+        AbiType::OutputSlice(element) => {
+            let element = value_type(graph, module, element)?;
+            Ok(quote! { ::neocogi_com::NcCopyToBufferOffset<'_, #element> })
+        }
         AbiType::Option(_) => Err(GenerateError::new(
             "Option<T> parameter generation requires the dedicated optional-value ABI layout",
         )),
@@ -346,7 +350,7 @@ fn output_type(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType) -
         AbiType::Option(_) => Err(GenerateError::new(
             "Option<T> result generation requires the dedicated optional-value ABI layout",
         )),
-        AbiType::Borrowed(_) | AbiType::Slice(_) => Err(GenerateError::new("methods cannot return borrowed values")),
+        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) => Err(GenerateError::new("methods cannot return borrowed values")),
     }
 }
 
