@@ -443,10 +443,9 @@ mod tests {
     #[cfg(feature = "_com-validation-exact")]
     use crate::{NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiSignaturePart, NcAbiPassing, NcAbiReceiver, NcAbiType};
     use crate::{
-        NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_VALIDATION_FNV_1A_128, NC_ABI_VALIDATION_MANGLING,
-        NC_ABI_VALIDATION_NONE, NC_ABI_VALIDATION_SHA_256, NC_COM_CORE_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAbiSignature,
-        NcAbiThreadingMode, NcAbiValidationMode, NcClassDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor,
-        NcPluginDescriptor,
+        NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_VALIDATION_FNV_1A_128, NC_ABI_VALIDATION_MANGLING, NC_ABI_VALIDATION_NONE,
+        NC_ABI_VALIDATION_SHA_256, NC_COM_CORE_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAbiSignature, NcAbiThreadingMode, NcAbiValidationMode,
+        NcClassDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor, NcPluginDescriptor,
     };
 
     #[test]

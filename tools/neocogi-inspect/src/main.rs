@@ -94,9 +94,10 @@ fn run() -> Result<(), CliError> {
             // shared library. The runtime reads only neocogi-com descriptor metadata.
             let inspection = unsafe { inspect_plugin_library(&library) }.map_err(CliError::Inspect)?;
             println!(
-                "{}: ok ({}, {} class{})",
+                "{}: ok ({}, {}, {} class{})",
                 library.display(),
                 inspection.qualified_name,
+                inspection.validation_mode,
                 inspection.classes.len(),
                 if inspection.classes.len() == 1 { "" } else { "es" }
             );

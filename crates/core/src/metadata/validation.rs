@@ -27,9 +27,8 @@ use crate::{
     NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64,
     NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_ABI_VALIDATION_MODE, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK,
     NcAbiPassingDescriptor, NcAbiSignature, NcAbiThreadingMode, NcAbiTypeDescriptor, NcAbiValidationMode, NcClassDescriptor, NcClassInterfaceDescriptor,
-    NcClassTable, NcInterfaceDescriptor,
-    NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus,
-    guid_from_qualified_name,
+    NcClassTable, NcInterfaceDescriptor, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcPluginDependencyDescriptor,
+    NcPluginDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name,
 };
 
 /// Location of a descriptor validation issue in a plugin descriptor graph.
@@ -299,7 +298,11 @@ where
         feature = "com-validation-mangling"
     ))]
     if validation_mode != NC_ABI_VALIDATION_MODE {
-        reporter.issue(NC_E_ABI_VERSION, NcDescriptorPath::Plugin, NcDescriptorValidationKind::AbiValidationModeMismatch);
+        reporter.issue(
+            NC_E_ABI_VERSION,
+            NcDescriptorPath::Plugin,
+            NcDescriptorValidationKind::AbiValidationModeMismatch,
+        );
         return;
     }
     reporter.validation_mode = validation_mode;

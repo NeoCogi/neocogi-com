@@ -8,7 +8,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use neocogi_com_core::{
-    IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, NcAbiSignature, NcAbiThreadingMode, NcGuid, format_abi_signature, guid_from_qualified_name,
+    IID_IUNKNOWN, IUNKNOWN_QUALIFIED_NAME, NcAbiSignature, NcAbiThreadingMode, NcAbiValidationMode, NcGuid, format_abi_signature, guid_from_qualified_name,
 };
 #[cfg(test)]
 use neocogi_com_core::NcInterfaceId;
@@ -16,7 +16,7 @@ use nc_com_shared_runtime::PluginInspection;
 use serde::{Deserialize, Serialize};
 
 pub(crate) const SCHEMA: &str = "neocogi-com.inspection";
-pub(crate) const SCHEMA_VERSION: u32 = 4;
+pub(crate) const SCHEMA_VERSION: u32 = 5;
 const PRODUCER: &str = "neocogi-inspect";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -27,6 +27,8 @@ pub(crate) struct InspectionArtifact {
     pub(crate) producer: ArtifactProducer,
     pub(crate) target: ArtifactTarget,
     pub(crate) core_abi_version: u32,
+    /// ABI signature representation used by every contract in this artifact.
+    pub(crate) com_validation: ArtifactValidationMode,
     pub(crate) plugin: ArtifactPlugin,
     pub(crate) classes: Vec<ArtifactClass>,
 }
@@ -51,6 +53,53 @@ pub(crate) struct ArtifactTarget {
 pub(crate) enum ArtifactEndianness {
     Little,
     Big,
+}
+
+/// Serialized spelling of one assembly-wide COM ABI validation mode.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) enum ArtifactValidationMode {
+    /// Structural descriptor validation without ABI signature comparison.
+    #[serde(rename = "none")]
+    None,
+    /// SHA-256 digests of canonical ABI contract records.
+    #[serde(rename = "sha-256")]
+    Sha256,
+    /// FNV-1a-128 fingerprints of canonical ABI contract records.
+    #[serde(rename = "fnv-1a-128")]
+    Fnv1a128,
+    /// Complete canonical ABI contract records without hashing.
+    #[serde(rename = "mangling")]
+    Mangling,
+}
+
+impl ArtifactValidationMode {
+    /// Converts a validated ABI descriptor mode to its serialized counterpart.
+    fn from_abi(mode: NcAbiValidationMode) -> Option<Self> {
+        match mode {
+            NcAbiValidationMode::NONE => Some(Self::None),
+            NcAbiValidationMode::SHA_256 => Some(Self::Sha256),
+            NcAbiValidationMode::FNV_1A_128 => Some(Self::Fnv1a128),
+            NcAbiValidationMode::MANGLING => Some(Self::Mangling),
+            _ => None,
+        }
+    }
+
+    /// Returns the canonical assembly/configuration spelling.
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Sha256 => "sha-256",
+            Self::Fnv1a128 => "fnv-1a-128",
+            Self::Mangling => "mangling",
+        }
+    }
+}
+
+impl std::fmt::Display for ArtifactValidationMode {
+    /// Formats the mode exactly as it appears in JSON and assembly configuration.
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -194,6 +243,7 @@ impl From<&PluginInspection> for InspectionArtifact {
                 },
             },
             core_abi_version: value.core_abi_version,
+            com_validation: ArtifactValidationMode::from_abi(value.validation_mode).expect("plugin inspection must contain a descriptor-validated ABI mode"),
             plugin: ArtifactPlugin {
                 id: value.plugin_id.to_string(),
                 name: value.qualified_name.clone(),
@@ -228,13 +278,17 @@ impl InspectionArtifact {
                 return Err(ArtifactValidationError::new(format!("{class_path}.id"), "duplicate class ID"));
             }
             insert_identity(&mut id_to_name, &mut name_to_id, class_id, &class.name, &class_path)?;
-            validate_signature(&class.constructor_abi_signature, &format!("{class_path}.constructor_abi_signature"))?;
+            validate_signature(
+                &class.constructor_abi_signature,
+                &format!("{class_path}.constructor_abi_signature"),
+                self.com_validation,
+            )?;
 
             let mut interface_ids = BTreeSet::new();
             let mut iunknown_count = 0;
             for (interface_index, interface) in class.interfaces.iter().enumerate() {
                 let interface_path = format!("{class_path}.interfaces[{interface_index}]");
-                let iid = validate_interface(interface, &interface_path)?;
+                let iid = validate_interface(interface, &interface_path, self.com_validation)?;
                 if !interface_ids.insert(iid.to_uuid_bytes()) {
                     return Err(ArtifactValidationError::new(format!("{interface_path}.id"), "duplicate interface ID in class"));
                 }
@@ -248,7 +302,7 @@ impl InspectionArtifact {
             for interface in &class.interfaces {
                 let mut current = interface;
                 let mut hops = 0;
-                while !validate_interface_id(&current.base, &class_path, true)?.is_none() {
+                while !validate_interface_id(&current.base, &class_path, true, self.com_validation)?.is_none() {
                     hops += 1;
                     if hops >= class.interfaces.len() {
                         return Err(ArtifactValidationError::new(&class_path, "cyclic interface inheritance"));
@@ -318,10 +372,11 @@ fn validate_dependencies(plugin_id: NcGuid, values: &[String]) -> Result<(), Art
     Ok(())
 }
 
-fn validate_interface(interface: &ArtifactInterface, path: &str) -> Result<NcGuid, ArtifactValidationError> {
+/// Validates one serialized interface using the artifact-wide representation.
+fn validate_interface(interface: &ArtifactInterface, path: &str, mode: ArtifactValidationMode) -> Result<NcGuid, ArtifactValidationError> {
     let iid = parse_guid(&interface.id, &format!("{path}.id"))?;
-    let advertised_is_empty = validate_signature(&interface.abi_signature, &format!("{path}.abi_signature"))?;
-    let base = validate_interface_id(&interface.base, &format!("{path}.base"), true)?;
+    let advertised_is_empty = validate_signature(&interface.abi_signature, &format!("{path}.abi_signature"), mode)?;
+    let base = validate_interface_id(&interface.base, &format!("{path}.base"), true, mode)?;
     if base.iid == IID_IUNKNOWN {
         return Err(ArtifactValidationError::new(path, "IUnknown is an implicit prefix, not an explicit base"));
     }
@@ -330,8 +385,8 @@ fn validate_interface(interface: &ArtifactInterface, path: &str) -> Result<NcGui
             return Err(ArtifactValidationError::new(path, "IUnknown cannot have a base"));
         }
 
-        if iid != IUNKNOWN_INTERFACE_ID.iid || interface.abi_signature != format_signature(IUNKNOWN_INTERFACE_ID.abi_signature) {
-            return Err(ArtifactValidationError::new(path, "IUnknown must use its reserved IID and ABI signature"));
+        if iid != IID_IUNKNOWN {
+            return Err(ArtifactValidationError::new(path, "IUnknown must use its reserved IID"));
         }
         if !interface.methods.is_empty() {
             return Err(ArtifactValidationError::new(
@@ -360,9 +415,15 @@ fn validate_interface(interface: &ArtifactInterface, path: &str) -> Result<NcGui
     Ok(iid)
 }
 
-fn validate_interface_id(value: &ArtifactInterfaceId, path: &str, allow_none: bool) -> Result<ValidatedInterfaceId, ArtifactValidationError> {
+/// Validates one optional interface identity and its mode-specific signature.
+fn validate_interface_id(
+    value: &ArtifactInterfaceId,
+    path: &str,
+    allow_none: bool,
+    mode: ArtifactValidationMode,
+) -> Result<ValidatedInterfaceId, ArtifactValidationError> {
     let iid = parse_guid(&value.iid, &format!("{path}.iid"))?;
-    let signature_is_empty = validate_signature(&value.abi_signature, &format!("{path}.abi_signature"))?;
+    let signature_is_empty = validate_signature(&value.abi_signature, &format!("{path}.abi_signature"), mode)?;
     let identity = ValidatedInterfaceId {
         iid,
         is_none: iid.is_nil() && signature_is_empty,
@@ -444,21 +505,32 @@ fn parse_guid(value: &str, path: &str) -> Result<NcGuid, ArtifactValidationError
     Ok(guid)
 }
 
-fn validate_signature(value: &str, path: &str) -> Result<bool, ArtifactValidationError> {
+/// Validates one rendered signature against the artifact's declared mode.
+fn validate_signature(value: &str, path: &str, mode: ArtifactValidationMode) -> Result<bool, ArtifactValidationError> {
     if value.is_empty() {
         return Ok(true);
     }
-    if let Some(digest) = value.strip_prefix("sha-256:") {
-        return validate_hex_signature(digest, 64, path).map(|()| false);
-    }
-    if let Some(fingerprint) = value.strip_prefix("fnv-1a-128:") {
-        return validate_hex_signature(fingerprint, 32, path).map(|()| false);
-    }
-    if value == "ncabi1;" || !value.starts_with("ncabi1;") {
-        return Err(ArtifactValidationError::new(path, "ABI signature must use a known canonical representation"));
-    }
-    if value.chars().any(char::is_control) {
-        return Err(ArtifactValidationError::new(path, "ABI signature must not contain control characters"));
+    match mode {
+        ArtifactValidationMode::None if value == "ncabi1;unchecked" => {}
+        ArtifactValidationMode::Sha256 => {
+            let digest = value
+                .strip_prefix("sha-256:")
+                .ok_or_else(|| ArtifactValidationError::new(path, "ABI signature does not use the declared sha-256 mode"))?;
+            validate_hex_signature(digest, 64, path)?;
+        }
+        ArtifactValidationMode::Fnv1a128 => {
+            let fingerprint = value
+                .strip_prefix("fnv-1a-128:")
+                .ok_or_else(|| ArtifactValidationError::new(path, "ABI signature does not use the declared fnv-1a-128 mode"))?;
+            validate_hex_signature(fingerprint, 32, path)?;
+        }
+        ArtifactValidationMode::Mangling if value != "ncabi1;unchecked" && value.starts_with("ncabi1;") && !value.chars().any(char::is_control) => {}
+        ArtifactValidationMode::None => {
+            return Err(ArtifactValidationError::new(path, "ABI signature does not use the declared none mode"));
+        }
+        ArtifactValidationMode::Mangling => {
+            return Err(ArtifactValidationError::new(path, "ABI signature does not use the declared mangling mode"));
+        }
     }
     Ok(false)
 }
@@ -544,6 +616,7 @@ pub(crate) fn sample_artifact() -> InspectionArtifact {
             endianness: ArtifactEndianness::Little,
         },
         core_abi_version: neocogi_com_core::NC_COM_CORE_ABI_VERSION,
+        com_validation: ArtifactValidationMode::None,
         plugin: ArtifactPlugin {
             id: guid_from_qualified_name(plugin_name).to_string(),
             name: plugin_name.to_string(),
@@ -560,14 +633,14 @@ pub(crate) fn sample_artifact() -> InspectionArtifact {
                 ArtifactInterface {
                     id: IID_IUNKNOWN.to_string(),
                     name: IUNKNOWN_QUALIFIED_NAME.to_string(),
-                    abi_signature: format_signature(IUNKNOWN_INTERFACE_ID.abi_signature),
+                    abi_signature: "ncabi1;unchecked".to_string(),
                     base: artifact_interface_id(NcInterfaceId::NONE),
                     methods: Vec::new(),
                 },
                 ArtifactInterface {
                     id: guid_from_qualified_name(interface_name).to_string(),
                     name: interface_name.to_string(),
-                    abi_signature: "ncabi1;sample-interface".to_string(),
+                    abi_signature: "ncabi1;unchecked".to_string(),
                     base: artifact_interface_id(NcInterfaceId::NONE),
                     methods: vec![ArtifactMethod {
                         index: 0,
@@ -592,6 +665,17 @@ mod tests {
         let parsed: InspectionArtifact = serde_json::from_slice(&json).unwrap();
         parsed.validate().unwrap();
         assert_eq!(parsed, artifact);
+        assert!(String::from_utf8(json).unwrap().contains("\"com_validation\":\"none\""));
+    }
+
+    #[test]
+    fn rejects_signatures_that_disagree_with_the_declared_mode() {
+        let mut artifact = sample_artifact();
+        artifact.com_validation = ArtifactValidationMode::Sha256;
+
+        let error = artifact.validate().unwrap_err();
+
+        assert!(error.to_string().contains("declared sha-256 mode"));
     }
 
     #[test]
