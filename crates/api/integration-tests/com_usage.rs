@@ -1673,6 +1673,8 @@ fn tagged_com_enum_converts_unit_tuple_and_named_variants() {
 
     let none_abi = TestMutationAbi::from(TestMutation::None);
     assert_eq!(none_abi.tag().raw(), 10);
+    assert_eq!(none_abi, TestMutationAbi::from(TestMutation::None));
+    assert_eq!(format!("{none_abi:?}"), "None");
     assert_eq!(TestMutation::try_from(none_abi).unwrap(), TestMutation::None);
 
     let child_abi = TestMutationAbi::from(TestMutation::ChildAdded(7, 2));

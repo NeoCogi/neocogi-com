@@ -33,6 +33,36 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
     let abi_ident = format_ident!("{enum_ident}Abi");
     let tag_ident = format_ident!("{enum_ident}Tag");
     let payload_ident = format_ident!("{enum_ident}Payload");
+    let debug_impl = has_derive(&input.attrs, "Debug").then(|| {
+        quote! {
+            impl core::fmt::Debug for #abi_ident {
+                #[doc = "Formats a known payload through its safe Rust enum and an unknown payload by tag only."]
+                fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                    match #enum_ident::try_from(*self) {
+                        Ok(value) => core::fmt::Debug::fmt(&value, formatter),
+                        Err(_) => formatter
+                            .debug_struct(stringify!(#abi_ident))
+                            .field("unknown_tag", &self.tag())
+                            .finish_non_exhaustive(),
+                    }
+                }
+            }
+        }
+    });
+    let partial_eq_impl = has_derive(&input.attrs, "PartialEq").then(|| {
+        quote! {
+            impl core::cmp::PartialEq for #abi_ident {
+                #[doc = "Compares decoded known variants, or only the tag when both values are unknown."]
+                fn eq(&self, other: &Self) -> bool {
+                    match (#enum_ident::try_from(*self), #enum_ident::try_from(*other)) {
+                        (Ok(left), Ok(right)) => left == right,
+                        (Err(_), Err(_)) => self.tag() == other.tag(),
+                        _ => false,
+                    }
+                }
+            }
+        }
+    });
 
     let mut variants = Vec::new();
     for (index, variant) in input.variants.iter_mut().enumerate() {
@@ -563,6 +593,9 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
             storage: #nc::__NcTaggedEnumAbiStorage<#tag_ident, #payload_ident>,
         }
 
+        #debug_impl
+        #partial_eq_impl
+
         impl #abi_ident {
             #[doc = "Byte offset of the tag in the C-compatible ABI representation."]
             pub const TAG_OFFSET: usize =
@@ -673,6 +706,20 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
         }
 
         #deserialize_impl
+    })
+}
+
+/// Returns whether the source enum explicitly derives one utility trait.
+fn has_derive(attributes: &[Attribute], trait_name: &str) -> bool {
+    attributes.iter().filter(|attribute| attribute.path().is_ident("derive")).any(|attribute| {
+        let mut found = false;
+        let _ = attribute.parse_nested_meta(|meta| {
+            if meta.path.is_ident(trait_name) {
+                found = true;
+            }
+            Ok(())
+        });
+        found
     })
 }
 
