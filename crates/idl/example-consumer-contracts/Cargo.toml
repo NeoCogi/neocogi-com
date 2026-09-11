@@ -6,6 +6,10 @@ license = "MIT"
 publish = false
 links = "nc_contract_neocogi_idl_consumer"
 
+[package.metadata.neocogi-contract]
+module = "neocogi.idl_consumer"
+source = "idl/neocogi/idl_consumer.ncidl"
+
 [dependencies]
 neocogi-com = { workspace = true, features = ["macros"] }
 neocogi-idl-example-contracts = { path = "../example-contracts" }
