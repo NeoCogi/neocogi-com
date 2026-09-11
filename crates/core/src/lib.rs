@@ -65,8 +65,9 @@ pub use abi::{__NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain
 pub use client::{ComClientInterface, NcClientPointer};
 pub use contract_module::{
     NC_CONTRACT_DECLARATION_CLASS, NC_CONTRACT_DECLARATION_ENUM, NC_CONTRACT_DECLARATION_FACTORY, NC_CONTRACT_DECLARATION_INTERFACE,
-    NC_CONTRACT_DECLARATION_STRUCT, NC_CONTRACT_DESCRIPTION_ABI_VERSION, NcContractDeclarationDescription, NcContractDependencyDescription,
-    NcContractFingerprint, NcContractModuleDescription, NcContractModuleReference, NcGetContractModuleDescription, validate_contract_module_description,
+    NC_CONTRACT_DECLARATION_NO_THREADING, NC_CONTRACT_DECLARATION_STRUCT, NC_CONTRACT_DESCRIPTION_ABI_VERSION, NcContractDeclarationDescription,
+    NcContractDependencyDescription, NcContractFingerprint, NcContractModuleDescription, NcContractModuleReference, NcGetContractModuleDescription,
+    validate_contract_module_description,
 };
 pub use constructor::{construct_class_checked, return_plugin_descriptor};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};

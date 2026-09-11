@@ -7,7 +7,7 @@ use std::{
 };
 
 use neocogi_com_core::NcGuid;
-use neocogi_idl::{DeclarationKind, ResolvedModule};
+use neocogi_idl::{DeclarationKind, ResolvedModule, Threading};
 
 use crate::{
     ArtifactRecord, BuildError,
@@ -87,7 +87,9 @@ fn generate_c(module: &ResolvedModule, source: &str, getter: &str) -> String {
     output.push_str("struct nc_contract_module;\n");
     output.push_str("typedef const struct nc_contract_module *(*nc_get_contract_module)(void);\n");
     output.push_str("typedef struct { nc_guid module_id; nc_fingerprint abi_fingerprint; nc_get_contract_module get; } nc_contract_dependency;\n");
-    output.push_str("typedef struct { nc_guid declaration_id; uint32_t version; uint32_t kind; nc_static_utf8 qualified_name; } nc_contract_declaration;\n");
+    output.push_str(
+        "typedef struct { nc_guid declaration_id; uint32_t version; uint32_t kind; uint32_t threading; nc_static_utf8 qualified_name; } nc_contract_declaration;\n",
+    );
     output.push_str("typedef struct nc_contract_module { uint32_t description_abi_version; nc_guid module_id; nc_fingerprint abi_fingerprint; nc_static_utf8 module_name; uint32_t dependency_count; const nc_contract_dependency *dependencies; uint32_t declaration_count; const nc_contract_declaration *declarations; nc_static_utf8 source; } nc_contract_module;\n\n");
 
     for dependency in &module.dependencies {
@@ -120,10 +122,11 @@ fn generate_c(module: &ResolvedModule, source: &str, getter: &str) -> String {
         output.push_str("\nstatic const nc_contract_declaration nc_declarations[] = {\n");
         for (index, (identity, declaration)) in module.declarations.iter().zip(&module.source.declarations).enumerate() {
             output.push_str(&format!(
-                "    {{ {}, {}u, {}u, {{ nc_declaration_name_{index}, {}u }} }},\n",
+                "    {{ {}, {}u, {}u, {}u, {{ nc_declaration_name_{index}, {}u }} }},\n",
                 guid_initializer(identity.id),
                 identity.version,
                 declaration_kind(&declaration.kind),
+                declaration_threading(&declaration.kind),
                 identity.qualified_name.len()
             ));
         }
@@ -206,6 +209,23 @@ fn declaration_kind(kind: &DeclarationKind) -> u32 {
         DeclarationKind::Interface(_) => 3,
         DeclarationKind::Class(_) => 4,
         DeclarationKind::Factory(_) => 5,
+    }
+}
+
+/// Maps object capabilities to ABI values and marks value/interface rows absent.
+fn declaration_threading(kind: &DeclarationKind) -> u32 {
+    match kind {
+        DeclarationKind::Class(class) => threading_value(class.threading),
+        DeclarationKind::Factory(factory) => threading_value(factory.threading),
+        DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::Interface(_) => u32::MAX,
+    }
+}
+
+/// Converts one resolved IDL threading capability to its stable raw value.
+fn threading_value(threading: Threading) -> u32 {
+    match threading {
+        Threading::Local => 0,
+        Threading::Shared => 1,
     }
 }
 

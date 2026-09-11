@@ -19,6 +19,8 @@ pub const NC_CONTRACT_DECLARATION_INTERFACE: u32 = 3;
 pub const NC_CONTRACT_DECLARATION_CLASS: u32 = 4;
 /// Raw declaration-kind tag for an IDL factory.
 pub const NC_CONTRACT_DECLARATION_FACTORY: u32 = 5;
+/// Threading sentinel used by declarations that are not classes or factories.
+pub const NC_CONTRACT_DECLARATION_NO_THREADING: u32 = u32::MAX;
 
 /// Fixed-size SHA-256 fingerprint used by contract module identities.
 #[repr(C)]
@@ -110,6 +112,9 @@ pub struct NcContractDeclarationDescription {
     pub version: u32,
     /// One `NC_CONTRACT_DECLARATION_*` tag.
     pub kind: u32,
+    /// Class/factory threading capability, or
+    /// [`NC_CONTRACT_DECLARATION_NO_THREADING`] for other declarations.
+    pub threading: u32,
     /// Exact dotted module and declared name.
     pub qualified_name: NcStaticUtf8,
 }
@@ -219,10 +224,13 @@ pub unsafe fn validate_contract_module_description(description: *const NcContrac
         }
     }
     for declaration in declarations {
-        if declaration.declaration_id.is_nil()
-            || declaration.version == 0
-            || !(NC_CONTRACT_DECLARATION_STRUCT..=NC_CONTRACT_DECLARATION_FACTORY).contains(&declaration.kind)
-        {
+        let valid_kind = (NC_CONTRACT_DECLARATION_STRUCT..=NC_CONTRACT_DECLARATION_FACTORY).contains(&declaration.kind);
+        let valid_threading = if matches!(declaration.kind, NC_CONTRACT_DECLARATION_CLASS | NC_CONTRACT_DECLARATION_FACTORY) {
+            crate::NcAbiThreadingMode::from_raw(declaration.threading).is_some()
+        } else {
+            declaration.threading == NC_CONTRACT_DECLARATION_NO_THREADING
+        };
+        if declaration.declaration_id.is_nil() || declaration.version == 0 || !valid_kind || !valid_threading {
             return NC_E_INVALID_ARG;
         }
         // SAFETY: The caller guarantees declaration string readability.
@@ -278,6 +286,7 @@ mod tests {
         declaration_id: NcGuid::from_fields(8, 9, 10, [11; 8]),
         version: 1,
         kind: NC_CONTRACT_DECLARATION_INTERFACE,
+        threading: NC_CONTRACT_DECLARATION_NO_THREADING,
         qualified_name: NcStaticUtf8::from_static("nc.tests.IValue"),
     }];
     /// Complete valid leaf module fixture.
@@ -325,7 +334,7 @@ mod tests {
         if cfg!(target_pointer_width = "64") {
             assert_eq!(core::mem::size_of::<NcContractModuleReference>(), 56);
             assert_eq!(core::mem::size_of::<NcContractDependencyDescription>(), 56);
-            assert_eq!(core::mem::size_of::<NcContractDeclarationDescription>(), 40);
+            assert_eq!(core::mem::size_of::<NcContractDeclarationDescription>(), 48);
             assert_eq!(core::mem::size_of::<NcContractModuleDescription>(), 120);
             assert_eq!(core::mem::offset_of!(NcContractModuleDescription, dependencies), 80);
             assert_eq!(core::mem::offset_of!(NcContractModuleDescription, declarations), 96);
@@ -334,7 +343,7 @@ mod tests {
         if cfg!(target_pointer_width = "32") {
             assert_eq!(core::mem::size_of::<NcContractModuleReference>(), 52);
             assert_eq!(core::mem::size_of::<NcContractDependencyDescription>(), 52);
-            assert_eq!(core::mem::size_of::<NcContractDeclarationDescription>(), 32);
+            assert_eq!(core::mem::size_of::<NcContractDeclarationDescription>(), 36);
             assert_eq!(core::mem::size_of::<NcContractModuleDescription>(), 84);
             assert_eq!(core::mem::offset_of!(NcContractModuleDescription, dependencies), 64);
             assert_eq!(core::mem::offset_of!(NcContractModuleDescription, declarations), 72);
