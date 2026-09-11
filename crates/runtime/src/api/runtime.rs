@@ -8,10 +8,11 @@
 
 use neocogi_com_core::{
     IUnknown, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_E_INVALID_ARG, NC_E_LOAD_FAILED, NC_E_OUT_OF_RANGE, NC_E_POINTER,
-    NC_OK, NcContractModuleReference, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus,
+    NC_OK, NcContractModuleReference, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus,
 };
 
 use crate::construction;
+use crate::factory_activation;
 use crate::loader::PluginLoadErrorKind;
 use crate::state::RuntimeState;
 
@@ -24,6 +25,17 @@ pub(super) unsafe extern "C" fn register_contract_module(module: *const NcContra
     let status = unsafe { RuntimeState::global().register_contract_module(module) };
     if status.is_err() {
         emit_error(NC_DEBUG_TYPE_VALIDATION, status, "contract module registration failed");
+    }
+    status
+}
+
+/// Validates and atomically registers one factory-only plugin description.
+pub(super) unsafe extern "C" fn register_factory_plugin_description(plugin: *const NcFactoryPluginDescription) -> NcStatus {
+    // SAFETY: The caller supplies the plugin and linked contract graph lifetime
+    // required by process-wide registration.
+    let status = unsafe { RuntimeState::global().register_factory_plugin_description(plugin) };
+    if status.is_err() {
+        emit_error(NC_DEBUG_TYPE_VALIDATION, status, "factory plugin registration failed");
     }
     status
 }
@@ -105,6 +117,26 @@ pub(super) unsafe extern "C" fn construct_class(
     let status = unsafe { construction::construct_class(class, constructor_abi_signature, arguments, out) };
     if status.is_err() {
         emit_error(NC_DEBUG_TYPE_RUNTIME, status, "registered class construction failed");
+    }
+    status
+}
+
+/// Resolves and activates one exact typed root factory without holding locks.
+pub(super) unsafe extern "C" fn activate_factory_plugin(
+    plugin_id: NcGuid,
+    factory_interface: NcInterfaceId,
+    requested_threading: u32,
+    out: *mut *mut IUnknown,
+) -> NcStatus {
+    let activation = {
+        let catalog = RuntimeState::global().read_catalog();
+        factory_activation::resolve_factory(&catalog.factory_plugin_registry, plugin_id, factory_interface, requested_threading)
+    };
+    // SAFETY: This forwards the caller's output contract after releasing the
+    // catalog lock, allowing plugin code to re-enter runtime operations.
+    let status = unsafe { factory_activation::activate_factory(activation, factory_interface, out) };
+    if status.is_err() {
+        emit_error(NC_DEBUG_TYPE_RUNTIME, status, "factory plugin activation failed");
     }
     status
 }

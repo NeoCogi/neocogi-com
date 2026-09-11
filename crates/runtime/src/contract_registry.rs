@@ -38,7 +38,19 @@ impl ContractRegistry {
     /// Checks every batch collision before publishing any new module record.
     pub(crate) fn commit(&mut self, batch: ContractRegistrationBatch) -> NcStatus {
         let modules = batch.into_modules();
-        for module in &modules {
+        let status = self.validate_modules(&modules);
+        if status.is_err() {
+            return status;
+        }
+        self.insert_modules(modules);
+        NC_OK
+    }
+
+    /// Checks a complete module set without changing observable registry state.
+    pub(crate) fn validate_modules(&self, modules: &[RegisteredContractModule]) -> NcStatus {
+        let mut batch_by_id = HashMap::<NcGuid, &RegisteredContractModule>::new();
+        let mut batch_id_by_name = HashMap::<&str, NcGuid>::new();
+        for module in modules {
             if let Some(existing) = self.module(module.module_id) {
                 if existing.abi_fingerprint != module.abi_fingerprint {
                     return NC_E_CONTRACT_MISMATCH;
@@ -54,8 +66,23 @@ impl ContractRegistry {
             {
                 return NC_E_INVALID_ARG;
             }
+            if let Some(previous) = batch_by_id.insert(module.module_id, module) {
+                if previous.abi_fingerprint != module.abi_fingerprint || previous.module_name != module.module_name {
+                    return NC_E_CONTRACT_MISMATCH;
+                }
+            }
+            if batch_id_by_name
+                .insert(module.module_name.as_str(), module.module_id)
+                .is_some_and(|previous_id| previous_id != module.module_id)
+            {
+                return NC_E_INVALID_ARG;
+            }
         }
+        NC_OK
+    }
 
+    /// Inserts a module set that already passed [`Self::validate_modules`].
+    pub(crate) fn insert_modules(&mut self, modules: Vec<RegisteredContractModule>) {
         for module in modules {
             if self.module_by_id.contains_key(&module.module_id) {
                 // Exact duplicate revisions are idempotent, including the case
@@ -68,7 +95,6 @@ impl ContractRegistry {
             self.id_by_name.insert(module.module_name.clone(), module.module_id);
             self.modules.push(module);
         }
-        NC_OK
     }
 
     /// Looks up one canonical module record by stable logical identity.

@@ -13,6 +13,7 @@ use neocogi_com_core::NcGuid;
 
 use crate::contract_registry::ContractRegistry;
 use crate::debug::DebugState;
+use crate::factory_plugin_registry::FactoryPluginRegistry;
 use crate::plugin_registry::PluginRegistry;
 use crate::type_registry::TypeRegistry;
 
@@ -28,6 +29,8 @@ pub(crate) struct RuntimeState {
 pub(crate) struct RuntimeCatalog {
     /// Canonical IDL module identities and native descriptions.
     pub(crate) contract_registry: ContractRegistry,
+    /// Factory-only plugin descriptions and activation roots.
+    pub(crate) factory_plugin_registry: FactoryPluginRegistry,
     /// One-to-one mappings checked during registration transactions.
     pub(crate) registration: RegistrationState,
     /// Plugin descriptors plus retained dynamic modules.
@@ -69,6 +72,7 @@ impl RuntimeState {
         Self {
             catalog: RwLock::new(RuntimeCatalog {
                 contract_registry: ContractRegistry::new(),
+                factory_plugin_registry: FactoryPluginRegistry::new(),
                 registration: RegistrationState {
                     name_by_id: HashMap::new(),
                     id_by_name: HashMap::new(),

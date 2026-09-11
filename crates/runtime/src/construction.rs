@@ -67,7 +67,7 @@ pub(crate) unsafe fn construct_class(
 }
 
 /// Applies the capability rule from a class declaration to a host request.
-fn threading_request_is_compatible(declared: u32, requested: u32) -> bool {
+pub(crate) fn threading_request_is_compatible(declared: u32, requested: u32) -> bool {
     match requested {
         NC_ABI_THREADING_THREAD_LOCAL => true,
         NC_ABI_THREADING_THREAD_SAFE => declared == NC_ABI_THREADING_THREAD_SAFE,

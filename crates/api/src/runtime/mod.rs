@@ -12,9 +12,10 @@ use std::string::String;
 use std::vec::Vec;
 
 use crate::{
-    ComClassArguments, ComClassContract, ComInterface, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG,
-    NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NcContractModuleReference, NcDebugApiV1, NcGuid, NcInspectionApiV1, NcInterfaceId,
-    NcContractRegistryV1, NcPluginDescriptor, NcPluginRegistryV1, NcRuntimeApiV1, NcStatus, NcTypeRegistryV1, NcUtf8View, ThreadLocal, ThreadingModel,
+    ComClassArguments, ComClassContract, ComFactoryDescription, ComInterface, ComObjectDescription, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION,
+    NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NcContractModuleReference,
+    NcContractRegistryV1, NcDebugApiV1, NcFactoryPluginDescription, NcGuid, NcInspectionApiV1, NcInterfaceId, NcPluginDescriptor, NcPluginRegistryV1,
+    NcRuntimeApiV1, NcStatus, NcTypeRegistryV1, NcUtf8View, ThreadLocal, ThreadingModel,
 };
 use neocogi_com_runtime_sys as runtime_sys;
 
@@ -249,6 +250,48 @@ impl Runtime {
         // SAFETY: The caller supplies the complete native graph lifetime and
         // this shared reference remains readable for the synchronous call.
         status_to_result(unsafe { (self.runtime_api().register_contract_module)(module) })
+    }
+
+    /// Registers one factory-only plugin and its exact linked contracts.
+    ///
+    /// Registration is atomic: no contract module or plugin record becomes
+    /// visible unless the entire graph, root factory declaration, dependency
+    /// set, and process identity mapping are compatible.
+    ///
+    /// # Safety
+    ///
+    /// `plugin` and every linked contract description it reaches must remain
+    /// loaded for the process-wide registration lifetime.
+    pub unsafe fn register_factory_plugin_description(&self, plugin: &'static NcFactoryPluginDescription) -> Result<(), NcStatus> {
+        // SAFETY: The static reference and its contract graph satisfy the raw
+        // table's process-lifetime registration requirement.
+        status_to_result(unsafe { (self.runtime_api().register_factory_plugin_description)(plugin) })
+    }
+
+    /// Activates one registered plugin's exact typed root IDL factory.
+    ///
+    /// The runtime checks the requested factory IID, full ABI signature, and
+    /// threading capability before this method constructs a typed owner.
+    pub fn activate_plugin_factory<T>(&self, plugin_id: NcGuid) -> Result<ComPtr<T, <T as ComObjectDescription>::Threading>, NcStatus>
+    where
+        T: ComFactoryDescription,
+    {
+        let mut out = core::ptr::null_mut::<IUnknown>();
+        // SAFETY: The local output slot is writable and the associated IDL
+        // threading marker supplies the exact requested runtime capability.
+        let status = unsafe {
+            (self.runtime_api().activate_factory_plugin)(
+                plugin_id,
+                T::INTERFACE_ID,
+                <<T as ComObjectDescription>::Threading as ThreadingModel>::ABI_THREADING_MODE.as_raw(),
+                &mut out,
+            )
+        };
+        status_to_result(status)?;
+        // SAFETY: Successful runtime activation transfers one owned live COM
+        // reference with the requested threading capability.
+        let unknown = unsafe { ComPtr::<IUnknown, <T as ComObjectDescription>::Threading>::from_raw_owned(out) }.ok_or(NC_E_POINTER)?;
+        unknown.query::<T>()
     }
 
     /// Registers a static plugin descriptor in the process-global runtime.

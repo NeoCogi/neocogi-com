@@ -10,7 +10,7 @@
 //! `nc_com_runtime_abi_version`. The leading `size` permits append-only table
 //! growth within runtime ABI v1.
 
-use crate::{IUnknown, NcAbiSignature, NcContractModuleReference, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus};
+use crate::{IUnknown, NcAbiSignature, NcContractModuleReference, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus};
 
 /// Process-global runtime operations for runtime ABI v1.
 #[repr(C)]
@@ -22,6 +22,9 @@ pub struct NcRuntimeApiV1 {
     pub core_abi_version: u32,
     /// Validates and registers one canonical contract module dependency graph.
     pub register_contract_module: unsafe extern "C" fn(module: *const NcContractModuleReference) -> NcStatus,
+    /// Validates and atomically registers one factory-only plugin plus all
+    /// directly referenced contract module graphs.
+    pub register_factory_plugin_description: unsafe extern "C" fn(plugin: *const NcFactoryPluginDescription) -> NcStatus,
     /// Validates and registers one static plugin descriptor.
     pub register_plugin_descriptor: unsafe extern "C" fn(plugin: *const NcPluginDescriptor) -> NcStatus,
     /// Loads and registers one trusted plugin shared library from a nonempty
@@ -42,4 +45,8 @@ pub struct NcRuntimeApiV1 {
         arguments: *const core::ffi::c_void,
         out: *mut *mut IUnknown,
     ) -> NcStatus,
+    /// Activates one registered plugin's root factory after checking its exact
+    /// interface identity and requested threading capability.
+    pub activate_factory_plugin:
+        unsafe extern "C" fn(plugin_id: NcGuid, factory_interface: NcInterfaceId, requested_threading: u32, out: *mut *mut IUnknown) -> NcStatus,
 }
