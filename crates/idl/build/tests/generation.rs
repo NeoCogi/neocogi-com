@@ -15,7 +15,7 @@ fn generates_rust_bindings_for_a_module_graph() {
         r#"
             /// Pixel dimensions.
             #[version(1)]
-            struct Size { width: u32, height: u32 }
+            struct Size { width: u32, height: u32, status: Status }
 
             #[version(2)]
             trait ITexture { fn size(&self) -> Result<Size>; }
@@ -45,6 +45,7 @@ fn generates_rust_bindings_for_a_module_graph() {
     let graph = resolve_modules(vec![ui, render]).unwrap();
 
     let generated = neocogi_idl_build::generate_rust(&graph, "neocogi.ui").unwrap();
+    let generated_render = neocogi_idl_build::generate_rust(&graph, "neocogi.render").unwrap();
     syn::parse_file(&generated).expect("generated bindings must be valid Rust syntax");
     assert!(generated.contains("com_class_description"));
     assert!(generated.contains("com_factory_description"));
@@ -53,6 +54,7 @@ fn generates_rust_bindings_for_a_module_graph() {
     assert!(generated.contains("trait UiFactory"));
     assert!(generated.contains("threading = shared"));
     assert!(generated.contains("NcCopyToBufferOffset"));
+    assert!(generated_render.contains("pub status : :: neocogi_com :: NcStatus"));
     assert!(!generated.contains("std :: any :: Any"));
     assert!(!generated.contains("constructor"));
 }

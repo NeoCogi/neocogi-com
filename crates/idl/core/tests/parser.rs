@@ -15,6 +15,7 @@ fn parses_a_complete_contract_module() {
             struct WidgetOptions {
                 enabled: bool,
                 dimensions: [i32; 2],
+                teardown: Status,
             }
 
             #[repr(u8)]
@@ -70,6 +71,7 @@ fn parses_a_complete_contract_module() {
             len: 2,
         }
     );
+    assert_eq!(options.fields[2].ty, AbiType::Scalar("Status".into()));
 
     let DeclarationKind::Enum(direction) = &module.declaration("Direction").unwrap().kind else {
         panic!("Direction should be an enum");

@@ -471,6 +471,7 @@ fn threading_ident(value: Threading) -> Ident {
 /// Converts one supported scalar spelling into a Rust type token.
 fn scalar(value: &str) -> Result<TokenStream, GenerateError> {
     match value {
+        "Status" => Ok(quote! { ::neocogi_com::NcStatus }),
         "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" => {
             let ident = rust_ident(value)?;
             Ok(quote! { #ident })

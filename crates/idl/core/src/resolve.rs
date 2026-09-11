@@ -915,7 +915,7 @@ fn symbol_kind(kind: &DeclarationKind) -> SymbolKind {
 fn is_reserved_name(name: &str) -> bool {
     matches!(
         name,
-        "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" | "str" | "String" | "Option" | "Result"
+        "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" | "Status" | "str" | "String" | "Option" | "Result"
     )
 }
 
