@@ -19,10 +19,15 @@ fn generates_rust_bindings_for_a_module_graph() {
 
             #[version(2)]
             trait ITexture { fn size(&self) -> Result<Size>; }
+
         "#,
     );
     let ui_source = r#"
         use neocogi.render::{ITexture, Size};
+
+        #[repr(u8)]
+        #[version(1)]
+        enum Filter { Nearest = 0, Linear = 1 }
 
         #[version(1)]
         class Button: ITexture {
@@ -43,6 +48,8 @@ fn generates_rust_bindings_for_a_module_graph() {
     syn::parse_file(&generated).expect("generated bindings must be valid Rust syntax");
     assert!(generated.contains("com_class_description"));
     assert!(generated.contains("com_factory_description"));
+    assert!(generated.contains("com_int_enum"));
+    assert!(generated.contains("pub enum Filter : u8"));
     assert!(generated.contains("trait UiFactory"));
     assert!(generated.contains("threading = shared"));
     assert!(generated.contains("NcCopyToBufferOffset"));

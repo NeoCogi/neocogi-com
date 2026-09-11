@@ -147,6 +147,7 @@ fn generate_declaration(
         }
         DeclarationKind::Enum(enumeration) => {
             let repr = enum_repr(enumeration.repr);
+            let has_payload = enum_has_payload(enumeration);
             let mut previous = -1i64;
             let variants = enumeration
                 .variants
@@ -182,15 +183,28 @@ fn generate_declaration(
                             quote! { { #(#fields),* } }
                         }
                     };
-                    Ok(quote! { #[com_tag(#tag)] #variant_docs #variant_name #fields, })
+                    if has_payload {
+                        Ok(quote! { #[com_tag(#tag)] #variant_docs #variant_name #fields, })
+                    } else {
+                        Ok(quote! { #variant_docs #variant_name = #tag, })
+                    }
                 })
                 .collect::<Result<Vec<_>, GenerateError>>()?;
-            Ok(quote! {
-                #[::neocogi_com::com_enum(tag = #repr)]
-                #[derive(Debug, PartialEq)]
-                #declaration_docs
-                pub enum #name { #(#variants)* }
-            })
+            if has_payload {
+                Ok(quote! {
+                    #[::neocogi_com::com_enum(tag = #repr)]
+                    #[derive(Clone, Copy, Debug, PartialEq)]
+                    #declaration_docs
+                    pub enum #name { #(#variants)* }
+                })
+            } else {
+                Ok(quote! {
+                    ::neocogi_com::com_int_enum! {
+                        #declaration_docs
+                        pub enum #name: #repr { #(#variants)* }
+                    }
+                })
+            }
         }
         DeclarationKind::Interface(interface) => {
             let bases = bases(graph, module, &interface.bases)?;
@@ -385,7 +399,7 @@ fn resolve<'a>(graph: &'a ResolvedModules, module: &ResolvedModule, name: &Named
 /// Selects a local/imported Rust type and optionally its generated ABI suffix.
 fn named_rust_type(module: &ResolvedModule, resolved: ResolvedDeclaration<'_>, abi_suffix: bool) -> Result<TokenStream, GenerateError> {
     let mut name = resolved.declaration.name.clone();
-    if abi_suffix && !matches!(resolved.declaration.kind, DeclarationKind::Struct(_)) {
+    if abi_suffix && declaration_has_abi_wrapper(resolved.declaration) {
         name.push_str("Abi");
     }
     let name = rust_ident(&name)?;
@@ -395,6 +409,20 @@ fn named_rust_type(module: &ResolvedModule, resolved: ResolvedDeclaration<'_>, a
         let crate_ident = contract_crate_ident(&resolved.module.source.name.to_string())?;
         Ok(quote! { ::#crate_ident::#name })
     }
+}
+
+/// Returns whether a generated declaration exposes a separate ABI wrapper type.
+fn declaration_has_abi_wrapper(declaration: &Declaration) -> bool {
+    match &declaration.kind {
+        DeclarationKind::Struct(_) => false,
+        DeclarationKind::Enum(enumeration) => enum_has_payload(enumeration),
+        DeclarationKind::Interface(_) | DeclarationKind::Class(_) | DeclarationKind::Factory(_) => true,
+    }
+}
+
+/// Distinguishes tagged sum types from transparent integer enumerations.
+fn enum_has_payload(enumeration: &neocogi_idl::Enum) -> bool {
+    enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit))
 }
 
 /// Generates doc attributes while preserving authored text exactly.
