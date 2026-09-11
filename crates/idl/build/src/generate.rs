@@ -128,6 +128,13 @@ fn generate_declaration(
     let version = identity.version;
     match &declaration.kind {
         DeclarationKind::Struct(record) => {
+            let com_struct = match (record.deserialize, record.deserialize_default, record.deserialize_sequence) {
+                (false, false, false) => quote! { #[::neocogi_com::com_struct] },
+                (true, false, false) => quote! { #[::neocogi_com::com_struct(deserialize)] },
+                (true, true, false) => quote! { #[::neocogi_com::com_struct(deserialize, default)] },
+                (true, false, true) => quote! { #[::neocogi_com::com_struct(deserialize, sequence)] },
+                _ => return Err(GenerateError::new("resolved struct contains an invalid deserialize policy")),
+            };
             let fields = record
                 .fields
                 .iter()
@@ -139,7 +146,7 @@ fn generate_declaration(
                 })
                 .collect::<Result<Vec<_>, GenerateError>>()?;
             Ok(quote! {
-                #[::neocogi_com::com_struct]
+                #com_struct
                 #[derive(Debug, PartialEq)]
                 #declaration_docs
                 pub struct #name { #(#fields)* }

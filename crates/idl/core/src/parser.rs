@@ -149,7 +149,16 @@ fn parse_struct(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Resu
     if fields.is_empty() {
         return Err(syn::Error::new(name.span(), "IDL structs must contain at least one field"));
     }
-    Ok(declaration(name, metadata, DeclarationKind::Struct(Struct { fields })))
+    Ok(declaration(
+        name,
+        metadata.clone(),
+        DeclarationKind::Struct(Struct {
+            fields,
+            deserialize: metadata.deserialize,
+            deserialize_default: metadata.deserialize_default,
+            deserialize_sequence: metadata.deserialize_sequence,
+        }),
+    ))
 }
 
 /// Parses one enum with unit, tuple, or named payload variants.
@@ -548,7 +557,7 @@ fn parse_import(input: ParseStream<'_>) -> syn::Result<Import> {
 /// Attribute capabilities allowed for one declaration category.
 #[derive(Clone, Copy)]
 enum AttributeContext {
-    /// Structs accept identity and documentation only.
+    /// Structs additionally accept format-neutral generated decoding policy.
     Plain,
     /// Enums additionally accept a fixed integer representation.
     Enum,
@@ -569,6 +578,12 @@ struct Attributes {
     repr: Option<EnumRepr>,
     /// Class or factory threading capability.
     threading: Option<Threading>,
+    /// Whether generated bindings implement format-neutral typed decoding.
+    deserialize: bool,
+    /// Whether omitted record fields start with their Rust default.
+    deserialize_default: bool,
+    /// Whether a record also accepts positional sequence input.
+    deserialize_sequence: bool,
 }
 
 /// Parses common attributes and rejects ambiguous or inapplicable combinations.
@@ -577,6 +592,9 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
     let mut id = None;
     let mut repr = None;
     let mut threading = None;
+    let mut deserialize = false;
+    let mut deserialize_default = false;
+    let mut deserialize_sequence = false;
 
     for attribute in attributes {
         if attribute.path().is_ident("doc") {
@@ -609,13 +627,64 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
                 return Err(syn::Error::new_spanned(attribute, "duplicate threading capability"));
             }
             threading = Some(parse_threading(&attribute)?);
+        } else if attribute.path().is_ident("deserialize") && matches!(context, AttributeContext::Plain) {
+            if deserialize {
+                return Err(syn::Error::new_spanned(attribute, "duplicate deserialize policy"));
+            }
+            let policy = parse_deserialize(&attribute)?;
+            deserialize = true;
+            deserialize_default = policy.default;
+            deserialize_sequence = policy.sequence;
         } else {
             return Err(syn::Error::new_spanned(attribute, "unsupported attribute for this IDL declaration"));
         }
     }
 
     let id = id.ok_or_else(|| syn::Error::new(Span::call_site(), "every IDL declaration requires `#[version(N)]` or `#[id(N, \"UUID\")]`"))?;
-    Ok(Attributes { docs, id, repr, threading })
+    Ok(Attributes {
+        docs,
+        id,
+        repr,
+        threading,
+        deserialize,
+        deserialize_default,
+        deserialize_sequence,
+    })
+}
+
+/// Optional non-ABI decoding behavior attached to one generated record.
+#[derive(Default)]
+struct DeserializePolicy {
+    /// Retains the record's default value for absent named fields.
+    default: bool,
+    /// Accepts the fields as a positional sequence instead of a named record.
+    sequence: bool,
+}
+
+/// Parses `#[deserialize]` and its mutually exclusive record options.
+fn parse_deserialize(attribute: &Attribute) -> syn::Result<DeserializePolicy> {
+    let mut policy = DeserializePolicy::default();
+    if matches!(&attribute.meta, syn::Meta::Path(_)) {
+        return Ok(policy);
+    }
+    attribute.parse_nested_meta(|meta| {
+        if meta.path.is_ident("default") && !policy.default {
+            policy.default = true;
+            Ok(())
+        } else if meta.path.is_ident("sequence") && !policy.sequence {
+            policy.sequence = true;
+            Ok(())
+        } else {
+            Err(meta.error("expected one `default` or `sequence` option"))
+        }
+    })?;
+    if policy.default && policy.sequence {
+        return Err(syn::Error::new_spanned(
+            attribute,
+            "deserialize default and sequence policies are mutually exclusive",
+        ));
+    }
+    Ok(policy)
 }
 
 /// Returns an enum's declared representation or the stable `u32` default.

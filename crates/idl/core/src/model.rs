@@ -53,6 +53,12 @@ pub enum DeclarationKind {
 pub struct Struct {
     /// Named fields in normative ABI order.
     pub fields: Vec<Field>,
+    /// Whether generated bindings implement format-neutral typed decoding.
+    pub deserialize: bool,
+    /// Whether omitted named fields retain values from `Default::default`.
+    pub deserialize_default: bool,
+    /// Whether the record may also decode from an ordered sequence.
+    pub deserialize_sequence: bool,
 }
 
 /// One named field in a struct or named enum payload.

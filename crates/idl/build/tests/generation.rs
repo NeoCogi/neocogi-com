@@ -14,6 +14,7 @@ fn generates_rust_bindings_for_a_module_graph() {
         "neocogi/render.ncidl",
         r#"
             /// Pixel dimensions.
+            #[deserialize]
             #[version(1)]
             struct Size { width: u32, height: u32, status: Status }
 
@@ -55,6 +56,7 @@ fn generates_rust_bindings_for_a_module_graph() {
     assert!(generated.contains("threading = shared"));
     assert!(generated.contains("NcCopyToBufferOffset"));
     assert!(generated_render.contains("pub status : :: neocogi_com :: NcStatus"));
+    assert!(generated_render.contains("com_struct (deserialize)"));
     assert!(!generated.contains("std :: any :: Any"));
     assert!(!generated.contains("constructor"));
 }
