@@ -18,6 +18,10 @@ use crate::{
 pub(crate) fn build(module: &ResolvedModule, source: &str, dependencies: &[ArtifactRecord], output_dir: &Path) -> Result<ArtifactRecord, BuildError> {
     let target = required_text("TARGET")?;
     let target_os = required_text("CARGO_CFG_TARGET_OS")?;
+    // Cargo's Rust target identity may name a custom JSON target that `cc` cannot
+    // interpret as a compiler triple. Assembly tooling supplies the underlying C
+    // ABI target explicitly; direct Cargo builds retain their ordinary Rust target.
+    let native_target = optional_nonempty_text("NEOCOGI_CONTRACT_NATIVE_TARGET")?.unwrap_or_else(|| target.clone());
     let requested_linkage = env::var("NEOCOGI_CONTRACT_LINKAGE").unwrap_or_else(|_| {
         if target_os == "none" || target.starts_with("wasm") {
             "static".into()
@@ -52,9 +56,9 @@ pub(crate) fn build(module: &ResolvedModule, source: &str, dependencies: &[Artif
     write_changed(&c_path, c_source.as_bytes())?;
 
     let (library, linker_files) = if requested_linkage == "dynamic" {
-        compile_dynamic(&target, &target_os, &link_name, &c_path, dependencies, output_dir)?
+        compile_dynamic(&native_target, &target_os, &link_name, &c_path, dependencies, output_dir)?
     } else {
-        compile_static(&target, &link_name, &c_path, output_dir)?
+        compile_static(&native_target, &link_name, &c_path, output_dir)?
     };
     println!("cargo::rustc-link-search=native={}", output_dir.display());
     let cargo_linkage = if requested_linkage == "dynamic" { "dylib" } else { "static" };
@@ -318,6 +322,16 @@ fn run(command: &mut Command, operation: &'static str) -> Result<(), BuildError>
 /// Reads one required UTF-8 Cargo build variable.
 fn required_text(variable: &'static str) -> Result<String, BuildError> {
     env::var(variable).map_err(|_| BuildError::MissingEnvironment(variable))
+}
+
+/// Reads an optional UTF-8 target override and rejects an ambiguous empty value.
+fn optional_nonempty_text(variable: &'static str) -> Result<Option<String>, BuildError> {
+    match env::var(variable) {
+        Ok(value) if value.trim().is_empty() => Err(BuildError::Idl(format!("{variable} must not be empty"))),
+        Ok(value) => Ok(Some(value)),
+        Err(env::VarError::NotPresent) => Ok(None),
+        Err(env::VarError::NotUnicode(_)) => Err(BuildError::Idl(format!("{variable} must contain UTF-8 text"))),
+    }
 }
 
 /// Replaces generated native source only when its bytes changed.

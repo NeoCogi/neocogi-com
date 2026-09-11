@@ -43,6 +43,7 @@ impl Module {
         let source_path = manifest_dir.join(&self.idl_root).join(&self.source);
         println!("cargo::rerun-if-changed={}", source_path.display());
         println!("cargo::rerun-if-env-changed=NEOCOGI_CONTRACT_LINKAGE");
+        println!("cargo::rerun-if-env-changed=NEOCOGI_CONTRACT_NATIVE_TARGET");
 
         let source = fs::read_to_string(&source_path).map_err(|source_error| BuildError::Io {
             operation: "read IDL source",
