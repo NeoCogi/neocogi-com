@@ -1,0 +1,29 @@
+/// Copied dimensions used by the example object surface.
+#[version(1)]
+struct Extent {
+    /// Horizontal extent.
+    width: u32,
+    /// Vertical extent.
+    height: u32,
+}
+
+/// Optional capability implemented by the example class.
+#[version(1)]
+trait IMeasured {
+    /// Returns the current copied dimensions.
+    fn extent(&self) -> Result<Extent>;
+}
+
+/// Public object shape constructed only by `ExampleFactory`.
+#[version(1)]
+class ExampleObject: IMeasured {
+    /// Replaces the dimensions using an exclusive implementation borrow.
+    fn resize(&mut self, extent: Extent) -> Result<()>;
+}
+
+/// Typed construction surface for the example object.
+#[version(1)]
+factory ExampleFactory {
+    /// Creates one initialized example object.
+    fn create(&self, extent: Extent) -> Result<ExampleObject>;
+}

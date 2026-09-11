@@ -78,6 +78,17 @@ pub struct ResolvedModules {
     modules: Vec<ResolvedModule>,
 }
 
+/// Borrowed declaration selected through one already-validated type path.
+#[derive(Clone, Copy, Debug)]
+pub struct ResolvedDeclaration<'a> {
+    /// Module that owns the selected declaration.
+    pub module: &'a ResolvedModule,
+    /// Parsed declaration retained for kind-specific code generation.
+    pub declaration: &'a Declaration,
+    /// Stable identity paired with the parsed declaration.
+    pub identity: &'a DeclarationIdentity,
+}
+
 impl ResolvedModules {
     /// Borrows every resolved module in caller order.
     pub fn modules(&self) -> &[ResolvedModule] {
@@ -88,6 +99,37 @@ impl ResolvedModules {
     pub fn module(&self, name: &str) -> Option<&ResolvedModule> {
         // Logical module names are unique after graph construction.
         self.modules.iter().find(|module| module.source.name.to_string() == name)
+    }
+
+    /// Resolves one local, imported, or module-qualified declaration path.
+    ///
+    /// Semantic resolution has already rejected missing and ambiguous paths.
+    /// This read-only view lets generators reuse the authoritative mapping
+    /// without rebuilding a second name-resolution implementation.
+    pub fn resolve_declaration<'a>(&'a self, owner: &str, name: &NamedType) -> Option<ResolvedDeclaration<'a>> {
+        let owner = self.module(owner)?;
+        let (module_name, declaration_name) = if name.segments.len() == 1 {
+            let declaration_name = name.segments.first()?.as_str();
+            if owner.source.declaration(declaration_name).is_some() {
+                (owner.source.name.to_string(), declaration_name)
+            } else {
+                let import = owner
+                    .source
+                    .imports
+                    .iter()
+                    .find(|import| import.names.iter().any(|candidate| candidate == declaration_name))?;
+                (import.module.clone(), declaration_name)
+            }
+        } else {
+            (name.segments[..name.segments.len() - 1].join("."), name.segments.last()?.as_str())
+        };
+        let module = self.module(&module_name)?;
+        let source_index = module.source.declarations.iter().position(|declaration| declaration.name == declaration_name)?;
+        Some(ResolvedDeclaration {
+            module,
+            declaration: &module.source.declarations[source_index],
+            identity: &module.declarations[source_index],
+        })
     }
 }
 

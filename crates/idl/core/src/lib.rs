@@ -19,7 +19,7 @@ pub use model::{
 };
 pub use parser::{ParseError, parse_module};
 pub use path::{ModuleName, ModulePathError};
-pub use resolve::{DeclarationIdentity, ResolutionError, ResolvedDependency, ResolvedModule, ResolvedModules, resolve_modules};
+pub use resolve::{DeclarationIdentity, ResolutionError, ResolvedDeclaration, ResolvedDependency, ResolvedModule, ResolvedModules, resolve_modules};
 
 /// One parsed and structurally validated IDL module.
 #[derive(Clone, Debug, Eq, PartialEq)]

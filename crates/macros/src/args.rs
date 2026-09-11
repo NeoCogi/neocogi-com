@@ -302,6 +302,12 @@ impl Parse for InterfaceArgs {
                     }
                     qualified_name = Some(value.clone());
                     guid = Some(InterfaceGuid::AutoGuid { value });
+                } else if keyword == "assigned_guid" {
+                    if guid.is_some() {
+                        return Err(syn::Error::new(keyword.span(), "duplicate interface ID"));
+                    }
+                    input.parse::<Token![=]>()?;
+                    guid = Some(InterfaceGuid::Assigned(input.parse()?));
                 } else if keyword == "name" {
                     if qualified_name.is_some() {
                         return Err(syn::Error::new(keyword.span(), "duplicate interface qualified name"));
@@ -317,7 +323,7 @@ impl Parse for InterfaceArgs {
                 } else {
                     return Err(syn::Error::new(
                         keyword.span(),
-                        "expected UUID string, name = \"stable.name:v1\", auto_guid = \"stable.name:v1\", or neocogi_com = path",
+                        "expected UUID string, name = \"stable.name:v1\", auto_guid = \"stable.name:v1\", assigned_guid = \"UUID\", or neocogi_com = path",
                     ));
                 }
             }

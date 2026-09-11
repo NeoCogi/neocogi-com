@@ -1,0 +1,15 @@
+use neocogi.idl_example::{ExampleObject, Extent, IMeasured};
+
+/// Input copied into the dependency module's object factory.
+#[version(1)]
+struct ConsumerOptions {
+    /// Initial object dimensions.
+    extent: Extent,
+}
+
+/// Factory proving cross-module value, interface, and class references.
+#[version(1)]
+factory ConsumerFactory: IMeasured {
+    /// Creates an object declared by the exact linked dependency revision.
+    fn create(&self, options: ConsumerOptions) -> Result<ExampleObject>;
+}
