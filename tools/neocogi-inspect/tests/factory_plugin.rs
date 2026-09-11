@@ -77,6 +77,16 @@ fn dumps_a_factory_plugin_and_its_canonical_contract_module() {
     command.env("LD_LIBRARY_PATH", &build.contract_directory);
     #[cfg(target_os = "macos")]
     command.env("DYLD_LIBRARY_PATH", &build.contract_directory);
+    #[cfg(windows)]
+    {
+        let mut paths = vec![build.contract_directory.clone()];
+        paths.extend(
+            std::env::var_os("PATH")
+                .into_iter()
+                .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>()),
+        );
+        command.env("PATH", std::env::join_paths(paths).expect("test loader path must be representable"));
+    }
     let output = command.output().expect("failed to start neocogi-inspect");
     assert_success("factory plugin inspection", &output);
 

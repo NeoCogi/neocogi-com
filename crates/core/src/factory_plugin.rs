@@ -352,6 +352,25 @@ mod tests {
         assert_eq!(unsafe { validate_factory_plugin_description(&invalid) }, NC_E_INVALID_ARG);
     }
 
+    /// Confirms an exact runtime rejects another known signature representation.
+    #[cfg(any(
+        feature = "com-validation-none",
+        feature = "com-validation-sha-256",
+        feature = "com-validation-fnv-1a-128",
+        feature = "com-validation-mangling"
+    ))]
+    #[test]
+    fn rejects_a_different_known_validation_mode() {
+        let other = if NC_ABI_VALIDATION_MODE == NcAbiValidationMode::NONE {
+            NcAbiValidationMode::SHA_256
+        } else {
+            NcAbiValidationMode::NONE
+        };
+        let invalid = NcFactoryPluginDescription { validation_mode: other, ..VALID_PLUGIN };
+        // SAFETY: The stack root borrows only immutable static child tables.
+        assert_eq!(unsafe { validate_factory_plugin_description(&invalid) }, NC_E_ABI_VERSION);
+    }
+
     /// Locks the new descriptor's field order to its documented C ABI layout.
     #[test]
     fn factory_plugin_description_layout_is_c_stable() {
