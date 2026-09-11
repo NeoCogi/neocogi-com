@@ -1,15 +1,14 @@
 //! User-facing macro exports and the declarative integer-enum helper.
 //!
 //! With the `macros` feature enabled this module re-exports the procedural
-//! macros that define interfaces, classes, ABI-safe structs and enums, and
-//! plugin descriptors. [`com_int_enum!`] remains declarative so it can generate
+//! macros that define interfaces, IDL descriptions, ABI-safe structs and enums,
+//! and factory plugins. [`com_int_enum!`] remains declarative so it can generate
 //! a transparent integer newtype that preserves unknown values while still
 //! participating in the `AbiType` and `AbiPlainValue` contracts.
 
 #[cfg(feature = "macros")]
 pub use neocogi_com_macros::{
-    ComDeserialize, com_class, com_class_description, com_enum, com_factory, com_factory_description, com_interface, com_object, com_struct, factory_plugin,
-    plugin,
+    ComDeserialize, com_class_description, com_enum, com_factory, com_factory_description, com_interface, com_object, com_struct, factory_plugin,
 };
 
 /// Defines an ABI-stable enum-like integer newtype.
@@ -131,42 +130,6 @@ macro_rules! com_int_enum {
                 <$repr as $crate::ComDeserialize>::com_deserialize(decoder).map(Self::from_raw)
             }
         }
-    };
-}
-
-/// Exports a plugin descriptor from the final dynamic-library assembly crate.
-///
-/// `plugin!` only defines metadata. Invoke this once per shared library; omit it
-/// when statically linking several plugins into an executable or browser module.
-/// Both forms reuse the same descriptor and validation. The optional path names
-/// a descriptor function when the plugin implementation lives in another module
-/// or a statically linked implementation crate.
-///
-/// ```ignore
-/// neocogi_com::plugin! { /* plugin identity and classes */ }
-/// #[cfg(feature = "dynamic-plugin")]
-/// neocogi_com::export_plugin!();
-/// ```
-#[macro_export]
-macro_rules! export_plugin {
-    () => {
-        $crate::export_plugin!(plugin_descriptor);
-    };
-    ($descriptor:path) => {
-        /// Returns validated, immutable metadata through the dynamic plugin ABI.
-        ///
-        /// # Safety
-        /// `out` must be null or writable for one descriptor pointer. The module
-        /// containing the descriptor must stay loaded while its metadata is used.
-        #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn nc_get_plugin_descriptor(out: *mut *const $crate::NcPluginDescriptor) -> $crate::NcStatus {
-            // SAFETY: The descriptor function returns static metadata, and the
-            // caller supplies the output storage. The shared helper validates
-            // the same descriptor used for static registration.
-            unsafe { $crate::return_plugin_descriptor(out, $descriptor()) }
-        }
-        // Check the export signature without duplicating the ABI declaration.
-        const _: $crate::NcGetPluginDescriptor = nc_get_plugin_descriptor;
     };
 }
 

@@ -94,8 +94,8 @@ impl INativeCalculator for NativeCalculator {
 mod tests {
     use super::*;
     use neocogi_com::{
-        ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcClassDescriptor, NcDebugApiV2,
-        NcInspectionApiV2, NcInterfaceDescriptor, NcInterfaceId, NcPluginDescriptor, NcPluginRegistryV2, NcRuntimeApiV2,
+        ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV2, NcInspectionApiV2, NcInterfaceDescriptor, NcInterfaceId, NcPluginRegistryV2,
+        NcRuntimeApiV2,
     };
 
     #[repr(C)]
@@ -126,15 +126,6 @@ mod tests {
         interface_qualified_name_offset: usize,
         interface_method_count_offset: usize,
         interface_methods_offset: usize,
-        class_descriptor_size: usize,
-        class_threading_offset: usize,
-        class_construct_offset: usize,
-        class_interfaces_offset: usize,
-        plugin_descriptor_size: usize,
-        plugin_validation_mode_offset: usize,
-        plugin_qualified_name_offset: usize,
-        plugin_dependencies_offset: usize,
-        plugin_class_table_offset: usize,
         runtime_core_abi_version_offset: usize,
         runtime_contract_register_offset: usize,
         plugin_registry_first_function_offset: usize,
@@ -169,18 +160,6 @@ mod tests {
                 method_count
             ),
             interface_methods_offset: core::mem::offset_of!(NcInterfaceDescriptor, methods),
-            class_descriptor_size: core::mem::size_of::<NcClassDescriptor>(),
-            class_threading_offset: core::mem::offset_of!(NcClassDescriptor, threading),
-            class_construct_offset: core::mem::offset_of!(NcClassDescriptor, construct),
-            class_interfaces_offset: core::mem::offset_of!(NcClassDescriptor, interfaces),
-            plugin_descriptor_size: core::mem::size_of::<NcPluginDescriptor>(),
-            plugin_validation_mode_offset: core::mem::offset_of!(NcPluginDescriptor, validation_mode),
-            plugin_qualified_name_offset: core::mem::offset_of!(
-                NcPluginDescriptor,
-                qualified_name
-            ),
-            plugin_dependencies_offset: core::mem::offset_of!(NcPluginDescriptor, dependencies),
-            plugin_class_table_offset: core::mem::offset_of!(NcPluginDescriptor, class_table),
             runtime_core_abi_version_offset: core::mem::offset_of!(
                 NcRuntimeApiV2,
                 core_abi_version

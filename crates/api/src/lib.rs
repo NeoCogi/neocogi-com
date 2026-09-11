@@ -257,26 +257,22 @@
 //! root identity and threading from the generated IDL factory associated by
 //! [`com_factory`]. Static hosts call
 //! [`Runtime::register_factory_plugin_description`]; dynamic hosts call
-//! [`Runtime::load_plugin_library`], which detects exactly one factory or
-//! legacy class-table entrypoint. Hosts obtain the typed root with
+//! [`Runtime::load_plugin_library`], which requires the factory-description
+//! entrypoint. Hosts obtain the typed root with
 //! [`Runtime::activate_plugin_factory`] and perform later construction through
 //! ordinary typed factory methods.
 //!
-//! The earlier class-table path exposes [`NC_GET_PLUGIN_DESCRIPTOR_SYMBOL`].
-//! Its descriptor records [`NC_COM_CORE_ABI_VERSION`], plugin identity, and a
-//! static [`NcClassTable`] of [`NcClassDescriptor`] values. It remains isolated
-//! for components migrating to IDL factories. Generated interfaces expose
+//! Generated interfaces expose
 //! `ABI_SIGNATURE`, typed method descriptors, rendered diagnostic method signature
 //! text, and [`NcInterfaceDescriptor`]
-//! metadata; generated classes expose `COM_INTERFACES` metadata containing the
-//! canonical [`IUnknown`] descriptor first, followed by their `interfaces(...)`
-//! list in declaration order. `IUnknown` is implicit and must not be listed by
-//! users. Constructors return owned [`IUnknown`] pointers.
+//! metadata. IDL classes and factories expose description traits used at compile
+//! time by implementations; object construction is an implementation detail or
+//! an ordinary typed factory method.
 //! Loaded plugin libraries are retained by the process-global `Runtime` and
 //! can be inspected through process-local `LoadedModuleId` values.
 //! `LoadedModuleInfo` combines module provenance (ID, path, and plugin ID)
 //! with qualified name and version metadata read from the registered plugin
-//! descriptor. Hosts can retrieve it again with
+//! factory description. Hosts can retrieve it again with
 //! `Inspection::loaded_module`, or query descriptor metadata directly with
 //! `Inspection::plugin_info`. Statically registered plugins have plugin
 //! metadata but no loaded-module path.
@@ -287,15 +283,12 @@
 //! debug messenger capacity exhaustion returns [`NC_E_OUT_OF_RANGE`].
 //! Callers then use signature-checked `QueryInterface` to obtain the interface they
 //! need.
-//! core ABI v7 plugin descriptors are declarative and have no initialization hook.
-//! They may declare hard dependency plugin IDs. Registration requires those IDs
-//! to exist already but never discovers paths or loads dependencies recursively.
+//! Factory descriptions may declare hard dependency plugin IDs. Registration
+//! requires those IDs to exist already but never discovers paths or loads
+//! dependencies recursively.
 //! Native loader dependencies remain distinct from neocogi-com dependencies.
-//! Raw plugin descriptors can be checked with
-//! [`validate_plugin_descriptor_with_issues`], which reports structured
-//! descriptor paths and issue kinds for diagnostics. Descriptor validation is for
-//! trusted plugin metadata shape; it is not hostile plugin isolation, does not
-//! sandbox plugin code, and cannot make an untrusted shared library safe to load.
+//! Description validation checks trusted metadata shape; it is not hostile
+//! plugin isolation and cannot make an untrusted shared library safe to load.
 //!
 //! Hosts can load required bundled plugins during startup with
 //! `Runtime::load_plugin_libraries`, which loads paths sequentially in an
@@ -451,40 +444,35 @@ pub use buffer::{NcCopyFromBufferOffset, NcCopyToBufferOffset};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
-pub use macros::{
-    ComDeserialize, com_class, com_class_description, com_enum, com_factory, com_factory_description, com_interface, com_object, com_struct, factory_plugin,
-    plugin,
-};
+pub use macros::{ComDeserialize, com_class_description, com_enum, com_factory, com_factory_description, com_interface, com_object, com_struct, factory_plugin};
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{format_abi_signature, format_method_signature};
 pub use neocogi_com_core::{
-    __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClassArguments, abi_signature,
-    ComClassContract, ComClientInterface, ComDeserialize, ComDeserializer, ComEnum, ComFactoryBootstrap, ComFactoryDescription, ComFactoryImplementation,
-    ComInterface, ComObjectDescription, ComPtr, ComRecord, ComRecordAccess, ComRef, ComSequence, ComSequenceAccess, ComStruct, ComVariantAccess,
-    NcClientPointer, IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID,
-    IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET,
-    NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
-    NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8,
-    NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8,
-    NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_ABI_VALIDATION_FNV_1A_128, NC_ABI_VALIDATION_MANGLING,
-    NC_ABI_VALIDATION_MODE, NC_ABI_VALIDATION_NONE, NC_ABI_VALIDATION_SHA_256, NC_COM_CORE_ABI_VERSION, NC_COM_GUID_NAMESPACE, NC_COM_RUNTIME_ABI_VERSION,
-    NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO,
-    NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN,
-    NC_DESCRIPTOR_VERSION_MAX_LEN, NC_CONTRACT_DECLARATION_CLASS, NC_CONTRACT_DECLARATION_ENUM, NC_CONTRACT_DECLARATION_FACTORY,
-    NC_CONTRACT_DECLARATION_INTERFACE, NC_CONTRACT_DECLARATION_NO_THREADING, NC_CONTRACT_DECLARATION_STRUCT, NC_CONTRACT_DESCRIPTION_ABI_VERSION,
-    NC_E_ABI_VERSION, NC_E_BUSY, NC_E_CONTRACT_MISMATCH, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE,
-    NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL,
-    NC_GUID_NIL, NC_OK, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiSignature, NcAbiSignaturePart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver,
-    NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcAbiValidationMode, NcClassDescriptor, NcActivatePluginFactory,
-    NcClassInterfaceDescriptor, NcClassTable, NcConstructorFn, NcContractDeclarationDescription, NcContractDependencyDescription, NcContractFingerprint,
-    NcContractModuleDescription, NcContractModuleReference, NcContractRegistryV2, NcDebugApiV2, NcDebugCallbackV2, NcDebugMessageV2,
-    NcDebugMessengerCreateInfoV2, NcDescriptorPath, NcDescriptorValidationIssue, NcDescriptorValidationKind, NcGetContractModuleDescription,
-    NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGetPluginDescriptor, NcGuid, NcInspectFactoryPluginDescriptionCallbackV2, NcInspectionApiV2,
-    NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcModuleInfoV2, NcPluginDependencyDescriptor,
-    NcPluginDescriptor, NcPluginInfoV2, NcPluginRegistryV2, NcQualifiedNameError, NcRuntimeApiV2, NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError,
-    ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel, activate_factory_implementation,
-    construct_class_checked, guid_from_qualified_name, raw, return_plugin_descriptor, return_factory_plugin_description, validate_factory_plugin_description,
-    validate_plugin_descriptor_with_issues, validate_qualified_name, validate_version_text,
+    __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, abi_signature, ComClientInterface,
+    ComDeserialize, ComDeserializer, ComEnum, ComFactoryBootstrap, ComFactoryDescription, ComFactoryImplementation, ComInterface, ComObjectDescription, ComPtr,
+    ComRecord, ComRecordAccess, ComRef, ComSequence, ComSequenceAccess, ComStruct, ComVariantAccess, NcClientPointer, IID_INC_BYTES, IID_INC_STRING,
+    IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
+    NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT,
+    NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
+    NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64,
+    NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64,
+    NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_ABI_VALIDATION_FNV_1A_128, NC_ABI_VALIDATION_MANGLING, NC_ABI_VALIDATION_MODE, NC_ABI_VALIDATION_NONE,
+    NC_ABI_VALIDATION_SHA_256, NC_COM_CORE_ABI_VERSION, NC_COM_GUID_NAMESPACE, NC_COM_RUNTIME_ABI_VERSION, NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS,
+    NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL,
+    NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN,
+    NC_CONTRACT_DECLARATION_CLASS, NC_CONTRACT_DECLARATION_ENUM, NC_CONTRACT_DECLARATION_FACTORY, NC_CONTRACT_DECLARATION_INTERFACE,
+    NC_CONTRACT_DECLARATION_NO_THREADING, NC_CONTRACT_DECLARATION_STRUCT, NC_CONTRACT_DESCRIPTION_ABI_VERSION, NC_E_ABI_VERSION, NC_E_BUSY,
+    NC_E_CONTRACT_MISMATCH, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND,
+    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiAggregateKind, NcAbiFieldLayout,
+    NcAbiSignature, NcAbiSignaturePart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType,
+    NcAbiTypeDescriptor, NcAbiValidationMode, NcActivatePluginFactory, NcContractDeclarationDescription, NcContractDependencyDescription,
+    NcContractFingerprint, NcContractModuleDescription, NcContractModuleReference, NcContractRegistryV2, NcDebugApiV2, NcDebugCallbackV2, NcDebugMessageV2,
+    NcDebugMessengerCreateInfoV2, NcFactoryPluginDescription, NcGetContractModuleDescription, NcGetFactoryPluginDescription, NcGuid,
+    NcInspectFactoryPluginDescriptionCallbackV2, NcInspectionApiV2, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor,
+    NcMethodReturnDescriptor, NcModuleInfoV2, NcPluginDependencyDescriptor, NcPluginInfoV2, NcPluginRegistryV2, NcQualifiedNameError, NcRuntimeApiV2,
+    NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe,
+    ThreadingModel, activate_factory_implementation, guid_from_qualified_name, raw, return_factory_plugin_description, validate_factory_plugin_description,
+    validate_qualified_name, validate_version_text,
 };
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{ComMap, ComMapAccess};
@@ -498,4 +486,4 @@ pub use runtime::{
 };
 
 #[doc(hidden)]
-pub use neocogi_com_core::{__nc_interface_chain, __nc_class_interface_count, __nc_class_interfaces};
+pub use neocogi_com_core::{__nc_interface_chain, __nc_class_interface_count};

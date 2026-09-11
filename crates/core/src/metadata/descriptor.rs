@@ -1,8 +1,8 @@
-//! Physical C-compatible records exported by plugins.
+//! Physical C-compatible interface metadata records.
 //!
 //! The structures in this module form the immutable pointer graph returned by
-//! `nc_get_plugin_descriptor`: plugin dependencies, classes, interfaces,
-//! methods, parameters, return contracts, and static text. Accessor methods
+//! generated interface descriptions: methods, parameters, return contracts,
+//! and static text. Accessor methods
 //! validate null/count shapes before turning raw arrays into borrowed Rust views.
 //!
 //! Descriptor graphs are immutable, library-owned metadata. Relationships use
@@ -14,7 +14,6 @@
 use super::contract::{NcAbiPassingDescriptor, NcAbiTypeDescriptor, NcInterfaceId};
 use crate::guid::NcGuid;
 use crate::signature::NcAbiSignature;
-use crate::object::IUnknown;
 use crate::status::{NC_E_INVALID_ARG, NC_E_POINTER, NcStatus};
 
 /// C-stable typed ABI descriptor for one method parameter.
@@ -171,119 +170,6 @@ impl NcInterfaceDescriptor {
     }
 }
 
-/// Function pointer that constructs one class instance.
-///
-/// # Safety
-///
-/// `class` must point to the descriptor that owns this constructor.
-/// `arguments`, when non-null, must point to the immutable constructor frame
-/// described by [`NcClassDescriptor::constructor_abi_signature`] and remain valid
-/// for the call. `out` must be valid for one pointer write. On success, `out`
-/// receives one owned `IUnknown` reference that the caller must eventually
-/// release. The constructed object must satisfy the owning class descriptor's
-/// declared threading capability.
-pub type NcConstructorFn = unsafe extern "C" fn(class: *const NcClassDescriptor, arguments: *const core::ffi::c_void, out: *mut *mut IUnknown) -> NcStatus;
-
-/// Static descriptor connecting one class to one implemented interface.
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct NcClassInterfaceDescriptor {
-    /// Pointer to the interface's static ABI descriptor.
-    pub interface_descriptor: *const NcInterfaceDescriptor,
-}
-
-// SAFETY: Class-interface descriptors are immutable static metadata and only
-// contain value fields plus a pointer to another immutable descriptor.
-unsafe impl Sync for NcClassInterfaceDescriptor {}
-
-/// Static descriptor for one constructible class exported by a plugin.
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct NcClassDescriptor {
-    /// Stable class identifier derived from `qualified_name`.
-    pub class_id: NcGuid,
-    /// Normative static qualified class name.
-    pub qualified_name: NcStaticUtf8,
-    /// Static class version metadata.
-    pub class_version: NcStaticUtf8,
-    /// ABI signature of the immutable constructor frame, or [`NcAbiSignature::EMPTY`] for
-    /// a constructor with no arguments.
-    pub constructor_abi_signature: NcAbiSignature,
-    /// Threading capability promised by constructed objects.
-    ///
-    /// This is one of `NC_ABI_THREADING_THREAD_LOCAL` or
-    /// `NC_ABI_THREADING_THREAD_SAFE`. A thread-safe class may be consumed
-    /// through a thread-local pointer as a conservative capability downgrade;
-    /// a thread-local class must never be upgraded to a thread-safe pointer.
-    /// Structural validation checks this tag but cannot prove the behavioral
-    /// promise made by a handwritten or foreign descriptor producer.
-    pub threading: u32,
-    /// Constructor for this class. Null means the descriptor is invalid.
-    pub construct: Option<NcConstructorFn>,
-    /// Number of implemented interface descriptors, including exactly one
-    /// canonical [`IUnknown`] descriptor.
-    pub interface_count: u32,
-    /// Pointer to `interface_count` distinct descriptors. Macro-generated
-    /// tables place [`IUnknown`] first and preserve declaration order for the
-    /// remaining interfaces.
-    pub interfaces: *const NcClassInterfaceDescriptor,
-}
-
-// SAFETY: Class descriptors are immutable static metadata; function pointers
-// and descriptor tables must remain valid while exported.
-unsafe impl Sync for NcClassDescriptor {}
-
-impl NcClassDescriptor {
-    /// Borrows the static qualified class name.
-    ///
-    /// # Safety
-    ///
-    /// `self.qualified_name` must reference metadata that remains valid for the
-    /// returned lifetime.
-    pub unsafe fn qualified_name_str<'a>(&self) -> Result<&'a str, NcStatus> {
-        // SAFETY: The caller guarantees the class descriptor and its static
-        // string metadata remain valid for the returned lifetime.
-        unsafe { self.qualified_name.as_str() }
-    }
-
-    /// Borrows the implemented-interface descriptor slice.
-    ///
-    /// # Safety
-    ///
-    /// If `self.interface_count != 0`, `self.interfaces` must point to
-    /// `self.interface_count` descriptors that remain valid for the returned
-    /// lifetime.
-    pub unsafe fn interfaces<'a>(&self) -> Result<&'a [NcClassInterfaceDescriptor], NcStatus> {
-        if self.interface_count == 0 {
-            return Ok(&[]);
-        }
-        if self.interfaces.is_null() {
-            return Err(NC_E_POINTER);
-        }
-        // SAFETY: The caller guarantees `interfaces` points to
-        // `interface_count` descriptors valid for the returned lifetime;
-        // null/count was checked.
-        Ok(unsafe { core::slice::from_raw_parts(self.interfaces, self.interface_count as usize) })
-    }
-}
-
-impl NcClassInterfaceDescriptor {
-    /// Borrows the static interface descriptor referenced by this class entry.
-    ///
-    /// # Safety
-    ///
-    /// `self.interface_descriptor`, when non-null, must point to an immutable
-    /// descriptor that remains valid for the returned lifetime.
-    pub unsafe fn interface_descriptor<'a>(&self) -> Result<&'a NcInterfaceDescriptor, NcStatus> {
-        if self.interface_descriptor.is_null() {
-            return Err(NC_E_POINTER);
-        }
-        // SAFETY: Null was checked above and the caller guarantees the pointed
-        // descriptor remains valid for the returned lifetime.
-        Ok(unsafe { &*self.interface_descriptor })
-    }
-}
-
 impl NcInterfaceDescriptor {
     /// Borrows the method descriptor slice.
     ///
@@ -326,40 +212,6 @@ impl NcMethodDescriptor {
     }
 }
 
-/// Static table of constructible classes exported by a plugin.
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct NcClassTable {
-    /// Number of class descriptors.
-    pub class_count: u32,
-    /// Pointer to `class_count` descriptors.
-    pub classes: *const NcClassDescriptor,
-}
-
-// SAFETY: Class tables are immutable static metadata whose `classes` pointer is
-// read-only and stable for the exporting component lifetime.
-unsafe impl Sync for NcClassTable {}
-
-impl NcClassTable {
-    /// Borrows the class descriptor slice.
-    ///
-    /// # Safety
-    ///
-    /// `self.classes` must either be null with `class_count == 0`, or point to
-    /// `class_count` descriptors that remain valid for the returned lifetime.
-    pub unsafe fn classes<'a>(&self) -> Result<&'a [NcClassDescriptor], NcStatus> {
-        if self.class_count == 0 {
-            return Ok(&[]);
-        }
-        if self.classes.is_null() {
-            return Err(NC_E_POINTER);
-        }
-        // SAFETY: The caller guarantees `classes` points to `class_count`
-        // descriptors valid for the returned lifetime; null/count was checked.
-        Ok(unsafe { core::slice::from_raw_parts(self.classes, self.class_count as usize) })
-    }
-}
-
 /// One hard neocogi-com plugin dependency.
 ///
 /// Dependency metadata is declarative. It names a plugin that must already be
@@ -372,69 +224,6 @@ pub struct NcPluginDependencyDescriptor {
     pub plugin_id: NcGuid,
 }
 
-/// Static descriptor for one plugin shared library.
-///
-/// Core ABI v7 descriptors are declarative: they contain no initialization callback
-/// or path resolver. Hard dependency IDs describe activation order but never
-/// trigger recursive loading.
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct NcPluginDescriptor {
-    /// Must be [`super::contract::NC_COM_CORE_ABI_VERSION`] for this version.
-    pub core_abi_version: u32,
-    /// ABI signature representation used throughout this plugin descriptor graph.
-    pub validation_mode: super::contract::NcAbiValidationMode,
-    /// Stable plugin identifier derived from `qualified_name`.
-    pub plugin_id: NcGuid,
-    /// Normative static qualified plugin name.
-    pub qualified_name: NcStaticUtf8,
-    /// Static plugin version metadata.
-    pub plugin_version: NcStaticUtf8,
-    /// Number of hard plugin dependency descriptors.
-    pub dependency_count: u32,
-    /// Pointer to `dependency_count` distinct dependency descriptors.
-    ///
-    /// Registration checks that every named plugin is already registered but
-    /// never loads dependencies recursively.
-    pub dependencies: *const NcPluginDependencyDescriptor,
-    /// Static class table exported by this plugin.
-    pub class_table: *const NcClassTable,
-}
-
-// SAFETY: Plugin descriptors are immutable static metadata. Pointer fields must
-// remain valid while the plugin is registered.
-unsafe impl Sync for NcPluginDescriptor {}
-
-impl NcPluginDescriptor {
-    /// Borrows the declared hard plugin dependencies.
-    ///
-    /// # Safety
-    ///
-    /// If `self.dependency_count != 0`, `self.dependencies` must point to that
-    /// many readable descriptors for the returned lifetime.
-    pub unsafe fn dependencies<'a>(&self) -> Result<&'a [NcPluginDependencyDescriptor], NcStatus> {
-        if self.dependency_count == 0 {
-            return Ok(&[]);
-        }
-        if self.dependencies.is_null() {
-            return Err(NC_E_POINTER);
-        }
-        // SAFETY: The caller supplies the table readability/lifetime contract;
-        // the null/count invariant was checked above.
-        Ok(unsafe { core::slice::from_raw_parts(self.dependencies, self.dependency_count as usize) })
-    }
-}
-
-/// Exported function signature for
-/// [`super::contract::NC_GET_PLUGIN_DESCRIPTOR_SYMBOL`].
-///
-/// # Safety
-///
-/// `out` must be valid for one descriptor pointer write. On success, `out`
-/// receives a pointer to immutable plugin metadata that remains valid while the
-/// shared library is loaded.
-pub type NcGetPluginDescriptor = unsafe extern "C" fn(out: *mut *const NcPluginDescriptor) -> NcStatus;
-
 #[cfg(test)]
 mod tests {
     use std::string::ToString as _;
@@ -444,14 +233,13 @@ mod tests {
     use crate::{NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiSignaturePart, NcAbiPassing, NcAbiReceiver, NcAbiType};
     use crate::{
         NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_VALIDATION_FNV_1A_128, NC_ABI_VALIDATION_MANGLING, NC_ABI_VALIDATION_NONE,
-        NC_ABI_VALIDATION_SHA_256, NC_COM_CORE_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAbiSignature, NcAbiThreadingMode, NcAbiValidationMode,
-        NcClassDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor, NcPluginDescriptor,
+        NC_ABI_VALIDATION_SHA_256, NC_COM_CORE_ABI_VERSION, NcAbiSignature, NcAbiThreadingMode, NcAbiValidationMode, NcInterfaceDescriptor, NcInterfaceId,
+        NcPluginDependencyDescriptor,
     };
 
     #[test]
     fn core_abi_identity_is_stable() {
         assert_eq!(NC_COM_CORE_ABI_VERSION, 7);
-        assert_eq!(NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, "nc_get_plugin_descriptor");
     }
 
     #[test]
@@ -502,37 +290,6 @@ mod tests {
     }
 
     #[test]
-    fn class_descriptor_c_layout_includes_threading_field() {
-        #[cfg(target_pointer_width = "64")]
-        {
-            assert_eq!(core::mem::size_of::<NcClassDescriptor>(), 96);
-            assert_eq!(core::mem::align_of::<NcClassDescriptor>(), 8);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, class_id), 0);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, qualified_name), 16);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, class_version), 32);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, constructor_abi_signature), 48);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, threading), 64);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, construct), 72);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interface_count), 80);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interfaces), 88);
-        }
-
-        #[cfg(target_pointer_width = "32")]
-        {
-            assert_eq!(core::mem::size_of::<NcClassDescriptor>(), 56);
-            assert_eq!(core::mem::align_of::<NcClassDescriptor>(), 4);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, class_id), 0);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, qualified_name), 16);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, class_version), 24);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, constructor_abi_signature), 32);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, threading), 40);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, construct), 44);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interface_count), 48);
-            assert_eq!(core::mem::offset_of!(NcClassDescriptor, interfaces), 52);
-        }
-    }
-
-    #[test]
     fn interface_descriptor_c_layout_includes_qualified_name() {
         #[cfg(target_pointer_width = "64")]
         {
@@ -558,38 +315,10 @@ mod tests {
     }
 
     #[test]
-    fn plugin_dependency_and_descriptor_c_layouts_are_stable() {
+    fn plugin_dependency_c_layout_is_stable() {
         assert_eq!(core::mem::size_of::<NcPluginDependencyDescriptor>(), 16);
         assert_eq!(core::mem::align_of::<NcPluginDependencyDescriptor>(), 4);
         assert_eq!(core::mem::offset_of!(NcPluginDependencyDescriptor, plugin_id), 0);
-
-        #[cfg(target_pointer_width = "64")]
-        {
-            assert_eq!(core::mem::size_of::<NcPluginDescriptor>(), 80);
-            assert_eq!(core::mem::align_of::<NcPluginDescriptor>(), 8);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, core_abi_version), 0);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, validation_mode), 4);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_id), 8);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, qualified_name), 24);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_version), 40);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependency_count), 56);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependencies), 64);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, class_table), 72);
-        }
-
-        #[cfg(target_pointer_width = "32")]
-        {
-            assert_eq!(core::mem::size_of::<NcPluginDescriptor>(), 52);
-            assert_eq!(core::mem::align_of::<NcPluginDescriptor>(), 4);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, core_abi_version), 0);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, validation_mode), 4);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_id), 8);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, qualified_name), 24);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_version), 32);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependency_count), 40);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependencies), 44);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, class_table), 48);
-        }
     }
 
     #[cfg(feature = "_com-validation-exact")]

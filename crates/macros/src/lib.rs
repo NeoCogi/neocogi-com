@@ -7,21 +7,17 @@
 //!   contract and generates a C-compatible `*Abi` interface type, `*VTable`,
 //!   safe `ComPtr` extension methods, static interface ABI metadata, and the
 //!   `unsafe impl neocogi_com::ComInterface` that certifies their raw invariants.
-//! - [`com_class`] declares a callable class contract with a typed constructor.
 //! - [`com_object`] wraps a Rust implementation struct in generated storage containing
 //!   `IUnknown`, one header per exposed interface, an atomic reference count,
 //!   and the original Rust value. It also generates object interface metadata
 //!   from `interfaces(...)`. Objects are thread-local by default; add
 //!   `thread_safe` to generate `ComPtr<_, ThreadSafe>` constructors. Generated
-//!   class descriptors record the same mode for checked dynamic construction.
 //! - [`com_struct`] marks a fixed-size record as ABI plain data, owns its
 //!   `repr(C)`/packing/alignment choice, and records its physical layout. It
 //!   checks fields through `neocogi_com::AbiPlainValue` by default, or through
 //!   compiler FFI layout checks with the `c_struct` option.
 //! - [`com_enum`] keeps a Rust payload enum for ergonomic code and generates an
 //!   explicit tag + union ABI representation next to it.
-//! - [`plugin`] assembles generated class descriptors into one static plugin
-//!   descriptor and exports the descriptor entrypoint for shared libraries.
 //!
 //! The macros intentionally generate a portable C representation rather than
 //! exposing Rust trait objects. The generated ABI methods are
@@ -125,11 +121,10 @@
 #![deny(missing_docs)]
 
 use proc_macro::TokenStream;
-use syn::{DeriveInput, Item, ItemEnum, ItemStruct, ItemTrait, parse_macro_input};
+use syn::{DeriveInput, ItemEnum, ItemStruct, ItemTrait, parse_macro_input};
 
 mod abi_method;
 mod args;
-mod class_contract;
 mod description;
 mod deserialize;
 mod enums;
@@ -138,19 +133,16 @@ mod interface;
 mod model;
 mod object;
 mod plain_data;
-mod plugin;
 mod structs;
 mod util;
 
-use args::{ClassArgs, ClassContractArgs, EnumArgs, InterfaceArgs, ObjectDescriptionArgs, StructArgs};
-use class_contract::expand_com_class_contract;
+use args::{ClassArgs, EnumArgs, InterfaceArgs, ObjectDescriptionArgs, StructArgs};
 use deserialize::expand_derive as expand_com_deserialize_derive;
 use description::{ObjectDescriptionKind, expand_object_description};
 use enums::expand_com_enum;
 use factory_plugin::{FactoryPluginArgs, expand_factory_plugin};
 use interface::expand_com_interface;
 use object::expand_com_object;
-use plugin::{PluginArgs, expand_plugin};
 use structs::expand_com_struct;
 
 /// Derives format-neutral, statically typed decoding for a local Rust value.
@@ -203,63 +195,6 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-/// Defines a callable COM class contract on a trait.
-///
-/// The class declaration owns the primary callable surface, typed constructor,
-/// and stable registry identity shared by hosts and implementations. Trait
-/// supertraits declare the interface capabilities that every implementation
-/// must expose through `QueryInterface`.
-///
-/// ```text
-/// #[com_class(auto_guid = "example.Calculator:v1")]
-/// pub trait Calculator {
-///     #[constructor]
-///     fn new(initial: i32) -> Result<Self, NcStatus>;
-///
-///     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
-/// }
-///
-/// #[com_object(constructible(Calculator))]
-/// pub struct CalculatorObject {
-///     value: i32,
-/// }
-/// ```
-///
-/// The trait's one `#[constructor]` function is not a vtable method. Instead,
-/// the macro generates a typed borrowed frame and an `arguments(...)` builder
-/// on `CalculatorAbi`. Hosts activate it with
-/// `Runtime::construct::<CalculatorAbi>(arguments)`. No constructor argument
-/// interface or one-off primary interface declaration is involved.
-///
-/// A callable contract's `auto_guid` text supplies both its normative name and
-/// stable class identity. Its descriptor version is the declaring crate's
-/// package version.
-#[proc_macro_attribute]
-pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let item = parse_macro_input!(item as Item);
-    let input = match item {
-        Item::Trait(input) => input,
-        Item::Struct(input) => {
-            return syn::Error::new_spanned(
-                input.ident,
-                "com_class declares only callable class traits; use com_object for an implementation struct",
-            )
-            .to_compile_error()
-            .into();
-        }
-        other => {
-            return syn::Error::new_spanned(other, "com_class can only declare a callable class trait")
-                .to_compile_error()
-                .into();
-        }
-    };
-    let args = parse_macro_input!(attr as ClassContractArgs);
-    match expand_com_class_contract(args, input) {
-        Ok(tokens) => tokens.into(),
-        Err(err) => err.to_compile_error().into(),
-    }
-}
-
 /// Defines a constructor-free IDL class description on a generated trait.
 ///
 /// This is generator-facing infrastructure. Application authors declare the
@@ -294,13 +229,12 @@ pub fn com_factory_description(attr: TokenStream, item: TokenStream) -> TokenStr
 ///
 /// A bare `Class` path implements one constructor-free IDL description without
 /// repeating its identity, threading, or required protocol list.
-/// `constructible(Class)` temporarily identifies a handwritten v7 class while
-/// those contracts migrate to factories. `interfaces(...)` exposes a local
+/// `interfaces(...)` exposes a local
 /// object made only from shared interface contracts. Local object storage is
 /// thread-local by default; an IDL description owns its threading capability.
 ///
 /// ```text
-/// #[com_object(constructible(Calculator))]
+/// #[com_object(Calculator)]
 /// pub struct CalculatorObject {
 ///     value: i32,
 /// }
@@ -312,9 +246,8 @@ pub fn com_factory_description(attr: TokenStream, item: TokenStream) -> TokenStr
 /// ```
 ///
 /// The generated allocation owns its reference count, `IUnknown` header,
-/// queryable projections, and original Rust value. Only the explicit legacy
-/// `constructible(...)` form produces a class descriptor that the v7 `plugin!`
-/// macro can register.
+/// queryable projections, and original Rust value. Construction remains local
+/// to the owning implementation or is exposed through an IDL factory method.
 #[proc_macro_attribute]
 pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as ClassArgs);
@@ -331,7 +264,7 @@ pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn com_factory(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as ClassArgs);
     let input = parse_macro_input!(item as ItemStruct);
-    if args.class_contract.is_some() || args.object_description.is_none() {
+    if args.object_description.is_none() {
         return syn::Error::new_spanned(input.ident, "com_factory requires one IDL factory description path")
             .to_compile_error()
             .into();
@@ -348,28 +281,6 @@ pub fn com_factory(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn factory_plugin(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as FactoryPluginArgs);
     expand_factory_plugin(args).into()
-}
-
-/// Defines static plugin metadata from generated class descriptors.
-///
-/// `plugin!` is intentionally a small assembly macro: classes own their class
-/// IDs, interface tables, and constructors through `#[com_object(...)]`; this
-/// macro copies those descriptors into a plugin-level class table and provides
-/// `pub fn plugin_descriptor() -> &'static NcPluginDescriptor` for in-process
-/// hosts. A final shared library calls `neocogi_com::export_plugin!` separately to
-/// export `nc_get_plugin_descriptor`; static assemblies omit that export.
-///
-/// core ABI v7 plugin descriptors contain declarative metadata only. The optional
-/// `dependencies = [PLUGIN_ID, ...]` list declares hard dependencies that must
-/// already be registered. It never causes recursive loading.
-/// Every `plugin_id(...)` form is checked against the plugin's normative
-/// `name`; constant paths should be defined with
-/// `neocogi_com::guid_from_qualified_name`. Plugin `name` and `version` literals are
-/// validated during macro expansion.
-#[proc_macro]
-pub fn plugin(input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(input as PluginArgs);
-    expand_plugin(args).into()
 }
 
 /// Defines a fixed-size ABI-safe record.

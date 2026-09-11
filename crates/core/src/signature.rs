@@ -128,11 +128,6 @@ impl NcAbiSignature {
         self.__const_eq(Self::UNCHECKED)
     }
 
-    /// Checks the null/length invariant without dereferencing the view.
-    pub(crate) const fn has_valid_shape(self) -> bool {
-        self.data.is_null() == (self.len == 0)
-    }
-
     /// Borrows the selected validation representation bytes.
     ///
     /// # Safety
@@ -309,110 +304,6 @@ impl Hash for NcAbiSignature {
             // SAFETY: Every safe value points to static immutable storage. Raw
             // FFI producers must uphold the same invariant before registration.
             unsafe { core::slice::from_raw_parts(self.data, self.len as usize) }.hash(state);
-        }
-    }
-}
-
-#[cfg(feature = "com-validation-fnv-1a-128")]
-pub(crate) use fnv1a128::Verifier as NcAbiSignatureVerifier;
-#[cfg(feature = "com-validation-sha-256")]
-pub(crate) use sha256::Verifier as NcAbiSignatureVerifier;
-
-/// Streaming mangle verifier used to check descriptor metadata without allocation.
-#[cfg(feature = "com-validation-mangling")]
-pub(crate) struct NcAbiSignatureVerifier<'a> {
-    /// Advertised bytes borrowed from a descriptor owned by a pinned component.
-    actual: &'a [u8],
-    /// Number of advertised bytes consumed by successful comparisons.
-    offset: usize,
-    /// Whether every expected byte encountered so far matched.
-    matches: bool,
-}
-
-#[cfg(feature = "com-validation-mangling")]
-impl<'a> NcAbiSignatureVerifier<'a> {
-    /// Starts verification and consumes the mandatory mangle version prefix.
-    ///
-    /// # Safety
-    ///
-    /// `signature` must satisfy [`NcAbiSignature::as_bytes`]'s pointer and
-    /// lifetime contract for `'a`.
-    pub(crate) unsafe fn new(signature: NcAbiSignature) -> Result<Self, NcStatus> {
-        // SAFETY: The caller establishes the backing storage contract.
-        let actual = unsafe { signature.as_bytes()? };
-        let mut verifier = Self { actual, offset: 0, matches: true };
-        verifier.verify_bytes(NC_ABI_SIGNATURE_DOMAIN);
-        Ok(verifier)
-    }
-
-    /// Compares one logical record using the canonical tokenizer.
-    pub(crate) fn verify_part(&mut self, part: NcAbiSignaturePart<'_>) {
-        let tokens = tokens_for_part(part);
-        let mut index = 0;
-        while index < tokens.len {
-            self.verify_token(tokens.values[index]);
-            index += 1;
-        }
-    }
-
-    /// Returns whether the full advertised signature matched exactly.
-    pub(crate) fn finish(self) -> bool {
-        self.matches && self.offset == self.actual.len()
-    }
-
-    /// Compares one primitive output token.
-    fn verify_token(&mut self, token: SignatureToken<'_>) {
-        match token {
-            SignatureToken::Empty => {}
-            SignatureToken::Byte(byte) => self.verify_byte(byte),
-            SignatureToken::Bytes(bytes) => self.verify_bytes(bytes),
-            SignatureToken::Signature(signature) => {
-                if signature.len != 0 {
-                    // SAFETY: Nested signatures originate from ABI type
-                    // constants whose backing components remain pinned.
-                    self.verify_bytes(unsafe { core::slice::from_raw_parts(signature.data, signature.len as usize) });
-                }
-            }
-            SignatureToken::Guid(guid) => {
-                let bytes = guid.to_uuid_bytes();
-                let mut index = 0;
-                while index < bytes.len() {
-                    self.verify_hex(bytes[index] as u128, 2);
-                    index += 1;
-                }
-            }
-            SignatureToken::Hex { value, digits } => self.verify_hex(value, digits),
-        }
-    }
-
-    /// Compares fixed-width lowercase hexadecimal output.
-    fn verify_hex(&mut self, value: u128, digits: u8) {
-        let mut remaining = digits;
-        while remaining != 0 {
-            remaining -= 1;
-            let shift = remaining as u32 * 4;
-            self.verify_byte(hex_digit(((value >> shift) & 0x0f) as u8));
-        }
-    }
-
-    /// Compares one byte and advances without reading past the advertised view.
-    fn verify_byte(&mut self, expected: u8) {
-        if self.offset >= self.actual.len() {
-            self.matches = false;
-            return;
-        }
-        if self.actual[self.offset] != expected {
-            self.matches = false;
-        }
-        self.offset += 1;
-    }
-
-    /// Compares one byte slice in encounter order.
-    fn verify_bytes(&mut self, expected: &[u8]) {
-        let mut index = 0;
-        while index < expected.len() {
-            self.verify_byte(expected[index]);
-            index += 1;
         }
     }
 }

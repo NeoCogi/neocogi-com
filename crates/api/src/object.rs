@@ -324,9 +324,8 @@ pub unsafe trait ComAbiObject: Sized {
 /// `Threading` must describe every interface header backed by this class's
 /// generated object storage. Selecting [`ThreadSafe`] promises that all exposed
 /// methods may be called concurrently from arbitrary threads and that final
-/// destruction may occur on any thread. Implementations must also keep any
-/// published [`crate::NcClassDescriptor::threading`] value consistent with this
-/// associated type.
+/// destruction may occur on any thread. IDL-backed implementations derive this
+/// associated type from their canonical description.
 pub unsafe trait ComClass: ComAbiObject {
     /// Strongest threading capability supported by this class's COM objects.
     type Threading: ThreadingModel;

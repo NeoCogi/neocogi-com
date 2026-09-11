@@ -143,54 +143,6 @@ pub unsafe trait ComInterface {
     fn iunknown(this: *mut Self) -> *mut IUnknown;
 }
 
-/// Describes the primary callable ABI of one registered COM class.
-///
-/// A class contract is also a valid COM pointer projection, so it reuses the
-/// same header, vtable, ownership, and safe-call machinery as optional
-/// interfaces. The distinction is semantic and registry-visible: a class
-/// contract has one construction identity and is the typed result of activating
-/// that class. Authors declare it directly with `#[com_class]`; they do not
-/// write a matching one-off interface. New IDL descriptions do not implement
-/// this legacy constructor-bearing trait.
-///
-/// Optional interfaces remain useful when several classes expose the same
-/// capability through `QueryInterface`. They are not required merely to call a
-/// class's own methods.
-///
-/// # Safety
-///
-/// `CLASS_ID` must identify the registered class whose primary projection is
-/// `Self`. `QUALIFIED_NAME` and `VERSION` must be the exact validated static
-/// text published by that class's descriptor. Implementations must expose
-/// every chain in `INTERFACE_CHAINS` on the same identity, including
-/// `Self::INTERFACE_ID`, so construction can validate the returned primary
-/// projection before safe code receives it.
-pub unsafe trait ComClassContract: ComInterface {
-    /// Borrowed, typed arguments accepted by this class constructor.
-    type Arguments<'a>: ComClassArguments;
-
-    /// Stable registry identity used to activate this class.
-    const CLASS_ID: NcGuid;
-
-    /// Canonical validation form of the class's primary callable ABI.
-    const CLASS_ABI_SIGNATURE: NcAbiSignature = Self::ABI_SIGNATURE;
-
-    /// Normative static class name stored in registry metadata.
-    const QUALIFIED_NAME: &'static str;
-
-    /// Static class contract version stored in registry metadata.
-    const VERSION: &'static str;
-
-    /// Complete interface ancestry lists required by every implementation.
-    ///
-    /// The callable class projection and each additional class supertrait are
-    /// separate `QueryInterface` capabilities on one COM identity.
-    const INTERFACE_CHAINS: &'static [&'static [&'static crate::NcInterfaceDescriptor]];
-
-    /// ABI signature of the constructor frame, or empty for no arguments.
-    const CONSTRUCTOR_ABI_SIGNATURE: NcAbiSignature;
-}
-
 /// Compile-time description of one factory-created object shape.
 ///
 /// This trait carries only information needed to build and query an object. It
@@ -271,38 +223,6 @@ pub trait __ComSupportsDescriptionThreading<M: ThreadingModel> {}
 
 impl<T: 'static> __ComSupportsDescriptionThreading<ThreadLocal> for T {}
 impl<T: Send + Sync + 'static> __ComSupportsDescriptionThreading<ThreadSafe> for T {}
-
-/// Supplies one immutable, call-scoped constructor frame to the COM runtime.
-///
-/// Class macros implement this trait for generated argument wrappers. The
-/// wrapper retains the Rust lifetimes of borrowed buffers and COM references,
-/// while this small erased boundary lets the runtime route any class without a
-/// type registry, reflection system, or dynamically typed value bag.
-///
-/// # Safety
-///
-/// For non-empty [`Self::ABI_SIGNATURE`], [`Self::as_abi_ptr`] must return a non-null
-/// pointer to a frame whose exact layout is described by that signature. The frame
-/// and every borrow reachable from it must remain valid and immutable through
-/// the constructor call. An empty signature must return null and denotes no arguments.
-pub unsafe trait ComClassArguments {
-    /// ABI signature describing the pointed-to constructor frame.
-    const ABI_SIGNATURE: NcAbiSignature;
-
-    /// Returns the raw frame pointer borrowed for one constructor call.
-    fn as_abi_ptr(&self) -> *const c_void;
-}
-
-// SAFETY: Unit is the canonical no-argument representation. Its empty signature and
-// null pointer agree with the runtime's empty-frame contract.
-unsafe impl ComClassArguments for () {
-    const ABI_SIGNATURE: NcAbiSignature = NcAbiSignature::EMPTY;
-
-    /// Returns null because this value carries no constructor frame.
-    fn as_abi_ptr(&self) -> *const c_void {
-        core::ptr::null()
-    }
-}
 
 // SAFETY: `IUnknown` is the canonical interface header and vtable prefix. Its
 // pointer conversion is the identity operation, and the constants describe the

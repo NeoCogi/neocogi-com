@@ -30,16 +30,6 @@ pub(crate) enum AbiReceiver {
     Mutable,
 }
 
-/// One validated callable-class constructor after ABI lowering.
-pub(crate) struct AbiConstructor {
-    /// Source constructor name implemented by the concrete class value.
-    pub(crate) ident: Ident,
-    /// User documentation retained on the source declaration.
-    pub(crate) doc_attrs: Vec<Attribute>,
-    /// Constructor parameters in source and frame order.
-    pub(crate) args: Vec<AbiArg>,
-}
-
 /// One method parameter and its ABI lowering.
 pub(crate) struct AbiArg {
     /// Source-level parameter identifier.

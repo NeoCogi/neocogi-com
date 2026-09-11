@@ -19,8 +19,6 @@ pub(crate) struct ClassArgs {
     pub(crate) thread_safe: bool,
     /// Optional path overriding automatic `neocogi-com` crate discovery.
     pub(crate) runtime_crate: Option<Path>,
-    /// Optional generated ABI path for a registered callable class contract.
-    pub(crate) class_contract: Option<Path>,
     /// Optional generated ABI path for a factory-created object description.
     pub(crate) object_description: Option<Path>,
 }
@@ -46,17 +44,6 @@ pub(crate) enum DescriptionThreading {
     Local,
     /// References and calls may cross threads.
     Shared,
-}
-
-/// Parsed identity for a callable class contract declared on a Rust trait.
-///
-/// The trait supplies the method signatures while these fields supply the
-/// registry identity shared by hosts and implementations.
-pub(crate) struct ClassContractArgs {
-    /// Normative class name used to derive its stable registry identity.
-    pub(crate) auto_guid: LitStr,
-    /// Optional path overriding automatic `neocogi-com` crate discovery.
-    pub(crate) runtime_crate: Option<Path>,
 }
 
 /// Generated paths and storage-field name for one class interface.
@@ -342,43 +329,6 @@ impl Parse for InterfaceArgs {
     }
 }
 
-impl Parse for ClassContractArgs {
-    /// Parses one derived class identity and an optional runtime crate override.
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let mut auto_guid = None;
-        let mut runtime_crate = None;
-
-        while !input.is_empty() {
-            let keyword: Ident = input.parse()?;
-            if keyword == "auto_guid" {
-                if auto_guid.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate auto_guid = ..."));
-                }
-                input.parse::<Token![=]>()?;
-                auto_guid = Some(input.parse()?);
-            } else if keyword == "neocogi_com" {
-                if runtime_crate.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate neocogi_com = ..."));
-                }
-                input.parse::<Token![=]>()?;
-                runtime_crate = Some(input.parse()?);
-            } else {
-                return Err(syn::Error::new(keyword.span(), "expected auto_guid = \"stable.name:v1\" or neocogi_com = path"));
-            }
-
-            if input.is_empty() {
-                break;
-            }
-            input.parse::<Token![,]>()?;
-        }
-
-        Ok(Self {
-            auto_guid: auto_guid.ok_or_else(|| syn::Error::new(input.span(), "expected auto_guid = \"stable.name:v1\""))?,
-            runtime_crate,
-        })
-    }
-}
-
 impl Parse for ObjectDescriptionArgs {
     /// Parses the complete generator-owned identity without implicit defaults.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
@@ -456,21 +406,20 @@ impl Parse for ObjectDescriptionArgs {
 }
 
 impl Parse for ClassArgs {
-    /// Parses a callable class path or `interfaces(IFoo, module::IBar)` with optional threading.
+    /// Parses a description path or `interfaces(IFoo, module::IBar)` with optional threading.
     ///
     /// Interface paths are intentionally kept to Rust module-style paths for
     /// now. That covers `interfaces(dom::INode)` without accepting generic or
     /// associated-type paths that the generated names cannot represent.
     ///
-    /// A bare class path supplies the class identity, constructor frame,
-    /// primary projection, and required interface set. Contract-backed
+    /// A bare description path supplies the object identity, primary projection,
+    /// and required interface set. Description-backed
     /// implementations therefore reject even an empty `interfaces(...)` list.
     /// Interface-only local objects do not produce registry descriptors.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let mut interfaces = None;
         let mut thread_safe = false;
         let mut runtime_crate = None;
-        let mut contract = None;
         let mut description = None;
 
         while !input.is_empty() {
@@ -480,7 +429,7 @@ impl Parse for ClassArgs {
                 let candidate: Ident = lookahead.parse()?;
                 !matches!(
                     candidate.to_string().as_str(),
-                    "interfaces" | "constructible" | "thread_safe" | "neocogi_com" | "class_id" | "name" | "version" | "constructor"
+                    "interfaces" | "thread_safe" | "neocogi_com" | "class_id" | "name" | "version" | "constructor"
                 )
             } else {
                 false
@@ -508,16 +457,6 @@ impl Parse for ClassArgs {
                 let paths = content.parse_terminated(Path::parse_mod_style, Token![,])?;
                 validate_class_interface_paths(paths.iter())?;
                 interfaces = Some(paths.into_iter().map(ClassInterface::from_path).collect::<Result<Vec<_>>>()?);
-            } else if keyword == "constructible" {
-                if contract.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate constructible(...) path"));
-                }
-                let content;
-                parenthesized!(content in input);
-                contract = Some(Path::parse_mod_style(&content)?);
-                if !content.is_empty() {
-                    return Err(content.error("constructible(...) accepts exactly one class path"));
-                }
             } else if keyword == "thread_safe" {
                 if thread_safe {
                     return Err(syn::Error::new(keyword.span(), "duplicate thread_safe"));
@@ -532,7 +471,7 @@ impl Parse for ClassArgs {
             } else {
                 return Err(syn::Error::new(
                     keyword.span(),
-                    "expected an object description path, constructible(...), interfaces(...), thread_safe, or neocogi_com = path",
+                    "expected an object description path, interfaces(...), thread_safe, or neocogi_com = path",
                 ));
             }
 
@@ -546,11 +485,7 @@ impl Parse for ClassArgs {
         // contents. An empty list is still redundant on a callable contract.
         let interfaces_were_declared = interfaces.is_some();
         let mut interfaces = interfaces.unwrap_or_default();
-        if contract.is_some() && description.is_some() {
-            return Err(syn::Error::new(input.span(), "choose an object description or constructible(...), not both"));
-        }
-        let selected = description.clone().or_else(|| contract.clone());
-        if let Some(selected) = selected {
+        if let Some(selected) = description.clone() {
             let primary = ClassInterface::from_path(selected)?;
             if interfaces_were_declared {
                 return Err(syn::Error::new(
@@ -560,14 +495,12 @@ impl Parse for ClassArgs {
             }
             interfaces.insert(0, primary);
         }
-        let class_contract = contract.map(|path| interface_abi_path(&path)).transpose()?;
         let object_description = description.map(|path| interface_abi_path(&path)).transpose()?;
 
         Ok(Self {
             interfaces,
             thread_safe,
             runtime_crate,
-            class_contract,
             object_description,
         })
     }

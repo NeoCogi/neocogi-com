@@ -1,9 +1,9 @@
-//! Compile-time assembly of interface ancestry and deduplicated class metadata.
+//! Compile-time assembly of interface ancestry and deduplicated object metadata.
 //!
 //! Generated code passes ordinary static references, so these helpers never
 //! dereference foreign descriptor pointers during constant evaluation.
 
-use super::{NcClassInterfaceDescriptor, NcInterfaceDescriptor};
+use super::NcInterfaceDescriptor;
 
 /// Builds a derived-first ancestry list from one local descriptor and its base.
 #[doc(hidden)]
@@ -75,27 +75,6 @@ pub const fn __nc_class_interface_count(chains: &[&[&NcInterfaceDescriptor]]) ->
         }
         chain += 1;
     }
-    assert!(count <= u32::MAX as usize, "class interface count exceeds the ABI limit");
+    assert!(count <= u32::MAX as usize, "object interface count exceeds the ABI limit");
     count
-}
-
-/// Emits one metadata row per distinct IID in the same order used by queries.
-#[doc(hidden)]
-pub const fn __nc_class_interfaces<const N: usize>(chains: &[&[&'static NcInterfaceDescriptor]]) -> [NcClassInterfaceDescriptor; N] {
-    assert!(N == __nc_class_interface_count(chains), "invalid class interface count");
-    let mut result = [NcClassInterfaceDescriptor { interface_descriptor: core::ptr::null() }; N];
-    let mut output = 0;
-    let mut chain = 0;
-    while chain < chains.len() {
-        let mut item = 0;
-        while item < chains[chain].len() {
-            if !repeated(chains, chain, item) {
-                result[output].interface_descriptor = chains[chain][item];
-                output += 1;
-            }
-            item += 1;
-        }
-        chain += 1;
-    }
-    result
 }

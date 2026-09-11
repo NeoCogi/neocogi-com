@@ -120,9 +120,6 @@ pub const NC_ABI_VALIDATION_MODE: NcAbiValidationMode = NcAbiValidationMode::MAN
 #[cfg(not(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling")))]
 pub const NC_ABI_VALIDATION_MODE: NcAbiValidationMode = NcAbiValidationMode::NONE;
 
-/// Exported symbol name for an unversioned plugin descriptor provider.
-pub const NC_GET_PLUGIN_DESCRIPTOR_SYMBOL: &str = "nc_get_plugin_descriptor";
-
 /// Stable identity for one COM interface ABI contract.
 ///
 /// This pairs the interface GUID with the generated ABI signature that describes the

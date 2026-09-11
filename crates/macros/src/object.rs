@@ -2,8 +2,8 @@
 //!
 //! The generator builds one private allocation containing an atomic reference
 //! count, an `IUnknown` header, headers for each declared interface and its ancestors, and the Rust
-//! value. It emits query/add-ref/release thunks, contract-backed class descriptors and
-//! constructors, threading assertions, and safe object-creation helpers.
+//! value. It emits query/add-ref/release thunks, threading assertions, and safe
+//! object-creation helpers.
 
 use quote::{format_ident, quote};
 use syn::{Fields, ItemStruct};
@@ -11,7 +11,7 @@ use syn::{Fields, ItemStruct};
 use crate::args::ClassArgs;
 use crate::util::{create_visibility, runtime_crate_path};
 
-/// Generates object storage, lifecycle thunks, and optional legacy metadata.
+/// Generates object storage, lifecycle thunks, and local construction helpers.
 pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_factory: bool) -> proc_macro2::TokenStream {
     // `FooComObject` is intentionally private generated storage. Users see the
     // original Rust `Foo` plus COM interface pointers; the storage layout is an
@@ -20,13 +20,9 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
     let class_ident = &input.ident;
     let class_vis = create_visibility(&input.vis);
     let storage_ident = format_ident!("{class_ident}ComObject");
-    // Rust implementation generics stay inside the allocating binary. A registered
-    // class contract cannot choose type arguments, and COM pointers cannot carry the
-    // lifetime of borrowed application storage.
+    // Rust implementation generics stay inside the allocating binary, and COM
+    // pointers cannot carry the lifetime of borrowed application storage.
     let generic = !input.generics.params.is_empty();
-    if generic && args.class_contract.is_some() {
-        return syn::Error::new_spanned(&input.generics, "generic COM implementation classes cannot declare a callable class contract").to_compile_error();
-    }
     if input.generics.lifetimes().next().is_some() {
         return syn::Error::new_spanned(
             &input.generics,
@@ -61,14 +57,10 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
     } else {
         quote! { #nc::ThreadLocal }
     };
-    // All generated pointer types, descriptor metadata, and constructor checks
-    // project through this one class-level threading declaration.
+    // All generated pointer types project through this one implementation-level
+    // threading declaration.
     let pointer_threading_model = quote! {
         <#class_type as #nc::ComClass>::Threading
-    };
-    let class_threading = quote! {
-        <<#class_type as #nc::ComClass>::Threading as #nc::ThreadingModel>::ABI_THREADING_MODE
-            .as_raw()
     };
     let com_class_impl = quote! {
         // SAFETY: This associated mode is generated from the class attribute and
@@ -80,12 +72,7 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
     let is_unit_struct = matches!(input.fields, Fields::Unit);
     // Query order and exported metadata use the same derived-first ancestry.
     // Shared bases are advertised once even when several branches expose them.
-    let interface_chains = if let Some(abi_path) = args.class_contract.as_ref() {
-        // The contract is the sole authority for its callable projection and
-        // required interface supertraits. The implementation struct must not
-        // repeat that public boundary.
-        quote! { <#abi_path as #nc::ComClassContract>::INTERFACE_CHAINS }
-    } else if let Some(abi_path) = args.object_description.as_ref() {
+    let interface_chains = if let Some(abi_path) = args.object_description.as_ref() {
         // IDL descriptions contain the complete class/factory projection set;
         // implementation crates do not repeat that public contract.
         quote! { <#abi_path as #nc::ComObjectDescription>::INTERFACE_CHAINS }
@@ -223,81 +210,6 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
             }
         }
     });
-    let (class_descriptor_items, class_descriptor_module_items) = match args.class_contract.as_ref() {
-        None => (quote! {}, quote! {}),
-        Some(abi_path) => {
-            let generated_constructor_ident = format_ident!("__nc_com_construct_{}", class_ident.to_string().to_lowercase());
-            let descriptor_static_ident = format_ident!("__NC_COM_CLASS_DESCRIPTOR_{}", class_ident);
-
-            let impl_items = quote! {
-                #[doc = "Stable class identifier used by generated class metadata."]
-                pub const CLASS_ID: #nc::NcGuid =
-                    <#abi_path as #nc::ComClassContract>::CLASS_ID;
-
-                #[doc = "Class descriptor value consumed by `neocogi_com::plugin!`."]
-                pub const CLASS_DESCRIPTOR: #nc::NcClassDescriptor = #nc::NcClassDescriptor {
-                    class_id: Self::CLASS_ID,
-                    qualified_name: #nc::NcStaticUtf8::from_static(
-                        <#abi_path as #nc::ComClassContract>::QUALIFIED_NAME,
-                    ),
-                    class_version: #nc::NcStaticUtf8::from_static(
-                        <#abi_path as #nc::ComClassContract>::VERSION,
-                    ),
-                    constructor_abi_signature:
-                        <#abi_path as #nc::ComClassContract>::CONSTRUCTOR_ABI_SIGNATURE,
-                    threading: #class_threading,
-                    construct: Some(Self::#generated_constructor_ident as #nc::NcConstructorFn),
-                    interface_count: Self::COM_INTERFACE_COUNT as u32,
-                    interfaces: Self::COM_INTERFACES.as_ptr(),
-                };
-
-                #[doc = "Returns this class's generated static class descriptor."]
-                #class_vis fn class_descriptor() -> &'static #nc::NcClassDescriptor {
-                    &#descriptor_static_ident
-                }
-
-                /// Decodes the contract frame and publishes one constructed COM object.
-                unsafe extern "C" fn #generated_constructor_ident(
-                    class: *const #nc::NcClassDescriptor,
-                    arguments: *const core::ffi::c_void,
-                    out: *mut *mut #nc::IUnknown,
-                ) -> #nc::NcStatus {
-                    // SAFETY: This raw descriptor entrypoint delegates pointer,
-                    // identity, and frame-shape validation to the common helper
-                    // before the contract-specific decoder reads any arguments.
-                    unsafe {
-                        #nc::construct_class_checked::<#pointer_threading_model, _>(
-                            class,
-                            arguments,
-                            out,
-                            #class_ident::CLASS_ID,
-                            <#abi_path as #nc::ComClassContract>::CONSTRUCTOR_ABI_SIGNATURE,
-                            |_arguments| {
-                                // SAFETY: The checked helper matched the class's
-                                // generated constructor signature and pointer shape.
-                                let value = unsafe {
-                                    #abi_path::__nc_construct::<#class_type>(_arguments)?
-                                };
-                                let unknown = #class_ident::from_value(value);
-                                Ok(unknown)
-                            },
-                        )
-                    }
-                }
-            };
-            let module_items = quote! {
-                // Host registration APIs borrow descriptor pointers beyond the
-                // immediate call. Keep a real static descriptor address for
-                // direct in-process registration, while `plugin!` can still
-                // copy the const descriptor into its plugin-owned class table.
-                #[allow(non_upper_case_globals)]
-                static #descriptor_static_ident: #nc::NcClassDescriptor =
-                    #class_ident::CLASS_DESCRIPTOR;
-            };
-            (impl_items, module_items)
-        }
-    };
-
     quote! {
         #input
 
@@ -323,12 +235,6 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
 
             /// Number of unique contracts, including automatically exposed bases.
             pub const COM_INTERFACE_COUNT: usize = #nc::__nc_class_interface_count(Self::COM_INTERFACE_CHAINS);
-
-            /// All supported contracts in deterministic QueryInterface order.
-            pub const COM_INTERFACES: [#nc::NcClassInterfaceDescriptor; #nc::__nc_class_interface_count(#interface_chains)] =
-                #nc::__nc_class_interfaces(Self::COM_INTERFACE_CHAINS);
-
-            #class_descriptor_items
 
             #[doc = "Wraps a fully initialized Rust value as a COM object and returns its `IUnknown` interface."]
             #class_vis fn from_value(value: Self) -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
@@ -365,7 +271,6 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
             #unit_create
         }
 
-        #class_descriptor_module_items
         #factory_assertion
 
         // SAFETY: This impl is generated together with the private storage

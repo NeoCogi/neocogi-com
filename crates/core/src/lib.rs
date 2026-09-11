@@ -3,11 +3,7 @@
 //! This crate contains the small C-shaped binary contract shared by hosts and
 //! plugins: status codes, GUIDs, `IUnknown`, descriptor metadata, versioned
 //! runtime table layouts, common read-only bytes/string raw interfaces, and ABI version
-//! constants. It also owns plugin descriptor validation through
-//! [`validate_plugin_descriptor_with_issues`], which reports structured
-//! descriptor issues and remains available without allocation support. Builds
-//! with `alloc` use ordered sets to accelerate duplicate detection. Higher-level
-//! Rust ergonomics and allocation-backed objects live in `neocogi-com`;
+//! constants. Higher-level Rust ergonomics and allocation-backed objects live in `neocogi-com`;
 //! process-global dynamic loading and registry state live in `neocogi-com-runtime`.
 //!
 //! Descriptor metadata supports runtime validation and inspection. Aggregate
@@ -43,7 +39,6 @@ compile_error!("COM validation modes are mutually exclusive; select exactly one 
 
 mod abi;
 mod client;
-mod constructor;
 mod contract_module;
 mod data;
 mod decode;
@@ -69,7 +64,6 @@ pub use contract_module::{
     NcContractDependencyDescription, NcContractFingerprint, NcContractModuleDescription, NcContractModuleReference, NcGetContractModuleDescription,
     validate_contract_module_description,
 };
-pub use constructor::{construct_class_checked, return_plugin_descriptor};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
 pub use decode::{ComDeserialize, ComDeserializer, ComEnum, ComRecord, ComRecordAccess, ComSequence, ComSequenceAccess, ComVariantAccess};
 #[cfg(feature = "alloc")]
@@ -84,16 +78,14 @@ pub use metadata::{
     NC_ABI_VALIDATION_FNV_1A_128, NC_ABI_VALIDATION_MANGLING, NC_ABI_VALIDATION_MODE, NC_ABI_VALIDATION_NONE, NC_ABI_VALIDATION_SHA_256, NC_ABI_TYPE_AGGREGATE,
     NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE,
     NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE,
-    NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL,
-    NcAbiAggregateKind, NcAbiFieldLayout, NcAbiSignaturePart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiValidationMode, NcAbiStructLayout,
-    NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcClassDescriptor, NcClassInterfaceDescriptor, NcClassTable, NcConstructorFn, NcGetPluginDescriptor,
-    NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcPluginDependencyDescriptor,
-    NcPluginDescriptor, NcQualifiedNameError, NcStaticUtf8, NcVersionTextError, validate_qualified_name, validate_version_text,
+    NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN, NcAbiAggregateKind, NcAbiFieldLayout,
+    NcAbiSignaturePart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiValidationMode, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType,
+    NcAbiTypeDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor,
+    NcPluginDependencyDescriptor, NcQualifiedNameError, NcStaticUtf8, NcVersionTextError, validate_qualified_name, validate_version_text,
 };
-pub use metadata::{NcDescriptorPath, NcDescriptorValidationIssue, NcDescriptorValidationKind, validate_plugin_descriptor_with_issues};
 pub use object::{
-    __ComSupportsDescriptionThreading, ComClassArguments, ComClassContract, ComFactoryBootstrap, ComFactoryDescription, ComFactoryImplementation, ComInterface,
-    ComObjectDescription, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
+    __ComSupportsDescriptionThreading, ComFactoryBootstrap, ComFactoryDescription, ComFactoryImplementation, ComInterface, ComObjectDescription, IID_IUNKNOWN,
+    IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
 };
 pub use ptr::{ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};
 pub use runtime_abi::{
@@ -108,7 +100,7 @@ pub use status::{
 };
 
 #[doc(hidden)]
-pub use metadata::{__nc_interface_chain, __nc_class_interface_count, __nc_class_interfaces};
+pub use metadata::{__nc_interface_chain, __nc_class_interface_count};
 pub use factory_plugin::{
     NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NcActivatePluginFactory, NcFactoryPluginDescription, NcGetFactoryPluginDescription,
     activate_factory_implementation, return_factory_plugin_description, validate_factory_plugin_description,

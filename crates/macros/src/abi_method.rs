@@ -9,7 +9,7 @@
 use quote::quote;
 use syn::{Attribute, FnArg, Ident, ItemTrait, Pat, Result, ReturnType, TraitItem, TraitItemFn, Type};
 
-use crate::model::{AbiArg, AbiArgKind, AbiConstructor, AbiMethod, AbiReceiver, AbiReturn, AbiReturnKind};
+use crate::model::{AbiArg, AbiArgKind, AbiMethod, AbiReceiver, AbiReturn, AbiReturnKind};
 use crate::plain_data::{PlainAbiTypeContext, validate_plain_abi_type};
 use crate::util::push_error;
 
@@ -51,79 +51,6 @@ fn parse_abi_method(method: &TraitItemFn) -> Result<AbiMethod> {
         args,
         ok,
     })
-}
-
-/// Validates and lowers the one static constructor on a callable class trait.
-pub(crate) fn parse_class_constructor(method: &TraitItemFn) -> Result<AbiConstructor> {
-    let mut errors = None;
-    validate_method_modifiers(method, &mut errors);
-
-    if method.sig.inputs.iter().any(|input| matches!(input, FnArg::Receiver(_))) {
-        push_error(
-            &mut errors,
-            syn::Error::new_spanned(&method.sig.inputs, "class constructors are static functions and cannot take `self`"),
-        );
-    }
-    let args = match parse_constructor_args(method) {
-        Ok(args) => args,
-        Err(err) => {
-            push_error(&mut errors, err);
-            Vec::new()
-        }
-    };
-    match parse_result_ok_type(method) {
-        Ok(Type::Path(path)) if path.qself.is_none() && path.path.is_ident("Self") => {}
-        Ok(ty) => push_error(
-            &mut errors,
-            syn::Error::new_spanned(ty, "class constructors must return `Result<Self, NcStatus>`"),
-        ),
-        Err(err) => push_error(&mut errors, err),
-    }
-
-    for arg in &args {
-        if matches!(arg.kind, AbiArgKind::CopyToBufferOffset { .. }) {
-            push_error(
-                &mut errors,
-                syn::Error::new_spanned(&arg.rust_ty, "class constructors cannot take writable output buffers"),
-            );
-        }
-    }
-
-    if let Some(errors) = errors {
-        return Err(errors);
-    }
-    Ok(AbiConstructor {
-        ident: method.sig.ident.clone(),
-        doc_attrs: method_doc_attrs(&method.attrs),
-        args,
-    })
-}
-
-/// Lowers every named static constructor parameter into the shared ABI model.
-fn parse_constructor_args(method: &TraitItemFn) -> Result<Vec<AbiArg>> {
-    let mut errors = None;
-    let mut args = Vec::new();
-    for arg in &method.sig.inputs {
-        match arg {
-            FnArg::Typed(typed) => match typed.pat.as_ref() {
-                Pat::Ident(pat) if pat.by_ref.is_none() && pat.mutability.is_none() && pat.subpat.is_none() => match lower_abi_arg(typed.ty.as_ref().clone()) {
-                    Ok((rust_ty, abi_ty, kind)) => args.push(AbiArg {
-                        ident: pat.ident.clone(),
-                        rust_ty,
-                        abi_ty,
-                        kind,
-                    }),
-                    Err(err) => push_error(&mut errors, err),
-                },
-                _ => push_error(
-                    &mut errors,
-                    syn::Error::new_spanned(&typed.pat, "class constructor arguments must be plain identifiers"),
-                ),
-            },
-            FnArg::Receiver(receiver) => push_error(&mut errors, syn::Error::new_spanned(receiver, "class constructors cannot take `self`")),
-        }
-    }
-    if let Some(errors) = errors { Err(errors) } else { Ok(args) }
 }
 
 /// Rejects Rust function features that have no stable C ABI lowering.

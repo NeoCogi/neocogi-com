@@ -10,11 +10,6 @@ typedef struct NcInterfaceId NcInterfaceId;
 typedef struct NcStaticUtf8 NcStaticUtf8;
 typedef struct NcMethodDescriptor NcMethodDescriptor;
 typedef struct NcInterfaceDescriptor NcInterfaceDescriptor;
-typedef struct NcClassInterfaceDescriptor NcClassInterfaceDescriptor;
-typedef struct NcClassDescriptor NcClassDescriptor;
-typedef struct NcClassTable NcClassTable;
-typedef struct NcPluginDependencyDescriptor NcPluginDependencyDescriptor;
-typedef struct NcPluginDescriptor NcPluginDescriptor;
 typedef struct IUnknown IUnknown;
 typedef struct IUnknownVTable IUnknownVTable;
 typedef struct INativeValueAbi INativeValueAbi;
@@ -51,47 +46,6 @@ struct NcInterfaceDescriptor {
     NcInterfaceId base;
     uint32_t method_count;
     const NcMethodDescriptor *methods;
-};
-
-typedef NcStatus (*NcConstructorFn)(
-    const NcClassDescriptor *class_descriptor,
-    const void *arguments,
-    IUnknown **out
-);
-
-struct NcClassInterfaceDescriptor {
-    const NcInterfaceDescriptor *interface_descriptor;
-};
-
-struct NcClassDescriptor {
-    NcGuid class_id;
-    NcStaticUtf8 qualified_name;
-    NcStaticUtf8 class_version;
-    NcAbiSignature constructor_abi_signature;
-    uint32_t threading;
-    NcConstructorFn construct;
-    uint32_t interface_count;
-    const NcClassInterfaceDescriptor *interfaces;
-};
-
-struct NcClassTable {
-    uint32_t class_count;
-    const NcClassDescriptor *classes;
-};
-
-struct NcPluginDependencyDescriptor {
-    NcGuid plugin_id;
-};
-
-struct NcPluginDescriptor {
-    uint32_t core_abi_version;
-    uint32_t validation_mode;
-    NcGuid plugin_id;
-    NcStaticUtf8 qualified_name;
-    NcStaticUtf8 plugin_version;
-    uint32_t dependency_count;
-    const NcPluginDependencyDescriptor *dependencies;
-    const NcClassTable *class_table;
 };
 
 typedef struct NcRuntimeApiV2Prefix {
@@ -205,15 +159,6 @@ typedef struct NativeAbiLayouts {
     size_t interface_qualified_name_offset;
     size_t interface_method_count_offset;
     size_t interface_methods_offset;
-    size_t class_descriptor_size;
-    size_t class_threading_offset;
-    size_t class_construct_offset;
-    size_t class_interfaces_offset;
-    size_t plugin_descriptor_size;
-    size_t plugin_validation_mode_offset;
-    size_t plugin_qualified_name_offset;
-    size_t plugin_dependencies_offset;
-    size_t plugin_class_table_offset;
     size_t runtime_core_abi_version_offset;
     size_t runtime_contract_register_offset;
     size_t plugin_registry_first_function_offset;
@@ -252,24 +197,6 @@ _Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 80,
     "64-bit NcInterfaceDescriptor.method_count ABI offset changed");
 _Static_assert(offsetof(NcInterfaceDescriptor, methods) == 88,
     "64-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(sizeof(NcClassDescriptor) == 96,
-    "64-bit NcClassDescriptor ABI size changed");
-_Static_assert(offsetof(NcClassDescriptor, threading) == 64,
-    "64-bit NcClassDescriptor.threading ABI offset changed");
-_Static_assert(offsetof(NcClassDescriptor, construct) == 72,
-    "64-bit NcClassDescriptor.construct ABI offset changed");
-_Static_assert(offsetof(NcClassDescriptor, interfaces) == 88,
-    "64-bit NcClassDescriptor.interfaces ABI offset changed");
-_Static_assert(sizeof(NcPluginDescriptor) == 80,
-    "64-bit NcPluginDescriptor ABI size changed");
-_Static_assert(offsetof(NcPluginDescriptor, validation_mode) == 4,
-    "64-bit NcPluginDescriptor.validation_mode ABI offset changed");
-_Static_assert(offsetof(NcPluginDescriptor, qualified_name) == 24,
-    "64-bit NcPluginDescriptor.qualified_name ABI offset changed");
-_Static_assert(offsetof(NcPluginDescriptor, dependencies) == 64,
-    "64-bit NcPluginDescriptor.dependencies ABI offset changed");
-_Static_assert(offsetof(NcPluginDescriptor, class_table) == 72,
-    "64-bit NcPluginDescriptor.class_table ABI offset changed");
 _Static_assert(offsetof(NcRuntimeApiV2Prefix, register_contract_module) == 16,
     "64-bit NcRuntimeApiV2 registration prefix changed");
 #elif UINTPTR_MAX == UINT32_MAX
@@ -279,24 +206,6 @@ _Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 56,
     "32-bit NcInterfaceDescriptor.method_count ABI offset changed");
 _Static_assert(offsetof(NcInterfaceDescriptor, methods) == 60,
     "32-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(sizeof(NcClassDescriptor) == 56,
-    "32-bit NcClassDescriptor ABI size changed");
-_Static_assert(offsetof(NcClassDescriptor, threading) == 40,
-    "32-bit NcClassDescriptor.threading ABI offset changed");
-_Static_assert(offsetof(NcClassDescriptor, construct) == 44,
-    "32-bit NcClassDescriptor.construct ABI offset changed");
-_Static_assert(offsetof(NcClassDescriptor, interfaces) == 52,
-    "32-bit NcClassDescriptor.interfaces ABI offset changed");
-_Static_assert(sizeof(NcPluginDescriptor) == 52,
-    "32-bit NcPluginDescriptor ABI size changed");
-_Static_assert(offsetof(NcPluginDescriptor, validation_mode) == 4,
-    "32-bit NcPluginDescriptor.validation_mode ABI offset changed");
-_Static_assert(offsetof(NcPluginDescriptor, qualified_name) == 24,
-    "32-bit NcPluginDescriptor.qualified_name ABI offset changed");
-_Static_assert(offsetof(NcPluginDescriptor, dependencies) == 44,
-    "32-bit NcPluginDescriptor.dependencies ABI offset changed");
-_Static_assert(offsetof(NcPluginDescriptor, class_table) == 48,
-    "32-bit NcPluginDescriptor.class_table ABI offset changed");
 _Static_assert(offsetof(NcRuntimeApiV2Prefix, register_contract_module) == 8,
     "32-bit NcRuntimeApiV2 registration prefix changed");
 #else
@@ -313,15 +222,6 @@ int32_t nc_c_validate_abi_layouts(const NativeAbiLayouts *layouts) {
         layouts->interface_qualified_name_offset == offsetof(NcInterfaceDescriptor, qualified_name) &&
         layouts->interface_method_count_offset == offsetof(NcInterfaceDescriptor, method_count) &&
         layouts->interface_methods_offset == offsetof(NcInterfaceDescriptor, methods) &&
-        layouts->class_descriptor_size == sizeof(NcClassDescriptor) &&
-        layouts->class_threading_offset == offsetof(NcClassDescriptor, threading) &&
-        layouts->class_construct_offset == offsetof(NcClassDescriptor, construct) &&
-        layouts->class_interfaces_offset == offsetof(NcClassDescriptor, interfaces) &&
-        layouts->plugin_descriptor_size == sizeof(NcPluginDescriptor) &&
-        layouts->plugin_validation_mode_offset == offsetof(NcPluginDescriptor, validation_mode) &&
-        layouts->plugin_qualified_name_offset == offsetof(NcPluginDescriptor, qualified_name) &&
-        layouts->plugin_dependencies_offset == offsetof(NcPluginDescriptor, dependencies) &&
-        layouts->plugin_class_table_offset == offsetof(NcPluginDescriptor, class_table) &&
         layouts->runtime_core_abi_version_offset == offsetof(NcRuntimeApiV2Prefix, core_abi_version) &&
         layouts->runtime_contract_register_offset == offsetof(NcRuntimeApiV2Prefix, register_contract_module) &&
         layouts->plugin_registry_first_function_offset == offsetof(NcPluginRegistryV2Prefix, plugin_count) &&
