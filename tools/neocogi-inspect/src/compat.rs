@@ -1,12 +1,11 @@
 //! Directional ABI compatibility checks over validated inspection artifacts.
 //!
-//! Interface compatibility is determined exclusively by the `(IID, ABI signature)`
-//! identity. Method names and rendered signatures remain diagnostics and never
-//! participate in the compatibility decision.
+//! Canonical module fingerprints are the ABI authority. Source and declaration
+//! changes under an unchanged fingerprint are reported only as diagnostics.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::schema::{ArtifactActivation, ArtifactClass, ArtifactContractModule, ArtifactFactory, ArtifactInterface, ArtifactThreading, InspectionArtifact};
+use crate::schema::{ArtifactContractModule, ArtifactFactory, ArtifactThreading, InspectionArtifact};
 
 #[derive(Debug, Default, Eq, PartialEq)]
 pub(crate) struct CompatibilityReport {
@@ -49,17 +48,8 @@ pub(crate) fn check_compatibility(old: &InspectionArtifact, new: &InspectionArti
     push_diagnostic_change(&mut report, "producer version", &old.producer.version, &new.producer.version);
     push_diagnostic_change(&mut report, "plugin version", &old.plugin.version, &new.plugin.version);
     compare_dependencies(&mut report, old, new);
-    compare_activation(&mut report, &old.activation, &new.activation);
+    compare_factory(&mut report, &old.factory, &new.factory);
     report
-}
-
-/// Applies compatibility rules only within one coherent activation model.
-fn compare_activation(report: &mut CompatibilityReport, old: &ArtifactActivation, new: &ArtifactActivation) {
-    match (old, new) {
-        (ArtifactActivation::Factory(old), ArtifactActivation::Factory(new)) => compare_factory(report, old, new),
-        (ArtifactActivation::LegacyClassTable { classes: old }, ArtifactActivation::LegacyClassTable { classes: new }) => compare_classes(report, old, new),
-        _ => report.breaking.push("plugin activation model changed".to_string()),
-    }
 }
 
 /// Compares one typed root and its exact native contract requirements.
@@ -136,36 +126,6 @@ fn compare_dependencies(report: &mut CompatibilityReport, old: &InspectionArtifa
     }
 }
 
-fn compare_classes(report: &mut CompatibilityReport, old: &[ArtifactClass], new: &[ArtifactClass]) {
-    let old = map_by(old, |class| class.id.as_str());
-    let new = map_by(new, |class| class.id.as_str());
-
-    for (id, old_class) in &old {
-        let Some(new_class) = new.get(id) else {
-            report.breaking.push(format!("removed class {id} ({})", old_class.name));
-            continue;
-        };
-        compare_class(report, id, old_class, new_class);
-    }
-    for (id, new_class) in &new {
-        if !old.contains_key(id) {
-            report.additive.push(format!("added class {id} ({})", new_class.name));
-        }
-    }
-}
-
-fn compare_class(report: &mut CompatibilityReport, id: &str, old: &ArtifactClass, new: &ArtifactClass) {
-    if old.constructor_abi_signature != new.constructor_abi_signature {
-        report.breaking.push(format!(
-            "class {id} constructor ABI changed: {} -> {}",
-            old.constructor_abi_signature, new.constructor_abi_signature
-        ));
-    }
-    compare_threading(report, &format!("class {id}"), old.threading, new.threading);
-    push_diagnostic_change(report, &format!("class {id} version"), &old.version, &new.version);
-    compare_interfaces(report, id, &old.interfaces, &new.interfaces);
-}
-
 /// Classifies a capability strengthening as additive and weakening as breaking.
 fn compare_threading(report: &mut CompatibilityReport, subject: &str, old: ArtifactThreading, new: ArtifactThreading) {
     match (old, new) {
@@ -176,35 +136,6 @@ fn compare_threading(report: &mut CompatibilityReport, subject: &str, old: Artif
             report.additive.push(format!("{subject} threading strengthened: thread_local -> thread_safe"))
         }
         _ => {}
-    }
-}
-
-fn compare_interfaces(report: &mut CompatibilityReport, class_id: &str, old: &[ArtifactInterface], new: &[ArtifactInterface]) {
-    let old = map_by(old, |interface| interface.id.as_str());
-    let new = map_by(new, |interface| interface.id.as_str());
-
-    for (iid, old_interface) in &old {
-        let Some(new_interface) = new.get(iid) else {
-            report
-                .breaking
-                .push(format!("class {class_id} removed interface {iid} ({})", old_interface.name));
-            continue;
-        };
-        if old_interface.abi_signature != new_interface.abi_signature {
-            report.breaking.push(format!(
-                "class {class_id} changed interface {iid} ABI signature: {} -> {}",
-                old_interface.abi_signature, new_interface.abi_signature
-            ));
-        } else if old_interface.methods != new_interface.methods || old_interface.base != new_interface.base {
-            report.diagnostic.push(format!(
-                "class {class_id} interface {iid} diagnostic method metadata changed with an unchanged ABI signature"
-            ));
-        }
-    }
-    for (iid, new_interface) in &new {
-        if !old.contains_key(iid) {
-            report.additive.push(format!("class {class_id} added interface {iid} ({})", new_interface.name));
-        }
     }
 }
 
@@ -221,16 +152,8 @@ fn map_by<'a, T>(values: &'a [T], key: impl Fn(&'a T) -> &'a str) -> BTreeMap<&'
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::{ArtifactMethod, sample_artifact, sample_factory_artifact};
+    use crate::schema::sample_artifact;
     use neocogi_com_core::guid_from_qualified_name;
-
-    /// Borrows the legacy fixture classes for focused compatibility mutations.
-    fn legacy_classes_mut(artifact: &mut InspectionArtifact) -> &mut Vec<ArtifactClass> {
-        let ArtifactActivation::LegacyClassTable { classes } = &mut artifact.activation else {
-            panic!("sample artifact must use legacy class-table activation");
-        };
-        classes
-    }
 
     #[test]
     fn identical_artifacts_are_compatible() {
@@ -240,42 +163,15 @@ mod tests {
     /// Confirms an exact contract revision change is a factory ABI break.
     #[test]
     fn factory_contract_fingerprint_changes_are_breaking() {
-        let old = sample_factory_artifact();
+        let old = sample_artifact();
         let mut new = old.clone();
-        let ArtifactActivation::Factory(factory) = &mut new.activation else {
-            unreachable!();
-        };
-        factory.direct_contracts[0].abi_fingerprint = "22".repeat(32);
-        factory.modules[0].abi_fingerprint = "22".repeat(32);
+        new.factory.direct_contracts[0].abi_fingerprint = "22".repeat(32);
+        new.factory.modules[0].abi_fingerprint = "22".repeat(32);
 
         let report = check_compatibility(&old, &new);
 
         assert!(!report.is_compatible());
         assert!(report.breaking.iter().any(|change| change.contains("ABI fingerprint changed")));
-    }
-
-    #[test]
-    fn new_classes_and_interfaces_are_additive() {
-        let old = sample_artifact();
-        let mut new = old.clone();
-        let mut class = legacy_classes_mut(&mut new)[0].clone();
-        class.name = "example.Bar".to_string();
-        class.id = guid_from_qualified_name(&class.name).to_string();
-        legacy_classes_mut(&mut new).push(class);
-
-        let interface_name = "example.Added:v1";
-        let base = legacy_classes_mut(&mut new)[0].interfaces[1].base.clone();
-        legacy_classes_mut(&mut new)[0].interfaces.push(ArtifactInterface {
-            id: guid_from_qualified_name(interface_name).to_string(),
-            name: interface_name.to_string(),
-            abi_signature: "ncabi1;added-interface".to_string(),
-            base,
-            methods: Vec::new(),
-        });
-
-        let report = check_compatibility(&old, &new);
-        assert!(report.is_compatible());
-        assert_eq!(report.additive.len(), 2);
     }
 
     #[test]
@@ -291,38 +187,16 @@ mod tests {
     }
 
     #[test]
-    fn removed_or_mutated_interfaces_are_breaking() {
-        let old = sample_artifact();
-
-        let mut removed_class = old.clone();
-        legacy_classes_mut(&mut removed_class).clear();
-        let report = check_compatibility(&old, &removed_class);
-        assert!(!report.is_compatible());
-        assert!(report.breaking[0].contains("removed class"));
-
-        let mut removed = old.clone();
-        legacy_classes_mut(&mut removed)[0].interfaces.pop();
-        assert!(!check_compatibility(&old, &removed).is_compatible());
-
-        let mut mutated = old.clone();
-        legacy_classes_mut(&mut mutated)[0].interfaces[1].abi_signature = "ncabi1;mutated-interface".to_string();
-        let report = check_compatibility(&old, &mutated);
-        assert!(!report.is_compatible());
-        assert!(report.breaking[0].contains("ABI signature"));
-    }
-
-    #[test]
-    fn constructor_and_threading_downgrades_are_breaking() {
+    fn factory_threading_changes_are_directional() {
         let old = sample_artifact();
         let mut new = old.clone();
-        legacy_classes_mut(&mut new)[0].constructor_abi_signature = "ncabi1;constructor".to_string();
-        legacy_classes_mut(&mut new)[0].threading = ArtifactThreading::ThreadSafe;
+        new.factory.root_factory_threading = ArtifactThreading::ThreadSafe;
         let strengthened = check_compatibility(&old, &new);
-        assert_eq!(strengthened.breaking.len(), 1);
+        assert!(strengthened.is_compatible());
         assert_eq!(strengthened.additive.len(), 1);
 
         let mut old_safe = old.clone();
-        legacy_classes_mut(&mut old_safe)[0].threading = ArtifactThreading::ThreadSafe;
+        old_safe.factory.root_factory_threading = ArtifactThreading::ThreadSafe;
         let report = check_compatibility(&old_safe, &old);
         assert!(!report.is_compatible());
         assert!(report.breaking[0].contains("threading weakened"));
@@ -342,21 +216,15 @@ mod tests {
     }
 
     #[test]
-    fn versions_and_rendered_methods_are_diagnostic_only() {
+    fn versions_are_diagnostic_only() {
         let old = sample_artifact();
         let mut new = old.clone();
         new.producer.version = "0.2.0".to_string();
         new.plugin.version = "2.0.0".to_string();
-        legacy_classes_mut(&mut new)[0].version = "2.0.0".to_string();
-        legacy_classes_mut(&mut new)[0].interfaces[1].methods[0] = ArtifactMethod {
-            index: 0,
-            name: "different diagnostic".to_string(),
-            signature: "different diagnostic".to_string(),
-        };
 
         let report = check_compatibility(&old, &new);
         assert!(report.is_compatible());
-        assert_eq!(report.diagnostic.len(), 4);
+        assert_eq!(report.diagnostic.len(), 2);
     }
 
     #[test]
