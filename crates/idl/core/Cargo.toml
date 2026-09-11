@@ -1,0 +1,17 @@
+[package]
+name = "neocogi-idl"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/NeoCogi/neocogi-platform"
+homepage = "https://github.com/NeoCogi/neocogi-platform"
+description = "Parser and canonical model for NeoCogi contract modules"
+keywords = ["idl", "abi", "ffi", "plugin"]
+categories = ["development-tools::ffi", "parser-implementations"]
+
+[dependencies]
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
+
