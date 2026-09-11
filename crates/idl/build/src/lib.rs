@@ -9,6 +9,7 @@
 
 mod cargo;
 mod generate;
+mod native;
 
-pub use cargo::{BuildError, BuildOutput, Module};
+pub use cargo::{ArtifactRecord, BuildError, BuildOutput, Module};
 pub use generate::{GenerateError, generate_rust};

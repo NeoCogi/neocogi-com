@@ -44,6 +44,7 @@ compile_error!("COM validation modes are mutually exclusive; select exactly one 
 mod abi;
 mod client;
 mod constructor;
+mod contract_module;
 mod data;
 mod decode;
 mod guid;
@@ -61,6 +62,11 @@ extern crate std;
 
 pub use abi::{__NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComStruct};
 pub use client::{ComClientInterface, NcClientPointer};
+pub use contract_module::{
+    NC_CONTRACT_DECLARATION_CLASS, NC_CONTRACT_DECLARATION_ENUM, NC_CONTRACT_DECLARATION_FACTORY, NC_CONTRACT_DECLARATION_INTERFACE,
+    NC_CONTRACT_DECLARATION_STRUCT, NC_CONTRACT_DESCRIPTION_ABI_VERSION, NcContractDeclarationDescription, NcContractDependencyDescription,
+    NcContractFingerprint, NcContractModuleDescription, NcContractModuleReference, NcGetContractModuleDescription, validate_contract_module_description,
+};
 pub use constructor::{construct_class_checked, return_plugin_descriptor};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
 pub use decode::{ComDeserialize, ComDeserializer, ComEnum, ComRecord, ComRecordAccess, ComSequence, ComSequenceAccess, ComVariantAccess};

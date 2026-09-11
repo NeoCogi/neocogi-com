@@ -11,6 +11,7 @@ keywords = ["idl", "abi", "ffi", "codegen"]
 categories = ["development-tools::build-utils", "development-tools::ffi"]
 
 [dependencies]
+cc = "1"
 neocogi-com-core.workspace = true
 neocogi-idl.workspace = true
 proc-macro2.workspace = true
