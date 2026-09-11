@@ -85,6 +85,7 @@ struct NcPluginDependencyDescriptor {
 
 struct NcPluginDescriptor {
     uint32_t core_abi_version;
+    uint32_t validation_mode;
     NcGuid plugin_id;
     NcStaticUtf8 qualified_name;
     NcStaticUtf8 plugin_version;
@@ -214,6 +215,7 @@ typedef struct NativeAbiLayouts {
     size_t class_construct_offset;
     size_t class_interfaces_offset;
     size_t plugin_descriptor_size;
+    size_t plugin_validation_mode_offset;
     size_t plugin_qualified_name_offset;
     size_t plugin_dependencies_offset;
     size_t plugin_class_table_offset;
@@ -268,6 +270,8 @@ _Static_assert(offsetof(NcClassDescriptor, interfaces) == 88,
     "64-bit NcClassDescriptor.interfaces ABI offset changed");
 _Static_assert(sizeof(NcPluginDescriptor) == 80,
     "64-bit NcPluginDescriptor ABI size changed");
+_Static_assert(offsetof(NcPluginDescriptor, validation_mode) == 4,
+    "64-bit NcPluginDescriptor.validation_mode ABI offset changed");
 _Static_assert(offsetof(NcPluginDescriptor, qualified_name) == 24,
     "64-bit NcPluginDescriptor.qualified_name ABI offset changed");
 _Static_assert(offsetof(NcPluginDescriptor, dependencies) == 64,
@@ -291,13 +295,15 @@ _Static_assert(offsetof(NcClassDescriptor, construct) == 44,
     "32-bit NcClassDescriptor.construct ABI offset changed");
 _Static_assert(offsetof(NcClassDescriptor, interfaces) == 52,
     "32-bit NcClassDescriptor.interfaces ABI offset changed");
-_Static_assert(sizeof(NcPluginDescriptor) == 48,
+_Static_assert(sizeof(NcPluginDescriptor) == 52,
     "32-bit NcPluginDescriptor ABI size changed");
-_Static_assert(offsetof(NcPluginDescriptor, qualified_name) == 20,
+_Static_assert(offsetof(NcPluginDescriptor, validation_mode) == 4,
+    "32-bit NcPluginDescriptor.validation_mode ABI offset changed");
+_Static_assert(offsetof(NcPluginDescriptor, qualified_name) == 24,
     "32-bit NcPluginDescriptor.qualified_name ABI offset changed");
-_Static_assert(offsetof(NcPluginDescriptor, dependencies) == 40,
+_Static_assert(offsetof(NcPluginDescriptor, dependencies) == 44,
     "32-bit NcPluginDescriptor.dependencies ABI offset changed");
-_Static_assert(offsetof(NcPluginDescriptor, class_table) == 44,
+_Static_assert(offsetof(NcPluginDescriptor, class_table) == 48,
     "32-bit NcPluginDescriptor.class_table ABI offset changed");
 _Static_assert(offsetof(NcRuntimeApiV1Prefix, register_plugin_descriptor) == 8,
     "32-bit NcRuntimeApiV1 registration prefix changed");
@@ -320,6 +326,7 @@ int32_t nc_c_validate_abi_layouts(const NativeAbiLayouts *layouts) {
         layouts->class_construct_offset == offsetof(NcClassDescriptor, construct) &&
         layouts->class_interfaces_offset == offsetof(NcClassDescriptor, interfaces) &&
         layouts->plugin_descriptor_size == sizeof(NcPluginDescriptor) &&
+        layouts->plugin_validation_mode_offset == offsetof(NcPluginDescriptor, validation_mode) &&
         layouts->plugin_qualified_name_offset == offsetof(NcPluginDescriptor, qualified_name) &&
         layouts->plugin_dependencies_offset == offsetof(NcPluginDescriptor, dependencies) &&
         layouts->plugin_class_table_offset == offsetof(NcPluginDescriptor, class_table) &&

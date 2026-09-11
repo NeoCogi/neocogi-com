@@ -465,6 +465,7 @@ mod tests {
         };
         static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
             plugin_id: PLUGIN_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.registry.module_indexed_plugin"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -532,6 +533,7 @@ mod tests {
         };
         static PLUGIN_A: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
             plugin_id: PLUGIN_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.registry.same_id"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -541,6 +543,7 @@ mod tests {
         };
         static PLUGIN_B: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
             plugin_id: PLUGIN_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.registry.same_id"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -564,6 +567,7 @@ mod tests {
         };
         static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
             plugin_id: PLUGIN_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.registry.idempotent_plugin"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -593,6 +597,7 @@ mod tests {
         static DEPENDENCIES: [NcPluginDependencyDescriptor; 1] = [NcPluginDependencyDescriptor { plugin_id: BASE_ID }];
         static BASE: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
             plugin_id: BASE_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.registry.base"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -602,6 +607,7 @@ mod tests {
         };
         static DEPENDENT: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
             plugin_id: DEPENDENT_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.registry.dependent"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -685,6 +691,7 @@ mod tests {
             ($plugin:ident, $id:ident, $name:literal, $dependencies:expr, $table:ident) => {
                 static $plugin: NcPluginDescriptor = NcPluginDescriptor {
                     core_abi_version: NC_COM_CORE_ABI_VERSION,
+                    validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
                     plugin_id: $id,
                     qualified_name: NcStaticUtf8::from_static($name),
                     plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -800,6 +807,7 @@ mod tests {
         };
         static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
             plugin_id: PLUGIN_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.registry.concurrent_plugin"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -843,6 +851,7 @@ mod tests {
     fn malformed_direct_registration_cannot_bypass_batch_validation() {
         static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION + 1,
+            validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
             plugin_id: NcGuid::nil(),
             qualified_name: NcStaticUtf8 { data: core::ptr::null(), len: 1 },
             plugin_version: NcStaticUtf8 { data: core::ptr::null(), len: 1 },
@@ -903,6 +912,7 @@ mod tests {
             let plugin_name = &names[0];
             let plugin = Box::new(NcPluginDescriptor {
                 core_abi_version: NC_COM_CORE_ABI_VERSION,
+                validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
                 plugin_id: neocogi_com_core::guid_from_qualified_name(plugin_name),
                 qualified_name: benchmark_text(plugin_name),
                 plugin_version: NcStaticUtf8::from_static("1.0.0"),

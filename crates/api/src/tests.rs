@@ -415,6 +415,7 @@ fn plugin_descriptor_rejects_incompatible_core_abi_version() {
     };
     static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
         core_abi_version: 999,
+        validation_mode: crate::NC_ABI_VALIDATION_MODE,
         plugin_id: crate::guid_from_qualified_name("nc.tests.BadPlugin"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.BadPlugin"),
         plugin_version: NcStaticUtf8::from_static("1.0.0"),

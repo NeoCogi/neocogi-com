@@ -168,6 +168,7 @@ pub(crate) fn expand_plugin(args: PluginArgs) -> proc_macro2::TokenStream {
 
         static NC_COM_PLUGIN_DESCRIPTOR: #nc::NcPluginDescriptor = #nc::NcPluginDescriptor {
             core_abi_version: #nc::NC_COM_CORE_ABI_VERSION,
+            validation_mode: #nc::NC_ABI_VALIDATION_MODE,
             plugin_id: #plugin_id,
             qualified_name: #nc::NcStaticUtf8::from_static(#name),
             plugin_version: #nc::NcStaticUtf8::from_static(#version),

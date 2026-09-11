@@ -374,7 +374,7 @@ pub struct NcPluginDependencyDescriptor {
 
 /// Static descriptor for one plugin shared library.
 ///
-/// core ABI v6 descriptors are declarative: they contain no initialization callback
+/// Core ABI v7 descriptors are declarative: they contain no initialization callback
 /// or path resolver. Hard dependency IDs describe activation order but never
 /// trigger recursive loading.
 #[repr(C)]
@@ -382,6 +382,8 @@ pub struct NcPluginDependencyDescriptor {
 pub struct NcPluginDescriptor {
     /// Must be [`super::contract::NC_COM_CORE_ABI_VERSION`] for this version.
     pub core_abi_version: u32,
+    /// ABI signature representation used throughout this plugin descriptor graph.
+    pub validation_mode: super::contract::NcAbiValidationMode,
     /// Stable plugin identifier derived from `qualified_name`.
     pub plugin_id: NcGuid,
     /// Normative static qualified plugin name.
@@ -435,18 +437,39 @@ pub type NcGetPluginDescriptor = unsafe extern "C" fn(out: *mut *const NcPluginD
 
 #[cfg(test)]
 mod tests {
+    use std::string::ToString as _;
+
     use crate::NcGuid;
     #[cfg(feature = "_com-validation-exact")]
     use crate::{NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiSignaturePart, NcAbiPassing, NcAbiReceiver, NcAbiType};
     use crate::{
-        NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAbiSignature,
-        NcAbiThreadingMode, NcClassDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor, NcPluginDescriptor,
+        NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_VALIDATION_FNV_1A_128, NC_ABI_VALIDATION_MANGLING,
+        NC_ABI_VALIDATION_NONE, NC_ABI_VALIDATION_SHA_256, NC_COM_CORE_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAbiSignature,
+        NcAbiThreadingMode, NcAbiValidationMode, NcClassDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor,
+        NcPluginDescriptor,
     };
 
     #[test]
     fn core_abi_identity_is_stable() {
-        assert_eq!(NC_COM_CORE_ABI_VERSION, 6);
+        assert_eq!(NC_COM_CORE_ABI_VERSION, 7);
         assert_eq!(NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, "nc_get_plugin_descriptor");
+    }
+
+    #[test]
+    fn validation_mode_raw_values_and_names_are_stable() {
+        let modes = [
+            (NcAbiValidationMode::NONE, NC_ABI_VALIDATION_NONE, "none"),
+            (NcAbiValidationMode::SHA_256, NC_ABI_VALIDATION_SHA_256, "sha-256"),
+            (NcAbiValidationMode::FNV_1A_128, NC_ABI_VALIDATION_FNV_1A_128, "fnv-1a-128"),
+            (NcAbiValidationMode::MANGLING, NC_ABI_VALIDATION_MANGLING, "mangling"),
+        ];
+        for (mode, raw, name) in modes {
+            assert_eq!(mode.as_raw(), raw);
+            assert_eq!(NcAbiValidationMode::from_raw(raw), Some(mode));
+            assert_eq!(mode.as_str(), Some(name));
+            assert_eq!(mode.to_string(), name);
+        }
+        assert_eq!(NcAbiValidationMode::from_raw(u32::MAX), None);
     }
 
     #[test]
@@ -546,7 +569,8 @@ mod tests {
             assert_eq!(core::mem::size_of::<NcPluginDescriptor>(), 80);
             assert_eq!(core::mem::align_of::<NcPluginDescriptor>(), 8);
             assert_eq!(core::mem::offset_of!(NcPluginDescriptor, core_abi_version), 0);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_id), 4);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, validation_mode), 4);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_id), 8);
             assert_eq!(core::mem::offset_of!(NcPluginDescriptor, qualified_name), 24);
             assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_version), 40);
             assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependency_count), 56);
@@ -556,15 +580,16 @@ mod tests {
 
         #[cfg(target_pointer_width = "32")]
         {
-            assert_eq!(core::mem::size_of::<NcPluginDescriptor>(), 48);
+            assert_eq!(core::mem::size_of::<NcPluginDescriptor>(), 52);
             assert_eq!(core::mem::align_of::<NcPluginDescriptor>(), 4);
             assert_eq!(core::mem::offset_of!(NcPluginDescriptor, core_abi_version), 0);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_id), 4);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, qualified_name), 20);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_version), 28);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependency_count), 36);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependencies), 40);
-            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, class_table), 44);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, validation_mode), 4);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_id), 8);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, qualified_name), 24);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_version), 32);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependency_count), 40);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependencies), 44);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, class_table), 48);
         }
     }
 

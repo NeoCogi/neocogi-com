@@ -275,6 +275,7 @@ mod tests {
     fn load_metadata_validation_rejects_core_abi_before_copying_text() {
         static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION + 1,
+            validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
             plugin_id: NcGuid::nil(),
             qualified_name: NcStaticUtf8 { data: core::ptr::null(), len: 1 },
             plugin_version: NcStaticUtf8 { data: core::ptr::null(), len: 1 },

@@ -54,6 +54,7 @@ static CLASS_TABLE: NcClassTable = NcClassTable {
 
 static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
     core_abi_version: NC_COM_CORE_ABI_VERSION,
+    validation_mode: neocogi_com::NC_ABI_VALIDATION_MODE,
     plugin_id: neocogi_com::guid_from_qualified_name("nc.tests.shared_component"),
     qualified_name: NcStaticUtf8::from_static("nc.tests.shared_component"),
     plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -68,6 +69,7 @@ static MISSING_DEPENDENCIES: [NcPluginDependencyDescriptor; 1] = [NcPluginDepend
 
 static MISSING_DEPENDENCY_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
     core_abi_version: NC_COM_CORE_ABI_VERSION,
+    validation_mode: neocogi_com::NC_ABI_VALIDATION_MODE,
     plugin_id: PLUGIN.plugin_id,
     qualified_name: PLUGIN.qualified_name,
     plugin_version: PLUGIN.plugin_version,

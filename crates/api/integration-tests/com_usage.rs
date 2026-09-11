@@ -308,6 +308,7 @@ static CALCULATOR_CLASS_TABLE: NcClassTable = NcClassTable {
 
 static CALCULATOR_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
     core_abi_version: NC_COM_CORE_ABI_VERSION,
+    validation_mode: neocogi_com::NC_ABI_VALIDATION_MODE,
     plugin_id: CALCULATOR_PLUGIN_ID,
     qualified_name: NcStaticUtf8::from_static("nc.tests.com_usage.calculator_plugin"),
     plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -379,6 +380,7 @@ static UNCHECKED_CONSTRUCTOR_CLASS_TABLE: NcClassTable = NcClassTable {
 
 static UNCHECKED_CONSTRUCTOR_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
     core_abi_version: NC_COM_CORE_ABI_VERSION,
+    validation_mode: neocogi_com::NC_ABI_VALIDATION_MODE,
     plugin_id: neocogi_com::guid_from_qualified_name("nc.tests.com_usage.unchecked_constructor_plugin"),
     qualified_name: NcStaticUtf8::from_static("nc.tests.com_usage.unchecked_constructor_plugin"),
     plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -407,6 +409,7 @@ static FAILING_CONSTRUCTOR_CLASS_TABLE: NcClassTable = NcClassTable {
 
 static FAILING_CONSTRUCTOR_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
     core_abi_version: NC_COM_CORE_ABI_VERSION,
+    validation_mode: neocogi_com::NC_ABI_VALIDATION_MODE,
     plugin_id: neocogi_com::guid_from_qualified_name("nc.tests.com_usage.failing_constructor_plugin"),
     qualified_name: NcStaticUtf8::from_static("nc.tests.com_usage.failing_constructor_plugin"),
     plugin_version: NcStaticUtf8::from_static("1.0.0"),

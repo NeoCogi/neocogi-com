@@ -132,6 +132,7 @@ mod tests {
         class_construct_offset: usize,
         class_interfaces_offset: usize,
         plugin_descriptor_size: usize,
+        plugin_validation_mode_offset: usize,
         plugin_qualified_name_offset: usize,
         plugin_dependencies_offset: usize,
         plugin_class_table_offset: usize,
@@ -175,6 +176,7 @@ mod tests {
             class_construct_offset: core::mem::offset_of!(NcClassDescriptor, construct),
             class_interfaces_offset: core::mem::offset_of!(NcClassDescriptor, interfaces),
             plugin_descriptor_size: core::mem::size_of::<NcPluginDescriptor>(),
+            plugin_validation_mode_offset: core::mem::offset_of!(NcPluginDescriptor, validation_mode),
             plugin_qualified_name_offset: core::mem::offset_of!(
                 NcPluginDescriptor,
                 qualified_name

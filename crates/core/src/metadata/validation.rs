@@ -25,8 +25,9 @@ use crate::{
     NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
     NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64,
     NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64,
-    NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiPassingDescriptor,
-    NcAbiSignature, NcAbiThreadingMode, NcAbiTypeDescriptor, NcClassDescriptor, NcClassInterfaceDescriptor, NcClassTable, NcInterfaceDescriptor,
+    NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_ABI_VALIDATION_MODE, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK,
+    NcAbiPassingDescriptor, NcAbiSignature, NcAbiThreadingMode, NcAbiTypeDescriptor, NcAbiValidationMode, NcClassDescriptor, NcClassInterfaceDescriptor,
+    NcClassTable, NcInterfaceDescriptor,
     NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus,
     guid_from_qualified_name,
 };
@@ -100,6 +101,10 @@ pub enum NcDescriptorValidationKind {
     NullPluginDescriptor,
     /// The descriptor declares a different core ABI generation.
     CoreAbiVersionMismatch,
+    /// The descriptor contains an unknown ABI validation-mode tag.
+    InvalidAbiValidationMode,
+    /// The plugin's ABI validation mode differs from the exact host build mode.
+    AbiValidationModeMismatch,
     /// The plugin identity is the nil GUID.
     NilPluginId,
     /// The plugin qualified-name bytes are not valid UTF-8.
@@ -207,6 +212,8 @@ struct IssueReporter<R> {
     report: R,
     /// First negative status observed, or `NC_OK` before any issue.
     first_error: NcStatus,
+    /// Signature representation declared by the plugin currently being walked.
+    validation_mode: NcAbiValidationMode,
     /// Number of issues emitted so signature validation can detect a clean subtree.
     #[cfg(feature = "_com-validation-exact")]
     issue_count: usize,
@@ -221,6 +228,7 @@ where
         Self {
             report,
             first_error: NC_OK,
+            validation_mode: NC_ABI_VALIDATION_MODE,
             #[cfg(feature = "_com-validation-exact")]
             issue_count: 0,
         }
@@ -280,6 +288,21 @@ where
         reporter.issue(NC_E_ABI_VERSION, NcDescriptorPath::Plugin, NcDescriptorValidationKind::CoreAbiVersionMismatch);
         return;
     }
+    let Some(validation_mode) = NcAbiValidationMode::from_raw(plugin.validation_mode.as_raw()) else {
+        reporter.issue(NC_E_INVALID_ARG, NcDescriptorPath::Plugin, NcDescriptorValidationKind::InvalidAbiValidationMode);
+        return;
+    };
+    #[cfg(any(
+        feature = "com-validation-none",
+        feature = "com-validation-sha-256",
+        feature = "com-validation-fnv-1a-128",
+        feature = "com-validation-mangling"
+    ))]
+    if validation_mode != NC_ABI_VALIDATION_MODE {
+        reporter.issue(NC_E_ABI_VERSION, NcDescriptorPath::Plugin, NcDescriptorValidationKind::AbiValidationModeMismatch);
+        return;
+    }
+    reporter.validation_mode = validation_mode;
     if plugin.plugin_id.is_nil() {
         reporter.issue(NC_E_INVALID_ARG, NcDescriptorPath::Plugin, NcDescriptorValidationKind::NilPluginId);
     }
@@ -827,54 +850,38 @@ where
     validate_signature_bytes(bytes, path, reporter)
 }
 
-/// Accepts any readable bytes in the representation-neutral inspector build.
-#[cfg(not(any(
-    feature = "com-validation-none",
-    feature = "com-validation-sha-256",
-    feature = "com-validation-fnv-1a-128",
-    feature = "com-validation-mangling"
-)))]
-fn validate_signature_bytes<R>(_bytes: &[u8], _path: NcDescriptorPath, _reporter: &mut IssueReporter<R>) -> bool
-where
-    R: FnMut(NcDescriptorValidationIssue),
-{
-    true
-}
-
-/// Requires the explicit unchecked sentinel in validation-free assemblies.
-#[cfg(feature = "com-validation-none")]
+/// Checks signature bytes against the representation declared by the plugin.
+///
+/// Representation-neutral inspector builds use this descriptor field instead
+/// of guessing from signature lengths. Exact runtime builds additionally reject
+/// the plugin at the root when its declared mode differs from the host mode.
 fn validate_signature_bytes<R>(bytes: &[u8], path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
 where
     R: FnMut(NcDescriptorValidationIssue),
 {
-    if bytes == b"ncabi1;unchecked" {
-        true
-    } else {
-        reporter.issue(NC_E_ABI_VERSION, path, NcDescriptorValidationKind::InvalidAbiSignature);
-        false
+    match reporter.validation_mode {
+        NcAbiValidationMode::NONE => {
+            if bytes == b"ncabi1;unchecked" {
+                true
+            } else {
+                reporter.issue(NC_E_ABI_VERSION, path, NcDescriptorValidationKind::InvalidAbiSignature);
+                false
+            }
+        }
+        NcAbiValidationMode::SHA_256 => validate_fixed_signature_width(bytes, 32, path, reporter),
+        NcAbiValidationMode::FNV_1A_128 => validate_fixed_signature_width(bytes, 16, path, reporter),
+        NcAbiValidationMode::MANGLING => validate_mangling_signature(bytes, path, reporter),
+        _ => {
+            // The plugin-root check rejects unknown tags before any signature
+            // is reached. Keep this arm defensive because the FFI-backed mode
+            // type intentionally permits unknown integer representations.
+            reporter.issue(NC_E_INVALID_ARG, path, NcDescriptorValidationKind::InvalidAbiSignature);
+            false
+        }
     }
 }
 
-/// Requires the fixed SHA-256 digest width before exact recomputation.
-#[cfg(feature = "com-validation-sha-256")]
-fn validate_signature_bytes<R>(bytes: &[u8], path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
-where
-    R: FnMut(NcDescriptorValidationIssue),
-{
-    validate_fixed_signature_width(bytes, 32, path, reporter)
-}
-
-/// Requires the fixed FNV-1a-128 fingerprint width before exact recomputation.
-#[cfg(feature = "com-validation-fnv-1a-128")]
-fn validate_signature_bytes<R>(bytes: &[u8], path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
-where
-    R: FnMut(NcDescriptorValidationIssue),
-{
-    validate_fixed_signature_width(bytes, 16, path, reporter)
-}
-
 /// Checks one fixed-width binary signature representation.
-#[cfg(any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128"))]
 fn validate_fixed_signature_width<R>(bytes: &[u8], expected: usize, path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
 where
     R: FnMut(NcDescriptorValidationIssue),
@@ -892,8 +899,7 @@ where
 }
 
 /// Checks the version prefix, UTF-8 encoding, and strict mangle sentinel rule.
-#[cfg(feature = "com-validation-mangling")]
-fn validate_signature_bytes<R>(bytes: &[u8], path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
+fn validate_mangling_signature<R>(bytes: &[u8], path: NcDescriptorPath, reporter: &mut IssueReporter<R>) -> bool
 where
     R: FnMut(NcDescriptorValidationIssue),
 {
@@ -1225,9 +1231,67 @@ mod tests {
     }
 
     #[test]
+    fn plugin_validation_rejects_unknown_validation_mode_before_walking_children() {
+        // SAFETY: `NcAbiValidationMode` is a transparent wrapper around `u32`;
+        // every `u32` has a valid wrapper representation, while semantic tag
+        // validity is deliberately enforced by descriptor validation.
+        let unknown_mode = unsafe { core::mem::transmute::<u32, NcAbiValidationMode>(u32::MAX) };
+        let plugin = NcPluginDescriptor {
+            core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: unknown_mode,
+            plugin_id: NcGuid::nil(),
+            qualified_name: NcStaticUtf8 { data: core::ptr::null(), len: 1 },
+            plugin_version: NcStaticUtf8 { data: core::ptr::null(), len: 1 },
+            dependency_count: 0,
+            dependencies: core::ptr::null(),
+            class_table: core::ptr::null(),
+        };
+
+        let (status, issues) = collect_issues(&plugin);
+
+        assert_eq!(status, NC_E_INVALID_ARG);
+        assert_eq!(
+            issues,
+            std::vec![NcDescriptorValidationIssue {
+                status: NC_E_INVALID_ARG,
+                path: NcDescriptorPath::Plugin,
+                kind: NcDescriptorValidationKind::InvalidAbiValidationMode,
+            }]
+        );
+    }
+
+    #[cfg(feature = "com-validation-sha-256")]
+    #[test]
+    fn exact_runtime_rejects_a_different_plugin_validation_mode() {
+        let plugin = NcPluginDescriptor {
+            core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: NcAbiValidationMode::FNV_1A_128,
+            plugin_id: NcGuid::nil(),
+            qualified_name: NcStaticUtf8 { data: core::ptr::null(), len: 1 },
+            plugin_version: NcStaticUtf8 { data: core::ptr::null(), len: 1 },
+            dependency_count: 0,
+            dependencies: core::ptr::null(),
+            class_table: core::ptr::null(),
+        };
+
+        let (status, issues) = collect_issues(&plugin);
+
+        assert_eq!(status, NC_E_ABI_VERSION);
+        assert_eq!(
+            issues,
+            std::vec![NcDescriptorValidationIssue {
+                status: NC_E_ABI_VERSION,
+                path: NcDescriptorPath::Plugin,
+                kind: NcDescriptorValidationKind::AbiValidationModeMismatch,
+            }]
+        );
+    }
+
+    #[test]
     fn plugin_validation_reports_multiple_reachable_issues() {
         static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: NC_ABI_VALIDATION_MODE,
             plugin_id: NcGuid::nil(),
             qualified_name: NcStaticUtf8::from_static(""),
             plugin_version: NcStaticUtf8::from_static("1 0"),
@@ -1282,6 +1346,7 @@ mod tests {
         };
         static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: NC_ABI_VALIDATION_MODE,
             plugin_id: PLUGIN_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.Dependencies"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -1328,6 +1393,7 @@ mod tests {
         };
         static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: NC_ABI_VALIDATION_MODE,
             plugin_id: PLUGIN_ID,
             qualified_name: NcStaticUtf8::from_static("nc.tests.Plugin"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -1378,6 +1444,7 @@ mod tests {
         };
         static VALID_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: NC_ABI_VALIDATION_MODE,
             plugin_id: guid_from_qualified_name("nc.tests.ValidPlugin"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.ValidPlugin"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -1421,6 +1488,7 @@ mod tests {
         };
         static MISMATCHED_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: NC_ABI_VALIDATION_MODE,
             plugin_id: guid_from_qualified_name("nc.tests.MismatchedPlugin"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.MismatchedPlugin"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -1502,6 +1570,7 @@ mod tests {
         };
         static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: NC_ABI_VALIDATION_MODE,
             plugin_id: guid_from_qualified_name("nc.tests.InvalidThreadingPlugin"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.InvalidThreadingPlugin"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -1554,6 +1623,7 @@ mod tests {
         };
         static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: NC_ABI_VALIDATION_MODE,
             plugin_id: guid_from_qualified_name("nc.tests.Identity.WrongPlugin"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.Identity.Plugin"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -1599,6 +1669,7 @@ mod tests {
         };
         static NO_INTERFACES_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: NC_ABI_VALIDATION_MODE,
             plugin_id: guid_from_qualified_name("nc.tests.MissingIUnknownPlugin"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.MissingIUnknownPlugin"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -1666,6 +1737,7 @@ mod tests {
         };
         static INVALID_IUNKNOWN_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: NC_ABI_VALIDATION_MODE,
             plugin_id: guid_from_qualified_name("nc.tests.InvalidIUnknownPlugin"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.InvalidIUnknownPlugin"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -1702,6 +1774,7 @@ mod tests {
         };
         static DUPLICATE_IUNKNOWN_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
             core_abi_version: NC_COM_CORE_ABI_VERSION,
+            validation_mode: NC_ABI_VALIDATION_MODE,
             plugin_id: guid_from_qualified_name("nc.tests.DuplicateIUnknownPlugin"),
             qualified_name: NcStaticUtf8::from_static("nc.tests.DuplicateIUnknownPlugin"),
             plugin_version: NcStaticUtf8::from_static("1.0.0"),
