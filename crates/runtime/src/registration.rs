@@ -723,6 +723,7 @@ mod tests {
         fn inspected(plugin_id: NcGuid, qualified_name: &str, dependencies: &[NcGuid]) -> PluginInspection {
             PluginInspection {
                 core_abi_version: NC_COM_CORE_ABI_VERSION,
+                validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
                 plugin_id,
                 qualified_name: qualified_name.to_owned(),
                 plugin_version: "1.0.0".to_owned(),

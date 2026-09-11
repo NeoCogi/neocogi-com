@@ -134,6 +134,7 @@ mod tests {
     fn inspection_with_thread_safe_class() -> PluginInspection {
         PluginInspection {
             core_abi_version: 1,
+            validation_mode: neocogi_com_core::NcAbiValidationMode::MANGLING,
             plugin_id: NcGuid::from_fields(1, 2, 3, [4; 8]),
             qualified_name: "nc.tests.inspect".to_string(),
             plugin_version: "1.0.0".to_string(),

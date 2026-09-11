@@ -14,8 +14,9 @@ use std::string::String;
 use std::vec::Vec;
 
 use neocogi_com_core::{
-    NC_E_INVALID_ARG, NC_E_POINTER, NcAbiSignature, NcAbiThreadingMode, NcClassDescriptor, NcClassInterfaceDescriptor, NcGuid, NcInterfaceDescriptor,
-    NcMethodDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, format_abi_signature, format_method_signature, validate_plugin_descriptor_with_issues,
+    NC_E_INVALID_ARG, NC_E_POINTER, NcAbiSignature, NcAbiThreadingMode, NcAbiValidationMode, NcClassDescriptor, NcClassInterfaceDescriptor, NcGuid,
+    NcInterfaceDescriptor, NcMethodDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, format_abi_signature, format_method_signature,
+    validate_plugin_descriptor_with_issues,
 };
 
 use super::{LoadedModule, PluginLoadError, PluginLoadErrorKind, plugin_descriptor_from_module};
@@ -25,6 +26,8 @@ use super::{LoadedModule, PluginLoadError, PluginLoadErrorKind, plugin_descripto
 pub struct PluginInspection {
     /// Core ABI version advertised by the plugin descriptor.
     pub core_abi_version: u32,
+    /// ABI signature representation declared for the entire plugin graph.
+    pub validation_mode: NcAbiValidationMode,
     /// Stable plugin identifier.
     pub plugin_id: NcGuid,
     /// Static plugin qualified name copied into owned storage.
@@ -196,6 +199,7 @@ unsafe fn inspection_from_descriptor(path: &Path, plugin: &NcPluginDescriptor) -
 
     Ok(PluginInspection {
         core_abi_version: plugin.core_abi_version,
+        validation_mode: plugin.validation_mode,
         plugin_id: plugin.plugin_id,
         qualified_name,
         plugin_version,
