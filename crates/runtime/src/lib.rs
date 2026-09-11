@@ -33,6 +33,8 @@
 
 mod api;
 mod construction;
+mod contract_registration;
+mod contract_registry;
 mod debug;
 mod inspection;
 mod loader;

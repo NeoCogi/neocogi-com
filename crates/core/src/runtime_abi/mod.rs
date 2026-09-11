@@ -5,12 +5,14 @@
 //! core crate. Every table begins with a byte size so compatible revisions can
 //! append fields without changing the established prefix.
 
+mod contract_registry;
 mod debug;
 mod inspection;
 mod plugin_registry;
 mod runtime;
 mod type_registry;
 
+pub use contract_registry::NcContractRegistryV1;
 pub use debug::{
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING,
     NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1,

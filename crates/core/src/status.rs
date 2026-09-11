@@ -59,6 +59,7 @@ impl NcStatus {
                 | NC_E_LOAD_FAILED
                 | NC_E_OUT_OF_MEMORY
                 | NC_E_BUSY
+                | NC_E_CONTRACT_MISMATCH
         )
     }
 
@@ -77,6 +78,7 @@ impl NcStatus {
             NC_E_LOAD_FAILED => "NC_E_LOAD_FAILED",
             NC_E_OUT_OF_MEMORY => "NC_E_OUT_OF_MEMORY",
             NC_E_BUSY => "NC_E_BUSY",
+            NC_E_CONTRACT_MISMATCH => "NC_E_CONTRACT_MISMATCH",
             _ => "NC_STATUS_UNKNOWN",
         }
     }
@@ -132,11 +134,14 @@ pub const NC_E_OUT_OF_MEMORY: NcStatus = NcStatus::from_code(-10);
 /// Returned when a call requires exclusive object access but another call is active.
 pub const NC_E_BUSY: NcStatus = NcStatus::from_code(-11);
 
+/// Returned when one logical IDL module is observed with two ABI fingerprints.
+pub const NC_E_CONTRACT_MISMATCH: NcStatus = NcStatus::from_code(-12);
+
 #[cfg(test)]
 mod tests {
     use super::{
-        NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND,
-        NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK, NcStatus,
+        NC_E_ABI_VERSION, NC_E_BUSY, NC_E_CONTRACT_MISMATCH, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE,
+        NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK, NcStatus,
     };
 
     #[test]
@@ -153,6 +158,7 @@ mod tests {
         assert_eq!(NC_E_LOAD_FAILED.code(), -9);
         assert_eq!(NC_E_OUT_OF_MEMORY.code(), -10);
         assert_eq!(NC_E_BUSY.code(), -11);
+        assert_eq!(NC_E_CONTRACT_MISMATCH.code(), -12);
     }
 
     #[test]

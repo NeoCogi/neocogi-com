@@ -81,7 +81,7 @@ pub fn generate_rust(graph: &ResolvedModules, module_name: &str) -> Result<Strin
         pub const MODULE: ::neocogi_com::NcContractModuleReference = ::neocogi_com::NcContractModuleReference {
             module_id: MODULE_ID,
             abi_fingerprint: ::neocogi_com::NcContractFingerprint::new(ABI_FINGERPRINT),
-            get: __nc_get_contract_module_description,
+            get: Some(__nc_get_contract_module_description),
         };
 
         #(#declarations)*

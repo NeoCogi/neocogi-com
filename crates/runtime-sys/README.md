@@ -4,7 +4,7 @@
 `libnc_com_shared_runtime` shared library.
 
 This crate intentionally has no runtime implementation. It re-exports
-`neocogi-com-core` ABI types and declares `nc_com_runtime_abi_version` plus the five
+`neocogi-com-core` ABI types and declares `nc_com_runtime_abi_version` plus the six
 versioned runtime table getters. Callers must check the runtime ABI version
 before calling a getter. They are responsible for linking an
 already built `neocogi-com-runtime` shared library and for making that library

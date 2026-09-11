@@ -13,16 +13,18 @@ use std::vec::Vec;
 
 use crate::{
     ComClassArguments, ComClassContract, ComInterface, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG,
-    NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NcDebugApiV1, NcGuid, NcInspectionApiV1, NcInterfaceId, NcPluginDescriptor,
-    NcPluginRegistryV1, NcRuntimeApiV1, NcStatus, NcTypeRegistryV1, NcUtf8View, ThreadLocal, ThreadingModel,
+    NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NcContractModuleReference, NcDebugApiV1, NcGuid, NcInspectionApiV1, NcInterfaceId,
+    NcContractRegistryV1, NcPluginDescriptor, NcPluginRegistryV1, NcRuntimeApiV1, NcStatus, NcTypeRegistryV1, NcUtf8View, ThreadLocal, ThreadingModel,
 };
 use neocogi_com_runtime_sys as runtime_sys;
 
+mod contract_registry;
 mod debug;
 mod inspection;
 mod plugin_registry;
 mod type_registry;
 
+pub use contract_registry::ContractRegistry;
 pub use debug::{Debug, DebugMessenger};
 pub use inspection::{ClassInfo, Inspection, PluginInfo};
 pub use plugin_registry::PluginRegistry;
@@ -175,6 +177,14 @@ impl Runtime {
         unsafe { table(runtime_sys::nc_com_get_plugin_registry_v1()) }
     }
 
+    /// Returns the linked canonical contract-registry table.
+    fn contract_registry_api(&self) -> &'static NcContractRegistryV1 {
+        self.assert_runtime_v1();
+        // SAFETY: The runtime version was checked before calling the v1 getter,
+        // whose result follows the static size-prefix table contract.
+        unsafe { table(runtime_sys::nc_com_get_contract_registry_v1()) }
+    }
+
     /// Returns the linked type-registry table.
     fn type_registry_api(&self) -> &'static NcTypeRegistryV1 {
         self.assert_runtime_v1();
@@ -204,6 +214,11 @@ impl Runtime {
         PluginRegistry::new(self)
     }
 
+    /// Returns the canonical IDL contract module catalog.
+    pub fn contract_registry(&self) -> ContractRegistry<'_> {
+        ContractRegistry::new(self)
+    }
+
     /// Returns the registered class and interface catalog.
     pub fn type_registry(&self) -> TypeRegistry<'_> {
         TypeRegistry::new(self)
@@ -217,6 +232,23 @@ impl Runtime {
     /// Returns callback-based runtime diagnostics operations.
     pub fn debug(&self) -> Debug<'_> {
         Debug::new(self)
+    }
+
+    /// Registers one linked contract module and its exact native dependencies.
+    ///
+    /// Registration is idempotent for the same logical ID and fingerprint. A
+    /// second fingerprint for an existing logical module returns
+    /// [`crate::NC_E_CONTRACT_MISMATCH`] without publishing any part of the new
+    /// graph.
+    ///
+    /// # Safety
+    ///
+    /// The reference, its getter, and every transitive native description must
+    /// remain loaded for the process-wide registration lifetime.
+    pub unsafe fn register_contract_module(&self, module: &NcContractModuleReference) -> Result<(), NcStatus> {
+        // SAFETY: The caller supplies the complete native graph lifetime and
+        // this shared reference remains readable for the synchronous call.
+        status_to_result(unsafe { (self.runtime_api().register_contract_module)(module) })
     }
 
     /// Registers a static plugin descriptor in the process-global runtime.

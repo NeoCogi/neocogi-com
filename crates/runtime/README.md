@@ -8,7 +8,7 @@ It owns the parts that need an operating-system runtime:
 
 - process-global runtime state
 - dynamic plugin loading
-- plugin and type registries
+- canonical IDL contract, plugin, and type registries
 - relationship and provenance inspection
 - callback-based runtime diagnostics
 - plugin descriptor inspection helpers
@@ -16,8 +16,9 @@ It owns the parts that need an operating-system runtime:
 
 Most component and host authors should depend on `neocogi-com` instead. The public
 Rust facade is `neocogi_com::Runtime`, which calls the shared runtime
-through `neocogi-com-runtime-sys`; its plugin registry, type registry, inspection,
-and debug operations are exposed as separate contextual views.
+through `neocogi-com-runtime-sys`; its contract registry, plugin registry, type
+registry, inspection, and debug operations are exposed as separate contextual
+views.
 The `neocogi-com-runtime` rlib supports workspace tooling such as descriptor
 inspection, but its concrete registry type is not the supported host-facing API.
 
@@ -40,7 +41,11 @@ those features is reserved for representation-neutral tooling: it validates
 signatures according to each inspected descriptor but does not register a mixed
 plugin assembly.
 
-The process registry is append-only. It preserves registration order in vectors
+The process registry is append-only. A contract module registration follows
+native dependency getters before taking the catalog lock, records dependencies
+before dependents, and rejects one logical module ID paired with another ABI
+fingerprint as `NC_E_CONTRACT_MISMATCH`. Exact registrations are idempotent.
+It preserves registration order in vectors
 for deterministic ABI enumeration and maintains runtime-private hash indexes
 for plugin, class, interface, relationship, and loaded-module lookup. One
 catalog `RwLock` permits concurrent reads and publishes static registration or
@@ -88,5 +93,5 @@ additional creation returns `NC_E_OUT_OF_RANGE`. Destroying a messenger frees
 one slot, while its monotonic process-local handle is never reused.
 
 The dynamic symbol surface contains only the mandatory runtime ABI version
-function and five v1 table getters. Operation functions are immutable table
+function and six v1 table getters. Operation functions are immutable table
 entries rather than individual exported symbols.

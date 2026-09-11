@@ -10,7 +10,7 @@
 //! `nc_com_runtime_abi_version`. The leading `size` permits append-only table
 //! growth within runtime ABI v1.
 
-use crate::{IUnknown, NcAbiSignature, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus};
+use crate::{IUnknown, NcAbiSignature, NcContractModuleReference, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus};
 
 /// Process-global runtime operations for runtime ABI v1.
 #[repr(C)]
@@ -20,6 +20,8 @@ pub struct NcRuntimeApiV1 {
     pub size: usize,
     /// Core descriptor/object ABI understood by this runtime.
     pub core_abi_version: u32,
+    /// Validates and registers one canonical contract module dependency graph.
+    pub register_contract_module: unsafe extern "C" fn(module: *const NcContractModuleReference) -> NcStatus,
     /// Validates and registers one static plugin descriptor.
     pub register_plugin_descriptor: unsafe extern "C" fn(plugin: *const NcPluginDescriptor) -> NcStatus,
     /// Loads and registers one trusted plugin shared library from a nonempty

@@ -8,7 +8,7 @@
 
 use neocogi_com_core::{
     IUnknown, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_E_INVALID_ARG, NC_E_LOAD_FAILED, NC_E_OUT_OF_RANGE, NC_E_POINTER,
-    NC_OK, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus,
+    NC_OK, NcContractModuleReference, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus,
 };
 
 use crate::construction;
@@ -16,6 +16,17 @@ use crate::loader::PluginLoadErrorKind;
 use crate::state::RuntimeState;
 
 use super::{emit_error, path_from_utf8};
+
+/// Validates and atomically registers one native contract dependency graph.
+pub(super) unsafe extern "C" fn register_contract_module(module: *const NcContractModuleReference) -> NcStatus {
+    // SAFETY: The caller provides the reference and transitive native graph
+    // lifetime required by the canonical contract registry.
+    let status = unsafe { RuntimeState::global().register_contract_module(module) };
+    if status.is_err() {
+        emit_error(NC_DEBUG_TYPE_VALIDATION, status, "contract module registration failed");
+    }
+    status
+}
 
 /// Validates and atomically registers one caller-owned static descriptor graph.
 pub(super) unsafe extern "C" fn register_plugin_descriptor(plugin: *const NcPluginDescriptor) -> NcStatus {

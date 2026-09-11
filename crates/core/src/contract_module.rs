@@ -4,7 +4,7 @@
 //! One fingerprint-qualified contract library owns the module name, source,
 //! declaration identities, and exact dependency getter references.
 
-use crate::{NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcGuid, NcStaticUtf8, NcStatus};
+use crate::{NC_E_ABI_VERSION, NC_E_CONTRACT_MISMATCH, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcGuid, NcStaticUtf8, NcStatus};
 
 /// ABI version of [`NcContractModuleDescription`].
 pub const NC_CONTRACT_DESCRIPTION_ABI_VERSION: u32 = 1;
@@ -52,7 +52,7 @@ pub struct NcContractModuleReference {
     /// Exact ABI fingerprint expected from the getter.
     pub abi_fingerprint: NcContractFingerprint,
     /// Fingerprint-qualified getter imported from the contract library.
-    pub get: NcGetContractModuleDescription,
+    pub get: Option<NcGetContractModuleDescription>,
 }
 
 // SAFETY: A module reference contains immutable values and a function pointer;
@@ -67,15 +67,18 @@ impl NcContractModuleReference {
     /// The contract library defining `get` and every transitive dependency
     /// library must remain loaded for the returned borrow.
     pub unsafe fn description<'a>(&self) -> Result<&'a NcContractModuleDescription, NcStatus> {
+        let Some(get) = self.get else {
+            return Err(NC_E_POINTER);
+        };
         // SAFETY: The caller guarantees the linked getter remains callable.
-        let description = unsafe { (self.get)() };
+        let description = unsafe { get() };
         if description.is_null() {
             return Err(NC_E_POINTER);
         }
         // SAFETY: The getter contract requires a live immutable description.
         let description = unsafe { &*description };
         if description.module_id != self.module_id || description.abi_fingerprint != self.abi_fingerprint {
-            return Err(NC_E_ABI_VERSION);
+            return Err(NC_E_CONTRACT_MISMATCH);
         }
         Ok(description)
     }
@@ -90,7 +93,7 @@ pub struct NcContractDependencyDescription {
     /// Exact transitive ABI fingerprint required by this module revision.
     pub abi_fingerprint: NcContractFingerprint,
     /// Getter imported from the fingerprint-qualified dependency library.
-    pub get: NcGetContractModuleDescription,
+    pub get: Option<NcGetContractModuleDescription>,
 }
 
 // SAFETY: Dependency descriptions are immutable static values plus a function
@@ -207,7 +210,11 @@ pub unsafe fn validate_contract_module_description(description: *const NcContrac
         Err(status) => return status,
     };
     for dependency in dependencies {
-        if dependency.module_id.is_nil() || dependency.module_id == description.module_id || dependency.abi_fingerprint.bytes == [0; 32] {
+        if dependency.module_id.is_nil()
+            || dependency.module_id == description.module_id
+            || dependency.abi_fingerprint.bytes == [0; 32]
+            || dependency.get.is_none()
+        {
             return NC_E_INVALID_ARG;
         }
     }
@@ -293,7 +300,7 @@ mod tests {
         let reference = NcContractModuleReference {
             module_id: MODULE_ID,
             abi_fingerprint: FINGERPRINT,
-            get: get_test_module,
+            get: Some(get_test_module),
         };
         // SAFETY: The getter and returned static remain live for this test.
         let description = unsafe { reference.description() }.unwrap();
@@ -307,9 +314,31 @@ mod tests {
         let reference = NcContractModuleReference {
             module_id: NcGuid::from_fields(99, 2, 3, [4; 8]),
             abi_fingerprint: FINGERPRINT,
-            get: get_test_module,
+            get: Some(get_test_module),
         };
         // SAFETY: The getter remains live; the expected ID is deliberately wrong.
-        assert_eq!(unsafe { reference.description() }.err(), Some(NC_E_ABI_VERSION));
+        assert_eq!(unsafe { reference.description() }.err(), Some(NC_E_CONTRACT_MISMATCH));
+    }
+
+    #[test]
+    fn contract_description_layouts_are_c_stable() {
+        if cfg!(target_pointer_width = "64") {
+            assert_eq!(core::mem::size_of::<NcContractModuleReference>(), 56);
+            assert_eq!(core::mem::size_of::<NcContractDependencyDescription>(), 56);
+            assert_eq!(core::mem::size_of::<NcContractDeclarationDescription>(), 40);
+            assert_eq!(core::mem::size_of::<NcContractModuleDescription>(), 120);
+            assert_eq!(core::mem::offset_of!(NcContractModuleDescription, dependencies), 80);
+            assert_eq!(core::mem::offset_of!(NcContractModuleDescription, declarations), 96);
+            assert_eq!(core::mem::offset_of!(NcContractModuleDescription, source), 104);
+        }
+        if cfg!(target_pointer_width = "32") {
+            assert_eq!(core::mem::size_of::<NcContractModuleReference>(), 52);
+            assert_eq!(core::mem::size_of::<NcContractDependencyDescription>(), 52);
+            assert_eq!(core::mem::size_of::<NcContractDeclarationDescription>(), 32);
+            assert_eq!(core::mem::size_of::<NcContractModuleDescription>(), 84);
+            assert_eq!(core::mem::offset_of!(NcContractModuleDescription, dependencies), 64);
+            assert_eq!(core::mem::offset_of!(NcContractModuleDescription, declarations), 72);
+            assert_eq!(core::mem::offset_of!(NcContractModuleDescription, source), 76);
+        }
     }
 }

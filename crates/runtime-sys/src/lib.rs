@@ -13,7 +13,9 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
-pub use neocogi_com_core::{NcDebugApiV1, NcInspectPluginDescriptorCallbackV1, NcInspectionApiV1, NcPluginRegistryV1, NcRuntimeApiV1, NcTypeRegistryV1};
+pub use neocogi_com_core::{
+    NcContractRegistryV1, NcDebugApiV1, NcInspectPluginDescriptorCallbackV1, NcInspectionApiV1, NcPluginRegistryV1, NcRuntimeApiV1, NcTypeRegistryV1,
+};
 
 // Keep the implementation in the link graph so the exact same exported C
 // symbols resolve from its rlib. No alternate tables or catalog are introduced.
@@ -27,6 +29,9 @@ unsafe extern "C" {
 
     /// Returns the runtime-operation table for runtime ABI v1.
     pub fn nc_com_get_runtime_api_v1() -> *const NcRuntimeApiV1;
+
+    /// Returns the contract-registry table for runtime ABI v1.
+    pub fn nc_com_get_contract_registry_v1() -> *const NcContractRegistryV1;
 
     /// Returns the plugin-registry table for runtime ABI v1.
     pub fn nc_com_get_plugin_registry_v1() -> *const NcPluginRegistryV1;

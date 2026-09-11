@@ -456,18 +456,18 @@ pub use neocogi_com_core::{
     NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL,
     NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN,
     NC_CONTRACT_DECLARATION_CLASS, NC_CONTRACT_DECLARATION_ENUM, NC_CONTRACT_DECLARATION_FACTORY, NC_CONTRACT_DECLARATION_INTERFACE,
-    NC_CONTRACT_DECLARATION_STRUCT, NC_CONTRACT_DESCRIPTION_ABI_VERSION, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG,
-    NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL,
-    NC_GUID_NIL, NC_OK, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiSignature, NcAbiSignaturePart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver,
-    NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcAbiValidationMode, NcClassDescriptor, NcClassInfoV1, NcClassInterfaceDescriptor,
-    NcClassTable, NcConstructorFn, NcContractDeclarationDescription, NcContractDependencyDescription, NcContractFingerprint, NcContractModuleDescription,
-    NcContractModuleReference, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1, NcDebugMessengerCreateInfoV1, NcDescriptorPath, NcDescriptorValidationIssue,
-    NcDescriptorValidationKind, NcGetContractModuleDescription, NcGetPluginDescriptor, NcGuid, NcInspectPluginDescriptorCallbackV1, NcInspectionApiV1,
-    NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcModuleInfoV1, NcPluginDependencyDescriptor,
-    NcPluginDescriptor, NcPluginInfoV1, NcPluginRegistryV1, NcQualifiedNameError, NcRuntimeApiV1, NcStaticUtf8, NcStatus, NcTypeRegistryV1, NcUtf8View,
-    NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel, construct_class_checked,
-    guid_from_qualified_name, raw, return_plugin_descriptor, validate_contract_module_description, validate_plugin_descriptor_with_issues,
-    validate_qualified_name, validate_version_text,
+    NC_CONTRACT_DECLARATION_STRUCT, NC_CONTRACT_DESCRIPTION_ABI_VERSION, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_CONTRACT_MISMATCH, NC_E_INSUFFICIENT_BUFFER,
+    NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER,
+    NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiSignature, NcAbiSignaturePart, NcAbiPassing,
+    NcAbiPassingDescriptor, NcAbiReceiver, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcAbiValidationMode, NcClassDescriptor,
+    NcClassInfoV1, NcClassInterfaceDescriptor, NcClassTable, NcConstructorFn, NcContractDeclarationDescription, NcContractDependencyDescription,
+    NcContractFingerprint, NcContractModuleDescription, NcContractModuleReference, NcContractRegistryV1, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1,
+    NcDebugMessengerCreateInfoV1, NcDescriptorPath, NcDescriptorValidationIssue, NcDescriptorValidationKind, NcGetContractModuleDescription,
+    NcGetPluginDescriptor, NcGuid, NcInspectPluginDescriptorCallbackV1, NcInspectionApiV1, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor,
+    NcMethodParamDescriptor, NcMethodReturnDescriptor, NcModuleInfoV1, NcPluginDependencyDescriptor, NcPluginDescriptor, NcPluginInfoV1, NcPluginRegistryV1,
+    NcQualifiedNameError, NcRuntimeApiV1, NcStaticUtf8, NcStatus, NcTypeRegistryV1, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES,
+    QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel, construct_class_checked, guid_from_qualified_name, raw, return_plugin_descriptor,
+    validate_contract_module_description, validate_plugin_descriptor_with_issues, validate_qualified_name, validate_version_text,
 };
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{ComMap, ComMapAccess};
@@ -476,7 +476,7 @@ pub use object::{__ComCallGate, __ComExclusiveLease, __ComSharedLease, __com_add
 pub use neocogi_com_core::__ComSupportsDescriptionThreading;
 #[cfg(feature = "runtime")]
 pub use runtime::{
-    ClassInfo, Debug, DebugMessenger, Inspection, LoadedModuleId, LoadedModuleInfo, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS,
+    ClassInfo, ContractRegistry, Debug, DebugMessenger, Inspection, LoadedModuleId, LoadedModuleInfo, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS,
     NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES, NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, PluginInfo, PluginRegistry, Runtime, TypeRegistry,
 };
 

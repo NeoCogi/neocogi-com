@@ -13,9 +13,10 @@ use std::path::Path;
 use crate::debug;
 use neocogi_com_core::{
     NC_COM_CORE_ABI_VERSION, NC_DEBUG_SEVERITY_ERROR, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcDebugApiV1, NcDebugMessageV1,
-    NcInspectionApiV1, NcPluginRegistryV1, NcRuntimeApiV1, NcStatus, NcTypeRegistryV1, NcUtf8View,
+    NcContractRegistryV1, NcInspectionApiV1, NcPluginRegistryV1, NcRuntimeApiV1, NcStatus, NcTypeRegistryV1, NcUtf8View,
 };
 
+mod contract_registry;
 mod exports;
 mod inspection;
 mod plugin_registry;
@@ -26,18 +27,28 @@ use inspection::{
     class_info, class_interface_count, class_interface_ids, inspect_plugin_library_utf8, interface_implementor_class_count, interface_implementor_class_ids,
     module_info, plugin_class_count, plugin_class_ids, plugin_dependency_count, plugin_dependency_ids, plugin_info,
 };
+use contract_registry::{module_count as contract_module_count, module_description as contract_module_description, module_ids as contract_module_ids};
 use plugin_registry::{loaded_module_count, loaded_module_ids, plugin_count, plugin_ids};
-use runtime::{construct_class, load_plugin_library_utf8, register_plugin_descriptor, require_interface};
+use runtime::{construct_class, load_plugin_library_utf8, register_contract_module, register_plugin_descriptor, require_interface};
 use type_registry::{class_count, class_ids, interface_count, interface_ids};
 
 /// Immutable runtime-operation table returned by the exported v1 getter.
 pub(super) static RUNTIME_API_V1: NcRuntimeApiV1 = NcRuntimeApiV1 {
     size: mem::size_of::<NcRuntimeApiV1>(),
     core_abi_version: NC_COM_CORE_ABI_VERSION,
+    register_contract_module,
     register_plugin_descriptor,
     load_plugin_library_utf8,
     require_interface,
     construct_class,
+};
+
+/// Immutable contract-registry table returned by the exported v1 getter.
+pub(super) static CONTRACT_REGISTRY_V1: NcContractRegistryV1 = NcContractRegistryV1 {
+    size: mem::size_of::<NcContractRegistryV1>(),
+    module_count: contract_module_count,
+    module_ids: contract_module_ids,
+    module_description: contract_module_description,
 };
 
 // These values are immutable for the process lifetime. Getters may therefore
@@ -138,8 +149,8 @@ fn emit_error(message_type: u32, status: NcStatus, text: &str) {
 #[cfg(test)]
 mod tests {
     use super::exports::{
-        nc_com_get_debug_api_v1, nc_com_get_inspection_api_v1, nc_com_get_plugin_registry_v1, nc_com_get_runtime_api_v1, nc_com_get_type_registry_v1,
-        nc_com_runtime_abi_version,
+        nc_com_get_contract_registry_v1, nc_com_get_debug_api_v1, nc_com_get_inspection_api_v1, nc_com_get_plugin_registry_v1, nc_com_get_runtime_api_v1,
+        nc_com_get_type_registry_v1, nc_com_runtime_abi_version,
     };
     use super::*;
     use core::ffi::c_void;
@@ -172,6 +183,7 @@ mod tests {
     #[test]
     fn getters_return_complete_static_tables() {
         let runtime = unsafe { &*nc_com_get_runtime_api_v1() };
+        let contracts = unsafe { &*nc_com_get_contract_registry_v1() };
         let plugins = unsafe { &*nc_com_get_plugin_registry_v1() };
         let types = unsafe { &*nc_com_get_type_registry_v1() };
         let inspection = unsafe { &*nc_com_get_inspection_api_v1() };
@@ -179,6 +191,7 @@ mod tests {
 
         assert_eq!(runtime.size, mem::size_of::<NcRuntimeApiV1>());
         assert_eq!(runtime.core_abi_version, NC_COM_CORE_ABI_VERSION);
+        assert_eq!(contracts.size, mem::size_of::<NcContractRegistryV1>());
         assert_eq!(plugins.size, mem::size_of::<NcPluginRegistryV1>());
         assert_eq!(types.size, mem::size_of::<NcTypeRegistryV1>());
         assert_eq!(inspection.size, mem::size_of::<NcInspectionApiV1>());

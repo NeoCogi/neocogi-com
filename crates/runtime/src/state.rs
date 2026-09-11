@@ -11,6 +11,7 @@ use std::sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use neocogi_com_core::NcGuid;
 
+use crate::contract_registry::ContractRegistry;
 use crate::debug::DebugState;
 use crate::plugin_registry::PluginRegistry;
 use crate::type_registry::TypeRegistry;
@@ -25,6 +26,8 @@ pub(crate) struct RuntimeState {
 
 /// Complete append-only runtime catalog published through one lock.
 pub(crate) struct RuntimeCatalog {
+    /// Canonical IDL module identities and native descriptions.
+    pub(crate) contract_registry: ContractRegistry,
     /// One-to-one mappings checked during registration transactions.
     pub(crate) registration: RegistrationState,
     /// Plugin descriptors plus retained dynamic modules.
@@ -65,6 +68,7 @@ impl RuntimeState {
     pub(crate) fn new() -> Self {
         Self {
             catalog: RwLock::new(RuntimeCatalog {
+                contract_registry: ContractRegistry::new(),
                 registration: RegistrationState {
                     name_by_id: HashMap::new(),
                     id_by_name: HashMap::new(),
