@@ -66,7 +66,7 @@ pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcSt
 pub use decode::{ComDeserialize, ComDeserializer, ComEnum, ComRecord, ComRecordAccess, ComSequence, ComSequenceAccess, ComVariantAccess};
 #[cfg(feature = "alloc")]
 pub use decode::{ComMap, ComMapAccess};
-pub use guid::{NC_COM_GUID_NAMESPACE, NC_GUID_NIL, NcGuid, ParseGuidError, guid_from_qualified_name};
+pub use guid::{NC_COM_GUID_NAMESPACE, NC_GUID_NIL, NcGuid, ParseGuidError, guid_from_name, guid_from_qualified_name};
 pub use signature::NcAbiSignature;
 #[cfg(feature = "alloc")]
 pub use metadata::{format_abi_signature, format_method_signature};

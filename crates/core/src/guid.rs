@@ -41,8 +41,17 @@ pub const NC_COM_GUID_NAMESPACE: NcGuid =
 /// handwritten descriptor producers can use the same authoritative operation
 /// as the proc macros and runtime validator.
 pub const fn guid_from_qualified_name(qualified_name: &str) -> NcGuid {
-    let namespace = NC_COM_GUID_NAMESPACE.to_uuid_bytes();
-    let name = qualified_name.as_bytes();
+    guid_from_name(NC_COM_GUID_NAMESPACE, qualified_name.as_bytes())
+}
+
+/// Derives a UUIDv5 identity from an explicit namespace and arbitrary name bytes.
+///
+/// Higher-level schema systems use this primitive when their canonical identity
+/// preimage contains binary fields rather than one qualified UTF-8 name. The
+/// function applies no normalization or framing; callers must supply an
+/// unambiguous canonical byte sequence.
+pub const fn guid_from_name(namespace: NcGuid, name: &[u8]) -> NcGuid {
+    let namespace = namespace.to_uuid_bytes();
     let message_len = namespace.len() + name.len();
     let padded_len = (message_len + 9).div_ceil(64) * 64;
     let bit_len = (message_len as u64) * 8;

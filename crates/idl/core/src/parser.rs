@@ -2,6 +2,7 @@
 
 use std::{collections::HashSet, fmt, path::Path};
 
+use neocogi_com_core::NcGuid;
 use proc_macro2::Span;
 use syn::{
     Attribute, Expr, ExprLit, ExprUnary, FnArg, GenericArgument, Ident, Lit, LitInt, LitStr, Pat, PathArguments, ReturnType, Token, TraitItemFn, Type,
@@ -591,7 +592,7 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
             let arguments = attribute.parse_args::<IdArguments>()?;
             id = Some(DeclarationId {
                 version: positive_version(arguments.version, &attribute)?,
-                explicit: Some(parse_uuid(&arguments.uuid)?),
+                explicit: Some(NcGuid::from_uuid_bytes(parse_uuid(&arguments.uuid)?)),
             });
         } else if attribute.path().is_ident("repr") && matches!(context, AttributeContext::Enum) {
             if repr.is_some() {

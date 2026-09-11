@@ -1,5 +1,7 @@
 //! Owned syntax model shared by generation, build integration, and tools.
 
+use neocogi_com_core::NcGuid;
+
 /// One explicit import from another logical IDL module.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Import {
@@ -15,7 +17,7 @@ pub struct DeclarationId {
     /// Positive author-controlled declaration version.
     pub version: u32,
     /// Canonical UUID bytes when `#[id]` overrides derived identity.
-    pub explicit: Option<[u8; 16]>,
+    pub explicit: Option<NcGuid>,
 }
 
 /// One source declaration together with its stable identity inputs.

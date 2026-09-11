@@ -10,6 +10,8 @@
 mod model;
 mod parser;
 mod path;
+mod resolve;
+mod sha256;
 
 pub use model::{
     AbiType, Class, Declaration, DeclarationId, DeclarationKind, Enum, EnumRepr, EnumVariant, Factory, Field, Import, Interface, Method, NamedType, Parameter,
@@ -17,6 +19,7 @@ pub use model::{
 };
 pub use parser::{ParseError, parse_module};
 pub use path::{ModuleName, ModulePathError};
+pub use resolve::{DeclarationIdentity, ResolutionError, ResolvedDependency, ResolvedModule, ResolvedModules, resolve_modules};
 
 /// One parsed and structurally validated IDL module.
 #[derive(Clone, Debug, Eq, PartialEq)]
