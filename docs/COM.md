@@ -58,6 +58,8 @@ factory ExampleFactory {
 The file path supplies the dotted module name. Declaration names preserve exact
 casing, so `IWidget` in `neocogi/ui.ncidl` is `neocogi.ui.IWidget`.
 `#[version(N)]` derives identity; `#[id(N, "UUID")]` supplies an explicit one.
+An enum may select `u8`, `u16`, `u32`, `i8`, `i16`, or `i32` after its name;
+the default is `u32`.
 
 Every module is an ordinary Cargo crate with `build.rs`. The build helper tracks
 the `.ncidl` source and transitive module graph, generates Rust bindings into

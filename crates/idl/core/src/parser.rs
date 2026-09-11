@@ -164,9 +164,9 @@ fn parse_struct(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Resu
 /// Parses one enum with unit, tuple, or named payload variants.
 fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Declaration> {
     let metadata = parse_attributes(attributes, AttributeContext::Enum)?;
-    let repr = metadata_repr(&metadata);
     input.parse::<Token![enum]>()?;
     let name = input.parse::<Ident>()?;
+    let repr = parse_optional_enum_repr(input)?;
     let body;
     braced!(body in input);
     let mut variants = Vec::new();
@@ -559,7 +559,7 @@ fn parse_import(input: ParseStream<'_>) -> syn::Result<Import> {
 enum AttributeContext {
     /// Structs additionally accept format-neutral generated decoding policy.
     Plain,
-    /// Enums additionally accept a fixed integer representation.
+    /// Enums accept identity and documentation; their representation is syntax.
     Enum,
     /// Interfaces accept identity and documentation only.
     Interface,
@@ -574,8 +574,6 @@ struct Attributes {
     docs: Vec<String>,
     /// Required version and optional explicit UUID.
     id: DeclarationId,
-    /// Enum representation when the declaration is an enum.
-    repr: Option<EnumRepr>,
     /// Class or factory threading capability.
     threading: Option<Threading>,
     /// Whether generated bindings implement format-neutral typed decoding.
@@ -590,7 +588,6 @@ struct Attributes {
 fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> syn::Result<Attributes> {
     let mut docs = Vec::new();
     let mut id = None;
-    let mut repr = None;
     let mut threading = None;
     let mut deserialize = false;
     let mut deserialize_default = false;
@@ -617,11 +614,6 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
                 version: positive_version(arguments.version, &attribute)?,
                 explicit: Some(NcGuid::from_uuid_bytes(parse_uuid(&arguments.uuid)?)),
             });
-        } else if attribute.path().is_ident("repr") && matches!(context, AttributeContext::Enum) {
-            if repr.is_some() {
-                return Err(syn::Error::new_spanned(attribute, "duplicate enum representation"));
-            }
-            repr = Some(parse_enum_repr(&attribute)?);
         } else if attribute.path().is_ident("threading") && matches!(context, AttributeContext::Object) {
             if threading.is_some() {
                 return Err(syn::Error::new_spanned(attribute, "duplicate threading capability"));
@@ -644,7 +636,6 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
     Ok(Attributes {
         docs,
         id,
-        repr,
         threading,
         deserialize,
         deserialize_default,
@@ -687,11 +678,6 @@ fn parse_deserialize(attribute: &Attribute) -> syn::Result<DeserializePolicy> {
     Ok(policy)
 }
 
-/// Returns an enum's declared representation or the stable `u32` default.
-fn metadata_repr(metadata: &Attributes) -> EnumRepr {
-    metadata.repr.unwrap_or(EnumRepr::U32)
-}
-
 /// Returns a callable object's declared capability or the conservative local default.
 fn metadata_threading(metadata: &Attributes) -> Threading {
     metadata.threading.unwrap_or(Threading::Local)
@@ -727,9 +713,13 @@ fn positive_version(version: u32, source: &impl quote::ToTokens) -> syn::Result<
     }
 }
 
-/// Parses the six fixed enum representation spellings.
-fn parse_enum_repr(attribute: &Attribute) -> syn::Result<EnumRepr> {
-    let repr = attribute.parse_args::<Ident>()?;
+/// Parses an optional `: integer` enum suffix, defaulting to `u32`.
+fn parse_optional_enum_repr(input: ParseStream<'_>) -> syn::Result<EnumRepr> {
+    if !input.peek(Token![:]) {
+        return Ok(EnumRepr::U32);
+    }
+    input.parse::<Token![:]>()?;
+    let repr = input.parse::<Ident>()?;
     match repr.to_string().as_str() {
         "u8" => Ok(EnumRepr::U8),
         "u16" => Ok(EnumRepr::U16),
@@ -737,7 +727,7 @@ fn parse_enum_repr(attribute: &Attribute) -> syn::Result<EnumRepr> {
         "i8" => Ok(EnumRepr::I8),
         "i16" => Ok(EnumRepr::I16),
         "i32" => Ok(EnumRepr::I32),
-        _ => Err(syn::Error::new_spanned(repr, "IDL enum repr must be u8, u16, u32, i8, i16, or i32")),
+        _ => Err(syn::Error::new_spanned(repr, "IDL enum representation must be u8, u16, u32, i8, i16, or i32")),
     }
 }
 

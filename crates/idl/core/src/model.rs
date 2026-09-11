@@ -72,14 +72,14 @@ pub struct Field {
     pub ty: AbiType,
 }
 
-/// Integer representation used by an enum's discriminant.
+/// Fixed integer representation selected by an enum's optional type suffix.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EnumRepr {
     /// Unsigned eight-bit discriminant.
     U8,
     /// Unsigned sixteen-bit discriminant.
     U16,
-    /// Unsigned thirty-two-bit discriminant and the IDL default.
+    /// Unsigned thirty-two-bit discriminant and default when no suffix appears.
     U32,
     /// Signed eight-bit discriminant.
     I8,
@@ -92,7 +92,7 @@ pub enum EnumRepr {
 /// An ABI enum declaration.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Enum {
-    /// Fixed discriminant representation.
+    /// Fixed discriminant representation selected by the suffix or default.
     pub repr: EnumRepr,
     /// Variants in normative ABI order.
     pub variants: Vec<EnumVariant>,

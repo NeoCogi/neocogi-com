@@ -19,9 +19,8 @@ fn parses_a_complete_contract_module() {
                 teardown: Status,
             }
 
-            #[repr(u8)]
             #[version(2)]
-            enum Direction {
+            enum Direction: u8 {
                 Horizontal = 0,
                 Vertical = 1,
             }
@@ -86,6 +85,7 @@ fn parses_a_complete_contract_module() {
     let DeclarationKind::Enum(event) = &module.declaration("Event").unwrap().kind else {
         panic!("Event should be an enum");
     };
+    assert_eq!(event.repr, EnumRepr::U32);
     assert!(matches!(event.variants[0].fields, VariantFields::Unit));
     assert!(matches!(event.variants[1].fields, VariantFields::Tuple(_)));
     assert!(matches!(event.variants[2].fields, VariantFields::Named(_)));
@@ -124,6 +124,46 @@ fn rejects_mutable_object_borrows() {
 fn rejects_public_keyword() {
     let error = parse_module(Path::new("neocogi/ui.ncidl"), "#[version(1)] pub struct Size { width: u32 }").unwrap_err();
     assert!(error.to_string().contains("public implicitly"));
+}
+
+/// Confirms representation is IDL syntax rather than a Rust layout attribute.
+#[test]
+fn rejects_rust_enum_repr_attributes() {
+    let error = parse_module(
+        Path::new("neocogi/ui.ncidl"),
+        "#[version(1)] #[repr(u8)] enum Direction { Horizontal, Vertical }",
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("unsupported attribute"));
+}
+
+/// Confirms only fixed-width integer discriminants can follow an enum colon.
+#[test]
+fn rejects_invalid_enum_representations() {
+    let error = parse_module(Path::new("neocogi/ui.ncidl"), "#[version(1)] enum Direction: usize { Horizontal, Vertical }").unwrap_err();
+    assert!(error.to_string().contains("must be u8, u16, u32, i8, i16, or i32"));
+}
+
+/// Confirms every documented fixed-width suffix maps to its semantic model.
+#[test]
+fn parses_every_enum_representation_suffix() {
+    let cases = [
+        ("u8", EnumRepr::U8),
+        ("u16", EnumRepr::U16),
+        ("u32", EnumRepr::U32),
+        ("i8", EnumRepr::I8),
+        ("i16", EnumRepr::I16),
+        ("i32", EnumRepr::I32),
+    ];
+
+    for (suffix, expected) in cases {
+        let source = format!("#[version(1)] enum Value: {suffix} {{ Zero = 0 }}");
+        let module = parse_module(Path::new("neocogi/value.ncidl"), &source).unwrap();
+        let DeclarationKind::Enum(value) = &module.declaration("Value").unwrap().kind else {
+            panic!("Value should be an enum");
+        };
+        assert_eq!(value.repr, expected);
+    }
 }
 
 /// Confirms every declaration forces an intentional version or identity.

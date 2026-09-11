@@ -70,6 +70,9 @@ A `.ncidl` module may declare `struct`, `enum`, `trait`, `class`, and `factory`.
 Every declaration/member is public. Its qualified name is the dotted module
 name plus the identifier exactly as authored. `#[version(N)]` derives identity;
 `#[id(N, "UUID")]` pins it explicitly while retaining the version.
+Enum representation is written after its name, such as `enum PollStatus: u8`;
+the supported fixed-width integer types are `u8`, `u16`, `u32`, `i8`, `i16`,
+and `i32`, with `u32` as the default.
 
 `class` describes one public callable object surface and its required
 interfaces. `factory` describes a callable construction surface. Neither

@@ -26,9 +26,8 @@ fn generates_rust_bindings_for_a_module_graph() {
     let ui_source = r#"
         use neocogi.render::{ITexture, Size};
 
-        #[repr(u8)]
         #[version(1)]
-        enum Filter { Nearest = 0, Linear = 1 }
+        enum Filter: u8 { Nearest = 0, Linear = 1 }
 
         #[version(1)]
         class Button: ITexture {
