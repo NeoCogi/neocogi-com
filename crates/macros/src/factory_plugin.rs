@@ -184,6 +184,7 @@ pub(crate) fn expand_factory_plugin(args: FactoryPluginArgs) -> proc_macro2::Tok
         /// Immutable factory-only plugin metadata consumed by the shared runtime.
         static NC_COM_FACTORY_PLUGIN_DESCRIPTION: #nc::NcFactoryPluginDescription = #nc::NcFactoryPluginDescription {
             core_abi_version: #nc::NC_COM_CORE_ABI_VERSION,
+            validation_mode: #nc::NC_ABI_VALIDATION_MODE,
             plugin_id: #plugin_id,
             qualified_name: #nc::NcStaticUtf8::from_static(#name),
             plugin_version: #nc::NcStaticUtf8::from_static(#version),

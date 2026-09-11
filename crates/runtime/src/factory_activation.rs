@@ -211,6 +211,7 @@ mod tests {
     /// Minimal validated registry record used only by resolution tests.
     static DESCRIPTION: NcFactoryPluginDescription = NcFactoryPluginDescription {
         core_abi_version: neocogi_com_core::NC_COM_CORE_ABI_VERSION,
+        validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
         plugin_id: guid_from_qualified_name("nc.tests.activation"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.activation"),
         plugin_version: NcStaticUtf8::from_static("1.0.0"),

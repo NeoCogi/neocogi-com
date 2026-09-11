@@ -6,9 +6,9 @@
 //! constructor frame is present in this ABI.
 
 use crate::{
-    ComFactoryBootstrap, ComInterface, IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode,
-    NcContractModuleReference, NcGuid, NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name,
-    validate_version_text,
+    ComFactoryBootstrap, ComInterface, IUnknown, NC_ABI_VALIDATION_MODE, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK,
+    NcAbiThreadingMode, NcAbiValidationMode, NcContractModuleReference, NcGuid, NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name,
+    validate_qualified_name, validate_version_text,
 };
 
 /// Exported symbol returning a factory-only plugin description.
@@ -68,6 +68,8 @@ where
 pub struct NcFactoryPluginDescription {
     /// Core object ABI generation understood by this plugin.
     pub core_abi_version: u32,
+    /// ABI signature representation compiled into generated interface IDs.
+    pub validation_mode: NcAbiValidationMode,
     /// Stable plugin identity derived from `qualified_name`.
     pub plugin_id: NcGuid,
     /// Normative qualified plugin name.
@@ -145,6 +147,18 @@ pub unsafe fn validate_factory_plugin_description(plugin: *const NcFactoryPlugin
     // SAFETY: Null was rejected and the caller guarantees root readability.
     let plugin = unsafe { &*plugin };
     if plugin.core_abi_version != NC_COM_CORE_ABI_VERSION {
+        return NC_E_ABI_VERSION;
+    }
+    if NcAbiValidationMode::from_raw(plugin.validation_mode.as_raw()).is_none() {
+        return NC_E_INVALID_ARG;
+    }
+    #[cfg(any(
+        feature = "com-validation-none",
+        feature = "com-validation-sha-256",
+        feature = "com-validation-fnv-1a-128",
+        feature = "com-validation-mangling"
+    ))]
+    if plugin.validation_mode != NC_ABI_VALIDATION_MODE {
         return NC_E_ABI_VERSION;
     }
     // SAFETY: The caller guarantees both static text views remain readable.
@@ -282,6 +296,7 @@ mod tests {
     /// Complete factory-only plugin fixture with no plugin dependencies.
     static VALID_PLUGIN: NcFactoryPluginDescription = NcFactoryPluginDescription {
         core_abi_version: NC_COM_CORE_ABI_VERSION,
+        validation_mode: NC_ABI_VALIDATION_MODE,
         plugin_id: guid_from_qualified_name("nc.tests.factory_plugin"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.factory_plugin"),
         plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -316,6 +331,19 @@ mod tests {
         assert_eq!(unsafe { validate_factory_plugin_description(&invalid) }, NC_E_INVALID_ARG);
     }
 
+    /// Confirms an unknown interface-signature representation is rejected.
+    #[test]
+    fn rejects_an_unknown_validation_mode() {
+        let invalid = NcFactoryPluginDescription {
+            // SAFETY: The transparent wrapper has exactly the complete `u32`
+            // value domain; validation must still reject unrecognized tags.
+            validation_mode: unsafe { core::mem::transmute::<u32, NcAbiValidationMode>(u32::MAX) },
+            ..VALID_PLUGIN
+        };
+        // SAFETY: The stack root borrows only immutable static child tables.
+        assert_eq!(unsafe { validate_factory_plugin_description(&invalid) }, NC_E_INVALID_ARG);
+    }
+
     /// Locks the new descriptor's field order to its documented C ABI layout.
     #[test]
     fn factory_plugin_description_layout_is_c_stable() {
@@ -323,7 +351,8 @@ mod tests {
         {
             assert_eq!(core::mem::size_of::<NcFactoryPluginDescription>(), 120);
             assert_eq!(core::mem::align_of::<NcFactoryPluginDescription>(), 8);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, plugin_id), 4);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, validation_mode), 4);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, plugin_id), 8);
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, dependencies), 64);
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, contracts), 80);
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, root_factory_id), 88);
@@ -331,13 +360,14 @@ mod tests {
         }
         #[cfg(target_pointer_width = "32")]
         {
-            assert_eq!(core::mem::size_of::<NcFactoryPluginDescription>(), 76);
+            assert_eq!(core::mem::size_of::<NcFactoryPluginDescription>(), 80);
             assert_eq!(core::mem::align_of::<NcFactoryPluginDescription>(), 4);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, plugin_id), 4);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, dependencies), 40);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, contracts), 48);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, root_factory_id), 52);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, activate), 72);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, validation_mode), 4);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, plugin_id), 8);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, dependencies), 44);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, contracts), 52);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, root_factory_id), 56);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, activate), 76);
         }
     }
 }
