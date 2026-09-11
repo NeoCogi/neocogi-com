@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::string::String;
 use std::vec::Vec;
 
-use neocogi_com_core::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_OK, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus, validate_plugin_descriptor_with_issues};
+use neocogi_com_core::{NC_E_INVALID_ARG, NC_OK, NcGuid, NcInterfaceId, NcPluginDescriptor, NcStatus, validate_plugin_descriptor_with_issues};
 
 use crate::loader::LoadedModuleId;
 use crate::plugin_registry::RegisteredPlugin;
@@ -308,8 +308,14 @@ impl RuntimeCatalog {
         // completed. The enclosing write guard protects state-dependent checks
         // and publication of every catalog projection.
 
-        if let Err(status) = self.validate_registered_dependencies(&batch.plugin.dependency_ids) {
+        if let Err(status) = self.validate_plugin_dependencies(&batch.plugin.dependency_ids) {
             return status;
+        }
+        if self.factory_plugin_registry.contains_plugin(batch.plugin.plugin_id) {
+            // One logical plugin has one activation model. Rejecting the
+            // reverse registration order here mirrors the factory path and
+            // keeps common inspection/enumeration unambiguous.
+            return NC_E_INVALID_ARG;
         }
         if let Err(status) = validate_registered_identity_mappings(&batch.identities, &self.registration) {
             return status;
@@ -327,14 +333,6 @@ impl RuntimeCatalog {
         self.insert_plugin_and_classes((!plugin_registered).then_some(plugin), classes);
         register_identity_mappings(&mut self.registration, identities);
         NC_OK
-    }
-
-    /// Requires every declared hard dependency to be registered already.
-    fn validate_registered_dependencies(&self, dependency_ids: &[NcGuid]) -> Result<(), NcStatus> {
-        if dependency_ids.iter().any(|dependency_id| !self.plugin_registry.contains_plugin(*dependency_id)) {
-            return Err(NC_E_NOT_FOUND);
-        }
-        Ok(())
     }
 
     /// Removes exact idempotent records and rejects conflicting existing records.
@@ -402,8 +400,8 @@ fn register_identity_mappings(registration: &mut RegistrationState, identities: 
 mod tests {
     use super::*;
     use neocogi_com_core::{
-        IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NcAbiSignature, NcAbiSignaturePart, NcClassDescriptor, NcClassInterfaceDescriptor, NcClassTable,
-        NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor, NcStaticUtf8,
+        IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_NOT_FOUND, NcAbiSignature, NcAbiSignaturePart, NcClassDescriptor, NcClassInterfaceDescriptor,
+        NcClassTable, NcInterfaceDescriptor, NcInterfaceId, NcPluginDependencyDescriptor, NcStaticUtf8,
     };
     use std::rc::Rc;
     use std::sync::{

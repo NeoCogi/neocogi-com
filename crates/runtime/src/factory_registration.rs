@@ -9,7 +9,7 @@ use std::string::String;
 use std::vec::Vec;
 
 use neocogi_com_core::{
-    NC_CONTRACT_DECLARATION_FACTORY, NC_E_CONTRACT_MISMATCH, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_OK, NcFactoryPluginDescription, NcGuid, NcStatus,
+    NC_CONTRACT_DECLARATION_FACTORY, NC_E_CONTRACT_MISMATCH, NC_E_INVALID_ARG, NC_OK, NcFactoryPluginDescription, NcGuid, NcStatus,
     validate_factory_plugin_description,
 };
 
@@ -134,12 +134,8 @@ impl RuntimeCatalog {
     pub(crate) fn commit_factory_plugin_registration(&mut self, batch: FactoryPluginRegistrationBatch) -> NcStatus {
         let FactoryPluginRegistrationBatch { plugin, modules, qualified_name } = batch;
 
-        if plugin
-            .dependency_ids
-            .iter()
-            .any(|dependency_id| !self.factory_plugin_registry.contains_plugin(*dependency_id))
-        {
-            return NC_E_NOT_FOUND;
+        if let Err(status) = self.validate_plugin_dependencies(&plugin.dependency_ids) {
+            return status;
         }
         if self.plugin_registry.contains_plugin(plugin.plugin_id) {
             // A logical plugin belongs to exactly one activation model. This

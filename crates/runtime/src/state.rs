@@ -100,17 +100,72 @@ impl RuntimeState {
     }
 }
 
+impl RuntimeCatalog {
+    /// Returns whether either activation model owns a plugin identity.
+    ///
+    /// A dependency edge names a plugin, not the registry used to activate it.
+    /// Keeping this lookup on the complete catalog prevents callers from
+    /// learning or duplicating the internal legacy/factory storage split.
+    pub(crate) fn contains_plugin(&self, plugin_id: NcGuid) -> bool {
+        self.plugin_registry.contains_plugin(plugin_id) || self.factory_plugin_registry.contains_plugin(plugin_id)
+    }
+
+    /// Requires every hard dependency to be present under either activation model.
+    ///
+    /// Registration remains dependency-first, while a legacy plugin may depend
+    /// on a factory plugin and vice versa. The activation representation is not
+    /// part of the dependency contract.
+    pub(crate) fn validate_plugin_dependencies(&self, dependency_ids: &[NcGuid]) -> Result<(), neocogi_com_core::NcStatus> {
+        if dependency_ids.iter().any(|dependency_id| !self.contains_plugin(*dependency_id)) {
+            return Err(neocogi_com_core::NC_E_NOT_FOUND);
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::path::PathBuf;
     use std::sync::{Arc, Barrier};
 
-    use neocogi_com_core::{NcGuid, NcInterfaceId};
+    use neocogi_com_core::{NC_E_NOT_FOUND, NcGuid, NcInterfaceId};
 
+    use crate::factory_plugin_registry::RegisteredFactoryPlugin;
     use crate::loader::{LoadedModule, LoadedModuleInfo};
     use crate::plugin_registry::RegisteredPlugin;
     use crate::type_registry::RegisteredClass;
+
+    /// Confirms plugin dependency identity is independent of activation storage.
+    #[test]
+    fn catalog_resolves_plugins_across_both_activation_models() {
+        let runtime = RuntimeState::new();
+        let legacy_id = NcGuid::from_fields(0x6150_0011, 0x5100, 0x4100, [0x91; 8]);
+        let factory_id = NcGuid::from_fields(0x6150_0012, 0x5100, 0x4100, [0x92; 8]);
+        let missing_id = NcGuid::from_fields(0x6150_0013, 0x5100, 0x4100, [0x93; 8]);
+
+        {
+            let mut catalog = runtime.write_catalog();
+            // These null descriptor roots are safe in this lookup-only test:
+            // dependency validation reads only the owned IDs in each record.
+            catalog.plugin_registry.insert(RegisteredPlugin {
+                plugin_id: legacy_id,
+                plugin: core::ptr::null(),
+                dependency_ids: Vec::new(),
+            });
+            catalog.factory_plugin_registry.insert(RegisteredFactoryPlugin {
+                plugin_id: factory_id,
+                description: core::ptr::null(),
+                dependency_ids: Vec::new(),
+            });
+        }
+
+        let catalog = runtime.read_catalog();
+        assert!(catalog.contains_plugin(legacy_id));
+        assert!(catalog.contains_plugin(factory_id));
+        assert_eq!(catalog.validate_plugin_dependencies(&[legacy_id, factory_id]), Ok(()));
+        assert_eq!(catalog.validate_plugin_dependencies(&[missing_id]), Err(NC_E_NOT_FOUND));
+    }
 
     #[test]
     fn dynamic_activation_records_become_visible_in_one_catalog_publication() {
