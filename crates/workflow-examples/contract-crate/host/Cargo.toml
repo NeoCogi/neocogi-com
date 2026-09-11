@@ -1,9 +1,0 @@
-[package]
-name = "neocogi-com-contract-workflow-host"
-version = "0.0.0"
-edition = "2024"
-publish = false
-
-[dependencies]
-contract_abi = { package = "neocogi-com-contract-workflow-abi", path = "../abi" }
-neocogi-com = { path = "../../../api", features = ["macros", "std", "runtime"] }

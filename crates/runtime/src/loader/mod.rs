@@ -1,8 +1,9 @@
 //! Trusted dynamic-library activation and module lifetime ownership.
 //!
 //! Loading has four ordered phases: open the native module, resolve its standard
-//! descriptor entrypoint, build one validated registration batch, then commit
-//! that batch atomically with the retained handle and module provenance.
+//! factory-description entrypoint, build one validated registration batch,
+//! then commit that batch atomically with the retained handle and module
+//! provenance.
 //! Failed post-open live activation pins the handle before the public ABI emits
 //! its diagnostic and aborts. Successful activation associates an append-only
 //! process-local module ID and diagnostic path with the atomically registered
@@ -22,7 +23,6 @@ use neocogi_com_core::{
 };
 
 use crate::factory_registration::{FactoryPluginRegistrationBatch, build_factory_plugin_registration_batch};
-use crate::registration::{PluginRegistrationBatch, PluginRegistrationBatchError, PluginRegistrationBatchErrorKind, build_plugin_registration_batch};
 use crate::state::RuntimeState;
 
 mod error;
@@ -129,7 +129,10 @@ impl LoadedModule {
         Self { _library: None }
     }
 
-    /// Resolves and types the standard plugin descriptor entrypoint.
+    /// Resolves and types the historical class-table descriptor entrypoint.
+    ///
+    /// Only offline compatibility inspection uses this helper. Live activation
+    /// accepts the factory description entrypoint exclusively.
     unsafe fn get_plugin_descriptor(&self, path: &Path) -> Result<NcGetPluginDescriptor, PluginLoadError> {
         // SAFETY: The caller is loading an neocogi-com plugin and will call the
         // returned symbol using the exact C ABI type defined by neocogi-com-core.
@@ -144,6 +147,22 @@ impl LoadedModule {
         // SAFETY: The symbol was resolved by name from a trusted neocogi-com plugin
         // and is expected to have the standard descriptor-provider signature.
         Ok(unsafe { core::mem::transmute::<*mut c_void, NcGetPluginDescriptor>(symbol) })
+    }
+
+    /// Resolves and types the required factory plugin description entrypoint.
+    unsafe fn get_factory_plugin_description(&self, path: &Path) -> Result<NcGetFactoryPluginDescription, PluginLoadError> {
+        // SAFETY: The caller selected trusted neocogi-com plugin code and the
+        // returned address is called with the exact public factory ABI type.
+        let symbol = unsafe {
+            self._library
+                .as_ref()
+                .expect("opened modules own a native handle")
+                .symbol(NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL.as_bytes())
+        }
+        .map_err(|message| PluginLoadError::new(PluginLoadErrorKind::FindSymbol, path, None, message))?;
+
+        // SAFETY: The symbol name uniquely identifies this function signature.
+        Ok(unsafe { core::mem::transmute::<*mut c_void, NcGetFactoryPluginDescription>(symbol) })
     }
 
     /// Detects one unambiguous plugin activation model from its standard export.
@@ -184,11 +203,12 @@ impl LoadedModule {
 }
 
 impl RuntimeState {
-    /// Loads a plugin shared library and registers its detected description.
+    /// Loads a factory plugin shared library and registers its description.
     ///
     /// On success, the process-global runtime stores the loaded library and
-    /// detects either a factory-only IDL description or a legacy constructible
-    /// class table, and associates it with a process-local [`LoadedModuleId`].
+    /// resolves the required factory-only IDL description and associates it
+    /// with a process-local [`LoadedModuleId`]. A library that exports only the
+    /// historical class-table symbol is rejected as an ordinary symbol error.
     /// At most [`NC_COM_RUNTIME_MAX_LOADED_MODULES`] dynamic modules may be
     /// retained; exhaustion is returned to the public fail-fatal C boundary.
     ///
@@ -208,26 +228,15 @@ impl RuntimeState {
         let mut module = Some(LoadedModule::open(path)?);
         let activation = (|| {
             let loaded = module.as_ref().expect("opened module remains owned");
-            // SAFETY: The caller selected trusted plugin code; detection only
-            // resolves the two fixed description symbols from the live module.
-            match unsafe { loaded.description_entrypoint(path)? } {
-                PluginDescriptionEntrypoint::Factory(get) => {
-                    // SAFETY: The resolved factory entrypoint remains backed by
-                    // `loaded` throughout validation and atomic registration.
-                    let plugin = unsafe { factory_plugin_description_from_entrypoint(get, path)? };
-                    // SAFETY: The module retains description and contract code.
-                    let batch = unsafe { factory_plugin_registration_batch_from_description(path, plugin)? };
-                    register_loaded_factory_plugin(self, path, &mut module, batch)
-                }
-                PluginDescriptionEntrypoint::LegacyClassTable(get) => {
-                    // SAFETY: The resolved descriptor entrypoint remains backed
-                    // by `loaded` throughout validation and registration.
-                    let plugin = unsafe { plugin_descriptor_from_entrypoint(get, path)? };
-                    // SAFETY: The loaded module owns the validated graph.
-                    let batch = unsafe { plugin_registration_batch_from_descriptor(path, plugin, None)? };
-                    register_loaded_legacy_plugin(self, path, &mut module, batch)
-                }
-            }
+            // SAFETY: The caller selected trusted plugin code. Live activation
+            // recognizes only the factory description symbol.
+            let get = unsafe { loaded.get_factory_plugin_description(path)? };
+            // SAFETY: The resolved entrypoint remains backed by `loaded`
+            // throughout validation and atomic registration.
+            let plugin = unsafe { factory_plugin_description_from_entrypoint(get, path)? };
+            // SAFETY: The module retains description and contract code.
+            let batch = unsafe { factory_plugin_registration_batch_from_description(path, plugin)? };
+            register_loaded_factory_plugin(self, path, &mut module, batch)
         })();
 
         match activation {
@@ -263,32 +272,6 @@ fn register_loaded_factory_plugin(
         ));
     }
     let loaded = LoadedModuleInfo::new(module_id, path.to_path_buf(), plugin_id);
-    catalog
-        .plugin_registry
-        .store_loaded_module(module.take().expect("successful activation owns its module"), loaded);
-    Ok(module_id)
-}
-
-/// Commits one validated legacy plugin and transfers its module handle.
-fn register_loaded_legacy_plugin(
-    runtime: &RuntimeState,
-    path: &Path,
-    module: &mut Option<LoadedModule>,
-    mut batch: PluginRegistrationBatch,
-) -> Result<LoadedModuleId, PluginLoadError> {
-    let mut catalog = runtime.write_catalog();
-    let module_id = allocate_loaded_module_id(&mut catalog, path)?;
-    batch.set_module_id(module_id);
-    let loaded = loaded_module_info_from_registration_batch(path, &batch, module_id);
-    let status = catalog.commit_plugin_registration_batch(batch);
-    if status.is_err() {
-        return Err(PluginLoadError::new(
-            PluginLoadErrorKind::Registration,
-            path,
-            Some(status),
-            "runtime registration rejected the plugin descriptor",
-        ));
-    }
     catalog
         .plugin_registry
         .store_loaded_module(module.take().expect("successful activation owns its module"), loaded);
@@ -386,66 +369,4 @@ unsafe fn factory_plugin_registration_batch_from_description(
             "factory plugin description failed load validation",
         )
     })
-}
-
-/// Validates and projects a loaded descriptor into an owned registration batch.
-unsafe fn plugin_registration_batch_from_descriptor(
-    path: &Path,
-    plugin: *const NcPluginDescriptor,
-    module_id: Option<LoadedModuleId>,
-) -> Result<PluginRegistrationBatch, PluginLoadError> {
-    // SAFETY: `plugin` came from the loaded module's descriptor entrypoint.
-    // Batch construction validates and projects the descriptor graph exactly
-    // once while the module remains live.
-    unsafe { build_plugin_registration_batch(plugin, module_id) }.map_err(|error| plugin_registration_batch_error(path, error))
-}
-
-/// Converts batch validation/registration failures into path-aware loader errors.
-fn plugin_registration_batch_error(path: &Path, error: PluginRegistrationBatchError) -> PluginLoadError {
-    let (kind, message) = match error.kind() {
-        PluginRegistrationBatchErrorKind::Metadata => (PluginLoadErrorKind::Metadata, "plugin descriptor failed load validation"),
-        PluginRegistrationBatchErrorKind::Registration => (PluginLoadErrorKind::Registration, "runtime registration rejected the plugin descriptor"),
-    };
-    PluginLoadError::new(kind, path, Some(error.status()), message)
-}
-
-/// Builds retained module provenance from a validated registration batch.
-fn loaded_module_info_from_registration_batch(path: &Path, batch: &PluginRegistrationBatch, module_id: LoadedModuleId) -> LoadedModuleInfo {
-    LoadedModuleInfo::new(module_id, path.to_path_buf(), batch.plugin_id())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::registration::{registration_validation_calls, reset_registration_validation_calls};
-    use neocogi_com_core::{NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NcStaticUtf8};
-
-    #[test]
-    fn load_metadata_validation_rejects_core_abi_before_copying_text() {
-        static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
-            core_abi_version: NC_COM_CORE_ABI_VERSION + 1,
-            validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
-            plugin_id: NcGuid::nil(),
-            qualified_name: NcStaticUtf8 { data: core::ptr::null(), len: 1 },
-            plugin_version: NcStaticUtf8 { data: core::ptr::null(), len: 1 },
-            dependency_count: 0,
-            dependencies: core::ptr::null(),
-            class_table: core::ptr::null(),
-        };
-
-        // SAFETY: The static descriptor is readable. Its text pointers are
-        // deliberately invalid for their lengths; the test asserts core ABI
-        // validation stops before text metadata is copied.
-        reset_registration_validation_calls();
-        let result = unsafe { plugin_registration_batch_from_descriptor(Path::new("bad-plugin"), &PLUGIN, Some(LoadedModuleId::from_raw(1))) };
-        let error = match result {
-            Ok(_) => panic!("malformed descriptor unexpectedly produced a registration batch"),
-            Err(error) => error,
-        };
-
-        assert_eq!(error.kind(), PluginLoadErrorKind::Metadata);
-        assert_eq!(error.status(), Some(NC_E_ABI_VERSION));
-        assert_eq!(error.message(), "plugin descriptor failed load validation");
-        assert_eq!(registration_validation_calls(), 1);
-    }
 }

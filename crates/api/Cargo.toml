@@ -22,49 +22,9 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [[example]]
-name = "component_plugin"
-crate-type = ["cdylib"]
-test = false
-
-[[example]]
-name = "component_plugin_counter"
-crate-type = ["cdylib"]
-test = false
-
-[[example]]
-name = "component_plugin_flag"
-crate-type = ["cdylib"]
-test = false
-
-[[example]]
-name = "component_plugin_extra"
-crate-type = ["cdylib"]
-test = false
-
-[[example]]
-name = "component_plugin_metric"
-crate-type = ["cdylib"]
-test = false
-
-[[example]]
-name = "component_plugin_state"
-crate-type = ["cdylib"]
-test = false
-
-[[example]]
 name = "factory_plugin_component"
 crate-type = ["cdylib"]
 test = false
-
-[[example]]
-name = "multi_plugin_host"
-test = false
-required-features = ["runtime"]
-
-[[example]]
-name = "runtime_host"
-test = false
-required-features = ["runtime"]
 
 [[test]]
 name = "abi_policy"
@@ -73,16 +33,6 @@ path = "integration-tests/abi_policy.rs"
 [[test]]
 name = "com_usage"
 path = "integration-tests/com_usage.rs"
-required-features = ["runtime"]
-
-[[test]]
-name = "contract_workflow"
-path = "integration-tests/contract_workflow.rs"
-required-features = ["runtime"]
-
-[[test]]
-name = "cross_version_component"
-path = "integration-tests/cross_version_component.rs"
 required-features = ["runtime"]
 
 [[test]]
@@ -96,11 +46,6 @@ path = "integration-tests/panic_behavior.rs"
 [[test]]
 name = "runtime_path"
 path = "integration-tests/runtime_path.rs"
-
-[[test]]
-name = "shared_library_component"
-path = "integration-tests/shared_library_component.rs"
-required-features = ["runtime"]
 
 [[test]]
 name = "status_contract"

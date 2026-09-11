@@ -1,8 +1,8 @@
 //! Runtime-owned index of registered factory-only plugins.
 //!
-//! This catalog is separate from the legacy class-table registry. A factory
-//! plugin stores no runtime construction table: its only executable entry is
-//! the fixed root-factory activation pointer in its immutable description.
+//! A factory plugin stores no runtime construction table: its only executable
+//! entry is the fixed root-factory activation pointer in its immutable
+//! description.
 
 use std::collections::HashMap;
 use std::vec::Vec;

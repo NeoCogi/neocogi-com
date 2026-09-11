@@ -27,9 +27,11 @@ pub struct NcRuntimeApiV1 {
     pub register_factory_plugin_description: unsafe extern "C" fn(plugin: *const NcFactoryPluginDescription) -> NcStatus,
     /// Validates and registers one static plugin descriptor.
     pub register_plugin_descriptor: unsafe extern "C" fn(plugin: *const NcPluginDescriptor) -> NcStatus,
-    /// Loads and registers one trusted plugin shared library from a nonempty
-    /// UTF-8 path without interior NUL bytes, auto-detecting exactly one
-    /// factory or legacy class-table description export.
+    /// Loads and registers one trusted factory plugin shared library from a
+    /// nonempty UTF-8 path without interior NUL bytes.
+    ///
+    /// The library must export `nc_get_factory_plugin_description`. Class-table
+    /// descriptor exports are not an activation mechanism.
     pub load_plugin_library_utf8: unsafe extern "C" fn(path: *const u8, path_len: usize, out_module_id: *mut u64) -> NcStatus,
     /// Validates that a registered class implements one interface ABI identity.
     pub require_interface: unsafe extern "C" fn(class_id: NcGuid, interface_id: NcInterfaceId) -> NcStatus,

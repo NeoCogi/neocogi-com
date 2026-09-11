@@ -31,33 +31,8 @@ pub(crate) struct PluginRegistrationBatch {
     identities: RegistrationIdentities,
 }
 
-impl PluginRegistrationBatch {
-    /// Returns the stable plugin ID represented by this batch.
-    pub(crate) fn plugin_id(&self) -> NcGuid {
-        self.plugin.plugin_id
-    }
-
-    /// Associates every projected class with one retained dynamic module.
-    pub(crate) fn set_module_id(&mut self, module_id: LoadedModuleId) {
-        for class in &mut self.classes {
-            class.module_id = Some(module_id);
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-/// Phase in which registration batch construction failed.
-pub(crate) enum PluginRegistrationBatchErrorKind {
-    /// Raw descriptor structure or metadata validation failed.
-    Metadata,
-    /// Owned registration projection violated runtime identity rules.
-    Registration,
-}
-
-/// Internal batch error preserving phase and exact ABI status.
+/// Internal batch error preserving the exact ABI status.
 pub(crate) struct PluginRegistrationBatchError {
-    /// Broad phase used by loader error mapping.
-    kind: PluginRegistrationBatchErrorKind,
     /// Exact status returned to direct registration callers.
     status: NcStatus,
 }
@@ -65,23 +40,12 @@ pub(crate) struct PluginRegistrationBatchError {
 impl PluginRegistrationBatchError {
     /// Creates a descriptor metadata failure.
     fn metadata(status: NcStatus) -> Self {
-        Self {
-            kind: PluginRegistrationBatchErrorKind::Metadata,
-            status,
-        }
+        Self { status }
     }
 
     /// Creates an owned projection/identity failure.
     fn registration(status: NcStatus) -> Self {
-        Self {
-            kind: PluginRegistrationBatchErrorKind::Registration,
-            status,
-        }
-    }
-
-    /// Returns the phase that rejected batch construction.
-    pub(crate) fn kind(&self) -> PluginRegistrationBatchErrorKind {
-        self.kind
+        Self { status }
     }
 
     /// Returns the exact ABI failure status.
