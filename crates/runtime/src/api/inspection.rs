@@ -57,7 +57,9 @@ pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPlugi
         return NC_E_POINTER;
     }
     let catalog = RuntimeState::global().read_catalog();
-    let Some(info) = runtime_inspection::plugin_info(&catalog.plugin_registry, plugin_id) else {
+    let Some(info) = runtime_inspection::plugin_info(&catalog.plugin_registry, plugin_id)
+        .or_else(|| runtime_inspection::factory_plugin_info(&catalog.factory_plugin_registry, plugin_id))
+    else {
         return NC_E_NOT_FOUND;
     };
     // SAFETY: `out` is valid for one write by the caller's contract.
@@ -107,21 +109,28 @@ pub(super) unsafe extern "C" fn plugin_class_count(plugin_id: NcGuid) -> usize {
 
 /// Returns the number of hard dependency IDs declared by a registered plugin.
 pub(super) unsafe extern "C" fn plugin_dependency_count(plugin_id: NcGuid) -> usize {
-    RuntimeState::global()
-        .read_catalog()
-        .plugin_registry
-        .with_plugin_dependency_ids(plugin_id, <[NcGuid]>::len)
+    let catalog = RuntimeState::global().read_catalog();
+    if catalog.factory_plugin_registry.contains_plugin(plugin_id) {
+        catalog.factory_plugin_registry.with_plugin_dependency_ids(plugin_id, <[NcGuid]>::len)
+    } else {
+        catalog.plugin_registry.with_plugin_dependency_ids(plugin_id, <[NcGuid]>::len)
+    }
 }
 
 /// Copies a plugin's hard dependency IDs using the count/fill contract.
 pub(super) unsafe extern "C" fn plugin_dependency_ids(plugin_id: NcGuid, out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus {
-    RuntimeState::global()
-        .read_catalog()
-        .plugin_registry
-        .with_plugin_dependency_ids(plugin_id, |values| {
+    let catalog = RuntimeState::global().read_catalog();
+    if catalog.factory_plugin_registry.contains_plugin(plugin_id) {
+        catalog.factory_plugin_registry.with_plugin_dependency_ids(plugin_id, |values| {
             // SAFETY: The caller provides the output-buffer contract.
             unsafe { copy_slice_to_out(values, out, capacity, out_len) }
         })
+    } else {
+        catalog.plugin_registry.with_plugin_dependency_ids(plugin_id, |values| {
+            // SAFETY: The caller provides the output-buffer contract.
+            unsafe { copy_slice_to_out(values, out, capacity, out_len) }
+        })
+    }
 }
 
 /// Copies class IDs registered by a plugin using the count/fill contract.

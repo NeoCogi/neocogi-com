@@ -52,6 +52,11 @@ crate-type = ["cdylib"]
 test = false
 
 [[example]]
+name = "factory_plugin_component"
+crate-type = ["cdylib"]
+test = false
+
+[[example]]
 name = "multi_plugin_host"
 test = false
 required-features = ["runtime"]
@@ -109,6 +114,7 @@ path = "integration-tests/ui.rs"
 # The native-C ABI fixture runs Cargo offline from its own workspace. Keeping
 # its build dependency here ensures clean test runners fetch it first.
 cc = { version = "=1.2.0", default-features = false }
+neocogi-idl-example-contracts = { path = "../../idl/example-contracts" }
 trybuild = "1"
 
 [features]
@@ -140,3 +146,8 @@ path = "integration-tests/plugin_assembly.rs"
 [[test]]
 name = "inheritance"
 path = "integration-tests/inheritance.rs"
+
+[[test]]
+name = "factory_plugin_runtime"
+path = "integration-tests/factory_plugin_runtime.rs"
+required-features = ["static-runtime"]

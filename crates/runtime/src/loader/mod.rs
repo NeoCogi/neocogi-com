@@ -17,9 +17,11 @@ use core::ffi::c_void;
 use std::path::{Path, PathBuf};
 
 use neocogi_com_core::{
-    NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcGetPluginDescriptor, NcGuid, NcPluginDescriptor,
+    NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL,
+    NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGetPluginDescriptor, NcGuid, NcPluginDescriptor,
 };
 
+use crate::factory_registration::{FactoryPluginRegistrationBatch, build_factory_plugin_registration_batch};
 use crate::registration::{PluginRegistrationBatch, PluginRegistrationBatchError, PluginRegistrationBatchErrorKind, build_plugin_registration_batch};
 use crate::state::RuntimeState;
 
@@ -133,6 +135,23 @@ impl LoadedModule {
         // and is expected to have the standard descriptor-provider signature.
         Ok(unsafe { core::mem::transmute::<*mut c_void, NcGetPluginDescriptor>(symbol) })
     }
+
+    /// Resolves and types the factory-only plugin description entrypoint.
+    unsafe fn get_factory_plugin_description(&self, path: &Path) -> Result<NcGetFactoryPluginDescription, PluginLoadError> {
+        // SAFETY: The caller selected a trusted factory plugin and will invoke
+        // this symbol only with the exact core ABI function type.
+        let symbol = unsafe {
+            self._library
+                .as_ref()
+                .expect("opened modules own a native handle")
+                .symbol(NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL.as_bytes())
+        }
+        .map_err(|message| PluginLoadError::new(PluginLoadErrorKind::FindSymbol, path, None, message))?;
+
+        // SAFETY: Trusted plugin authors export this standard name with the
+        // signature fixed by `NcGetFactoryPluginDescription`.
+        Ok(unsafe { core::mem::transmute::<*mut c_void, NcGetFactoryPluginDescription>(symbol) })
+    }
 }
 
 impl RuntimeState {
@@ -206,6 +225,65 @@ impl RuntimeState {
             }
         }
     }
+
+    /// Loads and atomically registers one factory-only plugin shared library.
+    ///
+    /// This path resolves only `nc_get_factory_plugin_description`; it never
+    /// interprets the module as a legacy class-table plugin. Exact contract
+    /// DSOs are resolved by the platform loader through the plugin's native
+    /// dependencies before the description graph is registered.
+    ///
+    /// # Safety
+    ///
+    /// `path` must identify trusted factory-plugin code and activation must not
+    /// be nested through loader initialization or descriptor entrypoints.
+    pub unsafe fn load_factory_plugin_library(&self, path: impl AsRef<Path>) -> Result<LoadedModuleId, PluginLoadError> {
+        let path = path.as_ref();
+        let mut module = Some(LoadedModule::open(path)?);
+        let activation = (|| {
+            // SAFETY: The caller trusts this library as a factory-only plugin.
+            let plugin = unsafe { factory_plugin_description_from_module(module.as_ref().expect("opened module remains owned"), path)? };
+            // SAFETY: The loaded module retains the description, its activation
+            // code, and direct native contract references during projection.
+            let batch = unsafe { factory_plugin_registration_batch_from_description(path, plugin)? };
+
+            let mut catalog = self.write_catalog();
+            let module_id = catalog.plugin_registry.allocate_loaded_module_id().ok_or_else(|| {
+                PluginLoadError::new(
+                    PluginLoadErrorKind::ResourceLimit,
+                    path,
+                    Some(NC_E_OUT_OF_RANGE),
+                    format!("runtime loaded-module limit of {NC_COM_RUNTIME_MAX_LOADED_MODULES} reached"),
+                )
+            })?;
+            let plugin_id = batch.plugin_id();
+            let status = catalog.commit_factory_plugin_registration(batch);
+            if status.is_err() {
+                return Err(PluginLoadError::new(
+                    PluginLoadErrorKind::Registration,
+                    path,
+                    Some(status),
+                    "runtime registration rejected the factory plugin description",
+                ));
+            }
+            let loaded = LoadedModuleInfo::new(module_id, path.to_path_buf(), plugin_id);
+            catalog
+                .plugin_registry
+                .store_loaded_module(module.take().expect("successful activation owns its module"), loaded);
+            Ok(module_id)
+        })();
+
+        match activation {
+            Ok(module_id) => Ok(module_id),
+            Err(error) => {
+                // The public live-activation boundary is fail-fatal. Pin the
+                // trusted library so no escaped code or metadata is unloaded
+                // before that boundary emits the error and aborts.
+                core::mem::forget(module.take().expect("failed activation owns its module"));
+                Err(error)
+            }
+        }
+    }
 }
 
 /// Calls the standard entrypoint and requires a successful non-null descriptor.
@@ -237,6 +315,49 @@ unsafe fn plugin_descriptor_from_module(module: &LoadedModule, path: &Path) -> R
     }
 
     Ok(plugin)
+}
+
+/// Calls the factory-only entrypoint and requires a successful non-null root.
+unsafe fn factory_plugin_description_from_module(module: &LoadedModule, path: &Path) -> Result<*const NcFactoryPluginDescription, PluginLoadError> {
+    // SAFETY: The caller trusts the library to implement the standard symbol.
+    let get_description = unsafe { module.get_factory_plugin_description(path)? };
+    let mut plugin = core::ptr::null();
+    // SAFETY: The resolved ABI receives one valid output pointer slot.
+    let status = unsafe { get_description(&mut plugin) };
+    if status.is_err() {
+        return Err(PluginLoadError::new(
+            PluginLoadErrorKind::Entrypoint,
+            path,
+            Some(status),
+            "factory plugin description entrypoint returned an error",
+        ));
+    }
+    if plugin.is_null() {
+        return Err(PluginLoadError::new(
+            PluginLoadErrorKind::Entrypoint,
+            path,
+            Some(NC_E_POINTER),
+            "factory plugin description entrypoint returned null",
+        ));
+    }
+    Ok(plugin)
+}
+
+/// Validates and projects one loaded factory description into owned records.
+unsafe fn factory_plugin_registration_batch_from_description(
+    path: &Path,
+    plugin: *const NcFactoryPluginDescription,
+) -> Result<FactoryPluginRegistrationBatch, PluginLoadError> {
+    // SAFETY: The pointer and contract getters remain backed by `module` during
+    // this call and by retained ownership after a successful commit.
+    unsafe { build_factory_plugin_registration_batch(plugin) }.map_err(|status| {
+        PluginLoadError::new(
+            PluginLoadErrorKind::Metadata,
+            path,
+            Some(status),
+            "factory plugin description failed load validation",
+        )
+    })
 }
 
 /// Validates and projects a loaded descriptor into an owned registration batch.

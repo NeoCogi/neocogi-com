@@ -18,6 +18,7 @@ use neocogi_com_core::{NcClassInfoV1, NcGuid, NcModuleInfoV1, NcPluginInfoV1, Nc
 use neocogi_com_core::{NcInterfaceId, NcStatus};
 
 use crate::loader::LoadedModuleId;
+use crate::factory_plugin_registry::FactoryPluginRegistry;
 use crate::plugin_registry::PluginRegistry;
 use crate::type_registry::TypeRegistry;
 
@@ -27,6 +28,19 @@ pub(crate) fn plugin_info(registry: &PluginRegistry, plugin_id: NcGuid) -> Optio
     // SAFETY: Registered plugin pointers refer to validated immutable
     // descriptors that remain live while registered.
     let plugin = unsafe { &*registered.plugin };
+    Some(NcPluginInfoV1 {
+        plugin_id: registered.plugin_id,
+        qualified_name: static_utf8_view(plugin.qualified_name),
+        version: static_utf8_view(plugin.plugin_version),
+    })
+}
+
+/// Projects one registered factory-only description into the common summary.
+pub(crate) fn factory_plugin_info(registry: &FactoryPluginRegistry, plugin_id: NcGuid) -> Option<NcPluginInfoV1> {
+    let registered = registry.plugin(plugin_id)?;
+    // SAFETY: Registered pointers target validated immutable descriptions kept
+    // live by static ownership or a retained dynamic module.
+    let plugin = unsafe { &*registered.description };
     Some(NcPluginInfoV1 {
         plugin_id: registered.plugin_id,
         qualified_name: static_utf8_view(plugin.qualified_name),

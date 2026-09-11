@@ -28,6 +28,13 @@ pub(crate) struct FactoryPluginRegistrationBatch {
     qualified_name: String,
 }
 
+impl FactoryPluginRegistrationBatch {
+    /// Returns the plugin identity projected from validated metadata.
+    pub(crate) fn plugin_id(&self) -> NcGuid {
+        self.plugin.plugin_id
+    }
+}
+
 /// Builds one factory plugin batch without holding runtime locks.
 ///
 /// # Safety
@@ -119,7 +126,7 @@ impl RuntimeState {
 
 impl RuntimeCatalog {
     /// Checks all state-dependent rules before publishing the complete batch.
-    fn commit_factory_plugin_registration(&mut self, batch: FactoryPluginRegistrationBatch) -> NcStatus {
+    pub(crate) fn commit_factory_plugin_registration(&mut self, batch: FactoryPluginRegistrationBatch) -> NcStatus {
         let FactoryPluginRegistrationBatch { plugin, modules, qualified_name } = batch;
 
         if plugin

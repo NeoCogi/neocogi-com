@@ -349,6 +349,34 @@ impl Runtime {
             .unwrap_or_else(|status| fatal_plugin_load(status))
     }
 
+    /// Loads a trusted factory-only plugin library and registers its contracts.
+    ///
+    /// The runtime resolves the factory-specific description symbol, validates
+    /// every exact contract DSO before publication, and retains the plugin
+    /// module for the process lifetime. Any live loading failure is fatal,
+    /// matching [`Self::load_plugin_library`].
+    ///
+    /// # Safety
+    ///
+    /// `path` must identify trusted neocogi-com factory plugin code.
+    pub unsafe fn load_factory_plugin_library(&self, path: impl AsRef<Path>) -> LoadedModuleInfo {
+        let path = path.as_ref();
+        let path = path
+            .to_str()
+            .unwrap_or_else(|| fatal_plugin_load(format_args!("path is not valid UTF-8: {}", path.display())));
+        let mut module_id = 0;
+        // SAFETY: The UTF-8 path and local output slot remain valid for the
+        // synchronous trusted-library activation call.
+        let status = unsafe { (self.runtime_api().load_factory_plugin_library_utf8)(path.as_ptr(), path.len(), &mut module_id) };
+        if status.is_err() {
+            fatal_plugin_load(status);
+        }
+        self.inspection()
+            .loaded_module(LoadedModuleId::from_raw(module_id))
+            .and_then(|module| module.ok_or(NC_E_NOT_FOUND))
+            .unwrap_or_else(|status| fatal_plugin_load(status))
+    }
+
     /// Loads trusted plugin libraries sequentially.
     ///
     /// ABI v1 performs no path discovery or recursive loading. Callers must

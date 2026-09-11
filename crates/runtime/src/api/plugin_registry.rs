@@ -17,18 +17,21 @@ use super::copy_slice_to_out;
 
 /// Returns a snapshot count of registered plugin IDs.
 pub(super) unsafe extern "C" fn plugin_count() -> usize {
-    RuntimeState::global()
-        .read_catalog()
-        .plugin_registry
-        .with_registered_plugin_ids(<[NcGuid]>::len)
+    let catalog = RuntimeState::global().read_catalog();
+    let legacy = catalog.plugin_registry.with_registered_plugin_ids(<[NcGuid]>::len);
+    let factories = catalog.factory_plugin_registry.with_plugin_ids(<[NcGuid]>::len);
+    legacy + factories
 }
 
 /// Copies registered plugin IDs using the ABI count/fill contract.
 pub(super) unsafe extern "C" fn plugin_ids(out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus {
-    RuntimeState::global().read_catalog().plugin_registry.with_registered_plugin_ids(|values| {
-        // SAFETY: The caller provides the output-buffer contract.
-        unsafe { copy_slice_to_out(values, out, capacity, out_len) }
-    })
+    let catalog = RuntimeState::global().read_catalog();
+    let mut values = catalog.plugin_registry.with_registered_plugin_ids(<[NcGuid]>::to_vec);
+    catalog
+        .factory_plugin_registry
+        .with_plugin_ids(|factory_ids| values.extend_from_slice(factory_ids));
+    // SAFETY: The caller provides the output-buffer contract.
+    unsafe { copy_slice_to_out(&values, out, capacity, out_len) }
 }
 
 /// Returns a snapshot count of retained dynamic module IDs.
