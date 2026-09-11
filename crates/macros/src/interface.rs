@@ -381,16 +381,20 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
                 }
             },
         };
-        let dispatch = match method.receiver {
+        let borrow = match method.receiver {
             AbiReceiver::Shared => quote! {
-                <T as #nc::ComAbiObject>::with_abi_ref(#object_ident, |#value_ident| {
-                    <T as #trait_ident>::#method_ident(#value_ident, #(#arg_names),*)
-                })
+                <T as #nc::ComAbiObject>::borrow_abi_ref(#object_ident)
             },
             AbiReceiver::Mutable => quote! {
-                <T as #nc::ComAbiObject>::with_abi_mut(#object_ident, |#value_ident| {
-                    <T as #trait_ident>::#method_ident(#value_ident, #(#arg_names),*)
-                })
+                <T as #nc::ComAbiObject>::borrow_abi_mut(#object_ident)
+            },
+        };
+        let invoke = match method.receiver {
+            AbiReceiver::Shared => quote! {
+                <T as #trait_ident>::#method_ident(&*#value_ident, #(#arg_names),*)
+            },
+            AbiReceiver::Mutable => quote! {
+                <T as #trait_ident>::#method_ident(&mut *#value_ident, #(#arg_names),*)
             },
         };
         quote! {
@@ -413,10 +417,14 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
                 // SAFETY: The object pointer came from a generated interface
                 // header. `ComAbiObject` validates the requested Rust borrow
                 // against every call active on the same allocation.
-                let result = match unsafe { #dispatch } {
-                    Ok(result) => result,
+                let mut #value_ident = match unsafe { #borrow } {
+                    Ok(value) => value,
                     Err(status) => return status,
                 };
+                let result = #invoke;
+                // Release the object-wide borrow before lowering an owned
+                // result into the caller's output slot.
+                drop(#value_ident);
                 match result {
                     #success_arm
                     // Rust `Result::Err` must map to a negative ABI status.

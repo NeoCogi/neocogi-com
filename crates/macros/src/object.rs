@@ -315,36 +315,36 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct) -> proc_macr
         unsafe impl #impl_generics #nc::ComAbiObject for #class_type #where_clause {
             // The generated gate permits concurrent observers but rejects a
             // shared call while a mutable call owns the implementation.
-            unsafe fn with_abi_ref<R>(
+            unsafe fn borrow_abi_ref<'a>(
                 object: *mut core::ffi::c_void,
-                call: impl FnOnce(&Self) -> R,
-            ) -> Result<R, #nc::NcStatus> {
+            ) -> Result<#nc::__ComSharedLease<'a, Self>, #nc::NcStatus> {
+                if object.is_null() {
+                    return Err(#nc::NC_E_POINTER);
+                }
                 let storage = object.cast::<#storage_type>();
                 // SAFETY: The caller guarantees that `object` points to this
                 // generated storage, whose gate and value live together.
                 let storage = unsafe { &*storage };
-                storage.call_gate.shared(|| {
-                    // SAFETY: The gate excludes mutable calls while this shared
-                    // lease is active, so the stored value may be observed.
-                    call(unsafe { &*storage.value.get() })
-                })
+                // SAFETY: The value and gate are fields of the same live
+                // storage allocation and every generated call uses this gate.
+                unsafe { #nc::__ComSharedLease::acquire(&storage.call_gate, storage.value.get()) }
             }
 
             // The generated gate grants exactly one mutable call only while no
             // shared or mutable call is active on any interface projection.
-            unsafe fn with_abi_mut<R>(
+            unsafe fn borrow_abi_mut<'a>(
                 object: *mut core::ffi::c_void,
-                call: impl FnOnce(&mut Self) -> R,
-            ) -> Result<R, #nc::NcStatus> {
+            ) -> Result<#nc::__ComExclusiveLease<'a, Self>, #nc::NcStatus> {
+                if object.is_null() {
+                    return Err(#nc::NC_E_POINTER);
+                }
                 let storage = object.cast::<#storage_type>();
                 // SAFETY: The caller guarantees that `object` points to this
                 // generated storage, whose gate and value live together.
                 let storage = unsafe { &*storage };
-                storage.call_gate.exclusive(|| {
-                    // SAFETY: The exclusive gate lease proves no other Rust
-                    // borrow of the stored value is active during this call.
-                    call(unsafe { &mut *storage.value.get() })
-                })
+                // SAFETY: The value and gate are fields of the same live
+                // storage allocation and every generated call uses this gate.
+                unsafe { #nc::__ComExclusiveLease::acquire(&storage.call_gate, storage.value.get()) }
             }
 
             // Central QueryInterface implementation for the class. All

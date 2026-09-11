@@ -467,7 +467,7 @@ pub use neocogi_com_core::{
 };
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{ComMap, ComMapAccess};
-pub use object::{__ComCallGate, __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComClass, ThreadSafeComObject};
+pub use object::{__ComCallGate, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComClass, ThreadSafeComObject};
 #[cfg(feature = "runtime")]
 pub use runtime::{
     ClassInfo, Debug, DebugMessenger, Inspection, LoadedModuleId, LoadedModuleInfo, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS,
