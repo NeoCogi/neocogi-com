@@ -3,9 +3,7 @@
 use std::fmt::Write as _;
 
 use neocogi_com_core::NcAbiThreadingMode;
-use nc_com_shared_runtime::{
-    ClassInspection, ContractModuleInspection, FactoryInspection, InterfaceInspection, MethodInspection, PluginActivationInspection, PluginInspection,
-};
+use nc_com_shared_runtime::{ContractModuleInspection, FactoryInspection, PluginInspection};
 
 use crate::compat::CompatibilityReport;
 use crate::schema::{InspectionArtifact, SCHEMA, SCHEMA_VERSION};
@@ -40,19 +38,7 @@ pub(crate) fn render_text(inspection: &PluginInspection) -> String {
     }
 
     writeln!(out, "activation: {}", inspection.activation_model()).unwrap();
-    match &inspection.activation {
-        PluginActivationInspection::Factory(factory) => render_factory_text(&mut out, factory),
-        PluginActivationInspection::LegacyClassTable { classes } => {
-            writeln!(out, "classes:").unwrap();
-            if classes.is_empty() {
-                writeln!(out, "  (none)").unwrap();
-            } else {
-                for class in classes {
-                    render_class_text(&mut out, class);
-                }
-            }
-        }
-    }
+    render_factory_text(&mut out, &inspection.factory);
     out
 }
 
@@ -153,52 +139,14 @@ fn render_compatibility_group(out: &mut String, label: &str, changes: &[String])
     }
 }
 
-fn render_class_text(out: &mut String, class: &ClassInspection) {
-    writeln!(out, "  - {}", class.qualified_name).unwrap();
-    writeln!(out, "    id: {}", class.class_id).unwrap();
-    writeln!(out, "    version: {}", class.class_version).unwrap();
-    writeln!(out, "    threading: {}", threading_name(class.threading)).unwrap();
-    writeln!(out, "    constructor_abi_signature: {}", class.constructor_abi_signature).unwrap();
-    writeln!(out, "    interfaces:").unwrap();
-    if class.interfaces.is_empty() {
-        writeln!(out, "      (none)").unwrap();
-    } else {
-        for interface in &class.interfaces {
-            render_interface_text(out, &interface.interface);
-        }
-    }
-}
-
-/// Prints local slots beside their explicit base contract without duplicating ancestry.
-fn render_interface_text(out: &mut String, interface: &InterfaceInspection) {
-    writeln!(out, "      - {}", interface.qualified_name).unwrap();
-    writeln!(out, "        id: {}", interface.interface_id).unwrap();
-    writeln!(out, "        abi_signature: {}", interface.abi_signature).unwrap();
-    if !interface.base.is_none() {
-        writeln!(out, "        base: {} ({})", interface.base.iid, interface.base.abi_signature).unwrap();
-    }
-    writeln!(out, "        methods:").unwrap();
-    if interface.methods.is_empty() {
-        writeln!(out, "          (none)").unwrap();
-    } else {
-        for method in &interface.methods {
-            render_method_text(out, method);
-        }
-    }
-}
-
-fn render_method_text(out: &mut String, method: &MethodInspection) {
-    writeln!(out, "          - [{}] {}", method.index, method.name).unwrap();
-    writeln!(out, "            typed_signature: {}", method.signature).unwrap();
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use neocogi_com_core::NcGuid;
-    use nc_com_shared_runtime::{ClassInspection, ClassInterfaceInspection, InterfaceIdentityInspection, InterfaceInspection};
+    use nc_com_shared_runtime::FactoryInspection;
 
-    fn inspection_with_thread_safe_class() -> PluginInspection {
+    /// Constructs a minimal inspected factory plugin for rendering tests.
+    fn inspection_with_thread_safe_factory() -> PluginInspection {
         PluginInspection {
             core_abi_version: 1,
             validation_mode: neocogi_com_core::NcAbiValidationMode::MANGLING,
@@ -206,41 +154,23 @@ mod tests {
             qualified_name: "nc.tests.inspect".to_string(),
             plugin_version: "1.0.0".to_string(),
             dependencies: Vec::new(),
-            activation: PluginActivationInspection::LegacyClassTable {
-                classes: vec![ClassInspection {
-                    class_id: NcGuid::from_fields(5, 6, 7, [8; 8]),
-                    qualified_name: "nc.tests.inspect.ThreadSafeClass".to_string(),
-                    class_version: "1.0.0".to_string(),
-                    constructor_abi_signature: String::new(),
-                    threading: NcAbiThreadingMode::ThreadSafe,
-                    interfaces: vec![ClassInterfaceInspection {
-                        interface_id: NcGuid::from_fields(9, 10, 11, [12; 8]),
-                        interface: InterfaceInspection {
-                            interface_id: NcGuid::from_fields(9, 10, 11, [12; 8]),
-                            qualified_name: "nc.tests.inspect.Interface:v1".to_string(),
-                            abi_signature: "ncabi1;render-test".to_string(),
-                            base: InterfaceIdentityInspection {
-                                iid: NcGuid::nil(),
-                                abi_signature: String::new(),
-                            },
-                            methods: Vec::new(),
-                        },
-                    }],
-                }],
+            factory: FactoryInspection {
+                root_factory_id: NcGuid::from_fields(5, 6, 7, [8; 8]),
+                root_factory_threading: NcAbiThreadingMode::ThreadSafe,
+                direct_contracts: Vec::new(),
+                modules: Vec::new(),
             },
         }
     }
 
     #[test]
-    fn renders_class_threading_in_text_and_json() {
-        let inspection = inspection_with_thread_safe_class();
+    fn renders_factory_threading_in_text_and_json() {
+        let inspection = inspection_with_thread_safe_factory();
 
-        assert!(render_text(&inspection).contains("    threading: thread_safe\n"));
+        assert!(render_text(&inspection).contains("  threading: thread_safe\n"));
         assert!(render_text(&inspection).contains("  com_validation: mangling\n"));
-        assert!(render_text(&inspection).contains("      - nc.tests.inspect.Interface:v1\n"));
-        assert!(render_json(&inspection).unwrap().contains("\"threading\": \"thread_safe\""));
+        assert!(render_json(&inspection).unwrap().contains("\"root_factory_threading\": \"thread_safe\""));
         assert!(render_json(&inspection).unwrap().contains("\"com_validation\": \"mangling\""));
-        assert!(render_json(&inspection).unwrap().contains("\"name\": \"nc.tests.inspect.Interface:v1\""));
     }
 
     #[test]

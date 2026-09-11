@@ -17,7 +17,7 @@ pub use debug::{
     NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV2, NcDebugCallbackV2, NcDebugMessageV2,
     NcDebugMessengerCreateInfoV2,
 };
-pub use inspection::{NcInspectPluginDescriptorCallbackV2, NcInspectionApiV2, NcModuleInfoV2, NcPluginInfoV2};
+pub use inspection::{NcInspectFactoryPluginDescriptionCallbackV2, NcInspectionApiV2, NcModuleInfoV2, NcPluginInfoV2};
 pub use plugin_registry::{NC_COM_RUNTIME_MAX_LOADED_MODULES, NcPluginRegistryV2};
 pub use runtime::NcRuntimeApiV2;
 

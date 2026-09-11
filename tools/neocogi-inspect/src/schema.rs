@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use neocogi_com_core::{IID_IUNKNOWN, IUNKNOWN_QUALIFIED_NAME, NcAbiThreadingMode, NcAbiValidationMode, NcGuid, guid_from_qualified_name};
 #[cfg(test)]
 use neocogi_com_core::{NcAbiSignature, NcInterfaceId, format_abi_signature};
-use nc_com_shared_runtime::{ContractDeclarationKind, PluginActivationInspection, PluginInspection};
+use nc_com_shared_runtime::{ContractDeclarationKind, PluginInspection};
 use serde::{Deserialize, Serialize};
 
 pub(crate) const SCHEMA: &str = "neocogi-com.inspection";
@@ -269,40 +269,36 @@ impl From<&PluginInspection> for InspectionArtifact {
     fn from(value: &PluginInspection) -> Self {
         let mut dependencies: Vec<_> = value.dependencies.iter().map(ToString::to_string).collect();
         dependencies.sort();
-        let activation = match &value.activation {
-            PluginActivationInspection::Factory(factory) => {
-                let mut direct_contracts: Vec<_> = factory.direct_contracts.iter().map(artifact_contract_reference).collect();
-                direct_contracts.sort_by(|left, right| left.module_id.cmp(&right.module_id));
-                ArtifactActivation::Factory(ArtifactFactory {
-                    root_factory_id: factory.root_factory_id.to_string(),
-                    root_factory_threading: artifact_threading(factory.root_factory_threading),
-                    direct_contracts,
-                    modules: factory
-                        .modules
+        let factory = &value.factory;
+        let mut direct_contracts: Vec<_> = factory.direct_contracts.iter().map(artifact_contract_reference).collect();
+        direct_contracts.sort_by(|left, right| left.module_id.cmp(&right.module_id));
+        let activation = ArtifactActivation::Factory(ArtifactFactory {
+            root_factory_id: factory.root_factory_id.to_string(),
+            root_factory_threading: artifact_threading(factory.root_factory_threading),
+            direct_contracts,
+            modules: factory
+                .modules
+                .iter()
+                .map(|module| ArtifactContractModule {
+                    id: module.module_id.to_string(),
+                    abi_fingerprint: format_fingerprint(module.abi_fingerprint.bytes),
+                    name: module.module_name.clone(),
+                    dependencies: module.dependencies.iter().map(artifact_contract_reference).collect(),
+                    declarations: module
+                        .declarations
                         .iter()
-                        .map(|module| ArtifactContractModule {
-                            id: module.module_id.to_string(),
-                            abi_fingerprint: format_fingerprint(module.abi_fingerprint.bytes),
-                            name: module.module_name.clone(),
-                            dependencies: module.dependencies.iter().map(artifact_contract_reference).collect(),
-                            declarations: module
-                                .declarations
-                                .iter()
-                                .map(|declaration| ArtifactContractDeclaration {
-                                    id: declaration.declaration_id.to_string(),
-                                    version: declaration.version,
-                                    kind: artifact_declaration_kind(declaration.kind),
-                                    threading: declaration.threading.map(artifact_threading),
-                                    name: declaration.qualified_name.clone(),
-                                })
-                                .collect(),
-                            source: module.source.clone(),
+                        .map(|declaration| ArtifactContractDeclaration {
+                            id: declaration.declaration_id.to_string(),
+                            version: declaration.version,
+                            kind: artifact_declaration_kind(declaration.kind),
+                            threading: declaration.threading.map(artifact_threading),
+                            name: declaration.qualified_name.clone(),
                         })
                         .collect(),
+                    source: module.source.clone(),
                 })
-            }
-            PluginActivationInspection::LegacyClassTable { classes } => ArtifactActivation::LegacyClassTable { classes: artifact_classes(classes) },
-        };
+                .collect(),
+        });
 
         Self {
             schema: SCHEMA.to_string(),
@@ -331,51 +327,6 @@ impl From<&PluginInspection> for InspectionArtifact {
             activation,
         }
     }
-}
-
-/// Copies and canonically orders the historical class-table inspection graph.
-fn artifact_classes(classes: &[nc_com_shared_runtime::ClassInspection]) -> Vec<ArtifactClass> {
-    let mut classes: Vec<_> = classes
-        .iter()
-        .map(|class| {
-            let mut interfaces: Vec<_> = class
-                .interfaces
-                .iter()
-                .map(|class_interface| {
-                    let interface = &class_interface.interface;
-                    ArtifactInterface {
-                        id: interface.interface_id.to_string(),
-                        name: interface.qualified_name.clone(),
-                        abi_signature: interface.abi_signature.clone(),
-                        base: ArtifactInterfaceId {
-                            iid: interface.base.iid.to_string(),
-                            abi_signature: interface.base.abi_signature.clone(),
-                        },
-                        methods: interface
-                            .methods
-                            .iter()
-                            .map(|method| ArtifactMethod {
-                                index: method.index,
-                                name: method.name.clone(),
-                                signature: method.signature.clone(),
-                            })
-                            .collect(),
-                    }
-                })
-                .collect();
-            interfaces.sort_by(|left, right| (&left.id, &left.abi_signature).cmp(&(&right.id, &right.abi_signature)));
-            ArtifactClass {
-                id: class.class_id.to_string(),
-                name: class.qualified_name.clone(),
-                version: class.class_version.clone(),
-                constructor_abi_signature: class.constructor_abi_signature.clone(),
-                threading: artifact_threading(class.threading),
-                interfaces,
-            }
-        })
-        .collect();
-    classes.sort_by(|left, right| left.id.cmp(&right.id));
-    classes
 }
 
 /// Converts one typed exact module reference to stable text fields.

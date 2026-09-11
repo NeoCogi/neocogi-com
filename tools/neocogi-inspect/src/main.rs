@@ -9,7 +9,7 @@
 
 use std::path::Path;
 
-use nc_com_shared_runtime::{PluginActivationInspection, inspect_plugin_library, plan_plugin_load_order};
+use nc_com_shared_runtime::{inspect_plugin_library, plan_plugin_load_order};
 
 use crate::cli::{Command, DiffMode, OutputFormat, USAGE, parse_args};
 use crate::compat::check_compatibility;
@@ -93,10 +93,7 @@ fn run() -> Result<(), CliError> {
             // SAFETY: The user explicitly asks the inspector to load this
             // shared library. The runtime reads only neocogi-com descriptor metadata.
             let inspection = unsafe { inspect_plugin_library(&library) }.map_err(CliError::Inspect)?;
-            let activation = match &inspection.activation {
-                PluginActivationInspection::Factory(factory) => format!("factory, {} contract module(s)", factory.modules.len()),
-                PluginActivationInspection::LegacyClassTable { classes } => format!("legacy class table, {} class(es)", classes.len()),
-            };
+            let activation = format!("factory, {} contract module(s)", inspection.factory.modules.len());
             println!(
                 "{}: ok ({}, {}, {activation})",
                 library.display(),

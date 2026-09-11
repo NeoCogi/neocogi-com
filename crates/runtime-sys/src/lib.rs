@@ -13,7 +13,7 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
-pub use neocogi_com_core::{NcContractRegistryV2, NcDebugApiV2, NcInspectPluginDescriptorCallbackV2, NcInspectionApiV2, NcPluginRegistryV2, NcRuntimeApiV2};
+pub use neocogi_com_core::{NcContractRegistryV2, NcDebugApiV2, NcInspectFactoryPluginDescriptionCallbackV2, NcInspectionApiV2, NcPluginRegistryV2, NcRuntimeApiV2};
 
 // Keep the implementation in the link graph so the exact same exported C
 // symbols resolve from its rlib. No alternate tables or catalog are introduced.

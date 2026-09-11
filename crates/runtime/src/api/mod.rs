@@ -135,10 +135,10 @@ mod tests {
     use core::sync::atomic::{AtomicI32, Ordering};
     use neocogi_com_core::{
         NC_COM_RUNTIME_ABI_VERSION, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_VALIDATION, NC_E_NOT_FOUND, NcDebugMessengerCreateInfoV2, NcGuid, NcModuleInfoV2,
-        NcPluginDescriptor,
+        NcFactoryPluginDescription,
     };
 
-    unsafe extern "C" fn accept_inspected_descriptor(_plugin: *const NcPluginDescriptor, _user_data: *mut c_void) -> NcStatus {
+    unsafe extern "C" fn accept_inspected_description(_plugin: *const NcFactoryPluginDescription, _user_data: *mut c_void) -> NcStatus {
         NC_OK
     }
 
@@ -229,7 +229,7 @@ mod tests {
             NC_E_POINTER
         );
         assert_eq!(
-            unsafe { (inspection.inspect_plugin_library_utf8)(ptr::null(), 0, Some(accept_inspected_descriptor), ptr::null_mut(),) },
+            unsafe { (inspection.inspect_plugin_library_utf8)(ptr::null(), 0, Some(accept_inspected_description), ptr::null_mut(),) },
             NC_E_INVALID_ARG
         );
     }

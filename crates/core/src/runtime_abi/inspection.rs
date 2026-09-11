@@ -1,24 +1,24 @@
 //! ABI records and queries for runtime metadata, provenance, and relationships.
 //!
 //! Registry tables answer which identities exist. Inspection complements them
-//! with descriptive records and edges between plugins, modules, classes, and
-//! interfaces. Text fields are borrowed runtime-owned views and must be copied
+//! with descriptive records and edges between plugins and modules. Text fields
+//! are borrowed runtime-owned views and must be copied
 //! by callers that need independent storage. The same table also provides a
 //! synchronous, non-registering path that opens trusted plugin code and lends a
-//! fully validated descriptor graph to a caller callback.
+//! fully validated factory description to a caller callback.
 
 use core::ffi::c_void;
 
 use super::NcUtf8View;
-use crate::{NcGuid, NcPluginDescriptor, NcStatus};
+use crate::{NcFactoryPluginDescription, NcGuid, NcStatus};
 
-/// Callback that receives one validated plugin descriptor during inspection.
+/// Callback that receives one validated factory description during inspection.
 ///
 /// `plugin` and every pointer reachable from it are borrowed only for the
 /// duration of the callback. The callback must not retain those pointers. The
 /// runtime passes `user_data` through unchanged and returns the callback's
 /// status to the caller. The callback must not unwind across the ABI boundary.
-pub type NcInspectPluginDescriptorCallbackV2 = unsafe extern "C" fn(plugin: *const NcPluginDescriptor, user_data: *mut c_void) -> NcStatus;
+pub type NcInspectFactoryPluginDescriptionCallbackV2 = unsafe extern "C" fn(plugin: *const NcFactoryPluginDescription, user_data: *mut c_void) -> NcStatus;
 
 /// Inspection record for one registered plugin.
 #[repr(C)]
@@ -61,17 +61,22 @@ pub struct NcInspectionApiV2 {
     /// Opens and validates a trusted plugin library without registering it.
     ///
     /// On success, `callback` is invoked synchronously exactly once with the
-    /// validated descriptor and `user_data`, and its status is returned
-    /// unchanged. The descriptor graph is borrowed only for that invocation.
+    /// validated factory description and `user_data`, and its status is returned
+    /// unchanged. The description graph is borrowed only for that invocation.
     /// Loading may execute platform loader code. Once opened, the library is
     /// pinned until process exit even if later inspection fails.
     ///
     /// `path` must point to `path_len` readable UTF-8 bytes with no interior
-    /// NUL. `callback` must obey [`NcInspectPluginDescriptorCallbackV2`]'s
+    /// NUL. `callback` must obey
+    /// [`NcInspectFactoryPluginDescriptionCallbackV2`]'s
     /// pointer, lifetime, and no-unwind contract. `user_data` is passed through
     /// unchanged and may be null.
-    pub inspect_plugin_library_utf8:
-        unsafe extern "C" fn(path: *const u8, path_len: usize, callback: Option<NcInspectPluginDescriptorCallbackV2>, user_data: *mut c_void) -> NcStatus,
+    pub inspect_plugin_library_utf8: unsafe extern "C" fn(
+        path: *const u8,
+        path_len: usize,
+        callback: Option<NcInspectFactoryPluginDescriptionCallbackV2>,
+        user_data: *mut c_void,
+    ) -> NcStatus,
 }
 
 #[cfg(test)]

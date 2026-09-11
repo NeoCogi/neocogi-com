@@ -12,7 +12,7 @@ use std::vec::Vec;
 
 use neocogi_com_core::{NcAbiValidationMode, NcContractFingerprint, NcGuid};
 
-use super::{PluginActivationInspection, PluginInspection};
+use super::PluginInspection;
 
 /// A collection-level error that prevents construction of a complete plugin
 /// activation order.
@@ -126,7 +126,7 @@ impl std::error::Error for PluginDependencyPlanError {}
 /// `plugins`; mixed validation modes, duplicate identities, missing dependencies,
 /// and cycles are rejected. It also rejects a GUID associated with multiple
 /// qualified names or one qualified name associated with multiple GUIDs anywhere
-/// in the selected plugin/class/interface metadata. Independent nodes are ordered
+/// in the selected plugin and contract metadata. Independent nodes are ordered
 /// by GUID field value so filesystem enumeration order cannot affect the result.
 pub fn plan_plugin_load_order(plugins: &[PluginInspection]) -> Result<Vec<NcGuid>, PluginDependencyPlanError> {
     validate_validation_modes(plugins)?;
@@ -194,10 +194,7 @@ fn validate_contract_revisions(plugins: &[PluginInspection]) -> Result<(), Plugi
     ordered.sort_by_key(|plugin| guid_key(plugin.plugin_id));
     let mut revisions = HashMap::<NcGuid, (NcGuid, NcContractFingerprint)>::new();
     for plugin in ordered {
-        let PluginActivationInspection::Factory(factory) = &plugin.activation else {
-            continue;
-        };
-        for module in &factory.modules {
+        for module in &plugin.factory.modules {
             if let Some((expected_plugin_id, expected)) = revisions.get(&module.module_id).copied() {
                 if expected != module.abi_fingerprint {
                     return Err(PluginDependencyPlanError::ContractRevisionMismatch {
@@ -244,22 +241,10 @@ fn validate_identity_mappings(plugins: &[PluginInspection]) -> Result<(), Plugin
     let mut identities = Vec::new();
     for plugin in plugins {
         identities.push((plugin.plugin_id, plugin.qualified_name.as_str()));
-        match &plugin.activation {
-            PluginActivationInspection::Factory(factory) => {
-                for module in &factory.modules {
-                    identities.push((module.module_id, module.module_name.as_str()));
-                    for declaration in &module.declarations {
-                        identities.push((declaration.declaration_id, declaration.qualified_name.as_str()));
-                    }
-                }
-            }
-            PluginActivationInspection::LegacyClassTable { classes } => {
-                for class in classes {
-                    identities.push((class.class_id, class.qualified_name.as_str()));
-                    for interface in &class.interfaces {
-                        identities.push((interface.interface_id, interface.interface.qualified_name.as_str()));
-                    }
-                }
+        for module in &plugin.factory.modules {
+            identities.push((module.module_id, module.module_name.as_str()));
+            for declaration in &module.declarations {
+                identities.push((declaration.declaration_id, declaration.qualified_name.as_str()));
             }
         }
     }
@@ -308,7 +293,12 @@ mod tests {
             qualified_name: format!("nc.tests.plugin{id}"),
             plugin_version: "1.0.0".to_string(),
             dependencies: dependencies.iter().copied().map(guid).collect(),
-            activation: PluginActivationInspection::LegacyClassTable { classes: Vec::new() },
+            factory: FactoryInspection {
+                root_factory_id: guid(99),
+                root_factory_threading: neocogi_com_core::NcAbiThreadingMode::ThreadLocal,
+                direct_contracts: Vec::new(),
+                modules: Vec::new(),
+            },
         }
     }
 
@@ -319,7 +309,7 @@ mod tests {
     /// Constructs one minimal factory plugin requiring an exact module revision.
     fn factory_plugin(id: u32, fingerprint: u8) -> PluginInspection {
         let mut plugin = plugin(id, &[]);
-        plugin.activation = PluginActivationInspection::Factory(FactoryInspection {
+        plugin.factory = FactoryInspection {
             root_factory_id: guid(99),
             root_factory_threading: neocogi_com_core::NcAbiThreadingMode::ThreadLocal,
             direct_contracts: Vec::new(),
@@ -331,7 +321,7 @@ mod tests {
                 declarations: Vec::new(),
                 source: String::new(),
             }],
-        });
+        };
         plugin
     }
 

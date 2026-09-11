@@ -18,8 +18,8 @@ use core::ffi::c_void;
 use std::path::{Path, PathBuf};
 
 use neocogi_com_core::{
-    NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL,
-    NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGetPluginDescriptor, NcGuid, NcPluginDescriptor,
+    NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NcFactoryPluginDescription,
+    NcGetFactoryPluginDescription, NcGuid,
 };
 
 use crate::factory_registration::{FactoryPluginRegistrationBatch, build_factory_plugin_registration_batch};
@@ -31,10 +31,9 @@ mod library;
 mod plan;
 
 pub use error::{PluginLoadError, PluginLoadErrorKind};
-pub(crate) use inspection::inspect_plugin_descriptor;
+pub(crate) use inspection::inspect_factory_plugin_description;
 pub use inspection::{
-    ClassInspection, ClassInterfaceInspection, ContractDeclarationInspection, ContractDeclarationKind, ContractModuleInspection, ContractReferenceInspection,
-    FactoryInspection, InterfaceIdentityInspection, InterfaceInspection, MethodInspection, PluginActivationInspection, PluginInspection,
+    ContractDeclarationInspection, ContractDeclarationKind, ContractModuleInspection, ContractReferenceInspection, FactoryInspection, PluginInspection,
     inspect_plugin_library,
 };
 pub use plan::{PluginDependencyPlanError, plan_plugin_load_order};
@@ -106,14 +105,6 @@ pub(crate) struct LoadedModule {
     _library: Option<library::DynamicLibrary>,
 }
 
-/// Exactly one supported description entrypoint discovered in a plugin module.
-enum PluginDescriptionEntrypoint {
-    /// Factory-only metadata backed by canonical IDL contract libraries.
-    Factory(NcGetFactoryPluginDescription),
-    /// Historical runtime-constructible class-table metadata.
-    LegacyClassTable(NcGetPluginDescriptor),
-}
-
 impl LoadedModule {
     /// Opens one trusted path and classifies platform failures.
     fn open(path: &Path) -> Result<Self, PluginLoadError> {
@@ -127,26 +118,6 @@ impl LoadedModule {
     /// Creates a handle-free module token for catalog publication tests.
     pub(crate) fn test_stub() -> Self {
         Self { _library: None }
-    }
-
-    /// Resolves and types the historical class-table descriptor entrypoint.
-    ///
-    /// Only offline compatibility inspection uses this helper. Live activation
-    /// accepts the factory description entrypoint exclusively.
-    unsafe fn get_plugin_descriptor(&self, path: &Path) -> Result<NcGetPluginDescriptor, PluginLoadError> {
-        // SAFETY: The caller is loading an neocogi-com plugin and will call the
-        // returned symbol using the exact C ABI type defined by neocogi-com-core.
-        let symbol = unsafe {
-            self._library
-                .as_ref()
-                .expect("opened modules own a native handle")
-                .symbol(NC_GET_PLUGIN_DESCRIPTOR_SYMBOL.as_bytes())
-        }
-        .map_err(|message| PluginLoadError::new(PluginLoadErrorKind::FindSymbol, path, None, message))?;
-
-        // SAFETY: The symbol was resolved by name from a trusted neocogi-com plugin
-        // and is expected to have the standard descriptor-provider signature.
-        Ok(unsafe { core::mem::transmute::<*mut c_void, NcGetPluginDescriptor>(symbol) })
     }
 
     /// Resolves and types the required factory plugin description entrypoint.
@@ -163,42 +134,6 @@ impl LoadedModule {
 
         // SAFETY: The symbol name uniquely identifies this function signature.
         Ok(unsafe { core::mem::transmute::<*mut c_void, NcGetFactoryPluginDescription>(symbol) })
-    }
-
-    /// Detects one unambiguous plugin activation model from its standard export.
-    unsafe fn description_entrypoint(&self, path: &Path) -> Result<PluginDescriptionEntrypoint, PluginLoadError> {
-        let library = self._library.as_ref().expect("opened modules own a native handle");
-        // SAFETY: Both names are fixed NUL-free ABI constants and the handle is
-        // live. A returned address is converted only to its matching function type.
-        let factory = unsafe { library.symbol(NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL.as_bytes()) }.ok();
-        // SAFETY: Same live trusted module and fixed symbol-name contract.
-        let legacy = unsafe { library.symbol(NC_GET_PLUGIN_DESCRIPTOR_SYMBOL.as_bytes()) }.ok();
-        match (factory, legacy) {
-            (Some(factory), None) => {
-                // SAFETY: The address came from the factory description symbol.
-                Ok(PluginDescriptionEntrypoint::Factory(unsafe {
-                    core::mem::transmute::<*mut c_void, NcGetFactoryPluginDescription>(factory)
-                }))
-            }
-            (None, Some(legacy)) => {
-                // SAFETY: The address came from the legacy descriptor symbol.
-                Ok(PluginDescriptionEntrypoint::LegacyClassTable(unsafe {
-                    core::mem::transmute::<*mut c_void, NcGetPluginDescriptor>(legacy)
-                }))
-            }
-            (Some(_), Some(_)) => Err(PluginLoadError::new(
-                PluginLoadErrorKind::FindSymbol,
-                path,
-                None,
-                "plugin exports both factory and legacy class-table description entrypoints",
-            )),
-            (None, None) => Err(PluginLoadError::new(
-                PluginLoadErrorKind::FindSymbol,
-                path,
-                None,
-                "plugin exports neither supported description entrypoint",
-            )),
-        }
     }
 }
 
@@ -288,43 +223,6 @@ fn allocate_loaded_module_id(catalog: &mut crate::state::RuntimeCatalog, path: &
             format!("runtime loaded-module limit of {NC_COM_RUNTIME_MAX_LOADED_MODULES} reached"),
         )
     })
-}
-
-/// Calls the standard entrypoint and requires a successful non-null descriptor.
-unsafe fn plugin_descriptor_from_module(module: &LoadedModule, path: &Path) -> Result<*const NcPluginDescriptor, PluginLoadError> {
-    // Symbol resolution and invocation are kept together so the function
-    // pointer never escapes the module ownership/pinning boundary.
-    // SAFETY: The caller trusts this library as an neocogi-com plugin.
-    let get_plugin_descriptor = unsafe { module.get_plugin_descriptor(path)? };
-
-    // SAFETY: The symbol remains backed by `module` for this invocation.
-    unsafe { plugin_descriptor_from_entrypoint(get_plugin_descriptor, path) }
-}
-
-/// Invokes one resolved legacy description entrypoint.
-unsafe fn plugin_descriptor_from_entrypoint(get_plugin_descriptor: NcGetPluginDescriptor, path: &Path) -> Result<*const NcPluginDescriptor, PluginLoadError> {
-    let mut plugin = core::ptr::null();
-    // SAFETY: The resolved function pointer has the neocogi-com descriptor ABI, and
-    // `plugin` is valid for one descriptor pointer write.
-    let status = unsafe { get_plugin_descriptor(&mut plugin) };
-    if status.is_err() {
-        return Err(PluginLoadError::new(
-            PluginLoadErrorKind::Entrypoint,
-            path,
-            Some(status),
-            "plugin descriptor entrypoint returned an error",
-        ));
-    }
-    if plugin.is_null() {
-        return Err(PluginLoadError::new(
-            PluginLoadErrorKind::Entrypoint,
-            path,
-            Some(NC_E_POINTER),
-            "plugin descriptor entrypoint returned a null descriptor",
-        ));
-    }
-
-    Ok(plugin)
 }
 
 /// Invokes one resolved factory-only description entrypoint.

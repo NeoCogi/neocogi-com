@@ -44,7 +44,6 @@ mod module_registry;
 mod state;
 
 pub use loader::{
-    ClassInspection, ClassInterfaceInspection, ContractDeclarationInspection, ContractDeclarationKind, ContractModuleInspection, ContractReferenceInspection,
-    FactoryInspection, InterfaceIdentityInspection, InterfaceInspection, MethodInspection, PluginActivationInspection, PluginDependencyPlanError,
-    PluginInspection, PluginLoadError, PluginLoadErrorKind, inspect_plugin_library, plan_plugin_load_order,
+    ContractDeclarationInspection, ContractDeclarationKind, ContractModuleInspection, ContractReferenceInspection, FactoryInspection,
+    PluginDependencyPlanError, PluginInspection, PluginLoadError, PluginLoadErrorKind, inspect_plugin_library, plan_plugin_load_order,
 };

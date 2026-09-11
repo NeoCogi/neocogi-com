@@ -3,18 +3,18 @@
 //! Raw inspection records contain borrowed UTF-8 pointers. Public methods copy
 //! those views before returning, so callers never inherit a C lifetime or need
 //! to hold a runtime lock. Module records own provenance (module ID, plugin ID,
-//! and path); plugin descriptors remain the authoritative source for plugin
+//! and path); factory descriptions remain the authoritative source for plugin
 //! names and versions. [`Inspection::loaded_module`] joins both records into an
 //! owned [`LoadedModuleInfo`]. Missing record lookups return `None`;
 //! relationship queries return an empty collection when no edge exists.
 //! Trusted, unregistered libraries can be opened and validated through a
-//! callback-scoped descriptor visitor.
+//! callback-scoped factory-description visitor.
 
 use std::path::{Path, PathBuf};
 use std::string::String;
 use std::vec::Vec;
 
-use crate::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcModuleInfoV2, NcPluginDescriptor, NcPluginInfoV2, NcStatus};
+use crate::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcFactoryPluginDescription, NcGuid, NcModuleInfoV2, NcPluginInfoV2, NcStatus};
 
 use super::{LoadedModuleId, LoadedModuleInfo, Runtime, read_utf8_view, read_vec, status_to_result};
 
@@ -41,29 +41,29 @@ pub struct Inspection<'runtime> {
 }
 
 /// Stack context that transfers a Rust `FnOnce` result through a C callback.
-struct DescriptorVisitContext<F, R> {
+struct FactoryDescriptionVisitContext<F, R> {
     /// Visitor stored in an option so a repeated callback can be rejected.
     visitor: Option<F>,
     /// Value produced synchronously by the visitor on success.
     result: Option<R>,
 }
 
-/// Adapts the inspection ABI's descriptor visitor to a Rust `FnOnce` closure.
-unsafe extern "C" fn visit_plugin_descriptor<F, R>(plugin: *const NcPluginDescriptor, user_data: *mut core::ffi::c_void) -> NcStatus
+/// Adapts the inspection ABI's factory-description visitor to a Rust closure.
+unsafe extern "C" fn visit_factory_plugin_description<F, R>(plugin: *const NcFactoryPluginDescription, user_data: *mut core::ffi::c_void) -> NcStatus
 where
-    F: FnOnce(&NcPluginDescriptor) -> Result<R, NcStatus>,
+    F: FnOnce(&NcFactoryPluginDescription) -> Result<R, NcStatus>,
 {
     if plugin.is_null() || user_data.is_null() {
         return NC_E_POINTER;
     }
     // SAFETY: `user_data` points to the live stack context supplied by
-    // `with_plugin_library_descriptor`, and the runtime invokes this callback
+    // `with_plugin_library_description`, and the runtime invokes this callback
     // synchronously before that call returns.
-    let context = unsafe { &mut *user_data.cast::<DescriptorVisitContext<F, R>>() };
+    let context = unsafe { &mut *user_data.cast::<FactoryDescriptionVisitContext<F, R>>() };
     let Some(visitor) = context.visitor.take() else {
         return NC_E_INVALID_ARG;
     };
-    // SAFETY: The runtime guarantees a validated descriptor graph for the
+    // SAFETY: The runtime guarantees a validated factory-description graph for the
     // duration of this callback.
     match visitor(unsafe { &*plugin }) {
         Ok(result) => {
@@ -80,10 +80,10 @@ impl<'runtime> Inspection<'runtime> {
         Self { runtime }
     }
 
-    /// Opens a trusted plugin library and visits its validated descriptor.
+    /// Opens a trusted plugin library and visits its validated factory description.
     ///
     /// This operation does not register the plugin, construct objects, or
-    /// follow its declared neocogi-com dependencies. The descriptor and every
+    /// follow its declared plugin dependencies. The description and every
     /// pointer reachable from it are borrowed only for `visitor`; copy any
     /// metadata needed after this method returns. A successfully opened module
     /// remains pinned until process exit, including when later inspection or
@@ -91,7 +91,7 @@ impl<'runtime> Inspection<'runtime> {
     ///
     /// # Errors
     ///
-    /// Returns a loader or descriptor-validation status, or the error returned
+    /// Returns a loader or description-validation status, or the error returned
     /// by `visitor`. A path that cannot be represented as UTF-8 returns
     /// [`NC_E_INVALID_ARG`].
     ///
@@ -100,19 +100,19 @@ impl<'runtime> Inspection<'runtime> {
     /// `path` must identify trusted code. Opening a dynamic library may execute
     /// arbitrary platform loader code. `visitor` must not panic because Rust
     /// panics cannot unwind through the C callback boundary.
-    pub unsafe fn with_plugin_library_descriptor<R, F>(self, path: impl AsRef<Path>, visitor: F) -> Result<R, NcStatus>
+    pub unsafe fn with_plugin_library_description<R, F>(self, path: impl AsRef<Path>, visitor: F) -> Result<R, NcStatus>
     where
-        F: FnOnce(&NcPluginDescriptor) -> Result<R, NcStatus>,
+        F: FnOnce(&NcFactoryPluginDescription) -> Result<R, NcStatus>,
     {
         let path = path.as_ref().to_str().ok_or(NC_E_INVALID_ARG)?;
-        let mut context = DescriptorVisitContext { visitor: Some(visitor), result: None };
+        let mut context = FactoryDescriptionVisitContext { visitor: Some(visitor), result: None };
         // SAFETY: The caller accepted the trusted-library requirement. The
         // stack context stays live for the runtime's synchronous callback.
         let status = unsafe {
             (self.runtime.inspection_api().inspect_plugin_library_utf8)(
                 path.as_ptr(),
                 path.len(),
-                Some(visit_plugin_descriptor::<F, R>),
+                Some(visit_factory_plugin_description::<F, R>),
                 core::ptr::from_mut(&mut context).cast(),
             )
         };

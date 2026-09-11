@@ -479,7 +479,7 @@ pub use neocogi_com_core::{
     NcClassInterfaceDescriptor, NcClassTable, NcConstructorFn, NcContractDeclarationDescription, NcContractDependencyDescription, NcContractFingerprint,
     NcContractModuleDescription, NcContractModuleReference, NcContractRegistryV2, NcDebugApiV2, NcDebugCallbackV2, NcDebugMessageV2,
     NcDebugMessengerCreateInfoV2, NcDescriptorPath, NcDescriptorValidationIssue, NcDescriptorValidationKind, NcGetContractModuleDescription,
-    NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGetPluginDescriptor, NcGuid, NcInspectPluginDescriptorCallbackV2, NcInspectionApiV2,
+    NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGetPluginDescriptor, NcGuid, NcInspectFactoryPluginDescriptionCallbackV2, NcInspectionApiV2,
     NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcModuleInfoV2, NcPluginDependencyDescriptor,
     NcPluginDescriptor, NcPluginInfoV2, NcPluginRegistryV2, NcQualifiedNameError, NcRuntimeApiV2, NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError,
     ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel, activate_factory_implementation,
