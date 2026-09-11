@@ -34,8 +34,11 @@ frame pointer; a non-empty signature requires an immutable frame pointer. The ru
 interprets frame fields or queries a constructor-argument object: the generated
 class contract owns the frame layout and decodes it in the defining plugin.
 
-The crate has no optional features; the runtime C ABI exports are always
-compiled.
+The four mutually exclusive `com-validation-*` features select the exact ABI
+signature representation accepted by a deployable runtime. A build with none of
+those features is reserved for representation-neutral tooling: it validates
+signatures according to each inspected descriptor but does not register a mixed
+plugin assembly.
 
 The process registry is append-only. It preserves registration order in vectors
 for deterministic ABI enumeration and maintains runtime-private hash indexes
@@ -44,7 +47,7 @@ catalog `RwLock` permits concurrent reads and publishes static registration or
 dynamic activation as a blocking write transaction. A successful activation
 makes its retained native handle, module provenance, plugin, classes,
 relationships, and identity mappings visible together. No hash-map iteration
-order is exposed through core ABI v6.
+order is exposed through core ABI v7.
 
 Plugin loading, descriptor invocation, and descriptor validation happen before
 the catalog write lock is acquired. neocogi-com never invokes plugin constructors,
@@ -62,6 +65,11 @@ The runtime is intentionally `std`-only. This indexing does not change the
 The crate builds one `rlib` for workspace tooling and assembly composition.
 `cargo-neocogi` links that implementation into the assembly's sole runtime
 `cdylib`; runtime calls should go through that shared library's C ABI.
+
+`plan_plugin_load_order` is the common collection-level validation gate used by
+the inspection CLI and `cargo-neocogi` staging. Before dependency sorting it
+requires every selected plugin to declare the same `NcAbiValidationMode`; a
+mixed plan is rejected with both plugin IDs and both modes.
 
 Module provenance and plugin metadata have separate authoritative sources.
 `NcModuleInfoV1` exposes a loaded module's process-local ID, plugin ID, and the

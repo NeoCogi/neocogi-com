@@ -101,7 +101,7 @@
 //!
 //! # Build Compatibility
 //!
-//! core ABI v6 is currently an experimental pre-alpha draft. The generated C-shaped
+//! core ABI v7 is currently an experimental pre-alpha draft. The generated C-shaped
 //! surface is the intended compatibility boundary, but cross-release
 //! compatibility does not begin until an explicitly named future ratification
 //! milestone. Draft golden vectors prevent accidental drift within the current
@@ -268,14 +268,14 @@
 //! `Inspection::loaded_module`, or query descriptor metadata directly with
 //! `Inspection::plugin_info`. Statically registered plugins have plugin
 //! metadata but no loaded-module path.
-//! Runtime core ABI v6 retains at most [`NC_COM_RUNTIME_MAX_LOADED_MODULES`] dynamic
+//! Runtime core ABI v7 retains at most [`NC_COM_RUNTIME_MAX_LOADED_MODULES`] dynamic
 //! modules and permits at most
 //! [`NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS`] simultaneous debug messenger
 //! registrations. Exceeding the module limit is a fatal live-activation error;
 //! debug messenger capacity exhaustion returns [`NC_E_OUT_OF_RANGE`].
 //! Callers then use signature-checked `QueryInterface` to obtain the interface they
 //! need.
-//! core ABI v6 plugin descriptors are declarative and have no initialization hook.
+//! core ABI v7 plugin descriptors are declarative and have no initialization hook.
 //! They may declare hard dependency plugin IDs. Registration requires those IDs
 //! to exist already but never discovers paths or loads dependencies recursively.
 //! Native loader dependencies remain distinct from neocogi-com dependencies.

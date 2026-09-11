@@ -16,7 +16,7 @@ runtime shared library, and inspection CLI.
   feature-sensitive item documentation.
 - The [workspace guide](https://github.com/NeoCogi/neocogi-platform#readme) is the canonical
   long-form guide and owns the exact build/test compatibility matrix.
-- The [core ABI v6 specification](https://github.com/NeoCogi/neocogi-platform/blob/master/crates/com/docs/abi-v6.md)
+- The [core ABI v7 specification](https://github.com/NeoCogi/neocogi-platform/blob/master/crates/com/docs/abi-v7.md)
   is the normative binary contract.
 
 This package README is intentionally a concise entry point. Exact test rows,
@@ -125,11 +125,11 @@ plugin binary.
 The optional `runtime` feature exposes the stateless `Runtime` facade over the
 separately built and linked `libnc_com_shared_runtime` shared library. The shared
 runtime owns process-global registry state. Successfully loaded modules remain
-mapped until process exit; unload and hot reload are not core ABI v6 operations.
+mapped until process exit; unload and hot reload are not core ABI v7 operations.
 
 Plugins export `nc_get_plugin_descriptor`. Generated descriptors contain plugin
 identity, explicit hard dependency IDs, classes, constructor contracts,
-threading modes, and interface metadata. core ABI v6 has no plugin initialization
+threading modes, and interface metadata. core ABI v7 has no plugin initialization
 callback and never discovers or recursively loads plugin paths: hosts obtain an
 explicit dependency-first plan and load dependencies before dependents.
 Live activation calls must not be nested. Native loader initialization and the
@@ -182,7 +182,7 @@ and enforced by the packaged `cross_version_component` integration test.
 
 ## Scope And Status
 
-core ABI v6 is an experimental pre-alpha draft. Cross-release compatibility begins
+core ABI v7 is an experimental pre-alpha draft. Cross-release compatibility begins
 only when a named future release explicitly ratifies a baseline. Until then,
 intentional breaking draft changes and golden-vector updates are permitted.
 

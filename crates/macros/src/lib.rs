@@ -295,7 +295,7 @@ pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// hosts. A final shared library calls `neocogi_com::export_plugin!` separately to
 /// export `nc_get_plugin_descriptor`; static assemblies omit that export.
 ///
-/// core ABI v6 plugin descriptors contain declarative metadata only. The optional
+/// core ABI v7 plugin descriptors contain declarative metadata only. The optional
 /// `dependencies = [PLUGIN_ID, ...]` list declares hard dependencies that must
 /// already be registered. It never causes recursive loading.
 /// Every `plugin_id(...)` form is checked against the plugin's normative

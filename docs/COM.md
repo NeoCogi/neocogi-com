@@ -209,12 +209,12 @@ unsafe extern "C" fn(this: *mut IFlushableAbi) -> NcStatus
 `neocogi-com` is not a C SDK generator. The ABI is C-compatible and is tested from
 native C, but the focus is Rust components using a C ABI as the stable
 compatibility layer across independently built Rust artifacts after an explicit
-ABI ratification milestone. The current ABI-v6 definition is still a pre-alpha
+ABI ratification milestone. The current ABI-v7 definition is still a pre-alpha
 draft.
 
 C header generation, language bindings, and C-first distribution should be a
 separate project/tooling layer that consumes original contract definitions or
-other build-time inputs. ABI-v6 runtime descriptors are validation metadata,
+other build-time inputs. ABI-v7 runtime descriptors are validation metadata,
 not a reflection schema, and are never intended for reverse generation of
 source declarations. This crate should remain focused on defining and enforcing
 the Rust-side ABI model.
@@ -230,7 +230,7 @@ This root README is the canonical long-form usage guide and the only place that
 maintains the exact local/CI compatibility-test matrix. The published
 `neocogi-com` crate README is a shorter package entry point, crate-level rustdoc owns
 compiled API examples and feature-sensitive API documentation, and
-[`docs/abi-v6.md`](docs/abi-v6.md) is the normative ABI specification. Shorter
+[`docs/abi-v7.md`](docs/abi-v7.md) is the normative ABI specification. Shorter
 documents link here for detailed workflows instead of copying exact test rows.
 
 ## Example
@@ -680,7 +680,7 @@ Callable class contracts derive their descriptor name and class ID from one
 `auto_guid = "stable.Name:v1"` input. Implementations use
 `#[com_object(Class)]` and cannot restate the class ID, name, version,
 constructor policy, or public projections. Core
-ABI v6 descriptors are declarative and have no initialization callback.
+ABI v7 descriptors are declarative and have no initialization callback.
 
 The `plugin!` macro emits `pub fn plugin_descriptor() -> &'static
 neocogi_com::NcPluginDescriptor` for static registration. It exports no dynamic
@@ -725,6 +725,7 @@ static CLASS_TABLE: neocogi_com::NcClassTable = neocogi_com::NcClassTable {
 
 static PLUGIN: neocogi_com::NcPluginDescriptor = neocogi_com::NcPluginDescriptor {
     core_abi_version: neocogi_com::NC_COM_CORE_ABI_VERSION,
+    validation_mode: neocogi_com::NC_ABI_VALIDATION_MODE,
     plugin_id: PLUGIN_ID,
     qualified_name: neocogi_com::NcStaticUtf8::from_static("example.widget_plugin"),
     plugin_version: neocogi_com::NcStaticUtf8::from_static("1.0.0"),
@@ -859,7 +860,7 @@ let base = &loaded[0];
 # let _ = base;
 ```
 
-core ABI v6 does not discover paths or recursively load plugin dependencies. Use
+core ABI v7 does not discover paths or recursively load plugin dependencies. Use
 `neocogi-inspect plan` to validate dependencies and produce this explicit order.
 Live activation calls must not be nested: native loader initialization and the
 descriptor entrypoint must not directly or indirectly call neocogi-com loading while
@@ -1173,11 +1174,11 @@ break. Create a new interface version instead.
 
 ## ABI Compatibility Policy
 
-The current draft core ABI v6 specification lives in
-[`docs/abi-v6.md`](docs/abi-v6.md). core ABI v6 uses an unversioned plugin descriptor
-entrypoint. core ABI v6 is an experimental pre-alpha draft and has not been
+The current draft core ABI v7 specification lives in
+[`docs/abi-v7.md`](docs/abi-v7.md). core ABI v7 uses an unversioned plugin descriptor
+entrypoint. core ABI v7 is an experimental pre-alpha draft and has not been
 ratified. Cross-release compatibility begins only when a named release/tag and
-changelog entry explicitly establish the ABI-v6 freeze baseline. Until then,
+changelog entry explicitly establish the ABI-v7 freeze baseline. Until then,
 breaking draft changes and intentional golden-vector updates are permitted;
 hosts and plugins from different neocogi-com source releases are not guaranteed to
 interoperate.
@@ -1200,7 +1201,7 @@ fixed-width hexadecimal values. Procedural macros emit declaration records;
 const evaluation resolves layouts and nested identities unavailable during
 macro expansion.
 
-The signature grammar is itself part of the ABI policy. Once core ABI v6 has been
+The signature grammar is itself part of the ABI policy. Once core ABI v7 has been
 ratified and an interface has been published, changing how `neocogi-com`
 canonicalizes the same Rust interface into a mangle is an ABI-policy event,
 even if the generated vtable layout would
@@ -1248,6 +1249,11 @@ For core descriptor structs, compatibility is controlled by
 `NC_COM_CORE_ABI_VERSION`. Descriptor structs are exact v1 `#[repr(C)]` layouts;
 field order, field meaning, and descriptor layout changes require a core ABI
 version break unless a future ABI first defines an explicit extension mechanism.
+
+Every plugin descriptor also carries `NcAbiValidationMode`. All plugins selected
+for one dynamic assembly must report the same mode; shared dependency planning
+rejects mixed assemblies before writing their activation order. Inspection JSON
+records the mode explicitly instead of inferring it from signature text.
 
 `NC_COM_CORE_ABI_VERSION` must be bumped for changes to `IUnknown`, descriptor
 field order, descriptor field meaning, status-code numbering,
@@ -1607,7 +1613,7 @@ scripts/test-quality.sh
 
 It runs formatting, Clippy over all targets and features with warnings denied,
 the supported reduced-feature checks, compiled normative examples embedded in
-`docs/abi-v6.md`, repository-local Markdown links, and rustdoc with warnings
+`docs/abi-v7.md`, repository-local Markdown links, and rustdoc with warnings
 and missing public documentation denied for the workspace/all-feature, facade
 default-feature, no-default, and alloc-only modes. Each shipped Rust crate also
 denies `missing_docs` at its crate root, so ordinary checks reject undocumented

@@ -166,7 +166,7 @@ single `auto_guid = "stable.Name:v1"` input. Concrete implementations use only
 version, constructor policy, or public projections.
 The optional `dependencies = [...]` list contains hard
 plugin IDs that must already be registered. It never triggers path discovery or
-recursive loading. core ABI v6 descriptors remain declarative and have no
+recursive loading. core ABI v7 descriptors remain declarative and have no
 initialization hook.
 
 ## ABI Lowering

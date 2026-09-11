@@ -13,8 +13,8 @@ run before the descriptor symbol is queried.
 Class output records the declared `thread_local` or `thread_safe` construction
 capability. JSON output uses the strict, versioned `neocogi-com.inspection` schema
 and records its schema version, producer version, target triple, pointer width,
-endianness, core ABI version, interface identities/signatures, and derived method
-diagnostics. It intentionally omits structured parameter, return, and aggregate
+endianness, core ABI version, explicit COM validation mode, interface
+identities/signatures, and derived method diagnostics. It intentionally omits structured parameter, return, and aggregate
 definitions. Text output labels the same derived diagnostic text as
 `typed_signature`; signature text is not compatibility authority.
 
@@ -28,16 +28,17 @@ neocogi-inspect diff old.nccom.json new.nccom.json
 neocogi-inspect diff old.nccom.json new.nccom.json --compat
 ```
 
-`plan` rejects duplicate plugin IDs, missing hard dependencies, and cycles, then
-prints a deterministic dependency-first activation order. It inspects every
+`plan` rejects mixed COM validation modes, duplicate plugin IDs, missing hard
+dependencies, and cycles, then prints the established common mode and a
+deterministic dependency-first activation order. It inspects every
 supplied artifact before reporting per-artifact failures.
 
 `diff` strictly parses and semantically validates both JSON artifacts before
 comparison. Unknown fields, unsupported schema versions, malformed identities,
 duplicate class/interface identities, and noncontiguous method indices are
-rejected. The descriptor's typed metadata and advertised signature are validated
-while the library is loaded; editable JSON diagnostics are not reverse-parsed
-to reconstruct that contract.
+rejected. Descriptor structure and each signature's declared representation are
+validated while the library is loaded; editable JSON diagnostics are not
+reverse-parsed to reconstruct that contract.
 
 `diff` defaults to exact metadata comparison (`--exact`): it exits with status
 `0` only when there are no differences. `--compat` instead performs a
@@ -48,8 +49,9 @@ classes/interfaces and stronger threading are compatible; version labels and
 rendered method diagnostics do not affect the result. Compatibility mode exits
 with status `1` only for a breaking or activation-breaking change.
 
-Inspection schema 4 records each interface's explicit `base` IID/signature and its
-locally declared methods. Inherited methods are found through the base entry
+Inspection schema 5 records the plugin-wide `com_validation` mode and each
+interface's explicit `base` IID/signature and its locally declared methods.
+Inherited methods are found through the base entry
 in the same class. Dumps validate that base contracts exist and are acyclic;
 diffs report base changes explicitly. Schema version and core ABI version are
-independent; current libraries use core ABI 6.
+independent; current libraries use core ABI 7.

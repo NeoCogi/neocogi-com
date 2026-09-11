@@ -8,7 +8,7 @@ uses a reserved unchecked sentinel while retaining structural validation. A
 build with no mode is reserved for representation-neutral inspection tooling.
 
 `neocogi-com-core` contains the small C-shaped ABI contract used by `neocogi-com` hosts
-and plugins. core ABI v6 is currently an experimental pre-alpha draft, not a
+and plugins. core ABI v7 is currently an experimental pre-alpha draft, not a
 ratified cross-release compatibility promise.
 
 This crate is intentionally minimal. It defines the C-shaped types that must be
@@ -32,6 +32,7 @@ live in `neocogi-com`.
 - immutable typed constructor frames identified by a class descriptor signature
 - runtime, plugin registry, type registry, inspection, and debug API v1 table layouts
 - `NC_COM_CORE_ABI_VERSION` and `NC_COM_RUNTIME_ABI_VERSION`
+- `NcAbiValidationMode` and the plugin's explicit assembly-wide mode
 - `nc_get_plugin_descriptor` symbol and function signature
 - `validate_plugin_descriptor_with_issues`, the descriptor validator with
   structured issue reporting and an allocation-free configuration
@@ -73,9 +74,10 @@ Ordinary component contracts should use `#[com_interface]` from `neocogi-com`, w
 generates the implementation. Handwritten implementations are reserved for
 low-level foreign-interface adapters and require an explicit `unsafe impl`.
 
-core ABI v6 plugin descriptors contain declarative metadata only. Hosts explicitly
-load dependencies before dependents; registration does not discover or load
-dependencies.
+Core ABI v7 plugin descriptors contain declarative metadata only. Each
+descriptor records the mode used by all reachable ABI signatures. Hosts
+explicitly load dependencies before dependents; registration does not discover
+or load dependencies.
 
 Descriptor validation reports trusted metadata shape problems. It is not hostile
 plugin isolation, does not sandbox plugin code, and cannot safely probe

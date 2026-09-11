@@ -7,11 +7,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use neocogi_com_core::{
-    IID_IUNKNOWN, IUNKNOWN_QUALIFIED_NAME, NcAbiSignature, NcAbiThreadingMode, NcAbiValidationMode, NcGuid, format_abi_signature, guid_from_qualified_name,
-};
+use neocogi_com_core::{IID_IUNKNOWN, IUNKNOWN_QUALIFIED_NAME, NcAbiThreadingMode, NcAbiValidationMode, NcGuid, guid_from_qualified_name};
 #[cfg(test)]
-use neocogi_com_core::NcInterfaceId;
+use neocogi_com_core::{NcAbiSignature, NcInterfaceId, format_abi_signature};
 use nc_com_shared_runtime::PluginInspection;
 use serde::{Deserialize, Serialize};
 
@@ -592,6 +590,7 @@ fn artifact_threading(threading: NcAbiThreadingMode) -> ArtifactThreading {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn format_signature(signature: NcAbiSignature) -> String {
     // SAFETY: Inspection receives validated descriptors from modules pinned
     // until process exit; built-in and generated local signatures are static.

@@ -16,7 +16,7 @@ use crate::signature::NcAbiSignature;
 
 /// Current experimental draft core ABI version.
 ///
-/// This identifies the current binary generation; it does not mean core ABI v6 has
+/// This identifies the current binary generation; it does not mean core ABI v7 has
 /// reached its ratification milestone.
 pub const NC_COM_CORE_ABI_VERSION: u32 = 7;
 

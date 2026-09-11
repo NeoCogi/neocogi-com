@@ -1,12 +1,12 @@
-# neocogi-com core ABI v6 Specification
+# neocogi-com core ABI v7 Specification
 
 Status: experimental draft (pre-alpha; not ratified)
 
-Core ABI version: `NC_COM_CORE_ABI_VERSION = 6`
+Core ABI version: `NC_COM_CORE_ABI_VERSION = 7`
 
 Dynamic plugin descriptor symbol: `nc_get_plugin_descriptor`
 
-This document specifies the same-process C-shaped ABI used by `neocogi-com` core ABI v6.
+This document specifies the same-process C-shaped ABI used by `neocogi-com` core ABI v7.
 It is intended to be precise enough for host/plugin authors, future neocogi-com
 maintainers, and independent tooling that validates or inspects runtime
 contracts.
@@ -41,14 +41,14 @@ The words "must", "must not", "should", and "may" are normative.
 - Draft means the ABI design may change incompatibly and carries no
   cross-release compatibility promise.
 - Ratified means a named release, source tag, and changelog entry have frozen
-  core ABI v6 as a compatibility baseline.
+  core ABI v7 as a compatibility baseline.
 - Published means introduced at or after that ratification baseline. Repository
   examples, draft golden vectors, and pre-alpha artifacts are not published ABI
   commitments merely because they are visible or distributed.
 
 ## 2. Scope
 
-neocogi-com core ABI v6 defines an explicit Rust-to-Rust component boundary by using a
+neocogi-com core ABI v7 defines an explicit Rust-to-Rust component boundary by using a
 C-shaped ABI. The Rust compiler's native ABI is not part of the contract.
 
 The explicit boundary consists of:
@@ -80,17 +80,17 @@ another explicit protocol. Bounded call-scoped copy buffers may cross through
 the `CopyFromBufferOffset<T>` and `CopyToBufferOffset<T>` passing modes. The
 built-in read-only byte and string interfaces are specified in section 15.
 
-ABI-v6 descriptor metadata exists for runtime identity, compatibility
+ABI-v7 descriptor metadata exists for runtime identity, compatibility
 validation, registration, construction, and inspection. It is deliberately not
 a source-level reflection schema. Mangled signatures expose canonical ABI facts,
 including physical aggregate layout, but omit source field names, Rust paths,
-implementation details, and declarations. Core ABI v6 does not define reverse
+implementation details, and declarations. Core ABI v7 does not define reverse
 generation of C headers, Rust types, or other language bindings from a plugin
 binary or inspection artifact.
 
 ## 3. Process ABI Requirements
 
-neocogi-com core ABI v6 is a same-process raw pointer ABI. A host and component are
+neocogi-com core ABI v7 is a same-process raw pointer ABI. A host and component are
 compatible only when they share the same process ABI:
 
 - target architecture
@@ -118,11 +118,11 @@ artifacts when the explicit ABI surface is unchanged:
   errors
 
 Cross-architecture, cross-endian, cross-process, or cross-machine
-communication requires a serialization or RPC layer and is outside core ABI v6.
+communication requires a serialization or RPC layer and is outside core ABI v7.
 
 ### 3.1 Rust-to-Rust trust boundary
 
-Core ABI v6 is a Rust-to-Rust plugin contract. Supported hosts, runtimes, and
+Core ABI v7 is a Rust-to-Rust plugin contract. Supported hosts, runtimes, and
 plugins use neocogi-com's safe wrappers and generated ABI implementations on both
 sides of the shared-library boundary. The C-shaped records, raw pointers, and
 `extern "C"` functions provide a stable process ABI; they do not define a
@@ -176,7 +176,7 @@ change.
 
 The native C conformance fixture, or a deliberately handwritten unsafe adapter,
 must declare the same fields and function signatures using the corresponding
-target C types. core ABI v6 does not generate C headers, and a stale or incorrect
+target C types. core ABI v7 does not generate C headers, and a stale or incorrect
 independently maintained C declaration does not make the specified Rust/C
 representation ambiguous. Representative native-C calls and targeted layout
 assertions are useful regression tests, especially for a changed root record or
@@ -188,14 +188,14 @@ authority.
 
 ## 4. Core Versioning
 
-The v6 core ABI version is:
+The v7 core ABI version is:
 
 ```rust
-pub const NC_COM_CORE_ABI_VERSION: u32 = 5;
+pub const NC_COM_CORE_ABI_VERSION: u32 = 7;
 ```
 
-This value identifies the current draft binary generation; the number `5` is
-not a claim that core ABI v6 has been ratified. Before ratification, hosts and
+This value identifies the current draft binary generation; the number `7` is
+not a claim that core ABI v7 has been ratified. Before ratification, hosts and
 plugins built from different neocogi-com source releases are not guaranteed to
 interoperate, even when both report this value. After an unreleased draft ABI
 change, every host and plugin artifact must be rebuilt together. Once a draft
@@ -203,7 +203,7 @@ build has been distributed, a later incompatible binary shape must use a
 different ABI discriminator so stale artifacts are rejected rather than
 misinterpreted.
 
-No ABI-v6 ratification milestone has occurred. Ratification requires an
+No ABI-v7 ratification milestone has occurred. Ratification requires an
 explicit status change in this document, a named source tag/release, a changelog
 entry identifying the compatibility baseline, and locked golden vectors for
 the ratified contract. Until then, breaking draft changes and intentional
@@ -265,7 +265,7 @@ Rust adapters use `Result<T, NcStatus>` to preserve unknown component errors.
 The `Err` variant must contain a negative status. A Rust adapter that receives
 `Err(status)` with a non-negative value must return `NC_E_INVALID_ARG` across
 the ABI instead of forwarding the invalid success status. Negative values,
-including unknown errors, are preserved. core ABI v6 intentionally retains
+including unknown errors, are preserved. core ABI v7 intentionally retains
 `NcStatus` rather than introducing a separate negative-only Rust error type;
 normalization at each user-controlled `Result`-to-status boundary enforces the
 required invariant without changing the C-shaped ABI type.
@@ -590,7 +590,7 @@ pub struct IUnknownVTable {
   and transfers no reference.
 - Null, dangling, misaligned, aliased, or otherwise invalid arguments violate
   the caller contract. Implementations may reject some such inputs defensively,
-  but core ABI v6 specifies no status or output postcondition for an invalid call.
+  but core ABI v7 specifies no status or output postcondition for an invalid call.
 - The returned pointer may have a different address from the input interface
   pointer.
 - The call does not consume the borrowed reference represented by `this`.
@@ -1030,6 +1030,23 @@ They must not be mixed within one runtime/application/plugin graph. Associated
 rustc evaluates `size_of`, `align_of`, and `offset_of` expressions. No source
 path spelling enters the stream. The `abi_signature!` macro provides the same
 static construction pattern for handwritten unsafe ABI adapters.
+
+`NcAbiValidationMode` is a `repr(transparent)` `u32` descriptor value with the
+following stable tags:
+
+```text
+0 none
+1 sha-256
+2 fnv-1a-128
+3 mangling
+```
+
+Each plugin descriptor stores exactly one mode for every signature reachable
+from its class table. Descriptor validation rejects unknown tags and signatures
+whose representation disagrees with the declared mode. A runtime compiled for
+one exact mode also rejects a plugin declaring another mode before walking its
+child descriptors. A representation-neutral inspection build accepts every
+known mode and validates each signature using the plugin's declaration.
 
 An interface identity is:
 
@@ -1507,6 +1524,7 @@ tools canonicalize graph output independently of descriptor order.
 #[repr(C)]
 pub struct NcPluginDescriptor {
     pub core_abi_version: u32,
+    pub validation_mode: NcAbiValidationMode,
     pub plugin_id: NcGuid,
     pub qualified_name: NcStaticUtf8,
     pub plugin_version: NcStaticUtf8,
@@ -1516,9 +1534,11 @@ pub struct NcPluginDescriptor {
 }
 ```
 
-`core_abi_version` must equal `NC_COM_CORE_ABI_VERSION` for this draft. `plugin_id` must
-equal the UUIDv5 derivation of `qualified_name` and be non-nil. Every class ID
-and non-root interface ID in the graph follows the same rule. If
+`core_abi_version` must equal `NC_COM_CORE_ABI_VERSION` for this draft.
+`validation_mode` must be a known `NcAbiValidationMode` tag and must describe
+every non-empty ABI signature reachable from this plugin. `plugin_id` must equal
+the UUIDv5 derivation of `qualified_name` and be non-nil. Every class ID and
+non-root interface ID in the graph follows the same rule. If
 `dependency_count == 0`, `dependencies` may be null. Otherwise it
 must point to `dependency_count` readable descriptors. `class_table` must be
 non-null.
@@ -1526,10 +1546,10 @@ non-null.
 Descriptor pointer fields must remain valid while the plugin is registered and
 while any plugin-created objects or factories may call plugin code.
 
-Plugin descriptors carry explicit hard dependency plugin IDs. core ABI v6 does not
+Plugin descriptors carry explicit hard dependency plugin IDs. core ABI v7 does not
 search for, resolve paths for, or recursively load those dependencies. An
 inspector can combine descriptors from an application-selected artifact set,
-reject duplicate IDs, missing dependencies, and cycles, and produce a
+reject mixed validation modes, duplicate IDs, missing dependencies, and cycles, and produce a
 deterministic dependency-first load order. The live runtime only verifies that
 every declared direct dependency is already registered; absence returns
 `NC_E_NOT_FOUND` from fallible static registration and is fatal during dynamic
@@ -1544,7 +1564,7 @@ neocogi-com live activation calls must not be nested. While a host call to
 initialization or the plugin descriptor entrypoint must not directly or
 indirectly call neocogi-com live activation again. This is a trusted-plugin
 precondition, not a dependency-resolution mechanism. It applies whether the
-nested call targets the same library or a different one. core ABI v6 implementations
+nested call targets the same library or a different one. core ABI v7 implementations
 are not required to detect or diagnose a violation. Automatic mapping of ordinary
 native dependencies by the operating-system loader is permitted and is not a
 nested neocogi-com activation; those libraries remain outside the neocogi-com registry
@@ -1623,7 +1643,7 @@ The default `Runtime` performs additional policy validation described in
 section 14.
 
 Loading a dynamic library is a trust boundary. Platform loader code may run
-before `nc_get_plugin_descriptor` is queried. core ABI v6 descriptor validation is
+before `nc_get_plugin_descriptor` is queried. core ABI v7 descriptor validation is
 for trusted plugin metadata shape, not hostile plugin isolation. It does not
 sandbox plugin code, prove plugin trustworthiness, or make an untrusted shared
 library safe to load.
@@ -1637,7 +1657,7 @@ produce a recoverable validation error.
 
 ## 14. Runtime API and Registry Policy
 
-core ABI v6 does not define an operating-system registry, package database, or
+core ABI v7 does not define an operating-system registry, package database, or
 activation service. `neocogi-com-runtime` owns one private process-global runtime
 state containing separate plugin and type registries plus debug callback state.
 Rust callers use the `neocogi-com` `Runtime` facade and its `PluginRegistry`,
@@ -1701,7 +1721,7 @@ prefix is unchanged; a shorter table must not be read beyond its advertised
 size.
 
 All five tables target the same process-global runtime state. Loading multiple
-runtime shared libraries creates independent process-global runtime instances; core ABI v6
+runtime shared libraries creates independent process-global runtime instances; core ABI v7
 does not merge them.
 
 Runtime ABI v1 publishes two process-resource ceilings:
@@ -1758,7 +1778,7 @@ dynamic activation acquire exclusive publication access, so every individual
 runtime operation observes catalog state from before or after a commit, never
 during it. Count/fill enumeration order is therefore independent of hash-map
 iteration. Indexed lookup and precomputed relationship slices are implementation
-details: they do not change any core ABI v6 table, descriptor, status, or ordering
+details: they do not change any core ABI v7 table, descriptor, status, or ordering
 rule.
 
 The first successful registration owns its plugin ID and class IDs. Repeating
@@ -2020,14 +2040,14 @@ section 14.6.
 Info lookups return `NC_E_POINTER` for null output and `NC_E_NOT_FOUND` for a
 missing identity. A class `module_id` of zero denotes static registration.
 Returned UTF-8 views remain valid until the runtime shared library is unloaded;
-callers must not modify or free them. core ABI v6 does not support plugin unload.
+callers must not modify or free them. core ABI v7 does not support plugin unload.
 
 The `neocogi-inspect` JSON file is a versioned tooling artifact, not another core
-ABI v6 memory layout and not a source-reconstruction format. Its schema version
-is independent of `NC_COM_CORE_ABI_VERSION`. A schema-v4 artifact records the
+ABI v7 memory layout and not a source-reconstruction format. Its schema version
+is independent of `NC_COM_CORE_ABI_VERSION`. A schema-v5 artifact records the
 producing tool version, target triple, pointer width, endianness, core ABI
-version, and owned plugin/class/interface identities, ABI signature strings,
-and method diagnostics.
+version, the explicit `com_validation` mode, and owned
+plugin/class/interface identities, ABI signature strings, and method diagnostics.
 Readers must reject unknown fields and unsupported schema versions and must
 validate identity derivation, duplicate entries, and method indices before
 comparison.
@@ -2035,10 +2055,11 @@ comparison.
 The artifact intentionally does not serialize structured parameter, return, or
 aggregate definitions. Human-readable method signatures are derived diagnostics
 only and are not reverse-parsed to reconstruct or independently validate an
-interface contract. The inspector validates the complete typed descriptor and
-streams its expected canonical records against the advertised signature while
-the library is mapped, before writing the artifact. Core ABI v6 does not promise
-that an inspection artifact can
+interface contract. An exact-mode runtime validates complete typed descriptors
+against recomputed canonical signatures. The representation-neutral inspector
+validates descriptor structure and checks every signature against the plugin's
+declared representation while the library is mapped, before writing the
+artifact. Core ABI v7 does not promise that an inspection artifact can
 recreate Rust traits, C declarations, vtables, aggregate layouts, or source
 definitions.
 
@@ -2048,7 +2069,9 @@ provides a directional `--compat` check from an old artifact to a proposed new
 artifact. Compatibility mode uses the interface `(IID, ABI signature)` pair as the
 complete interface-contract authority; it does not parse method diagnostics.
 
-Compatibility requires the same plugin ID, target facts, and core ABI version.
+Compatibility requires the same plugin ID, target facts, core ABI version, and
+COM validation mode. Signatures using different representations are not directly
+comparable.
 Every old class ID must remain present with the same constructor-frame ABI signature. A
 `thread_safe` class must not become `thread_local`. For each old class, every
 old interface IID must remain on that class with the same ABI signature. Removing a
@@ -2155,7 +2178,7 @@ make arbitrary non-null pointers safe.
 
 ## 15. Built-In Data Interfaces
 
-core ABI v6 defines two common read-only data interfaces.
+core ABI v7 defines two common read-only data interfaces.
 
 ### 15.1 `INcBytesAbi`
 
@@ -2288,7 +2311,7 @@ classes and interfaces came from that module. These IDs are not part of the
 cross-process ABI and are not passed to constructors or stored in generated
 object storage.
 
-core ABI v6 intentionally does not support explicit plugin unload or hot reload.
+core ABI v7 intentionally does not support explicit plugin unload or hot reload.
 Dynamic library unload is not a reliable rollback boundary for in-process
 plugins: loading a library may run platform loader code, initialize globals or
 thread-local state, register callbacks, start threads, publish function
@@ -2401,7 +2424,7 @@ Both levels are required. `ComClass::Threading` can describe the producer while
 the concrete class type is statically known, but an interface pointer erases
 that class type. The interface type `T` cannot replace it because multiple
 classes with different threading promises may implement the same interface.
-Nor can the raw pointer replace it: core ABI v6 deliberately gives both modes the
+Nor can the raw pointer replace it: core ABI v7 deliberately gives both modes the
 same representation and stores no per-pointer threading tag. The `ComPtr` or
 `ComRef` marker therefore carries the validated producer evidence through class
 type erasure so Rust can enforce `Send` and `Sync` without a runtime check on
@@ -2424,7 +2447,7 @@ descriptor producers that declare `THREAD_SAFE` assume this unsafe contract.
 
 The built-in process-global runtime is thread-safe.
 
-core ABI v6 does not define COM apartments, thread affinity marshaling, or an
+core ABI v7 does not define COM apartments, thread affinity marshaling, or an
 inter-thread proxy system.
 
 ## 19. Panic and Error Boundaries
@@ -2456,7 +2479,7 @@ registries merely because the operating-system loader mapped them.
 Load or validation failures abort because dynamic loading may already have run
 unsafe process-mutating code.
 
-core ABI v6 does not define:
+core ABI v7 does not define:
 
 - search paths
 - platform-specific file extensions
@@ -2492,7 +2515,7 @@ contracts exposed by those libraries.
 ## 21. ABI Evolution Rules
 
 The no-mutation rules in this section apply to published contracts beginning at
-the explicit ABI-v6 ratification baseline. During the experimental draft phase,
+the explicit ABI-v7 ratification baseline. During the experimental draft phase,
 they describe the intended post-freeze policy rather than a promise of
 compatibility with earlier pre-alpha revisions.
 
@@ -2565,7 +2588,7 @@ The contract crate should not contain:
 - heap-owned Rust containers crossing the boundary
 - host-specific activation policy
 
-Recommended release policy after ABI-v6 ratification:
+Recommended release policy after ABI-v7 ratification:
 
 - patch releases change documentation, tests, or non-ABI internals only
 - minor releases add side-by-side interfaces, classes, records, or enum values
@@ -2593,7 +2616,7 @@ Golden tests should assert:
 The ABI is C-compatible when C declarations exactly match the current core layouts,
 calling convention, status values, ownership rules, and pointer lifetimes.
 
-core ABI v6 does not currently define a canonical generated C header format. Header
+core ABI v7 does not currently define a canonical generated C header format. Header
 generation is a tooling layer on top of this specification. C consumers are
 responsible for using matching declarations and for obeying COM reference
 ownership.
@@ -2605,7 +2628,7 @@ the exact mapping.
 
 ## 24. Non-Goals
 
-core ABI v6 does not specify:
+core ABI v7 does not specify:
 
 - Windows COM apartments
 - Windows registry activation

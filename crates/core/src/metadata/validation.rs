@@ -1069,7 +1069,7 @@ fn descriptor_passing(passing: NcAbiPassingDescriptor) -> Result<NcAbiPassing, N
     }
 }
 
-/// Converts a raw threading tag, rejecting values outside core ABI v6.
+/// Converts a raw threading tag, rejecting values outside core ABI v7.
 #[cfg(feature = "_com-validation-exact")]
 fn descriptor_threading_mode(threading: u32) -> Result<NcAbiThreadingMode, NcStatus> {
     NcAbiThreadingMode::from_raw(threading).ok_or(NC_E_INVALID_ARG)
