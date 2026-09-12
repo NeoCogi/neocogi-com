@@ -138,6 +138,7 @@ fn parse_bit_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Re
     let metadata = parse_attributes(attributes, AttributeContext::BitEnum)?;
     input.parse::<keyword::bitenum>()?;
     let name = input.parse::<Ident>()?;
+    require_upper_camel_case(&name, "bit enum")?;
     if !input.peek(Token![:]) {
         return Err(syn::Error::new(name.span(), "IDL bit enums require an explicit unsigned representation"));
     }
@@ -168,6 +169,7 @@ fn parse_struct(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Resu
     let metadata = parse_attributes(attributes, AttributeContext::Plain)?;
     input.parse::<Token![struct]>()?;
     let name = input.parse::<Ident>()?;
+    require_upper_camel_case(&name, "struct")?;
     let body;
     braced!(body in input);
     let mut fields = Vec::new();
@@ -199,6 +201,7 @@ fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result
     let metadata = parse_attributes(attributes, AttributeContext::Enum)?;
     input.parse::<Token![enum]>()?;
     let name = input.parse::<Ident>()?;
+    require_upper_camel_case(&name, "enum")?;
     let repr = parse_optional_enum_repr(input)?;
     let body;
     braced!(body in input);
@@ -231,6 +234,7 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::R
     let metadata = parse_attributes(attributes, AttributeContext::Interface)?;
     input.parse::<Token![trait]>()?;
     let name = input.parse::<Ident>()?;
+    require_upper_camel_case(&name, "trait")?;
     let bases = parse_bases(input)?;
     let methods = parse_methods(input)?;
     Ok(declaration(name, metadata, DeclarationKind::Interface(Interface { bases, methods })))
@@ -242,6 +246,7 @@ fn parse_class(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Resul
     let threading = metadata_threading(&metadata);
     input.parse::<keyword::class>()?;
     let name = input.parse::<Ident>()?;
+    require_upper_camel_case(&name, "class")?;
     let required_interfaces = parse_bases(input)?;
     let methods = parse_methods(input)?;
     Ok(declaration(
@@ -257,6 +262,7 @@ fn parse_factory(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Res
     let threading = metadata_threading(&metadata);
     input.parse::<keyword::factory>()?;
     let name = input.parse::<Ident>()?;
+    require_upper_camel_case(&name, "factory")?;
     let required_interfaces = parse_bases(input)?;
     let methods = parse_methods(input)?;
     Ok(declaration(
@@ -316,6 +322,7 @@ fn lower_method(source: TraitItemFn) -> syn::Result<Method> {
     }
     let docs = parse_doc_only_attributes(&source.attrs)?;
     let signature = source.sig;
+    require_snake_case(&signature.ident, "method")?;
     if signature.constness.is_some()
         || signature.asyncness.is_some()
         || signature.unsafety.is_some()
@@ -358,6 +365,7 @@ fn lower_method(source: TraitItemFn) -> syn::Result<Method> {
             ));
         }
         let name = pattern.ident.to_string();
+        require_snake_case(&pattern.ident, "parameter")?;
         if !names.insert(name.clone()) {
             return Err(syn::Error::new_spanned(pattern, format!("duplicate parameter {name:?}")));
         }
@@ -487,6 +495,7 @@ fn parse_named_field(input: ParseStream<'_>) -> syn::Result<Field> {
         return Err(input.error("IDL fields are public implicitly; remove `pub`"));
     }
     let name = input.parse::<Ident>()?;
+    require_snake_case(&name, "field")?;
     input.parse::<Token![:]>()?;
     let ty = lower_type(&input.parse::<Type>()?)?;
     if !input.is_empty() {
@@ -500,6 +509,7 @@ fn parse_enum_variant(input: ParseStream<'_>) -> syn::Result<EnumVariant> {
     let attributes = Attribute::parse_outer(input)?;
     let docs = parse_doc_only_attributes(&attributes)?;
     let name = input.parse::<Ident>()?;
+    require_upper_camel_case(&name, "enum variant")?;
     let fields = if input.peek(syn::token::Paren) {
         let content;
         parenthesized!(content in input);
@@ -545,6 +555,7 @@ fn parse_bit_flag(input: ParseStream<'_>) -> syn::Result<BitFlag> {
     let attributes = Attribute::parse_outer(input)?;
     let docs = parse_doc_only_attributes(&attributes)?;
     let name = input.parse::<Ident>()?;
+    require_screaming_snake_case(&name, "bit enum flag")?;
     input.parse::<Token![=]>()?;
     let value = parse_unsigned_integer(&input.parse::<Expr>()?)?;
     if !input.is_empty() {
@@ -594,9 +605,17 @@ fn parse_import(input: ParseStream<'_>) -> syn::Result<Import> {
         if names.is_empty() {
             return Err(body.error("IDL import groups cannot be empty"));
         }
-        names.into_iter().map(|name| name.to_string()).collect::<Vec<_>>()
+        names
+            .into_iter()
+            .map(|name| {
+                require_upper_camel_case(&name, "imported declaration")?;
+                Ok(name.to_string())
+            })
+            .collect::<syn::Result<Vec<_>>>()?
     } else {
-        vec![input.parse::<Ident>()?.to_string()]
+        let name = input.parse::<Ident>()?;
+        require_upper_camel_case(&name, "imported declaration")?;
+        vec![name.to_string()]
     };
     input.parse::<Token![;]>()?;
 
@@ -607,6 +626,54 @@ fn parse_import(input: ParseStream<'_>) -> syn::Result<Import> {
         }
     }
     Ok(Import { module: module.join("."), names })
+}
+
+/// Requires the Rust convention used by every generated type declaration and enum variant.
+fn require_upper_camel_case(identifier: &Ident, role: &str) -> syn::Result<()> {
+    let value = identifier.to_string();
+    let mut characters = value.chars();
+    let valid = characters.next().is_some_and(|first| first.is_ascii_uppercase()) && characters.all(|character| character.is_ascii_alphanumeric());
+    if valid {
+        Ok(())
+    } else {
+        Err(syn::Error::new_spanned(
+            identifier,
+            format!("IDL {role} name {value:?} must use UpperCamelCase"),
+        ))
+    }
+}
+
+/// Requires the Rust convention used by generated fields, methods, and parameters.
+fn require_snake_case(identifier: &Ident, role: &str) -> syn::Result<()> {
+    let value = identifier.to_string();
+    let bytes = value.as_bytes();
+    let valid = bytes.first().is_some_and(u8::is_ascii_lowercase)
+        && bytes.last().is_some_and(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        && bytes.iter().all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'_')
+        && !bytes.windows(2).any(|pair| pair == b"__");
+    if valid {
+        Ok(())
+    } else {
+        Err(syn::Error::new_spanned(identifier, format!("IDL {role} name {value:?} must use snake_case")))
+    }
+}
+
+/// Requires the Rust constant convention reserved for combinable bit flags.
+fn require_screaming_snake_case(identifier: &Ident, role: &str) -> syn::Result<()> {
+    let value = identifier.to_string();
+    let bytes = value.as_bytes();
+    let valid = bytes.first().is_some_and(u8::is_ascii_uppercase)
+        && bytes.last().is_some_and(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
+        && bytes.iter().all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit() || *byte == b'_')
+        && !bytes.windows(2).any(|pair| pair == b"__");
+    if valid {
+        Ok(())
+    } else {
+        Err(syn::Error::new_spanned(
+            identifier,
+            format!("IDL {role} name {value:?} must use SCREAMING_SNAKE_CASE"),
+        ))
+    }
 }
 
 /// Attribute capabilities allowed for one declaration category.

@@ -139,6 +139,36 @@ fn rejects_ambiguous_bit_enum_layouts() {
     assert!(implicit_value.to_string().contains("expected `=`"));
 }
 
+/// Confirms source identifiers match the Rust API shape emitted by generation.
+#[test]
+fn enforces_rust_identifier_conventions() {
+    let invalid = [
+        ("#[version(1)] struct widget_options { value: u8 }", "UpperCamelCase"),
+        ("#[version(1)] enum flow_direction: u8 { Horizontal = 0 }", "UpperCamelCase"),
+        ("#[version(1)] trait widget {}", "UpperCamelCase"),
+        ("#[version(1)] class button {}", "UpperCamelCase"),
+        ("#[version(1)] factory ui_factory {}", "UpperCamelCase"),
+        ("#[version(1)] enum Direction: u8 { LEFT_TO_RIGHT = 0 }", "UpperCamelCase"),
+        ("#[version(1)] struct Size { Width: u32 }", "snake_case"),
+        ("#[version(1)] enum Event { Resize { NewWidth: u32 } }", "snake_case"),
+        ("#[version(1)] trait IWidget { fn SetWidth(&self) -> Result<()>; }", "snake_case"),
+        (
+            "#[version(1)] trait IWidget { fn set_width(&self, NewWidth: u32) -> Result<()>; }",
+            "snake_case",
+        ),
+        ("#[version(1)] bitenum WindowOptions: u16 { Resizable = 1 }", "SCREAMING_SNAKE_CASE"),
+        ("use neocogi.render::texture; #[version(1)] struct Size { width: u32 }", "UpperCamelCase"),
+    ];
+
+    for (source, expected) in invalid {
+        let error = parse_module(Path::new("neocogi/naming.ncidl"), source).unwrap_err();
+        assert!(
+            error.to_string().contains(expected),
+            "expected {expected:?} diagnostic for {source:?}; found {error}"
+        );
+    }
+}
+
 /// Confirms mutable borrows cannot imply mutable access to foreign objects.
 #[test]
 fn rejects_mutable_object_borrows() {
