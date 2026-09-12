@@ -3,9 +3,8 @@
 //! `neocogi-com` keeps the binary boundary explicit: interfaces are represented as
 //! `#[repr(C)]` structs containing a vtable pointer and an opaque object
 //! pointer, methods are `extern "C"` function pointers, and errors are returned
-//! as [`NcStatus`] values. The Rust traits used with `com_interface` are the
-//! implementation surface; the generated `*Abi` types are the portable ABI
-//! surface.
+//! as [`NcStatus`] values. IDL-generated Rust traits are the implementation
+//! surface; the generated `*Abi` types are the portable ABI surface.
 //! `com_interface` also generates the `unsafe impl` of [`ComInterface`] that
 //! certifies the header, vtable prefix, identity/signature, lifetime, and [`IUnknown`]
 //! conversion invariants relied on by safe [`ComPtr`] operations. The trait is
@@ -20,8 +19,7 @@
 //! registry activation, `HRESULT`, or system COM marshalling.
 //!
 //! This crate is also not a C SDK generator. The ABI is C-compatible, but the
-//! runtime and macros are focused on defining and enforcing the Rust-side ABI
-//! model.
+//! runtime and generator-facing macros enforce the Rust-side ABI model.
 //!
 //! # Scope
 //!
@@ -122,7 +120,7 @@
 //!
 //! Once ratified, published interface contracts must not be mutated in place.
 //! Adding a method, changing method order or lowered types, changing ownership
-//! semantics, or changing the ABI signature grammar requires a new versioned
+//! semantics, or changing the canonical IDL fingerprint format requires a new versioned
 //! interface ID. Built-in status-code numbers are stable once published and
 //! must not be renumbered.
 //! or reused.
@@ -144,10 +142,16 @@
 //! reference-counted heap allocation. `Runtime` requires the `runtime`
 //! feature, which also enables `std`; `std` enables `alloc`.
 //!
+//! Cross-component declarations belong in `.ncidl`. `neocogi-idl-build`
+//! invokes the macros below with precomputed 32-byte declaration signatures;
+//! rustc never hashes a contract. The explicit `assigned_signature` values in
+//! these low-level macro examples are test fixtures, not a manual authoring
+//! workflow for published contracts.
+//!
 //! ```
 //! use neocogi_com::{com_interface, com_object, ComPtr, IUnknown, NcStatus};
 //!
-//! #[com_interface(auto_guid = "nc.docs.Calculator:v1")]
+//! #[com_interface(auto_guid = "nc.docs.Calculator:v1", assigned_signature = b"00000000000000000000000000000001")]
 //! pub trait ICalculator {
 //!     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
 //! }
@@ -172,7 +176,7 @@
 //! ```
 //! use neocogi_com::{com_interface, com_object, ComPtr, IUnknown, NcStatus};
 //!
-//! #[com_interface(auto_guid = "nc.docs.Counter:v1")]
+//! #[com_interface(auto_guid = "nc.docs.Counter:v1", assigned_signature = b"00000000000000000000000000000002")]
 //! pub trait ICounter {
 //!     fn value(&self) -> Result<i32, NcStatus>;
 //! }
@@ -209,7 +213,8 @@
 //!
 //! #[com_interface(
 //!     "bfec7c45-902c-5f94-84ec-77df282eb9f6",
-//!     name = "example.Calculator:v1"
+//!     name = "example.Calculator:v1",
+//!     assigned_signature = b"00000000000000000000000000000003"
 //! )]
 //! pub trait IPinnedCalculator {}
 //! ```
@@ -232,7 +237,7 @@
 //! conflicting or reentrant calls return [`NC_E_BUSY`].
 //! Methods named `query_interface`, `add_ref`, or `release` are reserved for
 //! generated `IUnknown` lifecycle thunks. Parameter names remain readable in
-//! generated ABI signatures; a focused macro error is emitted only when a name
+//! generated method descriptors and enter the IDL module fingerprint; a focused macro error is emitted only when a name
 //! would duplicate a lowered buffer slot or shadow a generated adapter binding.
 //!
 //! Owned or long-lived variable-size data such as strings, byte buffers, arrays,
@@ -310,7 +315,7 @@
 //! ```
 //! use neocogi_com::com_struct;
 //!
-//! #[com_struct]
+//! #[com_struct(assigned_signature = b"00000000000000000000000000000004")]
 //! #[derive(Debug, PartialEq)]
 //! pub struct Rect {
 //!     pub x: f32,
@@ -322,8 +327,9 @@
 //!
 //! Use `#[com_struct(packed)]`, `#[com_struct(packed(N))]`, or
 //! `#[com_struct(align(N))]` only when that physical layout is part of the
-//! contract. The generated aggregate ABI signature includes the struct size,
-//! alignment, field order, field offsets, and field ABI types.
+//! contract. Generated [`ComStruct`] metadata records the compiled size,
+//! alignment, field order, field offsets, and field ABI types. Compatibility
+//! uses the precomputed fingerprint of the IDL module that declared the record.
 //!
 //! For external C-layout fields without neocogi-com traits, use
 //! `#[com_struct(c_struct)]`:
@@ -339,7 +345,7 @@
 //!     pub y: f32,
 //! }
 //!
-//! #[com_struct(c_struct)]
+//! #[com_struct(c_struct, assigned_signature = b"00000000000000000000000000000005")]
 //! pub struct Vertex {
 //!     pub position: Vec2f,
 //!     pub uv: Vec2f,
@@ -394,7 +400,7 @@
 //! mod contract {
 //!     use neocogi_com::com_enum;
 //!
-//!     #[com_enum(tag = u32)]
+//!     #[com_enum(tag = u32, assigned_signature = b"00000000000000000000000000000006")]
 //!     #[derive(Debug, PartialEq)]
 //!     pub enum Mutation {
 //!         #[com_tag(10)]
@@ -447,10 +453,10 @@ pub use macros::{ComDeserialize, com_class_description, com_enum, com_factory, c
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{format_abi_signature, format_method_signature};
 pub use neocogi_com_core::{
-    __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, abi_signature, ComClientInterface,
-    ComDeserialize, ComDeserializer, ComEnum, ComFactoryBootstrap, ComFactoryDescription, ComFactoryImplementation, ComInterface, ComObjectDescription, ComPtr,
-    ComRecord, ComRecordAccess, ComRef, ComSequence, ComSequenceAccess, ComStruct, ComVariantAccess, NcClientPointer, IID_INC_BYTES, IID_INC_STRING,
-    IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
+    __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClientInterface, ComDeserialize,
+    ComDeserializer, ComEnum, ComFactoryBootstrap, ComFactoryDescription, ComFactoryImplementation, ComInterface, ComObjectDescription, ComPtr, ComRecord,
+    ComRecordAccess, ComRef, ComSequence, ComSequenceAccess, ComStruct, ComVariantAccess, NcClientPointer, IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN,
+    INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
     NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT,
     NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
     NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64,
@@ -461,15 +467,15 @@ pub use neocogi_com_core::{
     NC_DESCRIPTOR_VERSION_MAX_LEN, NC_CONTRACT_DECLARATION_CLASS, NC_CONTRACT_DECLARATION_ENUM, NC_CONTRACT_DECLARATION_FACTORY,
     NC_CONTRACT_DECLARATION_INTERFACE, NC_CONTRACT_DECLARATION_NO_THREADING, NC_CONTRACT_DECLARATION_STRUCT, NC_CONTRACT_DESCRIPTION_ABI_VERSION,
     NC_E_ABI_VERSION, NC_E_BUSY, NC_E_CONTRACT_MISMATCH, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE,
-    NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiAggregateKind,
-    NcAbiFieldLayout, NcAbiSignature, NcAbiSignaturePart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiStructLayout, NcAbiThreadingMode,
-    NcAbiType, NcAbiTypeDescriptor, NcActivatePluginFactory, NcContractDeclarationDescription, NcContractDependencyDescription, NcContractFingerprint,
-    NcContractModuleDescription, NcContractModuleReference, NcContractRegistryV2, NcDebugApiV2, NcDebugCallbackV2, NcDebugMessageV2,
-    NcDebugMessengerCreateInfoV2, NcFactoryPluginDescription, NcGetContractModuleDescription, NcGetFactoryPluginDescription, NcGuid,
-    NcInspectFactoryPluginDescriptionCallbackV2, NcInspectionApiV2, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor,
-    NcMethodReturnDescriptor, NcModuleInfoV2, NcPluginDependencyDescriptor, NcPluginInfoV2, NcPluginRegistryV2, NcQualifiedNameError, NcRuntimeApiV2,
-    NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe,
-    ThreadingModel, activate_factory_implementation, guid_from_qualified_name, raw, return_factory_plugin_description, validate_factory_plugin_description,
+    NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiFieldLayout,
+    NcAbiSignature, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor,
+    NcActivatePluginFactory, NcContractDeclarationDescription, NcContractDependencyDescription, NcContractFingerprint, NcContractModuleDescription,
+    NcContractModuleReference, NcContractRegistryV2, NcDebugApiV2, NcDebugCallbackV2, NcDebugMessageV2, NcDebugMessengerCreateInfoV2,
+    NcFactoryPluginDescription, NcGetContractModuleDescription, NcGetFactoryPluginDescription, NcGuid, NcInspectFactoryPluginDescriptionCallbackV2,
+    NcInspectionApiV2, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcModuleInfoV2,
+    NcPluginDependencyDescriptor, NcPluginInfoV2, NcPluginRegistryV2, NcQualifiedNameError, NcRuntimeApiV2, NcStaticUtf8, NcStatus, NcUtf8View,
+    NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel,
+    activate_factory_implementation, guid_from_qualified_name, raw, return_factory_plugin_description, validate_factory_plugin_description,
     validate_qualified_name, validate_version_text,
 };
 #[cfg(feature = "alloc")]

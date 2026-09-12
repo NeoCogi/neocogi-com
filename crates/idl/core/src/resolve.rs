@@ -21,6 +21,12 @@ pub struct DeclarationIdentity {
     pub version: u32,
     /// Derived or explicitly supplied 128-bit ABI identity.
     pub id: NcGuid,
+    /// Tool-computed identity of this declaration in the exact module revision.
+    ///
+    /// The module fingerprint makes every transitive contract change visible,
+    /// while the declaration ID keeps distinct value types distinguishable in
+    /// generated method and field descriptors.
+    pub abi_signature: [u8; 32],
 }
 
 /// One exact module dependency after its ABI fingerprint has been resolved.
@@ -194,6 +200,7 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
         .into_iter()
         .enumerate()
         .map(|(index, entry)| {
+            let module_fingerprint = fingerprints[index].expect("all module fingerprints completed");
             let dependencies = entry
                 .dependencies
                 .iter()
@@ -206,12 +213,20 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
                     }
                 })
                 .collect();
+            let declarations = entry
+                .declaration_identities
+                .into_iter()
+                .map(|mut declaration| {
+                    declaration.abi_signature = derive_declaration_signature(module_fingerprint, declaration.id);
+                    declaration
+                })
+                .collect();
             ResolvedModule {
                 source: entry.module,
                 module_id: entry.module_id,
-                abi_fingerprint: fingerprints[index].expect("all module fingerprints completed"),
+                abi_fingerprint: module_fingerprint,
                 dependencies,
-                declarations: entry.declaration_identities,
+                declarations,
             }
         })
         .collect();
@@ -316,6 +331,9 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
                 qualified_name,
                 version: declaration.id.version,
                 id,
+                // The final value depends on the transitive module fingerprint,
+                // which is available only after the complete graph is resolved.
+                abi_signature: [0; 32],
             });
         }
         entries.push(ModuleEntry {
@@ -962,6 +980,21 @@ fn derive_declaration_id(qualified_name: &str, version: u32) -> NcGuid {
     preimage.extend_from_slice(qualified_name.as_bytes());
     preimage.extend_from_slice(&version.to_be_bytes());
     guid_from_name(NC_IDL_IDENTITY_NAMESPACE, &preimage)
+}
+
+/// Derives one declaration-scoped signature from an exact module revision.
+///
+/// A module fingerprint is deliberately part of the preimage: loading is
+/// exact at module granularity, so every declaration signature must reject a
+/// peer compiled against any other transitive revision. The declaration ID
+/// prevents two aggregates in that same revision from collapsing to one type
+/// identity in runtime descriptors.
+fn derive_declaration_signature(module_fingerprint: [u8; 32], declaration_id: NcGuid) -> [u8; 32] {
+    let mut preimage = Vec::with_capacity(80);
+    preimage.extend_from_slice(b"neocogi-idl:declaration-abi:v1\0");
+    preimage.extend_from_slice(&module_fingerprint);
+    preimage.extend_from_slice(&declaration_id.to_uuid_bytes());
+    digest(&preimage)
 }
 
 /// Maps a declaration payload to its coarse reference category.

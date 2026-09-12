@@ -6,25 +6,18 @@
 //! errors so callers see all actionable problems from one expansion.
 
 use quote::{format_ident, quote};
-use syn::{Generics, Ident, LitStr, Path, Result, Visibility};
+use syn::{Generics, Ident, LitByteStr, LitStr, Path, Result, Visibility};
 
 use crate::args::InterfaceGuid;
 
-/// Emits exact static storage for an ordered canonical ABI signature.
+/// Emits exact static storage for a generator-computed ABI signature.
 ///
-/// The logical part expressions may contain compiler-evaluated type and layout
-/// constants. Rust therefore resolves aliases, imported paths, sizes,
-/// alignments, and field offsets before initializing the final byte buffer.
-pub(crate) fn abi_signature_static_tokens(parts_ident: &Ident, bytes_ident: &Ident, parts: &[proc_macro2::TokenStream], nc: &Path) -> proc_macro2::TokenStream {
-    let part_count = parts.len();
+/// This helper deliberately accepts bytes rather than logical ABI records.
+/// Contract resolution and SHA-256 belong to the IDL build tool; the compiler
+/// only type-checks and stores the resulting fixed-size array.
+pub(crate) fn abi_signature_static_tokens(bytes_ident: &Ident, assigned_signature: &LitByteStr, nc: &Path) -> proc_macro2::TokenStream {
     quote! {
-        const #parts_ident: [#nc::NcAbiSignaturePart<'static>; #part_count] = [
-            #(#parts,)*
-        ];
-        static #bytes_ident: [u8; #nc::NcAbiSignature::__encoded_len(&#parts_ident)] =
-            #nc::NcAbiSignature::__encode::<{
-                #nc::NcAbiSignature::__encoded_len(&#parts_ident)
-            }>(&#parts_ident);
+        static #bytes_ident: [u8; #nc::NcAbiSignature::SHA256_LEN] = *#assigned_signature;
     }
 }
 

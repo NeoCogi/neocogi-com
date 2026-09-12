@@ -7,7 +7,7 @@ macro_rules! add_method {
     };
 }
 
-#[com_interface(auto_guid = "nc.tests.ui.UnsupportedItems:v1")]
+#[com_interface(auto_guid = "nc.tests.ui.UnsupportedItems:v1", assigned_signature = b"99999999999999999999999999999999")]
 pub trait IUnsupportedItems {
     type Value;
     const VERSION: u32;

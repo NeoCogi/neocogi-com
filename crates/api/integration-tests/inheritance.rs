@@ -7,7 +7,7 @@ use std::{cell::Cell, rc::Rc};
 mod contract {
     use super::*;
 
-    #[com_interface(auto_guid = "nc.tests.inheritance.Widget:v1")]
+    #[com_interface(auto_guid = "nc.tests.inheritance.Widget:v1", assigned_signature = b"00000000000000000000000000000007")]
     /// Common widget contract, including a recursive return to its derived type.
     pub trait IWidget {
         /// Observes the shared concrete state.
@@ -17,14 +17,14 @@ mod contract {
     }
 }
 
-#[com_interface(auto_guid = "nc.tests.inheritance.Button:v1")]
+#[com_interface(auto_guid = "nc.tests.inheritance.Button:v1", assigned_signature = b"00000000000000000000000000000008")]
 /// Adds one slot after the complete widget prefix.
 pub trait IButton: contract::IWidget {
     /// Changes state observed through all projections.
     fn set_value(&mut self, value: u32) -> Result<(), NcStatus>;
 }
 
-#[com_interface(auto_guid = "nc.tests.inheritance.Toggle:v1")]
+#[com_interface(auto_guid = "nc.tests.inheritance.Toggle:v1", assigned_signature = b"00000000000000000000000000000009")]
 /// A second level verifies recursive vtables and inherited client lookup.
 pub trait IToggle: IButton {
     /// Copies a base value through a checked borrowed argument.

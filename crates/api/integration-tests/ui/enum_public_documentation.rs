@@ -2,7 +2,7 @@
 #![deny(missing_docs)]
 use neocogi_com::com_enum;
 
-#[com_enum(tag = u8)]
+#[com_enum(tag = u8, assigned_signature = b"00000000000000000000000000000045")]
 /// Public semantic choice with all three supported payload shapes.
 pub enum Documented {
     /// Variant without payload data.

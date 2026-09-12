@@ -1,6 +1,6 @@
 use neocogi_com::{com_object, com_interface};
 
-#[com_interface(auto_guid = "nc.tests.ui.MissingImpl:v1")]
+#[com_interface(auto_guid = "nc.tests.ui.MissingImpl:v1", assigned_signature = b"99999999999999999999999999999999")]
 pub trait IMissingImpl {
     fn value(&self) -> Result<u32, neocogi_com::NcStatus>;
 }

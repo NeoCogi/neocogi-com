@@ -7,7 +7,7 @@
 use quote::{ToTokens, format_ident};
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
-use syn::{Ident, LitInt, LitStr, Path, Result, Token, Type, parenthesized};
+use syn::{Ident, LitByteStr, LitInt, LitStr, Path, Result, Token, Type, parenthesized};
 
 use crate::util::{interface_field, path_with_last_ident};
 
@@ -33,6 +33,8 @@ pub(crate) struct ObjectDescriptionArgs {
     pub(crate) version: LitInt,
     /// Local or shared threading capability.
     pub(crate) threading: DescriptionThreading,
+    /// Generator-computed declaration signature required by expansion.
+    pub(crate) assigned_signature: Option<LitByteStr>,
     /// Optional path overriding automatic `neocogi-com` crate discovery.
     pub(crate) runtime_crate: Option<Path>,
 }
@@ -64,6 +66,8 @@ pub(crate) struct EnumArgs {
     pub(crate) runtime_crate: Option<Path>,
     /// Whether to generate format-neutral typed decoding for the Rust enum.
     pub(crate) deserialize: bool,
+    /// Generator-computed declaration signature required by expansion.
+    pub(crate) assigned_signature: Option<LitByteStr>,
 }
 
 /// Parsed options for `#[com_struct]`.
@@ -80,6 +84,8 @@ pub(crate) struct StructArgs {
     pub(crate) deserialize_default: bool,
     /// Whether fields decode from an ordered sequence instead of a named record.
     pub(crate) deserialize_sequence: bool,
+    /// Generator-computed declaration signature required by expansion.
+    pub(crate) assigned_signature: Option<LitByteStr>,
 }
 
 /// Supported physical layout modifiers for generated COM structs.
@@ -98,6 +104,8 @@ pub(crate) struct InterfaceArgs {
     pub(crate) guid: InterfaceGuid,
     /// Normative qualified name stored in descriptor metadata.
     pub(crate) qualified_name: LitStr,
+    /// Generator-computed declaration signature required by expansion.
+    pub(crate) assigned_signature: Option<LitByteStr>,
     /// Optional path overriding automatic `neocogi-com` crate discovery.
     pub(crate) runtime_crate: Option<Path>,
 }
@@ -123,6 +131,7 @@ impl Parse for EnumArgs {
         let mut tag = None;
         let mut runtime_crate = None;
         let mut deserialize = false;
+        let mut assigned_signature = None;
 
         while !input.is_empty() {
             let keyword: Ident = input.parse()?;
@@ -143,10 +152,12 @@ impl Parse for EnumArgs {
                     return Err(syn::Error::new(keyword.span(), "duplicate deserialize"));
                 }
                 deserialize = true;
+            } else if keyword == "assigned_signature" {
+                parse_assigned_signature(input, keyword, &mut assigned_signature)?;
             } else {
                 return Err(syn::Error::new(
                     keyword.span(),
-                    "expected tag = integer_type, deserialize, or neocogi_com = path",
+                    "expected tag = integer_type, deserialize, assigned_signature = b\"32 bytes\", or neocogi_com = path",
                 ));
             }
 
@@ -160,6 +171,7 @@ impl Parse for EnumArgs {
             tag: tag.ok_or_else(|| syn::Error::new(input.span(), "expected tag = integer_type"))?,
             runtime_crate,
             deserialize,
+            assigned_signature,
         })
     }
 }
@@ -173,6 +185,7 @@ impl Parse for StructArgs {
         let mut deserialize = false;
         let mut deserialize_default = false;
         let mut deserialize_sequence = false;
+        let mut assigned_signature = None;
 
         while !input.is_empty() {
             let keyword: Ident = input.parse()?;
@@ -231,10 +244,12 @@ impl Parse for StructArgs {
                     return Err(syn::Error::new(content.span(), "expected align(N)"));
                 }
                 repr = Some(StructReprArgs::Align(value));
+            } else if keyword == "assigned_signature" {
+                parse_assigned_signature(input, keyword, &mut assigned_signature)?;
             } else {
                 return Err(syn::Error::new(
                     keyword.span(),
-                    "expected c_struct, deserialize, default, sequence, packed, packed(N), align(N), or neocogi_com = path",
+                    "expected c_struct, deserialize, default, sequence, packed, packed(N), align(N), assigned_signature = b\"32 bytes\", or neocogi_com = path",
                 ));
             }
 
@@ -258,6 +273,7 @@ impl Parse for StructArgs {
             deserialize,
             deserialize_default,
             deserialize_sequence,
+            assigned_signature,
         })
     }
 }
@@ -268,6 +284,7 @@ impl Parse for InterfaceArgs {
         let mut guid = None;
         let mut qualified_name = None;
         let mut runtime_crate = None;
+        let mut assigned_signature = None;
 
         while !input.is_empty() {
             if input.peek(LitStr) {
@@ -307,10 +324,12 @@ impl Parse for InterfaceArgs {
                     }
                     input.parse::<Token![=]>()?;
                     runtime_crate = Some(input.parse()?);
+                } else if keyword == "assigned_signature" {
+                    parse_assigned_signature(input, keyword, &mut assigned_signature)?;
                 } else {
                     return Err(syn::Error::new(
                         keyword.span(),
-                        "expected UUID string, name = \"stable.name:v1\", auto_guid = \"stable.name:v1\", assigned_guid = \"UUID\", or neocogi_com = path",
+                        "expected UUID string, name = \"stable.name:v1\", auto_guid = \"stable.name:v1\", assigned_guid = \"UUID\", assigned_signature = b\"32 bytes\", or neocogi_com = path",
                     ));
                 }
             }
@@ -324,6 +343,7 @@ impl Parse for InterfaceArgs {
         Ok(Self {
             guid: guid.ok_or_else(|| syn::Error::new(input.span(), "expected UUID string or auto_guid = \"stable.name:v1\""))?,
             qualified_name: qualified_name.ok_or_else(|| syn::Error::new(input.span(), "explicit interface UUIDs require name = \"stable.name:v1\""))?,
+            assigned_signature,
             runtime_crate,
         })
     }
@@ -336,6 +356,7 @@ impl Parse for ObjectDescriptionArgs {
         let mut name: Option<LitStr> = None;
         let mut version: Option<LitInt> = None;
         let mut threading: Option<DescriptionThreading> = None;
+        let mut assigned_signature = None;
         let mut runtime_crate: Option<Path> = None;
 
         while !input.is_empty() {
@@ -371,6 +392,8 @@ impl Parse for ObjectDescriptionArgs {
                 } else {
                     return Err(syn::Error::new(value.span(), "threading must be `local` or `shared`"));
                 });
+            } else if keyword == "assigned_signature" {
+                parse_assigned_signature(input, keyword, &mut assigned_signature)?;
             } else if keyword == "neocogi_com" {
                 if runtime_crate.is_some() {
                     return Err(syn::Error::new(keyword.span(), "duplicate neocogi_com = ..."));
@@ -380,7 +403,7 @@ impl Parse for ObjectDescriptionArgs {
             } else {
                 return Err(syn::Error::new(
                     keyword.span(),
-                    "expected id = \"UUID\", name = \"module.Name\", version = N, threading = local|shared, or neocogi_com = path",
+                    "expected id = \"UUID\", name = \"module.Name\", version = N, threading = local|shared, assigned_signature = b\"32 bytes\", or neocogi_com = path",
                 ));
             }
 
@@ -400,9 +423,24 @@ impl Parse for ObjectDescriptionArgs {
             name: name.ok_or_else(|| syn::Error::new(input.span(), "expected name = \"module.Name\""))?,
             version,
             threading: threading.ok_or_else(|| syn::Error::new(input.span(), "expected threading = local or shared"))?,
+            assigned_signature,
             runtime_crate,
         })
     }
+}
+
+/// Parses one generator-owned SHA-256 byte array exactly once.
+fn parse_assigned_signature(input: ParseStream<'_>, keyword: Ident, slot: &mut Option<LitByteStr>) -> Result<()> {
+    if slot.is_some() {
+        return Err(syn::Error::new(keyword.span(), "duplicate assigned_signature = ..."));
+    }
+    input.parse::<Token![=]>()?;
+    let signature: LitByteStr = input.parse()?;
+    if signature.value().len() != 32 {
+        return Err(syn::Error::new_spanned(signature, "assigned_signature must contain exactly 32 bytes"));
+    }
+    *slot = Some(signature);
+    Ok(())
 }
 
 impl Parse for ClassArgs {

@@ -2,13 +2,13 @@
 use neocogi_com::{com_object, com_interface, ComPtr, NcStatus};
 use std::{cell::Cell, rc::Rc};
 
-#[com_interface(auto_guid = "test.GenericBase:v1")]
+#[com_interface(auto_guid = "test.GenericBase:v1", assigned_signature = b"00000000000000000000000000000043")]
 /// Concrete base contract independent of the implementation's type arguments.
 trait IBase {
     /// Returns one copied observation from owned state.
     fn value(&self) -> Result<u32, NcStatus>;
 }
-#[com_interface(auto_guid = "test.GenericSink:v1")]
+#[com_interface(auto_guid = "test.GenericSink:v1", assigned_signature = b"00000000000000000000000000000044")]
 /// Derived concrete event sink, including direct inherited calls.
 trait ISink: IBase {
     /// Applies one concrete event value to its retained handler.

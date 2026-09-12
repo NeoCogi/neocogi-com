@@ -4,7 +4,11 @@ pub mod facade {
 
 use renamed_nc::{ComPtr, IUnknown, NC_E_INVALID_TAG, NcStatus};
 
-#[renamed_nc::com_interface(neocogi_com = crate::facade, auto_guid = "nc.tests.renamed.Override:v1")]
+#[renamed_nc::com_interface(
+    neocogi_com = crate::facade,
+    auto_guid = "nc.tests.renamed.Override:v1",
+    assigned_signature = b"00000000000000000000000000000037"
+)]
 pub trait IOverrideResolved {
     fn value(&self) -> Result<u16, crate::facade::NcStatus>;
 }
@@ -18,13 +22,17 @@ impl IOverrideResolved for OverrideResolved {
     }
 }
 
-#[renamed_nc::com_enum(neocogi_com = crate::facade, tag = u16)]
+#[renamed_nc::com_enum(
+    neocogi_com = crate::facade,
+    tag = u16,
+    assigned_signature = b"00000000000000000000000000000038"
+)]
 #[derive(Debug, PartialEq)]
 pub enum OverrideEvent {
     Ready(u32),
 }
 
-#[renamed_nc::com_struct(neocogi_com = crate::facade)]
+#[renamed_nc::com_struct(neocogi_com = crate::facade, assigned_signature = b"00000000000000000000000000000039")]
 #[derive(Debug, PartialEq)]
 pub struct OverridePoint {
     pub x: u16,

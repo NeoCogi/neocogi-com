@@ -3,7 +3,7 @@ use neocogi_com::{
     NC_E_OUT_OF_RANGE, com_object, com_interface, com_struct,
 };
 
-#[com_struct]
+#[com_struct(assigned_signature = b"00000000000000000000000000000040")]
 #[derive(Debug, Default, PartialEq)]
 pub struct NativeAggregate {
     pub tag: u8,
@@ -11,12 +11,12 @@ pub struct NativeAggregate {
     pub value: u64,
 }
 
-#[com_interface(auto_guid = "nc.tests.native_c_abi.Value:v1")]
+#[com_interface(auto_guid = "nc.tests.native_c_abi.Value:v1", assigned_signature = b"00000000000000000000000000000041")]
 pub trait INativeValue {
     fn value(&self) -> Result<i32, NcStatus>;
 }
 
-#[com_interface(auto_guid = "nc.tests.native_c_abi.Calculator:v1")]
+#[com_interface(auto_guid = "nc.tests.native_c_abi.Calculator:v1", assigned_signature = b"00000000000000000000000000000042")]
 pub trait INativeCalculator: INativeValue {
     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
     fn reset(&self) -> Result<(), NcStatus>;

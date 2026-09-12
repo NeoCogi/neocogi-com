@@ -1,17 +1,17 @@
 use neocogi_com::{ComPtr, IUnknown, NcStatus, com_object, com_interface};
 
-#[com_interface(auto_guid = "nc.examples.calculator.Calculator:v1")]
+#[com_interface(auto_guid = "nc.examples.calculator.Calculator:v1", assigned_signature = b"00000000000000000000000000000024")]
 pub trait ICalculator {
     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
     fn subtract(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
 }
 
-#[com_interface(auto_guid = "nc.examples.calculator.Formatter:v1")]
+#[com_interface(auto_guid = "nc.examples.calculator.Formatter:v1", assigned_signature = b"00000000000000000000000000000025")]
 pub trait IFormatter {
     fn describe(&self, value: i32) -> Result<i32, NcStatus>;
 }
 
-#[com_interface(auto_guid = "nc.examples.calculator.NotImplemented:v1")]
+#[com_interface(auto_guid = "nc.examples.calculator.NotImplemented:v1", assigned_signature = b"00000000000000000000000000000026")]
 pub trait INotImplemented {
     fn noop(&self, value: i32) -> Result<i32, NcStatus>;
 }

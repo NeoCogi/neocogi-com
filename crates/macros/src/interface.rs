@@ -3,7 +3,7 @@
 //! A validated trait is lowered into one `repr(C)` interface header and vtable,
 //! per-implementor thunk table, smart-pointer forwarding methods, and immutable
 //! method descriptors. All generated call paths share the normalized lowering
-//! model so pointer ownership, buffer bounds, docs, and ABI signatures stay aligned.
+//! model so pointer ownership, buffer bounds, and documentation stay aligned.
 
 use quote::{format_ident, quote};
 use syn::{ItemTrait, Result, TypeParamBound, TraitBoundModifier, PathArguments};
@@ -38,7 +38,7 @@ pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Res
 /// Generates a callable projection from an already validated method list.
 ///
 /// The emitted source trait remains intact, while `methods` become vtable
-/// slots, descriptions, signatures, thunks, and safe client methods.
+/// slots, typed descriptions, thunks, and safe client methods.
 pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: ItemTrait, methods: Vec<AbiMethod>) -> Result<proc_macro2::TokenStream> {
     // Generated names are deliberately mechanical and predictable. A trait
     // named `IFoo` produces `IFooAbi`, `IFooVTable`, `IFooVtblFor<T>`, and
@@ -54,6 +54,12 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
     let interfaces_ident = format_ident!("{trait_ident}InterfacesFor");
     let qualified_name = args.qualified_name;
     let guid = interface_guid(args.guid, &qualified_name, &nc)?;
+    let assigned_signature = args.assigned_signature.clone().ok_or_else(|| {
+        syn::Error::new(
+            trait_ident.span(),
+            "com_interface requires an IDL-generator assigned_signature; define cross-component contracts in .ncidl",
+        )
+    })?;
     // Single inheritance has one unambiguous physical prefix. Generated names
     // retain the original module path, so bases may live in another crate.
     let interface_paths = input
@@ -187,11 +193,6 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
         }
     }
 
-    let method_signature_parts = methods
-        .iter()
-        .enumerate()
-        .map(|(index, method)| method_signature_parts(&nc, index as u32, method))
-        .collect::<Vec<_>>();
     let method_abi_descriptors = methods
         .iter()
         .enumerate()
@@ -216,16 +217,8 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
             }
         }
     });
-    let mut interface_signature_parts = vec![quote! { #nc::NcAbiSignaturePart::Interface { iid: #guid } }];
-    if base.is_some() {
-        interface_signature_parts.push(quote! { #nc::NcAbiSignaturePart::BaseInterface { interface: #base_identity } });
-    }
-    for parts in &method_signature_parts {
-        interface_signature_parts.extend(parts.iter().cloned());
-    }
-    let signature_parts_ident = format_ident!("__nc_{abi_ident}_abi_signature_parts");
     let signature_bytes_ident = format_ident!("__nc_{abi_ident}_abi_signature_bytes");
-    let signature_static = abi_signature_static_tokens(&signature_parts_ident, &signature_bytes_ident, &interface_signature_parts, &nc);
+    let signature_static = abi_signature_static_tokens(&signature_bytes_ident, &assigned_signature, &nc);
     let method_count_usize = methods.len();
 
     // Each Rust method contributes one vtable slot. Non-void `Result<T,
@@ -504,9 +497,9 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
 
         // SAFETY: `com_interface` generates `#abi_ident` as a `repr(C)` header
         // with the same vtable/object prefix as `IUnknown`, generates
-        // `#vtable_ident` with `IUnknownVTable` first, and derives the identity
-        // and ABI signature from the exact generated method contract. `iunknown`
-        // performs only the shared-prefix pointer cast.
+        // `#vtable_ident` with `IUnknownVTable` first, and combines the derived
+        // GUID with the IDL-generator-assigned signature. `iunknown` performs
+        // only the shared-prefix pointer cast.
         unsafe impl #nc::ComInterface for #abi_ident {
             const IID: #nc::NcGuid = #guid;
             const INTERFACE_ID: #nc::NcInterfaceId =
@@ -817,109 +810,6 @@ fn safe_receiver(receiver: AbiReceiver) -> proc_macro2::TokenStream {
         AbiReceiver::Shared => quote! { &self },
         AbiReceiver::Mutable => quote! { &mut self },
     }
-}
-
-/// Emits every canonical signature record for one lowered method.
-fn method_signature_parts(nc: &syn::Path, method_index: u32, method: &AbiMethod) -> Vec<proc_macro2::TokenStream> {
-    let method_ident = &method.ident;
-    let receiver = match method.receiver {
-        AbiReceiver::Shared => quote! { #nc::NcAbiReceiver::Shared },
-        AbiReceiver::Mutable => quote! { #nc::NcAbiReceiver::Mutable },
-    };
-    let mut parts = vec![
-        quote! {
-            #nc::NcAbiSignaturePart::Method {
-                index: #method_index,
-                name: stringify!(#method_ident),
-            }
-        },
-        quote! { #nc::NcAbiSignaturePart::Receiver { receiver: #receiver } },
-    ];
-    for (arg_index, arg) in method.args.iter().enumerate() {
-        let arg_index = arg_index as u32;
-        match &arg.kind {
-            AbiArgKind::Plain => {
-                let ty = &arg.abi_ty;
-                parts.push(quote! {
-                    #nc::NcAbiSignaturePart::Arg {
-                        index: #arg_index,
-                        passing: #nc::NcAbiPassing::Value,
-                        ty: #nc::__nc_abi_type::<#ty>(),
-                    }
-                });
-            }
-            AbiArgKind::CopyFromBufferOffset { element_ty } => {
-                let element_ty = element_ty.as_ref();
-                parts.push(quote! {
-                    #nc::NcAbiSignaturePart::Arg {
-                        index: #arg_index,
-                        passing: #nc::NcAbiPassing::CopyFromBufferOffset,
-                        ty: #nc::__nc_abi_plain_type::<#element_ty>(),
-                    }
-                });
-            }
-            AbiArgKind::CopyToBufferOffset { element_ty } => {
-                let element_ty = element_ty.as_ref();
-                parts.push(quote! {
-                    #nc::NcAbiSignaturePart::Arg {
-                        index: #arg_index,
-                        passing: #nc::NcAbiPassing::CopyToBufferOffset,
-                        ty: #nc::__nc_abi_plain_type::<#element_ty>(),
-                    }
-                });
-            }
-            AbiArgKind::ComRef { interface_ty, mode_ty } => {
-                let interface_ty = interface_ty.as_ref();
-                let mode = threading_mode_expr(nc, mode_ty.as_deref());
-                parts.push(quote! {
-                    #nc::NcAbiSignaturePart::Arg {
-                        index: #arg_index,
-                        passing: #nc::NcAbiPassing::ComRef {
-                            mode: #mode,
-                        },
-                        ty: #nc::NcAbiType::Interface {
-                            iid: <#interface_ty as #nc::ComInterface>::IID,
-                        },
-                    }
-                });
-            }
-        }
-    }
-    match &method.ok.kind {
-        AbiReturnKind::Void => {
-            parts.push(quote! {
-                #nc::NcAbiSignaturePart::Return {
-                    passing: #nc::NcAbiPassing::Void,
-                    ty: #nc::NcAbiType::Void,
-                }
-            });
-        }
-        AbiReturnKind::Plain => {
-            let ty = &method.ok.abi_ty;
-            parts.push(quote! {
-                #nc::NcAbiSignaturePart::Return {
-                    passing: #nc::NcAbiPassing::Out,
-                    ty: #nc::__nc_abi_type::<#ty>(),
-                }
-            });
-        }
-        AbiReturnKind::ComPtr { interface_ty, mode_ty } => {
-            let interface_ty = interface_ty.as_ref();
-            let mode = threading_mode_expr(nc, mode_ty.as_deref());
-            parts.push(quote! {
-                #nc::NcAbiSignaturePart::Return {
-                    passing: #nc::NcAbiPassing::ComPtrOut {
-                        mode: #mode,
-                    },
-                    ty: #nc::NcAbiType::Interface {
-                        iid: <#interface_ty as #nc::ComInterface>::IID,
-                    },
-                }
-            });
-        }
-    }
-    parts.push(quote! { #nc::NcAbiSignaturePart::Status });
-    parts
 }
 
 /// Emits private parameter and return descriptor constants for one method.

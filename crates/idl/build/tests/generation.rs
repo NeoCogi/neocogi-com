@@ -80,7 +80,12 @@ fn generates_rust_bindings_for_a_module_graph() {
     assert!(generated.contains("threading = shared"));
     assert!(generated.contains("NcCopyToBufferOffset"));
     assert!(generated_render.contains("pub status: ::neocogi_com::NcStatus"));
-    assert!(generated_render.contains("com_struct(deserialize)"));
+    assert!(generated_render.contains("com_struct("));
+    assert!(generated_render.contains("deserialize,"));
+    assert_eq!(generated.matches("assigned_signature = b").count(), 2);
+    assert_eq!(generated_render.matches("assigned_signature = b").count(), 2);
+    assert!(!generated.contains("NcAbiSignaturePart"));
+    assert!(!generated.contains("__encode"));
     assert!(!generated.contains("std::any::Any"));
     assert!(!generated.contains("constructor"));
 }

@@ -8,19 +8,19 @@ use std::{cell::Cell, rc::Rc};
 pub mod consumer {
     use super::*;
 
-    #[com_interface(auto_guid = "nc.tests.recursion.BaseValue:v1")]
+    #[com_interface(auto_guid = "nc.tests.recursion.BaseValue:v1", assigned_signature = b"00000000000000000000000000000016")]
     /// Consumer expects a 32-bit value.
     pub trait IBaseValue {
         /// Reads the old contract's scalar.
         fn value(&self) -> Result<u32, NcStatus>;
     }
 
-    #[com_interface(auto_guid = "nc.tests.recursion.Value:v1")]
+    #[com_interface(auto_guid = "nc.tests.recursion.Value:v1", assigned_signature = b"00000000000000000000000000000017")]
     /// The empty derived contract changes its signature when the base changes.
     pub trait IValue: IBaseValue {}
     impl IValue for Value {}
 
-    #[com_interface(auto_guid = "nc.tests.recursion.Exchange:v1")]
+    #[com_interface(auto_guid = "nc.tests.recursion.Exchange:v1", assigned_signature = b"00000000000000000000000000000018")]
     /// The surrounding local contract only names the value IID.
     pub trait IExchange {
         /// Calls must validate the value against the producer's full contract.
@@ -45,19 +45,19 @@ pub mod consumer {
 pub mod producer {
     use super::*;
 
-    #[com_interface(auto_guid = "nc.tests.recursion.BaseValue:v1")]
+    #[com_interface(auto_guid = "nc.tests.recursion.BaseValue:v1", assigned_signature = b"00000000000000000000000000000019")]
     /// The producer's revision returns 64 bits, so its full signature differs.
     pub trait IBaseValue {
         /// Reads the producer's scalar.
         fn value(&self) -> Result<u64, NcStatus>;
     }
 
-    #[com_interface(auto_guid = "nc.tests.recursion.Value:v1")]
+    #[com_interface(auto_guid = "nc.tests.recursion.Value:v1", assigned_signature = b"00000000000000000000000000000020")]
     /// The empty derived contract changes its signature when the base changes.
     pub trait IValue: IBaseValue {}
     impl IValue for Value {}
 
-    #[com_interface(auto_guid = "nc.tests.recursion.Exchange:v1")]
+    #[com_interface(auto_guid = "nc.tests.recursion.Exchange:v1", assigned_signature = b"00000000000000000000000000000018")]
     /// Same local method contract as the consumer, with producer-side checks.
     pub trait IExchange {
         /// Rejects a borrowed value with the wrong full identity before dispatch.
@@ -110,7 +110,7 @@ pub mod producer {
     }
 }
 
-#[com_interface(auto_guid = "nc.tests.recursion.Node:v1")]
+#[com_interface(auto_guid = "nc.tests.recursion.Node:v1", assigned_signature = b"00000000000000000000000000000021")]
 /// A natural self-reference previously failed constant evaluation.
 pub trait INode {
     /// Retains and returns the borrowed node without interpreting its state.
@@ -128,14 +128,14 @@ impl INode for Node {
     }
 }
 
-#[com_interface(auto_guid = "nc.tests.recursion.Left:v1")]
+#[com_interface(auto_guid = "nc.tests.recursion.Left:v1", assigned_signature = b"00000000000000000000000000000022")]
 /// First half of a mutual reference, without storing a strong ownership cycle.
 pub trait ILeft {
     /// Provides the opposing capability when available.
     fn right(&self) -> Result<ComPtr<IRightAbi>, NcStatus>;
 }
 
-#[com_interface(auto_guid = "nc.tests.recursion.Right:v1")]
+#[com_interface(auto_guid = "nc.tests.recursion.Right:v1", assigned_signature = b"00000000000000000000000000000023")]
 /// Second half of a mutually recursive contract.
 pub trait IRight {
     /// Provides the opposing capability when available.

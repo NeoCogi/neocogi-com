@@ -1,8 +1,8 @@
 //! Marker traits and layout helpers for values lowered across the C ABI.
 //!
 //! This module distinguishes ordinary by-value ABI types, durable plain values,
-//! and macro-generated structs whose compiled layout participates in interface
-//! signatures. It also owns the opaque tag/payload storage used by generated COM
+//! and macro-generated structs whose compiled layout remains available as typed
+//! metadata. It also owns the opaque tag/payload storage used by generated COM
 //! enums so safe wrappers can enforce discriminant and payload validity.
 
 use crate::guid::NcGuid;
@@ -19,7 +19,7 @@ use crate::status::NcStatus;
 /// across the ABI boundary, and must be valid to pass through an `extern "C"`
 /// function signature by value.
 pub unsafe trait AbiType: Copy + 'static {
-    /// Canonical ABI type identity used by interface ABI signatures.
+    /// Canonical ABI type identity stored in method and field descriptors.
     const ABI_TYPE: NcAbiType;
 }
 
@@ -42,20 +42,20 @@ pub unsafe trait AbiPlainValue: AbiType {}
 /// # Safety
 ///
 /// Implementors must describe their actual ABI declaration and layout exactly.
-/// [`Self::ABI_SIGNATURE`] must encode the aggregate kind, compiled layout, and
-/// ordered field shape. `size`, `align`, and every field offset in
+/// [`Self::ABI_SIGNATURE`] must be the declaration-scoped fingerprint assigned
+/// by the IDL generator. `size`, `align`, and every field offset in
 /// [`Self::ABI_STRUCT_LAYOUT`] must match the compiled representation of `Self`,
 /// and every field type must be the field's canonical ABI type. Prefer using
-/// `#[com_struct]`, which generates both values from the declaration and the
-/// compiler's layout facts.
+/// generated `#[com_struct]` bindings, which combine the tool-owned identity
+/// with the compiler's physical layout facts.
 ///
-/// With `#[com_struct(c_struct)]`, each field's ABI type is an aggregate
-/// signature containing its size and alignment. It does not describe field internals
-/// or distinguish scalar types of equal size and alignment. The contract author
-/// must use a new interface identity for incompatible changes invisible to that
-/// metadata and ensure external fields satisfy the plain-value requirements.
+/// With `#[com_struct(c_struct)]`, external fields remain opaque aggregates in
+/// typed metadata. Their Rust compiler layout is checked locally, but the IDL
+/// declaration signature—not compiler-side hashing—is the compatibility
+/// authority. The contract author must ensure those external fields retain the
+/// declared C layout and plain-value semantics.
 pub unsafe trait ComStruct: Copy + 'static {
-    /// Canonical ABI validation signature for the compiled structure.
+    /// Generator-assigned ABI identity for this structure declaration.
     const ABI_SIGNATURE: NcAbiSignature;
 
     /// Physical ABI layout for this COM struct.

@@ -16,13 +16,13 @@ mod external_fields {
         y: f32,
     }
 
-    #[com_struct(c_struct)]
+    #[com_struct(c_struct, assigned_signature = b"00000000000000000000000000000010")]
     #[derive(Debug, PartialEq)]
     struct Sample {
         pairs: [Pair; 2],
     }
 
-    #[com_interface(auto_guid = "nc.tests.abi_policy.ExternalFields:v1")]
+    #[com_interface(auto_guid = "nc.tests.abi_policy.ExternalFields:v1", assigned_signature = b"00000000000000000000000000000011")]
     trait IExternalFields {
         fn echo(&self, value: Sample) -> Result<Sample, NcStatus>;
         fn sum(&self, values: NcCopyFromBufferOffset<'_, Sample>) -> Result<f32, NcStatus>;
@@ -56,12 +56,12 @@ mod external_fields {
     }
 }
 
-#[com_interface(auto_guid = "nc.tests.abi_policy.Value:v1")]
+#[com_interface(auto_guid = "nc.tests.abi_policy.Value:v1", assigned_signature = b"00000000000000000000000000000012")]
 pub trait IPolicyValue {
     fn value(&self) -> Result<i32, NcStatus>;
 }
 
-#[com_interface(auto_guid = "nc.tests.abi_policy.Service:v1")]
+#[com_interface(auto_guid = "nc.tests.abi_policy.Service:v1", assigned_signature = b"00000000000000000000000000000013")]
 pub trait IPolicyService {
     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
     fn flush(&self) -> Result<(), NcStatus>;
@@ -72,7 +72,8 @@ pub trait IPolicyService {
     id = "9be73186-f123-47bc-8140-4a57825eeb21",
     name = "nc.tests.abi_policy.DescribedValue",
     version = 3,
-    threading = local
+    threading = local,
+    assigned_signature = b"00000000000000000000000000000014"
 )]
 /// Constructor-free class shape used to exercise IDL implementation storage.
 pub trait DescribedValue: IPolicyValue {
@@ -106,7 +107,8 @@ impl DescribedValue for DescribedValueObject {
     id = "564e2ee9-f2de-4e30-959f-a82315a64394",
     name = "nc.tests.abi_policy.ValueFactory",
     version = 1,
-    threading = local
+    threading = local,
+    assigned_signature = b"00000000000000000000000000000015"
 )]
 /// Typed provider that owns construction policy for `DescribedValue`.
 pub trait ValueFactory {

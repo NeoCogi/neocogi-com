@@ -69,6 +69,7 @@ pub(crate) fn expand_object_description(args: ObjectDescriptionArgs, input: Item
         InterfaceArgs {
             guid: InterfaceGuid::Assigned(id),
             qualified_name: name.clone(),
+            assigned_signature: args.assigned_signature,
             runtime_crate: args.runtime_crate,
         },
         input,

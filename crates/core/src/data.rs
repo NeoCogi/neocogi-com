@@ -10,8 +10,8 @@ use core::ffi::c_void;
 use crate::guid::{NcGuid, guid_from_qualified_name};
 use crate::signature::NcAbiSignature;
 use crate::metadata::{
-    NcAbiSignaturePart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiType, NcAbiTypeDescriptor, NcInterfaceDescriptor, NcInterfaceId,
-    NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcStaticUtf8,
+    NcAbiPassing, NcAbiPassingDescriptor, NcAbiType, NcAbiTypeDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor,
+    NcMethodReturnDescriptor, NcStaticUtf8,
 };
 use crate::object::{ComInterface, IUnknown, IUnknownVTable};
 use crate::status::NcStatus;
@@ -87,45 +87,13 @@ unsafe impl ComInterface for INcBytesAbi {
     }
 }
 
-/// Logical records in the built-in byte-sequence ABI signature.
-const INC_BYTES_SIGNATURE_PARTS: [NcAbiSignaturePart<'static>; 15] = [
-    NcAbiSignaturePart::Interface { iid: IID_INC_BYTES },
-    NcAbiSignaturePart::Method { index: 0, name: "len" },
-    NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
-    NcAbiSignaturePart::Return {
-        passing: NcAbiPassing::Out,
-        ty: NcAbiType::U64,
-    },
-    NcAbiSignaturePart::Status,
-    NcAbiSignaturePart::Method { index: 1, name: "byte_at" },
-    NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
-    NcAbiSignaturePart::Arg {
-        index: 0,
-        passing: NcAbiPassing::Value,
-        ty: NcAbiType::U64,
-    },
-    NcAbiSignaturePart::Return {
-        passing: NcAbiPassing::Out,
-        ty: NcAbiType::U8,
-    },
-    NcAbiSignaturePart::Status,
-    NcAbiSignaturePart::Method { index: 2, name: "copy_to" },
-    NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
-    NcAbiSignaturePart::Arg {
-        index: 0,
-        passing: NcAbiPassing::CopyToBufferOffset,
-        ty: NcAbiType::U8,
-    },
-    NcAbiSignaturePart::Return {
-        passing: NcAbiPassing::Void,
-        ty: NcAbiType::Void,
-    },
-    NcAbiSignaturePart::Status,
+/// Precomputed SHA-256 signature for the built-in byte-sequence contract.
+///
+/// This checked-in digest prevents the core crate from hashing during rustc
+/// constant evaluation while retaining an exact identity for the built-in ABI.
+static INC_BYTES_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [
+    225, 88, 52, 5, 112, 106, 201, 224, 109, 209, 71, 69, 197, 184, 19, 235, 100, 193, 232, 241, 237, 243, 185, 247, 186, 233, 127, 89, 211, 33, 68, 174,
 ];
-
-/// Exact static storage for the built-in byte-sequence ABI signature.
-static INC_BYTES_SIGNATURE_BYTES: [u8; NcAbiSignature::__encoded_len(&INC_BYTES_SIGNATURE_PARTS)] =
-    NcAbiSignature::__encode::<{ NcAbiSignature::__encoded_len(&INC_BYTES_SIGNATURE_PARTS) }>(&INC_BYTES_SIGNATURE_PARTS);
 
 impl INcBytesAbi {
     /// Canonical validation form of this interface's typed ABI contract.
@@ -261,45 +229,13 @@ unsafe impl ComInterface for INcStringAbi {
     }
 }
 
-/// Logical records in the built-in UTF-8 string ABI signature.
-const INC_STRING_SIGNATURE_PARTS: [NcAbiSignaturePart<'static>; 15] = [
-    NcAbiSignaturePart::Interface { iid: IID_INC_STRING },
-    NcAbiSignaturePart::Method { index: 0, name: "byte_len" },
-    NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
-    NcAbiSignaturePart::Return {
-        passing: NcAbiPassing::Out,
-        ty: NcAbiType::U64,
-    },
-    NcAbiSignaturePart::Status,
-    NcAbiSignaturePart::Method { index: 1, name: "byte_at" },
-    NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
-    NcAbiSignaturePart::Arg {
-        index: 0,
-        passing: NcAbiPassing::Value,
-        ty: NcAbiType::U64,
-    },
-    NcAbiSignaturePart::Return {
-        passing: NcAbiPassing::Out,
-        ty: NcAbiType::U8,
-    },
-    NcAbiSignaturePart::Status,
-    NcAbiSignaturePart::Method { index: 2, name: "copy_to" },
-    NcAbiSignaturePart::Receiver { receiver: NcAbiReceiver::Shared },
-    NcAbiSignaturePart::Arg {
-        index: 0,
-        passing: NcAbiPassing::CopyToBufferOffset,
-        ty: NcAbiType::U8,
-    },
-    NcAbiSignaturePart::Return {
-        passing: NcAbiPassing::Void,
-        ty: NcAbiType::Void,
-    },
-    NcAbiSignaturePart::Status,
+/// Precomputed SHA-256 signature for the built-in UTF-8 string contract.
+///
+/// This checked-in digest prevents the core crate from hashing during rustc
+/// constant evaluation while retaining an exact identity for the built-in ABI.
+static INC_STRING_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [
+    133, 203, 235, 159, 222, 246, 237, 161, 190, 204, 186, 52, 5, 118, 216, 74, 199, 153, 87, 27, 144, 183, 232, 5, 240, 185, 157, 42, 162, 229, 147, 106,
 ];
-
-/// Exact static storage for the built-in UTF-8 string ABI signature.
-static INC_STRING_SIGNATURE_BYTES: [u8; NcAbiSignature::__encoded_len(&INC_STRING_SIGNATURE_PARTS)] =
-    NcAbiSignature::__encode::<{ NcAbiSignature::__encoded_len(&INC_STRING_SIGNATURE_PARTS) }>(&INC_STRING_SIGNATURE_PARTS);
 
 impl INcStringAbi {
     /// Canonical validation form of this interface's typed ABI contract.

@@ -45,6 +45,11 @@ fn resolves_a_contract_dependency_graph() {
     assert_eq!(ui.dependencies[0].abi_fingerprint, render.abi_fingerprint);
     assert_eq!(ui.declaration("Button").unwrap().qualified_name, "neocogi.ui.Button");
     assert_eq!(ui.fingerprint_hex().len(), 64);
+    assert_ne!(
+        render.declaration("Size").unwrap().abi_signature,
+        render.declaration("ITexture").unwrap().abi_signature,
+        "declaration signatures must retain exact type identity inside one module"
+    );
 }
 
 /// Confirms comments and whitespace do not change an ABI fingerprint.
@@ -66,6 +71,71 @@ fn ignores_documentation_and_formatting_in_fingerprints() {
     let first = resolve_modules(vec![compact]).unwrap();
     let second = resolve_modules(vec![documented]).unwrap();
     assert_eq!(first.modules()[0].abi_fingerprint, second.modules()[0].abi_fingerprint);
+}
+
+/// Confirms the build tool fingerprints the complete typed contract surface.
+#[test]
+fn fingerprints_typed_layout_and_callable_changes() {
+    /// Resolves one isolated module and returns its generator-owned digest.
+    fn fingerprint(source: &str) -> [u8; 32] {
+        resolve_modules(vec![module("example/contract.ncidl", source)]).unwrap().modules()[0].abi_fingerprint
+    }
+
+    assert_ne!(
+        fingerprint("#[version(1)] struct Value { number: u32 }"),
+        fingerprint("#[version(1)] struct Value { number: u64 }")
+    );
+    assert_ne!(
+        fingerprint("#[version(1)] enum State: u8 { Ready = 1 }"),
+        fingerprint("#[version(1)] enum State: u16 { Ready = 1 }")
+    );
+    assert_ne!(
+        fingerprint("#[version(1)] trait IService { fn load(&self, key: u32) -> Result<u32>; }"),
+        fingerprint("#[version(1)] trait IService { fn load(&mut self, key: u32) -> Result<u32>; }")
+    );
+    assert_ne!(
+        fingerprint("#[version(1)] trait IService { fn load(&self, key: u32) -> Result<u32>; }"),
+        fingerprint("#[version(1)] trait IService { fn load(&self, key: u64) -> Result<u32>; }")
+    );
+    assert_ne!(
+        fingerprint("#[version(1)] trait IBase {} #[version(1)] trait IService: IBase {}"),
+        fingerprint("#[version(1)] trait IBase {} #[version(1)] trait IService {}")
+    );
+    assert_ne!(
+        fingerprint("#[threading(shared)] #[version(1)] factory Service {}"),
+        fingerprint("#[threading(local)] #[version(1)] factory Service {}")
+    );
+}
+
+/// Confirms declaration signatures track the module revision without losing
+/// the identity of individual types within that module.
+#[test]
+fn declaration_signatures_are_typed_and_revision_scoped() {
+    let first = resolve_modules(vec![module(
+        "example/contract.ncidl",
+        "#[version(1)] struct Left { value: u32 } #[version(1)] struct Right { value: u32 }",
+    )])
+    .unwrap();
+    let revised = resolve_modules(vec![module(
+        "example/contract.ncidl",
+        "#[version(1)] struct Left { value: u64 } #[version(1)] struct Right { value: u32 }",
+    )])
+    .unwrap();
+    let first = first.module("example.contract").unwrap();
+    let revised = revised.module("example.contract").unwrap();
+
+    assert_ne!(
+        first.declaration("Left").unwrap().abi_signature,
+        first.declaration("Right").unwrap().abi_signature
+    );
+    assert_ne!(
+        first.declaration("Left").unwrap().abi_signature,
+        revised.declaration("Left").unwrap().abi_signature
+    );
+    assert_ne!(
+        first.declaration("Right").unwrap().abi_signature,
+        revised.declaration("Right").unwrap().abi_signature
+    );
 }
 
 /// Confirms object inputs cannot imply an ownership transfer.

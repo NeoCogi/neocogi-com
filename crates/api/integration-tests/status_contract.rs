@@ -1,6 +1,9 @@
 use neocogi_com::{ComPtr, IUnknown, NC_E_INVALID_ARG, NC_OK, NcStatus, com_interface, com_object};
 
-#[com_interface(auto_guid = "nc.tests.status_contract.InvalidStatus:v1")]
+#[com_interface(
+    auto_guid = "nc.tests.status_contract.InvalidStatus:v1",
+    assigned_signature = b"00000000000000000000000000000003"
+)]
 pub trait IInvalidStatus {
     fn plain(&self, status: NcStatus) -> Result<u32, NcStatus>;
     fn object(&self, status: NcStatus) -> Result<ComPtr<IUnknown>, NcStatus>;
@@ -56,7 +59,7 @@ fn generated_thunks_normalize_non_negative_result_errors_for_every_return_shape(
     }
 }
 
-#[neocogi_com::com_enum(tag = u8)]
+#[neocogi_com::com_enum(tag = u8, assigned_signature = b"00000000000000000000000000000004")]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 /// Legal Rust variants whose lowercase spellings are reserved field identifiers.
 enum KeywordPayload {

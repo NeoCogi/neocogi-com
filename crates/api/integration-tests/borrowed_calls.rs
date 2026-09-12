@@ -4,14 +4,14 @@
 use neocogi_com::{com_interface, ComInterface, ComPtr, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, NC_E_NOINTERFACE, NC_OK};
 use std::{cell::Cell, ffi::c_void, rc::Rc};
 
-#[com_interface(auto_guid = "nc.tests.borrowed.Counter:v1")]
+#[com_interface(auto_guid = "nc.tests.borrowed.Counter:v1", assigned_signature = b"00000000000000000000000000000001")]
 /// Fixed interface used by owning and borrowed generated clients.
 pub trait ICounter {
     /// Returns the number of AddRef calls observed so far.
     fn additions(&self) -> Result<u32, NcStatus>;
 }
 
-#[com_interface(auto_guid = "nc.tests.borrowed.DerivedCounter:v1")]
+#[com_interface(auto_guid = "nc.tests.borrowed.DerivedCounter:v1", assigned_signature = b"00000000000000000000000000000002")]
 /// A derived contract with no local slots exercises inherited dispatch alone.
 pub trait IDerivedCounter: ICounter {}
 

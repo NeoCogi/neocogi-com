@@ -45,6 +45,7 @@ fn ui_errors_are_stable() {
     t.pass("integration-tests/ui/interface_mut_receiver.rs");
     t.compile_fail("integration-tests/ui/interface_manual_safe_impl.rs");
     t.compile_fail("integration-tests/ui/interface_malformed_qualified_names.rs");
+    t.compile_fail("integration-tests/ui/interface_missing_assigned_signature.rs");
     t.compile_fail("integration-tests/ui/interface_nested_vec_arg.rs");
     t.compile_fail("integration-tests/ui/interface_non_ascii_qualified_name.rs");
     t.compile_fail("integration-tests/ui/interface_overlong_qualified_name.rs");

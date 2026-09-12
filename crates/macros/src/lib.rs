@@ -32,9 +32,10 @@
 //! The target is Rust-to-Rust interoperability across independently built
 //! artifacts: different crate graphs, compiler versions, optimization settings,
 //! or linking modes. The generated ABI is C-compatible, but these macros are not
-//! C header generation tooling and they are not Windows COM bindings. Generated
-//! aggregate signatures are runtime compatibility identities. They expose only
-//! the canonical ABI records needed for validation, not Rust source declarations.
+//! C header generation tooling and they are not Windows COM bindings. The IDL
+//! build tool supplies each macro expansion with an already-computed,
+//! declaration-scoped signature. Macro expansion emits typed metadata and fixed
+//! bytes; it does not serialize or hash a contract in rustc.
 //!
 //! Owned or long-lived variable-size data such as strings, byte buffers, arrays,
 //! streams, and documents should be modeled as COM interfaces. Do not pass Rust
@@ -104,11 +105,10 @@
 //!
 //! # Interface IDs
 //!
-//! Interfaces can use `#[com_interface(auto_guid = "nc.dom.Node:v1")]` to
-//! derive a deterministic UUIDv5 ID from a qualified ABI name. The checked pin
-//! form uses `#[com_interface("...", name = "...")]` with the UUID derived
-//! from that same name. Complete compile-tested examples live in the primary
-//! `neocogi-com` crate-level documentation.
+//! `neocogi-idl-build` supplies the deterministic interface GUID, qualified
+//! name, and `assigned_signature` byte string. Direct macro invocations are
+//! low-level generator/test infrastructure and must also provide a complete
+//! precomputed signature; there is intentionally no compiler-side fallback.
 //!
 //! The qualified-name string is normative descriptor data and the sole UUIDv5
 //! input. Explicit UUID syntax is a checked pin of that same derivation and
@@ -168,7 +168,7 @@ pub fn derive_com_deserialize(item: TokenStream) -> TokenStream {
     }
 }
 
-/// Defines a COM interface from a Rust trait.
+/// Defines a COM interface from an IDL-generated Rust trait.
 ///
 /// The macro keeps the trait as the Rust implementation surface and generates
 /// C-compatible ABI items next to it:
@@ -178,18 +178,17 @@ pub fn derive_com_deserialize(item: TokenStream) -> TokenStream {
 /// - `ITraitComPtrExt`: safe call helpers for `neocogi_com::ComPtr<ITraitAbi>`.
 /// - An `unsafe impl neocogi_com::ComInterface` for the generated header.
 ///
-/// Generated items inherit the trait visibility, so `pub`, `pub(crate)`, and
-/// private interfaces can be used to model public and internal contracts.
+/// Generated items inherit the trait visibility.
 /// The generated unsafe implementation certifies the header layout, vtable
 /// prefix, interface identity/signature, and `IUnknown` pointer conversion required
 /// by safe `ComPtr` operations. Defining an interface through this macro does
 /// not require user-written unsafe code.
 ///
-/// `auto_guid = "qualified.Name:v1"` stores that exact qualified name and
-/// derives its UUIDv5 identity. Explicit UUID syntax additionally requires
-/// `name = "qualified.Name:v1"`; the literal is accepted only when it equals
-/// the same derivation. The qualified name must satisfy the ABI descriptor text
-/// policy; invalid literals are rejected during macro expansion.
+/// The required `assigned_signature = b"..."` is the 32-byte declaration
+/// signature computed by `neocogi-idl-build`. `auto_guid =
+/// "qualified.Name:v1"` stores that exact qualified name and derives its UUIDv5
+/// identity. The qualified name must satisfy the ABI descriptor text policy;
+/// invalid literals are rejected during macro expansion.
 #[proc_macro_attribute]
 pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attr = parse_macro_input!(attr as InterfaceArgs);
@@ -288,7 +287,7 @@ pub fn factory_plugin(input: TokenStream) -> TokenStream {
     expand_factory_plugin(args).into()
 }
 
-/// Defines a fixed-size ABI-safe record.
+/// Defines a fixed-size ABI-safe record from generated IDL bindings.
 ///
 /// The macro owns the struct representation, derives `Clone, Copy` when those
 /// derives are not already listed, records the physical size/alignment/field
@@ -296,7 +295,8 @@ pub fn factory_plugin(input: TokenStream) -> TokenStream {
 /// `neocogi_com::AbiPlainValue` for the struct. By default, it verifies every field
 /// implements `neocogi_com::AbiPlainValue`.
 ///
-/// Accepted layout forms are `#[com_struct]`, `#[com_struct(packed)]`,
+/// The IDL generator always supplies `assigned_signature = b"..."`; its 32
+/// bytes are stored directly and never hashed by rustc. Accepted layout forms are `#[com_struct]`, `#[com_struct(packed)]`,
 /// `#[com_struct(packed(N))]`, and `#[com_struct(align(N))]`. Do not also write
 /// a raw `#[repr(...)]` attribute; the macro rejects it so the representation and
 /// generated layout metadata have one source of truth.
@@ -334,10 +334,10 @@ pub fn com_struct(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-/// Defines a tagged payload enum with an explicit COM ABI representation.
+/// Defines a generated tagged payload enum with an explicit COM ABI representation.
 ///
-/// The input Rust enum remains available for local Rust code. Apply
-/// `#[com_enum(tag = u32)]` to an ordinary payload enum; complete
+/// The input Rust enum remains available for local Rust code. The IDL generator
+/// supplies both `tag` and the precomputed `assigned_signature`; complete
 /// compile-tested construction, conversion, and tag-pinning examples live in
 /// the primary `neocogi-com` crate-level documentation.
 ///

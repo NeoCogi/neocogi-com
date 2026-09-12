@@ -8,7 +8,7 @@ pub struct RustLayout {
     pub y: f32,
 }
 
-#[com_struct(c_struct)]
+#[com_struct(c_struct, assigned_signature = b"00000000000000000000000000000048")]
 pub struct Contract {
     pub value: RustLayout,
 }

@@ -14,6 +14,6 @@ note: the type is defined here
 note: the lint level is defined here
   --> integration-tests/ui/struct_c_layout_rust_field.rs:11:1
    |
-11 | #[com_struct(c_struct)]
-   | ^^^^^^^^^^^^^^^^^^^^^^^
+11 | #[com_struct(c_struct, assigned_signature = b"00000000000000000000000000000048")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    = note: this error originates in the attribute macro `com_struct` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -1,6 +1,6 @@
 use neocogi_com::{ComPtr, IUnknown, NcStatus, com_object, com_interface};
 
-#[com_interface(auto_guid = "nc.tests.ui.ThreadLocalSend:v1")]
+#[com_interface(auto_guid = "nc.tests.ui.ThreadLocalSend:v1", assigned_signature = b"99999999999999999999999999999999")]
 pub trait IThreadLocalSend {
     fn value(&self) -> Result<u32, NcStatus>;
 }

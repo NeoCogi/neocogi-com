@@ -9,7 +9,7 @@ const RUN_DROP_HELPER_ENV: &str = "NC_COM_RUN_ABI_DROP_PANIC_HELPER";
 const THUNK_RETURNED_STATUS_EXIT_CODE: i32 = 97;
 const RELEASE_RETURNED_EXIT_CODE: i32 = 98;
 
-#[com_interface(auto_guid = "nc.tests.panic_behavior.Panics:v1")]
+#[com_interface(auto_guid = "nc.tests.panic_behavior.Panics:v1", assigned_signature = b"00000000000000000000000000000005")]
 pub trait IPanics {
     fn panic_now(&self) -> Result<(), NcStatus>;
 }
@@ -23,7 +23,7 @@ impl IPanics for PanickingObject {
     }
 }
 
-#[com_interface(auto_guid = "nc.tests.panic_behavior.DropPanics:v1")]
+#[com_interface(auto_guid = "nc.tests.panic_behavior.DropPanics:v1", assigned_signature = b"00000000000000000000000000000006")]
 pub trait IDropPanics {
     fn touch(&self) -> Result<(), NcStatus>;
 }

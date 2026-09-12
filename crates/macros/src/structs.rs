@@ -2,7 +2,7 @@
 //!
 //! The generator owns the representation attribute, ensures fields contain only
 //! durable ABI values, adds `Clone`/`Copy` when absent, and emits compiler-derived
-//! size, alignment, offset, and field-type metadata used for aggregate signatures.
+//! size, alignment, offset, and field-type metadata for inspection.
 
 use quote::{format_ident, quote};
 use syn::{Attribute, Fields, Ident, ItemStruct, Member, Result};
@@ -17,6 +17,12 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
     validate_com_struct(&input)?;
     checked_u32_len(fields_len(&input.fields), input.ident.span(), "COM struct field count")?;
+    let assigned_signature = args.assigned_signature.as_ref().ok_or_else(|| {
+        syn::Error::new(
+            input.ident.span(),
+            "com_struct requires an IDL-generator assigned_signature; define cross-component contracts in .ncidl",
+        )
+    })?;
 
     let repr_attr = com_struct_repr_attr(&args.repr);
     input.attrs.push(repr_attr);
@@ -34,20 +40,15 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
         quote! {}
     };
     let field_layouts = com_struct_field_layouts(&input.fields);
-    let mut opaque_signature_statics = Vec::new();
+    let signature_bytes_ident = format_ident!("__nc_{struct_ident}_abi_signature_bytes");
     let mut field_type_expressions = Vec::new();
-    for (index, _, ty) in &field_layouts {
+    for (_, _, ty) in &field_layouts {
         let field_type = if args.c_struct {
-            let parts_ident = format_ident!("__nc_{struct_ident}_field_{index}_signature_parts");
-            let bytes_ident = format_ident!("__nc_{struct_ident}_field_{index}_signature_bytes");
-            let parts = vec![quote! {
-                #nc::NcAbiSignaturePart::Layout {
-                    size: core::mem::size_of::<#ty>(),
-                    align: core::mem::align_of::<#ty>(),
-                }
-            }];
-            opaque_signature_statics.push(abi_signature_static_tokens(&parts_ident, &bytes_ident, &parts, &nc));
-            quote! { #nc::NcAbiType::Aggregate(#nc::NcAbiSignature::from_static(&#bytes_ident)) }
+            // An external C field has no separately generated declaration
+            // identity. Associate its diagnostic aggregate type with the
+            // enclosing IDL contract, whose precomputed digest is authoritative.
+            let _ = ty;
+            quote! { #nc::NcAbiType::Aggregate(#nc::NcAbiSignature::from_static(&#signature_bytes_ident)) }
         } else {
             quote! { #nc::__nc_abi_plain_type::<#ty>() }
         };
@@ -67,27 +68,7 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
             }
         })
         .collect::<Vec<_>>();
-    let mut signature_parts = vec![
-        quote! { #nc::NcAbiSignaturePart::Aggregate { kind: #nc::NcAbiAggregateKind::Struct } },
-        quote! {
-            #nc::NcAbiSignaturePart::Layout {
-                size: core::mem::size_of::<#struct_ident>(),
-                align: core::mem::align_of::<#struct_ident>(),
-            }
-        },
-    ];
-    signature_parts.extend(field_layouts.iter().zip(&field_type_expressions).map(|((index, member, _), field_type)| {
-        quote! {
-            #nc::NcAbiSignaturePart::Field {
-                index: #index,
-                offset: core::mem::offset_of!(#struct_ident, #member),
-                ty: #field_type,
-            }
-        }
-    }));
-    let signature_parts_ident = format_ident!("__nc_{struct_ident}_abi_signature_parts");
-    let signature_bytes_ident = format_ident!("__nc_{struct_ident}_abi_signature_bytes");
-    let signature_static = abi_signature_static_tokens(&signature_parts_ident, &signature_bytes_ident, &signature_parts, &nc);
+    let signature_static = abi_signature_static_tokens(&signature_bytes_ident, assigned_signature, &nc);
 
     let layout_check = args.c_struct.then(|| {
         quote! {
@@ -102,7 +83,6 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
     Ok(quote! {
         #input
         #layout_check
-        #(#opaque_signature_statics)*
         #signature_static
 
         // SAFETY: `#[com_struct]` generates the representation and layout
@@ -121,9 +101,9 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
         }
 
         // SAFETY: `#[com_struct]` rejects generics and pointer/reference/owned
-        // fields, and `ComStruct` supplies the physical layout used by the
-        // aggregate ABI type signature. With `c_struct`, the compiler checks C layout
-        // and the author guarantees durable plain-value semantics.
+        // fields, while `ComStruct` retains their compiled physical layout as
+        // typed metadata. With `c_struct`, the compiler checks C layout and the
+        // author guarantees durable plain-value semantics.
         unsafe impl #nc::AbiType for #struct_ident {
             const ABI_TYPE: #nc::NcAbiType = #nc::__nc_abi_com_struct_type::<Self>();
         }

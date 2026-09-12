@@ -1,6 +1,6 @@
 use neocogi_com::com_interface;
 
-#[com_interface(auto_guid = "nc.tests.ui.GeneratedNameCollision:v1")]
+#[com_interface(auto_guid = "nc.tests.ui.GeneratedNameCollision:v1", assigned_signature = b"99999999999999999999999999999999")]
 trait IGeneratedNameCollision {
     fn fixed_locals(
         &self,

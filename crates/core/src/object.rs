@@ -8,7 +8,7 @@
 use core::ffi::c_void;
 
 use crate::guid::NcGuid;
-use crate::metadata::{NcAbiSignaturePart, NcInterfaceDescriptor, NcInterfaceId, NcStaticUtf8};
+use crate::metadata::{NcInterfaceDescriptor, NcInterfaceId, NcStaticUtf8};
 use crate::ptr::ComPtr;
 use crate::signature::NcAbiSignature;
 use crate::status::NcStatus;
@@ -20,12 +20,13 @@ pub const IID_IUNKNOWN: NcGuid = NcGuid::from_fields(0x0000_0000, 0x0000, 0x0000
 /// Reserved normative qualified name for [`IUnknown`].
 pub const IUNKNOWN_QUALIFIED_NAME: &str = "IUnknown";
 
-/// Logical records in the canonical [`IUnknown`] signature.
-const IUNKNOWN_SIGNATURE_PARTS: [NcAbiSignaturePart<'static>; 1] = [NcAbiSignaturePart::Interface { iid: IID_IUNKNOWN }];
-
-/// Exact static storage for the canonical [`IUnknown`] signature.
-static IUNKNOWN_SIGNATURE_BYTES: [u8; NcAbiSignature::__encoded_len(&IUNKNOWN_SIGNATURE_PARTS)] =
-    NcAbiSignature::__encode::<{ NcAbiSignature::__encoded_len(&IUNKNOWN_SIGNATURE_PARTS) }>(&IUNKNOWN_SIGNATURE_PARTS);
+/// Precomputed SHA-256 signature for the built-in [`IUnknown`] contract.
+///
+/// Built-ins have no IDL build script, so this checked-in constant plays the
+/// same role as the byte string emitted by `neocogi` for ordinary contracts.
+static IUNKNOWN_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [
+    0, 26, 125, 27, 153, 74, 143, 106, 94, 128, 109, 209, 111, 235, 46, 62, 237, 132, 84, 36, 240, 76, 210, 0, 33, 186, 162, 232, 218, 82, 142, 198,
+];
 
 /// Canonical ABI validation contract for [`IUnknown`].
 pub const IUNKNOWN_ABI_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static(&IUNKNOWN_SIGNATURE_BYTES);

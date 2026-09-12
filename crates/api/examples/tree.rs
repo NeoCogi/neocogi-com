@@ -10,7 +10,7 @@ com_int_enum! {
     }
 }
 
-#[com_enum(tag = u32)]
+#[com_enum(tag = u32, assigned_signature = b"00000000000000000000000000000029")]
 #[derive(Debug, PartialEq)]
 pub enum TreeMutation {
     None,
@@ -18,14 +18,14 @@ pub enum TreeMutation {
     AttributeChanged { element: u64, name_id: u32 },
 }
 
-#[com_interface(auto_guid = "nc.examples.tree.Element:v1")]
+#[com_interface(auto_guid = "nc.examples.tree.Element:v1", assigned_signature = b"00000000000000000000000000000030")]
 pub trait IElement {
     fn kind(&self) -> Result<NodeKind, NcStatus>;
     fn child_count(&self) -> Result<i32, NcStatus>;
     fn first_child_kind(&self) -> Result<NodeKind, NcStatus>;
 }
 
-#[com_interface(auto_guid = "nc.examples.tree.Document:v1")]
+#[com_interface(auto_guid = "nc.examples.tree.Document:v1", assigned_signature = b"00000000000000000000000000000031")]
 pub trait IDocument {
     fn root_kind(&self) -> Result<NodeKind, NcStatus>;
     fn root_child_count(&self) -> Result<i32, NcStatus>;

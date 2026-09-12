@@ -1,0 +1,5 @@
+error: com_interface requires an IDL-generator assigned_signature; define cross-component contracts in .ncidl
+ --> integration-tests/ui/interface_missing_assigned_signature.rs:4:7
+  |
+4 | trait IMissingAssignedSignature {}
+  |       ^^^^^^^^^^^^^^^^^^^^^^^^^

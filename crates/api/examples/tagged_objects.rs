@@ -8,13 +8,13 @@ com_int_enum! {
     }
 }
 
-#[com_interface(auto_guid = "nc.examples.tagged_objects.Element:v1")]
+#[com_interface(auto_guid = "nc.examples.tagged_objects.Element:v1", assigned_signature = b"00000000000000000000000000000032")]
 pub trait IElement {
     fn id(&self) -> Result<u64, NcStatus>;
     fn kind(&self) -> Result<ElementKind, NcStatus>;
 }
 
-#[com_interface(auto_guid = "nc.examples.tagged_objects.Document:v1")]
+#[com_interface(auto_guid = "nc.examples.tagged_objects.Document:v1", assigned_signature = b"00000000000000000000000000000033")]
 pub trait IDocument {
     fn root_id(&self) -> Result<u64, NcStatus>;
 }
@@ -60,7 +60,7 @@ impl IDocument for Document {
     }
 }
 
-#[com_enum(tag = u32)]
+#[com_enum(tag = u32, assigned_signature = b"00000000000000000000000000000034")]
 #[derive(Debug)]
 pub enum Selection {
     #[com_tag(1)]

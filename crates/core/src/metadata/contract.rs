@@ -1,15 +1,10 @@
 //! Canonical logical types used to describe COM ABI contracts.
 //!
-//! These enums and records are the semantic vocabulary behind interface signatures:
-//! value types, passing modes, threading promises, aggregate layouts, interface
-//! identities, and the ordered validation grammar. Raw numeric constants mirror each
-//! stable C representation for consumers that do not use the Rust enums.
-//!
-//! These Rust enums are the normalized input language for ABI validation. They do
-//! not cross the shared-library boundary directly; their `#[repr(C)]`
-//! descriptor counterparts encode the same information in exported metadata.
-//! Keeping the logical grammar separate makes signatures independent of Rust enum
-//! layout and gives validation one canonical interpretation of each tag.
+//! These enums and records are the semantic vocabulary behind runtime metadata:
+//! value types, passing modes, threading promises, aggregate layouts, and interface
+//! identities. Raw numeric constants mirror each stable C representation for
+//! consumers that do not use the Rust enums. ABI signature generation belongs to
+//! the IDL resolver and is intentionally absent from this runtime crate.
 
 use crate::guid::NcGuid;
 use crate::signature::NcAbiSignature;
@@ -51,81 +46,6 @@ impl NcInterfaceId {
     }
 }
 
-/// One canonical typed input fragment for an ABI signature.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum NcAbiSignaturePart<'a> {
-    /// Interface identity for an ABI contract.
-    Interface {
-        /// Interface GUID whose contract is being described.
-        iid: NcGuid,
-    },
-    /// Full base contract whose vtable occupies the inherited prefix.
-    BaseInterface {
-        /// Base IID and signature; changes to any ancestor change the derived signature.
-        interface: NcInterfaceId,
-    },
-    /// Method identity within an interface vtable.
-    Method {
-        /// Zero-based method position after the `IUnknown` prefix.
-        index: u32,
-        /// Source-level method name encoded as UTF-8.
-        name: &'a str,
-    },
-    /// Rust access contract enforced while dispatching one method.
-    Receiver {
-        /// Whether the implementation is observed or mutated by the call.
-        receiver: NcAbiReceiver,
-    },
-    /// Method argument contract.
-    Arg {
-        /// Zero-based argument position.
-        index: u32,
-        /// ABI transport used for the argument.
-        passing: NcAbiPassing,
-        /// Canonical argument value type.
-        ty: NcAbiType,
-    },
-    /// Method success return contract.
-    Return {
-        /// ABI transport used for the success value.
-        passing: NcAbiPassing,
-        /// Canonical success-value type.
-        ty: NcAbiType,
-    },
-    /// Explicit status return carried by every COM ABI method.
-    Status,
-    /// Physical aggregate layout used by structural ABI-safe value types.
-    Layout {
-        /// Aggregate size in bytes.
-        size: usize,
-        /// Aggregate alignment in bytes.
-        align: usize,
-    },
-    /// Aggregate field contract used by structural ABI-safe value types.
-    Field {
-        /// Zero-based field position.
-        index: u32,
-        /// Byte offset from the start of the aggregate.
-        offset: usize,
-        /// Canonical field type.
-        ty: NcAbiType,
-    },
-    /// Tagged enum variant contract.
-    Variant {
-        /// Zero-based variant position.
-        index: u32,
-        /// Discriminant value represented without narrowing.
-        tag: i128,
-        /// Canonical payload type, or [`NcAbiType::Void`] for a unit variant.
-        ty: NcAbiType,
-    },
-    /// Aggregate ABI-safe value shape marker.
-    Aggregate {
-        /// Structural aggregate category.
-        kind: NcAbiAggregateKind,
-    },
-}
-
 /// Physical field layout for an ABI-safe aggregate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct NcAbiFieldLayout {
@@ -148,7 +68,7 @@ pub struct NcAbiStructLayout {
     pub fields: &'static [NcAbiFieldLayout],
 }
 
-/// Canonical ABI type used as an ABI signature input.
+/// Canonical ABI type retained in generated method and field metadata.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NcAbiType {
     /// No value is present.
@@ -183,7 +103,7 @@ pub enum NcAbiType {
     NcGuid,
     /// [`crate::NcStatus`] value.
     NcStatus,
-    /// Structural ABI-safe aggregate signature.
+    /// Declaration-scoped ABI-safe aggregate identity.
     Aggregate(NcAbiSignature),
     /// COM interface reference or pointer type.
     Interface {
@@ -277,17 +197,6 @@ impl NcAbiThreadingMode {
     }
 }
 
-/// Structural ABI-safe aggregate category.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum NcAbiAggregateKind {
-    /// Ordered C-compatible struct fields.
-    Struct,
-    /// Overlapping C-compatible union fields.
-    Union,
-    /// Explicit tag plus variant payload storage.
-    TaggedEnum,
-}
-
 /// C-stable ABI type tag for no value (void).
 pub const NC_ABI_TYPE_VOID: u32 = 0x00;
 /// C-stable ABI type tag for `bool`.
@@ -357,29 +266,33 @@ pub const NC_ABI_RECEIVER_MUTABLE: u32 = 0x01;
 pub struct NcAbiTypeDescriptor {
     /// One of the `NC_ABI_TYPE_*` values.
     pub tag: u32,
-    /// Canonical aggregate signature when `tag == NC_ABI_TYPE_AGGREGATE`.
+    /// Declaration-scoped aggregate signature when `tag == NC_ABI_TYPE_AGGREGATE`.
     ///
-    /// Runtime descriptors use this as a canonical compatibility identity. It
-    /// encodes layout and nested type records but not Rust source declarations.
+    /// The IDL tool derives this from the exact module revision and declaration
+    /// ID. Compiled size, alignment, offsets, and nested field types remain in
+    /// [`NcAbiStructLayout`] instead of being re-encoded and hashed by rustc.
     pub aggregate_signature: NcAbiSignature,
     /// Interface identity when `tag == NC_ABI_TYPE_INTERFACE`.
     pub interface: NcInterfaceId,
 }
 
 impl NcAbiTypeDescriptor {
-    /// Describes an interface using its complete expected identity. Local signature
-    /// grammar uses only the IID, while metadata and pointer checks retain the
-    /// complete signature. Keeping these separate permits recursive contracts.
+    /// Describes an interface using its complete expected identity.
+    ///
+    /// The GUID identifies the declaration, while its generator-assigned
+    /// signature pins the exact transitive module revision. Keeping both values
+    /// explicit also permits recursive interface contracts.
     pub const fn from_interface(interface: NcInterfaceId) -> Self {
         let mut out = Self::from_abi_type(NcAbiType::Interface { iid: interface.iid });
         out.interface = interface;
         out
     }
 
-    /// Builds a descriptor for a local signature-grammar type. An Interface input
-    /// contains only an IID and therefore leaves its signature empty; publish complete
-    /// interface metadata with [`Self::from_interface`] instead. Validation rejects
-    /// incomplete interface descriptors before plugin registration.
+    /// Builds a descriptor for a local typed-metadata value. An Interface input
+    /// contains only an IID and therefore leaves its signature empty; publish
+    /// complete interface metadata with [`Self::from_interface`] instead.
+    /// Validation rejects incomplete interface descriptors before plugin
+    /// registration.
     pub const fn from_abi_type(ty: NcAbiType) -> Self {
         let mut out = Self {
             tag: NC_ABI_TYPE_VOID,

@@ -34,10 +34,10 @@ impl std::error::Error for GenerateError {}
 
 /// Generates complete Rust bindings for one module in a resolved graph.
 ///
-/// The output contains only ABI layouts, typed calls, and description marker
-/// constants. Runtime descriptions and plugin implementations are deliberately
-/// absent; those belong to the native contract artifact and implementation
-/// crates respectively.
+/// The output contains ABI layouts, typed calls, description marker constants,
+/// and already-computed declaration signatures as fixed byte literals. Runtime
+/// descriptions and plugin implementations are deliberately absent; those
+/// belong to the native contract artifact and implementation crates respectively.
 pub fn generate_rust(graph: &ResolvedModules, module_name: &str) -> Result<String, GenerateError> {
     let module = graph
         .module(module_name)
@@ -125,16 +125,20 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
         .declarations
         .get(source_index)
         .ok_or_else(|| GenerateError::new("resolved declaration order does not match its source module"))?;
+    // One contract module remains the compatibility unit, but the resolver
+    // folds the declaration ID into each signature so typed metadata can still
+    // distinguish two aggregates from the same exact module revision.
+    let assigned_signature = signature_literal(identity.abi_signature);
     let id = Literal::string(&identity.id.to_string());
     let qualified_name = Literal::string(&identity.qualified_name);
     let version = identity.version;
     match &declaration.kind {
         DeclarationKind::Struct(record) => {
             let com_struct = match (record.deserialize, record.deserialize_default, record.deserialize_sequence) {
-                (false, false, false) => quote! { #[::neocogi_com::com_struct] },
-                (true, false, false) => quote! { #[::neocogi_com::com_struct(deserialize)] },
-                (true, true, false) => quote! { #[::neocogi_com::com_struct(deserialize, default)] },
-                (true, false, true) => quote! { #[::neocogi_com::com_struct(deserialize, sequence)] },
+                (false, false, false) => quote! { #[::neocogi_com::com_struct(assigned_signature = #assigned_signature)] },
+                (true, false, false) => quote! { #[::neocogi_com::com_struct(deserialize, assigned_signature = #assigned_signature)] },
+                (true, true, false) => quote! { #[::neocogi_com::com_struct(deserialize, default, assigned_signature = #assigned_signature)] },
+                (true, false, true) => quote! { #[::neocogi_com::com_struct(deserialize, sequence, assigned_signature = #assigned_signature)] },
                 _ => return Err(GenerateError::new("resolved struct contains an invalid deserialize policy")),
             };
             let fields = record
@@ -242,7 +246,7 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
                 .collect::<Result<Vec<_>, GenerateError>>()?;
             if has_payload {
                 format_rust(quote! {
-                    #[::neocogi_com::com_enum(tag = #repr)]
+                    #[::neocogi_com::com_enum(tag = #repr, assigned_signature = #assigned_signature)]
                     #[derive(Clone, Copy, Debug, PartialEq)]
                     #declaration_docs
                     pub enum #name { #(#variants)* }
@@ -271,7 +275,11 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
             let bases = bases(graph, module, &interface.bases)?;
             let methods = methods(graph, module, &interface.methods)?;
             format_rust(quote! {
-                #[::neocogi_com::com_interface(assigned_guid = #id, name = #qualified_name)]
+                #[::neocogi_com::com_interface(
+                    assigned_guid = #id,
+                    name = #qualified_name,
+                    assigned_signature = #assigned_signature
+                )]
                 #declaration_docs
                 pub trait #name #bases { #(#methods)* }
             })
@@ -285,7 +293,8 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
                     id = #id,
                     name = #qualified_name,
                     version = #version,
-                    threading = #threading
+                    threading = #threading,
+                    assigned_signature = #assigned_signature
                 )]
                 #declaration_docs
                 pub trait #name #bases { #(#methods)* }
@@ -300,7 +309,8 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
                     id = #id,
                     name = #qualified_name,
                     version = #version,
-                    threading = #threading
+                    threading = #threading,
+                    assigned_signature = #assigned_signature
                 )]
                 #declaration_docs
                 pub trait #name #bases { #(#methods)* }
@@ -596,6 +606,11 @@ fn contract_crate_ident(module: &str) -> Result<Ident, GenerateError> {
 fn guid_literal(value: neocogi_com_core::NcGuid) -> TokenStream {
     let (data1, data2, data3, data4) = value.fields();
     quote! { ::neocogi_com::NcGuid::from_fields(#data1, #data2, #data3, [#(#data4),*]) }
+}
+
+/// Emits one complete SHA-256 digest as a fixed Rust byte array.
+fn signature_literal(value: [u8; 32]) -> Literal {
+    Literal::byte_string(&value)
 }
 
 /// Converts one enum representation into its Rust fixed-width integer type.
