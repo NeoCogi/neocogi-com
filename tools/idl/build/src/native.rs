@@ -344,3 +344,36 @@ fn write_changed(path: &Path, contents: &[u8]) -> Result<(), BuildError> {
         source,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    //! Canonical native-description tests independent of a platform compiler.
+
+    use std::path::Path;
+
+    use neocogi_idl::{ModuleSource, parse_module_parts, resolve_modules};
+
+    use super::{generate_c, native_getter_name};
+
+    /// Confirms source-part permutations produce byte-identical native C.
+    #[test]
+    fn multipart_permutations_generate_identical_native_descriptions() {
+        let first = ModuleSource {
+            path: Path::new("example/module/values.ncidl"),
+            text: "#[version(1)] struct Value { raw: u32 }",
+        };
+        let second = ModuleSource {
+            path: Path::new("example/module/service.ncidl"),
+            text: "#[version(1)] trait IService { fn value(&self) -> Result<Value>; }",
+        };
+        let forward = resolve_modules(vec![parse_module_parts(Path::new("example/module"), &[first, second]).unwrap()]).unwrap();
+        let reverse = resolve_modules(vec![parse_module_parts(Path::new("example/module"), &[second, first]).unwrap()]).unwrap();
+        let forward = forward.module("example.module").unwrap();
+        let reverse = reverse.module("example.module").unwrap();
+
+        assert_eq!(
+            generate_c(forward, &native_getter_name(forward)),
+            generate_c(reverse, &native_getter_name(reverse))
+        );
+    }
+}

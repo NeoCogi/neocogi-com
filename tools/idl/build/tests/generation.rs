@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use neocogi_idl::{parse_module, resolve_modules};
+use neocogi_idl::{ModuleSource, parse_module, parse_module_parts, resolve_modules};
 
 /// Parses one inline fixture using its path-derived logical module name.
 fn module(path: &str, source: &str) -> neocogi_idl::Module {
@@ -111,4 +111,52 @@ fn preserves_documentation_without_making_it_an_abi_input() {
     assert!(generated.contains("/// Copied numeric payload."));
     assert!(!generated.contains("#[doc ="));
     assert!(generated.contains("pub number: u64"));
+}
+
+/// Confirms file names, declaration placement, and discovery order do not
+/// affect the fingerprint or generated Rust for one logical module.
+#[test]
+fn multipart_permutations_generate_identical_bindings() {
+    let geometry = "/// Size docs.\n#[version(1)] struct Size { width: u32, height: u32 }";
+    let widgets = "/// Widget docs.\n#[version(1)] trait IWidget { fn resize(&mut self, size: Size) -> Result<()>; }";
+    let first_parts = [
+        ModuleSource {
+            path: Path::new("example/contract/z_geometry.ncidl"),
+            text: geometry,
+        },
+        ModuleSource {
+            path: Path::new("example/contract/a_widgets.ncidl"),
+            text: widgets,
+        },
+    ];
+    let renamed_parts = [
+        ModuleSource {
+            path: Path::new("example/contract/one.ncidl"),
+            text: widgets,
+        },
+        ModuleSource {
+            path: Path::new("example/contract/nested/two.ncidl"),
+            text: geometry,
+        },
+    ];
+    let combined = module("example/contract.ncidl", &format!("{widgets}\n{geometry}"));
+    let first = parse_module_parts(Path::new("example/contract"), &first_parts).unwrap();
+    let renamed = parse_module_parts(Path::new("example/contract"), &renamed_parts).unwrap();
+
+    let graphs = [
+        resolve_modules(vec![combined]).unwrap(),
+        resolve_modules(vec![first]).unwrap(),
+        resolve_modules(vec![renamed]).unwrap(),
+    ];
+    let fingerprints = graphs
+        .iter()
+        .map(|graph| graph.module("example.contract").unwrap().abi_fingerprint)
+        .collect::<Vec<_>>();
+    let bindings = graphs
+        .iter()
+        .map(|graph| neocogi_idl_build::generate_rust(graph, "example.contract").unwrap())
+        .collect::<Vec<_>>();
+
+    assert!(fingerprints.windows(2).all(|pair| pair[0] == pair[1]));
+    assert!(bindings.windows(2).all(|pair| pair[0] == pair[1]));
 }

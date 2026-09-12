@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use neocogi_idl::{parse_module, resolve_modules};
+use neocogi_idl::{ModuleSource, parse_module, parse_module_parts, resolve_modules};
 use serde::{Deserialize, Serialize};
 
 use crate::{generate_rust, native};
@@ -19,8 +19,17 @@ const ARTIFACT_SCHEMA: u32 = 1;
 pub struct Module {
     /// Directory containing the crate's IDL namespace tree.
     idl_root: PathBuf,
-    /// `.ncidl` path relative to `idl_root`; this path defines module identity.
-    source: PathBuf,
+    /// File or directory that defines the logical module and its source parts.
+    input: ModuleInput,
+}
+
+/// Source layout selected for one logical contract module.
+#[derive(Clone, Debug)]
+enum ModuleInput {
+    /// One legacy `.ncidl` file whose path defines module identity.
+    File(PathBuf),
+    /// One directory whose path defines identity and whose files are parts.
+    Directory(PathBuf),
 }
 
 impl Module {
@@ -28,7 +37,18 @@ impl Module {
     pub fn new(idl_root: impl Into<PathBuf>, source: impl Into<PathBuf>) -> Self {
         Self {
             idl_root: idl_root.into(),
-            source: source.into(),
+            input: ModuleInput::File(source.into()),
+        }
+    }
+
+    /// Creates one module build request from every `.ncidl` part in a directory.
+    ///
+    /// The directory path relative to `idl_root` defines module identity. Part
+    /// names, nesting, and filesystem enumeration order do not affect the ABI.
+    pub fn directory(idl_root: impl Into<PathBuf>, module_directory: impl Into<PathBuf>) -> Self {
+        Self {
+            idl_root: idl_root.into(),
+            input: ModuleInput::Directory(module_directory.into()),
         }
     }
 
@@ -40,17 +60,12 @@ impl Module {
     pub fn build(self) -> Result<BuildOutput, BuildError> {
         let manifest_dir = required_path("CARGO_MANIFEST_DIR")?;
         let output_dir = required_path("OUT_DIR")?;
-        let source_path = manifest_dir.join(&self.idl_root).join(&self.source);
-        println!("cargo::rerun-if-changed={}", source_path.display());
+        let source_root = manifest_dir.join(&self.idl_root);
+        let own_record = load_sources(&source_root, &self.input)?;
         println!("cargo::rerun-if-env-changed=NEOCOGI_CONTRACT_LINKAGE");
         println!("cargo::rerun-if-env-changed=NEOCOGI_CONTRACT_NATIVE_TARGET");
 
-        let source = fs::read_to_string(&source_path).map_err(|source_error| BuildError::Io {
-            operation: "read IDL source",
-            path: source_path.clone(),
-            source: source_error,
-        })?;
-        let own_module = parse_module(&self.source, &source).map_err(|source| BuildError::Idl(source.to_string()))?;
+        let own_module = parse_record(&own_record)?;
         let module_name = own_module.name.to_string();
         let expected_links = links_name(&module_name);
         let actual_links = env::var("CARGO_MANIFEST_LINKS").map_err(|_| BuildError::MissingEnvironment("CARGO_MANIFEST_LINKS"))?;
@@ -63,14 +78,7 @@ impl Module {
         }
 
         let mut records = BTreeMap::new();
-        records.insert(
-            own_module.name.to_string(),
-            GraphModule {
-                relative_path: path_text(&self.source)?,
-                source,
-                artifact: None,
-            },
-        );
+        records.insert(own_module.name.to_string(), own_record);
         let mut dependency_artifacts = BTreeMap::new();
         let dependency_modules = own_module.imports.iter().map(|import| import.module.clone()).collect::<BTreeSet<_>>();
         for dependency in dependency_modules {
@@ -112,11 +120,10 @@ impl Module {
         let parsed = records
             .iter()
             .map(|(name, record)| {
-                let path = Path::new(&record.relative_path);
-                let module = parse_module(path, &record.source).map_err(|source| BuildError::Idl(source.to_string()))?;
+                let module = parse_record(record)?;
                 if module.name.to_string() != *name {
                     return Err(BuildError::Idl(format!(
-                        "dependency graph key {name:?} disagrees with path-derived module {}",
+                        "dependency graph key {name:?} disagrees with source-derived module {}",
                         module.name
                     )));
                 }
@@ -353,7 +360,7 @@ impl std::error::Error for BuildError {
 }
 
 /// Schema version for Cargo-to-Cargo IDL source graph exchange.
-const GRAPH_SCHEMA: u32 = 1;
+const GRAPH_SCHEMA: u32 = 2;
 
 /// Serializable transitive module graph produced by a dependency build.
 #[derive(Deserialize, Serialize)]
@@ -367,12 +374,112 @@ struct GraphRecord {
 /// Source record sufficient to repeat semantic resolution in a dependent crate.
 #[derive(Deserialize, Eq, PartialEq, Serialize)]
 struct GraphModule {
-    /// Normalized `.ncidl` path that defines the logical module name.
-    relative_path: String,
-    /// Exact source text; comments are retained for generated documentation.
-    source: String,
+    /// Normalized file or directory path that defines the logical module name.
+    module_path: String,
+    /// Source parts keyed by normalized path relative to the IDL root.
+    sources: BTreeMap<String, String>,
     /// Exact target artifact when this module record originated at its owner.
     artifact: Option<ArtifactRecord>,
+}
+
+/// Loads a single-file or directory-based module into its graph representation.
+fn load_sources(idl_root: &Path, input: &ModuleInput) -> Result<GraphModule, BuildError> {
+    match input {
+        ModuleInput::File(relative_path) => {
+            let source_path = idl_root.join(relative_path);
+            println!("cargo::rerun-if-changed={}", source_path.display());
+            let source = read_source(&source_path)?;
+            Ok(GraphModule {
+                module_path: path_text(relative_path)?,
+                sources: BTreeMap::from([(path_text(relative_path)?, source)]),
+                artifact: None,
+            })
+        }
+        ModuleInput::Directory(relative_directory) => {
+            let module_directory = idl_root.join(relative_directory);
+            println!("cargo::rerun-if-changed={}", module_directory.display());
+            let mut paths = Vec::new();
+            discover_parts(&module_directory, &mut paths)?;
+            paths.sort();
+            let mut sources = BTreeMap::new();
+            for source_path in paths {
+                println!("cargo::rerun-if-changed={}", source_path.display());
+                let relative_path = source_path.strip_prefix(idl_root).map_err(|_| {
+                    BuildError::Idl(format!(
+                        "discovered IDL source {} outside configured root {}",
+                        source_path.display(),
+                        idl_root.display()
+                    ))
+                })?;
+                sources.insert(path_text(relative_path)?, read_source(&source_path)?);
+            }
+            Ok(GraphModule {
+                module_path: path_text(relative_directory)?,
+                sources,
+                artifact: None,
+            })
+        }
+    }
+}
+
+/// Recursively discovers `.ncidl` source parts without assigning order meaning.
+fn discover_parts(directory: &Path, output: &mut Vec<PathBuf>) -> Result<(), BuildError> {
+    let entries = fs::read_dir(directory).map_err(|source| BuildError::Io {
+        operation: "read IDL module directory",
+        path: directory.to_owned(),
+        source,
+    })?;
+    for entry in entries {
+        let entry = entry.map_err(|source| BuildError::Io {
+            operation: "read IDL module directory entry",
+            path: directory.to_owned(),
+            source,
+        })?;
+        let path = entry.path();
+        let file_type = entry.file_type().map_err(|source| BuildError::Io {
+            operation: "inspect IDL module directory entry",
+            path: path.clone(),
+            source,
+        })?;
+        if file_type.is_dir() {
+            discover_parts(&path, output)?;
+        } else if file_type.is_file() && path.extension().and_then(|extension| extension.to_str()) == Some("ncidl") {
+            output.push(path);
+        }
+    }
+    Ok(())
+}
+
+/// Reads one UTF-8 IDL part with its concrete filesystem path in failures.
+fn read_source(path: &Path) -> Result<String, BuildError> {
+    fs::read_to_string(path).map_err(|source| BuildError::Io {
+        operation: "read IDL source",
+        path: path.to_owned(),
+        source,
+    })
+}
+
+/// Parses one graph record through its file or directory identity form.
+fn parse_record(record: &GraphModule) -> Result<neocogi_idl::Module, BuildError> {
+    let module_path = Path::new(&record.module_path);
+    if module_path.extension().and_then(|extension| extension.to_str()) == Some("ncidl") {
+        if record.sources.len() != 1 {
+            return Err(BuildError::Idl(format!(
+                "single-file IDL module {:?} contains {} source records",
+                record.module_path,
+                record.sources.len()
+            )));
+        }
+        let source = record.sources.values().next().expect("single-file record length was checked");
+        return parse_module(module_path, source).map_err(|source| BuildError::Idl(source.to_string()));
+    }
+
+    let parts = record
+        .sources
+        .iter()
+        .map(|(path, source)| ModuleSource { path: Path::new(path), text: source })
+        .collect::<Vec<_>>();
+    parse_module_parts(module_path, &parts).map_err(|source| BuildError::Idl(source.to_string()))
 }
 
 /// Merges dependency records while rejecting two sources for one logical name.
@@ -388,7 +495,7 @@ fn merge_records(target: &mut BTreeMap<String, GraphModule>, incoming: BTreeMap<
 
 /// Compares logical module content while ignoring build-directory path aliases.
 fn same_module_record(left: &GraphModule, right: &GraphModule) -> bool {
-    if left.relative_path != right.relative_path || left.source != right.source {
+    if left.module_path != right.module_path || left.sources != right.sources {
         return false;
     }
     match (&left.artifact, &right.artifact) {
@@ -449,4 +556,43 @@ fn write_changed(path: &Path, contents: &[u8]) -> Result<(), BuildError> {
         path: path.to_owned(),
         source,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    //! Filesystem-focused tests for directory module discovery and graph loading.
+
+    use std::{fs, path::Path};
+
+    use tempfile::tempdir;
+
+    use super::{ModuleInput, load_sources, parse_record};
+
+    /// Confirms recursive discovery ignores unrelated files and produces one
+    /// path-derived logical module with canonical declarations.
+    #[test]
+    fn loads_directory_parts_as_one_module() {
+        let temporary = tempdir().unwrap();
+        let root = temporary.path().join("idl");
+        let module = root.join("neocogi/ui");
+        let nested = module.join("input");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(module.join("widgets.ncidl"), "#[version(1)] trait IWidget {}").unwrap();
+        fs::write(nested.join("geometry.ncidl"), "#[version(1)] struct Size { width: u32 }").unwrap();
+        fs::write(module.join("README.md"), "not IDL").unwrap();
+
+        let record = load_sources(&root, &ModuleInput::Directory(Path::new("neocogi/ui").to_owned())).unwrap();
+        let parsed = parse_record(&record).unwrap();
+
+        assert_eq!(record.module_path, "neocogi/ui");
+        assert_eq!(
+            record.sources.keys().map(String::as_str).collect::<Vec<_>>(),
+            ["neocogi/ui/input/geometry.ncidl", "neocogi/ui/widgets.ncidl"]
+        );
+        assert_eq!(parsed.name.to_string(), "neocogi.ui");
+        assert_eq!(
+            parsed.declarations.iter().map(|item| item.name.as_str()).collect::<Vec<_>>(),
+            ["IWidget", "Size"]
+        );
+    }
 }
