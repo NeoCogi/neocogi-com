@@ -136,7 +136,7 @@ fn generate_c(module: &ResolvedModule, getter: &str) -> String {
         output.push_str("};\n");
     }
     output.push_str("\nstatic const nc_contract_module nc_module = {\n");
-    output.push_str("    2u,\n");
+    output.push_str("    1u,\n");
     output.push_str(&format!("    {},\n", guid_initializer(module.module_id)));
     output.push_str(&format!("    {},\n", fingerprint_initializer(&module.abi_fingerprint)));
     output.push_str(&format!("    {{ nc_module_name, {}u }},\n", module.source.name.to_string().len()));
@@ -158,7 +158,7 @@ fn generate_c(module: &ResolvedModule, getter: &str) -> String {
 /// Returns the exact getter symbol imported for one dependency revision.
 fn dependency_getter(dependency: &neocogi_idl::ResolvedDependency) -> String {
     format!(
-        "nc_contract_{}_{}_get_v2",
+        "nc_contract_{}_{}_get_v1",
         dependency.module_name.replace('.', "_"),
         fingerprint_hex(&dependency.abi_fingerprint)
     )

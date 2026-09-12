@@ -113,7 +113,7 @@ pub struct NcContractModuleDescription {
 }
 ```
 
-Description ABI version 2 stores the canonical module name, module identity,
+Description ABI version 1 stores the canonical module name, module identity,
 full SHA-256 ABI fingerprint, top-level declaration
 identity/kind/version/threading, and exact fingerprinted dependency getters. It
 does not store the original `.ncidl` source, Rust object state, implementation

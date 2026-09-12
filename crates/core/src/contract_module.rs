@@ -7,7 +7,7 @@
 use crate::{NC_E_ABI_VERSION, NC_E_CONTRACT_MISMATCH, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcGuid, NcStaticUtf8, NcStatus};
 
 /// ABI version of [`NcContractModuleDescription`].
-pub const NC_CONTRACT_DESCRIPTION_ABI_VERSION: u32 = 2;
+pub const NC_CONTRACT_DESCRIPTION_ABI_VERSION: u32 = 1;
 
 /// Raw declaration-kind tag for an IDL struct.
 pub const NC_CONTRACT_DECLARATION_STRUCT: u32 = 1;
