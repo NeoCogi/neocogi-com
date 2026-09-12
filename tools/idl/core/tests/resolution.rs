@@ -107,6 +107,37 @@ fn fingerprints_typed_layout_and_callable_changes() {
     );
 }
 
+/// Confirms canonical top-level sorting does not erase ABI-significant order
+/// inside declarations.
+#[test]
+fn fingerprints_member_order() {
+    /// Resolves one isolated source and returns its canonical ABI fingerprint.
+    fn fingerprint(source: &str) -> [u8; 32] {
+        resolve_modules(vec![module("example/order.ncidl", source)]).unwrap().modules()[0].abi_fingerprint
+    }
+
+    assert_ne!(
+        fingerprint("#[version(1)] struct Pair { first: u32, second: u64 }"),
+        fingerprint("#[version(1)] struct Pair { second: u64, first: u32 }")
+    );
+    assert_ne!(
+        fingerprint("#[version(1)] enum State: u8 { First = 0, Second = 1 }"),
+        fingerprint("#[version(1)] enum State: u8 { Second = 1, First = 0 }")
+    );
+    assert_ne!(
+        fingerprint("#[version(1)] trait IService { fn first(&self) -> Result<()>; fn second(&self) -> Result<()>; }"),
+        fingerprint("#[version(1)] trait IService { fn second(&self) -> Result<()>; fn first(&self) -> Result<()>; }")
+    );
+    assert_ne!(
+        fingerprint("#[version(1)] trait IService { fn call(&self, first: u32, second: u64) -> Result<()>; }"),
+        fingerprint("#[version(1)] trait IService { fn call(&self, second: u64, first: u32) -> Result<()>; }")
+    );
+    assert_ne!(
+        fingerprint("#[version(1)] trait IFirst {} #[version(1)] trait ISecond {} #[version(1)] trait IService: IFirst + ISecond {}"),
+        fingerprint("#[version(1)] trait IFirst {} #[version(1)] trait ISecond {} #[version(1)] trait IService: ISecond + IFirst {}")
+    );
+}
+
 /// Confirms declaration signatures track the module revision without losing
 /// the identity of individual types within that module.
 #[test]

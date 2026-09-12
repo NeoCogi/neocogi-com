@@ -230,8 +230,9 @@ impl Diagnostic {
         let Some(primary) = errors.next() else {
             return Self::new("EIDL000", "unknown IDL syntax error").with_source(source);
         };
-        let message = primary.to_string();
-        let mut diagnostic = Self::new("EIDL001", &message)
+        let encoded_message = primary.to_string();
+        let (code, message) = split_encoded_code(&encoded_message);
+        let mut diagnostic = Self::new(code, message)
             .with_source(source)
             .primary(&span_in_source(primary.span(), source), message);
         for related in errors {
@@ -249,6 +250,21 @@ impl Diagnostic {
             .cmp(&other_span)
             .then_with(|| self.code.cmp(&other.code))
             .then_with(|| self.message.cmp(&other.message))
+    }
+}
+
+/// Extracts a parser-internal diagnostic code prefix without exposing it.
+fn split_encoded_code(message: &str) -> (&str, &str) {
+    let Some(encoded) = message.strip_prefix('[') else {
+        return ("EIDL001", message);
+    };
+    let Some((code, message)) = encoded.split_once("] ") else {
+        return ("EIDL001", message);
+    };
+    if code.len() > 4 && code.starts_with("EIDL") && code[4..].bytes().all(|byte| byte.is_ascii_digit()) {
+        (code, message)
+    } else {
+        ("EIDL001", message)
     }
 }
 

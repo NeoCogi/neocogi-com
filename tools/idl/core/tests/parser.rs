@@ -299,7 +299,7 @@ fn reports_both_locations_for_duplicate_fields() {
     .unwrap_err()
     .to_string();
 
-    assert!(error.contains("error[EIDL001]: duplicate field \"width\""), "{error}");
+    assert!(error.contains("error[EIDL013]: duplicate field \"width\""), "{error}");
     assert!(error.contains("neocogi/ui.ncidl:4:5"), "{error}");
     assert!(error.contains("neocogi/ui.ncidl:3:5"), "{error}");
     assert!(error.contains("first declared here"), "{error}");

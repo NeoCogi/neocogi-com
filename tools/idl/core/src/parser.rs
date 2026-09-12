@@ -225,7 +225,7 @@ impl Parse for ModuleSyntax {
             };
 
             if let Some(previous) = declaration_names.insert(declaration.name.clone(), declaration.span.clone()) {
-                return Err(duplicate_error("declaration", &declaration.name, &declaration.span, &previous));
+                return Err(duplicate_error("EIDL010", "declaration", &declaration.name, &declaration.span, &previous));
             }
             declarations.push(declaration);
         }
@@ -255,7 +255,7 @@ fn parse_bit_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Re
     while !body.is_empty() {
         let flag = parse_bit_flag(&body)?;
         if let Some(previous) = names.insert(flag.name.clone(), flag.span.clone()) {
-            return Err(duplicate_error("bit enum flag", &flag.name, &flag.span, &previous));
+            return Err(duplicate_error("EIDL014", "bit enum flag", &flag.name, &flag.span, &previous));
         }
         flags.push(flag);
     }
@@ -278,7 +278,7 @@ fn parse_struct(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Resu
     while !body.is_empty() {
         let field = parse_named_field(&body)?;
         if let Some(previous) = names.insert(field.name.clone(), field.span.clone()) {
-            return Err(duplicate_error("field", &field.name, &field.span, &previous));
+            return Err(duplicate_error("EIDL013", "field", &field.name, &field.span, &previous));
         }
         fields.push(field);
     }
@@ -311,7 +311,7 @@ fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result
     while !body.is_empty() {
         let variant = parse_enum_variant(&body)?;
         if let Some(previous) = names.insert(variant.name.clone(), variant.span.clone()) {
-            return Err(duplicate_error("enum variant", &variant.name, &variant.span, &previous));
+            return Err(duplicate_error("EIDL015", "enum variant", &variant.name, &variant.span, &previous));
         }
         variants.push(variant);
     }
@@ -410,7 +410,7 @@ fn parse_methods(input: ParseStream<'_>) -> syn::Result<Vec<Method>> {
         let source = body.parse::<TraitItemFn>()?;
         let method = lower_method(source)?;
         if let Some(previous) = names.insert(method.name.clone(), method.span.clone()) {
-            return Err(duplicate_error("method", &method.name, &method.span, &previous));
+            return Err(duplicate_error("EIDL016", "method", &method.name, &method.span, &previous));
         }
         methods.push(method);
     }
@@ -470,7 +470,7 @@ fn lower_method(source: TraitItemFn) -> syn::Result<Method> {
         require_snake_case(&pattern.ident, "parameter")?;
         let span = SourceSpan::from_parser(pattern.ident.span());
         if let Some(previous) = names.insert(name.clone(), span.clone()) {
-            return Err(duplicate_error("parameter", &name, &span, &previous));
+            return Err(duplicate_error("EIDL017", "parameter", &name, &span, &previous));
         }
         parameters.push(Parameter {
             span,
@@ -642,7 +642,7 @@ fn parse_enum_variant(input: ParseStream<'_>) -> syn::Result<EnumVariant> {
         while !content.is_empty() {
             let field = parse_named_field(&content)?;
             if let Some(previous) = names.insert(field.name.clone(), field.span.clone()) {
-                return Err(duplicate_error("variant field", &field.name, &field.span, &previous));
+                return Err(duplicate_error("EIDL013", "variant field", &field.name, &field.span, &previous));
             }
             values.push(field);
         }
@@ -745,7 +745,7 @@ fn parse_import(input: ParseStream<'_>) -> syn::Result<Import> {
         let normalized = name.to_string();
         let span = SourceSpan::from_parser(name.span());
         if let Some(previous) = unique_names.insert(normalized.clone(), span.clone()) {
-            return Err(duplicate_error("import name", &normalized, &span, &previous));
+            return Err(duplicate_error("EIDL018", "import name", &normalized, &span, &previous));
         }
         normalized_names.push(normalized);
     }
@@ -757,8 +757,8 @@ fn parse_import(input: ParseStream<'_>) -> syn::Result<Import> {
 }
 
 /// Produces one syntax error with both duplicate and original declarations.
-fn duplicate_error(role: &str, name: &str, current: &SourceSpan, previous: &SourceSpan) -> syn::Error {
-    let mut error = syn::Error::new(current.parser_span(), format!("duplicate {role} {name:?}"));
+fn duplicate_error(code: &str, role: &str, name: &str, current: &SourceSpan, previous: &SourceSpan) -> syn::Error {
+    let mut error = syn::Error::new(current.parser_span(), format!("[{code}] duplicate {role} {name:?}"));
     error.combine(syn::Error::new(previous.parser_span(), "first declared here"));
     error
 }
