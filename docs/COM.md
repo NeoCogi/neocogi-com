@@ -191,8 +191,8 @@ cross-library marshalling format.
 - `neocogi-com`: user-facing facade and generated object helpers.
 - `neocogi-com-runtime-sys`: linked runtime discovery declarations.
 - `neocogi-com-runtime`: process-global runtime implementation.
-- `neocogi-idl` and `neocogi-idl-build`: IDL parser/resolver and Cargo build
-  integration.
+- `neocogi-idl` and `neocogi-idl-build` under `tools/idl`: IDL parser/resolver
+  and Cargo build integration shared by contract crates and `cargo-neocogi`.
 
 This runtime is trusted same-process native code, not a sandbox or plugin
 marketplace. Applications own installation, trust, signatures, and path policy.
