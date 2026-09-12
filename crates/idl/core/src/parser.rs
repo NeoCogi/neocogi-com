@@ -13,8 +13,8 @@ use syn::{
 };
 
 use crate::{
-    AbiType, Class, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, Factory, Field, Import, Interface, Method, Module,
-    ModuleName, ModulePathError, NamedType, Parameter, Receiver, Struct, Threading, VariantFields,
+    AbiType, BitEnum, BitFlag, Class, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, Factory, Field, Import, Interface,
+    Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, Struct, Threading, VariantFields,
 };
 
 mod keyword {
@@ -22,6 +22,7 @@ mod keyword {
 
     syn::custom_keyword!(class);
     syn::custom_keyword!(factory);
+    syn::custom_keyword!(bitenum);
 }
 
 /// Failure to derive a module name or parse one IDL source file.
@@ -107,6 +108,8 @@ impl Parse for ModuleSyntax {
                 parse_struct(attributes, input)?
             } else if input.peek(Token![enum]) {
                 parse_enum(attributes, input)?
+            } else if input.peek(keyword::bitenum) {
+                parse_bit_enum(attributes, input)?
             } else if input.peek(Token![trait]) {
                 parse_interface(attributes, input)?
             } else if input.peek(keyword::class) {
@@ -114,7 +117,7 @@ impl Parse for ModuleSyntax {
             } else if input.peek(keyword::factory) {
                 parse_factory(attributes, input)?
             } else {
-                return Err(input.error("expected `use`, `struct`, `enum`, `trait`, `class`, or `factory`"));
+                return Err(input.error("expected `use`, `struct`, `enum`, `bitenum`, `trait`, `class`, or `factory`"));
             };
 
             if !declaration_names.insert(declaration.name.clone()) {
@@ -128,6 +131,36 @@ impl Parse for ModuleSyntax {
         }
         Ok(Self { imports, declarations })
     }
+}
+
+/// Parses one fixed-width bit set with explicit named flag patterns.
+fn parse_bit_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Declaration> {
+    let metadata = parse_attributes(attributes, AttributeContext::BitEnum)?;
+    input.parse::<keyword::bitenum>()?;
+    let name = input.parse::<Ident>()?;
+    if !input.peek(Token![:]) {
+        return Err(syn::Error::new(name.span(), "IDL bit enums require an explicit unsigned representation"));
+    }
+    let repr = parse_optional_enum_repr(input)?;
+    if !matches!(repr, EnumRepr::U8 | EnumRepr::U16 | EnumRepr::U32) {
+        return Err(syn::Error::new(name.span(), "IDL bit enum representation must be u8, u16, or u32"));
+    }
+
+    let body;
+    braced!(body in input);
+    let mut flags = Vec::new();
+    let mut names = HashSet::new();
+    while !body.is_empty() {
+        let flag = parse_bit_flag(&body)?;
+        if !names.insert(flag.name.clone()) {
+            return Err(body.error(format!("duplicate bit enum flag {:?}", flag.name)));
+        }
+        flags.push(flag);
+    }
+    if flags.is_empty() {
+        return Err(syn::Error::new(name.span(), "IDL bit enums must contain at least one flag"));
+    }
+    Ok(declaration(name, metadata, DeclarationKind::BitEnum(BitEnum { repr, flags })))
 }
 
 /// Parses one copied record declaration.
@@ -507,6 +540,19 @@ fn parse_enum_variant(input: ParseStream<'_>) -> syn::Result<EnumVariant> {
     })
 }
 
+/// Parses one explicitly valued bit flag and consumes its trailing comma.
+fn parse_bit_flag(input: ParseStream<'_>) -> syn::Result<BitFlag> {
+    let attributes = Attribute::parse_outer(input)?;
+    let docs = parse_doc_only_attributes(&attributes)?;
+    let name = input.parse::<Ident>()?;
+    input.parse::<Token![=]>()?;
+    let value = parse_unsigned_integer(&input.parse::<Expr>()?)?;
+    if !input.is_empty() {
+        input.parse::<Token![,]>()?;
+    }
+    Ok(BitFlag { docs, name: name.to_string(), value })
+}
+
 /// Parses a nonnegative integer expression used as a fixed array length.
 fn parse_unsigned_integer(expression: &Expr) -> syn::Result<u64> {
     let Expr::Lit(ExprLit { lit: Lit::Int(value), .. }) = expression else {
@@ -570,6 +616,8 @@ enum AttributeContext {
     Plain,
     /// Enums accept identity and documentation; their representation is syntax.
     Enum,
+    /// Bit enums accept only identity and documentation attributes.
+    BitEnum,
     /// Interfaces accept identity and documentation only.
     Interface,
     /// Classes and factories additionally accept threading capability.

@@ -7,7 +7,7 @@ use std::{
 
 use neocogi_com_core::{NcGuid, guid_from_name, guid_from_qualified_name};
 
-use crate::{AbiType, Declaration, DeclarationKind, Enum, EnumRepr, Method, Module, NamedType, Threading, VariantFields, sha256::digest};
+use crate::{AbiType, BitEnum, Declaration, DeclarationKind, Enum, EnumRepr, Method, Module, NamedType, Threading, VariantFields, sha256::digest};
 
 /// UUID namespace reserved for canonical NeoCogi IDL identities.
 const NC_IDL_IDENTITY_NAMESPACE: NcGuid = guid_from_qualified_name("neocogi.idl.identity:v1");
@@ -411,6 +411,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
                     }
                 }
             }
+            DeclarationKind::BitEnum(bit_enum) => validate_bit_enum(entry, declaration, bit_enum)?,
             DeclarationKind::Interface(interface) => {
                 validate_interface_bases(index, &interface.bases, entries, &declaration.name)?;
                 validate_methods(index, &interface.methods, entries, &declaration.name)?;
@@ -423,6 +424,28 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
                 validate_interface_bases(index, &factory.required_interfaces, entries, &declaration.name)?;
                 validate_methods(index, &factory.methods, entries, &declaration.name)?;
             }
+        }
+    }
+    Ok(())
+}
+
+/// Checks every bit pattern against the selected unsigned storage width.
+fn validate_bit_enum(entry: &ModuleEntry, declaration: &Declaration, bit_enum: &BitEnum) -> Result<(), ResolutionError> {
+    let (_, maximum) = repr_range(bit_enum.repr);
+    let mut values = HashSet::new();
+    for flag in &bit_enum.flags {
+        let value = i128::from(flag.value);
+        if value > maximum {
+            return Err(error(
+                Some(&entry.name),
+                format!("bit enum {} flag {} value {value} does not fit its representation", declaration.name, flag.name),
+            ));
+        }
+        if !values.insert(flag.value) {
+            return Err(error(
+                Some(&entry.name),
+                format!("bit enum {} flag {} repeats value {value}", declaration.name, flag.name),
+            ));
         }
     }
     Ok(())
@@ -748,6 +771,17 @@ fn encode_declaration(
                 }
             }
         }
+        DeclarationKind::BitEnum(bit_enum) => {
+            // A distinct kind tag prevents an ordinary integer enum from being
+            // ABI-equivalent to a combinable set with the same constants.
+            encoder.tag(6);
+            encoder.tag(enum_repr_tag(bit_enum.repr));
+            encoder.u32(u32_len(bit_enum.flags.len(), &entries[index].name, "bit flag count")?);
+            for flag in &bit_enum.flags {
+                encoder.text(&flag.name, &entries[index].name)?;
+                encoder.u64(flag.value);
+            }
+        }
         DeclarationKind::Interface(interface) => {
             encoder.tag(3);
             encode_callable(index, &interface.bases, &interface.methods, Threading::Local, entries, encoder)?;
@@ -883,6 +917,11 @@ impl CanonicalEncoder {
         self.bytes.extend_from_slice(&value.to_be_bytes());
     }
 
+    /// Appends one big-endian unsigned wide integer.
+    fn u64(&mut self, value: u64) {
+        self.bytes.extend_from_slice(&value.to_be_bytes());
+    }
+
     /// Appends one big-endian signed integer.
     fn i64(&mut self, value: i64) {
         self.bytes.extend_from_slice(&value.to_be_bytes());
@@ -928,7 +967,7 @@ fn derive_declaration_id(qualified_name: &str, version: u32) -> NcGuid {
 /// Maps a declaration payload to its coarse reference category.
 fn symbol_kind(kind: &DeclarationKind) -> SymbolKind {
     match kind {
-        DeclarationKind::Struct(_) | DeclarationKind::Enum(_) => SymbolKind::Value,
+        DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) => SymbolKind::Value,
         DeclarationKind::Interface(_) => SymbolKind::Interface,
         DeclarationKind::Class(_) => SymbolKind::Class,
         DeclarationKind::Factory(_) => SymbolKind::Factory,

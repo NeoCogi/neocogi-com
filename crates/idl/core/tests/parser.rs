@@ -35,6 +35,13 @@ fn parses_a_complete_contract_module() {
             }
 
             #[version(1)]
+            bitenum WindowOptions: u16 {
+                NONE = 0,
+                RESIZABLE = 1,
+                TITLED = 2,
+            }
+
+            #[version(1)]
             trait IWidget {
                 fn enabled(&self) -> Result<bool>;
                 fn set_enabled(&mut self, enabled: bool) -> Result<()>;
@@ -60,7 +67,7 @@ fn parses_a_complete_contract_module() {
     assert_eq!(module.name.to_string(), "neocogi.ui");
     assert_eq!(module.imports[0].module, "neocogi.render");
     assert_eq!(module.imports[0].names, ["ITexture", "TextureFactory"]);
-    assert_eq!(module.declarations.len(), 6);
+    assert_eq!(module.declarations.len(), 7);
     assert_eq!(module.declaration("IWidget").unwrap().name, "IWidget");
 
     let DeclarationKind::Struct(options) = &module.declaration("WidgetOptions").unwrap().kind else {
@@ -94,6 +101,13 @@ fn parses_a_complete_contract_module() {
     assert!(matches!(event.variants[1].fields, VariantFields::Tuple(_)));
     assert!(matches!(event.variants[2].fields, VariantFields::Named(_)));
 
+    let DeclarationKind::BitEnum(options) = &module.declaration("WindowOptions").unwrap().kind else {
+        panic!("WindowOptions should be a bit enum");
+    };
+    assert_eq!(options.repr, EnumRepr::U16);
+    assert_eq!(options.flags[2].name, "TITLED");
+    assert_eq!(options.flags[2].value, 2);
+
     let button = module.declaration("Button").unwrap();
     assert_eq!(button.id.version, 1);
     assert!(button.id.explicit.is_some());
@@ -110,6 +124,19 @@ fn parses_a_complete_contract_module() {
     assert!(matches!(factory.methods[0].parameters[0].ty, AbiType::Borrowed(_)));
     assert!(matches!(factory.methods[1].parameters[0].ty, AbiType::Slice(_)));
     assert!(matches!(factory.methods[2].parameters[0].ty, AbiType::OutputSlice(_)));
+}
+
+/// Confirms bit enums require intentional unsigned storage and explicit values.
+#[test]
+fn rejects_ambiguous_bit_enum_layouts() {
+    let missing_repr = parse_module(Path::new("neocogi/ui.ncidl"), "#[version(1)] bitenum WindowOptions { NONE = 0 }").unwrap_err();
+    assert!(missing_repr.to_string().contains("explicit unsigned representation"));
+
+    let signed_repr = parse_module(Path::new("neocogi/ui.ncidl"), "#[version(1)] bitenum WindowOptions: i16 { NONE = 0 }").unwrap_err();
+    assert!(signed_repr.to_string().contains("must be u8, u16, or u32"));
+
+    let implicit_value = parse_module(Path::new("neocogi/ui.ncidl"), "#[version(1)] bitenum WindowOptions: u16 { NONE }").unwrap_err();
+    assert!(implicit_value.to_string().contains("expected `=`"));
 }
 
 /// Confirms mutable borrows cannot imply mutable access to foreign objects.

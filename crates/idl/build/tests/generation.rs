@@ -32,6 +32,13 @@ fn generates_rust_bindings_for_a_module_graph() {
         enum Filter: u8 { Nearest = 0, Linear = 1 }
 
         #[version(1)]
+        bitenum WindowOptions: u16 {
+            NONE = 0,
+            RESIZABLE = 1,
+            TITLED = 2,
+        }
+
+        #[version(1)]
         class Button: ITexture {
             fn resize(&mut self, size: Size) -> Result<()>;
         }
@@ -52,6 +59,8 @@ fn generates_rust_bindings_for_a_module_graph() {
     assert!(generated.contains("com_class_description"));
     assert!(generated.contains("com_factory_description"));
     assert!(generated.contains("com_int_enum"));
+    assert!(generated.contains("com_bit_enum"));
+    assert!(generated.contains("pub bitenum WindowOptions : u16"));
     assert!(generated.contains("pub enum Filter : u8"));
     assert!(generated.contains("pub const COUNT : usize = 2"));
     assert!(generated.contains("pub const ALL : [Self ; Self :: COUNT] = [Self :: Nearest , Self :: Linear]"));

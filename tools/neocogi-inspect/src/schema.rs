@@ -174,6 +174,9 @@ pub(crate) enum ArtifactContractDeclarationKind {
     Struct,
     /// Tagged value union.
     Enum,
+    /// Transparent integer set of named bit flags.
+    #[serde(rename = "bitenum")]
+    BitEnum,
     /// COM interface trait.
     Trait,
     /// Factory-created object contract.
@@ -289,6 +292,7 @@ fn artifact_declaration_kind(value: ContractDeclarationKind) -> ArtifactContract
     match value {
         ContractDeclarationKind::Struct => ArtifactContractDeclarationKind::Struct,
         ContractDeclarationKind::Enum => ArtifactContractDeclarationKind::Enum,
+        ContractDeclarationKind::BitEnum => ArtifactContractDeclarationKind::BitEnum,
         ContractDeclarationKind::Interface => ArtifactContractDeclarationKind::Trait,
         ContractDeclarationKind::Class => ArtifactContractDeclarationKind::Class,
         ContractDeclarationKind::Factory => ArtifactContractDeclarationKind::Factory,

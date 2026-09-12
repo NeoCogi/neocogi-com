@@ -40,12 +40,34 @@ pub enum DeclarationKind {
     Struct(Struct),
     /// A tagged or integer enumeration.
     Enum(Enum),
+    /// A transparent integer set of named bit flags.
+    BitEnum(BitEnum),
     /// A reusable COM interface contract.
     Interface(Interface),
     /// A public object contract created only by a factory.
     Class(Class),
     /// A typed provider and construction contract.
     Factory(Factory),
+}
+
+/// An ABI bit set whose declared constants describe every accepted bit.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BitEnum {
+    /// Fixed unsigned integer representation selected after the declaration name.
+    pub repr: EnumRepr,
+    /// Named flags and aliases in normative declaration order.
+    pub flags: Vec<BitFlag>,
+}
+
+/// One named constant in a bit-enum declaration.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BitFlag {
+    /// Documentation lines without comment markers.
+    pub docs: Vec<String>,
+    /// SCREAMING_SNAKE_CASE flag identifier exactly as declared.
+    pub name: String,
+    /// Explicit nonnegative raw bit pattern.
+    pub value: u64,
 }
 
 /// An ABI record declaration.

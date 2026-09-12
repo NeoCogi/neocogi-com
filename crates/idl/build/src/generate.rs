@@ -255,6 +255,25 @@ fn generate_declaration(
                 })
             }
         }
+        DeclarationKind::BitEnum(bit_enum) => {
+            let repr = enum_repr(bit_enum.repr);
+            let flags = bit_enum
+                .flags
+                .iter()
+                .map(|flag| {
+                    let flag_docs = docs(&flag.docs);
+                    let flag_name = rust_ident(&flag.name)?;
+                    let value = Literal::u64_unsuffixed(flag.value);
+                    Ok(quote! { #flag_docs #flag_name = #value, })
+                })
+                .collect::<Result<Vec<_>, GenerateError>>()?;
+            Ok(quote! {
+                ::neocogi_com::com_bit_enum! {
+                    #declaration_docs
+                    pub bitenum #name: #repr { #(#flags)* }
+                }
+            })
+        }
         DeclarationKind::Interface(interface) => {
             let bases = bases(graph, module, &interface.bases)?;
             let methods = methods(graph, module, &interface.methods)?;
@@ -369,7 +388,7 @@ fn value_type(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType) ->
         AbiType::Named(name) => {
             let resolved = resolve(graph, module, name)?;
             match resolved.declaration.kind {
-                DeclarationKind::Struct(_) => named_rust_type(module, resolved, false),
+                DeclarationKind::Struct(_) | DeclarationKind::BitEnum(_) => named_rust_type(module, resolved, false),
                 DeclarationKind::Enum(_) => named_rust_type(module, resolved, true),
                 _ => Err(GenerateError::new(format!("{} is not a copied value declaration", name.rust_path()))),
             }
@@ -392,7 +411,10 @@ fn parameter_type(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType
         AbiType::Scalar(_) | AbiType::Named(_) | AbiType::Array { .. } => {
             if let AbiType::Named(name) = ty {
                 let resolved = resolve(graph, module, name)?;
-                if !matches!(resolved.declaration.kind, DeclarationKind::Struct(_) | DeclarationKind::Enum(_)) {
+                if !matches!(
+                    resolved.declaration.kind,
+                    DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_)
+                ) {
                     return Err(GenerateError::new(format!("object parameter {} must be borrowed", name.rust_path())));
                 }
             }
@@ -425,7 +447,10 @@ fn output_type(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType) -
         AbiType::String => Ok(quote! { ::neocogi_com::ComPtr<::neocogi_com::INcStringAbi> }),
         AbiType::Named(name) => {
             let resolved = resolve(graph, module, name)?;
-            if matches!(resolved.declaration.kind, DeclarationKind::Struct(_) | DeclarationKind::Enum(_)) {
+            if matches!(
+                resolved.declaration.kind,
+                DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_)
+            ) {
                 value_type(graph, module, ty)
             } else {
                 object_reference_type(graph, module, name, true)
@@ -442,7 +467,10 @@ fn output_type(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType) -
 /// Produces a `ComRef` or `ComPtr` for one interface-like declaration.
 fn object_reference_type(graph: &ResolvedModules, module: &ResolvedModule, name: &NamedType, owned: bool) -> Result<TokenStream, GenerateError> {
     let resolved = resolve(graph, module, name)?;
-    if matches!(resolved.declaration.kind, DeclarationKind::Struct(_) | DeclarationKind::Enum(_)) {
+    if matches!(
+        resolved.declaration.kind,
+        DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_)
+    ) {
         return Err(GenerateError::new(format!("{} is a copied value, not an object reference", name.rust_path())));
     }
     let abi = named_rust_type(module, resolved, true)?;
@@ -485,7 +513,7 @@ fn named_rust_type(module: &ResolvedModule, resolved: ResolvedDeclaration<'_>, a
 /// Returns whether a generated declaration exposes a separate ABI wrapper type.
 fn declaration_has_abi_wrapper(declaration: &Declaration) -> bool {
     match &declaration.kind {
-        DeclarationKind::Struct(_) => false,
+        DeclarationKind::Struct(_) | DeclarationKind::BitEnum(_) => false,
         DeclarationKind::Enum(enumeration) => enum_has_payload(enumeration),
         DeclarationKind::Interface(_) | DeclarationKind::Class(_) | DeclarationKind::Factory(_) => true,
     }

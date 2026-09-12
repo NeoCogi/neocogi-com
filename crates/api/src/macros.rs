@@ -133,6 +133,186 @@ macro_rules! com_int_enum {
     };
 }
 
+/// Defines an ABI-stable set of named integer flags.
+///
+/// Unlike [`com_int_enum!`], every combination containing only declared bits
+/// is valid. The raw storage remains private so callers use the generated typed
+/// operations instead of depending on a synthetic struct field.
+///
+/// ```
+/// use neocogi_com::com_bit_enum;
+///
+/// com_bit_enum! {
+///     pub bitenum WindowOptions: u16 {
+///         NONE = 0,
+///         RESIZABLE = 1,
+///         TITLED = 2,
+///     }
+/// }
+///
+/// let options = WindowOptions::RESIZABLE | WindowOptions::TITLED;
+/// assert!(options.contains(WindowOptions::RESIZABLE));
+/// assert!(options.is_valid());
+/// assert!(!WindowOptions::from_raw(8).is_valid());
+/// ```
+#[macro_export]
+macro_rules! com_bit_enum {
+    (
+        $(#[$type_meta:meta])*
+        $vis:vis bitenum $name:ident : $repr:ty {
+            $(
+                $(#[$flag_meta:meta])*
+                $flag:ident = $value:literal
+            ),* $(,)?
+        }
+    ) => {
+        $(#[$type_meta])*
+        #[repr(transparent)]
+        #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+        $vis struct $name($repr);
+
+        impl $name {
+            $(
+                $(#[$flag_meta])*
+                pub const $flag: Self = Self($value);
+            )*
+
+            /// Union of every bit present in a declared flag or alias.
+            const KNOWN_BITS: $repr = 0 $(| $value)*;
+
+            /// Creates a value from raw ABI storage without hiding unknown bits.
+            pub const fn from_raw(value: $repr) -> Self {
+                Self(value)
+            }
+
+            /// Returns the complete raw ABI bit pattern.
+            pub const fn raw(self) -> $repr {
+                self.0
+            }
+
+            /// Returns whether no bits are set.
+            pub const fn is_empty(self) -> bool {
+                self.0 == 0
+            }
+
+            /// Returns whether every requested bit is present.
+            pub const fn contains(self, requested: Self) -> bool {
+                self.0 & requested.0 == requested.0
+            }
+
+            /// Returns whether this value and the requested value share a bit.
+            pub const fn intersects(self, requested: Self) -> bool {
+                self.0 & requested.0 != 0
+            }
+
+            /// Returns whether the raw representation contains only declared bits.
+            pub const fn is_valid(self) -> bool {
+                self.0 & !Self::KNOWN_BITS == 0
+            }
+        }
+
+        impl Default for $name {
+            /// Creates the empty bit set.
+            fn default() -> Self {
+                Self::from_raw(0)
+            }
+        }
+
+        impl From<$repr> for $name {
+            /// Wraps raw ABI storage while preserving unknown bits for validation.
+            fn from(value: $repr) -> Self {
+                Self::from_raw(value)
+            }
+        }
+
+        impl From<$name> for $repr {
+            /// Extracts the complete raw ABI bit pattern.
+            fn from(value: $name) -> Self {
+                value.raw()
+            }
+        }
+
+        impl core::ops::BitOr for $name {
+            type Output = Self;
+
+            /// Produces the union of two typed bit sets.
+            fn bitor(self, rhs: Self) -> Self {
+                Self(self.0 | rhs.0)
+            }
+        }
+
+        impl core::ops::BitOrAssign for $name {
+            /// Adds every bit in the right-hand set.
+            fn bitor_assign(&mut self, rhs: Self) {
+                self.0 |= rhs.0;
+            }
+        }
+
+        impl core::ops::BitAnd for $name {
+            type Output = Self;
+
+            /// Produces the intersection of two typed bit sets.
+            fn bitand(self, rhs: Self) -> Self {
+                Self(self.0 & rhs.0)
+            }
+        }
+
+        impl core::ops::BitAndAssign for $name {
+            /// Retains only bits present in the right-hand set.
+            fn bitand_assign(&mut self, rhs: Self) {
+                self.0 &= rhs.0;
+            }
+        }
+
+        impl core::ops::BitXor for $name {
+            type Output = Self;
+
+            /// Produces the symmetric difference of two typed bit sets.
+            fn bitxor(self, rhs: Self) -> Self {
+                Self(self.0 ^ rhs.0)
+            }
+        }
+
+        impl core::ops::BitXorAssign for $name {
+            /// Toggles every bit present in the right-hand set.
+            fn bitxor_assign(&mut self, rhs: Self) {
+                self.0 ^= rhs.0;
+            }
+        }
+
+        // SAFETY: The transparent wrapper has the exact ABI representation of
+        // `$repr`, and `$repr: AbiType` supplies the plain ABI contract.
+        unsafe impl $crate::AbiType for $name
+        where
+            $repr: $crate::AbiType
+        {
+            const ABI_TYPE: $crate::NcAbiType = <$repr as $crate::AbiType>::ABI_TYPE;
+        }
+
+        // SAFETY: The wrapper carries only the `$repr` value and therefore has
+        // no hidden ownership or release protocol when `$repr` is plain.
+        unsafe impl $crate::AbiPlainValue for $name
+        where
+            $repr: $crate::AbiPlainValue
+        {}
+
+        impl $crate::ComDeserialize for $name
+        where
+            $repr: $crate::ComDeserialize,
+        {
+            /// Decodes raw storage while retaining unknown bits for boundary validation.
+            fn com_deserialize<'__nc_de, __NcDecoder>(
+                decoder: __NcDecoder,
+            ) -> core::result::Result<Self, __NcDecoder::Error>
+            where
+                __NcDecoder: $crate::ComDeserializer<'__nc_de>,
+            {
+                <$repr as $crate::ComDeserialize>::com_deserialize(decoder).map(Self::from_raw)
+            }
+        }
+    };
+}
+
 /// Exports a factory-only plugin description from a dynamic-library assembly.
 ///
 /// `factory_plugin!` defines metadata and an ordinary Rust accessor. Dynamic

@@ -231,3 +231,15 @@ fn rejects_named_non_dense_enums() {
     let error = resolve_modules(vec![source]).unwrap_err();
     assert!(error.to_string().contains("without `#[dense]`"));
 }
+
+/// Confirms bit patterns fit their selected storage and remain unambiguous.
+#[test]
+fn rejects_invalid_bit_enum_values() {
+    let overflow = module("neocogi/ui.ncidl", "#[version(1)] bitenum WindowOptions: u8 { NONE = 0, OVERFLOW = 256 }");
+    let error = resolve_modules(vec![overflow]).unwrap_err();
+    assert!(error.to_string().contains("value 256 does not fit"));
+
+    let duplicate = module("neocogi/ui.ncidl", "#[version(1)] bitenum WindowOptions: u16 { FIRST = 1, SECOND = 1 }");
+    let error = resolve_modules(vec![duplicate]).unwrap_err();
+    assert!(error.to_string().contains("repeats value 1"));
+}

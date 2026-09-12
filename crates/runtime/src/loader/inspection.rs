@@ -12,9 +12,9 @@ use std::string::String;
 use std::vec::Vec;
 
 use neocogi_com_core::{
-    NC_CONTRACT_DECLARATION_CLASS, NC_CONTRACT_DECLARATION_ENUM, NC_CONTRACT_DECLARATION_FACTORY, NC_CONTRACT_DECLARATION_INTERFACE,
-    NC_CONTRACT_DECLARATION_STRUCT, NC_E_INVALID_ARG, NcAbiThreadingMode, NcAbiValidationMode, NcContractFingerprint, NcFactoryPluginDescription, NcGuid,
-    NcStaticUtf8,
+    NC_CONTRACT_DECLARATION_BIT_ENUM, NC_CONTRACT_DECLARATION_CLASS, NC_CONTRACT_DECLARATION_ENUM, NC_CONTRACT_DECLARATION_FACTORY,
+    NC_CONTRACT_DECLARATION_INTERFACE, NC_CONTRACT_DECLARATION_STRUCT, NC_E_INVALID_ARG, NcAbiThreadingMode, NcAbiValidationMode, NcContractFingerprint,
+    NcFactoryPluginDescription, NcGuid, NcStaticUtf8,
 };
 
 use crate::contract_registry::RegisteredContractModule;
@@ -102,6 +102,8 @@ pub enum ContractDeclarationKind {
     Struct,
     /// Tagged value union.
     Enum,
+    /// Transparent integer set of named bit flags.
+    BitEnum,
     /// COM interface trait.
     Interface,
     /// Factory-created object contract.
@@ -116,6 +118,7 @@ impl ContractDeclarationKind {
         match self {
             Self::Struct => "struct",
             Self::Enum => "enum",
+            Self::BitEnum => "bitenum",
             Self::Interface => "trait",
             Self::Class => "class",
             Self::Factory => "factory",
@@ -266,7 +269,7 @@ fn copy_contract_module(path: &Path, module: &RegisteredContractModule) -> Resul
                     )
                 })?)
             }
-            ContractDeclarationKind::Struct | ContractDeclarationKind::Enum | ContractDeclarationKind::Interface => None,
+            ContractDeclarationKind::Struct | ContractDeclarationKind::Enum | ContractDeclarationKind::BitEnum | ContractDeclarationKind::Interface => None,
         };
         // SAFETY: Whole-module validation established declaration-name UTF-8.
         let qualified_name = unsafe {
@@ -301,6 +304,7 @@ fn contract_declaration_kind(path: &Path, kind: u32) -> Result<ContractDeclarati
     match kind {
         NC_CONTRACT_DECLARATION_STRUCT => Ok(ContractDeclarationKind::Struct),
         NC_CONTRACT_DECLARATION_ENUM => Ok(ContractDeclarationKind::Enum),
+        NC_CONTRACT_DECLARATION_BIT_ENUM => Ok(ContractDeclarationKind::BitEnum),
         NC_CONTRACT_DECLARATION_INTERFACE => Ok(ContractDeclarationKind::Interface),
         NC_CONTRACT_DECLARATION_CLASS => Ok(ContractDeclarationKind::Class),
         NC_CONTRACT_DECLARATION_FACTORY => Ok(ContractDeclarationKind::Factory),

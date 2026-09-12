@@ -19,6 +19,8 @@ pub const NC_CONTRACT_DECLARATION_INTERFACE: u32 = 3;
 pub const NC_CONTRACT_DECLARATION_CLASS: u32 = 4;
 /// Raw declaration-kind tag for an IDL factory.
 pub const NC_CONTRACT_DECLARATION_FACTORY: u32 = 5;
+/// Raw declaration-kind tag for an IDL bit enum.
+pub const NC_CONTRACT_DECLARATION_BIT_ENUM: u32 = 6;
 /// Threading sentinel used by declarations that are not classes or factories.
 pub const NC_CONTRACT_DECLARATION_NO_THREADING: u32 = u32::MAX;
 
@@ -224,7 +226,8 @@ pub unsafe fn validate_contract_module_description(description: *const NcContrac
         }
     }
     for declaration in declarations {
-        let valid_kind = (NC_CONTRACT_DECLARATION_STRUCT..=NC_CONTRACT_DECLARATION_FACTORY).contains(&declaration.kind);
+        let valid_kind = (NC_CONTRACT_DECLARATION_STRUCT..=NC_CONTRACT_DECLARATION_FACTORY).contains(&declaration.kind)
+            || declaration.kind == NC_CONTRACT_DECLARATION_BIT_ENUM;
         let valid_threading = if matches!(declaration.kind, NC_CONTRACT_DECLARATION_CLASS | NC_CONTRACT_DECLARATION_FACTORY) {
             crate::NcAbiThreadingMode::from_raw(declaration.threading).is_some()
         } else {

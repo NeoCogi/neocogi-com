@@ -14,8 +14,8 @@ mod resolve;
 mod sha256;
 
 pub use model::{
-    AbiType, Class, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, Factory, Field, Import, Interface, Method, NamedType,
-    Parameter, Receiver, Struct, Threading, VariantFields,
+    AbiType, BitEnum, BitFlag, Class, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, Factory, Field, Import, Interface,
+    Method, NamedType, Parameter, Receiver, Struct, Threading, VariantFields,
 };
 pub use parser::{ParseError, parse_module};
 pub use path::{ModuleName, ModulePathError};
