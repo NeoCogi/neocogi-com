@@ -60,6 +60,9 @@ macro_rules! com_int_enum {
         impl $name {
             $(
                 $(#[$variant_meta])*
+                // IDL enum cases follow Rust enum-variant casing even though
+                // this forward-compatible representation uses constants.
+                #[allow(non_upper_case_globals)]
                 pub const $variant: Self = Self($value);
             )*
 
