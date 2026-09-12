@@ -8,7 +8,7 @@ links = "nc_contract_neocogi_idl_example"
 
 [package.metadata.neocogi-contract]
 module = "neocogi.idl_example"
-source = "idl/neocogi/idl_example.ncidl"
+source = "idl/neocogi/idl_example"
 
 [dependencies]
 neocogi-com = { workspace = true, default-features = false, features = ["macros"] }

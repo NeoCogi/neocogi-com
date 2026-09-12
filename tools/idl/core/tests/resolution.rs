@@ -23,6 +23,7 @@ fn resolves_a_contract_dependency_graph() {
     let ui = module(
         "neocogi/ui.ncidl",
         r#"
+            extern neocogi.render;
             use neocogi.render::{ITexture, Size};
 
             #[version(1)]
@@ -50,6 +51,31 @@ fn resolves_a_contract_dependency_graph() {
         render.declaration("ITexture").unwrap().abi_signature,
         "declaration signatures must retain exact type identity inside one module"
     );
+}
+
+/// Confirms symbol imports cannot create hidden contract dependency edges.
+#[test]
+fn requires_extern_before_use() {
+    let render = module("neocogi/render.ncidl", "#[version(1)] struct Size { width: u32 }");
+    let ui = module("neocogi/ui.ncidl", "use neocogi.render::Size; #[version(1)] struct Widget { size: Size }");
+
+    let error = resolve_modules(vec![ui, render]).unwrap_err().to_string();
+    assert!(error.contains("error[EIDL035]"), "{error}");
+    assert!(error.contains("requires `extern neocogi.render;`"), "{error}");
+}
+
+/// Confirms an external dependency permits qualified references without also
+/// introducing an unqualified source name.
+#[test]
+fn resolves_qualified_types_through_extern() {
+    let render = module("neocogi/render.ncidl", "#[version(1)] struct Size { width: u32 }");
+    let ui = module(
+        "neocogi/ui.ncidl",
+        "extern neocogi.render; #[version(1)] struct Widget { size: neocogi::render::Size }",
+    );
+
+    let modules = resolve_modules(vec![ui, render]).unwrap();
+    assert_eq!(modules.module("neocogi.ui").unwrap().dependencies.len(), 1);
 }
 
 /// Confirms comments and whitespace do not change an ABI fingerprint.
@@ -194,6 +220,7 @@ fn rejects_contract_dependency_cycles() {
     let first = module(
         "example/first.ncidl",
         r#"
+            extern example.second;
             use example.second::Second;
             #[version(1)]
             struct First { second: Second }
@@ -202,6 +229,7 @@ fn rejects_contract_dependency_cycles() {
     let second = module(
         "example/second.ncidl",
         r#"
+            extern example.first;
             use example.first::First;
             #[version(1)]
             struct Second { first: First }
@@ -217,6 +245,7 @@ fn fingerprints_exact_dependency_revisions() {
     let ui = module(
         "neocogi/ui.ncidl",
         r#"
+            extern neocogi.render;
             use neocogi.render::Size;
             #[version(1)]
             struct WidgetOptions { size: Size }
@@ -241,6 +270,8 @@ fn ignores_module_input_order_in_fingerprints() {
     let canvas = module(
         "example/canvas.ncidl",
         r#"
+            extern example.geometry;
+            extern example.paint;
             use example.paint::Color;
             use example.geometry::Point;
             #[version(1)] struct Vertex { point: Point, color: Color }

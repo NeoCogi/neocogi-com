@@ -4,6 +4,15 @@ use neocogi_com_core::NcGuid;
 
 use crate::SourceSpan;
 
+/// One explicit dependency on another logical IDL module.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExternalModule {
+    /// Complete `extern` declaration used for dependency diagnostics.
+    pub span: SourceSpan,
+    /// Canonical dotted name of the required module.
+    pub module: String,
+}
+
 /// One explicit import from another logical IDL module.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Import {

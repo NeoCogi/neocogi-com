@@ -16,8 +16,8 @@ mod resolve;
 mod sha256;
 
 pub use model::{
-    AbiType, BitEnum, BitFlag, Class, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, Factory, Field, Import, Interface,
-    Method, NamedType, Parameter, Receiver, Struct, Threading, VariantFields,
+    AbiType, BitEnum, BitFlag, Class, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Factory, Field,
+    Import, Interface, Method, NamedType, Parameter, Receiver, Struct, Threading, VariantFields,
 };
 pub use diagnostic::{Diagnostic, DiagnosticLabel, LabelStyle, SourceFile, SourcePosition, SourceSpan};
 pub use parser::{ModuleSource, ParseError, parse_module, parse_module_parts};
@@ -31,6 +31,8 @@ pub struct Module {
     pub name: ModuleName,
     /// Every source part in normalized path order.
     pub sources: Vec<SourceFile>,
+    /// Direct external dependencies in canonical module-name order.
+    pub externals: Vec<ExternalModule>,
     /// Explicit imports in canonical module and declaration-name order.
     pub imports: Vec<Import>,
     /// ABI declarations in canonical top-level name order.

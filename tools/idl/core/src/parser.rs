@@ -18,8 +18,9 @@ use syn::{
 };
 
 use crate::{
-    AbiType, BitEnum, BitFlag, Class, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, Factory, Field, Import, Interface,
-    Diagnostic, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile, SourceSpan, Struct, Threading, VariantFields,
+    AbiType, BitEnum, BitFlag, Class, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Factory,
+    Field, Import, Interface, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile, SourceSpan, Struct, Threading,
+    VariantFields,
 };
 
 mod keyword {
@@ -110,6 +111,7 @@ fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleS
 
     let mut source_paths = HashSet::new();
     let mut sources = Vec::with_capacity(parts.len());
+    let mut externals = BTreeMap::<String, ExternalModule>::new();
     let mut imports = Vec::new();
     let mut declarations = BTreeMap::<String, Declaration>::new();
     for part in parts {
@@ -121,6 +123,19 @@ fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleS
         }
         let mut syntax = parse_str::<ModuleSyntax>(part.text).map_err(|error| ParseError::Source(Diagnostic::from_syn(&source_file, error)))?;
         syntax.attach_source(&source_file);
+        // A dependency is a module-level fact, so repeating it in another
+        // part is an error rather than an instruction to merge two edges.
+        for external in syntax.externals {
+            if let Some(previous) = externals.get(&external.module) {
+                return Err(ParseError::Source(
+                    Diagnostic::new("EIDL019", format!("duplicate external dependency {:?}", external.module))
+                        .with_sources(&[sources.as_slice(), std::slice::from_ref(&source_file)].concat())
+                        .primary(&external.span, "duplicate external dependency")
+                        .secondary(&previous.span, "dependency first declared here"),
+                ));
+            }
+            externals.insert(external.module.clone(), external);
+        }
         imports.extend(syntax.imports);
         for declaration in syntax.declarations {
             if let Some(previous) = declarations.get(&declaration.name) {
@@ -145,6 +160,7 @@ fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleS
     Ok(Module {
         name,
         sources,
+        externals: externals.into_values().collect(),
         imports: canonical_imports(imports),
         declarations: declarations.into_values().collect(),
     })
@@ -169,6 +185,8 @@ fn canonical_imports(imports: Vec<Import>) -> Vec<Import> {
 
 /// Parsed top-level source before its path-derived module name is attached.
 struct ModuleSyntax {
+    /// External module dependencies retained for graph construction.
+    externals: Vec<ExternalModule>,
     /// Imports flattened into module/name groups.
     imports: Vec<Import>,
     /// Declarations retained in normative source order.
@@ -178,6 +196,9 @@ struct ModuleSyntax {
 impl ModuleSyntax {
     /// Attaches one source path recursively to every retained syntax range.
     fn attach_source(&mut self, source: &SourceFile) {
+        for external in &mut self.externals {
+            external.span.attach(source);
+        }
         for import in &mut self.imports {
             import.span.attach(source);
         }
@@ -188,8 +209,9 @@ impl ModuleSyntax {
 }
 
 impl Parse for ModuleSyntax {
-    /// Parses imports and declarations while rejecting every other Rust item.
+    /// Parses dependencies, imports, and declarations while rejecting every other Rust item.
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let mut externals = Vec::new();
         let mut imports = Vec::new();
         let mut declarations = Vec::new();
         let mut declaration_names = HashMap::new();
@@ -198,6 +220,14 @@ impl Parse for ModuleSyntax {
             let attributes = Attribute::parse_outer(input)?;
             if input.peek(Token![pub]) {
                 return Err(input.error("IDL declarations are public implicitly; remove `pub`"));
+            }
+
+            if input.peek(Token![extern]) {
+                if !attributes.is_empty() {
+                    return Err(syn::Error::new_spanned(&attributes[0], "IDL external dependencies do not accept attributes"));
+                }
+                externals.push(parse_external(input)?);
+                continue;
             }
 
             if input.peek(Token![use]) {
@@ -221,7 +251,7 @@ impl Parse for ModuleSyntax {
             } else if input.peek(keyword::factory) {
                 parse_factory(attributes, input)?
             } else {
-                return Err(input.error("expected `use`, `struct`, `enum`, `bitenum`, `trait`, `class`, or `factory`"));
+                return Err(input.error("expected `extern`, `use`, `struct`, `enum`, `bitenum`, `trait`, `class`, or `factory`"));
             };
 
             if let Some(previous) = declaration_names.insert(declaration.name.clone(), declaration.span.clone()) {
@@ -230,8 +260,30 @@ impl Parse for ModuleSyntax {
             declarations.push(declaration);
         }
 
-        Ok(Self { imports, declarations })
+        Ok(Self { externals, imports, declarations })
     }
+}
+
+/// Parses one canonical dotted external module dependency.
+fn parse_external(input: ParseStream<'_>) -> syn::Result<ExternalModule> {
+    let extern_token = input.parse::<Token![extern]>()?;
+    // Dots belong to the IDL module-name grammar; Rust `::` remains reserved
+    // for paths to declarations inside an already-declared dependency.
+    let mut module = vec![input.parse::<Ident>()?.to_string()];
+    while input.peek(Token![.]) {
+        input.parse::<Token![.]>()?;
+        module.push(input.parse::<Ident>()?.to_string());
+    }
+    if module.len() < 2 {
+        // Requiring a dotted absolute name prevents hidden parent-namespace
+        // lookup from changing meaning when the importing module moves.
+        return Err(input.error("IDL external dependencies require a fully qualified dotted module name"));
+    }
+    input.parse::<Token![;]>()?;
+    Ok(ExternalModule {
+        span: SourceSpan::from_parser(extern_token.span),
+        module: module.join("."),
+    })
 }
 
 /// Parses one fixed-width bit set with explicit named flag patterns.

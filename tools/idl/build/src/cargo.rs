@@ -80,7 +80,7 @@ impl Module {
         let mut records = BTreeMap::new();
         records.insert(own_module.name.to_string(), own_record);
         let mut dependency_artifacts = BTreeMap::new();
-        let dependency_modules = own_module.imports.iter().map(|import| import.module.clone()).collect::<BTreeSet<_>>();
+        let dependency_modules = own_module.externals.iter().map(|external| external.module.clone()).collect::<BTreeSet<_>>();
         for dependency in dependency_modules {
             let variable = dependency_graph_variable(&dependency);
             println!("cargo::rerun-if-env-changed={variable}");

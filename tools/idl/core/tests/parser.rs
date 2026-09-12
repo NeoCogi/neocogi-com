@@ -8,6 +8,7 @@ fn parses_a_complete_contract_module() {
     let module = parse_module(
         Path::new("neocogi/ui.ncidl"),
         r#"
+            extern neocogi.render;
             use neocogi.render::{ITexture, TextureFactory};
 
             /// Copied widget construction state.
@@ -65,6 +66,7 @@ fn parses_a_complete_contract_module() {
     .unwrap();
 
     assert_eq!(module.name.to_string(), "neocogi.ui");
+    assert_eq!(module.externals[0].module, "neocogi.render");
     assert_eq!(module.imports[0].module, "neocogi.render");
     assert_eq!(module.imports[0].names, ["ITexture", "TextureFactory"]);
     assert_eq!(module.declarations.len(), 7);
@@ -157,7 +159,10 @@ fn enforces_rust_identifier_conventions() {
             "snake_case",
         ),
         ("#[version(1)] bitenum WindowOptions: u16 { Resizable = 1 }", "SCREAMING_SNAKE_CASE"),
-        ("use neocogi.render::texture; #[version(1)] struct Size { width: u32 }", "UpperCamelCase"),
+        (
+            "extern neocogi.render; use neocogi.render::texture; #[version(1)] struct Size { width: u32 }",
+            "UpperCamelCase",
+        ),
     ];
 
     for (source, expected) in invalid {
@@ -287,6 +292,44 @@ fn merges_module_parts_without_file_order_semantics() {
         ["IWidget", "Size"]
     );
     assert_eq!(forward.declarations, reverse.declarations);
+}
+
+/// Confirms external dependencies are canonical module-level declarations
+/// independent of source-part and declaration order.
+#[test]
+fn canonicalizes_external_dependencies_across_parts() {
+    let first = ModuleSource {
+        path: Path::new("neocogi/ui/first.ncidl"),
+        text: "extern neocogi.render; #[version(1)] struct First { value: u32 }",
+    };
+    let second = ModuleSource {
+        path: Path::new("neocogi/ui/second.ncidl"),
+        text: "extern neocogi.assets; #[version(1)] struct Second { value: u32 }",
+    };
+
+    let module = parse_module_parts(Path::new("neocogi/ui"), &[second, first]).unwrap();
+    assert_eq!(
+        module.externals.iter().map(|external| external.module.as_str()).collect::<Vec<_>>(),
+        ["neocogi.assets", "neocogi.render"]
+    );
+}
+
+/// Confirms repeated dependency declarations identify both source parts.
+#[test]
+fn reports_both_parts_for_duplicate_external_dependencies() {
+    let first = ModuleSource {
+        path: Path::new("neocogi/ui/first.ncidl"),
+        text: "extern neocogi.render; #[version(1)] struct First { value: u32 }",
+    };
+    let second = ModuleSource {
+        path: Path::new("neocogi/ui/second.ncidl"),
+        text: "extern neocogi.render; #[version(1)] struct Second { value: u32 }",
+    };
+
+    let error = parse_module_parts(Path::new("neocogi/ui"), &[second, first]).unwrap_err().to_string();
+    assert!(error.contains("error[EIDL019]: duplicate external dependency \"neocogi.render\""), "{error}");
+    assert!(error.contains("neocogi/ui/first.ncidl:1:1"), "{error}");
+    assert!(error.contains("neocogi/ui/second.ncidl:1:1"), "{error}");
 }
 
 /// Confirms duplicate members identify both declarations with stable snippets.

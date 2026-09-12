@@ -180,7 +180,7 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
             .then_with(|| left.sources.iter().map(SourceFile::text).cmp(right.sources.iter().map(SourceFile::text)))
     });
     let mut entries = build_entries(modules)?;
-    connect_imports(&mut entries)?;
+    connect_externals_and_imports(&mut entries)?;
     let mut diagnostics = Vec::new();
     for index in 0..entries.len() {
         if let Err(error) = validate_module(index, &entries) {
@@ -405,8 +405,8 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
     Ok(entries)
 }
 
-/// Resolves module imports and makes unqualified names unambiguous.
-fn connect_imports(entries: &mut [ModuleEntry]) -> Result<(), ResolutionError> {
+/// Resolves explicit dependency edges and makes imported names unambiguous.
+fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), ResolutionError> {
     let indexes = entries
         .iter()
         .enumerate()
@@ -414,30 +414,56 @@ fn connect_imports(entries: &mut [ModuleEntry]) -> Result<(), ResolutionError> {
         .collect::<HashMap<_, _>>();
 
     for index in 0..entries.len() {
+        let externals = entries[index].module.externals.clone();
         let imports = entries[index].module.imports.clone();
         let mut dependencies = BTreeSet::new();
         let mut imported_symbols = HashMap::new();
         let mut imported_origins = HashMap::<String, SourceSpan>::new();
-        for import in imports {
-            let Some(&dependency) = indexes.get(&import.module) else {
+        // Resolve the graph first. This makes an unused but intentional
+        // external declaration a real fingerprinted native dependency.
+        for external in externals {
+            let Some(&dependency) = indexes.get(&external.module) else {
                 return Err(source_error(
                     &entries[index].module,
                     "EIDL030",
-                    &import.span,
-                    format!("imports missing module {:?}", import.module),
-                    "unknown module",
+                    &external.span,
+                    format!("external dependency module {:?} is unavailable", external.module),
+                    "dependency module is not present",
                 ));
             };
             if dependency == index {
                 return Err(source_error(
                     &entries[index].module,
                     "EIDL031",
-                    &import.span,
-                    "a module cannot import itself",
-                    "self-import",
+                    &external.span,
+                    "a module cannot depend on itself",
+                    "self-dependency",
                 ));
             }
             dependencies.insert((entries[dependency].name.clone(), dependency));
+        }
+
+        // Imports affect only unqualified name lookup. They may select symbols
+        // from an established edge but cannot create a hidden dependency.
+        for import in imports {
+            let Some(&dependency) = indexes.get(&import.module) else {
+                return Err(source_error(
+                    &entries[index].module,
+                    "EIDL035",
+                    &import.span,
+                    format!("import from {:?} requires `extern {};`", import.module, import.module),
+                    "external dependency is not declared",
+                ));
+            };
+            if !dependencies.contains(&(entries[dependency].name.clone(), dependency)) {
+                return Err(source_error(
+                    &entries[index].module,
+                    "EIDL035",
+                    &import.span,
+                    format!("import from {:?} requires `extern {};`", import.module, import.module),
+                    "external dependency is not declared",
+                ));
+            }
             for name in import.names {
                 if let Some(local) = entries[index].local_symbols.get(&name) {
                     let local_span = &entries[index].module.declarations[local.declaration].span;
@@ -1025,8 +1051,8 @@ fn resolve_named(index: usize, name: &NamedType, entries: &[ModuleEntry]) -> Res
             &entry.module,
             "EIDL072",
             &name.span,
-            format!("type {} is used without importing its module", name.rust_path()),
-            "missing module import",
+            format!("type {} is used without declaring its external module", name.rust_path()),
+            "missing external dependency",
         ));
     }
     entries[module_index].local_symbols.get(declaration_name).copied().ok_or_else(|| {
@@ -1069,7 +1095,7 @@ fn fingerprint_module(
     let mut dependencies = Vec::with_capacity(entries[index].dependencies.len());
     for &dependency in &entries[index].dependencies {
         let fingerprint = fingerprint_module(dependency, entries, states, fingerprints, stack)?;
-        // `connect_imports` stores dependencies in module-name order. Retain
+        // Dependency connection stores modules in name order. Retain
         // that order so caller source order cannot affect the digest.
         dependencies.push((dependency, fingerprint));
     }

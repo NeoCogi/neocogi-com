@@ -24,6 +24,7 @@ fn generates_rust_bindings_for_a_module_graph() {
         "#,
     );
     let ui_source = r#"
+        extern neocogi.render;
         use neocogi.render::{ITexture, Size};
 
         /// Texture sampling filter.
