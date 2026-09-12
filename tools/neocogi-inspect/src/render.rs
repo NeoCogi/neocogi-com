@@ -27,7 +27,6 @@ pub(crate) fn render_text(inspection: &PluginInspection) -> String {
     writeln!(out, "  id: {}", inspection.plugin_id).unwrap();
     writeln!(out, "  version: {}", inspection.plugin_version).unwrap();
     writeln!(out, "  core_abi_version: {}", inspection.core_abi_version).unwrap();
-    writeln!(out, "  com_validation: {}", inspection.validation_mode).unwrap();
     writeln!(out, "  dependencies:").unwrap();
     if inspection.dependencies.is_empty() {
         writeln!(out, "    (none)").unwrap();
@@ -145,7 +144,6 @@ mod tests {
     fn inspection_with_thread_safe_factory() -> PluginInspection {
         PluginInspection {
             core_abi_version: 1,
-            validation_mode: neocogi_com_core::NcAbiValidationMode::MANGLING,
             plugin_id: NcGuid::from_fields(1, 2, 3, [4; 8]),
             qualified_name: "nc.tests.inspect".to_string(),
             plugin_version: "1.0.0".to_string(),
@@ -164,9 +162,7 @@ mod tests {
         let inspection = inspection_with_thread_safe_factory();
 
         assert!(render_text(&inspection).contains("  threading: thread_safe\n"));
-        assert!(render_text(&inspection).contains("  com_validation: mangling\n"));
         assert!(render_json(&inspection).unwrap().contains("\"root_factory_threading\": \"thread_safe\""));
-        assert!(render_json(&inspection).unwrap().contains("\"com_validation\": \"mangling\""));
     }
 
     #[test]

@@ -24,10 +24,9 @@ use alloc::string::String;
 
 /// Formats one ABI signature for diagnostics and inspection artifacts.
 ///
-/// Mangling and unchecked signatures retain their canonical text. Binary
-/// signatures use a stable algorithm prefix followed by lowercase hexadecimal
-/// bytes. The returned string is diagnostic; compatibility compares the raw
-/// [`NcAbiSignature`] bytes.
+/// SHA-256 signatures use a stable algorithm prefix followed by lowercase
+/// hexadecimal bytes. The returned string is diagnostic; compatibility compares
+/// the raw [`NcAbiSignature`] bytes.
 ///
 /// # Safety
 ///
@@ -265,16 +264,10 @@ unsafe fn write_signature(out: &mut String, signature: NcAbiSignature) -> Result
     if bytes.is_empty() {
         return Ok(());
     }
-    if bytes.starts_with(b"ncabi1;") {
-        let text = core::str::from_utf8(bytes).map_err(|_| NC_E_INVALID_ARG)?;
-        out.push_str(text);
-        return Ok(());
+    if bytes.len() != 32 {
+        return Err(NC_E_INVALID_ARG);
     }
-    match bytes.len() {
-        16 => out.push_str("fnv-1a-128:"),
-        32 => out.push_str("sha-256:"),
-        _ => return Err(NC_E_INVALID_ARG),
-    }
+    out.push_str("sha-256:");
     /// Lowercase digits used to format binary signature bytes.
     const HEX: &[u8; 16] = b"0123456789abcdef";
     for byte in bytes {

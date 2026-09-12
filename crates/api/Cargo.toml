@@ -58,12 +58,7 @@ neocogi-idl-example-contracts = { path = "../../idl/example-contracts" }
 trybuild = "1"
 
 [features]
-default = ["com-validation-mangling", "macros", "std"]
-# Select exactly one representation for generated and validated COM contracts.
-com-validation-none = ["neocogi-com-core/com-validation-none", "neocogi-com-macros?/com-validation-none"]
-com-validation-sha-256 = ["neocogi-com-core/com-validation-sha-256", "neocogi-com-macros?/com-validation-sha-256"]
-com-validation-fnv-1a-128 = ["neocogi-com-core/com-validation-fnv-1a-128", "neocogi-com-macros?/com-validation-fnv-1a-128"]
-com-validation-mangling = ["neocogi-com-core/com-validation-mangling", "neocogi-com-macros?/com-validation-mangling"]
+default = ["macros", "std"]
 macros = ["dep:neocogi-com-macros"]
 std = ["alloc", "neocogi-com-core/std"]
 alloc = ["neocogi-com-core/alloc"]

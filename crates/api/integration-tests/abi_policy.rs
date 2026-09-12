@@ -210,31 +210,9 @@ fn generated_interface_iids_and_signatures_are_stable() {
         "nc.tests.abi_policy.Value:v1"
     );
     assert_eq!(IPolicyValueAbi::IID.to_string(), "be3b63c2-5ea1-5ddd-aa6e-803343b38af3");
-    #[cfg(feature = "com-validation-mangling")]
-    assert_eq!(
-        signature_text(IPolicyValueAbi::ABI_SIGNATURE),
-        "ncabi1;Ibe3b63c25ea15dddaa6e803343b38af3M0000000000000005valueR00O0209S"
-    );
     assert_eq!(IPolicyServiceAbi::IID.to_string(), "e68a0ddb-0d68-5e76-9d03-4186119e1c45");
     assert_eq!(IPolicyServiceAbi::IID, guid_from_qualified_name("nc.tests.abi_policy.Service:v1"));
-    #[cfg(feature = "com-validation-mangling")]
-    assert_eq!(
-        signature_text(IPolicyServiceAbi::ABI_SIGNATURE),
-        concat!(
-            "ncabi1;Ie68a0ddb0d685e769d034186119e1c45",
-            "M0000000000000003addR00A000000000109A000000010109O0209S",
-            "M0000000100000005flushR00O0000S",
-            "M0000000200000006retainR00",
-            "A00000000050012be3b63c25ea15dddaa6e803343b38af3",
-            "O060012be3b63c25ea15dddaa6e803343b38af3S",
-        )
-    );
-    #[cfg(feature = "com-validation-sha-256")]
     assert!(signature_text(IPolicyServiceAbi::ABI_SIGNATURE).starts_with("sha-256:"));
-    #[cfg(feature = "com-validation-fnv-1a-128")]
-    assert!(signature_text(IPolicyServiceAbi::ABI_SIGNATURE).starts_with("fnv-1a-128:"));
-    #[cfg(feature = "com-validation-none")]
-    assert_eq!(IPolicyServiceAbi::ABI_SIGNATURE, NcAbiSignature::UNCHECKED);
 }
 
 #[test]

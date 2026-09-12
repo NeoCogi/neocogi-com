@@ -94,12 +94,7 @@ fn run() -> Result<(), CliError> {
             // shared library. The runtime reads only neocogi-com descriptor metadata.
             let inspection = unsafe { inspect_plugin_library(&library) }.map_err(CliError::Inspect)?;
             let activation = format!("factory, {} contract module(s)", inspection.factory.modules.len());
-            println!(
-                "{}: ok ({}, {}, {activation})",
-                library.display(),
-                inspection.qualified_name,
-                inspection.validation_mode
-            );
+            println!("{}: ok ({}, {activation})", library.display(), inspection.qualified_name);
         }
         Command::Plan { libraries, format, output } => {
             let mut artifacts = Vec::with_capacity(libraries.len());

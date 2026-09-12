@@ -220,7 +220,6 @@ mod tests {
     /// Minimal validated registry record used only by resolution tests.
     static DESCRIPTION: NcFactoryPluginDescription = NcFactoryPluginDescription {
         core_abi_version: neocogi_com_core::NC_COM_CORE_ABI_VERSION,
-        validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
         plugin_id: guid_from_qualified_name("nc.tests.activation"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.activation"),
         plugin_version: NcStaticUtf8::from_static("1.0.0"),
@@ -256,8 +255,11 @@ mod tests {
     /// Confirms an IID match with another signature is rejected and released.
     #[test]
     fn rejects_and_releases_a_factory_with_the_wrong_signature() {
+        /// Deliberately invalid digest used to exercise exact-signature rejection.
+        static MISMATCHED_SIGNATURE: [u8; 32] = [0; 32];
+
         FACTORY_DROPS.store(0, Ordering::SeqCst);
-        let mismatched = NcInterfaceId::new(FACTORY_ID, NcAbiSignature::UNCHECKED);
+        let mismatched = NcInterfaceId::new(FACTORY_ID, NcAbiSignature::from_static(&MISMATCHED_SIGNATURE));
         let mut out = core::ptr::null_mut();
         // SAFETY: The activation function and local output slot satisfy the ABI.
         assert_eq!(unsafe { activate_factory(Ok(activate), mismatched, &mut out) }, NC_E_ABI_VERSION);

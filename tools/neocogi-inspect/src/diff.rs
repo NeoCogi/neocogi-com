@@ -16,7 +16,6 @@ pub(crate) fn diff_inspections(old: &InspectionArtifact, new: &InspectionArtifac
     push_changed_display(&mut differences, "target.pointer_width", old.target.pointer_width, new.target.pointer_width);
     push_changed_debug(&mut differences, "target.endianness", &old.target.endianness, &new.target.endianness);
     push_changed_display(&mut differences, "core_abi_version", old.core_abi_version, new.core_abi_version);
-    push_changed_display(&mut differences, "com_validation", old.com_validation, new.com_validation);
     diff_plugin(&mut differences, &old.plugin, &new.plugin);
     diff_factory(&mut differences, &old.factory, &new.factory);
     differences
@@ -122,15 +121,6 @@ mod tests {
         let differences = diff_inspections(&old, &new);
 
         assert!(differences.iter().any(|difference| difference.contains("abi_fingerprint")));
-    }
-
-    #[test]
-    fn reports_validation_mode_changes() {
-        let old = sample_artifact();
-        let mut new = sample_artifact();
-        new.com_validation = crate::schema::ArtifactValidationMode::Sha256;
-
-        assert!(diff_inspections(&old, &new).iter().any(|difference| difference.contains("com_validation")));
     }
 
     #[test]

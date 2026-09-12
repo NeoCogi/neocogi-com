@@ -14,14 +14,5 @@ categories = ["api-bindings", "development-tools::ffi"]
 
 [features]
 default = []
-# Select exactly one validation representation for a deployable COM graph.
-# A dependency built with none of these features is inspection-only: it can
-# traverse descriptor shapes without assuming how signature bytes are encoded.
-com-validation-none = []
-com-validation-sha-256 = ["_com-validation-exact"]
-com-validation-fnv-1a-128 = ["_com-validation-exact"]
-com-validation-mangling = ["_com-validation-exact"]
-# Internal common gate for modes that recompute typed descriptor contracts.
-_com-validation-exact = []
 alloc = []
 std = ["alloc"]

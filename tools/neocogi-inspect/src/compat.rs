@@ -33,13 +33,6 @@ pub(crate) fn check_compatibility(old: &InspectionArtifact, new: &InspectionArti
             .push(format!("core ABI version changed: {} -> {}", old.core_abi_version, new.core_abi_version));
         return report;
     }
-    if old.com_validation != new.com_validation {
-        report.breaking.push(format!(
-            "COM validation mode changed: {} -> {}; signatures encoded by different representations are not directly comparable",
-            old.com_validation, new.com_validation
-        ));
-        return report;
-    }
     if old.target != new.target {
         report.breaking.push(format!("target ABI changed: {:?} -> {:?}", old.target, new.target));
         return report;
@@ -172,18 +165,6 @@ mod tests {
 
         assert!(!report.is_compatible());
         assert!(report.breaking.iter().any(|change| change.contains("ABI fingerprint changed")));
-    }
-
-    #[test]
-    fn different_validation_modes_are_not_comparable() {
-        let old = sample_artifact();
-        let mut new = sample_artifact();
-        new.com_validation = crate::schema::ArtifactValidationMode::Sha256;
-
-        let report = check_compatibility(&old, &new);
-
-        assert!(!report.is_compatible());
-        assert!(report.breaking[0].contains("not directly comparable"));
     }
 
     #[test]

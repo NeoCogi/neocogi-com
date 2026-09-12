@@ -13,8 +13,8 @@ use std::vec::Vec;
 
 use neocogi_com_core::{
     NC_CONTRACT_DECLARATION_BIT_ENUM, NC_CONTRACT_DECLARATION_CLASS, NC_CONTRACT_DECLARATION_ENUM, NC_CONTRACT_DECLARATION_FACTORY,
-    NC_CONTRACT_DECLARATION_INTERFACE, NC_CONTRACT_DECLARATION_STRUCT, NC_E_INVALID_ARG, NcAbiThreadingMode, NcAbiValidationMode, NcContractFingerprint,
-    NcFactoryPluginDescription, NcGuid, NcStaticUtf8,
+    NC_CONTRACT_DECLARATION_INTERFACE, NC_CONTRACT_DECLARATION_STRUCT, NC_E_INVALID_ARG, NcAbiThreadingMode, NcContractFingerprint, NcFactoryPluginDescription,
+    NcGuid, NcStaticUtf8,
 };
 
 use crate::contract_registry::RegisteredContractModule;
@@ -27,8 +27,6 @@ use super::{LoadedModule, PluginLoadError, PluginLoadErrorKind, factory_plugin_d
 pub struct PluginInspection {
     /// Core ABI version advertised by the plugin description.
     pub core_abi_version: u32,
-    /// ABI signature representation used by the plugin and its contracts.
-    pub validation_mode: NcAbiValidationMode,
     /// Stable plugin identifier derived from its qualified name.
     pub plugin_id: NcGuid,
     /// Canonical qualified plugin name copied into owned storage.
@@ -223,7 +221,6 @@ unsafe fn inspection_from_factory_description(path: &Path, plugin: *const NcFact
 
     Ok(PluginInspection {
         core_abi_version: plugin.core_abi_version,
-        validation_mode: plugin.validation_mode,
         plugin_id: plugin.plugin_id,
         qualified_name,
         plugin_version,

@@ -7,7 +7,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use neocogi_com_core::{NcAbiThreadingMode, NcAbiValidationMode, NcGuid, guid_from_qualified_name};
+use neocogi_com_core::{NcAbiThreadingMode, NcGuid, guid_from_qualified_name};
 use nc_com_shared_runtime::{ContractDeclarationKind, PluginInspection};
 use serde::{Deserialize, Serialize};
 
@@ -23,8 +23,6 @@ pub(crate) struct InspectionArtifact {
     pub(crate) producer: ArtifactProducer,
     pub(crate) target: ArtifactTarget,
     pub(crate) core_abi_version: u32,
-    /// ABI signature representation used by every contract in this artifact.
-    pub(crate) com_validation: ArtifactValidationMode,
     pub(crate) plugin: ArtifactPlugin,
     /// Typed root factory and complete canonical contract graph.
     pub(crate) factory: ArtifactFactory,
@@ -50,53 +48,6 @@ pub(crate) struct ArtifactTarget {
 pub(crate) enum ArtifactEndianness {
     Little,
     Big,
-}
-
-/// Serialized spelling of one assembly-wide COM ABI validation mode.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(crate) enum ArtifactValidationMode {
-    /// Structural descriptor validation without ABI signature comparison.
-    #[serde(rename = "none")]
-    None,
-    /// SHA-256 digests of canonical ABI contract records.
-    #[serde(rename = "sha-256")]
-    Sha256,
-    /// FNV-1a-128 fingerprints of canonical ABI contract records.
-    #[serde(rename = "fnv-1a-128")]
-    Fnv1a128,
-    /// Complete canonical ABI contract records without hashing.
-    #[serde(rename = "mangling")]
-    Mangling,
-}
-
-impl ArtifactValidationMode {
-    /// Converts a validated ABI descriptor mode to its serialized counterpart.
-    fn from_abi(mode: NcAbiValidationMode) -> Option<Self> {
-        match mode {
-            NcAbiValidationMode::NONE => Some(Self::None),
-            NcAbiValidationMode::SHA_256 => Some(Self::Sha256),
-            NcAbiValidationMode::FNV_1A_128 => Some(Self::Fnv1a128),
-            NcAbiValidationMode::MANGLING => Some(Self::Mangling),
-            _ => None,
-        }
-    }
-
-    /// Returns the canonical assembly/configuration spelling.
-    pub(crate) const fn as_str(self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::Sha256 => "sha-256",
-            Self::Fnv1a128 => "fnv-1a-128",
-            Self::Mangling => "mangling",
-        }
-    }
-}
-
-impl std::fmt::Display for ArtifactValidationMode {
-    /// Formats the mode exactly as it appears in JSON and assembly configuration.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(self.as_str())
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -264,7 +215,6 @@ impl From<&PluginInspection> for InspectionArtifact {
                 },
             },
             core_abi_version: value.core_abi_version,
-            com_validation: ArtifactValidationMode::from_abi(value.validation_mode).expect("plugin inspection must contain a descriptor-validated ABI mode"),
             plugin: ArtifactPlugin {
                 id: value.plugin_id.to_string(),
                 name: value.qualified_name.clone(),
@@ -628,7 +578,6 @@ pub(crate) fn sample_artifact() -> InspectionArtifact {
             endianness: ArtifactEndianness::Little,
         },
         core_abi_version: neocogi_com_core::NC_COM_CORE_ABI_VERSION,
-        com_validation: ArtifactValidationMode::None,
         plugin: ArtifactPlugin {
             id: guid_from_qualified_name(plugin_name).to_string(),
             name: plugin_name.to_string(),
@@ -671,7 +620,6 @@ mod tests {
         let parsed: InspectionArtifact = serde_json::from_slice(&json).unwrap();
         parsed.validate().unwrap();
         assert_eq!(parsed, artifact);
-        assert!(String::from_utf8(json).unwrap().contains("\"com_validation\":\"none\""));
     }
 
     /// Confirms the root capability is checked against its canonical declaration.

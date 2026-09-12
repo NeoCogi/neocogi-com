@@ -10,13 +10,6 @@ links = "nc_contract_neocogi_idl_example"
 module = "neocogi.idl_example"
 source = "idl/neocogi/idl_example.ncidl"
 
-[features]
-default = ["com-validation-mangling"]
-com-validation-none = ["neocogi-com/com-validation-none"]
-com-validation-sha-256 = ["neocogi-com/com-validation-sha-256"]
-com-validation-fnv-1a-128 = ["neocogi-com/com-validation-fnv-1a-128"]
-com-validation-mangling = ["neocogi-com/com-validation-mangling"]
-
 [dependencies]
 neocogi-com = { workspace = true, default-features = false, features = ["macros"] }
 

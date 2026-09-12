@@ -226,15 +226,11 @@ pub struct NcPluginDependencyDescriptor {
 
 #[cfg(test)]
 mod tests {
-    use std::string::ToString as _;
-
     use crate::NcGuid;
-    #[cfg(feature = "_com-validation-exact")]
     use crate::{NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NcAbiAggregateKind, NcAbiFieldLayout, NcAbiSignaturePart, NcAbiPassing, NcAbiReceiver, NcAbiType};
     use crate::{
-        NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_VALIDATION_FNV_1A_128, NC_ABI_VALIDATION_MANGLING, NC_ABI_VALIDATION_NONE,
-        NC_ABI_VALIDATION_SHA_256, NC_COM_CORE_ABI_VERSION, NcAbiSignature, NcAbiThreadingMode, NcAbiValidationMode, NcInterfaceDescriptor, NcInterfaceId,
-        NcPluginDependencyDescriptor,
+        NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION, NcAbiSignature, NcAbiThreadingMode, NcInterfaceDescriptor,
+        NcInterfaceId, NcPluginDependencyDescriptor,
     };
 
     #[test]
@@ -243,26 +239,12 @@ mod tests {
     }
 
     #[test]
-    fn validation_mode_raw_values_and_names_are_stable() {
-        let modes = [
-            (NcAbiValidationMode::NONE, NC_ABI_VALIDATION_NONE, "none"),
-            (NcAbiValidationMode::SHA_256, NC_ABI_VALIDATION_SHA_256, "sha-256"),
-            (NcAbiValidationMode::FNV_1A_128, NC_ABI_VALIDATION_FNV_1A_128, "fnv-1a-128"),
-            (NcAbiValidationMode::MANGLING, NC_ABI_VALIDATION_MANGLING, "mangling"),
-        ];
-        for (mode, raw, name) in modes {
-            assert_eq!(mode.as_raw(), raw);
-            assert_eq!(NcAbiValidationMode::from_raw(raw), Some(mode));
-            assert_eq!(mode.as_str(), Some(name));
-            assert_eq!(mode.to_string(), name);
-        }
-        assert_eq!(NcAbiValidationMode::from_raw(u32::MAX), None);
-    }
-
-    #[test]
     fn interface_id_none_requires_nil_iid_and_empty_signature() {
+        /// Valid nonempty digest used to distinguish an attributed interface.
+        static NONEMPTY_SIGNATURE: [u8; 32] = [1; 32];
+
         assert!(NcInterfaceId::NONE.is_none());
-        assert!(!NcInterfaceId::new(NcGuid::nil(), NcAbiSignature::from_static_str("ncabi1;test")).is_none());
+        assert!(!NcInterfaceId::new(NcGuid::nil(), NcAbiSignature::from_static(&NONEMPTY_SIGNATURE)).is_none());
     }
 
     #[test]
@@ -277,7 +259,6 @@ mod tests {
         assert_eq!(NcAbiThreadingMode::from_raw(u32::MAX), None);
     }
 
-    #[cfg(feature = "_com-validation-exact")]
     #[test]
     fn receiver_modes_are_stable_and_change_method_signatures() {
         assert_eq!(NcAbiReceiver::Shared.as_raw(), NC_ABI_RECEIVER_SHARED);
@@ -321,7 +302,6 @@ mod tests {
         assert_eq!(core::mem::offset_of!(NcPluginDependencyDescriptor, plugin_id), 0);
     }
 
-    #[cfg(feature = "_com-validation-exact")]
     #[test]
     fn method_signature_changes_for_method_identity_and_status() {
         let base = NcAbiSignature::from_abi_parts(&[
@@ -367,7 +347,6 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "_com-validation-exact")]
     #[test]
     fn method_signature_changes_for_argument_and_return_contracts() {
         let base = NcAbiSignature::from_abi_parts(&[
@@ -475,7 +454,6 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "_com-validation-exact")]
     #[test]
     fn method_signature_changes_for_com_pointer_modes_and_interface_identity() {
         let interface_guid = guid(1);
@@ -566,7 +544,6 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "_com-validation-exact")]
     #[test]
     fn method_signature_changes_for_offset_buffer_contracts() {
         fn offset_buffer_signature(passing: NcAbiPassing, index: u32, ty: NcAbiType) -> NcAbiSignature {
@@ -621,7 +598,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "_com-validation-exact")]
     #[test]
     fn aggregate_signature_changes_for_structural_shape_and_variants() {
         fn aggregate_signature(
@@ -760,7 +736,6 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "_com-validation-exact")]
     fn guid(byte: u8) -> NcGuid {
         NcGuid::from_fields(0x8c6b_7200 | u32::from(byte), 0x6ce7, 0x42fa, [byte; 8])
     }

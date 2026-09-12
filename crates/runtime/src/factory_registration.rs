@@ -221,7 +221,6 @@ mod tests {
     /// Valid factory-only plugin rooted in the canonical declaration above.
     static PLUGIN: NcFactoryPluginDescription = NcFactoryPluginDescription {
         core_abi_version: NC_COM_CORE_ABI_VERSION,
-        validation_mode: neocogi_com_core::NC_ABI_VALIDATION_MODE,
         plugin_id: guid_from_qualified_name("nc.tests.factory_plugin"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.factory_plugin"),
         plugin_version: NcStaticUtf8::from_static("1.0.0"),

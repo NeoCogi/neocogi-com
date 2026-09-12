@@ -24,19 +24,6 @@
 #![no_std]
 #![deny(missing_docs)]
 
-#[cfg(any(
-    all(
-        feature = "com-validation-none",
-        any(feature = "com-validation-sha-256", feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling")
-    ),
-    all(
-        feature = "com-validation-sha-256",
-        any(feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling")
-    ),
-    all(feature = "com-validation-fnv-1a-128", feature = "com-validation-mangling")
-))]
-compile_error!("COM validation modes are mutually exclusive; select exactly one of none, sha-256, fnv-1a-128, or mangling");
-
 mod abi;
 mod client;
 mod contract_module;
@@ -75,11 +62,10 @@ pub use metadata::{format_abi_signature, format_method_signature};
 pub use metadata::{
     NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT,
     NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
-    NC_ABI_VALIDATION_FNV_1A_128, NC_ABI_VALIDATION_MANGLING, NC_ABI_VALIDATION_MODE, NC_ABI_VALIDATION_NONE, NC_ABI_VALIDATION_SHA_256, NC_ABI_TYPE_AGGREGATE,
-    NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE,
-    NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE,
-    NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN, NcAbiAggregateKind, NcAbiFieldLayout,
-    NcAbiSignaturePart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiValidationMode, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType,
+    NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64,
+    NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64,
+    NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN, NcAbiAggregateKind,
+    NcAbiFieldLayout, NcAbiSignaturePart, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType,
     NcAbiTypeDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor,
     NcPluginDependencyDescriptor, NcQualifiedNameError, NcStaticUtf8, NcVersionTextError, validate_qualified_name, validate_version_text,
 };

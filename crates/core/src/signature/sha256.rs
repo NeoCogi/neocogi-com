@@ -1,7 +1,6 @@
 //! SHA-256 encoding for canonical COM ABI signature bytes.
 
-use super::{NcAbiSignature, NcAbiSignaturePart, SignatureByteCursor};
-use crate::{NC_E_INVALID_ARG, NcStatus};
+use super::{NcAbiSignaturePart, SignatureByteCursor};
 
 /// Number of bytes in one SHA-256 signature.
 pub(super) const SIGNATURE_LEN: usize = 32;
@@ -103,43 +102,6 @@ pub(super) const fn encode<const N: usize>(parts: &[NcAbiSignaturePart<'_>]) -> 
         index += 1;
     }
     output
-}
-
-/// Incremental verifier used while reconstructing descriptor contracts.
-pub(crate) struct Verifier<'a> {
-    /// Advertised component bytes retained until comparison is complete.
-    actual: &'a [u8],
-    /// SHA-256 state receiving reconstructed canonical bytes.
-    hasher: Sha256,
-}
-
-impl<'a> Verifier<'a> {
-    /// Starts a verifier for one fixed-width advertised signature.
-    ///
-    /// # Safety
-    ///
-    /// `signature` must point to readable immutable storage for `'a`.
-    pub(crate) unsafe fn new(signature: NcAbiSignature) -> Result<Self, NcStatus> {
-        // SAFETY: The caller establishes the signature storage contract.
-        let actual = unsafe { signature.as_bytes()? };
-        if actual.len() != SIGNATURE_LEN {
-            return Err(NC_E_INVALID_ARG);
-        }
-        let mut hasher = Sha256::new();
-        hasher.update(DOMAIN);
-        hasher.update_parts(&[], true);
-        Ok(Self { actual, hasher })
-    }
-
-    /// Appends one reconstructed logical ABI record.
-    pub(crate) fn verify_part(&mut self, part: NcAbiSignaturePart<'_>) {
-        self.hasher.update_parts(&[part], false);
-    }
-
-    /// Compares the final digest with the advertised bytes.
-    pub(crate) fn finish(self) -> bool {
-        self.actual == self.hasher.finish()
-    }
 }
 
 /// Mutable, allocation-free SHA-256 state used in const and runtime contexts.
