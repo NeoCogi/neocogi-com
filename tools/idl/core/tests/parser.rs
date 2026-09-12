@@ -357,3 +357,15 @@ fn reports_both_parts_for_duplicate_declarations() {
     assert!(error.contains("neocogi/ui/layout.ncidl:1:22"), "{error}");
     assert!(error.contains("neocogi/ui/geometry.ncidl:1:22"), "{error}");
 }
+
+/// Confirms diagnostic-only part paths are still portable and normalized.
+#[test]
+fn rejects_noncanonical_module_part_paths() {
+    let part = ModuleSource {
+        path: Path::new("neocogi/ui/../other.ncidl"),
+        text: "#[version(1)] struct Value { raw: u32 }",
+    };
+    let error = parse_module_parts(Path::new("neocogi/ui"), &[part]).unwrap_err().to_string();
+
+    assert!(error.contains("must be a .ncidl file below module directory"), "{error}");
+}

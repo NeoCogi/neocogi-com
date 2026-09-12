@@ -54,7 +54,7 @@ pub struct ResolvedModule {
     pub abi_fingerprint: [u8; 32],
     /// Direct dependencies in canonical module-name order.
     pub dependencies: Vec<ResolvedDependency>,
-    /// Declaration identities in source order.
+    /// Declaration identities in canonical top-level name order.
     pub declarations: Vec<DeclarationIdentity>,
 }
 
@@ -83,7 +83,7 @@ impl ResolvedModule {
 /// A complete resolved module graph.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedModules {
-    /// Modules retained in caller order after cross-reference validation.
+    /// Modules retained in canonical logical-name and source-content order.
     modules: Vec<ResolvedModule>,
 }
 
@@ -99,7 +99,7 @@ pub struct ResolvedDeclaration<'a> {
 }
 
 impl ResolvedModules {
-    /// Borrows every resolved module in caller order.
+    /// Borrows every resolved module in canonical order.
     pub fn modules(&self) -> &[ResolvedModule] {
         &self.modules
     }
@@ -262,7 +262,7 @@ struct ModuleEntry {
     imported_symbols: HashMap<String, Symbol>,
     /// Direct dependency indexes in canonical module-name order.
     dependencies: Vec<usize>,
-    /// Declaration identities in source order.
+    /// Declaration identities in canonical top-level name order.
     declaration_identities: Vec<DeclarationIdentity>,
 }
 

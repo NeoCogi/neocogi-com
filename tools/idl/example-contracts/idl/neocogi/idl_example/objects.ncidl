@@ -1,12 +1,3 @@
-/// Copied dimensions used by the example object surface.
-#[version(1)]
-struct Extent {
-    /// Horizontal extent.
-    width: u32,
-    /// Vertical extent.
-    height: u32,
-}
-
 /// Optional capability implemented by the example class.
 #[version(1)]
 trait IMeasured {

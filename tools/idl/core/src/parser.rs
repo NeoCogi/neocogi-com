@@ -3,7 +3,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt,
-    path::Path,
+    path::{Component, Path},
 };
 
 use neocogi_com_core::NcGuid;
@@ -30,7 +30,7 @@ mod keyword {
     syn::custom_keyword!(bitenum);
 }
 
-/// Failure to derive a module name or parse one IDL source file.
+/// Failure to derive a module name or parse and merge its IDL source parts.
 #[derive(Debug)]
 pub enum ParseError {
     /// The relative source path could not define a portable logical module.
@@ -84,7 +84,12 @@ pub fn parse_module(relative_path: &Path, source: &str) -> Result<Module, ParseE
 pub fn parse_module_parts(relative_directory: &Path, parts: &[ModuleSource<'_>]) -> Result<Module, ParseError> {
     let name = ModuleName::from_relative_directory(relative_directory)?;
     for part in parts {
-        if part.path.extension().and_then(|extension| extension.to_str()) != Some("ncidl") || !part.path.starts_with(relative_directory) {
+        let normalized = !part.path.is_absolute()
+            && part
+                .path
+                .components()
+                .all(|component| matches!(component, Component::Normal(value) if value.to_str().is_some()));
+        if !normalized || part.path.extension().and_then(|extension| extension.to_str()) != Some("ncidl") || !part.path.starts_with(relative_directory) {
             return Err(ParseError::Source(Diagnostic::new(
                 "EIDL002",
                 format!(

@@ -43,7 +43,7 @@ impl SourceFile {
 pub struct SourcePosition {
     /// One-based line number.
     pub line: usize,
-    /// One-based Unicode-scalar column number.
+    /// One-based UTF-8 byte column number.
     pub column: usize,
 }
 
