@@ -94,8 +94,19 @@ pub enum EnumRepr {
 pub struct Enum {
     /// Fixed discriminant representation selected by the suffix or default.
     pub repr: EnumRepr,
+    /// Whether unit variants form the exact zero-based contiguous range.
+    pub dense: bool,
+    /// Optional canonical text generated for each dense unit variant.
+    pub names: Option<EnumNames>,
     /// Variants in normative ABI order.
     pub variants: Vec<EnumVariant>,
+}
+
+/// Canonical text policy requested for a dense unit enum.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EnumNames {
+    /// Converts declared variant identifiers to lowercase snake case.
+    SnakeCase,
 }
 
 /// One enum variant and its optional payload.

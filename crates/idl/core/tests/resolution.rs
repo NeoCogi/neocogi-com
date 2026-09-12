@@ -186,3 +186,48 @@ fn preserves_explicit_identity_without_rewriting_names() {
     assert_eq!(identity.version, 7);
     assert_eq!(identity.id.to_string(), "9be73186-f123-47bc-8140-4a57825eeb21");
 }
+
+/// Confirms dense domains reject gaps before generated ordinal tables can be used.
+#[test]
+fn rejects_sparse_dense_enums() {
+    let source = module(
+        "neocogi/ui.ncidl",
+        r#"
+            #[version(1)]
+            #[dense]
+            enum Direction: u8 { Horizontal = 0, Vertical = 2 }
+        "#,
+    );
+    let error = resolve_modules(vec![source]).unwrap_err();
+    assert!(error.to_string().contains("must use discriminant 1"));
+}
+
+/// Confirms dense domains remain simple unsigned unit-value axes.
+#[test]
+fn rejects_payload_dense_enums() {
+    let source = module(
+        "neocogi/ui.ncidl",
+        r#"
+            #[version(1)]
+            #[dense]
+            enum Event: u8 { Idle, Pointer(i32, i32) }
+        "#,
+    );
+    let error = resolve_modules(vec![source]).unwrap_err();
+    assert!(error.to_string().contains("must use an unsigned representation and unit variants"));
+}
+
+/// Confirms canonical enum names cannot silently imply a dense numeric domain.
+#[test]
+fn rejects_named_non_dense_enums() {
+    let source = module(
+        "neocogi/ui.ncidl",
+        r#"
+            #[version(1)]
+            #[names(snake_case)]
+            enum Direction: u8 { Horizontal, Vertical }
+        "#,
+    );
+    let error = resolve_modules(vec![source]).unwrap_err();
+    assert!(error.to_string().contains("without `#[dense]`"));
+}

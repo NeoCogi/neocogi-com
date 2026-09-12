@@ -13,8 +13,8 @@ use syn::{
 };
 
 use crate::{
-    AbiType, Class, Declaration, DeclarationId, DeclarationKind, Enum, EnumRepr, EnumVariant, Factory, Field, Import, Interface, Method, Module, ModuleName,
-    ModulePathError, NamedType, Parameter, Receiver, Struct, Threading, VariantFields,
+    AbiType, Class, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, Factory, Field, Import, Interface, Method, Module,
+    ModuleName, ModulePathError, NamedType, Parameter, Receiver, Struct, Threading, VariantFields,
 };
 
 mod keyword {
@@ -181,7 +181,16 @@ fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result
     if variants.is_empty() {
         return Err(syn::Error::new(name.span(), "IDL enums must contain at least one variant"));
     }
-    Ok(declaration(name, metadata, DeclarationKind::Enum(Enum { repr, variants })))
+    Ok(declaration(
+        name,
+        metadata.clone(),
+        DeclarationKind::Enum(Enum {
+            repr,
+            dense: metadata.dense,
+            names: metadata.enum_names,
+            variants,
+        }),
+    ))
 }
 
 /// Parses one reusable interface declared with the Rust-like `trait` keyword.
@@ -582,6 +591,10 @@ struct Attributes {
     deserialize_default: bool,
     /// Whether a record also accepts positional sequence input.
     deserialize_sequence: bool,
+    /// Whether an enum is a zero-based contiguous unit-value domain.
+    dense: bool,
+    /// Optional canonical naming policy for dense enum values.
+    enum_names: Option<EnumNames>,
 }
 
 /// Parses common attributes and rejects ambiguous or inapplicable combinations.
@@ -592,6 +605,8 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
     let mut deserialize = false;
     let mut deserialize_default = false;
     let mut deserialize_sequence = false;
+    let mut dense = false;
+    let mut enum_names = None;
 
     for attribute in attributes {
         if attribute.path().is_ident("doc") {
@@ -627,6 +642,23 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
             deserialize = true;
             deserialize_default = policy.default;
             deserialize_sequence = policy.sequence;
+        } else if attribute.path().is_ident("dense") && matches!(context, AttributeContext::Enum) {
+            if dense {
+                return Err(syn::Error::new_spanned(attribute, "duplicate dense enum policy"));
+            }
+            if !matches!(&attribute.meta, syn::Meta::Path(_)) {
+                return Err(syn::Error::new_spanned(attribute, "`dense` does not accept arguments"));
+            }
+            dense = true;
+        } else if attribute.path().is_ident("names") && matches!(context, AttributeContext::Enum) {
+            if enum_names.is_some() {
+                return Err(syn::Error::new_spanned(attribute, "duplicate enum names policy"));
+            }
+            let policy = attribute.parse_args::<Ident>()?;
+            if policy != "snake_case" {
+                return Err(syn::Error::new_spanned(policy, "enum names policy must be `snake_case`"));
+            }
+            enum_names = Some(EnumNames::SnakeCase);
         } else {
             return Err(syn::Error::new_spanned(attribute, "unsupported attribute for this IDL declaration"));
         }
@@ -640,6 +672,8 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
         deserialize,
         deserialize_default,
         deserialize_sequence,
+        dense,
+        enum_names,
     })
 }
 

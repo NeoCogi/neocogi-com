@@ -430,10 +430,25 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
 
 /// Checks enum discriminants against representation range and uniqueness.
 fn validate_enum(entry: &ModuleEntry, declaration: &Declaration, enumeration: &Enum) -> Result<(), ResolutionError> {
+    if enumeration.names.is_some() && !enumeration.dense {
+        return Err(error(
+            Some(&entry.name),
+            format!("enum {} uses canonical names without `#[dense]`", declaration.name),
+        ));
+    }
+    if enumeration.dense
+        && (!matches!(enumeration.repr, EnumRepr::U8 | EnumRepr::U16 | EnumRepr::U32)
+            || enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit)))
+    {
+        return Err(error(
+            Some(&entry.name),
+            format!("dense enum {} must use an unsigned representation and unit variants", declaration.name),
+        ));
+    }
     let (minimum, maximum) = repr_range(enumeration.repr);
     let mut previous = -1i128;
     let mut values = HashSet::new();
-    for variant in &enumeration.variants {
+    for (ordinal, variant) in enumeration.variants.iter().enumerate() {
         let value = variant.discriminant.map_or_else(
             || {
                 previous
@@ -455,6 +470,15 @@ fn validate_enum(entry: &ModuleEntry, declaration: &Declaration, enumeration: &E
             return Err(error(
                 Some(&entry.name),
                 format!("enum {} variant {} repeats discriminant {value}", declaration.name, variant.name),
+            ));
+        }
+        if enumeration.dense && value != ordinal as i128 {
+            return Err(error(
+                Some(&entry.name),
+                format!(
+                    "dense enum {} variant {} must use discriminant {ordinal}; found {value}",
+                    declaration.name, variant.name
+                ),
             ));
         }
         previous = value;

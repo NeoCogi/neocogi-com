@@ -27,6 +27,8 @@ fn generates_rust_bindings_for_a_module_graph() {
         use neocogi.render::{ITexture, Size};
 
         #[version(1)]
+        #[dense]
+        #[names(snake_case)]
         enum Filter: u8 { Nearest = 0, Linear = 1 }
 
         #[version(1)]
@@ -51,6 +53,11 @@ fn generates_rust_bindings_for_a_module_graph() {
     assert!(generated.contains("com_factory_description"));
     assert!(generated.contains("com_int_enum"));
     assert!(generated.contains("pub enum Filter : u8"));
+    assert!(generated.contains("pub const COUNT : usize = 2"));
+    assert!(generated.contains("pub const ALL : [Self ; Self :: COUNT] = [Self :: Nearest , Self :: Linear]"));
+    assert!(generated.contains("pub const NAMES : [& 'static str ; Self :: COUNT] = [\"nearest\" , \"linear\"]"));
+    assert!(generated.contains("pub const fn canonical_name"));
+    assert!(!generated.contains("fn index"));
     assert!(generated.contains("trait UiFactory"));
     assert!(generated.contains("threading = shared"));
     assert!(generated.contains("NcCopyToBufferOffset"));

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use neocogi_idl::{AbiType, DeclarationKind, EnumRepr, Receiver, Threading, VariantFields, parse_module};
+use neocogi_idl::{AbiType, DeclarationKind, EnumNames, EnumRepr, Receiver, Threading, VariantFields, parse_module};
 
 /// Exercises every initial declaration kind and ownership spelling together.
 #[test]
@@ -20,6 +20,8 @@ fn parses_a_complete_contract_module() {
             }
 
             #[version(2)]
+            #[dense]
+            #[names(snake_case)]
             enum Direction: u8 {
                 Horizontal = 0,
                 Vertical = 1,
@@ -80,6 +82,8 @@ fn parses_a_complete_contract_module() {
         panic!("Direction should be an enum");
     };
     assert_eq!(direction.repr, EnumRepr::U8);
+    assert!(direction.dense);
+    assert_eq!(direction.names, Some(EnumNames::SnakeCase));
     assert_eq!(direction.variants[1].discriminant, Some(1));
 
     let DeclarationKind::Enum(event) = &module.declaration("Event").unwrap().kind else {

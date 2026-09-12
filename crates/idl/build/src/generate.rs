@@ -3,7 +3,7 @@
 use std::fmt;
 
 use neocogi_idl::{
-    AbiType, Declaration, DeclarationKind, EnumRepr, Method, NamedType, Receiver, ResolvedDeclaration, ResolvedModule, ResolvedModules, Threading,
+    AbiType, Declaration, DeclarationKind, EnumNames, EnumRepr, Method, NamedType, Receiver, ResolvedDeclaration, ResolvedModule, ResolvedModules, Threading,
     VariantFields,
 };
 use proc_macro2::{Ident, Literal, Span, TokenStream};
@@ -155,6 +155,47 @@ fn generate_declaration(
         DeclarationKind::Enum(enumeration) => {
             let repr = enum_repr(enumeration.repr);
             let has_payload = enum_has_payload(enumeration);
+            let value_names = enumeration
+                .variants
+                .iter()
+                .map(|variant| rust_ident(&variant.name))
+                .collect::<Result<Vec<_>, _>>()?;
+            let dense_members = if enumeration.dense {
+                let count = enumeration.variants.len();
+                let canonical_members = match enumeration.names {
+                    Some(EnumNames::SnakeCase) => {
+                        let names = enumeration
+                            .variants
+                            .iter()
+                            .map(|variant| Literal::string(&snake_case(&variant.name)))
+                            .collect::<Vec<_>>();
+                        quote! {
+                            /// Canonical names corresponding exactly to [`Self::ALL`].
+                            pub const NAMES: [&'static str; Self::COUNT] = [#(#names),*];
+
+                            /// Returns the canonical name, or `None` for an unknown ABI value.
+                            pub const fn canonical_name(self) -> Option<&'static str> {
+                                let ordinal = self.raw() as usize;
+                                if ordinal < Self::COUNT { Some(Self::NAMES[ordinal]) } else { None }
+                            }
+                        }
+                    }
+                    None => quote! {},
+                };
+                quote! {
+                    impl #name {
+                        /// Number of declared values in this dense IDL domain.
+                        pub const COUNT: usize = #count;
+
+                        /// Every declared value in its zero-based discriminant order.
+                        pub const ALL: [Self; Self::COUNT] = [#(Self::#value_names),*];
+
+                        #canonical_members
+                    }
+                }
+            } else {
+                quote! {}
+            };
             let mut previous = -1i64;
             let variants = enumeration
                 .variants
@@ -210,6 +251,7 @@ fn generate_declaration(
                         #declaration_docs
                         pub enum #name: #repr { #(#variants)* }
                     }
+                    #dense_members
                 })
             }
         }
@@ -253,6 +295,28 @@ fn generate_declaration(
             })
         }
     }
+}
+
+/// Converts one Rust-like variant identifier into a stable snake-case name.
+fn snake_case(value: &str) -> String {
+    let characters = value.chars().collect::<Vec<_>>();
+    let mut result = String::new();
+    for (index, character) in characters.iter().copied().enumerate() {
+        if character.is_uppercase() {
+            let previous = index.checked_sub(1).and_then(|previous| characters.get(previous)).copied();
+            let next = characters.get(index + 1).copied();
+            if !result.is_empty()
+                && !result.ends_with('_')
+                && (previous.is_some_and(|value| value.is_lowercase() || value.is_numeric()) || next.is_some_and(char::is_lowercase))
+            {
+                result.push('_');
+            }
+            result.extend(character.to_lowercase());
+        } else {
+            result.push(character);
+        }
+    }
+    result
 }
 
 /// Generates a Rust supertrait suffix from IDL required interfaces.
