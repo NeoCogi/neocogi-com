@@ -85,10 +85,6 @@ fn render_contract_module_text(out: &mut String, module: &ContractModuleInspecti
             writeln!(out, "        threading: {}", threading_name(threading)).unwrap();
         }
     }
-    writeln!(out, "    source:").unwrap();
-    for line in module.source.lines() {
-        writeln!(out, "      {line}").unwrap();
-    }
 }
 
 /// Returns the IDL spelling of a validated threading capability.

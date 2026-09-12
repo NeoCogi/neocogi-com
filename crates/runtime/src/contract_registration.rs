@@ -227,7 +227,6 @@ mod tests {
         dependencies: ptr::null(),
         declaration_count: 0,
         declarations: ptr::null(),
-        source: NcStaticUtf8::from_static(""),
     };
 
     /// Root-to-leaf edge containing both the expected identity and getter.
@@ -247,7 +246,6 @@ mod tests {
         dependencies: ROOT_DEPENDENCIES.as_ptr(),
         declaration_count: 0,
         declarations: ptr::null(),
-        source: NcStaticUtf8::from_static(""),
     };
 
     /// Returns a conflicting revision under the root's logical module ID.
@@ -265,7 +263,6 @@ mod tests {
         dependencies: ptr::null(),
         declaration_count: 0,
         declarations: ptr::null(),
-        source: NcStaticUtf8::from_static(""),
     };
 
     #[test]
@@ -335,7 +332,6 @@ mod tests {
         dependencies: CYCLE_A_DEPENDENCIES.as_ptr(),
         declaration_count: 0,
         declarations: ptr::null(),
-        source: NcStaticUtf8::from_static(""),
     };
     /// Second canonical root participating in a malformed dependency cycle.
     static CYCLE_B: NcContractModuleDescription = NcContractModuleDescription {
@@ -347,7 +343,6 @@ mod tests {
         dependencies: CYCLE_B_DEPENDENCIES.as_ptr(),
         declaration_count: 0,
         declarations: ptr::null(),
-        source: NcStaticUtf8::from_static(""),
     };
 
     #[test]

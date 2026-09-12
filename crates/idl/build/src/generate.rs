@@ -103,7 +103,7 @@ pub(crate) fn native_link_name(module: &ResolvedModule) -> String {
 
 /// Returns the exported getter name owned by one exact module revision.
 pub(crate) fn native_getter_name(module: &ResolvedModule) -> String {
-    format!("{}_get_v1", native_link_name(module))
+    format!("{}_get_v2", native_link_name(module))
 }
 
 /// Generates explicit imports from conventionally named contract crates.

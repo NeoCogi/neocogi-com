@@ -91,10 +91,10 @@ fn dumps_a_factory_plugin_and_its_canonical_contract_module() {
     assert_success("factory plugin inspection", &output);
 
     let artifact: serde_json::Value = serde_json::from_slice(&output.stdout).expect("inspection output must be JSON");
-    assert_eq!(artifact["schema_version"], 7);
+    assert_eq!(artifact["schema_version"], 8);
     assert_eq!(artifact["plugin"]["name"], "nc.examples.factory_plugin_component");
     let factory = &artifact["factory"];
     assert_eq!(factory["modules"][0]["name"], "neocogi.idl_example");
-    assert!(factory["modules"][0]["source"].as_str().unwrap().contains("factory ExampleFactory"));
+    assert!(factory["modules"][0].get("source").is_none());
     assert_eq!(factory["direct_contracts"][0]["abi_fingerprint"].as_str().unwrap().len(), 64);
 }

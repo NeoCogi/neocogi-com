@@ -319,7 +319,6 @@ mod tests {
                 module_name: "nc.tests.contract".to_string(),
                 dependencies: Vec::new(),
                 declarations: Vec::new(),
-                source: String::new(),
             }],
         };
         plugin

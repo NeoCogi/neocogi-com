@@ -76,8 +76,6 @@ pub struct ContractModuleInspection {
     pub dependencies: Vec<ContractReferenceInspection>,
     /// Top-level declarations retained in source order.
     pub declarations: Vec<ContractDeclarationInspection>,
-    /// Canonical `.ncidl` source stored by the contract library.
-    pub source: String,
 }
 
 /// Owned identity and capability of one top-level IDL declaration.
@@ -287,15 +285,12 @@ fn copy_contract_module(path: &Path, module: &RegisteredContractModule) -> Resul
             qualified_name,
         });
     }
-    // SAFETY: Whole-module validation established module source UTF-8.
-    let source = unsafe { copy_static_utf8(path, description.source, "contract module source is not valid static UTF-8")? };
     Ok(ContractModuleInspection {
         module_id: module.module_id,
         abi_fingerprint: module.abi_fingerprint,
         module_name: module.module_name.clone(),
         dependencies,
         declarations,
-        source,
     })
 }
 

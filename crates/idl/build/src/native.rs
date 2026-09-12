@@ -15,7 +15,7 @@ use crate::{
 };
 
 /// Compiles the one canonical native description owned by a module crate.
-pub(crate) fn build(module: &ResolvedModule, source: &str, dependencies: &[ArtifactRecord], output_dir: &Path) -> Result<ArtifactRecord, BuildError> {
+pub(crate) fn build(module: &ResolvedModule, dependencies: &[ArtifactRecord], output_dir: &Path) -> Result<ArtifactRecord, BuildError> {
     let target = required_text("TARGET")?;
     let target_os = required_text("CARGO_CFG_TARGET_OS")?;
     // Cargo's Rust target identity may name a custom JSON target that `cc` cannot
@@ -51,7 +51,7 @@ pub(crate) fn build(module: &ResolvedModule, source: &str, dependencies: &[Artif
 
     let link_name = native_link_name(module);
     let getter = native_getter_name(module);
-    let c_source = generate_c(module, source, &getter);
+    let c_source = generate_c(module, &getter);
     let c_path = output_dir.join(format!("{link_name}.c"));
     write_changed(&c_path, c_source.as_bytes())?;
 
@@ -79,7 +79,7 @@ pub(crate) fn build(module: &ResolvedModule, source: &str, dependencies: &[Artif
 }
 
 /// Generates a self-contained C description with exact dependency imports.
-fn generate_c(module: &ResolvedModule, source: &str, getter: &str) -> String {
+fn generate_c(module: &ResolvedModule, getter: &str) -> String {
     let mut output = String::new();
     output.push_str("#include <stdint.h>\n#include <stddef.h>\n\n");
     output.push_str(
@@ -94,7 +94,7 @@ fn generate_c(module: &ResolvedModule, source: &str, getter: &str) -> String {
     output.push_str(
         "typedef struct { nc_guid declaration_id; uint32_t version; uint32_t kind; uint32_t threading; nc_static_utf8 qualified_name; } nc_contract_declaration;\n",
     );
-    output.push_str("typedef struct nc_contract_module { uint32_t description_abi_version; nc_guid module_id; nc_fingerprint abi_fingerprint; nc_static_utf8 module_name; uint32_t dependency_count; const nc_contract_dependency *dependencies; uint32_t declaration_count; const nc_contract_declaration *declarations; nc_static_utf8 source; } nc_contract_module;\n\n");
+    output.push_str("typedef struct nc_contract_module { uint32_t description_abi_version; nc_guid module_id; nc_fingerprint abi_fingerprint; nc_static_utf8 module_name; uint32_t dependency_count; const nc_contract_dependency *dependencies; uint32_t declaration_count; const nc_contract_declaration *declarations; } nc_contract_module;\n\n");
 
     for dependency in &module.dependencies {
         let dependency_getter = dependency_getter(dependency);
@@ -105,7 +105,6 @@ fn generate_c(module: &ResolvedModule, source: &str, getter: &str) -> String {
     }
 
     byte_array(&mut output, "nc_module_name", module.source.name.to_string().as_bytes());
-    byte_array(&mut output, "nc_module_source", source.as_bytes());
     for (index, identity) in module.declarations.iter().enumerate() {
         byte_array(&mut output, &format!("nc_declaration_name_{index}"), identity.qualified_name.as_bytes());
     }
@@ -137,7 +136,7 @@ fn generate_c(module: &ResolvedModule, source: &str, getter: &str) -> String {
         output.push_str("};\n");
     }
     output.push_str("\nstatic const nc_contract_module nc_module = {\n");
-    output.push_str("    1u,\n");
+    output.push_str("    2u,\n");
     output.push_str(&format!("    {},\n", guid_initializer(module.module_id)));
     output.push_str(&format!("    {},\n", fingerprint_initializer(&module.abi_fingerprint)));
     output.push_str(&format!("    {{ nc_module_name, {}u }},\n", module.source.name.to_string().len()));
@@ -147,11 +146,10 @@ fn generate_c(module: &ResolvedModule, source: &str, getter: &str) -> String {
         output.push_str(&format!("    {}u, nc_dependencies,\n", module.dependencies.len()));
     }
     if module.declarations.is_empty() {
-        output.push_str("    0u, 0,\n");
+        output.push_str("    0u, 0\n");
     } else {
-        output.push_str(&format!("    {}u, nc_declarations,\n", module.declarations.len()));
+        output.push_str(&format!("    {}u, nc_declarations\n", module.declarations.len()));
     }
-    output.push_str(&format!("    {{ nc_module_source, {}u }}\n", source.len()));
     output.push_str("};\n\n");
     output.push_str(&format!("NC_EXPORT const nc_contract_module *{getter}(void) {{\n    return &nc_module;\n}}\n"));
     output
@@ -160,7 +158,7 @@ fn generate_c(module: &ResolvedModule, source: &str, getter: &str) -> String {
 /// Returns the exact getter symbol imported for one dependency revision.
 fn dependency_getter(dependency: &neocogi_idl::ResolvedDependency) -> String {
     format!(
-        "nc_contract_{}_{}_get_v1",
+        "nc_contract_{}_{}_get_v2",
         dependency.module_name.replace('.', "_"),
         fingerprint_hex(&dependency.abi_fingerprint)
     )

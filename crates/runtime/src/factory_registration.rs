@@ -211,7 +211,6 @@ mod tests {
         dependencies: ptr::null(),
         declaration_count: DECLARATIONS.len() as u32,
         declarations: DECLARATIONS.as_ptr(),
-        source: NcStaticUtf8::from_static("#[version(1)] factory RootFactory {}"),
     };
     /// Exact direct module reference linked into the fixture plugin.
     static CONTRACTS: [NcContractModuleReference; 1] = [NcContractModuleReference {

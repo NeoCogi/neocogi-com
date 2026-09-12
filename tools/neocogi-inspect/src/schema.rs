@@ -12,7 +12,7 @@ use nc_com_shared_runtime::{ContractDeclarationKind, PluginInspection};
 use serde::{Deserialize, Serialize};
 
 pub(crate) const SCHEMA: &str = "neocogi-com.inspection";
-pub(crate) const SCHEMA_VERSION: u32 = 7;
+pub(crate) const SCHEMA_VERSION: u32 = 8;
 const PRODUCER: &str = "neocogi-inspect";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -146,8 +146,6 @@ pub(crate) struct ArtifactContractModule {
     pub(crate) dependencies: Vec<ArtifactContractReference>,
     /// Top-level declarations retained in source order.
     pub(crate) declarations: Vec<ArtifactContractDeclaration>,
-    /// Complete canonical `.ncidl` source stored by the module library.
-    pub(crate) source: String,
 }
 
 /// Serialized identity and capability of one IDL declaration.
@@ -245,7 +243,6 @@ impl From<&PluginInspection> for InspectionArtifact {
                             name: declaration.qualified_name.clone(),
                         })
                         .collect(),
-                    source: module.source.clone(),
                 })
                 .collect(),
         };
@@ -657,7 +654,6 @@ pub(crate) fn sample_artifact() -> InspectionArtifact {
                     threading: Some(ArtifactThreading::ThreadLocal),
                     name: factory_name.to_string(),
                 }],
-                source: "#[version(1)] factory RootFactory {}".to_string(),
             }],
         },
     }

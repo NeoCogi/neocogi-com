@@ -1,13 +1,13 @@
 //! Canonical C ABI descriptions exported by generated contract libraries.
 //!
 //! Hosts and plugins compile typed call layouts, but neither embeds this graph.
-//! One fingerprint-qualified contract library owns the module name, source,
+//! One fingerprint-qualified contract library owns the module name,
 //! declaration identities, and exact dependency getter references.
 
 use crate::{NC_E_ABI_VERSION, NC_E_CONTRACT_MISMATCH, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcGuid, NcStaticUtf8, NcStatus};
 
 /// ABI version of [`NcContractModuleDescription`].
-pub const NC_CONTRACT_DESCRIPTION_ABI_VERSION: u32 = 1;
+pub const NC_CONTRACT_DESCRIPTION_ABI_VERSION: u32 = 2;
 
 /// Raw declaration-kind tag for an IDL struct.
 pub const NC_CONTRACT_DECLARATION_STRUCT: u32 = 1;
@@ -145,8 +145,6 @@ pub struct NcContractModuleDescription {
     pub declaration_count: u32,
     /// Top-level declarations in source order.
     pub declarations: *const NcContractDeclarationDescription,
-    /// Complete canonical `.ncidl` source for tooling and diagnostics.
-    pub source: NcStaticUtf8,
 }
 
 // SAFETY: Module descriptions are immutable library-owned pointer graphs.
@@ -244,10 +242,6 @@ pub unsafe fn validate_contract_module_description(description: *const NcContrac
             return NC_E_INVALID_ARG;
         }
     }
-    // SAFETY: The caller guarantees source string readability.
-    if unsafe { description.source.as_str() }.is_err() {
-        return NC_E_INVALID_ARG;
-    }
     NC_OK
 }
 
@@ -302,7 +296,6 @@ mod tests {
         dependencies: ptr::null(),
         declaration_count: DECLARATIONS.len() as u32,
         declarations: DECLARATIONS.as_ptr(),
-        source: NcStaticUtf8::from_static("#[version(1)] trait IValue {}"),
     };
 
     #[test]
@@ -338,19 +331,17 @@ mod tests {
             assert_eq!(core::mem::size_of::<NcContractModuleReference>(), 56);
             assert_eq!(core::mem::size_of::<NcContractDependencyDescription>(), 56);
             assert_eq!(core::mem::size_of::<NcContractDeclarationDescription>(), 48);
-            assert_eq!(core::mem::size_of::<NcContractModuleDescription>(), 120);
+            assert_eq!(core::mem::size_of::<NcContractModuleDescription>(), 104);
             assert_eq!(core::mem::offset_of!(NcContractModuleDescription, dependencies), 80);
             assert_eq!(core::mem::offset_of!(NcContractModuleDescription, declarations), 96);
-            assert_eq!(core::mem::offset_of!(NcContractModuleDescription, source), 104);
         }
         if cfg!(target_pointer_width = "32") {
             assert_eq!(core::mem::size_of::<NcContractModuleReference>(), 52);
             assert_eq!(core::mem::size_of::<NcContractDependencyDescription>(), 52);
             assert_eq!(core::mem::size_of::<NcContractDeclarationDescription>(), 36);
-            assert_eq!(core::mem::size_of::<NcContractModuleDescription>(), 84);
+            assert_eq!(core::mem::size_of::<NcContractModuleDescription>(), 76);
             assert_eq!(core::mem::offset_of!(NcContractModuleDescription, dependencies), 64);
             assert_eq!(core::mem::offset_of!(NcContractModuleDescription, declarations), 72);
-            assert_eq!(core::mem::offset_of!(NcContractModuleDescription, source), 76);
         }
     }
 }

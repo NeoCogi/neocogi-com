@@ -70,7 +70,6 @@ mod tests {
         dependencies: ptr::null(),
         declaration_count: 0,
         declarations: ptr::null(),
-        source: NcStaticUtf8::from_static(""),
     };
 
     /// Returns the facade test's immutable native module description.

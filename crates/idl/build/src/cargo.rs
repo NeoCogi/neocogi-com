@@ -143,11 +143,7 @@ impl Module {
                 Ok(artifact.clone())
             })
             .collect::<Result<Vec<_>, BuildError>>()?;
-        let own_source = records
-            .get(&module_name)
-            .map(|record| record.source.as_str())
-            .ok_or_else(|| BuildError::Idl("resolved graph lost the crate's own source record".into()))?;
-        let artifact = native::build(resolved_module, own_source, &exact_dependencies, &output_dir)?;
+        let artifact = native::build(resolved_module, &exact_dependencies, &output_dir)?;
         let artifact_bytes = serde_json::to_vec_pretty(&artifact).map_err(|source_error| BuildError::Json {
             operation: "encode native contract artifact record",
             path: output_dir.clone(),

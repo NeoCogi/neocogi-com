@@ -47,7 +47,6 @@ fn diff_contract_modules(differences: &mut Vec<String>, old: &[ArtifactContractM
                 push_changed_str(differences, &format!("{path}.abi_fingerprint"), &old.abi_fingerprint, &new.abi_fingerprint);
                 push_changed_debug(differences, &format!("{path}.dependencies"), &old.dependencies, &new.dependencies);
                 push_changed_debug(differences, &format!("{path}.declarations"), &old.declarations, &new.declarations);
-                push_changed_str(differences, &format!("{path}.source"), &old.source, &new.source);
             }
             (Some(old), None) => differences.push(format!("removed: contract module {id} ({})", old.name)),
             (None, Some(new)) => differences.push(format!("added: contract module {id} ({})", new.name)),
