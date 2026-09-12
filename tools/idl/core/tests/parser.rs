@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use neocogi_idl::{AbiType, DeclarationKind, EnumNames, EnumRepr, Receiver, Threading, VariantFields, parse_module};
+use neocogi_idl::{AbiType, DeclarationKind, EnumNames, EnumRepr, ModuleSource, Receiver, Threading, VariantFields, parse_module, parse_module_parts};
 
 /// Exercises every initial declaration kind and ownership spelling together.
 #[test]
@@ -264,4 +264,61 @@ fn rejects_duplicate_version_sources() {
     )
     .unwrap_err();
     assert!(error.to_string().contains("exactly one"));
+}
+
+/// Confirms independent source parts compose one canonically ordered module.
+#[test]
+fn merges_module_parts_without_file_order_semantics() {
+    let geometry = ModuleSource {
+        path: Path::new("neocogi/ui/geometry.ncidl"),
+        text: "#[version(1)] struct Size { width: u32, height: u32 }",
+    };
+    let widgets = ModuleSource {
+        path: Path::new("neocogi/ui/widgets.ncidl"),
+        text: "#[version(1)] trait IWidget { fn resize(&mut self, size: Size) -> Result<()>; }",
+    };
+
+    let forward = parse_module_parts(Path::new("neocogi/ui"), &[geometry, widgets]).unwrap();
+    let reverse = parse_module_parts(Path::new("neocogi/ui"), &[widgets, geometry]).unwrap();
+
+    assert_eq!(forward.name.to_string(), "neocogi.ui");
+    assert_eq!(
+        forward.declarations.iter().map(|item| item.name.as_str()).collect::<Vec<_>>(),
+        ["IWidget", "Size"]
+    );
+    assert_eq!(forward.declarations, reverse.declarations);
+}
+
+/// Confirms duplicate members identify both declarations with stable snippets.
+#[test]
+fn reports_both_locations_for_duplicate_fields() {
+    let error = parse_module(
+        Path::new("neocogi/ui.ncidl"),
+        "#[version(1)]\nstruct Size {\n    width: u32,\n    width: f32,\n}",
+    )
+    .unwrap_err()
+    .to_string();
+
+    assert!(error.contains("error[EIDL001]: duplicate field \"width\""), "{error}");
+    assert!(error.contains("neocogi/ui.ncidl:4:5"), "{error}");
+    assert!(error.contains("neocogi/ui.ncidl:3:5"), "{error}");
+    assert!(error.contains("first declared here"), "{error}");
+}
+
+/// Confirms duplicate declarations across parts identify both source files.
+#[test]
+fn reports_both_parts_for_duplicate_declarations() {
+    let first = ModuleSource {
+        path: Path::new("neocogi/ui/geometry.ncidl"),
+        text: "#[version(1)] struct Size { width: u32 }",
+    };
+    let second = ModuleSource {
+        path: Path::new("neocogi/ui/layout.ncidl"),
+        text: "#[version(1)] struct Size { width: f32 }",
+    };
+    let error = parse_module_parts(Path::new("neocogi/ui"), &[second, first]).unwrap_err().to_string();
+
+    assert!(error.contains("error[EIDL010]: duplicate declaration \"Size\""), "{error}");
+    assert!(error.contains("neocogi/ui/layout.ncidl:1:22"), "{error}");
+    assert!(error.contains("neocogi/ui/geometry.ncidl:1:22"), "{error}");
 }

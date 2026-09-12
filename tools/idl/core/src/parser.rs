@@ -1,6 +1,10 @@
 //! Parser for the intentionally small Rust-like NeoCogi IDL grammar.
 
-use std::{collections::HashSet, fmt, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    fmt,
+    path::Path,
+};
 
 use neocogi_com_core::NcGuid;
 use proc_macro2::Span;
@@ -10,11 +14,12 @@ use syn::{
     parse::{Parse, ParseStream},
     parse_str,
     punctuated::Punctuated,
+    spanned::Spanned,
 };
 
 use crate::{
     AbiType, BitEnum, BitFlag, Class, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, Factory, Field, Import, Interface,
-    Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, Struct, Threading, VariantFields,
+    Diagnostic, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile, SourceSpan, Struct, Threading, VariantFields,
 };
 
 mod keyword {
@@ -32,9 +37,8 @@ pub enum ParseError {
     ModulePath(ModulePathError),
     /// The source violated the supported IDL grammar or structural rules.
     Source(
-        /// Human-readable parser diagnostic including span context when Syn
-        /// can provide it.
-        String,
+        /// Structured compiler diagnostic with exact source annotations.
+        Diagnostic,
     ),
 }
 
@@ -43,7 +47,7 @@ impl fmt::Display for ParseError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ModulePath(error) => write!(formatter, "{error}"),
-            Self::Source(error) => formatter.write_str(error),
+            Self::Source(error) => write!(formatter, "{error}"),
         }
     }
 }
@@ -57,22 +61,105 @@ impl From<ModulePathError> for ParseError {
     }
 }
 
-impl From<syn::Error> for ParseError {
-    /// Converts Syn's spanned diagnostic into the crate's stable error surface.
-    fn from(error: syn::Error) -> Self {
-        Self::Source(error.to_string())
-    }
+/// One borrowed source part supplied to [`parse_module_parts`].
+#[derive(Clone, Copy, Debug)]
+pub struct ModuleSource<'a> {
+    /// Portable source path relative to the configured IDL root.
+    pub path: &'a Path,
+    /// Exact UTF-8 contents of this part.
+    pub text: &'a str,
 }
 
 /// Parses one source file whose relative path defines its logical module name.
 pub fn parse_module(relative_path: &Path, source: &str) -> Result<Module, ParseError> {
     let name = ModuleName::from_relative_source(relative_path)?;
-    let syntax = parse_str::<ModuleSyntax>(source)?;
+    assemble_module(name, [ModuleSource { path: relative_path, text: source }])
+}
+
+/// Parses and merges every source part belonging to one logical IDL module.
+///
+/// `relative_directory` alone defines module identity. Part filenames and
+/// caller enumeration order are presentation details and never enter the ABI
+/// fingerprint. Each part must be a `.ncidl` file below that directory.
+pub fn parse_module_parts(relative_directory: &Path, parts: &[ModuleSource<'_>]) -> Result<Module, ParseError> {
+    let name = ModuleName::from_relative_directory(relative_directory)?;
+    for part in parts {
+        if part.path.extension().and_then(|extension| extension.to_str()) != Some("ncidl") || !part.path.starts_with(relative_directory) {
+            return Err(ParseError::Source(Diagnostic::new(
+                "EIDL002",
+                format!(
+                    "IDL part {} must be a .ncidl file below module directory {}",
+                    part.path.display(),
+                    relative_directory.display()
+                ),
+            )));
+        }
+    }
+    assemble_module(name, parts.iter().copied())
+}
+
+/// Parses source parts in portable path order and builds one canonical module.
+fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleSource<'a>>) -> Result<Module, ParseError> {
+    let mut parts = parts.into_iter().collect::<Vec<_>>();
+    parts.sort_by_key(|part| part.path.to_string_lossy().replace('\\', "/"));
+
+    let mut source_paths = HashSet::new();
+    let mut sources = Vec::with_capacity(parts.len());
+    let mut imports = Vec::new();
+    let mut declarations = BTreeMap::<String, Declaration>::new();
+    for part in parts {
+        let source_file = SourceFile::new(part.path, part.text);
+        if !source_paths.insert(source_file.path().to_owned()) {
+            return Err(ParseError::Source(
+                Diagnostic::new("EIDL003", format!("IDL module contains source path {:?} more than once", source_file.path())).with_source(&source_file),
+            ));
+        }
+        let mut syntax = parse_str::<ModuleSyntax>(part.text).map_err(|error| ParseError::Source(Diagnostic::from_syn(&source_file, error)))?;
+        syntax.attach_source(&source_file);
+        imports.extend(syntax.imports);
+        for declaration in syntax.declarations {
+            if let Some(previous) = declarations.get(&declaration.name) {
+                return Err(ParseError::Source(
+                    Diagnostic::new("EIDL010", format!("duplicate declaration {:?}", declaration.name))
+                        .with_sources(&[sources.as_slice(), std::slice::from_ref(&source_file)].concat())
+                        .primary(&declaration.span, "duplicate declaration")
+                        .secondary(&previous.span, "first declared here"),
+                ));
+            }
+            declarations.insert(declaration.name.clone(), declaration);
+        }
+        sources.push(source_file);
+    }
+
+    if declarations.is_empty() {
+        return Err(ParseError::Source(
+            Diagnostic::new("EIDL004", "an IDL module must declare at least one ABI item").with_sources(&sources),
+        ));
+    }
+
     Ok(Module {
         name,
-        imports: syntax.imports,
-        declarations: syntax.declarations,
+        sources,
+        imports: canonical_imports(imports),
+        declarations: declarations.into_values().collect(),
     })
+}
+
+/// Merges equivalent imports and sorts their modules and names canonically.
+fn canonical_imports(imports: Vec<Import>) -> Vec<Import> {
+    let mut grouped = BTreeMap::<String, (SourceSpan, BTreeSet<String>)>::new();
+    for import in imports {
+        let entry = grouped.entry(import.module).or_insert_with(|| (import.span, BTreeSet::new()));
+        entry.1.extend(import.names);
+    }
+    grouped
+        .into_iter()
+        .map(|(module, (span, names))| Import {
+            span,
+            module,
+            names: names.into_iter().collect(),
+        })
+        .collect()
 }
 
 /// Parsed top-level source before its path-derived module name is attached.
@@ -83,12 +170,24 @@ struct ModuleSyntax {
     declarations: Vec<Declaration>,
 }
 
+impl ModuleSyntax {
+    /// Attaches one source path recursively to every retained syntax range.
+    fn attach_source(&mut self, source: &SourceFile) {
+        for import in &mut self.imports {
+            import.span.attach(source);
+        }
+        for declaration in &mut self.declarations {
+            attach_declaration_source(declaration, source);
+        }
+    }
+}
+
 impl Parse for ModuleSyntax {
     /// Parses imports and declarations while rejecting every other Rust item.
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let mut imports = Vec::new();
         let mut declarations = Vec::new();
-        let mut declaration_names = HashSet::new();
+        let mut declaration_names = HashMap::new();
 
         while !input.is_empty() {
             let attributes = Attribute::parse_outer(input)?;
@@ -120,15 +219,12 @@ impl Parse for ModuleSyntax {
                 return Err(input.error("expected `use`, `struct`, `enum`, `bitenum`, `trait`, `class`, or `factory`"));
             };
 
-            if !declaration_names.insert(declaration.name.clone()) {
-                return Err(syn::Error::new(Span::call_site(), format!("duplicate declaration {:?}", declaration.name)));
+            if let Some(previous) = declaration_names.insert(declaration.name.clone(), declaration.span.clone()) {
+                return Err(duplicate_error("declaration", &declaration.name, &declaration.span, &previous));
             }
             declarations.push(declaration);
         }
 
-        if declarations.is_empty() {
-            return Err(input.error("an IDL module must declare at least one ABI item"));
-        }
         Ok(Self { imports, declarations })
     }
 }
@@ -150,11 +246,11 @@ fn parse_bit_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Re
     let body;
     braced!(body in input);
     let mut flags = Vec::new();
-    let mut names = HashSet::new();
+    let mut names = HashMap::new();
     while !body.is_empty() {
         let flag = parse_bit_flag(&body)?;
-        if !names.insert(flag.name.clone()) {
-            return Err(body.error(format!("duplicate bit enum flag {:?}", flag.name)));
+        if let Some(previous) = names.insert(flag.name.clone(), flag.span.clone()) {
+            return Err(duplicate_error("bit enum flag", &flag.name, &flag.span, &previous));
         }
         flags.push(flag);
     }
@@ -173,11 +269,11 @@ fn parse_struct(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Resu
     let body;
     braced!(body in input);
     let mut fields = Vec::new();
-    let mut names = HashSet::new();
+    let mut names = HashMap::new();
     while !body.is_empty() {
         let field = parse_named_field(&body)?;
-        if !names.insert(field.name.clone()) {
-            return Err(body.error(format!("duplicate field {:?}", field.name)));
+        if let Some(previous) = names.insert(field.name.clone(), field.span.clone()) {
+            return Err(duplicate_error("field", &field.name, &field.span, &previous));
         }
         fields.push(field);
     }
@@ -206,11 +302,11 @@ fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result
     let body;
     braced!(body in input);
     let mut variants = Vec::new();
-    let mut names = HashSet::new();
+    let mut names = HashMap::new();
     while !body.is_empty() {
         let variant = parse_enum_variant(&body)?;
-        if !names.insert(variant.name.clone()) {
-            return Err(body.error(format!("duplicate enum variant {:?}", variant.name)));
+        if let Some(previous) = names.insert(variant.name.clone(), variant.span.clone()) {
+            return Err(duplicate_error("enum variant", &variant.name, &variant.span, &previous));
         }
         variants.push(variant);
     }
@@ -275,6 +371,7 @@ fn parse_factory(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Res
 /// Combines common metadata with one declaration-specific payload.
 fn declaration(name: Ident, metadata: Attributes, kind: DeclarationKind) -> Declaration {
     Declaration {
+        span: SourceSpan::from_parser(name.span()),
         docs: metadata.docs,
         name: name.to_string(),
         id: metadata.id,
@@ -303,12 +400,12 @@ fn parse_methods(input: ParseStream<'_>) -> syn::Result<Vec<Method>> {
     let body;
     braced!(body in input);
     let mut methods = Vec::new();
-    let mut names = HashSet::new();
+    let mut names = HashMap::new();
     while !body.is_empty() {
         let source = body.parse::<TraitItemFn>()?;
         let method = lower_method(source)?;
-        if !names.insert(method.name.clone()) {
-            return Err(body.error(format!("duplicate method {:?}", method.name)));
+        if let Some(previous) = names.insert(method.name.clone(), method.span.clone()) {
+            return Err(duplicate_error("method", &method.name, &method.span, &previous));
         }
         methods.push(method);
     }
@@ -350,7 +447,7 @@ fn lower_method(source: TraitItemFn) -> syn::Result<Method> {
     };
 
     let mut parameters = Vec::new();
-    let mut names = HashSet::new();
+    let mut names = HashMap::new();
     for input in inputs {
         let FnArg::Typed(argument) = input else {
             return Err(syn::Error::new_spanned(input, "a method can have only one receiver"));
@@ -366,10 +463,15 @@ fn lower_method(source: TraitItemFn) -> syn::Result<Method> {
         }
         let name = pattern.ident.to_string();
         require_snake_case(&pattern.ident, "parameter")?;
-        if !names.insert(name.clone()) {
-            return Err(syn::Error::new_spanned(pattern, format!("duplicate parameter {name:?}")));
+        let span = SourceSpan::from_parser(pattern.ident.span());
+        if let Some(previous) = names.insert(name.clone(), span.clone()) {
+            return Err(duplicate_error("parameter", &name, &span, &previous));
         }
-        parameters.push(Parameter { name, ty: lower_type(&argument.ty)? });
+        parameters.push(Parameter {
+            span,
+            name,
+            ty: lower_type(&argument.ty)?,
+        });
     }
 
     let ReturnType::Type(_, output) = signature.output else {
@@ -377,6 +479,7 @@ fn lower_method(source: TraitItemFn) -> syn::Result<Method> {
     };
     let output = lower_result_output(&output)?;
     Ok(Method {
+        span: SourceSpan::from_parser(signature.ident.span()),
         docs,
         name: signature.ident.to_string(),
         receiver,
@@ -484,7 +587,10 @@ fn named_path(path: &syn::Path) -> syn::Result<NamedType> {
     if segments.is_empty() {
         return Err(syn::Error::new_spanned(path, "IDL type path cannot be empty"));
     }
-    Ok(NamedType { segments })
+    Ok(NamedType {
+        span: SourceSpan::from_parser(path.span()),
+        segments,
+    })
 }
 
 /// Parses one named field and consumes its required comma when another follows.
@@ -501,7 +607,12 @@ fn parse_named_field(input: ParseStream<'_>) -> syn::Result<Field> {
     if !input.is_empty() {
         input.parse::<Token![,]>()?;
     }
-    Ok(Field { docs, name: name.to_string(), ty })
+    Ok(Field {
+        span: SourceSpan::from_parser(name.span()),
+        docs,
+        name: name.to_string(),
+        ty,
+    })
 }
 
 /// Parses one enum variant including an optional explicit discriminant.
@@ -522,8 +633,13 @@ fn parse_enum_variant(input: ParseStream<'_>) -> syn::Result<EnumVariant> {
         let content;
         braced!(content in input);
         let mut values = Vec::new();
+        let mut names = HashMap::new();
         while !content.is_empty() {
-            values.push(parse_named_field(&content)?);
+            let field = parse_named_field(&content)?;
+            if let Some(previous) = names.insert(field.name.clone(), field.span.clone()) {
+                return Err(duplicate_error("variant field", &field.name, &field.span, &previous));
+            }
+            values.push(field);
         }
         if values.is_empty() {
             return Err(content.error("an empty named variant should be written without braces"));
@@ -543,6 +659,7 @@ fn parse_enum_variant(input: ParseStream<'_>) -> syn::Result<EnumVariant> {
         input.parse::<Token![,]>()?;
     }
     Ok(EnumVariant {
+        span: SourceSpan::from_parser(name.span()),
         docs,
         name: name.to_string(),
         discriminant,
@@ -561,7 +678,12 @@ fn parse_bit_flag(input: ParseStream<'_>) -> syn::Result<BitFlag> {
     if !input.is_empty() {
         input.parse::<Token![,]>()?;
     }
-    Ok(BitFlag { docs, name: name.to_string(), value })
+    Ok(BitFlag {
+        span: SourceSpan::from_parser(name.span()),
+        docs,
+        name: name.to_string(),
+        value,
+    })
 }
 
 /// Parses a nonnegative integer expression used as a fixed array length.
@@ -587,7 +709,7 @@ fn parse_signed_integer(expression: &Expr) -> syn::Result<i64> {
 
 /// Parses one dotted module import with one name or a braced name list.
 fn parse_import(input: ParseStream<'_>) -> syn::Result<Import> {
-    input.parse::<Token![use]>()?;
+    let use_token = input.parse::<Token![use]>()?;
     let mut module = vec![input.parse::<Ident>()?.to_string()];
     while input.peek(Token![.]) {
         input.parse::<Token![.]>()?;
@@ -625,7 +747,94 @@ fn parse_import(input: ParseStream<'_>) -> syn::Result<Import> {
             return Err(input.error(format!("duplicate import name {name:?}")));
         }
     }
-    Ok(Import { module: module.join("."), names })
+    Ok(Import {
+        span: SourceSpan::from_parser(use_token.span),
+        module: module.join("."),
+        names,
+    })
+}
+
+/// Produces one syntax error with both duplicate and original declarations.
+fn duplicate_error(role: &str, name: &str, current: &SourceSpan, previous: &SourceSpan) -> syn::Error {
+    let mut error = syn::Error::new(current.parser_span(), format!("duplicate {role} {name:?}"));
+    error.combine(syn::Error::new(previous.parser_span(), "first declared here"));
+    error
+}
+
+/// Attaches a source file to all spans nested under one declaration.
+fn attach_declaration_source(declaration: &mut Declaration, source: &SourceFile) {
+    declaration.span.attach(source);
+    match &mut declaration.kind {
+        DeclarationKind::Struct(record) => {
+            for field in &mut record.fields {
+                attach_field_source(field, source);
+            }
+        }
+        DeclarationKind::Enum(enumeration) => {
+            for variant in &mut enumeration.variants {
+                variant.span.attach(source);
+                match &mut variant.fields {
+                    VariantFields::Unit => {}
+                    VariantFields::Tuple(fields) => {
+                        for field in fields {
+                            attach_type_source(field, source);
+                        }
+                    }
+                    VariantFields::Named(fields) => {
+                        for field in fields {
+                            attach_field_source(field, source);
+                        }
+                    }
+                }
+            }
+        }
+        DeclarationKind::BitEnum(bit_enum) => {
+            for flag in &mut bit_enum.flags {
+                flag.span.attach(source);
+            }
+        }
+        DeclarationKind::Interface(interface) => {
+            attach_callable_source(&mut interface.bases, &mut interface.methods, source);
+        }
+        DeclarationKind::Class(class) => {
+            attach_callable_source(&mut class.required_interfaces, &mut class.methods, source);
+        }
+        DeclarationKind::Factory(factory) => {
+            attach_callable_source(&mut factory.required_interfaces, &mut factory.methods, source);
+        }
+    }
+}
+
+/// Attaches a source file to one field and all types nested inside it.
+fn attach_field_source(field: &mut Field, source: &SourceFile) {
+    field.span.attach(source);
+    attach_type_source(&mut field.ty, source);
+}
+
+/// Attaches a source file to bases, methods, parameters, and result types.
+fn attach_callable_source(bases: &mut [NamedType], methods: &mut [Method], source: &SourceFile) {
+    for base in bases {
+        base.span.attach(source);
+    }
+    for method in methods {
+        method.span.attach(source);
+        for parameter in &mut method.parameters {
+            parameter.span.attach(source);
+            attach_type_source(&mut parameter.ty, source);
+        }
+        attach_type_source(&mut method.output, source);
+    }
+}
+
+/// Attaches a source file to every named path nested in one ABI type.
+fn attach_type_source(ty: &mut AbiType, source: &SourceFile) {
+    match ty {
+        AbiType::Named(name) => name.span.attach(source),
+        AbiType::Borrowed(value) | AbiType::Slice(value) | AbiType::OutputSlice(value) | AbiType::Option(value) | AbiType::Array { element: value, .. } => {
+            attach_type_source(value, source)
+        }
+        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
+    }
 }
 
 /// Requires the Rust convention used by every generated type declaration and enum variant.

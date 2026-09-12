@@ -13,16 +13,29 @@ pub struct ModuleName {
 }
 
 impl ModuleName {
+    /// Derives a module name from one relative directory containing IDL parts.
+    ///
+    /// Unlike [`Self::from_relative_source`], every path component contributes
+    /// its complete name because no filename carries module identity.
+    pub fn from_relative_directory(path: &Path) -> Result<Self, ModulePathError> {
+        Self::from_relative_path(path, false)
+    }
+
     /// Derives a module name from one `.ncidl` path relative to an IDL root.
     ///
     /// Filesystem separators become dots and the final `.ncidl` extension is
     /// removed. Absolute paths, parent traversal, non-UTF-8 names, and segments
     /// that are not portable identifiers are rejected.
     pub fn from_relative_source(path: &Path) -> Result<Self, ModulePathError> {
+        Self::from_relative_path(path, true)
+    }
+
+    /// Validates either a source-file path or a module-directory path.
+    fn from_relative_path(path: &Path, strip_extension: bool) -> Result<Self, ModulePathError> {
         if path.is_absolute() {
             return Err(ModulePathError::Absolute);
         }
-        if path.extension().and_then(|extension| extension.to_str()) != Some("ncidl") {
+        if strip_extension && path.extension().and_then(|extension| extension.to_str()) != Some("ncidl") {
             return Err(ModulePathError::Extension);
         }
 
@@ -35,7 +48,7 @@ impl ModuleName {
                 return Err(ModulePathError::NonCanonical);
             };
             let text = component.to_str().ok_or(ModulePathError::NonUtf8)?;
-            let segment = if index + 1 == component_count {
+            let segment = if strip_extension && index + 1 == component_count {
                 text.strip_suffix(".ncidl").ok_or(ModulePathError::Extension)?
             } else {
                 text

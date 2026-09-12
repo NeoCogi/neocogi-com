@@ -2,9 +2,13 @@
 
 use neocogi_com_core::NcGuid;
 
+use crate::SourceSpan;
+
 /// One explicit import from another logical IDL module.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Import {
+    /// Complete import statement used for conflict diagnostics.
+    pub span: SourceSpan,
     /// Dotted name of the module that owns the imported declarations.
     pub module: String,
     /// Exact declaration names imported from the module.
@@ -23,6 +27,8 @@ pub struct DeclarationId {
 /// One source declaration together with its stable identity inputs.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Declaration {
+    /// Declared identifier used for duplicate and identity diagnostics.
+    pub span: SourceSpan,
     /// Documentation lines without Rust comment markers.
     pub docs: Vec<String>,
     /// Identifier exactly as declared in source.
@@ -62,6 +68,8 @@ pub struct BitEnum {
 /// One named constant in a bit-enum declaration.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BitFlag {
+    /// Declared flag identifier used for duplicate-value diagnostics.
+    pub span: SourceSpan,
     /// Documentation lines without comment markers.
     pub docs: Vec<String>,
     /// SCREAMING_SNAKE_CASE flag identifier exactly as declared.
@@ -86,6 +94,8 @@ pub struct Struct {
 /// One named field in a struct or named enum payload.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Field {
+    /// Declared field identifier and type used for layout diagnostics.
+    pub span: SourceSpan,
     /// Documentation lines without comment markers.
     pub docs: Vec<String>,
     /// Field identifier exactly as declared.
@@ -134,6 +144,8 @@ pub enum EnumNames {
 /// One enum variant and its optional payload.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EnumVariant {
+    /// Declared variant identifier used for discriminant diagnostics.
+    pub span: SourceSpan,
     /// Documentation lines without comment markers.
     pub docs: Vec<String>,
     /// Variant identifier exactly as declared.
@@ -204,6 +216,8 @@ pub enum Threading {
 /// One COM method declaration.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Method {
+    /// Declared method signature used for callable diagnostics.
+    pub span: SourceSpan,
     /// Documentation lines without comment markers.
     pub docs: Vec<String>,
     /// Method identifier exactly as declared.
@@ -228,6 +242,8 @@ pub enum Receiver {
 /// One named method parameter.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Parameter {
+    /// Declared parameter and type used for ownership diagnostics.
+    pub span: SourceSpan,
     /// Parameter identifier exactly as declared.
     pub name: String,
     /// Parsed ABI type expression.
@@ -235,8 +251,10 @@ pub struct Parameter {
 }
 
 /// One path naming an IDL declaration or built-in type.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NamedType {
+    /// Exact path expression used for name-resolution diagnostics.
+    pub span: SourceSpan,
     /// Path segments in source order without rewriting.
     pub segments: Vec<String>,
 }

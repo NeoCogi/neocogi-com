@@ -7,6 +7,7 @@
 
 #![deny(missing_docs)]
 
+mod diagnostic;
 mod model;
 mod parser;
 mod path;
@@ -17,7 +18,8 @@ pub use model::{
     AbiType, BitEnum, BitFlag, Class, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, Factory, Field, Import, Interface,
     Method, NamedType, Parameter, Receiver, Struct, Threading, VariantFields,
 };
-pub use parser::{ParseError, parse_module};
+pub use diagnostic::{Diagnostic, DiagnosticLabel, LabelStyle, SourceFile, SourcePosition, SourceSpan};
+pub use parser::{ModuleSource, ParseError, parse_module, parse_module_parts};
 pub use path::{ModuleName, ModulePathError};
 pub use resolve::{DeclarationIdentity, ResolutionError, ResolvedDeclaration, ResolvedDependency, ResolvedModule, ResolvedModules, resolve_modules};
 
@@ -26,9 +28,11 @@ pub use resolve::{DeclarationIdentity, ResolutionError, ResolvedDeclaration, Res
 pub struct Module {
     /// Logical dotted module name derived from the source path.
     pub name: ModuleName,
-    /// Explicit imports in source order.
+    /// Every source part in normalized path order.
+    pub sources: Vec<SourceFile>,
+    /// Explicit imports in canonical module and declaration-name order.
     pub imports: Vec<Import>,
-    /// ABI declarations in source order.
+    /// ABI declarations in canonical top-level name order.
     pub declarations: Vec<Declaration>,
 }
 
