@@ -33,9 +33,18 @@ Every generated interface has:
 - an `#[repr(C)]` header containing a vtable pointer and opaque object pointer;
 - an `#[repr(C)]` vtable whose prefix is `IUnknownVTable`;
 - an interface GUID;
-- a canonical ABI signature covering method order, names, receiver modes,
-  lowered parameters/returns, inherited interfaces, and referenced identities;
+- a precomputed declaration signature scoped to its exact typed IDL module revision;
 - descriptive method metadata for diagnostics and inspection.
+
+The IDL resolver computes the module fingerprint before target Rust compilation. It
+covers declaration names and versions, record fields, enum representations and
+variants, method order/names/receivers/parameters/returns, inheritance,
+threading, referenced declaration identities, and exact dependency revisions.
+It then derives each declaration signature from that fingerprint and the
+declaration ID. Distinct aggregates therefore remain distinct in typed
+descriptors, while any module revision change still changes every declaration
+signature. rustc emits the typed layouts, vtables, and descriptors plus the
+completed 32 bytes; it contains no contract serializer or SHA-256 implementation.
 
 `QueryInterface` matches both GUID and ABI signature. A GUID collision or a
 stale binding therefore cannot silently produce a typed pointer. A successful
@@ -120,7 +129,7 @@ does not store the original `.ncidl` source, Rust object state, implementation
 code, vtables, constructors, factory activation code, Cargo paths, or mutable
 registry state.
 
-The module fingerprint covers canonical IDL and exact dependency revisions.
+The module fingerprint covers canonical typed IDL and exact dependency revisions.
 Native filenames and getter symbols include the full fingerprint. Thus two
 incompatible revisions may both be mapped by the platform loader, after which
 the shared runtime can diagnose one logical module ID paired with two

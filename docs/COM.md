@@ -170,9 +170,12 @@ Object pointers carry either `ThreadLocal` or `ThreadSafe`. The latter is a
 positive producer promise enforced on generated implementations with
 `Send + Sync`; it can be weakened but not safely upgraded.
 
-Generated ABI signatures are always SHA-256 digests of their canonical typed
-streams. Dynamic and monolithic assemblies therefore perform the same exact
-identity and signature checks without a validation-mode build setting.
+`neocogi-idl-build` computes one SHA-256 fingerprint from the canonical typed
+module graph, derives a distinct signature for each declaration, and embeds
+the final 32-byte values. rustc compiles those constants and the complete typed
+descriptors; it does not serialize or hash contracts. Dynamic and monolithic
+assemblies therefore perform the same exact identity and signature checks
+without a validation-mode build setting.
 
 ## Typed source decoding
 

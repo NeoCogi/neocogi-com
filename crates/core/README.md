@@ -11,7 +11,7 @@ tested, but cross-release compatibility begins only after a future ratification.
 ## What the ABI contains
 
 - `NcStatus`, built-in `NC_*` status values, and `NcGuid`.
-- ABI type records and canonical SHA-256 signature records.
+- ABI type records and fixed views over generator-computed SHA-256 fingerprints.
 - `IUnknown`, generated interface headers and vtables, `ComPtr`, and `ComRef`.
 - object-description traits used by generated class and factory bindings.
 - canonical `NcContractModuleDescription` graphs and exact
@@ -40,6 +40,12 @@ duplicate canonical description graphs. When different builds link incompatible
 revisions of one logical module, their different native filenames can coexist;
 the shared runtime sees the common module ID and different fingerprints and
 returns `NC_E_CONTRACT_MISMATCH`.
+
+Contract hashing is not a core or compiler responsibility. The IDL build tool
+hashes the resolved typed graph and derives final declaration-scoped `[u8; 32]`
+values. Core retains the method, parameter, return, receiver, type, and
+aggregate-layout metadata needed for checked calls and inspection, then
+compares the precomputed bytes at runtime.
 
 `NcFactoryPluginDescription` identifies the plugin and its linked contract
 modules. It also records the root factory ID, threading promise, and activation
@@ -80,8 +86,8 @@ offset mutation, erased value tree, or runtime type registry.
 - No default `std` requirement: the core ABI is `no_std` and allocation-free.
 - `alloc` enables owned decoding and diagnostic helpers.
 - `std` implies `alloc` and adds standard error integrations.
-- Generated ABI signatures are always SHA-256 digests of canonical typed
-  streams; their representation is not feature-selectable.
+- Generated ABI signatures are always SHA-256 digests produced from canonical
+  typed IDL; their representation is not feature-selectable.
 
 The crate deliberately does not implement dynamic loading, process-global
 storage, object allocation, path discovery, trust policy, or plugin management.
