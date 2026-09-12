@@ -26,10 +26,15 @@ fn generates_rust_bindings_for_a_module_graph() {
     let ui_source = r#"
         use neocogi.render::{ITexture, Size};
 
+        /// Texture sampling filter.
         #[version(1)]
         #[dense]
         #[names(snake_case)]
-        enum Filter: u8 { Nearest = 0, Linear = 1 }
+        enum Filter: u8 {
+            /// Uses the nearest texel.
+            Nearest = 0,
+            Linear = 1,
+        }
 
         #[version(1)]
         bitenum WindowOptions: u16 {
@@ -56,23 +61,27 @@ fn generates_rust_bindings_for_a_module_graph() {
     let generated = neocogi_idl_build::generate_rust(&graph, "neocogi.ui").unwrap();
     let generated_render = neocogi_idl_build::generate_rust(&graph, "neocogi.render").unwrap();
     syn::parse_file(&generated).expect("generated bindings must be valid Rust syntax");
+    assert!(generated.lines().count() > 20, "generated bindings must use readable multiline formatting");
     assert!(generated.contains("com_class_description"));
     assert!(generated.contains("com_factory_description"));
     assert!(generated.contains("com_int_enum"));
     assert!(generated.contains("com_bit_enum"));
-    assert!(generated.contains("pub bitenum WindowOptions : u16"));
-    assert!(generated.contains("pub enum Filter : u8"));
-    assert!(generated.contains("pub const COUNT : usize = 2"));
-    assert!(generated.contains("pub const ALL : [Self ; Self :: COUNT] = [Self :: Nearest , Self :: Linear]"));
-    assert!(generated.contains("pub const NAMES : [& 'static str ; Self :: COUNT] = [\"nearest\" , \"linear\"]"));
+    assert!(generated.contains("pub bitenum WindowOptions: u16"));
+    assert!(generated.contains("pub enum Filter: u8"));
+    assert!(generated.contains("/// Texture sampling filter."));
+    assert!(generated.contains("/// Uses the nearest texel."));
+    assert!(!generated.contains("#[doc ="));
+    assert!(generated.contains("pub const COUNT: usize = 2"));
+    assert!(generated.contains("pub const ALL: [Self; Self::COUNT]"));
+    assert!(generated.contains("pub const NAMES: [&'static str; Self::COUNT]"));
     assert!(generated.contains("pub const fn canonical_name"));
     assert!(!generated.contains("fn index"));
     assert!(generated.contains("trait UiFactory"));
     assert!(generated.contains("threading = shared"));
     assert!(generated.contains("NcCopyToBufferOffset"));
-    assert!(generated_render.contains("pub status : :: neocogi_com :: NcStatus"));
-    assert!(generated_render.contains("com_struct (deserialize)"));
-    assert!(!generated.contains("std :: any :: Any"));
+    assert!(generated_render.contains("pub status: ::neocogi_com::NcStatus"));
+    assert!(generated_render.contains("com_struct(deserialize)"));
+    assert!(!generated.contains("std::any::Any"));
     assert!(!generated.contains("constructor"));
 }
 
@@ -93,7 +102,8 @@ fn preserves_documentation_without_making_it_an_abi_input() {
     let graph = resolve_modules(vec![source]).unwrap();
     let generated = neocogi_idl_build::generate_rust(&graph, "example.value").unwrap();
 
-    assert!(generated.contains("Public generated value."));
-    assert!(generated.contains("Copied numeric payload."));
-    assert!(generated.contains("pub number : u64"));
+    assert!(generated.contains("/// Public generated value."));
+    assert!(generated.contains("/// Copied numeric payload."));
+    assert!(!generated.contains("#[doc ="));
+    assert!(generated.contains("pub number: u64"));
 }
