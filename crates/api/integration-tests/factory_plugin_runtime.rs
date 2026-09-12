@@ -46,7 +46,8 @@ factory_plugin! {
     factory = ExampleFactoryImplementation,
 }
 
-/// Verifies canonical contract registration and typed root activation together.
+/// Verifies one facade observes registration and typed activation through the
+/// linked registry, in both shared-runtime and intentional static modes.
 #[test]
 fn generated_contract_factory_activates_without_a_class_table() {
     let runtime = Runtime::default();
@@ -75,7 +76,8 @@ fn generated_contract_factory_activates_without_a_class_table() {
     assert_eq!(info.qualified_name, "nc.tests.generated_factory_plugin");
 }
 
-/// Verifies the common loader detects a real factory DSO and its exact contract.
+/// Verifies the linked runtime loads a real factory DSO, publishes its exact
+/// contract, and exposes its root through the same host-visible registry.
 #[test]
 fn dynamic_factory_plugin_links_the_exact_contract_dso() {
     let library = build_dynamic_fixture();

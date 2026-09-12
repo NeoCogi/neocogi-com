@@ -3,6 +3,13 @@
 `neocogi-com-runtime-sys` contains link-time declarations for the C ABI exported by a
 `libnc_com_shared_runtime` shared library.
 
+This is a client binding, not another runtime instance: it contains no registry
+or mutable runtime state. When Cargo unifies the shared-runtime feature through
+an application and its plugins, every emitted external call resolves to the
+same loader-owned shared object and therefore the same registry. That feature
+unification is intentional. Only `static-runtime` must be kept out of separate
+plugin DSOs, because static linkage would create an implementation in each image.
+
 This crate intentionally has no runtime implementation. It re-exports
 `neocogi-com-core` ABI types and declares `nc_com_runtime_abi_version` plus the six
 versioned runtime table getters. Callers must check the runtime ABI version

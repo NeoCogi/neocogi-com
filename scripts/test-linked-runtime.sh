@@ -18,7 +18,9 @@ if ! command -v rustup >/dev/null 2>&1 || ! rustup run nightly cargo --version >
 fi
 
 target_dir="${CARGO_TARGET_DIR:-target/linked-runtime}"
-cargo build -p neocogi-com-runtime --locked --target-dir "$target_dir"
+# The runtime package is normally an rlib consumed by cargo-neocogi's generated
+# root. This direct-link fixture supplies that one cdylib root itself.
+cargo rustc -p neocogi-com-runtime --lib --crate-type cdylib --locked --target-dir "$target_dir"
 
 runtime_dir="$(cd "$target_dir/debug" && pwd)"
 runtime_deps_dir="$runtime_dir/deps"
@@ -54,11 +56,8 @@ listed="$(run_linked_cargo test -p neocogi-com --features runtime --locked \
 printf '%s\n' "$listed"
 
 required_tests=(
-  "runtime_is_shareable_as_process_wide_state"
-  "runtime_exposes_validated_descriptor_without_registration"
-  "runtime_loads_shared_library_and_constructs_class"
-  "contract_crate_workflow_example_passes"
-  "stable_debug_producer_component_is_abi_compatible"
+  "generated_contract_factory_activates_without_a_class_table"
+  "dynamic_factory_plugin_links_the_exact_contract_dso"
 )
 for required_test in "${required_tests[@]}"; do
   if ! grep -Fq "$required_test: test" <<<"$listed"; then

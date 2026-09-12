@@ -136,7 +136,9 @@ contains a direct factory record and canonical contract-module graph.
 - `std` (default) enables standard-library integrations and allocation.
 - `alloc` enables generated heap-backed objects and owned data helpers.
 - `macros` (default) exposes implementation/generation macros.
-- `runtime` links the shared-runtime facade and implies `std`.
+- `runtime` links the shared-runtime facade and implies `std`. Unification of
+  this feature is intentional: the facade contains no registry state and all
+  calls resolve to the same process-loaded runtime shared object.
 - `static-runtime` links one runtime into the final binary.
 
 This is not Windows COM, a source-reflection system, a sandbox, or a plugin

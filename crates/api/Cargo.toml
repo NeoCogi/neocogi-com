@@ -62,6 +62,8 @@ default = ["macros", "std"]
 macros = ["dep:neocogi-com-macros"]
 std = ["alloc", "neocogi-com-core/std"]
 alloc = ["neocogi-com-core/alloc"]
+# Shared-mode unification is intentional: every facade resolves the same
+# process registry from libnc_com_shared_runtime.
 runtime = ["std", "dep:neocogi-com-runtime-sys"]
 # Static/browser hosts own one instance of the existing runtime implementation.
 static-runtime = ["runtime", "neocogi-com-runtime-sys/static-runtime"]
@@ -81,4 +83,4 @@ path = "integration-tests/inheritance.rs"
 [[test]]
 name = "factory_plugin_runtime"
 path = "integration-tests/factory_plugin_runtime.rs"
-required-features = ["static-runtime"]
+required-features = ["runtime"]

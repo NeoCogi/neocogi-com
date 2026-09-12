@@ -15,7 +15,9 @@ $targetDir = if ($env:CARGO_TARGET_DIR) {
     "target/linked-runtime"
 }
 
-& cargo build -p neocogi-com-runtime --locked --target-dir $targetDir
+# The runtime package is normally an rlib consumed by cargo-neocogi's generated
+# root. This direct-link fixture supplies that one DLL root itself.
+& cargo rustc -p neocogi-com-runtime --lib --crate-type cdylib --locked --target-dir $targetDir
 if ($LASTEXITCODE -ne 0) {
     throw "failed to build neocogi-com-runtime"
 }
@@ -53,11 +55,8 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host $listed
 
 $requiredTests = @(
-    "runtime_is_shareable_as_process_wide_state",
-    "runtime_exposes_validated_descriptor_without_registration",
-    "runtime_loads_shared_library_and_constructs_class",
-    "contract_crate_workflow_example_passes",
-    "stable_debug_producer_component_is_abi_compatible"
+    "generated_contract_factory_activates_without_a_class_table",
+    "dynamic_factory_plugin_links_the_exact_contract_dso"
 )
 foreach ($requiredTest in $requiredTests) {
     if (-not $listed.Contains("${requiredTest}: test")) {

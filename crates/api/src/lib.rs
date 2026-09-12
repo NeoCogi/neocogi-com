@@ -44,6 +44,11 @@
 //! `Runtime` facade backed by the linked `libnc_com_shared_runtime` shared library.
 //! Hosts still choose which factory plugins to accept, but successful dynamic
 //! plugin loads and their exact contract libraries remain mapped until process exit.
+//! The facade and `neocogi-com-runtime-sys` contain no registry state. Cargo
+//! feature unification may compile the facade into multiple dependents, but
+//! their external calls resolve to the same loader-owned shared object and
+//! therefore the same process registry. Static runtime linkage is reserved for
+//! a single monolithic executable or browser module.
 //!
 //! Interface casts are performed through [`IUnknown`] / `QueryInterface`, not by
 //! pointer casts. `QueryInterface` checks both interface ID and generated ABI
@@ -59,7 +64,7 @@
 //! capability the source for typed pointers and factory metadata. A
 //! thread-safe pointer can be explicitly weakened to a thread-local owner or
 //! borrow without changing the underlying COM reference.
-//! [`Runtime::activate_plugin_factory`] checks the generated root factory's
+//! `Runtime::activate_plugin_factory` checks the generated root factory's
 //! identity, signature, and threading capability before returning its typed
 //! pointer. Later construction is expressed by ordinary IDL factory methods.
 //!
@@ -257,13 +262,13 @@
 //! New IDL plugins expose [`NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL`] through
 //! [`export_factory_plugin!`]. Their [`NcFactoryPluginDescription`] contains
 //! exact [`NcContractModuleReference`] values and one root-factory bootstrap,
-//! with no class table or erased argument frame. [`factory_plugin!`] derives
+//! with no class table or erased argument frame. `factory_plugin!` derives
 //! root identity and threading from the generated IDL factory associated by
-//! [`com_factory`]. Static hosts call
-//! [`Runtime::register_factory_plugin_description`]; dynamic hosts call
-//! [`Runtime::load_plugin_library`], which requires the factory-description
+//! `com_factory`. Static hosts call
+//! `Runtime::register_factory_plugin_description`; dynamic hosts call
+//! `Runtime::load_plugin_library`, which requires the factory-description
 //! entrypoint. Hosts obtain the typed root with
-//! [`Runtime::activate_plugin_factory`] and perform later construction through
+//! `Runtime::activate_plugin_factory` and perform later construction through
 //! ordinary typed factory methods.
 //!
 //! Generated interfaces expose

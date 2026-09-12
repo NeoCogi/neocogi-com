@@ -51,7 +51,9 @@ run_linked_facade_smoke_tests() {
   echo
   echo "==> [$toolchain] $row"
 
-  cargo "+$toolchain" build -p neocogi-com-runtime "${cargo_args[@]}"
+  # cargo-neocogi normally supplies the runtime cdylib root. This direct-link
+  # matrix creates the equivalent root for each compiler/profile combination.
+  cargo "+$toolchain" rustc -p neocogi-com-runtime --lib --crate-type cdylib "${cargo_args[@]}"
 
   local runtime_dir
   runtime_dir="$(cd "$target_dir/$profile" && pwd)"
@@ -85,29 +87,25 @@ run_linked_facade_smoke_tests() {
       cargo "+$toolchain" "$@"
   }
 
-  local com_usage_test="runtime_is_shareable_as_process_wide_state"
-  local shared_library_test="runtime_loads_shared_library_and_constructs_class"
+  local registration_test="generated_contract_factory_activates_without_a_class_table"
+  local dynamic_plugin_test="dynamic_factory_plugin_links_the_exact_contract_dso"
   local listed
   listed="$(run_linked_cargo test -p neocogi-com --features runtime \
-    --test com_usage "${cargo_args[@]}" -- --list)"
+    --test factory_plugin_runtime "${cargo_args[@]}" -- --list)"
   printf '%s\n' "$listed"
-  if ! grep -Fq "$com_usage_test: test" <<<"$listed"; then
-    echo "linked build-flag test was not discovered: $com_usage_test" >&2
+  if ! grep -Fq "$registration_test: test" <<<"$listed"; then
+    echo "linked build-flag test was not discovered: $registration_test" >&2
     exit 1
   fi
-
-  listed="$(run_linked_cargo test -p neocogi-com --features runtime \
-    --test shared_library_component "${cargo_args[@]}" -- --list)"
-  printf '%s\n' "$listed"
-  if ! grep -Fq "$shared_library_test: test" <<<"$listed"; then
-    echo "linked build-flag test was not discovered: $shared_library_test" >&2
+  if ! grep -Fq "$dynamic_plugin_test: test" <<<"$listed"; then
+    echo "linked build-flag test was not discovered: $dynamic_plugin_test" >&2
     exit 1
   fi
 
   run_linked_cargo test -p neocogi-com --features runtime \
-    --test com_usage "${cargo_args[@]}" "$com_usage_test" -- --exact
+    --test factory_plugin_runtime "${cargo_args[@]}" "$registration_test" -- --exact
   run_linked_cargo test -p neocogi-com --features runtime \
-    --test shared_library_component "${cargo_args[@]}" "$shared_library_test" -- --exact
+    --test factory_plugin_runtime "${cargo_args[@]}" "$dynamic_plugin_test" -- --exact
 }
 
 run_toolchain_matrix() {
