@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use neocogi_idl::{parse_module, resolve_modules};
+use neocogi_idl::{ModuleSource, parse_module, parse_module_parts, resolve_modules};
 
 /// Parses a fixture while preserving path-derived identity.
 fn module(path: &str, source: &str) -> neocogi_idl::Module {
@@ -238,6 +238,101 @@ fn rejects_cross_module_identity_collisions() {
 
     let error = resolve_modules(vec![first, second]).unwrap_err();
     assert!(error.to_string().contains("reuses the ID assigned"));
+}
+
+/// Confirms enum value collisions identify both cases instead of only naming
+/// the later value.
+#[test]
+fn reports_both_locations_for_duplicate_enum_discriminants() {
+    let source = module("neocogi/ui.ncidl", "#[version(1)]\nenum State: u8 {\n    Ready = 1,\n    Running = 1,\n}");
+    let error = resolve_modules(vec![source]).unwrap_err().to_string();
+
+    assert!(error.contains("error[EIDL046]: enum State variant Running repeats discriminant 1"), "{error}");
+    assert!(error.contains("neocogi/ui.ncidl:4:5"), "{error}");
+    assert!(error.contains("neocogi/ui.ncidl:3:5"), "{error}");
+    assert!(error.contains("discriminant first assigned here"), "{error}");
+}
+
+/// Confirms type-category errors point to both the invalid use and the
+/// declaration that determines the actual category.
+#[test]
+fn reports_definition_for_mismatched_field_type() {
+    let parts = [
+        ModuleSource {
+            path: Path::new("neocogi/ui/rendering.ncidl"),
+            text: "#[version(1)] trait ITexture {}",
+        },
+        ModuleSource {
+            path: Path::new("neocogi/ui/assets.ncidl"),
+            text: "#[version(1)] struct Asset { texture: ITexture }",
+        },
+    ];
+    let source = parse_module_parts(Path::new("neocogi/ui"), &parts).unwrap();
+    let error = resolve_modules(vec![source]).unwrap_err().to_string();
+
+    assert!(
+        error.contains("error[EIDL060]: struct Asset field texture must use a copied value type"),
+        "{error}"
+    );
+    assert!(error.contains("neocogi/ui/assets.ncidl:1:39"), "{error}");
+    assert!(error.contains("neocogi/ui/rendering.ncidl:1:21"), "{error}");
+    assert!(error.contains("found interface"), "{error}");
+    assert!(error.contains("copied struct, enum, or bit enum"), "{error}");
+}
+
+/// Confirms source and module enumeration permutations produce exactly the
+/// same semantic diagnostic text.
+#[test]
+fn semantic_diagnostics_are_independent_of_input_order() {
+    let first = module("example/first.ncidl", "#[version(1)] struct Value { missing: Missing }");
+    let second = module("example/second.ncidl", "#[version(1)] struct Other { value: u32 }");
+
+    let forward = resolve_modules(vec![first.clone(), second.clone()]).unwrap_err().to_string();
+    let reverse = resolve_modules(vec![second, first]).unwrap_err().to_string();
+
+    assert_eq!(forward, reverse);
+    assert!(forward.contains("error[EIDL070]: unknown IDL type \"Missing\""), "{forward}");
+}
+
+/// Confirms unrelated semantic failures are reported in one compiler run and
+/// rendered in source order rather than validation traversal order.
+#[test]
+fn collects_independent_type_errors() {
+    let source = module(
+        "example/errors.ncidl",
+        r#"
+            #[version(1)] struct Alpha { missing: Missing }
+            #[version(1)] struct Beta { text: String }
+        "#,
+    );
+    let error = resolve_modules(vec![source]).unwrap_err();
+    let rendered = error.to_string();
+
+    assert_eq!(error.diagnostics.len(), 2);
+    assert!(rendered.contains("unknown IDL type \"Missing\""), "{rendered}");
+    assert!(rendered.contains("struct Beta field text must use a copied value type"), "{rendered}");
+    assert!(rendered.find("unknown IDL type").unwrap() < rendered.find("struct Beta field").unwrap());
+}
+
+/// Confirms recursive copied records fail in the IDL compiler with their
+/// complete layout cycle instead of failing later in generated Rust.
+#[test]
+fn rejects_recursive_value_layouts() {
+    let source = module(
+        "example/recursive.ncidl",
+        r#"
+            #[version(1)] struct First { second: Option<Second> }
+            #[version(1)] struct Second { first: First }
+        "#,
+    );
+    let error = resolve_modules(vec![source]).unwrap_err().to_string();
+
+    assert!(
+        error.contains("error[EIDL063]: recursive copied-value layout: First -> Second -> First"),
+        "{error}"
+    );
+    assert!(error.contains("this field closes the recursive layout"), "{error}");
+    assert!(error.contains("finite inline size"), "{error}");
 }
 
 /// Confirms explicit IDs preserve exact UUID bytes and declaration names.

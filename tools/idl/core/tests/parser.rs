@@ -305,6 +305,41 @@ fn reports_both_locations_for_duplicate_fields() {
     assert!(error.contains("first declared here"), "{error}");
 }
 
+/// Confirms every repeated named member reports its original declaration.
+#[test]
+fn reports_original_locations_for_all_duplicate_member_kinds() {
+    let cases = [
+        ("#[version(1)] enum State { Ready, Ready }", "duplicate enum variant \"Ready\""),
+        (
+            "#[version(1)] bitenum Flags: u8 { ENABLED = 1, ENABLED = 2 }",
+            "duplicate bit enum flag \"ENABLED\"",
+        ),
+        (
+            "#[version(1)] trait IService { fn load(&self) -> Result<()>; fn load(&self) -> Result<()>; }",
+            "duplicate method \"load\"",
+        ),
+        (
+            "#[version(1)] trait IService { fn load(&self, key: u32, key: u64) -> Result<()>; }",
+            "duplicate parameter \"key\"",
+        ),
+        (
+            "#[version(1)] enum Event { Resize { width: u32, width: u64 } }",
+            "duplicate variant field \"width\"",
+        ),
+        (
+            "use example.types::{Value, Value}; #[version(1)] struct Local { value: u32 }",
+            "duplicate import name \"Value\"",
+        ),
+    ];
+
+    for (source, expected) in cases {
+        let error = parse_module(Path::new("example/duplicates.ncidl"), source).unwrap_err().to_string();
+        assert!(error.contains(expected), "expected {expected:?} in:\n{error}");
+        assert!(error.contains("first declared here"), "{error}");
+        assert_eq!(error.matches("example/duplicates.ncidl:").count(), 2, "{error}");
+    }
+}
+
 /// Confirms duplicate declarations across parts identify both source files.
 #[test]
 fn reports_both_parts_for_duplicate_declarations() {

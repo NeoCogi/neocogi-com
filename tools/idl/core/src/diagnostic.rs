@@ -240,6 +240,16 @@ impl Diagnostic {
         }
         diagnostic
     }
+
+    /// Compares diagnostics by primary location, code, and message.
+    pub(crate) fn stable_cmp(&self, other: &Self) -> Ordering {
+        let own_span = self.labels.iter().find(|label| label.style == LabelStyle::Primary).map(|label| &label.span);
+        let other_span = other.labels.iter().find(|label| label.style == LabelStyle::Primary).map(|label| &label.span);
+        own_span
+            .cmp(&other_span)
+            .then_with(|| self.code.cmp(&other.code))
+            .then_with(|| self.message.cmp(&other.message))
+    }
 }
 
 impl fmt::Display for Diagnostic {

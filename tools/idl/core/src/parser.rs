@@ -727,30 +727,27 @@ fn parse_import(input: ParseStream<'_>) -> syn::Result<Import> {
         if names.is_empty() {
             return Err(body.error("IDL import groups cannot be empty"));
         }
-        names
-            .into_iter()
-            .map(|name| {
-                require_upper_camel_case(&name, "imported declaration")?;
-                Ok(name.to_string())
-            })
-            .collect::<syn::Result<Vec<_>>>()?
+        names.into_iter().collect::<Vec<_>>()
     } else {
-        let name = input.parse::<Ident>()?;
-        require_upper_camel_case(&name, "imported declaration")?;
-        vec![name.to_string()]
+        vec![input.parse::<Ident>()?]
     };
     input.parse::<Token![;]>()?;
 
-    let mut unique_names = HashSet::new();
-    for name in &names {
-        if !unique_names.insert(name) {
-            return Err(input.error(format!("duplicate import name {name:?}")));
+    let mut unique_names = HashMap::new();
+    let mut normalized_names = Vec::with_capacity(names.len());
+    for name in names {
+        require_upper_camel_case(&name, "imported declaration")?;
+        let normalized = name.to_string();
+        let span = SourceSpan::from_parser(name.span());
+        if let Some(previous) = unique_names.insert(normalized.clone(), span.clone()) {
+            return Err(duplicate_error("import name", &normalized, &span, &previous));
         }
+        normalized_names.push(normalized);
     }
     Ok(Import {
         span: SourceSpan::from_parser(use_token.span),
         module: module.join("."),
-        names,
+        names: normalized_names,
     })
 }
 

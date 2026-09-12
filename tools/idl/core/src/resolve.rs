@@ -1,13 +1,16 @@
 //! Cross-module name resolution, ABI validation, and canonical identities.
 
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeSet, HashMap},
     fmt,
 };
 
 use neocogi_com_core::{NcGuid, guid_from_name, guid_from_qualified_name};
 
-use crate::{AbiType, BitEnum, Declaration, DeclarationKind, Enum, EnumRepr, Method, Module, NamedType, Threading, VariantFields, sha256::digest};
+use crate::{
+    AbiType, BitEnum, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, Method, Module, NamedType, SourceFile, SourceSpan, Threading, VariantFields,
+    sha256::digest,
+};
 
 /// UUID namespace reserved for canonical NeoCogi IDL identities.
 const NC_IDL_IDENTITY_NAMESPACE: NcGuid = guid_from_qualified_name("neocogi.idl.identity:v1");
@@ -142,20 +145,22 @@ impl ResolvedModules {
 /// Semantic failure found while resolving a complete IDL module graph.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolutionError {
-    /// Module being checked when the failure was found, when available.
-    pub module: Option<String>,
-    /// Specific violated identity, dependency, or ABI type rule.
-    pub message: String,
+    /// Independent diagnostics sorted by source location and error code when rendered.
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 impl fmt::Display for ResolutionError {
-    /// Adds module context to the underlying semantic diagnostic.
+    /// Renders the structured semantic diagnostic.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(module) = &self.module {
-            write!(formatter, "IDL module {module}: {}", self.message)
-        } else {
-            formatter.write_str(&self.message)
+        let mut diagnostics = self.diagnostics.iter().collect::<Vec<_>>();
+        diagnostics.sort_by(|left, right| left.stable_cmp(right));
+        for (index, diagnostic) in diagnostics.into_iter().enumerate() {
+            if index != 0 {
+                writeln!(formatter)?;
+            }
+            write!(formatter, "{diagnostic}")?;
         }
+        Ok(())
     }
 }
 
@@ -164,16 +169,26 @@ impl std::error::Error for ResolutionError {}
 /// Resolves imports, validates ABI positions, and fingerprints a module DAG.
 pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, ResolutionError> {
     if modules.is_empty() {
-        return Err(ResolutionError {
-            module: None,
-            message: "at least one IDL module is required".into(),
-        });
+        return Err(error(None, "at least one IDL module is required"));
     }
 
+    let mut modules = modules;
+    modules.sort_by(|left, right| {
+        left.name
+            .cmp(&right.name)
+            .then_with(|| left.sources.iter().map(SourceFile::path).cmp(right.sources.iter().map(SourceFile::path)))
+            .then_with(|| left.sources.iter().map(SourceFile::text).cmp(right.sources.iter().map(SourceFile::text)))
+    });
     let mut entries = build_entries(modules)?;
     connect_imports(&mut entries)?;
+    let mut diagnostics = Vec::new();
     for index in 0..entries.len() {
-        validate_module(index, &entries)?;
+        if let Err(error) = validate_module(index, &entries) {
+            diagnostics.extend(error.diagnostics);
+        }
+    }
+    if !diagnostics.is_empty() {
+        return Err(ResolutionError { diagnostics });
     }
 
     let mut states = vec![VisitState::Unvisited; entries.len()];
@@ -256,6 +271,8 @@ struct ModuleEntry {
 struct Symbol {
     /// Index of the module that owns this declaration.
     module: usize,
+    /// Index of the declaration inside its owning module.
+    declaration: usize,
     /// Stable derived or explicit declaration ID.
     id: NcGuid,
     /// Declaration category relevant to ABI position rules.
@@ -275,6 +292,18 @@ enum SymbolKind {
     Factory,
 }
 
+impl SymbolKind {
+    /// Returns the IDL declaration category used in type-mismatch messages.
+    fn description(self) -> &'static str {
+        match self {
+            Self::Value => "copied value",
+            Self::Interface => "interface",
+            Self::Class => "class",
+            Self::Factory => "factory",
+        }
+    }
+}
+
 /// Depth-first traversal state for dependency fingerprinting.
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum VisitState {
@@ -288,23 +317,35 @@ enum VisitState {
 
 /// Creates graph nodes and rejects duplicate module or declaration IDs.
 fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionError> {
-    let mut module_names = HashSet::new();
-    let mut global_declaration_ids = HashMap::new();
+    let mut module_names = HashMap::<String, (SourceSpan, Vec<SourceFile>)>::new();
+    let mut global_declaration_ids = HashMap::<NcGuid, (String, SourceSpan, Vec<SourceFile>)>::new();
     let mut entries = Vec::with_capacity(modules.len());
     for module in modules {
         let name = module.name.to_string();
-        if !module_names.insert(name.clone()) {
-            return Err(error(None, format!("duplicate logical IDL module {name:?}")));
+        let module_span = module.declarations[0].span.clone();
+        if let Some((previous_span, previous_sources)) = module_names.insert(name.clone(), (module_span.clone(), module.sources.clone())) {
+            let sources = combined_sources(previous_sources, &module.sources);
+            return Err(ResolutionError {
+                diagnostics: vec![
+                    Diagnostic::new("EIDL011", format!("duplicate logical IDL module {name:?}"))
+                        .with_sources(&sources)
+                        .primary(&module_span, "second module supplied here")
+                        .secondary(&previous_span, "first module supplied here"),
+                ],
+            });
         }
         let module_id = derive_module_id(&name);
         let mut local_symbols = HashMap::new();
-        let mut declaration_ids = HashSet::new();
+        let mut declaration_ids = HashMap::<NcGuid, SourceSpan>::new();
         let mut declaration_identities = Vec::with_capacity(module.declarations.len());
-        for declaration in &module.declarations {
+        for (declaration_index, declaration) in module.declarations.iter().enumerate() {
             if is_reserved_name(&declaration.name) {
-                return Err(error(
-                    Some(&name),
+                return Err(source_error(
+                    &module,
+                    "EIDL020",
+                    &declaration.span,
                     format!("declaration name {:?} is reserved by the IDL type system", declaration.name),
+                    "reserved type-system name",
                 ));
             }
             let qualified_name = module.name.qualify(&declaration.name);
@@ -312,17 +353,32 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
                 .id
                 .explicit
                 .unwrap_or_else(|| derive_declaration_id(&qualified_name, declaration.id.version));
-            if !declaration_ids.insert(id) {
-                return Err(error(Some(&name), format!("declaration {:?} reuses another declaration ID", declaration.name)));
+            if let Some(previous) = declaration_ids.insert(id, declaration.span.clone()) {
+                return Err(ResolutionError {
+                    diagnostics: vec![
+                        Diagnostic::new("EIDL012", format!("declaration {:?} reuses another declaration ID", declaration.name))
+                            .with_sources(&module.sources)
+                            .primary(&declaration.span, "duplicate declaration ID")
+                            .secondary(&previous, "ID first assigned here"),
+                    ],
+                });
             }
-            if let Some(previous_name) = global_declaration_ids.insert(id, qualified_name.clone()) {
-                return Err(error(
-                    Some(&name),
-                    format!("declaration {qualified_name:?} reuses the ID assigned to {previous_name:?}"),
-                ));
+            if let Some((previous_name, previous_span, previous_sources)) =
+                global_declaration_ids.insert(id, (qualified_name.clone(), declaration.span.clone(), module.sources.clone()))
+            {
+                let sources = combined_sources(previous_sources, &module.sources);
+                return Err(ResolutionError {
+                    diagnostics: vec![
+                        Diagnostic::new("EIDL012", format!("declaration {qualified_name:?} reuses the ID assigned to {previous_name:?}"))
+                            .with_sources(&sources)
+                            .primary(&declaration.span, "duplicate declaration ID")
+                            .secondary(&previous_span, format!("ID belongs to {previous_name}")),
+                    ],
+                });
             }
             let symbol = Symbol {
                 module: entries.len(),
+                declaration: declaration_index,
                 id,
                 kind: symbol_kind(&declaration.kind),
             };
@@ -358,31 +414,64 @@ fn connect_imports(entries: &mut [ModuleEntry]) -> Result<(), ResolutionError> {
         .collect::<HashMap<_, _>>();
 
     for index in 0..entries.len() {
-        let module_name = entries[index].name.clone();
         let imports = entries[index].module.imports.clone();
         let mut dependencies = BTreeSet::new();
         let mut imported_symbols = HashMap::new();
+        let mut imported_origins = HashMap::<String, SourceSpan>::new();
         for import in imports {
             let Some(&dependency) = indexes.get(&import.module) else {
-                return Err(error(Some(&module_name), format!("imports missing module {:?}", import.module)));
+                return Err(source_error(
+                    &entries[index].module,
+                    "EIDL030",
+                    &import.span,
+                    format!("imports missing module {:?}", import.module),
+                    "unknown module",
+                ));
             };
             if dependency == index {
-                return Err(error(Some(&module_name), "a module cannot import itself"));
+                return Err(source_error(
+                    &entries[index].module,
+                    "EIDL031",
+                    &import.span,
+                    "a module cannot import itself",
+                    "self-import",
+                ));
             }
             dependencies.insert((entries[dependency].name.clone(), dependency));
             for name in import.names {
-                if entries[index].local_symbols.contains_key(&name) {
-                    return Err(error(Some(&module_name), format!("import {name:?} conflicts with a local declaration")));
+                if let Some(local) = entries[index].local_symbols.get(&name) {
+                    let local_span = &entries[index].module.declarations[local.declaration].span;
+                    return Err(ResolutionError {
+                        diagnostics: vec![
+                            Diagnostic::new("EIDL032", format!("import {name:?} conflicts with a local declaration"))
+                                .with_sources(&entries[index].module.sources)
+                                .primary(&import.span, "conflicting import")
+                                .secondary(local_span, "local declaration is here"),
+                        ],
+                    });
                 }
                 let Some(&symbol) = entries[dependency].local_symbols.get(&name) else {
-                    return Err(error(
-                        Some(&module_name),
+                    return Err(source_error(
+                        &entries[index].module,
+                        "EIDL033",
+                        &import.span,
                         format!("module {:?} does not declare imported name {name:?}", entries[dependency].name),
+                        "name is not exported by this module",
                     ));
                 };
                 if imported_symbols.insert(name.clone(), symbol).is_some() {
-                    return Err(error(Some(&module_name), format!("imported name {name:?} is ambiguous")));
+                    let previous = imported_origins.get(&name).expect("an imported symbol always records its origin");
+                    return Err(ResolutionError {
+                        diagnostics: vec![
+                            Diagnostic::new("EIDL034", format!("imported name {name:?} is ambiguous"))
+                                .with_sources(&entries[index].module.sources)
+                                .primary(&import.span, "second unqualified import")
+                                .secondary(previous, "first unqualified import")
+                                .note("remove one import or use a module-qualified type path"),
+                        ],
+                    });
                 }
+                imported_origins.insert(name, import.span.clone());
             }
         }
         entries[index].dependencies = dependencies.into_iter().map(|(_, dependency)| dependency).collect();
@@ -394,76 +483,215 @@ fn connect_imports(entries: &mut [ModuleEntry]) -> Result<(), ResolutionError> {
 /// Validates declaration-specific ABI positions and referenced kinds.
 fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), ResolutionError> {
     let entry = &entries[index];
+    let mut diagnostics = Vec::new();
     for declaration in &entry.module.declarations {
         match &declaration.kind {
             DeclarationKind::Struct(record) => {
                 for field in &record.fields {
-                    validate_value_type(index, &field.ty, entries, &format!("struct {} field {}", declaration.name, field.name))?;
+                    collect_diagnostics(
+                        &mut diagnostics,
+                        validate_value_type(
+                            index,
+                            &field.ty,
+                            entries,
+                            &format!("struct {} field {}", declaration.name, field.name),
+                            &field.span,
+                        ),
+                    );
                 }
             }
             DeclarationKind::Enum(enumeration) => {
-                validate_enum(entry, declaration, enumeration)?;
+                collect_diagnostics(&mut diagnostics, validate_enum(entry, declaration, enumeration));
                 for variant in &enumeration.variants {
                     match &variant.fields {
                         VariantFields::Unit => {}
                         VariantFields::Tuple(fields) => {
                             for (field_index, field) in fields.iter().enumerate() {
-                                validate_value_type(
-                                    index,
-                                    field,
-                                    entries,
-                                    &format!("enum {} variant {} field {field_index}", declaration.name, variant.name),
-                                )?;
+                                collect_diagnostics(
+                                    &mut diagnostics,
+                                    validate_value_type(
+                                        index,
+                                        field,
+                                        entries,
+                                        &format!("enum {} variant {} field {field_index}", declaration.name, variant.name),
+                                        &variant.span,
+                                    ),
+                                );
                             }
                         }
                         VariantFields::Named(fields) => {
                             for field in fields {
-                                validate_value_type(
-                                    index,
-                                    &field.ty,
-                                    entries,
-                                    &format!("enum {} variant {} field {}", declaration.name, variant.name, field.name),
-                                )?;
+                                collect_diagnostics(
+                                    &mut diagnostics,
+                                    validate_value_type(
+                                        index,
+                                        &field.ty,
+                                        entries,
+                                        &format!("enum {} variant {} field {}", declaration.name, variant.name, field.name),
+                                        &field.span,
+                                    ),
+                                );
                             }
                         }
                     }
                 }
             }
-            DeclarationKind::BitEnum(bit_enum) => validate_bit_enum(entry, declaration, bit_enum)?,
+            DeclarationKind::BitEnum(bit_enum) => collect_diagnostics(&mut diagnostics, validate_bit_enum(entry, declaration, bit_enum)),
             DeclarationKind::Interface(interface) => {
-                validate_interface_bases(index, &interface.bases, entries, &declaration.name)?;
-                validate_methods(index, &interface.methods, entries, &declaration.name)?;
+                collect_diagnostics(&mut diagnostics, validate_interface_bases(index, &interface.bases, entries, &declaration.name));
+                collect_diagnostics(&mut diagnostics, validate_methods(index, &interface.methods, entries, &declaration.name));
             }
             DeclarationKind::Class(class) => {
-                validate_interface_bases(index, &class.required_interfaces, entries, &declaration.name)?;
-                validate_methods(index, &class.methods, entries, &declaration.name)?;
+                collect_diagnostics(
+                    &mut diagnostics,
+                    validate_interface_bases(index, &class.required_interfaces, entries, &declaration.name),
+                );
+                collect_diagnostics(&mut diagnostics, validate_methods(index, &class.methods, entries, &declaration.name));
             }
             DeclarationKind::Factory(factory) => {
-                validate_interface_bases(index, &factory.required_interfaces, entries, &declaration.name)?;
-                validate_methods(index, &factory.methods, entries, &declaration.name)?;
+                collect_diagnostics(
+                    &mut diagnostics,
+                    validate_interface_bases(index, &factory.required_interfaces, entries, &declaration.name),
+                );
+                collect_diagnostics(&mut diagnostics, validate_methods(index, &factory.methods, entries, &declaration.name));
             }
+        }
+    }
+    collect_diagnostics(&mut diagnostics, validate_value_layouts(index, entries));
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(ResolutionError { diagnostics })
+    }
+}
+
+/// Rejects local copied-value cycles before generated Rust reaches layout checking.
+fn validate_value_layouts(index: usize, entries: &[ModuleEntry]) -> Result<(), ResolutionError> {
+    let mut states = vec![VisitState::Unvisited; entries[index].module.declarations.len()];
+    let mut stack = Vec::new();
+    for declaration in 0..states.len() {
+        if symbol_kind(&entries[index].module.declarations[declaration].kind) == SymbolKind::Value {
+            visit_value_layout(index, declaration, entries, &mut states, &mut stack)?;
         }
     }
     Ok(())
 }
 
+/// Walks one local value declaration and reports the edge closing a cycle.
+fn visit_value_layout(
+    module: usize,
+    declaration: usize,
+    entries: &[ModuleEntry],
+    states: &mut [VisitState],
+    stack: &mut Vec<usize>,
+) -> Result<(), ResolutionError> {
+    match states[declaration] {
+        VisitState::Complete => return Ok(()),
+        VisitState::Visiting => return Ok(()),
+        VisitState::Unvisited => {}
+    }
+    states[declaration] = VisitState::Visiting;
+    stack.push(declaration);
+
+    let owner = &entries[module].module.declarations[declaration];
+    let mut references = Vec::new();
+    collect_value_references(owner, &mut references);
+    for reference in references {
+        let Ok(symbol) = resolve_named(module, reference, entries) else {
+            // Name resolution already emits the more direct diagnostic.
+            continue;
+        };
+        if symbol.module != module || symbol.kind != SymbolKind::Value {
+            continue;
+        }
+        if states[symbol.declaration] == VisitState::Visiting {
+            let cycle_start = stack.iter().position(|candidate| *candidate == symbol.declaration).unwrap_or(0);
+            let mut names = stack[cycle_start..]
+                .iter()
+                .map(|index| entries[module].module.declarations[*index].name.as_str())
+                .collect::<Vec<_>>();
+            names.push(entries[module].module.declarations[symbol.declaration].name.as_str());
+            let definition = &entries[module].module.declarations[symbol.declaration];
+            return Err(ResolutionError {
+                diagnostics: vec![
+                    Diagnostic::new("EIDL063", format!("recursive copied-value layout: {}", names.join(" -> ")))
+                        .with_sources(&entries[module].module.sources)
+                        .primary(&reference.span, "this field closes the recursive layout")
+                        .secondary(&definition.span, "recursive value is declared here")
+                        .note("introduce an object interface boundary; copied IDL values must have a finite inline size"),
+                ],
+            });
+        }
+        visit_value_layout(module, symbol.declaration, entries, states, stack)?;
+    }
+
+    stack.pop();
+    states[declaration] = VisitState::Complete;
+    Ok(())
+}
+
+/// Collects every named value reference stored inline by one declaration.
+fn collect_value_references<'a>(declaration: &'a Declaration, output: &mut Vec<&'a NamedType>) {
+    match &declaration.kind {
+        DeclarationKind::Struct(record) => {
+            for field in &record.fields {
+                collect_type_references(&field.ty, output);
+            }
+        }
+        DeclarationKind::Enum(enumeration) => {
+            for variant in &enumeration.variants {
+                match &variant.fields {
+                    VariantFields::Unit => {}
+                    VariantFields::Tuple(fields) => {
+                        for field in fields {
+                            collect_type_references(field, output);
+                        }
+                    }
+                    VariantFields::Named(fields) => {
+                        for field in fields {
+                            collect_type_references(&field.ty, output);
+                        }
+                    }
+                }
+            }
+        }
+        DeclarationKind::BitEnum(_) | DeclarationKind::Interface(_) | DeclarationKind::Class(_) | DeclarationKind::Factory(_) => {}
+    }
+}
+
+/// Collects named paths nested through inline array and optional wrappers.
+fn collect_type_references<'a>(ty: &'a AbiType, output: &mut Vec<&'a NamedType>) {
+    match ty {
+        AbiType::Named(name) => output.push(name),
+        AbiType::Array { element, .. } | AbiType::Option(element) => collect_type_references(element, output),
+        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) | AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
+    }
+}
+
 /// Checks every bit pattern against the selected unsigned storage width.
 fn validate_bit_enum(entry: &ModuleEntry, declaration: &Declaration, bit_enum: &BitEnum) -> Result<(), ResolutionError> {
     let (_, maximum) = repr_range(bit_enum.repr);
-    let mut values = HashSet::new();
+    let mut values = HashMap::<u64, SourceSpan>::new();
     for flag in &bit_enum.flags {
         let value = i128::from(flag.value);
         if value > maximum {
-            return Err(error(
-                Some(&entry.name),
+            return Err(source_error(
+                &entry.module,
+                "EIDL040",
+                &flag.span,
                 format!("bit enum {} flag {} value {value} does not fit its representation", declaration.name, flag.name),
+                "value is outside the selected representation",
             ));
         }
-        if !values.insert(flag.value) {
-            return Err(error(
-                Some(&entry.name),
-                format!("bit enum {} flag {} repeats value {value}", declaration.name, flag.name),
-            ));
+        if let Some(previous) = values.insert(flag.value, flag.span.clone()) {
+            return Err(ResolutionError {
+                diagnostics: vec![
+                    Diagnostic::new("EIDL041", format!("bit enum {} flag {} repeats value {value}", declaration.name, flag.name))
+                        .with_sources(&entry.module.sources)
+                        .primary(&flag.span, "duplicate bit pattern")
+                        .secondary(&previous, "value first assigned here"),
+                ],
+            });
         }
     }
     Ok(())
@@ -472,54 +700,79 @@ fn validate_bit_enum(entry: &ModuleEntry, declaration: &Declaration, bit_enum: &
 /// Checks enum discriminants against representation range and uniqueness.
 fn validate_enum(entry: &ModuleEntry, declaration: &Declaration, enumeration: &Enum) -> Result<(), ResolutionError> {
     if enumeration.names.is_some() && !enumeration.dense {
-        return Err(error(
-            Some(&entry.name),
+        return Err(source_error(
+            &entry.module,
+            "EIDL042",
+            &declaration.span,
             format!("enum {} uses canonical names without `#[dense]`", declaration.name),
+            "canonical names require a dense enum",
         ));
     }
     if enumeration.dense
         && (!matches!(enumeration.repr, EnumRepr::U8 | EnumRepr::U16 | EnumRepr::U32)
             || enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit)))
     {
-        return Err(error(
-            Some(&entry.name),
+        return Err(source_error(
+            &entry.module,
+            "EIDL043",
+            &declaration.span,
             format!("dense enum {} must use an unsigned representation and unit variants", declaration.name),
+            "invalid dense-enum shape",
         ));
     }
     let (minimum, maximum) = repr_range(enumeration.repr);
     let mut previous = -1i128;
-    let mut values = HashSet::new();
+    let mut values = HashMap::<i128, SourceSpan>::new();
     for (ordinal, variant) in enumeration.variants.iter().enumerate() {
         let value = variant.discriminant.map_or_else(
             || {
-                previous
-                    .checked_add(1)
-                    .ok_or_else(|| error(Some(&entry.name), format!("enum {} discriminant overflow", declaration.name)))
+                previous.checked_add(1).ok_or_else(|| {
+                    source_error(
+                        &entry.module,
+                        "EIDL044",
+                        &variant.span,
+                        format!("enum {} discriminant overflow", declaration.name),
+                        "implicit discriminant overflows",
+                    )
+                })
             },
             |value| Ok(i128::from(value)),
         )?;
         if value < minimum || value > maximum {
-            return Err(error(
-                Some(&entry.name),
+            return Err(source_error(
+                &entry.module,
+                "EIDL045",
+                &variant.span,
                 format!(
                     "enum {} variant {} discriminant {value} does not fit its representation",
                     declaration.name, variant.name
                 ),
+                "value is outside the selected representation",
             ));
         }
-        if !values.insert(value) {
-            return Err(error(
-                Some(&entry.name),
-                format!("enum {} variant {} repeats discriminant {value}", declaration.name, variant.name),
-            ));
+        if let Some(previous) = values.insert(value, variant.span.clone()) {
+            return Err(ResolutionError {
+                diagnostics: vec![
+                    Diagnostic::new(
+                        "EIDL046",
+                        format!("enum {} variant {} repeats discriminant {value}", declaration.name, variant.name),
+                    )
+                    .with_sources(&entry.module.sources)
+                    .primary(&variant.span, "duplicate discriminant")
+                    .secondary(&previous, "discriminant first assigned here"),
+                ],
+            });
         }
         if enumeration.dense && value != ordinal as i128 {
-            return Err(error(
-                Some(&entry.name),
+            return Err(source_error(
+                &entry.module,
+                "EIDL047",
+                &variant.span,
                 format!(
                     "dense enum {} variant {} must use discriminant {ordinal}; found {value}",
                     declaration.name, variant.name
                 ),
+                "non-contiguous dense discriminant",
             ));
         }
         previous = value;
@@ -541,17 +794,29 @@ fn repr_range(repr: EnumRepr) -> (i128, i128) {
 
 /// Requires each base or required projection to name an interface.
 fn validate_interface_bases(index: usize, bases: &[NamedType], entries: &[ModuleEntry], owner: &str) -> Result<(), ResolutionError> {
-    let mut identities = HashSet::new();
+    let mut identities = HashMap::<(usize, NcGuid), SourceSpan>::new();
     for base in bases {
         let symbol = resolve_named(index, base, entries)?;
         if symbol.kind != SymbolKind::Interface {
-            return Err(error(
-                Some(&entries[index].name),
+            return Err(kind_mismatch_error(
+                index,
+                symbol,
+                entries,
+                &base.span,
                 format!("{owner} base {} is not an interface", base.rust_path()),
+                "expected an interface base",
+                "interface",
             ));
         }
-        if !identities.insert((symbol.module, symbol.id)) {
-            return Err(error(Some(&entries[index].name), format!("{owner} repeats interface {}", base.rust_path())));
+        if let Some(previous) = identities.insert((symbol.module, symbol.id), base.span.clone()) {
+            return Err(ResolutionError {
+                diagnostics: vec![
+                    Diagnostic::new("EIDL051", format!("{owner} repeats interface {}", base.rust_path()))
+                        .with_sources(&entries[index].module.sources)
+                        .primary(&base.span, "repeated base interface")
+                        .secondary(&previous, "base first listed here"),
+                ],
+            });
         }
     }
     Ok(())
@@ -559,70 +824,150 @@ fn validate_interface_bases(index: usize, bases: &[NamedType], entries: &[Module
 
 /// Validates parameter and result ownership for one callable surface.
 fn validate_methods(index: usize, methods: &[Method], entries: &[ModuleEntry], owner: &str) -> Result<(), ResolutionError> {
+    let mut diagnostics = Vec::new();
     for method in methods {
         for parameter in &method.parameters {
-            validate_parameter_type(index, &parameter.ty, entries, &format!("{owner}::{} parameter {}", method.name, parameter.name))?;
+            collect_diagnostics(
+                &mut diagnostics,
+                validate_parameter_type(
+                    index,
+                    &parameter.ty,
+                    entries,
+                    &format!("{owner}::{} parameter {}", method.name, parameter.name),
+                    &parameter.span,
+                ),
+            );
         }
-        validate_output_type(index, &method.output, entries, &format!("{owner}::{} result", method.name))?;
+        collect_diagnostics(
+            &mut diagnostics,
+            validate_output_type(index, &method.output, entries, &format!("{owner}::{} result", method.name), &method.span),
+        );
     }
-    Ok(())
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(ResolutionError { diagnostics })
+    }
 }
 
 /// Requires a recursively copyable type in aggregate payload storage.
-fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str) -> Result<(), ResolutionError> {
+fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+    let span = type_span(ty).unwrap_or(span);
     match ty {
         AbiType::Scalar(_) => Ok(()),
         AbiType::Named(name) => match resolve_named_or_str(index, name, entries)? {
             ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => Ok(()),
-            _ => Err(error(Some(&entries[index].name), format!("{context} must use a copied value type"))),
+            ResolvedName::Symbol(symbol) => Err(kind_mismatch_error(
+                index,
+                symbol,
+                entries,
+                span,
+                format!("{context} must use a copied value type"),
+                format!("expected a copied value, found {}", symbol.kind.description()),
+                "copied struct, enum, or bit enum",
+            )),
+            ResolvedName::Str => Err(source_error(
+                &entries[index].module,
+                "EIDL060",
+                span,
+                format!("{context} must use a copied value type"),
+                "str is unsized",
+            )),
         },
-        AbiType::Array { element, .. } | AbiType::Option(element) => validate_value_type(index, element, entries, context),
-        AbiType::Unit | AbiType::String | AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) => {
-            Err(error(Some(&entries[index].name), format!("{context} must use a copied value type")))
-        }
+        AbiType::Array { element, .. } | AbiType::Option(element) => validate_value_type(index, element, entries, context, span),
+        AbiType::Unit | AbiType::String | AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) => Err(source_error(
+            &entries[index].module,
+            "EIDL060",
+            span,
+            format!("{context} must use a copied value type"),
+            "non-copying type used in aggregate storage",
+        )),
     }
 }
 
 /// Validates an input without allowing implicit COM ownership transfer.
-fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str) -> Result<(), ResolutionError> {
+fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+    let span = type_span(ty).unwrap_or(span);
     match ty {
-        AbiType::Unit | AbiType::String => Err(error(Some(&entries[index].name), format!("{context} has no valid input ownership"))),
+        AbiType::Unit | AbiType::String => Err(source_error(
+            &entries[index].module,
+            "EIDL061",
+            span,
+            format!("{context} has no valid input ownership"),
+            "invalid parameter type",
+        )),
         AbiType::Scalar(_) => Ok(()),
         AbiType::Named(name) => match resolve_named_or_str(index, name, entries)? {
             ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => Ok(()),
-            ResolvedName::Symbol(_) => Err(error(
-                Some(&entries[index].name),
+            ResolvedName::Symbol(symbol) => Err(kind_mismatch_error(
+                index,
+                symbol,
+                entries,
+                span,
                 format!("{context} must borrow interface, class, and factory values with &"),
+                format!("{} values require an explicit borrow", symbol.kind.description()),
+                "borrow the object type with `&`",
             )),
-            ResolvedName::Str => Err(error(Some(&entries[index].name), format!("{context} must borrow str as &str"))),
+            ResolvedName::Str => Err(source_error(
+                &entries[index].module,
+                "EIDL061",
+                span,
+                format!("{context} must borrow str as &str"),
+                "unsized string parameter",
+            )),
         },
         AbiType::Borrowed(referent) => match referent.as_ref() {
             AbiType::Named(name) => match resolve_named_or_str(index, name, entries)? {
                 ResolvedName::Str => Ok(()),
                 ResolvedName::Symbol(symbol) if symbol.kind != SymbolKind::Value => Ok(()),
-                ResolvedName::Symbol(_) => Err(error(Some(&entries[index].name), format!("{context} cannot borrow a copied value type"))),
+                ResolvedName::Symbol(symbol) => Err(kind_mismatch_error(
+                    index,
+                    symbol,
+                    entries,
+                    span,
+                    format!("{context} cannot borrow a copied value type"),
+                    "copied values are passed by value",
+                    "remove the `&`",
+                )),
             },
-            _ => Err(error(Some(&entries[index].name), format!("{context} has an unsupported borrowed type"))),
+            _ => Err(source_error(
+                &entries[index].module,
+                "EIDL061",
+                span,
+                format!("{context} has an unsupported borrowed type"),
+                "unsupported borrow",
+            )),
         },
-        AbiType::Slice(element) | AbiType::OutputSlice(element) => validate_value_type(index, element, entries, context),
-        AbiType::Array { element, .. } => validate_value_type(index, element, entries, context),
-        AbiType::Option(value) => validate_parameter_type(index, value, entries, context),
+        AbiType::Slice(element) | AbiType::OutputSlice(element) => validate_value_type(index, element, entries, context, span),
+        AbiType::Array { element, .. } => validate_value_type(index, element, entries, context, span),
+        AbiType::Option(value) => validate_parameter_type(index, value, entries, context, span),
     }
 }
 
 /// Validates an output where bare COM names mean owned references.
-fn validate_output_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str) -> Result<(), ResolutionError> {
+fn validate_output_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+    let span = type_span(ty).unwrap_or(span);
     match ty {
         AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Ok(()),
         AbiType::Named(name) => match resolve_named_or_str(index, name, entries)? {
             ResolvedName::Symbol(_) => Ok(()),
-            ResolvedName::Str => Err(error(Some(&entries[index].name), format!("{context} cannot return unsized str; return String"))),
+            ResolvedName::Str => Err(source_error(
+                &entries[index].module,
+                "EIDL062",
+                span,
+                format!("{context} cannot return unsized str; return String"),
+                "unsized return type",
+            )),
         },
-        AbiType::Array { element, .. } => validate_value_type(index, element, entries, context),
-        AbiType::Option(value) => validate_output_type(index, value, entries, context),
-        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) => {
-            Err(error(Some(&entries[index].name), format!("{context} cannot return a borrowed value")))
-        }
+        AbiType::Array { element, .. } => validate_value_type(index, element, entries, context, span),
+        AbiType::Option(value) => validate_output_type(index, value, entries, context, span),
+        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) => Err(source_error(
+            &entries[index].module,
+            "EIDL062",
+            span,
+            format!("{context} cannot return a borrowed value"),
+            "borrowed return type",
+        )),
     }
 }
 
@@ -653,25 +998,46 @@ fn resolve_named(index: usize, name: &NamedType, entries: &[ModuleEntry]) -> Res
             .get(source_name)
             .or_else(|| entry.imported_symbols.get(source_name))
             .copied()
-            .ok_or_else(|| error(Some(&entry.name), format!("unknown IDL type {source_name:?}")));
+            .ok_or_else(|| {
+                source_error(
+                    &entry.module,
+                    "EIDL070",
+                    &name.span,
+                    format!("unknown IDL type {source_name:?}"),
+                    "type is not declared or imported",
+                )
+            });
     }
 
     let module_name = name.segments[..name.segments.len() - 1].join(".");
     let declaration_name = &name.segments[name.segments.len() - 1];
     let Some(module_index) = entries.iter().position(|candidate| candidate.name == module_name) else {
-        return Err(error(Some(&entry.name), format!("unknown IDL module {module_name:?}")));
+        return Err(source_error(
+            &entry.module,
+            "EIDL071",
+            &name.span,
+            format!("unknown IDL module {module_name:?}"),
+            "module is not present in the contract graph",
+        ));
     };
     if !entry.dependencies.contains(&module_index) {
-        return Err(error(
-            Some(&entry.name),
+        return Err(source_error(
+            &entry.module,
+            "EIDL072",
+            &name.span,
             format!("type {} is used without importing its module", name.rust_path()),
+            "missing module import",
         ));
     }
-    entries[module_index]
-        .local_symbols
-        .get(declaration_name)
-        .copied()
-        .ok_or_else(|| error(Some(&entry.name), format!("unknown IDL type {}", name.rust_path())))
+    entries[module_index].local_symbols.get(declaration_name).copied().ok_or_else(|| {
+        source_error(
+            &entry.module,
+            "EIDL070",
+            &name.span,
+            format!("unknown IDL type {}", name.rust_path()),
+            "module does not declare this type",
+        )
+    })
 }
 
 /// Computes a fingerprint after recursively completing dependencies.
@@ -1020,10 +1386,79 @@ fn u32_len(value: usize, module: &str, field: &str) -> Result<u32, ResolutionErr
     u32::try_from(value).map_err(|_| error(Some(module), format!("{field} exceeds u32")))
 }
 
-/// Constructs one consistently contextualized semantic error.
-fn error(module: Option<&str>, message: impl Into<String>) -> ResolutionError {
+/// Returns the most precise named-type range nested inside an ABI type.
+fn type_span(ty: &AbiType) -> Option<&SourceSpan> {
+    match ty {
+        AbiType::Named(name) => Some(&name.span),
+        AbiType::Borrowed(value) | AbiType::Slice(value) | AbiType::OutputSlice(value) | AbiType::Option(value) | AbiType::Array { element: value, .. } => {
+            type_span(value)
+        }
+        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => None,
+    }
+}
+
+/// Constructs one source-local semantic error.
+fn source_error(module: &Module, code: &str, span: &SourceSpan, message: impl Into<String>, label: impl Into<String>) -> ResolutionError {
     ResolutionError {
-        module: module.map(str::to_owned),
-        message: message.into(),
+        diagnostics: vec![Diagnostic::new(code, message).with_sources(&module.sources).primary(span, label)],
+    }
+}
+
+/// Constructs a type-kind error that points to both use and definition.
+fn kind_mismatch_error(
+    owner: usize,
+    symbol: Symbol,
+    entries: &[ModuleEntry],
+    span: &SourceSpan,
+    message: impl Into<String>,
+    label: impl Into<String>,
+    help: impl Into<String>,
+) -> ResolutionError {
+    let definition = &entries[symbol.module].module.declarations[symbol.declaration];
+    let sources = combined_sources(entries[owner].module.sources.clone(), &entries[symbol.module].module.sources);
+    ResolutionError {
+        diagnostics: vec![
+            Diagnostic::new("EIDL060", message)
+                .with_sources(&sources)
+                .primary(span, label)
+                .secondary(
+                    &definition.span,
+                    format!("{} {:?} is declared here", symbol.kind.description(), definition.name),
+                )
+                .note(help),
+        ],
+    }
+}
+
+/// Unions diagnostic sources in normalized path order without duplicates.
+fn combined_sources(first: Vec<SourceFile>, second: &[SourceFile]) -> Vec<SourceFile> {
+    let mut sources = first
+        .into_iter()
+        .map(|source| (source.path().to_owned(), source))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    for source in second {
+        sources.entry(source.path().to_owned()).or_insert_with(|| source.clone());
+    }
+    sources.into_values().collect()
+}
+
+/// Appends every diagnostic from a failed independent validation check.
+fn collect_diagnostics(target: &mut Vec<Diagnostic>, result: Result<(), ResolutionError>) {
+    if let Err(error) = result {
+        target.extend(error.diagnostics);
+    }
+}
+
+/// Constructs one consistently contextualized internal semantic error.
+fn error(module: Option<&str>, message: impl Into<String>) -> ResolutionError {
+    let message = message.into();
+    ResolutionError {
+        diagnostics: vec![Diagnostic::new(
+            "EIDL099",
+            match module {
+                Some(module) => format!("IDL module {module}: {message}"),
+                None => message,
+            },
+        )],
     }
 }
