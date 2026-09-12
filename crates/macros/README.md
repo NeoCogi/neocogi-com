@@ -87,6 +87,6 @@ The generator-facing `com_class_description` and
 projection metadata to generated callable interfaces. They are not user-facing
 runtime registration mechanisms.
 
-Exactly one `com-validation-*` feature selects how canonical typed ABI
-signatures are represented. Interface identity is always the generated IID plus
-that signature; human-readable names are diagnostic metadata.
+Canonical typed ABI signatures are always represented by SHA-256 digests.
+Interface identity is the generated IID plus that signature; human-readable
+names are diagnostic metadata.

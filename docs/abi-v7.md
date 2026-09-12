@@ -141,7 +141,6 @@ mapped:
 #[repr(C)]
 pub struct NcFactoryPluginDescription {
     pub core_abi_version: u32,
-    pub validation_mode: NcAbiValidationMode,
     pub plugin_id: NcGuid,
     pub qualified_name: NcStaticUtf8,
     pub plugin_version: NcStaticUtf8,
@@ -178,8 +177,8 @@ duplicate identities, malformed pointer/count pairs, null getters, or invalid
 UTF-8 descriptions are rejected.
 
 Factory-plugin registration validates its full contract graph, plugin
-dependencies, root factory declaration, validation mode, and identity mapping
-before one atomic catalog publication.
+dependencies, root factory declaration, and identity mapping before one atomic
+catalog publication.
 
 Dynamic loading is for trusted code. Mapping a library may execute platform
 loader initialization before metadata can be validated. Required live-load
@@ -210,19 +209,12 @@ The runtime retains at most 1,024 dynamic modules and 64 simultaneous debug
 messengers. The public Rust facade additionally bounds copied enumeration data
 and inspection text.
 
-## 9. Validation modes
+## 9. ABI signatures
 
-One assembly uses exactly one representation:
-
-- `none` retains structural checks with an unchecked signature sentinel;
-- `sha-256` stores a SHA-256 digest of the canonical typed stream;
-- `fnv-1a-128` stores an FNV-1a-128 digest;
-- `mangling` stores the collision-free canonical stream.
-
-Plugins record the selected mode. Assembly planning and runtime registration
-reject incompatible modes before root activation. Names and versions remain
-diagnostic; ABI compatibility is determined by identities, fingerprints, and
-signatures.
+Every generated ABI signature is a SHA-256 digest of its canonical typed
+stream. This representation is unconditional across hosts, plugins, inspection,
+and monolithic builds. Names and versions remain diagnostic; ABI compatibility
+is determined by identities, fingerprints, and signatures.
 
 ## 10. Ownership and trust
 

@@ -11,7 +11,7 @@ tested, but cross-release compatibility begins only after a future ratification.
 ## What the ABI contains
 
 - `NcStatus`, built-in `NC_*` status values, and `NcGuid`.
-- ABI type/signature records and validation modes.
+- ABI type records and canonical SHA-256 signature records.
 - `IUnknown`, generated interface headers and vtables, `ComPtr`, and `ComRef`.
 - object-description traits used by generated class and factory bindings.
 - canonical `NcContractModuleDescription` graphs and exact
@@ -32,8 +32,8 @@ A contract module has two complementary representations:
    call wrappers, and a `MODULE: NcContractModuleReference` that imports one
    native getter.
 2. Its fingerprint-qualified native library owns the single canonical
-   `NcContractModuleDescription`: module identity, ABI fingerprint, canonical
-   IDL source, declaration summaries, and exact dependency getters.
+   `NcContractModuleDescription`: module identity, ABI fingerprint, declaration
+   summaries, and exact dependency getters.
 
 Hosts and plugins therefore compile the types they call, but do not embed
 duplicate canonical description graphs. When different builds link incompatible
@@ -80,9 +80,8 @@ offset mutation, erased value tree, or runtime type registry.
 - No default `std` requirement: the core ABI is `no_std` and allocation-free.
 - `alloc` enables owned decoding and diagnostic helpers.
 - `std` implies `alloc` and adds standard error integrations.
-- Exactly one `com-validation-*` feature selects the deployed ABI-signature
-  representation. A representation-neutral build is reserved for inspection
-  tooling.
+- Generated ABI signatures are always SHA-256 digests of canonical typed
+  streams; their representation is not feature-selectable.
 
 The crate deliberately does not implement dynamic loading, process-global
 storage, object allocation, path discovery, trust policy, or plugin management.

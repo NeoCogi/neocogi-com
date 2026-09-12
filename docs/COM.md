@@ -123,8 +123,8 @@ neocogi_com::export_factory_plugin!();
 ```
 
 The plugin DSO exports `nc_get_factory_plugin_description`. Its immutable
-description includes plugin identity/version, validation mode, hard plugin
-dependencies, exact contract module references, root factory
+description includes plugin identity/version, hard plugin dependencies, exact
+contract module references, root factory
 identity/threading, and one fixed bootstrap pointer. It has no class table,
 erased constructor frame, or general-purpose value container.
 
@@ -170,11 +170,9 @@ Object pointers carry either `ThreadLocal` or `ThreadSafe`. The latter is a
 positive producer promise enforced on generated implementations with
 `Send + Sync`; it can be weakened but not safely upgraded.
 
-The four mutually exclusive validation modes are `none`, `sha-256`,
-`fnv-1a-128`, and `mangling`.
-`cargo neocogi` selects one consistently for an assembly. The `none` mode keeps
-structural checks but uses an explicit unchecked signature marker; the other
-modes retain exact signature validation.
+Generated ABI signatures are always SHA-256 digests of their canonical typed
+streams. Dynamic and monolithic assemblies therefore perform the same exact
+identity and signature checks without a validation-mode build setting.
 
 ## Typed source decoding
 

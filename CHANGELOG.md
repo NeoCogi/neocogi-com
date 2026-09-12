@@ -25,8 +25,8 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 - Added `dynamic` and `monolith` assemblies. Dynamic distributions contain one
   shared runtime and factory plugins; monoliths register the same descriptions
   directly.
-- Added assembly-wide `none`, SHA-256, FNV-1a-128, and collision-free mangling
-  validation modes. Planning rejects mixed-mode plugin sets.
+- Made SHA-256 ABI signatures unconditional and removed validation-mode build
+  features and assembly configuration.
 - Added typed `&mut self` call gating, generated thread-local/thread-safe pointer
   capabilities, bounded buffer lowering, ABI-safe records/enums, and
   format-neutral `ComDeserialize` without `Any` or erased value trees.
