@@ -54,7 +54,7 @@ path = "integration-tests/ui.rs"
 # The native-C ABI fixture runs Cargo offline from its own workspace. Keeping
 # its build dependency here ensures clean test runners fetch it first.
 cc = { version = "=1.2.0", default-features = false }
-neocogi-idl-example-contracts = { path = "../../idl/example-contracts" }
+neocogi-idl-example-contracts = { path = "../../../tools/idl/example-contracts" }
 trybuild = "1"
 
 [features]
