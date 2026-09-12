@@ -110,15 +110,15 @@ pub struct NcContractModuleDescription {
     pub dependencies: *const NcContractDependencyDescription,
     pub declaration_count: u32,
     pub declarations: *const NcContractDeclarationDescription,
-    pub source: NcStaticUtf8,
 }
 ```
 
-The description stores the canonical module name/source, module identity, full
-SHA-256 ABI fingerprint, top-level declaration identity/kind/version/threading,
-and exact fingerprinted dependency getters. It does not store Rust object
-state, implementation code, vtables, constructors, factory activation code,
-Cargo paths, or mutable registry state.
+Description ABI version 2 stores the canonical module name, module identity,
+full SHA-256 ABI fingerprint, top-level declaration
+identity/kind/version/threading, and exact fingerprinted dependency getters. It
+does not store the original `.ncidl` source, Rust object state, implementation
+code, vtables, constructors, factory activation code, Cargo paths, or mutable
+registry state.
 
 The module fingerprint covers canonical IDL and exact dependency revisions.
 Native filenames and getter symbols include the full fingerprint. Thus two

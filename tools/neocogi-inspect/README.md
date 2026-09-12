@@ -23,18 +23,19 @@ neocogi-inspect diff old.nccom.json new.nccom.json
 neocogi-inspect diff old.nccom.json new.nccom.json --compat
 ```
 
-JSON output uses strict inspection schema 7. It records producer/target data,
+JSON output uses strict inspection schema 8. It records producer/target data,
 core ABI, validation mode, plugin identity/version/dependencies, and one direct
 factory record containing its root identity/threading, direct module references,
 and dependency-first canonical module graph. Contract fingerprints are
-compatibility authority; stored IDL source and names support diagnostics.
+compatibility authority; structured declaration names support diagnostics
+without exposing IDL source.
 
 `plan` rejects mixed validation modes, conflicting revisions of a logical
 contract module, duplicate plugin/declaration identities, missing hard plugin
 dependencies, and cycles. It then prints a deterministic dependency-first load
 order.
 
-`diff` strictly parses and semantically validates both schema-7 artifacts.
+`diff` strictly parses and semantically validates both schema-8 artifacts.
 Unknown fields, unsupported schema versions, malformed identities/fingerprints,
 invalid factory roots, and malformed module graphs are rejected. Exact mode
 reports every metadata difference. Compatibility mode performs a directional
@@ -42,4 +43,4 @@ old-to-new check: target/core/validation changes, root-factory incompatibility,
 tightened plugin dependencies, or changed contract fingerprints are breaking.
 
 Inspection schema version and core ABI version are independent. Current output
-uses schema 7 and core ABI 7.
+uses schema 8 and core ABI 7.
