@@ -7,9 +7,13 @@
 #![deny(missing_docs)]
 #![warn(clippy::missing_docs_in_private_items)]
 
+mod artifact;
 mod cargo;
 mod generate;
 mod native;
+mod source;
 
-pub use cargo::{ArtifactRecord, BuildError, BuildOutput, Module};
+pub use artifact::{ARTIFACT_SCHEMA, ArtifactRecord};
+pub use cargo::{BuildError, BuildOutput, Module};
 pub use generate::{GenerateError, generate_rust};
+pub use source::ModuleSources;

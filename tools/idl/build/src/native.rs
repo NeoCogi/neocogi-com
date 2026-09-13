@@ -17,7 +17,7 @@ use neocogi_com_core::NcGuid;
 use neocogi_idl::{DeclarationKind, ResolvedModule, Threading};
 
 use crate::{
-    ArtifactRecord, BuildError,
+    ARTIFACT_SCHEMA, ArtifactRecord, BuildError,
     generate::{native_getter_name, native_link_name},
 };
 
@@ -64,7 +64,7 @@ pub(crate) fn build(module: &ResolvedModule, dependencies: &[ArtifactRecord], ou
     println!("cargo::rustc-link-lib={cargo_linkage}={link_name}");
 
     Ok(ArtifactRecord {
-        schema: 1,
+        schema: ARTIFACT_SCHEMA,
         module: module.source.name.to_string(),
         module_id: module.module_id.to_string(),
         abi_fingerprint: module.fingerprint_hex(),
