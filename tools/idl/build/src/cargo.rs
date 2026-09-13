@@ -216,18 +216,6 @@ pub struct ArtifactRecord {
 }
 
 impl ArtifactRecord {
-    /// Selects the file passed to a native linker for this artifact.
-    pub(crate) fn linker_file(&self) -> Result<&Path, BuildError> {
-        if self.linkage == "dynamic" && self.target.contains("windows") {
-            return self
-                .linker_files
-                .first()
-                .map(PathBuf::as_path)
-                .ok_or_else(|| BuildError::Idl(format!("dynamic Windows contract artifact {:?} has no import library", self.module)));
-        }
-        Ok(&self.library)
-    }
-
     /// Verifies that a direct IDL edge uses the artifact Cargo actually built.
     fn validate_dependency(&self, dependency: &neocogi_idl::ResolvedDependency) -> Result<(), BuildError> {
         if self.schema != ARTIFACT_SCHEMA {
@@ -309,7 +297,7 @@ pub enum BuildError {
         /// Original JSON codec failure.
         source: serde_json::Error,
     },
-    /// A platform C compiler or linker rejected generated native code.
+    /// rustc or the target linker rejected a generated description artifact.
     Command {
         /// Human-readable compilation operation being attempted.
         operation: &'static str,
