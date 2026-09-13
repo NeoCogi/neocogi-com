@@ -346,6 +346,10 @@ fn compile_dynamic(
     let mut command = rustc_command(target, link_name, source)?;
     command
         .args(["--crate-type", "cdylib", "--cfg", "neocogi_dynamic_descriptor"])
+        // Only the fingerprinted getter is a supported diagnostic symbol. Strip
+        // private compiler symbols in every profile to keep metadata DSOs small.
+        .arg("-C")
+        .arg("strip=symbols")
         .arg("-o")
         .arg(&library);
 
