@@ -90,8 +90,10 @@ pub(crate) unsafe fn build_contract_registration_batch(reference: *const NcContr
         match visit {
             Visit::Exit(module) => {
                 // An exit frame is scheduled only after its matching enter
-                // inserted the ID, so removal must succeed for an acyclic graph.
-                debug_assert!(active.remove(&module.module_id));
+                // inserted the ID. Removal is part of traversal state, so it
+                // must occur outside the assertion that optimized builds erase.
+                let was_active = active.remove(&module.module_id);
+                debug_assert!(was_active, "an exit frame must match one active module");
                 modules.push(module);
             }
             Visit::Enter(pending) => {
@@ -248,6 +250,42 @@ mod tests {
         declarations: ptr::null(),
     };
 
+    /// Stable identity of a root that reaches `LEAF` both directly and through `ROOT`.
+    const DIAMOND_ID: NcGuid = NcGuid::from_fields(6, 7, 8, [9; 8]);
+    /// Exact revision of the shared-dependency graph root.
+    const DIAMOND_FINGERPRINT: NcContractFingerprint = NcContractFingerprint::new([3; 32]);
+
+    /// Returns the immutable shared-dependency graph root.
+    unsafe extern "C" fn get_diamond() -> *const NcContractModuleDescription {
+        &DIAMOND
+    }
+
+    /// Canonical root edges exercise a completed leaf encountered through a second path.
+    static DIAMOND_DEPENDENCIES: [NcContractDependencyDescription; 2] = [
+        NcContractDependencyDescription {
+            module_id: LEAF_ID,
+            abi_fingerprint: LEAF_FINGERPRINT,
+            get: Some(get_leaf),
+        },
+        NcContractDependencyDescription {
+            module_id: ROOT_ID,
+            abi_fingerprint: ROOT_FINGERPRINT,
+            get: Some(get_root),
+        },
+    ];
+
+    /// Valid diamond graph in which two dependency paths converge on `LEAF`.
+    static DIAMOND: NcContractModuleDescription = NcContractModuleDescription {
+        description_abi_version: NC_CONTRACT_DESCRIPTION_ABI_VERSION,
+        module_id: DIAMOND_ID,
+        abi_fingerprint: DIAMOND_FINGERPRINT,
+        module_name: NcStaticUtf8::from_static("nc.tests.diamond"),
+        dependency_count: DIAMOND_DEPENDENCIES.len() as u32,
+        dependencies: DIAMOND_DEPENDENCIES.as_ptr(),
+        declaration_count: 0,
+        declarations: ptr::null(),
+    };
+
     /// Returns a conflicting revision under the root's logical module ID.
     unsafe extern "C" fn get_conflicting_root() -> *const NcContractModuleDescription {
         &CONFLICTING_ROOT
@@ -290,6 +328,26 @@ mod tests {
             .read_catalog()
             .contract_registry
             .with_module_ids(|ids| assert_eq!(ids, &[LEAF_ID, ROOT_ID]));
+    }
+
+    /// Confirms completed shared dependencies are not mistaken for active cycles.
+    ///
+    /// This must also pass with assertions disabled: traversal state changes are
+    /// runtime behavior and may not be hidden inside `debug_assert!` expressions.
+    #[test]
+    fn registers_a_shared_dependency_diamond_in_optimized_builds() {
+        let runtime = RuntimeState::new();
+        let root = NcContractModuleReference {
+            module_id: DIAMOND_ID,
+            abi_fingerprint: DIAMOND_FINGERPRINT,
+            get: Some(get_diamond),
+        };
+        // SAFETY: The complete diamond fixture uses immutable static descriptions.
+        assert_eq!(unsafe { runtime.register_contract_module(&root) }, NC_OK);
+        runtime
+            .read_catalog()
+            .contract_registry
+            .with_module_ids(|ids| assert_eq!(ids, &[LEAF_ID, ROOT_ID, DIAMOND_ID]));
     }
 
     /// Returns cycle fixture A.

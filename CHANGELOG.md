@@ -13,6 +13,9 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
   duplicate canonical description graphs.
 - Added canonical runtime contract registration. A repeated logical module ID
   with another fingerprint returns `NC_E_CONTRACT_MISMATCH` before publication.
+- Fixed optimized contract-graph traversal so completing a module always removes
+  it from the active path. Release inspectors now accept valid diamond graphs
+  instead of reporting the shared dependency as a cycle.
 - Added factory-only plugin descriptions and runtime ABI v2. Plugins expose one
   typed root factory; all later construction occurs through IDL factory methods.
 - Removed runtime class tables, class-ID construction, constructor function
