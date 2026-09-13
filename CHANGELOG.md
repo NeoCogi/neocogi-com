@@ -20,8 +20,9 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 - Made offline inspection factory-native and advanced its artifact schema to 7.
   Assembly planning validates the same canonical contract graph as live loading.
 - Added `cargo neocogi module new/check/generate/build/graph/remove` and
-  transactional staging of fingerprinted contract artifacts plus
-  `contracts.json`.
+  transactional staging of deduplicated fingerprinted contract artifacts.
+- Generate metadata-only description libraries as self-contained `no_std` Rust.
+  Hosts and plugins retain only typed bindings and exact getter imports.
 - Added `dynamic` and `monolith` assemblies. Dynamic distributions contain one
   shared runtime and factory plugins; monoliths register the same descriptions
   directly.

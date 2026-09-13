@@ -6,8 +6,8 @@ lives beside `cargo-neocogi` while remaining split into reusable Cargo packages:
 - `core` (`neocogi-idl`) parses single files or multi-file module directories,
   emits source-aware diagnostics, validates and resolves types, and fingerprints
   complete typed module graphs.
-- `build` (`neocogi-idl-build`) integrates generation and native contract
-  artifacts with contract-crate `build.rs` scripts.
+- `build` (`neocogi-idl-build`) generates typed Rust bindings and one
+  self-contained Rust description library from contract-crate `build.rs` scripts.
 - `example-contracts` and `example-consumer-contracts` are compile-checked
   fixtures covering standalone and cross-module generation.
 
