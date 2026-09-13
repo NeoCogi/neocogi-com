@@ -1,9 +1,9 @@
 //! Generation of interface headers, vtables, thunks, wrappers, and ABI metadata.
 //!
 //! A validated trait is lowered into one `repr(C)` interface header and vtable,
-//! per-implementor thunk table, smart-pointer forwarding methods, and immutable
-//! method descriptors. All generated call paths share the normalized lowering
-//! model so pointer ownership, buffer bounds, and documentation stay aligned.
+//! per-implementor thunk table, one borrowed client method view, and immutable
+//! method descriptors. The client view is the sole safe Rust-to-ABI lowering
+//! surface, so pointer ownership, buffer bounds, and documentation stay aligned.
 
 use quote::{format_ident, quote};
 use syn::{ItemTrait, Result, TypeParamBound, TraitBoundModifier, PathArguments};
@@ -42,14 +42,13 @@ pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Res
 pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: ItemTrait, methods: Vec<AbiMethod>) -> Result<proc_macro2::TokenStream> {
     // Generated names are deliberately mechanical and predictable. A trait
     // named `IFoo` produces `IFooAbi`, `IFooVTable`, `IFooVtblFor<T>`, and
-    // `IFooComPtrExt`.
+    // `IFooClient`.
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
     let trait_ident = &input.ident;
     let vis = &input.vis;
     let abi_ident = format_ident!("{trait_ident}Abi");
     let vtable_ident = format_ident!("{trait_ident}VTable");
     let vtable_for_ident = format_ident!("{trait_ident}VtblFor");
-    let ext_ident = format_ident!("{trait_ident}ComPtrExt");
     let client_ident = format_ident!("{trait_ident}Client");
     let interfaces_ident = format_ident!("{trait_ident}InterfacesFor");
     let qualified_name = args.qualified_name;
@@ -436,35 +435,14 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
         quote! { #method_ident: Self::#thunk_ident }
     });
 
-    // Safe extension methods hide the raw vtable call from Rust users. They
-    // allocate an uninitialized out slot, call the ABI function, and only read
-    // the out value when the returned status is successful.
-    let ext_methods = safe_method_implementations(&nc, &methods, quote! { self.as_mut_ptr() });
-    let client_bodies = safe_method_implementations(&nc, &methods, quote! { self.__nc_pointer.as_mut_ptr() });
-    let client_methods = methods.iter().zip(client_bodies).map(|(method, body)| {
+    // Generate one safe lowering for each source method. Both owning `ComPtr`
+    // and borrowed `ComRef` handles lend this client view, and a derived view
+    // dereferences through its generated base views for inherited calls.
+    let client_methods = methods.iter().map(|method| {
         let user_docs = &method.doc_attrs;
         let generated_docs = safe_method_docs(trait_ident, method);
+        let body = safe_client_method_body(&nc, method);
         quote! { #(#user_docs)* #(#generated_docs)* pub #body }
-    });
-
-    let ext_trait_methods = methods.iter().map(|method| {
-        let method_ident = &method.ident;
-        let user_docs = &method.doc_attrs;
-        let generated_docs = safe_method_docs(trait_ident, method);
-        let args = method.args.iter().map(|arg| {
-            let ident = &arg.ident;
-            let ty = &arg.rust_ty;
-            quote! { #ident: #ty }
-        });
-        let ret = &method.ok.rust_ty;
-        let receiver = safe_receiver(method.receiver);
-        quote! {
-            #(#user_docs)*
-            #(#generated_docs)*
-            // Declares the safe smart-pointer forwarding surface generated for
-            // this source trait method.
-            fn #method_ident(#receiver, #(#args),*) -> Result<#ret, #nc::NcStatus>;
-        }
     });
 
     Ok(quote! {
@@ -680,21 +658,6 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
 
             #(#thunks)*
         }
-
-        #[doc = concat!("Safe owning and borrowed call helpers for `ComPtr<", stringify!(#abi_ident), ", M>`.")]
-        #vis trait #ext_ident {
-            #(#ext_trait_methods)*
-        }
-
-        impl<M: #nc::ThreadingModel> #ext_ident for #nc::ComPtr<#abi_ident, M> {
-            #(#ext_methods)*
-        }
-
-        // Borrowing already keeps the interface alive for this synchronous call.
-        // Reuse the identical lowering without a temporary owned reference.
-        impl<M: #nc::ThreadingModel> #ext_ident for #nc::ComRef<'_, #abi_ident, M> {
-            #(#ext_methods)*
-        }
     })
 }
 
@@ -718,90 +681,88 @@ pub(crate) fn validate_callable_methods(input: &ItemTrait, methods: &[AbiMethod]
     }
 }
 
-/// Generates one synchronous call lowering reused by owning, borrowed and inherited clients.
-fn safe_method_implementations(nc: &syn::Path, methods: &[AbiMethod], pointer: proc_macro2::TokenStream) -> Vec<proc_macro2::TokenStream> {
-    methods
-        .iter()
-        .map(|method| {
-            let method_ident = &method.ident;
-            let args = method.args.iter().map(|arg| {
-                let ident = &arg.ident;
-                let ty = &arg.rust_ty;
-                quote! { #ident: #ty }
-            });
-            let arg_preparations = method.args.iter().filter_map(safe_arg_preparation);
-            let arg_names = method.args.iter().flat_map(safe_vtable_call_args).collect::<Vec<_>>();
-            let rust_ret = &method.ok.rust_ty;
-            let receiver = safe_receiver(method.receiver);
-            match &method.ok.kind {
-                AbiReturnKind::Void => quote! {
-                    // Implements the safe extension trait by forwarding to the raw
-                    // status-only vtable slot.
-                    fn #method_ident(#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
-                        #(#arg_preparations)*
-                        let this = #pointer;
-                        // SAFETY: `self` holds a live interface reference. The raw
-                        // vtable method receives borrowed pointers valid for this
-                        // call and returns only an `NcStatus`.
-                        let status = unsafe {
-                            ((*(*this).vtable).#method_ident)(
-                                this,
-                                #(#arg_names,)*
-                            )
-                        };
-                        if status.is_ok() {
-                            Ok(())
-                        } else {
-                            Err(status)
-                        }
-                    }
+/// Emits the sole safe Rust-to-ABI body for one generated interface method.
+///
+/// `ComPtr` and `ComRef` both dereference to the client view containing this
+/// body. Derived client views also dereference to their base client, so one
+/// emitted implementation serves owned, borrowed, and inherited calls.
+fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::TokenStream {
+    let method_ident = &method.ident;
+    let args = method.args.iter().map(|arg| {
+        let ident = &arg.ident;
+        let ty = &arg.rust_ty;
+        quote! { #ident: #ty }
+    });
+    let arg_preparations = method.args.iter().filter_map(safe_arg_preparation);
+    let arg_names = method.args.iter().flat_map(safe_vtable_call_args).collect::<Vec<_>>();
+    let rust_ret = &method.ok.rust_ty;
+    let receiver = safe_receiver(method.receiver);
+    match &method.ok.kind {
+        AbiReturnKind::Void => quote! {
+            // Forwards the canonical safe client call to the raw status-only
+            // vtable slot.
+            fn #method_ident(#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
+                #(#arg_preparations)*
+                let this = self.__nc_pointer.as_mut_ptr();
+                // SAFETY: The client view borrows a live interface reference.
+                // The raw vtable method receives pointers valid for this call
+                // and returns only an `NcStatus`.
+                let status = unsafe {
+                    ((*(*this).vtable).#method_ident)(
+                        this,
+                        #(#arg_names,)*
+                    )
+                };
+                if status.is_ok() {
+                    Ok(())
+                } else {
+                    Err(status)
+                }
+            }
+        },
+        AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => {
+            let abi_ret = &method.ok.abi_ty;
+            let success_return = match &method.ok.kind {
+                AbiReturnKind::Plain => quote! {
+                    // SAFETY: The raw method returned success, which is the
+                    // ABI contract that it initialized the out slot.
+                    Ok(unsafe { __nc_out.assume_init() })
                 },
-                AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => {
-                    let abi_ret = &method.ok.abi_ty;
-                    let success_return = match &method.ok.kind {
-                        AbiReturnKind::Plain => quote! {
-                            // SAFETY: The raw method returned success, which is the
-                            // ABI contract that it initialized the out slot.
-                            Ok(unsafe { __nc_out.assume_init() })
-                        },
-                        AbiReturnKind::ComPtr { .. } => quote! {
-                            // SAFETY: The raw method returned success, which is the
-                            // ABI contract that it initialized the out slot.
-                            let __nc_out = unsafe { __nc_out.assume_init() };
-                            // SAFETY: Successful COM pointer returns transfer one
-                            // owned reference to the caller.
-                            unsafe { <#rust_ret>::__nc_from_raw_owned_checked(__nc_out) }
-                        },
-                        AbiReturnKind::Void => unreachable!(),
+                AbiReturnKind::ComPtr { .. } => quote! {
+                    // SAFETY: The raw method returned success, which is the
+                    // ABI contract that it initialized the out slot.
+                    let __nc_out = unsafe { __nc_out.assume_init() };
+                    // SAFETY: Successful COM pointer returns transfer one
+                    // owned reference to the caller.
+                    unsafe { <#rust_ret>::__nc_from_raw_owned_checked(__nc_out) }
+                },
+                AbiReturnKind::Void => unreachable!(),
+            };
+            quote! {
+                // Uses a local output slot that is read only after ABI success.
+                fn #method_ident(#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
+                    #(#arg_preparations)*
+                    let mut __nc_out = core::mem::MaybeUninit::<#abi_ret>::uninit();
+                    let this = self.__nc_pointer.as_mut_ptr();
+                    // SAFETY: The client view borrows a live interface reference.
+                    // The out pointer targets local storage that remains valid
+                    // until the call returns.
+                    let status = unsafe {
+                        ((*(*this).vtable).#method_ident)(
+                            this,
+                            #(#arg_names,)*
+                            __nc_out.as_mut_ptr(),
+                        )
                     };
-                    quote! {
-                        // Implements the safe extension trait with a local output
-                        // slot that is read only after ABI success.
-                        fn #method_ident(#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
-                            #(#arg_preparations)*
-                            let mut __nc_out = core::mem::MaybeUninit::<#abi_ret>::uninit();
-                            let this = #pointer;
-                            // SAFETY: `self` holds a live interface reference. The
-                            // out pointer targets local storage that remains valid
-                            // until the call returns.
-                            let status = unsafe {
-                                ((*(*this).vtable).#method_ident)(
-                                    this,
-                                    #(#arg_names,)*
-                                    __nc_out.as_mut_ptr(),
-                                )
-                            };
-                            if status.is_ok() {
-                                #success_return
-                            } else {
-                                Err(status)
-                            }
-                        }
+                    if status.is_ok() {
+                        #success_return
+                    } else {
+                        Err(status)
                     }
                 }
             }
-        })
-        .collect::<Vec<_>>()
+        }
+    }
 }
 
 /// Emits the safe Rust receiver corresponding to one validated COM method.
@@ -1048,7 +1009,7 @@ fn validate_generated_method_identifiers(methods: &[AbiMethod], errors: &mut Opt
         for arg in &method.args {
             let arg_name = arg.ident.to_string();
             let fixed_collision = match arg_name.as_str() {
-                "this" => Some("the generated safe-wrapper receiver pointer"),
+                "this" => Some("the generated client receiver pointer"),
                 "object" if matches!(&arg.kind, AbiArgKind::Plain | AbiArgKind::ComRef { .. }) => Some("the generated ABI object back-pointer local"),
                 "__nc_value" => Some("the generated Rust implementation pointer local"),
                 "__nc_out" if has_out => Some("the generated non-void output slot"),

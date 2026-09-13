@@ -175,7 +175,7 @@ pub fn derive_com_deserialize(item: TokenStream) -> TokenStream {
 ///
 /// - `ITraitAbi`: a `#[repr(C)]` interface pointer header.
 /// - `ITraitVTable`: a `#[repr(C)]` vtable.
-/// - `ITraitComPtrExt`: safe call helpers for `neocogi_com::ComPtr<ITraitAbi>`.
+/// - `ITraitClient`: the safe method view lent by owning and borrowed pointers.
 /// - An `unsafe impl neocogi_com::ComInterface` for the generated header.
 ///
 /// Generated items inherit the trait visibility.

@@ -172,7 +172,6 @@ fn self_and_mutual_references_compile_and_preserve_identity() {
 
 #[test]
 fn full_pointer_checks_reject_incompatible_arguments_and_release_owned_returns() {
-    use consumer::IExchangeComPtrExt;
     assert_eq!(consumer::IExchangeAbi::ABI_SIGNATURE, producer::IExchangeAbi::ABI_SIGNATURE);
     assert_ne!(consumer::IValueAbi::ABI_SIGNATURE, producer::IValueAbi::ABI_SIGNATURE);
     let calls = Rc::new(Cell::new(0));

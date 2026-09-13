@@ -1,4 +1,4 @@
-error: COM method parameter `this` conflicts with the generated safe-wrapper receiver pointer
+error: COM method parameter `this` conflicts with the generated client receiver pointer
  --> integration-tests/ui/interface_generated_name_collision.rs:7:9
   |
 7 |         this: u32,
