@@ -63,10 +63,13 @@ constructor function pointer, erased argument frame, or legacy plugin export.
 
 ## Interface and value lowering
 
-`#[com_interface]` generates a C-compatible interface header and vtable, typed
-`ComPtr` call helpers, exact ABI signature metadata, method descriptions, and
-the audited `unsafe impl ComInterface`. IDL-generated bindings use the same
-machinery.
+`#[com_interface]` generates a C-compatible interface header and vtable, one
+typed `IFooClient` method view, exact ABI signature metadata, method
+descriptions, and the audited `unsafe impl ComInterface`. IDL-generated
+bindings use the same machinery. Both `ComPtr<IFooAbi>` and
+`ComRef<'_, IFooAbi>` lend the client view, and derived clients dereference to
+their base clients. The macro therefore emits each safe Rust-to-ABI lowering
+once and requires no interface-specific extension-trait import at call sites.
 
 Supported methods return `Result<T, NcStatus>`:
 

@@ -35,10 +35,19 @@ fn calculate() -> Result<i32, NcStatus> {
 }
 ```
 
-`com_interface` generates the portable header, vtable, ABI signature, and typed
-call helpers. `com_object` generates reference-counted storage and
-signature-checked `QueryInterface`. It does not publish the object as something
-the runtime can construct.
+`com_interface` generates the portable header, vtable, ABI signature, and one
+borrowed `IFooClient` method view. Both `ComPtr<IFooAbi>` and
+`ComRef<'_, IFooAbi>` lend that view through `Deref`, so ordinary calls use the
+same `pointer.method()` syntax without importing an interface-specific trait.
+A derived client view also dereferences to its base client view for inherited
+method lookup. Obtaining an owned base projection still requires checked
+`QueryInterface`.
+
+`com_object` generates reference-counted storage and signature-checked
+`QueryInterface`. It does not publish the object as something the runtime can
+construct. Handwritten helpers such as `INcStringComPtrExt::to_string` remain
+separate because they add bounded copying, allocation, and UTF-8 validation
+rather than duplicate a generated interface method.
 
 ## Boundary rules
 

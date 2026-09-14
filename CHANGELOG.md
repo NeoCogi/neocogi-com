@@ -34,5 +34,8 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 - Added typed `&mut self` call gating, generated thread-local/thread-safe pointer
   capabilities, bounded buffer lowering, ABI-safe records/enums, and
   format-neutral `ComDeserialize` without `Any` or erased value trees.
+- Made the inherited generated client view the sole safe interface calling
+  layer. `ComPtr` and `ComRef` retain identical method syntax without generating
+  parallel interface-specific extension traits.
 - Defined runtime resource ceilings of 1,024 retained dynamic modules and 64
   simultaneous debug messengers.

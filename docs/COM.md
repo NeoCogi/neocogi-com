@@ -158,6 +158,8 @@ schema-7 artifact and computes dependency-first assembly plans.
 - Interface calls are `extern "C"` vtable functions returning `NcStatus`.
 - Compatibility requires both generated interface ID and exact ABI signature.
 - `ComPtr<T>` owns one reference; `ComRef<'_, T>` borrows for one call.
+- Both handle kinds lend the same generated client method view; derived client
+  views provide inherited lookup without generating another calling trait.
 - `Result<()>` lowers without an output slot; other successful returns write
   one explicit output slot.
 - Fixed records and enums use generated C layouts.
