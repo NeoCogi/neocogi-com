@@ -7,6 +7,51 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
     parse_module(Path::new(path), source).unwrap()
 }
 
+/// A subscription port resolves only a first-class sink and the shared lease ABI.
+#[test]
+fn event_ports_require_generated_event_sinks_and_imported_leases() {
+    let transport = module(
+        "neocogi/com/events.ncidl",
+        "#[version(1)] trait IEventSubscription { fn cancel(&self) -> Result<()>; }",
+    );
+    let valid = module(
+        "example/events.ncidl",
+        r#"
+        extern neocogi.com.events;
+        use neocogi.com.events::IEventSubscription;
+        #[version(1)] event IChangedSink { fn changed(&self, value: u32) -> Result<()>; }
+        #[version(1)] trait ISource { event subscribe(&self): IChangedSink; }
+    "#,
+    );
+    resolve_modules(vec![valid, transport.clone()]).expect("first-class event port should resolve");
+
+    let ordinary = module(
+        "example/events.ncidl",
+        r#"
+        extern neocogi.com.events;
+        use neocogi.com.events::IEventSubscription;
+        #[version(1)] trait IChangedSink { fn changed(&self, value: u32) -> Result<()>; }
+        #[version(1)] trait ISource { event subscribe(&self): IChangedSink; }
+    "#,
+    );
+    assert!(
+        resolve_modules(vec![ordinary, transport.clone()]).is_err(),
+        "ordinary interfaces must not masquerade as events"
+    );
+
+    let unbound_lease = module(
+        "example/events.ncidl",
+        r#"
+        #[version(1)] event IChangedSink { fn changed(&self, value: u32) -> Result<()>; }
+        #[version(1)] trait ISource { event subscribe(&self): IChangedSink; }
+    "#,
+    );
+    assert!(
+        resolve_modules(vec![unbound_lease]).is_err(),
+        "subscription result must resolve through the author-declared dependency"
+    );
+}
+
 /// Resolves exact cross-module declarations and fingerprints.
 #[test]
 fn resolves_a_contract_dependency_graph() {

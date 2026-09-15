@@ -14,6 +14,14 @@ use crate::{EVENT_E_BUSY, EVENT_E_CLOSED};
 /// Default finite callback budget for one deterministic dispatch boundary.
 pub const EVENT_DISPATCH_LIMIT: u32 = 1_000_000;
 
+/// Borrowable application dispatcher capability accepted by an eventful host.
+/// Hosts consume this only synchronously; implementing it must not transfer
+/// state or handler ownership to the host.
+pub trait EventDispatchSource {
+    /// Borrows the exact generated dispatcher projection for one update call.
+    fn as_dispatcher(&self) -> ComRef<'_, IEventDispatcherAbi>;
+}
+
 /// Application-local typed behavior; neither state nor handler crosses the COM ABI.
 pub trait EventHandler<State, Event> {
     /// Handles one owned semantic snapshot while borrowing only local state.
@@ -50,7 +58,11 @@ impl<State: 'static> EventSession<State> {
         let dispatcher = Dispatcher::from_value(Dispatcher { registry: registry.clone() })
             .query()
             .expect("dispatcher declares IEventDispatcher");
-        Self { state: Rc::new(RefCell::new(state)), registry, dispatcher }
+        Self {
+            state: Rc::new(RefCell::new(state)),
+            registry,
+            dispatcher,
+        }
     }
 
     /// Reads local state between callbacks; a conflicting callback borrow reports BUSY.
@@ -82,16 +94,16 @@ impl<State: 'static> EventSession<State> {
     /// The short RefCell borrows are required because COM sink methods are `&self`
     /// and independent sources invoke them synchronously through an ABI pointer.
     pub fn delivery<Handler>(&self, handler: Handler) -> EventDelivery<State, Handler> {
-        EventDelivery { state: self.state.clone(), handler: RefCell::new(Some(handler)) }
+        EventDelivery {
+            state: self.state.clone(),
+            handler: RefCell::new(Some(handler)),
+        }
     }
 
     /// Claims the registration transaction before any foreign subscription call.
     /// The caller constructs its concrete sink and connects the producer inside
     /// `connect`; failures restore the exact previous registration order.
-    pub fn register(
-        &self,
-        connect: impl FnOnce() -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus>,
-    ) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus> {
+    pub fn register(&self, connect: impl FnOnce() -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus>) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus> {
         let mut leases = self.registry.take()?;
         let lease = connect()?;
         leases.push(lease.clone());
@@ -106,6 +118,13 @@ impl<State: 'static> EventSession<State> {
         }
         leases.clear();
         Ok(())
+    }
+}
+
+impl<State: 'static> EventDispatchSource for EventSession<State> {
+    /// Borrows this session's separate COM allocation without an AddRef transfer.
+    fn as_dispatcher(&self) -> ComRef<'_, IEventDispatcherAbi> {
+        self.dispatcher.as_com_ref()
     }
 }
 

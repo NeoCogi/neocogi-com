@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use neocogi_idl::{AbiType, DeclarationKind, EnumNames, EnumRepr, ModuleSource, Receiver, Threading, VariantFields, parse_module, parse_module_parts};
+use neocogi_idl::{AbiType, Callable, DeclarationKind, EnumNames, EnumRepr, ModuleSource, Receiver, Threading, VariantFields, parse_module, parse_module_parts};
 
 /// Exercises every initial declaration kind and ownership spelling together.
 #[test]
@@ -117,15 +117,79 @@ fn parses_a_complete_contract_module() {
         panic!("Button should be a class");
     };
     assert_eq!(button.required_interfaces[0].rust_path(), "IWidget");
-    assert_eq!(button.methods[0].receiver, Receiver::Mutable);
+    let Callable::Method(method) = &button.callables[0] else {
+        panic!("Button call should be an ordinary method")
+    };
+    assert_eq!(method.receiver, Receiver::Mutable);
 
     let DeclarationKind::Factory(factory) = &module.declaration("UiFactory").unwrap().kind else {
         panic!("UiFactory should be a factory");
     };
     assert_eq!(factory.threading, Threading::Shared);
-    assert!(matches!(factory.methods[0].parameters[0].ty, AbiType::Borrowed(_)));
-    assert!(matches!(factory.methods[1].parameters[0].ty, AbiType::Slice(_)));
-    assert!(matches!(factory.methods[2].parameters[0].ty, AbiType::OutputSlice(_)));
+    let Callable::Method(first) = &factory.callables[0] else {
+        panic!("first factory call should be ordinary")
+    };
+    let Callable::Method(second) = &factory.callables[1] else {
+        panic!("second factory call should be ordinary")
+    };
+    let Callable::Method(third) = &factory.callables[2] else {
+        panic!("third factory call should be ordinary")
+    };
+    assert!(matches!(first.parameters[0].ty, AbiType::Borrowed(_)));
+    assert!(matches!(second.parameters[0].ty, AbiType::Slice(_)));
+    assert!(matches!(third.parameters[0].ty, AbiType::OutputSlice(_)));
+}
+
+/// Event families and source ports retain distinct model cases and vtable order.
+#[test]
+fn parses_first_class_event_delivery_and_subscription_port() {
+    let module = parse_module(
+        Path::new("example/events.ncidl"),
+        r#"
+            #[version(1)]
+            /// Complete committed editor snapshot.
+            event IChangedSink {
+                /// Called after the producer releases mutation ownership.
+                fn changed(&self, text: &str, cursor: u64) -> Result<()>;
+            }
+            #[version(1)]
+            trait IEditor {
+                fn revision(&self) -> Result<u64>;
+                /// Claims only the changed queue.
+                event subscribe_changed(&mut self): IChangedSink;
+            }
+        "#,
+    )
+    .unwrap();
+    let DeclarationKind::Event(event) = &module.declaration("IChangedSink").unwrap().kind else {
+        panic!("event keyword must retain its own kind")
+    };
+    assert_eq!(event.deliveries.len(), 1);
+    assert_eq!(event.deliveries[0].name, "changed");
+    assert!(matches!(event.deliveries[0].parameters[0].ty, AbiType::Borrowed(_)));
+    let DeclarationKind::Interface(source) = &module.declaration("IEditor").unwrap().kind else {
+        panic!("source must remain an interface")
+    };
+    assert!(matches!(source.callables[0], Callable::Method(_)));
+    let Callable::EventPort(port) = &source.callables[1] else {
+        panic!("subscription keyword must retain its port kind")
+    };
+    assert_eq!(port.name, "subscribe_changed");
+    assert_eq!(port.receiver, Receiver::Mutable);
+    assert_eq!(port.sink.rust_path(), "IChangedSink");
+    assert_eq!(port.signature().parameters[0].name, "sink");
+}
+
+/// Event methods are immutable notifications, not mutable or value-returning calls.
+#[test]
+fn rejects_invalid_event_delivery_contracts() {
+    for source in [
+        "#[version(1)] event IEmpty {}",
+        "#[version(1)] event IMutable { fn changed(&mut self) -> Result<()>; }",
+        "#[version(1)] event IValue { fn changed(&self) -> Result<u64>; }",
+    ] {
+        assert!(parse_module(Path::new("example/events.ncidl"), source).is_err(), "{source}");
+    }
 }
 
 /// Confirms bit enums require intentional unsigned storage and explicit values.

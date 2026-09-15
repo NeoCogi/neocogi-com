@@ -7,6 +7,42 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
     parse_module(Path::new(path), source).unwrap()
 }
 
+/// One NCIDL event generates both native producer replay and typed application wiring.
+#[test]
+fn generates_event_payload_sink_adapter_and_subscription_port() {
+    let transport = module(
+        "neocogi/com/events.ncidl",
+        "#[version(1)] trait IEventSubscription { fn cancel(&self) -> Result<()>; }",
+    );
+    let events = module(
+        "example/events.ncidl",
+        r#"
+        extern neocogi.com.events;
+        use neocogi.com.events::IEventSubscription;
+        #[version(1)]
+        event IChangedSink {
+            fn changed(&self, text: &str, cursor: u64) -> Result<()>;
+        }
+        #[version(1)]
+        trait IEditor {
+            fn revision(&self) -> Result<u64>;
+            event subscribe_changed(&mut self): IChangedSink;
+        }
+    "#,
+    );
+    let graph = resolve_modules(vec![events, transport]).unwrap();
+    let generated = neocogi_idl_build::generate_rust(&graph, "example.events").unwrap();
+    syn::parse_file(&generated).expect("event bindings must be valid Rust syntax");
+    assert!(generated.contains("pub struct IChangedSinkEvent"));
+    assert!(generated.contains("pub text: ::alloc::string::String"));
+    assert!(generated.contains("impl ::neocogi_com_events::EventPayload for IChangedSinkEvent"));
+    assert!(generated.contains("::neocogi_com_events::copy_text(text)?"));
+    assert!(generated.contains("create_i_changed_sink_event_sink"));
+    assert!(generated.contains("fn subscribe_changed"));
+    assert!(generated.contains("IEventSubscriptionAbi"));
+    assert!(!generated.contains("std::any::Any"));
+}
+
 /// Confirms generated bindings preserve names and expose factory-only objects.
 #[test]
 fn generates_rust_bindings_for_a_module_graph() {

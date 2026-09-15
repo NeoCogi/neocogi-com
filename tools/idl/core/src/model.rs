@@ -59,6 +59,8 @@ pub enum DeclarationKind {
     BitEnum(BitEnum),
     /// A reusable COM interface contract.
     Interface(Interface),
+    /// A typed event family with generated sink and native payload adapters.
+    Event(Event),
     /// A public object contract created only by a factory.
     Class(Class),
     /// A typed provider and construction contract.
@@ -187,8 +189,17 @@ pub enum VariantFields {
 pub struct Interface {
     /// Base interface paths in declared query order.
     pub bases: Vec<NamedType>,
-    /// Callable methods in normative vtable order.
-    pub methods: Vec<Method>,
+    /// Ordinary methods and first-class event ports in normative vtable order.
+    pub callables: Vec<Callable>,
+}
+
+/// One first-class event family expressed as one or more delivery operations.
+/// Each operation is a distinct immutable fact in the generated native payload
+/// sum, while the declaration itself remains a concrete COM sink interface.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Event {
+    /// Delivery methods in normative sink-vtable and payload-variant order.
+    pub deliveries: Vec<Method>,
 }
 
 /// A public object contract with no runtime constructor.
@@ -196,8 +207,8 @@ pub struct Interface {
 pub struct Class {
     /// Interfaces every implementation must expose through `QueryInterface`.
     pub required_interfaces: Vec<NamedType>,
-    /// Callable methods on the class's primary projection.
-    pub methods: Vec<Method>,
+    /// Ordinary methods and event ports on the primary projection.
+    pub callables: Vec<Callable>,
     /// Minimum threading capability promised to consumers.
     pub threading: Threading,
 }
@@ -207,8 +218,8 @@ pub struct Class {
 pub struct Factory {
     /// Additional interfaces every factory implementation must expose.
     pub required_interfaces: Vec<NamedType>,
-    /// Typed provider methods in normative vtable order.
-    pub methods: Vec<Method>,
+    /// Typed provider methods and event ports in normative vtable order.
+    pub callables: Vec<Callable>,
     /// Minimum threading capability promised to consumers.
     pub threading: Threading,
 }
@@ -237,6 +248,71 @@ pub struct Method {
     pub parameters: Vec<Parameter>,
     /// Successful value carried by the required `Result<T>` return.
     pub output: AbiType,
+}
+
+/// One ordered callable declaration on a source interface, class, or factory.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Callable {
+    /// An ordinary author-declared COM method.
+    Method(Method),
+    /// A first-class event subscription port with generated sink and lease types.
+    EventPort(EventPort),
+}
+
+impl Callable {
+    /// Returns the ABI method name used for duplicate and vtable diagnostics.
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Method(method) => &method.name,
+            Self::EventPort(port) => &port.name,
+        }
+    }
+
+    /// Returns the original declaration span for diagnostics.
+    pub fn span(&self) -> &SourceSpan {
+        match self {
+            Self::Method(method) => &method.span,
+            Self::EventPort(port) => &port.span,
+        }
+    }
+}
+
+/// One subscribable event port whose sink is a first-class NCIDL event.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EventPort {
+    /// Port method identifier and source of subscription diagnostics.
+    pub span: SourceSpan,
+    /// Documentation lines for the generated source method.
+    pub docs: Vec<String>,
+    /// Exact method name, commonly `subscribe` or `subscribe_changed`.
+    pub name: String,
+    /// Shared or exclusive source receiver promised to consumers.
+    pub receiver: Receiver,
+    /// Concrete event sink declaration; arbitrary traits are rejected.
+    pub sink: NamedType,
+}
+
+impl EventPort {
+    /// Expands the declarative port into its exact generated COM signature.
+    /// The shared lease name must be imported from `neocogi.com.events` by the
+    /// authoring module; resolution rejects an unbound or wrong-kind import.
+    pub fn signature(&self) -> Method {
+        Method {
+            span: self.span.clone(),
+            docs: self.docs.clone(),
+            name: self.name.clone(),
+            receiver: self.receiver,
+            parameters: vec![Parameter {
+                span: self.span.clone(),
+                name: "sink".to_owned(),
+                ty: AbiType::Borrowed(Box::new(AbiType::Named(self.sink.clone()))),
+            }],
+            output: AbiType::Named(NamedType {
+                span: self.span.clone(),
+                segments: vec!["IEventSubscription".to_owned()],
+            }),
+        }
+    }
 }
 
 /// Receiver capability for one COM method.

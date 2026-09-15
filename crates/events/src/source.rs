@@ -165,11 +165,12 @@ impl<E: 'static> Queue<E> {
     /// The widget calls this only after committing the semantic or lifecycle state described by
     /// `event`. Delivery is deferred; this method never invokes application code.
     fn emit(&mut self, event: E) -> Option<E> {
-        if let Self::Connected { pending } = self {
-            pending.push(event);
-            None
-        } else {
-            Some(event)
+        match self {
+            Self::Connected { pending } => {
+                pending.push(event);
+                None
+            }
+            Self::Disconnected | Self::Finished { .. } | Self::Closed { .. } => Some(event),
         }
     }
 
@@ -177,14 +178,14 @@ impl<E: 'static> Queue<E> {
     ///
     /// The exclusive connection enforces the design's one-port/one-state-method rule.
     fn connect(&mut self) -> Result<(), SubscribeError> {
-        if matches!(self, Self::Closed { .. } | Self::Finished { .. }) {
-            return Err(SubscribeError::WidgetExpired);
+        match self {
+            Self::Disconnected => {
+                *self = Self::Connected { pending: Vec::new() };
+                Ok(())
+            }
+            Self::Connected { .. } => Err(SubscribeError::AlreadySubscribed),
+            Self::Finished { .. } | Self::Closed { .. } => Err(SubscribeError::WidgetExpired),
         }
-        if matches!(self, Self::Connected { .. }) {
-            return Err(SubscribeError::AlreadySubscribed);
-        }
-        *self = Self::Connected { pending: Vec::new() };
-        Ok(())
     }
 
     /// Transitions a connected port to the disconnected state and drops queued payloads.
@@ -193,10 +194,9 @@ impl<E: 'static> Queue<E> {
     /// by the exclusive subscription's [`Drop`] implementation.
     fn disconnect(&mut self) -> Self {
         // Return retired payload ownership for destruction after the caller releases its borrow.
-        let replacement = if matches!(self, Self::Closed { .. } | Self::Finished { .. }) {
-            Self::Closed { terminal: None }
-        } else {
-            Self::Disconnected
+        let replacement = match self {
+            Self::Closed { .. } | Self::Finished { .. } => Self::Closed { terminal: None },
+            Self::Connected { .. } | Self::Disconnected => Self::Disconnected,
         };
         std::mem::replace(self, replacement)
     }
@@ -297,10 +297,13 @@ impl<E: 'static> EventLease<E> {
         if self.cancelled.get() {
             return;
         }
-        if let Queue::Connected { pending } | Queue::Finished { pending } = &mut *self.port.borrow_mut() {
-            let mut prefix: Vec<E> = remaining.collect();
-            prefix.append(pending);
-            *pending = prefix;
+        match &mut *self.port.borrow_mut() {
+            Queue::Connected { pending } | Queue::Finished { pending } => {
+                let mut prefix: Vec<E> = remaining.collect();
+                prefix.append(pending);
+                *pending = prefix;
+            }
+            Queue::Disconnected | Queue::Closed { .. } => {}
         }
     }
 
@@ -310,9 +313,12 @@ impl<E: 'static> EventLease<E> {
     }
     /// Disconnects once and discards ordinary/terminal pending snapshots without invoking user code.
     pub fn cancel(&self) {
-        if !self.cancelled.replace(true) {
-            let retired = self.port.borrow_mut().disconnect();
-            drop(retired);
+        match self.cancelled.replace(true) {
+            false => {
+                let retired = self.port.borrow_mut().disconnect();
+                drop(retired);
+            }
+            true => {}
         }
     }
 }

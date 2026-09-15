@@ -18,9 +18,9 @@ use syn::{
 };
 
 use crate::{
-    AbiType, BitEnum, BitFlag, Class, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Factory,
-    Field, Import, Interface, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile, SourceSpan, Struct, Threading,
-    VariantFields,
+    AbiType, BitEnum, BitFlag, Callable, Class, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant, Event,
+    EventPort, ExternalModule, Factory, Field, Import, Interface, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile,
+    SourceSpan, Struct, Threading, VariantFields,
 };
 
 mod keyword {
@@ -29,6 +29,7 @@ mod keyword {
     syn::custom_keyword!(class);
     syn::custom_keyword!(factory);
     syn::custom_keyword!(bitenum);
+    syn::custom_keyword!(event);
 }
 
 /// Failure to derive a module name or parse and merge its IDL source parts.
@@ -246,12 +247,14 @@ impl Parse for ModuleSyntax {
                 parse_bit_enum(attributes, input)?
             } else if input.peek(Token![trait]) {
                 parse_interface(attributes, input)?
+            } else if input.peek(keyword::event) {
+                parse_event(attributes, input)?
             } else if input.peek(keyword::class) {
                 parse_class(attributes, input)?
             } else if input.peek(keyword::factory) {
                 parse_factory(attributes, input)?
             } else {
-                return Err(input.error("expected `extern`, `use`, `struct`, `enum`, `bitenum`, `trait`, `class`, or `factory`"));
+                return Err(input.error("expected `extern`, `use`, `struct`, `enum`, `bitenum`, `trait`, `event`, `class`, or `factory`"));
             };
 
             if let Some(previous) = declaration_names.insert(declaration.name.clone(), declaration.span.clone()) {
@@ -389,8 +392,28 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::R
     let name = input.parse::<Ident>()?;
     require_upper_camel_case(&name, "trait")?;
     let bases = parse_bases(input)?;
-    let methods = parse_methods(input)?;
-    Ok(declaration(name, metadata, DeclarationKind::Interface(Interface { bases, methods })))
+    let callables = parse_callables(input)?;
+    Ok(declaration(name, metadata, DeclarationKind::Interface(Interface { bases, callables })))
+}
+
+/// Parses a concrete event sink and its native payload-variant declarations.
+/// Deliveries are required to be shared, successful unit calls: producers do
+/// not mutate a subscriber through the ABI and callback errors stop dispatch.
+fn parse_event(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Declaration> {
+    let metadata = parse_attributes(attributes, AttributeContext::Interface)?;
+    input.parse::<keyword::event>()?;
+    let name = input.parse::<Ident>()?;
+    require_upper_camel_case(&name, "event")?;
+    let deliveries = parse_methods(input)?;
+    if deliveries.is_empty() {
+        return Err(syn::Error::new(name.span(), "IDL events require at least one delivery method"));
+    }
+    for delivery in &deliveries {
+        if delivery.receiver != Receiver::Shared || delivery.output != AbiType::Unit {
+            return Err(syn::Error::new(name.span(), "IDL event deliveries require `&self` and `Result<()>`"));
+        }
+    }
+    Ok(declaration(name, metadata, DeclarationKind::Event(Event { deliveries })))
 }
 
 /// Parses one public object contract without admitting constructor syntax.
@@ -401,11 +424,15 @@ fn parse_class(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Resul
     let name = input.parse::<Ident>()?;
     require_upper_camel_case(&name, "class")?;
     let required_interfaces = parse_bases(input)?;
-    let methods = parse_methods(input)?;
+    let callables = parse_callables(input)?;
     Ok(declaration(
         name,
         metadata,
-        DeclarationKind::Class(Class { required_interfaces, methods, threading }),
+        DeclarationKind::Class(Class {
+            required_interfaces,
+            callables,
+            threading,
+        }),
     ))
 }
 
@@ -417,11 +444,15 @@ fn parse_factory(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Res
     let name = input.parse::<Ident>()?;
     require_upper_camel_case(&name, "factory")?;
     let required_interfaces = parse_bases(input)?;
-    let methods = parse_methods(input)?;
+    let callables = parse_callables(input)?;
     Ok(declaration(
         name,
         metadata,
-        DeclarationKind::Factory(Factory { required_interfaces, methods, threading }),
+        DeclarationKind::Factory(Factory {
+            required_interfaces,
+            callables,
+            threading,
+        }),
     ))
 }
 
@@ -467,6 +498,71 @@ fn parse_methods(input: ParseStream<'_>) -> syn::Result<Vec<Method>> {
         methods.push(method);
     }
     Ok(methods)
+}
+
+/// Parses the ordered vtable of ordinary methods and declarative event ports.
+/// A port spells only its receiver and concrete event sink; its leased result
+/// is generated from the shared COM event contract without a second signature.
+fn parse_callables(input: ParseStream<'_>) -> syn::Result<Vec<Callable>> {
+    let body;
+    braced!(body in input);
+    let mut callables = Vec::new();
+    let mut names = HashMap::new();
+    while !body.is_empty() {
+        let attributes = Attribute::parse_outer(&body)?;
+        let callable = if body.peek(keyword::event) {
+            Callable::EventPort(parse_event_port(attributes, &body)?)
+        } else {
+            let mut source = body.parse::<TraitItemFn>()?;
+            source.attrs.splice(0..0, attributes);
+            Callable::Method(lower_method(source)?)
+        };
+        let is_method = matches!(callable, Callable::Method(_));
+        if let Some((previous, previous_is_method)) = names.insert(callable.name().to_owned(), (callable.span().clone(), is_method)) {
+            let role = if is_method && previous_is_method { "method" } else { "method or event port" };
+            return Err(duplicate_error("EIDL016", role, callable.name(), callable.span(), &previous));
+        }
+        callables.push(callable);
+    }
+    Ok(callables)
+}
+
+/// Lowers `event subscribe_changed(&mut self): IChangedSink;` into a typed port.
+fn parse_event_port(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<EventPort> {
+    let docs = parse_doc_only_attributes(&attributes)?;
+    input.parse::<keyword::event>()?;
+    let name = input.parse::<Ident>()?;
+    require_snake_case(&name, "event port")?;
+    let receiver_input;
+    parenthesized!(receiver_input in input);
+    receiver_input.parse::<Token![&]>()?;
+    let receiver = if receiver_input.peek(Token![mut]) {
+        receiver_input.parse::<Token![mut]>()?;
+        Receiver::Mutable
+    } else {
+        Receiver::Shared
+    };
+    receiver_input.parse::<Token![self]>()?;
+    if !receiver_input.is_empty() {
+        return Err(receiver_input.error("event ports accept only `&self` or `&mut self`"));
+    }
+    input.parse::<Token![:]>()?;
+    let type_input = input.parse::<Type>()?;
+    let Type::Path(path) = type_input else {
+        return Err(syn::Error::new_spanned(type_input, "event ports require one concrete event sink path"));
+    };
+    if path.qself.is_some() {
+        return Err(syn::Error::new_spanned(path, "event sink paths cannot be qualified associated types"));
+    }
+    let sink = named_path(&path.path)?;
+    input.parse::<Token![;]>()?;
+    Ok(EventPort {
+        span: SourceSpan::from_parser(name.span()),
+        docs,
+        name: name.to_string(),
+        receiver,
+        sink,
+    })
 }
 
 /// Validates and lowers one Syn trait method into the language-neutral model.
@@ -848,13 +944,18 @@ fn attach_declaration_source(declaration: &mut Declaration, source: &SourceFile)
             }
         }
         DeclarationKind::Interface(interface) => {
-            attach_callable_source(&mut interface.bases, &mut interface.methods, source);
+            attach_callable_source(&mut interface.bases, &mut interface.callables, source);
+        }
+        DeclarationKind::Event(event) => {
+            for delivery in &mut event.deliveries {
+                attach_method_source(delivery, source);
+            }
         }
         DeclarationKind::Class(class) => {
-            attach_callable_source(&mut class.required_interfaces, &mut class.methods, source);
+            attach_callable_source(&mut class.required_interfaces, &mut class.callables, source);
         }
         DeclarationKind::Factory(factory) => {
-            attach_callable_source(&mut factory.required_interfaces, &mut factory.methods, source);
+            attach_callable_source(&mut factory.required_interfaces, &mut factory.callables, source);
         }
     }
 }
@@ -866,18 +967,29 @@ fn attach_field_source(field: &mut Field, source: &SourceFile) {
 }
 
 /// Attaches a source file to bases, methods, parameters, and result types.
-fn attach_callable_source(bases: &mut [NamedType], methods: &mut [Method], source: &SourceFile) {
+fn attach_callable_source(bases: &mut [NamedType], callables: &mut [Callable], source: &SourceFile) {
     for base in bases {
         base.span.attach(source);
     }
-    for method in methods {
-        method.span.attach(source);
-        for parameter in &mut method.parameters {
-            parameter.span.attach(source);
-            attach_type_source(&mut parameter.ty, source);
+    for callable in callables {
+        match callable {
+            Callable::Method(method) => attach_method_source(method, source),
+            Callable::EventPort(port) => {
+                port.span.attach(source);
+                port.sink.span.attach(source);
+            }
         }
-        attach_type_source(&mut method.output, source);
     }
+}
+
+/// Attaches one ordinary or event-delivery signature and every nested input span.
+fn attach_method_source(method: &mut Method, source: &SourceFile) {
+    method.span.attach(source);
+    for parameter in &mut method.parameters {
+        parameter.span.attach(source);
+        attach_type_source(&mut parameter.ty, source);
+    }
+    attach_type_source(&mut method.output, source);
 }
 
 /// Attaches a source file to every named path nested in one ABI type.

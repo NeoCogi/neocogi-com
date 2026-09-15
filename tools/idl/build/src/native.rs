@@ -309,7 +309,7 @@ fn declaration_kind(kind: &DeclarationKind) -> u32 {
     match kind {
         DeclarationKind::Struct(_) => 1,
         DeclarationKind::Enum(_) => 2,
-        DeclarationKind::Interface(_) => 3,
+        DeclarationKind::Interface(_) | DeclarationKind::Event(_) => 3,
         DeclarationKind::Class(_) => 4,
         DeclarationKind::Factory(_) => 5,
         DeclarationKind::BitEnum(_) => 6,
@@ -321,7 +321,9 @@ fn declaration_threading(kind: &DeclarationKind) -> u32 {
     match kind {
         DeclarationKind::Class(class) => threading_value(class.threading),
         DeclarationKind::Factory(factory) => threading_value(factory.threading),
-        DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) | DeclarationKind::Interface(_) => u32::MAX,
+        DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) | DeclarationKind::Interface(_) | DeclarationKind::Event(_) => {
+            u32::MAX
+        }
     }
 }
 

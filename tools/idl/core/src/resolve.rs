@@ -8,8 +8,8 @@ use std::{
 use neocogi_com_core::{NcGuid, guid_from_name, guid_from_qualified_name};
 
 use crate::{
-    AbiType, BitEnum, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, Method, Module, NamedType, SourceFile, SourceSpan, Threading, VariantFields,
-    sha256::digest,
+    AbiType, BitEnum, Callable, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, Method, Module, NamedType, SourceFile, SourceSpan, Threading,
+    VariantFields, sha256::digest,
 };
 
 /// UUID namespace reserved for canonical NeoCogi IDL identities.
@@ -565,21 +565,43 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
             DeclarationKind::BitEnum(bit_enum) => collect_diagnostics(&mut diagnostics, validate_bit_enum(entry, declaration, bit_enum)),
             DeclarationKind::Interface(interface) => {
                 collect_diagnostics(&mut diagnostics, validate_interface_bases(index, &interface.bases, entries, &declaration.name));
-                collect_diagnostics(&mut diagnostics, validate_methods(index, &interface.methods, entries, &declaration.name));
+                collect_diagnostics(&mut diagnostics, validate_callables(index, &interface.callables, entries, &declaration.name));
+            }
+            DeclarationKind::Event(event) => {
+                collect_diagnostics(&mut diagnostics, validate_methods(index, &event.deliveries, entries, &declaration.name));
+                for delivery in &event.deliveries {
+                    for parameter in &delivery.parameters {
+                        if matches!(parameter.ty, AbiType::OutputSlice(_) | AbiType::Option(_)) {
+                            collect_diagnostics(
+                                &mut diagnostics,
+                                Err(source_error(
+                                    &entry.module,
+                                    "EIDL080",
+                                    &parameter.span,
+                                    format!(
+                                        "event {} delivery {} parameter {} cannot be captured as an owned snapshot",
+                                        declaration.name, delivery.name, parameter.name
+                                    ),
+                                    "event inputs must be copied values, &str, borrowed objects, or input slices",
+                                )),
+                            );
+                        }
+                    }
+                }
             }
             DeclarationKind::Class(class) => {
                 collect_diagnostics(
                     &mut diagnostics,
                     validate_interface_bases(index, &class.required_interfaces, entries, &declaration.name),
                 );
-                collect_diagnostics(&mut diagnostics, validate_methods(index, &class.methods, entries, &declaration.name));
+                collect_diagnostics(&mut diagnostics, validate_callables(index, &class.callables, entries, &declaration.name));
             }
             DeclarationKind::Factory(factory) => {
                 collect_diagnostics(
                     &mut diagnostics,
                     validate_interface_bases(index, &factory.required_interfaces, entries, &declaration.name),
                 );
-                collect_diagnostics(&mut diagnostics, validate_methods(index, &factory.methods, entries, &declaration.name));
+                collect_diagnostics(&mut diagnostics, validate_callables(index, &factory.callables, entries, &declaration.name));
             }
         }
     }
@@ -681,7 +703,7 @@ fn collect_value_references<'a>(declaration: &'a Declaration, output: &mut Vec<&
                 }
             }
         }
-        DeclarationKind::BitEnum(_) | DeclarationKind::Interface(_) | DeclarationKind::Class(_) | DeclarationKind::Factory(_) => {}
+        DeclarationKind::BitEnum(_) | DeclarationKind::Interface(_) | DeclarationKind::Event(_) | DeclarationKind::Class(_) | DeclarationKind::Factory(_) => {}
     }
 }
 
@@ -868,6 +890,44 @@ fn validate_methods(index: usize, methods: &[Method], entries: &[ModuleEntry], o
             &mut diagnostics,
             validate_output_type(index, &method.output, entries, &format!("{owner}::{} result", method.name), &method.span),
         );
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(ResolutionError { diagnostics })
+    }
+}
+
+/// Validates ordinary signatures and generated subscription ports in vtable order.
+fn validate_callables(index: usize, callables: &[Callable], entries: &[ModuleEntry], owner: &str) -> Result<(), ResolutionError> {
+    let mut diagnostics = Vec::new();
+    for callable in callables {
+        match callable {
+            Callable::Method(method) => collect_diagnostics(&mut diagnostics, validate_methods(index, std::slice::from_ref(method), entries, owner)),
+            Callable::EventPort(port) => {
+                let sink = resolve_named(index, &port.sink, entries);
+                match sink {
+                    Ok(symbol) if matches!(entries[symbol.module].module.declarations[symbol.declaration].kind, DeclarationKind::Event(_)) => {}
+                    Ok(symbol) => collect_diagnostics(
+                        &mut diagnostics,
+                        Err(kind_mismatch_error(
+                            index,
+                            symbol,
+                            entries,
+                            &port.sink.span,
+                            format!("{owner}::{} must name a first-class event sink", port.name),
+                            "ordinary interfaces cannot be used as event sinks",
+                            "declare the sink with `event`",
+                        )),
+                    ),
+                    Err(error) => collect_diagnostics(&mut diagnostics, Err(error)),
+                }
+                collect_diagnostics(
+                    &mut diagnostics,
+                    validate_methods(index, std::slice::from_ref(&port.signature()), entries, owner),
+                );
+            }
+        }
     }
     if diagnostics.is_empty() {
         Ok(())
@@ -1194,15 +1254,22 @@ fn encode_declaration(
         }
         DeclarationKind::Interface(interface) => {
             encoder.tag(3);
-            encode_callable(index, &interface.bases, &interface.methods, Threading::Local, entries, encoder)?;
+            encode_callable(index, &interface.bases, &interface.callables, Threading::Local, entries, encoder)?;
+        }
+        DeclarationKind::Event(event) => {
+            // Event declarations are sink interfaces at the ABI, but their
+            // native payload semantics are not equivalent to arbitrary traits.
+            encoder.tag(7);
+            let deliveries = event.deliveries.iter().cloned().map(Callable::Method).collect::<Vec<_>>();
+            encode_callable(index, &[], &deliveries, Threading::Local, entries, encoder)?;
         }
         DeclarationKind::Class(class) => {
             encoder.tag(4);
-            encode_callable(index, &class.required_interfaces, &class.methods, class.threading, entries, encoder)?;
+            encode_callable(index, &class.required_interfaces, &class.callables, class.threading, entries, encoder)?;
         }
         DeclarationKind::Factory(factory) => {
             encoder.tag(5);
-            encode_callable(index, &factory.required_interfaces, &factory.methods, factory.threading, entries, encoder)?;
+            encode_callable(index, &factory.required_interfaces, &factory.callables, factory.threading, entries, encoder)?;
         }
     }
     Ok(())
@@ -1212,7 +1279,7 @@ fn encode_declaration(
 fn encode_callable(
     index: usize,
     bases: &[NamedType],
-    methods: &[Method],
+    callables: &[Callable],
     threading: Threading,
     entries: &[ModuleEntry],
     encoder: &mut CanonicalEncoder,
@@ -1225,8 +1292,18 @@ fn encode_callable(
     for base in bases {
         encode_named(index, base, entries, encoder)?;
     }
-    encoder.u32(u32_len(methods.len(), &entries[index].name, "method count")?);
-    for method in methods {
+    encoder.u32(u32_len(callables.len(), &entries[index].name, "method count")?);
+    for callable in callables {
+        let method = match callable {
+            Callable::Method(method) => {
+                encoder.tag(0);
+                std::borrow::Cow::Borrowed(method)
+            }
+            Callable::EventPort(port) => {
+                encoder.tag(1);
+                std::borrow::Cow::Owned(port.signature())
+            }
+        };
         encoder.text(&method.name, &entries[index].name)?;
         encoder.tag(match method.receiver {
             crate::Receiver::Shared => 0,
@@ -1393,7 +1470,7 @@ fn derive_declaration_signature(module_fingerprint: [u8; 32], declaration_id: Nc
 fn symbol_kind(kind: &DeclarationKind) -> SymbolKind {
     match kind {
         DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) => SymbolKind::Value,
-        DeclarationKind::Interface(_) => SymbolKind::Interface,
+        DeclarationKind::Interface(_) | DeclarationKind::Event(_) => SymbolKind::Interface,
         DeclarationKind::Class(_) => SymbolKind::Class,
         DeclarationKind::Factory(_) => SymbolKind::Factory,
     }

@@ -8,7 +8,7 @@ repository.workspace = true
 description = "Typed producer queues and application event sessions for COM components"
 
 [dependencies]
-neocogi-com = { workspace = true, features = ["macros"] }
+neocogi-com = { workspace = true, features = ["macros", "std"] }
 neocogi-com-events-contracts.workspace = true
 
 [features]
