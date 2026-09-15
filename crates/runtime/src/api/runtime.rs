@@ -19,9 +19,13 @@ use super::{emit_error, path_from_utf8};
 
 /// Validates and atomically registers one native contract dependency graph.
 pub(super) unsafe extern "C" fn register_contract_module(module: *const NcContractModuleReference) -> NcStatus {
+    let runtime = match RuntimeState::global() {
+        Ok(runtime) => runtime,
+        Err(status) => return status,
+    };
     // SAFETY: The caller provides the reference and transitive native graph
     // lifetime required by the canonical contract registry.
-    let status = unsafe { RuntimeState::global().register_contract_module(module) };
+    let status = unsafe { runtime.register_contract_module(module) };
     if status.is_err() {
         emit_error(NC_DEBUG_TYPE_VALIDATION, status, "contract module registration failed");
     }
@@ -30,9 +34,13 @@ pub(super) unsafe extern "C" fn register_contract_module(module: *const NcContra
 
 /// Validates and atomically registers one factory-only plugin description.
 pub(super) unsafe extern "C" fn register_factory_plugin_description(plugin: *const NcFactoryPluginDescription) -> NcStatus {
+    let runtime = match RuntimeState::global() {
+        Ok(runtime) => runtime,
+        Err(status) => return status,
+    };
     // SAFETY: The caller supplies the plugin and linked contract graph lifetime
     // required by process-wide registration.
-    let status = unsafe { RuntimeState::global().register_factory_plugin_description(plugin) };
+    let status = unsafe { runtime.register_factory_plugin_description(plugin) };
     if status.is_err() {
         emit_error(NC_DEBUG_TYPE_VALIDATION, status, "factory plugin registration failed");
     }
@@ -52,9 +60,13 @@ pub(super) unsafe extern "C" fn load_plugin_library_utf8(path: *const u8, path_l
         Ok(path) => path,
         Err(status) => return status,
     };
+    let runtime = match RuntimeState::global() {
+        Ok(runtime) => runtime,
+        Err(status) => return status,
+    };
 
     // SAFETY: Loading executes trusted code selected by the caller.
-    match unsafe { RuntimeState::global().load_plugin_library(path) } {
+    match unsafe { runtime.load_plugin_library(path) } {
         Ok(module_id) => {
             // SAFETY: `out_module_id` was checked above.
             unsafe { *out_module_id = module_id.get() };
@@ -79,8 +91,12 @@ pub(super) unsafe extern "C" fn activate_factory_plugin(
     requested_threading: u32,
     out: *mut *mut IUnknown,
 ) -> NcStatus {
+    let runtime = match RuntimeState::global() {
+        Ok(runtime) => runtime,
+        Err(status) => return status,
+    };
     let activation = {
-        let catalog = RuntimeState::global().read_catalog();
+        let catalog = runtime.read_catalog();
         factory_activation::resolve_factory(&catalog.factory_plugin_registry, plugin_id, factory_interface, requested_threading)
     };
     // SAFETY: This forwards the caller's output contract after releasing the

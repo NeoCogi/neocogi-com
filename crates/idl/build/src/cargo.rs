@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use neocogi_idl::resolve_modules;
+use neocogi_idl::{COM_EVENTS_MODULE_NAME, resolve_modules};
 use serde::{Deserialize, Serialize};
 
 use crate::{ARTIFACT_SCHEMA, ArtifactRecord, ModuleSources, generate_rust, native};
@@ -27,6 +27,15 @@ enum ModuleInput {
     File(PathBuf),
     /// One directory whose path defines identity and whose files are parts.
     Directory(PathBuf),
+}
+
+/// Description ownership selected by the contract crate's build script.
+#[derive(Clone, Copy)]
+enum DescriptionOwner {
+    /// Compile one native artifact for an ordinary contract module.
+    Native,
+    /// Publish only bindings and source graph for the runtime-owned COM events ABI.
+    RuntimeBuiltin,
 }
 
 impl Module {
@@ -55,6 +64,19 @@ impl Module {
     /// declare the exact conventionally derived `links` value; this prevents a
     /// package from advertising another module's generated artifacts.
     pub fn build(self) -> Result<BuildOutput, BuildError> {
+        self.build_with_owner(DescriptionOwner::Native)
+    }
+
+    /// Builds the intrinsic COM event module without a native description DSO.
+    ///
+    /// Its resolved IDL graph is still published to dependent contract builds;
+    /// the runtime independently generates and owns the immutable description.
+    pub fn build_runtime_builtin(self) -> Result<BuildOutput, BuildError> {
+        self.build_with_owner(DescriptionOwner::RuntimeBuiltin)
+    }
+
+    /// Resolves one complete graph before emitting owner-specific outputs.
+    fn build_with_owner(self, owner: DescriptionOwner) -> Result<BuildOutput, BuildError> {
         let manifest_dir = required_path("CARGO_MANIFEST_DIR")?;
         let output_dir = required_path("OUT_DIR")?;
         let source_root = manifest_dir.join(&self.idl_root);
@@ -80,6 +102,17 @@ impl Module {
 
         let own_module = own_record.sources.parse()?;
         let module_name = own_module.name.to_string();
+        match (owner, module_name.as_str()) {
+            (DescriptionOwner::Native, COM_EVENTS_MODULE_NAME) => {
+                return Err(BuildError::Idl(
+                    "the COM events description belongs to the shared runtime; use build_runtime_builtin".into(),
+                ));
+            }
+            (DescriptionOwner::RuntimeBuiltin, COM_EVENTS_MODULE_NAME) | (DescriptionOwner::Native, _) => {}
+            (DescriptionOwner::RuntimeBuiltin, _) => {
+                return Err(BuildError::Idl("only neocogi.com.events is a runtime-owned built-in contract".into()));
+            }
+        }
         let expected_links = links_name(&module_name);
         let actual_links = env::var("CARGO_MANIFEST_LINKS").map_err(|_| BuildError::MissingEnvironment("CARGO_MANIFEST_LINKS"))?;
         if actual_links != expected_links {
@@ -121,12 +154,21 @@ impl Module {
             if !graph.modules.contains_key(&dependency) {
                 return Err(BuildError::Idl(format!("dependency graph for {dependency:?} does not contain that module")));
             }
-            let artifact = graph
-                .modules
-                .get(&dependency)
-                .and_then(|module| module.artifact.clone())
-                .ok_or_else(|| BuildError::Idl(format!("dependency module {dependency:?} did not publish a native artifact record")))?;
-            dependency_artifacts.insert(dependency, artifact);
+            let artifact = graph.modules.get(&dependency).and_then(|module| module.artifact.clone());
+            match (dependency.as_str(), artifact) {
+                (COM_EVENTS_MODULE_NAME, None) => {}
+                (COM_EVENTS_MODULE_NAME, Some(_)) => {
+                    return Err(BuildError::Idl("the COM events module must not publish a native artifact".into()));
+                }
+                (_, Some(artifact)) => {
+                    dependency_artifacts.insert(dependency, artifact);
+                }
+                (_, None) => {
+                    return Err(BuildError::Idl(format!(
+                        "dependency module {dependency:?} did not publish a native artifact record"
+                    )));
+                }
+            }
             merge_records(&mut records, graph.modules)?;
         }
 
@@ -155,6 +197,7 @@ impl Module {
         let exact_dependencies = resolved_module
             .dependencies
             .iter()
+            .filter(|dependency| dependency.module_name != COM_EVENTS_MODULE_NAME)
             .map(|dependency| {
                 let artifact = dependency_artifacts
                     .get(&dependency.module_name)
@@ -163,18 +206,37 @@ impl Module {
                 Ok(artifact.clone())
             })
             .collect::<Result<Vec<_>, BuildError>>()?;
-        let artifact = native::build(resolved_module, &exact_dependencies, &output_dir)?;
-        let artifact_bytes = serde_json::to_vec_pretty(&artifact).map_err(|source_error| BuildError::Json {
-            operation: "encode native contract artifact record",
-            path: output_dir.clone(),
-            source: source_error,
-        })?;
-        let artifact_path = output_dir.join("neocogi-contract-artifact.json");
-        write_changed(&artifact_path, &artifact_bytes)?;
+        let (artifact, artifact_path) = match owner {
+            DescriptionOwner::Native => {
+                let artifact = native::build(resolved_module, &exact_dependencies, &output_dir)?;
+                let artifact_bytes = serde_json::to_vec_pretty(&artifact).map_err(|source_error| BuildError::Json {
+                    operation: "encode native contract artifact record",
+                    path: output_dir.clone(),
+                    source: source_error,
+                })?;
+                let path = output_dir.join("neocogi-contract-artifact.json");
+                write_changed(&path, &artifact_bytes)?;
+                (Some(artifact), Some(path))
+            }
+            DescriptionOwner::RuntimeBuiltin => {
+                // A previous build of this exact Cargo OUT_DIR may have used
+                // native ownership. Remove only its generated artifact record
+                // so assembly discovery cannot stage a stale events DSO.
+                let stale_record = output_dir.join("neocogi-contract-artifact.json");
+                if stale_record.is_file() {
+                    fs::remove_file(&stale_record).map_err(|source| BuildError::Io {
+                        operation: "remove obsolete built-in artifact record",
+                        path: stale_record,
+                        source,
+                    })?;
+                }
+                (None, None)
+            }
+        };
         let own_record = records
             .get_mut(&module_name)
             .ok_or_else(|| BuildError::Idl("resolved graph lost the crate's mutable source record".into()))?;
-        own_record.artifact = Some(artifact.clone());
+        own_record.artifact = artifact.clone();
 
         let graph = GraphRecord { schema: GRAPH_SCHEMA, modules: records };
         let graph_bytes = serde_json::to_vec_pretty(&graph).map_err(|source_error| BuildError::Json {
@@ -186,7 +248,9 @@ impl Module {
         write_changed(&graph_path, &graph_bytes)?;
 
         println!("cargo::metadata=idl_graph={}", graph_path.display());
-        println!("cargo::metadata=artifact={}", artifact_path.display());
+        if let Some(path) = &artifact_path {
+            println!("cargo::metadata=artifact={}", path.display());
+        }
         println!("cargo::metadata=module_name={}", own_module.name);
         println!("cargo::metadata=module_id={}", resolved_module.module_id);
         println!("cargo::metadata=abi_fingerprint={}", resolved_module.fingerprint_hex());
@@ -237,10 +301,10 @@ pub struct BuildOutput {
     pub bindings: PathBuf,
     /// Machine-readable source graph exported through Cargo metadata.
     pub dependency_graph: PathBuf,
-    /// Exact native contract library built for this module revision.
-    pub artifact: ArtifactRecord,
-    /// Machine-readable record exported for distribution assembly.
-    pub artifact_record: PathBuf,
+    /// Exact native artifact, absent only for the runtime-owned event module.
+    pub artifact: Option<ArtifactRecord>,
+    /// Native artifact record path, absent only for the runtime-owned event module.
+    pub artifact_record: Option<PathBuf>,
 }
 
 /// Build-script failure with contextual paths and dependency names.
@@ -336,7 +400,7 @@ impl std::error::Error for BuildError {
 }
 
 /// Schema version for Cargo-to-Cargo IDL source graph exchange.
-const GRAPH_SCHEMA: u32 = 2;
+const GRAPH_SCHEMA: u32 = 3;
 
 /// Serializable transitive module graph produced by a dependency build.
 #[derive(Deserialize, Serialize)]
@@ -350,7 +414,7 @@ struct GraphRecord {
 /// Source record sufficient to repeat semantic resolution in a dependent crate.
 #[derive(Deserialize, Eq, PartialEq, Serialize)]
 struct GraphModule {
-    /// Canonically loaded source topology, flattened to preserve graph schema v2.
+    /// Canonically loaded source topology, flattened in graph schema v3.
     #[serde(flatten)]
     sources: ModuleSources,
     /// Exact target artifact when this module record originated at its owner.
@@ -415,7 +479,7 @@ fn dependency_graph_variable(module: &str) -> String {
 }
 
 /// Replaces one generated file only when its contents changed.
-fn write_changed(path: &Path, contents: &[u8]) -> Result<(), BuildError> {
+pub(crate) fn write_changed(path: &Path, contents: &[u8]) -> Result<(), BuildError> {
     if fs::read(path).ok().as_deref() == Some(contents) {
         return Ok(());
     }

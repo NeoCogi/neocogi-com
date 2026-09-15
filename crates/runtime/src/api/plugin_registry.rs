@@ -17,12 +17,19 @@ use super::copy_slice_to_out;
 
 /// Returns a snapshot count of registered plugin IDs.
 pub(super) unsafe extern "C" fn plugin_count() -> usize {
-    RuntimeState::global().read_catalog().factory_plugin_registry.with_plugin_ids(<[NcGuid]>::len)
+    match RuntimeState::global() {
+        Ok(runtime) => runtime.read_catalog().factory_plugin_registry.with_plugin_ids(<[NcGuid]>::len),
+        Err(_) => 0,
+    }
 }
 
 /// Copies registered plugin IDs using the ABI count/fill contract.
 pub(super) unsafe extern "C" fn plugin_ids(out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus {
-    RuntimeState::global().read_catalog().factory_plugin_registry.with_plugin_ids(|values| {
+    let runtime = match RuntimeState::global() {
+        Ok(runtime) => runtime,
+        Err(status) => return status,
+    };
+    runtime.read_catalog().factory_plugin_registry.with_plugin_ids(|values| {
         // SAFETY: The caller provides the output-buffer contract.
         unsafe { copy_slice_to_out(values, out, capacity, out_len) }
     })
@@ -30,12 +37,19 @@ pub(super) unsafe extern "C" fn plugin_ids(out: *mut NcGuid, capacity: usize, ou
 
 /// Returns a snapshot count of retained dynamic module IDs.
 pub(super) unsafe extern "C" fn loaded_module_count() -> usize {
-    RuntimeState::global().read_catalog().module_registry.with_loaded_module_ids(<[u64]>::len)
+    match RuntimeState::global() {
+        Ok(runtime) => runtime.read_catalog().module_registry.with_loaded_module_ids(<[u64]>::len),
+        Err(_) => 0,
+    }
 }
 
 /// Copies retained module IDs using the ABI count/fill contract.
 pub(super) unsafe extern "C" fn loaded_module_ids(out: *mut u64, capacity: usize, out_len: *mut usize) -> NcStatus {
-    RuntimeState::global().read_catalog().module_registry.with_loaded_module_ids(|values| {
+    let runtime = match RuntimeState::global() {
+        Ok(runtime) => runtime,
+        Err(status) => return status,
+    };
+    runtime.read_catalog().module_registry.with_loaded_module_ids(|values| {
         // SAFETY: The caller provides the output-buffer contract.
         unsafe { copy_slice_to_out(values, out, capacity, out_len) }
     })

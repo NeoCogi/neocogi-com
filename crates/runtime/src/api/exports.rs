@@ -27,25 +27,25 @@ pub extern "C" fn nc_com_get_runtime_api_v2() -> *const NcRuntimeApiV2 {
     &RUNTIME_API_V2
 }
 
-/// Returns the immutable contract-registry table for runtime ABI v2.
+/// Returns the immutable runtime ABI v2 contract-registry table.
 #[unsafe(no_mangle)]
 pub extern "C" fn nc_com_get_contract_registry_v2() -> *const NcContractRegistryV2 {
     &CONTRACT_REGISTRY_V2
 }
 
-/// Returns the immutable plugin-registry table for runtime ABI v2.
+/// Returns the immutable runtime ABI v2 plugin-registry table.
 #[unsafe(no_mangle)]
 pub extern "C" fn nc_com_get_plugin_registry_v2() -> *const NcPluginRegistryV2 {
     &PLUGIN_REGISTRY_V2
 }
 
-/// Returns the immutable inspection table for runtime ABI v2.
+/// Returns the immutable runtime ABI v2 inspection table.
 #[unsafe(no_mangle)]
 pub extern "C" fn nc_com_get_inspection_api_v2() -> *const NcInspectionApiV2 {
     &INSPECTION_API_V2
 }
 
-/// Returns the immutable debug-messenger table for runtime ABI v2.
+/// Returns the immutable runtime ABI v2 debug-messenger table.
 #[unsafe(no_mangle)]
 pub extern "C" fn nc_com_get_debug_api_v2() -> *const NcDebugApiV2 {
     &DEBUG_API_V2

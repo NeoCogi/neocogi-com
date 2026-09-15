@@ -18,7 +18,7 @@ tested, but cross-release compatibility begins only after a future ratification.
   `NcContractModuleReference` values.
 - `NcFactoryPluginDescription`, containing plugin metadata, direct contract
   references, hard plugin dependencies, and one root-factory bootstrap.
-- the runtime ABI v2 operation, registry, inspection, and debug table layouts.
+- the runtime ABI v2 operation, registry, inspection, and debug tables.
 
 The runtime ABI has no class table, class-ID constructor lookup, erased
 constructor frame, or generic value bag. A plugin exposes one factory; ordinary

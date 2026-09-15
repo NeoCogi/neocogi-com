@@ -55,7 +55,11 @@ pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPlugi
     if out.is_null() {
         return NC_E_POINTER;
     }
-    let catalog = RuntimeState::global().read_catalog();
+    let runtime = match RuntimeState::global() {
+        Ok(runtime) => runtime,
+        Err(status) => return status,
+    };
+    let catalog = runtime.read_catalog();
     let Some(info) = runtime_inspection::factory_plugin_info(&catalog.factory_plugin_registry, plugin_id) else {
         return NC_E_NOT_FOUND;
     };
@@ -73,7 +77,11 @@ pub(super) unsafe extern "C" fn module_info(module_id: u64, out: *mut NcModuleIn
         return NC_E_NOT_FOUND;
     }
     let module_id = LoadedModuleId::from_raw(module_id);
-    let catalog = RuntimeState::global().read_catalog();
+    let runtime = match RuntimeState::global() {
+        Ok(runtime) => runtime,
+        Err(status) => return status,
+    };
+    let catalog = runtime.read_catalog();
     let Some(info) = runtime_inspection::module_info(&catalog.module_registry, module_id) else {
         return NC_E_NOT_FOUND;
     };
@@ -84,19 +92,23 @@ pub(super) unsafe extern "C" fn module_info(module_id: u64, out: *mut NcModuleIn
 
 /// Returns the number of hard dependency IDs declared by a registered plugin.
 pub(super) unsafe extern "C" fn plugin_dependency_count(plugin_id: NcGuid) -> usize {
-    RuntimeState::global()
-        .read_catalog()
-        .factory_plugin_registry
-        .with_plugin_dependency_ids(plugin_id, <[NcGuid]>::len)
+    match RuntimeState::global() {
+        Ok(runtime) => runtime
+            .read_catalog()
+            .factory_plugin_registry
+            .with_plugin_dependency_ids(plugin_id, <[NcGuid]>::len),
+        Err(_) => 0,
+    }
 }
 
 /// Copies a plugin's hard dependency IDs using the count/fill contract.
 pub(super) unsafe extern "C" fn plugin_dependency_ids(plugin_id: NcGuid, out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus {
-    RuntimeState::global()
-        .read_catalog()
-        .factory_plugin_registry
-        .with_plugin_dependency_ids(plugin_id, |values| {
-            // SAFETY: The caller provides the output-buffer contract.
-            unsafe { copy_slice_to_out(values, out, capacity, out_len) }
-        })
+    let runtime = match RuntimeState::global() {
+        Ok(runtime) => runtime,
+        Err(status) => return status,
+    };
+    runtime.read_catalog().factory_plugin_registry.with_plugin_dependency_ids(plugin_id, |values| {
+        // SAFETY: The caller provides the output-buffer contract.
+        unsafe { copy_slice_to_out(values, out, capacity, out_len) }
+    })
 }

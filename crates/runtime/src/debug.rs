@@ -220,18 +220,26 @@ impl DebugState {
 
 /// C table adapter for creating a process-global debug messenger.
 pub(crate) unsafe extern "C" fn create_messenger(create_info: *const NcDebugMessengerCreateInfoV2, out_handle: *mut u64) -> NcStatus {
+    let runtime = match RuntimeState::global() {
+        Ok(runtime) => runtime,
+        Err(status) => return status,
+    };
     // SAFETY: The C caller supplies the create-info and output-pointer contracts.
-    unsafe { RuntimeState::global().debug().create_messenger(create_info, out_handle) }
+    unsafe { runtime.debug().create_messenger(create_info, out_handle) }
 }
 
 /// C table adapter that destroys a messenger and waits for callback quiescence.
 pub(crate) unsafe extern "C" fn destroy_messenger(handle: u64) {
-    RuntimeState::global().debug().destroy_messenger(handle);
+    if let Ok(runtime) = RuntimeState::global() {
+        runtime.debug().destroy_messenger(handle);
+    }
 }
 
 /// Sends a borrowed diagnostic through every matching active messenger.
 pub(crate) fn emit(severity: u32, message_type: u32, message: &NcDebugMessageV2) {
-    RuntimeState::global().debug().emit(severity, message_type, message);
+    if let Ok(runtime) = RuntimeState::global() {
+        runtime.debug().emit(severity, message_type, message);
+    }
 }
 
 #[cfg(test)]

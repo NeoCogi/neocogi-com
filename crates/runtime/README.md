@@ -10,6 +10,7 @@ the one deployed runtime shared library.
 The runtime owns:
 
 - canonical contract-module registration;
+- generation and one-time seeding of the intrinsic `neocogi.com.events` description;
 - factory-plugin registration and dependency ordering;
 - trusted dynamic-library loading;
 - typed root-factory activation;
@@ -28,11 +29,18 @@ proceeds as follows:
 ```text
 map plugin and its fingerprint-qualified contract libraries
   -> read and validate the factory plugin description
-  -> traverse exact contract getters dependency-first
+  -> traverse ordinary contract getters dependency-first
+  -> resolve built-in ID/fingerprint edges against the seeded catalog
   -> reject duplicate IDs, cycles, missing plugins, or fingerprint conflicts
   -> publish the complete graph and retained module atomically
   -> activate the root only when the host requests its exact factory type
 ```
+
+The first catalog-dependent runtime API call lazily validates and seeds the intrinsic
+events description before publishing any catalog state. `OnceLock` serializes
+concurrent calls and retains a structural failure as an error; no host startup
+step or shared-library loader callback is involved. Hosts must not invoke COM
+from loader initialization or a plugin description getter.
 
 Live loading is required and fail-fatal: a path, loader, symbol, description,
 dependency, validation, or registration failure is diagnosed and aborts instead

@@ -278,7 +278,8 @@ impl Callable {
 }
 
 /// Canonical COM module that defines the generated event lease ABI.
-pub(crate) const COM_EVENTS_MODULE_NAME: &str = "neocogi.com.events";
+/// Canonical NCIDL module whose event transport ABI is intrinsic to COM.
+pub const COM_EVENTS_MODULE_NAME: &str = "neocogi.com.events";
 
 /// Canonical lease declaration used by every lowered event port.
 pub(crate) const COM_EVENT_LEASE_NAME: &str = "IEventSubscription";

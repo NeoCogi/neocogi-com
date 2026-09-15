@@ -10,18 +10,22 @@ The current core ABI v7 is experimental and may change before ratification.
 ## Component model
 
 ```text
-IDL module -> generated Rust types + fingerprinted native description library
+ordinary IDL module -> generated Rust types + fingerprinted native description library
+COM events IDL     -> generated Rust types + runtime-embedded description
 plugin     -> private implementations + one root factory description
 host       -> links generated types and requests that exact factory
 runtime    -> validates, registers, inspects, and retains libraries
 ```
 
-The host and plugin both compile the generated ABI layouts they use. They do not
-each own an independent runtime description. Their generated `MODULE` constants
-import the canonical getter from the exact fingerprint-qualified contract
-library. If they link different revisions of one logical module, the shared
-runtime observes the equal module ID and unequal fingerprints and rejects the
-combination.
+The host and plugin both compile the generated ABI layouts they use. Ordinary
+modules expose a generated `MODULE` reference to their canonical
+fingerprint-qualified description library. The intrinsic `neocogi.com.events`
+module instead exposes only its generated ID and fingerprint: its description
+is generated from the same NCIDL and seeded by `com_shared_runtime` on first
+catalog-dependent runtime API use. A dependent native description carries an
+events built-in tag and the required ID/fingerprint, with no events getter or
+native-library dependency. Registration rejects an unequal revision before
+plugin activation.
 
 See [IDL contract modules](../../docs/IDL_MODULES.md) for authoring and native
 linking, [component design](../../docs/COM_DESIGN.md) for responsibility
@@ -37,8 +41,9 @@ that lease and the borrowed dispatcher ABI. [`neocogi-com-events`](events)
 implements typed producer queues and application-owned sessions in their
 respective binaries. Generated event bindings check the support crate's event
 binding API version at compile time, because a Rust adapter change need not
-change an NCIDL wire fingerprint. The process-global runtime still only loads,
-authenticates, and catalogs COM components. UI event families use this COM
+change an NCIDL wire fingerprint. The process-global runtime owns the immutable
+events contract description, but producer queues and application event sessions
+remain in their respective binaries. UI event families use this COM
 support without making generic COM events depend on UI.
 
 Contracts use `struct`, `enum`, `trait`, `event`, `class`, and `factory`. All declarations

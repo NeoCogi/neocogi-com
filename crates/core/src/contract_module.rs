@@ -1,13 +1,22 @@
-//! Canonical C ABI descriptions exported by generated contract libraries.
+//! Canonical C ABI descriptions exported by ordinary generated libraries or
+//! embedded in the shared runtime for intrinsic COM events.
 //!
 //! Hosts and plugins compile typed call layouts, but neither embeds this graph.
-//! One fingerprint-qualified contract library owns the module name,
-//! declaration identities, and exact dependency getter references.
+//! Ordinary fingerprint-qualified contract libraries own module names,
+//! declaration identities, and native dependency getters. Built-in edges are
+//! identified without a getter and checked against runtime-owned statics.
 
 use crate::{NC_E_ABI_VERSION, NC_E_CONTRACT_MISMATCH, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcGuid, NcStaticUtf8, NcStatus};
 
 /// ABI version of [`NcContractModuleDescription`].
-pub const NC_CONTRACT_DESCRIPTION_ABI_VERSION: u32 = 1;
+///
+/// Version two distinguishes native dependency getters from runtime-owned
+/// built-ins, allowing the latter to be resolved without a linker edge.
+pub const NC_CONTRACT_DESCRIPTION_ABI_VERSION: u32 = 2;
+/// A dependency whose immutable description is reached through its native getter.
+pub const NC_CONTRACT_DEPENDENCY_NATIVE: u32 = 1;
+/// A dependency whose immutable description is already seeded by the runtime.
+pub const NC_CONTRACT_DEPENDENCY_BUILTIN: u32 = 2;
 
 /// Raw declaration-kind tag for an IDL struct.
 pub const NC_CONTRACT_DECLARATION_STRUCT: u32 = 1;
@@ -88,7 +97,7 @@ impl NcContractModuleReference {
     }
 }
 
-/// One direct dependency and its exact linked description getter.
+/// One direct dependency with either a native getter or a runtime-owned identity.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NcContractDependencyDescription {
@@ -96,7 +105,9 @@ pub struct NcContractDependencyDescription {
     pub module_id: NcGuid,
     /// Exact transitive ABI fingerprint required by this module revision.
     pub abi_fingerprint: NcContractFingerprint,
-    /// Getter imported from the fingerprint-qualified dependency library.
+    /// `NC_CONTRACT_DEPENDENCY_NATIVE` or `NC_CONTRACT_DEPENDENCY_BUILTIN`.
+    pub kind: u32,
+    /// Native getter for `NATIVE`; must be absent for `BUILTIN`.
     pub get: Option<NcGetContractModuleDescription>,
 }
 
@@ -178,8 +189,9 @@ impl NcContractModuleDescription {
 
 /// Validates the bounded shape and identity fields of one module description.
 ///
-/// Dependency getters are checked for matching IDs and fingerprints by the
-/// runtime's graph registration pass rather than called recursively here.
+/// Native dependency getters are checked for matching IDs and fingerprints by
+/// the runtime's graph registration pass rather than called recursively here.
+/// Built-in dependencies are checked against the seeded runtime catalog.
 ///
 /// # Safety
 ///
@@ -215,11 +227,11 @@ pub unsafe fn validate_contract_module_description(description: *const NcContrac
         Err(status) => return status,
     };
     for dependency in dependencies {
-        if dependency.module_id.is_nil()
-            || dependency.module_id == description.module_id
-            || dependency.abi_fingerprint.bytes == [0; 32]
-            || dependency.get.is_none()
-        {
+        let valid_source = matches!(
+            (dependency.kind, dependency.get),
+            (NC_CONTRACT_DEPENDENCY_NATIVE, Some(_)) | (NC_CONTRACT_DEPENDENCY_BUILTIN, None)
+        );
+        if dependency.module_id.is_nil() || dependency.module_id == description.module_id || dependency.abi_fingerprint.bytes == [0; 32] || !valid_source {
             return NC_E_INVALID_ARG;
         }
     }
@@ -298,6 +310,26 @@ mod tests {
         declarations: DECLARATIONS.as_ptr(),
     };
 
+    /// Valid built-in edge carries only an identity and exact expected revision.
+    static BUILTIN_EDGE: [NcContractDependencyDescription; 1] = [NcContractDependencyDescription {
+        module_id: NcGuid::from_fields(5, 6, 7, [8; 8]),
+        abi_fingerprint: NcContractFingerprint::new([8; 32]),
+        kind: NC_CONTRACT_DEPENDENCY_BUILTIN,
+        get: None,
+    }];
+
+    /// Root fixture containing a runtime-resolved edge rather than a DSO getter.
+    static MODULE_WITH_BUILTIN: NcContractModuleDescription = NcContractModuleDescription {
+        description_abi_version: NC_CONTRACT_DESCRIPTION_ABI_VERSION,
+        module_id: MODULE_ID,
+        abi_fingerprint: FINGERPRINT,
+        module_name: NcStaticUtf8::from_static("nc.tests"),
+        dependency_count: 1,
+        dependencies: BUILTIN_EDGE.as_ptr(),
+        declaration_count: 0,
+        declarations: ptr::null(),
+    };
+
     #[test]
     fn validates_and_resolves_an_exact_module_reference() {
         // SAFETY: The fixture and getter reference immutable test statics.
@@ -326,10 +358,16 @@ mod tests {
     }
 
     #[test]
+    fn accepts_a_getter_free_builtin_edge() {
+        // SAFETY: Both fixture records and their pointer tables are static.
+        assert_eq!(unsafe { validate_contract_module_description(&MODULE_WITH_BUILTIN) }, NC_OK);
+    }
+
+    #[test]
     fn contract_description_layouts_are_c_stable() {
         if cfg!(target_pointer_width = "64") {
             assert_eq!(core::mem::size_of::<NcContractModuleReference>(), 56);
-            assert_eq!(core::mem::size_of::<NcContractDependencyDescription>(), 56);
+            assert_eq!(core::mem::size_of::<NcContractDependencyDescription>(), 64);
             assert_eq!(core::mem::size_of::<NcContractDeclarationDescription>(), 48);
             assert_eq!(core::mem::size_of::<NcContractModuleDescription>(), 104);
             assert_eq!(core::mem::offset_of!(NcContractModuleDescription, dependencies), 80);
@@ -337,7 +375,7 @@ mod tests {
         }
         if cfg!(target_pointer_width = "32") {
             assert_eq!(core::mem::size_of::<NcContractModuleReference>(), 52);
-            assert_eq!(core::mem::size_of::<NcContractDependencyDescription>(), 52);
+            assert_eq!(core::mem::size_of::<NcContractDependencyDescription>(), 56);
             assert_eq!(core::mem::size_of::<NcContractDeclarationDescription>(), 36);
             assert_eq!(core::mem::size_of::<NcContractModuleDescription>(), 76);
             assert_eq!(core::mem::offset_of!(NcContractModuleDescription, dependencies), 64);

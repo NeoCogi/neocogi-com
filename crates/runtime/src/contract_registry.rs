@@ -8,7 +8,10 @@ use std::collections::HashMap;
 use std::string::String;
 use std::vec::Vec;
 
-use neocogi_com_core::{NC_E_CONTRACT_MISMATCH, NC_E_INVALID_ARG, NC_OK, NcContractFingerprint, NcContractModuleDescription, NcGuid, NcStatus};
+use neocogi_com_core::{
+    NC_E_CONTRACT_MISMATCH, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_OK, NcContractFingerprint, NcContractModuleDescription, NcGuid, NcStatus,
+    validate_contract_module_description,
+};
 
 use crate::contract_registration::ContractRegistrationBatch;
 
@@ -35,9 +38,60 @@ impl ContractRegistry {
         }
     }
 
+    /// Seeds a generated runtime-owned description before the catalog is published.
+    ///
+    /// This uses mutable construction rather than a lock or interior mutability:
+    /// no client can observe the candidate catalog until initialization ends.
+    pub(crate) fn seed_builtin(&mut self, description: &'static NcContractModuleDescription) -> Result<(), NcStatus> {
+        // SAFETY: A shared static reference establishes the complete generated
+        // description's readability and process-wide lifetime.
+        let status = unsafe { validate_contract_module_description(description) };
+        if status.is_err() {
+            return Err(status);
+        }
+        if description.dependency_count != 0 {
+            return Err(NC_E_INVALID_ARG);
+        }
+        // SAFETY: Whole-root validation established a readable UTF-8 name.
+        let name = unsafe { description.module_name.as_str() }.map_err(|_| NC_E_INVALID_ARG)?;
+        let record = RegisteredContractModule {
+            module_id: description.module_id,
+            abi_fingerprint: description.abi_fingerprint,
+            description: core::ptr::from_ref(description),
+            module_name: name.to_owned(),
+            origin: ContractOrigin::Builtin,
+        };
+        let status = self.validate_modules(core::slice::from_ref(&record));
+        if status.is_err() {
+            return Err(status);
+        }
+        self.insert_modules(vec![record]);
+        Ok(())
+    }
+
+    /// Checks that each requested built-in exists with the exact seeded revision.
+    pub(crate) fn validate_builtin_dependencies(&self, requirements: &[(NcGuid, NcContractFingerprint)]) -> NcStatus {
+        for &(module_id, expected) in requirements {
+            let Some(actual) = self.module(module_id) else {
+                return NC_E_NOT_FOUND;
+            };
+            if actual.origin != ContractOrigin::Builtin {
+                return NC_E_INVALID_ARG;
+            }
+            if actual.abi_fingerprint != expected {
+                return NC_E_CONTRACT_MISMATCH;
+            }
+        }
+        NC_OK
+    }
+
     /// Checks every batch collision before publishing any new module record.
     pub(crate) fn commit(&mut self, batch: ContractRegistrationBatch) -> NcStatus {
-        let modules = batch.into_modules();
+        let (modules, builtin_dependencies) = batch.into_parts();
+        let status = self.validate_builtin_dependencies(&builtin_dependencies);
+        if status.is_err() {
+            return status;
+        }
         let status = self.validate_modules(&modules);
         if status.is_err() {
             return status;
@@ -54,6 +108,9 @@ impl ContractRegistry {
             if let Some(existing) = self.module(module.module_id) {
                 if existing.abi_fingerprint != module.abi_fingerprint {
                     return NC_E_CONTRACT_MISMATCH;
+                }
+                if existing.origin != module.origin {
+                    return NC_E_INVALID_ARG;
                 }
                 if existing.module_name != module.module_name {
                     return NC_E_INVALID_ARG;
@@ -118,6 +175,17 @@ pub(crate) struct RegisteredContractModule {
     pub(crate) description: *const NcContractModuleDescription,
     /// Owned module name used for collision checks and diagnostics.
     pub(crate) module_name: String,
+    /// Whether this pointer belongs to the runtime image or a linked producer.
+    pub(crate) origin: ContractOrigin,
+}
+
+/// Provenance required when resolving a description without a getter.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(crate) enum ContractOrigin {
+    /// Generated immutable description embedded in the shared runtime.
+    Builtin,
+    /// Immutable description reached through a producer's native getter.
+    Native,
 }
 
 // SAFETY: The pointer targets immutable validated metadata in a library whose

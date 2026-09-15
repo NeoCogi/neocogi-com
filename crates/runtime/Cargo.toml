@@ -20,3 +20,9 @@ crate-type = ["rlib"]
 
 [dependencies]
 neocogi-com-core = { workspace = true, default-features = false, features = ["std"] }
+
+[build-dependencies]
+neocogi-idl-build.workspace = true
+
+[dev-dependencies]
+neocogi-com-events-contracts.workspace = true

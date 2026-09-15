@@ -1,7 +1,7 @@
-//! Standalone Rust description generation and native artifact compilation.
+//! Ordinary standalone Rust description generation and native artifact compilation.
 //!
 //! Contract crates keep typed bindings in their ordinary Rust `rlib`, while
-//! this module emits one metadata-only library for each exact module revision.
+//! this module emits one metadata-only library for each ordinary exact revision.
 //! The small library is shared by every host and plugin that uses that revision,
 //! preventing transitive description tables from being copied into each final
 //! consumer.
@@ -13,15 +13,19 @@ use std::{
     process::Command,
 };
 
-use neocogi_com_core::NcGuid;
-use neocogi_idl::{DeclarationKind, ResolvedModule, Threading};
+use neocogi_com_core::{
+    NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_CONTRACT_DECLARATION_BIT_ENUM, NC_CONTRACT_DECLARATION_CLASS, NC_CONTRACT_DECLARATION_ENUM,
+    NC_CONTRACT_DECLARATION_FACTORY, NC_CONTRACT_DECLARATION_INTERFACE, NC_CONTRACT_DECLARATION_NO_THREADING, NC_CONTRACT_DECLARATION_STRUCT,
+    NC_CONTRACT_DEPENDENCY_BUILTIN, NC_CONTRACT_DEPENDENCY_NATIVE, NC_CONTRACT_DESCRIPTION_ABI_VERSION, NcGuid,
+};
+use neocogi_idl::{COM_EVENTS_MODULE_NAME, DeclarationKind, ResolvedModule, Threading};
 
 use crate::{
     ARTIFACT_SCHEMA, ArtifactRecord, BuildError,
     generate::{native_getter_name, native_link_name},
 };
 
-/// Compiles the one canonical description library owned by a module crate.
+/// Compiles the one canonical description library owned by an ordinary module crate.
 ///
 /// The generated source is self-contained and `no_std`: it repeats only the
 /// public C layouts needed by the description ABI and therefore needs no Rust
@@ -112,7 +116,11 @@ fn generate_descriptor_rust(module: &ResolvedModule, getter: &str) -> String {
              loop { core::hint::spin_loop(); }\n\
          }\n\n\
          /// ABI version of the generated module-description layout.\n\
-         const DESCRIPTION_ABI_VERSION: u32 = 1;\n\n\
+         const DESCRIPTION_ABI_VERSION: u32 = ",
+    );
+    output.push_str(&NC_CONTRACT_DESCRIPTION_ABI_VERSION.to_string());
+    output.push_str(
+        ";\n\n\
          /// C-layout representation of one stable contract identity.\n\
          #[repr(C)]\n\
          struct Guid {\n\
@@ -143,14 +151,16 @@ fn generate_descriptor_rust(module: &ResolvedModule, getter: &str) -> String {
          }\n\n\
          /// Stable getter signature shared by dependency and root references.\n\
          type GetDescription = unsafe extern \"C\" fn() -> *const ModuleDescription;\n\n\
-         /// Exact identity and getter for one direct contract dependency.\n\
+         /// Exact identity and source of one direct contract dependency.\n\
          #[repr(C)]\n\
          struct DependencyDescription {\n\
              /// Stable logical dependency identity.\n\
              module_id: Guid,\n\
              /// Exact transitive ABI revision required by this module.\n\
              abi_fingerprint: Fingerprint,\n\
-             /// Getter exported by the fingerprint-qualified dependency library.\n\
+             /// One native-getter or runtime-builtin ABI tag.\n\
+             kind: u32,\n\
+             /// Native getter; absent for a runtime-builtin dependency.\n\
              get: Option<GetDescription>,\n\
          }\n\n\
          /// Runtime-visible identity of one top-level IDL declaration.\n\
@@ -193,7 +203,7 @@ fn generate_descriptor_rust(module: &ResolvedModule, getter: &str) -> String {
          unsafe impl Sync for ModuleDescription {}\n\n",
     );
 
-    for dependency in &module.dependencies {
+    for dependency in module.dependencies.iter().filter(|dependency| dependency.module_name != COM_EVENTS_MODULE_NAME) {
         let dependency_getter = dependency_getter(dependency);
         output.push_str(&format!(
             "#[link(name = \"{}\")]\nunsafe extern \"C\" {{\n    /// Returns the exact dependency revision named by this import.\n    fn {dependency_getter}() -> *const ModuleDescription;\n}}\n\n",
@@ -208,11 +218,15 @@ fn generate_descriptor_rust(module: &ResolvedModule, getter: &str) -> String {
 
     output.push_str("\n/// Exact direct dependencies in canonical module-name order.\nstatic DEPENDENCIES: &[DependencyDescription] = &[\n");
     for dependency in &module.dependencies {
+        let (kind, getter) = if dependency.module_name == COM_EVENTS_MODULE_NAME {
+            (NC_CONTRACT_DEPENDENCY_BUILTIN, "None".to_owned())
+        } else {
+            (NC_CONTRACT_DEPENDENCY_NATIVE, format!("Some({})", dependency_getter(dependency)))
+        };
         output.push_str(&format!(
-            "    DependencyDescription {{ module_id: {}, abi_fingerprint: {}, get: Some({}) }},\n",
+            "    DependencyDescription {{ module_id: {}, abi_fingerprint: {}, kind: {kind}, get: {getter} }},\n",
             guid_initializer(dependency.module_id),
             fingerprint_initializer(&dependency.abi_fingerprint),
-            dependency_getter(dependency)
         ));
     }
     output.push_str("];\n\n/// Public declaration identities available to runtime inspection.\nstatic DECLARATIONS: &[DeclarationDescription] = &[\n");
@@ -305,24 +319,24 @@ fn fingerprint_hex(fingerprint: &[u8; 32]) -> String {
 }
 
 /// Maps a resolved declaration variant to the public C ABI tag.
-fn declaration_kind(kind: &DeclarationKind) -> u32 {
+pub(crate) fn declaration_kind(kind: &DeclarationKind) -> u32 {
     match kind {
-        DeclarationKind::Struct(_) => 1,
-        DeclarationKind::Enum(_) => 2,
-        DeclarationKind::Interface(_) | DeclarationKind::Event(_) => 3,
-        DeclarationKind::Class(_) => 4,
-        DeclarationKind::Factory(_) => 5,
-        DeclarationKind::BitEnum(_) => 6,
+        DeclarationKind::Struct(_) => NC_CONTRACT_DECLARATION_STRUCT,
+        DeclarationKind::Enum(_) => NC_CONTRACT_DECLARATION_ENUM,
+        DeclarationKind::Interface(_) | DeclarationKind::Event(_) => NC_CONTRACT_DECLARATION_INTERFACE,
+        DeclarationKind::Class(_) => NC_CONTRACT_DECLARATION_CLASS,
+        DeclarationKind::Factory(_) => NC_CONTRACT_DECLARATION_FACTORY,
+        DeclarationKind::BitEnum(_) => NC_CONTRACT_DECLARATION_BIT_ENUM,
     }
 }
 
 /// Maps object capabilities to ABI values and marks value/interface rows absent.
-fn declaration_threading(kind: &DeclarationKind) -> u32 {
+pub(crate) fn declaration_threading(kind: &DeclarationKind) -> u32 {
     match kind {
         DeclarationKind::Class(class) => threading_value(class.threading),
         DeclarationKind::Factory(factory) => threading_value(factory.threading),
         DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) | DeclarationKind::Interface(_) | DeclarationKind::Event(_) => {
-            u32::MAX
+            NC_CONTRACT_DECLARATION_NO_THREADING
         }
     }
 }
@@ -330,8 +344,8 @@ fn declaration_threading(kind: &DeclarationKind) -> u32 {
 /// Converts one resolved threading capability to its stable raw ABI value.
 fn threading_value(threading: Threading) -> u32 {
     match threading {
-        Threading::Local => 0,
-        Threading::Shared => 1,
+        Threading::Local => NC_ABI_THREADING_THREAD_LOCAL,
+        Threading::Shared => NC_ABI_THREADING_THREAD_SAFE,
     }
 }
 
@@ -490,7 +504,7 @@ mod tests {
 
     use std::path::Path;
 
-    use neocogi_idl::{ModuleSource, parse_module_parts, resolve_modules};
+    use neocogi_idl::{ModuleSource, parse_module, parse_module_parts, resolve_modules};
 
     use super::{generate_descriptor_rust, native_getter_name};
 
@@ -514,5 +528,25 @@ mod tests {
             generate_descriptor_rust(forward, &native_getter_name(forward)),
             generate_descriptor_rust(reverse, &native_getter_name(reverse))
         );
+    }
+
+    /// The event dependency is an ID/fingerprint row, not a native link edge.
+    #[test]
+    fn native_description_does_not_import_a_runtime_builtin_getter() {
+        let events = parse_module(
+            Path::new("neocogi/com/events.ncidl"),
+            include_str!("../../../event-contracts/idl/neocogi/com/events/events.ncidl"),
+        )
+        .unwrap();
+        let importer = parse_module(
+            Path::new("example/importer.ncidl"),
+            "extern neocogi.com.events; #[version(1)] trait IImporter { fn ping(&self) -> Result<()>; }",
+        )
+        .unwrap();
+        let graph = resolve_modules(vec![events, importer]).unwrap();
+        let module = graph.module("example.importer").unwrap();
+        let generated = generate_descriptor_rust(module, &native_getter_name(module));
+        assert!(generated.contains("kind: 2, get: None"));
+        assert!(!generated.contains("#[link(name = \"nc_contract_neocogi_com_events_"));
     }
 }

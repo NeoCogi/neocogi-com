@@ -10,8 +10,9 @@ together. It remains split into reusable Cargo packages:
   emits source-aware diagnostics, validates and resolves types, and fingerprints
   complete typed module graphs.
 - `build` (`neocogi-idl-build`) owns canonical filesystem loading, the native
-  artifact record schema, typed Rust binding generation, and the self-contained
-  Rust description library emitted by contract-crate `build.rs` scripts.
+  artifact record schema, typed Rust binding generation, ordinary standalone
+  descriptions, and the generated core-ABI events description embedded by the
+  shared runtime's `build.rs`.
 - `tools/idl/example-contracts` and `tools/idl/example-consumer-contracts`
   are compile-checked fixtures covering standalone and cross-module generation.
 
@@ -24,6 +25,12 @@ compares the compiler and support protocol constants; released consumers get
 the generated compile-time check. ABI fingerprints
 identify resolved IDL wire contracts; a compiler-only Rust binding change does
 not silently change a native module fingerprint.
+
+`neocogi.com.events` is the one runtime-owned description. Its contract crate
+publishes generated bindings and the IDL graph, but no native artifact record.
+Dependents encode its required identity and fingerprint as a built-in edge
+without importing an events getter. The runtime generates the immutable
+description from the same authored NCIDL and seeds it before registration.
 
 `cargo-neocogi` orchestrates module management and application assembly, but it
 does not own contract compilation. It uses `ModuleSources` from the build-support

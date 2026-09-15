@@ -1,4 +1,4 @@
-//! Assembly of runtime ABI v2 tables and shared C callback utilities.
+//! Assembly of runtime ABI v2 operations and shared C callback utilities.
 //!
 //! Only the version function and four table getters are exported as dynamic
 //! symbols. Operation callbacks remain private function pointers inside these
@@ -27,7 +27,7 @@ use contract_registry::{module_count as contract_module_count, module_descriptio
 use plugin_registry::{loaded_module_count, loaded_module_ids, plugin_count, plugin_ids};
 use runtime::{activate_factory_plugin, load_plugin_library_utf8, register_contract_module, register_factory_plugin_description};
 
-/// Immutable runtime-operation table returned by the exported v1 getter.
+/// Immutable runtime-operation table returned by the exported v2 getter.
 pub(super) static RUNTIME_API_V2: NcRuntimeApiV2 = NcRuntimeApiV2 {
     size: mem::size_of::<NcRuntimeApiV2>(),
     core_abi_version: NC_COM_CORE_ABI_VERSION,
@@ -37,7 +37,7 @@ pub(super) static RUNTIME_API_V2: NcRuntimeApiV2 = NcRuntimeApiV2 {
     activate_factory_plugin,
 };
 
-/// Immutable contract-registry table returned by the exported v1 getter.
+/// Immutable contract-registry table returned by the exported v2 getter.
 pub(super) static CONTRACT_REGISTRY_V2: NcContractRegistryV2 = NcContractRegistryV2 {
     size: mem::size_of::<NcContractRegistryV2>(),
     module_count: contract_module_count,
@@ -47,7 +47,7 @@ pub(super) static CONTRACT_REGISTRY_V2: NcContractRegistryV2 = NcContractRegistr
 
 // These values are immutable for the process lifetime. Getters may therefore
 // return their addresses without allocation, locking, or ownership transfer.
-/// Immutable plugin-registry table returned by the exported v1 getter.
+/// Immutable plugin-registry table returned by the exported v2 getter.
 pub(super) static PLUGIN_REGISTRY_V2: NcPluginRegistryV2 = NcPluginRegistryV2 {
     size: mem::size_of::<NcPluginRegistryV2>(),
     plugin_count,
@@ -56,7 +56,7 @@ pub(super) static PLUGIN_REGISTRY_V2: NcPluginRegistryV2 = NcPluginRegistryV2 {
     loaded_module_ids,
 };
 
-/// Immutable inspection table returned by the exported v1 getter.
+/// Immutable inspection table returned by the exported v2 getter.
 pub(super) static INSPECTION_API_V2: NcInspectionApiV2 = NcInspectionApiV2 {
     size: mem::size_of::<NcInspectionApiV2>(),
     plugin_info,
@@ -66,7 +66,7 @@ pub(super) static INSPECTION_API_V2: NcInspectionApiV2 = NcInspectionApiV2 {
     inspect_plugin_library_utf8,
 };
 
-/// Immutable debug-messenger table returned by the exported v1 getter.
+/// Immutable debug-messenger table returned by the exported v2 getter.
 pub(super) static DEBUG_API_V2: NcDebugApiV2 = NcDebugApiV2 {
     size: mem::size_of::<NcDebugApiV2>(),
     create_messenger: debug::create_messenger,

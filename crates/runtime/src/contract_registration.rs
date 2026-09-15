@@ -10,11 +10,11 @@ use std::string::String;
 use std::vec::Vec;
 
 use neocogi_com_core::{
-    NC_E_CONTRACT_MISMATCH, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NcContractFingerprint, NcContractModuleReference, NcGetContractModuleDescription, NcGuid,
-    NcStatus, validate_contract_module_description,
+    NC_CONTRACT_DEPENDENCY_BUILTIN, NC_CONTRACT_DEPENDENCY_NATIVE, NC_E_CONTRACT_MISMATCH, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NcContractFingerprint,
+    NcContractModuleReference, NcGetContractModuleDescription, NcGuid, NcStatus, validate_contract_module_description,
 };
 
-use crate::contract_registry::RegisteredContractModule;
+use crate::contract_registry::{ContractOrigin, RegisteredContractModule};
 use crate::state::RuntimeState;
 
 /// Maximum number of unique modules accepted from one dependency traversal.
@@ -24,12 +24,14 @@ const MAX_REGISTRATION_GRAPH_MODULES: usize = 4_096;
 pub(crate) struct ContractRegistrationBatch {
     /// Validated modules ordered so every dependency precedes its dependent.
     modules: Vec<RegisteredContractModule>,
+    /// Runtime-owned dependencies checked against the seeded catalog at commit.
+    builtin_dependencies: Vec<(NcGuid, NcContractFingerprint)>,
 }
 
 impl ContractRegistrationBatch {
-    /// Transfers the validated dependency-first records to registry storage.
-    pub(crate) fn into_modules(self) -> Vec<RegisteredContractModule> {
-        self.modules
+    /// Transfers native records and exact built-in requirements together.
+    pub(crate) fn into_parts(self) -> (Vec<RegisteredContractModule>, Vec<(NcGuid, NcContractFingerprint)>) {
+        (self.modules, self.builtin_dependencies)
     }
 }
 
@@ -85,6 +87,7 @@ pub(crate) unsafe fn build_contract_registration_batch(reference: *const NcContr
     let mut active = HashSet::new();
     let mut seen = HashMap::<NcGuid, SeenModule>::new();
     let mut modules = Vec::new();
+    let mut builtin_dependencies = Vec::new();
 
     while let Some(visit) = visits.pop() {
         match visit {
@@ -140,6 +143,7 @@ pub(crate) unsafe fn build_contract_registration_batch(reference: *const NcContr
                     abi_fingerprint: description.abi_fingerprint,
                     description: core::ptr::from_ref(description),
                     module_name: module_name.to_owned(),
+                    origin: ContractOrigin::Native,
                 };
                 seen.insert(
                     description.module_id,
@@ -156,20 +160,27 @@ pub(crate) unsafe fn build_contract_registration_batch(reference: *const NcContr
                 // SAFETY: Root validation established this table's pointer/count shape.
                 let dependencies = unsafe { description.dependencies() }?;
                 for dependency in dependencies.iter().rev() {
-                    let Some(get) = dependency.get else {
-                        return Err(neocogi_com_core::NC_E_POINTER);
-                    };
-                    visits.push(Visit::Enter(PendingModule {
-                        module_id: dependency.module_id,
-                        abi_fingerprint: dependency.abi_fingerprint,
-                        get,
-                    }));
+                    match (dependency.kind, dependency.get) {
+                        (NC_CONTRACT_DEPENDENCY_NATIVE, Some(get)) => {
+                            visits.push(Visit::Enter(PendingModule {
+                                module_id: dependency.module_id,
+                                abi_fingerprint: dependency.abi_fingerprint,
+                                get,
+                            }));
+                        }
+                        (NC_CONTRACT_DEPENDENCY_BUILTIN, None) => {
+                            // A built-in is already in dependency-first catalog
+                            // order; its identity is verified during commit.
+                            builtin_dependencies.push((dependency.module_id, dependency.abi_fingerprint));
+                        }
+                        _ => return Err(NC_E_INVALID_ARG),
+                    }
                 }
             }
         }
     }
 
-    Ok(ContractRegistrationBatch { modules })
+    Ok(ContractRegistrationBatch { modules, builtin_dependencies })
 }
 
 impl RuntimeState {
@@ -235,6 +246,7 @@ mod tests {
     static ROOT_DEPENDENCIES: [NcContractDependencyDescription; 1] = [NcContractDependencyDescription {
         module_id: LEAF_ID,
         abi_fingerprint: LEAF_FINGERPRINT,
+        kind: NC_CONTRACT_DEPENDENCY_NATIVE,
         get: Some(get_leaf),
     }];
 
@@ -265,11 +277,13 @@ mod tests {
         NcContractDependencyDescription {
             module_id: LEAF_ID,
             abi_fingerprint: LEAF_FINGERPRINT,
+            kind: NC_CONTRACT_DEPENDENCY_NATIVE,
             get: Some(get_leaf),
         },
         NcContractDependencyDescription {
             module_id: ROOT_ID,
             abi_fingerprint: ROOT_FINGERPRINT,
+            kind: NC_CONTRACT_DEPENDENCY_NATIVE,
             get: Some(get_root),
         },
     ];
@@ -305,7 +319,7 @@ mod tests {
 
     #[test]
     fn registers_dependencies_first_and_rejects_another_revision_atomically() {
-        let runtime = RuntimeState::new();
+        let runtime = RuntimeState::new().unwrap();
         let root = NcContractModuleReference {
             module_id: ROOT_ID,
             abi_fingerprint: ROOT_FINGERPRINT,
@@ -314,7 +328,9 @@ mod tests {
         // SAFETY: Every fixture is immutable static metadata.
         assert_eq!(unsafe { runtime.register_contract_module(&root) }, NC_OK);
         let catalog = runtime.read_catalog();
-        catalog.contract_registry.with_module_ids(|ids| assert_eq!(ids, &[LEAF_ID, ROOT_ID]));
+        catalog
+            .contract_registry
+            .with_module_ids(|ids| assert_eq!(ids, &[crate::builtins::description().module_id, LEAF_ID, ROOT_ID]));
         drop(catalog);
 
         let conflict = NcContractModuleReference {
@@ -327,7 +343,7 @@ mod tests {
         runtime
             .read_catalog()
             .contract_registry
-            .with_module_ids(|ids| assert_eq!(ids, &[LEAF_ID, ROOT_ID]));
+            .with_module_ids(|ids| assert_eq!(ids, &[crate::builtins::description().module_id, LEAF_ID, ROOT_ID]));
     }
 
     /// Confirms completed shared dependencies are not mistaken for active cycles.
@@ -336,7 +352,7 @@ mod tests {
     /// runtime behavior and may not be hidden inside `debug_assert!` expressions.
     #[test]
     fn registers_a_shared_dependency_diamond_in_optimized_builds() {
-        let runtime = RuntimeState::new();
+        let runtime = RuntimeState::new().unwrap();
         let root = NcContractModuleReference {
             module_id: DIAMOND_ID,
             abi_fingerprint: DIAMOND_FINGERPRINT,
@@ -347,7 +363,90 @@ mod tests {
         runtime
             .read_catalog()
             .contract_registry
-            .with_module_ids(|ids| assert_eq!(ids, &[LEAF_ID, ROOT_ID, DIAMOND_ID]));
+            .with_module_ids(|ids| assert_eq!(ids, &[crate::builtins::description().module_id, LEAF_ID, ROOT_ID, DIAMOND_ID]));
+    }
+
+    /// Native module identity for a producer importing COM's seeded events ABI.
+    const BUILTIN_USER_ID: NcGuid = NcGuid::from_fields(12, 2, 3, [4; 8]);
+    /// Exact native revision of the importing producer fixture.
+    const BUILTIN_USER_FINGERPRINT: NcContractFingerprint = NcContractFingerprint::new([12; 32]);
+
+    /// Returns the importing producer's immutable native description.
+    unsafe extern "C" fn get_builtin_user() -> *const NcContractModuleDescription {
+        &BUILTIN_USER
+    }
+
+    /// The only dependency is an ID/fingerprint pair; it has no native getter.
+    static BUILTIN_USER_DEPENDENCIES: [NcContractDependencyDescription; 1] = [NcContractDependencyDescription {
+        module_id: crate::builtins::MODULE_ID,
+        abi_fingerprint: crate::builtins::ABI_FINGERPRINT,
+        kind: NC_CONTRACT_DEPENDENCY_BUILTIN,
+        get: None,
+    }];
+
+    /// Native producer whose built-in dependency must resolve from the catalog.
+    static BUILTIN_USER: NcContractModuleDescription = NcContractModuleDescription {
+        description_abi_version: NC_CONTRACT_DESCRIPTION_ABI_VERSION,
+        module_id: BUILTIN_USER_ID,
+        abi_fingerprint: BUILTIN_USER_FINGERPRINT,
+        module_name: NcStaticUtf8::from_static("nc.tests.builtin_user"),
+        dependency_count: 1,
+        dependencies: BUILTIN_USER_DEPENDENCIES.as_ptr(),
+        declaration_count: 0,
+        declarations: ptr::null(),
+    };
+
+    /// A malformed producer requests an incompatible revision of the same built-in.
+    static WRONG_BUILTIN_DEPENDENCIES: [NcContractDependencyDescription; 1] = [NcContractDependencyDescription {
+        module_id: crate::builtins::MODULE_ID,
+        abi_fingerprint: NcContractFingerprint::new([99; 32]),
+        kind: NC_CONTRACT_DEPENDENCY_BUILTIN,
+        get: None,
+    }];
+
+    /// Returns a native description whose built-in revision is deliberately wrong.
+    unsafe extern "C" fn get_wrong_builtin_user() -> *const NcContractModuleDescription {
+        &WRONG_BUILTIN_USER
+    }
+
+    /// Same producer identity with one incompatible built-in requirement.
+    static WRONG_BUILTIN_USER: NcContractModuleDescription = NcContractModuleDescription {
+        description_abi_version: NC_CONTRACT_DESCRIPTION_ABI_VERSION,
+        module_id: BUILTIN_USER_ID,
+        abi_fingerprint: BUILTIN_USER_FINGERPRINT,
+        module_name: NcStaticUtf8::from_static("nc.tests.builtin_user"),
+        dependency_count: 1,
+        dependencies: WRONG_BUILTIN_DEPENDENCIES.as_ptr(),
+        declaration_count: 0,
+        declarations: ptr::null(),
+    };
+
+    #[test]
+    fn resolves_a_runtime_builtin_without_a_getter_and_rejects_mismatch_atomically() {
+        let runtime = RuntimeState::new().unwrap();
+        let wrong = NcContractModuleReference {
+            module_id: BUILTIN_USER_ID,
+            abi_fingerprint: BUILTIN_USER_FINGERPRINT,
+            get: Some(get_wrong_builtin_user),
+        };
+        // SAFETY: Both root and dependency tables are immutable statics.
+        assert_eq!(unsafe { runtime.register_contract_module(&wrong) }, NC_E_CONTRACT_MISMATCH);
+        runtime
+            .read_catalog()
+            .contract_registry
+            .with_module_ids(|ids| assert_eq!(ids, &[crate::builtins::MODULE_ID]));
+
+        let valid = NcContractModuleReference {
+            module_id: BUILTIN_USER_ID,
+            abi_fingerprint: BUILTIN_USER_FINGERPRINT,
+            get: Some(get_builtin_user),
+        };
+        // SAFETY: The native root and the runtime's built-in remain loaded.
+        assert_eq!(unsafe { runtime.register_contract_module(&valid) }, NC_OK);
+        runtime
+            .read_catalog()
+            .contract_registry
+            .with_module_ids(|ids| assert_eq!(ids, &[crate::builtins::MODULE_ID, BUILTIN_USER_ID]));
     }
 
     /// Returns cycle fixture A.
@@ -372,12 +471,14 @@ mod tests {
     static CYCLE_A_DEPENDENCIES: [NcContractDependencyDescription; 1] = [NcContractDependencyDescription {
         module_id: CYCLE_B_ID,
         abi_fingerprint: CYCLE_B_FINGERPRINT,
+        kind: NC_CONTRACT_DEPENDENCY_NATIVE,
         get: Some(get_cycle_b),
     }];
     /// Edge from cycle fixture B back to A.
     static CYCLE_B_DEPENDENCIES: [NcContractDependencyDescription; 1] = [NcContractDependencyDescription {
         module_id: CYCLE_A_ID,
         abi_fingerprint: CYCLE_A_FINGERPRINT,
+        kind: NC_CONTRACT_DEPENDENCY_NATIVE,
         get: Some(get_cycle_a),
     }];
     /// First canonical root participating in a malformed dependency cycle.
@@ -405,7 +506,7 @@ mod tests {
 
     #[test]
     fn rejects_a_native_dependency_cycle_without_partial_publication() {
-        let runtime = RuntimeState::new();
+        let runtime = RuntimeState::new().unwrap();
         let root = NcContractModuleReference {
             module_id: CYCLE_A_ID,
             abi_fingerprint: CYCLE_A_FINGERPRINT,
@@ -413,6 +514,9 @@ mod tests {
         };
         // SAFETY: Both fixtures are immutable and live for the complete test.
         assert_eq!(unsafe { runtime.register_contract_module(&root) }, NC_E_INVALID_ARG);
-        runtime.read_catalog().contract_registry.with_module_ids(|ids| assert!(ids.is_empty()));
+        runtime
+            .read_catalog()
+            .contract_registry
+            .with_module_ids(|ids| assert_eq!(ids, &[crate::builtins::description().module_id]));
     }
 }

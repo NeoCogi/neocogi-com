@@ -28,15 +28,15 @@ unsafe extern "C" {
     /// Returns the runtime-operation table for runtime ABI v2.
     pub fn nc_com_get_runtime_api_v2() -> *const NcRuntimeApiV2;
 
-    /// Returns the contract-registry table for runtime ABI v2.
+    /// Returns the runtime ABI v2 contract-registry table.
     pub fn nc_com_get_contract_registry_v2() -> *const NcContractRegistryV2;
 
-    /// Returns the plugin-registry table for runtime ABI v2.
+    /// Returns the runtime ABI v2 plugin-registry table.
     pub fn nc_com_get_plugin_registry_v2() -> *const NcPluginRegistryV2;
 
-    /// Returns the inspection table for runtime ABI v2.
+    /// Returns the runtime ABI v2 inspection table.
     pub fn nc_com_get_inspection_api_v2() -> *const NcInspectionApiV2;
 
-    /// Returns the debug-messenger table for runtime ABI v2.
+    /// Returns the runtime ABI v2 debug-messenger table.
     pub fn nc_com_get_debug_api_v2() -> *const NcDebugApiV2;
 }

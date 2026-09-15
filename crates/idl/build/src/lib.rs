@@ -9,12 +9,14 @@
 
 mod artifact;
 mod cargo;
+mod embedded;
 mod generate;
 mod native;
 mod source;
 
 pub use artifact::{ARTIFACT_SCHEMA, ArtifactRecord};
 pub use cargo::{BuildError, BuildOutput, Module};
+pub use embedded::EmbeddedModule;
 pub use generate::{GenerateError, generate_rust};
 pub use source::ModuleSources;
 

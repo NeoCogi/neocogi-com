@@ -52,6 +52,9 @@ fn generates_event_payload_sink_adapter_and_subscription_port() {
         !transport_bindings.contains("EVENT_BINDING_API_VERSION"),
         "the baseline ABI crate must not depend on its own transport implementation"
     );
+    assert!(!transport_bindings.contains("__nc_get_contract_module_description"));
+    assert!(!transport_bindings.contains("NATIVE_LINK_NAME"));
+    assert!(!transport_bindings.contains("pub const MODULE:"));
 }
 
 /// A source-only module still checks the COM event support API and calls its

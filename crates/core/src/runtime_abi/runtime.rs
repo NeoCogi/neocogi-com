@@ -1,6 +1,6 @@
 //! ABI table for contract registration, plugin loading, and root activation.
 //!
-//! Runtime ABI v2 accepts static descriptors, loads trusted plugin libraries,
+//! Runtime ABI v2 accepts static descriptors and loads trusted plugin libraries,
 //! and activates the one typed root factory exported by each plugin.
 //! The table is intentionally separate from read-only registry and inspection
 //! functions so host responsibilities remain explicit.

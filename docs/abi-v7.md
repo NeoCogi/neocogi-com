@@ -91,8 +91,9 @@ details exist only in implementation crates.
 ## 5. Contract modules
 
 Generated Rust bindings compile the ABI layouts and typed wrappers used by both
-host and plugin. Canonical descriptive data lives once in a separately linked,
-fingerprint-qualified contract library.
+host and plugin. Ordinary canonical descriptive data lives once in a separately
+linked, fingerprint-qualified contract library. The intrinsic events description
+is generated from NCIDL into the shared runtime instead.
 
 The generated Rust crate exports an `NcContractModuleReference`:
 
@@ -122,9 +123,12 @@ pub struct NcContractModuleDescription {
 }
 ```
 
-Description ABI version 1 stores the canonical module name, module identity,
+Description ABI version 2 stores the canonical module name, module identity,
 full SHA-256 ABI fingerprint, top-level declaration
-identity/kind/version/threading, and exact fingerprinted dependency getters. It
+identity/kind/version/threading, and exact dependency source tags. Ordinary
+dependencies carry a fingerprinted getter; runtime-owned events dependencies
+carry only the expected module ID and fingerprint and are checked against the
+seeded catalog. It
 does not store the original `.ncidl` source, Rust object state, implementation
 code, vtables, constructors, factory activation code, Cargo paths, or mutable
 registry state.
@@ -213,6 +217,8 @@ Separate v2 tables enumerate plugins/loaded modules, enumerate canonical
 contract modules, inspect metadata and plugin dependencies, inspect an unopened
 plugin without registration, and manage diagnostic callbacks. Count/fill
 operations write the required length so callers can retry append-only growth.
+The runtime seeds events on first catalog-dependent API use. Its description is visible
+in contract enumeration even before any producer is registered.
 
 The runtime retains at most 1,024 dynamic modules and 64 simultaneous debug
 messengers. The public Rust facade additionally bounds copied enumeration data

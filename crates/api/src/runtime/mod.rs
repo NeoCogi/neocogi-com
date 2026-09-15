@@ -157,10 +157,10 @@ impl Runtime {
 
     /// Returns the linked runtime-operation table.
     fn runtime_api(&self) -> &'static NcRuntimeApiV2 {
-        // Do not cache a v1 table before checking the mandatory generation: a
+        // Do not cache a table before checking the mandatory generation: a
         // future runtime may expose an incompatible discovery/table contract.
         self.assert_runtime_v2();
-        // SAFETY: The runtime version was checked before calling the v1 getter,
+        // SAFETY: The runtime version was checked before calling the v2 getter,
         // whose result follows the static size-prefix table contract.
         let api = unsafe { table(runtime_sys::nc_com_get_runtime_api_v2()) };
         assert_eq!(api.core_abi_version, crate::NC_COM_CORE_ABI_VERSION);
@@ -170,7 +170,7 @@ impl Runtime {
     /// Returns the linked plugin-registry table.
     fn plugin_registry_api(&self) -> &'static NcPluginRegistryV2 {
         self.assert_runtime_v2();
-        // SAFETY: The runtime version was checked before calling the v1 getter,
+        // SAFETY: The runtime version was checked before calling the v2 getter,
         // whose result follows the static size-prefix table contract.
         unsafe { table(runtime_sys::nc_com_get_plugin_registry_v2()) }
     }
@@ -178,7 +178,7 @@ impl Runtime {
     /// Returns the linked canonical contract-registry table.
     fn contract_registry_api(&self) -> &'static NcContractRegistryV2 {
         self.assert_runtime_v2();
-        // SAFETY: The runtime version was checked before calling the v1 getter,
+        // SAFETY: The runtime version was checked before calling the v2 getter,
         // whose result follows the static size-prefix table contract.
         unsafe { table(runtime_sys::nc_com_get_contract_registry_v2()) }
     }
@@ -186,7 +186,7 @@ impl Runtime {
     /// Returns the linked inspection table.
     fn inspection_api(&self) -> &'static NcInspectionApiV2 {
         self.assert_runtime_v2();
-        // SAFETY: The runtime version was checked before calling the v1 getter,
+        // SAFETY: The runtime version was checked before calling the v2 getter,
         // whose result follows the static size-prefix table contract.
         unsafe { table(runtime_sys::nc_com_get_inspection_api_v2()) }
     }
@@ -194,7 +194,7 @@ impl Runtime {
     /// Returns the linked debug-messenger table.
     fn debug_api(&self) -> &'static NcDebugApiV2 {
         self.assert_runtime_v2();
-        // SAFETY: The runtime version was checked before calling the v1 getter,
+        // SAFETY: The runtime version was checked before calling the v2 getter,
         // whose result follows the static size-prefix table contract.
         unsafe { table(runtime_sys::nc_com_get_debug_api_v2()) }
     }
@@ -329,7 +329,7 @@ impl Runtime {
     /// plugins.
     ///
     /// A later failure aborts the process rather than returning partial state.
-    /// The runtime ABI v2 intentionally has no transactional batch-loading call.
+    /// Runtime ABI v2 intentionally has no transactional batch-loading call.
     ///
     /// # Safety
     ///

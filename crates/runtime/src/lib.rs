@@ -32,6 +32,10 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 mod api;
+mod builtins {
+    //! Generated immutable descriptions intrinsic to the shared runtime.
+    include!(concat!(env!("OUT_DIR"), "/com_builtin_events.rs"));
+}
 mod contract_registration;
 mod contract_registry;
 mod debug;

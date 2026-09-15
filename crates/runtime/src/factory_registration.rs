@@ -9,7 +9,7 @@ use std::string::String;
 use std::vec::Vec;
 
 use neocogi_com_core::{
-    NC_CONTRACT_DECLARATION_FACTORY, NC_E_CONTRACT_MISMATCH, NC_E_INVALID_ARG, NC_OK, NcFactoryPluginDescription, NcGuid, NcStatus,
+    NC_CONTRACT_DECLARATION_FACTORY, NC_E_CONTRACT_MISMATCH, NC_E_INVALID_ARG, NC_OK, NcContractFingerprint, NcFactoryPluginDescription, NcGuid, NcStatus,
     validate_factory_plugin_description,
 };
 
@@ -24,6 +24,8 @@ pub(crate) struct FactoryPluginRegistrationBatch {
     plugin: RegisteredFactoryPlugin,
     /// Exact module revisions reached from every direct contract reference.
     modules: Vec<RegisteredContractModule>,
+    /// Exact runtime-owned module revisions required by native contract graphs.
+    builtin_dependencies: Vec<(NcGuid, NcContractFingerprint)>,
     /// Owned normative plugin name for collision checks and diagnostics.
     qualified_name: String,
 }
@@ -61,13 +63,16 @@ pub(crate) unsafe fn build_factory_plugin_registration_batch(plugin: *const NcFa
     let dependency_ids = unsafe { description.dependencies() }?.iter().map(|dependency| dependency.plugin_id).collect();
 
     let mut modules = Vec::<RegisteredContractModule>::new();
+    let mut builtin_dependencies = Vec::new();
     let mut module_by_id = HashMap::<NcGuid, usize>::new();
     // SAFETY: Validation established the direct contract table shape.
     for reference in unsafe { description.contracts() }? {
         // SAFETY: The plugin registration contract keeps each linked getter and
         // transitive native graph live for the resulting registry lifetime.
         let batch = unsafe { build_contract_registration_batch(reference) }?;
-        for module in batch.into_modules() {
+        let (native_modules, required_builtins) = batch.into_parts();
+        builtin_dependencies.extend(required_builtins);
+        for module in native_modules {
             if let Some(index) = module_by_id.get(&module.module_id).copied() {
                 let previous = &modules[index];
                 if previous.abi_fingerprint != module.abi_fingerprint || previous.module_name != module.module_name {
@@ -88,6 +93,7 @@ pub(crate) unsafe fn build_factory_plugin_registration_batch(plugin: *const NcFa
             dependency_ids,
         },
         modules,
+        builtin_dependencies,
         qualified_name,
     })
 }
@@ -132,7 +138,12 @@ impl RuntimeState {
 impl RuntimeCatalog {
     /// Checks all state-dependent rules before publishing the complete batch.
     pub(crate) fn commit_factory_plugin_registration(&mut self, batch: FactoryPluginRegistrationBatch) -> NcStatus {
-        let FactoryPluginRegistrationBatch { plugin, modules, qualified_name } = batch;
+        let FactoryPluginRegistrationBatch {
+            plugin,
+            modules,
+            builtin_dependencies,
+            qualified_name,
+        } = batch;
 
         if let Err(status) = self.validate_plugin_dependencies(&plugin.dependency_ids) {
             return status;
@@ -148,6 +159,10 @@ impl RuntimeCatalog {
             || self.registration.id_by_name.get(&qualified_name).is_some_and(|id| *id != plugin.plugin_id)
         {
             return NC_E_INVALID_ARG;
+        }
+        let builtin_status = self.contract_registry.validate_builtin_dependencies(&builtin_dependencies);
+        if builtin_status.is_err() {
+            return builtin_status;
         }
         let contract_status = self.contract_registry.validate_modules(&modules);
         if contract_status.is_err() {
@@ -169,9 +184,9 @@ mod tests {
     use core::ptr;
 
     use neocogi_com_core::{
-        IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION, NC_CONTRACT_DESCRIPTION_ABI_VERSION,
-        NcContractDeclarationDescription, NcContractFingerprint, NcContractModuleDescription, NcContractModuleReference, NcStaticUtf8,
-        guid_from_qualified_name,
+        IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_COM_CORE_ABI_VERSION, NC_CONTRACT_DEPENDENCY_BUILTIN,
+        NC_CONTRACT_DESCRIPTION_ABI_VERSION, NcContractDeclarationDescription, NcContractDependencyDescription, NcContractFingerprint,
+        NcContractModuleDescription, NcContractModuleReference, NcStaticUtf8, guid_from_qualified_name,
     };
 
     use super::*;
@@ -233,10 +248,37 @@ mod tests {
         activate: Some(activate_stub),
     };
 
+    /// An otherwise valid factory module requiring a wrong events ABI revision.
+    static WRONG_EVENTS_DEPENDENCY: [NcContractDependencyDescription; 1] = [NcContractDependencyDescription {
+        module_id: crate::builtins::MODULE_ID,
+        abi_fingerprint: NcContractFingerprint::new([99; 32]),
+        kind: NC_CONTRACT_DEPENDENCY_BUILTIN,
+        get: None,
+    }];
+
+    /// Returns the factory description used by the incompatible built-in test.
+    unsafe extern "C" fn get_wrong_events_module() -> *const NcContractModuleDescription {
+        &WRONG_EVENTS_MODULE
+    }
+
+    /// Canonical factory root with one deliberately incompatible built-in edge.
+    static WRONG_EVENTS_MODULE: NcContractModuleDescription = NcContractModuleDescription {
+        dependency_count: 1,
+        dependencies: WRONG_EVENTS_DEPENDENCY.as_ptr(),
+        ..MODULE
+    };
+
+    /// Direct root reference keeps the malformed dependency in the plugin graph.
+    static WRONG_EVENTS_CONTRACTS: [NcContractModuleReference; 1] = [NcContractModuleReference {
+        module_id: MODULE_ID,
+        abi_fingerprint: FINGERPRINT,
+        get: Some(get_wrong_events_module),
+    }];
+
     /// Confirms contracts and plugin metadata publish in one successful commit.
     #[test]
     fn registers_a_canonical_factory_plugin_and_contract_together() {
-        let runtime = RuntimeState::new();
+        let runtime = RuntimeState::new().unwrap();
         // SAFETY: The complete fixture graph uses immutable static storage.
         assert_eq!(unsafe { runtime.register_factory_plugin_description(&PLUGIN) }, NC_OK);
         let catalog = runtime.read_catalog();
@@ -247,13 +289,28 @@ mod tests {
     /// Confirms a duplicate plugin threading claim leaves the catalog untouched.
     #[test]
     fn rejects_root_threading_mismatch_without_partial_contract_registration() {
-        let runtime = RuntimeState::new();
+        let runtime = RuntimeState::new().unwrap();
         let invalid = NcFactoryPluginDescription {
             root_factory_threading: NC_ABI_THREADING_THREAD_SAFE,
             ..PLUGIN
         };
         // SAFETY: The stack root borrows only immutable static child metadata.
         assert_eq!(unsafe { runtime.register_factory_plugin_description(&invalid) }, NC_E_CONTRACT_MISMATCH);
+        let catalog = runtime.read_catalog();
+        assert!(catalog.contract_registry.module(MODULE_ID).is_none());
+        assert!(!catalog.factory_plugin_registry.contains_plugin(PLUGIN.plugin_id));
+    }
+
+    /// A plugin cannot publish its factory when its events contract is incompatible.
+    #[test]
+    fn rejects_wrong_builtin_revision_before_publishing_any_factory_record() {
+        let runtime = RuntimeState::new().unwrap();
+        let plugin = NcFactoryPluginDescription {
+            contracts: WRONG_EVENTS_CONTRACTS.as_ptr(),
+            ..PLUGIN
+        };
+        // SAFETY: The stack plugin borrows immutable static contract tables.
+        assert_eq!(unsafe { runtime.register_factory_plugin_description(&plugin) }, NC_E_CONTRACT_MISMATCH);
         let catalog = runtime.read_catalog();
         assert!(catalog.contract_registry.module(MODULE_ID).is_none());
         assert!(!catalog.factory_plugin_registry.contains_plugin(PLUGIN.plugin_id));

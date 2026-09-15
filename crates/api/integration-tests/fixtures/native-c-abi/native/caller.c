@@ -51,7 +51,7 @@ struct NcInterfaceDescriptor {
 typedef struct NcRuntimeApiV2Prefix {
     size_t size;
     uint32_t core_abi_version;
-    void (*register_contract_module)(void);
+    int32_t (*register_contract_module)(const void *);
 } NcRuntimeApiV2Prefix;
 
 typedef struct NcPluginRegistryV2Prefix {
