@@ -281,6 +281,7 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
         DeclarationKind::Interface(interface) => {
             let bases = bases(graph, module, &interface.bases)?;
             let methods = callable_methods(graph, module, &interface.callables)?;
+            let connectors = event_port_connectors(graph, module, declaration, &interface.callables, Threading::Local)?;
             format_rust(quote! {
                 #[::neocogi_com::com_interface(
                     assigned_guid = #id,
@@ -289,6 +290,7 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
                 )]
                 #declaration_docs
                 pub trait #name #bases { #(#methods)* }
+                #(#connectors)*
             })
         }
         DeclarationKind::Event(event) => generate_event(
@@ -306,6 +308,7 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
             let bases = bases(graph, module, &class.required_interfaces)?;
             let methods = callable_methods(graph, module, &class.callables)?;
             let threading = threading_ident(class.threading);
+            let connectors = event_port_connectors(graph, module, declaration, &class.callables, class.threading)?;
             format_rust(quote! {
                 #[::neocogi_com::com_class_description(
                     id = #id,
@@ -316,12 +319,14 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
                 )]
                 #declaration_docs
                 pub trait #name #bases { #(#methods)* }
+                #(#connectors)*
             })
         }
         DeclarationKind::Factory(factory) => {
             let bases = bases(graph, module, &factory.required_interfaces)?;
             let methods = callable_methods(graph, module, &factory.callables)?;
             let threading = threading_ident(factory.threading);
+            let connectors = event_port_connectors(graph, module, declaration, &factory.callables, factory.threading)?;
             format_rust(quote! {
                 #[::neocogi_com::com_factory_description(
                     id = #id,
@@ -332,6 +337,7 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
                 )]
                 #declaration_docs
                 pub trait #name #bases { #(#methods)* }
+                #(#connectors)*
             })
         }
     }
@@ -357,6 +363,7 @@ fn generate_event(
     let adapter_name = rust_ident(&format!("{}EventAdapter", declaration.name))?;
     let sink_abi_name = rust_ident(&format!("{}Abi", declaration.name))?;
     let adapter_factory = rust_ident(&format!("create_{}_event_sink", snake_case(&declaration.name)))?;
+    let checked_factory = rust_ident(&format!("create_{}_checked_event_sink", snake_case(&declaration.name)))?;
 
     let mut variants = Vec::with_capacity(event.deliveries.len());
     let mut producer_arms = Vec::with_capacity(event.deliveries.len());
@@ -403,7 +410,9 @@ fn generate_event(
             });
             adapter_methods.push(quote! {
                 #method_docs fn #method_name(&self) -> Result<(), ::neocogi_com::NcStatus> {
-                    self.delivery.deliver(#captured)
+                    let event = #captured;
+                    if let Some(validate) = self.validate { validate(&event)?; }
+                    self.delivery.deliver(event)
                 }
             });
         } else {
@@ -420,7 +429,9 @@ fn generate_event(
             });
             adapter_methods.push(quote! {
                 #method_docs fn #method_name(&self, #(#parameters),*) -> Result<(), ::neocogi_com::NcStatus> {
-                    self.delivery.deliver(#captured { #(#decoded),* })
+                    let event = #captured { #(#decoded),* };
+                    if let Some(validate) = self.validate { validate(&event)?; }
+                    self.delivery.deliver(event)
                 }
             });
         }
@@ -476,6 +487,8 @@ fn generate_event(
         struct #adapter_name<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, #payload_name> + 'static> {
             /// Application-owned typed delivery; the producer retains only a COM lease.
             delivery: ::neocogi_com_events::EventDelivery<State, Handler>,
+            /// Concrete semantic check runs after decoding but before state or handler borrowing.
+            validate: Option<fn(&#payload_name) -> Result<(), ::neocogi_com::NcStatus>>,
         }
 
         impl<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, #payload_name> + 'static> #name for #adapter_name<State, Handler> {
@@ -488,7 +501,17 @@ fn generate_event(
             session: &::neocogi_com_events::EventSession<State>,
             handler: Handler,
         ) -> Result<::neocogi_com::ComPtr<#sink_abi_name>, ::neocogi_com::NcStatus> {
-            #adapter_name::from_value(#adapter_name { delivery: session.delivery(handler) }).query()
+            #adapter_name::from_value(#adapter_name { delivery: session.delivery(handler), validate: None }).query()
+        }
+
+        /// Creates a generated sink with one typed domain check before application-state borrowing.
+        /// The checker cannot capture runtime state or cross the COM ABI; it sees only the owned fact.
+        pub fn #checked_factory<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, #payload_name> + 'static>(
+            session: &::neocogi_com_events::EventSession<State>,
+            handler: Handler,
+            validate: fn(&#payload_name) -> Result<(), ::neocogi_com::NcStatus>,
+        ) -> Result<::neocogi_com::ComPtr<#sink_abi_name>, ::neocogi_com::NcStatus> {
+            #adapter_name::from_value(#adapter_name { delivery: session.delivery(handler), validate: Some(validate) }).query()
         }
     })
 }
@@ -707,6 +730,77 @@ fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[
         generated.extend(methods(graph, module, std::slice::from_ref(method.as_ref()))?);
     }
     Ok(generated)
+}
+
+/// Generates one application registration transaction for every declared event port.
+/// The helper is source-specific because a port is an actual COM method on one
+/// interface identity; it never guesses a widget capability or retains the
+/// borrowed source beyond the synchronous subscription call.
+fn event_port_connectors(
+    graph: &ResolvedModules,
+    module: &ResolvedModule,
+    source: &Declaration,
+    values: &[Callable],
+    threading: Threading,
+) -> Result<Vec<TokenStream>, GenerateError> {
+    let source_abi = rust_ident(&format!("{}Abi", source.name))?;
+    let mode = matches!(threading, Threading::Shared).then(|| quote! { , ::neocogi_com::ThreadSafe });
+    let mut connectors = Vec::new();
+    for callable in values {
+        let Callable::EventPort(port) = callable else { continue };
+        let sink = resolve(graph, module, &port.sink)?;
+        let sink_event = rust_ident(&format!("{}Event", sink.declaration.name))?;
+        let factory = rust_ident(&format!("create_{}_event_sink", snake_case(&sink.declaration.name)))?;
+        let checked_factory = rust_ident(&format!("create_{}_checked_event_sink", snake_case(&sink.declaration.name)))?;
+        let (payload, sink_factory, checked_sink_factory) = if sink.module.source.name == module.source.name {
+            (quote! { #sink_event }, quote! { #factory }, quote! { #checked_factory })
+        } else {
+            let crate_name = contract_crate_ident(&sink.module.source.name.to_string())?;
+            (
+                quote! { ::#crate_name::#sink_event },
+                quote! { ::#crate_name::#factory },
+                quote! { ::#crate_name::#checked_factory },
+            )
+        };
+        let port_name = rust_ident(&port.name)?;
+        let source_binding = match port.receiver {
+            Receiver::Shared => quote! { source },
+            Receiver::Mutable => quote! { mut source },
+        };
+        let helper = rust_ident(&format!("connect_{}_{}", snake_case(&source.name), port.name))?;
+        let checked_helper = rust_ident(&format!("connect_{}_{}_checked", snake_case(&source.name), port.name))?;
+        let port_docs = docs(&port.docs);
+        connectors.push(quote! {
+            #port_docs
+            /// Registers the generated sink and source lease in one ordered session transaction.
+            /// A failed foreign subscription restores registration order without claiming a handler.
+            pub fn #helper<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, #payload> + 'static>(
+                session: &::neocogi_com_events::EventSession<State>,
+                #source_binding: ::neocogi_com::ComRef<'_, #source_abi #mode>,
+                handler: Handler,
+            ) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus> {
+                session.register(|| {
+                    let sink = #sink_factory(session, handler)?;
+                    source.#port_name(sink.as_com_ref())
+                })
+            }
+
+            /// Registers this port with an application-local semantic validator.
+            /// Validation runs after ABI decoding and before the state/handler borrow.
+            pub fn #checked_helper<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, #payload> + 'static>(
+                session: &::neocogi_com_events::EventSession<State>,
+                #source_binding: ::neocogi_com::ComRef<'_, #source_abi #mode>,
+                handler: Handler,
+                validate: fn(&#payload) -> Result<(), ::neocogi_com::NcStatus>,
+            ) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus> {
+                session.register(|| {
+                    let sink = #checked_sink_factory(session, handler, validate)?;
+                    source.#port_name(sink.as_com_ref())
+                })
+            }
+        });
+    }
+    Ok(connectors)
 }
 
 /// Lowers one copied aggregate field or payload type.

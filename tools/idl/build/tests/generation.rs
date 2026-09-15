@@ -38,7 +38,12 @@ fn generates_event_payload_sink_adapter_and_subscription_port() {
     assert!(generated.contains("impl ::neocogi_com_events::EventPayload for IChangedSinkEvent"));
     assert!(generated.contains("::neocogi_com_events::copy_text(text)?"));
     assert!(generated.contains("create_i_changed_sink_event_sink"));
+    assert!(generated.contains("create_i_changed_sink_checked_event_sink"));
+    assert!(generated.contains("if let Some(validate) = self.validate"));
     assert!(generated.contains("fn subscribe_changed"));
+    assert!(generated.contains("pub fn connect_i_editor_subscribe_changed"));
+    assert!(generated.contains(".register(|| {"));
+    assert!(generated.contains("source.subscribe_changed(sink.as_com_ref())"));
     assert!(generated.contains("IEventSubscriptionAbi"));
     assert!(!generated.contains("std::any::Any"));
 }
