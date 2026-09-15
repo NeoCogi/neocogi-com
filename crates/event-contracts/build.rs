@@ -1,4 +1,4 @@
-//! Generates the process-neutral COM event transport contracts from NCIDL.
+//! Generates the intrinsic COM event lease and dispatcher contracts from NCIDL.
 
 /// Emits the typed Rust bindings and native ABI description for the event module.
 fn main() {

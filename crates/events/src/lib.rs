@@ -20,6 +20,21 @@ pub mod test_support {
 
 pub use neocogi_com_events_contracts::{IEventDispatcher, IEventDispatcherAbi, IEventSubscription, IEventSubscriptionAbi};
 
+/// Rust binding protocol accepted by compiler-generated COM event adapters and connectors.
+/// Bump this with the IDL generator when its required transport API or delivery
+/// semantics change; an unchanged NCIDL wire ABI alone does not cover that case.
+pub const EVENT_BINDING_API_VERSION: u32 = 1;
+
+#[cfg(test)]
+mod compiler_binding_tests {
+    /// Keeps the released compiler and COM transport support API in lockstep.
+    /// Generated modules also enforce this when consumers build outside the workspace.
+    #[test]
+    fn compiler_and_transport_support_agree_on_event_binding_api() {
+        assert_eq!(super::EVENT_BINDING_API_VERSION, neocogi_idl_build::EVENT_BINDING_API_VERSION);
+    }
+}
+
 /// An event source has permanently closed before a new subscription was claimed.
 pub const EVENT_E_CLOSED: neocogi_com::NcStatus = neocogi_com::NcStatus::from_code(-1000);
 /// A synchronous event transaction would reenter an active subscription or session.

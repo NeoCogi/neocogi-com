@@ -12,7 +12,7 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
 fn generates_event_payload_sink_adapter_and_subscription_port() {
     let transport = module(
         "neocogi/com/events.ncidl",
-        "#[version(1)] trait IEventSubscription { fn cancel(&self) -> Result<()>; }",
+        include_str!("../../../event-contracts/idl/neocogi/com/events/events.ncidl"),
     );
     let events = module(
         "example/events.ncidl",
@@ -40,12 +40,48 @@ fn generates_event_payload_sink_adapter_and_subscription_port() {
     assert!(generated.contains("create_i_changed_sink_event_sink"));
     assert!(generated.contains("create_i_changed_sink_checked_event_sink"));
     assert!(generated.contains("if let Some(validate) = self.validate"));
+    assert!(generated.contains("EVENT_BINDING_API_VERSION == 1"));
     assert!(generated.contains("fn subscribe_changed"));
     assert!(generated.contains("pub fn connect_i_editor_subscribe_changed"));
     assert!(generated.contains(".register(|| {"));
     assert!(generated.contains("source.subscribe_changed(sink.as_com_ref())"));
     assert!(generated.contains("IEventSubscriptionAbi"));
     assert!(!generated.contains("std::any::Any"));
+    let transport_bindings = neocogi_idl_build::generate_rust(&graph, "neocogi.com.events").unwrap();
+    assert!(
+        !transport_bindings.contains("EVENT_BINDING_API_VERSION"),
+        "the baseline ABI crate must not depend on its own transport implementation"
+    );
+}
+
+/// A source-only module still checks the COM event support API and calls its
+/// imported sink adapter; it does not need to redeclare the sink event.
+#[test]
+fn source_only_event_port_checks_support_api() {
+    let transport = module(
+        "neocogi/com/events.ncidl",
+        include_str!("../../../event-contracts/idl/neocogi/com/events/events.ncidl"),
+    );
+    let sink = module(
+        "example/sink.ncidl",
+        "#[version(1)] event IChangedSink { fn changed(&self, value: u32) -> Result<()>; }",
+    );
+    let source = module(
+        "example/source.ncidl",
+        r#"
+        extern neocogi.com.events;
+        extern example.sink;
+        use neocogi.com.events::IEventSubscription;
+        use example.sink::IChangedSink;
+        #[version(1)] trait ISource { event subscribe(&self): IChangedSink; }
+    "#,
+    );
+    let graph = resolve_modules(vec![source, sink, transport]).unwrap();
+    let generated = neocogi_idl_build::generate_rust(&graph, "example.source").unwrap();
+    syn::parse_file(&generated).expect("source-only event bindings must parse");
+    assert!(generated.contains("EVENT_BINDING_API_VERSION == 1"));
+    assert!(generated.contains("pub fn connect_i_source_subscribe"));
+    assert!(generated.contains("example_sink_contracts::create_i_changed_sink_event_sink"));
 }
 
 /// Confirms generated bindings preserve names and expose factory-only objects.

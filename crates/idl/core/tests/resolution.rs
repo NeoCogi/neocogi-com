@@ -12,7 +12,7 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
 fn event_ports_require_generated_event_sinks_and_imported_leases() {
     let transport = module(
         "neocogi/com/events.ncidl",
-        "#[version(1)] trait IEventSubscription { fn cancel(&self) -> Result<()>; }",
+        include_str!("../../../event-contracts/idl/neocogi/com/events/events.ncidl"),
     );
     let valid = module(
         "example/events.ncidl",
@@ -50,6 +50,23 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
         resolve_modules(vec![unbound_lease]).is_err(),
         "subscription result must resolve through the author-declared dependency"
     );
+
+    let foreign_lease = module(
+        "example/foreign.ncidl",
+        "#[version(1)] trait IEventSubscription { fn cancel(&self) -> Result<()>; }",
+    );
+    let foreign_port = module(
+        "example/events.ncidl",
+        r#"
+        extern example.foreign;
+        use example.foreign::IEventSubscription;
+        #[version(1)] event IChangedSink { fn changed(&self, value: u32) -> Result<()>; }
+        #[version(1)] trait ISource { event subscribe(&self): IChangedSink; }
+    "#,
+    );
+    let error = resolve_modules(vec![foreign_port, foreign_lease]).unwrap_err().to_string();
+    assert!(error.contains("error[EIDL064]"), "{error}");
+    assert!(error.contains("neocogi.com.events.IEventSubscription"), "{error}");
 }
 
 /// Resolves exact cross-module declarations and fingerprints.

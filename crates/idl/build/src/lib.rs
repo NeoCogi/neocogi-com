@@ -17,3 +17,8 @@ pub use artifact::{ARTIFACT_SCHEMA, ArtifactRecord};
 pub use cargo::{BuildError, BuildOutput, Module};
 pub use generate::{GenerateError, generate_rust};
 pub use source::ModuleSources;
+
+/// Rust API protocol required from `neocogi-com-events` by generated event bodies.
+/// This is not an NCIDL ABI version: bump it together with the COM transport
+/// support crate when compiler-generated adapter requirements or semantics change.
+pub const EVENT_BINDING_API_VERSION: u32 = 1;

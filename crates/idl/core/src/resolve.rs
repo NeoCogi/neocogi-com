@@ -9,7 +9,9 @@ use neocogi_com_core::{NcGuid, guid_from_name, guid_from_qualified_name};
 
 use crate::{
     AbiType, BitEnum, Callable, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, Method, Module, NamedType, SourceFile, SourceSpan, Threading,
-    VariantFields, sha256::digest,
+    VariantFields,
+    model::{COM_EVENT_LEASE_NAME, COM_EVENTS_MODULE_NAME},
+    sha256::digest,
 };
 
 /// UUID namespace reserved for canonical NeoCogi IDL identities.
@@ -922,10 +924,37 @@ fn validate_callables(index: usize, callables: &[Callable], entries: &[ModuleEnt
                     ),
                     Err(error) => collect_diagnostics(&mut diagnostics, Err(error)),
                 }
-                collect_diagnostics(
-                    &mut diagnostics,
-                    validate_methods(index, std::slice::from_ref(&port.signature()), entries, owner),
-                );
+                let signature = port.signature();
+                // Ordinary output validation reports an unbound or wrong-kind
+                // lease. The additional identity check prevents a same-named
+                // foreign interface from silently changing the compiler-owned
+                // COM event port ABI.
+                collect_diagnostics(&mut diagnostics, validate_methods(index, std::slice::from_ref(&signature), entries, owner));
+                let AbiType::Named(lease_name) = &signature.output else {
+                    unreachable!("event port has one canonical lease result")
+                };
+                if let Ok(symbol) = resolve_named(index, lease_name, entries) {
+                    let owner_module = &entries[symbol.module];
+                    let declaration = &owner_module.module.declarations[symbol.declaration];
+                    if owner_module.name != COM_EVENTS_MODULE_NAME
+                        || declaration.name != COM_EVENT_LEASE_NAME
+                        || !matches!(declaration.kind, DeclarationKind::Interface(_))
+                    {
+                        collect_diagnostics(
+                            &mut diagnostics,
+                            Err(source_error(
+                                &entries[index].module,
+                                "EIDL064",
+                                &port.span,
+                                format!(
+                                    "{owner}::{} must return {COM_EVENTS_MODULE_NAME}.{COM_EVENT_LEASE_NAME}; found {}.{}",
+                                    port.name, owner_module.name, declaration.name
+                                ),
+                                "event ports use the compiler-owned COM lease contract",
+                            )),
+                        );
+                    }
+                }
             }
         }
     }

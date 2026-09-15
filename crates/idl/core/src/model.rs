@@ -277,6 +277,12 @@ impl Callable {
     }
 }
 
+/// Canonical COM module that defines the generated event lease ABI.
+pub(crate) const COM_EVENTS_MODULE_NAME: &str = "neocogi.com.events";
+
+/// Canonical lease declaration used by every lowered event port.
+pub(crate) const COM_EVENT_LEASE_NAME: &str = "IEventSubscription";
+
 /// One subscribable event port whose sink is a first-class NCIDL event.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EventPort {
@@ -294,8 +300,8 @@ pub struct EventPort {
 
 impl EventPort {
     /// Expands the declarative port into its exact generated COM signature.
-    /// The shared lease name must be imported from `neocogi.com.events` by the
-    /// authoring module; resolution rejects an unbound or wrong-kind import.
+    /// The shared lease must be imported from the canonical COM events module;
+    /// resolution rejects an unbound lease or a same-named non-COM declaration.
     pub fn signature(&self) -> Method {
         Method {
             span: self.span.clone(),
@@ -309,7 +315,7 @@ impl EventPort {
             }],
             output: AbiType::Named(NamedType {
                 span: self.span.clone(),
-                segments: vec!["IEventSubscription".to_owned()],
+                segments: vec![COM_EVENT_LEASE_NAME.to_owned()],
             }),
         }
     }

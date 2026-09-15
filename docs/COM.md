@@ -29,13 +29,19 @@ boundaries, and [ABI v7](docs/abi-v7.md) for the binary model.
 
 ## IDL
 
-The `neocogi.com.events` NCIDL module defines the transport-level subscription
-and borrowed dispatcher interfaces. `neocogi-com-events` implements typed native
-producer queues and application-owned sessions in their respective binaries;
-the process-global runtime only loads and authenticates COM components. UI event
-families use this support without making generic COM events depend on UI.
+The COM-owned IDL compiler lives under [`crates/com/idl`](idl). Its `event`
+keyword lowers every source port against the canonical
+`neocogi.com.events.IEventSubscription` interface; a same-named foreign lease
+is rejected. The [`neocogi.com.events`](event-contracts) NCIDL module defines
+that lease and the borrowed dispatcher ABI. [`neocogi-com-events`](events)
+implements typed producer queues and application-owned sessions in their
+respective binaries. Generated event bindings check the support crate's event
+binding API version at compile time, because a Rust adapter change need not
+change an NCIDL wire fingerprint. The process-global runtime still only loads,
+authenticates, and catalogs COM components. UI event families use this COM
+support without making generic COM events depend on UI.
 
-Contracts use `struct`, `enum`, `trait`, `class`, and `factory`. All declarations
+Contracts use `struct`, `enum`, `trait`, `event`, `class`, and `factory`. All declarations
 and members are public by definition:
 
 ```rust

@@ -13,3 +13,6 @@ neocogi-com-events-contracts.workspace = true
 
 [features]
 test-support = []
+
+[dev-dependencies]
+neocogi-idl-build.workspace = true
