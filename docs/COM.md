@@ -29,6 +29,12 @@ boundaries, and [ABI v7](docs/abi-v7.md) for the binary model.
 
 ## IDL
 
+The `neocogi.com.events` NCIDL module defines the transport-level subscription
+and borrowed dispatcher interfaces. `neocogi-com-events` implements typed native
+producer queues and application-owned sessions in their respective binaries;
+the process-global runtime only loads and authenticates COM components. UI event
+families use this support without making generic COM events depend on UI.
+
 Contracts use `struct`, `enum`, `trait`, `class`, and `factory`. All declarations
 and members are public by definition:
 

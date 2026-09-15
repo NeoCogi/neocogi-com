@@ -1,0 +1,15 @@
+[package]
+name = "neocogi-com-events"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Typed producer queues and application event sessions for COM components"
+
+[dependencies]
+neocogi-com = { workspace = true, features = ["macros"] }
+neocogi-com-events-contracts.workspace = true
+
+[features]
+test-support = []

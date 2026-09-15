@@ -1,0 +1,18 @@
+#[version(1)]
+/// One application-owned lease over a producer-owned typed event queue.
+trait IEventSubscription {
+    /// Delivers at most limit callbacks from one detached FIFO prefix.
+    /// A callback error consumes the attempted event and preserves unattempted events.
+    fn dispatch(&self, limit: u32) -> Result<u32>;
+    /// Reports a live source or an undelivered terminal fact.
+    fn active(&self) -> Result<bool>;
+    /// Disconnects explicitly; final release also disconnects without invoking user code.
+    fn cancel(&self) -> Result<()>;
+}
+
+#[version(1)]
+/// Borrowed dispatcher that sweeps application registrations in deterministic order.
+trait IEventDispatcher {
+    /// Delivers finite cascades up to the supplied callback budget.
+    fn dispatch(&self, limit: u32) -> Result<u32>;
+}

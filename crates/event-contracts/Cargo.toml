@@ -1,0 +1,19 @@
+[package]
+name = "neocogi-com-events-contracts"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "COM event lease and dispatcher contracts generated from NCIDL"
+links = "nc_contract_neocogi_com_events"
+
+[package.metadata.neocogi-contract]
+module = "neocogi.com.events"
+source = "idl/neocogi/com/events"
+
+[dependencies]
+neocogi-com = { workspace = true, features = ["macros"] }
+
+[build-dependencies]
+neocogi-idl-build.workspace = true
