@@ -23,19 +23,66 @@ pub trait EventDispatchSource {
 }
 
 /// Application-local typed behavior; neither state nor handler crosses the COM ABI.
+///
+/// Implement this trait on a concrete struct or enum whose dependencies are
+/// explicit fields. Closures and function pointers do not automatically implement
+/// it; there is no implicit `FnMut` adapter hiding a handler's captured state.
+///
+/// ```
+/// use neocogi_com::NcStatus;
+/// use neocogi_com_events::EventHandler;
+///
+/// /// Accumulates each event together with an explicitly owned adjustment.
+/// struct Add {
+///     /// Per-handler adjustment, visible instead of captured by a closure.
+///     adjustment: u32,
+/// }
+/// impl EventHandler<u32, u32> for Add {
+///     /// Applies the event and this handler's named configuration to local state.
+///     fn handle(&mut self, total: &mut u32, event: &u32) -> Result<(), NcStatus> {
+///         *total += *event + self.adjustment;
+///         Ok(())
+///     }
+/// }
+/// let mut handler = Add { adjustment: 1 };
+/// let mut total = 0;
+/// handler.handle(&mut total, &2).unwrap();
+/// assert_eq!(total, 3);
+/// ```
+///
+/// A closure cannot substitute for an explicit handler implementation:
+///
+/// ```compile_fail
+/// use neocogi_com::NcStatus;
+/// use neocogi_com_events::EventHandler;
+///
+/// /// Requires the same handler capability as generated event adapters.
+/// fn require_handler(_handler: impl EventHandler<u32, u32>) {}
+/// let adjustment = 1;
+/// require_handler(move |total: &mut u32, event: &u32| -> Result<(), NcStatus> {
+///     *total += *event + adjustment;
+///     Ok(())
+/// });
+/// ```
+///
+/// A capture-free function pointer is not an implicit handler either:
+///
+/// ```compile_fail
+/// use neocogi_com::NcStatus;
+/// use neocogi_com_events::EventHandler;
+///
+/// /// A plain function intentionally has no EventHandler implementation.
+/// fn record(total: &mut u32, event: &u32) -> Result<(), NcStatus> {
+///     *total += *event;
+///     Ok(())
+/// }
+/// /// Requires explicit typed behavior, not a callable function-pointer shortcut.
+/// fn require_handler(_handler: impl EventHandler<u32, u32>) {}
+/// require_handler(record as fn(&mut u32, &u32) -> Result<(), NcStatus>);
+/// ```
 pub trait EventHandler<State, Event> {
     /// Handles one owned semantic snapshot while borrowing only local state.
     fn handle(&mut self, state: &mut State, event: &Event) -> Result<(), NcStatus>;
-}
-
-impl<State, Event, Callback> EventHandler<State, Event> for Callback
-where
-    Callback: FnMut(&mut State, &Event) -> Result<(), NcStatus>,
-{
-    /// Calls the exact closure type stored in this binary, with no erased value.
-    fn handle(&mut self, state: &mut State, event: &Event) -> Result<(), NcStatus> {
-        self(state, event)
-    }
 }
 
 /// One explicitly typed subscription operation, local to the consumer's binary.
