@@ -763,10 +763,12 @@ fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[
     Ok(generated)
 }
 
-/// Generates one application registration transaction for every declared event port.
+/// Generates private typed operations and public helpers for every declared event port.
 /// The helper is source-specific because a port is an actual COM method on one
 /// interface identity; it never guesses a widget capability or retains the
-/// borrowed source beyond the synchronous subscription call.
+/// borrowed source beyond the synchronous subscription call. The operation
+/// carries that projection and its optional validator in named fields, while
+/// the generic session remains the sole owner of the registration transaction.
 fn event_port_connectors(
     graph: &ResolvedModules,
     module: &ResolvedModule,

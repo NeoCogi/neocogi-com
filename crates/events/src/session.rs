@@ -119,7 +119,8 @@ impl<State: 'static> EventSession<State> {
     /// The concrete connector creates the sink and connects the producer only
     /// after the transaction is claimed. Failures restore the exact previous
     /// registration order. Successful registration retains the lease, not the
-    /// connector; no source borrow survives this synchronous operation.
+    /// connector. Generated connectors borrow their source projection only during
+    /// this synchronous operation; application handlers retain their own dependencies.
     pub fn register<Handler, Connector>(&self, handler: Handler, connector: Connector) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus>
     where
         Connector: EventConnector<State, Handler>,

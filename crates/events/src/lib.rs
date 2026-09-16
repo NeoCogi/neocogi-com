@@ -4,6 +4,12 @@
 //! respective binaries. Only the generated lease, dispatcher, and event sink
 //! interfaces cross a plugin boundary. The process-global COM runtime neither
 //! owns queues nor stores application state.
+//!
+//! Subscription setup uses a consumed [`EventConnector`] with explicit producer
+//! and policy fields. [`EventSession::register`] claims its ordered transaction
+//! before calling the connector; only the resulting lease is retained. Generated
+//! NCIDL helpers supply these operations without application-written sink wiring.
+//! This setup protocol is separate from [`EventHandler`] invocation during dispatch.
 
 #![deny(missing_docs)]
 
