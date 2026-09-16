@@ -40,10 +40,14 @@ fn generates_event_payload_sink_adapter_and_subscription_port() {
     assert!(generated.contains("create_i_changed_sink_event_sink"));
     assert!(generated.contains("create_i_changed_sink_checked_event_sink"));
     assert!(generated.contains("if let Some(validate) = self.validate"));
-    assert!(generated.contains("EVENT_BINDING_API_VERSION == 1"));
+    assert!(generated.contains("EVENT_BINDING_API_VERSION == 2"));
     assert!(generated.contains("fn subscribe_changed"));
     assert!(generated.contains("pub fn connect_i_editor_subscribe_changed"));
-    assert!(generated.contains(".register(|| {"));
+    assert!(generated.contains("struct IEditorSubscribeChangedEventConnector<'source>"));
+    assert!(generated.contains("::neocogi_com_events::EventConnector<State, Handler>"));
+    assert!(generated.contains(".register("));
+    assert!(generated.contains("let mut source = self.source"));
+    assert!(!generated.contains(".register(||"));
     assert!(generated.contains("source.subscribe_changed(sink.as_com_ref())"));
     assert!(generated.contains("IEventSubscriptionAbi"));
     assert!(!generated.contains("std::any::Any"));
@@ -82,7 +86,7 @@ fn source_only_event_port_checks_support_api() {
     let graph = resolve_modules(vec![source, sink, transport]).unwrap();
     let generated = neocogi_idl_build::generate_rust(&graph, "example.source").unwrap();
     syn::parse_file(&generated).expect("source-only event bindings must parse");
-    assert!(generated.contains("EVENT_BINDING_API_VERSION == 1"));
+    assert!(generated.contains("EVENT_BINDING_API_VERSION == 2"));
     assert!(generated.contains("pub fn connect_i_source_subscribe"));
     assert!(generated.contains("example_sink_contracts::create_i_changed_sink_event_sink"));
 }

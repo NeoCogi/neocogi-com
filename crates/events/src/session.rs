@@ -38,6 +38,21 @@ where
     }
 }
 
+/// One explicitly typed subscription operation, local to the consumer's binary.
+///
+/// A connector stores its producer capability and any connection policy in named
+/// fields. Generated contract bindings implement this trait for each event port;
+/// the generic session never needs to know a widget, sink, or producer type.
+/// Connectors are consumed during registration, not retained for event delivery.
+pub trait EventConnector<State: 'static, Handler> {
+    /// Constructs the local sink and connects the producer inside registration.
+    ///
+    /// The session has already excluded registration and dispatch reentry before
+    /// calling this method. On failure, the connector must release any uncommitted
+    /// connection; the session restores its previous ordered lease sequence.
+    fn connect(self, session: &EventSession<State>, handler: Handler) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus>;
+}
+
 /// Application-owned state and subscriptions, independent of a UI implementation.
 pub struct EventSession<State: 'static> {
     /// One owned state value shared only with local concrete sink specializations.
@@ -101,11 +116,20 @@ impl<State: 'static> EventSession<State> {
     }
 
     /// Claims the registration transaction before any foreign subscription call.
-    /// The caller constructs its concrete sink and connects the producer inside
-    /// `connect`; failures restore the exact previous registration order.
-    pub fn register(&self, connect: impl FnOnce() -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus>) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus> {
+    /// The concrete connector creates the sink and connects the producer only
+    /// after the transaction is claimed. Failures restore the exact previous
+    /// registration order. Successful registration retains the lease, not the
+    /// connector; no source borrow survives this synchronous operation.
+    pub fn register<Handler, Connector>(&self, handler: Handler, connector: Connector) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus>
+    where
+        Connector: EventConnector<State, Handler>,
+    {
+        // Own the sequence before constructing a sink or calling foreign code;
+        // Registrations restores it on both connection failure and success.
         let mut leases = self.registry.take()?;
-        let lease = connect()?;
+        let lease = connector.connect(self, handler)?;
+        // The returned reference is caller-owned; this clone keeps delivery live
+        // even when the caller immediately drops that reference.
         leases.push(lease.clone());
         Ok(lease)
     }

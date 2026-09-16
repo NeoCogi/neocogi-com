@@ -10,7 +10,7 @@
 mod source;
 pub use source::{EventEndpoint, EventPayload, EventSource};
 mod session;
-pub use session::{EventDelivery, EventDispatchSource, EventHandler, EventSession, EVENT_DISPATCH_LIMIT};
+pub use session::{EventConnector, EventDelivery, EventDispatchSource, EventHandler, EventSession, EVENT_DISPATCH_LIMIT};
 
 /// Isolated transport-algorithm fixtures, absent from ordinary builds.
 #[cfg(feature = "test-support")]
@@ -23,7 +23,7 @@ pub use neocogi_com_events_contracts::{IEventDispatcher, IEventDispatcherAbi, IE
 /// Rust binding protocol accepted by compiler-generated COM event adapters and connectors.
 /// Bump this with the IDL generator when its required transport API or delivery
 /// semantics change; an unchanged NCIDL wire ABI alone does not cover that case.
-pub const EVENT_BINDING_API_VERSION: u32 = 1;
+pub const EVENT_BINDING_API_VERSION: u32 = 2;
 
 #[cfg(test)]
 mod compiler_binding_tests {
