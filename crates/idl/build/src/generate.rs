@@ -801,10 +801,14 @@ fn event_port_connectors(
         // Each port owns a distinct local operation type. Its borrowed source
         // and optional validator are visible fields, never closure captures.
         let connector_name = rust_ident(&format!("{}{}EventConnector", source.name, upper_camel_case(&port.name)))?;
+        let check_name = rust_ident(&format!("{}DomainCheck", connector_name))?;
         let helper = rust_ident(&format!("connect_{}_{}", snake_case(&source.name), port.name))?;
         let checked_helper = rust_ident(&format!("connect_{}_{}_checked", snake_case(&source.name), port.name))?;
         let port_docs = docs(&port.docs);
         connectors.push(quote! {
+            /// Capture-free semantic check for this port's concrete owned event payload.
+            type #check_name = fn(&#payload) -> Result<(), ::neocogi_com::NcStatus>;
+
             /// Local subscription operation generated for this exact source event port.
             /// Consumed synchronously; neither its borrowed source nor this operation
             /// is retained by the session or crosses the COM ABI.
@@ -812,13 +816,15 @@ fn event_port_connectors(
                 /// Exact source projection borrowed until the foreign subscription returns.
                 source: ::neocogi_com::ComRef<'source, #source_abi #mode>,
                 /// Existing capture-free domain check installed on the resulting local sink.
-                validate: Option<fn(&#payload) -> Result<(), ::neocogi_com::NcStatus>>,
+                validate: Option<#check_name>,
             }
 
             impl<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, #payload> + 'static>
                 ::neocogi_com_events::EventConnector<State, Handler> for #connector_name<'_>
             {
                 /// Creates the typed sink only after the session claims registration.
+                /// Selects the existing plain or checked sink policy, then connects
+                /// the exact source port without retaining its borrowed projection.
                 fn connect(
                     self,
                     session: &::neocogi_com_events::EventSession<State>,

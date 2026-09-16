@@ -294,3 +294,7 @@ impl<State, Handler> EventDelivery<State, Handler> {
         result
     }
 }
+
+/// Registration regressions use the same transaction and dispatcher as production.
+#[cfg(test)]
+mod tests;

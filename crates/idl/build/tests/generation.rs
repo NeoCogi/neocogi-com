@@ -91,6 +91,92 @@ fn source_only_event_port_checks_support_api() {
     assert!(generated.contains("example_sink_contracts::create_i_changed_sink_event_sink"));
 }
 
+/// Imported sink ports preserve their source mode and emit only explicit registration arguments.
+#[test]
+fn generates_private_typed_connectors_for_each_port_and_source_mode() {
+    let transport = module(
+        "neocogi/com/events.ncidl",
+        include_str!("../../../event-contracts/idl/neocogi/com/events/events.ncidl"),
+    );
+    let sink = module(
+        "example/sink.ncidl",
+        "#[version(1)] event IChangedSink { fn changed(&self, value: u32) -> Result<()>; }",
+    );
+    let source = module(
+        "example/source.ncidl",
+        r#"
+        extern neocogi.com.events;
+        extern example.sink;
+        use neocogi.com.events::IEventSubscription;
+        use example.sink::IChangedSink;
+        #[version(1)] trait ISource {
+            event subscribe_read(&self): IChangedSink;
+            event subscribe_write(&mut self): IChangedSink;
+        }
+        #[threading(shared)]
+        #[version(1)] factory SharedSource {
+            event subscribe(&self): IChangedSink;
+        }
+        #[version(1)] class Editor: ISource {
+            event subscribe(&mut self): IChangedSink;
+        }
+    "#,
+    );
+    let graph = resolve_modules(vec![source, sink, transport]).unwrap();
+    let generated = neocogi_idl_build::generate_rust(&graph, "example.source").unwrap();
+    let syntax = syn::parse_file(&generated).unwrap();
+    let mut connector_count = 0;
+    let mut helper_count = 0;
+
+    for item in &syntax.items {
+        match item {
+            syn::Item::Struct(operation) if operation.ident.to_string().ends_with("EventConnector") => {
+                connector_count += 1;
+                assert!(matches!(operation.vis, syn::Visibility::Inherited));
+                let names = operation
+                    .fields
+                    .iter()
+                    .map(|field| field.ident.as_ref().unwrap().to_string())
+                    .collect::<Vec<_>>();
+                assert_eq!(names, ["source", "validate"]);
+
+                // Only the shared-threading source carries the ThreadSafe projection.
+                let source_type = &operation.fields.iter().next().unwrap().ty;
+                let source_type = quote::quote!(#source_type).to_string();
+                assert_eq!(source_type.contains("ThreadSafe"), operation.ident == "SharedSourceSubscribeEventConnector");
+                assert!(source_type.contains("'source"));
+            }
+            syn::Item::Fn(helper) if helper.sig.ident.to_string().starts_with("connect_") => {
+                helper_count += 1;
+                // Inspect syntax rather than formatted text: every helper supplies
+                // its handler and one concrete operation, never a closure/function.
+                let call = match helper.block.stmts.as_slice() {
+                    [syn::Stmt::Expr(syn::Expr::MethodCall(call), None)] => call,
+                    other => panic!("unexpected registration helper body: {other:?}"),
+                };
+                assert_eq!(call.method, "register");
+                assert_eq!(call.args.len(), 2);
+                assert!(matches!(&call.args[0], syn::Expr::Path(argument) if argument.path.is_ident("handler")));
+                let operation = match &call.args[1] {
+                    syn::Expr::Struct(operation) => operation,
+                    other => panic!("registration must receive a typed operation: {other:?}"),
+                };
+                assert!(operation.path.segments.last().unwrap().ident.to_string().ends_with("EventConnector"));
+                assert!(operation.rest.is_none());
+                assert_eq!(operation.fields.len(), 2);
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(connector_count, 4);
+    assert_eq!(helper_count, 8);
+    assert!(generated.contains("let mut source = self.source"));
+    assert!(generated.contains("let source = self.source"));
+    assert!(generated.contains("match self.validate"));
+    assert!(!generated.contains("FnOnce"));
+    assert!(!generated.contains(".register(||"));
+}
+
 /// Confirms generated bindings preserve names and expose factory-only objects.
 #[test]
 fn generates_rust_bindings_for_a_module_graph() {
