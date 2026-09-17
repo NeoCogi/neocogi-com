@@ -21,7 +21,7 @@ pub use session::{EventConnector, EventDelivery, EventDispatchSource, EventHandl
 /// Isolated transport-algorithm fixtures, absent from ordinary builds.
 #[cfg(feature = "test-support")]
 pub mod test_support {
-    pub use super::source::{EventBatch, EventLease, SubscribeError};
+    pub use super::source::{DeliveryWindow, EventLease, SubscribeError};
 }
 
 pub use neocogi_com_events_contracts::{IEventDispatcher, IEventDispatcherAbi, IEventSubscription, IEventSubscriptionAbi};

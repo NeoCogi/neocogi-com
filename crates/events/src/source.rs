@@ -32,6 +32,7 @@
 use std::{
     cell::{Cell, RefCell},
     fmt,
+    collections::VecDeque,
     rc::{Rc, Weak},
 };
 use neocogi_com::{com_object, ComInterface, ComPtr, ComRef, NcStatus};
@@ -137,12 +138,12 @@ enum Queue<E: 'static> {
     /// Exactly one subscription exists and owns the right to drain this FIFO.
     Connected {
         /// Ordinary snapshots awaiting the next safe dispatch boundary.
-        pending: Vec<E>,
+        pending: VecDeque<E>,
     },
-    /// A request-completion source finished; every queued or already detached outcome remains valid.
+    /// A request-completion source finished; every queued outcome remains valid.
     Finished {
         /// Committed request outcomes awaiting their existing consumer, without accepting new emission or subscription.
-        pending: Vec<E>,
+        pending: VecDeque<E>,
     },
     /// The producer closed or was dropped; only an explicitly published terminal event survives.
     Closed {
@@ -167,7 +168,7 @@ impl<E: 'static> Queue<E> {
     fn emit(&mut self, event: E) -> Option<E> {
         match self {
             Self::Connected { pending } => {
-                pending.push(event);
+                pending.push_back(event);
                 None
             }
             Self::Disconnected | Self::Finished { .. } | Self::Closed { .. } => Some(event),
@@ -180,7 +181,7 @@ impl<E: 'static> Queue<E> {
     fn connect(&mut self) -> Result<(), SubscribeError> {
         match self {
             Self::Disconnected => {
-                *self = Self::Connected { pending: Vec::new() };
+                *self = Self::Connected { pending: VecDeque::new() };
                 Ok(())
             }
             Self::Connected { .. } => Err(SubscribeError::AlreadySubscribed),
@@ -213,50 +214,41 @@ impl<E: 'static> Queue<E> {
         }
     }
 
-    /// Finishes committed request outcomes without changing their FIFO or dropping a detached delivery batch.
+    /// Finishes committed request outcomes without changing their FIFO.
     fn finish_pending(&mut self) {
         match self {
             Self::Connected { pending } => {
                 let pending = std::mem::take(pending);
                 *self = Self::Finished { pending };
             }
-            Self::Disconnected => *self = Self::Finished { pending: Vec::new() },
+            Self::Disconnected => *self = Self::Finished { pending: VecDeque::new() },
             Self::Closed { .. } | Self::Finished { .. } => {}
         }
     }
 
-    /// Detaches a bounded FIFO prefix; producer and queue borrows end before any callback.
-    fn drain(&mut self, limit: usize) -> Result<EventBatch<E>, neocogi_com::NcStatus> {
-        let (pending, terminal) = match self {
-            Self::Disconnected => (0, false),
-            Self::Connected { pending } => (pending.len(), false),
-            Self::Finished { pending } => (pending.len(), true),
-            Self::Closed { terminal } => (usize::from(terminal.is_some()), true),
+    /// Captures the eligible prefix length without moving any unattempted payloads.
+    fn window(&self, limit: usize) -> Result<DeliveryWindow, NcStatus> {
+        let window = match self {
+            Self::Disconnected => DeliveryWindow::Ordinary(0),
+            Self::Connected { pending } | Self::Finished { pending } => DeliveryWindow::Ordinary(pending.len()),
+            Self::Closed { terminal } => DeliveryWindow::Terminal(usize::from(terminal.is_some())),
         };
-        if limit == 0 && pending != 0 {
-            return Err(EVENT_E_LIMIT);
+        match window {
+            DeliveryWindow::Ordinary(count) | DeliveryWindow::Terminal(count) if limit == 0 && count != 0 => Err(EVENT_E_LIMIT),
+            DeliveryWindow::Ordinary(count) => Ok(DeliveryWindow::Ordinary(count.min(limit))),
+            DeliveryWindow::Terminal(count) => Ok(DeliveryWindow::Terminal(count.min(limit))),
         }
-        let events = match self {
-            Self::Disconnected => Vec::new(),
-            Self::Connected { pending } | Self::Finished { pending } => {
-                if pending.len() <= limit {
-                    std::mem::take(pending)
-                } else {
-                    pending.drain(..limit).collect()
-                }
-            }
-            Self::Closed { terminal } => terminal.take().into_iter().collect(),
-        };
-        Ok(EventBatch { events, terminal })
     }
 }
 
-/// Detached snapshots retain whether they represent an explicit terminal fact from an already closed producer.
-pub struct EventBatch<E: 'static> {
-    /// FIFO snapshots owned by this synchronous delivery attempt.
-    pub events: Vec<E>,
-    /// Ordinary batches stop after closure; a detached terminal fact remains eligible once.
-    pub terminal: bool,
+/// One dispatch attempt owns only its remaining budget; payloads stay in the FIFO.
+/// New emissions wait for the next sweep and closure cannot substitute a terminal
+/// fact for an ordinary snapshot whose delivery was already scheduled.
+pub enum DeliveryWindow {
+    /// Ordinary or committed-request events eligible at the start of this attempt.
+    Ordinary(usize),
+    /// The single terminal fact already present when this attempt began.
+    Terminal(usize),
 }
 
 /// Exclusive queue lease owns no producer or callback and cannot cancel a later replacement subscription.
@@ -273,7 +265,7 @@ impl<E: 'static> EventLease<E> {
         port.borrow_mut().connect()?;
         Ok(Self { port, cancelled: Cell::new(false) })
     }
-    /// Live empty sources stay registered; closed sources survive only until their terminal fact is detached.
+    /// Live empty sources stay registered; closed sources survive only until their terminal fact is attempted.
     pub fn active(&self) -> bool {
         if self.cancelled.get() {
             return false;
@@ -285,32 +277,42 @@ impl<E: 'static> EventLease<E> {
             Queue::Disconnected => false,
         }
     }
-    /// Detaches a bounded batch without lending a producer/queue borrow to its eventual consumer.
-    pub fn drain(&self, limit: usize) -> Result<EventBatch<E>, neocogi_com::NcStatus> {
-        if self.cancelled.get() {
-            return Ok(EventBatch { events: Vec::new(), terminal: false });
-        }
-        self.port.borrow_mut().drain(limit)
-    }
-    /// Restores unattempted live events or finalized request outcomes ahead of later emissions after a callback error.
-    pub fn restore(&self, remaining: std::vec::IntoIter<E>) {
-        if self.cancelled.get() {
-            return;
-        }
-        match &mut *self.port.borrow_mut() {
-            Queue::Connected { pending } | Queue::Finished { pending } => {
-                let mut prefix: Vec<E> = remaining.collect();
-                prefix.append(pending);
-                *pending = prefix;
-            }
-            Queue::Disconnected | Queue::Closed { .. } => {}
+    /// Captures a bounded prefix; callbacks never borrow or detach the pending FIFO.
+    pub fn window(&self, limit: usize) -> Result<DeliveryWindow, NcStatus> {
+        match self.cancelled.get() {
+            true => Ok(DeliveryWindow::Ordinary(0)),
+            false => self.port.borrow().window(limit),
         }
     }
 
-    /// Checks cancellation and ordinary-source closure before each detached snapshot is delivered.
-    pub fn can_deliver(&self, terminal: bool) -> bool {
-        !self.cancelled.get() && (terminal || matches!(*self.port.borrow(), Queue::Connected { .. } | Queue::Finished { .. }))
+    /// Removes only the next attempted event, leaving every unattempted event in place.
+    /// Cancellation and closure are observed between callbacks. The returned owned
+    /// value is delivered and destroyed after this short queue borrow has ended.
+    pub fn next(&self, window: &mut DeliveryWindow) -> Option<E> {
+        if self.cancelled.get() {
+            return None;
+        }
+        let mut queue = self.port.borrow_mut();
+        match (window, &mut *queue) {
+            (DeliveryWindow::Ordinary(count), Queue::Connected { pending } | Queue::Finished { pending }) if *count != 0 => {
+                *count -= 1;
+                pending.pop_front()
+            }
+            (DeliveryWindow::Terminal(count), Queue::Closed { terminal }) if *count != 0 => {
+                *count -= 1;
+                terminal.take()
+            }
+            _ => None,
+        }
     }
+
+    /// Collects a bounded prefix solely for isolated native widget tests.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn drain(&self, limit: usize) -> Result<Vec<E>, NcStatus> {
+        let mut window = self.window(limit)?;
+        Ok(std::iter::from_fn(|| self.next(&mut window)).collect())
+    }
+
     /// Disconnects once and discards ordinary/terminal pending snapshots without invoking user code.
     pub fn cancel(&self) {
         match self.cancelled.replace(true) {
@@ -407,7 +409,7 @@ struct Subscription<E: EventPayload> {
     lease: EventLease<E>,
     /// Cancellation releases application ownership immediately, even if the lease itself is retained elsewhere.
     sink: RefCell<Option<ComPtr<E::Sink>>>,
-    /// Direct reentrant dispatch must reject before detaching a second batch.
+    /// Direct reentrant dispatch must reject before claiming a second delivery window.
     dispatching: Cell<bool>,
 }
 
@@ -427,14 +429,13 @@ fn subscribe<E: EventPayload>(endpoint: EventEndpoint<E>, sink: ComRef<'_, E::Si
 }
 
 impl<E: EventPayload> IEventSubscription for Subscription<E> {
-    /// Delivers a bounded detached prefix, preserving unattempted events after a callback error.
+    /// Delivers a bounded FIFO prefix, preserving unattempted events after a callback error.
     fn dispatch(&self, limit: u32) -> Result<u32, NcStatus> {
         if self.dispatching.replace(true) {
             return Err(EVENT_E_BUSY);
         }
         let _guard = DispatchGuard(&self.dispatching);
-        let batch = self.lease.drain(limit as usize)?;
-        let mut remaining = batch.events.into_iter();
+        let mut window = self.lease.window(limit as usize)?;
         // Take ownership instead of calling foreign AddRef while borrowing the slot.
         let sink = SinkAccess {
             subscription: self,
@@ -442,14 +443,10 @@ impl<E: EventPayload> IEventSubscription for Subscription<E> {
         };
         let mut delivered = 0;
         if let Some(sink) = &sink.value {
-            while let Some(event) = remaining.next() {
-                if !self.lease.can_deliver(batch.terminal) {
-                    break;
-                }
-                if let Err(error) = event.deliver(sink.as_com_ref()) {
-                    self.lease.restore(remaining);
-                    return Err(error);
-                }
+            while let Some(event) = self.lease.next(&mut window) {
+                // The attempted event is consumed even on error; its unattempted
+                // successors have never left the queue and need no restoration.
+                event.deliver(sink.as_com_ref())?;
                 delivered += 1;
             }
         }
@@ -510,7 +507,7 @@ impl<E: EventPayload> EventEndpoint<E> {
     }
 }
 impl<E: EventPayload> EventSource<E> {
-    /// Connects a concrete sink using the same exclusive endpoint and detached FIFO delivery.
+    /// Connects a concrete sink using the same exclusive endpoint and bounded FIFO delivery.
     pub fn subscribe(&self, sink: ComRef<'_, E::Sink>) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus> {
         self.event().subscribe(sink)
     }
@@ -548,7 +545,7 @@ mod tests {
         drops: Cell<u32>,
         /// Value whose callback publishes another event before failing once.
         fail: Cell<Option<i32>>,
-        /// Value whose callback cancels its own subscription during detached-batch delivery.
+        /// Value whose callback cancels its own subscription during bounded delivery.
         cancel: Cell<Option<i32>>,
     }
     #[com_object(interfaces(ITestSink))]
@@ -622,7 +619,7 @@ mod tests {
         drop(lease);
         probe.lease.borrow_mut().take();
         source.emit(TestEvent(6));
-        assert_eq!(replacement.drain(1).unwrap().events[0].0, 6);
+        assert_eq!(replacement.drain(1).unwrap()[0].0, 6);
     }
     /// Explicit terminal facts survive ordinary queue closure, deliver once, and release the retained application sink.
     #[test]
@@ -654,41 +651,37 @@ mod lease_tests {
         source.emit(2);
         assert_eq!(lease.drain(0).err(), Some(EVENT_E_LIMIT));
         let first = lease.drain(1).unwrap();
-        assert_eq!(first.events, [1]);
+        assert_eq!(first, [1]);
         source.emit(3);
-        assert_eq!(lease.drain(2).unwrap().events, [2, 3]);
+        assert_eq!(lease.drain(2).unwrap(), [2, 3]);
         assert!(lease.active());
-        assert!(lease.drain(0).unwrap().events.is_empty());
+        assert!(lease.drain(0).unwrap().is_empty());
         lease.cancel();
         let replacement = EventLease::connect(source.event()).unwrap();
         source.emit(4);
         drop(lease);
-        assert_eq!(replacement.drain(1).unwrap().events, [4]);
+        assert_eq!(replacement.drain(1).unwrap(), [4]);
     }
 
-    /// Closure cancels detached ordinary work but preserves exactly one explicitly published terminal fact.
+    /// Closure ends an ordinary window; a later window delivers the terminal fact once.
     #[test]
-    fn lease_distinguishes_detached_ordinary_batches_from_terminal_delivery() {
+    fn closure_retires_ordinary_window_before_terminal_delivery() {
         let source = EventSource::<i32>::new();
         let lease = EventLease::connect(source.event()).unwrap();
         source.emit(1);
         source.emit(2);
-        let ordinary = lease.drain(2).unwrap();
-        assert!(lease.can_deliver(ordinary.terminal));
+        let mut ordinary = lease.window(2).unwrap();
+        assert_eq!(lease.next(&mut ordinary), Some(1));
         source.close(9);
-        assert!(!lease.can_deliver(ordinary.terminal));
+        assert_eq!(lease.next(&mut ordinary), None);
         drop(source);
         assert!(lease.active());
-        let terminal = lease.drain(1).unwrap();
-        assert_eq!(terminal.events, [9]);
-        assert!(lease.can_deliver(terminal.terminal));
+        assert_eq!(lease.drain(1).unwrap(), [9]);
         assert!(!lease.active());
-        assert!(lease.drain(1).unwrap().events.is_empty());
-        lease.cancel();
-        assert!(!lease.can_deliver(terminal.terminal));
+        assert!(lease.drain(1).unwrap().is_empty());
     }
 
-    /// Completed-request queues outlive their producer, including detached delivery and bounded retry after a handler error.
+    /// Finished requests survive producer destruction and failures without a restore path.
     #[test]
     fn finalized_request_outcomes_preserve_fifo_without_accepting_new_emission_or_subscribers() {
         let source = EventSource::<i32>::new();
@@ -697,22 +690,32 @@ mod lease_tests {
         for value in [1, 2, 3] {
             source.emit(value);
         }
-        let first = lease.drain(1).unwrap();
+        let mut window = lease.window(3).unwrap();
+        assert_eq!(lease.next(&mut window), Some(1));
         source.finish_pending();
         assert!(!endpoint.is_alive());
-        assert!(lease.can_deliver(first.terminal));
-        assert_eq!(first.events, [1]);
-        source.emit(4); // A finished producer cannot append another outcome.
-        source.close(99); // Repeated closure cannot replace already committed request results.
+        source.emit(4); // Finished sources reject new outcomes.
+        source.close(99); // Ordinary closure preserves committed results.
         drop(source);
         assert_eq!(EventLease::connect(endpoint).err(), Some(SubscribeError::WidgetExpired));
-        let mut batch = lease.drain(10).unwrap().events.into_iter();
-        assert_eq!(batch.next(), Some(2)); // This attempted callback is consumed even if it fails.
-        lease.restore(batch);
+        assert_eq!(lease.next(&mut window), Some(2)); // An attempted failing delivery is consumed.
         assert!(lease.active());
-        assert_eq!(lease.drain(1).unwrap().events, [3]);
+        assert_eq!(lease.drain(1).unwrap(), [3]);
         assert!(!lease.active());
-        assert!(lease.drain(0).unwrap().events.is_empty());
+        assert!(lease.drain(0).unwrap().is_empty());
+    }
+
+    /// Emission during a dispatch window waits for the next sweep even with spare budget.
+    #[test]
+    fn new_emission_does_not_extend_the_current_window() {
+        let source = EventSource::<i32>::new();
+        let lease = EventLease::connect(source.event()).unwrap();
+        source.emit(1);
+        let mut window = lease.window(10).unwrap();
+        assert_eq!(lease.next(&mut window), Some(1));
+        source.emit(2);
+        assert_eq!(lease.next(&mut window), None);
+        assert_eq!(lease.drain(10).unwrap(), [2]);
     }
 }
 

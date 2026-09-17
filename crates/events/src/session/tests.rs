@@ -1,6 +1,7 @@
 //! Focused registration tests over the production session and checked COM leases.
 
 use super::*;
+use std::cell::Cell;
 use neocogi_com_events_contracts::{IEventSubscription, IEventSubscriptionInterfacesFor};
 
 #[com_object(interfaces(IEventSubscription))]
@@ -82,8 +83,8 @@ fn failed_connector_restores_order_and_success_retains_only_leases() {
     assert_eq!(failure.unwrap_err(), NC_E_INVALID_ARG);
     {
         // Observe the production sequence without replacing its transaction model.
-        let stored = session.registry.leases.borrow();
-        let stored = stored.as_ref().unwrap();
+        let transaction = session.registry.take().unwrap();
+        let stored = &transaction.leases;
         assert_eq!(stored.len(), 2);
         assert_eq!([stored[0].as_mut_ptr(), stored[1].as_mut_ptr()], original);
     }
@@ -92,11 +93,11 @@ fn failed_connector_restores_order_and_success_retains_only_leases() {
     assert_eq!(calls, 4);
     drop(second);
     drop(third);
-    assert_eq!(session.registry.leases.borrow().as_ref().unwrap().len(), 3);
+    assert_eq!(session.registry.take().unwrap().len(), 3);
     assert_eq!(session.dispatch(), Ok(0));
     session.cancel().unwrap();
     assert_eq!(first.active(), Ok(false));
-    assert!(session.registry.leases.borrow().as_ref().unwrap().is_empty());
+    assert!(session.registry.take().unwrap().is_empty());
 }
 
 /// Busy registration releases its supplied values without invoking connection work.

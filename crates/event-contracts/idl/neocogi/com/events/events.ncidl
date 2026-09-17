@@ -1,7 +1,7 @@
 #[version(1)]
 /// One application-owned lease over a producer-owned typed event queue.
 interface IEventSubscription {
-    /// Delivers at most limit callbacks from one detached FIFO prefix.
+    /// Delivers at most limit callbacks from one bounded FIFO prefix.
     /// A callback error consumes the attempted event and preserves unattempted events.
     fn dispatch(&self, limit: u32) -> Result<u32>;
     /// Reports a live source or an undelivered terminal fact.

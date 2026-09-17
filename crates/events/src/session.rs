@@ -1,7 +1,7 @@
 //! Application-owned state, typed callback adapters, and registration-order dispatch.
 
 use std::{
-    cell::{Cell, Ref, RefCell, RefMut},
+    cell::{Ref, RefCell, RefMut},
     ops::{Deref, DerefMut},
     rc::Rc,
 };
@@ -114,8 +114,7 @@ impl<State: 'static> EventSession<State> {
     /// Constructs a session with no subscriptions and application-owned state.
     pub fn new(state: State) -> Self {
         let registry = Rc::new(Registry {
-            leases: RefCell::new(Some(Vec::new())),
-            closed: Cell::new(false),
+            state: RefCell::new(RegistrationState::Ready(Vec::new())),
         });
         let dispatcher = Dispatcher::from_value(Dispatcher { registry: registry.clone() })
             .query()
@@ -203,30 +202,48 @@ impl<State: 'static> EventDispatchSource for EventSession<State> {
 impl<State: 'static> Drop for EventSession<State> {
     /// Invalidates retained dispatcher/lease references and cancels idle registrations.
     fn drop(&mut self) {
-        let idle = self.registry.take();
-        self.registry.closed.set(true);
-        // An active transaction observes `closed` and performs the same cleanup
-        // when it restores its sole sequence after the callback returns.
-        drop(idle);
+        // Publish closure before releasing foreign leases. An active transaction
+        // owns its vector and performs the same cleanup when it returns.
+        let retired = self.registry.state.replace(RegistrationState::Closed);
+        if let RegistrationState::Ready(leases) = retired {
+            drop(Registrations { registry: &self.registry, leases });
+        }
     }
 }
 
-/// Registration storage taken by value before any foreign callback or Release.
+/// The registration sequence has exactly one owner or one explicit terminal state.
+enum RegistrationState {
+    /// Idle session owns its registration-ordered subscriptions.
+    Ready(Vec<ComPtr<IEventSubscriptionAbi>>),
+    /// One transaction owns the vector outside the shared slot.
+    Busy,
+    /// Session destruction permanently rejects registration and dispatch.
+    Closed,
+}
+
+/// Shared lifecycle boundary between the native owner and its COM dispatcher.
 struct Registry {
-    /// Destruction is observable even if a retained dispatcher is delivering.
-    closed: Cell<bool>,
-    /// `None` denotes the active transaction, not an empty registration list.
-    leases: RefCell<Option<Vec<ComPtr<IEventSubscriptionAbi>>>>,
+    /// Interior mutability is limited to moving ownership across foreign calls.
+    state: RefCell<RegistrationState>,
 }
 
 impl Registry {
     /// Takes the sole ordered vector, excluding registration and dispatch reentry.
     fn take(&self) -> Result<Registrations<'_>, NcStatus> {
-        if self.closed.get() {
-            return Err(EVENT_E_CLOSED);
+        let mut state = self.state.try_borrow_mut().map_err(|_| EVENT_E_BUSY)?;
+        match &*state {
+            RegistrationState::Closed => Err(EVENT_E_CLOSED),
+            RegistrationState::Busy => Err(EVENT_E_BUSY),
+            RegistrationState::Ready(_) => match std::mem::replace(&mut *state, RegistrationState::Busy) {
+                RegistrationState::Ready(leases) => Ok(Registrations { registry: self, leases }),
+                _ => unreachable!("the matched ready state cannot change under its exclusive borrow"),
+            },
         }
-        let leases = self.leases.try_borrow_mut().map_err(|_| EVENT_E_BUSY)?.take().ok_or(EVENT_E_BUSY)?;
-        Ok(Registrations { registry: self, leases: Some(leases) })
+    }
+
+    /// Reads the terminal state without retaining a borrow during foreign calls.
+    fn closed(&self) -> bool {
+        matches!(*self.state.borrow(), RegistrationState::Closed)
     }
 }
 
@@ -235,21 +252,21 @@ struct Registrations<'a> {
     /// Vacant destination survives foreign calls without lending its borrow guard.
     registry: &'a Registry,
     /// Only this transaction owns the ordered leases while it is active.
-    leases: Option<Vec<ComPtr<IEventSubscriptionAbi>>>,
+    leases: Vec<ComPtr<IEventSubscriptionAbi>>,
 }
 
 impl Deref for Registrations<'_> {
     type Target = Vec<ComPtr<IEventSubscriptionAbi>>;
     /// Borrows only the locally owned sequence.
     fn deref(&self) -> &Self::Target {
-        self.leases.as_ref().expect("active registration transaction owns its leases")
+        &self.leases
     }
 }
 
 impl DerefMut for Registrations<'_> {
     /// Mutates only the locally owned sequence.
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.leases.as_mut().expect("active registration transaction owns its leases")
+        &mut self.leases
     }
 }
 
@@ -272,14 +289,17 @@ impl Registrations<'_> {
 impl Drop for Registrations<'_> {
     /// Restores the sole vector after foreign calls; closing cancels every lease.
     fn drop(&mut self) {
-        if self.registry.closed.get() {
-            let leases = self.leases.as_mut().expect("active transaction owns its leases until drop");
-            for lease in leases.iter() {
-                let _ = lease.cancel();
+        match self.registry.closed() {
+            true => {
+                // Cancellation can reenter the registry; it already reports Closed.
+                for lease in &self.leases {
+                    let _ = lease.cancel();
+                }
             }
-            leases.clear();
+            false => {
+                *self.registry.state.borrow_mut() = RegistrationState::Ready(std::mem::take(&mut self.leases));
+            }
         }
-        *self.registry.leases.borrow_mut() = self.leases.take();
     }
 }
 
@@ -299,7 +319,7 @@ impl IEventDispatcher for Dispatcher {
         loop {
             let before = delivered;
             for lease in leases.iter() {
-                if self.registry.closed.get() {
+                if self.registry.closed() {
                     return Err(EVENT_E_CLOSED);
                 }
                 let remaining = limit - delivered;
