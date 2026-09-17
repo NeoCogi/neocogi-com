@@ -11,10 +11,9 @@ unification is intentional. Only `static-runtime` must be kept out of separate
 plugin DSOs, because static linkage would create an implementation in each image.
 
 This crate intentionally has no runtime implementation. It re-exports
-`neocogi-com-core` ABI types and declares `nc_com_runtime_abi_version` plus the five
-versioned runtime table getters. The runtime seeds its intrinsic events
-description on first catalog-dependent API use; callers have no separate initialization
-step. Callers must check the runtime ABI version before calling a getter.
+`neocogi-com-core` ABI types and declares `nc_com_runtime_abi_version` plus the four
+runtime ABI v3 table getters. There is no contract registry or event seeding.
+Callers must check the runtime ABI version before calling a getter.
 They are responsible for linking an
 already built `neocogi-com-runtime` shared library and for making that library
 discoverable by the platform loader.

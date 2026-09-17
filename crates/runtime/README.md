@@ -1,77 +1,42 @@
 # neocogi-com-runtime
 
-`neocogi-com-runtime` implements the process-global state behind
-`libnc_com_shared_runtime`. Applications normally use the safe
-`neocogi_com::Runtime` facade; assembly tooling links this implementation into
-the one deployed runtime shared library.
+The process runtime owns plugin registration, trusted library loading, checked
+root-factory activation, loaded-module provenance, and diagnostics. It contains
+no contract-module registry, native contract descriptions, or event seeding.
+Applications use `neocogi_com::Runtime`.
 
-## Responsibilities
+A dynamic library exports `nc_get_factory_plugin_description_v2`, lending an
+immutable descriptor with plugin metadata, hard dependencies, full root factory
+IID/signature, threading, and bootstrap. Registration validates the metadata and
+publishes one plugin atomically. Dependencies must already be registered;
+registration never invokes bootstrap or discovers provider paths.
 
-The runtime owns:
+Activation first compares the requested IID, exact transitive signature, and
+threading capability. A signature mismatch returns `NC_E_ABI_VERSION` before
+calling plugin code. After bootstrap, the returned projection is checked again.
+Parameterized construction happens through typed factory methods. Different
+unconnected contract revisions may coexist in the process.
 
-- canonical contract-module registration;
-- generation and one-time seeding of the intrinsic `neocogi.com.events` description;
-- factory-plugin registration and dependency ordering;
-- trusted dynamic-library loading;
-- typed root-factory activation;
-- loaded-module provenance and read-only inspection;
-- callback-based diagnostics.
+Library loading, getters, factory calls, and debug callbacks run outside the
+catalog write lock. Required live-load failure is diagnosed and fatal; opened
+libraries remain pinned for process lifetime. Inspection validates and borrows
+metadata without registration or activation. It exposes plugin/factory data,
+not a runtime inventory of contract declarations.
 
-It does not own object constructors or select implementations by class ID.
-After one fixed root bootstrap, construction is an ordinary typed method call on
-the plugin's generated factory interface.
+Runtime ABI v3 has four size-prefixed C tables: operations, plugin enumeration,
+inspection, and diagnostics. Plugin descriptor ABI v2 and core object ABI v7
+are independently versioned. Callers must check runtime discovery before
+reading a versioned table. The runtime retains at most 1,024 loaded modules and
+64 active debug messengers.
 
-## Dynamic loading
+The crate defaults to an rlib. Build a standalone shared runtime with:
 
-A dynamic plugin must export only `nc_get_factory_plugin_description`. Loading
-proceeds as follows:
-
-```text
-map plugin and its fingerprint-qualified contract libraries
-  -> read and validate the factory plugin description
-  -> traverse ordinary contract getters dependency-first
-  -> resolve built-in ID/fingerprint edges against the seeded catalog
-  -> reject duplicate IDs, cycles, missing plugins, or fingerprint conflicts
-  -> publish the complete graph and retained module atomically
-  -> activate the root only when the host requests its exact factory type
+```sh
+cargo rustc -p neocogi-com-runtime --lib --crate-type cdylib
 ```
 
-The first catalog-dependent runtime API call lazily validates and seeds the intrinsic
-events description before publishing any catalog state. `OnceLock` serializes
-concurrent calls and retains a structural failure as an error; no host startup
-step or shared-library loader callback is involved. Hosts must not invoke COM
-from loader initialization or a plugin description getter.
-
-Live loading is required and fail-fatal: a path, loader, symbol, description,
-dependency, validation, or registration failure is diagnosed and aborts instead
-of returning partially visible state. Successful libraries remain mapped until
-process exit. Loading must not be nested from loader initialization or a
-description getter.
-
-The non-registering inspection operation opens a trusted library, validates its
-`NcFactoryPluginDescription`, invokes the callback synchronously, and copies no
-borrowed pointers past that callback. Tooling uses this path before staging an
-assembly.
-
-## Registry model
-
-Contract traversal happens before the catalog write lock. One logical module ID
-may be registered repeatedly only with the same full fingerprint. Plugin
-publication includes its complete contract graph, dependency relationships, and
-module provenance in one write transaction. Plugin code, factory activation,
-native loader hooks, description getters, and diagnostic callbacks are never
-invoked while that lock is held.
-
-Runtime ABI v2 exposes separate C tables for operations, plugin enumeration,
-contract enumeration, inspection, and diagnostics. Tables begin with a size so
-new fields can be appended compatibly within v2. `NcModuleInfoV2` owns process
-provenance; `NcPluginInfoV2` owns plugin name/version metadata. The Rust facade
-joins them into an owned `LoadedModuleInfo`.
-
-The runtime retains at most 1,024 dynamically loaded modules and permits 64
-simultaneous debug messengers. Module-capacity failure follows the fail-fatal
-loading path; debug capacity returns `NC_E_OUT_OF_RANGE`.
-
-The runtime is intentionally `std`-only. This does not change the `no_std`
-support of generated contracts, `neocogi-com-core`, or reduced-feature
-`neocogi-com` consumers.
+A monolithic host enables the facade's `static-runtime` feature and links this
+same implementation once. No generated wrapper project is required. See the
+[plain-Cargo example](../../../examples/com-plugin/README.md) for both modes.
+The runtime is `std`-only; core ABI and reduced-feature contracts retain
+`no_std` support.

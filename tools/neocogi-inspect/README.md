@@ -1,17 +1,10 @@
 # neocogi-inspect
 
-`neocogi-inspect` extracts owned metadata from an actual factory-plugin shared
-library without registering or activating it.
-
-The library must export `nc_get_factory_plugin_description`. Native loader
-behavior first maps the plugin's fingerprint-qualified contract libraries; the
-inspector then validates the plugin description, follows its exact contract
-getters, and copies the complete canonical module graph. Opened libraries remain
-pinned until the short-lived inspector process exits.
-
-The tool does not call the root factory, construct objects, mutate a runtime
-registry, discover plugin dependency paths, or recursively load declared
-NeoCogi plugins.
+Reads an actual plugin's `nc_get_factory_plugin_description_v2` export without
+registering or activating its factory. It copies plugin identity/version, hard
+dependencies, descriptor/core ABI versions, and full factory IID/signature and
+threading capability. There are no contract libraries or module graphs to load.
+Opened libraries remain pinned until the short-lived process exits.
 
 ```sh
 neocogi-inspect dump path/to/plugin.so
@@ -23,23 +16,17 @@ neocogi-inspect diff old.nccom.json new.nccom.json
 neocogi-inspect diff old.nccom.json new.nccom.json --compat
 ```
 
-JSON output uses strict inspection schema 8. It records producer/target data,
-core ABI, plugin identity/version/dependencies, and one direct
-factory record containing its root identity/threading, direct module references,
-and dependency-first canonical module graph. Contract fingerprints are
-compatibility authority; structured declaration names support diagnostics
-without exposing IDL source.
+JSON uses strict schema 9, plugin descriptor ABI 2, and core object ABI 7.
+Unknown fields and unsupported schema versions are rejected. Module/declaration
+inventories are a build-time IDL-tooling concern.
 
-`plan` rejects conflicting revisions of a logical contract module, duplicate
-plugin/declaration identities, missing hard plugin dependencies, and cycles. It
-then prints a deterministic dependency-first load order.
+`plan` rejects duplicate plugin identities, missing hard dependencies, and
+cycles, then prints deterministic provider-first order. Disconnected contract
+revisions may coexist. `diff --compat` reports changed factory signatures,
+identities, target/ABI versions, weakened threading, and added hard dependencies
+as breaking; plugin version text is diagnostic.
 
-`diff` strictly parses and semantically validates both schema-8 artifacts.
-Unknown fields, unsupported schema versions, malformed identities/fingerprints,
-invalid factory roots, and malformed module graphs are rejected. Exact mode
-reports every metadata difference. Compatibility mode performs a directional
-old-to-new check: target/core changes, root-factory incompatibility, tightened
-plugin dependencies, or changed contract fingerprints are breaking.
-
-Inspection schema version and core ABI version are independent. Current output
-uses schema 8 and core ABI 7.
+Inspection maps trusted native code and can execute platform loader initializers.
+It never calls the factory bootstrap or recursively locates provider plugins.
+The [sample plugin](../../examples/com-plugin/README.md) can be built and
+inspected with ordinary Cargo, without the assembly driver.

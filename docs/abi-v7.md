@@ -5,7 +5,7 @@ The authoritative layouts are the public `#[repr(C)]` definitions in
 `neocogi-com-core`; this guide explains how those layouts compose.
 
 Core ABI v7 is pre-alpha and not yet a cross-release compatibility promise.
-Runtime discovery is separately versioned and currently uses runtime ABI v2.
+Runtime discovery is separately versioned and currently uses runtime ABI v3.
 
 ## 1. Scope
 
@@ -16,7 +16,7 @@ The stable boundary is C-shaped:
 - `NcStatus` return values;
 - GUID plus exact ABI-signature identity;
 - COM-style `QueryInterface`, `AddRef`, and `Release` ownership;
-- immutable contract and factory-plugin descriptions.
+- immutable interface identities and factory-plugin descriptions.
 
 Rust trait objects, native enum layout, slices, arbitrary references,
 allocator-owned `String`/`Vec`, unwinding, and compiler-specific Rust ABIs do not
@@ -73,78 +73,38 @@ Generated thread-safe implementations require their private Rust value to be
 `Send + Sync`. Atomic reference counting protects lifetime but does not by
 itself prove safe concurrent method calls or destruction.
 
-## 4. IDL declarations
+## 4. Contract declarations
 
-A `.ncidl` module may declare `struct`, `enum`, `trait`, `class`, and `factory`.
-Every declaration/member is public. Its qualified name is the dotted module
-name plus the identifier exactly as authored. `#[version(N)]` derives identity;
-`#[id(N, "UUID")]` pins it explicitly while retaining the version.
-Enum representation is written after its name, such as `enum PollStatus: u8`;
-the supported fixed-width integer types are `u8`, `u16`, `u32`, `i8`, `i16`,
-and `i32`, with `u32` as the default.
+`.ncidl` supports copied `struct`, `enum`, and `bitenum` values plus callable
+`interface`, `factory`, and `event` roles. The callable roles share one interface
+representation. Every declaration/member is public; private fields belong to
+implementation objects. `#[version(N)]` derives an IID; `#[id(N, "UUID")]` pins it.
 
-`class` describes one public callable object surface and its required
-interfaces. `factory` describes a callable construction surface. Neither
-contains a runtime constructor record. Private fields and implementation
-details exist only in implementation crates.
+The first required interface is the physical base; later requirements are
+sibling projections. The required projection graph must be acyclic. A factory
+may serve as the runtime's zero-argument construction root. Event delivery
+interfaces remain local, immutable calls with unit results and generated typed
+snapshot adapters.
 
-## 5. Contract modules
+## 5. Compile-time modules
 
-Generated Rust bindings compile the ABI layouts and typed wrappers used by both
-host and plugin. Ordinary canonical descriptive data lives once in a separately
-linked, fingerprint-qualified contract library. The intrinsic events description
-is generated from NCIDL into the shared runtime instead.
+A module's build script resolves its transitive source graph and emits Rust
+bindings with fixed declaration signatures. Contracts have no native libraries,
+module-description getters, runtime registration tables, or builtin seeding.
+Cargo `links`/`DEP_*` graph metadata remains a build-time dependency protocol.
 
-The generated Rust crate exports an `NcContractModuleReference`:
-
-```rust,ignore
-#[repr(C)]
-pub struct NcContractModuleReference {
-    pub module_id: NcGuid,
-    pub abi_fingerprint: NcContractFingerprint,
-    pub get: Option<NcGetContractModuleDescription>,
-}
-```
-
-Its getter returns an immutable `NcContractModuleDescription` owned by that
-native contract library:
-
-```rust,ignore
-#[repr(C)]
-pub struct NcContractModuleDescription {
-    pub description_abi_version: u32,
-    pub module_id: NcGuid,
-    pub abi_fingerprint: NcContractFingerprint,
-    pub module_name: NcStaticUtf8,
-    pub dependency_count: u32,
-    pub dependencies: *const NcContractDependencyDescription,
-    pub declaration_count: u32,
-    pub declarations: *const NcContractDeclarationDescription,
-}
-```
-
-Description ABI version 2 stores the canonical module name, module identity,
-full SHA-256 ABI fingerprint, top-level declaration
-identity/kind/version/threading, and exact dependency source tags. Ordinary
-dependencies carry a fingerprinted getter; runtime-owned events dependencies
-carry only the expected module ID and fingerprint and are checked against the
-seeded catalog. It
-does not store the original `.ncidl` source, Rust object state, implementation
-code, vtables, constructors, factory activation code, Cargo paths, or mutable
-registry state.
-
-The module fingerprint covers canonical typed IDL and exact dependency revisions.
-Native filenames and getter symbols include the full fingerprint. Thus two
-incompatible revisions may both be mapped by the platform loader, after which
-the shared runtime can diagnose one logical module ID paired with two
-fingerprints as `NC_E_CONTRACT_MISMATCH`.
+The signature covers the complete transitive module revision, preserving exact
+compatibility across independently built hosts and plugins. Different revisions
+may coexist while disconnected; factories and COM pointer transfers reject an
+incompatible connection. Registration no longer enforces one module revision
+per process.
 
 ## 6. Factory plugin descriptions
 
 A plugin shared library exports exactly one symbol:
 
 ```text
-nc_get_factory_plugin_description
+nc_get_factory_plugin_description_v2
 ```
 
 The getter lends an immutable `NcFactoryPluginDescription` while the library is
@@ -153,19 +113,21 @@ mapped:
 ```rust,ignore
 #[repr(C)]
 pub struct NcFactoryPluginDescription {
+    pub description_abi_version: u32,
     pub core_abi_version: u32,
     pub plugin_id: NcGuid,
     pub qualified_name: NcStaticUtf8,
     pub plugin_version: NcStaticUtf8,
     pub dependency_count: u32,
     pub dependencies: *const NcPluginDependencyDescriptor,
-    pub contract_count: u32,
-    pub contracts: *const NcContractModuleReference,
-    pub root_factory_id: NcGuid,
+    pub root_factory: NcInterfaceId,
     pub root_factory_threading: u32,
     pub activate: Option<NcActivatePluginFactory>,
 }
 ```
+
+The descriptor ABI is independently versioned as 2. The versioned getter
+prevents an old plugin layout from being interpreted as this one.
 
 The activation function has one fixed shape:
 
@@ -175,7 +137,8 @@ unsafe extern "C" fn(out: *mut *mut IUnknown) -> NcStatus
 
 It takes no erased arguments and returns one owned root reference on success.
 The runtime checks the requested generated factory ID/signature and threading
-capability before exposing a typed pointer. All later construction happens by
+capability before invoking bootstrap, then validates the returned projection.
+A signature mismatch returns `NC_E_ABI_VERSION` without constructing a root. All later construction happens by
 calling typed factory methods.
 
 Plugin dependency records contain hard plugin IDs used for ordering. They never
@@ -183,15 +146,10 @@ perform file discovery or recursive loading.
 
 ## 7. Registration and loading
 
-Contract registration follows exact dependency getters depth-first. It validates
-the complete graph before publishing it. Re-registering the same ID and
-fingerprint is idempotent; a different fingerprint is a mismatch. Cycles,
-duplicate identities, malformed pointer/count pairs, null getters, or invalid
-UTF-8 descriptions are rejected.
-
-Factory-plugin registration validates its full contract graph, plugin
-dependencies, root factory declaration, and identity mapping before one atomic
-catalog publication.
+Factory-plugin registration validates the descriptor ABI, full root signature,
+threading, plugin identity/name mapping, and hard dependencies. It publishes the
+plugin atomically and does not invoke bootstrap. Re-registering the same static
+descriptor is idempotent. No contract graph is traversed or registered.
 
 Dynamic loading is for trusted code. Mapping a library may execute platform
 loader initialization before metadata can be validated. Required live-load
@@ -199,26 +157,20 @@ failure is process-fatal after diagnostics; successful and post-open failed
 modules remain pinned so no borrowed code/data pointer can outlive its library.
 Hot unload/reload is outside this ABI.
 
-## 8. Runtime ABI v2
+## 8. Runtime ABI v3
 
 Hosts first call `nc_com_runtime_abi_version` and require
-`NC_COM_RUNTIME_ABI_VERSION == 2`. They then obtain immutable, size-prefixed
-tables. Larger tables are compatible within v2; shorter tables cannot be used
-for fields they do not contain.
+`NC_COM_RUNTIME_ABI_VERSION == 3`. They then obtain the immutable size-prefixed
+`NcRuntimeApiV3`, `NcPluginRegistryV3`, `NcInspectionApiV3`, and `NcDebugApiV3`
+tables through the corresponding `_v3` getters. The old `_v2` table getters and
+contract-registry table are removed. These are separate from plugin descriptor
+ABI v2 and core object ABI v7.
 
-`NcRuntimeApiV2` provides:
-
-- `register_contract_module`;
-- `register_factory_plugin_description`;
-- `load_plugin_library_utf8`;
-- `activate_factory_plugin`.
-
-Separate v2 tables enumerate plugins/loaded modules, enumerate canonical
-contract modules, inspect metadata and plugin dependencies, inspect an unopened
-plugin without registration, and manage diagnostic callbacks. Count/fill
-operations write the required length so callers can retry append-only growth.
-The runtime seeds events on first catalog-dependent API use. Its description is visible
-in contract enumeration even before any producer is registered.
+`NcRuntimeApiV3` contains `register_factory_plugin_description`,
+`load_plugin_library_utf8`, and `activate_factory_plugin`. Other tables enumerate
+plugins and loaded modules, inspect plugin metadata, and manage diagnostic
+callbacks. Count/fill operations report required length for retryable growth.
+There is no contract-module enumeration or intrinsic initialization step.
 
 The runtime retains at most 1,024 dynamic modules and 64 simultaneous debug
 messengers. The public Rust facade additionally bounds copied enumeration data

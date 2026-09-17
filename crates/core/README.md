@@ -1,93 +1,47 @@
 # neocogi-com-core
 
-`neocogi-com-core` defines the allocation-free, C-shaped ABI shared by generated
-contract crates, hosts, plugins, and `libnc_com_shared_runtime`. Most component
-authors should depend on `neocogi-com`; this crate is for generators, loaders,
-foreign-language adapters, and the runtime implementation.
+The allocation-free C-shaped ABI shared by generated contracts, hosts, plugins,
+and the process runtime. Most authors use the `neocogi-com` facade. Core object
+ABI v7 remains experimental.
 
-Core ABI v7 is an experimental pre-alpha draft. Its layouts are explicit and
-tested, but cross-release compatibility begins only after a future ratification.
+Core defines statuses, GUIDs, exact signatures, typed metadata, interface headers
+and vtables, `IUnknown`, `ComPtr`, and `ComRef`. `ComInterface` owns identity and
+the minimum threading promise. `ComFactoryInterface` marks interfaces eligible
+for plugin bootstrap; `ComFactoryImplementation` associates private factory
+storage with that interface.
 
-## What the ABI contains
+A contract crate generates Rust bindings and fixed signatures. It has no native
+module-description library or runtime registry entry. The IDL build helper hashes
+the complete transitive graph and derives each declaration's final 32 bytes.
+Core compares those bytes at factory/interface boundaries and does not hash or
+reconstruct an IDL graph.
 
-- `NcStatus`, built-in `NC_*` status values, and `NcGuid`.
-- ABI type records and fixed views over generator-computed SHA-256 fingerprints.
-- `IUnknown`, generated interface headers and vtables, `ComPtr`, and `ComRef`.
-- object-description traits used by generated class and factory bindings.
-- canonical `NcContractModuleDescription` graphs and exact
-  `NcContractModuleReference` values.
-- `NcFactoryPluginDescription`, containing plugin metadata, direct contract
-  references, hard plugin dependencies, and one root-factory bootstrap.
-- the runtime ABI v2 operation, registry, inspection, and debug tables.
+Plugin descriptor ABI v2 publishes plugin identity/version, hard dependencies,
+full root-factory IID/signature, threading, and one zero-argument bootstrap.
+Its getter is `nc_get_factory_plugin_description_v2`. Runtime discovery is v3,
+with operation, plugin-registry, inspection, and debug tables. See the
+[ABI specification](../docs/abi-v7.md) for layouts and ownership rules.
 
-The runtime ABI has no class table, class-ID constructor lookup, erased
-constructor frame, or generic value bag. A plugin exposes one factory; ordinary
-typed factory methods create every later object.
+## Interface safety
 
-## Descriptions and generated layouts
+`ComInterface` is an unsafe extension point: implementing it certifies header
+layout, vtable prefix, exact identity, lifetime, and conversion to `IUnknown`.
+Generated interfaces provide the normal implementation.
 
-A contract module has two complementary representations:
+| Handle | Owns a reference | `Send` / `Sync` |
+|---|:---:|:---:|
+| `ComPtr<T, ThreadLocal>` | Yes | No |
+| `ComPtr<T, ThreadSafe>` | Yes | Yes |
+| `ComRef<'a, T, ThreadLocal>` | No | No |
+| `ComRef<'a, T, ThreadSafe>` | No | Yes |
 
-1. Its generated Rust crate contains C-layout types, vtable declarations, typed
-   call wrappers, and a `MODULE: NcContractModuleReference` that imports one
-   native getter.
-2. Its fingerprint-qualified native library owns the single canonical
-   `NcContractModuleDescription`: module identity, ABI fingerprint, declaration
-   summaries, and exact dependency getters.
+The interface states a minimum promise; a particular implementation may support
+a stronger capability. Pointer markers preserve that implementation guarantee.
+A thread-safe view may be weakened safely; no safe API upgrades a local view.
 
-Hosts and plugins therefore compile the types they call, but do not embed
-duplicate canonical description graphs. When different builds link incompatible
-revisions of one logical module, their different native filenames can coexist;
-the shared runtime sees the common module ID and different fingerprints and
-returns `NC_E_CONTRACT_MISMATCH`.
+`ComDeserialize` is typed local source decoding. It does not use `Any`, an erased
+value tree, descriptor-offset mutation, or a runtime type registry.
 
-Contract hashing is not a core or compiler responsibility. The IDL build tool
-hashes the resolved typed graph and derives final declaration-scoped `[u8; 32]`
-values. Core retains the method, parameter, return, receiver, type, and
-aggregate-layout metadata needed for checked calls and inspection, then
-compares the precomputed bytes at runtime.
-
-`NcFactoryPluginDescription` identifies the plugin and its linked contract
-modules. It also records the root factory ID, threading promise, and activation
-pointer. The exported getter is `nc_get_factory_plugin_description`. The
-description remains valid while the plugin library is mapped.
-
-## Object and interface safety
-
-`ComInterface` is an unsealed unsafe trait because safe pointer operations rely
-on its implementation to certify header layout, vtable prefix, identity,
-signature, lifetime, and conversion to `IUnknown`. Generated interfaces provide
-the normal implementation; handwritten implementations are a low-level escape
-hatch.
-
-Threading is an explicit pointer capability:
-
-| Handle | Owns a reference | `Send` | `Sync` |
-|---|:---:|:---:|:---:|
-| `ComPtr<T, ThreadLocal>` | Yes | No | No |
-| `ComPtr<T, ThreadSafe>` | Yes | Yes | Yes |
-| `ComRef<'a, T, ThreadLocal>` | No | No | No |
-| `ComRef<'a, T, ThreadSafe>` | No | Yes | Yes |
-
-The marker cannot be inferred from an interface because different object
-implementations may expose the same interface with different guarantees. A
-thread-safe view can be weakened safely; no safe API upgrades a thread-local
-view.
-
-## Typed source decoding
-
-`ComDeserialize` is a local Rust construction protocol, not ABI marshalling or
-binary reflection. A format implements `ComDeserializer`; concrete Rust types
-then request their declared members. The protocol uses no `Any`, descriptor
-offset mutation, erased value tree, or runtime type registry.
-
-## Features
-
-- No default `std` requirement: the core ABI is `no_std` and allocation-free.
-- `alloc` enables owned decoding and diagnostic helpers.
-- `std` implies `alloc` and adds standard error integrations.
-- Generated ABI signatures are always SHA-256 digests produced from canonical
-  typed IDL; their representation is not feature-selectable.
-
-The crate deliberately does not implement dynamic loading, process-global
-storage, object allocation, path discovery, trust policy, or plugin management.
+Core is `no_std` by default. `alloc` enables owned decoding/diagnostic helpers;
+`std` implies `alloc`. Loading, process state, object allocation, and deployment
+policy belong in other crates.

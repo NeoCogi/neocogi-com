@@ -7,7 +7,7 @@ support, factory-only plugins, and an optional facade over the linked
 
 Public cross-library contracts should be authored as Rust-like `.ncidl`
 modules. See [IDL contract modules](../../../docs/IDL_MODULES.md) for their
-source, crate, native-linking, and tooling model. The
+source, crate, signature, and tooling model. The
 [core ABI v7 specification](../docs/abi-v7.md) defines the binary boundary.
 
 ## Local object example
@@ -15,7 +15,8 @@ source, crate, native-linking, and tooling model. The
 ```rust
 use neocogi_com::{ComPtr, IUnknown, NcStatus, com_interface, com_object};
 
-#[com_interface(auto_guid = "example.Calculator:v1")]
+// Direct macro use is for low-level fixtures; production contracts use NCIDL.
+#[com_interface(auto_guid = "example.Calculator:v1", assigned_signature = b"00000000000000000000000000000001")]
 pub trait ICalculator {
     fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
 }
@@ -30,7 +31,7 @@ impl ICalculator for Calculator {
 }
 
 fn calculate() -> Result<i32, NcStatus> {
-    let unknown: ComPtr<IUnknown> = Calculator::create();
+    let unknown: ComPtr<IUnknown> = Calculator::from_value(Calculator);
     unknown.query::<ICalculatorAbi>()?.add(2, 3)
 }
 ```
@@ -63,7 +64,7 @@ rather than duplicate a generated interface method.
 - Interface compatibility requires both the generated IID and exact ABI
   signature. Names and versions are diagnostic information.
 
-Objects are thread-local by default. An IDL class or factory declared
+Objects are thread-local by default. An IDL interface or factory declared
 thread-safe produces `ComPtr<T, ThreadSafe>` and its implementation must satisfy
 `Send + Sync`. A safe pointer may be weakened to thread-local; it cannot be
 upgraded.
@@ -73,7 +74,7 @@ upgraded.
 Given a generated contract crate, implementation code has this shape:
 
 ```rust,ignore
-use my_contracts::{Button, ButtonAbi, UiFactory, MODULE};
+use my_contracts::{Button, ButtonAbi, UiFactory};
 use neocogi_com::{ComPtr, NcStatus, com_factory, com_object};
 
 #[com_object(my_contracts::Button)]
@@ -97,18 +98,18 @@ impl UiFactory for UiFactoryObject {
 neocogi_com::factory_plugin! {
     name = "example.ui",
     version = "1.0.0",
-    contracts = [MODULE],
     factory = UiFactoryObject,
 }
 
+#[cfg(feature = "dynamic-plugin")]
 neocogi_com::export_factory_plugin!();
 ```
 
-`#[com_object(Description)]` connects private storage to one IDL class.
-`#[com_factory(Description)]` does the same for a factory and proves the type of
-the root bootstrap. The plugin description stores plugin metadata, exact
-contract references, and one activation pointer. It stores no class table or
-constructor arguments.
+`#[com_object(Interface)]` connects private storage to one interface contract.
+`#[com_factory(Factory)]` adds the factory-role proof and typed bootstrap.
+The plugin descriptor stores plugin metadata, full root identity/signature,
+threading, and activation. Ordinary objects require an initialized value;
+only factories receive a generated zero-argument constructor.
 
 ## Runtime flow
 
@@ -123,11 +124,12 @@ let factory = runtime.activate_plugin_factory::<my_contracts::UiFactoryAbi>(
 let button = factory.create_button()?;
 ```
 
-`load_plugin_library` requires `nc_get_factory_plugin_description`, validates
-the plugin and its exact contract dependency graph, and publishes them
-atomically. A different fingerprint for an already known logical module returns
-`NC_E_CONTRACT_MISMATCH`. Required live-load failures diagnose and abort rather
-than expose partial state. Loaded libraries remain mapped until process exit.
+`load_plugin_library` requires `nc_get_factory_plugin_description_v2`, validates
+plugin metadata and hard dependencies, and registers the plugin atomically.
+Activation compares the exact factory signature before invoking bootstrap.
+Unconnected contract revisions can coexist; incompatible calls fail with
+`NC_E_ABI_VERSION`. Required live-load failures diagnose and abort. Loaded
+libraries remain mapped until process exit.
 
 For static assemblies, call
 `Runtime::register_factory_plugin_description(factory_plugin_description())`
@@ -138,7 +140,9 @@ Offline inspection uses
 `Inspection::with_plugin_library_description(path, visitor)`. It borrows the
 validated `NcFactoryPluginDescription` only for the callback and does not mutate
 the process registry. The inspection JSON schema is factory-native: each plugin
-contains a direct factory record and canonical contract-module graph.
+contains a factory IID/signature/threading record and hard dependencies.
+The [sample plugin](../../../examples/com-plugin/README.md) demonstrates both
+linkage modes with ordinary Cargo.
 
 ## Features and scope
 

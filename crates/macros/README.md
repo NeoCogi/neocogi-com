@@ -5,12 +5,12 @@
 than depend on this implementation crate directly.
 
 Public contracts should normally be written in `.ncidl` files. The generator
-uses the lower-level description macros internally; implementation crates use
+uses the common `com_interface` macro internally; implementation crates use
 `com_object`, `com_factory`, and `factory_plugin`.
 
 ## Object implementations
 
-`#[com_object(Description)]` implements one generated IDL class description:
+`#[com_object(Interface)]` implements one generated interface contract:
 
 ```rust,ignore
 #[com_object(my_contracts::Button)]
@@ -19,14 +19,15 @@ struct ButtonObject {
 }
 ```
 
-The description supplies the public identity, threading capability, callable
-class surface, and required interfaces. The implementation supplies private
+The interface supplies the public identity, threading capability, callable
+surface, and required interfaces. The implementation supplies private
 state and method bodies. Generated storage contains one canonical `IUnknown`
 projection, one header per required interface, reference counting,
-signature-checked `QueryInterface`, `from_value`, and `create` for unit structs.
+signature-checked `QueryInterface`, and `from_value(initialized_value)`.
+Ordinary unit objects have no generated zero-argument constructor.
 
 `#[com_object(interfaces(IFoo, IBar))]` remains available for local or built-in
-objects that are not implementations of a named IDL class. All externally
+objects that are not implementations of a single interface contract. All externally
 constructible component objects should instead be returned by a generated
 factory method.
 
@@ -36,8 +37,8 @@ not add `Cell` or `RefCell` merely to emulate mutability behind `&self`.
 
 ## Factory implementations and plugin roots
 
-`#[com_factory(Description)]` implements one generated IDL factory and proves
-that the Rust type matches that exact factory description. Unit factories gain
+`#[com_factory(Factory)]` implements one generated IDL factory and proves
+that the Rust type matches that exact factory interface. Unit factories gain
 the default `ComFactoryBootstrap` implementation. Stateful roots implement the
 trait explicitly and return the associated typed `ComPtr`.
 
@@ -48,16 +49,16 @@ struct UiFactoryObject;
 neocogi_com::factory_plugin! {
     name = "example.ui",
     version = "1.0.0",
-    contracts = [my_contracts::MODULE],
     factory = UiFactoryObject,
 }
 
+#[cfg(feature = "dynamic-plugin")]
 neocogi_com::export_factory_plugin!();
 ```
 
 `factory_plugin!` creates immutable Rust-accessible metadata. The final dynamic
 library calls `export_factory_plugin!` exactly once to export
-`nc_get_factory_plugin_description`. Static assemblies call
+`nc_get_factory_plugin_description_v2`. Static assemblies call
 `factory_plugin_description()` directly. There is no class table, generated
 constructor function pointer, erased argument frame, or legacy plugin export.
 
@@ -85,10 +86,11 @@ tagged payload layouts. `com_int_enum!` defines a transparent integer newtype
 that preserves unknown values. `ComDeserialize` derives typed local decoding;
 it is unrelated to runtime activation.
 
-The generator-facing `com_class_description` and
-`com_factory_description` macros attach IDL identity, threading, and required
-projection metadata to generated callable interfaces. They are not user-facing
-runtime registration mechanisms.
+`com_interface` also accepts the generator-owned `threading = local|shared`
+and `factory` role. The same expansion owns required sibling projections and
+one physical base. `ComInterface` owns identity and threading;
+`ComFactoryInterface` is only a role marker. No duplicate object-description
+trait or `OBJECT_*` constants are emitted.
 
 Canonical typed ABI signatures are always represented by SHA-256 digests.
 Interface identity is the generated IID plus that signature; human-readable

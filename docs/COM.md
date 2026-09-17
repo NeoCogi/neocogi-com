@@ -10,25 +10,22 @@ The current core ABI v7 is experimental and may change before ratification.
 ## Component model
 
 ```text
-ordinary IDL module -> generated Rust types + fingerprinted native description library
-COM events IDL     -> generated Rust types + runtime-embedded description
-plugin     -> private implementations + one root factory description
-host       -> links generated types and requests that exact factory
-runtime    -> validates, registers, inspects, and retains libraries
+IDL module -> generated Rust types + exact transitive signatures
+plugin     -> private implementations + one typed factory descriptor
+host       -> compiles contract types and requests the exact factory
+runtime    -> registers plugins, checks factories, retains loaded libraries
 ```
 
-The host and plugin both compile the generated ABI layouts they use. Ordinary
-modules expose a generated `MODULE` reference to their canonical
-fingerprint-qualified description library. The intrinsic `neocogi.com.events`
-module instead exposes only its generated ID and fingerprint: its description
-is generated from the same NCIDL and seeded by `com_shared_runtime` on first
-catalog-dependent runtime API use. A dependent native description carries an
-events built-in tag and the required ID/fingerprint, with no events getter or
-native-library dependency. Registration rejects an unequal revision before
-plugin activation.
+Contracts exist only at build time. No contract `.so`, native description
+archive, getter, runtime inventory, or event-contract seeding is produced.
+`interface` describes callable behavior; `factory` and `event` are roles over
+that same representation. An object is private Rust state implementing it.
+
+The [plain-Cargo sample](../../examples/com-plugin/README.md) builds the same
+plugin as a shared library and as an rlib statically linked into a monolith.
 
 See [IDL contract modules](../../docs/IDL_MODULES.md) for authoring and native
-linking, [component design](../../docs/COM_DESIGN.md) for responsibility
+builds, [component design](../../docs/COM_DESIGN.md) for responsibility
 boundaries, and [ABI v7](docs/abi-v7.md) for the binary model.
 
 ## IDL
@@ -41,12 +38,11 @@ that lease and the borrowed dispatcher ABI. [`neocogi-com-events`](events)
 implements typed producer queues and application-owned sessions in their
 respective binaries. Generated event bindings check the support crate's event
 binding API version at compile time, because a Rust adapter change need not
-change an NCIDL wire fingerprint. The process-global runtime owns the immutable
-events contract description, but producer queues and application event sessions
-remain in their respective binaries. UI event families use this COM
-support without making generic COM events depend on UI.
+change an NCIDL wire fingerprint. Event contracts use the ordinary compile-time
+source graph. UI event families use this COM support without making generic
+COM events depend on UI.
 
-Contracts use `struct`, `enum`, `trait`, `event`, `class`, and `factory`. All declarations
+Contracts use `struct`, `enum`, `bitenum`, `interface`, `event`, and `factory`. All declarations
 and members are public by definition:
 
 ```rust
@@ -57,12 +53,12 @@ struct Extent {
 }
 
 #[version(1)]
-trait IMeasured {
+interface IMeasured {
     fn extent(&self) -> Result<Extent>;
 }
 
 #[version(1)]
-class ExampleObject: IMeasured {
+interface ExampleObject: IMeasured {
     fn resize(&mut self, extent: Extent) -> Result<()>;
 }
 
@@ -80,13 +76,13 @@ the default is `u32`.
 
 Every module is an ordinary Cargo crate with `build.rs`. The build helper tracks
 the `.ncidl` source and transitive module graph, generates Rust bindings into
-`OUT_DIR`, and builds the correct native contract library. Cargo therefore
-regenerates both after an IDL edit.
+`OUT_DIR`, and publishes the graph through Cargo metadata. Ordinary Cargo
+regenerates bindings after an IDL edit; no separate native artifact is built.
 
-## Implementing generated descriptions
+## Implementing interfaces
 
-`#[com_object(contract::Class)]` associates private Rust storage with one IDL
-class. `#[com_factory(contract::Factory)]` does the same for a factory:
+`#[com_object(contract::Interface)]` associates private Rust storage with one
+interface contract. `#[com_factory(contract::Factory)]` does the same for a factory:
 
 ```rust,ignore
 #[com_object(example_contracts::ExampleObject)]
@@ -117,11 +113,10 @@ impl ExampleFactory for ExampleFactoryImpl {
 }
 ```
 
-Class descriptions own public identity, threading, callable methods, and
-required interfaces. Implementations own fields and method bodies. Classes have
-no runtime constructors; factory methods are the only public construction path.
+Interfaces own public identity, threading, callable methods, and required
+projections. Implementations own fields and method bodies; factory methods are the only public construction path.
 
-Local objects that are not published as IDL classes may use
+Objects exposing several independent projections may use
 `#[com_object(interfaces(IFoo, IBar))]`. Generated storage supplies `IUnknown`,
 reference counting, signature-checked `QueryInterface`, and call-access checks.
 Use `&mut self` for mutation and keep ordinary state in plain fields.
@@ -132,21 +127,18 @@ Use `&mut self` for mutation and keep ordinary state in plain fields.
 neocogi_com::factory_plugin! {
     name = "example.component",
     version = "1.0.0",
-    contracts = [example_contracts::MODULE],
     factory = ExampleFactoryImpl,
 }
 
+#[cfg(feature = "dynamic-plugin")]
 neocogi_com::export_factory_plugin!();
 ```
 
-The plugin DSO exports `nc_get_factory_plugin_description`. Its immutable
-description includes plugin identity/version, hard plugin dependencies, exact
-contract module references, root factory
-identity/threading, and one fixed bootstrap pointer. It has no class table,
-erased constructor frame, or general-purpose value container.
-
-Static assemblies call `factory_plugin_description()` directly and do not
-export a dynamic symbol.
+The plugin exports `nc_get_factory_plugin_description_v2`. Descriptor ABI v2
+includes plugin identity/version, hard dependencies, the complete factory
+IID/signature, threading, and one bootstrap pointer. Static assemblies call
+`factory_plugin_description()` directly. Only factories receive generated
+zero-argument construction; ordinary objects use `from_value`.
 
 ## Host activation
 
@@ -159,16 +151,17 @@ let factory = runtime.activate_plugin_factory::<ExampleFactoryAbi>(
 let object = factory.create(Extent { width: 10, height: 20 })?;
 ```
 
-Loading validates the factory description and exact contract graph before one
+Loading validates the factory descriptor and hard dependencies before one
 atomic registration. Plugin dependencies must already be registered; the
 runtime never discovers or recursively loads their paths. Required live-load
 failure is diagnosed and aborts rather than exposing partial state. Successful
 libraries remain mapped until process exit.
 
-Offline inspection uses
-`Runtime::inspection().with_plugin_library_description` and never registers the
-borrowed plugin graph. `neocogi-inspect` copies it into a factory-native
-schema-7 artifact and computes dependency-first assembly plans.
+Runtime ABI v3 has operation, plugin-registry, inspection, and debug tables.
+Activation checks the exact factory signature before bootstrap. Unconnected
+contract revisions can coexist; incompatible pointer transfers are rejected.
+`neocogi-inspect` emits schema 9 with plugin/dependency/root-factory metadata,
+without constructing objects. IDL tools retain build-time source inventories.
 
 ## ABI rules
 
@@ -210,7 +203,7 @@ cross-library marshalling format.
 - `neocogi-com`: user-facing facade and generated object helpers.
 - `neocogi-com-runtime-sys`: linked runtime discovery declarations.
 - `neocogi-com-runtime`: process-global runtime implementation.
-- `neocogi-idl` and `neocogi-idl-build` under `tools/idl`: IDL parser/resolver
+- `neocogi-idl` and `neocogi-idl-build` under `crates/com/idl`: IDL parser/resolver
   and Cargo build integration shared by contract crates and `cargo-neocogi`.
 
 This runtime is trusted same-process native code, not a sandbox or plugin
