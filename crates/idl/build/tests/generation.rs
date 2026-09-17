@@ -21,7 +21,7 @@ fn generates_event_payload_sink_adapter_and_subscription_port() {
         use neocogi.com.events::IEventSubscription;
         #[version(1)]
         event IChangedSink {
-            fn changed(&self, text: &str, cursor: u64) -> Result<()>;
+            fn changed(&mut self, text: &str, cursor: u64) -> Result<()>;
         }
         #[version(1)]
         interface IEditor {
@@ -38,14 +38,12 @@ fn generates_event_payload_sink_adapter_and_subscription_port() {
     assert!(generated.contains("impl ::neocogi_com_events::EventPayload for IChangedSinkEvent"));
     assert!(generated.contains("::neocogi_com_events::copy_text(text)?"));
     assert!(generated.contains("create_i_changed_sink_event_sink"));
-    assert!(generated.contains("create_i_changed_sink_checked_event_sink"));
     assert!(generated.contains("if let Some(validate) = self.validate"));
-    assert!(generated.contains("EVENT_BINDING_API_VERSION == 2"));
+    assert!(generated.contains("EVENT_BINDING_API_VERSION == 3"));
     assert!(generated.contains("fn subscribe_changed"));
-    assert!(generated.contains("pub fn connect_i_editor_subscribe_changed"));
-    assert!(generated.contains("struct IEditorSubscribeChangedEventConnector<'source>"));
-    assert!(generated.contains("::neocogi_com_events::EventConnector<State, Handler>"));
-    assert!(generated.contains(".register("));
+    assert!(generated.contains("pub fn i_editor_subscribe_changed_port"));
+    assert!(generated.contains("pub struct IEditorSubscribeChangedPort"));
+    assert!(generated.contains("::neocogi_com_events::EventPort for"));
     assert!(generated.contains("let mut source = self.source"));
     assert!(!generated.contains(".register(||"));
     assert!(generated.contains("source.subscribe_changed(sink.as_com_ref())"));
@@ -71,7 +69,7 @@ fn source_only_event_port_checks_support_api() {
     );
     let sink = module(
         "example/sink.ncidl",
-        "#[version(1)] event IChangedSink { fn changed(&self, value: u32) -> Result<()>; }",
+        "#[version(1)] event IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }",
     );
     let source = module(
         "example/source.ncidl",
@@ -86,21 +84,21 @@ fn source_only_event_port_checks_support_api() {
     let graph = resolve_modules(vec![source, sink, transport]).unwrap();
     let generated = neocogi_idl_build::generate_rust(&graph, "example.source").unwrap();
     syn::parse_file(&generated).expect("source-only event bindings must parse");
-    assert!(generated.contains("EVENT_BINDING_API_VERSION == 2"));
-    assert!(generated.contains("pub fn connect_i_source_subscribe"));
+    assert!(generated.contains("EVENT_BINDING_API_VERSION == 3"));
+    assert!(generated.contains("pub fn i_source_subscribe_port"));
     assert!(generated.contains("example_sink_contracts::create_i_changed_sink_event_sink"));
 }
 
 /// Imported sink ports preserve their source mode and emit only explicit registration arguments.
 #[test]
-fn generates_private_typed_connectors_for_each_port_and_source_mode() {
+fn generates_typed_ports_for_each_source_mode() {
     let transport = module(
         "neocogi/com/events.ncidl",
         include_str!("../../../event-contracts/idl/neocogi/com/events/events.ncidl"),
     );
     let sink = module(
         "example/sink.ncidl",
-        "#[version(1)] event IChangedSink { fn changed(&self, value: u32) -> Result<()>; }",
+        "#[version(1)] event IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }",
     );
     let source = module(
         "example/source.ncidl",
@@ -130,9 +128,9 @@ fn generates_private_typed_connectors_for_each_port_and_source_mode() {
 
     for item in &syntax.items {
         match item {
-            syn::Item::Struct(operation) if operation.ident.to_string().ends_with("EventConnector") => {
+            syn::Item::Struct(operation) if operation.ident.to_string().ends_with("Port") => {
                 connector_count += 1;
-                assert!(matches!(operation.vis, syn::Visibility::Inherited));
+                assert!(matches!(operation.vis, syn::Visibility::Public(_)));
                 let names = operation
                     .fields
                     .iter()
@@ -143,36 +141,22 @@ fn generates_private_typed_connectors_for_each_port_and_source_mode() {
                 // Only the shared-threading source carries the ThreadSafe projection.
                 let source_type = &operation.fields.iter().next().unwrap().ty;
                 let source_type = quote::quote!(#source_type).to_string();
-                assert_eq!(source_type.contains("ThreadSafe"), operation.ident == "SharedSourceSubscribeEventConnector");
-                assert!(source_type.contains("'source"));
+                assert_eq!(source_type.contains("ThreadSafe"), operation.ident == "SharedSourceSubscribePort");
+                assert!(source_type.contains("ComPtr"));
             }
-            syn::Item::Fn(helper) if helper.sig.ident.to_string().starts_with("connect_") => {
+            syn::Item::Fn(helper) if helper.sig.ident.to_string().ends_with("_port") => {
                 helper_count += 1;
-                // Inspect syntax rather than formatted text: every helper supplies
-                // its handler and one concrete operation, never a closure/function.
-                let call = match helper.block.stmts.as_slice() {
-                    [syn::Stmt::Expr(syn::Expr::MethodCall(call), None)] => call,
-                    other => panic!("unexpected registration helper body: {other:?}"),
-                };
-                assert_eq!(call.method, "register");
-                assert_eq!(call.args.len(), 2);
-                assert!(matches!(&call.args[0], syn::Expr::Path(argument) if argument.path.is_ident("handler")));
-                let operation = match &call.args[1] {
-                    syn::Expr::Struct(operation) => operation,
-                    other => panic!("registration must receive a typed operation: {other:?}"),
-                };
-                assert!(operation.path.segments.last().unwrap().ident.to_string().ends_with("EventConnector"));
-                assert!(operation.rest.is_none());
-                assert_eq!(operation.fields.len(), 2);
+                // Constructors expose a typed port and do no subscription work.
+                assert_eq!(helper.sig.inputs.len(), 1);
+                assert!(matches!(helper.block.stmts.as_slice(), [syn::Stmt::Expr(syn::Expr::Struct(_), None)]));
             }
             _ => {}
         }
     }
     assert_eq!(connector_count, 4);
-    assert_eq!(helper_count, 8);
+    assert_eq!(helper_count, 4);
     assert!(generated.contains("let mut source = self.source"));
     assert!(generated.contains("let source = self.source"));
-    assert!(generated.contains("match self.validate"));
     assert!(!generated.contains("FnOnce"));
     assert!(!generated.contains(".register(||"));
 }

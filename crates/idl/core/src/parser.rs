@@ -396,8 +396,8 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>, role: Int
     let callables = parse_callables(input)?;
     match role {
         InterfaceRole::Event => {
-            // Native event sessions own local, immutable snapshots. A delivery
-            // cannot borrow mutable subscriber state or install another port.
+            // Native snapshots are immutable, but delivery exclusively borrows its
+            // concrete sink so handlers need no interior-mutability wrapper.
             if !bases.is_empty() || threading != Threading::Local {
                 return Err(syn::Error::new(name.span(), "event sinks must be local interfaces without bases"));
             }
@@ -406,8 +406,8 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>, role: Int
             }
             for callable in &callables {
                 match callable {
-                    Callable::Method(method) if method.receiver == Receiver::Shared && method.output == AbiType::Unit => {}
-                    _ => return Err(syn::Error::new(name.span(), "IDL event deliveries require `&self` and `Result<()>`")),
+                    Callable::Method(method) if method.receiver == Receiver::Mutable && method.output == AbiType::Unit => {}
+                    _ => return Err(syn::Error::new(name.span(), "IDL event deliveries require `&mut self` and `Result<()>`")),
                 }
             }
         }

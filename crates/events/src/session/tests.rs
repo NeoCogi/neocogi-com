@@ -30,23 +30,28 @@ impl IEventSubscription for IdleSubscription {
 }
 
 /// Consumed connection operation with an ordinary exclusive stack observation.
-struct ProbeConnector<'calls> {
+struct ProbePort<'calls> {
     /// Borrow ends when registration returns; the session cannot retain this probe.
     calls: &'calls mut usize,
     /// Returns the original domain error instead of publishing a lease when set.
     fail: bool,
 }
 
-impl<State: 'static, Handler> EventConnector<State, Handler> for ProbeConnector<'_> {
+impl EventPort for ProbePort<'_> {
+    type Event = ();
     /// Proves all session reentry is excluded before connection work starts.
-    fn connect(self, session: &EventSession<State>, _handler: Handler) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus> {
+    fn connect<State: 'static, Handler: EventHandler<State, ()> + 'static>(
+        self,
+        session: &EventSession<State>,
+        _handler: Handler,
+    ) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus> {
         *self.calls += 1;
         assert_eq!(session.dispatch(), Err(EVENT_E_BUSY));
         assert_eq!(session.cancel(), Err(EVENT_E_BUSY));
 
         // Nested registration must reject its operation without invoking it.
         let mut nested_calls = 0;
-        let nested = session.register((), ProbeConnector { calls: &mut nested_calls, fail: false });
+        let nested = session.subscribe(ProbePort { calls: &mut nested_calls, fail: false }, Ignore);
         assert_eq!(nested.unwrap_err(), EVENT_E_BUSY);
         assert_eq!(nested_calls, 0);
 
@@ -57,16 +62,31 @@ impl<State: 'static, Handler> EventConnector<State, Handler> for ProbeConnector<
     }
 }
 
-/// By-value setup argument whose destruction can be observed without shared cells.
-struct DropProbe<'drops> {
-    /// Exclusively borrowed counter remains valid only for this registration call.
-    drops: &'drops mut usize,
+/// Rejected handler whose destruction is observed independently of session state.
+struct DropProbe {
+    /// Shared observation outlives the rejected handler without borrowing stack state.
+    drops: Rc<Cell<usize>>,
 }
 
-impl Drop for DropProbe<'_> {
+/// Explicit inert handler for setup-only tests; no callback closure is hidden.
+struct Ignore;
+impl<State> EventHandler<State, ()> for Ignore {
+    /// The idle test source never dispatches, but supplies a correctly typed handler.
+    fn handle(&mut self, _state: &mut State, _event: &()) -> Result<(), NcStatus> {
+        Ok(())
+    }
+}
+impl EventHandler<(), ()> for DropProbe {
+    /// Delivery is inert; only setup rejection and handler destruction are observed.
+    fn handle(&mut self, _state: &mut (), _event: &()) -> Result<(), NcStatus> {
+        Ok(())
+    }
+}
+
+impl Drop for DropProbe {
     /// Marks release when a busy session rejects the uninvoked connector's handler.
     fn drop(&mut self) {
-        *self.drops += 1;
+        self.drops.set(self.drops.get() + 1);
     }
 }
 
@@ -75,11 +95,11 @@ impl Drop for DropProbe<'_> {
 fn failed_connector_restores_order_and_success_retains_only_leases() {
     let session = EventSession::new(());
     let mut calls = 0;
-    let first = session.register((), ProbeConnector { calls: &mut calls, fail: false }).unwrap();
-    let second = session.register((), ProbeConnector { calls: &mut calls, fail: false }).unwrap();
+    let first = session.subscribe(ProbePort { calls: &mut calls, fail: false }, Ignore).unwrap();
+    let second = session.subscribe(ProbePort { calls: &mut calls, fail: false }, Ignore).unwrap();
     let original = [first.as_mut_ptr(), second.as_mut_ptr()];
 
-    let failure = session.register((), ProbeConnector { calls: &mut calls, fail: true });
+    let failure = session.subscribe(ProbePort { calls: &mut calls, fail: true }, Ignore);
     assert_eq!(failure.unwrap_err(), NC_E_INVALID_ARG);
     {
         // Observe the production sequence without replacing its transaction model.
@@ -89,7 +109,7 @@ fn failed_connector_restores_order_and_success_retains_only_leases() {
         assert_eq!([stored[0].as_mut_ptr(), stored[1].as_mut_ptr()], original);
     }
 
-    let third = session.register((), ProbeConnector { calls: &mut calls, fail: false }).unwrap();
+    let third = session.subscribe(ProbePort { calls: &mut calls, fail: false }, Ignore).unwrap();
     assert_eq!(calls, 4);
     drop(second);
     drop(third);
@@ -106,14 +126,14 @@ fn busy_session_rejects_connector_before_invocation_and_recovers() {
     let session = EventSession::new(());
     let transaction = session.registry.take().unwrap();
     let mut calls = 0;
-    let mut drops = 0;
-    let failure = session.register(DropProbe { drops: &mut drops }, ProbeConnector { calls: &mut calls, fail: false });
+    let drops = Rc::new(Cell::new(0));
+    let failure = session.subscribe(ProbePort { calls: &mut calls, fail: false }, DropProbe { drops: drops.clone() });
     assert_eq!(failure.unwrap_err(), EVENT_E_BUSY);
     assert_eq!(calls, 0);
-    assert_eq!(drops, 1);
+    assert_eq!(drops.get(), 1);
 
     // Returning the actual transaction restores the idle session, not a fixture copy.
     drop(transaction);
-    session.register((), ProbeConnector { calls: &mut calls, fail: false }).unwrap();
+    session.subscribe(ProbePort { calls: &mut calls, fail: false }, Ignore).unwrap();
     assert_eq!(calls, 1);
 }

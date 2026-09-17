@@ -5,9 +5,9 @@
 //! interfaces cross a plugin boundary. The process-global COM runtime neither
 //! owns queues nor stores application state.
 //!
-//! Subscription setup uses a consumed [`EventConnector`] with explicit producer
-//! and policy fields. [`EventSession::register`] claims its ordered transaction
-//! before calling the connector; only the resulting lease is retained. Generated
+//! Subscription setup uses a consumed [`EventPort`] with explicit producer
+//! and policy fields. [`EventSession::subscribe`] claims its ordered transaction
+//! before calling the port; only the resulting lease is retained. Generated
 //! NCIDL helpers supply these operations without application-written sink wiring.
 //! This setup protocol is separate from [`EventHandler`] invocation during dispatch.
 
@@ -16,7 +16,7 @@
 mod source;
 pub use source::{EventEndpoint, EventPayload, EventSource};
 mod session;
-pub use session::{EventConnector, EventDelivery, EventDispatchSource, EventHandler, EventSession, EVENT_DISPATCH_LIMIT};
+pub use session::{EventPort, EventDelivery, EventHandler, EventSession, EVENT_DISPATCH_LIMIT};
 
 /// Isolated transport-algorithm fixtures, absent from ordinary builds.
 #[cfg(feature = "test-support")]
@@ -26,10 +26,10 @@ pub mod test_support {
 
 pub use neocogi_com_events_contracts::{IEventDispatcher, IEventDispatcherAbi, IEventSubscription, IEventSubscriptionAbi};
 
-/// Rust binding protocol accepted by compiler-generated COM event adapters and connectors.
+/// Rust binding protocol accepted by compiler-generated COM event adapters and ports.
 /// Bump this with the IDL generator when its required transport API or delivery
 /// semantics change; an unchanged NCIDL wire ABI alone does not cover that case.
-pub const EVENT_BINDING_API_VERSION: u32 = 2;
+pub const EVENT_BINDING_API_VERSION: u32 = 3;
 
 #[cfg(test)]
 mod compiler_binding_tests {

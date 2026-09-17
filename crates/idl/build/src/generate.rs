@@ -329,7 +329,6 @@ fn generate_event(
     let adapter_name = rust_ident(&format!("{}EventAdapter", declaration.name))?;
     let sink_abi_name = rust_ident(&format!("{}Abi", declaration.name))?;
     let adapter_factory = rust_ident(&format!("create_{}_event_sink", snake_case(&declaration.name)))?;
-    let checked_factory = rust_ident(&format!("create_{}_checked_event_sink", snake_case(&declaration.name)))?;
 
     let mut variants = Vec::with_capacity(deliveries.len());
     let mut producer_arms = Vec::with_capacity(deliveries.len());
@@ -375,7 +374,7 @@ fn generate_event(
                 quote! { Self::#variant => sink.#method_name() }
             });
             adapter_methods.push(quote! {
-                #method_docs fn #method_name(&self) -> Result<(), ::neocogi_com::NcStatus> {
+                #method_docs fn #method_name(&mut self) -> Result<(), ::neocogi_com::NcStatus> {
                     let event = #captured;
                     if let Some(validate) = self.validate { validate(&event)?; }
                     self.delivery.deliver(event)
@@ -394,7 +393,7 @@ fn generate_event(
                 quote! { Self::#variant { #(#bindings),* } => sink.#method_name(#(#encoded),*) }
             });
             adapter_methods.push(quote! {
-                #method_docs fn #method_name(&self, #(#parameters),*) -> Result<(), ::neocogi_com::NcStatus> {
+                #method_docs fn #method_name(&mut self, #(#parameters),*) -> Result<(), ::neocogi_com::NcStatus> {
                     let event = #captured { #(#decoded),* };
                     if let Some(validate) = self.validate { validate(&event)?; }
                     self.delivery.deliver(event)
@@ -443,7 +442,7 @@ fn generate_event(
             type Sink = #sink_abi_name;
 
             /// Replays the captured snapshot through its one generated sink interface.
-            fn deliver(&self, sink: ::neocogi_com::ComRef<'_, Self::Sink>) -> Result<(), ::neocogi_com::NcStatus> {
+            fn deliver(&self, mut sink: ::neocogi_com::ComRef<'_, Self::Sink>) -> Result<(), ::neocogi_com::NcStatus> {
                 match self { #(#producer_arms),* }
             }
         }
@@ -461,23 +460,14 @@ fn generate_event(
             #(#adapter_methods)*
         }
 
-        /// Creates an application-local typed sink for this generated event family.
-        /// Register its resulting producer lease with `EventSession::register`.
+        /// Creates a typed sink for a native source or generated port, with an optional domain check.
+        /// Validation follows ABI decoding and precedes the owner's mutable state borrow.
         pub fn #adapter_factory<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, #payload_name> + 'static>(
             session: &::neocogi_com_events::EventSession<State>,
             handler: Handler,
+            validate: Option<fn(&#payload_name) -> Result<(), ::neocogi_com::NcStatus>>,
         ) -> Result<::neocogi_com::ComPtr<#sink_abi_name>, ::neocogi_com::NcStatus> {
-            #adapter_name::from_value(#adapter_name { delivery: session.delivery(handler), validate: None }).query()
-        }
-
-        /// Creates a generated sink with one typed domain check before application-state borrowing.
-        /// The checker cannot capture runtime state or cross the COM ABI; it sees only the owned fact.
-        pub fn #checked_factory<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, #payload_name> + 'static>(
-            session: &::neocogi_com_events::EventSession<State>,
-            handler: Handler,
-            validate: fn(&#payload_name) -> Result<(), ::neocogi_com::NcStatus>,
-        ) -> Result<::neocogi_com::ComPtr<#sink_abi_name>, ::neocogi_com::NcStatus> {
-            #adapter_name::from_value(#adapter_name { delivery: session.delivery(handler), validate: Some(validate) }).query()
+            #adapter_name::from_value(#adapter_name { delivery: session.delivery(handler), validate }).query()
         }
     })
 }
@@ -698,12 +688,9 @@ fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[
     Ok(generated)
 }
 
-/// Generates private typed operations and public helpers for every declared event port.
-/// The helper is source-specific because a port is an actual COM method on one
-/// interface identity; it never guesses a widget capability or retains the
-/// borrowed source beyond the synchronous subscription call. The operation
-/// carries that projection and its optional validator in named fields, while
-/// the generic session remains the sole owner of the registration transaction.
+/// Generates one concrete port per declared source method. A port owns its source
+/// only during setup and carries an optional domain validator in an explicit field.
+/// All subscription ownership and ordering belong to the single EventSession API.
 fn event_port_connectors(
     graph: &ResolvedModules,
     module: &ResolvedModule,
@@ -713,95 +700,69 @@ fn event_port_connectors(
 ) -> Result<Vec<TokenStream>, GenerateError> {
     let source_abi = rust_ident(&format!("{}Abi", source.name))?;
     let mode = matches!(threading, Threading::Shared).then(|| quote! { , ::neocogi_com::ThreadSafe });
-    let mut connectors = Vec::new();
+    let mut ports = Vec::new();
     for callable in values {
         let Callable::EventPort(port) = callable else { continue };
         let sink = resolve(graph, module, &port.sink)?;
-        let sink_event = rust_ident(&format!("{}Event", sink.declaration.name))?;
+        let payload = rust_ident(&format!("{}Event", sink.declaration.name))?;
         let factory = rust_ident(&format!("create_{}_event_sink", snake_case(&sink.declaration.name)))?;
-        let checked_factory = rust_ident(&format!("create_{}_checked_event_sink", snake_case(&sink.declaration.name)))?;
-        let (payload, sink_factory, checked_sink_factory) = if sink.module.source.name == module.source.name {
-            (quote! { #sink_event }, quote! { #factory }, quote! { #checked_factory })
+        let prefix = if sink.module.source.name == module.source.name {
+            quote! {}
         } else {
             let crate_name = contract_crate_ident(&sink.module.source.name.to_string())?;
-            (
-                quote! { ::#crate_name::#sink_event },
-                quote! { ::#crate_name::#factory },
-                quote! { ::#crate_name::#checked_factory },
-            )
+            quote! { ::#crate_name:: }
         };
+        let payload = quote! { #prefix #payload };
         let port_name = rust_ident(&port.name)?;
         let connected_source = match port.receiver {
             Receiver::Shared => quote! { source },
             Receiver::Mutable => quote! { mut source },
         };
-        // Each port owns a distinct local operation type. Its borrowed source
-        // and optional validator are visible fields, never closure captures.
-        let connector_name = rust_ident(&format!("{}{}EventConnector", source.name, upper_camel_case(&port.name)))?;
-        let check_name = rust_ident(&format!("{}DomainCheck", connector_name))?;
-        let helper = rust_ident(&format!("connect_{}_{}", snake_case(&source.name), port.name))?;
-        let checked_helper = rust_ident(&format!("connect_{}_{}_checked", snake_case(&source.name), port.name))?;
+        let port_type = rust_ident(&format!("{}{}Port", source.name, upper_camel_case(&port.name)))?;
+        let helper = rust_ident(&format!("{}_{}_port", snake_case(&source.name), port.name))?;
         let port_docs = docs(&port.docs);
-        connectors.push(quote! {
-            /// Capture-free semantic check for this port's concrete owned event payload.
-            type #check_name = fn(&#payload) -> Result<(), ::neocogi_com::NcStatus>;
-
-            /// Local subscription operation generated for this exact source event port.
-            /// Consumed synchronously; neither its borrowed source nor this operation
-            /// is retained by the session or crosses the COM ABI.
-            struct #connector_name<'source> {
-                /// Exact source projection borrowed until the foreign subscription returns.
-                source: ::neocogi_com::ComRef<'source, #source_abi #mode>,
-                /// Existing capture-free domain check installed on the resulting local sink.
-                validate: Option<#check_name>,
+        ports.push(quote! {
+            #port_docs
+            /// Typed subscription input; neither this value nor its source is retained after setup.
+            pub struct #port_type {
+                /// Owned projection allows capability queries before the registration transaction.
+                source: ::neocogi_com::ComPtr<#source_abi #mode>,
+                /// Semantic validation runs after decoding and before application-state borrowing.
+                validate: Option<fn(&#payload) -> Result<(), ::neocogi_com::NcStatus>>,
             }
 
-            impl<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, #payload> + 'static>
-                ::neocogi_com_events::EventConnector<State, Handler> for #connector_name<'_>
-            {
-                /// Creates the typed sink only after the session claims registration.
-                /// Selects the existing plain or checked sink policy, then connects
-                /// the exact source port without retaining its borrowed projection.
-                fn connect(
+            impl #port_type {
+                /// Selects this port's domain check without capturing application state.
+                pub fn checked(mut self, validate: fn(&#payload) -> Result<(), ::neocogi_com::NcStatus>) -> Self {
+                    self.validate = Some(validate);
+                    self
+                }
+            }
+
+            impl ::neocogi_com_events::EventPort for #port_type {
+                type Event = #payload;
+
+                /// Connects exactly one generated sink while registration excludes reentry.
+                fn connect<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, Self::Event> + 'static>(
                     self,
                     session: &::neocogi_com_events::EventSession<State>,
                     handler: Handler,
                 ) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus> {
-                    // Both policies use the same port and ordered registration protocol.
-                    let sink = match self.validate {
-                        Some(validate) => #checked_sink_factory(session, handler, validate)?,
-                        None => #sink_factory(session, handler)?,
-                    };
-                    // Only mutable ports require an exclusive source projection.
+                    let sink = #prefix #factory(session, handler, self.validate)?;
+                    // Only mutable source methods require an exclusive local projection.
                     let #connected_source = self.source;
                     source.#port_name(sink.as_com_ref())
                 }
             }
 
             #port_docs
-            /// Registers the generated sink and source lease in one ordered session transaction.
-            /// A failed foreign subscription restores registration order without claiming a handler.
-            pub fn #helper<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, #payload> + 'static>(
-                session: &::neocogi_com_events::EventSession<State>,
-                source: ::neocogi_com::ComRef<'_, #source_abi #mode>,
-                handler: Handler,
-            ) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus> {
-                session.register(handler, #connector_name { source, validate: None })
-            }
-
-            /// Registers this port with an application-local semantic validator.
-            /// Validation runs after ABI decoding and before the state/handler borrow.
-            pub fn #checked_helper<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, #payload> + 'static>(
-                session: &::neocogi_com_events::EventSession<State>,
-                source: ::neocogi_com::ComRef<'_, #source_abi #mode>,
-                handler: Handler,
-                validate: fn(&#payload) -> Result<(), ::neocogi_com::NcStatus>,
-            ) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus> {
-                session.register(handler, #connector_name { source, validate: Some(validate) })
+            /// Takes source ownership for synchronous setup; subscription does not retain the source.
+            pub fn #helper(source: ::neocogi_com::ComPtr<#source_abi #mode>) -> #port_type {
+                #port_type { source, validate: None }
             }
         });
     }
-    Ok(connectors)
+    Ok(ports)
 }
 
 /// Lowers one copied aggregate field or payload type.

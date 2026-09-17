@@ -150,7 +150,7 @@ fn parses_first_class_event_delivery_and_subscription_port() {
             /// Complete committed editor snapshot.
             event IChangedSink {
                 /// Called after the producer releases mutation ownership.
-                fn changed(&self, text: &str, cursor: u64) -> Result<()>;
+                fn changed(&mut self, text: &str, cursor: u64) -> Result<()>;
             }
             #[version(1)]
             interface IEditor {
@@ -180,13 +180,13 @@ fn parses_first_class_event_delivery_and_subscription_port() {
     assert_eq!(port.signature().parameters[0].name, "sink");
 }
 
-/// Event methods are immutable notifications, not mutable or value-returning calls.
+/// Event delivery exclusively borrows its sink and cannot return application values.
 #[test]
 fn rejects_invalid_event_delivery_contracts() {
     for source in [
         "#[version(1)] event IEmpty {}",
-        "#[version(1)] event IMutable { fn changed(&mut self) -> Result<()>; }",
-        "#[version(1)] event IValue { fn changed(&self) -> Result<u64>; }",
+        "#[version(1)] event IShared { fn changed(&self) -> Result<()>; }",
+        "#[version(1)] event IValue { fn changed(&mut self) -> Result<u64>; }",
     ] {
         assert!(parse_module(Path::new("example/events.ncidl"), source).is_err(), "{source}");
     }

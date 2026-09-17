@@ -19,7 +19,7 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
         r#"
         extern neocogi.com.events;
         use neocogi.com.events::IEventSubscription;
-        #[version(1)] event IChangedSink { fn changed(&self, value: u32) -> Result<()>; }
+        #[version(1)] event IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }
         #[version(1)] interface ISource { event subscribe(&self): IChangedSink; }
     "#,
     );
@@ -42,7 +42,7 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
     let unbound_lease = module(
         "example/events.ncidl",
         r#"
-        #[version(1)] event IChangedSink { fn changed(&self, value: u32) -> Result<()>; }
+        #[version(1)] event IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }
         #[version(1)] interface ISource { event subscribe(&self): IChangedSink; }
     "#,
     );
@@ -60,7 +60,7 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
         r#"
         extern example.foreign;
         use example.foreign::IEventSubscription;
-        #[version(1)] event IChangedSink { fn changed(&self, value: u32) -> Result<()>; }
+        #[version(1)] event IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }
         #[version(1)] interface ISource { event subscribe(&self): IChangedSink; }
     "#,
     );

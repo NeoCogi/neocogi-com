@@ -14,14 +14,6 @@ use crate::{EVENT_E_BUSY, EVENT_E_CLOSED};
 /// Default finite callback budget for one deterministic dispatch boundary.
 pub const EVENT_DISPATCH_LIMIT: u32 = 1_000_000;
 
-/// Borrowable application dispatcher capability accepted by an eventful host.
-/// Hosts consume this only synchronously; implementing it must not transfer
-/// state or handler ownership to the host.
-pub trait EventDispatchSource {
-    /// Borrows the exact generated dispatcher projection for one update call.
-    fn as_dispatcher(&self) -> ComRef<'_, IEventDispatcherAbi>;
-}
-
 /// Application-local typed behavior; neither state nor handler crosses the COM ABI.
 ///
 /// Implement this trait on a concrete struct or enum whose dependencies are
@@ -85,19 +77,20 @@ pub trait EventHandler<State, Event> {
     fn handle(&mut self, state: &mut State, event: &Event) -> Result<(), NcStatus>;
 }
 
-/// One explicitly typed subscription operation, local to the consumer's binary.
-///
-/// A connector stores its producer capability and any connection policy in named
-/// fields. Generated contract bindings implement this trait for each event port;
-/// the generic session never needs to know a widget, sink, or producer type.
-/// Connectors are consumed during registration, not retained for event delivery.
-pub trait EventConnector<State: 'static, Handler> {
-    /// Constructs the local sink and connects the producer inside registration.
-    ///
-    /// The session has already excluded registration and dispatch reentry before
-    /// calling this method. On failure, the connector must release any uncommitted
-    /// connection; the session restores its previous ordered lease sequence.
-    fn connect(self, session: &EventSession<State>, handler: Handler) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus>;
+/// A typed source port consumed when an owner subscribes to its events.
+/// The associated event fixes handler typing before any COM call. Generated
+/// implementations retain source capabilities only until setup finishes.
+pub trait EventPort {
+    /// Owned native snapshot delivered by this exact port.
+    type Event;
+
+    /// Builds a local sink and connects it after the session claims registration.
+    /// Failure must release uncommitted ownership; no producer stores the session.
+    fn connect<State: 'static, Handler: EventHandler<State, Self::Event> + 'static>(
+        self,
+        session: &EventSession<State>,
+        handler: Handler,
+    ) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus>;
 }
 
 /// Application-owned state and subscriptions, independent of a UI implementation.
@@ -152,29 +145,27 @@ impl<State: 'static> EventSession<State> {
     }
 
     /// Creates a concrete, typed local delivery adapter for one handler.
-    /// The short RefCell borrows are required because COM sink methods are `&self`
-    /// and independent sources invoke them synchronously through an ABI pointer.
+    /// Distinct sinks share the owner state, but each handler is an ordinary field
+    /// exclusively borrowed by its generated mutable COM delivery method.
     pub fn delivery<Handler>(&self, handler: Handler) -> EventDelivery<State, Handler> {
-        EventDelivery {
-            state: self.state.clone(),
-            handler: RefCell::new(Some(handler)),
-        }
+        EventDelivery { state: self.state.clone(), handler }
     }
 
     /// Claims the registration transaction before any foreign subscription call.
-    /// The concrete connector creates the sink and connects the producer only
+    /// The concrete port creates the sink and connects the producer only
     /// after the transaction is claimed. Failures restore the exact previous
     /// registration order. Successful registration retains the lease, not the
-    /// connector. Generated connectors borrow their source projection only during
+    /// port. Generated ports borrow their source projection only during
     /// this synchronous operation; application handlers retain their own dependencies.
-    pub fn register<Handler, Connector>(&self, handler: Handler, connector: Connector) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus>
+    pub fn subscribe<Port, Handler>(&self, port: Port, handler: Handler) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus>
     where
-        Connector: EventConnector<State, Handler>,
+        Port: EventPort,
+        Handler: EventHandler<State, Port::Event> + 'static,
     {
         // Own the sequence before constructing a sink or calling foreign code;
         // Registrations restores it on both connection failure and success.
         let mut leases = self.registry.take()?;
-        let lease = connector.connect(self, handler)?;
+        let lease = port.connect(self, handler)?;
         // The returned reference is caller-owned; this clone keeps delivery live
         // even when the caller immediately drops that reference.
         leases.push(lease.clone());
@@ -189,13 +180,6 @@ impl<State: 'static> EventSession<State> {
         }
         leases.clear();
         Ok(())
-    }
-}
-
-impl<State: 'static> EventDispatchSource for EventSession<State> {
-    /// Borrows this session's separate COM allocation without an AddRef transfer.
-    fn as_dispatcher(&self) -> ComRef<'_, IEventDispatcherAbi> {
-        self.dispatcher.as_com_ref()
     }
 }
 
@@ -342,24 +326,21 @@ impl IEventDispatcher for Dispatcher {
 pub struct EventDelivery<State, Handler> {
     /// State belongs to the application session, not a producer DSO.
     state: Rc<RefCell<State>>,
-    /// Taking the exact handler type rejects recursive invocation before aliasing.
-    handler: RefCell<Option<Handler>>,
+    /// The mutable COM sink receiver supplies exclusive access to this concrete handler.
+    handler: Handler,
 }
 
 impl<State, Handler> EventDelivery<State, Handler> {
     /// Invokes one decoded event with an exclusive local state and handler borrow.
     /// Both borrow guards end before a recoverable callback failure is reported.
-    pub fn deliver<Event>(&self, event: Event) -> Result<(), NcStatus>
+    pub fn deliver<Event>(&mut self, event: Event) -> Result<(), NcStatus>
     where
         Handler: EventHandler<State, Event>,
     {
-        let mut handler = self.handler.try_borrow_mut().map_err(|_| EVENT_E_BUSY)?.take().ok_or(EVENT_E_BUSY)?;
-        let result = match self.state.try_borrow_mut() {
-            Ok(mut state) => handler.handle(&mut state, &event),
-            Err(_) => Err(EVENT_E_BUSY),
-        };
-        *self.handler.borrow_mut() = Some(handler);
-        result
+        // The generated mutable sink gate excludes recursive invocation. Only
+        // state shared by distinct sinks needs a dynamic borrow at this boundary.
+        let mut state = self.state.try_borrow_mut().map_err(|_| EVENT_E_BUSY)?;
+        self.handler.handle(&mut state, &event)
     }
 }
 
