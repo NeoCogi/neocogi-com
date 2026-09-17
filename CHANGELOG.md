@@ -5,6 +5,13 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 
 ## Unreleased
 
+- Generate typed `EventPort` values for `EventSession::subscribe` and require
+  mutable event sinks. Remove UI-family session duplication, connector helpers,
+  handler interior mutability, and detached-batch restoration. Rust binding
+  protocol 3 requires regenerated bindings; plugin and runtime ABIs remain v1.
+- Model session registration as Ready/Busy/Closed and retain owned source FIFOs,
+  explicit cancellation, terminal facts, and completed-request delivery.
+
 - Simplify contracts to compile-time Rust bindings and transitive signatures;
   remove native contract libraries/archives, module getters/registries, and
   intrinsic-event seeding. Plugins remain dynamically loadable or statically linked.

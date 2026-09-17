@@ -291,7 +291,7 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
             let methods = callable_methods(graph, module, &interface.callables)?;
             let threading = threading_ident(interface.threading);
             let factory = matches!(interface.role, InterfaceRole::Factory).then(|| quote! { factory, });
-            let connectors = event_port_connectors(graph, module, declaration, &interface.callables, interface.threading)?;
+            let ports = event_ports(graph, module, declaration, &interface.callables, interface.threading)?;
             format_rust(quote! {
                 #[::neocogi_com::com_interface(
                     assigned_guid = #id,
@@ -302,7 +302,7 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
                 )]
                 #declaration_docs
                 pub trait #name #bases { #(#methods)* }
-                #(#connectors)*
+                #(#ports)*
             })
         }
     }
@@ -691,7 +691,7 @@ fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[
 /// Generates one concrete port per declared source method. A port owns its source
 /// only during setup and carries an optional domain validator in an explicit field.
 /// All subscription ownership and ordering belong to the single EventSession API.
-fn event_port_connectors(
+fn event_ports(
     graph: &ResolvedModules,
     module: &ResolvedModule,
     source: &Declaration,

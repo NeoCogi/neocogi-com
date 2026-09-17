@@ -155,8 +155,8 @@ impl<State: 'static> EventSession<State> {
     /// The concrete port creates the sink and connects the producer only
     /// after the transaction is claimed. Failures restore the exact previous
     /// registration order. Successful registration retains the lease, not the
-    /// port. Generated ports borrow their source projection only during
-    /// this synchronous operation; application handlers retain their own dependencies.
+    /// port. Generated ports own their source projection only until
+    /// this synchronous operation returns; application handlers retain their own dependencies.
     pub fn subscribe<Port, Handler>(&self, port: Port, handler: Handler) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus>
     where
         Port: EventPort,

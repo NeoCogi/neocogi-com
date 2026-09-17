@@ -84,7 +84,7 @@ impl EventHandler<(), ()> for DropProbe {
 }
 
 impl Drop for DropProbe {
-    /// Marks release when a busy session rejects the uninvoked connector's handler.
+    /// Marks release when a busy session rejects the uninvoked port's handler.
     fn drop(&mut self) {
         self.drops.set(self.drops.get() + 1);
     }
@@ -92,7 +92,7 @@ impl Drop for DropProbe {
 
 /// Failed setup restores exact lease identities/order, and subsequent setup succeeds.
 #[test]
-fn failed_connector_restores_order_and_success_retains_only_leases() {
+fn failed_port_restores_order_and_success_retains_only_leases() {
     let session = EventSession::new(());
     let mut calls = 0;
     let first = session.subscribe(ProbePort { calls: &mut calls, fail: false }, Ignore).unwrap();
@@ -122,7 +122,7 @@ fn failed_connector_restores_order_and_success_retains_only_leases() {
 
 /// Busy registration releases its supplied values without invoking connection work.
 #[test]
-fn busy_session_rejects_connector_before_invocation_and_recovers() {
+fn busy_session_rejects_port_before_invocation_and_recovers() {
     let session = EventSession::new(());
     let transaction = session.registry.take().unwrap();
     let mut calls = 0;
