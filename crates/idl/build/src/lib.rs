@@ -5,9 +5,9 @@
 //! deterministic output ownership for a contract crate's `build.rs`.
 //!
 //! Event ports generate typed, source-specific `EventPort` values
-//! alongside their public optionally validated subscription helpers. These operations
-//! replace registration closures without adding source knowledge to COM event
-//! transport. Their Rust support protocol is versioned separately from the NCIDL ABI.
+//! with owned source projections and optional domain checks. Their constructors
+//! supply the single session subscription API without putting source knowledge
+//! into COM event transport. Their Rust support protocol is versioned separately from the NCIDL ABI.
 
 #![deny(missing_docs)]
 #![warn(clippy::missing_docs_in_private_items)]

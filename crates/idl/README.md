@@ -15,7 +15,7 @@ of the optional `cargo-neocogi` assembly driver.
   demonstrates their dynamic and monolithic use.
 
 `interface`, `factory`, and `event` share one callable model. The event role
-adds immutable delivery validation, owned snapshots, and typed sink adapters.
+requires mutable, unit-returning delivery and generates owned snapshots and typed sinks.
 Event ports require the canonical `neocogi.com.events.IEventSubscription` lease;
 a foreign same-named lease is rejected. Generated adapters check their event
 support API version at compile time independently of wire signatures.

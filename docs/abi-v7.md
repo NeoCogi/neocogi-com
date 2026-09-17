@@ -83,8 +83,8 @@ implementation objects. `#[version(N)]` derives an IID; `#[id(N, "UUID")]` pins 
 The first required interface is the physical base; later requirements are
 sibling projections. The required projection graph must be acyclic. A factory
 may serve as the runtime's zero-argument construction root. Event delivery
-interfaces remain local, immutable calls with unit results and generated typed
-snapshot adapters.
+interfaces remain local, use mutable receivers with unit results, and generate
+typed snapshot adapters. The call gate protects each plain handler field.
 
 ## 5. Compile-time modules
 
