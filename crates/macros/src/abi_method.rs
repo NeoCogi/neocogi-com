@@ -91,22 +91,6 @@ pub(crate) fn parse_abi_trait_item(item: &TraitItem) -> Result<AbiMethod> {
 
 /// Rejects trait-level features that cannot be represented by one C vtable.
 pub(crate) fn validate_interface_trait(input: &ItemTrait, errors: &mut Option<syn::Error>) {
-    validate_com_trait(input, errors);
-    if input.supertraits.len() > 1 {
-        push_error(
-            errors,
-            syn::Error::new_spanned(&input.supertraits, "COM interfaces support exactly one generated base interface"),
-        );
-    }
-}
-
-/// Rejects trait features unsupported by both interfaces and callable classes.
-pub(crate) fn validate_class_contract_trait(input: &ItemTrait, errors: &mut Option<syn::Error>) {
-    validate_com_trait(input, errors);
-}
-
-/// Applies the trait-shape rules shared by every generated COM vtable.
-fn validate_com_trait(input: &ItemTrait, errors: &mut Option<syn::Error>) {
     if let Some(unsafety) = &input.unsafety {
         push_error(errors, syn::Error::new_spanned(unsafety, "COM interfaces cannot be unsafe"));
     }

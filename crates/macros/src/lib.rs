@@ -10,13 +10,13 @@
 //! - [`com_object`] wraps a Rust implementation struct in generated storage containing
 //!   `IUnknown`, one header per exposed interface, an atomic reference count,
 //!   and the original Rust value. It derives public projections from an IDL
-//!   description or an explicit local `interfaces(...)` list. Objects are
+//!   interface or an explicit local `interfaces(...)` list. Objects are
 //!   thread-local by default; add `thread_safe` to generate
 //!   `ComPtr<_, ThreadSafe>` values for local objects.
 //! - [`com_factory`] associates an implementation with one generated IDL
-//!   factory description.
+//!   factory interface.
 //! - [`factory_plugin`] creates immutable plugin metadata for one typed root
-//!   factory; it never generates a class table or erased argument frame.
+//!   factory; it never generates a object table or erased argument frame.
 //! - [`com_struct`] marks a fixed-size record as ABI plain data, owns its
 //!   `repr(C)`/packing/alignment choice, and records its physical layout. It
 //!   checks fields through `neocogi_com::AbiPlainValue` by default, or through
@@ -114,7 +114,7 @@
 //! input. Explicit UUID syntax is a checked pin of that same derivation and
 //! therefore also requires `name = "..."`. It should not be a Rust module path
 //! unless you intend refactors to change the interface ID.
-//! Interface, class, and plugin qualified-name literals are validated during
+//! Interface, object, and plugin qualified-name literals are validated during
 //! macro expansion against the ABI descriptor text policy. Class and plugin
 //! version literals are checked at the same time, so generated descriptors
 //! cannot defer malformed text failures until runtime activation.
@@ -130,7 +130,6 @@ use syn::{DeriveInput, ItemEnum, ItemStruct, ItemTrait, parse_macro_input};
 
 mod abi_method;
 mod args;
-mod description;
 mod deserialize;
 mod enums;
 mod factory_plugin;
@@ -141,9 +140,8 @@ mod plain_data;
 mod structs;
 mod util;
 
-use args::{ClassArgs, EnumArgs, InterfaceArgs, ObjectDescriptionArgs, StructArgs};
+use args::{ObjectArgs, EnumArgs, InterfaceArgs, StructArgs};
 use deserialize::expand_derive as expand_com_deserialize_derive;
-use description::{ObjectDescriptionKind, expand_object_description};
 use enums::expand_com_enum;
 use factory_plugin::{FactoryPluginArgs, expand_factory_plugin};
 use interface::expand_com_interface;
@@ -199,43 +197,13 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-/// Defines a constructor-free IDL class description on a generated trait.
-///
-/// This is generator-facing infrastructure. Application authors declare the
-/// class in `.ncidl`; implementation crates use `#[com_object(Class)]`.
-#[doc(hidden)]
-#[proc_macro_attribute]
-pub fn com_class_description(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as ObjectDescriptionArgs);
-    let input = parse_macro_input!(item as ItemTrait);
-    match expand_object_description(args, input, ObjectDescriptionKind::Class) {
-        Ok(tokens) => tokens.into(),
-        Err(error) => error.to_compile_error().into(),
-    }
-}
-
-/// Defines a constructor-free IDL factory description on a generated trait.
-///
-/// This is generator-facing infrastructure. Implementations use
-/// `#[com_factory(Factory)]`, which verifies this factory marker.
-#[doc(hidden)]
-#[proc_macro_attribute]
-pub fn com_factory_description(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as ObjectDescriptionArgs);
-    let input = parse_macro_input!(item as ItemTrait);
-    match expand_object_description(args, input, ObjectDescriptionKind::Factory) {
-        Ok(tokens) => tokens.into(),
-        Err(error) => error.to_compile_error().into(),
-    }
-}
-
 /// Defines concrete COM object storage for a Rust implementation struct.
 ///
-/// A bare `Class` path implements one constructor-free IDL description without
+/// A bare `Class` path implements one constructor-free IDL interface without
 /// repeating its identity, threading, or required protocol list.
 /// `interfaces(...)` exposes a local
 /// object made only from shared interface contracts. Local object storage is
-/// thread-local by default; an IDL description owns its threading capability.
+/// thread-local by default; an IDL interface owns its threading capability.
 ///
 /// ```text
 /// #[com_object(Calculator)]
@@ -254,22 +222,22 @@ pub fn com_factory_description(attr: TokenStream, item: TokenStream) -> TokenStr
 /// to the owning implementation or is exposed through an IDL factory method.
 #[proc_macro_attribute]
 pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as ClassArgs);
+    let args = parse_macro_input!(attr as ObjectArgs);
     let input = parse_macro_input!(item as ItemStruct);
     expand_com_object(args, input, false).into()
 }
 
 /// Defines concrete COM storage for an implementation of an IDL factory.
 ///
-/// The factory description owns its public identity, methods, threading, and
+/// The factory interface owns its public identity, methods, threading, and
 /// required interfaces. This macro owns only private Rust storage and COM
 /// lifetime mechanics; it does not publish a globally callable constructor.
 #[proc_macro_attribute]
 pub fn com_factory(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as ClassArgs);
+    let args = parse_macro_input!(attr as ObjectArgs);
     let input = parse_macro_input!(item as ItemStruct);
-    if args.object_description.is_none() {
-        return syn::Error::new_spanned(input.ident, "com_factory requires one IDL factory description path")
+    if args.primary_interface.is_none() {
+        return syn::Error::new_spanned(input.ident, "com_factory requires one IDL factory interface path")
             .to_compile_error()
             .into();
     }
@@ -280,7 +248,7 @@ pub fn com_factory(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// The plugin ID is derived from `name` unless `plugin_id(...)` supplies a
 /// checked pin. The root ID and threading capability always come from the IDL
-/// description associated with `factory`; they cannot be overridden here.
+/// interface associated with `factory`; they cannot be overridden here.
 #[proc_macro]
 pub fn factory_plugin(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as FactoryPluginArgs);

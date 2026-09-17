@@ -5,24 +5,22 @@
 //! core crate. Every table begins with a byte size so compatible revisions can
 //! append fields without changing the established prefix.
 
-mod contract_registry;
 mod debug;
 mod inspection;
 mod plugin_registry;
 mod runtime;
 
-pub use contract_registry::NcContractRegistryV2;
 pub use debug::{
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING,
-    NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV2, NcDebugCallbackV2, NcDebugMessageV2,
-    NcDebugMessengerCreateInfoV2,
+    NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV3, NcDebugCallbackV3, NcDebugMessageV3,
+    NcDebugMessengerCreateInfoV3,
 };
-pub use inspection::{NcInspectFactoryPluginDescriptionCallbackV2, NcInspectionApiV2, NcModuleInfoV2, NcPluginInfoV2};
-pub use plugin_registry::{NC_COM_RUNTIME_MAX_LOADED_MODULES, NcPluginRegistryV2};
-pub use runtime::NcRuntimeApiV2;
+pub use inspection::{NcInspectFactoryPluginDescriptionCallbackV3, NcInspectionApiV3, NcModuleInfoV3, NcPluginInfoV3};
+pub use plugin_registry::{NC_COM_RUNTIME_MAX_LOADED_MODULES, NcPluginRegistryV3};
+pub use runtime::NcRuntimeApiV3;
 
 /// Runtime shared-library ABI generation implemented by this release.
-pub const NC_COM_RUNTIME_ABI_VERSION: u32 = 2;
+pub const NC_COM_RUNTIME_ABI_VERSION: u32 = 3;
 
 /// Borrowed immutable UTF-8 bytes owned by the runtime.
 ///

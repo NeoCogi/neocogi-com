@@ -22,8 +22,14 @@ pub(crate) fn resolve_factory(
     // SAFETY: The registry retains only validated immutable descriptions whose
     // static or mapped-library owner remains live while registered.
     let description: &NcFactoryPluginDescription = unsafe { &*registered.description };
-    if description.root_factory_id != factory_interface.iid {
+    if description.root_factory.iid != factory_interface.iid {
         return Err(NC_E_NOINTERFACE);
+    }
+    // Registration proves the stored signature is readable. Compare the complete
+    // contract before invoking plugin bootstrap code, including transitive IDL
+    // changes that preserve the factory's nominal IID.
+    if description.root_factory.abi_signature != factory_interface.abi_signature {
+        return Err(neocogi_com_core::NC_E_ABI_VERSION);
     }
     if !threading_request_is_compatible(description.root_factory_threading, requested_threading) {
         return Err(neocogi_com_core::NC_E_INVALID_ARG);
@@ -132,9 +138,13 @@ mod tests {
     /// Stable fake factory interface used by raw activation validation.
     const FACTORY_ID: NcGuid = NcGuid::from_fields(1, 2, 3, [4; 8]);
     /// Complete fake interface identity stored in the vtable prefix.
-    const FACTORY_INTERFACE: NcInterfaceId = NcInterfaceId::new(FACTORY_ID, NcAbiSignature::EMPTY);
+    const FACTORY_INTERFACE: NcInterfaceId = NcInterfaceId::new(FACTORY_ID, NcAbiSignature::from_static(&[7; 32]));
     /// Counts factory allocations destroyed by their final Release.
     static FACTORY_DROPS: AtomicUsize = AtomicUsize::new(0);
+    /// Serializes fixture counters so the parallel test harness cannot reset peers.
+    static FIXTURE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    /// Records entry into the bootstrap before it can allocate an object.
+    static FACTORY_ACTIVATIONS: AtomicUsize = AtomicUsize::new(0);
 
     /// Minimal owned COM storage used to exercise activation ownership rules.
     #[repr(C)]
@@ -202,6 +212,7 @@ mod tests {
         if out.is_null() {
             return NC_E_POINTER;
         }
+        FACTORY_ACTIVATIONS.fetch_add(1, Ordering::SeqCst);
         let object = Box::new(TestFactory {
             unknown: IUnknown {
                 vtable: &VTABLE,
@@ -219,15 +230,14 @@ mod tests {
 
     /// Minimal validated registry record used only by resolution tests.
     static DESCRIPTION: NcFactoryPluginDescription = NcFactoryPluginDescription {
+        description_abi_version: neocogi_com_core::NC_FACTORY_PLUGIN_ABI_VERSION,
         core_abi_version: neocogi_com_core::NC_COM_CORE_ABI_VERSION,
         plugin_id: guid_from_qualified_name("nc.tests.activation"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.activation"),
         plugin_version: NcStaticUtf8::from_static("1.0.0"),
         dependency_count: 0,
         dependencies: core::ptr::null(),
-        contract_count: 0,
-        contracts: core::ptr::null(),
-        root_factory_id: FACTORY_ID,
+        root_factory: FACTORY_INTERFACE,
         root_factory_threading: NC_ABI_THREADING_THREAD_LOCAL,
         activate: Some(activate),
     };
@@ -235,6 +245,7 @@ mod tests {
     /// Confirms lookup and invocation transfer one identity-checked owner.
     #[test]
     fn activates_only_the_exact_factory_interface() {
+        let _fixture = FIXTURE_LOCK.lock().unwrap();
         FACTORY_DROPS.store(0, Ordering::SeqCst);
         let mut registry = FactoryPluginRegistry::new();
         registry.insert(RegisteredFactoryPlugin {
@@ -252,12 +263,33 @@ mod tests {
         assert_eq!(FACTORY_DROPS.load(Ordering::SeqCst), 1);
     }
 
+    /// A nominal IID match cannot enter bootstrap with incompatible ABI bytes.
+    #[test]
+    fn signature_mismatch_is_rejected_before_bootstrap() {
+        let _fixture = FIXTURE_LOCK.lock().unwrap();
+        FACTORY_ACTIVATIONS.store(0, Ordering::SeqCst);
+        let mut registry = FactoryPluginRegistry::new();
+        registry.insert(RegisteredFactoryPlugin {
+            plugin_id: DESCRIPTION.plugin_id,
+            description: &DESCRIPTION,
+            dependency_ids: Vec::new(),
+        });
+        let mismatched = NcInterfaceId::new(FACTORY_ID, NcAbiSignature::from_static(&[8; 32]));
+        let resolved = resolve_factory(&registry, DESCRIPTION.plugin_id, mismatched, NC_ABI_THREADING_THREAD_LOCAL);
+        let mut out = core::ptr::NonNull::<IUnknown>::dangling().as_ptr();
+        // SAFETY: The output slot is writable; rejection must clear it without invoking code.
+        assert_eq!(unsafe { activate_factory(resolved, mismatched, &mut out) }, NC_E_ABI_VERSION);
+        assert!(out.is_null());
+        assert_eq!(FACTORY_ACTIVATIONS.load(Ordering::SeqCst), 0);
+    }
+
     /// Confirms an IID match with another signature is rejected and released.
     #[test]
     fn rejects_and_releases_a_factory_with_the_wrong_signature() {
         /// Deliberately invalid digest used to exercise exact-signature rejection.
         static MISMATCHED_SIGNATURE: [u8; 32] = [0; 32];
 
+        let _fixture = FIXTURE_LOCK.lock().unwrap();
         FACTORY_DROPS.store(0, Ordering::SeqCst);
         let mismatched = NcInterfaceId::new(FACTORY_ID, NcAbiSignature::from_static(&MISMATCHED_SIGNATURE));
         let mut out = core::ptr::null_mut();

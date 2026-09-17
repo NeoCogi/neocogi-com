@@ -93,7 +93,7 @@ fn run() -> Result<(), CliError> {
             // SAFETY: The user explicitly asks the inspector to load this
             // shared library. The runtime reads only neocogi-com descriptor metadata.
             let inspection = unsafe { inspect_plugin_library(&library) }.map_err(CliError::Inspect)?;
-            let activation = format!("factory, {} contract module(s)", inspection.factory.modules.len());
+            let activation = format!("factory {}", inspection.factory.root_factory_id);
             println!("{}: ok ({}, {activation})", library.display(), inspection.qualified_name);
         }
         Command::Plan { libraries, format, output } => {

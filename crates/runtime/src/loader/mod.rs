@@ -22,7 +22,8 @@ use neocogi_com_core::{
     NcGetFactoryPluginDescription, NcGuid,
 };
 
-use crate::factory_registration::{FactoryPluginRegistrationBatch, build_factory_plugin_registration_batch};
+use crate::factory_plugin_registry::RegisteredFactoryPlugin;
+use crate::factory_registration::prepare_factory_plugin;
 use crate::state::RuntimeState;
 
 mod error;
@@ -32,10 +33,7 @@ mod plan;
 
 pub use error::{PluginLoadError, PluginLoadErrorKind};
 pub(crate) use inspection::inspect_factory_plugin_description;
-pub use inspection::{
-    ContractDeclarationInspection, ContractDeclarationKind, ContractModuleInspection, ContractReferenceInspection, FactoryInspection, PluginInspection,
-    inspect_plugin_library,
-};
+pub use inspection::{FactoryInspection, PluginInspection, inspect_plugin_library};
 pub use plan::{PluginDependencyPlanError, plan_plugin_load_order};
 
 /// Process-local identifier for a plugin library retained by the runtime.
@@ -170,7 +168,7 @@ impl RuntimeState {
             // throughout validation and atomic registration.
             let plugin = unsafe { factory_plugin_description_from_entrypoint(get, path)? };
             // SAFETY: The module retains description and contract code.
-            let batch = unsafe { factory_plugin_registration_batch_from_description(path, plugin)? };
+            let batch = unsafe { prepare_loaded_factory_plugin(path, plugin)? };
             register_loaded_factory_plugin(self, path, &mut module, batch)
         })();
 
@@ -192,11 +190,11 @@ fn register_loaded_factory_plugin(
     runtime: &RuntimeState,
     path: &Path,
     module: &mut Option<LoadedModule>,
-    batch: FactoryPluginRegistrationBatch,
+    batch: RegisteredFactoryPlugin,
 ) -> Result<LoadedModuleId, PluginLoadError> {
     let mut catalog = runtime.write_catalog();
     let module_id = allocate_loaded_module_id(&mut catalog, path)?;
-    let plugin_id = batch.plugin_id();
+    let plugin_id = batch.plugin_id;
     let status = catalog.commit_factory_plugin_registration(batch);
     if status.is_err() {
         return Err(PluginLoadError::new(
@@ -253,13 +251,10 @@ unsafe fn factory_plugin_description_from_entrypoint(
 }
 
 /// Validates and projects one loaded factory description into owned records.
-unsafe fn factory_plugin_registration_batch_from_description(
-    path: &Path,
-    plugin: *const NcFactoryPluginDescription,
-) -> Result<FactoryPluginRegistrationBatch, PluginLoadError> {
-    // SAFETY: The pointer and contract getters remain backed by `module` during
+unsafe fn prepare_loaded_factory_plugin(path: &Path, plugin: *const NcFactoryPluginDescription) -> Result<RegisteredFactoryPlugin, PluginLoadError> {
+    // SAFETY: The descriptor and its referenced data remain backed by `module` during
     // this call and by retained ownership after a successful commit.
-    unsafe { build_factory_plugin_registration_batch(plugin) }.map_err(|status| {
+    unsafe { prepare_factory_plugin(plugin) }.map_err(|status| {
         PluginLoadError::new(
             PluginLoadErrorKind::Metadata,
             path,

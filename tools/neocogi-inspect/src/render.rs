@@ -3,11 +3,12 @@
 use std::fmt::Write as _;
 
 use neocogi_com_core::NcAbiThreadingMode;
-use nc_com_shared_runtime::{ContractModuleInspection, FactoryInspection, PluginInspection};
+use nc_com_shared_runtime::{FactoryInspection, PluginInspection};
 
 use crate::compat::CompatibilityReport;
 use crate::schema::{InspectionArtifact, SCHEMA, SCHEMA_VERSION};
 
+/// Serializes an owned snapshot using the current strict artifact schema.
 pub(crate) fn render_json(inspection: &PluginInspection) -> Result<String, serde_json::Error> {
     let json = InspectionArtifact::from(inspection);
     let mut rendered = serde_json::to_string_pretty(&json)?;
@@ -15,6 +16,7 @@ pub(crate) fn render_json(inspection: &PluginInspection) -> Result<String, serde
     Ok(rendered)
 }
 
+/// Renders the same plugin and factory identity as compact readable text.
 pub(crate) fn render_text(inspection: &PluginInspection) -> String {
     let mut out = String::new();
     writeln!(out, "schema: {SCHEMA}").unwrap();
@@ -26,6 +28,7 @@ pub(crate) fn render_text(inspection: &PluginInspection) -> String {
     writeln!(out, "plugin: {}", inspection.qualified_name).unwrap();
     writeln!(out, "  id: {}", inspection.plugin_id).unwrap();
     writeln!(out, "  version: {}", inspection.plugin_version).unwrap();
+    writeln!(out, "  description_abi_version: {}", inspection.description_abi_version).unwrap();
     writeln!(out, "  core_abi_version: {}", inspection.core_abi_version).unwrap();
     writeln!(out, "  dependencies:").unwrap();
     if inspection.dependencies.is_empty() {
@@ -41,49 +44,12 @@ pub(crate) fn render_text(inspection: &PluginInspection) -> String {
     out
 }
 
-/// Renders one factory root and the canonical graph reached through its bindings.
+/// Renders one factory root and its exact transitive ABI signature.
 fn render_factory_text(out: &mut String, factory: &FactoryInspection) {
     writeln!(out, "root_factory:").unwrap();
     writeln!(out, "  id: {}", factory.root_factory_id).unwrap();
     writeln!(out, "  threading: {}", threading_name(factory.root_factory_threading)).unwrap();
-    writeln!(out, "direct_contracts:").unwrap();
-    for contract in &factory.direct_contracts {
-        writeln!(out, "  - {} @ {}", contract.module_id, fingerprint_text(contract.abi_fingerprint.bytes)).unwrap();
-    }
-    writeln!(out, "contract_modules:").unwrap();
-    for module in &factory.modules {
-        render_contract_module_text(out, module);
-    }
-}
-
-/// Renders one canonical contract module without exposing native getter pointers.
-fn render_contract_module_text(out: &mut String, module: &ContractModuleInspection) {
-    writeln!(out, "  - {}", module.module_name).unwrap();
-    writeln!(out, "    id: {}", module.module_id).unwrap();
-    writeln!(out, "    abi_fingerprint: {}", fingerprint_text(module.abi_fingerprint.bytes)).unwrap();
-    writeln!(out, "    dependencies:").unwrap();
-    if module.dependencies.is_empty() {
-        writeln!(out, "      (none)").unwrap();
-    } else {
-        for dependency in &module.dependencies {
-            writeln!(out, "      - {} @ {}", dependency.module_id, fingerprint_text(dependency.abi_fingerprint.bytes)).unwrap();
-        }
-    }
-    writeln!(out, "    declarations:").unwrap();
-    for declaration in &module.declarations {
-        writeln!(
-            out,
-            "      - {} {} v{}",
-            declaration.kind.as_str(),
-            declaration.qualified_name,
-            declaration.version
-        )
-        .unwrap();
-        writeln!(out, "        id: {}", declaration.declaration_id).unwrap();
-        if let Some(threading) = declaration.threading {
-            writeln!(out, "        threading: {}", threading_name(threading)).unwrap();
-        }
-    }
+    writeln!(out, "  signature: {}", fingerprint_text(factory.root_factory_signature)).unwrap();
 }
 
 /// Returns the IDL spelling of a validated threading capability.
@@ -94,7 +60,7 @@ fn threading_name(threading: NcAbiThreadingMode) -> &'static str {
     }
 }
 
-/// Formats a contract fingerprint as fixed-width lowercase hexadecimal text.
+/// Formats the root factory signature as fixed-width lowercase hexadecimal text.
 fn fingerprint_text(bytes: [u8; 32]) -> String {
     let mut text = String::with_capacity(64);
     for byte in bytes {
@@ -103,6 +69,7 @@ fn fingerprint_text(bytes: [u8; 32]) -> String {
     text
 }
 
+/// Lists exact field changes or states that the snapshots are identical.
 pub(crate) fn render_diff(differences: &[String]) -> String {
     let mut out = String::new();
     writeln!(out, "{} difference{}", differences.len(), if differences.len() == 1 { "" } else { "s" }).unwrap();
@@ -112,6 +79,7 @@ pub(crate) fn render_diff(differences: &[String]) -> String {
     out
 }
 
+/// Summarizes directional replacement compatibility and its evidence.
 pub(crate) fn render_compatibility(report: &CompatibilityReport) -> String {
     let mut out = String::new();
     writeln!(out, "compatibility: {}", if report.is_compatible() { "compatible" } else { "breaking" }).unwrap();
@@ -124,6 +92,7 @@ pub(crate) fn render_compatibility(report: &CompatibilityReport) -> String {
     out
 }
 
+/// Appends one nonempty class of compatibility findings.
 fn render_compatibility_group(out: &mut String, label: &str, changes: &[String]) {
     if changes.is_empty() {
         return;
@@ -143,7 +112,8 @@ mod tests {
     /// Constructs a minimal inspected factory plugin for rendering tests.
     fn inspection_with_thread_safe_factory() -> PluginInspection {
         PluginInspection {
-            core_abi_version: 1,
+            description_abi_version: neocogi_com_core::NC_FACTORY_PLUGIN_ABI_VERSION,
+            core_abi_version: 7,
             plugin_id: NcGuid::from_fields(1, 2, 3, [4; 8]),
             qualified_name: "nc.tests.inspect".to_string(),
             plugin_version: "1.0.0".to_string(),
@@ -151,8 +121,7 @@ mod tests {
             factory: FactoryInspection {
                 root_factory_id: NcGuid::from_fields(5, 6, 7, [8; 8]),
                 root_factory_threading: NcAbiThreadingMode::ThreadSafe,
-                direct_contracts: Vec::new(),
-                modules: Vec::new(),
+                root_factory_signature: [1; 32],
             },
         }
     }

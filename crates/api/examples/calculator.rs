@@ -38,7 +38,7 @@ impl IFormatter for Calculator {
 }
 
 fn main() -> Result<(), NcStatus> {
-    let unknown: ComPtr<IUnknown> = Calculator::create();
+    let unknown: ComPtr<IUnknown> = Calculator::from_value(Calculator);
     println!("created Calculator as IUnknown: {unknown:?}");
 
     let calculator = unknown.query::<ICalculatorAbi>()?;

@@ -4,7 +4,7 @@
 //! prove the lifetime or thread-safety of opaque user data. The returned
 //! `DebugMessenger` does provide safe single-owner destruction through `Drop`.
 
-use crate::{NC_E_INVALID_ARG, NcDebugApiV2, NcDebugMessengerCreateInfoV2, NcStatus};
+use crate::{NC_E_INVALID_ARG, NcDebugApiV3, NcDebugMessengerCreateInfoV3, NcStatus};
 
 use super::{Runtime, status_to_result};
 
@@ -33,7 +33,7 @@ impl<'runtime> Debug<'runtime> {
     /// The callback and `user_data` in `create_info` must remain valid for all
     /// matching calls until the returned messenger is dropped. Debug callbacks
     /// must not drop their own messenger or otherwise destroy a debug messenger.
-    pub unsafe fn create_messenger(self, create_info: &NcDebugMessengerCreateInfoV2) -> Result<DebugMessenger, NcStatus> {
+    pub unsafe fn create_messenger(self, create_info: &NcDebugMessengerCreateInfoV3) -> Result<DebugMessenger, NcStatus> {
         let api = self.runtime.debug_api();
         let mut handle = 0;
         // SAFETY: The caller guarantees callback/user-data validity, and the
@@ -51,7 +51,7 @@ impl<'runtime> Debug<'runtime> {
 pub struct DebugMessenger {
     /// Exact table used for creation, retained so destruction stays paired with
     /// the same runtime generation and needs no later facade lookup.
-    api: &'static NcDebugApiV2,
+    api: &'static NcDebugApiV3,
     /// Nonzero process-local registration handle owned by this value.
     handle: u64,
 }
@@ -73,7 +73,7 @@ impl DebugMessenger {
 impl Drop for DebugMessenger {
     /// Unregisters the callback and waits for its in-flight calls to finish.
     fn drop(&mut self) {
-        // Runtime ABI v2 waits for in-flight callbacks before returning. The
+        // Runtime ABI v3 waits for in-flight callbacks before returning. The
         // unsafe creation contract forbids dropping a messenger from a callback,
         // which would otherwise wait for that callback itself.
         // SAFETY: This object owns the nonzero handle and destroys it once.

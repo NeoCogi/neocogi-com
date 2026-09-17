@@ -5,19 +5,27 @@
 
 use super::NcInterfaceDescriptor;
 
-/// Builds a derived-first ancestry list from one local descriptor and its base.
+/// Builds a derived-first ancestry list from one descriptor and all required projections.
 #[doc(hidden)]
 pub const fn __nc_interface_chain<const N: usize>(
     own: &'static NcInterfaceDescriptor,
-    base: &[&'static NcInterfaceDescriptor],
+    required: &[&[&'static NcInterfaceDescriptor]],
 ) -> [&'static NcInterfaceDescriptor; N] {
-    assert!(N == base.len() + 1, "invalid interface ancestry length");
     let mut result = [own; N];
-    let mut index = 0;
-    while index < base.len() {
-        result[index + 1] = base[index];
-        index += 1;
+    let mut output = 1;
+    let mut chain = 0;
+    // Required chains are finite because IDL rejects interface cycles. Keep
+    // duplicates here so the object-level identity check can compare them.
+    while chain < required.len() {
+        let mut item = 0;
+        while item < required[chain].len() {
+            result[output] = required[chain][item];
+            output += 1;
+            item += 1;
+        }
+        chain += 1;
     }
+    assert!(N == output, "invalid interface projection count");
     result
 }
 
@@ -62,7 +70,7 @@ const fn bytes_equal(left: &[u8], right: &[u8]) -> bool {
 
 /// Counts unique contracts across the declared interface ancestry lists.
 #[doc(hidden)]
-pub const fn __nc_class_interface_count(chains: &[&[&NcInterfaceDescriptor]]) -> usize {
+pub const fn __nc_object_interface_count(chains: &[&[&NcInterfaceDescriptor]]) -> usize {
     let mut count = 0;
     let mut chain = 0;
     while chain < chains.len() {

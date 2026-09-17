@@ -18,15 +18,15 @@ use syn::{
 };
 
 use crate::{
-    AbiType, BitEnum, BitFlag, Callable, Class, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant, Event,
-    EventPort, ExternalModule, Factory, Field, Import, Interface, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile,
+    AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant, EventPort,
+    ExternalModule, Field, Import, Interface, InterfaceRole, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile,
     SourceSpan, Struct, Threading, VariantFields,
 };
 
 mod keyword {
     //! Custom declaration keywords that intentionally are not Rust items.
 
-    syn::custom_keyword!(class);
+    syn::custom_keyword!(interface);
     syn::custom_keyword!(factory);
     syn::custom_keyword!(bitenum);
     syn::custom_keyword!(event);
@@ -245,16 +245,14 @@ impl Parse for ModuleSyntax {
                 parse_enum(attributes, input)?
             } else if input.peek(keyword::bitenum) {
                 parse_bit_enum(attributes, input)?
-            } else if input.peek(Token![trait]) {
-                parse_interface(attributes, input)?
+            } else if input.peek(keyword::interface) {
+                parse_interface(attributes, input, InterfaceRole::Ordinary)?
             } else if input.peek(keyword::event) {
-                parse_event(attributes, input)?
-            } else if input.peek(keyword::class) {
-                parse_class(attributes, input)?
+                parse_interface(attributes, input, InterfaceRole::Event)?
             } else if input.peek(keyword::factory) {
-                parse_factory(attributes, input)?
+                parse_interface(attributes, input, InterfaceRole::Factory)?
             } else {
-                return Err(input.error("expected `extern`, `use`, `struct`, `enum`, `bitenum`, `trait`, `event`, `class`, or `factory`"));
+                return Err(input.error("expected `extern`, `use`, `struct`, `enum`, `bitenum`, `interface`, `event`, or `factory`"));
             };
 
             if let Some(previous) = declaration_names.insert(declaration.name.clone(), declaration.span.clone()) {
@@ -385,74 +383,40 @@ fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result
     ))
 }
 
-/// Parses one reusable interface declared with the Rust-like `trait` keyword.
-fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Declaration> {
+/// Parses one common callable contract and applies its role-specific policy.
+fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>, role: InterfaceRole) -> syn::Result<Declaration> {
     let metadata = parse_attributes(attributes, AttributeContext::Interface)?;
-    input.parse::<Token![trait]>()?;
+    let threading = metadata_threading(&metadata);
+    // Dispatch already identified the keyword. Consuming it here keeps one
+    // grammar for identity, projections, threading, and callable ordering.
+    input.parse::<Ident>()?;
     let name = input.parse::<Ident>()?;
-    require_upper_camel_case(&name, "trait")?;
+    require_upper_camel_case(&name, "interface")?;
     let bases = parse_bases(input)?;
     let callables = parse_callables(input)?;
-    Ok(declaration(name, metadata, DeclarationKind::Interface(Interface { bases, callables })))
-}
-
-/// Parses a concrete event sink and its native payload-variant declarations.
-/// Deliveries are required to be shared, successful unit calls: producers do
-/// not mutate a subscriber through the ABI and callback errors stop dispatch.
-fn parse_event(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Declaration> {
-    let metadata = parse_attributes(attributes, AttributeContext::Interface)?;
-    input.parse::<keyword::event>()?;
-    let name = input.parse::<Ident>()?;
-    require_upper_camel_case(&name, "event")?;
-    let deliveries = parse_methods(input)?;
-    if deliveries.is_empty() {
-        return Err(syn::Error::new(name.span(), "IDL events require at least one delivery method"));
-    }
-    for delivery in &deliveries {
-        if delivery.receiver != Receiver::Shared || delivery.output != AbiType::Unit {
-            return Err(syn::Error::new(name.span(), "IDL event deliveries require `&self` and `Result<()>`"));
+    match role {
+        InterfaceRole::Event => {
+            // Native event sessions own local, immutable snapshots. A delivery
+            // cannot borrow mutable subscriber state or install another port.
+            if !bases.is_empty() || threading != Threading::Local {
+                return Err(syn::Error::new(name.span(), "event sinks must be local interfaces without bases"));
+            }
+            if callables.is_empty() {
+                return Err(syn::Error::new(name.span(), "IDL events require at least one delivery method"));
+            }
+            for callable in &callables {
+                match callable {
+                    Callable::Method(method) if method.receiver == Receiver::Shared && method.output == AbiType::Unit => {}
+                    _ => return Err(syn::Error::new(name.span(), "IDL event deliveries require `&self` and `Result<()>`")),
+                }
+            }
         }
+        InterfaceRole::Ordinary | InterfaceRole::Factory => {}
     }
-    Ok(declaration(name, metadata, DeclarationKind::Event(Event { deliveries })))
-}
-
-/// Parses one public object contract without admitting constructor syntax.
-fn parse_class(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Declaration> {
-    let metadata = parse_attributes(attributes, AttributeContext::Object)?;
-    let threading = metadata_threading(&metadata);
-    input.parse::<keyword::class>()?;
-    let name = input.parse::<Ident>()?;
-    require_upper_camel_case(&name, "class")?;
-    let required_interfaces = parse_bases(input)?;
-    let callables = parse_callables(input)?;
     Ok(declaration(
         name,
         metadata,
-        DeclarationKind::Class(Class {
-            required_interfaces,
-            callables,
-            threading,
-        }),
-    ))
-}
-
-/// Parses one typed construction or provider interface.
-fn parse_factory(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Declaration> {
-    let metadata = parse_attributes(attributes, AttributeContext::Object)?;
-    let threading = metadata_threading(&metadata);
-    input.parse::<keyword::factory>()?;
-    let name = input.parse::<Ident>()?;
-    require_upper_camel_case(&name, "factory")?;
-    let required_interfaces = parse_bases(input)?;
-    let callables = parse_callables(input)?;
-    Ok(declaration(
-        name,
-        metadata,
-        DeclarationKind::Factory(Factory {
-            required_interfaces,
-            callables,
-            threading,
-        }),
+        DeclarationKind::Interface(Interface { bases, callables, role, threading }),
     ))
 }
 
@@ -483,25 +447,6 @@ fn parse_bases(input: ParseStream<'_>) -> syn::Result<Vec<NamedType>> {
         .collect()
 }
 
-/// Parses a braced sequence of declaration-only COM methods.
-fn parse_methods(input: ParseStream<'_>) -> syn::Result<Vec<Method>> {
-    let body;
-    braced!(body in input);
-    let mut methods = Vec::new();
-    let mut names = HashMap::new();
-    while !body.is_empty() {
-        let source = body.parse::<TraitItemFn>()?;
-        let method = lower_method(source)?;
-        if let Some(previous) = names.insert(method.name.clone(), method.span.clone()) {
-            return Err(duplicate_error("EIDL016", "method", &method.name, &method.span, &previous));
-        }
-        methods.push(method);
-    }
-    Ok(methods)
-}
-
-/// Parses the ordered vtable of ordinary methods and declarative event ports.
-/// A port spells only its receiver and concrete event sink; its leased result
 /// is generated from the shared COM event contract without a second signature.
 fn parse_callables(input: ParseStream<'_>) -> syn::Result<Vec<Callable>> {
     let body;
@@ -946,17 +891,6 @@ fn attach_declaration_source(declaration: &mut Declaration, source: &SourceFile)
         DeclarationKind::Interface(interface) => {
             attach_callable_source(&mut interface.bases, &mut interface.callables, source);
         }
-        DeclarationKind::Event(event) => {
-            for delivery in &mut event.deliveries {
-                attach_method_source(delivery, source);
-            }
-        }
-        DeclarationKind::Class(class) => {
-            attach_callable_source(&mut class.required_interfaces, &mut class.callables, source);
-        }
-        DeclarationKind::Factory(factory) => {
-            attach_callable_source(&mut factory.required_interfaces, &mut factory.callables, source);
-        }
     }
 }
 
@@ -1060,10 +994,8 @@ enum AttributeContext {
     Enum,
     /// Bit enums accept only identity and documentation attributes.
     BitEnum,
-    /// Interfaces accept identity and documentation only.
+    /// Interfaces additionally accept threading capability.
     Interface,
-    /// Classes and factories additionally accept threading capability.
-    Object,
 }
 
 /// Fully parsed common declaration attributes.
@@ -1073,7 +1005,7 @@ struct Attributes {
     docs: Vec<String>,
     /// Required version and optional explicit UUID.
     id: DeclarationId,
-    /// Class or factory threading capability.
+    /// Interface threading capability.
     threading: Option<Threading>,
     /// Whether generated bindings implement format-neutral typed decoding.
     deserialize: bool,
@@ -1119,7 +1051,7 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
                 version: positive_version(arguments.version, &attribute)?,
                 explicit: Some(NcGuid::from_uuid_bytes(parse_uuid(&arguments.uuid)?)),
             });
-        } else if attribute.path().is_ident("threading") && matches!(context, AttributeContext::Object) {
+        } else if attribute.path().is_ident("threading") && matches!(context, AttributeContext::Interface) {
             if threading.is_some() {
                 return Err(syn::Error::new_spanned(attribute, "duplicate threading capability"));
             }
@@ -1255,7 +1187,7 @@ fn parse_optional_enum_repr(input: ParseStream<'_>) -> syn::Result<EnumRepr> {
     }
 }
 
-/// Parses one explicit class or factory threading capability.
+/// Parses one explicit interface threading capability.
 fn parse_threading(attribute: &Attribute) -> syn::Result<Threading> {
     let capability = attribute.parse_args::<Ident>()?;
     match capability.to_string().as_str() {

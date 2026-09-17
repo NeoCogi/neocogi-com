@@ -40,7 +40,7 @@ pub struct OverridePoint {
 }
 
 pub fn exercise_explicit_override_path() -> Result<u16, NcStatus> {
-    let unknown: ComPtr<IUnknown, renamed_nc::ThreadSafe> = OverrideResolved::create();
+    let unknown: ComPtr<IUnknown, renamed_nc::ThreadSafe> = OverrideResolved::from_value(OverrideResolved);
     let resolved = unknown.query::<IOverrideResolvedAbi>()?;
 
     resolved.value()

@@ -325,7 +325,7 @@ pub unsafe trait ComAbiObject: Sized {
 /// methods may be called concurrently from arbitrary threads and that final
 /// destruction may occur on any thread. IDL-backed implementations derive this
 /// associated type from their canonical description.
-pub unsafe trait ComClass: ComAbiObject {
+pub unsafe trait ComObject: ComAbiObject {
     /// Strongest threading capability supported by this implementation's COM objects.
     type Threading: ThreadingModel;
 }
@@ -338,9 +338,9 @@ pub unsafe trait ComClass: ComAbiObject {
 /// Implementors must guarantee that every exposed COM interface method may be
 /// called from any thread, including concurrently with calls through cloned
 /// interface pointers. This usually means the object is immutable, internally
-/// synchronized, or otherwise free of thread-affine state. Its [`ComClass`]
+/// synchronized, or otherwise free of thread-affine state. Its [`ComObject`]
 /// implementation must identify [`ThreadSafe`] as the class capability.
-pub unsafe trait ThreadSafeComObject: ComClass<Threading = ThreadSafe> + Send + Sync {}
+pub unsafe trait ThreadSafeComObject: ComObject<Threading = ThreadSafe> + Send + Sync {}
 
 #[cfg(test)]
 mod tests {

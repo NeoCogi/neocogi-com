@@ -1,30 +1,43 @@
 //! Directional ABI compatibility checks over validated inspection artifacts.
 //!
-//! Canonical module fingerprints are the ABI authority. Source and declaration
-//! changes under an unchanged fingerprint are reported only as diagnostics.
+//! The root factory signature covers its complete transitive contract revision.
+//! Plugin version text remains diagnostic; provider dependencies affect deployment.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
-use crate::schema::{ArtifactContractModule, ArtifactFactory, ArtifactThreading, InspectionArtifact};
+use crate::schema::{ArtifactFactory, ArtifactThreading, InspectionArtifact};
 
+/// Directional changes relevant to replacing one deployed plugin.
 #[derive(Debug, Default, Eq, PartialEq)]
 pub(crate) struct CompatibilityReport {
+    /// Changes that can invalidate an existing host or load plan.
     pub(crate) breaking: Vec<String>,
+    /// Requirements relaxed or capabilities strengthened by the new plugin.
     pub(crate) additive: Vec<String>,
+    /// Informational changes outside the typed compatibility boundary.
     pub(crate) diagnostic: Vec<String>,
 }
 
 impl CompatibilityReport {
+    /// Reports whether an old consumer remains compatible with the new snapshot.
     pub(crate) fn is_compatible(&self) -> bool {
         self.breaking.is_empty()
     }
 }
 
+/// Compares validated snapshots, stopping early when native identity differs.
 pub(crate) fn check_compatibility(old: &InspectionArtifact, new: &InspectionArtifact) -> CompatibilityReport {
     let mut report = CompatibilityReport::default();
 
     if old.plugin.id != new.plugin.id {
         report.breaking.push(format!("plugin identity changed: {} -> {}", old.plugin.id, new.plugin.id));
+        return report;
+    }
+    if old.description_abi_version != new.description_abi_version {
+        report.breaking.push(format!(
+            "descriptor ABI version changed: {} -> {}",
+            old.description_abi_version, new.description_abi_version
+        ));
         return report;
     }
     if old.core_abi_version != new.core_abi_version {
@@ -55,57 +68,15 @@ fn compare_factory(report: &mut CompatibilityReport, old: &ArtifactFactory, new:
     }
     compare_threading(report, "root factory", old.root_factory_threading, new.root_factory_threading);
 
-    let old_direct: BTreeMap<_, _> = old
-        .direct_contracts
-        .iter()
-        .map(|reference| (reference.module_id.as_str(), reference.abi_fingerprint.as_str()))
-        .collect();
-    let new_direct: BTreeMap<_, _> = new
-        .direct_contracts
-        .iter()
-        .map(|reference| (reference.module_id.as_str(), reference.abi_fingerprint.as_str()))
-        .collect();
-    for (module_id, old_fingerprint) in &old_direct {
-        match new_direct.get(module_id) {
-            None => report.additive.push(format!("removed direct contract requirement {module_id}")),
-            Some(new_fingerprint) if old_fingerprint != new_fingerprint => report.breaking.push(format!(
-                "direct contract {module_id} ABI fingerprint changed: {old_fingerprint} -> {new_fingerprint}"
-            )),
-            Some(_) => {}
-        }
-    }
-    for module_id in new_direct.keys() {
-        if !old_direct.contains_key(module_id) {
-            report.breaking.push(format!("added direct contract requirement {module_id}"));
-        }
-    }
-    compare_contract_modules(report, &old.modules, &new.modules);
-}
-
-/// Compares exact module revisions while treating unchanged fingerprints as authority.
-fn compare_contract_modules(report: &mut CompatibilityReport, old: &[ArtifactContractModule], new: &[ArtifactContractModule]) {
-    let old = map_by(old, |module| module.id.as_str());
-    let new = map_by(new, |module| module.id.as_str());
-    for (module_id, old_module) in &old {
-        match new.get(module_id) {
-            None => report.additive.push(format!("removed transitive contract module {module_id}")),
-            Some(new_module) if old_module.abi_fingerprint != new_module.abi_fingerprint => report.breaking.push(format!(
-                "contract module {module_id} ABI fingerprint changed: {} -> {}",
-                old_module.abi_fingerprint, new_module.abi_fingerprint
-            )),
-            Some(new_module) if *old_module != *new_module => report
-                .diagnostic
-                .push(format!("contract module {module_id} description changed with an unchanged ABI fingerprint")),
-            Some(_) => {}
-        }
-    }
-    for module_id in new.keys() {
-        if !old.contains_key(module_id) {
-            report.breaking.push(format!("added transitive contract module {module_id}"));
-        }
+    if old.root_factory_signature != new.root_factory_signature {
+        report.breaking.push(format!(
+            "root factory ABI signature changed: {} -> {}",
+            old.root_factory_signature, new.root_factory_signature
+        ));
     }
 }
 
+/// A new hard dependency can make a previously valid load plan incomplete.
 fn compare_dependencies(report: &mut CompatibilityReport, old: &InspectionArtifact, new: &InspectionArtifact) {
     let old: BTreeSet<_> = old.plugin.dependencies.iter().collect();
     let new: BTreeSet<_> = new.plugin.dependencies.iter().collect();
@@ -132,14 +103,11 @@ fn compare_threading(report: &mut CompatibilityReport, subject: &str, old: Artif
     }
 }
 
+/// Records changed release text without treating it as an ABI signature.
 fn push_diagnostic_change(report: &mut CompatibilityReport, label: &str, old: &str, new: &str) {
     if old != new {
         report.diagnostic.push(format!("{label} changed: {old:?} -> {new:?}"));
     }
-}
-
-fn map_by<'a, T>(values: &'a [T], key: impl Fn(&'a T) -> &'a str) -> BTreeMap<&'a str, &'a T> {
-    values.iter().map(|value| (key(value), value)).collect()
 }
 
 #[cfg(test)]
@@ -158,13 +126,12 @@ mod tests {
     fn factory_contract_fingerprint_changes_are_breaking() {
         let old = sample_artifact();
         let mut new = old.clone();
-        new.factory.direct_contracts[0].abi_fingerprint = "22".repeat(32);
-        new.factory.modules[0].abi_fingerprint = "22".repeat(32);
+        new.factory.root_factory_signature = "22".repeat(32);
 
         let report = check_compatibility(&old, &new);
 
         assert!(!report.is_compatible());
-        assert!(report.breaking.iter().any(|change| change.contains("ABI fingerprint changed")));
+        assert!(report.breaking.iter().any(|change| change.contains("ABI signature changed")));
     }
 
     #[test]

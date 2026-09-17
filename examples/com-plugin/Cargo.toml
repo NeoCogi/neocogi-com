@@ -1,0 +1,31 @@
+[package]
+name = "neocogi-example-com-plugin"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+# The same implementation links into a monolith; dynamic builds override this
+# target's crate type with `cargo rustc --lib --crate-type cdylib`.
+crate-type = ["rlib"]
+
+[features]
+default = []
+# Only the final shared library owns the versioned native entry point.
+dynamic-plugin = []
+# Hosts select the shared runtime unless they explicitly request a monolith.
+host = ["neocogi-com/runtime"]
+monolith = ["host", "neocogi-com/static-runtime"]
+
+[dependencies]
+neocogi-com = { workspace = true, features = ["macros", "std"] }
+neocogi-idl-example-contracts = { path = "../../tools/idl/example-contracts" }
+
+[[bin]]
+name = "com-plugin-host"
+path = "src/main.rs"
+required-features = ["host"]
+
+[dev-dependencies]
+tempfile.workspace = true

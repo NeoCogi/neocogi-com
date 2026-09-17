@@ -115,6 +115,9 @@ unsafe impl Sync for IUnknownVTable {}
 ///   Every COM pointer argument/return is checked against its expected full
 ///   identity before invoking any interface-specific method. The common prefix
 ///   publishes this actual interface identity in immutable static storage.
+/// - `Self::Threading` is the minimum implementation guarantee. Shared
+///   contracts require thread-safe calls, ownership, and destruction; a
+///   pointer may retain a stronger guarantee or explicitly weaken it.
 /// - Every live `*mut Self` stored in a [`crate::ComPtr`] or [`crate::ComRef`]
 ///   remains backed by its interface header, vtable, and object storage for the
 ///   reference's lifetime.
@@ -137,6 +140,9 @@ pub unsafe trait ComInterface {
     /// Canonical validation form of this interface's typed ABI contract.
     const ABI_SIGNATURE: NcAbiSignature = Self::INTERFACE_ID.abi_signature;
 
+    /// Minimum threading capability required of an implementation.
+    type Threading: ThreadingModel;
+
     /// The C-compatible vtable type for this interface.
     type VTable;
 
@@ -144,50 +150,16 @@ pub unsafe trait ComInterface {
     fn iunknown(this: *mut Self) -> *mut IUnknown;
 }
 
-/// Compile-time description of one factory-created object shape.
-///
-/// This trait carries only information needed to build and query an object. It
-/// deliberately has no constructor function, erased argument frame, or runtime
-/// registration hook. IDL binding generation implements it for class and
-/// factory ABI projections; implementation crates consume it through
-/// `#[com_object]` or `#[com_factory]`.
+/// An interface eligible to serve as a plugin's zero-argument root.
+/// Typed methods on this interface construct every parameterized object.
 ///
 /// # Safety
 ///
-/// `OBJECT_ID`, `QUALIFIED_NAME`, `VERSION`, `Threading`, and
-/// `INTERFACE_CHAINS` must describe the exact generated primary projection and
-/// all interfaces that an implementation is required to expose. Every chain
-/// must use immutable static descriptors generated from the same ABI types.
-pub unsafe trait ComObjectDescription: ComInterface {
-    /// Minimum threading capability promised by every implementation.
-    type Threading: ThreadingModel;
+/// Implementors must be generated from an IDL `factory` declaration. The
+/// marker certifies construction policy without changing the interface ABI.
+pub unsafe trait ComFactoryInterface: ComInterface {}
 
-    /// Stable identity of the IDL class or factory declaration.
-    const OBJECT_ID: NcGuid;
-
-    /// Exact dotted IDL declaration name without a rewritten prefix or suffix.
-    const QUALIFIED_NAME: &'static str;
-
-    /// Positive declaration version from `#[version]` or `#[id]`.
-    const VERSION: u32;
-
-    /// Complete interface ancestry lists required by every implementation.
-    const INTERFACE_CHAINS: &'static [&'static [&'static crate::NcInterfaceDescriptor]];
-}
-
-/// Marker distinguishing typed factory descriptions from ordinary classes.
-///
-/// Factories use the same COM representation as classes. The separate marker
-/// lets `#[com_factory]` reject an ordinary class at compile time and makes the
-/// construction boundary visible without runtime type erasure.
-///
-/// # Safety
-///
-/// Implementors must already satisfy [`ComObjectDescription`] and must have
-/// been declared as an IDL `factory`, not merely as an IDL `class`.
-pub unsafe trait ComFactoryDescription: ComObjectDescription {}
-
-/// Compile-time connection between a Rust factory implementation and its IDL description.
+/// Compile-time connection between a Rust factory implementation and its IDL interface.
 ///
 /// `#[com_factory(Factory)]` is the normal and only generated implementation.
 /// Plugin description macros use this association to obtain the root factory ID
@@ -195,11 +167,11 @@ pub unsafe trait ComFactoryDescription: ComObjectDescription {}
 ///
 /// # Safety
 ///
-/// `Description` must be the exact IDL factory whose callable interfaces are
+/// `Interface` must be the exact IDL factory whose callable interfaces are
 /// implemented by `Self`'s generated COM storage.
 pub unsafe trait ComFactoryImplementation {
-    /// Constructor-free IDL factory description implemented by this Rust type.
-    type Description: ComFactoryDescription;
+    /// Constructor-free IDL factory interface implemented by this Rust type.
+    type Interface: ComFactoryInterface;
 }
 
 /// Safe construction policy for a plugin's root factory implementation.
@@ -210,20 +182,20 @@ pub unsafe trait ComFactoryImplementation {
 /// The typed return guarantees that plugin activation cannot accidentally
 /// publish an unrelated COM object as its declared root factory.
 pub trait ComFactoryBootstrap: ComFactoryImplementation + Sized {
-    /// Creates one owned instance of the exact associated factory description.
-    fn create_factory() -> Result<ComPtr<Self::Description, <Self::Description as ComObjectDescription>::Threading>, NcStatus>;
+    /// Creates one owned instance of the exact associated factory interface.
+    fn create_factory() -> Result<ComPtr<Self::Interface, <Self::Interface as ComInterface>::Threading>, NcStatus>;
 }
 
-/// Compile-time proof that an implementation satisfies a description's mode.
+/// Compile-time proof that an implementation satisfies a interface's mode.
 ///
 /// This hidden helper lets generated object storage derive threading from the
-/// IDL description. Local objects need only own `'static` state, while shared
+/// IDL interface. Local objects need only own `'static` state, while shared
 /// objects must also be safe to send and access across threads.
 #[doc(hidden)]
-pub trait __ComSupportsDescriptionThreading<M: ThreadingModel> {}
+pub trait __ComSupportsInterfaceThreading<M: ThreadingModel> {}
 
-impl<T: 'static> __ComSupportsDescriptionThreading<ThreadLocal> for T {}
-impl<T: Send + Sync + 'static> __ComSupportsDescriptionThreading<ThreadSafe> for T {}
+impl<T: 'static> __ComSupportsInterfaceThreading<ThreadLocal> for T {}
+impl<T: Send + Sync + 'static> __ComSupportsInterfaceThreading<ThreadSafe> for T {}
 
 // SAFETY: `IUnknown` is the canonical interface header and vtable prefix. Its
 // pointer conversion is the identity operation, and the constants describe the
@@ -231,6 +203,7 @@ impl<T: Send + Sync + 'static> __ComSupportsDescriptionThreading<ThreadSafe> for
 unsafe impl ComInterface for IUnknown {
     const INTERFACE_ID: NcInterfaceId = IUNKNOWN_INTERFACE_ID;
 
+    type Threading = ThreadLocal;
     type VTable = IUnknownVTable;
 
     /// Returns the pointer unchanged because this is already `IUnknown`.
@@ -248,7 +221,7 @@ impl IUnknown {
     ///
     /// Every generated object contains exactly one mapping to this interface
     /// contract. `#[com_object]` inserts that mapping automatically; users list
-    /// only the non-root interfaces required by its description.
+    /// only the additional interfaces their object implements.
     pub const INTERFACE_DESCRIPTOR: NcInterfaceDescriptor = NcInterfaceDescriptor {
         interface_id: IID_IUNKNOWN,
         qualified_name: NcStaticUtf8::from_static(IUNKNOWN_QUALIFIED_NAME),

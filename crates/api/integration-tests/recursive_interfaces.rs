@@ -162,10 +162,10 @@ impl IRight for Pair {
 
 #[test]
 fn self_and_mutual_references_compile_and_preserve_identity() {
-    let node: ComPtr<INodeAbi> = Node::create().query().unwrap();
+    let node: ComPtr<INodeAbi> = Node::from_value(Node).query().unwrap();
     let echoed = node.echo(node.as_com_ref()).unwrap();
     assert_eq!(node.query::<IUnknown>().unwrap().as_ptr(), echoed.query::<IUnknown>().unwrap().as_ptr());
-    let pair = Pair::create();
+    let pair = Pair::from_value(Pair);
     assert_eq!(pair.query::<ILeftAbi>().unwrap().right().unwrap_err(), NC_E_NOT_FOUND);
     assert_eq!(pair.query::<IRightAbi>().unwrap().left().unwrap_err(), NC_E_NOT_FOUND);
 }
@@ -182,7 +182,7 @@ fn full_pointer_checks_reject_incompatible_arguments_and_release_owned_returns()
     })
     .query()
     .unwrap();
-    let value: ComPtr<consumer::IValueAbi> = consumer::Value::create().query().unwrap();
+    let value: ComPtr<consumer::IValueAbi> = consumer::Value::from_value(consumer::Value).query().unwrap();
     assert_eq!(exchange.accept(value.as_com_ref()), Err(NC_E_ABI_VERSION));
     assert_eq!(calls.get(), 0, "rejected arguments must not enter the implementation");
     // The failed borrowed call must leave its owner's reference alive.

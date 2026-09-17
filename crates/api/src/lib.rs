@@ -43,7 +43,7 @@
 //! With the `runtime` feature, `neocogi-com` exposes the process-global
 //! `Runtime` facade backed by the linked `libnc_com_shared_runtime` shared library.
 //! Hosts still choose which factory plugins to accept, but successful dynamic
-//! plugin loads and their exact contract libraries remain mapped until process exit.
+//! plugin libraries remain mapped until process exit.
 //! The facade and `neocogi-com-runtime-sys` contain no registry state. Cargo
 //! feature unification may compile the facade into multiple dependents, but
 //! their external calls resolve to the same loader-owned shared object and
@@ -60,7 +60,7 @@
 //! [`ComPtr<T>`](ComPtr) is thread-local by default. Objects declared with
 //! `#[com_object(thread_safe, ...)]` produce
 //! `ComPtr<T, ThreadSafe>`, which can be sent and shared across threads.
-//! Generated [`ComClass::Threading`] implementations make that strongest object
+//! Generated [`ComObject::Threading`] implementations make that strongest object
 //! capability the source for typed pointers and factory metadata. A
 //! thread-safe pointer can be explicitly weakened to a thread-local owner or
 //! borrow without changing the underlying COM reference.
@@ -76,9 +76,9 @@
 //! | `ComRef<'a, T, ThreadSafe>` | No | Yes | Yes | Calls, transfer, and sharing within `'a` |
 //!
 //! This marker cannot be inferred from `T`: an interface describes callable
-//! methods, and both thread-local and thread-safe classes may implement the same
+//! methods, and both thread-local and thread-safe objects may implement the same
 //! interface. It also cannot be recovered from the raw ABI pointer, whose
-//! layout contains no threading tag. [`ComClass::Threading`] records the
+//! layout contains no threading tag. [`ComObject::Threading`] records the
 //! concrete producer's strongest capability while the implementation is known;
 //! the pointer marker preserves that evidence after a factory return and
 //! `QueryInterface` erase the concrete implementation type. In particular, making the
@@ -170,7 +170,7 @@
 //!     }
 //! }
 //!
-//! let unknown: ComPtr<IUnknown> = Calculator::create();
+//! let unknown: ComPtr<IUnknown> = Calculator::from_value(Calculator);
 //! let calculator = unknown.query::<ICalculatorAbi>()?;
 //! assert_eq!(calculator.add(2, 3)?, 5);
 //! # Ok::<(), NcStatus>(())
@@ -261,7 +261,7 @@
 //!
 //! New IDL plugins expose [`NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL`] through
 //! [`export_factory_plugin!`]. Their [`NcFactoryPluginDescription`] contains
-//! exact [`NcContractModuleReference`] values and one root-factory bootstrap,
+//! the exact root interface identity/signature and one factory bootstrap,
 //! with no class table or erased argument frame. `factory_plugin!` derives
 //! root identity and threading from the generated IDL factory associated by
 //! `com_factory`. Static hosts call
@@ -454,46 +454,41 @@ pub use buffer::{NcCopyFromBufferOffset, NcCopyToBufferOffset};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
-pub use macros::{ComDeserialize, com_class_description, com_enum, com_factory, com_factory_description, com_interface, com_object, com_struct, factory_plugin};
+pub use macros::{ComDeserialize, com_enum, com_factory, com_interface, com_object, com_struct, factory_plugin};
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{format_abi_signature, format_method_signature};
 pub use neocogi_com_core::{
     __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClientInterface, ComDeserialize,
-    ComDeserializer, ComEnum, ComFactoryBootstrap, ComFactoryDescription, ComFactoryImplementation, ComInterface, ComObjectDescription, ComPtr, ComRecord,
-    ComRecordAccess, ComRef, ComSequence, ComSequenceAccess, ComStruct, ComVariantAccess, NcClientPointer, IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN,
-    INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
-    NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT,
-    NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
-    NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64,
-    NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64,
-    NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_COM_GUID_NAMESPACE, NC_COM_RUNTIME_ABI_VERSION,
-    NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO,
-    NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN,
-    NC_DESCRIPTOR_VERSION_MAX_LEN, NC_CONTRACT_DECLARATION_BIT_ENUM, NC_CONTRACT_DECLARATION_CLASS, NC_CONTRACT_DECLARATION_ENUM,
-    NC_CONTRACT_DEPENDENCY_BUILTIN, NC_CONTRACT_DEPENDENCY_NATIVE, NC_CONTRACT_DECLARATION_FACTORY, NC_CONTRACT_DECLARATION_INTERFACE,
-    NC_CONTRACT_DECLARATION_NO_THREADING, NC_CONTRACT_DECLARATION_STRUCT, NC_CONTRACT_DESCRIPTION_ABI_VERSION, NC_E_ABI_VERSION, NC_E_BUSY,
-    NC_E_CONTRACT_MISMATCH, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND,
-    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiFieldLayout, NcAbiSignature,
-    NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcActivatePluginFactory,
-    NcContractDeclarationDescription, NcContractDependencyDescription, NcContractFingerprint, NcContractModuleDescription, NcContractModuleReference,
-    NcContractRegistryV2, NcDebugApiV2, NcDebugCallbackV2, NcDebugMessageV2, NcDebugMessengerCreateInfoV2, NcFactoryPluginDescription,
-    NcGetContractModuleDescription, NcGetFactoryPluginDescription, NcGuid, NcInspectFactoryPluginDescriptionCallbackV2, NcInspectionApiV2,
-    NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcModuleInfoV2, NcPluginDependencyDescriptor,
-    NcPluginInfoV2, NcPluginRegistryV2, NcQualifiedNameError, NcRuntimeApiV2, NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError,
-    QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel, activate_factory_implementation, guid_from_qualified_name,
-    raw, return_factory_plugin_description, validate_contract_module_description, validate_factory_plugin_description, validate_qualified_name,
-    validate_version_text,
+    ComDeserializer, ComEnum, ComFactoryBootstrap, ComFactoryInterface, ComFactoryImplementation, ComInterface, ComPtr, ComRecord, ComRecordAccess, ComRef,
+    ComSequence, ComSequenceAccess, ComStruct, ComVariantAccess, NcClientPointer, IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable,
+    INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT,
+    NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT, NC_ABI_PASSING_VALUE,
+    NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE,
+    NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE,
+    NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE,
+    NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_COM_GUID_NAMESPACE, NC_COM_RUNTIME_ABI_VERSION, NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS,
+    NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL,
+    NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN,
+    NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND,
+    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_FACTORY_PLUGIN_ABI_VERSION, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GUID_NIL, NC_OK,
+    NcAbiFieldLayout, NcAbiSignature, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType,
+    NcAbiTypeDescriptor, NcActivatePluginFactory, NcDebugApiV3, NcDebugCallbackV3, NcDebugMessageV3, NcDebugMessengerCreateInfoV3, NcFactoryPluginDescription,
+    NcGetFactoryPluginDescription, NcGuid, NcInspectFactoryPluginDescriptionCallbackV3, NcInspectionApiV3, NcInterfaceDescriptor, NcInterfaceId,
+    NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcModuleInfoV3, NcPluginDependencyDescriptor, NcPluginInfoV3, NcPluginRegistryV3,
+    NcQualifiedNameError, NcRuntimeApiV3, NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES,
+    QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel, activate_factory_implementation, guid_from_qualified_name, raw,
+    return_factory_plugin_description, validate_factory_plugin_description, validate_qualified_name, validate_version_text,
 };
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{ComMap, ComMapAccess};
-pub use object::{__ComCallGate, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComClass, ThreadSafeComObject};
+pub use object::{__ComCallGate, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComObject, ThreadSafeComObject};
 #[doc(hidden)]
-pub use neocogi_com_core::__ComSupportsDescriptionThreading;
+pub use neocogi_com_core::__ComSupportsInterfaceThreading;
 #[cfg(feature = "runtime")]
 pub use runtime::{
-    ContractRegistry, Debug, DebugMessenger, Inspection, LoadedModuleId, LoadedModuleInfo, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS,
-    NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES, NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, PluginInfo, PluginRegistry, Runtime,
+    Debug, DebugMessenger, Inspection, LoadedModuleId, LoadedModuleInfo, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES,
+    NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, PluginInfo, PluginRegistry, Runtime,
 };
 
 #[doc(hidden)]
-pub use neocogi_com_core::{__nc_interface_chain, __nc_class_interface_count};
+pub use neocogi_com_core::{__nc_interface_chain, __nc_object_interface_count};

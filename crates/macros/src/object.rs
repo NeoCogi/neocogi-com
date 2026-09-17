@@ -8,25 +8,25 @@
 use quote::{format_ident, quote};
 use syn::{Fields, ItemStruct};
 
-use crate::args::ClassArgs;
+use crate::args::ObjectArgs;
 use crate::util::{create_visibility, runtime_crate_path};
 
 /// Generates object storage, lifecycle thunks, and local construction helpers.
-pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_factory: bool) -> proc_macro2::TokenStream {
+pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_factory: bool) -> proc_macro2::TokenStream {
     // `FooComObject` is intentionally private generated storage. Users see the
     // original Rust `Foo` plus COM interface pointers; the storage layout is an
     // implementation detail owned by this macro.
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
-    let class_ident = &input.ident;
-    let class_vis = create_visibility(&input.vis);
-    let storage_ident = format_ident!("{class_ident}ComObject");
+    let object_ident = &input.ident;
+    let object_vis = create_visibility(&input.vis);
+    let storage_ident = format_ident!("{object_ident}ComObject");
     // Rust implementation generics stay inside the allocating binary, and COM
     // pointers cannot carry the lifetime of borrowed application storage.
     let generic = !input.generics.params.is_empty();
     if input.generics.lifetimes().next().is_some() {
         return syn::Error::new_spanned(
             &input.generics,
-            "COM implementation classes must own their state; lifetime parameters are not supported",
+            "COM implementation objects must own their state; lifetime parameters are not supported",
         )
         .to_compile_error();
     }
@@ -34,24 +34,24 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
     let (_, input_type_generics, _) = input.generics.split_for_impl();
     if generic {
         let (_, types, _) = input.generics.split_for_impl();
-        generics.make_where_clause().predicates.push(syn::parse_quote!(#class_ident #types: 'static));
+        generics.make_where_clause().predicates.push(syn::parse_quote!(#object_ident #types: 'static));
     }
-    if let Some(description) = &args.object_description {
-        // The IDL description owns the threading mode. This bound accepts all
+    if let Some(interface) = &args.primary_interface {
+        // The IDL interface owns the threading mode. This bound accepts all
         // `'static` local implementations and additionally requires Send +
-        // Sync when the description selects the shared threading model.
+        // Sync when the interface selects the shared threading model.
         generics.make_where_clause().predicates.push(syn::parse_quote! {
-            #class_ident #input_type_generics: #nc::__ComSupportsDescriptionThreading<
-                <#description as #nc::ComObjectDescription>::Threading
+            #object_ident #input_type_generics: #nc::__ComSupportsInterfaceThreading<
+                <#interface as #nc::ComInterface>::Threading
             >
         });
     }
     let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
-    let class_type = quote! { #class_ident #type_generics };
+    let object_type = quote! { #object_ident #type_generics };
     let storage_type = quote! { #storage_ident #type_generics };
 
-    let declared_threading_model = if let Some(description) = &args.object_description {
-        quote! { <#description as #nc::ComObjectDescription>::Threading }
+    let declared_threading_model = if let Some(interface) = &args.primary_interface {
+        quote! { <#interface as #nc::ComInterface>::Threading }
     } else if args.thread_safe {
         quote! { #nc::ThreadSafe }
     } else {
@@ -60,39 +60,33 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
     // All generated pointer types project through this one implementation-level
     // threading declaration.
     let pointer_threading_model = quote! {
-        <#class_type as #nc::ComClass>::Threading
+        <#object_type as #nc::ComObject>::Threading
     };
-    let com_class_impl = quote! {
+    let com_object_impl = quote! {
         // SAFETY: This associated mode is generated from the object attribute
-        // and is reused by every generated pointer and description association.
-        unsafe impl #impl_generics #nc::ComClass for #class_type #where_clause {
+        // and is reused by every generated pointer and interface association.
+        unsafe impl #impl_generics #nc::ComObject for #object_type #where_clause {
             type Threading = #declared_threading_model;
         }
     };
     let is_unit_struct = matches!(input.fields, Fields::Unit);
     // Query order and exported metadata use the same derived-first ancestry.
     // Shared bases are advertised once even when several branches expose them.
-    let interface_chains = if let Some(abi_path) = args.object_description.as_ref() {
-        // IDL descriptions contain the complete class/factory projection set;
-        // implementation crates do not repeat that public contract.
-        quote! { <#abi_path as #nc::ComObjectDescription>::INTERFACE_CHAINS }
-    } else {
-        let declared_chains = args.interfaces.iter().map(|iface| {
-            let abi = &iface.abi_path;
-            quote! { &#abi::INTERFACE_CHAIN }
-        });
-        quote! { &[
-            &[&#nc::IUnknown::INTERFACE_DESCRIPTOR],
-            #(#declared_chains,)*
-        ] }
-    };
-    let thread_safe_marker_impl = (args.thread_safe && args.object_description.is_none()).then(|| {
+    let declared_chains = args.interfaces.iter().map(|iface| {
+        let abi = &iface.abi_path;
+        quote! { &#abi::INTERFACE_CHAIN }
+    });
+    let interface_chains = quote! { &[
+        &[&#nc::IUnknown::INTERFACE_DESCRIPTOR],
+        #(#declared_chains,)*
+    ] };
+    let thread_safe_marker_impl = (args.thread_safe && args.primary_interface.is_none()).then(|| {
         let assertion = (!generic).then(|| {
             quote! {
                 const _: fn() = || {
-                    // Additional direct diagnostic for ordinary nongeneric classes.
+                    // Additional direct diagnostic for ordinary nongeneric objects.
                     fn assert_thread_safe<T: Send + Sync>() {}
-                    assert_thread_safe::<#class_type>();
+                    assert_thread_safe::<#object_type>();
                 };
             }
         });
@@ -101,58 +95,58 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
             // SAFETY: ThreadSafeComObject's Send + Sync supertraits prove the
             // bounds for every permitted specialization. Interface behavior must
             // also uphold the documented concurrent-call contract.
-            unsafe impl #impl_generics #nc::ThreadSafeComObject for #class_type #where_clause {}
+            unsafe impl #impl_generics #nc::ThreadSafeComObject for #object_type #where_clause {}
         }
     });
     let factory_assertion = require_factory.then(|| {
-        let description = args.object_description.as_ref().expect("com_factory validates description presence");
+        let interface = args.primary_interface.as_ref().expect("com_factory validates a primary interface");
         quote! {
             const _: fn() = || {
-                // This compile-time-only obligation rejects an IDL class passed
+                // This compile-time-only obligation rejects an IDL object passed
                 // accidentally to `com_factory` without adding runtime tags.
-                fn assert_factory<T: #nc::ComFactoryDescription>() {}
-                assert_factory::<#description>();
+                fn assert_factory<T: #nc::ComFactoryInterface>() {}
+                assert_factory::<#interface>();
             };
         }
     });
     let factory_implementation = require_factory.then(|| {
-        let description = args.object_description.as_ref().expect("com_factory validates description presence");
+        let interface = args.primary_interface.as_ref().expect("com_factory validates a primary interface");
         quote! {
             // SAFETY: `com_factory` generates the storage and complete
-            // interface projection set directly from this IDL description.
-            unsafe impl #impl_generics #nc::ComFactoryImplementation for #class_type #where_clause {
-                /// Exact IDL factory description implemented by this Rust type.
-                type Description = #description;
+            // interface projection set directly from this IDL interface.
+            unsafe impl #impl_generics #nc::ComFactoryImplementation for #object_type #where_clause {
+                /// Exact IDL factory interface implemented by this Rust type.
+                type Interface = #interface;
             }
         }
     });
     let unit_factory_bootstrap = (require_factory && is_unit_struct).then(|| {
-        let description = args.object_description.as_ref().expect("com_factory validates description presence");
+        let interface = args.primary_interface.as_ref().expect("com_factory validates a primary interface");
         quote! {
-            impl #impl_generics #nc::ComFactoryBootstrap for #class_type #where_clause {
+            impl #impl_generics #nc::ComFactoryBootstrap for #object_type #where_clause {
                 /// Creates the stateless root and returns its exact typed factory projection.
                 fn create_factory() -> Result<
                     #nc::ComPtr<
-                        #description,
-                        <#description as #nc::ComObjectDescription>::Threading,
+                        #interface,
+                        <#interface as #nc::ComInterface>::Threading,
                     >,
                     #nc::NcStatus,
                 > {
                     // QueryInterface converts the newly allocated IUnknown
-                    // owner into the description's primary factory interface.
-                    Self::create().query::<#description>()
+                    // owner into the exact factory interface.
+                    Self::create().query::<#interface>()
                 }
             }
         }
     });
-    // Every class can be constructed from an initialized Rust value. Unit
-    // structs also get the ergonomic `create()` shortcut because no fields need
-    // caller-provided state.
-    let unit_create = is_unit_struct.then(|| {
+    // Every object wraps an explicitly initialized Rust value. Only factories
+    // receive zero-argument construction: typed factory methods own all other
+    // public construction policy.
+    let unit_create = (require_factory && is_unit_struct).then(|| {
         quote! {
             #[doc = "Creates a COM object from this unit struct and returns its `IUnknown` interface."]
-            #class_vis fn create() -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
-                Self::from_value(#class_ident)
+            #object_vis fn create() -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
+                Self::from_value(#object_ident)
             }
         }
     });
@@ -164,7 +158,7 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
         let interfaces_for = &iface.interfaces_for_path;
         let field = &iface.field_ident;
         quote! {
-            #field: #interfaces_for::<#class_type>::__nc_new()
+            #field: #interfaces_for::<#object_type>::__nc_new()
         }
     });
 
@@ -173,7 +167,7 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
         let field = &iface.field_ident;
         quote! {
             /// Concrete interface headers and inherited projections for this exact stored implementation.
-            #field: #interfaces_for<#class_type>
+            #field: #interfaces_for<#object_type>
         }
     });
 
@@ -181,7 +175,7 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
     // are initialized with null and patched immediately before leaking the Box
     // into reference-counted COM ownership. The Box path is reached through
     // neocogi-com's hidden alloc re-export so no_std users do not need their own
-    // `extern crate alloc` just to use generated classes.
+    // `extern crate alloc` just to use generated objects.
     let set_interface_objects = args.interfaces.iter().map(|iface| {
         let field = &iface.field_ident;
         quote! { (*raw).#field.set_object(raw.cast::<core::ffi::c_void>()); }
@@ -194,7 +188,7 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
         let field = &iface.field_ident;
         quote! {
             // SAFETY: The shared borrow only obtains a header address in live
-            // class storage; query never changes object state.
+            // object storage; query never changes object state.
             let projection = match unsafe { (*storage).#field.query(interface_id) } {
                 Ok(pointer) => pointer,
                 Err(status) => return status,
@@ -226,18 +220,21 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
             unknown: #nc::IUnknown,
             #(#interface_fields,)*
             /// Owned Rust state; no reference into a caller's stack escapes through the COM pointer.
-            value: core::cell::UnsafeCell<#class_type>,
+            value: core::cell::UnsafeCell<#object_type>,
         }
 
-        impl #impl_generics #class_type #where_clause {
+        impl #impl_generics #object_type #where_clause {
             /// Static ancestry inputs; canonical IUnknown always comes first.
             const COM_INTERFACE_CHAINS: &'static [&'static [&'static #nc::NcInterfaceDescriptor]] = #interface_chains;
 
             /// Number of unique contracts, including automatically exposed bases.
-            pub const COM_INTERFACE_COUNT: usize = #nc::__nc_class_interface_count(Self::COM_INTERFACE_CHAINS);
+            pub const COM_INTERFACE_COUNT: usize = #nc::__nc_object_interface_count(Self::COM_INTERFACE_CHAINS);
 
             #[doc = "Wraps a fully initialized Rust value as a COM object and returns its `IUnknown` interface."]
-            #class_vis fn from_value(value: Self) -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
+            #object_vis fn from_value(value: Self) -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
+                // Force validation of repeated IIDs before allocating storage.
+                // Two projections of one object cannot promise different ABIs.
+                let _ = Self::COM_INTERFACE_COUNT;
                 let object = #nc::__alloc::boxed::Box::new(#storage_ident {
                     ref_count: ::core::sync::atomic::AtomicU32::new(1),
                     call_gate: #nc::__ComCallGate::new(),
@@ -276,7 +273,7 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
         // SAFETY: This impl is generated together with the private storage
         // layout above. Every object pointer accepted here is the back-pointer
         // installed in one of that storage allocation's interface headers.
-        unsafe impl #impl_generics #nc::ComAbiObject for #class_type #where_clause {
+        unsafe impl #impl_generics #nc::ComAbiObject for #object_type #where_clause {
             // The generated gate permits concurrent observers but rejects a
             // shared call while a mutable call owns the implementation.
             unsafe fn borrow_abi_ref<'a>(
@@ -311,7 +308,7 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
                 unsafe { #nc::__ComExclusiveLease::acquire(&storage.call_gate, storage.value.get()) }
             }
 
-            // Central QueryInterface implementation for the class. All
+            // Central QueryInterface implementation for the object. All
             // interface-specific IUnknown thunks delegate here.
             unsafe fn query_interface_from_abi_object(
                 object: *mut core::ffi::c_void,
@@ -333,7 +330,7 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
                         if *interface_id != <#nc::IUnknown as #nc::ComInterface>::INTERFACE_ID {
                             return #nc::NC_E_ABI_VERSION;
                         }
-                        // SAFETY: `object` is this class's live storage pointer.
+                        // SAFETY: `object` is this object's live storage pointer.
                         unsafe { Self::add_ref_from_abi_object(object); }
                         // SAFETY: `storage` points to the enclosing generated
                         // storage and `out` was checked non-null.
@@ -382,7 +379,7 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
             }
         }
 
-        #com_class_impl
+        #com_object_impl
         #thread_safe_marker_impl
         #factory_implementation
         #unit_factory_bootstrap
@@ -398,7 +395,7 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
                 release: Self::release_thunk,
             };
 
-            // Adapts the standalone IUnknown header to generated class-level
+            // Adapts the standalone IUnknown header to generated object-level
             // interface negotiation through its opaque storage back-pointer.
             unsafe extern "C" fn query_interface_thunk(
                 this: *mut #nc::IUnknown,
@@ -409,13 +406,13 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
                     return #nc::NC_E_POINTER;
                 }
                 // SAFETY: Non-null `this` is an interface header generated by
-                // this class and carries the storage back-pointer.
+                // this object and carries the storage back-pointer.
                 let object = unsafe { (*this).object };
-                // SAFETY: Delegates to the class implementation, which validates
+                // SAFETY: Delegates to the object implementation, which validates
                 // null `object`, `interface_id`, and `out` before
                 // dereferencing.
                 unsafe {
-                    <#class_type as #nc::ComAbiObject>::query_interface_from_abi_object(
+                    <#object_type as #nc::ComAbiObject>::query_interface_from_abi_object(
                         object,
                         interface_id,
                         out,
@@ -429,10 +426,10 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
                     return 0;
                 }
                 // SAFETY: Non-null `this` is an interface header generated by
-                // this class and carries the storage back-pointer.
+                // this object and carries the storage back-pointer.
                 let object = unsafe { (*this).object };
                 // SAFETY: Delegates to generated storage refcount handling.
-                unsafe { <#class_type as #nc::ComAbiObject>::add_ref_from_abi_object(object) }
+                unsafe { <#object_type as #nc::ComAbiObject>::add_ref_from_abi_object(object) }
             }
 
             // Routes IUnknown Release to final-drop-aware generated storage.
@@ -441,10 +438,10 @@ pub(crate) fn expand_com_object(args: ClassArgs, input: ItemStruct, require_fact
                     return 0;
                 }
                 // SAFETY: Non-null `this` is an interface header generated by
-                // this class and carries the storage back-pointer.
+                // this object and carries the storage back-pointer.
                 let object = unsafe { (*this).object };
                 // SAFETY: Delegates to generated storage refcount handling.
-                unsafe { <#class_type as #nc::ComAbiObject>::release_from_abi_object(object) }
+                unsafe { <#object_type as #nc::ComAbiObject>::release_from_abi_object(object) }
             }
         }
     }

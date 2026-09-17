@@ -22,7 +22,7 @@
 //! to `plugin_info` for its name and version. The `neocogi-com` Rust facade performs
 //! this join and returns owned `LoadedModuleInfo` values.
 //!
-//! Runtime ABI v2 caps retained dynamic modules at 1,024 and simultaneous debug
+//! Runtime ABI v3 caps retained dynamic modules at 1,024 and simultaneous debug
 //! messenger registrations at 64. Module-capacity exhaustion follows the
 //! existing fatal live-activation path. Debug messenger capacity exhaustion is
 //! recoverable as `NC_E_OUT_OF_RANGE`; destruction frees a slot without
@@ -32,12 +32,6 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 mod api;
-mod builtins {
-    //! Generated immutable descriptions intrinsic to the shared runtime.
-    include!(concat!(env!("OUT_DIR"), "/com_builtin_events.rs"));
-}
-mod contract_registration;
-mod contract_registry;
 mod debug;
 mod factory_activation;
 mod factory_plugin_registry;
@@ -48,6 +42,5 @@ mod module_registry;
 mod state;
 
 pub use loader::{
-    ContractDeclarationInspection, ContractDeclarationKind, ContractModuleInspection, ContractReferenceInspection, FactoryInspection,
-    PluginDependencyPlanError, PluginInspection, PluginLoadError, PluginLoadErrorKind, inspect_plugin_library, plan_plugin_load_order,
+    FactoryInspection, PluginDependencyPlanError, PluginInspection, PluginLoadError, PluginLoadErrorKind, inspect_plugin_library, plan_plugin_load_order,
 };

@@ -1,4 +1,4 @@
-error: IUnknown is implicit for every COM class; remove it from interfaces(...)
+error: IUnknown is implicit for every COM object; remove it from interfaces(...)
  --> integration-tests/ui/class_explicit_iunknown.rs:3:25
   |
 3 | #[com_object(interfaces(neocogi_com::IUnknown))]

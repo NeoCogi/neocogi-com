@@ -33,7 +33,7 @@ fn invalid_error_statuses() -> [NcStatus; 2] {
 
 #[test]
 fn generated_thunks_normalize_non_negative_result_errors_for_every_return_shape() {
-    let invalid = InvalidStatusObject::create().query::<IInvalidStatusAbi>().unwrap();
+    let invalid = InvalidStatusObject::from_value(InvalidStatusObject).query::<IInvalidStatusAbi>().unwrap();
     let raw = invalid.as_mut_ptr();
 
     for invalid_error in invalid_error_statuses() {

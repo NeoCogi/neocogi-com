@@ -1,18 +1,22 @@
-//! Factory-only plugin descriptions for IDL contract modules.
+//! Self-contained plugin descriptions and typed factory activation.
 //!
-//! A factory plugin names the exact native contract modules it was compiled
-//! against and exposes one fixed bootstrap operation. Object construction after
+//! A plugin carries the exact interface identity of its zero-argument factory.
+//! Compatibility is checked when that factory is requested; no runtime module
+//! graph or contract-library ownership participates in registration. Object construction after
 //! bootstrap occurs only through typed factory methods; no class table or erased
 //! constructor frame is present in this ABI.
 
 use crate::{
     ComFactoryBootstrap, ComInterface, IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode,
-    NcContractModuleReference, NcGuid, NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name,
+    NcAbiSignature, NcInterfaceId, NcGuid, NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name,
     validate_version_text,
 };
 
+/// Factory metadata generation with an exact root interface and no module graph.
+pub const NC_FACTORY_PLUGIN_ABI_VERSION: u32 = 2;
+
 /// Exported symbol returning a factory-only plugin description.
-pub const NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL: &str = "nc_get_factory_plugin_description";
+pub const NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL: &str = "nc_get_factory_plugin_description_v2";
 
 /// Fixed bootstrap operation that creates one owned root factory object.
 ///
@@ -24,8 +28,8 @@ pub type NcActivatePluginFactory = unsafe extern "C" fn(out: *mut *mut IUnknown)
 
 /// Adapts a safe typed root-factory constructor to the fixed plugin ABI.
 ///
-/// The generic is monomorphized in the plugin assembly. The contract library
-/// still owns the factory identity and callable description; this adapter only
+/// The generic is monomorphized in the plugin assembly. The interface contract
+/// owns the factory identity and callable surface; this adapter only
 /// transfers the implementation's newly created reference to the runtime.
 ///
 /// # Safety
@@ -49,7 +53,7 @@ where
     // address. Consuming the typed pointer transfers its existing ownership
     // into the untyped bootstrap slot without AddRef or Release.
     let raw_factory = factory.into_raw();
-    let unknown = T::Description::iunknown(raw_factory);
+    let unknown = T::Interface::iunknown(raw_factory);
     if unknown.is_null() {
         // A valid owned ComPtr cannot contain null. Retain a defensive check at
         // this unsafe plugin boundary in case a foreign implementation violates
@@ -62,10 +66,12 @@ where
     NC_OK
 }
 
-/// Immutable plugin metadata containing contracts and one root factory.
+/// Immutable plugin metadata containing dependencies and one exact root factory.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NcFactoryPluginDescription {
+    /// Metadata layout generation checked before reading the remaining fields.
+    pub description_abi_version: u32,
     /// Core object ABI generation understood by this plugin.
     pub core_abi_version: u32,
     /// Stable plugin identity derived from `qualified_name`.
@@ -78,12 +84,8 @@ pub struct NcFactoryPluginDescription {
     pub dependency_count: u32,
     /// Pointer to `dependency_count` distinct dependency records.
     pub dependencies: *const NcPluginDependencyDescriptor,
-    /// Number of directly referenced canonical contract modules.
-    pub contract_count: u32,
-    /// Pointer to `contract_count` generated module references.
-    pub contracts: *const NcContractModuleReference,
-    /// IDL identity of the root factory returned by `activate`.
-    pub root_factory_id: NcGuid,
+    /// Exact IID and transitive ABI signature expected from the root factory.
+    pub root_factory: NcInterfaceId,
     /// Threading capability promised by the returned root factory.
     pub root_factory_threading: u32,
     /// Fixed no-argument root factory bootstrap operation.
@@ -106,18 +108,6 @@ impl NcFactoryPluginDescription {
         // null/count shape before constructing a slice.
         unsafe { description_slice(self.dependencies, self.dependency_count) }
     }
-
-    /// Borrows direct contract references after checking pointer/count shape.
-    ///
-    /// # Safety
-    ///
-    /// The description and contract table must remain readable for the
-    /// returned lifetime.
-    pub unsafe fn contracts<'a>(&self) -> Result<&'a [NcContractModuleReference], NcStatus> {
-        // SAFETY: The caller supplies the backing lifetime; the helper checks
-        // null/count shape before constructing a slice.
-        unsafe { description_slice(self.contracts, self.contract_count) }
-    }
 }
 
 /// Getter exported by one factory-only plugin shared library.
@@ -130,9 +120,8 @@ pub type NcGetFactoryPluginDescription = unsafe extern "C" fn(out: *mut *const N
 
 /// Validates one complete factory-only plugin description without allocation.
 ///
-/// This structural pass does not call contract getters or the plugin activation
-/// function. The shared runtime performs those operations after this bounded
-/// pointer validation succeeds.
+/// This pass validates metadata only and never invokes plugin activation. The
+/// caller can therefore inspect or register a plugin without constructing it.
 ///
 /// # Safety
 ///
@@ -144,7 +133,7 @@ pub unsafe fn validate_factory_plugin_description(plugin: *const NcFactoryPlugin
     }
     // SAFETY: Null was rejected and the caller guarantees root readability.
     let plugin = unsafe { &*plugin };
-    if plugin.core_abi_version != NC_COM_CORE_ABI_VERSION {
+    if plugin.description_abi_version != NC_FACTORY_PLUGIN_ABI_VERSION || plugin.core_abi_version != NC_COM_CORE_ABI_VERSION {
         return NC_E_ABI_VERSION;
     }
     // SAFETY: The caller guarantees both static text views remain readable.
@@ -158,38 +147,27 @@ pub unsafe fn validate_factory_plugin_description(plugin: *const NcFactoryPlugin
     if validate_qualified_name(name).is_err()
         || validate_version_text(version).is_err()
         || plugin.plugin_id != guid_from_qualified_name(name)
-        || plugin.root_factory_id.is_nil()
+        || plugin.root_factory.iid.is_nil()
+        || plugin.root_factory.abi_signature.len() as usize != NcAbiSignature::SHA256_LEN
         || NcAbiThreadingMode::from_raw(plugin.root_factory_threading).is_none()
         || plugin.activate.is_none()
     {
         return NC_E_INVALID_ARG;
     }
-    // SAFETY: The caller guarantees both table lifetimes for this validation.
+    // SAFETY: The caller guarantees the dependency table lifetime for this validation.
     let dependencies = match unsafe { plugin.dependencies() } {
         Ok(dependencies) => dependencies,
         Err(status) => return status,
     };
-    // SAFETY: The caller guarantees both table lifetimes for this validation.
-    let contracts = match unsafe { plugin.contracts() } {
-        Ok(contracts) => contracts,
-        Err(status) => return status,
-    };
-    if contracts.is_empty() {
-        return NC_E_INVALID_ARG;
+    // SAFETY: The descriptor contract guarantees readable signature storage.
+    // Validate its pointer before any byte-wise identity comparison can occur.
+    if let Err(status) = unsafe { plugin.root_factory.abi_signature.as_bytes() } {
+        return status;
     }
     for (index, dependency) in dependencies.iter().enumerate() {
         if dependency.plugin_id.is_nil()
             || dependency.plugin_id == plugin.plugin_id
             || dependencies[..index].iter().any(|previous| previous.plugin_id == dependency.plugin_id)
-        {
-            return NC_E_INVALID_ARG;
-        }
-    }
-    for (index, contract) in contracts.iter().enumerate() {
-        if contract.module_id.is_nil()
-            || contract.abi_fingerprint.bytes == [0; 32]
-            || contract.get.is_none()
-            || contracts[..index].iter().any(|previous| previous.module_id == contract.module_id)
         {
             return NC_E_INVALID_ARG;
         }
@@ -244,21 +222,10 @@ mod tests {
     use core::ptr;
 
     use super::*;
-    use crate::{NC_ABI_THREADING_THREAD_LOCAL, NcContractFingerprint};
+    use crate::NC_ABI_THREADING_THREAD_LOCAL;
 
-    /// Stable logical identity of the contract module used by the fixture.
-    const MODULE_ID: NcGuid = NcGuid::from_fields(1, 2, 3, [4; 8]);
-    /// Stable nonzero fingerprint representing one exact test module revision.
-    const MODULE_FINGERPRINT: NcContractFingerprint = NcContractFingerprint::new([5; 32]);
-    /// Stable IDL identity of the fixture's root factory declaration.
-    const FACTORY_ID: NcGuid = NcGuid::from_fields(6, 7, 8, [9; 8]);
-
-    /// Satisfies the contract-reference function shape without being invoked.
-    unsafe extern "C" fn get_contract_module() -> *const crate::NcContractModuleDescription {
-        // Structural plugin validation deliberately does not enter linked
-        // contract code. The runtime resolves this getter during registration.
-        ptr::null()
-    }
+    /// Exact factory identity shared by the descriptor and activation tests.
+    const FACTORY_ID: NcInterfaceId = NcInterfaceId::new(NcGuid::from_fields(6, 7, 8, [9; 8]), NcAbiSignature::from_static(&[5; 32]));
 
     /// Satisfies the fixed factory activation shape for descriptor validation.
     unsafe extern "C" fn activate_factory(out: *mut *mut IUnknown) -> NcStatus {
@@ -272,24 +239,16 @@ mod tests {
         NC_E_INVALID_ARG
     }
 
-    /// One direct contract revision required by the valid plugin fixture.
-    static CONTRACTS: [NcContractModuleReference; 1] = [NcContractModuleReference {
-        module_id: MODULE_ID,
-        abi_fingerprint: MODULE_FINGERPRINT,
-        get: Some(get_contract_module),
-    }];
-
     /// Complete factory-only plugin fixture with no plugin dependencies.
     static VALID_PLUGIN: NcFactoryPluginDescription = NcFactoryPluginDescription {
+        description_abi_version: NC_FACTORY_PLUGIN_ABI_VERSION,
         core_abi_version: NC_COM_CORE_ABI_VERSION,
         plugin_id: guid_from_qualified_name("nc.tests.factory_plugin"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.factory_plugin"),
         plugin_version: NcStaticUtf8::from_static("1.0.0"),
         dependency_count: 0,
         dependencies: ptr::null(),
-        contract_count: CONTRACTS.len() as u32,
-        contracts: CONTRACTS.as_ptr(),
-        root_factory_id: FACTORY_ID,
+        root_factory: FACTORY_ID,
         root_factory_threading: NC_ABI_THREADING_THREAD_LOCAL,
         activate: Some(activate_factory),
     };
@@ -316,6 +275,22 @@ mod tests {
         assert_eq!(unsafe { validate_factory_plugin_description(&invalid) }, NC_E_INVALID_ARG);
     }
 
+    /// Rejects incompatible descriptor layouts before inspecting root metadata.
+    #[test]
+    fn rejects_descriptor_version_and_missing_factory_signature() {
+        let old = NcFactoryPluginDescription {
+            description_abi_version: 1,
+            ..VALID_PLUGIN
+        };
+        // SAFETY: Both fixtures have readable roots and immutable child storage.
+        assert_eq!(unsafe { validate_factory_plugin_description(&old) }, NC_E_ABI_VERSION);
+        let unsigned = NcFactoryPluginDescription {
+            root_factory: NcInterfaceId::new(FACTORY_ID.iid, NcAbiSignature::EMPTY),
+            ..VALID_PLUGIN
+        };
+        assert_eq!(unsafe { validate_factory_plugin_description(&unsigned) }, NC_E_INVALID_ARG);
+    }
+
     /// Locks the new descriptor's field order to its documented C ABI layout.
     #[test]
     fn factory_plugin_description_layout_is_c_stable() {
@@ -323,21 +298,19 @@ mod tests {
         {
             assert_eq!(core::mem::size_of::<NcFactoryPluginDescription>(), 120);
             assert_eq!(core::mem::align_of::<NcFactoryPluginDescription>(), 8);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, plugin_id), 4);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, plugin_id), 8);
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, dependencies), 64);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, contracts), 80);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, root_factory_id), 88);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, root_factory), 72);
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, activate), 112);
         }
         #[cfg(target_pointer_width = "32")]
         {
-            assert_eq!(core::mem::size_of::<NcFactoryPluginDescription>(), 76);
+            assert_eq!(core::mem::size_of::<NcFactoryPluginDescription>(), 80);
             assert_eq!(core::mem::align_of::<NcFactoryPluginDescription>(), 4);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, plugin_id), 4);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, dependencies), 40);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, contracts), 48);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, root_factory_id), 52);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, activate), 72);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, plugin_id), 8);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, dependencies), 44);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, root_factory), 48);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, activate), 76);
         }
     }
 }

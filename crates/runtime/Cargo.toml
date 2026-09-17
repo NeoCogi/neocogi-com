@@ -13,16 +13,10 @@ keywords = ["com", "abi", "ffi", "plugin"]
 categories = ["api-bindings", "development-tools::ffi"]
 
 [lib]
-# The implementation remains an rlib; cargo-neocogi owns the sole deployable
-# cdylib root so Cargo does not perform a second, unused optimized link.
+# Rust hosts link this rlib once. A standalone shared runtime uses
+# cargo rustc --lib --crate-type cdylib; the assembly tool may own that root too.
 name = "nc_com_shared_runtime"
 crate-type = ["rlib"]
 
 [dependencies]
 neocogi-com-core = { workspace = true, default-features = false, features = ["std"] }
-
-[build-dependencies]
-neocogi-idl-build.workspace = true
-
-[dev-dependencies]
-neocogi-com-events-contracts.workspace = true

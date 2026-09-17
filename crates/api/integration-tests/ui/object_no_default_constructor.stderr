@@ -1,0 +1,8 @@
+error[E0599]: no associated function or constant named `create` found for struct `Object` in the current scope
+  --> integration-tests/ui/object_no_default_constructor.rs:14:21
+   |
+ 9 | struct Object;
+   | ------------- associated function or constant `create` not found for this struct
+...
+14 |     let _ = Object::create();
+   |                     ^^^^^^ associated function or constant not found in `Object`

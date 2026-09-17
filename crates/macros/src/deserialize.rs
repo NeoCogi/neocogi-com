@@ -1,7 +1,7 @@
 //! Generation of format-neutral, statically typed decoding implementations.
 //!
 //! The generated code constructs concrete Rust values field by field. It does
-//! not inspect ABI offsets, query a class registry, or create an erased value
+//! not inspect ABI offsets, query an object registry, or create an erased value
 //! graph. COM attribute macros call the helpers in this module directly; the
 //! derive entry point exists for ordinary local types that are not ABI values.
 

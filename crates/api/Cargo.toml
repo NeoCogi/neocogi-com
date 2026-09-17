@@ -21,11 +21,6 @@ neocogi-com-runtime-sys = { workspace = true, optional = true, default-features 
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-[[example]]
-name = "factory_plugin_component"
-crate-type = ["cdylib"]
-test = false
-
 [[test]]
 name = "abi_policy"
 path = "integration-tests/abi_policy.rs"

@@ -9,7 +9,7 @@ use quote::{format_ident, quote};
 use syn::{ItemTrait, Result, TypeParamBound, TraitBoundModifier, PathArguments};
 
 use crate::abi_method::{parse_abi_trait_item, raw_vtable_method_docs, safe_method_docs, validate_interface_trait};
-use crate::args::InterfaceArgs;
+use crate::args::{InterfaceArgs, InterfaceThreading};
 use crate::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind};
 use crate::util::{abi_signature_static_tokens, checked_u32_len, collect_syn_results, interface_field, interface_guid, push_error, runtime_crate_path};
 
@@ -18,7 +18,7 @@ pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Res
     let mut errors = None;
     validate_interface_trait(&input, &mut errors);
 
-    // Every trait item is a callable vtable method. IDL classes and factories
+    // Every trait item is a callable vtable method. IDL objects and factories
     // use the same lowering after the generator attaches description metadata.
     let methods = match collect_syn_results(input.items.iter().map(parse_abi_trait_item)) {
         Ok(methods) => methods,
@@ -51,6 +51,16 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
     let vtable_for_ident = format_ident!("{trait_ident}VtblFor");
     let client_ident = format_ident!("{trait_ident}Client");
     let interfaces_ident = format_ident!("{trait_ident}InterfacesFor");
+    let threading = match args.threading {
+        InterfaceThreading::Local => quote! { #nc::ThreadLocal },
+        InterfaceThreading::Shared => quote! { #nc::ThreadSafe },
+    };
+    let factory_marker = args.factory.then(|| {
+        quote! {
+            // SAFETY: IDL assigned the factory role to this exact callable contract.
+            unsafe impl #nc::ComFactoryInterface for #abi_ident {}
+        }
+    });
     let qualified_name = args.qualified_name;
     let guid = interface_guid(args.guid, &qualified_name, &nc)?;
     let assigned_signature = args.assigned_signature.clone().ok_or_else(|| {
@@ -70,16 +80,25 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
                     && bound.lifetimes.is_none()
                     && bound.path.segments.iter().all(|segment| matches!(segment.arguments, PathArguments::None)) =>
             {
+                if bound
+                    .path
+                    .segments
+                    .last()
+                    .is_some_and(|segment| matches!(segment.ident.to_string().as_str(), "Send" | "Sync" | "Sized" | "Unpin"))
+                {
+                    return Err(syn::Error::new_spanned(
+                        bound,
+                        "COM bases must be generated interfaces; use threading = shared for Send + Sync",
+                    ));
+                }
                 Ok(bound.path.clone())
             }
             _ => Err(syn::Error::new_spanned(bound, "expected a nongeneric generated COM interface")),
         })
         .collect::<Result<Vec<_>>>()?;
     let base = interface_paths.first();
-    // Callable class contracts may require more than the one physical vtable
-    // base. Each later supertrait is stored and queried as a sibling COM
-    // projection. Ordinary interfaces reject such declarations before this
-    // shared generator is entered.
+    // The first supertrait supplies the physical prefix. Every later one is
+    // a required sibling projection; all refer to the same owned Rust value.
     let additional_interfaces = interface_paths
         .iter()
         .skip(1)
@@ -90,8 +109,8 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
             (abi, interfaces_for, field)
         })
         .collect::<Vec<_>>();
+    let required_abis = interface_paths.iter().map(|path| generated_path(path, "Abi")).collect::<Vec<_>>();
     let mut base_identity = quote! { #nc::NcInterfaceId::NONE };
-    let mut base_chain = quote! { &[] };
     let mut prefix_field = quote! {
         /// Common identity, query and reference-count slots.
         pub unknown: #nc::IUnknownVTable,
@@ -116,7 +135,6 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
         let base_client = generated_path(base, "Client");
         let base_interfaces = generated_path(base, "InterfacesFor");
         base_identity = quote! { <#base_abi as #nc::ComInterface>::INTERFACE_ID };
-        base_chain = quote! { &#base_abi::INTERFACE_CHAIN };
         prefix_field = quote! {
             /// Complete inherited vtable at offset zero; local slots follow it.
             pub base: #base_vtable,
@@ -143,7 +161,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
             }
         };
         storage_base = quote! {
-            /// Base projections share this class's allocation and reference count.
+            /// Base projections share this object's allocation and reference count.
             base: #base_interfaces<T>,
         };
         storage_base_init = quote! { base: #base_interfaces::<T>::__nc_new(), };
@@ -157,7 +175,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
     }
     let additional_storage = additional_interfaces.iter().map(|(_, interfaces_for, field)| {
         quote! {
-            #[doc = "Required sibling interface projections sharing this class allocation."]
+            #[doc = "Required sibling interface projections sharing this object allocation."]
             #field: #interfaces_for<T>,
         }
     });
@@ -427,7 +445,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
     });
 
     // The vtable is a `const` associated with `IFooVtblFor<T>`, where `T` is the
-    // implementing class. Each class/interface pair therefore gets thunks that
+    // implementing object. Each object/interface pair therefore gets thunks that
     // call the correct concrete Rust type without dynamic Rust dispatch.
     let vtable_entries = methods.iter().map(|method| {
         let method_ident = &method.ident;
@@ -483,6 +501,8 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
             const INTERFACE_ID: #nc::NcInterfaceId =
                 #nc::NcInterfaceId::new(#guid, #abi_ident::ABI_SIGNATURE);
             type VTable = #vtable_ident;
+            type Threading = #threading;
+
 
             // All generated interface headers share the same prefix as
             // `IUnknown`, so this is the canonical route for AddRef, Release,
@@ -491,6 +511,8 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
                 this.cast::<#nc::IUnknown>()
             }
         }
+
+        #factory_marker
 
         // The view only lends method lookup. It has no constructor, ownership
         // conversions or Clone/Copy implementation and cannot outlive its lender.
@@ -535,16 +557,14 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
                 methods: Self::METHOD_DESCRIPTORS.as_ptr(),
             };
 
-            /// Static base ancestry used to size and construct the complete chain.
-            const BASE_CHAIN: &'static [&'static #nc::NcInterfaceDescriptor] = #base_chain;
-
-            /// This contract followed by every generated base, in query order.
-            pub const INTERFACE_CHAIN: [&'static #nc::NcInterfaceDescriptor; 1 + Self::BASE_CHAIN.len()] =
-                #nc::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, #base_chain);
+            /// This projection followed by every required base and sibling.
+            /// Object storage deduplicates identities and rejects ABI conflicts.
+            pub const INTERFACE_CHAIN: [&'static #nc::NcInterfaceDescriptor; 1 #(+ #required_abis::INTERFACE_CHAIN.len())*] =
+                #nc::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[#(&#required_abis::INTERFACE_CHAIN,)*]);
         }
 
         // Header storage is recursive only over the statically known base
-        // chain. It is embedded directly in the one class allocation.
+        // chain. It is embedded directly in the one object allocation.
         #[doc(hidden)]
         #vis struct #interfaces_ident<T> {
             /// Projection whose header advertises this exact interface contract.
@@ -556,7 +576,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
         }
 
         impl<T: #trait_ident + #nc::ComAbiObject> #interfaces_ident<T> {
-            /// Creates unpublished headers; the class installs its back-pointer.
+            /// Creates unpublished headers; the object installs its back-pointer.
             pub const fn __nc_new() -> Self {
                 Self {
                     own: #abi_ident { vtable: &#vtable_for_ident::<T>::VTABLE, object: core::ptr::null_mut() },
@@ -620,7 +640,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
                 // SAFETY: Non-null `this` is a generated interface header and
                 // carries the storage back-pointer.
                 let object = unsafe { (*this).object };
-                // SAFETY: Delegates to the generated class object, which
+                // SAFETY: Delegates to the generated object object, which
                 // validates `object`, `interface_id`, and `out` before
                 // dereferencing.
                 unsafe {
@@ -661,7 +681,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
     })
 }
 
-/// Checks names shared by ordinary interfaces and callable class projections.
+/// Checks names shared by ordinary interfaces and callable object projections.
 pub(crate) fn validate_callable_methods(input: &ItemTrait, methods: &[AbiMethod], errors: &mut Option<syn::Error>) {
     validate_generated_method_identifiers(methods, errors);
     // Vtable prefix fields are physical ABI members, so a local method cannot

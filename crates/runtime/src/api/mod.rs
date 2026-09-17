@@ -1,4 +1,4 @@
-//! Assembly of runtime ABI v2 operations and shared C callback utilities.
+//! Assembly of runtime ABI v3 operations and shared C callback utilities.
 //!
 //! Only the version function and four table getters are exported as dynamic
 //! symbols. Operation callbacks remain private function pointers inside these
@@ -12,53 +12,43 @@ use std::path::Path;
 
 use crate::debug;
 use neocogi_com_core::{
-    NC_COM_CORE_ABI_VERSION, NC_DEBUG_SEVERITY_ERROR, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcDebugApiV2, NcDebugMessageV2,
-    NcContractRegistryV2, NcInspectionApiV2, NcPluginRegistryV2, NcRuntimeApiV2, NcStatus, NcUtf8View,
+    NC_COM_CORE_ABI_VERSION, NC_DEBUG_SEVERITY_ERROR, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcDebugApiV3, NcDebugMessageV3,
+    NcInspectionApiV3, NcPluginRegistryV3, NcRuntimeApiV3, NcStatus, NcUtf8View,
 };
 
-mod contract_registry;
 mod exports;
 mod inspection;
 mod plugin_registry;
 mod runtime;
 
 use inspection::{inspect_plugin_library_utf8, module_info, plugin_dependency_count, plugin_dependency_ids, plugin_info};
-use contract_registry::{module_count as contract_module_count, module_description as contract_module_description, module_ids as contract_module_ids};
 use plugin_registry::{loaded_module_count, loaded_module_ids, plugin_count, plugin_ids};
-use runtime::{activate_factory_plugin, load_plugin_library_utf8, register_contract_module, register_factory_plugin_description};
+use runtime::{activate_factory_plugin, load_plugin_library_utf8, register_factory_plugin_description};
 
-/// Immutable runtime-operation table returned by the exported v2 getter.
-pub(super) static RUNTIME_API_V2: NcRuntimeApiV2 = NcRuntimeApiV2 {
-    size: mem::size_of::<NcRuntimeApiV2>(),
+/// Immutable runtime-operation table returned by the exported v3 getter.
+pub(super) static RUNTIME_API_V3: NcRuntimeApiV3 = NcRuntimeApiV3 {
+    size: mem::size_of::<NcRuntimeApiV3>(),
     core_abi_version: NC_COM_CORE_ABI_VERSION,
-    register_contract_module,
+
     register_factory_plugin_description,
     load_plugin_library_utf8,
     activate_factory_plugin,
 };
 
-/// Immutable contract-registry table returned by the exported v2 getter.
-pub(super) static CONTRACT_REGISTRY_V2: NcContractRegistryV2 = NcContractRegistryV2 {
-    size: mem::size_of::<NcContractRegistryV2>(),
-    module_count: contract_module_count,
-    module_ids: contract_module_ids,
-    module_description: contract_module_description,
-};
-
 // These values are immutable for the process lifetime. Getters may therefore
 // return their addresses without allocation, locking, or ownership transfer.
-/// Immutable plugin-registry table returned by the exported v2 getter.
-pub(super) static PLUGIN_REGISTRY_V2: NcPluginRegistryV2 = NcPluginRegistryV2 {
-    size: mem::size_of::<NcPluginRegistryV2>(),
+/// Immutable plugin-registry table returned by the exported v3 getter.
+pub(super) static PLUGIN_REGISTRY_V3: NcPluginRegistryV3 = NcPluginRegistryV3 {
+    size: mem::size_of::<NcPluginRegistryV3>(),
     plugin_count,
     plugin_ids,
     loaded_module_count,
     loaded_module_ids,
 };
 
-/// Immutable inspection table returned by the exported v2 getter.
-pub(super) static INSPECTION_API_V2: NcInspectionApiV2 = NcInspectionApiV2 {
-    size: mem::size_of::<NcInspectionApiV2>(),
+/// Immutable inspection table returned by the exported v3 getter.
+pub(super) static INSPECTION_API_V3: NcInspectionApiV3 = NcInspectionApiV3 {
+    size: mem::size_of::<NcInspectionApiV3>(),
     plugin_info,
     module_info,
     plugin_dependency_count,
@@ -66,9 +56,9 @@ pub(super) static INSPECTION_API_V2: NcInspectionApiV2 = NcInspectionApiV2 {
     inspect_plugin_library_utf8,
 };
 
-/// Immutable debug-messenger table returned by the exported v2 getter.
-pub(super) static DEBUG_API_V2: NcDebugApiV2 = NcDebugApiV2 {
-    size: mem::size_of::<NcDebugApiV2>(),
+/// Immutable debug-messenger table returned by the exported v3 getter.
+pub(super) static DEBUG_API_V3: NcDebugApiV3 = NcDebugApiV3 {
+    size: mem::size_of::<NcDebugApiV3>(),
     create_messenger: debug::create_messenger,
     destroy_messenger: debug::destroy_messenger,
 };
@@ -120,21 +110,20 @@ unsafe fn copy_slice_to_out<T: Copy>(items: &[T], out: *mut T, capacity: usize, 
 fn emit_error(message_type: u32, status: NcStatus, text: &str) {
     // Debug dispatch is synchronous, so this borrowed text remains valid for
     // every callback and need not be copied into runtime-owned storage.
-    let message = NcDebugMessageV2::new(status, NcUtf8View { data: text.as_ptr(), len: text.len() });
+    let message = NcDebugMessageV3::new(status, NcUtf8View { data: text.as_ptr(), len: text.len() });
     debug::emit(NC_DEBUG_SEVERITY_ERROR, message_type, &message);
 }
 
 #[cfg(test)]
 mod tests {
     use super::exports::{
-        nc_com_get_contract_registry_v2, nc_com_get_debug_api_v2, nc_com_get_inspection_api_v2, nc_com_get_plugin_registry_v2, nc_com_get_runtime_api_v2,
-        nc_com_runtime_abi_version,
+        nc_com_get_debug_api_v3, nc_com_get_inspection_api_v3, nc_com_get_plugin_registry_v3, nc_com_get_runtime_api_v3, nc_com_runtime_abi_version,
     };
     use super::*;
     use core::ffi::c_void;
     use core::sync::atomic::{AtomicI32, Ordering};
     use neocogi_com_core::{
-        NC_COM_RUNTIME_ABI_VERSION, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_VALIDATION, NC_E_NOT_FOUND, NcDebugMessengerCreateInfoV2, NcGuid, NcModuleInfoV2,
+        NC_COM_RUNTIME_ABI_VERSION, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_VALIDATION, NC_E_NOT_FOUND, NcDebugMessengerCreateInfoV3, NcGuid, NcModuleInfoV3,
         NcFactoryPluginDescription,
     };
 
@@ -142,7 +131,7 @@ mod tests {
         NC_OK
     }
 
-    unsafe extern "C" fn record_debug_status(_severity: u32, _message_type: u32, message: *const NcDebugMessageV2, user_data: *mut c_void) {
+    unsafe extern "C" fn record_debug_status(_severity: u32, _message_type: u32, message: *const NcDebugMessageV3, user_data: *mut c_void) {
         if message.is_null() || user_data.is_null() {
             return;
         }
@@ -160,23 +149,21 @@ mod tests {
 
     #[test]
     fn getters_return_complete_static_tables() {
-        let runtime = unsafe { &*nc_com_get_runtime_api_v2() };
-        let contracts = unsafe { &*nc_com_get_contract_registry_v2() };
-        let plugins = unsafe { &*nc_com_get_plugin_registry_v2() };
-        let inspection = unsafe { &*nc_com_get_inspection_api_v2() };
-        let debug = unsafe { &*nc_com_get_debug_api_v2() };
+        let runtime = unsafe { &*nc_com_get_runtime_api_v3() };
+        let plugins = unsafe { &*nc_com_get_plugin_registry_v3() };
+        let inspection = unsafe { &*nc_com_get_inspection_api_v3() };
+        let debug = unsafe { &*nc_com_get_debug_api_v3() };
 
-        assert_eq!(runtime.size, mem::size_of::<NcRuntimeApiV2>());
+        assert_eq!(runtime.size, mem::size_of::<NcRuntimeApiV3>());
         assert_eq!(runtime.core_abi_version, NC_COM_CORE_ABI_VERSION);
-        assert_eq!(contracts.size, mem::size_of::<NcContractRegistryV2>());
-        assert_eq!(plugins.size, mem::size_of::<NcPluginRegistryV2>());
-        assert_eq!(inspection.size, mem::size_of::<NcInspectionApiV2>());
-        assert_eq!(debug.size, mem::size_of::<NcDebugApiV2>());
+        assert_eq!(plugins.size, mem::size_of::<NcPluginRegistryV3>());
+        assert_eq!(inspection.size, mem::size_of::<NcInspectionApiV3>());
+        assert_eq!(debug.size, mem::size_of::<NcDebugApiV3>());
     }
 
     #[test]
     fn direct_counts_and_fill_contract_are_separate() {
-        let api = unsafe { &*nc_com_get_plugin_registry_v2() };
+        let api = unsafe { &*nc_com_get_plugin_registry_v3() };
         let count = unsafe { (api.plugin_count)() };
         let mut out_len = usize::MAX;
         let mut values = Vec::<NcGuid>::with_capacity(count);
@@ -198,7 +185,7 @@ mod tests {
 
     #[test]
     fn missing_inspection_entities_report_not_found() {
-        let mut info = mem::MaybeUninit::<NcModuleInfoV2>::uninit();
+        let mut info = mem::MaybeUninit::<NcModuleInfoV3>::uninit();
         assert_eq!(unsafe { module_info(0, info.as_mut_ptr()) }, NC_E_NOT_FOUND);
     }
 
@@ -223,7 +210,7 @@ mod tests {
 
     #[test]
     fn descriptor_inspection_validates_callback_and_path() {
-        let inspection = unsafe { &*nc_com_get_inspection_api_v2() };
+        let inspection = unsafe { &*nc_com_get_inspection_api_v3() };
         assert_eq!(
             unsafe { (inspection.inspect_plugin_library_utf8)(ptr::null(), 0, None, ptr::null_mut()) },
             NC_E_POINTER
@@ -237,19 +224,19 @@ mod tests {
     #[test]
     fn debug_messenger_observes_runtime_validation_failure() {
         let observed = AtomicI32::new(0);
-        let create_info = NcDebugMessengerCreateInfoV2 {
-            size: mem::size_of::<NcDebugMessengerCreateInfoV2>(),
+        let create_info = NcDebugMessengerCreateInfoV3 {
+            size: mem::size_of::<NcDebugMessengerCreateInfoV3>(),
             severity_mask: NC_DEBUG_SEVERITY_ERROR,
             message_type_mask: NC_DEBUG_TYPE_VALIDATION,
             callback: Some(record_debug_status),
             user_data: ptr::from_ref(&observed).cast_mut().cast(),
         };
-        let debug = unsafe { &*nc_com_get_debug_api_v2() };
+        let debug = unsafe { &*nc_com_get_debug_api_v3() };
         let mut handle = 0;
         assert_eq!(unsafe { (debug.create_messenger)(&create_info, &mut handle) }, NC_OK);
 
-        let runtime = unsafe { &*nc_com_get_runtime_api_v2() };
-        assert_eq!(unsafe { (runtime.register_contract_module)(ptr::null()) }, NC_E_POINTER);
+        let runtime = unsafe { &*nc_com_get_runtime_api_v3() };
+        assert_eq!(unsafe { (runtime.register_factory_plugin_description)(ptr::null()) }, NC_E_POINTER);
         assert_eq!(observed.load(Ordering::SeqCst), NC_E_POINTER.code());
 
         unsafe { (debug.destroy_messenger)(handle) };

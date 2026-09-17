@@ -1,9 +1,10 @@
 //! Deterministic exact comparison of validated inspection artifacts.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
-use crate::schema::{ArtifactContractModule, ArtifactFactory, ArtifactPlugin, InspectionArtifact};
+use crate::schema::{ArtifactFactory, ArtifactPlugin, InspectionArtifact};
 
+/// Returns stable field-level changes after both documents pass validation.
 pub(crate) fn diff_inspections(old: &InspectionArtifact, new: &InspectionArtifact) -> Vec<String> {
     // Artifact validation runs before this function, so identity-keyed maps
     // cannot silently normalize duplicate entries.
@@ -16,6 +17,12 @@ pub(crate) fn diff_inspections(old: &InspectionArtifact, new: &InspectionArtifac
     push_changed_display(&mut differences, "target.pointer_width", old.target.pointer_width, new.target.pointer_width);
     push_changed_debug(&mut differences, "target.endianness", &old.target.endianness, &new.target.endianness);
     push_changed_display(&mut differences, "core_abi_version", old.core_abi_version, new.core_abi_version);
+    push_changed_display(
+        &mut differences,
+        "description_abi_version",
+        old.description_abi_version,
+        new.description_abi_version,
+    );
     diff_plugin(&mut differences, &old.plugin, &new.plugin);
     diff_factory(&mut differences, &old.factory, &new.factory);
     differences
@@ -30,30 +37,15 @@ fn diff_factory(differences: &mut Vec<String>, old: &ArtifactFactory, new: &Arti
         &old.root_factory_threading,
         &new.root_factory_threading,
     );
-    push_changed_debug(differences, "factory.direct_contracts", &old.direct_contracts, &new.direct_contracts);
-    diff_contract_modules(differences, &old.modules, &new.modules);
+    push_changed_str(
+        differences,
+        "factory.root_factory_signature",
+        &old.root_factory_signature,
+        &new.root_factory_signature,
+    );
 }
 
-/// Compares canonical modules by stable identity and reports field-level changes.
-fn diff_contract_modules(differences: &mut Vec<String>, old: &[ArtifactContractModule], new: &[ArtifactContractModule]) {
-    let old = map_by(old, |module| module.id.clone());
-    let new = map_by(new, |module| module.id.clone());
-    for id in sorted_keys(&old, &new) {
-        match (old.get(&id), new.get(&id)) {
-            (Some(old), Some(new)) => {
-                let path = format!("contract module {id}");
-                push_changed_str(differences, &format!("{path}.name"), &old.name, &new.name);
-                push_changed_str(differences, &format!("{path}.abi_fingerprint"), &old.abi_fingerprint, &new.abi_fingerprint);
-                push_changed_debug(differences, &format!("{path}.dependencies"), &old.dependencies, &new.dependencies);
-                push_changed_debug(differences, &format!("{path}.declarations"), &old.declarations, &new.declarations);
-            }
-            (Some(old), None) => differences.push(format!("removed: contract module {id} ({})", old.name)),
-            (None, Some(new)) => differences.push(format!("added: contract module {id} ({})", new.name)),
-            (None, None) => unreachable!(),
-        }
-    }
-}
-
+/// Compares plugin identity and order-independent provider requirements.
 fn diff_plugin(differences: &mut Vec<String>, old: &ArtifactPlugin, new: &ArtifactPlugin) {
     push_changed_str(differences, "plugin.id", &old.id, &new.id);
     push_changed_str(differences, "plugin.name", &old.name, &new.name);
@@ -68,20 +60,14 @@ fn diff_plugin(differences: &mut Vec<String>, old: &ArtifactPlugin, new: &Artifa
     }
 }
 
-fn map_by<T>(values: &[T], key: impl Fn(&T) -> String) -> BTreeMap<String, &T> {
-    values.iter().map(|value| (key(value), value)).collect()
-}
-
-fn sorted_keys<T>(old: &BTreeMap<String, T>, new: &BTreeMap<String, T>) -> BTreeSet<String> {
-    old.keys().chain(new.keys()).cloned().collect()
-}
-
+/// Quotes changed text fields so whitespace and escaping remain visible.
 fn push_changed_str(differences: &mut Vec<String>, path: &str, old: &str, new: &str) {
     if old != new {
         differences.push(format!("changed: {path}: {old:?} -> {new:?}"));
     }
 }
 
+/// Records changed scalar fields using their normative display representation.
 fn push_changed_display<T>(differences: &mut Vec<String>, path: &str, old: T, new: T)
 where
     T: Copy + Eq + std::fmt::Display,
@@ -91,6 +77,7 @@ where
     }
 }
 
+/// Records changed typed variants without assigning unstable numeric tags.
 fn push_changed_debug<T>(differences: &mut Vec<String>, path: &str, old: &T, new: &T)
 where
     T: Eq + std::fmt::Debug,
@@ -116,11 +103,11 @@ mod tests {
     fn reports_factory_contract_fingerprint_changes() {
         let old = sample_artifact();
         let mut new = old.clone();
-        new.factory.modules[0].abi_fingerprint = "22".repeat(32);
+        new.factory.root_factory_signature = "22".repeat(32);
 
         let differences = diff_inspections(&old, &new);
 
-        assert!(differences.iter().any(|difference| difference.contains("abi_fingerprint")));
+        assert!(differences.iter().any(|difference| difference.contains("root_factory_signature")));
     }
 
     #[test]

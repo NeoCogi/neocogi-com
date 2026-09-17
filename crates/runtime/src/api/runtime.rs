@@ -8,7 +8,7 @@
 
 use neocogi_com_core::{
     IUnknown, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_E_INVALID_ARG, NC_E_LOAD_FAILED, NC_E_OUT_OF_RANGE, NC_E_POINTER,
-    NC_OK, NcContractModuleReference, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcStatus,
+    NC_OK, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcStatus,
 };
 
 use crate::factory_activation;
@@ -17,28 +17,10 @@ use crate::state::RuntimeState;
 
 use super::{emit_error, path_from_utf8};
 
-/// Validates and atomically registers one native contract dependency graph.
-pub(super) unsafe extern "C" fn register_contract_module(module: *const NcContractModuleReference) -> NcStatus {
-    let runtime = match RuntimeState::global() {
-        Ok(runtime) => runtime,
-        Err(status) => return status,
-    };
-    // SAFETY: The caller provides the reference and transitive native graph
-    // lifetime required by the canonical contract registry.
-    let status = unsafe { runtime.register_contract_module(module) };
-    if status.is_err() {
-        emit_error(NC_DEBUG_TYPE_VALIDATION, status, "contract module registration failed");
-    }
-    status
-}
-
 /// Validates and atomically registers one factory-only plugin description.
 pub(super) unsafe extern "C" fn register_factory_plugin_description(plugin: *const NcFactoryPluginDescription) -> NcStatus {
-    let runtime = match RuntimeState::global() {
-        Ok(runtime) => runtime,
-        Err(status) => return status,
-    };
-    // SAFETY: The caller supplies the plugin and linked contract graph lifetime
+    let runtime = RuntimeState::global();
+    // SAFETY: The caller supplies the plugin and referenced metadata lifetime
     // required by process-wide registration.
     let status = unsafe { runtime.register_factory_plugin_description(plugin) };
     if status.is_err() {
@@ -60,10 +42,7 @@ pub(super) unsafe extern "C" fn load_plugin_library_utf8(path: *const u8, path_l
         Ok(path) => path,
         Err(status) => return status,
     };
-    let runtime = match RuntimeState::global() {
-        Ok(runtime) => runtime,
-        Err(status) => return status,
-    };
+    let runtime = RuntimeState::global();
 
     // SAFETY: Loading executes trusted code selected by the caller.
     match unsafe { runtime.load_plugin_library(path) } {
@@ -91,10 +70,7 @@ pub(super) unsafe extern "C" fn activate_factory_plugin(
     requested_threading: u32,
     out: *mut *mut IUnknown,
 ) -> NcStatus {
-    let runtime = match RuntimeState::global() {
-        Ok(runtime) => runtime,
-        Err(status) => return status,
-    };
+    let runtime = RuntimeState::global();
     let activation = {
         let catalog = runtime.read_catalog();
         factory_activation::resolve_factory(&catalog.factory_plugin_registry, plugin_id, factory_interface, requested_threading)

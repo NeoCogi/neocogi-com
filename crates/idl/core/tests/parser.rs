@@ -43,13 +43,13 @@ fn parses_a_complete_contract_module() {
             }
 
             #[version(1)]
-            trait IWidget {
+            interface IWidget {
                 fn enabled(&self) -> Result<bool>;
                 fn set_enabled(&mut self, enabled: bool) -> Result<()>;
             }
 
             #[id(1, "9be73186-f123-47bc-8140-4a57825eeb21")]
-            class Button: IWidget {
+            interface Button: IWidget {
                 fn set_image(&mut self, image: &ITexture) -> Result<()>;
                 fn texture(&self) -> Result<Option<ITexture>>;
             }
@@ -113,16 +113,16 @@ fn parses_a_complete_contract_module() {
     let button = module.declaration("Button").unwrap();
     assert_eq!(button.id.version, 1);
     assert!(button.id.explicit.is_some());
-    let DeclarationKind::Class(button) = &button.kind else {
+    let DeclarationKind::Interface(button) = &button.kind else {
         panic!("Button should be a class");
     };
-    assert_eq!(button.required_interfaces[0].rust_path(), "IWidget");
+    assert_eq!(button.bases[0].rust_path(), "IWidget");
     let Callable::Method(method) = &button.callables[0] else {
         panic!("Button call should be an ordinary method")
     };
     assert_eq!(method.receiver, Receiver::Mutable);
 
-    let DeclarationKind::Factory(factory) = &module.declaration("UiFactory").unwrap().kind else {
+    let DeclarationKind::Interface(factory) = &module.declaration("UiFactory").unwrap().kind else {
         panic!("UiFactory should be a factory");
     };
     assert_eq!(factory.threading, Threading::Shared);
@@ -153,7 +153,7 @@ fn parses_first_class_event_delivery_and_subscription_port() {
                 fn changed(&self, text: &str, cursor: u64) -> Result<()>;
             }
             #[version(1)]
-            trait IEditor {
+            interface IEditor {
                 fn revision(&self) -> Result<u64>;
                 /// Claims only the changed queue.
                 event subscribe_changed(&mut self): IChangedSink;
@@ -161,12 +161,12 @@ fn parses_first_class_event_delivery_and_subscription_port() {
         "#,
     )
     .unwrap();
-    let DeclarationKind::Event(event) = &module.declaration("IChangedSink").unwrap().kind else {
-        panic!("event keyword must retain its own kind")
+    let DeclarationKind::Interface(event) = &module.declaration("IChangedSink").unwrap().kind else {
+        panic!("event keyword must lower to an interface")
     };
-    assert_eq!(event.deliveries.len(), 1);
-    assert_eq!(event.deliveries[0].name, "changed");
-    assert!(matches!(event.deliveries[0].parameters[0].ty, AbiType::Borrowed(_)));
+    assert_eq!(event.methods().count(), 1);
+    assert_eq!(event.methods().next().unwrap().name, "changed");
+    assert!(matches!(event.methods().next().unwrap().parameters[0].ty, AbiType::Borrowed(_)));
     let DeclarationKind::Interface(source) = &module.declaration("IEditor").unwrap().kind else {
         panic!("source must remain an interface")
     };
@@ -211,15 +211,15 @@ fn enforces_rust_identifier_conventions() {
     let invalid = [
         ("#[version(1)] struct widget_options { value: u8 }", "UpperCamelCase"),
         ("#[version(1)] enum flow_direction: u8 { Horizontal = 0 }", "UpperCamelCase"),
-        ("#[version(1)] trait widget {}", "UpperCamelCase"),
-        ("#[version(1)] class button {}", "UpperCamelCase"),
+        ("#[version(1)] interface widget {}", "UpperCamelCase"),
+        ("#[version(1)] interface button {}", "UpperCamelCase"),
         ("#[version(1)] factory ui_factory {}", "UpperCamelCase"),
         ("#[version(1)] enum Direction: u8 { LEFT_TO_RIGHT = 0 }", "UpperCamelCase"),
         ("#[version(1)] struct Size { Width: u32 }", "snake_case"),
         ("#[version(1)] enum Event { Resize { NewWidth: u32 } }", "snake_case"),
-        ("#[version(1)] trait IWidget { fn SetWidth(&self) -> Result<()>; }", "snake_case"),
+        ("#[version(1)] interface IWidget { fn SetWidth(&self) -> Result<()>; }", "snake_case"),
         (
-            "#[version(1)] trait IWidget { fn set_width(&self, NewWidth: u32) -> Result<()>; }",
+            "#[version(1)] interface IWidget { fn set_width(&self, NewWidth: u32) -> Result<()>; }",
             "snake_case",
         ),
         ("#[version(1)] bitenum WindowOptions: u16 { Resizable = 1 }", "SCREAMING_SNAKE_CASE"),
@@ -243,7 +243,7 @@ fn enforces_rust_identifier_conventions() {
 fn rejects_mutable_object_borrows() {
     let error = parse_module(
         Path::new("neocogi/ui.ncidl"),
-        "#[version(1)] trait IWidget {} #[version(1)] factory Factory { fn edit(&self, value: &mut IWidget) -> Result<()>; }",
+        "#[version(1)] interface IWidget {} #[version(1)] factory Factory { fn edit(&self, value: &mut IWidget) -> Result<()>; }",
     )
     .unwrap_err();
     assert!(error.to_string().contains("must use `&mut [T]`"));
@@ -310,7 +310,7 @@ fn rejects_constructor_attributes() {
         Path::new("neocogi/ui.ncidl"),
         r#"
             #[version(1)]
-            class Button {
+            interface Button {
                 #[constructor]
                 fn new(&self) -> Result<Button>;
             }
@@ -328,7 +328,7 @@ fn rejects_duplicate_version_sources() {
         r#"
             #[version(1)]
             #[id(1, "9be73186-f123-47bc-8140-4a57825eeb21")]
-            trait IWidget {}
+            interface IWidget {}
         "#,
     )
     .unwrap_err();
@@ -344,7 +344,7 @@ fn merges_module_parts_without_file_order_semantics() {
     };
     let widgets = ModuleSource {
         path: Path::new("neocogi/ui/widgets.ncidl"),
-        text: "#[version(1)] trait IWidget { fn resize(&mut self, size: Size) -> Result<()>; }",
+        text: "#[version(1)] interface IWidget { fn resize(&mut self, size: Size) -> Result<()>; }",
     };
 
     let forward = parse_module_parts(Path::new("neocogi/ui"), &[geometry, widgets]).unwrap();
@@ -422,11 +422,11 @@ fn reports_original_locations_for_all_duplicate_member_kinds() {
             "duplicate bit enum flag \"ENABLED\"",
         ),
         (
-            "#[version(1)] trait IService { fn load(&self) -> Result<()>; fn load(&self) -> Result<()>; }",
+            "#[version(1)] interface IService { fn load(&self) -> Result<()>; fn load(&self) -> Result<()>; }",
             "duplicate method \"load\"",
         ),
         (
-            "#[version(1)] trait IService { fn load(&self, key: u32, key: u64) -> Result<()>; }",
+            "#[version(1)] interface IService { fn load(&self, key: u32, key: u64) -> Result<()>; }",
             "duplicate parameter \"key\"",
         ),
         (

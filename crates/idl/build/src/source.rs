@@ -195,7 +195,7 @@ mod tests {
         let module = root.join("neocogi/ui");
         let nested = module.join("input");
         fs::create_dir_all(&nested).unwrap();
-        fs::write(module.join("widgets.ncidl"), "#[version(1)] trait IWidget {}").unwrap();
+        fs::write(module.join("widgets.ncidl"), "#[version(1)] interface IWidget {}").unwrap();
         fs::write(nested.join("geometry.ncidl"), "#[version(1)] struct Size { width: u32 }").unwrap();
         fs::write(module.join("README.md"), "not IDL").unwrap();
 

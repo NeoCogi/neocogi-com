@@ -77,6 +77,7 @@ pub struct INcBytesVTable {
 // identity/signature below describe that exact vtable, and `iunknown` only casts the
 // shared header prefix without dereferencing it.
 unsafe impl ComInterface for INcBytesAbi {
+    type Threading = crate::ThreadLocal;
     const INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(IID_INC_BYTES, Self::ABI_SIGNATURE);
 
     type VTable = INcBytesVTable;
@@ -219,6 +220,7 @@ pub struct INcStringVTable {
 // identity/signature below describe that exact vtable, and `iunknown` only casts the
 // shared header prefix without dereferencing it.
 unsafe impl ComInterface for INcStringAbi {
+    type Threading = crate::ThreadLocal;
     const INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(IID_INC_STRING, Self::ABI_SIGNATURE);
 
     type VTable = INcStringVTable;

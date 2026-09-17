@@ -27,7 +27,6 @@
 
 mod abi;
 mod client;
-mod contract_module;
 mod data;
 mod decode;
 mod factory_plugin;
@@ -46,12 +45,6 @@ extern crate std;
 
 pub use abi::{__NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComStruct};
 pub use client::{ComClientInterface, NcClientPointer};
-pub use contract_module::{
-    NC_CONTRACT_DEPENDENCY_BUILTIN, NC_CONTRACT_DEPENDENCY_NATIVE, NC_CONTRACT_DECLARATION_BIT_ENUM, NC_CONTRACT_DECLARATION_CLASS,
-    NC_CONTRACT_DECLARATION_ENUM, NC_CONTRACT_DECLARATION_FACTORY, NC_CONTRACT_DECLARATION_INTERFACE, NC_CONTRACT_DECLARATION_NO_THREADING,
-    NC_CONTRACT_DECLARATION_STRUCT, NC_CONTRACT_DESCRIPTION_ABI_VERSION, NcContractDeclarationDescription, NcContractDependencyDescription,
-    NcContractFingerprint, NcContractModuleDescription, NcContractModuleReference, NcGetContractModuleDescription, validate_contract_module_description,
-};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
 pub use decode::{ComDeserialize, ComDeserializer, ComEnum, ComRecord, ComRecordAccess, ComSequence, ComSequenceAccess, ComVariantAccess};
 #[cfg(feature = "alloc")]
@@ -71,24 +64,24 @@ pub use metadata::{
     NcVersionTextError, validate_qualified_name, validate_version_text,
 };
 pub use object::{
-    __ComSupportsDescriptionThreading, ComFactoryBootstrap, ComFactoryDescription, ComFactoryImplementation, ComInterface, ComObjectDescription, IID_IUNKNOWN,
-    IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
+    __ComSupportsInterfaceThreading, ComFactoryBootstrap, ComFactoryInterface, ComFactoryImplementation, ComInterface, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID,
+    IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
 };
 pub use ptr::{ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};
 pub use runtime_abi::{
     NC_COM_RUNTIME_ABI_VERSION, NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR,
-    NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION,
-    NcContractRegistryV2, NcDebugApiV2, NcDebugCallbackV2, NcDebugMessageV2, NcDebugMessengerCreateInfoV2, NcInspectFactoryPluginDescriptionCallbackV2,
-    NcInspectionApiV2, NcModuleInfoV2, NcPluginInfoV2, NcPluginRegistryV2, NcRuntimeApiV2, NcUtf8View,
+    NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV3,
+    NcDebugCallbackV3, NcDebugMessageV3, NcDebugMessengerCreateInfoV3, NcInspectFactoryPluginDescriptionCallbackV3, NcInspectionApiV3, NcModuleInfoV3,
+    NcPluginInfoV3, NcPluginRegistryV3, NcRuntimeApiV3, NcUtf8View,
 };
 pub use status::{
-    NC_E_ABI_VERSION, NC_E_BUSY, NC_E_CONTRACT_MISMATCH, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE,
-    NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK, NcStatus,
+    NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND,
+    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK, NcStatus,
 };
 
 #[doc(hidden)]
-pub use metadata::{__nc_interface_chain, __nc_class_interface_count};
+pub use metadata::{__nc_interface_chain, __nc_object_interface_count};
 pub use factory_plugin::{
-    NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NcActivatePluginFactory, NcFactoryPluginDescription, NcGetFactoryPluginDescription,
-    activate_factory_implementation, return_factory_plugin_description, validate_factory_plugin_description,
+    NC_FACTORY_PLUGIN_ABI_VERSION, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NcActivatePluginFactory, NcFactoryPluginDescription,
+    NcGetFactoryPluginDescription, activate_factory_implementation, return_factory_plugin_description, validate_factory_plugin_description,
 };

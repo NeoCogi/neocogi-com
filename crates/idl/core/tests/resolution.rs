@@ -20,7 +20,7 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
         extern neocogi.com.events;
         use neocogi.com.events::IEventSubscription;
         #[version(1)] event IChangedSink { fn changed(&self, value: u32) -> Result<()>; }
-        #[version(1)] trait ISource { event subscribe(&self): IChangedSink; }
+        #[version(1)] interface ISource { event subscribe(&self): IChangedSink; }
     "#,
     );
     resolve_modules(vec![valid, transport.clone()]).expect("first-class event port should resolve");
@@ -30,8 +30,8 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
         r#"
         extern neocogi.com.events;
         use neocogi.com.events::IEventSubscription;
-        #[version(1)] trait IChangedSink { fn changed(&self, value: u32) -> Result<()>; }
-        #[version(1)] trait ISource { event subscribe(&self): IChangedSink; }
+        #[version(1)] interface IChangedSink { fn changed(&self, value: u32) -> Result<()>; }
+        #[version(1)] interface ISource { event subscribe(&self): IChangedSink; }
     "#,
     );
     assert!(
@@ -43,7 +43,7 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
         "example/events.ncidl",
         r#"
         #[version(1)] event IChangedSink { fn changed(&self, value: u32) -> Result<()>; }
-        #[version(1)] trait ISource { event subscribe(&self): IChangedSink; }
+        #[version(1)] interface ISource { event subscribe(&self): IChangedSink; }
     "#,
     );
     assert!(
@@ -53,7 +53,7 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
 
     let foreign_lease = module(
         "example/foreign.ncidl",
-        "#[version(1)] trait IEventSubscription { fn cancel(&self) -> Result<()>; }",
+        "#[version(1)] interface IEventSubscription { fn cancel(&self) -> Result<()>; }",
     );
     let foreign_port = module(
         "example/events.ncidl",
@@ -61,7 +61,7 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
         extern example.foreign;
         use example.foreign::IEventSubscription;
         #[version(1)] event IChangedSink { fn changed(&self, value: u32) -> Result<()>; }
-        #[version(1)] trait ISource { event subscribe(&self): IChangedSink; }
+        #[version(1)] interface ISource { event subscribe(&self): IChangedSink; }
     "#,
     );
     let error = resolve_modules(vec![foreign_port, foreign_lease]).unwrap_err().to_string();
@@ -79,7 +79,7 @@ fn resolves_a_contract_dependency_graph() {
             struct Size { width: u32, height: u32 }
 
             #[version(1)]
-            trait ITexture { fn size(&self) -> Result<Size>; }
+            interface ITexture { fn size(&self) -> Result<Size>; }
         "#,
     );
     let ui = module(
@@ -89,7 +89,7 @@ fn resolves_a_contract_dependency_graph() {
             use neocogi.render::{ITexture, Size};
 
             #[version(1)]
-            class Button {
+            interface Button {
                 fn set_image(&mut self, image: &ITexture) -> Result<()>;
             }
 
@@ -178,16 +178,16 @@ fn fingerprints_typed_layout_and_callable_changes() {
         fingerprint("#[version(1)] enum State: u16 { Ready = 1 }")
     );
     assert_ne!(
-        fingerprint("#[version(1)] trait IService { fn load(&self, key: u32) -> Result<u32>; }"),
-        fingerprint("#[version(1)] trait IService { fn load(&mut self, key: u32) -> Result<u32>; }")
+        fingerprint("#[version(1)] interface IService { fn load(&self, key: u32) -> Result<u32>; }"),
+        fingerprint("#[version(1)] interface IService { fn load(&mut self, key: u32) -> Result<u32>; }")
     );
     assert_ne!(
-        fingerprint("#[version(1)] trait IService { fn load(&self, key: u32) -> Result<u32>; }"),
-        fingerprint("#[version(1)] trait IService { fn load(&self, key: u64) -> Result<u32>; }")
+        fingerprint("#[version(1)] interface IService { fn load(&self, key: u32) -> Result<u32>; }"),
+        fingerprint("#[version(1)] interface IService { fn load(&self, key: u64) -> Result<u32>; }")
     );
     assert_ne!(
-        fingerprint("#[version(1)] trait IBase {} #[version(1)] trait IService: IBase {}"),
-        fingerprint("#[version(1)] trait IBase {} #[version(1)] trait IService {}")
+        fingerprint("#[version(1)] interface IBase {} #[version(1)] interface IService: IBase {}"),
+        fingerprint("#[version(1)] interface IBase {} #[version(1)] interface IService {}")
     );
     assert_ne!(
         fingerprint("#[threading(shared)] #[version(1)] factory Service {}"),
@@ -213,16 +213,16 @@ fn fingerprints_member_order() {
         fingerprint("#[version(1)] enum State: u8 { Second = 1, First = 0 }")
     );
     assert_ne!(
-        fingerprint("#[version(1)] trait IService { fn first(&self) -> Result<()>; fn second(&self) -> Result<()>; }"),
-        fingerprint("#[version(1)] trait IService { fn second(&self) -> Result<()>; fn first(&self) -> Result<()>; }")
+        fingerprint("#[version(1)] interface IService { fn first(&self) -> Result<()>; fn second(&self) -> Result<()>; }"),
+        fingerprint("#[version(1)] interface IService { fn second(&self) -> Result<()>; fn first(&self) -> Result<()>; }")
     );
     assert_ne!(
-        fingerprint("#[version(1)] trait IService { fn call(&self, first: u32, second: u64) -> Result<()>; }"),
-        fingerprint("#[version(1)] trait IService { fn call(&self, second: u64, first: u32) -> Result<()>; }")
+        fingerprint("#[version(1)] interface IService { fn call(&self, first: u32, second: u64) -> Result<()>; }"),
+        fingerprint("#[version(1)] interface IService { fn call(&self, second: u64, first: u32) -> Result<()>; }")
     );
     assert_ne!(
-        fingerprint("#[version(1)] trait IFirst {} #[version(1)] trait ISecond {} #[version(1)] trait IService: IFirst + ISecond {}"),
-        fingerprint("#[version(1)] trait IFirst {} #[version(1)] trait ISecond {} #[version(1)] trait IService: ISecond + IFirst {}")
+        fingerprint("#[version(1)] interface IFirst {} #[version(1)] interface ISecond {} #[version(1)] interface IService: IFirst + ISecond {}"),
+        fingerprint("#[version(1)] interface IFirst {} #[version(1)] interface ISecond {} #[version(1)] interface IService: ISecond + IFirst {}")
     );
 }
 
@@ -264,7 +264,7 @@ fn rejects_ambiguous_object_parameter_ownership() {
         "neocogi/ui.ncidl",
         r#"
             #[version(1)]
-            class Button {}
+            interface Button {}
 
             #[version(1)]
             factory UiFactory {
@@ -384,7 +384,7 @@ fn reports_definition_for_mismatched_field_type() {
     let parts = [
         ModuleSource {
             path: Path::new("neocogi/ui/rendering.ncidl"),
-            text: "#[version(1)] trait ITexture {}",
+            text: "#[version(1)] interface ITexture {}",
         },
         ModuleSource {
             path: Path::new("neocogi/ui/assets.ncidl"),
@@ -399,7 +399,7 @@ fn reports_definition_for_mismatched_field_type() {
         "{error}"
     );
     assert!(error.contains("neocogi/ui/assets.ncidl:1:39"), "{error}");
-    assert!(error.contains("neocogi/ui/rendering.ncidl:1:21"), "{error}");
+    assert!(error.contains("neocogi/ui/rendering.ncidl:1:25"), "{error}");
     assert!(error.contains("found interface"), "{error}");
     assert!(error.contains("copied struct, enum, or bit enum"), "{error}");
 }
@@ -466,7 +466,7 @@ fn preserves_explicit_identity_without_rewriting_names() {
         "neocogi/ui.ncidl",
         r#"
             #[id(7, "9be73186-f123-47bc-8140-4a57825eeb21")]
-            trait IWidget {}
+            interface IWidget {}
         "#,
     );
     let modules = resolve_modules(vec![source]).unwrap();
@@ -531,4 +531,35 @@ fn rejects_invalid_bit_enum_values() {
     let duplicate = module("neocogi/ui.ncidl", "#[version(1)] bitenum WindowOptions: u16 { FIRST = 1, SECOND = 1 }");
     let error = resolve_modules(vec![duplicate]).unwrap_err();
     assert!(error.to_string().contains("repeats value 1"));
+}
+
+/// Common interfaces preserve construction roles and thread-safety promises in signatures.
+#[test]
+fn interface_roles_and_threading_are_contract_identity_inputs() {
+    // Keep the nominal name/version equal so only the role/capability differs.
+    let fingerprint = |source: &str| resolve_modules(vec![module("example/contract.ncidl", source)]).unwrap().modules()[0].abi_fingerprint;
+    let ordinary = fingerprint("#[version(1)] interface Root {}");
+    let factory = fingerprint("#[version(1)] factory Root {}");
+    let shared = fingerprint("#[version(1)] #[threading(shared)] interface Root {}");
+    assert_ne!(ordinary, factory);
+    assert_ne!(ordinary, shared);
+}
+
+/// Required projections must have a finite layout and preserve every threading promise.
+#[test]
+fn rejects_recursive_and_weakened_required_interfaces() {
+    for (source, diagnostic) in [
+        ("#[version(1)] interface Root: Root {}", "recursive interface projections"),
+        (
+            "#[version(1)] interface Root: Child {} #[version(1)] interface Child: Root {}",
+            "recursive interface projections",
+        ),
+        (
+            "#[version(1)] #[threading(shared)] interface Shared {} #[version(1)] interface Local: Shared {}",
+            "cannot weaken the shared threading promise",
+        ),
+    ] {
+        let parsed = module("example/contracts.ncidl", source);
+        assert!(resolve_modules(vec![parsed]).unwrap_err().to_string().contains(diagnostic));
+    }
 }

@@ -24,7 +24,7 @@ fn generates_event_payload_sink_adapter_and_subscription_port() {
             fn changed(&self, text: &str, cursor: u64) -> Result<()>;
         }
         #[version(1)]
-        trait IEditor {
+        interface IEditor {
             fn revision(&self) -> Result<u64>;
             event subscribe_changed(&mut self): IChangedSink;
         }
@@ -80,7 +80,7 @@ fn source_only_event_port_checks_support_api() {
         extern example.sink;
         use neocogi.com.events::IEventSubscription;
         use example.sink::IChangedSink;
-        #[version(1)] trait ISource { event subscribe(&self): IChangedSink; }
+        #[version(1)] interface ISource { event subscribe(&self): IChangedSink; }
     "#,
     );
     let graph = resolve_modules(vec![source, sink, transport]).unwrap();
@@ -109,7 +109,7 @@ fn generates_private_typed_connectors_for_each_port_and_source_mode() {
         extern example.sink;
         use neocogi.com.events::IEventSubscription;
         use example.sink::IChangedSink;
-        #[version(1)] trait ISource {
+        #[version(1)] interface ISource {
             event subscribe_read(&self): IChangedSink;
             event subscribe_write(&mut self): IChangedSink;
         }
@@ -117,7 +117,7 @@ fn generates_private_typed_connectors_for_each_port_and_source_mode() {
         #[version(1)] factory SharedSource {
             event subscribe(&self): IChangedSink;
         }
-        #[version(1)] class Editor: ISource {
+        #[version(1)] interface Editor: ISource {
             event subscribe(&mut self): IChangedSink;
         }
     "#,
@@ -189,7 +189,7 @@ fn generates_rust_bindings_for_a_module_graph() {
             struct Size { width: u32, height: u32, status: Status }
 
             #[version(2)]
-            trait ITexture { fn size(&self) -> Result<Size>; }
+            interface ITexture { fn size(&self) -> Result<Size>; }
 
         "#,
     );
@@ -215,7 +215,7 @@ fn generates_rust_bindings_for_a_module_graph() {
         }
 
         #[version(1)]
-        class Button: ITexture {
+        interface Button: ITexture {
             fn resize(&mut self, size: Size) -> Result<()>;
         }
 
@@ -233,8 +233,8 @@ fn generates_rust_bindings_for_a_module_graph() {
     let generated_render = neocogi_idl_build::generate_rust(&graph, "neocogi.render").unwrap();
     syn::parse_file(&generated).expect("generated bindings must be valid Rust syntax");
     assert!(generated.lines().count() > 20, "generated bindings must use readable multiline formatting");
-    assert!(generated.contains("com_class_description"));
-    assert!(generated.contains("com_factory_description"));
+    assert!(generated.contains("com_interface"));
+    assert!(generated.contains("factory,"));
     assert!(generated.contains("com_int_enum"));
     assert!(generated.contains("com_bit_enum"));
     assert!(generated.contains("pub bitenum WindowOptions: u16"));
@@ -289,7 +289,7 @@ fn preserves_documentation_without_making_it_an_abi_input() {
 #[test]
 fn multipart_permutations_generate_identical_bindings() {
     let geometry = "/// Size docs.\n#[version(1)] struct Size { width: u32, height: u32 }";
-    let widgets = "/// Widget docs.\n#[version(1)] trait IWidget { fn resize(&mut self, size: Size) -> Result<()>; }";
+    let widgets = "/// Widget docs.\n#[version(1)] interface IWidget { fn resize(&mut self, size: Size) -> Result<()>; }";
     let first_parts = [
         ModuleSource {
             path: Path::new("example/contract/z_geometry.ncidl"),

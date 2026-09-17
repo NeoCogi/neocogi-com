@@ -104,7 +104,7 @@ fn abi_panic_helper_exits_if_thunk_returns_status() {
         return;
     }
 
-    let unknown: ComPtr<IUnknown> = PanickingObject::create();
+    let unknown: ComPtr<IUnknown> = PanickingObject::from_value(PanickingObject);
     let panics = unknown.query::<IPanicsAbi>().unwrap();
     let raw = panics.as_mut_ptr();
 
@@ -119,7 +119,7 @@ fn abi_drop_panic_helper_exits_if_release_returns() {
         return;
     }
 
-    let unknown: ComPtr<IUnknown> = DropPanickingObject::create();
+    let unknown: ComPtr<IUnknown> = DropPanickingObject::from_value(DropPanickingObject);
     let drop_panics = unknown.query::<IDropPanicsAbi>().unwrap();
     drop(drop_panics);
     drop(unknown);

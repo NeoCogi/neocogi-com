@@ -1,13 +1,13 @@
 /// Optional capability implemented by the example class.
 #[version(1)]
-trait IMeasured {
+interface IMeasured {
     /// Returns the current copied dimensions.
     fn extent(&self) -> Result<Extent>;
 }
 
 /// Public object shape constructed only by `ExampleFactory`.
 #[version(1)]
-class ExampleObject: IMeasured {
+interface ExampleObject: IMeasured {
     /// Replaces the dimensions using an exclusive implementation borrow.
     fn resize(&mut self, extent: Extent) -> Result<()>;
 }

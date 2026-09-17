@@ -1,7 +1,4 @@
-use neocogi_com::{
-    ComPtr, ComRef, NcCopyFromBufferOffset, NcCopyToBufferOffset, NcStatus,
-    NC_E_OUT_OF_RANGE, com_object, com_interface, com_struct,
-};
+use neocogi_com::{ComPtr, ComRef, NcCopyFromBufferOffset, NcCopyToBufferOffset, NcStatus, NC_E_OUT_OF_RANGE, com_object, com_interface, com_struct};
 
 #[com_struct(assigned_signature = b"00000000000000000000000000000040")]
 #[derive(Debug, Default, PartialEq)]
@@ -43,7 +40,9 @@ pub struct NativeCalculator;
 
 /// Inherited calls use the same concrete calculator allocation from C.
 impl INativeValue for NativeCalculator {
-    fn value(&self) -> Result<i32, NcStatus> { Ok(23) }
+    fn value(&self) -> Result<i32, NcStatus> {
+        Ok(23)
+    }
 }
 
 impl INativeCalculator for NativeCalculator {
@@ -65,10 +64,7 @@ impl INativeCalculator for NativeCalculator {
     }
 
     fn sum_buffer(&self, input: NcCopyFromBufferOffset<'_, u8>) -> Result<u64, NcStatus> {
-        Ok(input
-            .as_slice()
-            .iter()
-            .fold(input.offset(), |sum, byte| sum.wrapping_add(u64::from(*byte))))
+        Ok(input.as_slice().iter().fold(input.offset(), |sum, byte| sum.wrapping_add(u64::from(*byte))))
     }
 
     fn fill_buffer(&self, mut output: NcCopyToBufferOffset<'_, u8>) -> Result<(), NcStatus> {
@@ -94,8 +90,7 @@ impl INativeCalculator for NativeCalculator {
 mod tests {
     use super::*;
     use neocogi_com::{
-        ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV2, NcInspectionApiV2, NcInterfaceDescriptor, NcInterfaceId, NcPluginRegistryV2,
-        NcRuntimeApiV2,
+        ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV3, NcInspectionApiV3, NcInterfaceDescriptor, NcInterfaceId, NcPluginRegistryV3, NcRuntimeApiV3,
     };
 
     #[repr(C)]
@@ -127,7 +122,7 @@ mod tests {
         interface_method_count_offset: usize,
         interface_methods_offset: usize,
         runtime_core_abi_version_offset: usize,
-        runtime_contract_register_offset: usize,
+        runtime_plugin_register_offset: usize,
         plugin_registry_first_function_offset: usize,
         inspection_first_function_offset: usize,
         debug_first_function_offset: usize,
@@ -151,32 +146,14 @@ mod tests {
     fn native_abi_layouts() -> NativeAbiLayouts {
         NativeAbiLayouts {
             interface_descriptor_size: core::mem::size_of::<NcInterfaceDescriptor>(),
-            interface_qualified_name_offset: core::mem::offset_of!(
-                NcInterfaceDescriptor,
-                qualified_name
-            ),
-            interface_method_count_offset: core::mem::offset_of!(
-                NcInterfaceDescriptor,
-                method_count
-            ),
+            interface_qualified_name_offset: core::mem::offset_of!(NcInterfaceDescriptor, qualified_name),
+            interface_method_count_offset: core::mem::offset_of!(NcInterfaceDescriptor, method_count),
             interface_methods_offset: core::mem::offset_of!(NcInterfaceDescriptor, methods),
-            runtime_core_abi_version_offset: core::mem::offset_of!(
-                NcRuntimeApiV2,
-                core_abi_version
-            ),
-            runtime_contract_register_offset: core::mem::offset_of!(
-                NcRuntimeApiV2,
-                register_contract_module
-            ),
-            plugin_registry_first_function_offset: core::mem::offset_of!(
-                NcPluginRegistryV2,
-                plugin_count
-            ),
-            inspection_first_function_offset: core::mem::offset_of!(
-                NcInspectionApiV2,
-                plugin_info
-            ),
-            debug_first_function_offset: core::mem::offset_of!(NcDebugApiV2, create_messenger),
+            runtime_core_abi_version_offset: core::mem::offset_of!(NcRuntimeApiV3, core_abi_version),
+            runtime_plugin_register_offset: core::mem::offset_of!(NcRuntimeApiV3, register_factory_plugin_description),
+            plugin_registry_first_function_offset: core::mem::offset_of!(NcPluginRegistryV3, plugin_count),
+            inspection_first_function_offset: core::mem::offset_of!(NcInspectionApiV3, plugin_info),
+            debug_first_function_offset: core::mem::offset_of!(NcDebugApiV3, create_messenger),
             aggregate_size: core::mem::size_of::<NativeAggregate>(),
             aggregate_align: core::mem::align_of::<NativeAggregate>(),
             aggregate_count_offset: core::mem::offset_of!(NativeAggregate, count),
@@ -186,17 +163,10 @@ mod tests {
 
     #[test]
     fn native_c_can_consume_generated_com_abi() {
-        let unknown: ComPtr<IUnknown> = NativeCalculator::create();
+        let unknown: ComPtr<IUnknown> = NativeCalculator::from_value(NativeCalculator);
         let mut results = NativeCResults::default();
 
-        let status = unsafe {
-            nc_c_exercise_calculator(
-                unknown.as_mut_ptr(),
-                &INativeCalculatorAbi::INTERFACE_ID,
-                &mut results,
-                NC_E_POINTER,
-            )
-        };
+        let status = unsafe { nc_c_exercise_calculator(unknown.as_mut_ptr(), &INativeCalculatorAbi::INTERFACE_ID, &mut results, NC_E_POINTER) };
 
         assert_eq!(status, NC_OK);
         assert_eq!(results.sum, 5);
@@ -215,14 +185,7 @@ mod tests {
         assert_eq!(results.null_copy_to_status, NC_E_POINTER.code());
         assert_eq!(results.zero_copy_from_status, NC_OK.code());
         assert_eq!(results.zero_copy_to_status, NC_OK.code());
-        assert_eq!(
-            results.aggregate,
-            NativeAggregate {
-                tag: 4,
-                count: 7,
-                value: 14,
-            }
-        );
+        assert_eq!(results.aggregate, NativeAggregate { tag: 4, count: 7, value: 14 });
         assert_eq!(unsafe { nc_c_validate_abi_layouts(&native_abi_layouts()) }, 1);
     }
 }

@@ -17,3 +17,6 @@ neocogi-com-core = { workspace = true, default-features = false, features = ["st
 neocogi-com-runtime = { workspace = true, default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -1,8 +1,8 @@
 //! Generates the intrinsic COM event lease and dispatcher contracts from NCIDL.
 
-/// Emits typed Rust bindings and the source graph, leaving native metadata to the runtime.
+/// Emits typed Rust bindings and the source graph, without a separate native artifact.
 fn main() {
     neocogi_idl_build::Module::directory("idl", "neocogi/com/events")
-        .build_runtime_builtin()
+        .build()
         .expect("failed to build neocogi.com.events");
 }

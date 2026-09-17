@@ -8,8 +8,8 @@ use std::{
 use neocogi_com_core::{NcGuid, guid_from_name, guid_from_qualified_name};
 
 use crate::{
-    AbiType, BitEnum, Callable, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, Method, Module, NamedType, SourceFile, SourceSpan, Threading,
-    VariantFields,
+    AbiType, BitEnum, Callable, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, InterfaceRole, Method, Module, NamedType, SourceFile, SourceSpan,
+    Threading, VariantFields,
     model::{COM_EVENT_LEASE_NAME, COM_EVENTS_MODULE_NAME},
     sha256::digest,
 };
@@ -288,10 +288,6 @@ enum SymbolKind {
     Value,
     /// A reusable COM interface.
     Interface,
-    /// A factory-created class primary projection.
-    Class,
-    /// A typed provider interface.
-    Factory,
 }
 
 impl SymbolKind {
@@ -300,8 +296,6 @@ impl SymbolKind {
         match self {
             Self::Value => "copied value",
             Self::Interface => "interface",
-            Self::Class => "class",
-            Self::Factory => "factory",
         }
     }
 }
@@ -566,48 +560,34 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
             }
             DeclarationKind::BitEnum(bit_enum) => collect_diagnostics(&mut diagnostics, validate_bit_enum(entry, declaration, bit_enum)),
             DeclarationKind::Interface(interface) => {
-                collect_diagnostics(&mut diagnostics, validate_interface_bases(index, &interface.bases, entries, &declaration.name));
+                collect_diagnostics(&mut diagnostics, validate_interface_bases(index, interface, entries, &declaration.name));
                 collect_diagnostics(&mut diagnostics, validate_callables(index, &interface.callables, entries, &declaration.name));
-            }
-            DeclarationKind::Event(event) => {
-                collect_diagnostics(&mut diagnostics, validate_methods(index, &event.deliveries, entries, &declaration.name));
-                for delivery in &event.deliveries {
-                    for parameter in &delivery.parameters {
-                        if matches!(parameter.ty, AbiType::OutputSlice(_) | AbiType::Option(_)) {
-                            collect_diagnostics(
-                                &mut diagnostics,
-                                Err(source_error(
-                                    &entry.module,
-                                    "EIDL080",
-                                    &parameter.span,
-                                    format!(
-                                        "event {} delivery {} parameter {} cannot be captured as an owned snapshot",
-                                        declaration.name, delivery.name, parameter.name
-                                    ),
-                                    "event inputs must be copied values, &str, borrowed objects, or input slices",
-                                )),
-                            );
+                if interface.role == InterfaceRole::Event {
+                    // Snapshot adapters must own each input after delivery returns.
+                    for delivery in interface.methods() {
+                        for parameter in &delivery.parameters {
+                            if matches!(parameter.ty, AbiType::OutputSlice(_) | AbiType::Option(_)) {
+                                collect_diagnostics(
+                                    &mut diagnostics,
+                                    Err(source_error(
+                                        &entry.module,
+                                        "EIDL080",
+                                        &parameter.span,
+                                        format!(
+                                            "event {} delivery {} parameter {} cannot be captured as an owned snapshot",
+                                            declaration.name, delivery.name, parameter.name
+                                        ),
+                                        "event inputs must be copied values, &str, borrowed objects, or input slices",
+                                    )),
+                                );
+                            }
                         }
                     }
                 }
             }
-            DeclarationKind::Class(class) => {
-                collect_diagnostics(
-                    &mut diagnostics,
-                    validate_interface_bases(index, &class.required_interfaces, entries, &declaration.name),
-                );
-                collect_diagnostics(&mut diagnostics, validate_callables(index, &class.callables, entries, &declaration.name));
-            }
-            DeclarationKind::Factory(factory) => {
-                collect_diagnostics(
-                    &mut diagnostics,
-                    validate_interface_bases(index, &factory.required_interfaces, entries, &declaration.name),
-                );
-                collect_diagnostics(&mut diagnostics, validate_callables(index, &factory.callables, entries, &declaration.name));
-            }
         }
     }
-    collect_diagnostics(&mut diagnostics, validate_value_layouts(index, entries));
+    collect_diagnostics(&mut diagnostics, validate_layouts(index, entries));
     if diagnostics.is_empty() {
         Ok(())
     } else {
@@ -615,26 +595,18 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
     }
 }
 
-/// Rejects local copied-value cycles before generated Rust reaches layout checking.
-fn validate_value_layouts(index: usize, entries: &[ModuleEntry]) -> Result<(), ResolutionError> {
+/// Rejects inline-value and required-interface cycles before generated Rust reaches layout checking.
+fn validate_layouts(index: usize, entries: &[ModuleEntry]) -> Result<(), ResolutionError> {
     let mut states = vec![VisitState::Unvisited; entries[index].module.declarations.len()];
     let mut stack = Vec::new();
     for declaration in 0..states.len() {
-        if symbol_kind(&entries[index].module.declarations[declaration].kind) == SymbolKind::Value {
-            visit_value_layout(index, declaration, entries, &mut states, &mut stack)?;
-        }
+        visit_layout(index, declaration, entries, &mut states, &mut stack)?;
     }
     Ok(())
 }
 
-/// Walks one local value declaration and reports the edge closing a cycle.
-fn visit_value_layout(
-    module: usize,
-    declaration: usize,
-    entries: &[ModuleEntry],
-    states: &mut [VisitState],
-    stack: &mut Vec<usize>,
-) -> Result<(), ResolutionError> {
+/// Walks one local declaration and reports the edge closing a cycle.
+fn visit_layout(module: usize, declaration: usize, entries: &[ModuleEntry], states: &mut [VisitState], stack: &mut Vec<usize>) -> Result<(), ResolutionError> {
     match states[declaration] {
         VisitState::Complete => return Ok(()),
         VisitState::Visiting => return Ok(()),
@@ -645,34 +617,49 @@ fn visit_value_layout(
 
     let owner = &entries[module].module.declarations[declaration];
     let mut references = Vec::new();
-    collect_value_references(owner, &mut references);
+    collect_layout_references(owner, &mut references);
     for reference in references {
         let Ok(symbol) = resolve_named(module, reference, entries) else {
             // Name resolution already emits the more direct diagnostic.
             continue;
         };
-        if symbol.module != module || symbol.kind != SymbolKind::Value {
+        if symbol.module != module || symbol.kind != symbol_kind(&owner.kind) {
             continue;
         }
-        if states[symbol.declaration] == VisitState::Visiting {
-            let cycle_start = stack.iter().position(|candidate| *candidate == symbol.declaration).unwrap_or(0);
-            let mut names = stack[cycle_start..]
-                .iter()
-                .map(|index| entries[module].module.declarations[*index].name.as_str())
-                .collect::<Vec<_>>();
-            names.push(entries[module].module.declarations[symbol.declaration].name.as_str());
-            let definition = &entries[module].module.declarations[symbol.declaration];
-            return Err(ResolutionError {
-                diagnostics: vec![
-                    Diagnostic::new("EIDL063", format!("recursive copied-value layout: {}", names.join(" -> ")))
-                        .with_sources(&entries[module].module.sources)
-                        .primary(&reference.span, "this field closes the recursive layout")
-                        .secondary(&definition.span, "recursive value is declared here")
-                        .note("introduce an object interface boundary; copied IDL values must have a finite inline size"),
-                ],
-            });
+        match states[symbol.declaration] {
+            VisitState::Visiting => {
+                let (layout, label, note) = match symbol.kind {
+                    SymbolKind::Value => (
+                        "copied-value layout",
+                        "field",
+                        "introduce an object interface boundary; copied IDL values must have a finite inline size",
+                    ),
+                    SymbolKind::Interface => (
+                        "interface projections",
+                        "required interface",
+                        "required interfaces must form an acyclic graph; use a method result for recursive object relationships",
+                    ),
+                };
+                let cycle_start = stack.iter().position(|candidate| *candidate == symbol.declaration).unwrap_or(0);
+                let mut names = stack[cycle_start..]
+                    .iter()
+                    .map(|index| entries[module].module.declarations[*index].name.as_str())
+                    .collect::<Vec<_>>();
+                names.push(entries[module].module.declarations[symbol.declaration].name.as_str());
+                let definition = &entries[module].module.declarations[symbol.declaration];
+                return Err(ResolutionError {
+                    diagnostics: vec![
+                        Diagnostic::new("EIDL063", format!("recursive {layout}: {}", names.join(" -> ")))
+                            .with_sources(&entries[module].module.sources)
+                            .primary(&reference.span, format!("this {label} closes the recursive layout"))
+                            .secondary(&definition.span, "recursive declaration is defined here")
+                            .note(note),
+                    ],
+                });
+            }
+            VisitState::Unvisited => visit_layout(module, symbol.declaration, entries, states, stack)?,
+            VisitState::Complete => {}
         }
-        visit_value_layout(module, symbol.declaration, entries, states, stack)?;
     }
 
     stack.pop();
@@ -680,8 +667,8 @@ fn visit_value_layout(
     Ok(())
 }
 
-/// Collects every named value reference stored inline by one declaration.
-fn collect_value_references<'a>(declaration: &'a Declaration, output: &mut Vec<&'a NamedType>) {
+/// Collects references that recursively determine storage or interface headers. Mutable method arguments and COM object results do not inline their referents.
+fn collect_layout_references<'a>(declaration: &'a Declaration, output: &mut Vec<&'a NamedType>) {
     match &declaration.kind {
         DeclarationKind::Struct(record) => {
             for field in &record.fields {
@@ -705,7 +692,8 @@ fn collect_value_references<'a>(declaration: &'a Declaration, output: &mut Vec<&
                 }
             }
         }
-        DeclarationKind::BitEnum(_) | DeclarationKind::Interface(_) | DeclarationKind::Event(_) | DeclarationKind::Class(_) | DeclarationKind::Factory(_) => {}
+        DeclarationKind::Interface(interface) => output.extend(&interface.bases),
+        DeclarationKind::BitEnum(_) => {}
     }
 }
 
@@ -843,9 +831,9 @@ fn repr_range(repr: EnumRepr) -> (i128, i128) {
 }
 
 /// Requires each base or required projection to name an interface.
-fn validate_interface_bases(index: usize, bases: &[NamedType], entries: &[ModuleEntry], owner: &str) -> Result<(), ResolutionError> {
+fn validate_interface_bases(index: usize, interface: &crate::Interface, entries: &[ModuleEntry], owner: &str) -> Result<(), ResolutionError> {
     let mut identities = HashMap::<(usize, NcGuid), SourceSpan>::new();
-    for base in bases {
+    for base in &interface.bases {
         let symbol = resolve_named(index, base, entries)?;
         if symbol.kind != SymbolKind::Interface {
             return Err(kind_mismatch_error(
@@ -857,6 +845,17 @@ fn validate_interface_bases(index: usize, bases: &[NamedType], entries: &[Module
                 "expected an interface base",
                 "interface",
             ));
+        }
+        if let DeclarationKind::Interface(required) = &entries[symbol.module].module.declarations[symbol.declaration].kind {
+            if matches!((interface.threading, required.threading), (Threading::Local, Threading::Shared)) {
+                return Err(source_error(
+                    &entries[index].module,
+                    "EIDL052",
+                    &base.span,
+                    format!("{owner} cannot weaken the shared threading promise of {}", base.rust_path()),
+                    "declare this interface with #[threading(shared)]",
+                ));
+            }
         }
         if let Some(previous) = identities.insert((symbol.module, symbol.id), base.span.clone()) {
             return Err(ResolutionError {
@@ -909,7 +908,8 @@ fn validate_callables(index: usize, callables: &[Callable], entries: &[ModuleEnt
             Callable::EventPort(port) => {
                 let sink = resolve_named(index, &port.sink, entries);
                 match sink {
-                    Ok(symbol) if matches!(entries[symbol.module].module.declarations[symbol.declaration].kind, DeclarationKind::Event(_)) => {}
+                    Ok(symbol) if matches!(&entries[symbol.module].module.declarations[symbol.declaration].kind, DeclarationKind::Interface(interface) if interface.role == InterfaceRole::Event) =>
+                        {}
                     Ok(symbol) => collect_diagnostics(
                         &mut diagnostics,
                         Err(kind_mismatch_error(
@@ -1200,7 +1200,9 @@ fn fingerprint_module(
 fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, [u8; 32])]) -> Result<[u8; 32], ResolutionError> {
     let entry = &entries[index];
     let mut encoder = CanonicalEncoder::new();
-    encoder.bytes(b"neocogi-idl:module-abi:v1\0");
+    // Version the canonical encoding when unifying callable kinds into roles:
+    // no older byte stream may accidentally describe the new representation.
+    encoder.bytes(b"neocogi-idl:module-abi:v2\0");
     encoder.guid(entry.module_id);
 
     encoder.u32(u32_len(dependencies.len(), &entry.name, "dependency count")?);
@@ -1283,22 +1285,14 @@ fn encode_declaration(
         }
         DeclarationKind::Interface(interface) => {
             encoder.tag(3);
-            encode_callable(index, &interface.bases, &interface.callables, Threading::Local, entries, encoder)?;
-        }
-        DeclarationKind::Event(event) => {
-            // Event declarations are sink interfaces at the ABI, but their
-            // native payload semantics are not equivalent to arbitrary traits.
-            encoder.tag(7);
-            let deliveries = event.deliveries.iter().cloned().map(Callable::Method).collect::<Vec<_>>();
-            encode_callable(index, &[], &deliveries, Threading::Local, entries, encoder)?;
-        }
-        DeclarationKind::Class(class) => {
-            encoder.tag(4);
-            encode_callable(index, &class.required_interfaces, &class.callables, class.threading, entries, encoder)?;
-        }
-        DeclarationKind::Factory(factory) => {
-            encoder.tag(5);
-            encode_callable(index, &factory.required_interfaces, &factory.callables, factory.threading, entries, encoder)?;
+            // Roles affect construction and delivery semantics even when slots
+            // match. Include them alongside threading and required projections.
+            encoder.tag(match interface.role {
+                InterfaceRole::Ordinary => 0,
+                InterfaceRole::Factory => 1,
+                InterfaceRole::Event => 2,
+            });
+            encode_callable(index, &interface.bases, &interface.callables, interface.threading, entries, encoder)?;
         }
     }
     Ok(())
@@ -1499,9 +1493,7 @@ fn derive_declaration_signature(module_fingerprint: [u8; 32], declaration_id: Nc
 fn symbol_kind(kind: &DeclarationKind) -> SymbolKind {
     match kind {
         DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) => SymbolKind::Value,
-        DeclarationKind::Interface(_) | DeclarationKind::Event(_) => SymbolKind::Interface,
-        DeclarationKind::Class(_) => SymbolKind::Class,
-        DeclarationKind::Factory(_) => SymbolKind::Factory,
+        DeclarationKind::Interface(_) => SymbolKind::Interface,
     }
 }
 

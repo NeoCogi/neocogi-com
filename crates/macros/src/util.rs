@@ -154,7 +154,7 @@ pub(crate) fn validate_no_generics(generics: &Generics, subject: &str) -> Result
 /// Clones a path and replaces its final identifier while retaining qualification.
 pub(crate) fn path_with_last_ident(path: &Path, ident: Ident) -> Path {
     let mut path = path.clone();
-    let last = path.segments.last_mut().expect("class interface path has at least one segment");
+    let last = path.segments.last_mut().expect("object interface path has at least one segment");
     last.ident = ident;
     path
 }
@@ -182,9 +182,9 @@ pub(crate) fn interface_field(path: &Path) -> Ident {
     format_ident!("{name}")
 }
 
-/// Propagates the source class visibility to generated construction helpers.
+/// Propagates the source object visibility to generated construction helpers.
 pub(crate) fn create_visibility(vis: &Visibility) -> Visibility {
-    // Constructors should be visible wherever the Rust class itself is visible.
+    // Constructors should be visible wherever the Rust object itself is visible.
     // Interface-generated ABI symbols use the interface trait visibility.
     vis.clone()
 }

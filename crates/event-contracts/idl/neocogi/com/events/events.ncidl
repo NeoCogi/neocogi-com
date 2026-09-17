@@ -1,6 +1,6 @@
 #[version(1)]
 /// One application-owned lease over a producer-owned typed event queue.
-trait IEventSubscription {
+interface IEventSubscription {
     /// Delivers at most limit callbacks from one detached FIFO prefix.
     /// A callback error consumes the attempted event and preserves unattempted events.
     fn dispatch(&self, limit: u32) -> Result<u32>;
@@ -12,7 +12,7 @@ trait IEventSubscription {
 
 #[version(1)]
 /// Borrowed dispatcher that sweeps application registrations in deterministic order.
-trait IEventDispatcher {
+interface IEventDispatcher {
     /// Delivers finite cascades up to the supplied callback budget.
     fn dispatch(&self, limit: u32) -> Result<u32>;
 }

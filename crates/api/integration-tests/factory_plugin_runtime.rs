@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use neocogi_com::{ComPtr, NcStatus, Runtime, com_factory, com_object, factory_plugin, guid_from_qualified_name};
-use neocogi_idl_example_contracts::{ExampleFactory, ExampleFactoryAbi, ExampleObject, ExampleObjectAbi, Extent, IMeasured, MODULE};
+use neocogi_idl_example_contracts::{ExampleFactory, ExampleFactoryAbi, ExampleObject, ExampleObjectAbi, Extent, IMeasured};
 
 /// Private mutable implementation of the constructor-free IDL class.
 #[com_object(neocogi_idl_example_contracts::ExampleObject)]
@@ -42,7 +42,6 @@ impl ExampleFactory for ExampleFactoryImplementation {
 factory_plugin! {
     name = "nc.tests.generated_factory_plugin",
     version = "1.0.0",
-    contracts = [MODULE],
     factory = ExampleFactoryImplementation,
 }
 
@@ -64,8 +63,6 @@ fn generated_contract_factory_activates_without_a_class_table() {
     object.resize(Extent { width: 44, height: 31 }).expect("exclusive resize failed");
     assert_eq!(object.extent().expect("updated extent query failed"), Extent { width: 44, height: 31 });
 
-    let contracts = runtime.contract_registry().module_ids().expect("contract enumeration failed");
-    assert!(contracts.contains(&MODULE.module_id));
     let plugins = runtime.plugin_registry().plugin_ids().expect("plugin enumeration failed");
     assert!(plugins.contains(&plugin_id));
     let info = runtime
@@ -79,7 +76,7 @@ fn generated_contract_factory_activates_without_a_class_table() {
 /// Verifies the linked runtime loads a real factory DSO, publishes its exact
 /// contract, and exposes its root through the same host-visible registry.
 #[test]
-fn dynamic_factory_plugin_links_the_exact_contract_dso() {
+fn dynamic_factory_plugin_uses_compiled_contracts() {
     let library = build_dynamic_fixture();
     let runtime = Runtime::default();
     // SAFETY: The built example is trusted test code and the runtime retains
@@ -98,19 +95,18 @@ fn dynamic_factory_plugin_links_the_exact_contract_dso() {
 
 /// Builds the factory-only cdylib example in an isolated target directory.
 fn build_dynamic_fixture() -> PathBuf {
-    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../examples/com-plugin/Cargo.toml");
     let target = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../target/factory-plugin-component-fixture");
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
     let output = Command::new(cargo)
-        .arg("build")
+        .arg("rustc")
         .arg("--offline")
         .arg("--locked")
         .arg("--manifest-path")
         .arg(&manifest)
         .arg("--target-dir")
         .arg(&target)
-        .arg("--example")
-        .arg("factory_plugin_component")
+        .args(["--lib", "--crate-type", "cdylib", "--features", "dynamic-plugin"])
         .output()
         .expect("failed to build dynamic factory plugin fixture");
     assert!(
@@ -120,8 +116,8 @@ fn build_dynamic_fixture() -> PathBuf {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
-    target.join("debug").join("examples").join(format!(
-        "{}factory_plugin_component{}",
+    target.join("debug").join(format!(
+        "{}neocogi_example_com_plugin{}",
         std::env::consts::DLL_PREFIX,
         std::env::consts::DLL_SUFFIX,
     ))

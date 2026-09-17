@@ -12,49 +12,33 @@ use syn::{Ident, LitByteStr, LitInt, LitStr, Path, Result, Token, Type, parenthe
 use crate::util::{interface_field, path_with_last_ident};
 
 /// Parsed options for concrete `#[com_object]` storage generation.
-pub(crate) struct ClassArgs {
+pub(crate) struct ObjectArgs {
     /// Explicit interface list after deriving ABI and vtable helper paths.
-    pub(crate) interfaces: Vec<ClassInterface>,
+    pub(crate) interfaces: Vec<ObjectInterface>,
     /// Whether generated object storage may be shared across threads.
     pub(crate) thread_safe: bool,
     /// Optional path overriding automatic `neocogi-com` crate discovery.
     pub(crate) runtime_crate: Option<Path>,
-    /// Optional generated ABI path for a factory-created object description.
-    pub(crate) object_description: Option<Path>,
+    /// Optional generated ABI path for a factory-created interface contract.
+    pub(crate) primary_interface: Option<Path>,
 }
 
-/// Parsed identity and capability fields for an IDL-generated object shape.
-pub(crate) struct ObjectDescriptionArgs {
-    /// Stable UUID assigned by IDL semantic resolution.
-    pub(crate) id: LitStr,
-    /// Exact dotted declaration name.
-    pub(crate) name: LitStr,
-    /// Positive IDL declaration version.
-    pub(crate) version: LitInt,
-    /// Local or shared threading capability.
-    pub(crate) threading: DescriptionThreading,
-    /// Generator-computed declaration signature required by expansion.
-    pub(crate) assigned_signature: Option<LitByteStr>,
-    /// Optional path overriding automatic `neocogi-com` crate discovery.
-    pub(crate) runtime_crate: Option<Path>,
-}
-
-/// Threading spellings accepted by generated description attributes.
+/// Threading spellings accepted by generated interface attributes.
 #[derive(Clone, Copy)]
-pub(crate) enum DescriptionThreading {
+pub(crate) enum InterfaceThreading {
     /// References and calls remain on one thread.
     Local,
     /// References and calls may cross threads.
     Shared,
 }
 
-/// Generated paths and storage-field name for one class interface.
-pub(crate) struct ClassInterface {
+/// Generated paths and storage-field name for one object interface.
+pub(crate) struct ObjectInterface {
     /// Path to the macro-generated C-shaped interface header.
     pub(crate) abi_path: Path,
     /// Path to the generated ancestry-header storage for one implementor.
     pub(crate) interfaces_for_path: Path,
-    /// Collision-checked field identifier used in class storage.
+    /// Collision-checked field identifier used in object storage.
     pub(crate) field_ident: Ident,
 }
 
@@ -108,9 +92,13 @@ pub(crate) struct InterfaceArgs {
     pub(crate) assigned_signature: Option<LitByteStr>,
     /// Optional path overriding automatic `neocogi-com` crate discovery.
     pub(crate) runtime_crate: Option<Path>,
+    /// Minimum capability promised by this callable contract.
+    pub(crate) threading: InterfaceThreading,
+    /// Whether this interface may be used as a plugin factory root.
+    pub(crate) factory: bool,
 }
 
-/// Source form used to obtain a stable plugin, class, or interface GUID.
+/// Source form used to obtain a stable plugin, object, or interface GUID.
 #[derive(Clone)]
 pub(crate) enum InterfaceGuid {
     /// Canonical UUID string parsed during macro expansion.
@@ -285,6 +273,8 @@ impl Parse for InterfaceArgs {
         let mut qualified_name = None;
         let mut runtime_crate = None;
         let mut assigned_signature = None;
+        let mut threading = None;
+        let mut factory = false;
 
         while !input.is_empty() {
             if input.peek(LitStr) {
@@ -324,6 +314,22 @@ impl Parse for InterfaceArgs {
                     }
                     input.parse::<Token![=]>()?;
                     runtime_crate = Some(input.parse()?);
+                } else if keyword == "threading" {
+                    if threading.is_some() {
+                        return Err(syn::Error::new(keyword.span(), "duplicate threading = ..."));
+                    }
+                    input.parse::<Token![=]>()?;
+                    let value: Ident = input.parse()?;
+                    threading = Some(match value.to_string().as_str() {
+                        "local" => InterfaceThreading::Local,
+                        "shared" => InterfaceThreading::Shared,
+                        _ => return Err(syn::Error::new(value.span(), "threading must be `local` or `shared`")),
+                    });
+                } else if keyword == "factory" {
+                    if factory {
+                        return Err(syn::Error::new(keyword.span(), "duplicate factory role"));
+                    }
+                    factory = true;
                 } else if keyword == "assigned_signature" {
                     parse_assigned_signature(input, keyword, &mut assigned_signature)?;
                 } else {
@@ -345,86 +351,8 @@ impl Parse for InterfaceArgs {
             qualified_name: qualified_name.ok_or_else(|| syn::Error::new(input.span(), "explicit interface UUIDs require name = \"stable.name:v1\""))?,
             assigned_signature,
             runtime_crate,
-        })
-    }
-}
-
-impl Parse for ObjectDescriptionArgs {
-    /// Parses the complete generator-owned identity without implicit defaults.
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let mut id: Option<LitStr> = None;
-        let mut name: Option<LitStr> = None;
-        let mut version: Option<LitInt> = None;
-        let mut threading: Option<DescriptionThreading> = None;
-        let mut assigned_signature = None;
-        let mut runtime_crate: Option<Path> = None;
-
-        while !input.is_empty() {
-            let keyword: Ident = input.parse()?;
-            if keyword == "id" {
-                if id.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate id = ..."));
-                }
-                input.parse::<Token![=]>()?;
-                id = Some(input.parse()?);
-            } else if keyword == "name" {
-                if name.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate name = ..."));
-                }
-                input.parse::<Token![=]>()?;
-                name = Some(input.parse()?);
-            } else if keyword == "version" {
-                if version.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate version = ..."));
-                }
-                input.parse::<Token![=]>()?;
-                version = Some(input.parse()?);
-            } else if keyword == "threading" {
-                if threading.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate threading = ..."));
-                }
-                input.parse::<Token![=]>()?;
-                let value: Ident = input.parse()?;
-                threading = Some(if value == "local" {
-                    DescriptionThreading::Local
-                } else if value == "shared" {
-                    DescriptionThreading::Shared
-                } else {
-                    return Err(syn::Error::new(value.span(), "threading must be `local` or `shared`"));
-                });
-            } else if keyword == "assigned_signature" {
-                parse_assigned_signature(input, keyword, &mut assigned_signature)?;
-            } else if keyword == "neocogi_com" {
-                if runtime_crate.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate neocogi_com = ..."));
-                }
-                input.parse::<Token![=]>()?;
-                runtime_crate = Some(input.parse()?);
-            } else {
-                return Err(syn::Error::new(
-                    keyword.span(),
-                    "expected id = \"UUID\", name = \"module.Name\", version = N, threading = local|shared, assigned_signature = b\"32 bytes\", or neocogi_com = path",
-                ));
-            }
-
-            if input.is_empty() {
-                break;
-            }
-            input.parse::<Token![,]>()?;
-        }
-
-        let version = version.ok_or_else(|| syn::Error::new(input.span(), "expected version = N"))?;
-        let parsed_version = version.base10_parse::<u32>()?;
-        if parsed_version == 0 {
-            return Err(syn::Error::new(version.span(), "description version must be positive"));
-        }
-        Ok(Self {
-            id: id.ok_or_else(|| syn::Error::new(input.span(), "expected id = \"UUID\""))?,
-            name: name.ok_or_else(|| syn::Error::new(input.span(), "expected name = \"module.Name\""))?,
-            version,
-            threading: threading.ok_or_else(|| syn::Error::new(input.span(), "expected threading = local or shared"))?,
-            assigned_signature,
-            runtime_crate,
+            threading: threading.unwrap_or(InterfaceThreading::Local),
+            factory,
         })
     }
 }
@@ -443,22 +371,22 @@ fn parse_assigned_signature(input: ParseStream<'_>, keyword: Ident, slot: &mut O
     Ok(())
 }
 
-impl Parse for ClassArgs {
-    /// Parses a description path or `interfaces(IFoo, module::IBar)` with optional threading.
+impl Parse for ObjectArgs {
+    /// Parses a primary interface path or `interfaces(IFoo, module::IBar)` with optional threading.
     ///
     /// Interface paths are intentionally kept to Rust module-style paths for
     /// now. That covers `interfaces(dom::INode)` without accepting generic or
     /// associated-type paths that the generated names cannot represent.
     ///
-    /// A bare description path supplies the object identity, primary projection,
-    /// and required interface set. Description-backed
-    /// implementations therefore reject even an empty `interfaces(...)` list.
-    /// Interface-only local objects do not produce registry descriptors.
+    /// A bare interface path supplies the primary projection, threading promise,
+    /// and required siblings. Its implementation cannot redeclare those facts
+    /// with an additional list or threading flag. The explicit-list form is for
+    /// objects exposing several independent projections.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let mut interfaces = None;
         let mut thread_safe = false;
         let mut runtime_crate = None;
-        let mut description = None;
+        let mut primary = None;
 
         while !input.is_empty() {
             let starts_qualified_path = input.peek(Token![::]) || input.peek(Token![crate]) || input.peek(Token![self]) || input.peek(Token![super]);
@@ -470,10 +398,10 @@ impl Parse for ClassArgs {
                 false
             };
             if starts_qualified_path || starts_named_path {
-                if description.is_some() {
-                    return Err(syn::Error::new(input.span(), "duplicate object description path"));
+                if primary.is_some() {
+                    return Err(syn::Error::new(input.span(), "duplicate primary interface path"));
                 }
-                description = Some(Path::parse_mod_style(input)?);
+                primary = Some(Path::parse_mod_style(input)?);
                 if input.is_empty() {
                     break;
                 }
@@ -490,8 +418,8 @@ impl Parse for ClassArgs {
                 let content;
                 parenthesized!(content in input);
                 let paths = content.parse_terminated(Path::parse_mod_style, Token![,])?;
-                validate_class_interface_paths(paths.iter())?;
-                interfaces = Some(paths.into_iter().map(ClassInterface::from_path).collect::<Result<Vec<_>>>()?);
+                validate_object_interface_paths(paths.iter())?;
+                interfaces = Some(paths.into_iter().map(ObjectInterface::from_path).collect::<Result<Vec<_>>>()?);
             } else if keyword == "thread_safe" {
                 if thread_safe {
                     return Err(syn::Error::new(keyword.span(), "duplicate thread_safe"));
@@ -506,7 +434,7 @@ impl Parse for ClassArgs {
             } else {
                 return Err(syn::Error::new(
                     keyword.span(),
-                    "expected an object description path, interfaces(...), thread_safe, or neocogi_com = path",
+                    "expected a primary interface path, interfaces(...), thread_safe, or neocogi_com = path",
                 ));
             }
 
@@ -520,28 +448,34 @@ impl Parse for ClassArgs {
         // contents. An empty list is still redundant on a callable contract.
         let interfaces_were_declared = interfaces.is_some();
         let mut interfaces = interfaces.unwrap_or_default();
-        if let Some(selected) = description.clone() {
-            let primary = ClassInterface::from_path(selected)?;
+        if let Some(selected) = primary.clone() {
+            if thread_safe {
+                return Err(syn::Error::new(
+                    input.span(),
+                    "the primary interface owns its threading promise; remove thread_safe",
+                ));
+            }
+            let primary = ObjectInterface::from_path(selected)?;
             if interfaces_were_declared {
                 return Err(syn::Error::new(
                     input.span(),
-                    "a described object declares required interfaces as trait supertraits; remove interfaces(...) from its implementation",
+                    "the primary interface declares its required projections as supertraits; remove interfaces(...) from its implementation",
                 ));
             }
             interfaces.insert(0, primary);
         }
-        let object_description = description.map(|path| interface_abi_path(&path)).transpose()?;
+        let primary_interface = primary.map(|path| interface_abi_path(&path)).transpose()?;
 
         Ok(Self {
             interfaces,
             thread_safe,
             runtime_crate,
-            object_description,
+            primary_interface,
         })
     }
 }
 
-impl ClassInterface {
+impl ObjectInterface {
     /// Derives generated ABI, vtable, and storage names from a trait path.
     fn from_path(path: Path) -> Result<Self> {
         let abi_path = interface_abi_path(&path)?;
@@ -557,7 +491,7 @@ impl ClassInterface {
 }
 
 /// Rejects explicit `IUnknown`, duplicate paths, and generated-name collisions.
-fn validate_class_interface_paths<'a>(paths: impl Iterator<Item = &'a Path>) -> Result<()> {
+fn validate_object_interface_paths<'a>(paths: impl Iterator<Item = &'a Path>) -> Result<()> {
     let mut seen_paths = Vec::new();
     let mut seen_names = Vec::new();
 
@@ -568,7 +502,7 @@ fn validate_class_interface_paths<'a>(paths: impl Iterator<Item = &'a Path>) -> 
         if last.ident == "IUnknown" {
             return Err(syn::Error::new_spanned(
                 path,
-                "IUnknown is implicit for every COM class; remove it from interfaces(...)",
+                "IUnknown is implicit for every COM object; remove it from interfaces(...)",
             ));
         }
 
@@ -578,7 +512,10 @@ fn validate_class_interface_paths<'a>(paths: impl Iterator<Item = &'a Path>) -> 
             return Err(syn::Error::new_spanned(path, "duplicate COM interface in interfaces(...)"));
         }
         if seen_names.contains(&name_key) {
-            return Err(syn::Error::new_spanned(path, "COM interfaces in one class must have distinct final path names"));
+            return Err(syn::Error::new_spanned(
+                path,
+                "COM interfaces in one object must have distinct final path names",
+            ));
         }
         seen_paths.push(path_key);
         seen_names.push(name_key);

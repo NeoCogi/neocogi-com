@@ -68,7 +68,7 @@ fn main() -> Result<(), NcStatus> {
     display_name.copy_to(0, &mut prefix)?;
     assert_eq!(&prefix, b"nc");
 
-    let counter_unknown: ComPtr<IUnknown> = ByteCounter::create();
+    let counter_unknown: ComPtr<IUnknown> = ByteCounter::from_value(ByteCounter);
     let counter = counter_unknown.query::<IByteConsumerAbi>()?;
     let stream = MemoryByteStream::create_stream(b"chunked stream over COM".to_vec());
 

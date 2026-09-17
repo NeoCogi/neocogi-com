@@ -1,8 +1,8 @@
 //! Parsing and expansion of factory-only plugin descriptions.
 //!
-//! The generated metadata references exact contract module revisions and one
+//! The generated metadata carries one exact factory interface signature and one
 //! typed Rust factory implementation. Factory identity and threading are read
-//! from the implementation's generated IDL description instead of repeated in
+//! from the implementation's generated IDL interface instead of repeated in
 //! the plugin declaration.
 
 use quote::{ToTokens, quote};
@@ -23,8 +23,6 @@ pub(crate) struct FactoryPluginArgs {
     version: LitStr,
     /// Hard plugin dependencies that must already be registered.
     dependencies: Vec<Path>,
-    /// Exact generated contract module references used by this plugin.
-    contracts: Vec<Path>,
     /// Rust implementation type for the plugin's root IDL factory.
     factory: Path,
     /// Optional path overriding automatic `neocogi-com` discovery.
@@ -38,7 +36,6 @@ impl Parse for FactoryPluginArgs {
         let mut name = None;
         let mut version = None;
         let mut dependencies = None;
-        let mut contracts = None;
         let mut factory = None;
         let mut runtime_crate = None;
 
@@ -61,12 +58,6 @@ impl Parse for FactoryPluginArgs {
                 }
                 input.parse::<Token![=]>()?;
                 dependencies = Some(parse_path_list(input)?);
-            } else if keyword == "contracts" {
-                if contracts.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate contracts = [...]"));
-                }
-                input.parse::<Token![=]>()?;
-                contracts = Some(parse_path_list(input)?);
             } else if keyword == "factory" {
                 parse_unique_value(input, keyword, &mut factory, "factory")?;
             } else if keyword == "neocogi_com" {
@@ -74,7 +65,7 @@ impl Parse for FactoryPluginArgs {
             } else {
                 return Err(syn::Error::new(
                     keyword.span(),
-                    "expected plugin_id(...), name = ..., version = ..., dependencies = [...], contracts = [...], factory = ..., or neocogi_com = path",
+                    "expected plugin_id(...), name = ..., version = ..., dependencies = [...], factory = ..., or neocogi_com = path",
                 ));
             }
 
@@ -84,20 +75,14 @@ impl Parse for FactoryPluginArgs {
             input.parse::<Token![,]>()?;
         }
 
-        let contracts = contracts.ok_or_else(|| syn::Error::new(input.span(), "expected contracts = [...]"))?;
-        if contracts.is_empty() {
-            return Err(syn::Error::new(input.span(), "factory plugins must reference at least one contract module"));
-        }
         let dependencies = dependencies.unwrap_or_default();
         reject_duplicate_paths(&dependencies, "plugin dependency")?;
-        reject_duplicate_paths(&contracts, "contract module")?;
 
         Ok(Self {
             plugin_id,
             name: name.ok_or_else(|| syn::Error::new(input.span(), "expected name = ..."))?,
             version: version.ok_or_else(|| syn::Error::new(input.span(), "expected version = ..."))?,
             dependencies,
-            contracts,
             factory: factory.ok_or_else(|| syn::Error::new(input.span(), "expected factory = ..."))?,
             runtime_crate,
         })
@@ -132,7 +117,7 @@ fn reject_duplicate_paths(paths: &[Path], subject: &str) -> Result<()> {
     Ok(())
 }
 
-/// Emits immutable plugin metadata backed by typed IDL and module references.
+/// Emits immutable plugin metadata backed by one exact typed factory interface.
 pub(crate) fn expand_factory_plugin(args: FactoryPluginArgs) -> proc_macro2::TokenStream {
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
     if let Err(error) = validate_version_literal(&args.version) {
@@ -152,12 +137,7 @@ pub(crate) fn expand_factory_plugin(args: FactoryPluginArgs) -> proc_macro2::Tok
         Ok(count) => count,
         Err(error) => return error.to_compile_error(),
     };
-    let contract_count = match checked_u32_len(args.contracts.len(), args.name.span(), "contract module count") {
-        Ok(count) => count,
-        Err(error) => return error.to_compile_error(),
-    };
     let dependency_len = args.dependencies.len();
-    let contract_len = args.contracts.len();
     let dependencies = args.dependencies.iter().map(|dependency| {
         quote! {
             #nc::NcPluginDependencyDescriptor {
@@ -165,7 +145,6 @@ pub(crate) fn expand_factory_plugin(args: FactoryPluginArgs) -> proc_macro2::Tok
             }
         }
     });
-    let contracts = &args.contracts;
     let factory = &args.factory;
     let name = &args.name;
     let version = &args.version;
@@ -176,23 +155,17 @@ pub(crate) fn expand_factory_plugin(args: FactoryPluginArgs) -> proc_macro2::Tok
             #(#dependencies,)*
         ];
 
-        /// Exact contract module revisions linked into this plugin assembly.
-        static NC_COM_FACTORY_PLUGIN_CONTRACTS: [#nc::NcContractModuleReference; #contract_len] = [
-            #(#contracts,)*
-        ];
-
         /// Immutable factory-only plugin metadata consumed by the shared runtime.
         static NC_COM_FACTORY_PLUGIN_DESCRIPTION: #nc::NcFactoryPluginDescription = #nc::NcFactoryPluginDescription {
+            description_abi_version: #nc::NC_FACTORY_PLUGIN_ABI_VERSION,
             core_abi_version: #nc::NC_COM_CORE_ABI_VERSION,
             plugin_id: #plugin_id,
             qualified_name: #nc::NcStaticUtf8::from_static(#name),
             plugin_version: #nc::NcStaticUtf8::from_static(#version),
             dependency_count: #dependency_count,
             dependencies: NC_COM_FACTORY_PLUGIN_DEPENDENCIES.as_ptr(),
-            contract_count: #contract_count,
-            contracts: NC_COM_FACTORY_PLUGIN_CONTRACTS.as_ptr(),
-            root_factory_id: <<#factory as #nc::ComFactoryImplementation>::Description as #nc::ComObjectDescription>::OBJECT_ID,
-            root_factory_threading: <<<#factory as #nc::ComFactoryImplementation>::Description as #nc::ComObjectDescription>::Threading as #nc::ThreadingModel>::ABI_THREADING_MODE.as_raw(),
+            root_factory: <<#factory as #nc::ComFactoryImplementation>::Interface as #nc::ComInterface>::INTERFACE_ID,
+            root_factory_threading: <<<#factory as #nc::ComFactoryImplementation>::Interface as #nc::ComInterface>::Threading as #nc::ThreadingModel>::ABI_THREADING_MODE.as_raw(),
             activate: Some(#nc::activate_factory_implementation::<#factory>),
         };
 
@@ -207,35 +180,15 @@ pub(crate) fn expand_factory_plugin(args: FactoryPluginArgs) -> proc_macro2::Tok
 mod tests {
     use super::FactoryPluginArgs;
 
-    /// Confirms an empty contract list is rejected at the declaration site.
+    /// Repeated provider dependencies cannot produce ambiguous registration rows.
     #[test]
-    fn contract_module_list_must_not_be_empty() {
+    fn duplicate_dependencies_are_rejected() {
         let error = syn::parse_str::<FactoryPluginArgs>(
-            r#"
-                name = "nc.tests.factory_plugin",
-                version = "1.0.0",
-                contracts = [],
-                factory = RootFactory,
-            "#,
+            r#"name = "nc.tests.factory_plugin", version = "1.0.0",
+                dependencies = [provider::ID, provider::ID], factory = RootFactory,"#,
         )
         .err()
-        .expect("empty contract list must fail");
-        assert_eq!(error.to_string(), "factory plugins must reference at least one contract module");
-    }
-
-    /// Confirms repeated contract paths are rejected before code generation.
-    #[test]
-    fn duplicate_contract_module_paths_are_rejected() {
-        let error = syn::parse_str::<FactoryPluginArgs>(
-            r#"
-                name = "nc.tests.factory_plugin",
-                version = "1.0.0",
-                contracts = [contract::MODULE, contract::MODULE],
-                factory = RootFactory,
-            "#,
-        )
-        .err()
-        .expect("duplicate contract path must fail");
-        assert_eq!(error.to_string(), "duplicate contract module path");
+        .expect("duplicate dependency must fail");
+        assert_eq!(error.to_string(), "duplicate plugin dependency path");
     }
 }

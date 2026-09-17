@@ -59,12 +59,6 @@ pub enum DeclarationKind {
     BitEnum(BitEnum),
     /// A reusable COM interface contract.
     Interface(Interface),
-    /// A typed event family with generated sink and native payload adapters.
-    Event(Event),
-    /// A public object contract created only by a factory.
-    Class(Class),
-    /// A typed provider and construction contract.
-    Factory(Factory),
 }
 
 /// An ABI bit set whose declared constants describe every accepted bit.
@@ -184,47 +178,43 @@ pub enum VariantFields {
     ),
 }
 
-/// A reusable COM interface declaration.
+/// One callable contract, including factory roots and event sinks.
+/// The first required interface is the physical vtable base; later entries
+/// are sibling projections guaranteed by QueryInterface on the same object.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Interface {
-    /// Base interface paths in declared query order.
+    /// Base followed by required sibling interfaces, in declared query order.
     pub bases: Vec<NamedType>,
-    /// Ordinary methods and first-class event ports in normative vtable order.
+    /// Ordinary methods and event subscription ports in normative vtable order.
     pub callables: Vec<Callable>,
-}
-
-/// One first-class event family expressed as one or more delivery operations.
-/// Each operation is a distinct immutable fact in the generated native payload
-/// sum, while the declaration itself remains a concrete COM sink interface.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Event {
-    /// Delivery methods in normative sink-vtable and payload-variant order.
-    pub deliveries: Vec<Method>,
-}
-
-/// A public object contract with no runtime constructor.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Class {
-    /// Interfaces every implementation must expose through `QueryInterface`.
-    pub required_interfaces: Vec<NamedType>,
-    /// Ordinary methods and event ports on the primary projection.
-    pub callables: Vec<Callable>,
-    /// Minimum threading capability promised to consumers.
+    /// Construction or delivery policy layered over the common interface ABI.
+    pub role: InterfaceRole,
+    /// Minimum threading capability promised by every implementation.
     pub threading: Threading,
 }
 
-/// A typed construction or provider interface.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Factory {
-    /// Additional interfaces every factory implementation must expose.
-    pub required_interfaces: Vec<NamedType>,
-    /// Typed provider methods and event ports in normative vtable order.
-    pub callables: Vec<Callable>,
-    /// Minimum threading capability promised to consumers.
-    pub threading: Threading,
+/// Semantic restrictions and generated conveniences for one interface.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InterfaceRole {
+    /// A callable projection acquired from another object or factory.
+    Ordinary,
+    /// A construction/provider interface eligible for plugin bootstrap.
+    Factory,
+    /// An immutable delivery interface with generated owned event snapshots.
+    Event,
 }
 
-/// Threading capability attached to a class or factory contract.
+impl Interface {
+    /// Visits declared methods without synthesizing subscription-port calls.
+    pub fn methods(&self) -> impl Iterator<Item = &Method> {
+        self.callables.iter().filter_map(|callable| match callable {
+            Callable::Method(method) => Some(method),
+            Callable::EventPort(_) => None,
+        })
+    }
+}
+
+/// Threading capability promised by an interface.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Threading {
     /// Calls and references remain on their creating thread.
@@ -250,7 +240,7 @@ pub struct Method {
     pub output: AbiType,
 }
 
-/// One ordered callable declaration on a source interface, class, or factory.
+/// One ordered callable declaration on a source interface.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Callable {
     /// An ordinary author-declared COM method.

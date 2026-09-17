@@ -5,21 +5,16 @@
 //! ordinary lookups proceed concurrently and publishes static registration or
 //! dynamic activation as one blocking write transaction.
 
-use std::collections::HashMap;
-use std::string::String;
 use std::sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use neocogi_com_core::NcGuid;
-use neocogi_com_core::NcStatus;
 
-use crate::builtins;
-use crate::contract_registry::ContractRegistry;
 use crate::debug::DebugState;
 use crate::factory_plugin_registry::FactoryPluginRegistry;
 use crate::module_registry::ModuleRegistry;
 
-/// One result per loaded runtime image, published only after all built-ins validate.
-static STATE: OnceLock<Result<RuntimeState, NcStatus>> = OnceLock::new();
+/// One lazily constructed catalog per linked runtime image.
+static STATE: OnceLock<RuntimeState> = OnceLock::new();
 
 /// Process-global owner of all mutable runtime state.
 pub(crate) struct RuntimeState {
@@ -31,62 +26,32 @@ pub(crate) struct RuntimeState {
 
 /// Complete append-only runtime catalog published through one lock.
 pub(crate) struct RuntimeCatalog {
-    /// Canonical IDL module identities and native descriptions.
-    pub(crate) contract_registry: ContractRegistry,
     /// Factory-only plugin descriptions and activation roots.
     pub(crate) factory_plugin_registry: FactoryPluginRegistry,
-    /// One-to-one mappings checked during registration transactions.
-    pub(crate) registration: RegistrationState,
     /// Native module handles and their process-local provenance.
     pub(crate) module_registry: ModuleRegistry,
 }
 
-/// Runtime-wide one-to-one identity indexes.
-///
-/// Both maps are kept so registration can reject a reused GUID and a reused
-/// human-readable name without scanning either concrete registry. They are
-/// updated only after every descriptor in a batch has passed validation.
-pub(crate) struct RegistrationState {
-    /// Maps each registered plugin GUID to its canonical name.
-    pub(crate) name_by_id: HashMap<NcGuid, String>,
-    /// Maps each canonical plugin name back to its GUID.
-    pub(crate) id_by_name: HashMap<String, NcGuid>,
-}
-
 impl RuntimeState {
-    /// Returns the process-wide runtime state, seeding built-ins on first catalog use.
-    ///
-    /// Exported C callbacks carry no explicit runtime context, so they all use
-    /// this singleton. The first catalog-dependent API call occurs after its library has
-    /// been loaded; `OnceLock` validates and publishes the complete seeded
-    /// catalog once without a loader callback or host startup protocol.
-    /// The returned reference remains valid for the process lifetime.
-    pub(crate) fn global() -> Result<&'static Self, NcStatus> {
-        match STATE.get_or_init(Self::new) {
-            Ok(state) => Ok(state),
-            Err(status) => Err(*status),
-        }
+    /// Returns the process-wide catalog without a host initialization protocol.
+    /// The singleton is required by context-free C callbacks; it contains no
+    /// fallible contract seeding or component-specific startup state.
+    pub(crate) fn global() -> &'static Self {
+        STATE.get_or_init(Self::new)
     }
 
-    /// Constructs a seeded, independent runtime state.
+    /// Constructs an empty, independent runtime state.
     ///
     /// This is separated from [`Self::global`] so tests can exercise registry
     /// behavior without sharing process-global registrations.
-    pub(crate) fn new() -> Result<Self, NcStatus> {
-        let mut contract_registry = ContractRegistry::new();
-        contract_registry.seed_builtin(builtins::description())?;
-        Ok(Self {
+    pub(crate) fn new() -> Self {
+        Self {
             catalog: RwLock::new(RuntimeCatalog {
-                contract_registry,
                 factory_plugin_registry: FactoryPluginRegistry::new(),
-                registration: RegistrationState {
-                    name_by_id: HashMap::new(),
-                    id_by_name: HashMap::new(),
-                },
                 module_registry: ModuleRegistry::new(),
             }),
             debug: DebugState::new(),
-        })
+        }
     }
 
     /// Acquires a coherent read snapshot of the complete runtime catalog.
@@ -131,22 +96,10 @@ mod tests {
     use crate::factory_plugin_registry::RegisteredFactoryPlugin;
     use crate::loader::{LoadedModule, LoadedModuleId, LoadedModuleInfo};
 
-    /// Independent NCIDL builds of typed bindings and runtime statics must agree.
-    #[test]
-    fn seeded_builtin_matches_generated_event_contract_identity() {
-        assert_eq!(crate::builtins::MODULE_ID, neocogi_com_events_contracts::MODULE_ID);
-        assert_eq!(crate::builtins::ABI_FINGERPRINT.bytes, neocogi_com_events_contracts::ABI_FINGERPRINT);
-        let runtime = RuntimeState::new().unwrap();
-        runtime
-            .read_catalog()
-            .contract_registry
-            .with_module_ids(|ids| assert_eq!(ids, &[crate::builtins::MODULE_ID]));
-    }
-
     /// Confirms dependency validation reads the sole factory plugin registry.
     #[test]
     fn catalog_resolves_factory_plugin_dependencies() {
-        let runtime = RuntimeState::new().unwrap();
+        let runtime = RuntimeState::new();
         let factory_id = NcGuid::from_fields(0x6150_0012, 0x5100, 0x4100, [0x92; 8]);
         let missing_id = NcGuid::from_fields(0x6150_0013, 0x5100, 0x4100, [0x93; 8]);
 
@@ -169,7 +122,7 @@ mod tests {
 
     #[test]
     fn dynamic_activation_records_become_visible_in_one_catalog_publication() {
-        let runtime = Arc::new(RuntimeState::new().unwrap());
+        let runtime = Arc::new(RuntimeState::new());
         let records_inserted = Arc::new(Barrier::new(2));
         let release_publication = Arc::new(Barrier::new(2));
         let plugin_id = NcGuid::from_fields(0x6150_0001, 0x5100, 0x4100, [0x81; 8]);
@@ -186,8 +139,6 @@ mod tests {
                     description: core::ptr::null(),
                     dependency_ids: Vec::new(),
                 });
-                catalog.registration.name_by_id.insert(plugin_id, "test.plugin".into());
-                catalog.registration.id_by_name.insert("test.plugin".into(), plugin_id);
                 catalog.module_registry.store_loaded_module(
                     LoadedModule::test_stub(),
                     LoadedModuleInfo::new(module_id, PathBuf::from("test-plugin"), plugin_id),
@@ -209,6 +160,6 @@ mod tests {
         let module_id = LoadedModuleId::from_raw(1);
         let module = catalog.module_registry.module(module_id).unwrap();
         assert_eq!(module.plugin_id, plugin_id);
-        assert_eq!(catalog.registration.name_by_id.get(&plugin_id).map(String::as_str), Some("test.plugin"));
+        assert!(catalog.factory_plugin_registry.contains_plugin(plugin_id));
     }
 }

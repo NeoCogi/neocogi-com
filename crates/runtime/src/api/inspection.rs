@@ -10,7 +10,7 @@
 use core::{ffi::c_void, ptr};
 
 use neocogi_com_core::{
-    NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectFactoryPluginDescriptionCallbackV2, NcModuleInfoV2, NcPluginInfoV2, NcStatus,
+    NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectFactoryPluginDescriptionCallbackV3, NcModuleInfoV3, NcPluginInfoV3, NcStatus,
 };
 
 use crate::inspection as runtime_inspection;
@@ -24,7 +24,7 @@ use super::{copy_slice_to_out, emit_error, path_from_utf8};
 pub(super) unsafe extern "C" fn inspect_plugin_library_utf8(
     path: *const u8,
     path_len: usize,
-    callback: Option<NcInspectFactoryPluginDescriptionCallbackV2>,
+    callback: Option<NcInspectFactoryPluginDescriptionCallbackV3>,
     user_data: *mut c_void,
 ) -> NcStatus {
     let Some(callback) = callback else {
@@ -51,14 +51,11 @@ pub(super) unsafe extern "C" fn inspect_plugin_library_utf8(
 }
 
 /// Writes borrowed descriptor metadata for one registered plugin.
-pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPluginInfoV2) -> NcStatus {
+pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPluginInfoV3) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
-    let runtime = match RuntimeState::global() {
-        Ok(runtime) => runtime,
-        Err(status) => return status,
-    };
+    let runtime = RuntimeState::global();
     let catalog = runtime.read_catalog();
     let Some(info) = runtime_inspection::factory_plugin_info(&catalog.factory_plugin_registry, plugin_id) else {
         return NC_E_NOT_FOUND;
@@ -69,7 +66,7 @@ pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPlugi
 }
 
 /// Writes path and plugin provenance for one retained module ID.
-pub(super) unsafe extern "C" fn module_info(module_id: u64, out: *mut NcModuleInfoV2) -> NcStatus {
+pub(super) unsafe extern "C" fn module_info(module_id: u64, out: *mut NcModuleInfoV3) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -77,10 +74,7 @@ pub(super) unsafe extern "C" fn module_info(module_id: u64, out: *mut NcModuleIn
         return NC_E_NOT_FOUND;
     }
     let module_id = LoadedModuleId::from_raw(module_id);
-    let runtime = match RuntimeState::global() {
-        Ok(runtime) => runtime,
-        Err(status) => return status,
-    };
+    let runtime = RuntimeState::global();
     let catalog = runtime.read_catalog();
     let Some(info) = runtime_inspection::module_info(&catalog.module_registry, module_id) else {
         return NC_E_NOT_FOUND;
@@ -92,21 +86,15 @@ pub(super) unsafe extern "C" fn module_info(module_id: u64, out: *mut NcModuleIn
 
 /// Returns the number of hard dependency IDs declared by a registered plugin.
 pub(super) unsafe extern "C" fn plugin_dependency_count(plugin_id: NcGuid) -> usize {
-    match RuntimeState::global() {
-        Ok(runtime) => runtime
-            .read_catalog()
-            .factory_plugin_registry
-            .with_plugin_dependency_ids(plugin_id, <[NcGuid]>::len),
-        Err(_) => 0,
-    }
+    RuntimeState::global()
+        .read_catalog()
+        .factory_plugin_registry
+        .with_plugin_dependency_ids(plugin_id, <[NcGuid]>::len)
 }
 
 /// Copies a plugin's hard dependency IDs using the count/fill contract.
 pub(super) unsafe extern "C" fn plugin_dependency_ids(plugin_id: NcGuid, out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus {
-    let runtime = match RuntimeState::global() {
-        Ok(runtime) => runtime,
-        Err(status) => return status,
-    };
+    let runtime = RuntimeState::global();
     runtime.read_catalog().factory_plugin_registry.with_plugin_dependency_ids(plugin_id, |values| {
         // SAFETY: The caller provides the output-buffer contract.
         unsafe { copy_slice_to_out(values, out, capacity, out_len) }

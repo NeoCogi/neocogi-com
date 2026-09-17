@@ -12,18 +12,16 @@ use std::string::String;
 use std::vec::Vec;
 
 use crate::{
-    ComFactoryDescription, ComObjectDescription, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND,
-    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NcContractModuleReference, NcContractRegistryV2, NcDebugApiV2, NcFactoryPluginDescription, NcGuid,
-    NcInspectionApiV2, NcPluginRegistryV2, NcRuntimeApiV2, NcStatus, NcUtf8View, ThreadingModel,
+    ComFactoryInterface, ComInterface, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND,
+    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NcDebugApiV3, NcFactoryPluginDescription, NcGuid, NcInspectionApiV3, NcPluginRegistryV3,
+    NcRuntimeApiV3, NcStatus, NcUtf8View, ThreadingModel,
 };
 use neocogi_com_runtime_sys as runtime_sys;
 
-mod contract_registry;
 mod debug;
 mod inspection;
 mod plugin_registry;
 
-pub use contract_registry::ContractRegistry;
 pub use debug::{Debug, DebugMessenger};
 pub use inspection::{Inspection, PluginInfo};
 pub use plugin_registry::PluginRegistry;
@@ -156,57 +154,44 @@ impl Runtime {
     }
 
     /// Returns the linked runtime-operation table.
-    fn runtime_api(&self) -> &'static NcRuntimeApiV2 {
+    fn runtime_api(&self) -> &'static NcRuntimeApiV3 {
         // Do not cache a table before checking the mandatory generation: a
         // future runtime may expose an incompatible discovery/table contract.
-        self.assert_runtime_v2();
-        // SAFETY: The runtime version was checked before calling the v2 getter,
+        self.assert_runtime_v3();
+        // SAFETY: The runtime version was checked before calling the v3 getter,
         // whose result follows the static size-prefix table contract.
-        let api = unsafe { table(runtime_sys::nc_com_get_runtime_api_v2()) };
+        let api = unsafe { table(runtime_sys::nc_com_get_runtime_api_v3()) };
         assert_eq!(api.core_abi_version, crate::NC_COM_CORE_ABI_VERSION);
         api
     }
 
     /// Returns the linked plugin-registry table.
-    fn plugin_registry_api(&self) -> &'static NcPluginRegistryV2 {
-        self.assert_runtime_v2();
-        // SAFETY: The runtime version was checked before calling the v2 getter,
+    fn plugin_registry_api(&self) -> &'static NcPluginRegistryV3 {
+        self.assert_runtime_v3();
+        // SAFETY: The runtime version was checked before calling the v3 getter,
         // whose result follows the static size-prefix table contract.
-        unsafe { table(runtime_sys::nc_com_get_plugin_registry_v2()) }
-    }
-
-    /// Returns the linked canonical contract-registry table.
-    fn contract_registry_api(&self) -> &'static NcContractRegistryV2 {
-        self.assert_runtime_v2();
-        // SAFETY: The runtime version was checked before calling the v2 getter,
-        // whose result follows the static size-prefix table contract.
-        unsafe { table(runtime_sys::nc_com_get_contract_registry_v2()) }
+        unsafe { table(runtime_sys::nc_com_get_plugin_registry_v3()) }
     }
 
     /// Returns the linked inspection table.
-    fn inspection_api(&self) -> &'static NcInspectionApiV2 {
-        self.assert_runtime_v2();
-        // SAFETY: The runtime version was checked before calling the v2 getter,
+    fn inspection_api(&self) -> &'static NcInspectionApiV3 {
+        self.assert_runtime_v3();
+        // SAFETY: The runtime version was checked before calling the v3 getter,
         // whose result follows the static size-prefix table contract.
-        unsafe { table(runtime_sys::nc_com_get_inspection_api_v2()) }
+        unsafe { table(runtime_sys::nc_com_get_inspection_api_v3()) }
     }
 
     /// Returns the linked debug-messenger table.
-    fn debug_api(&self) -> &'static NcDebugApiV2 {
-        self.assert_runtime_v2();
-        // SAFETY: The runtime version was checked before calling the v2 getter,
+    fn debug_api(&self) -> &'static NcDebugApiV3 {
+        self.assert_runtime_v3();
+        // SAFETY: The runtime version was checked before calling the v3 getter,
         // whose result follows the static size-prefix table contract.
-        unsafe { table(runtime_sys::nc_com_get_debug_api_v2()) }
+        unsafe { table(runtime_sys::nc_com_get_debug_api_v3()) }
     }
 
     /// Returns the registered-plugin and loaded-module catalog.
     pub fn plugin_registry(&self) -> PluginRegistry<'_> {
         PluginRegistry::new(self)
-    }
-
-    /// Returns the canonical IDL contract module catalog.
-    pub fn contract_registry(&self) -> ContractRegistry<'_> {
-        ContractRegistry::new(self)
     }
 
     /// Returns runtime relationship and metadata inspection operations.
@@ -219,35 +204,18 @@ impl Runtime {
         Debug::new(self)
     }
 
-    /// Registers one linked contract module and its exact native dependencies.
+    /// Registers one plugin descriptor without constructing its factory.
     ///
-    /// Registration is idempotent for the same logical ID and fingerprint. A
-    /// second fingerprint for an existing logical module returns
-    /// [`crate::NC_E_CONTRACT_MISMATCH`] without publishing any part of the new
-    /// graph.
+    /// Registration is atomic: no plugin record becomes
+    /// visible unless its metadata, provider dependencies, and process identity
+    /// mapping are valid. Factory compatibility is checked during activation.
     ///
     /// # Safety
     ///
-    /// The reference, its getter, and every transitive native description must
+    /// `plugin`, its signature/text/dependency storage, and bootstrap code must
     /// remain loaded for the process-wide registration lifetime.
-    pub unsafe fn register_contract_module(&self, module: &NcContractModuleReference) -> Result<(), NcStatus> {
-        // SAFETY: The caller supplies the complete native graph lifetime and
-        // this shared reference remains readable for the synchronous call.
-        status_to_result(unsafe { (self.runtime_api().register_contract_module)(module) })
-    }
-
-    /// Registers one factory-only plugin and its exact linked contracts.
-    ///
-    /// Registration is atomic: no contract module or plugin record becomes
-    /// visible unless the entire graph, root factory declaration, dependency
-    /// set, and process identity mapping are compatible.
-    ///
-    /// # Safety
-    ///
-    /// `plugin` and every linked contract description it reaches must remain
-    /// loaded for the process-wide registration lifetime.
     pub unsafe fn register_factory_plugin_description(&self, plugin: &'static NcFactoryPluginDescription) -> Result<(), NcStatus> {
-        // SAFETY: The static reference and its contract graph satisfy the raw
+        // SAFETY: The static reference and its referenced metadata satisfy the raw
         // table's process-lifetime registration requirement.
         status_to_result(unsafe { (self.runtime_api().register_factory_plugin_description)(plugin) })
     }
@@ -256,9 +224,9 @@ impl Runtime {
     ///
     /// The runtime checks the requested factory IID, full ABI signature, and
     /// threading capability before this method constructs a typed owner.
-    pub fn activate_plugin_factory<T>(&self, plugin_id: NcGuid) -> Result<ComPtr<T, <T as ComObjectDescription>::Threading>, NcStatus>
+    pub fn activate_plugin_factory<T>(&self, plugin_id: NcGuid) -> Result<ComPtr<T, <T as ComInterface>::Threading>, NcStatus>
     where
-        T: ComFactoryDescription,
+        T: ComFactoryInterface,
     {
         let mut out = core::ptr::null_mut::<IUnknown>();
         // SAFETY: The local output slot is writable and the associated IDL
@@ -267,14 +235,14 @@ impl Runtime {
             (self.runtime_api().activate_factory_plugin)(
                 plugin_id,
                 T::INTERFACE_ID,
-                <<T as ComObjectDescription>::Threading as ThreadingModel>::ABI_THREADING_MODE.as_raw(),
+                <<T as ComInterface>::Threading as ThreadingModel>::ABI_THREADING_MODE.as_raw(),
                 &mut out,
             )
         };
         status_to_result(status)?;
         // SAFETY: Successful runtime activation transfers one owned live COM
         // reference with the requested threading capability.
-        let unknown = unsafe { ComPtr::<IUnknown, <T as ComObjectDescription>::Threading>::from_raw_owned(out) }.ok_or(NC_E_POINTER)?;
+        let unknown = unsafe { ComPtr::<IUnknown, <T as ComInterface>::Threading>::from_raw_owned(out) }.ok_or(NC_E_POINTER)?;
         unknown.query::<T>()
     }
 
@@ -322,14 +290,14 @@ impl Runtime {
 
     /// Loads trusted plugin libraries sequentially.
     ///
-    /// ABI v2 performs no path discovery or recursive loading. Callers must
+    /// ABI v3 performs no path discovery or recursive loading. Callers must
     /// supply a dependency-first order, such as one produced by
     /// `neocogi-inspect plan`. Native libraries mapped as
     /// platform dependencies are not automatically registered as neocogi-com
     /// plugins.
     ///
     /// A later failure aborts the process rather than returning partial state.
-    /// Runtime ABI v2 intentionally has no transactional batch-loading call.
+    /// Runtime ABI v3 intentionally has no transactional batch-loading call.
     ///
     /// # Safety
     ///
@@ -348,8 +316,8 @@ impl Runtime {
         loaded
     }
 
-    /// Aborts the operation if the linked library does not implement ABI v2.
-    fn assert_runtime_v2(&self) {
+    /// Aborts the operation if the linked library does not implement ABI v3.
+    fn assert_runtime_v3(&self) {
         // ABI mismatch is a linkage/configuration error, not a recoverable
         // plugin status. Fail before dereferencing any version-specific table.
         let found = self.runtime_abi_version();

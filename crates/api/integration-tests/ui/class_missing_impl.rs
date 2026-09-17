@@ -9,5 +9,5 @@ pub trait IMissingImpl {
 pub struct MissingImpl;
 
 fn main() {
-    let _object = MissingImpl::create();
+    let _object = MissingImpl::from_value(MissingImpl);
 }

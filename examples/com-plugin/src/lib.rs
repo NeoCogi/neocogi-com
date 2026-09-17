@@ -1,7 +1,7 @@
-//! Factory-only shared-library example backed by a generated contract crate.
+//! One plugin implementation built as either a shared library or a linked Rust library.
 
 use neocogi_com::{ComPtr, NcStatus, com_factory, com_object};
-use neocogi_idl_example_contracts::{ExampleFactory, ExampleObject, ExampleObjectAbi, Extent, IMeasured, MODULE};
+use neocogi_idl_example_contracts::{ExampleFactory, ExampleObject, ExampleObjectAbi, Extent, IMeasured};
 
 /// Private mutable object constructed only through `ExampleFactory`.
 #[com_object(neocogi_idl_example_contracts::ExampleObject)]
@@ -39,9 +39,9 @@ impl ExampleFactory for DynamicExampleFactory {
 neocogi_com::factory_plugin! {
     name = "nc.examples.factory_plugin_component",
     version = "1.0.0",
-    contracts = [MODULE],
     factory = DynamicExampleFactory,
 }
 
-// This crate is the final DSO and therefore owns the sole factory description export.
+// Only the final DSO exports this symbol; monoliths call the Rust getter.
+#[cfg(feature = "dynamic-plugin")]
 neocogi_com::export_factory_plugin!();

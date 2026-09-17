@@ -1,4 +1,4 @@
-error: COM implementation classes must own their state; lifetime parameters are not supported
+error: COM implementation objects must own their state; lifetime parameters are not supported
  --> integration-tests/ui/class_lifetime.rs:9:14
   |
 9 | struct Reader<'a> {

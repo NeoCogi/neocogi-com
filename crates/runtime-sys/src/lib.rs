@@ -13,7 +13,7 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
-pub use neocogi_com_core::{NcContractRegistryV2, NcDebugApiV2, NcInspectFactoryPluginDescriptionCallbackV2, NcInspectionApiV2, NcPluginRegistryV2, NcRuntimeApiV2};
+pub use neocogi_com_core::{NcDebugApiV3, NcInspectFactoryPluginDescriptionCallbackV3, NcInspectionApiV3, NcPluginRegistryV3, NcRuntimeApiV3};
 
 // Keep the implementation in the link graph so the exact same exported C
 // symbols resolve from its rlib. No alternate tables or catalog are introduced.
@@ -25,18 +25,15 @@ unsafe extern "C" {
     /// Returns the runtime shared-library ABI generation.
     pub fn nc_com_runtime_abi_version() -> u32;
 
-    /// Returns the runtime-operation table for runtime ABI v2.
-    pub fn nc_com_get_runtime_api_v2() -> *const NcRuntimeApiV2;
+    /// Returns the runtime-operation table for runtime ABI v3.
+    pub fn nc_com_get_runtime_api_v3() -> *const NcRuntimeApiV3;
 
-    /// Returns the runtime ABI v2 contract-registry table.
-    pub fn nc_com_get_contract_registry_v2() -> *const NcContractRegistryV2;
+    /// Returns the runtime ABI v3 plugin-registry table.
+    pub fn nc_com_get_plugin_registry_v3() -> *const NcPluginRegistryV3;
 
-    /// Returns the runtime ABI v2 plugin-registry table.
-    pub fn nc_com_get_plugin_registry_v2() -> *const NcPluginRegistryV2;
+    /// Returns the runtime ABI v3 inspection table.
+    pub fn nc_com_get_inspection_api_v3() -> *const NcInspectionApiV3;
 
-    /// Returns the runtime ABI v2 inspection table.
-    pub fn nc_com_get_inspection_api_v2() -> *const NcInspectionApiV2;
-
-    /// Returns the runtime ABI v2 debug-messenger table.
-    pub fn nc_com_get_debug_api_v2() -> *const NcDebugApiV2;
+    /// Returns the runtime ABI v3 debug-messenger table.
+    pub fn nc_com_get_debug_api_v3() -> *const NcDebugApiV3;
 }

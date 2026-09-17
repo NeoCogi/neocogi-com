@@ -90,6 +90,7 @@ mod tests {
     /// Constructs one minimal inspected plugin for plan rendering tests.
     fn plugin() -> PluginInspection {
         PluginInspection {
+            description_abi_version: neocogi_com_core::NC_FACTORY_PLUGIN_ABI_VERSION,
             core_abi_version: 7,
             plugin_id: NcGuid::from_fields(1, 0, 0, [0; 8]),
             qualified_name: "nc.tests.plan".to_string(),
@@ -98,8 +99,7 @@ mod tests {
             factory: nc_com_shared_runtime::FactoryInspection {
                 root_factory_id: NcGuid::from_fields(2, 0, 0, [0; 8]),
                 root_factory_threading: neocogi_com_core::NcAbiThreadingMode::ThreadLocal,
-                direct_contracts: Vec::new(),
-                modules: Vec::new(),
+                root_factory_signature: [1; 32],
             },
         }
     }

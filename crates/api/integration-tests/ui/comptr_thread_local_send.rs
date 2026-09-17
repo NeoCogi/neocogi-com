@@ -15,6 +15,6 @@ impl IThreadLocalSend for ThreadLocalObject {
 }
 
 fn main() {
-    let unknown: ComPtr<IUnknown> = ThreadLocalObject::create();
+    let unknown: ComPtr<IUnknown> = ThreadLocalObject::from_value(ThreadLocalObject);
     std::thread::spawn(move || drop(unknown));
 }
