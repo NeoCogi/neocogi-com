@@ -51,7 +51,7 @@ fn inspects_a_standalone_plugin_and_its_exact_factory_signature() {
     assert_success("standalone plugin inspection", &output);
     let artifact: serde_json::Value = serde_json::from_slice(&output.stdout).expect("inspection JSON");
     assert_eq!(artifact["schema_version"], 9);
-    assert_eq!(artifact["description_abi_version"], 2);
+    assert_eq!(artifact["description_abi_version"], 1);
     assert_eq!(artifact["plugin"]["name"], "nc.examples.factory_plugin_component");
     let factory = &artifact["factory"];
     assert_eq!(factory["root_factory_signature"].as_str().unwrap().len(), 64);

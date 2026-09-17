@@ -58,7 +58,7 @@ neocogi_com::export_factory_plugin!();
 
 `factory_plugin!` creates immutable Rust-accessible metadata. The final dynamic
 library calls `export_factory_plugin!` exactly once to export
-`nc_get_factory_plugin_description_v2`. Static assemblies call
+`nc_get_factory_plugin_description_v1`. Static assemblies call
 `factory_plugin_description()` directly. There is no class table, generated
 constructor function pointer, erased argument frame, or legacy plugin export.
 

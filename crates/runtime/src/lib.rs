@@ -22,7 +22,7 @@
 //! to `plugin_info` for its name and version. The `neocogi-com` Rust facade performs
 //! this join and returns owned `LoadedModuleInfo` values.
 //!
-//! Runtime ABI v3 caps retained dynamic modules at 1,024 and simultaneous debug
+//! Runtime ABI v1 caps retained dynamic modules at 1,024 and simultaneous debug
 //! messenger registrations at 64. Module-capacity exhaustion follows the
 //! existing fatal live-activation path. Debug messenger capacity exhaustion is
 //! recoverable as `NC_E_OUT_OF_RANGE`; destruction frees a slot without

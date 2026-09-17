@@ -12,15 +12,18 @@ mod runtime;
 
 pub use debug::{
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING,
-    NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV3, NcDebugCallbackV3, NcDebugMessageV3,
-    NcDebugMessengerCreateInfoV3,
+    NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1,
+    NcDebugMessengerCreateInfoV1,
 };
-pub use inspection::{NcInspectFactoryPluginDescriptionCallbackV3, NcInspectionApiV3, NcModuleInfoV3, NcPluginInfoV3};
-pub use plugin_registry::{NC_COM_RUNTIME_MAX_LOADED_MODULES, NcPluginRegistryV3};
-pub use runtime::NcRuntimeApiV3;
+pub use inspection::{NcInspectFactoryPluginDescriptionCallbackV1, NcInspectionApiV1, NcModuleInfoV1, NcPluginInfoV1};
+pub use plugin_registry::{NC_COM_RUNTIME_MAX_LOADED_MODULES, NcPluginRegistryV1};
+pub use runtime::NcRuntimeApiV1;
 
-/// Runtime shared-library ABI generation implemented by this release.
-pub const NC_COM_RUNTIME_ABI_VERSION: u32 = 3;
+/// Pre-alpha runtime shared-library ABI generation.
+///
+/// Version one identifies the current table family, not a compatibility promise
+/// across pre-alpha checkout revisions. Hosts and runtimes must be rebuilt together.
+pub const NC_COM_RUNTIME_ABI_VERSION: u32 = 1;
 
 /// Borrowed immutable UTF-8 bytes owned by the runtime.
 ///

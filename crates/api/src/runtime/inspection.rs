@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::string::String;
 use std::vec::Vec;
 
-use crate::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcFactoryPluginDescription, NcGuid, NcModuleInfoV3, NcPluginInfoV3, NcStatus};
+use crate::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcFactoryPluginDescription, NcGuid, NcModuleInfoV1, NcPluginInfoV1, NcStatus};
 
 use super::{LoadedModuleId, LoadedModuleInfo, Runtime, read_utf8_view, read_vec, status_to_result};
 
@@ -185,7 +185,7 @@ impl<'runtime> Inspection<'runtime> {
     }
 
     /// Retrieves one borrowed-text plugin record from the raw inspection table.
-    fn raw_plugin_info(self, plugin_id: NcGuid) -> Result<Option<NcPluginInfoV3>, NcStatus> {
+    fn raw_plugin_info(self, plugin_id: NcGuid) -> Result<Option<NcPluginInfoV1>, NcStatus> {
         // MaybeUninit avoids constructing a fake sentinel record; the C contract
         // initializes the slot only when it returns success.
         let mut out = core::mem::MaybeUninit::uninit();
@@ -200,7 +200,7 @@ impl<'runtime> Inspection<'runtime> {
     }
 
     /// Retrieves one borrowed-text module record from the raw inspection table.
-    fn raw_module_info(self, module_id: LoadedModuleId) -> Result<Option<NcModuleInfoV3>, NcStatus> {
+    fn raw_module_info(self, module_id: LoadedModuleId) -> Result<Option<NcModuleInfoV1>, NcStatus> {
         let mut out = core::mem::MaybeUninit::uninit();
         // SAFETY: `out` is valid for one initialized record on success.
         let status = unsafe { (self.runtime.inspection_api().module_info)(module_id.get(), out.as_mut_ptr()) };

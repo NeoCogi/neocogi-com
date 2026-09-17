@@ -12,11 +12,14 @@ use crate::{
     validate_version_text,
 };
 
-/// Factory metadata generation with an exact root interface and no module graph.
-pub const NC_FACTORY_PLUGIN_ABI_VERSION: u32 = 2;
+/// Pre-alpha factory metadata ABI with an exact root interface and no module graph.
+///
+/// This remains version one during pre-alpha; consumers must use the same
+/// checkout revision rather than infer compatibility from this number alone.
+pub const NC_FACTORY_PLUGIN_ABI_VERSION: u32 = 1;
 
 /// Exported symbol returning a factory-only plugin description.
-pub const NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL: &str = "nc_get_factory_plugin_description_v2";
+pub const NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL: &str = "nc_get_factory_plugin_description_v1";
 
 /// Fixed bootstrap operation that creates one owned root factory object.
 ///
@@ -278,12 +281,12 @@ mod tests {
     /// Rejects incompatible descriptor layouts before inspecting root metadata.
     #[test]
     fn rejects_descriptor_version_and_missing_factory_signature() {
-        let old = NcFactoryPluginDescription {
-            description_abi_version: 1,
+        let incompatible = NcFactoryPluginDescription {
+            description_abi_version: NC_FACTORY_PLUGIN_ABI_VERSION + 1,
             ..VALID_PLUGIN
         };
         // SAFETY: Both fixtures have readable roots and immutable child storage.
-        assert_eq!(unsafe { validate_factory_plugin_description(&old) }, NC_E_ABI_VERSION);
+        assert_eq!(unsafe { validate_factory_plugin_description(&incompatible) }, NC_E_ABI_VERSION);
         let unsigned = NcFactoryPluginDescription {
             root_factory: NcInterfaceId::new(FACTORY_ID.iid, NcAbiSignature::EMPTY),
             ..VALID_PLUGIN

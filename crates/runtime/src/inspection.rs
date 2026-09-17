@@ -10,19 +10,19 @@
 //! into append-only loaded-module records. The C callback copies each record
 //! while the referenced runtime storage remains live.
 
-use neocogi_com_core::{NcGuid, NcModuleInfoV3, NcPluginInfoV3, NcStaticUtf8, NcUtf8View};
+use neocogi_com_core::{NcGuid, NcModuleInfoV1, NcPluginInfoV1, NcStaticUtf8, NcUtf8View};
 
 use crate::loader::LoadedModuleId;
 use crate::factory_plugin_registry::FactoryPluginRegistry;
 use crate::module_registry::ModuleRegistry;
 
 /// Projects one registered factory-only description into the common summary.
-pub(crate) fn factory_plugin_info(registry: &FactoryPluginRegistry, plugin_id: NcGuid) -> Option<NcPluginInfoV3> {
+pub(crate) fn factory_plugin_info(registry: &FactoryPluginRegistry, plugin_id: NcGuid) -> Option<NcPluginInfoV1> {
     let registered = registry.plugin(plugin_id)?;
     // SAFETY: Registered pointers target validated immutable descriptions kept
     // live by static ownership or a retained dynamic module.
     let plugin = unsafe { &*registered.description };
-    Some(NcPluginInfoV3 {
+    Some(NcPluginInfoV1 {
         plugin_id: registered.plugin_id,
         qualified_name: static_utf8_view(plugin.qualified_name),
         version: static_utf8_view(plugin.plugin_version),
@@ -30,9 +30,9 @@ pub(crate) fn factory_plugin_info(registry: &FactoryPluginRegistry, plugin_id: N
 }
 
 /// Projects one retained module record into its path and plugin provenance.
-pub(crate) fn module_info(registry: &ModuleRegistry, module_id: LoadedModuleId) -> Option<NcModuleInfoV3> {
+pub(crate) fn module_info(registry: &ModuleRegistry, module_id: LoadedModuleId) -> Option<NcModuleInfoV1> {
     let loaded = registry.module(module_id)?;
-    Some(NcModuleInfoV3 {
+    Some(NcModuleInfoV1 {
         module_id: loaded.module_id.get(),
         plugin_id: loaded.plugin_id,
         path: loaded.path,

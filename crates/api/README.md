@@ -124,7 +124,7 @@ let factory = runtime.activate_plugin_factory::<my_contracts::UiFactoryAbi>(
 let button = factory.create_button()?;
 ```
 
-`load_plugin_library` requires `nc_get_factory_plugin_description_v2`, validates
+`load_plugin_library` requires `nc_get_factory_plugin_description_v1`, validates
 plugin metadata and hard dependencies, and registers the plugin atomically.
 Activation compares the exact factory signature before invoking bootstrap.
 Unconnected contract revisions can coexist; incompatible calls fail with

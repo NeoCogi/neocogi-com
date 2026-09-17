@@ -180,7 +180,7 @@ fn factory_plugin_metadata_has_no_repeated_root_contract() {
     let mut exported = core::ptr::null::<NcFactoryPluginDescription>();
     // SAFETY: `exported` supplies one writable pointer slot to the generated
     // dynamic-library entrypoint.
-    assert_eq!(unsafe { nc_get_factory_plugin_description_v2(&mut exported) }, NC_OK);
+    assert_eq!(unsafe { nc_get_factory_plugin_description_v1(&mut exported) }, NC_OK);
     assert!(core::ptr::eq(exported, description));
 }
 

@@ -1,6 +1,6 @@
 # neocogi-inspect
 
-Reads an actual plugin's `nc_get_factory_plugin_description_v2` export without
+Reads an actual plugin's `nc_get_factory_plugin_description_v1` export without
 registering or activating its factory. It copies plugin identity/version, hard
 dependencies, descriptor/core ABI versions, and full factory IID/signature and
 threading capability. There are no contract libraries or module graphs to load.
@@ -16,7 +16,7 @@ neocogi-inspect diff old.nccom.json new.nccom.json
 neocogi-inspect diff old.nccom.json new.nccom.json --compat
 ```
 
-JSON uses strict schema 9, plugin descriptor ABI 2, and core object ABI 7.
+JSON uses strict schema 9, plugin descriptor ABI 1, and core object ABI 7.
 Unknown fields and unsupported schema versions are rejected. Module/declaration
 inventories are a build-time IDL-tooling concern.
 

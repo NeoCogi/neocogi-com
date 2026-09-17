@@ -13,8 +13,8 @@ use std::vec::Vec;
 
 use crate::{
     ComFactoryInterface, ComInterface, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND,
-    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NcDebugApiV3, NcFactoryPluginDescription, NcGuid, NcInspectionApiV3, NcPluginRegistryV3,
-    NcRuntimeApiV3, NcStatus, NcUtf8View, ThreadingModel,
+    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NcDebugApiV1, NcFactoryPluginDescription, NcGuid, NcInspectionApiV1, NcPluginRegistryV1,
+    NcRuntimeApiV1, NcStatus, NcUtf8View, ThreadingModel,
 };
 use neocogi_com_runtime_sys as runtime_sys;
 
@@ -154,39 +154,39 @@ impl Runtime {
     }
 
     /// Returns the linked runtime-operation table.
-    fn runtime_api(&self) -> &'static NcRuntimeApiV3 {
+    fn runtime_api(&self) -> &'static NcRuntimeApiV1 {
         // Do not cache a table before checking the mandatory generation: a
         // future runtime may expose an incompatible discovery/table contract.
-        self.assert_runtime_v3();
-        // SAFETY: The runtime version was checked before calling the v3 getter,
+        self.assert_runtime_v1();
+        // SAFETY: The runtime version was checked before calling the v1 getter,
         // whose result follows the static size-prefix table contract.
-        let api = unsafe { table(runtime_sys::nc_com_get_runtime_api_v3()) };
+        let api = unsafe { table(runtime_sys::nc_com_get_runtime_api_v1()) };
         assert_eq!(api.core_abi_version, crate::NC_COM_CORE_ABI_VERSION);
         api
     }
 
     /// Returns the linked plugin-registry table.
-    fn plugin_registry_api(&self) -> &'static NcPluginRegistryV3 {
-        self.assert_runtime_v3();
-        // SAFETY: The runtime version was checked before calling the v3 getter,
+    fn plugin_registry_api(&self) -> &'static NcPluginRegistryV1 {
+        self.assert_runtime_v1();
+        // SAFETY: The runtime version was checked before calling the v1 getter,
         // whose result follows the static size-prefix table contract.
-        unsafe { table(runtime_sys::nc_com_get_plugin_registry_v3()) }
+        unsafe { table(runtime_sys::nc_com_get_plugin_registry_v1()) }
     }
 
     /// Returns the linked inspection table.
-    fn inspection_api(&self) -> &'static NcInspectionApiV3 {
-        self.assert_runtime_v3();
-        // SAFETY: The runtime version was checked before calling the v3 getter,
+    fn inspection_api(&self) -> &'static NcInspectionApiV1 {
+        self.assert_runtime_v1();
+        // SAFETY: The runtime version was checked before calling the v1 getter,
         // whose result follows the static size-prefix table contract.
-        unsafe { table(runtime_sys::nc_com_get_inspection_api_v3()) }
+        unsafe { table(runtime_sys::nc_com_get_inspection_api_v1()) }
     }
 
     /// Returns the linked debug-messenger table.
-    fn debug_api(&self) -> &'static NcDebugApiV3 {
-        self.assert_runtime_v3();
-        // SAFETY: The runtime version was checked before calling the v3 getter,
+    fn debug_api(&self) -> &'static NcDebugApiV1 {
+        self.assert_runtime_v1();
+        // SAFETY: The runtime version was checked before calling the v1 getter,
         // whose result follows the static size-prefix table contract.
-        unsafe { table(runtime_sys::nc_com_get_debug_api_v3()) }
+        unsafe { table(runtime_sys::nc_com_get_debug_api_v1()) }
     }
 
     /// Returns the registered-plugin and loaded-module catalog.
@@ -290,14 +290,14 @@ impl Runtime {
 
     /// Loads trusted plugin libraries sequentially.
     ///
-    /// ABI v3 performs no path discovery or recursive loading. Callers must
+    /// ABI v1 performs no path discovery or recursive loading. Callers must
     /// supply a dependency-first order, such as one produced by
     /// `neocogi-inspect plan`. Native libraries mapped as
     /// platform dependencies are not automatically registered as neocogi-com
     /// plugins.
     ///
     /// A later failure aborts the process rather than returning partial state.
-    /// Runtime ABI v3 intentionally has no transactional batch-loading call.
+    /// Runtime ABI v1 intentionally has no transactional batch-loading call.
     ///
     /// # Safety
     ///
@@ -316,8 +316,8 @@ impl Runtime {
         loaded
     }
 
-    /// Aborts the operation if the linked library does not implement ABI v3.
-    fn assert_runtime_v3(&self) {
+    /// Aborts the operation if the linked library does not implement ABI v1.
+    fn assert_runtime_v1(&self) {
         // ABI mismatch is a linkage/configuration error, not a recoverable
         // plugin status. Fail before dereferencing any version-specific table.
         let found = self.runtime_abi_version();

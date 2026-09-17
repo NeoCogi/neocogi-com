@@ -90,7 +90,7 @@ impl INativeCalculator for NativeCalculator {
 mod tests {
     use super::*;
     use neocogi_com::{
-        ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV3, NcInspectionApiV3, NcInterfaceDescriptor, NcInterfaceId, NcPluginRegistryV3, NcRuntimeApiV3,
+        ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV1, NcInspectionApiV1, NcInterfaceDescriptor, NcInterfaceId, NcPluginRegistryV1, NcRuntimeApiV1,
     };
 
     #[repr(C)]
@@ -149,11 +149,11 @@ mod tests {
             interface_qualified_name_offset: core::mem::offset_of!(NcInterfaceDescriptor, qualified_name),
             interface_method_count_offset: core::mem::offset_of!(NcInterfaceDescriptor, method_count),
             interface_methods_offset: core::mem::offset_of!(NcInterfaceDescriptor, methods),
-            runtime_core_abi_version_offset: core::mem::offset_of!(NcRuntimeApiV3, core_abi_version),
-            runtime_plugin_register_offset: core::mem::offset_of!(NcRuntimeApiV3, register_factory_plugin_description),
-            plugin_registry_first_function_offset: core::mem::offset_of!(NcPluginRegistryV3, plugin_count),
-            inspection_first_function_offset: core::mem::offset_of!(NcInspectionApiV3, plugin_info),
-            debug_first_function_offset: core::mem::offset_of!(NcDebugApiV3, create_messenger),
+            runtime_core_abi_version_offset: core::mem::offset_of!(NcRuntimeApiV1, core_abi_version),
+            runtime_plugin_register_offset: core::mem::offset_of!(NcRuntimeApiV1, register_factory_plugin_description),
+            plugin_registry_first_function_offset: core::mem::offset_of!(NcPluginRegistryV1, plugin_count),
+            inspection_first_function_offset: core::mem::offset_of!(NcInspectionApiV1, plugin_info),
+            debug_first_function_offset: core::mem::offset_of!(NcDebugApiV1, create_messenger),
             aggregate_size: core::mem::size_of::<NativeAggregate>(),
             aggregate_align: core::mem::align_of::<NativeAggregate>(),
             aggregate_count_offset: core::mem::offset_of!(NativeAggregate, count),

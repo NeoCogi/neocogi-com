@@ -5,7 +5,7 @@
 //! the plugin record and its lookup index together. Contract compatibility belongs to typed factory
 //! acquisition and interface transfers, so registration never traverses IDL.
 
-use neocogi_com_core::{NC_E_INVALID_ARG, NC_OK, NcFactoryPluginDescription, NcGuid, NcStatus, validate_factory_plugin_description};
+use neocogi_com_core::{NC_E_INVALID_ARG, NC_OK, NcFactoryPluginDescription, NcStatus, validate_factory_plugin_description};
 
 use crate::factory_plugin_registry::RegisteredFactoryPlugin;
 use crate::state::{RuntimeCatalog, RuntimeState};

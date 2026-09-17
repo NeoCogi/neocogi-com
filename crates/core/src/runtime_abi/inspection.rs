@@ -18,12 +18,12 @@ use crate::{NcFactoryPluginDescription, NcGuid, NcStatus};
 /// duration of the callback. The callback must not retain those pointers. The
 /// runtime passes `user_data` through unchanged and returns the callback's
 /// status to the caller. The callback must not unwind across the ABI boundary.
-pub type NcInspectFactoryPluginDescriptionCallbackV3 = unsafe extern "C" fn(plugin: *const NcFactoryPluginDescription, user_data: *mut c_void) -> NcStatus;
+pub type NcInspectFactoryPluginDescriptionCallbackV1 = unsafe extern "C" fn(plugin: *const NcFactoryPluginDescription, user_data: *mut c_void) -> NcStatus;
 
 /// Inspection record for one registered plugin.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct NcPluginInfoV3 {
+pub struct NcPluginInfoV1 {
     /// Stable plugin identity.
     pub plugin_id: NcGuid,
     /// Qualified plugin name.
@@ -35,7 +35,7 @@ pub struct NcPluginInfoV3 {
 /// Inspection record for one retained loaded module.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct NcModuleInfoV3 {
+pub struct NcModuleInfoV1 {
     /// Process-local module ID.
     pub module_id: u64,
     /// Plugin supplied by this module.
@@ -44,16 +44,16 @@ pub struct NcModuleInfoV3 {
     pub path: NcUtf8View,
 }
 
-/// Read-only metadata and relationship inspection for runtime ABI v3.
+/// Read-only metadata and relationship inspection for runtime ABI v1.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct NcInspectionApiV3 {
+pub struct NcInspectionApiV1 {
     /// Size of this table in bytes.
     pub size: usize,
     /// Writes metadata for one registered plugin.
-    pub plugin_info: unsafe extern "C" fn(plugin_id: NcGuid, out: *mut NcPluginInfoV3) -> NcStatus,
+    pub plugin_info: unsafe extern "C" fn(plugin_id: NcGuid, out: *mut NcPluginInfoV1) -> NcStatus,
     /// Writes metadata for one retained loaded module.
-    pub module_info: unsafe extern "C" fn(module_id: u64, out: *mut NcModuleInfoV3) -> NcStatus,
+    pub module_info: unsafe extern "C" fn(module_id: u64, out: *mut NcModuleInfoV1) -> NcStatus,
     /// Returns the number of hard dependencies declared by one plugin.
     pub plugin_dependency_count: unsafe extern "C" fn(plugin_id: NcGuid) -> usize,
     /// Copies hard dependency plugin IDs declared by one plugin.
@@ -68,26 +68,26 @@ pub struct NcInspectionApiV3 {
     ///
     /// `path` must point to `path_len` readable UTF-8 bytes with no interior
     /// NUL. `callback` must obey
-    /// [`NcInspectFactoryPluginDescriptionCallbackV3`]'s
+    /// [`NcInspectFactoryPluginDescriptionCallbackV1`]'s
     /// pointer, lifetime, and no-unwind contract. `user_data` is passed through
     /// unchanged and may be null.
     pub inspect_plugin_library_utf8: unsafe extern "C" fn(
         path: *const u8,
         path_len: usize,
-        callback: Option<NcInspectFactoryPluginDescriptionCallbackV3>,
+        callback: Option<NcInspectFactoryPluginDescriptionCallbackV1>,
         user_data: *mut c_void,
     ) -> NcStatus,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::NcInspectionApiV3;
+    use super::NcInspectionApiV1;
 
     #[test]
     #[cfg(target_pointer_width = "64")]
-    fn inspection_api_v3_exposes_descriptor_inspection() {
-        assert_eq!(core::mem::size_of::<NcInspectionApiV3>(), 48);
-        assert_eq!(core::mem::align_of::<NcInspectionApiV3>(), 8);
-        assert_eq!(core::mem::offset_of!(NcInspectionApiV3, inspect_plugin_library_utf8), 40);
+    fn inspection_api_v1_exposes_descriptor_inspection() {
+        assert_eq!(core::mem::size_of::<NcInspectionApiV1>(), 48);
+        assert_eq!(core::mem::align_of::<NcInspectionApiV1>(), 8);
+        assert_eq!(core::mem::offset_of!(NcInspectionApiV1, inspect_plugin_library_utf8), 40);
     }
 }

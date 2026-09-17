@@ -332,12 +332,12 @@ macro_rules! export_factory_plugin {
         /// `out` must be null or writable for one description pointer. The
         /// exporting module must remain loaded while that metadata is used.
         #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn nc_get_factory_plugin_description_v2(out: *mut *const $crate::NcFactoryPluginDescription) -> $crate::NcStatus {
+        pub unsafe extern "C" fn nc_get_factory_plugin_description_v1(out: *mut *const $crate::NcFactoryPluginDescription) -> $crate::NcStatus {
             // SAFETY: The accessor returns immutable static metadata and the
             // caller supplies the raw output slot validated by the helper.
             unsafe { $crate::return_factory_plugin_description(out, $description()) }
         }
         // Keep symbol shape synchronized with the core ABI declaration.
-        const _: $crate::NcGetFactoryPluginDescription = nc_get_factory_plugin_description_v2;
+        const _: $crate::NcGetFactoryPluginDescription = nc_get_factory_plugin_description_v1;
     };
 }

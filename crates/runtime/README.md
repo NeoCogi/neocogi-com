@@ -5,7 +5,7 @@ root-factory activation, loaded-module provenance, and diagnostics. It contains
 no contract-module registry, native contract descriptions, or event seeding.
 Applications use `neocogi_com::Runtime`.
 
-A dynamic library exports `nc_get_factory_plugin_description_v2`, lending an
+A dynamic library exports `nc_get_factory_plugin_description_v1`, lending an
 immutable descriptor with plugin metadata, hard dependencies, full root factory
 IID/signature, threading, and bootstrap. Registration validates the metadata and
 publishes one plugin atomically. Dependencies must already be registered;
@@ -23,8 +23,8 @@ libraries remain pinned for process lifetime. Inspection validates and borrows
 metadata without registration or activation. It exposes plugin/factory data,
 not a runtime inventory of contract declarations.
 
-Runtime ABI v3 has four size-prefixed C tables: operations, plugin enumeration,
-inspection, and diagnostics. Plugin descriptor ABI v2 and core object ABI v7
+Runtime ABI v1 has four size-prefixed C tables: operations, plugin enumeration,
+inspection, and diagnostics. Plugin descriptor ABI v1 and core object ABI v7
 are independently versioned. Callers must check runtime discovery before
 reading a versioned table. The runtime retains at most 1,024 loaded modules and
 64 active debug messengers.

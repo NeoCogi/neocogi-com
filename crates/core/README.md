@@ -16,9 +16,9 @@ the complete transitive graph and derives each declaration's final 32 bytes.
 Core compares those bytes at factory/interface boundaries and does not hash or
 reconstruct an IDL graph.
 
-Plugin descriptor ABI v2 publishes plugin identity/version, hard dependencies,
+Plugin descriptor ABI v1 publishes plugin identity/version, hard dependencies,
 full root-factory IID/signature, threading, and one zero-argument bootstrap.
-Its getter is `nc_get_factory_plugin_description_v2`. Runtime discovery is v3,
+Its getter is `nc_get_factory_plugin_description_v1`. Runtime discovery is v1,
 with operation, plugin-registry, inspection, and debug tables. See the
 [ABI specification](../docs/abi-v7.md) for layouts and ownership rules.
 

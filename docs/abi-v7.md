@@ -5,7 +5,7 @@ The authoritative layouts are the public `#[repr(C)]` definitions in
 `neocogi-com-core`; this guide explains how those layouts compose.
 
 Core ABI v7 is pre-alpha and not yet a cross-release compatibility promise.
-Runtime discovery is separately versioned and currently uses runtime ABI v3.
+Runtime discovery is separately versioned and currently uses runtime ABI v1.
 
 ## 1. Scope
 
@@ -104,7 +104,7 @@ per process.
 A plugin shared library exports exactly one symbol:
 
 ```text
-nc_get_factory_plugin_description_v2
+nc_get_factory_plugin_description_v1
 ```
 
 The getter lends an immutable `NcFactoryPluginDescription` while the library is
@@ -157,16 +157,18 @@ failure is process-fatal after diagnostics; successful and post-open failed
 modules remain pinned so no borrowed code/data pointer can outlive its library.
 Hot unload/reload is outside this ABI.
 
-## 8. Runtime ABI v3
+## 8. Runtime ABI v1
 
 Hosts first call `nc_com_runtime_abi_version` and require
-`NC_COM_RUNTIME_ABI_VERSION == 3`. They then obtain the immutable size-prefixed
-`NcRuntimeApiV3`, `NcPluginRegistryV3`, `NcInspectionApiV3`, and `NcDebugApiV3`
-tables through the corresponding `_v3` getters. The old `_v2` table getters and
-contract-registry table are removed. These are separate from plugin descriptor
-ABI v2 and core object ABI v7.
+`NC_COM_RUNTIME_ABI_VERSION == 1`. They then obtain the immutable size-prefixed
+`NcRuntimeApiV1`, `NcPluginRegistryV1`, `NcInspectionApiV1`, and `NcDebugApiV1`
+tables through the corresponding `_v1` getters. There is no contract-registry
+table. Plugin descriptor ABI also remains v1; core object ABI remains v7.
+The plugin and runtime version numbers stay at one during pre-alpha and do not
+promise compatibility between checkout revisions. Rebuild hosts, runtimes, and
+plugins together.
 
-`NcRuntimeApiV3` contains `register_factory_plugin_description`,
+`NcRuntimeApiV1` contains `register_factory_plugin_description`,
 `load_plugin_library_utf8`, and `activate_factory_plugin`. Other tables enumerate
 plugins and loaded modules, inspect plugin metadata, and manage diagnostic
 callbacks. Count/fill operations report required length for retryable growth.

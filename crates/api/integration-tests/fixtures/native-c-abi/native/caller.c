@@ -48,26 +48,26 @@ struct NcInterfaceDescriptor {
     const NcMethodDescriptor *methods;
 };
 
-typedef struct NcRuntimeApiV3Prefix {
+typedef struct NcRuntimeApiV1Prefix {
     size_t size;
     uint32_t core_abi_version;
     int32_t (*register_factory_plugin_description)(const void *);
-} NcRuntimeApiV3Prefix;
+} NcRuntimeApiV1Prefix;
 
-typedef struct NcPluginRegistryV3Prefix {
+typedef struct NcPluginRegistryV1Prefix {
     size_t size;
     size_t (*plugin_count)(void);
-} NcPluginRegistryV3Prefix;
+} NcPluginRegistryV1Prefix;
 
-typedef struct NcInspectionApiV3Prefix {
+typedef struct NcInspectionApiV1Prefix {
     size_t size;
     void (*plugin_info)(void);
-} NcInspectionApiV3Prefix;
+} NcInspectionApiV1Prefix;
 
-typedef struct NcDebugApiV3Prefix {
+typedef struct NcDebugApiV1Prefix {
     size_t size;
     void (*create_messenger)(void);
-} NcDebugApiV3Prefix;
+} NcDebugApiV1Prefix;
 
 struct IUnknown {
     const IUnknownVTable *vtable;
@@ -179,16 +179,16 @@ _Static_assert(offsetof(NativeAggregate, value) == 8,
 _Static_assert(sizeof(NativeAggregate) == 16,
     "NativeAggregate ABI size changed");
 
-_Static_assert(offsetof(NcRuntimeApiV3Prefix, size) == 0,
-    "NcRuntimeApiV3 must begin with size");
-_Static_assert(offsetof(NcRuntimeApiV3Prefix, core_abi_version) == sizeof(size_t),
-    "NcRuntimeApiV3.core_abi_version prefix changed");
-_Static_assert(offsetof(NcPluginRegistryV3Prefix, plugin_count) == sizeof(size_t),
-    "NcPluginRegistryV3 prefix changed");
-_Static_assert(offsetof(NcInspectionApiV3Prefix, plugin_info) == sizeof(size_t),
-    "NcInspectionApiV3 prefix changed");
-_Static_assert(offsetof(NcDebugApiV3Prefix, create_messenger) == sizeof(size_t),
-    "NcDebugApiV3 prefix changed");
+_Static_assert(offsetof(NcRuntimeApiV1Prefix, size) == 0,
+    "NcRuntimeApiV1 must begin with size");
+_Static_assert(offsetof(NcRuntimeApiV1Prefix, core_abi_version) == sizeof(size_t),
+    "NcRuntimeApiV1.core_abi_version prefix changed");
+_Static_assert(offsetof(NcPluginRegistryV1Prefix, plugin_count) == sizeof(size_t),
+    "NcPluginRegistryV1 prefix changed");
+_Static_assert(offsetof(NcInspectionApiV1Prefix, plugin_info) == sizeof(size_t),
+    "NcInspectionApiV1 prefix changed");
+_Static_assert(offsetof(NcDebugApiV1Prefix, create_messenger) == sizeof(size_t),
+    "NcDebugApiV1 prefix changed");
 
 #if UINTPTR_MAX == UINT64_MAX
 _Static_assert(sizeof(NcInterfaceDescriptor) == 96,
@@ -197,8 +197,8 @@ _Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 80,
     "64-bit NcInterfaceDescriptor.method_count ABI offset changed");
 _Static_assert(offsetof(NcInterfaceDescriptor, methods) == 88,
     "64-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(offsetof(NcRuntimeApiV3Prefix, register_factory_plugin_description) == 16,
-    "64-bit NcRuntimeApiV3 registration prefix changed");
+_Static_assert(offsetof(NcRuntimeApiV1Prefix, register_factory_plugin_description) == 16,
+    "64-bit NcRuntimeApiV1 registration prefix changed");
 #elif UINTPTR_MAX == UINT32_MAX
 _Static_assert(sizeof(NcInterfaceDescriptor) == 64,
     "32-bit NcInterfaceDescriptor ABI size changed");
@@ -206,8 +206,8 @@ _Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 56,
     "32-bit NcInterfaceDescriptor.method_count ABI offset changed");
 _Static_assert(offsetof(NcInterfaceDescriptor, methods) == 60,
     "32-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(offsetof(NcRuntimeApiV3Prefix, register_factory_plugin_description) == 8,
-    "32-bit NcRuntimeApiV3 registration prefix changed");
+_Static_assert(offsetof(NcRuntimeApiV1Prefix, register_factory_plugin_description) == 8,
+    "32-bit NcRuntimeApiV1 registration prefix changed");
 #else
 #error "native C ABI fixture supports only 32-bit and 64-bit targets"
 #endif
@@ -222,11 +222,11 @@ int32_t nc_c_validate_abi_layouts(const NativeAbiLayouts *layouts) {
         layouts->interface_qualified_name_offset == offsetof(NcInterfaceDescriptor, qualified_name) &&
         layouts->interface_method_count_offset == offsetof(NcInterfaceDescriptor, method_count) &&
         layouts->interface_methods_offset == offsetof(NcInterfaceDescriptor, methods) &&
-        layouts->runtime_core_abi_version_offset == offsetof(NcRuntimeApiV3Prefix, core_abi_version) &&
-        layouts->runtime_plugin_register_offset == offsetof(NcRuntimeApiV3Prefix, register_factory_plugin_description) &&
-        layouts->plugin_registry_first_function_offset == offsetof(NcPluginRegistryV3Prefix, plugin_count) &&
-        layouts->inspection_first_function_offset == offsetof(NcInspectionApiV3Prefix, plugin_info) &&
-        layouts->debug_first_function_offset == offsetof(NcDebugApiV3Prefix, create_messenger) &&
+        layouts->runtime_core_abi_version_offset == offsetof(NcRuntimeApiV1Prefix, core_abi_version) &&
+        layouts->runtime_plugin_register_offset == offsetof(NcRuntimeApiV1Prefix, register_factory_plugin_description) &&
+        layouts->plugin_registry_first_function_offset == offsetof(NcPluginRegistryV1Prefix, plugin_count) &&
+        layouts->inspection_first_function_offset == offsetof(NcInspectionApiV1Prefix, plugin_info) &&
+        layouts->debug_first_function_offset == offsetof(NcDebugApiV1Prefix, create_messenger) &&
         layouts->aggregate_size == sizeof(NativeAggregate) &&
         layouts->aggregate_align == _Alignof(NativeAggregate) &&
         layouts->aggregate_count_offset == offsetof(NativeAggregate, count) &&

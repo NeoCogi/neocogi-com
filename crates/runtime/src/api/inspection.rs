@@ -10,7 +10,7 @@
 use core::{ffi::c_void, ptr};
 
 use neocogi_com_core::{
-    NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectFactoryPluginDescriptionCallbackV3, NcModuleInfoV3, NcPluginInfoV3, NcStatus,
+    NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectFactoryPluginDescriptionCallbackV1, NcModuleInfoV1, NcPluginInfoV1, NcStatus,
 };
 
 use crate::inspection as runtime_inspection;
@@ -24,7 +24,7 @@ use super::{copy_slice_to_out, emit_error, path_from_utf8};
 pub(super) unsafe extern "C" fn inspect_plugin_library_utf8(
     path: *const u8,
     path_len: usize,
-    callback: Option<NcInspectFactoryPluginDescriptionCallbackV3>,
+    callback: Option<NcInspectFactoryPluginDescriptionCallbackV1>,
     user_data: *mut c_void,
 ) -> NcStatus {
     let Some(callback) = callback else {
@@ -51,7 +51,7 @@ pub(super) unsafe extern "C" fn inspect_plugin_library_utf8(
 }
 
 /// Writes borrowed descriptor metadata for one registered plugin.
-pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPluginInfoV3) -> NcStatus {
+pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPluginInfoV1) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -66,7 +66,7 @@ pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPlugi
 }
 
 /// Writes path and plugin provenance for one retained module ID.
-pub(super) unsafe extern "C" fn module_info(module_id: u64, out: *mut NcModuleInfoV3) -> NcStatus {
+pub(super) unsafe extern "C" fn module_info(module_id: u64, out: *mut NcModuleInfoV1) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }

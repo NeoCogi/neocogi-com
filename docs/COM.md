@@ -134,7 +134,7 @@ neocogi_com::factory_plugin! {
 neocogi_com::export_factory_plugin!();
 ```
 
-The plugin exports `nc_get_factory_plugin_description_v2`. Descriptor ABI v2
+The plugin exports `nc_get_factory_plugin_description_v1`. Descriptor ABI v1
 includes plugin identity/version, hard dependencies, the complete factory
 IID/signature, threading, and one bootstrap pointer. Static assemblies call
 `factory_plugin_description()` directly. Only factories receive generated
@@ -157,7 +157,7 @@ runtime never discovers or recursively loads their paths. Required live-load
 failure is diagnosed and aborts rather than exposing partial state. Successful
 libraries remain mapped until process exit.
 
-Runtime ABI v3 has operation, plugin-registry, inspection, and debug tables.
+Runtime ABI v1 has operation, plugin-registry, inspection, and debug tables.
 Activation checks the exact factory signature before bootstrap. Unconnected
 contract revisions can coexist; incompatible pointer transfers are rejected.
 `neocogi-inspect` emits schema 9 with plugin/dependency/root-factory metadata,
