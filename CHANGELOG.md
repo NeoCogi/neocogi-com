@@ -5,6 +5,11 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 
 ## Unreleased
 
+- Replace event subscription signatures with `port name: Sink;` and the unnamed
+  `port: Sink;` shorthand. Generate typed accessors on owned and borrowed handles
+  with fixed shared connection receivers; remove free port constructors. Preserve
+  handle threading, canonical leases, mutable sink delivery, and ABI v1 tables.
+
 - Generate typed `EventPort` values for `EventSession::subscribe` and require
   mutable event sinks. Remove UI-family session duplication, connector helpers,
   handler interior mutability, and detached-batch restoration. Rust binding

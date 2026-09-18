@@ -16,7 +16,12 @@ of the optional `cargo-neocogi` assembly driver.
 
 `interface`, `factory`, and `event` share one callable model. The event role
 requires mutable, unit-returning delivery and generates owned snapshots and typed sinks.
-Event ports require the canonical `neocogi.com.events.IEventSubscription` lease;
+A source declares `port changed: IChangedSink;` alongside ordinary methods.
+It generates `.changed()` accessors for `ComPtr` and `ComRef` and the standard
+`subscribe_changed(&self, sink)` connection operation. A single unnamed
+`port: IChangedSink;` exposes `.port()` and `subscribe`. Multiple streams require
+names; each retains its own subscription even when sink types are shared.
+Ports require the canonical `neocogi.com.events.IEventSubscription` lease;
 a foreign same-named lease is rejected. Generated adapters check their event
 support API version at compile time independently of wire signatures.
 
