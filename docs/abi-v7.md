@@ -76,15 +76,15 @@ itself prove safe concurrent method calls or destruction.
 ## 4. Contract declarations
 
 `.ncidl` supports copied `struct`, `enum`, and `bitenum` values plus callable
-`interface`, `factory`, and `event` roles. The callable roles share one interface
+`interface`, `factory`, and `port` roles. The callable roles share one interface
 representation. Every declaration/member is public; private fields belong to
 implementation objects. `#[version(N)]` derives an IID; `#[id(N, "UUID")]` pins it.
 
 The first required interface is the physical base; later requirements are
 sibling projections. The required projection graph must be acyclic. A factory
-may serve as the runtime's zero-argument construction root. Event delivery
-interfaces remain local, use mutable receivers with unit results, and generate
-typed snapshot adapters. The call gate protects each plain handler field.
+may serve as the runtime's zero-argument construction root. Port protocols remain
+local, use mutable delivery receivers with unit results, and generate owned messages.
+Named interface bindings expose ports; the call gate protects plain handler fields.
 
 ## 5. Compile-time modules
 

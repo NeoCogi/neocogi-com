@@ -20,7 +20,7 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 - Simplify contracts to compile-time Rust bindings and transitive signatures;
   remove native contract libraries/archives, module getters/registries, and
   intrinsic-event seeding. Plugins remain dynamically loadable or statically linked.
-- Unify callable declarations as interfaces with factory/event roles. Keep typed
+- Unify callable declarations as interfaces with factory/port roles. Keep typed
   factory construction, required sibling projections, exact signatures, and
   mutable call gating; remove duplicate object descriptions and ordinary unit
   objects' generated zero-argument constructors.

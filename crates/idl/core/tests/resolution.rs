@@ -556,6 +556,10 @@ fn interface_roles_and_threading_are_contract_identity_inputs() {
     let shared = fingerprint("#[version(1)] #[threading(shared)] interface Root {}");
     assert_ne!(ordinary, factory);
     assert_ne!(ordinary, shared);
+    // Identical receiver methods do not erase the protocol role from ABI identity.
+    let ordinary = fingerprint("#[version(1)] interface Root { fn receive(&mut self) -> Result<()>; }");
+    let protocol = fingerprint("#[version(1)] port Root { fn receive(&mut self) -> Result<()>; }");
+    assert_ne!(ordinary, protocol);
 }
 
 /// Required projections must have a finite layout and preserve every threading promise.

@@ -18,7 +18,7 @@ runtime    -> registers plugins, checks factories, retains loaded libraries
 
 Contracts exist only at build time. No contract `.so`, native description
 archive, getter, runtime inventory, or event-contract seeding is produced.
-`interface` describes callable behavior; `factory` and `event` are roles over
+`interface` describes callable behavior; `factory` and `port` are roles over
 that same representation. An object is private Rust state implementing it.
 
 The [plain-Cargo sample](../../examples/com-plugin/README.md) builds the same
@@ -30,8 +30,8 @@ boundaries, and [ABI v7](docs/abi-v7.md) for the binary model.
 
 ## IDL
 
-The COM-owned IDL compiler lives under [`crates/com/idl`](idl). Its `event`
-keyword lowers every source port against the canonical
+The COM-owned IDL compiler lives under [`crates/com/idl`](idl). It defines `port`
+protocols and lowers named `name: Protocol` bindings against the canonical
 `neocogi.com.events.IEventSubscription` interface; a same-named foreign lease
 is rejected. The [`neocogi.com.events`](event-contracts) NCIDL module defines
 that lease and the borrowed dispatcher ABI. [`neocogi-com-events`](events)
@@ -42,7 +42,7 @@ change an NCIDL wire fingerprint. Event contracts use the ordinary compile-time
 source graph. UI event families use this COM support without making generic
 COM events depend on UI.
 
-Contracts use `struct`, `enum`, `bitenum`, `interface`, `event`, and `factory`. All declarations
+Contracts use `struct`, `enum`, `bitenum`, `interface`, `port`, and `factory`. All declarations
 and members are public by definition:
 
 ```rust
