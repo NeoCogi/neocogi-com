@@ -16,65 +16,57 @@ pub const EVENT_DISPATCH_LIMIT: u32 = 1_000_000;
 
 /// Application-local typed behavior; neither state nor handler crosses the COM ABI.
 ///
-/// Implement this trait on a concrete struct or enum whose dependencies are
-/// explicit fields. Closures and function pointers do not automatically implement
-/// it; there is no implicit `FnMut` adapter hiding a handler's captured state.
+/// Methods, functions, and closures with the signature
+/// `FnMut(&mut State, &Event) -> Result<(), NcStatus>` implement this trait
+/// automatically. A subscription stores the concrete callable inline in its
+/// generated receiver; captures need no type erasure or additional shared cells.
+/// Explicit implementations remain available for reusable handler objects.
 ///
 /// ```
 /// use neocogi_com::NcStatus;
 /// use neocogi_com_events::EventHandler;
 ///
-/// /// Accumulates each event together with an explicitly owned adjustment.
-/// struct Add {
-///     /// Per-handler adjustment, visible instead of captured by a closure.
-///     adjustment: u32,
-/// }
-/// impl EventHandler<u32, u32> for Add {
-///     /// Applies the event and this handler's named configuration to local state.
-///     fn handle(&mut self, total: &mut u32, event: &u32) -> Result<(), NcStatus> {
-///         *total += *event + self.adjustment;
-///         Ok(())
-///     }
-/// }
-/// let mut handler = Add { adjustment: 1 };
+/// let mut adjustment = 0;
+/// let mut handler = move |total: &mut u32, event: &u32| -> Result<(), NcStatus> {
+///     adjustment += 1; // FnMut gives exclusive access to ordinary captures.
+///     *total += *event + adjustment;
+///     Ok(())
+/// };
 /// let mut total = 0;
 /// handler.handle(&mut total, &2).unwrap();
 /// assert_eq!(total, 3);
 /// ```
 ///
-/// A closure cannot substitute for an explicit handler implementation:
+/// Callable adaptation preserves the exact state and event types:
 ///
 /// ```compile_fail
 /// use neocogi_com::NcStatus;
 /// use neocogi_com_events::EventHandler;
 ///
-/// /// Requires the same handler capability as generated event adapters.
-/// fn require_handler(_handler: impl EventHandler<u32, u32>) {}
-/// let adjustment = 1;
-/// require_handler(move |total: &mut u32, event: &u32| -> Result<(), NcStatus> {
-///     *total += *event + adjustment;
-///     Ok(())
-/// });
+/// fn require_handler(_handler: impl EventHandler<u32, String>) {}
+/// require_handler(|_: &mut u32, _: &u32| Ok(())); // Wrong event type.
 /// ```
 ///
-/// A capture-free function pointer is not an implicit handler either:
-///
 /// ```compile_fail
-/// use neocogi_com::NcStatus;
 /// use neocogi_com_events::EventHandler;
 ///
-/// /// A plain function intentionally has no EventHandler implementation.
-/// fn record(total: &mut u32, event: &u32) -> Result<(), NcStatus> {
-///     *total += *event;
-///     Ok(())
-/// }
-/// /// Requires explicit typed behavior, not a callable function-pointer shortcut.
 /// fn require_handler(_handler: impl EventHandler<u32, u32>) {}
-/// require_handler(record as fn(&mut u32, &u32) -> Result<(), NcStatus>);
+/// require_handler(|_: &mut String, _: &u32| Ok(())); // Wrong state type.
 /// ```
 pub trait EventHandler<State, Event> {
     /// Handles one owned semantic snapshot while borrowing only local state.
     fn handle(&mut self, state: &mut State, event: &Event) -> Result<(), NcStatus>;
+}
+
+/// Adapts a concrete callable without allocating a wrapper or changing delivery ownership.
+impl<State, Event, Callback> EventHandler<State, Event> for Callback
+where
+    Callback: FnMut(&mut State, &Event) -> Result<(), NcStatus>,
+{
+    /// The receiver's exclusive borrow also protects mutable closure captures.
+    fn handle(&mut self, state: &mut State, event: &Event) -> Result<(), NcStatus> {
+        self(state, event)
+    }
 }
 
 /// A typed source port consumed when an owner subscribes to its events.
@@ -157,6 +149,9 @@ impl<State: 'static> EventSession<State> {
     /// registration order. Successful registration retains the lease, not the
     /// port. Generated ports own their source projection only until
     /// this synchronous operation returns; application handlers retain their own dependencies.
+    /// Pass a state method, a function, or a closure with explicit parameter types.
+    /// Captures must be owned (`move` when needed) or otherwise valid for `'static`,
+    /// because the subscription retains the callable until cancellation or closure.
     pub fn subscribe<Port, Handler>(&self, port: Port, handler: Handler) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus>
     where
         Port: EventPort,
