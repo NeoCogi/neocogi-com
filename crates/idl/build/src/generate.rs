@@ -688,9 +688,9 @@ fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[
     Ok(generated)
 }
 
-/// Generates one concrete port per declared source method. A port owns its source
-/// only during setup and carries an optional domain validator in an explicit field.
-/// All subscription ownership and ordering belong to the single EventSession API.
+/// Generates typed accessor methods on owned and borrowed source projections.
+/// Each accessor constructs its port directly; only the session calls the source.
+/// The source's threading capability is preserved without querying or weakening it.
 fn event_ports(
     graph: &ResolvedModules,
     module: &ResolvedModule,
@@ -699,8 +699,15 @@ fn event_ports(
     threading: Threading,
 ) -> Result<Vec<TokenStream>, GenerateError> {
     let source_abi = rust_ident(&format!("{}Abi", source.name))?;
-    let mode = matches!(threading, Threading::Shared).then(|| quote! { , ::neocogi_com::ThreadSafe });
+    let extension = rust_ident(&format!("{}Ports", source.name))?;
+    let mode = match threading {
+        Threading::Local => quote! { ::neocogi_com::ThreadLocal },
+        Threading::Shared => quote! { ::neocogi_com::ThreadSafe },
+    };
     let mut ports = Vec::new();
+    let mut accessors = Vec::new();
+    let mut owned_accessors = Vec::new();
+    let mut borrowed_accessors = Vec::new();
     for callable in values {
         let Callable::EventPort(port) = callable else { continue };
         let sink = resolve(graph, module, &port.sink)?;
@@ -715,20 +722,21 @@ fn event_ports(
         let payload = quote! { #prefix #payload };
         let operation = port.subscription_name();
         let port_name = rust_ident(&operation)?;
-        let port_type = rust_ident(&format!("{}{}Port", source.name, upper_camel_case(&operation)))?;
-        let helper = rust_ident(&format!("{}_{}_port", snake_case(&source.name), operation))?;
+        let accessor = rust_ident(port.accessor_name())?;
+        let suffix = port.name.as_deref().map(upper_camel_case).unwrap_or_default();
+        let port_type = rust_ident(&format!("{}{suffix}Port", source.name))?;
         let port_docs = docs(&port.docs);
         ports.push(quote! {
             #port_docs
             /// Typed subscription input; neither this value nor its source is retained after setup.
-            pub struct #port_type {
-                /// Owned projection allows capability queries before the registration transaction.
-                source: ::neocogi_com::ComPtr<#source_abi #mode>,
+            pub struct #port_type<M: ::neocogi_com::ThreadingModel = #mode> {
+                /// Exact source projection retained only until connection finishes.
+                source: ::neocogi_com::ComPtr<#source_abi, M>,
                 /// Semantic validation runs after decoding and before application-state borrowing.
                 validate: Option<fn(&#payload) -> Result<(), ::neocogi_com::NcStatus>>,
             }
 
-            impl #port_type {
+            impl<M: ::neocogi_com::ThreadingModel> #port_type<M> {
                 /// Selects this port's domain check without capturing application state.
                 pub fn checked(mut self, validate: fn(&#payload) -> Result<(), ::neocogi_com::NcStatus>) -> Self {
                     self.validate = Some(validate);
@@ -736,7 +744,7 @@ fn event_ports(
                 }
             }
 
-            impl ::neocogi_com_events::EventPort for #port_type {
+            impl<M: ::neocogi_com::ThreadingModel> ::neocogi_com_events::EventPort for #port_type<M> {
                 type Event = #payload;
 
                 /// Connects exactly one generated sink while registration excludes reentry.
@@ -751,11 +759,38 @@ fn event_ports(
                     source.#port_name(sink.as_com_ref())
                 }
             }
-
+        });
+        accessors.push(quote! {
             #port_docs
-            /// Takes source ownership for synchronous setup; subscription does not retain the source.
-            pub fn #helper(source: ::neocogi_com::ComPtr<#source_abi #mode>) -> #port_type {
-                #port_type { source, validate: None }
+            /// Builds a typed port without connecting a sink or querying another interface.
+            fn #accessor(&self) -> #port_type<M>;
+        });
+        owned_accessors.push(quote! {
+            #port_docs
+            /// Retains this exact source projection until synchronous subscription completes.
+            fn #accessor(&self) -> #port_type<M> {
+                #port_type { source: self.clone(), validate: None }
+            }
+        });
+        borrowed_accessors.push(quote! {
+            #port_docs
+            /// Acquires one source reference so the port can outlive this temporary borrow.
+            fn #accessor(&self) -> #port_type<M> {
+                #port_type { source: self.add_ref(), validate: None }
+            }
+        });
+    }
+    if !ports.is_empty() {
+        ports.push(quote! {
+            /// Typed stream accessors; each returned port owns only setup-time source access.
+            pub trait #extension<M: ::neocogi_com::ThreadingModel = #mode> {
+                #(#accessors)*
+            }
+            impl<M: ::neocogi_com::ThreadingModel> #extension<M> for ::neocogi_com::ComPtr<#source_abi, M> {
+                #(#owned_accessors)*
+            }
+            impl<M: ::neocogi_com::ThreadingModel> #extension<M> for ::neocogi_com::ComRef<'_, #source_abi, M> {
+                #(#borrowed_accessors)*
             }
         });
     }
