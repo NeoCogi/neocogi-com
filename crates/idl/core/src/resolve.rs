@@ -562,7 +562,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
             DeclarationKind::Interface(interface) => {
                 collect_diagnostics(&mut diagnostics, validate_interface_bases(index, interface, entries, &declaration.name));
                 collect_diagnostics(&mut diagnostics, validate_callables(index, &interface.callables, entries, &declaration.name));
-                if interface.role == InterfaceRole::Event {
+                if interface.role == InterfaceRole::Port {
                     // Snapshot adapters must own each input after delivery returns.
                     for delivery in interface.methods() {
                         for parameter in &delivery.parameters {
@@ -905,10 +905,10 @@ fn validate_callables(index: usize, callables: &[Callable], entries: &[ModuleEnt
     for callable in callables {
         match callable {
             Callable::Method(method) => collect_diagnostics(&mut diagnostics, validate_methods(index, std::slice::from_ref(method), entries, owner)),
-            Callable::EventPort(port) => {
-                let sink = resolve_named(index, &port.sink, entries);
+            Callable::Port(port) => {
+                let sink = resolve_named(index, &port.protocol, entries);
                 match sink {
-                    Ok(symbol) if matches!(&entries[symbol.module].module.declarations[symbol.declaration].kind, DeclarationKind::Interface(interface) if interface.role == InterfaceRole::Event) =>
+                    Ok(symbol) if matches!(&entries[symbol.module].module.declarations[symbol.declaration].kind, DeclarationKind::Interface(interface) if interface.role == InterfaceRole::Port) =>
                         {}
                     Ok(symbol) => collect_diagnostics(
                         &mut diagnostics,
@@ -916,10 +916,10 @@ fn validate_callables(index: usize, callables: &[Callable], entries: &[ModuleEnt
                             index,
                             symbol,
                             entries,
-                            &port.sink.span,
-                            format!("{owner}::{} must name a first-class event sink", port.accessor_name()),
-                            "ordinary interfaces cannot be used as event sinks",
-                            "declare the sink with `event`",
+                            &port.protocol.span,
+                            format!("{owner}::{} must name a declared port protocol", &port.name),
+                            "ordinary interfaces cannot be used as port protocols",
+                            "declare the protocol with `port`",
                         )),
                     ),
                     Err(error) => collect_diagnostics(&mut diagnostics, Err(error)),
@@ -948,9 +948,7 @@ fn validate_callables(index: usize, callables: &[Callable], entries: &[ModuleEnt
                                 &port.span,
                                 format!(
                                     "{owner}::{} must return {COM_EVENTS_MODULE_NAME}.{COM_EVENT_LEASE_NAME}; found {}.{}",
-                                    port.accessor_name(),
-                                    owner_module.name,
-                                    declaration.name
+                                    &port.name, owner_module.name, declaration.name
                                 ),
                                 "event ports use the compiler-owned COM lease contract",
                             )),
@@ -1292,7 +1290,7 @@ fn encode_declaration(
             encoder.tag(match interface.role {
                 InterfaceRole::Ordinary => 0,
                 InterfaceRole::Factory => 1,
-                InterfaceRole::Event => 2,
+                InterfaceRole::Port => 2,
             });
             encode_callable(index, &interface.bases, &interface.callables, interface.threading, entries, encoder)?;
         }
@@ -1324,7 +1322,7 @@ fn encode_callable(
                 encoder.tag(0);
                 std::borrow::Cow::Borrowed(method)
             }
-            Callable::EventPort(port) => {
+            Callable::Port(port) => {
                 encoder.tag(1);
                 std::borrow::Cow::Owned(port.signature())
             }

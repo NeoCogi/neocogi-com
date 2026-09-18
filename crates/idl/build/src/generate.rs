@@ -49,7 +49,7 @@ pub fn generate_rust(graph: &ResolvedModules, module_name: &str) -> Result<Strin
         .source
         .declarations
         .iter()
-        .any(|item| matches!(&item.kind, DeclarationKind::Interface(interface) if interface.role == InterfaceRole::Event))
+        .any(|item| matches!(&item.kind, DeclarationKind::Interface(interface) if interface.role == InterfaceRole::Port))
         .then(|| quote! { extern crate alloc; });
     let event_binding_check = module.source.declarations.iter().any(uses_event_support).then(|| {
         let version = Literal::u32_unsuffixed(EVENT_BINDING_API_VERSION);
@@ -103,7 +103,7 @@ pub fn generate_rust(graph: &ResolvedModules, module_name: &str) -> Result<Strin
 fn uses_event_support(declaration: &Declaration) -> bool {
     match &declaration.kind {
         DeclarationKind::Interface(interface) => {
-            interface.role == InterfaceRole::Event || interface.callables.iter().any(|callable| matches!(callable, Callable::EventPort(_)))
+            interface.role == InterfaceRole::Port || interface.callables.iter().any(|callable| matches!(callable, Callable::Port(_)))
         }
         DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) => false,
     }
@@ -274,7 +274,7 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
             format_macro_enum("com_bit_enum", "bitenum", declaration_docs, &name, &repr, &flags)
         }
         DeclarationKind::Interface(interface) => {
-            if interface.role == InterfaceRole::Event {
+            if interface.role == InterfaceRole::Port {
                 return generate_event(
                     graph,
                     module,
@@ -681,7 +681,7 @@ fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[
     for callable in values {
         let method = match callable {
             Callable::Method(method) => std::borrow::Cow::Borrowed(method),
-            Callable::EventPort(port) => std::borrow::Cow::Owned(port.signature()),
+            Callable::Port(port) => std::borrow::Cow::Owned(port.signature()),
         };
         generated.extend(methods(graph, module, std::slice::from_ref(method.as_ref()))?);
     }
@@ -709,8 +709,8 @@ fn event_ports(
     let mut owned_accessors = Vec::new();
     let mut borrowed_accessors = Vec::new();
     for callable in values {
-        let Callable::EventPort(port) = callable else { continue };
-        let sink = resolve(graph, module, &port.sink)?;
+        let Callable::Port(port) = callable else { continue };
+        let sink = resolve(graph, module, &port.protocol)?;
         let payload = rust_ident(&format!("{}Event", sink.declaration.name))?;
         let factory = rust_ident(&format!("create_{}_event_sink", snake_case(&sink.declaration.name)))?;
         let prefix = if sink.module.source.name == module.source.name {
@@ -722,8 +722,8 @@ fn event_ports(
         let payload = quote! { #prefix #payload };
         let operation = port.subscription_name();
         let port_name = rust_ident(&operation)?;
-        let accessor = rust_ident(port.accessor_name())?;
-        let suffix = port.name.as_deref().map(upper_camel_case).unwrap_or_default();
+        let accessor = rust_ident(&port.name)?;
+        let suffix = upper_camel_case(&port.name);
         let port_type = rust_ident(&format!("{}{suffix}Port", source.name))?;
         let port_docs = docs(&port.docs);
         ports.push(quote! {

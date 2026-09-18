@@ -5,8 +5,8 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 
 ## Unreleased
 
-- Replace event subscription signatures with `port name: Sink;` and the unnamed
-  `port: Sink;` shorthand. Generate typed accessors on owned and borrowed handles
+- Declare notification protocols with `port` and bind named connection points
+  with `name: Protocol;`. Generate typed accessors on owned and borrowed handles
   with fixed shared connection receivers; remove free port constructors. Preserve
   handle threading, canonical leases, mutable sink delivery, and ABI v1 tables.
 

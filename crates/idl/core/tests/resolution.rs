@@ -7,9 +7,9 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
     parse_module(Path::new(path), source).unwrap()
 }
 
-/// A subscription port resolves only a first-class sink and the shared lease ABI.
+/// A binding resolves a port protocol and canonical lease, never an ordinary member field.
 #[test]
-fn event_ports_require_generated_event_sinks_and_imported_leases() {
+fn bindings_require_port_protocols_and_canonical_leases() {
     let transport = module(
         "neocogi/com/events.ncidl",
         include_str!("../../../event-contracts/idl/neocogi/com/events/events.ncidl"),
@@ -19,8 +19,8 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
         r#"
         extern neocogi.com.events;
         use neocogi.com.events::IEventSubscription;
-        #[version(1)] event IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { port: IChangedSink; }
+        #[version(1)] port IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }
+        #[version(1)] interface ISource { changed: IChangedSink; }
     "#,
     );
     resolve_modules(vec![valid, transport.clone()]).expect("first-class event port should resolve");
@@ -31,19 +31,32 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
         extern neocogi.com.events;
         use neocogi.com.events::IEventSubscription;
         #[version(1)] interface IChangedSink { fn changed(&self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { port: IChangedSink; }
+        #[version(1)] interface ISource { changed: IChangedSink; }
     "#,
     );
     assert!(
         resolve_modules(vec![ordinary, transport.clone()]).is_err(),
-        "ordinary interfaces must not masquerade as events"
+        "ordinary interfaces must not masquerade as port protocols"
     );
+
+    // A field-shaped member must name a protocol even if a copied type resolves.
+    let storage_field = module(
+        "example/storage.ncidl",
+        r#"
+        extern neocogi.com.events;
+        use neocogi.com.events::IEventSubscription;
+        #[version(1)] struct Value { value: u32 }
+        #[version(1)] interface ISource { changed: Value; }
+    "#,
+    );
+    let error = resolve_modules(vec![storage_field, transport.clone()]).unwrap_err().to_string();
+    assert!(error.contains("must name a declared port protocol"), "{error}");
 
     let unbound_lease = module(
         "example/events.ncidl",
         r#"
-        #[version(1)] event IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { port: IChangedSink; }
+        #[version(1)] port IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }
+        #[version(1)] interface ISource { changed: IChangedSink; }
     "#,
     );
     assert!(
@@ -60,8 +73,8 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
         r#"
         extern example.foreign;
         use example.foreign::IEventSubscription;
-        #[version(1)] event IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { port: IChangedSink; }
+        #[version(1)] port IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }
+        #[version(1)] interface ISource { changed: IChangedSink; }
     "#,
     );
     let error = resolve_modules(vec![foreign_port, foreign_lease]).unwrap_err().to_string();

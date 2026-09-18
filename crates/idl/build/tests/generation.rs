@@ -20,13 +20,13 @@ fn generates_event_payload_sink_adapter_and_subscription_port() {
         extern neocogi.com.events;
         use neocogi.com.events::IEventSubscription;
         #[version(1)]
-        event IChangedSink {
+        port IChangedSink {
             fn changed(&mut self, text: &str, cursor: u64) -> Result<()>;
         }
         #[version(1)]
         interface IEditor {
             fn revision(&self) -> Result<u64>;
-            port changed: IChangedSink;
+            changed: IChangedSink;
         }
     "#,
     );
@@ -71,7 +71,7 @@ fn source_only_event_port_checks_support_api() {
     );
     let sink = module(
         "example/sink.ncidl",
-        "#[version(1)] event IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }",
+        "#[version(1)] port IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }",
     );
     let source = module(
         "example/source.ncidl",
@@ -80,14 +80,14 @@ fn source_only_event_port_checks_support_api() {
         extern example.sink;
         use neocogi.com.events::IEventSubscription;
         use example.sink::IChangedSink;
-        #[version(1)] interface ISource { port: IChangedSink; }
+        #[version(1)] interface ISource { changed: IChangedSink; }
     "#,
     );
     let graph = resolve_modules(vec![source, sink, transport]).unwrap();
     let generated = neocogi_idl_build::generate_rust(&graph, "example.source").unwrap();
     syn::parse_file(&generated).expect("source-only event bindings must parse");
     assert!(generated.contains("EVENT_BINDING_API_VERSION == 3"));
-    assert!(generated.contains("fn port(&self) -> ISourcePort<M>"));
+    assert!(generated.contains("fn changed(&self) -> ISourceChangedPort<M>"));
     assert!(!generated.contains("pub fn i_source_subscribe_port"));
     assert!(generated.contains("example_sink_contracts::create_i_changed_sink_event_sink"));
 }
@@ -101,7 +101,7 @@ fn generates_typed_ports_for_each_source_mode() {
     );
     let sink = module(
         "example/sink.ncidl",
-        "#[version(1)] event IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }",
+        "#[version(1)] port IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }",
     );
     let source = module(
         "example/source.ncidl",
@@ -111,15 +111,15 @@ fn generates_typed_ports_for_each_source_mode() {
         use neocogi.com.events::IEventSubscription;
         use example.sink::IChangedSink;
         #[version(1)] interface ISource {
-            port read: IChangedSink;
-            port write: IChangedSink;
+            read: IChangedSink;
+            write: IChangedSink;
         }
         #[threading(shared)]
         #[version(1)] factory SharedSource {
-            port: IChangedSink;
+            changed: IChangedSink;
         }
         #[version(1)] interface Editor: ISource {
-            port: IChangedSink;
+            changed: IChangedSink;
         }
     "#,
     );

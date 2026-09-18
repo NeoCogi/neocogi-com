@@ -18,7 +18,7 @@ use syn::{
 };
 
 use crate::{
-    AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant, EventPort,
+    AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant, PortBinding,
     ExternalModule, Field, Import, Interface, InterfaceRole, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile,
     SourceSpan, Struct, Threading, VariantFields,
 };
@@ -29,7 +29,6 @@ mod keyword {
     syn::custom_keyword!(interface);
     syn::custom_keyword!(factory);
     syn::custom_keyword!(bitenum);
-    syn::custom_keyword!(event);
     syn::custom_keyword!(port);
 }
 
@@ -248,12 +247,12 @@ impl Parse for ModuleSyntax {
                 parse_bit_enum(attributes, input)?
             } else if input.peek(keyword::interface) {
                 parse_interface(attributes, input, InterfaceRole::Ordinary)?
-            } else if input.peek(keyword::event) {
-                parse_interface(attributes, input, InterfaceRole::Event)?
+            } else if input.peek(keyword::port) {
+                parse_interface(attributes, input, InterfaceRole::Port)?
             } else if input.peek(keyword::factory) {
                 parse_interface(attributes, input, InterfaceRole::Factory)?
             } else {
-                return Err(input.error("expected `extern`, `use`, `struct`, `enum`, `bitenum`, `interface`, `event`, or `factory`"));
+                return Err(input.error("expected `extern`, `use`, `struct`, `enum`, `bitenum`, `interface`, `port`, or `factory`"));
             };
 
             if let Some(previous) = declaration_names.insert(declaration.name.clone(), declaration.span.clone()) {
@@ -396,19 +395,19 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>, role: Int
     let bases = parse_bases(input)?;
     let callables = parse_callables(input)?;
     match role {
-        InterfaceRole::Event => {
+        InterfaceRole::Port => {
             // Native snapshots are immutable, but delivery exclusively borrows its
             // concrete sink so handlers need no interior-mutability wrapper.
             if !bases.is_empty() || threading != Threading::Local {
-                return Err(syn::Error::new(name.span(), "event sinks must be local interfaces without bases"));
+                return Err(syn::Error::new(name.span(), "port protocols must be local without bases"));
             }
             if callables.is_empty() {
-                return Err(syn::Error::new(name.span(), "IDL events require at least one delivery method"));
+                return Err(syn::Error::new(name.span(), "port protocols require at least one delivery method"));
             }
             for callable in &callables {
                 match callable {
                     Callable::Method(method) if method.receiver == Receiver::Mutable && method.output == AbiType::Unit => {}
-                    _ => return Err(syn::Error::new(name.span(), "IDL event deliveries require `&mut self` and `Result<()>`")),
+                    _ => return Err(syn::Error::new(name.span(), "port deliveries require `&mut self` and `Result<()>`")),
                 }
             }
         }
@@ -454,13 +453,10 @@ fn parse_callables(input: ParseStream<'_>) -> syn::Result<Vec<Callable>> {
     braced!(body in input);
     let mut callables = Vec::new();
     let mut names = HashMap::new();
-    let mut port_count = 0;
-    let mut unnamed = None;
     while !body.is_empty() {
         let attributes = Attribute::parse_outer(&body)?;
-        let declaration_span = body.span();
-        let callable = if body.peek(keyword::port) {
-            Callable::EventPort(parse_event_port(attributes, &body)?)
+        let callable = if body.peek(Ident) && body.peek2(Token![:]) {
+            Callable::Port(parse_port_binding(attributes, &body)?)
         } else {
             let mut source = body.parse::<TraitItemFn>()?;
             source.attrs.splice(0..0, attributes);
@@ -470,13 +466,7 @@ fn parse_callables(input: ParseStream<'_>) -> syn::Result<Vec<Callable>> {
         // declaration order, so generated methods cannot silently shadow a port.
         let reserved = match &callable {
             Callable::Method(method) => vec![method.name.clone()],
-            Callable::EventPort(port) => {
-                port_count += 1;
-                if port.name.is_none() {
-                    unnamed = Some(declaration_span);
-                }
-                vec![port.accessor_name().to_owned(), port.subscription_name()]
-            }
+            Callable::Port(port) => vec![port.name.clone(), port.subscription_name()],
         };
         for name in reserved {
             if let Some(previous) = names.insert(name.clone(), callable.span().clone()) {
@@ -485,33 +475,22 @@ fn parse_callables(input: ParseStream<'_>) -> syn::Result<Vec<Callable>> {
         }
         callables.push(callable);
     }
-    if let Some(span) = unnamed
-        && port_count > 1
-    {
-        return Err(syn::Error::new(span, "an unnamed port must be the only port on its interface"));
-    }
     Ok(callables)
 }
 
-/// Parses `port changed: IChangedSink;` or the single-port shorthand `port: ISink;`.
-fn parse_event_port(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<EventPort> {
+/// Parses a named connection point, leaving protocol-kind validation to resolution.
+fn parse_port_binding(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<PortBinding> {
     let docs = parse_doc_only_attributes(&attributes)?;
-    let keyword = input.parse::<keyword::port>()?;
-    let name = if input.peek(Token![:]) {
-        None
-    } else {
-        let name = input.parse::<Ident>()?;
-        require_snake_case(&name, "port")?;
-        Some(name.to_string())
-    };
+    let name = input.parse::<Ident>()?;
+    require_snake_case(&name, "port binding")?;
     input.parse::<Token![:]>()?;
-    let sink = named_path(&input.parse::<syn::Path>()?)?;
+    let protocol = named_path(&input.parse::<syn::Path>()?)?;
     input.parse::<Token![;]>()?;
-    Ok(EventPort {
-        span: SourceSpan::from_parser(keyword.span),
+    Ok(PortBinding {
+        span: SourceSpan::from_parser(name.span()),
         docs,
-        name,
-        sink,
+        name: name.to_string(),
+        protocol,
     })
 }
 
@@ -913,9 +892,9 @@ fn attach_callable_source(bases: &mut [NamedType], callables: &mut [Callable], s
     for callable in callables {
         match callable {
             Callable::Method(method) => attach_method_source(method, source),
-            Callable::EventPort(port) => {
+            Callable::Port(port) => {
                 port.span.attach(source);
-                port.sink.span.attach(source);
+                port.protocol.span.attach(source);
             }
         }
     }
