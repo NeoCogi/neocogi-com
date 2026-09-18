@@ -30,6 +30,7 @@ mod keyword {
     syn::custom_keyword!(factory);
     syn::custom_keyword!(bitenum);
     syn::custom_keyword!(event);
+    syn::custom_keyword!(port);
 }
 
 /// Failure to derive a module name or parse and merge its IDL source parts.
@@ -447,65 +448,69 @@ fn parse_bases(input: ParseStream<'_>) -> syn::Result<Vec<NamedType>> {
         .collect()
 }
 
-/// is generated from the shared COM event contract without a second signature.
+/// Parses ordered methods and ports, reserving both accessor and connection names.
 fn parse_callables(input: ParseStream<'_>) -> syn::Result<Vec<Callable>> {
     let body;
     braced!(body in input);
     let mut callables = Vec::new();
     let mut names = HashMap::new();
+    let mut port_count = 0;
+    let mut unnamed = None;
     while !body.is_empty() {
         let attributes = Attribute::parse_outer(&body)?;
-        let callable = if body.peek(keyword::event) {
+        let declaration_span = body.span();
+        let callable = if body.peek(keyword::port) {
             Callable::EventPort(parse_event_port(attributes, &body)?)
         } else {
             let mut source = body.parse::<TraitItemFn>()?;
             source.attrs.splice(0..0, attributes);
             Callable::Method(lower_method(source)?)
         };
-        let is_method = matches!(callable, Callable::Method(_));
-        if let Some((previous, previous_is_method)) = names.insert(callable.name().to_owned(), (callable.span().clone(), is_method)) {
-            let role = if is_method && previous_is_method { "method" } else { "method or event port" };
-            return Err(duplicate_error("EIDL016", role, callable.name(), callable.span(), &previous));
+        // Reserve the Rust accessor as well as the ABI operation, regardless of
+        // declaration order, so generated methods cannot silently shadow a port.
+        let reserved = match &callable {
+            Callable::Method(method) => vec![method.name.clone()],
+            Callable::EventPort(port) => {
+                port_count += 1;
+                if port.name.is_none() {
+                    unnamed = Some(declaration_span);
+                }
+                vec![port.accessor_name().to_owned(), port.subscription_name()]
+            }
+        };
+        for name in reserved {
+            if let Some(previous) = names.insert(name.clone(), callable.span().clone()) {
+                return Err(duplicate_error("EIDL016", "method or port", &name, callable.span(), &previous));
+            }
         }
         callables.push(callable);
+    }
+    if let Some(span) = unnamed
+        && port_count > 1
+    {
+        return Err(syn::Error::new(span, "an unnamed port must be the only port on its interface"));
     }
     Ok(callables)
 }
 
-/// Lowers `event subscribe_changed(&mut self): IChangedSink;` into a typed port.
+/// Parses `port changed: IChangedSink;` or the single-port shorthand `port: ISink;`.
 fn parse_event_port(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<EventPort> {
     let docs = parse_doc_only_attributes(&attributes)?;
-    input.parse::<keyword::event>()?;
-    let name = input.parse::<Ident>()?;
-    require_snake_case(&name, "event port")?;
-    let receiver_input;
-    parenthesized!(receiver_input in input);
-    receiver_input.parse::<Token![&]>()?;
-    let receiver = if receiver_input.peek(Token![mut]) {
-        receiver_input.parse::<Token![mut]>()?;
-        Receiver::Mutable
+    let keyword = input.parse::<keyword::port>()?;
+    let name = if input.peek(Token![:]) {
+        None
     } else {
-        Receiver::Shared
+        let name = input.parse::<Ident>()?;
+        require_snake_case(&name, "port")?;
+        Some(name.to_string())
     };
-    receiver_input.parse::<Token![self]>()?;
-    if !receiver_input.is_empty() {
-        return Err(receiver_input.error("event ports accept only `&self` or `&mut self`"));
-    }
     input.parse::<Token![:]>()?;
-    let type_input = input.parse::<Type>()?;
-    let Type::Path(path) = type_input else {
-        return Err(syn::Error::new_spanned(type_input, "event ports require one concrete event sink path"));
-    };
-    if path.qself.is_some() {
-        return Err(syn::Error::new_spanned(path, "event sink paths cannot be qualified associated types"));
-    }
-    let sink = named_path(&path.path)?;
+    let sink = named_path(&input.parse::<syn::Path>()?)?;
     input.parse::<Token![;]>()?;
     Ok(EventPort {
-        span: SourceSpan::from_parser(name.span()),
+        span: SourceSpan::from_parser(keyword.span),
         docs,
-        name: name.to_string(),
-        receiver,
+        name,
         sink,
     })
 }

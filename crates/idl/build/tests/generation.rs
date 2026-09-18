@@ -26,7 +26,7 @@ fn generates_event_payload_sink_adapter_and_subscription_port() {
         #[version(1)]
         interface IEditor {
             fn revision(&self) -> Result<u64>;
-            event subscribe_changed(&mut self): IChangedSink;
+            port changed: IChangedSink;
         }
     "#,
     );
@@ -44,7 +44,7 @@ fn generates_event_payload_sink_adapter_and_subscription_port() {
     assert!(generated.contains("pub fn i_editor_subscribe_changed_port"));
     assert!(generated.contains("pub struct IEditorSubscribeChangedPort"));
     assert!(generated.contains("::neocogi_com_events::EventPort for"));
-    assert!(generated.contains("let mut source = self.source"));
+    assert!(!generated.contains("let mut source = self.source"));
     assert!(!generated.contains(".register(||"));
     assert!(generated.contains("source.subscribe_changed(sink.as_com_ref())"));
     assert!(generated.contains("IEventSubscriptionAbi"));
@@ -78,7 +78,7 @@ fn source_only_event_port_checks_support_api() {
         extern example.sink;
         use neocogi.com.events::IEventSubscription;
         use example.sink::IChangedSink;
-        #[version(1)] interface ISource { event subscribe(&self): IChangedSink; }
+        #[version(1)] interface ISource { port: IChangedSink; }
     "#,
     );
     let graph = resolve_modules(vec![source, sink, transport]).unwrap();
@@ -108,15 +108,15 @@ fn generates_typed_ports_for_each_source_mode() {
         use neocogi.com.events::IEventSubscription;
         use example.sink::IChangedSink;
         #[version(1)] interface ISource {
-            event subscribe_read(&self): IChangedSink;
-            event subscribe_write(&mut self): IChangedSink;
+            port read: IChangedSink;
+            port write: IChangedSink;
         }
         #[threading(shared)]
         #[version(1)] factory SharedSource {
-            event subscribe(&self): IChangedSink;
+            port: IChangedSink;
         }
         #[version(1)] interface Editor: ISource {
-            event subscribe(&mut self): IChangedSink;
+            port: IChangedSink;
         }
     "#,
     );
@@ -155,7 +155,7 @@ fn generates_typed_ports_for_each_source_mode() {
     }
     assert_eq!(connector_count, 4);
     assert_eq!(helper_count, 4);
-    assert!(generated.contains("let mut source = self.source"));
+    assert!(!generated.contains("let mut source = self.source"));
     assert!(generated.contains("let source = self.source"));
     assert!(!generated.contains("FnOnce"));
     assert!(!generated.contains(".register(||"));

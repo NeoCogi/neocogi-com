@@ -713,13 +713,10 @@ fn event_ports(
             quote! { ::#crate_name:: }
         };
         let payload = quote! { #prefix #payload };
-        let port_name = rust_ident(&port.name)?;
-        let connected_source = match port.receiver {
-            Receiver::Shared => quote! { source },
-            Receiver::Mutable => quote! { mut source },
-        };
-        let port_type = rust_ident(&format!("{}{}Port", source.name, upper_camel_case(&port.name)))?;
-        let helper = rust_ident(&format!("{}_{}_port", snake_case(&source.name), port.name))?;
+        let operation = port.subscription_name();
+        let port_name = rust_ident(&operation)?;
+        let port_type = rust_ident(&format!("{}{}Port", source.name, upper_camel_case(&operation)))?;
+        let helper = rust_ident(&format!("{}_{}_port", snake_case(&source.name), operation))?;
         let port_docs = docs(&port.docs);
         ports.push(quote! {
             #port_docs
@@ -749,8 +746,8 @@ fn event_ports(
                     handler: Handler,
                 ) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus> {
                     let sink = #prefix #factory(session, handler, self.validate)?;
-                    // Only mutable source methods require an exclusive local projection.
-                    let #connected_source = self.source;
+                    // Connection changes queue ownership without mutating the source object.
+                    let source = self.source;
                     source.#port_name(sink.as_com_ref())
                 }
             }

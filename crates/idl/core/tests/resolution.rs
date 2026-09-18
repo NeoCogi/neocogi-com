@@ -20,7 +20,7 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
         extern neocogi.com.events;
         use neocogi.com.events::IEventSubscription;
         #[version(1)] event IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { event subscribe(&self): IChangedSink; }
+        #[version(1)] interface ISource { port: IChangedSink; }
     "#,
     );
     resolve_modules(vec![valid, transport.clone()]).expect("first-class event port should resolve");
@@ -31,7 +31,7 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
         extern neocogi.com.events;
         use neocogi.com.events::IEventSubscription;
         #[version(1)] interface IChangedSink { fn changed(&self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { event subscribe(&self): IChangedSink; }
+        #[version(1)] interface ISource { port: IChangedSink; }
     "#,
     );
     assert!(
@@ -43,7 +43,7 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
         "example/events.ncidl",
         r#"
         #[version(1)] event IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { event subscribe(&self): IChangedSink; }
+        #[version(1)] interface ISource { port: IChangedSink; }
     "#,
     );
     assert!(
@@ -61,7 +61,7 @@ fn event_ports_require_generated_event_sinks_and_imported_leases() {
         extern example.foreign;
         use example.foreign::IEventSubscription;
         #[version(1)] event IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { event subscribe(&self): IChangedSink; }
+        #[version(1)] interface ISource { port: IChangedSink; }
     "#,
     );
     let error = resolve_modules(vec![foreign_port, foreign_lease]).unwrap_err().to_string();

@@ -250,14 +250,6 @@ pub enum Callable {
 }
 
 impl Callable {
-    /// Returns the ABI method name used for duplicate and vtable diagnostics.
-    pub fn name(&self) -> &str {
-        match self {
-            Self::Method(method) => &method.name,
-            Self::EventPort(port) => &port.name,
-        }
-    }
-
     /// Returns the original declaration span for diagnostics.
     pub fn span(&self) -> &SourceSpan {
         match self {
@@ -267,7 +259,6 @@ impl Callable {
     }
 }
 
-/// Canonical COM module that defines the generated event lease ABI.
 /// Canonical NCIDL module whose event transport ABI is intrinsic to COM.
 pub const COM_EVENTS_MODULE_NAME: &str = "neocogi.com.events";
 
@@ -281,15 +272,26 @@ pub struct EventPort {
     pub span: SourceSpan,
     /// Documentation lines for the generated source method.
     pub docs: Vec<String>,
-    /// Exact method name, commonly `subscribe` or `subscribe_changed`.
-    pub name: String,
-    /// Shared or exclusive source receiver promised to consumers.
-    pub receiver: Receiver,
+    /// Optional stream name; an unnamed single port uses the `port()` accessor.
+    pub name: Option<String>,
     /// Concrete event sink declaration; arbitrary traits are rejected.
     pub sink: NamedType,
 }
 
 impl EventPort {
+    /// Names the native accessor independently of its COM connection operation.
+    pub fn accessor_name(&self) -> &str {
+        self.name.as_deref().unwrap_or("port")
+    }
+
+    /// Gives each stream a predictable, distinct subscription vtable slot.
+    pub fn subscription_name(&self) -> String {
+        match &self.name {
+            Some(name) => format!("subscribe_{name}"),
+            None => "subscribe".to_owned(),
+        }
+    }
+
     /// Expands the declarative port into its exact generated COM signature.
     /// The shared lease must be imported from the canonical COM events module;
     /// resolution rejects an unbound lease or a same-named non-COM declaration.
@@ -297,8 +299,8 @@ impl EventPort {
         Method {
             span: self.span.clone(),
             docs: self.docs.clone(),
-            name: self.name.clone(),
-            receiver: self.receiver,
+            name: self.subscription_name(),
+            receiver: Receiver::Shared,
             parameters: vec![Parameter {
                 span: self.span.clone(),
                 name: "sink".to_owned(),

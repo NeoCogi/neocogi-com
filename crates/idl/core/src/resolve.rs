@@ -917,7 +917,7 @@ fn validate_callables(index: usize, callables: &[Callable], entries: &[ModuleEnt
                             symbol,
                             entries,
                             &port.sink.span,
-                            format!("{owner}::{} must name a first-class event sink", port.name),
+                            format!("{owner}::{} must name a first-class event sink", port.accessor_name()),
                             "ordinary interfaces cannot be used as event sinks",
                             "declare the sink with `event`",
                         )),
@@ -948,7 +948,9 @@ fn validate_callables(index: usize, callables: &[Callable], entries: &[ModuleEnt
                                 &port.span,
                                 format!(
                                     "{owner}::{} must return {COM_EVENTS_MODULE_NAME}.{COM_EVENT_LEASE_NAME}; found {}.{}",
-                                    port.name, owner_module.name, declaration.name
+                                    port.accessor_name(),
+                                    owner_module.name,
+                                    declaration.name
                                 ),
                                 "event ports use the compiler-owned COM lease contract",
                             )),

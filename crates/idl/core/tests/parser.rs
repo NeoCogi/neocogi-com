@@ -156,8 +156,10 @@ fn parses_first_class_event_delivery_and_subscription_port() {
             interface IEditor {
                 fn revision(&self) -> Result<u64>;
                 /// Claims only the changed queue.
-                event subscribe_changed(&mut self): IChangedSink;
+                port changed: IChangedSink;
+                port search: IChangedSink;
             }
+            #[version(1)] interface ISource { port: IChangedSink; }
         "#,
     )
     .unwrap();
@@ -174,17 +176,41 @@ fn parses_first_class_event_delivery_and_subscription_port() {
     let Callable::EventPort(port) = &source.callables[1] else {
         panic!("subscription keyword must retain its port kind")
     };
-    assert_eq!(port.name, "subscribe_changed");
-    assert_eq!(port.receiver, Receiver::Mutable);
+    assert_eq!(port.name.as_deref(), Some("changed"));
+    assert_eq!(port.signature().receiver, Receiver::Shared);
     assert_eq!(port.sink.rust_path(), "IChangedSink");
     assert_eq!(port.signature().parameters[0].name, "sink");
+    assert_eq!(port.signature().name, "subscribe_changed");
+    let Callable::EventPort(search) = &source.callables[2] else {
+        panic!("second stream must remain a separate port")
+    };
+    assert_eq!(search.signature().name, "subscribe_search");
+    assert_eq!(search.sink.segments, port.sink.segments);
+    let DeclarationKind::Interface(single) = &module.declaration("ISource").unwrap().kind else {
+        panic!("single source")
+    };
+    let Callable::EventPort(single) = &single.callables[0] else {
+        panic!("unnamed port")
+    };
+    assert_eq!(single.name, None);
+    assert_eq!(single.accessor_name(), "port");
+    assert_eq!(single.signature().name, "subscribe");
 }
 
-/// Event delivery exclusively borrows its sink and cannot return application values.
+/// Rejects invalid delivery contracts and ambiguous or obsolete port declarations.
 #[test]
-fn rejects_invalid_event_delivery_contracts() {
+fn rejects_invalid_event_and_port_contracts() {
     for source in [
         "#[version(1)] event IEmpty {}",
+        "#[version(1)] interface ISource { port: ISink; port other: ISink; }",
+        "#[version(1)] interface ISource { port other: ISink; port: ISink; }",
+        "#[version(1)] interface ISource { port changed: ISink; port changed: ISink; }",
+        "#[version(1)] interface ISource { port: ISink; fn subscribe(&self) -> Result<()>; }",
+        "#[version(1)] interface ISource { fn changed(&self) -> Result<()>; port changed: ISink; }",
+        "#[version(1)] interface ISource { port changed: ISink; fn subscribe_changed(&self) -> Result<()>; }",
+        "#[version(1)] interface ISource { event subscribe(&self): ISink; }",
+        "#[version(1)] interface ISource { port changed(&self): ISink; }",
+        "#[version(1)] event ISink { port: ISink; }",
         "#[version(1)] event IShared { fn changed(&self) -> Result<()>; }",
         "#[version(1)] event IValue { fn changed(&mut self) -> Result<u64>; }",
     ] {
@@ -423,7 +449,7 @@ fn reports_original_locations_for_all_duplicate_member_kinds() {
         ),
         (
             "#[version(1)] interface IService { fn load(&self) -> Result<()>; fn load(&self) -> Result<()>; }",
-            "duplicate method \"load\"",
+            "duplicate method or port \"load\"",
         ),
         (
             "#[version(1)] interface IService { fn load(&self, key: u32, key: u64) -> Result<()>; }",
