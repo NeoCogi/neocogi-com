@@ -4,9 +4,9 @@
 //! adds Cargo-specific source tracking, dependency metadata exchange, and
 //! deterministic output ownership for a contract crate's `build.rs`.
 //!
-//! Port declarations generate native accessors and typed, source-specific `EventPort` values
-//! with owned source projections and optional domain checks. Their constructors
-//! supply the single session subscription API without putting source knowledge
+//! Port protocols generate receiver ABIs and owned messages. Named bindings generate
+//! native accessors returning typed `EventPort` values with optional domain checks.
+//! These supply the single session subscription API without putting source knowledge
 //! into COM event transport. Their Rust support protocol is versioned separately from the NCIDL ABI.
 
 #![deny(missing_docs)]

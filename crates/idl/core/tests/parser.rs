@@ -148,7 +148,7 @@ fn parses_port_protocols_and_named_bindings() {
         r#"
             #[version(1)]
             /// Complete committed editor snapshot.
-            port IChangedSink {
+            port ChangesPort {
                 /// Called after the producer releases mutation ownership.
                 fn changed(&mut self, text: &str, cursor: u64) -> Result<()>;
             }
@@ -156,14 +156,14 @@ fn parses_port_protocols_and_named_bindings() {
             interface IEditor {
                 fn revision(&self) -> Result<u64>;
                 /// Claims only the changed queue.
-                changed: IChangedSink;
-                search: IChangedSink;
+                changed: ChangesPort;
+                search: ChangesPort;
             }
-            #[version(1)] interface ISource { changed: IChangedSink; }
+            #[version(1)] interface ISource { changed: ChangesPort; }
         "#,
     )
     .unwrap();
-    let DeclarationKind::Interface(event) = &module.declaration("IChangedSink").unwrap().kind else {
+    let DeclarationKind::Interface(event) = &module.declaration("ChangesPort").unwrap().kind else {
         panic!("port protocol must lower to the common interface model")
     };
     assert_eq!(event.methods().count(), 1);
@@ -178,7 +178,7 @@ fn parses_port_protocols_and_named_bindings() {
     };
     assert_eq!(port.name, "changed");
     assert_eq!(port.signature().receiver, Receiver::Shared);
-    assert_eq!(port.protocol.rust_path(), "IChangedSink");
+    assert_eq!(port.protocol.rust_path(), "ChangesPort");
     assert_eq!(port.signature().parameters[0].name, "sink");
     assert_eq!(port.signature().name, "subscribe_changed");
     let Callable::Port(search) = &source.callables[2] else {

@@ -16,7 +16,7 @@ of the optional `cargo-neocogi` assembly driver.
 
 `interface`, `factory`, and `port` share one callable model. The port role
 requires mutable, unit-returning delivery and generates owned snapshots and typed sinks.
-A source binds `changed: IChangedSink;` alongside ordinary methods.
+A source binds `changed: ChangesPort;` alongside ordinary methods.
 It generates `.changed()` accessors for `ComPtr` and `ComRef` and the standard
 `subscribe_changed(&self, sink)` connection operation. Every binding has a name;
 each retains its own subscription even when protocols are shared.

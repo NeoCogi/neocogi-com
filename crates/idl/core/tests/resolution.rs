@@ -19,8 +19,8 @@ fn bindings_require_port_protocols_and_canonical_leases() {
         r#"
         extern neocogi.com.events;
         use neocogi.com.events::IEventSubscription;
-        #[version(1)] port IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { changed: IChangedSink; }
+        #[version(1)] port ChangesPort { fn changed(&mut self, value: u32) -> Result<()>; }
+        #[version(1)] interface ISource { changed: ChangesPort; }
     "#,
     );
     resolve_modules(vec![valid, transport.clone()]).expect("first-class event port should resolve");
@@ -30,8 +30,8 @@ fn bindings_require_port_protocols_and_canonical_leases() {
         r#"
         extern neocogi.com.events;
         use neocogi.com.events::IEventSubscription;
-        #[version(1)] interface IChangedSink { fn changed(&self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { changed: IChangedSink; }
+        #[version(1)] interface ChangesPort { fn changed(&self, value: u32) -> Result<()>; }
+        #[version(1)] interface ISource { changed: ChangesPort; }
     "#,
     );
     assert!(
@@ -55,8 +55,8 @@ fn bindings_require_port_protocols_and_canonical_leases() {
     let unbound_lease = module(
         "example/events.ncidl",
         r#"
-        #[version(1)] port IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { changed: IChangedSink; }
+        #[version(1)] port ChangesPort { fn changed(&mut self, value: u32) -> Result<()>; }
+        #[version(1)] interface ISource { changed: ChangesPort; }
     "#,
     );
     assert!(
@@ -73,8 +73,8 @@ fn bindings_require_port_protocols_and_canonical_leases() {
         r#"
         extern example.foreign;
         use example.foreign::IEventSubscription;
-        #[version(1)] port IChangedSink { fn changed(&mut self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { changed: IChangedSink; }
+        #[version(1)] port ChangesPort { fn changed(&mut self, value: u32) -> Result<()>; }
+        #[version(1)] interface ISource { changed: ChangesPort; }
     "#,
     );
     let error = resolve_modules(vec![foreign_port, foreign_lease]).unwrap_err().to_string();

@@ -98,8 +98,8 @@ pub fn generate_rust(graph: &ResolvedModules, module_name: &str) -> Result<Strin
 }
 
 /// Identifies declarations whose generated bodies require the COM event API.
-/// An event definition needs a typed adapter; an event port needs a generated
-/// registration connector even when its sink is imported from another module.
+/// A protocol needs a typed receiver adapter; a named binding needs an accessor
+/// even when its protocol is imported from another module.
 fn uses_event_support(declaration: &Declaration) -> bool {
     match &declaration.kind {
         DeclarationKind::Interface(interface) => {
@@ -275,7 +275,7 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
         }
         DeclarationKind::Interface(interface) => {
             if interface.role == InterfaceRole::Port {
-                return generate_event(
+                return generate_port_protocol(
                     graph,
                     module,
                     declaration,
@@ -291,7 +291,7 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
             let methods = callable_methods(graph, module, &interface.callables)?;
             let threading = threading_ident(interface.threading);
             let factory = matches!(interface.role, InterfaceRole::Factory).then(|| quote! { factory, });
-            let ports = event_ports(graph, module, declaration, &interface.callables, interface.threading)?;
+            let ports = port_bindings(graph, module, declaration, &interface.callables, interface.threading)?;
             format_rust(quote! {
                 #[::neocogi_com::com_interface(
                     assigned_guid = #id,
@@ -308,27 +308,26 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
     }
 }
 
-/// Emits the sink ABI, one owned native payload sum, its producer delivery,
-/// and a concrete typed application adapter from a single NCIDL event family.
-/// The generated contract crate depends on `neocogi-com-events` only when it
-/// contains events; neither plugin binary shares a Rust callback representation.
-fn generate_event(
+/// Emits a protocol's receiver ABI, owned messages, and concrete delivery adapter.
+/// Only declared protocols and their bindings require COM event support; no Rust
+/// callback representation crosses a plugin boundary.
+fn generate_port_protocol(
     graph: &ResolvedModules,
     module: &ResolvedModule,
     declaration: &Declaration,
-    event: &Interface,
+    protocol: &Interface,
     declaration_docs: &TokenStream,
     name: &Ident,
     id: &Literal,
     qualified_name: &Literal,
     assigned_signature: &Literal,
 ) -> Result<String, GenerateError> {
-    let sink_methods = callable_methods(graph, module, &event.callables)?;
-    let deliveries = event.methods().collect::<Vec<_>>();
-    let payload_name = rust_ident(&format!("{}Event", declaration.name))?;
-    let adapter_name = rust_ident(&format!("{}EventAdapter", declaration.name))?;
+    let sink_methods = callable_methods(graph, module, &protocol.callables)?;
+    let deliveries = protocol.methods().collect::<Vec<_>>();
+    let payload_name = port_message_name(&declaration.name)?;
+    let adapter_name = rust_ident(&format!("{}Adapter", declaration.name))?;
     let sink_abi_name = rust_ident(&format!("{}Abi", declaration.name))?;
-    let adapter_factory = rust_ident(&format!("create_{}_event_sink", snake_case(&declaration.name)))?;
+    let adapter_factory = rust_ident(&format!("create_{}_sink", snake_case(&declaration.name)))?;
 
     let mut variants = Vec::with_capacity(deliveries.len());
     let mut producer_arms = Vec::with_capacity(deliveries.len());
@@ -470,6 +469,12 @@ fn generate_event(
             #adapter_name::from_value(#adapter_name { delivery: session.delivery(handler), validate }).query()
         }
     })
+}
+
+/// Derives message names from protocol names, replacing a conventional `Port` suffix.
+/// A protocol without that suffix still gets the explicit `Message` suffix.
+fn port_message_name(protocol: &str) -> Result<Ident, GenerateError> {
+    rust_ident(&format!("{}Message", protocol.strip_suffix("Port").unwrap_or(protocol)))
 }
 
 /// Selects owned native snapshot storage for one event-delivery input type.
@@ -675,7 +680,7 @@ fn methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[Method]) 
         .collect()
 }
 
-/// Emits ordinary methods and first-class event ports in their normative order.
+/// Emits ordinary methods and named port connections in their normative order.
 fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[Callable]) -> Result<Vec<TokenStream>, GenerateError> {
     let mut generated = Vec::with_capacity(values.len());
     for callable in values {
@@ -691,7 +696,7 @@ fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[
 /// Generates typed accessor methods on owned and borrowed source projections.
 /// Each accessor constructs its port directly; only the session calls the source.
 /// The source's threading capability is preserved without querying or weakening it.
-fn event_ports(
+fn port_bindings(
     graph: &ResolvedModules,
     module: &ResolvedModule,
     source: &Declaration,
@@ -711,8 +716,8 @@ fn event_ports(
     for callable in values {
         let Callable::Port(port) = callable else { continue };
         let sink = resolve(graph, module, &port.protocol)?;
-        let payload = rust_ident(&format!("{}Event", sink.declaration.name))?;
-        let factory = rust_ident(&format!("create_{}_event_sink", snake_case(&sink.declaration.name)))?;
+        let payload = port_message_name(&sink.declaration.name)?;
+        let factory = rust_ident(&format!("create_{}_sink", snake_case(&sink.declaration.name)))?;
         let prefix = if sink.module.source.name == module.source.name {
             quote! {}
         } else {
