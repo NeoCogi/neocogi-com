@@ -137,7 +137,9 @@ pub(super) fn generate_message(
         VariantFields::Tuple(fields) => fields.iter().all(|ty| value_type(graph, module, ty).is_ok()),
         VariantFields::Named(fields) => fields.iter().all(|field| value_type(graph, module, &field.ty).is_ok()),
     });
-    let data = if copyable {
+    // Unit message enums are closed facts, unlike the ordinary extensible integer wrappers.
+    let unit_enum = matches!(&declaration.kind, DeclarationKind::Enum(e) if e.variants.iter().all(|v| matches!(v.fields, VariantFields::Unit)));
+    let data = if copyable && !unit_enum {
         // A plain message keeps its existing ordinary ABI representation as well
         // as gaining generated posting. No wrapper record is needed around it.
         let index = module

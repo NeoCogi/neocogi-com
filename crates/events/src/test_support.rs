@@ -1,16 +1,16 @@
 //! Native algorithm collectors using production generated receivers and consumer inboxes.
 use std::cell::RefCell;
-use crate::{EventEndpoint, EventPayload, Events};
+use crate::{PortRef, PortMessage, Events};
 use neocogi_com::NcStatus;
 
 /// Convenient collector for isolated native widget algorithms; no alternate transport is used.
-pub struct Capture<Event: EventPayload> {
+pub struct Capture<Event: PortMessage> {
     /// Tests read through shared fixture handles; only the consumer storage is borrowed dynamically.
     events: RefCell<Events<Event>>,
 }
-impl<Event: EventPayload> Capture<Event> {
+impl<Event: PortMessage> Capture<Event> {
     /// Installs the protocol's actual generated mapper and holds its ordinary connection lease.
-    pub fn connect(port: EventEndpoint<Event>) -> Result<Self, NcStatus> {
+    pub fn connect(port: PortRef<Event>) -> Result<Self, NcStatus> {
         let mut events = Events::new();
         events.map(port, |event| event)?;
         Ok(Self { events: RefCell::new(events) })
