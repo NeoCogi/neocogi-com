@@ -156,6 +156,28 @@ mod tests {
         drop(events);
         assert_eq!(sender.post(4), Err(EVENT_E_CLOSED));
     }
+    /// A busy component retains every pending message until exclusive model access is available.
+    #[test]
+    fn component_access_failure_does_not_consume_a_message() {
+        let mut events = Events::new();
+        let state = Rc::new(RefCell::new(Vec::new()));
+        let mut driver = events
+            .component_dispatcher(&state, |state, message| {
+                state.push(message);
+                Ok(())
+            })
+            .unwrap();
+        events.sender().post(1).unwrap();
+        let held = state.borrow();
+        assert_eq!(driver.dispatch(1), Err(crate::EVENT_E_BUSY));
+        assert_eq!(events.len(), 1);
+        drop(held);
+        assert_eq!(driver.dispatch(1), Ok(1));
+        assert_eq!(&*state.borrow(), &[1]);
+        assert_eq!(events.pop(), None);
+        drop(events);
+        assert_eq!(driver.dispatch(1), Ok(0));
+    }
 }
 
 /// Separate component driver automatically pumped when its root exposes IComponentEventProvider.
@@ -163,11 +185,11 @@ mod tests {
 #[neocogi_com::com_object(interfaces(neocogi_com_events_contracts::IEventDispatcher))]
 struct ComponentDispatcher<Owner: 'static, Message: 'static> {
     /// Component ownership belongs to its widget/controller, never the mounted driver.
-    owner: Weak<Owner>,
+    owner: Weak<RefCell<Owner>>,
     /// Messages remain private to this one consumer and its generated receivers.
     pending: Weak<RefCell<VecDeque<Message>>>,
     /// Ordinary component entry point; no per-event handler type or scheduling loop is needed.
-    consume: fn(&Owner, Message) -> Result<(), NcStatus>,
+    consume: fn(&mut Owner, Message) -> Result<(), NcStatus>,
 }
 impl<Owner: 'static, Message: 'static> neocogi_com_events_contracts::IEventDispatcher for ComponentDispatcher<Owner, Message> {
     /// Visits the starting FIFO prefix without carrying a queue borrow into component behavior.
@@ -182,10 +204,13 @@ impl<Owner: 'static, Message: 'static> neocogi_com_events_contracts::IEventDispa
         let mut delivered = 0;
         for _ in 0..count {
             let Some(owner) = self.owner.upgrade() else { break };
+            // Claim the component before removing a message. A conflicting public
+            // operation must leave the entire unattempted FIFO available for retry.
+            let mut owner = owner.try_borrow_mut().map_err(|_| crate::EVENT_E_BUSY)?;
             let message = self.pending.upgrade().and_then(|pending| pending.borrow_mut().pop_front());
             match message {
                 Some(message) => {
-                    (self.consume)(&owner, message)?;
+                    (self.consume)(&mut owner, message)?;
                     delivered += 1;
                 }
                 None => break,
@@ -199,8 +224,8 @@ impl<Message: 'static> Events<Message> {
     /// The consumer entry point handles one message; the framework owns all queue traversal.
     pub fn component_dispatcher<Owner: 'static>(
         &self,
-        owner: &Rc<Owner>,
-        consume: fn(&Owner, Message) -> Result<(), NcStatus>,
+        owner: &Rc<RefCell<Owner>>,
+        consume: fn(&mut Owner, Message) -> Result<(), NcStatus>,
     ) -> Result<ComPtr<crate::IEventDispatcherAbi>, NcStatus> {
         ComponentDispatcher::from_value(ComponentDispatcher {
             owner: Rc::downgrade(owner),

@@ -42,7 +42,10 @@ impl IEventDispatcher for ScopedDispatcher {
     }
 }
 /// Invalidates all retained COM references before the borrowed callback can leave scope.
-struct Scope(Rc<Cell<State>>);
+struct Scope(
+    /// Revocation state shared with every retained COM projection.
+    Rc<Cell<State>>,
+);
 impl Drop for Scope {
     /// Revokes the stack address even when the foreign operation unwinds.
     fn drop(&mut self) {
@@ -105,5 +108,21 @@ mod tests {
         }));
         assert!(result.is_err());
         assert_eq!(retained.unwrap().dispatch(1), Err(EVENT_E_CLOSED));
+    }
+    /// The existing mutable COM gate rejects recursion before a second callback borrow exists.
+    #[test]
+    fn mutable_dispatch_gate_excludes_recursive_borrows() {
+        let retained = std::cell::RefCell::new(None::<neocogi_com::ComPtr<IEventDispatcherAbi>>);
+        with_dispatcher(
+            &mut |_| {
+                assert_eq!(retained.borrow_mut().as_mut().unwrap().dispatch(1), Err(neocogi_com::NC_E_BUSY));
+                Ok(1)
+            },
+            |mut dispatcher| {
+                *retained.borrow_mut() = Some(dispatcher.add_ref());
+                assert_eq!(dispatcher.dispatch(1), Ok(1));
+            },
+        );
+        assert_eq!(retained.borrow_mut().as_mut().unwrap().dispatch(1), Err(EVENT_E_CLOSED));
     }
 }
