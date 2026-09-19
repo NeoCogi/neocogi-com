@@ -13,6 +13,8 @@ use crate::util::{interface_field, path_with_last_ident};
 
 /// Parsed options for concrete `#[com_object]` storage generation.
 pub(crate) struct ObjectArgs {
+    /// Declared output selectors and their native connection-view expressions.
+    pub(crate) ports: Vec<(Path, syn::Expr)>,
     /// Explicit interface list after deriving ABI and vtable helper paths.
     pub(crate) interfaces: Vec<ObjectInterface>,
     /// Whether generated object storage may be shared across threads.
@@ -387,13 +389,14 @@ impl Parse for ObjectArgs {
         let mut thread_safe = false;
         let mut runtime_crate = None;
         let mut primary = None;
+        let mut ports = Vec::new();
 
         while !input.is_empty() {
             let starts_qualified_path = input.peek(Token![::]) || input.peek(Token![crate]) || input.peek(Token![self]) || input.peek(Token![super]);
             let starts_named_path = if input.peek(Ident) {
                 let lookahead = input.fork();
                 let candidate: Ident = lookahead.parse()?;
-                !matches!(candidate.to_string().as_str(), "interfaces" | "thread_safe" | "neocogi_com")
+                !matches!(candidate.to_string().as_str(), "interfaces" | "thread_safe" | "neocogi_com" | "ports")
             } else {
                 false
             };
@@ -420,6 +423,23 @@ impl Parse for ObjectArgs {
                 let paths = content.parse_terminated(Path::parse_mod_style, Token![,])?;
                 validate_object_interface_paths(paths.iter())?;
                 interfaces = Some(paths.into_iter().map(ObjectInterface::from_path).collect::<Result<Vec<_>>>()?);
+            } else if keyword == "ports" {
+                let content;
+                parenthesized!(content in input);
+                while !content.is_empty() {
+                    let selector = Path::parse_mod_style(&content)?;
+                    let expression = if content.peek(Token![=]) {
+                        content.parse::<Token![=]>()?;
+                        content.parse::<syn::Expr>()?
+                    } else {
+                        let field = &selector.segments.last().expect("path has a segment").ident;
+                        syn::parse_quote! { self.#field.as_ref() }
+                    };
+                    ports.push((selector, expression));
+                    if !content.is_empty() {
+                        content.parse::<Token![,]>()?;
+                    }
+                }
             } else if keyword == "thread_safe" {
                 if thread_safe {
                     return Err(syn::Error::new(keyword.span(), "duplicate thread_safe"));
@@ -464,9 +484,20 @@ impl Parse for ObjectArgs {
             }
             interfaces.insert(0, primary);
         }
-        let primary_interface = primary.map(|path| interface_abi_path(&path)).transpose()?;
+        let primary_interface = primary.clone().map(|path| interface_abi_path(&path)).transpose()?;
 
+        for (selector, _) in &mut ports {
+            if selector.segments.len() == 1 {
+                let owner = primary
+                    .as_ref()
+                    .ok_or_else(|| syn::Error::new_spanned(&*selector, "qualify the port as Interface::name when no primary interface is selected"))?;
+                let field = selector.segments[0].clone();
+                *selector = owner.clone();
+                selector.segments.push(field);
+            }
+        }
         Ok(Self {
+            ports,
             interfaces,
             thread_safe,
             runtime_crate,

@@ -11,6 +11,8 @@ use syn::{Attribute, Ident, Type};
 pub(crate) struct AbiMethod {
     /// Method name, also used as the generated vtable field name.
     pub(crate) ident: Ident,
+    /// Generated output key; its getter is supplied by object field binding.
+    pub(crate) port: Option<syn::Path>,
     /// User documentation propagated to generated safe and raw methods.
     pub(crate) doc_attrs: Vec<Attribute>,
     /// Borrowing permission required while dispatching the method.

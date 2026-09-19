@@ -15,6 +15,12 @@ pub(super) fn generate_message(
     let union = format_ident!("__{name}Payload");
     let receiver = format_ident!("__{name}Receiver");
     let receiver_abi = format_ident!("__{name}ReceiverAbi");
+    let connection = format_ident!("__{name}Port");
+    let connection_abi = format_ident!("__{name}PortAbi");
+    let connection_object = format_ident!("__{name}PortObject");
+    let connection_name = format!("{}.{}.__port", module.source.name, declaration.name);
+    let connection_id = Literal::string(&neocogi_com_core::guid_from_qualified_name(&connection_name).to_string());
+    let connection_name = Literal::string(&connection_name);
     let adapter = format_ident!("__{name}Mapping");
     let factory = format_ident!("__map_{}", snake_case(&declaration.name));
     let declaration_docs = docs(&declaration.docs);
@@ -180,6 +186,36 @@ pub(super) fn generate_message(
             /// Acquires the message before its producer's borrowed storage expires.
             fn post(&mut self, message: ::neocogi_com::NcMessage<'_, #name>) -> Result<(), ::neocogi_com::NcStatus>;
         }
+        #[doc(hidden)]
+        #[::neocogi_com::com_interface(assigned_guid = #connection_id, name = #connection_name, assigned_signature = #signature)]
+        /// Connection projection for one concrete output; it grants no emission authority.
+        pub trait #connection {
+            /// Installs one typed mapping and returns its cancellation responsibility.
+            fn connect(&self, receiver: ::neocogi_com::ComRef<'_, #receiver_abi>) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus>;
+        }
+        #[::neocogi_com::com_object(interfaces(#connection))]
+        /// Weak projection of the single producer-owned slot.
+        struct #connection_object {
+            /// Connection access cannot prolong producer lifetime.
+            control: ::neocogi_com_events::PortControl<#name>,
+        }
+        impl #connection for #connection_object {
+            fn connect(&self, receiver: ::neocogi_com::ComRef<'_, #receiver_abi>) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus> {
+                self.control.connect(receiver)
+            }
+        }
+        impl ::neocogi_com_events::PortMessage for #name {
+            type PortAbi = #connection_abi;
+            fn project(control: ::neocogi_com_events::PortControl<Self>) -> ::neocogi_com::ComPtr<Self::PortAbi> {
+                #connection_object::from_value(#connection_object { control }).query().expect("generated output declares its connection interface")
+            }
+            fn connect(port: ::neocogi_com::ComRef<'_, Self::PortAbi>, receiver: ::neocogi_com::ComRef<'_, Self::Sink>) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus> {
+                port.connect(receiver)
+            }
+            fn mapping<Message: 'static, Map: FnMut(Self) -> Message + 'static>(sender: ::neocogi_com_events::EventSender<Message>, map: Map, validate: Option<fn(&Self) -> Result<(), ::neocogi_com::NcStatus>>) -> Result<::neocogi_com::ComPtr<Self::Sink>, ::neocogi_com::NcStatus> {
+                #factory(sender, map, validate)
+            }
+        }
         impl ::neocogi_com_events::EventPayload for #name {
             type Sink = #receiver_abi;
             fn deliver(&self, mut receiver: ::neocogi_com::ComRef<'_, Self::Sink>) -> Result<(), ::neocogi_com::NcStatus> {
@@ -282,5 +318,16 @@ fn field_codec(
             let decoding = event_decode(graph, module, ty, field)?;
             Ok((owned, abi, encoding, quote! {{ let #field = raw.#field; #decoding }}, true))
         }
+    }
+}
+
+/// Names the exact generated connection ABI in its owning contract crate.
+pub(super) fn connection_type(module: &ResolvedModule, resolved: ResolvedDeclaration<'_>) -> Result<TokenStream, GenerateError> {
+    let name = format_ident!("__{}PortAbi", resolved.declaration.name);
+    if resolved.module.source.name == module.source.name {
+        Ok(quote! { #name })
+    } else {
+        let owner = contract_crate_ident(&resolved.module.source.name.to_string())?;
+        Ok(quote! { ::#owner::#name })
     }
 }

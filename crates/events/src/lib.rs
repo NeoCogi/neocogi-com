@@ -4,6 +4,10 @@
 
 #![deny(missing_docs)]
 
+mod port;
+pub use port::{Port, PortRef};
+#[doc(hidden)]
+pub use port::{PortMessage, PortControl, PortField, PortKey};
 mod inbox;
 pub use inbox::{Events, EventSender, EventPort};
 mod scoped;

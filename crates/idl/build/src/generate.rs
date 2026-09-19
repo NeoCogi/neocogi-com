@@ -296,7 +296,7 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
                 );
             }
             let bases = bases(graph, module, &interface.bases)?;
-            let methods = callable_methods(graph, module, &interface.callables)?;
+            let methods = callable_methods(graph, module, &declaration.name, &interface.callables)?;
             let threading = threading_ident(interface.threading);
             let factory = matches!(interface.role, InterfaceRole::Factory).then(|| quote! { factory, });
             let ports = port_bindings(graph, module, declaration, &interface.callables, interface.threading)?;
@@ -330,7 +330,7 @@ fn generate_port_protocol(
     qualified_name: &Literal,
     assigned_signature: &Literal,
 ) -> Result<String, GenerateError> {
-    let sink_methods = callable_methods(graph, module, &protocol.callables)?;
+    let sink_methods = callable_methods(graph, module, &declaration.name, &protocol.callables)?;
     let deliveries = protocol.methods().collect::<Vec<_>>();
     let payload_name = port_message_name(&declaration.name)?;
     let adapter_name = rust_ident(&format!("{}Adapter", declaration.name))?;
@@ -698,9 +698,23 @@ fn methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[Method]) 
 }
 
 /// Emits ordinary methods and named port connections in their normative order.
-fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[Callable]) -> Result<Vec<TokenStream>, GenerateError> {
+fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, owner: &str, values: &[Callable]) -> Result<Vec<TokenStream>, GenerateError> {
     let mut generated = Vec::with_capacity(values.len());
     for callable in values {
+        if let Callable::Port(port) = callable {
+            let resolved = resolve(graph, module, &port.protocol)?;
+            if resolved.declaration.message {
+                let key = rust_ident(&format!("__{owner}{}PortKey", upper_camel_case(&port.name)))?;
+                let getter = rust_ident(&format!("__port_{}", port.name))?;
+                let abi = message::connection_type(module, resolved)?;
+                let docs = docs(&port.docs);
+                generated.push(quote! {
+                    #docs #[doc(hidden)] #[com_port(#key)]
+                    fn #getter(&self) -> Result<::neocogi_com::ComPtr<#abi>, ::neocogi_com::NcStatus>;
+                });
+                continue;
+            }
+        }
         let method = match callable {
             Callable::Method(method) => std::borrow::Cow::Borrowed(method),
             Callable::Port(port) => std::borrow::Cow::Owned(port.signature()),
@@ -733,6 +747,29 @@ fn port_bindings(
     for callable in values {
         let Callable::Port(port) = callable else { continue };
         let sink = resolve(graph, module, &port.protocol)?;
+        if sink.declaration.message {
+            let message = named_rust_type(module, sink, false)?;
+            let key = rust_ident(&format!("__{}{}PortKey", source.name, upper_camel_case(&port.name)))?;
+            let getter = rust_ident(&format!("__port_{}", port.name))?;
+            let accessor = rust_ident(&port.name)?;
+            let docs = docs(&port.docs);
+            ports.push(quote! {
+                #[doc(hidden)]
+                /// Compile-time identity of one declared output field, without runtime storage.
+                pub struct #key;
+                impl ::neocogi_com_events::PortKey for #key { type Event = #message; }
+            });
+            accessors.push(quote! { #docs fn #accessor(&self) -> ::neocogi_com_events::PortRef<#message>; });
+            let body = quote! {
+                #docs fn #accessor(&self) -> ::neocogi_com_events::PortRef<#message> {
+                    ::neocogi_com_events::PortRef::from_result(self.#getter())
+                }
+            };
+            owned_accessors.push(body.clone());
+            borrowed_accessors.push(body);
+            continue;
+        }
+
         let payload = port_message_name(&sink.declaration.name)?;
         let factory = rust_ident(&format!("create_{}_sink", snake_case(&sink.declaration.name)))?;
         let prefix = if sink.module.source.name == module.source.name {

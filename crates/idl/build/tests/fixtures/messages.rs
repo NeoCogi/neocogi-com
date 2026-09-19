@@ -3,7 +3,7 @@
 mod message_tests {
     use super::*;
     use neocogi_com::{com_object, ComMessage, ComPtr, NcMessage, NcStatus};
-    use neocogi_com_events::{Events, EventSource};
+    use neocogi_com_events::{Events, Port};
 
     #[com_object(interfaces(IToken))]
     /// Object lifetime is observable after all producer-side references are dropped.
@@ -13,12 +13,38 @@ mod message_tests {
         fn value(&self) -> Result<u32, NcStatus> { Ok(42) }
     }
 
+    #[com_object(IProducer, ports(completed))]
+    /// A real object binds its output field without any handwritten subscription method.
+    struct Producer {
+        /// The only producer-side storage is its typed port.
+        completed: Port<Completion>,
+    }
+    impl IProducer for Producer {}
+
+    /// Field binding returns only connection access and preserves its producer lifetime rule.
+    #[test]
+    fn generated_output_binds_the_real_port() {
+        let producer: ComPtr<IProducerAbi> = Producer::from_value(Producer { completed: Port::new() }).query().unwrap();
+        let mut events = Events::new();
+        let first = events.map(producer.completed(), |message| message).unwrap();
+        let mut second = Events::new();
+        assert_eq!(second.map(producer.completed(), |message| message).unwrap_err(), neocogi_com_events::EVENT_E_BUSY);
+        first.cancel().unwrap();
+        let replacement = second.map(producer.completed(), |message| message).unwrap();
+        first.cancel().unwrap();
+        assert!(replacement.active().unwrap());
+        let retained = producer.completed();
+        drop(producer);
+        assert!(!replacement.active().unwrap());
+        assert_eq!(events.map(retained, |message| message).unwrap_err(), neocogi_com_events::EVENT_E_CLOSED);
+    }
+
     /// Producer release cannot destroy consumer-owned object or text snapshots.
     #[test]
     fn typed_delivery_retains_objects_and_copies_strings() {
-        let source = EventSource::<Completion>::new();
+        let source = Port::<Completion>::new();
         let mut events = Events::new();
-        events.map(source.event(), |message| message).unwrap();
+        events.map(source.as_ref(), |message| message).unwrap();
         let token: ComPtr<ITokenAbi> = Token::from_value(Token).query().unwrap();
         source.emit(Completion::Accepted { token }).unwrap();
         drop(source);
@@ -26,9 +52,9 @@ mod message_tests {
             Completion::Accepted { token } => assert_eq!(token.value(), Ok(42)),
             Completion::Cancelled => panic!("wrong case"),
         }
-        let source = EventSource::<TextChanged>::new();
+        let source = Port::<TextChanged>::new();
         let mut events = Events::new();
-        events.map(source.event(), |message| message).unwrap();
+        events.map(source.as_ref(), |message| message).unwrap();
         source.emit(TextChanged { text: "héllo".into(), cursor: 2 }).unwrap();
         drop(source);
         assert_eq!(events.pop().unwrap().text, "héllo");

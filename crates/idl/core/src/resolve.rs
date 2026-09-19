@@ -910,6 +910,13 @@ fn validate_callables(index: usize, callables: &[Callable], entries: &[ModuleEnt
             Callable::Method(method) => collect_diagnostics(&mut diagnostics, validate_methods(index, std::slice::from_ref(method), entries, owner)),
             Callable::Port(port) => {
                 let sink = resolve_named(index, &port.protocol, entries);
+                if sink
+                    .as_ref()
+                    .is_ok_and(|symbol| entries[symbol.module].module.declarations[symbol.declaration].message)
+                {
+                    continue; // Message outputs lower directly to their generated connection projection.
+                }
+
                 match sink {
                     Ok(symbol) if matches!(&entries[symbol.module].module.declarations[symbol.declaration].kind, DeclarationKind::Interface(interface) if interface.role == InterfaceRole::Port) =>
                         {}
@@ -1385,6 +1392,15 @@ fn encode_callable(
     }
     encoder.u32(u32_len(callables.len(), &entries[index].name, "method count")?);
     for callable in callables {
+        if let Callable::Port(port) = callable {
+            let symbol = resolve_named(index, &port.protocol, entries)?;
+            if entries[symbol.module].module.declarations[symbol.declaration].message {
+                encoder.tag(2); // Concrete output getter, distinct from legacy subscription methods.
+                encoder.text(&port.name, &entries[index].name)?;
+                encode_named(index, &port.protocol, entries, encoder)?;
+                continue;
+            }
+        }
         let method = match callable {
             Callable::Method(method) => {
                 encoder.tag(0);

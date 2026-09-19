@@ -39,7 +39,7 @@ pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Res
 ///
 /// The emitted source trait remains intact, while `methods` become vtable
 /// slots, typed descriptions, thunks, and safe client methods.
-pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: ItemTrait, methods: Vec<AbiMethod>) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, mut input: ItemTrait, methods: Vec<AbiMethod>) -> Result<proc_macro2::TokenStream> {
     // Generated names are deliberately mechanical and predictable. A trait
     // named `IFoo` produces `IFooAbi`, `IFooVTable`, `IFooVtblFor<T>`, and
     // `IFooClient`.
@@ -408,13 +408,20 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
                 <T as #nc::ComAbiObject>::borrow_abi_mut(#object_ident)
             },
         };
-        let invoke = match method.receiver {
-            AbiReceiver::Shared => quote! {
-                <T as #trait_ident>::#method_ident(&*#value_ident, #(#arg_names),*)
-            },
-            AbiReceiver::Mutable => quote! {
-                <T as #trait_ident>::#method_ident(&mut *#value_ident, #(#arg_names),*)
-            },
+        let invoke = if let Some(key) = &method.port {
+            quote! {
+                <T as ::neocogi_com_events::PortField<#key>>::port(&*#value_ident)
+                    .and_then(|port| port.into_projection())
+            }
+        } else {
+            match method.receiver {
+                AbiReceiver::Shared => quote! {
+                    <T as #trait_ident>::#method_ident(&*#value_ident, #(#arg_names),*)
+                },
+                AbiReceiver::Mutable => quote! {
+                    <T as #trait_ident>::#method_ident(&mut *#value_ident, #(#arg_names),*)
+                },
+            }
         };
         quote! {
             // Raw vtable entry that validates ABI pointers, reconstructs safe
@@ -474,6 +481,14 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
         quote! { #(#user_docs)* #(#generated_docs)* pub #body }
     });
 
+    // Port accessors are ABI methods, but not handwritten Rust implementation
+    // methods. Add field obligations only after computing physical COM ancestry.
+    input
+        .items
+        .retain(|item| !matches!(item, syn::TraitItem::Fn(method) if method.attrs.iter().any(|attribute| attribute.path().is_ident("com_port"))));
+    for key in methods.iter().filter_map(|method| method.port.as_ref()) {
+        input.supertraits.push(syn::parse_quote! { ::neocogi_com_events::PortField<#key> });
+    }
     Ok(quote! {
         #input
 
