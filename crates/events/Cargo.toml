@@ -5,7 +5,7 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Typed COM port connections and consumer-owned message inboxes"
+description = "Direct typed COM mappings and consumer-owned message inboxes"
 
 [dependencies]
 neocogi-com = { workspace = true, features = ["macros", "std"] }

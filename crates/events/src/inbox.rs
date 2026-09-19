@@ -17,7 +17,7 @@ pub struct Events<Message> {
 }
 
 impl<Message> Events<Message> {
-    /// Creates an empty consumer with no source connections.
+    /// Creates an empty, independently owned consumer FIFO.
     pub fn new() -> Self {
         Self {
             pending: Rc::new(RefCell::new(VecDeque::new())),
@@ -76,14 +76,14 @@ impl<Message: 'static> Events<Message> {
     }
 }
 impl<Message> Default for Events<Message> {
-    /// Uses the same disconnected, empty construction as `new`.
+    /// Uses the same empty construction as `new`.
     fn default() -> Self {
         Self::new()
     }
 }
 /// Typed, non-owning posting access used by generated protocol receivers.
 pub struct EventSender<Message> {
-    /// Weak ownership ensures source connections cannot prolong an abandoned inbox.
+    /// Weak ownership ensures senders cannot prolong an abandoned inbox.
     pending: Weak<RefCell<VecDeque<Message>>>,
 }
 impl<Message> EventSender<Message> {
