@@ -180,14 +180,14 @@ pub enum VariantFields {
     ),
 }
 
-/// One callable contract, including factory roots and port protocols.
+/// One callable contract, including factory roots.
 /// The first required interface is the physical vtable base; later entries
 /// are sibling projections guaranteed by QueryInterface on the same object.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Interface {
     /// Base followed by required sibling interfaces, in declared query order.
     pub bases: Vec<NamedType>,
-    /// Ordinary methods and event subscription ports in normative vtable order.
+    /// Ordinary methods and named output getters in normative vtable order.
     pub callables: Vec<Callable>,
     /// Construction or delivery policy layered over the common interface ABI.
     pub role: InterfaceRole,
@@ -202,18 +202,6 @@ pub enum InterfaceRole {
     Ordinary,
     /// A construction/provider interface eligible for plugin bootstrap.
     Factory,
-    /// A notification protocol with generated owned messages and receiver adapters.
-    Port,
-}
-
-impl Interface {
-    /// Visits declared methods without synthesizing subscription-port calls.
-    pub fn methods(&self) -> impl Iterator<Item = &Method> {
-        self.callables.iter().filter_map(|callable| match callable {
-            Callable::Method(method) => Some(method),
-            Callable::Port(_) => None,
-        })
-    }
 }
 
 /// Threading capability promised by an interface.
@@ -247,7 +235,7 @@ pub struct Method {
 pub enum Callable {
     /// An ordinary author-declared COM method.
     Method(Method),
-    /// A named connection point bound to a declared port protocol.
+    /// A named connection point bound to a concrete message.
     Port(PortBinding),
 }
 
@@ -261,13 +249,7 @@ impl Callable {
     }
 }
 
-/// Canonical NCIDL module whose event transport ABI is intrinsic to COM.
-pub const COM_EVENTS_MODULE_NAME: &str = "neocogi.com.events";
-
-/// Canonical lease declaration used by every lowered event port.
-pub(crate) const COM_EVENT_LEASE_NAME: &str = "IEventSubscription";
-
-/// One named connection point whose protocol is a declared NCIDL port.
+/// One named connection point whose message is a marked struct or enum.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PortBinding {
     /// Port method identifier and source of subscription diagnostics.
@@ -276,35 +258,14 @@ pub struct PortBinding {
     pub docs: Vec<String>,
     /// Explicit stream name used for the native accessor and connection operation.
     pub name: String,
-    /// Port protocol accepted by this connection point; ordinary interfaces are rejected.
-    pub protocol: NamedType,
+    /// Concrete message delivered by this output; ordinary interfaces are rejected.
+    pub message: NamedType,
 }
 
 impl PortBinding {
-    /// Gives each named connection point a predictable subscription vtable slot.
-    pub fn subscription_name(&self) -> String {
-        format!("subscribe_{}", self.name)
-    }
-
-    /// Expands the declarative port into its exact generated COM signature.
-    /// The shared lease must be imported from the canonical COM events module;
-    /// resolution rejects an unbound lease or a same-named non-COM declaration.
-    pub fn signature(&self) -> Method {
-        Method {
-            span: self.span.clone(),
-            docs: self.docs.clone(),
-            name: self.subscription_name(),
-            receiver: Receiver::Shared,
-            parameters: vec![Parameter {
-                span: self.span.clone(),
-                name: "sink".to_owned(),
-                ty: AbiType::Borrowed(Box::new(AbiType::Named(self.protocol.clone()))),
-            }],
-            output: AbiType::Named(NamedType {
-                span: self.span.clone(),
-                segments: vec![COM_EVENT_LEASE_NAME.to_owned()],
-            }),
-        }
+    /// Reserved ABI getter used by the compiler; callers use the named accessor.
+    pub fn getter_name(&self) -> String {
+        format!("__port_{}", self.name)
     }
 }
 

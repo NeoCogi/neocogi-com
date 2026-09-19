@@ -7,79 +7,22 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
     parse_module(Path::new(path), source).unwrap()
 }
 
-/// A binding resolves a port protocol and canonical lease, never an ordinary member field.
+/// Only marked data types can be connected; authors never import a lease to declare an output.
 #[test]
-fn bindings_require_port_protocols_and_canonical_leases() {
-    let transport = module(
-        "neocogi/com/events.ncidl",
-        include_str!("../../../event-contracts/idl/neocogi/com/events/events.ncidl"),
-    );
+fn outputs_require_concrete_messages() {
     let valid = module(
         "example/events.ncidl",
-        r#"
-        extern neocogi.com.events;
-        use neocogi.com.events::IEventSubscription;
-        #[version(1)] port ChangesPort { fn changed(&mut self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { changed: ChangesPort; }
-    "#,
+        "#[version(1)] #[message] struct Changed { value: u32 } #[version(1)] interface ISource { changed: Changed; }",
     );
-    resolve_modules(vec![valid, transport.clone()]).expect("first-class event port should resolve");
-
-    let ordinary = module(
-        "example/events.ncidl",
-        r#"
-        extern neocogi.com.events;
-        use neocogi.com.events::IEventSubscription;
-        #[version(1)] interface ChangesPort { fn changed(&self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { changed: ChangesPort; }
-    "#,
-    );
-    assert!(
-        resolve_modules(vec![ordinary, transport.clone()]).is_err(),
-        "ordinary interfaces must not masquerade as port protocols"
-    );
-
-    // A field-shaped member must name a protocol even if a copied type resolves.
-    let storage_field = module(
-        "example/storage.ncidl",
-        r#"
-        extern neocogi.com.events;
-        use neocogi.com.events::IEventSubscription;
-        #[version(1)] struct Value { value: u32 }
-        #[version(1)] interface ISource { changed: Value; }
-    "#,
-    );
-    let error = resolve_modules(vec![storage_field, transport.clone()]).unwrap_err().to_string();
-    assert!(error.contains("must name a declared port protocol"), "{error}");
-
-    let unbound_lease = module(
-        "example/events.ncidl",
-        r#"
-        #[version(1)] port ChangesPort { fn changed(&mut self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { changed: ChangesPort; }
-    "#,
-    );
-    assert!(
-        resolve_modules(vec![unbound_lease]).is_err(),
-        "subscription result must resolve through the author-declared dependency"
-    );
-
-    let foreign_lease = module(
-        "example/foreign.ncidl",
-        "#[version(1)] interface IEventSubscription { fn cancel(&self) -> Result<()>; }",
-    );
-    let foreign_port = module(
-        "example/events.ncidl",
-        r#"
-        extern example.foreign;
-        use example.foreign::IEventSubscription;
-        #[version(1)] port ChangesPort { fn changed(&mut self, value: u32) -> Result<()>; }
-        #[version(1)] interface ISource { changed: ChangesPort; }
-    "#,
-    );
-    let error = resolve_modules(vec![foreign_port, foreign_lease]).unwrap_err().to_string();
-    assert!(error.contains("error[EIDL064]"), "{error}");
-    assert!(error.contains("neocogi.com.events.IEventSubscription"), "{error}");
+    resolve_modules(vec![valid]).expect("message output without authored transport dependencies");
+    for declaration in ["interface Changed {}", "struct Changed { value: u32 }"] {
+        let source = module(
+            "example/events.ncidl",
+            &format!("#[version(1)] {declaration} #[version(1)] interface ISource {{ changed: Changed; }}"),
+        );
+        let error = resolve_modules(vec![source]).unwrap_err().to_string();
+        assert!(error.contains("must name a concrete message"), "{error}");
+    }
 }
 
 /// Resolves exact cross-module declarations and fingerprints.
@@ -556,10 +499,10 @@ fn interface_roles_and_threading_are_contract_identity_inputs() {
     let shared = fingerprint("#[version(1)] #[threading(shared)] interface Root {}");
     assert_ne!(ordinary, factory);
     assert_ne!(ordinary, shared);
-    // Identical receiver methods do not erase the protocol role from ABI identity.
-    let ordinary = fingerprint("#[version(1)] interface Root { fn receive(&mut self) -> Result<()>; }");
-    let protocol = fingerprint("#[version(1)] port Root { fn receive(&mut self) -> Result<()>; }");
-    assert_ne!(ordinary, protocol);
+    // Identical data layouts acquire different identities when posting becomes part of the contract.
+    let copied = fingerprint("#[version(1)] struct Root { value: u32 }");
+    let message = fingerprint("#[version(1)] #[message] struct Root { value: u32 }");
+    assert_ne!(copied, message);
 }
 
 /// Required projections must have a finite layout and preserve every threading promise.

@@ -8,10 +8,8 @@ use std::{
 use neocogi_com_core::{NcGuid, guid_from_name, guid_from_qualified_name};
 
 use crate::{
-    AbiType, BitEnum, Callable, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, InterfaceRole, Method, Module, NamedType, SourceFile, SourceSpan,
-    Threading, VariantFields,
-    model::{COM_EVENT_LEASE_NAME, COM_EVENTS_MODULE_NAME},
-    sha256::digest,
+    AbiType, BitEnum, Callable, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, InterfaceRole, Module, NamedType, SourceFile, SourceSpan, Threading,
+    VariantFields, sha256::digest,
 };
 
 /// UUID namespace reserved for canonical NeoCogi IDL identities.
@@ -565,28 +563,6 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
             DeclarationKind::Interface(interface) => {
                 collect_diagnostics(&mut diagnostics, validate_interface_bases(index, interface, entries, &declaration.name));
                 collect_diagnostics(&mut diagnostics, validate_callables(index, &interface.callables, entries, &declaration.name));
-                if interface.role == InterfaceRole::Port {
-                    // Snapshot adapters must own each input after delivery returns.
-                    for delivery in interface.methods() {
-                        for parameter in &delivery.parameters {
-                            if matches!(parameter.ty, AbiType::OutputSlice(_) | AbiType::Option(_)) {
-                                collect_diagnostics(
-                                    &mut diagnostics,
-                                    Err(source_error(
-                                        &entry.module,
-                                        "EIDL080",
-                                        &parameter.span,
-                                        format!(
-                                            "event {} delivery {} parameter {} cannot be captured as an owned snapshot",
-                                            declaration.name, delivery.name, parameter.name
-                                        ),
-                                        "event inputs must be copied values, &str, borrowed objects, or input slices",
-                                    )),
-                                );
-                            }
-                        }
-                    }
-                }
             }
         }
     }
@@ -874,98 +850,45 @@ fn validate_interface_bases(index: usize, interface: &crate::Interface, entries:
     Ok(())
 }
 
-/// Validates parameter and result ownership for one callable surface.
-fn validate_methods(index: usize, methods: &[Method], entries: &[ModuleEntry], owner: &str) -> Result<(), ResolutionError> {
-    let mut diagnostics = Vec::new();
-    for method in methods {
-        for parameter in &method.parameters {
-            collect_diagnostics(
-                &mut diagnostics,
-                validate_parameter_type(
-                    index,
-                    &parameter.ty,
-                    entries,
-                    &format!("{owner}::{} parameter {}", method.name, parameter.name),
-                    &parameter.span,
-                ),
-            );
-        }
-        collect_diagnostics(
-            &mut diagnostics,
-            validate_output_type(index, &method.output, entries, &format!("{owner}::{} result", method.name), &method.span),
-        );
-    }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(ResolutionError { diagnostics })
-    }
-}
-
-/// Validates ordinary signatures and generated subscription ports in vtable order.
+/// Validates ordinary signatures and generated output getters in vtable order.
 fn validate_callables(index: usize, callables: &[Callable], entries: &[ModuleEntry], owner: &str) -> Result<(), ResolutionError> {
     let mut diagnostics = Vec::new();
     for callable in callables {
         match callable {
-            Callable::Method(method) => collect_diagnostics(&mut diagnostics, validate_methods(index, std::slice::from_ref(method), entries, owner)),
-            Callable::Port(port) => {
-                let sink = resolve_named(index, &port.protocol, entries);
-                if sink
-                    .as_ref()
-                    .is_ok_and(|symbol| entries[symbol.module].module.declarations[symbol.declaration].message)
-                {
-                    continue; // Message outputs lower directly to their generated connection projection.
-                }
-
-                match sink {
-                    Ok(symbol) if matches!(&entries[symbol.module].module.declarations[symbol.declaration].kind, DeclarationKind::Interface(interface) if interface.role == InterfaceRole::Port) =>
-                        {}
-                    Ok(symbol) => collect_diagnostics(
+            Callable::Method(method) => {
+                for parameter in &method.parameters {
+                    collect_diagnostics(
                         &mut diagnostics,
-                        Err(kind_mismatch_error(
+                        validate_parameter_type(
                             index,
-                            symbol,
+                            &parameter.ty,
                             entries,
-                            &port.protocol.span,
-                            format!("{owner}::{} must name a declared port protocol", &port.name),
-                            "ordinary interfaces cannot be used as port protocols",
-                            "declare the protocol with `port`",
-                        )),
-                    ),
-                    Err(error) => collect_diagnostics(&mut diagnostics, Err(error)),
+                            &format!("{owner}::{} parameter {}", method.name, parameter.name),
+                            &parameter.span,
+                        ),
+                    );
                 }
-                let signature = port.signature();
-                // Ordinary output validation reports an unbound or wrong-kind
-                // lease. The additional identity check prevents a same-named
-                // foreign interface from silently changing the compiler-owned
-                // COM event port ABI.
-                collect_diagnostics(&mut diagnostics, validate_methods(index, std::slice::from_ref(&signature), entries, owner));
-                let AbiType::Named(lease_name) = &signature.output else {
-                    unreachable!("event port has one canonical lease result")
-                };
-                if let Ok(symbol) = resolve_named(index, lease_name, entries) {
-                    let owner_module = &entries[symbol.module];
-                    let declaration = &owner_module.module.declarations[symbol.declaration];
-                    if owner_module.name != COM_EVENTS_MODULE_NAME
-                        || declaration.name != COM_EVENT_LEASE_NAME
-                        || !matches!(declaration.kind, DeclarationKind::Interface(_))
-                    {
-                        collect_diagnostics(
-                            &mut diagnostics,
-                            Err(source_error(
-                                &entries[index].module,
-                                "EIDL064",
-                                &port.span,
-                                format!(
-                                    "{owner}::{} must return {COM_EVENTS_MODULE_NAME}.{COM_EVENT_LEASE_NAME}; found {}.{}",
-                                    &port.name, owner_module.name, declaration.name
-                                ),
-                                "event ports use the compiler-owned COM lease contract",
-                            )),
-                        );
-                    }
-                }
+                collect_diagnostics(
+                    &mut diagnostics,
+                    validate_output_type(index, &method.output, entries, &format!("{owner}::{} result", method.name), &method.span),
+                );
             }
+            Callable::Port(port) => match resolve_named(index, &port.message, entries) {
+                Ok(symbol) if entries[symbol.module].module.declarations[symbol.declaration].message => {}
+                Ok(symbol) => collect_diagnostics(
+                    &mut diagnostics,
+                    Err(kind_mismatch_error(
+                        index,
+                        symbol,
+                        entries,
+                        &port.message.span,
+                        format!("{owner}::{} must name a concrete message", port.name),
+                        "output bindings require owned message declarations",
+                        "mark a struct or enum with #[message]",
+                    )),
+                ),
+                Err(error) => collect_diagnostics(&mut diagnostics, Err(error)),
+            },
         }
     }
     if diagnostics.is_empty() {
@@ -1365,7 +1288,6 @@ fn encode_declaration(
             encoder.tag(match interface.role {
                 InterfaceRole::Ordinary => 0,
                 InterfaceRole::Factory => 1,
-                InterfaceRole::Port => 2,
             });
             encode_callable(index, &interface.bases, &interface.callables, interface.threading, entries, encoder)?;
         }
@@ -1392,23 +1314,17 @@ fn encode_callable(
     }
     encoder.u32(u32_len(callables.len(), &entries[index].name, "method count")?);
     for callable in callables {
-        if let Callable::Port(port) = callable {
-            let symbol = resolve_named(index, &port.protocol, entries)?;
-            if entries[symbol.module].module.declarations[symbol.declaration].message {
-                encoder.tag(2); // Concrete output getter, distinct from legacy subscription methods.
-                encoder.text(&port.name, &entries[index].name)?;
-                encode_named(index, &port.protocol, entries, encoder)?;
-                continue;
-            }
-        }
         let method = match callable {
             Callable::Method(method) => {
                 encoder.tag(0);
-                std::borrow::Cow::Borrowed(method)
+                method
             }
             Callable::Port(port) => {
-                encoder.tag(1);
-                std::borrow::Cow::Owned(port.signature())
+                // Data identity and field name define the generated connection getter.
+                encoder.tag(2);
+                encoder.text(&port.name, &entries[index].name)?;
+                encode_named(index, &port.message, entries, encoder)?;
+                continue;
             }
         };
         encoder.text(&method.name, &entries[index].name)?;

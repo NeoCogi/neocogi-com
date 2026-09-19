@@ -1,7 +1,7 @@
 //! Generated owned messages and their call-scoped, concrete C representations.
 
 use core::marker::PhantomData;
-use crate::{NcAbiSignature, NcStatus, NC_E_POINTER};
+use crate::{NcAbiSignature, NcStatus, NC_E_POINTER, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
 
 /// Compiler-generated conversion between an owned message and its borrowed wire data.
 /// This trait is implementation support, not a dynamically typed message protocol.
@@ -82,6 +82,31 @@ pub struct NcMessageSlice<T: Copy> {
     pub len: u64,
 }
 impl<T: Copy> NcMessageSlice<T> {
+    /// Checks the numeric range before exposing borrowed message storage.
+    ///
+    /// # Safety
+    /// If the pointer and length pass these structural checks, the resulting
+    /// range must contain initialized readable elements for this borrow.
+    pub unsafe fn as_slice(&self) -> Result<&[T], NcStatus> {
+        let len = usize::try_from(self.len).map_err(|_| NC_E_OUT_OF_RANGE)?;
+        if len == 0 {
+            return Ok(&[]);
+        }
+        if self.pointer.is_null() {
+            return Err(NC_E_POINTER);
+        }
+        if !self.pointer.is_aligned() {
+            return Err(NC_E_INVALID_ARG);
+        }
+        // Prevent slice construction from overflowing Rust's object-size limit.
+        match len.checked_mul(core::mem::size_of::<T>()) {
+            Some(bytes) if bytes <= isize::MAX as usize => {
+                // SAFETY: structural checks passed; the raw caller owns readable storage.
+                Ok(unsafe { core::slice::from_raw_parts(self.pointer, len) })
+            }
+            _ => Err(NC_E_OUT_OF_RANGE),
+        }
+    }
     /// Encodes initialized elements without copying or transferring their allocation.
     pub fn new(values: &[T]) -> Self {
         Self {

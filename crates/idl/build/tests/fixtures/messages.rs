@@ -3,7 +3,7 @@
 mod message_tests {
     use super::*;
     use neocogi_com::{com_object, ComMessage, ComPtr, NcMessage, NcStatus};
-    use neocogi_com_events::{Events, Port};
+    use neocogi_com_events::{Events, Port, PortMessage};
 
     #[com_object(interfaces(IToken))]
     /// Object lifetime is observable after all producer-side references are dropped.
@@ -60,11 +60,33 @@ mod message_tests {
         assert_eq!(events.pop().unwrap().text, "héllo");
     }
 
+    /// Unit facts retain their checked copied ABI and slices become independent consumer storage.
+    #[test]
+    fn unit_messages_and_owned_slices_round_trip() {
+        assert_eq!(Notice::try_from(NoticeAbi::from(Notice::Ready)).unwrap(), Notice::Ready);
+        let port = Port::<Notice>::new();
+        let mut events = Events::new();
+        events.map(port.as_ref(), |message| message).unwrap();
+        port.emit(Notice::Done).unwrap();
+        assert_eq!(events.pop(), Some(Notice::Done));
+        let port = Port::<Batch>::new();
+        let mut events = Events::new();
+        events.map(port.as_ref(), |message| message.values).unwrap();
+        port.emit(Batch { values: vec![1, 2, 3] }).unwrap();
+        drop(port);
+        assert_eq!(events.pop(), Some(vec![1, 2, 3]));
+        let value = Batch { values: vec![1] };
+        let mut wire = value.encode();
+        wire.payload.case_0.values.len = u64::MAX;
+        // The decoder must reject the impossible range before reading any pointed-to element.
+        assert!(unsafe { NcMessage::<Batch>::from_raw(&wire) }.unwrap().to_owned().is_err());
+    }
+
     /// Invalid wire values fail before the mapping closure or queue is reached.
     #[test]
     fn malformed_payloads_never_reach_the_mapper() {
         let mut events = Events::new();
-        let mut receiver = __map_number_changed(events.sender(), |message| message, None).unwrap();
+        let mut receiver = NumberChanged::mapping(events.sender(), |message| message, None).unwrap();
         let message = NumberChanged { value: 12.5, checked: true };
         receiver.post(NcMessage::new(&message)).unwrap();
         assert_eq!(events.pop().unwrap(), message);
@@ -76,7 +98,7 @@ mod message_tests {
         assert_eq!(receiver.post(unsafe { NcMessage::from_raw(&wire) }.unwrap()), Err(neocogi_com::NC_E_INVALID_ARG));
         assert!(events.is_empty());
         let mut text = Events::new();
-        let mut receiver = __map_text_changed(text.sender(), |message| message, None).unwrap();
+        let mut receiver = TextChanged::mapping(text.sender(), |message| message, None).unwrap();
         let bad = [0xff];
         let message = TextChanged { text: String::new(), cursor: 0 };
         let mut wire = message.encode();

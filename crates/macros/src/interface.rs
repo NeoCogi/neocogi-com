@@ -20,7 +20,8 @@ pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Res
 
     // Every trait item is a callable vtable method. IDL objects and factories
     // use the same lowering after the generator attaches description metadata.
-    let methods = match collect_syn_results(input.items.iter().map(parse_abi_trait_item)) {
+    let nc = runtime_crate_path(args.runtime_crate.as_ref());
+    let methods = match collect_syn_results(input.items.iter().map(|item| parse_abi_trait_item(item, &nc))) {
         Ok(methods) => methods,
         Err(err) => {
             push_error(&mut errors, err);

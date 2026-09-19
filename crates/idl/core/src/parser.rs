@@ -29,7 +29,6 @@ mod keyword {
     syn::custom_keyword!(interface);
     syn::custom_keyword!(factory);
     syn::custom_keyword!(bitenum);
-    syn::custom_keyword!(port);
 }
 
 /// Failure to derive a module name or parse and merge its IDL source parts.
@@ -247,12 +246,10 @@ impl Parse for ModuleSyntax {
                 parse_bit_enum(attributes, input)?
             } else if input.peek(keyword::interface) {
                 parse_interface(attributes, input, InterfaceRole::Ordinary)?
-            } else if input.peek(keyword::port) {
-                parse_interface(attributes, input, InterfaceRole::Port)?
             } else if input.peek(keyword::factory) {
                 parse_interface(attributes, input, InterfaceRole::Factory)?
             } else {
-                return Err(input.error("expected `extern`, `use`, `struct`, `enum`, `bitenum`, `interface`, `port`, or `factory`"));
+                return Err(input.error("expected `extern`, `use`, `struct`, `enum`, `bitenum`, `interface`, or `factory`"));
             };
 
             if let Some(previous) = declaration_names.insert(declaration.name.clone(), declaration.span.clone()) {
@@ -394,25 +391,6 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>, role: Int
     require_upper_camel_case(&name, "interface")?;
     let bases = parse_bases(input)?;
     let callables = parse_callables(input)?;
-    match role {
-        InterfaceRole::Port => {
-            // Native snapshots are immutable, but delivery exclusively borrows its
-            // concrete sink so handlers need no interior-mutability wrapper.
-            if !bases.is_empty() || threading != Threading::Local {
-                return Err(syn::Error::new(name.span(), "port protocols must be local without bases"));
-            }
-            if callables.is_empty() {
-                return Err(syn::Error::new(name.span(), "port protocols require at least one delivery method"));
-            }
-            for callable in &callables {
-                match callable {
-                    Callable::Method(method) if method.receiver == Receiver::Mutable && method.output == AbiType::Unit => {}
-                    _ => return Err(syn::Error::new(name.span(), "port deliveries require `&mut self` and `Result<()>`")),
-                }
-            }
-        }
-        InterfaceRole::Ordinary | InterfaceRole::Factory => {}
-    }
     Ok(declaration(
         name,
         metadata,
@@ -467,7 +445,7 @@ fn parse_callables(input: ParseStream<'_>) -> syn::Result<Vec<Callable>> {
         // declaration order, so generated methods cannot silently shadow a port.
         let reserved = match &callable {
             Callable::Method(method) => vec![method.name.clone()],
-            Callable::Port(port) => vec![port.name.clone(), port.subscription_name()],
+            Callable::Port(port) => vec![port.name.clone(), port.getter_name()],
         };
         for name in reserved {
             if let Some(previous) = names.insert(name.clone(), callable.span().clone()) {
@@ -479,19 +457,19 @@ fn parse_callables(input: ParseStream<'_>) -> syn::Result<Vec<Callable>> {
     Ok(callables)
 }
 
-/// Parses a named connection point, leaving protocol-kind validation to resolution.
+/// Parses a named connection point, leaving message-kind validation to resolution.
 fn parse_port_binding(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<PortBinding> {
     let docs = parse_doc_only_attributes(&attributes)?;
     let name = input.parse::<Ident>()?;
     require_snake_case(&name, "port binding")?;
     input.parse::<Token![:]>()?;
-    let protocol = named_path(&input.parse::<syn::Path>()?)?;
+    let message = named_path(&input.parse::<syn::Path>()?)?;
     input.parse::<Token![;]>()?;
     Ok(PortBinding {
         span: SourceSpan::from_parser(name.span()),
         docs,
         name: name.to_string(),
-        protocol,
+        message,
     })
 }
 
@@ -895,7 +873,7 @@ fn attach_callable_source(bases: &mut [NamedType], callables: &mut [Callable], s
             Callable::Method(method) => attach_method_source(method, source),
             Callable::Port(port) => {
                 port.span.attach(source);
-                port.protocol.span.attach(source);
+                port.message.span.attach(source);
             }
         }
     }

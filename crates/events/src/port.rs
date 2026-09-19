@@ -6,29 +6,34 @@ use std::{
 };
 use neocogi_com::{com_object, ComInterface, ComMessage, ComPtr, ComRef, NcStatus};
 use neocogi_com_events_contracts::IEventSubscriptionInterfacesFor;
-use crate::{EventPayload, EventPort, EventSender, IEventSubscription, IEventSubscriptionAbi, EVENT_E_BUSY, EVENT_E_CLOSED};
+use crate::{EventSender, IEventSubscription, IEventSubscriptionAbi, EVENT_E_BUSY, EVENT_E_CLOSED};
 
 /// Generated operations for a concrete message's connection projection.
 #[doc(hidden)]
-pub trait PortMessage: EventPayload + ComMessage {
+pub trait PortMessage: ComMessage {
+    /// Exact generated receiver; its only operation accepts this message's borrowed wire.
+    type Receiver: ComInterface;
+    /// Posts this concrete value through its checked generated COM entry point.
+    fn deliver(&self, receiver: ComRef<'_, Self::Receiver>) -> Result<(), NcStatus>;
     /// Exact connection interface; its receiver accepts only this message.
     type PortAbi: ComInterface;
     /// Builds the weak COM projection without retaining the producer.
     fn project(control: PortControl<Self>) -> ComPtr<Self::PortAbi>;
     /// Invokes the generated connection slot without exposing receiver machinery to authors.
-    fn connect(port: ComRef<'_, Self::PortAbi>, receiver: ComRef<'_, Self::Sink>) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus>;
+    fn connect(port: ComRef<'_, Self::PortAbi>, receiver: ComRef<'_, Self::Receiver>) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus>;
     /// Constructs a checked, concrete mapper for this protocol.
     fn mapping<Message: 'static, Map: FnMut(Self) -> Message + 'static>(
         sender: EventSender<Message>,
         map: Map,
         validate: Option<fn(&Self) -> Result<(), NcStatus>>,
-    ) -> Result<ComPtr<Self::Sink>, NcStatus>;
+    ) -> Result<ComPtr<Self::Receiver>, NcStatus>;
 }
 
 /// Producer storage for one typed output. Consumers obtain its connection projection.
 pub struct Port<E: PortMessage> {
-    /// One shared slot handles posting, cancellation and closure across COM identities.
-    slot: Rc<RefCell<Slot<E::Sink>>>,
+    /// Independent COM projection and lease identities share cancellation with emission.
+    /// Only this short slot mutation requires RefCell; foreign calls run outside its borrow.
+    slot: Rc<RefCell<Slot<E::Receiver>>>,
     /// Weak generated projection, allocated once and reused by every accessor.
     projection: ComPtr<E::PortAbi>,
 }
@@ -139,11 +144,11 @@ impl<Receiver: ComInterface> Drop for Posting<'_, Receiver> {
 #[doc(hidden)]
 pub struct PortControl<E: PortMessage> {
     /// One weak link reaches the exact output slot, without another source/endpoint registry.
-    slot: Weak<RefCell<Slot<E::Sink>>>,
+    slot: Weak<RefCell<Slot<E::Receiver>>>,
 }
 impl<E: PortMessage> PortControl<E> {
     /// Installs one receiver and returns a generation-specific cancellation capability.
-    pub fn connect(&self, receiver: ComRef<'_, E::Sink>) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus> {
+    pub fn connect(&self, receiver: ComRef<'_, E::Receiver>) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus> {
         let receiver = receiver.add_ref(); // No shared slot borrow crosses AddRef.
         let slot = self.slot.upgrade().ok_or(EVENT_E_CLOSED)?;
         let generation = {
@@ -215,13 +220,6 @@ impl<E: PortMessage> PortRef<E> {
         self.validate = Some(validate);
         self
     }
-    /// Returns another connection view, preserving any pending access failure.
-    pub fn as_ref(&self) -> Self {
-        Self {
-            projection: self.projection.clone(),
-            validate: self.validate,
-        }
-    }
     /// Transfers this exact COM connection projection to a generated output getter.
     #[doc(hidden)]
     pub fn into_projection(self) -> Result<ComPtr<E::PortAbi>, NcStatus> {
@@ -231,7 +229,10 @@ impl<E: PortMessage> PortRef<E> {
 impl<E: PortMessage> Clone for PortRef<E> {
     /// Cloning a connection view does not retain its producer or create another mapping.
     fn clone(&self) -> Self {
-        self.as_ref()
+        Self {
+            projection: self.projection.clone(),
+            validate: self.validate,
+        }
     }
 }
 impl<E: PortMessage> std::fmt::Debug for PortRef<E> {
@@ -240,10 +241,9 @@ impl<E: PortMessage> std::fmt::Debug for PortRef<E> {
         f.debug_struct("PortRef").finish_non_exhaustive()
     }
 }
-impl<E: PortMessage> EventPort for PortRef<E> {
-    type Event = E;
+impl<E: PortMessage> PortRef<E> {
     /// Installs one concrete receiver through the same COM path for native and plugin outputs.
-    fn connect<Message: 'static, Map: FnMut(E) -> Message + 'static>(
+    pub(crate) fn connect<Message: 'static, Map: FnMut(E) -> Message + 'static>(
         self,
         sender: EventSender<Message>,
         map: Map,

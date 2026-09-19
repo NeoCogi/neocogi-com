@@ -14,14 +14,14 @@ use crate::plain_data::{PlainAbiTypeContext, validate_plain_abi_type};
 use crate::util::push_error;
 
 /// Validates one trait method and lowers it into the shared ABI model.
-fn parse_abi_method(method: &TraitItemFn) -> Result<AbiMethod> {
+fn parse_abi_method(method: &TraitItemFn, nc: &syn::Path) -> Result<AbiMethod> {
     // Accumulate independent signature errors so one macro invocation reports
     // all actionable problems instead of forcing a compile/fix cycle per item.
     let mut errors = None;
     validate_method_modifiers(method, &mut errors);
     let receiver = validate_receiver(method, &mut errors);
 
-    let args = match parse_abi_args(method) {
+    let args = match parse_abi_args(method, nc) {
         Ok(args) => args,
         Err(err) => {
             push_error(&mut errors, err);
@@ -88,9 +88,9 @@ fn validate_method_modifiers(method: &TraitItemFn, errors: &mut Option<syn::Erro
 }
 
 /// Accepts only trait methods and delegates their complete ABI validation.
-pub(crate) fn parse_abi_trait_item(item: &TraitItem) -> Result<AbiMethod> {
+pub(crate) fn parse_abi_trait_item(item: &TraitItem, nc: &syn::Path) -> Result<AbiMethod> {
     match item {
-        TraitItem::Fn(method) => parse_abi_method(method),
+        TraitItem::Fn(method) => parse_abi_method(method, nc),
         _ => Err(syn::Error::new_spanned(item, "COM interfaces may only contain methods")),
     }
 }
@@ -143,7 +143,7 @@ fn validate_receiver(method: &TraitItemFn, errors: &mut Option<syn::Error>) -> A
 }
 
 /// Lowers named method parameters after skipping the validated receiver.
-fn parse_abi_args(method: &TraitItemFn) -> Result<Vec<AbiArg>> {
+fn parse_abi_args(method: &TraitItemFn, nc: &syn::Path) -> Result<Vec<AbiArg>> {
     let mut errors = None;
     let mut args = Vec::new();
 
@@ -152,15 +152,17 @@ fn parse_abi_args(method: &TraitItemFn) -> Result<Vec<AbiArg>> {
     for arg in method.sig.inputs.iter().skip(1) {
         match arg {
             FnArg::Typed(typed) => match typed.pat.as_ref() {
-                Pat::Ident(pat) if pat.by_ref.is_none() && pat.mutability.is_none() && pat.subpat.is_none() => match lower_abi_arg(typed.ty.as_ref().clone()) {
-                    Ok((rust_ty, abi_ty, kind)) => args.push(AbiArg {
-                        ident: pat.ident.clone(),
-                        rust_ty,
-                        abi_ty,
-                        kind,
-                    }),
-                    Err(err) => push_error(&mut errors, err),
-                },
+                Pat::Ident(pat) if pat.by_ref.is_none() && pat.mutability.is_none() && pat.subpat.is_none() => {
+                    match lower_abi_arg(typed.ty.as_ref().clone(), nc) {
+                        Ok((rust_ty, abi_ty, kind)) => args.push(AbiArg {
+                            ident: pat.ident.clone(),
+                            rust_ty,
+                            abi_ty,
+                            kind,
+                        }),
+                        Err(err) => push_error(&mut errors, err),
+                    }
+                }
                 _ => push_error(
                     &mut errors,
                     syn::Error::new_spanned(&typed.pat, "COM method arguments must be plain identifiers"),
@@ -237,7 +239,7 @@ fn parse_result_ok_type(method: &TraitItemFn) -> Result<Type> {
 }
 
 /// Selects the raw parameter type and ownership rule for one Rust argument.
-fn lower_abi_arg(ty: Type) -> Result<(Type, Type, AbiArgKind)> {
+fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
     // Recognize ownership-bearing wrappers before the plain-value fallback.
     // Ordering matters because raw ABI pointer types alone cannot communicate
     // whether an interface or buffer is borrowed, mutable, or transferred.
@@ -254,7 +256,7 @@ fn lower_abi_arg(ty: Type) -> Result<(Type, Type, AbiArgKind)> {
                     .collect::<Vec<_>>();
                 if let [message] = types.as_slice() {
                     let message = (*message).clone();
-                    let abi_ty = syn::parse_quote! { *const <#message as ::neocogi_com::ComMessage>::Wire };
+                    let abi_ty = syn::parse_quote! { *const <#message as #nc::ComMessage>::Wire };
                     return Ok((ty, abi_ty, AbiArgKind::Message { message_ty: Box::new(message) }));
                 }
             }

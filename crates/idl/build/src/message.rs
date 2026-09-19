@@ -22,7 +22,6 @@ pub(super) fn generate_message(
     let connection_id = Literal::string(&neocogi_com_core::guid_from_qualified_name(&connection_name).to_string());
     let connection_name = Literal::string(&connection_name);
     let adapter = format_ident!("__{name}Mapping");
-    let factory = format_ident!("__map_{}", snake_case(&declaration.name));
     let declaration_docs = docs(&declaration.docs);
     let signature = signature_literal(identity.abi_signature);
     let receiver_name = format!("{}.{}.__receiver", module.source.name, declaration.name);
@@ -137,9 +136,7 @@ pub(super) fn generate_message(
         VariantFields::Tuple(fields) => fields.iter().all(|ty| value_type(graph, module, ty).is_ok()),
         VariantFields::Named(fields) => fields.iter().all(|field| value_type(graph, module, &field.ty).is_ok()),
     });
-    // Unit message enums are closed facts, unlike the ordinary extensible integer wrappers.
-    let unit_enum = matches!(&declaration.kind, DeclarationKind::Enum(e) if e.variants.iter().all(|v| matches!(v.fields, VariantFields::Unit)));
-    let data = if copyable && !unit_enum {
+    let data = if copyable {
         // A plain message keeps its existing ordinary ABI representation as well
         // as gaining generated posting. No wrapper record is needed around it.
         let index = module
@@ -207,24 +204,20 @@ pub(super) fn generate_message(
             }
         }
         impl ::neocogi_com_events::PortMessage for #name {
+            type Receiver = #receiver_abi;
             type PortAbi = #connection_abi;
+            /// Borrows the owned value only for the receiver call.
+            fn deliver(&self, mut receiver: ::neocogi_com::ComRef<'_, Self::Receiver>) -> Result<(), ::neocogi_com::NcStatus> {
+                receiver.post(::neocogi_com::NcMessage::new(self))
+            }
             fn project(control: ::neocogi_com_events::PortControl<Self>) -> ::neocogi_com::ComPtr<Self::PortAbi> {
                 #connection_object::from_value(#connection_object { control }).query().expect("generated output declares its connection interface")
             }
-            fn connect(port: ::neocogi_com::ComRef<'_, Self::PortAbi>, receiver: ::neocogi_com::ComRef<'_, Self::Sink>) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus> {
+            fn connect(port: ::neocogi_com::ComRef<'_, Self::PortAbi>, receiver: ::neocogi_com::ComRef<'_, Self::Receiver>) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus> {
                 port.connect(receiver)
             }
-            fn mapping<Message: 'static, Map: FnMut(Self) -> Message + 'static>(sender: ::neocogi_com_events::EventSender<Message>, map: Map, validate: Option<fn(&Self) -> Result<(), ::neocogi_com::NcStatus>>) -> Result<::neocogi_com::ComPtr<Self::Sink>, ::neocogi_com::NcStatus> {
-                #factory(sender, map, validate)
-            }
-        }
-        impl ::neocogi_com_events::EventPayload for #name {
-            type Sink = #receiver_abi;
-            fn deliver(&self, mut receiver: ::neocogi_com::ComRef<'_, Self::Sink>) -> Result<(), ::neocogi_com::NcStatus> {
-                receiver.post(::neocogi_com::NcMessage::new(self))
-            }
-            fn receiver<Message: 'static, Map: FnMut(Self) -> Message + 'static>(sender: ::neocogi_com_events::EventSender<Message>, map: Map) -> Result<::neocogi_com::ComPtr<Self::Sink>, ::neocogi_com::NcStatus> {
-                #factory(sender, map, None)
+            fn mapping<Message: 'static, Map: FnMut(Self) -> Message + 'static>(sender: ::neocogi_com_events::EventSender<Message>, map: Map, validate: Option<fn(&Self) -> Result<(), ::neocogi_com::NcStatus>>) -> Result<::neocogi_com::ComPtr<Self::Receiver>, ::neocogi_com::NcStatus> {
+                #adapter::from_value(#adapter { sender, map, validate }).query()
             }
         }
         #[::neocogi_com::com_object(interfaces(#receiver))]
@@ -244,11 +237,7 @@ pub(super) fn generate_message(
                 self.sender.post((self.map)(message))
             }
         }
-        #[doc(hidden)]
-        /// Compiler support for a concrete mapping; authors use Events::map.
-        pub fn #factory<Message: 'static, Map: FnMut(#name) -> Message + 'static>(sender: ::neocogi_com_events::EventSender<Message>, map: Map, validate: Option<fn(&#name) -> Result<(), ::neocogi_com::NcStatus>>) -> Result<::neocogi_com::ComPtr<#receiver_abi>, ::neocogi_com::NcStatus> {
-            #adapter::from_value(#adapter { sender, map, validate }).query()
-        }
+
     })
 }
 
@@ -266,7 +255,7 @@ fn field_codec(
                     quote! { u8 },
                     quote! { ::alloc::string::String },
                     quote! { #field.as_bytes() },
-                    quote! { ::neocogi_com_events::copy_text(buffer)? },
+                    quote! { ::alloc::string::String::from_utf8(buffer.to_vec()).map_err(|_| ::neocogi_com::NC_E_INVALID_ARG)? },
                 ),
                 AbiType::Slice(element) => {
                     let element = value_type(graph, module, element)?;
@@ -274,7 +263,7 @@ fn field_codec(
                         element.clone(),
                         quote! { ::alloc::vec::Vec<#element> },
                         quote! { #field.as_slice() },
-                        quote! { ::neocogi_com_events::copy_slice(buffer)? },
+                        quote! { buffer.to_vec() },
                     )
                 }
                 _ => unreachable!(),
@@ -285,7 +274,7 @@ fn field_codec(
                 quote! { ::neocogi_com::NcMessageSlice::new(#bytes) },
                 quote! {{
                     // SAFETY: the raw caller guarantees readable, initialized backing storage.
-                    let buffer = unsafe { ::neocogi_com::NcCopyFromBufferOffset::__nc_from_raw_parts(0, raw.#field.pointer, raw.#field.len) }?;
+                    let buffer = unsafe { raw.#field.as_slice() }?;
                     #acquire
                 }},
                 true,
@@ -314,11 +303,24 @@ fn field_codec(
             true,
         )),
         _ => {
-            let owned = event_owned_type(graph, module, ty)?;
             let abi = value_type(graph, module, ty)?;
-            let encoding = event_encode(graph, module, ty, field)?;
-            let decoding = event_decode(graph, module, ty, field)?;
-            Ok((owned, abi, encoding, quote! {{ let #field = raw.#field; #decoding }}, true))
+            match ty {
+                AbiType::Named(path) => {
+                    let resolved = resolve(graph, module, path)?;
+                    let owned = named_rust_type(module, resolved, false)?;
+                    match &resolved.declaration.kind {
+                        DeclarationKind::Enum(enumeration) if enum_has_payload(enumeration) || resolved.declaration.message => Ok((
+                            owned.clone(),
+                            abi,
+                            quote! { (*#field).into() },
+                            quote! { #owned::try_from(raw.#field).map_err(|_| ::neocogi_com::NC_E_INVALID_ARG)? },
+                            true,
+                        )),
+                        _ => Ok((owned, abi, quote! { *#field }, quote! { raw.#field }, true)),
+                    }
+                }
+                _ => Ok((abi.clone(), abi, quote! { *#field }, quote! { raw.#field }, true)),
+            }
         }
     }
 }

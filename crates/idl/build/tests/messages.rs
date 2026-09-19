@@ -11,6 +11,8 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
         #[version(1)] #[message] struct NumberChanged { value: f32, checked: bool }
         #[version(1)] #[message] struct TextChanged { text: String, cursor: u64 }
         #[version(1)] #[message] enum Completion { Accepted { token: IToken }, Cancelled }
+        #[version(1)] #[message] enum Notice { Ready, Done }
+        #[version(1)] #[message] struct Batch { values: &[u32] }
         #[version(1)] interface IProducer { completed: Completion; }
     "#;
     let graph = resolve_modules(vec![parse_module(Path::new("example/messages.ncidl"), source).unwrap()]).unwrap();

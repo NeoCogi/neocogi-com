@@ -6,20 +6,7 @@ use std::{
     rc::{Rc, Weak},
 };
 use neocogi_com::{ComPtr, NcStatus};
-use crate::{IEventSubscriptionAbi, EVENT_E_CLOSED, EVENT_E_LIMIT};
-
-/// Generated connection operation for a concrete protocol and consumer message type.
-/// The temporary port retains its source only until connection returns.
-pub trait EventPort {
-    /// Owned protocol message decoded by the generated receiver.
-    type Event;
-    /// Installs a receiver that translates protocol messages directly into the consumer inbox.
-    fn connect<Message: 'static, Map: FnMut(Self::Event) -> Message + 'static>(
-        self,
-        sender: EventSender<Message>,
-        map: Map,
-    ) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus>;
-}
+use crate::{PortMessage, PortRef, IEventSubscriptionAbi, EVENT_E_CLOSED, EVENT_E_LIMIT};
 
 /// One consumer's FIFO and connections; application state stays in its ordinary owner.
 /// Mappers run at emission time and should only translate messages or attach routing IDs.
@@ -81,7 +68,11 @@ impl<Message> Events<Message> {
 }
 impl<Message: 'static> Events<Message> {
     /// Connects a typed protocol to this inbox without capturing application state.
-    pub fn map<Port: EventPort>(&mut self, port: Port, map: impl FnMut(Port::Event) -> Message + 'static) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus> {
+    pub fn map<Event: PortMessage>(
+        &mut self,
+        port: PortRef<Event>,
+        map: impl FnMut(Event) -> Message + 'static,
+    ) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus> {
         // Prune disconnected receivers during setup; there is no dispatch registry to sweep.
         let mut index = 0;
         while index < self.connections.len() {

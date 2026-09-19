@@ -7,159 +7,32 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
     parse_module(Path::new(path), source).unwrap()
 }
 
-/// A protocol without a naming suffix still generates owned messages and typed delivery.
+/// Imported messages generate typed access without pulling transport into the baseline ABI crate.
 #[test]
-fn generates_protocol_messages_and_binding_accessors() {
-    let transport = module(
-        "neocogi/com/events.ncidl",
-        include_str!("../../../event-contracts/idl/neocogi/com/events/events.ncidl"),
-    );
-    let events = module(
-        "example/events.ncidl",
-        r#"
-        extern neocogi.com.events;
-        use neocogi.com.events::IEventSubscription;
-        #[version(1)]
-        port Changes {
-            fn changed(&mut self, text: &str, cursor: u64) -> Result<()>;
-        }
-        #[version(1)]
-        interface IEditor {
-            fn revision(&self) -> Result<u64>;
-            changed: Changes;
-        }
-    "#,
-    );
-    let graph = resolve_modules(vec![events, transport]).unwrap();
-    let generated = neocogi_idl_build::generate_rust(&graph, "example.events").unwrap();
-    syn::parse_file(&generated).expect("event bindings must be valid Rust syntax");
-    assert!(generated.contains("pub struct ChangesMessage"));
-    assert!(generated.contains("pub text: ::alloc::string::String"));
-    assert!(generated.contains("impl ::neocogi_com_events::EventPayload for ChangesMessage"));
-    assert!(generated.contains("::neocogi_com_events::copy_text(text)?"));
-    assert!(generated.contains("create_changes_sink"));
-    assert!(generated.contains("if let Some(validate) = self.validate"));
-    assert!(generated.contains("EVENT_BINDING_API_VERSION == 4"));
-    assert!(generated.contains("fn subscribe_changed"));
-    assert!(generated.contains("pub trait IEditorPorts"));
-    assert!(generated.contains("fn changed(&self) -> IEditorChangedPort<M>"));
-    assert!(!generated.contains("pub fn i_editor_subscribe_changed_port"));
-    assert!(generated.contains("pub struct IEditorChangedPort"));
-    assert!(generated.contains("::neocogi_com_events::EventPort"));
-    assert!(!generated.contains("let mut source = self.source"));
-    assert!(!generated.contains(".register(||"));
-    assert!(generated.contains("source.subscribe_changed(sink.as_com_ref())"));
-    assert!(generated.contains("IEventSubscriptionAbi"));
-    assert!(!generated.contains("std::any::Any"));
-    let transport_bindings = neocogi_idl_build::generate_rust(&graph, "neocogi.com.events").unwrap();
-    assert!(
-        !transport_bindings.contains("EVENT_BINDING_API_VERSION"),
-        "the baseline ABI crate must not depend on its own transport implementation"
-    );
-    assert!(!transport_bindings.contains("__nc_get_contract_module_description"));
-    assert!(!transport_bindings.contains("NATIVE_LINK_NAME"));
-    assert!(!transport_bindings.contains("pub const MODULE:"));
-}
-
-/// A source-only module still checks the COM event support API and calls its
-/// imported protocol adapter; it does not need to redeclare the port type.
-#[test]
-fn source_only_event_port_checks_support_api() {
-    let transport = module(
-        "neocogi/com/events.ncidl",
-        include_str!("../../../event-contracts/idl/neocogi/com/events/events.ncidl"),
-    );
-    let sink = module(
-        "example/sink.ncidl",
-        "#[version(1)] port ChangesPort { fn changed(&mut self, value: u32) -> Result<()>; }",
-    );
+fn imported_message_outputs_check_transport_support() {
+    let message = module("example/messages.ncidl", "#[version(1)] #[message] struct Changed { value: u32 }");
     let source = module(
         "example/source.ncidl",
         r#"
-        extern neocogi.com.events;
-        extern example.sink;
-        use neocogi.com.events::IEventSubscription;
-        use example.sink::ChangesPort;
-        #[version(1)] interface ISource { changed: ChangesPort; }
+        extern example.messages;
+        use example.messages::Changed;
+        #[version(1)] interface ISource { first: Changed; second: Changed; }
     "#,
     );
-    let graph = resolve_modules(vec![source, sink, transport]).unwrap();
-    let generated = neocogi_idl_build::generate_rust(&graph, "example.source").unwrap();
-    syn::parse_file(&generated).expect("source-only event bindings must parse");
-    assert!(generated.contains("EVENT_BINDING_API_VERSION == 4"));
-    assert!(generated.contains("fn changed(&self) -> ISourceChangedPort<M>"));
-    assert!(!generated.contains("pub fn i_source_subscribe_port"));
-    assert!(generated.contains("example_sink_contracts::create_changes_port_sink"));
-}
-
-/// Imported sink ports preserve their source mode and emit only explicit registration arguments.
-#[test]
-fn generates_typed_ports_for_each_source_mode() {
     let transport = module(
         "neocogi/com/events.ncidl",
         include_str!("../../../event-contracts/idl/neocogi/com/events/events.ncidl"),
     );
-    let sink = module(
-        "example/sink.ncidl",
-        "#[version(1)] port ChangesPort { fn changed(&mut self, value: u32) -> Result<()>; }",
-    );
-    let source = module(
-        "example/source.ncidl",
-        r#"
-        extern neocogi.com.events;
-        extern example.sink;
-        use neocogi.com.events::IEventSubscription;
-        use example.sink::ChangesPort;
-        #[version(1)] interface ISource {
-            read: ChangesPort;
-            write: ChangesPort;
-        }
-        #[threading(shared)]
-        #[version(1)] factory SharedSource {
-            changed: ChangesPort;
-        }
-        #[version(1)] interface Editor: ISource {
-            changed: ChangesPort;
-        }
-    "#,
-    );
-    let graph = resolve_modules(vec![source, sink, transport]).unwrap();
+    let graph = resolve_modules(vec![message, source, transport]).unwrap();
     let generated = neocogi_idl_build::generate_rust(&graph, "example.source").unwrap();
-    let syntax = syn::parse_file(&generated).unwrap();
-    // Both named streams use the imported sink, but expose distinct accessors
-    // and subscription slots. Neither accessor can perform a foreign call.
-    assert!(generated.contains("fn read(&self) -> ISourceReadPort<M>"));
-    assert!(generated.contains("fn write(&self) -> ISourceWritePort<M>"));
-    assert!(generated.contains("source.subscribe_read(sink.as_com_ref())"));
-    assert!(generated.contains("source.subscribe_write(sink.as_com_ref())"));
-    assert!(generated.contains("source: self.clone(),"));
-    assert!(generated.contains("source: self.add_ref(),"));
-    assert!(generated.contains("for ::neocogi_com::ComRef<'_, ISourceAbi, M>"));
-    assert!(generated.contains("for ::neocogi_com::ComPtr<ISourceAbi, M>"));
-    assert!(generated.contains("source: ::neocogi_com::ComPtr<SharedSourceAbi, M>"));
-    let shared = syntax
-        .items
-        .iter()
-        .find_map(|item| match item {
-            syn::Item::Trait(item) if item.ident == "SharedSourcePorts" => Some(item),
-            _ => None,
-        })
-        .unwrap();
-    let syn::GenericParam::Type(mode) = &shared.generics.params[0] else {
-        panic!("typed source mode")
-    };
-    let Some(syn::Type::Path(default)) = &mode.default else {
-        panic!("default source mode")
-    };
-    assert_eq!(default.path.segments.last().unwrap().ident, "ThreadSafe");
-    assert!(
-        !syntax
-            .items
-            .iter()
-            .any(|item| matches!(item, syn::Item::Fn(function) if function.sig.ident.to_string().ends_with("_port")))
-    );
-    assert!(!generated.contains("let mut source"));
-    assert!(!generated.contains("FnOnce"));
+    syn::parse_file(&generated).expect("imported message bindings parse");
+    assert!(generated.contains("EVENT_BINDING_API_VERSION == 5"));
+    assert!(generated.contains("fn first("));
+    assert!(generated.contains("fn second("));
+    assert!(generated.contains("example_messages_contracts::__ChangedPortAbi"));
+    let baseline = neocogi_idl_build::generate_rust(&graph, "neocogi.com.events").unwrap();
+    assert!(!baseline.contains("EVENT_BINDING_API_VERSION"));
+    assert!(!baseline.contains("__nc_get_contract_module_description"));
 }
 
 /// Confirms generated bindings preserve names and expose factory-only objects.

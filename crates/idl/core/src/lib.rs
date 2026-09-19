@@ -16,8 +16,8 @@ mod resolve;
 mod sha256;
 
 pub use model::{
-    COM_EVENTS_MODULE_NAME, AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant,
-    PortBinding, ExternalModule, Field, Import, Interface, InterfaceRole, Method, NamedType, Parameter, Receiver, Struct, Threading, VariantFields,
+    AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, PortBinding, ExternalModule,
+    Field, Import, Interface, InterfaceRole, Method, NamedType, Parameter, Receiver, Struct, Threading, VariantFields,
 };
 pub use diagnostic::{Diagnostic, DiagnosticLabel, LabelStyle, SourceFile, SourcePosition, SourceSpan};
 pub use parser::{ModuleSource, ParseError, parse_module, parse_module_parts};

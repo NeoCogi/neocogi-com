@@ -3,8 +3,8 @@
 use std::fmt;
 
 use neocogi_idl::{
-    AbiType, Callable, Declaration, DeclarationKind, EnumNames, EnumRepr, Interface, InterfaceRole, Method, NamedType, Receiver, ResolvedDeclaration,
-    ResolvedModule, ResolvedModules, Threading, VariantFields,
+    AbiType, Callable, Declaration, DeclarationKind, EnumNames, EnumRepr, InterfaceRole, NamedType, Receiver, ResolvedDeclaration, ResolvedModule,
+    ResolvedModules, Threading, VariantFields,
 };
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote;
@@ -51,7 +51,7 @@ pub fn generate_rust(graph: &ResolvedModules, module_name: &str) -> Result<Strin
         .source
         .declarations
         .iter()
-        .any(|item| item.message || matches!(&item.kind, DeclarationKind::Interface(interface) if interface.role == InterfaceRole::Port))
+        .any(|item| item.message)
         .then(|| quote! { extern crate alloc; });
     let event_binding_check = module.source.declarations.iter().any(uses_event_support).then(|| {
         let version = Literal::u32_unsuffixed(EVENT_BINDING_API_VERSION);
@@ -107,9 +107,7 @@ fn uses_event_support(declaration: &Declaration) -> bool {
         return true;
     }
     match &declaration.kind {
-        DeclarationKind::Interface(interface) => {
-            interface.role == InterfaceRole::Port || interface.callables.iter().any(|callable| matches!(callable, Callable::Port(_)))
-        }
+        DeclarationKind::Interface(interface) => interface.callables.iter().any(|callable| matches!(callable, Callable::Port(_))),
         DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) => false,
     }
 }
@@ -170,7 +168,7 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
         }
         DeclarationKind::Enum(enumeration) => {
             let repr = enum_repr(enumeration.repr);
-            let has_payload = enum_has_payload(enumeration);
+            let has_payload = enum_has_payload(enumeration) || module.source.declarations[source_index].message;
             let value_names = enumeration
                 .variants
                 .iter()
@@ -282,19 +280,6 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
             format_macro_enum("com_bit_enum", "bitenum", declaration_docs, &name, &repr, &flags)
         }
         DeclarationKind::Interface(interface) => {
-            if interface.role == InterfaceRole::Port {
-                return generate_port_protocol(
-                    graph,
-                    module,
-                    declaration,
-                    interface,
-                    &declaration_docs,
-                    &name,
-                    &id,
-                    &qualified_name,
-                    &assigned_signature,
-                );
-            }
             let bases = bases(graph, module, &interface.bases)?;
             let methods = callable_methods(graph, module, &declaration.name, &interface.callables)?;
             let threading = threading_ident(interface.threading);
@@ -313,252 +298,6 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
                 #(#ports)*
             })
         }
-    }
-}
-
-/// Emits a protocol's receiver ABI, owned messages, and concrete delivery adapter.
-/// Only declared protocols and their bindings require COM event support; no Rust
-/// callback representation crosses a plugin boundary.
-fn generate_port_protocol(
-    graph: &ResolvedModules,
-    module: &ResolvedModule,
-    declaration: &Declaration,
-    protocol: &Interface,
-    declaration_docs: &TokenStream,
-    name: &Ident,
-    id: &Literal,
-    qualified_name: &Literal,
-    assigned_signature: &Literal,
-) -> Result<String, GenerateError> {
-    let sink_methods = callable_methods(graph, module, &declaration.name, &protocol.callables)?;
-    let deliveries = protocol.methods().collect::<Vec<_>>();
-    let payload_name = port_message_name(&declaration.name)?;
-    let adapter_name = rust_ident(&format!("{}Adapter", declaration.name))?;
-    let sink_abi_name = rust_ident(&format!("{}Abi", declaration.name))?;
-    let adapter_factory = rust_ident(&format!("create_{}_sink", snake_case(&declaration.name)))?;
-
-    let mut variants = Vec::with_capacity(deliveries.len());
-    let mut producer_arms = Vec::with_capacity(deliveries.len());
-    let mut adapter_methods = Vec::with_capacity(deliveries.len());
-    let single = deliveries.len() == 1;
-    let mut single_fields = Vec::new();
-    for delivery in &deliveries {
-        let variant = rust_ident(&upper_camel_case(&delivery.name))?;
-        let method_name = rust_ident(&delivery.name)?;
-        let method_docs = docs(&delivery.docs);
-        let mut fields = Vec::with_capacity(delivery.parameters.len());
-        let mut bindings = Vec::with_capacity(delivery.parameters.len());
-        let mut encoded = Vec::with_capacity(delivery.parameters.len());
-        let mut parameters = Vec::with_capacity(delivery.parameters.len());
-        let mut decoded = Vec::with_capacity(delivery.parameters.len());
-        for parameter in &delivery.parameters {
-            let field = rust_ident(&parameter.name)?;
-            let owned = event_owned_type(graph, module, &parameter.ty)?;
-            let input = parameter_type(graph, module, &parameter.ty)?;
-            let encode = event_encode(graph, module, &parameter.ty, &field)?;
-            let decode = event_decode(graph, module, &parameter.ty, &field)?;
-            let field_doc = Literal::string(&format!(" Captured {} value copied at the event boundary.", parameter.name));
-            fields.push(quote! { #[doc = #field_doc] #field: #owned, });
-            if single {
-                single_fields.push(quote! { #[doc = #field_doc] pub #field: #owned, });
-            }
-            bindings.push(field.clone());
-            encoded.push(encode);
-            parameters.push(quote! { #field: #input });
-            decoded.push(quote! { #field: #decode });
-        }
-        let variant_doc = Literal::string(&format!(" Immutable {} event snapshot.", delivery.name));
-        if fields.is_empty() {
-            let captured = if single {
-                quote! { #payload_name }
-            } else {
-                quote! { #payload_name::#variant }
-            };
-            variants.push(quote! { #[doc = #variant_doc] #variant, });
-            producer_arms.push(if single {
-                quote! { Self => sink.#method_name() }
-            } else {
-                quote! { Self::#variant => sink.#method_name() }
-            });
-            adapter_methods.push(quote! {
-                #method_docs fn #method_name(&mut self) -> Result<(), ::neocogi_com::NcStatus> {
-                    let event = #captured;
-                    if let Some(validate) = self.validate { validate(&event)?; }
-                    self.sender.post((self.map)(event))
-                }
-            });
-        } else {
-            let captured = if single {
-                quote! { #payload_name }
-            } else {
-                quote! { #payload_name::#variant }
-            };
-            variants.push(quote! { #[doc = #variant_doc] #variant { #(#fields)* }, });
-            producer_arms.push(if single {
-                quote! { Self { #(#bindings),* } => sink.#method_name(#(#encoded),*) }
-            } else {
-                quote! { Self::#variant { #(#bindings),* } => sink.#method_name(#(#encoded),*) }
-            });
-            adapter_methods.push(quote! {
-                #method_docs fn #method_name(&mut self, #(#parameters),*) -> Result<(), ::neocogi_com::NcStatus> {
-                    let event = #captured { #(#decoded),* };
-                    if let Some(validate) = self.validate { validate(&event)?; }
-                    self.sender.post((self.map)(event))
-                }
-            });
-        }
-    }
-
-    let payload_declaration = if single {
-        let can_derive = deliveries[0].parameters.iter().all(|parameter| {
-            !matches!(&parameter.ty, AbiType::Borrowed(referent) if !matches!(referent.as_ref(), AbiType::Named(name) if name.segments.as_slice() == ["str"]))
-        });
-        let derives = can_derive.then(|| quote! { #[derive(Clone, Debug, PartialEq)] });
-        if single_fields.is_empty() {
-            quote! {
-                #derives
-                /// One captured unit event with no invented sentinel payload.
-                pub struct #payload_name;
-            }
-        } else {
-            quote! {
-                #derives
-                /// One owned native event snapshot generated from its NCIDL delivery.
-                pub struct #payload_name { #(#single_fields)* }
-            }
-        }
-    } else {
-        quote! {
-            /// Owned native sum of the distinct NCIDL delivery facts.
-            pub enum #payload_name { #(#variants)* }
-        }
-    };
-
-    format_rust(quote! {
-        #[::neocogi_com::com_interface(
-            assigned_guid = #id,
-            name = #qualified_name,
-            assigned_signature = #assigned_signature
-        )]
-        #declaration_docs
-        pub trait #name { #(#sink_methods)* }
-
-        #payload_declaration
-
-        impl ::neocogi_com_events::EventPayload for #payload_name {
-            type Sink = #sink_abi_name;
-
-            /// Creates a receiver that posts directly into a concrete consumer inbox.
-            fn receiver<Message: 'static, Map: FnMut(Self) -> Message + 'static>(
-                sender: ::neocogi_com_events::EventSender<Message>, map: Map,
-            ) -> Result<::neocogi_com::ComPtr<Self::Sink>, ::neocogi_com::NcStatus> {
-                #adapter_factory(sender, map, None)
-            }
-
-            /// Replays the captured snapshot through its one generated sink interface.
-            fn deliver(&self, mut sink: ::neocogi_com::ComRef<'_, Self::Sink>) -> Result<(), ::neocogi_com::NcStatus> {
-                match self { #(#producer_arms),* }
-            }
-        }
-
-        #[::neocogi_com::com_object(interfaces(#name))]
-        /// Concrete local protocol-to-message mapper; no application state is retained.
-        struct #adapter_name<Message: 'static, Map: FnMut(#payload_name) -> Message + 'static> {
-            /// Weak typed posting access; the consumer owns its sole FIFO.
-            sender: ::neocogi_com_events::EventSender<Message>,
-            /// Concrete translation callable, exclusively borrowed by the receiver method.
-            map: Map,
-            /// Concrete semantic check runs after decoding but before message translation.
-            validate: Option<fn(&#payload_name) -> Result<(), ::neocogi_com::NcStatus>>,
-        }
-
-        impl<Message: 'static, Map: FnMut(#payload_name) -> Message + 'static> #name for #adapter_name<Message, Map> {
-            #(#adapter_methods)*
-        }
-
-        /// Creates a typed sink for a native source or generated port, with an optional domain check.
-        /// Validation follows ABI decoding and precedes message translation.
-        pub fn #adapter_factory<Message: 'static, Map: FnMut(#payload_name) -> Message + 'static>(
-            sender: ::neocogi_com_events::EventSender<Message>,
-            map: Map,
-            validate: Option<fn(&#payload_name) -> Result<(), ::neocogi_com::NcStatus>>,
-        ) -> Result<::neocogi_com::ComPtr<#sink_abi_name>, ::neocogi_com::NcStatus> {
-            #adapter_name::from_value(#adapter_name { sender, map, validate }).query()
-        }
-    })
-}
-
-/// Derives message names from protocol names, replacing a conventional `Port` suffix.
-/// A protocol without that suffix still gets the explicit `Message` suffix.
-fn port_message_name(protocol: &str) -> Result<Ident, GenerateError> {
-    rust_ident(&format!("{}Message", protocol.strip_suffix("Port").unwrap_or(protocol)))
-}
-
-/// Selects owned native snapshot storage for one event-delivery input type.
-fn event_owned_type(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
-    match ty {
-        AbiType::Scalar(_) | AbiType::Array { .. } => value_type(graph, module, ty),
-        AbiType::Named(name) => {
-            let resolved = resolve(graph, module, name)?;
-            named_rust_type(module, resolved, false)
-        }
-        AbiType::Borrowed(referent) => match referent.as_ref() {
-            AbiType::Named(name) if name.segments.as_slice() == ["str"] => Ok(quote! { ::alloc::string::String }),
-            AbiType::Named(name) => object_reference_type(graph, module, name, true),
-            _ => Err(GenerateError::new("event borrow cannot be captured as an owned snapshot")),
-        },
-        AbiType::Slice(element) => {
-            let element = value_type(graph, module, element)?;
-            Ok(quote! { ::alloc::vec::Vec<#element> })
-        }
-        AbiType::OutputSlice(_) | AbiType::Option(_) | AbiType::Unit | AbiType::String => {
-            Err(GenerateError::new("event input has no owned snapshot representation"))
-        }
-    }
-}
-
-/// Encodes one borrowed native payload field into its concrete sink call.
-fn event_encode(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType, field: &Ident) -> Result<TokenStream, GenerateError> {
-    match ty {
-        AbiType::Scalar(_) | AbiType::Array { .. } => Ok(quote! { *#field }),
-        AbiType::Named(name) => {
-            let resolved = resolve(graph, module, name)?;
-            if matches!(&resolved.declaration.kind, DeclarationKind::Enum(value) if enum_has_payload(value)) {
-                Ok(quote! { (*#field).into() })
-            } else {
-                Ok(quote! { *#field })
-            }
-        }
-        AbiType::Borrowed(referent) => match referent.as_ref() {
-            AbiType::Named(name) if name.segments.as_slice() == ["str"] => Ok(quote! { ::neocogi_com::NcCopyFromBufferOffset::new(0, #field.as_bytes()) }),
-            AbiType::Named(_) => Ok(quote! { #field.as_com_ref() }),
-            _ => Err(GenerateError::new("event borrow has no sink encoding")),
-        },
-        AbiType::Slice(_) => Ok(quote! { ::neocogi_com::NcCopyFromBufferOffset::new(0, #field.as_slice()) }),
-        _ => Err(GenerateError::new("event input has no sink encoding")),
-    }
-}
-
-/// Copies or validates one foreign sink argument before calling application code.
-fn event_decode(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType, field: &Ident) -> Result<TokenStream, GenerateError> {
-    match ty {
-        AbiType::Scalar(_) | AbiType::Array { .. } => Ok(quote! { #field }),
-        AbiType::Named(name) => {
-            let resolved = resolve(graph, module, name)?;
-            if matches!(&resolved.declaration.kind, DeclarationKind::Enum(value) if enum_has_payload(value)) {
-                let value = named_rust_type(module, resolved, false)?;
-                Ok(quote! { #value::try_from(#field).map_err(|_| ::neocogi_com::NC_E_INVALID_ARG)? })
-            } else {
-                Ok(quote! { #field })
-            }
-        }
-        AbiType::Borrowed(referent) => match referent.as_ref() {
-            AbiType::Named(name) if name.segments.as_slice() == ["str"] => Ok(quote! { ::neocogi_com_events::copy_text(#field)? }),
-            AbiType::Named(_) => Ok(quote! { #field.add_ref() }),
-            _ => Err(GenerateError::new("event borrow has no owned decoding")),
-        },
-        AbiType::Slice(_) => Ok(quote! { ::neocogi_com_events::copy_slice(#field)? }),
-        _ => Err(GenerateError::new("event input has no owned decoding")),
     }
 }
 
@@ -669,64 +408,52 @@ fn bases(graph: &ResolvedModules, module: &ResolvedModule, values: &[NamedType])
     Ok(quote! { : #(#values)+* })
 }
 
-/// Generates callable methods with explicit `NcStatus` error types.
-fn methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[Method]) -> Result<Vec<TokenStream>, GenerateError> {
+/// Emits ordinary methods and named output getters in their normative vtable order.
+fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, owner: &str, values: &[Callable]) -> Result<Vec<TokenStream>, GenerateError> {
     values
         .iter()
-        .map(|method| {
-            let docs = docs(&method.docs);
-            let name = rust_ident(&method.name)?;
-            let receiver = match method.receiver {
-                Receiver::Shared => quote! { &self },
-                Receiver::Mutable => quote! { &mut self },
-            };
-            let parameters = method
-                .parameters
-                .iter()
-                .map(|parameter| {
-                    let name = rust_ident(&parameter.name)?;
-                    let ty = parameter_type(graph, module, &parameter.ty)?;
-                    Ok(quote! { #name: #ty })
-                })
-                .collect::<Result<Vec<_>, GenerateError>>()?;
-            let output = output_type(graph, module, &method.output)?;
-            Ok(quote! {
-                #docs fn #name(#receiver, #(#parameters),*) -> Result<#output, ::neocogi_com::NcStatus>;
+        .map(|callable| {
+            Ok(match callable {
+                Callable::Method(method) => {
+                    let docs = docs(&method.docs);
+                    let name = rust_ident(&method.name)?;
+                    let receiver = match method.receiver {
+                        Receiver::Shared => quote! { &self },
+                        Receiver::Mutable => quote! { &mut self },
+                    };
+                    let parameters = method
+                        .parameters
+                        .iter()
+                        .map(|parameter| {
+                            let name = rust_ident(&parameter.name)?;
+                            let ty = parameter_type(graph, module, &parameter.ty)?;
+                            Ok(quote! { #name: #ty })
+                        })
+                        .collect::<Result<Vec<_>, GenerateError>>()?;
+                    let output = output_type(graph, module, &method.output)?;
+                    quote! {
+                        #docs fn #name(#receiver, #(#parameters),*) -> Result<#output, ::neocogi_com::NcStatus>;
+                    }
+                }
+                Callable::Port(port) => {
+                    let resolved = resolve(graph, module, &port.message)?;
+                    let key = rust_ident(&format!("__{owner}{}PortKey", upper_camel_case(&port.name)))?;
+                    let getter = rust_ident(&port.getter_name())?;
+                    let abi = message::connection_type(module, resolved)?;
+                    let docs = docs(&port.docs);
+                    quote! {
+                        #docs #[doc(hidden)] #[com_port(#key)]
+                        fn #getter(&self) -> Result<::neocogi_com::ComPtr<#abi>, ::neocogi_com::NcStatus>;
+                    }
+                }
             })
         })
         .collect()
 }
 
-/// Emits ordinary methods and named port connections in their normative order.
-fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, owner: &str, values: &[Callable]) -> Result<Vec<TokenStream>, GenerateError> {
-    let mut generated = Vec::with_capacity(values.len());
-    for callable in values {
-        if let Callable::Port(port) = callable {
-            let resolved = resolve(graph, module, &port.protocol)?;
-            if resolved.declaration.message {
-                let key = rust_ident(&format!("__{owner}{}PortKey", upper_camel_case(&port.name)))?;
-                let getter = rust_ident(&format!("__port_{}", port.name))?;
-                let abi = message::connection_type(module, resolved)?;
-                let docs = docs(&port.docs);
-                generated.push(quote! {
-                    #docs #[doc(hidden)] #[com_port(#key)]
-                    fn #getter(&self) -> Result<::neocogi_com::ComPtr<#abi>, ::neocogi_com::NcStatus>;
-                });
-                continue;
-            }
-        }
-        let method = match callable {
-            Callable::Method(method) => std::borrow::Cow::Borrowed(method),
-            Callable::Port(port) => std::borrow::Cow::Owned(port.signature()),
-        };
-        generated.extend(methods(graph, module, std::slice::from_ref(method.as_ref()))?);
-    }
-    Ok(generated)
-}
-
 /// Generates typed accessor methods on owned and borrowed source projections.
-/// Each accessor constructs its port directly; only mapping setup calls the source.
-/// The source's threading capability is preserved without querying or weakening it.
+/// Each getter obtains the weak connection projection without subscribing.
+/// Mapping later installs a receiver in that exact producer-owned port.
 fn port_bindings(
     graph: &ResolvedModules,
     module: &ResolvedModule,
@@ -746,102 +473,30 @@ fn port_bindings(
     let mut borrowed_accessors = Vec::new();
     for callable in values {
         let Callable::Port(port) = callable else { continue };
-        let sink = resolve(graph, module, &port.protocol)?;
-        if sink.declaration.message {
-            let message = named_rust_type(module, sink, false)?;
-            let key = rust_ident(&format!("__{}{}PortKey", source.name, upper_camel_case(&port.name)))?;
-            let getter = rust_ident(&format!("__port_{}", port.name))?;
-            let accessor = rust_ident(&port.name)?;
-            let docs = docs(&port.docs);
-            ports.push(quote! {
-                #[doc(hidden)]
-                /// Compile-time identity of one declared output field, without runtime storage.
-                pub struct #key;
-                impl ::neocogi_com_events::PortKey for #key { type Event = #message; }
-            });
-            accessors.push(quote! { #docs fn #accessor(&self) -> ::neocogi_com_events::PortRef<#message>; });
-            let body = quote! {
-                #docs fn #accessor(&self) -> ::neocogi_com_events::PortRef<#message> {
-                    ::neocogi_com_events::PortRef::from_result(self.#getter())
-                }
-            };
-            owned_accessors.push(body.clone());
-            borrowed_accessors.push(body);
-            continue;
-        }
-
-        let payload = port_message_name(&sink.declaration.name)?;
-        let factory = rust_ident(&format!("create_{}_sink", snake_case(&sink.declaration.name)))?;
-        let prefix = if sink.module.source.name == module.source.name {
-            quote! {}
-        } else {
-            let crate_name = contract_crate_ident(&sink.module.source.name.to_string())?;
-            quote! { ::#crate_name:: }
-        };
-        let payload = quote! { #prefix #payload };
-        let operation = port.subscription_name();
-        let port_name = rust_ident(&operation)?;
+        let output = resolve(graph, module, &port.message)?;
+        let message = named_rust_type(module, output, false)?;
+        let key = rust_ident(&format!("__{}{}PortKey", source.name, upper_camel_case(&port.name)))?;
+        let getter = rust_ident(&port.getter_name())?;
         let accessor = rust_ident(&port.name)?;
-        let suffix = upper_camel_case(&port.name);
-        let port_type = rust_ident(&format!("{}{suffix}Port", source.name))?;
-        let port_docs = docs(&port.docs);
+        let docs = docs(&port.docs);
         ports.push(quote! {
-            #port_docs
-            /// Typed subscription input; neither this value nor its source is retained after setup.
-            pub struct #port_type<M: ::neocogi_com::ThreadingModel = #mode> {
-                /// Exact source projection retained only until connection finishes.
-                source: ::neocogi_com::ComPtr<#source_abi, M>,
-                /// Semantic validation runs after decoding and before message translation.
-                validate: Option<fn(&#payload) -> Result<(), ::neocogi_com::NcStatus>>,
-            }
-
-            impl<M: ::neocogi_com::ThreadingModel> #port_type<M> {
-                /// Selects this port's domain check without capturing application state.
-                pub fn checked(mut self, validate: fn(&#payload) -> Result<(), ::neocogi_com::NcStatus>) -> Self {
-                    self.validate = Some(validate);
-                    self
-                }
-            }
-
-            impl<M: ::neocogi_com::ThreadingModel> ::neocogi_com_events::EventPort for #port_type<M> {
-                type Event = #payload;
-
-                /// Connects exactly one generated sink while the consumer owns registration exclusively.
-                fn connect<Message: 'static, Map: FnMut(Self::Event) -> Message + 'static>(
-                    self,
-                    sender: ::neocogi_com_events::EventSender<Message>,
-                    map: Map,
-                ) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus> {
-                    let sink = #prefix #factory(sender, map, self.validate)?;
-                    // Connection installs a weak receiver link without mutating the source object.
-                    let source = self.source;
-                    source.#port_name(sink.as_com_ref())
-                }
-            }
+            #[doc(hidden)]
+            /// Compile-time identity of one declared output field, without runtime storage.
+            pub struct #key;
+            impl ::neocogi_com_events::PortKey for #key { type Event = #message; }
         });
-        accessors.push(quote! {
-            #port_docs
-            /// Builds a typed port without connecting a sink or querying another interface.
-            fn #accessor(&self) -> #port_type<M>;
-        });
-        owned_accessors.push(quote! {
-            #port_docs
-            /// Retains this exact source projection until synchronous subscription completes.
-            fn #accessor(&self) -> #port_type<M> {
-                #port_type { source: self.clone(), validate: None }
+        accessors.push(quote! { #docs fn #accessor(&self) -> ::neocogi_com_events::PortRef<#message>; });
+        let body = quote! {
+            #docs fn #accessor(&self) -> ::neocogi_com_events::PortRef<#message> {
+                ::neocogi_com_events::PortRef::from_result(self.#getter())
             }
-        });
-        borrowed_accessors.push(quote! {
-            #port_docs
-            /// Acquires one source reference so the port can outlive this temporary borrow.
-            fn #accessor(&self) -> #port_type<M> {
-                #port_type { source: self.add_ref(), validate: None }
-            }
-        });
+        };
+        owned_accessors.push(body.clone());
+        borrowed_accessors.push(body);
     }
     if !ports.is_empty() {
         ports.push(quote! {
-            /// Typed stream accessors; each returned port owns only setup-time source access.
+            /// Typed output access; each returned projection is weak to the actual producer.
             pub trait #extension<M: ::neocogi_com::ThreadingModel = #mode> {
                 #(#accessors)*
             }
@@ -987,7 +642,7 @@ fn named_rust_type(module: &ResolvedModule, resolved: ResolvedDeclaration<'_>, a
 fn declaration_has_abi_wrapper(declaration: &Declaration) -> bool {
     match &declaration.kind {
         DeclarationKind::Struct(_) | DeclarationKind::BitEnum(_) => false,
-        DeclarationKind::Enum(enumeration) => enum_has_payload(enumeration),
+        DeclarationKind::Enum(enumeration) => enum_has_payload(enumeration) || declaration.message,
         DeclarationKind::Interface(_) => true,
     }
 }

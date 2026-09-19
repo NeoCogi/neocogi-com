@@ -140,78 +140,45 @@ fn parses_a_complete_contract_module() {
     assert!(matches!(third.parameters[0].ty, AbiType::OutputSlice(_)));
 }
 
-/// Event families and source ports retain distinct model cases and vtable order.
+/// A message is data; independent named outputs preserve their own interface slots.
 #[test]
-fn parses_port_protocols_and_named_bindings() {
+fn parses_messages_and_named_outputs_in_order() {
     let module = parse_module(
         Path::new("example/events.ncidl"),
         r#"
-            #[version(1)]
-            /// Complete committed editor snapshot.
-            port ChangesPort {
-                /// Called after the producer releases mutation ownership.
-                fn changed(&mut self, text: &str, cursor: u64) -> Result<()>;
-            }
-            #[version(1)]
-            interface IEditor {
-                fn revision(&self) -> Result<u64>;
-                /// Claims only the changed queue.
-                changed: ChangesPort;
-                search: ChangesPort;
-            }
-            #[version(1)] interface ISource { changed: ChangesPort; }
-        "#,
+        #[version(1)] #[message] struct Changed { text: String, cursor: u64 }
+        #[version(1)] interface IEditor {
+            fn revision(&self) -> Result<u64>;
+            changed: Changed;
+            search: Changed;
+        }
+    "#,
     )
     .unwrap();
-    let DeclarationKind::Interface(event) = &module.declaration("ChangesPort").unwrap().kind else {
-        panic!("port protocol must lower to the common interface model")
+    assert!(module.declaration("Changed").unwrap().message);
+    let DeclarationKind::Interface(editor) = &module.declaration("IEditor").unwrap().kind else {
+        panic!("interface")
     };
-    assert_eq!(event.methods().count(), 1);
-    assert_eq!(event.methods().next().unwrap().name, "changed");
-    assert!(matches!(event.methods().next().unwrap().parameters[0].ty, AbiType::Borrowed(_)));
-    let DeclarationKind::Interface(source) = &module.declaration("IEditor").unwrap().kind else {
-        panic!("source must remain an interface")
-    };
-    assert!(matches!(source.callables[0], Callable::Method(_)));
-    let Callable::Port(port) = &source.callables[1] else {
-        panic!("named binding must retain its port kind")
-    };
-    assert_eq!(port.name, "changed");
-    assert_eq!(port.signature().receiver, Receiver::Shared);
-    assert_eq!(port.protocol.rust_path(), "ChangesPort");
-    assert_eq!(port.signature().parameters[0].name, "sink");
-    assert_eq!(port.signature().name, "subscribe_changed");
-    let Callable::Port(search) = &source.callables[2] else {
-        panic!("second stream must remain a separate port")
-    };
-    assert_eq!(search.signature().name, "subscribe_search");
-    assert_eq!(search.protocol.segments, port.protocol.segments);
-    let DeclarationKind::Interface(single) = &module.declaration("ISource").unwrap().kind else {
-        panic!("single source")
-    };
-    let Callable::Port(single) = &single.callables[0] else {
-        panic!("named port binding")
-    };
-    assert_eq!(single.name, "changed");
-    assert_eq!(single.signature().name, "subscribe_changed");
+    assert!(matches!(editor.callables[0], Callable::Method(_)));
+    let Callable::Port(changed) = &editor.callables[1] else { panic!("output") };
+    let Callable::Port(search) = &editor.callables[2] else { panic!("output") };
+    assert_eq!(changed.message.rust_path(), "Changed");
+    assert_eq!(search.message.segments, changed.message.segments);
+    assert_ne!(changed.getter_name(), search.getter_name());
 }
 
-/// Rejects invalid delivery contracts and ambiguous or obsolete port declarations.
+/// Obsolete protocol syntax and accessor/getter collisions receive parser diagnostics.
 #[test]
-fn rejects_invalid_protocols_and_obsolete_binding_syntax() {
+fn rejects_obsolete_protocols_and_ambiguous_outputs() {
     for source in [
-        "#[version(1)] port IEmpty {}",
-        "#[version(1)] port IDerived: IBase { fn changed(&mut self) -> Result<()>; }",
-        "#[version(1)] #[threading(shared)] port IShared { fn changed(&mut self) -> Result<()>; }",
-        "#[version(1)] port IShared { fn changed(&self) -> Result<()>; }",
-        "#[version(1)] port IValue { fn changed(&mut self) -> Result<u64>; }",
-        "#[version(1)] port ISink { nested: ISink; }",
-        "#[version(1)] interface ISource { changed: ISink; changed: ISink; }",
-        "#[version(1)] interface ISource { fn changed(&self) -> Result<()>; changed: ISink; }",
-        "#[version(1)] interface ISource { changed: ISink; fn subscribe_changed(&self) -> Result<()>; }",
-        "#[version(1)] interface ISource { port changed: ISink; }",
-        "#[version(1)] interface ISource { event subscribe(&self): ISink; }",
-        "#[version(1)] event ISink { fn changed(&mut self) -> Result<()>; }",
+        "#[version(1)] port Changes { fn changed(&mut self) -> Result<()>; }",
+        "#[version(1)] interface ISource { changed: Changed; changed: Changed; }",
+        "#[version(1)] interface ISource { fn changed(&self) -> Result<()>; changed: Changed; }",
+        "#[version(1)] interface ISource { changed: Changed; fn __port_changed(&self) -> Result<()>; }",
+        "#[version(1)] interface ISource { port changed: Changed; }",
+        "#[version(1)] interface ISource { event subscribe(&self): Changed; }",
+        "#[version(1)] #[message] interface Wrong {}",
+        "#[version(1)] #[message] #[message] struct Wrong { value: u32 }",
     ] {
         assert!(parse_module(Path::new("example/events.ncidl"), source).is_err(), "{source}");
     }
