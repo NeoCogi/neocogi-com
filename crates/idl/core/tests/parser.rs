@@ -164,7 +164,7 @@ fn parses_messages_and_named_outputs_in_order() {
     let Callable::Port(search) = &editor.callables[2] else { panic!("output") };
     assert_eq!(changed.message.rust_path(), "Changed");
     assert_eq!(search.message.segments, changed.message.segments);
-    assert_ne!(changed.getter_name(), search.getter_name());
+    assert_ne!(changed.setter_name(), search.setter_name());
 }
 
 /// Obsolete protocol syntax and accessor/getter collisions receive parser diagnostics.
@@ -174,7 +174,7 @@ fn rejects_obsolete_protocols_and_ambiguous_outputs() {
         "#[version(1)] port Changes { fn changed(&mut self) -> Result<()>; }",
         "#[version(1)] interface ISource { changed: Changed; changed: Changed; }",
         "#[version(1)] interface ISource { fn changed(&self) -> Result<()>; changed: Changed; }",
-        "#[version(1)] interface ISource { changed: Changed; fn __port_changed(&self) -> Result<()>; }",
+        "#[version(1)] interface ISource { changed: Changed; fn __map_changed(&self) -> Result<()>; }",
         "#[version(1)] interface ISource { port changed: Changed; }",
         "#[version(1)] interface ISource { event subscribe(&self): Changed; }",
         "#[version(1)] #[message] interface Wrong {}",

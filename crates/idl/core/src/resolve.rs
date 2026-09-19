@@ -1320,8 +1320,9 @@ fn encode_callable(
                 method
             }
             Callable::Port(port) => {
-                // Data identity and field name define the generated connection getter.
-                encoder.tag(2);
+                // A direct mutable receiver setter has a different wire shape from
+                // the removed connection getter, even at the same pre-alpha version.
+                encoder.tag(3);
                 encoder.text(&port.name, &entries[index].name)?;
                 encode_named(index, &port.message, entries, encoder)?;
                 continue;

@@ -26,10 +26,10 @@ fn imported_message_outputs_check_transport_support() {
     let graph = resolve_modules(vec![message, source, transport]).unwrap();
     let generated = neocogi_idl_build::generate_rust(&graph, "example.source").unwrap();
     syn::parse_file(&generated).expect("imported message bindings parse");
-    assert!(generated.contains("EVENT_BINDING_API_VERSION == 5"));
+    assert!(generated.contains("EVENT_BINDING_API_VERSION == 6"));
     assert!(generated.contains("fn first("));
     assert!(generated.contains("fn second("));
-    assert!(generated.contains("example_messages_contracts::__ChangedPortAbi"));
+    assert!(generated.contains("example_messages_contracts::__ChangedReceiverAbi"));
     let baseline = neocogi_idl_build::generate_rust(&graph, "neocogi.com.events").unwrap();
     assert!(!baseline.contains("EVENT_BINDING_API_VERSION"));
     assert!(!baseline.contains("__nc_get_contract_module_description"));

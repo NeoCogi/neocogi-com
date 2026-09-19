@@ -249,23 +249,23 @@ impl Callable {
     }
 }
 
-/// One named connection point whose message is a marked struct or enum.
+/// One named output whose message is a marked struct or enum.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PortBinding {
-    /// Port method identifier and source of subscription diagnostics.
+    /// Output identifier and source of mapping diagnostics.
     pub span: SourceSpan,
-    /// Documentation lines for the generated source method.
+    /// Documentation lines for the generated output accessor.
     pub docs: Vec<String>,
-    /// Explicit stream name used for the native accessor and connection operation.
+    /// Explicit stream name used for the native accessor and receiver installation operation.
     pub name: String,
     /// Concrete message delivered by this output; ordinary interfaces are rejected.
     pub message: NamedType,
 }
 
 impl PortBinding {
-    /// Reserved ABI getter used by the compiler; callers use the named accessor.
-    pub fn getter_name(&self) -> String {
-        format!("__port_{}", self.name)
+    /// Reserved ABI destination setter used by the compiler; callers use the named accessor.
+    pub fn setter_name(&self) -> String {
+        format!("__map_{}", self.name)
     }
 }
 

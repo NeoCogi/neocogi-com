@@ -69,39 +69,6 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
             type Threading = #declared_threading_model;
         }
     };
-    // One compile-time field association replaces every handwritten COM
-    // subscription forwarding method. Domain guards may live in a block expression.
-    let port_fields = args.ports.iter().map(|(selector, expression)| {
-        let mut key = selector.clone();
-        let member = key.segments.pop().expect("port selector includes a field").into_value();
-        key.segments.pop_punct();
-        let owner = key.segments.last_mut().expect("port selector includes an interface");
-        let suffix = member
-            .ident
-            .to_string()
-            .split('_')
-            .map(|part| {
-                let mut chars = part.chars();
-                chars
-                    .next()
-                    .map(|first| first.to_uppercase().collect::<String>() + chars.as_str())
-                    .unwrap_or_default()
-            })
-            .collect::<String>();
-        owner.ident = format_ident!("__{}{}PortKey", owner.ident, suffix);
-        let body = match expression {
-            syn::Expr::Block(_) => quote! { #expression },
-            _ => quote! { Ok(#expression) },
-        };
-        quote! {
-            impl #impl_generics ::neocogi_com_events::PortField<#key> for #object_type #where_clause {
-                /// Obtains this output's connection access from its actual owner.
-                fn port(&self) -> Result<::neocogi_com_events::PortRef<<#key as ::neocogi_com_events::PortKey>::Event>, #nc::NcStatus> {
-                    #body
-                }
-            }
-        }
-    });
     let is_unit_struct = matches!(input.fields, Fields::Unit);
     // Query order and exported metadata use the same derived-first ancestry.
     // Shared bases are advertised once even when several branches expose them.
@@ -239,7 +206,6 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
     });
     quote! {
         #input
-        #(#port_fields)*
 
         // Storage order is private but still uses `repr(C)` to keep pointer
         // arithmetic and field addresses predictable for generated ABI thunks.

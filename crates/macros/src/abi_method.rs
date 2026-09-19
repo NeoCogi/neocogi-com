@@ -46,12 +46,6 @@ fn parse_abi_method(method: &TraitItemFn, nc: &syn::Path) -> Result<AbiMethod> {
 
     Ok(AbiMethod {
         ident: method.sig.ident.clone(),
-        port: method
-            .attrs
-            .iter()
-            .find(|attribute| attribute.path().is_ident("com_port"))
-            .map(|attribute| attribute.parse_args())
-            .transpose()?,
         doc_attrs: method_doc_attrs(&method.attrs),
         receiver,
         args,

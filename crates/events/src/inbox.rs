@@ -6,16 +6,14 @@ use std::{
     rc::{Rc, Weak},
 };
 use neocogi_com::{ComPtr, NcStatus};
-use crate::{PortMessage, PortRef, IEventSubscriptionAbi, EVENT_E_CLOSED, EVENT_E_LIMIT};
+use crate::{EVENT_E_CLOSED, EVENT_E_LIMIT};
 
-/// One consumer's FIFO and connections; application state stays in its ordinary owner.
+/// One consumer's FIFO; application state stays in its ordinary owner.
 /// Mappers run at emission time and should only translate messages or attach routing IDs.
 /// Behavior runs later, when the runtime invokes the consumer at a safe update boundary.
 pub struct Events<Message> {
     /// Receivers share only this short enqueue boundary, never the consumer's mutable state.
     pending: Rc<RefCell<VecDeque<Message>>>,
-    /// Retaining leases keeps mappings connected even if the caller drops its returned handle.
-    connections: Vec<ComPtr<IEventSubscriptionAbi>>,
 }
 
 impl<Message> Events<Message> {
@@ -23,7 +21,6 @@ impl<Message> Events<Message> {
     pub fn new() -> Self {
         Self {
             pending: Rc::new(RefCell::new(VecDeque::new())),
-            connections: Vec::new(),
         }
     }
     /// Returns non-owning posting access; retaining it cannot retain the consumer.
@@ -42,14 +39,6 @@ impl<Message> Events<Message> {
     pub fn pop(&mut self) -> Option<Message> {
         self.pending.borrow_mut().pop_front()
     }
-    /// Disconnects future posts without retracting facts already committed to this inbox.
-    pub fn cancel(&mut self) -> Result<(), NcStatus> {
-        for connection in &self.connections {
-            connection.cancel()?;
-        }
-        self.connections.clear();
-        Ok(())
-    }
     /// Consumes a bounded prefix for a framework dispatch boundary.
     /// New messages wait for the next visit. An error consumes only the attempted message.
     #[doc(hidden)]
@@ -67,26 +56,23 @@ impl<Message> Events<Message> {
     }
 }
 impl<Message: 'static> Events<Message> {
-    /// Connects a typed protocol to this inbox without capturing application state.
-    pub fn map<Event: PortMessage>(
+    /// Installs or replaces an output's destination. Already queued messages are unchanged.
+    /// The local callback is concretely typed; only its generated receiver crosses COM.
+    pub fn map<Event: 'static>(
         &mut self,
-        port: PortRef<Event>,
-        map: impl FnMut(Event) -> Message + 'static,
-    ) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus> {
-        // Prune disconnected receivers during setup; there is no dispatch registry to sweep.
-        let mut index = 0;
-        while index < self.connections.len() {
-            match self.connections[index].active()? {
-                true => index += 1,
-                false => {
-                    self.connections[index].cancel()?;
-                    self.connections.remove(index);
-                }
+        install: impl FnOnce(Box<dyn FnMut(Event) -> Result<(), NcStatus>>) -> Result<(), NcStatus>,
+        mut map: impl FnMut(Event) -> Message + 'static,
+    ) -> Result<(), NcStatus> {
+        let pending = Rc::downgrade(&self.pending);
+        install(Box::new(move |event| {
+            // An abandoned consumer is inert. Do not even evaluate its mapper,
+            // and never keep the queue or application alive from the producer.
+            if let Some(pending) = pending.upgrade() {
+                let message = map(event);
+                pending.borrow_mut().push_back(message);
             }
-        }
-        let connection = port.connect(self.sender(), map)?;
-        self.connections.push(connection.clone());
-        Ok(connection)
+            Ok(())
+        }))
     }
 }
 impl<Message> Default for Events<Message> {
@@ -95,15 +81,6 @@ impl<Message> Default for Events<Message> {
         Self::new()
     }
 }
-impl<Message> Drop for Events<Message> {
-    /// Explicit cancellation also invalidates separately retained lease references.
-    fn drop(&mut self) {
-        for connection in &self.connections {
-            let _ = connection.cancel();
-        }
-    }
-}
-
 /// Typed, non-owning posting access used by generated protocol receivers.
 pub struct EventSender<Message> {
     /// Weak ownership ensures source connections cannot prolong an abandoned inbox.

@@ -3,7 +3,7 @@
 mod message_tests {
     use super::*;
     use neocogi_com::{com_object, ComMessage, ComPtr, NcMessage, NcStatus};
-    use neocogi_com_events::{Events, Port, PortMessage};
+    use neocogi_com_events::{Events};
 
     #[com_object(interfaces(IToken))]
     /// Object lifetime is observable after all producer-side references are dropped.
@@ -13,49 +13,51 @@ mod message_tests {
         fn value(&self) -> Result<u32, NcStatus> { Ok(42) }
     }
 
-    #[com_object(IProducer, ports(completed))]
-    /// A real object binds its output field without any handwritten subscription method.
+    #[com_object(IProducer)]
+    /// A producer owns its destination directly and implements an ordinary setter.
     struct Producer {
-        /// The only producer-side storage is its typed port.
-        completed: Port<Completion>,
+        /// One optional concrete receiver is all the producer-side delivery storage.
+        completed: Option<ComPtr<__CompletionReceiverAbi>>,
     }
-    impl IProducer for Producer {}
+    impl IProducer for Producer {
+        /// Ordinary COM mutation installs the only destination, replacing the old one.
+        fn __map_completed(&mut self, destination: neocogi_com::ComRef<'_, __CompletionReceiverAbi>) -> Result<(), NcStatus> {
+            self.completed = Some(destination.add_ref());
+            // Emit during setup to exercise the actual producer/receiver ABI end to end.
+            Completion::Cancelled.post_to(&mut self.completed)
+        }
+    }
 
-    /// Field binding returns only connection access and preserves its producer lifetime rule.
+    /// Mapping replaces destinations; setup and producer destruction cannot retract queued facts.
     #[test]
-    fn generated_output_binds_the_real_port() {
-        let producer: ComPtr<IProducerAbi> = Producer::from_value(Producer { completed: Port::new() }).query().unwrap();
-        let mut events = Events::new();
-        let first = events.map(producer.completed(), |message| message).unwrap();
+    fn generated_output_installs_a_direct_receiver() {
+        let producer: ComPtr<IProducerAbi> = Producer::from_value(Producer { completed: None }).query().unwrap();
+        let mut first = Events::new();
+        first.map(producer.completed(), |_| 1).unwrap();
         let mut second = Events::new();
-        assert_eq!(second.map(producer.completed(), |message| message).unwrap_err(), neocogi_com_events::EVENT_E_BUSY);
-        first.cancel().unwrap();
-        let replacement = second.map(producer.completed(), |message| message).unwrap();
-        first.cancel().unwrap();
-        assert!(replacement.active().unwrap());
-        let retained = producer.completed();
+        second.map(producer.completed(), |_| 2).unwrap();
         drop(producer);
-        assert!(!replacement.active().unwrap());
-        assert_eq!(events.map(retained, |message| message).unwrap_err(), neocogi_com_events::EVENT_E_CLOSED);
+        assert_eq!(first.pop(), Some(1));
+        assert_eq!(second.pop(), Some(2));
     }
 
     /// Producer release cannot destroy consumer-owned object or text snapshots.
     #[test]
     fn typed_delivery_retains_objects_and_copies_strings() {
-        let source = Port::<Completion>::new();
+        let mut source = None;
         let mut events = Events::new();
-        events.map(source.as_ref(), |message| message).unwrap();
+        events.map(|consume| { source = Some(Completion::__receiver(consume)?); Ok(()) }, |message| message).unwrap();
         let token: ComPtr<ITokenAbi> = Token::from_value(Token).query().unwrap();
-        source.emit(Completion::Accepted { token }).unwrap();
+        Completion::Accepted { token }.post_to(&mut source).unwrap();
         drop(source);
         match events.pop().unwrap() {
             Completion::Accepted { token } => assert_eq!(token.value(), Ok(42)),
             Completion::Cancelled => panic!("wrong case"),
         }
-        let source = Port::<TextChanged>::new();
+        let mut source = None;
         let mut events = Events::new();
-        events.map(source.as_ref(), |message| message).unwrap();
-        source.emit(TextChanged { text: "héllo".into(), cursor: 2 }).unwrap();
+        events.map(|consume| { source = Some(TextChanged::__receiver(consume)?); Ok(()) }, |message| message).unwrap();
+        TextChanged { text: "héllo".into(), cursor: 2 }.post_to(&mut source).unwrap();
         drop(source);
         assert_eq!(events.pop().unwrap().text, "héllo");
     }
@@ -64,15 +66,15 @@ mod message_tests {
     #[test]
     fn unit_messages_and_owned_slices_round_trip() {
         assert_eq!(Notice::try_from(NoticeAbi::from(Notice::Ready)).unwrap(), Notice::Ready);
-        let port = Port::<Notice>::new();
+        let mut port = None;
         let mut events = Events::new();
-        events.map(port.as_ref(), |message| message).unwrap();
-        port.emit(Notice::Done).unwrap();
+        events.map(|consume| { port = Some(Notice::__receiver(consume)?); Ok(()) }, |message| message).unwrap();
+        Notice::Done.post_to(&mut port).unwrap();
         assert_eq!(events.pop(), Some(Notice::Done));
-        let port = Port::<Batch>::new();
+        let mut port = None;
         let mut events = Events::new();
-        events.map(port.as_ref(), |message| message.values).unwrap();
-        port.emit(Batch { values: vec![1, 2, 3] }).unwrap();
+        events.map(|consume| { port = Some(Batch::__receiver(consume)?); Ok(()) }, |message| message.values).unwrap();
+        Batch { values: vec![1, 2, 3] }.post_to(&mut port).unwrap();
         drop(port);
         assert_eq!(events.pop(), Some(vec![1, 2, 3]));
         let value = Batch { values: vec![1] };
@@ -86,7 +88,8 @@ mod message_tests {
     #[test]
     fn malformed_payloads_never_reach_the_mapper() {
         let mut events = Events::new();
-        let mut receiver = NumberChanged::mapping(events.sender(), |message| message, None).unwrap();
+        let sender = events.sender();
+        let mut receiver = NumberChanged::__receiver(Box::new(move |message| sender.post(message))).unwrap();
         let message = NumberChanged { value: 12.5, checked: true };
         receiver.post(NcMessage::new(&message)).unwrap();
         assert_eq!(events.pop().unwrap(), message);
@@ -98,7 +101,8 @@ mod message_tests {
         assert_eq!(receiver.post(unsafe { NcMessage::from_raw(&wire) }.unwrap()), Err(neocogi_com::NC_E_INVALID_ARG));
         assert!(events.is_empty());
         let mut text = Events::new();
-        let mut receiver = TextChanged::mapping(text.sender(), |message| message, None).unwrap();
+        let sender = text.sender();
+        let mut receiver = TextChanged::__receiver(Box::new(move |message| sender.post(message))).unwrap();
         let bad = [0xff];
         let message = TextChanged { text: String::new(), cursor: 0 };
         let mut wire = message.encode();

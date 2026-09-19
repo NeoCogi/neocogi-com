@@ -15,12 +15,6 @@ pub(super) fn generate_message(
     let union = format_ident!("__{name}Payload");
     let receiver = format_ident!("__{name}Receiver");
     let receiver_abi = format_ident!("__{name}ReceiverAbi");
-    let connection = format_ident!("__{name}Port");
-    let connection_abi = format_ident!("__{name}PortAbi");
-    let connection_object = format_ident!("__{name}PortObject");
-    let connection_name = format!("{}.{}.__port", module.source.name, declaration.name);
-    let connection_id = Literal::string(&neocogi_com_core::guid_from_qualified_name(&connection_name).to_string());
-    let connection_name = Literal::string(&connection_name);
     let adapter = format_ident!("__{name}Mapping");
     let declaration_docs = docs(&declaration.docs);
     let signature = signature_literal(identity.abi_signature);
@@ -185,56 +179,31 @@ pub(super) fn generate_message(
             /// Acquires the message before its producer's borrowed storage expires.
             fn post(&mut self, message: ::neocogi_com::NcMessage<'_, #name>) -> Result<(), ::neocogi_com::NcStatus>;
         }
-        #[doc(hidden)]
-        #[::neocogi_com::com_interface(assigned_guid = #connection_id, name = #connection_name, assigned_signature = #signature)]
-        /// Connection projection for one concrete output; it grants no emission authority.
-        pub trait #connection {
-            /// Installs one typed mapping and returns its cancellation responsibility.
-            fn connect(&self, receiver: ::neocogi_com::ComRef<'_, #receiver_abi>) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus>;
-        }
-        #[::neocogi_com::com_object(interfaces(#connection))]
-        /// Weak projection of the single producer-owned slot.
-        struct #connection_object {
-            /// Connection access cannot prolong producer lifetime.
-            control: ::neocogi_com_events::PortControl<#name>,
-        }
-        impl #connection for #connection_object {
-            fn connect(&self, receiver: ::neocogi_com::ComRef<'_, #receiver_abi>) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus> {
-                self.control.connect(receiver)
+        impl #name {
+            /// Posts to the installed destination, borrowing this value for the COM call only.
+            /// An absent destination is intentionally a successful no-op.
+            pub fn post_to(&self, destination: &mut Option<::neocogi_com::ComPtr<#receiver_abi>>) -> Result<(), ::neocogi_com::NcStatus> {
+                match destination {
+                    Some(receiver) => receiver.post(::neocogi_com::NcMessage::new(self)),
+                    None => Ok(()),
+                }
             }
-        }
-        impl ::neocogi_com_events::PortMessage for #name {
-            type Receiver = #receiver_abi;
-            type PortAbi = #connection_abi;
-            /// Borrows the owned value only for the receiver call.
-            fn deliver(&self, mut receiver: ::neocogi_com::ComRef<'_, Self::Receiver>) -> Result<(), ::neocogi_com::NcStatus> {
-                receiver.post(::neocogi_com::NcMessage::new(self))
-            }
-            fn project(control: ::neocogi_com_events::PortControl<Self>) -> ::neocogi_com::ComPtr<Self::PortAbi> {
-                #connection_object::from_value(#connection_object { control }).query().expect("generated output declares its connection interface")
-            }
-            fn connect(port: ::neocogi_com::ComRef<'_, Self::PortAbi>, receiver: ::neocogi_com::ComRef<'_, Self::Receiver>) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus> {
-                port.connect(receiver)
-            }
-            fn mapping<Message: 'static, Map: FnMut(Self) -> Message + 'static>(sender: ::neocogi_com_events::EventSender<Message>, map: Map, validate: Option<fn(&Self) -> Result<(), ::neocogi_com::NcStatus>>) -> Result<::neocogi_com::ComPtr<Self::Receiver>, ::neocogi_com::NcStatus> {
-                #adapter::from_value(#adapter { sender, map, validate }).query()
+            #[doc(hidden)]
+            /// Wraps a local, concretely typed callback in the one checked COM receiver.
+            pub fn __receiver(consume: ::alloc::boxed::Box<dyn FnMut(Self) -> Result<(), ::neocogi_com::NcStatus>>) -> Result<::neocogi_com::ComPtr<#receiver_abi>, ::neocogi_com::NcStatus> {
+                #adapter::from_value(#adapter { consume }).query()
             }
         }
         #[::neocogi_com::com_object(interfaces(#receiver))]
-        /// Native mapper stores only concrete translation and weak posting access.
-        struct #adapter<Message: 'static, Map: FnMut(#name) -> Message + 'static> {
-            /// Consumer-owned FIFO access, without retaining the consumer.
-            sender: ::neocogi_com_events::EventSender<Message>,
-            /// Translation runs immediately; application behavior runs during dispatch.
-            map: Map,
-            /// Domain validation applied after decoding and before translation.
-            validate: Option<fn(&#name) -> Result<(), ::neocogi_com::NcStatus>>,
+        /// Owns only a typed callback; no registration or connection object is allocated.
+        struct #adapter {
+            /// Decoded messages reach this local callback before producer storage expires.
+            consume: ::alloc::boxed::Box<dyn FnMut(#name) -> Result<(), ::neocogi_com::NcStatus>>,
         }
-        impl<Message: 'static, Map: FnMut(#name) -> Message + 'static> #receiver for #adapter<Message, Map> {
+        impl #receiver for #adapter {
+            /// Validate and acquire borrowed fields before mapping or queueing anything.
             fn post(&mut self, message: ::neocogi_com::NcMessage<'_, #name>) -> Result<(), ::neocogi_com::NcStatus> {
-                let message = message.to_owned()?;
-                if let Some(validate) = self.validate { validate(&message)?; }
-                self.sender.post((self.map)(message))
+                (self.consume)(message.to_owned()?)
             }
         }
 
@@ -325,9 +294,9 @@ fn field_codec(
     }
 }
 
-/// Names the exact generated connection ABI in its owning contract crate.
-pub(super) fn connection_type(module: &ResolvedModule, resolved: ResolvedDeclaration<'_>) -> Result<TokenStream, GenerateError> {
-    let name = format_ident!("__{}PortAbi", resolved.declaration.name);
+/// Names the exact generated message receiver in its owning contract crate.
+pub(super) fn receiver_type(module: &ResolvedModule, resolved: ResolvedDeclaration<'_>) -> Result<TokenStream, GenerateError> {
+    let name = format_ident!("__{}ReceiverAbi", resolved.declaration.name);
     if resolved.module.source.name == module.source.name {
         Ok(quote! { #name })
     } else {

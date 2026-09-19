@@ -445,7 +445,7 @@ fn parse_callables(input: ParseStream<'_>) -> syn::Result<Vec<Callable>> {
         // declaration order, so generated methods cannot silently shadow a port.
         let reserved = match &callable {
             Callable::Method(method) => vec![method.name.clone()],
-            Callable::Port(port) => vec![port.name.clone(), port.getter_name()],
+            Callable::Port(port) => vec![port.name.clone(), port.setter_name()],
         };
         for name in reserved {
             if let Some(previous) = names.insert(name.clone(), callable.span().clone()) {

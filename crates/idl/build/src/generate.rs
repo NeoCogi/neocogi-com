@@ -281,7 +281,7 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
         }
         DeclarationKind::Interface(interface) => {
             let bases = bases(graph, module, &interface.bases)?;
-            let methods = callable_methods(graph, module, &declaration.name, &interface.callables)?;
+            let methods = callable_methods(graph, module, &interface.callables)?;
             let threading = threading_ident(interface.threading);
             let factory = matches!(interface.role, InterfaceRole::Factory).then(|| quote! { factory, });
             let ports = port_bindings(graph, module, declaration, &interface.callables, interface.threading)?;
@@ -299,21 +299,6 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
             })
         }
     }
-}
-
-/// Converts a validated snake-case delivery method into its payload variant.
-fn upper_camel_case(value: &str) -> String {
-    value
-        .split('_')
-        .filter(|part| !part.is_empty())
-        .map(|part| {
-            let mut characters = part.chars();
-            match characters.next() {
-                Some(first) => first.to_uppercase().collect::<String>() + characters.as_str(),
-                None => String::new(),
-            }
-        })
-        .collect()
 }
 
 /// Formats ordinary generated Rust syntax with stable, human-readable layout.
@@ -409,7 +394,7 @@ fn bases(graph: &ResolvedModules, module: &ResolvedModule, values: &[NamedType])
 }
 
 /// Emits ordinary methods and named output getters in their normative vtable order.
-fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, owner: &str, values: &[Callable]) -> Result<Vec<TokenStream>, GenerateError> {
+fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[Callable]) -> Result<Vec<TokenStream>, GenerateError> {
     values
         .iter()
         .map(|callable| {
@@ -437,13 +422,12 @@ fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, owner: &st
                 }
                 Callable::Port(port) => {
                     let resolved = resolve(graph, module, &port.message)?;
-                    let key = rust_ident(&format!("__{owner}{}PortKey", upper_camel_case(&port.name)))?;
-                    let getter = rust_ident(&port.getter_name())?;
-                    let abi = message::connection_type(module, resolved)?;
+                    let getter = rust_ident(&port.setter_name())?;
+                    let abi = message::receiver_type(module, resolved)?;
                     let docs = docs(&port.docs);
                     quote! {
-                        #docs #[doc(hidden)] #[com_port(#key)]
-                        fn #getter(&self) -> Result<::neocogi_com::ComPtr<#abi>, ::neocogi_com::NcStatus>;
+                        #docs #[doc(hidden)]
+                        fn #getter(&mut self, destination: ::neocogi_com::ComRef<'_, #abi>) -> Result<(), ::neocogi_com::NcStatus>;
                     }
                 }
             })
@@ -452,8 +436,7 @@ fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, owner: &st
 }
 
 /// Generates typed accessor methods on owned and borrowed source projections.
-/// Each getter obtains the weak connection projection without subscribing.
-/// Mapping later installs a receiver in that exact producer-owned port.
+/// Each closure installs one receiver directly through the producer ABI.
 fn port_bindings(
     graph: &ResolvedModules,
     module: &ResolvedModule,
@@ -462,7 +445,7 @@ fn port_bindings(
     threading: Threading,
 ) -> Result<Vec<TokenStream>, GenerateError> {
     let source_abi = rust_ident(&format!("{}Abi", source.name))?;
-    let extension = rust_ident(&format!("{}Ports", source.name))?;
+    let extension = rust_ident(&format!("{}Outputs", source.name))?;
     let mode = match threading {
         Threading::Local => quote! { ::neocogi_com::ThreadLocal },
         Threading::Shared => quote! { ::neocogi_com::ThreadSafe },
@@ -475,35 +458,44 @@ fn port_bindings(
         let Callable::Port(port) = callable else { continue };
         let output = resolve(graph, module, &port.message)?;
         let message = named_rust_type(module, output, false)?;
-        let key = rust_ident(&format!("__{}{}PortKey", source.name, upper_camel_case(&port.name)))?;
-        let getter = rust_ident(&port.getter_name())?;
+        let setter = rust_ident(&port.setter_name())?;
         let accessor = rust_ident(&port.name)?;
         let docs = docs(&port.docs);
-        ports.push(quote! {
-            #[doc(hidden)]
-            /// Compile-time identity of one declared output field, without runtime storage.
-            pub struct #key;
-            impl ::neocogi_com_events::PortKey for #key { type Event = #message; }
-        });
-        accessors.push(quote! { #docs fn #accessor(&self) -> ::neocogi_com_events::PortRef<#message>; });
+        let install =
+            quote! { impl FnOnce(::alloc::boxed::Box<dyn FnMut(#message) -> Result<(), ::neocogi_com::NcStatus>>) -> Result<(), ::neocogi_com::NcStatus> };
+        accessors.push(quote! { #docs fn #accessor(&self) -> #install + use<Self, M>; });
         let body = quote! {
-            #docs fn #accessor(&self) -> ::neocogi_com_events::PortRef<#message> {
-                ::neocogi_com_events::PortRef::from_result(self.#getter())
+            #docs fn #accessor(&self) -> #install + use<M> {
+                // Own the producer only for this one setup operation. The installed
+                // receiver holds weak consumer access, never this producer reference.
+                let mut producer = self.clone();
+                move |consume| {
+                    let receiver = #message::__receiver(consume)?;
+                    producer.#setter(receiver.as_com_ref())
+                }
             }
         };
         owned_accessors.push(body.clone());
-        borrowed_accessors.push(body);
+        borrowed_accessors.push(quote! {
+            #docs fn #accessor(&self) -> #install + use<'a, M> {
+                let mut producer = self.add_ref();
+                move |consume| {
+                    let receiver = #message::__receiver(consume)?;
+                    producer.#setter(receiver.as_com_ref())
+                }
+            }
+        });
     }
-    if !ports.is_empty() {
+    if !accessors.is_empty() {
         ports.push(quote! {
-            /// Typed output access; each returned projection is weak to the actual producer.
+            /// One-shot installation operations for concrete output destinations.
             pub trait #extension<M: ::neocogi_com::ThreadingModel = #mode> {
                 #(#accessors)*
             }
             impl<M: ::neocogi_com::ThreadingModel> #extension<M> for ::neocogi_com::ComPtr<#source_abi, M> {
                 #(#owned_accessors)*
             }
-            impl<M: ::neocogi_com::ThreadingModel> #extension<M> for ::neocogi_com::ComRef<'_, #source_abi, M> {
+            impl<'a, M: ::neocogi_com::ThreadingModel> #extension<M> for ::neocogi_com::ComRef<'a, #source_abi, M> {
                 #(#borrowed_accessors)*
             }
         });

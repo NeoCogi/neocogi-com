@@ -1,13 +1,4 @@
 #[version(1)]
-/// Consumer-owned connection lease; messages already posted belong to the consumer.
-interface IEventSubscription {
-    /// Reports whether this exact connection accepts new messages.
-    fn active(&self) -> Result<bool>;
-    /// Disconnects future posts; final release also disconnects without invoking behavior.
-    fn cancel(&self) -> Result<()>;
-}
-
-#[version(1)]
 /// Runtime-invoked consumer capability, independent of any source registration order.
 interface IEventDispatcher {
     /// Consumes a bounded FIFO prefix; new work waits for a later visit.
