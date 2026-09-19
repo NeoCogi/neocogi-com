@@ -44,6 +44,8 @@ pub struct Declaration {
     pub name: String,
     /// Version and optional explicit UUID parsed from attributes.
     pub id: DeclarationId,
+    /// Generate an owned message and its borrowed COM representation.
+    pub message: bool,
     /// Declaration-specific ABI contents.
     pub kind: DeclarationKind,
 }

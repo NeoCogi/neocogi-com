@@ -115,6 +115,8 @@ pub enum NcAbiType {
 /// How a method argument or return value crosses the ABI boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NcAbiPassing {
+    /// Pointer to one concrete generated message record, borrowed for this call.
+    Message,
     /// No success value is carried.
     Void,
     /// Plain value passed directly in the ABI signature.
@@ -249,6 +251,8 @@ pub const NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET: u32 = 0x04;
 pub const NC_ABI_PASSING_COM_REF: u32 = 0x05;
 /// C-stable passing tag for an owned COM pointer success out slot.
 pub const NC_ABI_PASSING_COM_PTR_OUT: u32 = 0x06;
+/// Call-scoped pointer to a concrete generated message representation.
+pub const NC_ABI_PASSING_MESSAGE: u32 = 0x07;
 
 /// C-stable threading value requiring calls and final release on one thread.
 pub const NC_ABI_THREADING_THREAD_LOCAL: u32 = 0x00;
@@ -343,6 +347,10 @@ impl NcAbiPassingDescriptor {
     /// Builds a C-stable descriptor from a canonical ABI passing mode.
     pub const fn from_abi_passing(passing: NcAbiPassing) -> Self {
         match passing {
+            NcAbiPassing::Message => Self {
+                tag: NC_ABI_PASSING_MESSAGE,
+                threading: NC_ABI_THREADING_THREAD_LOCAL,
+            },
             NcAbiPassing::Void => Self {
                 tag: NC_ABI_PASSING_VOID,
                 threading: NC_ABI_THREADING_THREAD_LOCAL,

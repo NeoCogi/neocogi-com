@@ -13,10 +13,10 @@ use core::fmt::Write;
 
 use crate::{
     NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT,
-    NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE,
-    NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64,
-    NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64,
-    NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_E_INVALID_ARG, NcAbiSignature, NcAbiPassingDescriptor, NcAbiTypeDescriptor, NcMethodDescriptor,
+    NC_ABI_PASSING_MESSAGE, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL,
+    NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32,
+    NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32,
+    NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_E_INVALID_ARG, NcAbiSignature, NcAbiPassingDescriptor, NcAbiTypeDescriptor, NcMethodDescriptor,
     NcMethodParamDescriptor, NcMethodReturnDescriptor, NcStatus,
 };
 
@@ -139,6 +139,15 @@ fn write_return(out: &mut String, returns: &NcMethodReturnDescriptor) -> Result<
 /// Appends one supported parameter passing mode and its nested type.
 fn write_passing_type(out: &mut String, passing: NcAbiPassingDescriptor, ty: &NcAbiTypeDescriptor) -> Result<(), NcStatus> {
     match passing.tag {
+        NC_ABI_PASSING_MESSAGE => {
+            validate_threading_local(passing.threading)?;
+            if ty.tag != NC_ABI_TYPE_AGGREGATE {
+                return Err(NC_E_INVALID_ARG);
+            }
+            out.push_str("message<");
+            write_type(out, ty)?;
+            out.push('>');
+        }
         NC_ABI_PASSING_VALUE => {
             validate_threading_local(passing.threading)?;
             validate_non_interface_value_type(ty)?;

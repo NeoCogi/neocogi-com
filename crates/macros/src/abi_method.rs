@@ -235,6 +235,27 @@ fn lower_abi_arg(ty: Type) -> Result<(Type, Type, AbiArgKind)> {
     // Recognize ownership-bearing wrappers before the plain-value fallback.
     // Ordering matters because raw ABI pointer types alone cannot communicate
     // whether an interface or buffer is borrowed, mutable, or transferred.
+    if let Type::Path(path) = &ty {
+        if let Some(segment) = path.path.segments.last().filter(|segment| segment.ident == "NcMessage") {
+            if let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments {
+                let types = arguments
+                    .args
+                    .iter()
+                    .filter_map(|arg| match arg {
+                        syn::GenericArgument::Type(ty) => Some(ty),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                if let [message] = types.as_slice() {
+                    let message = (*message).clone();
+                    let abi_ty = syn::parse_quote! { *const <#message as ::neocogi_com::ComMessage>::Wire };
+                    return Ok((ty, abi_ty, AbiArgKind::Message { message_ty: Box::new(message) }));
+                }
+            }
+            return Err(syn::Error::new_spanned(ty, "expected NcMessage<'_, ConcreteMessage>"));
+        }
+    }
+
     if let Some(com_ref) = parse_com_ref_type(&ty)? {
         let abi_ty = raw_interface_pointer_ty(&com_ref.interface_ty);
         return Ok((
@@ -514,6 +535,9 @@ pub(crate) fn raw_vtable_method_docs(trait_ident: &Ident, method: &AbiMethod) ->
 fn raw_vtable_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.ident;
     match &arg.kind {
+        AbiArgKind::Message { .. } => vec![quote! {
+            #[doc = concat!("- `", stringify!(#ident), "` borrows its exact generated message representation; the receiver acquires owned fields before retaining data.")]
+        }],
         AbiArgKind::Plain => {
             let abi_ty = &arg.abi_ty;
             vec![quote! {
@@ -593,6 +617,9 @@ pub(crate) fn safe_method_docs(trait_ident: &Ident, method: &AbiMethod) -> Vec<p
 fn safe_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.ident;
     match &arg.kind {
+        AbiArgKind::Message { .. } => vec![quote! {
+            #[doc = concat!("- `", stringify!(#ident), "` borrows its exact generated message representation; the receiver acquires owned fields before retaining data.")]
+        }],
         AbiArgKind::Plain => {
             let rust_ty = &arg.rust_ty;
             vec![quote! {

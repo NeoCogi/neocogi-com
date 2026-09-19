@@ -1,0 +1,286 @@
+//! Concrete owned message generation and one typed borrowed delivery operation.
+
+use super::*;
+use quote::format_ident;
+
+/// Emits owned data, a C wire record, checked conversion and one concrete receiver.
+pub(super) fn generate_message(
+    graph: &ResolvedModules,
+    module: &ResolvedModule,
+    declaration: &Declaration,
+    identity: &neocogi_idl::DeclarationIdentity,
+) -> Result<String, GenerateError> {
+    let name = rust_ident(&declaration.name)?;
+    let wire = format_ident!("__{name}Wire");
+    let union = format_ident!("__{name}Payload");
+    let receiver = format_ident!("__{name}Receiver");
+    let receiver_abi = format_ident!("__{name}ReceiverAbi");
+    let adapter = format_ident!("__{name}Mapping");
+    let factory = format_ident!("__map_{}", snake_case(&declaration.name));
+    let declaration_docs = docs(&declaration.docs);
+    let signature = signature_literal(identity.abi_signature);
+    let receiver_name = format!("{}.{}.__receiver", module.source.name, declaration.name);
+    let id = Literal::string(&neocogi_com_core::guid_from_qualified_name(&receiver_name).to_string());
+    let qualified_name = Literal::string(&receiver_name);
+    let mut cases = Vec::new();
+    match &declaration.kind {
+        DeclarationKind::Struct(record) => cases.push((None, 0i64, VariantFields::Named(record.fields.clone()), Vec::new())),
+        DeclarationKind::Enum(enumeration) => {
+            let mut previous = -1;
+            for variant in &enumeration.variants {
+                let tag = variant.discriminant.unwrap_or(previous + 1);
+                previous = tag;
+                cases.push((Some(rust_ident(&variant.name)?), tag, variant.fields.clone(), variant.docs.clone()));
+            }
+        }
+        _ => return Err(GenerateError::new("messages require structs or enums")),
+    }
+    let mut declarations = Vec::new();
+    let mut wire_cases = Vec::new();
+    let mut members = Vec::new();
+    let mut encode = Vec::new();
+    let mut decode = Vec::new();
+    let mut comparable = true;
+    for (index, (variant, tag, fields, documentation)) in cases.iter().enumerate() {
+        let case = format_ident!("__{name}Case{index}");
+        let member = format_ident!("case_{index}");
+        let case_docs = docs(documentation);
+        let values = match fields {
+            VariantFields::Unit => Vec::new(),
+            VariantFields::Named(fields) => fields
+                .iter()
+                .map(|field| Ok((rust_ident(&field.name)?, &field.ty, docs(&field.docs))))
+                .collect::<Result<Vec<_>, GenerateError>>()?,
+            VariantFields::Tuple(fields) => fields
+                .iter()
+                .enumerate()
+                .map(|(index, ty)| (format_ident!("field_{index}"), ty, quote! { #[doc = "Owned message field."] }))
+                .collect(),
+        };
+        let mut native = Vec::new();
+        let mut raw = Vec::new();
+        let mut encodings = Vec::new();
+        let mut decodings = Vec::new();
+        let mut bindings = Vec::new();
+        for (field, ty, field_docs) in values {
+            let (owned, abi, encoded, decoded, equality) = field_codec(graph, module, ty, &field)?;
+            comparable &= equality;
+            native.push(match fields {
+                VariantFields::Tuple(_) => quote! { #owned },
+                _ if variant.is_none() => quote! { #field_docs pub #field: #owned },
+                _ => quote! { #field_docs #field: #owned },
+            });
+            raw.push(quote! { /// Borrowed field, valid only during this message's COM call.
+            pub #field: #abi });
+            encodings.push(quote! { #field: #encoded });
+            decodings.push(decoded);
+            bindings.push(field);
+        }
+        let constructor = match variant {
+            Some(variant) => quote! { Self::#variant },
+            None => quote! { Self },
+        };
+        let (shape, pattern, value) = match fields {
+            VariantFields::Unit => (quote! {}, constructor.clone(), constructor.clone()),
+            VariantFields::Tuple(_) => (
+                quote! { (#(#native),*) },
+                quote! { #constructor(#(#bindings),*) },
+                quote! { #constructor(#(#decodings),*) },
+            ),
+            VariantFields::Named(_) => (
+                quote! { { #(#native),* } },
+                quote! { #constructor { #(#bindings),* } },
+                quote! { #constructor { #(#bindings: #decodings),* } },
+            ),
+        };
+        declarations.push(match variant {
+            Some(variant) => quote! { #case_docs #variant #shape },
+            None => shape,
+        });
+        if bindings.is_empty() {
+            raw.push(quote! { /// Initialized placeholder for a payload with no fields.
+            pub empty: u8 });
+            encodings.push(quote! { empty: 0 });
+        }
+        wire_cases.push(quote! {
+            #[doc(hidden)] #[repr(C)] #[derive(Clone, Copy)]
+            /// Generated payload for one concrete message case.
+            pub struct #case { #(#raw),* }
+        });
+        members.push(quote! { /// Payload selected by its declaration-order tag.
+        pub #member: #case });
+        encode.push(quote! { #pattern => #wire { tag: #tag, payload: #union { #member: #case { #(#encodings),* } } } });
+        let read_payload = (!bindings.is_empty()).then(|| {
+            quote! {
+                // SAFETY: only the member selected by this validated tag is read.
+                let raw = unsafe { wire.payload.#member };
+            }
+        });
+        decode.push(quote! { #tag => {
+            // SAFETY: the validated tag selects this initialized member. Borrowed
+            // data is checked and acquired before the owned message is returned.
+            #read_payload
+            Ok(#value)
+        } });
+    }
+    let equality = comparable.then(|| quote! { #[derive(Debug, PartialEq)] });
+    let mut plain = declaration.clone();
+    plain.message = false;
+    let copyable = cases.iter().all(|(_, _, fields, _)| match fields {
+        VariantFields::Unit => true,
+        VariantFields::Tuple(fields) => fields.iter().all(|ty| value_type(graph, module, ty).is_ok()),
+        VariantFields::Named(fields) => fields.iter().all(|field| value_type(graph, module, &field.ty).is_ok()),
+    });
+    let data = if copyable {
+        // A plain message keeps its existing ordinary ABI representation as well
+        // as gaining generated posting. No wrapper record is needed around it.
+        let index = module
+            .source
+            .declarations
+            .iter()
+            .position(|item| item.name == declaration.name)
+            .expect("resolved declaration exists");
+        generate_declaration(graph, module, &plain, index)?
+            .parse::<TokenStream>()
+            .map_err(|error| GenerateError::new(error.to_string()))?
+    } else {
+        match declaration.kind {
+            DeclarationKind::Struct(_) => quote! { #declaration_docs #[derive(Clone)] #equality pub struct #name #(#declarations)* },
+            _ => quote! { #declaration_docs #[derive(Clone)] #equality pub enum #name { #(#declarations),* } },
+        }
+    };
+    format_rust(quote! {
+        #data
+        #(#wire_cases)*
+        #[doc(hidden)] #[repr(C)] #[derive(Clone, Copy)]
+        /// Exact payload alternatives, inspected only after validating the message tag.
+        pub union #union { #(#members),* }
+        #[doc(hidden)] #[repr(C)] #[derive(Clone, Copy)]
+        /// Call-scoped C message representation; contains no Rust ownership or drop glue.
+        pub struct #wire {
+            /// Declared message case; records use zero.
+            pub tag: i64,
+            /// Only the member selected by tag is readable.
+            pub payload: #union,
+        }
+        // SAFETY: the generated C fields borrow from this exact concrete message;
+        // decoding validates the active alternative and acquires every owned field.
+        unsafe impl ::neocogi_com::ComMessage for #name {
+            type Wire = #wire;
+            const SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(#signature);
+            fn encode(&self) -> Self::Wire { match self { #(#encode),* } }
+            unsafe fn decode(wire: Self::Wire) -> Result<Self, ::neocogi_com::NcStatus> {
+                match wire.tag { #(#decode),*, _ => Err(::neocogi_com::NC_E_INVALID_TAG) }
+            }
+        }
+        #[doc(hidden)]
+        #[::neocogi_com::com_interface(assigned_guid = #id, name = #qualified_name, assigned_signature = #signature)]
+        /// One concrete message delivery across COM; no application type crosses this boundary.
+        pub trait #receiver {
+            /// Acquires the message before its producer's borrowed storage expires.
+            fn post(&mut self, message: ::neocogi_com::NcMessage<'_, #name>) -> Result<(), ::neocogi_com::NcStatus>;
+        }
+        impl ::neocogi_com_events::EventPayload for #name {
+            type Sink = #receiver_abi;
+            fn deliver(&self, mut receiver: ::neocogi_com::ComRef<'_, Self::Sink>) -> Result<(), ::neocogi_com::NcStatus> {
+                receiver.post(::neocogi_com::NcMessage::new(self))
+            }
+            fn receiver<Message: 'static, Map: FnMut(Self) -> Message + 'static>(sender: ::neocogi_com_events::EventSender<Message>, map: Map) -> Result<::neocogi_com::ComPtr<Self::Sink>, ::neocogi_com::NcStatus> {
+                #factory(sender, map, None)
+            }
+        }
+        #[::neocogi_com::com_object(interfaces(#receiver))]
+        /// Native mapper stores only concrete translation and weak posting access.
+        struct #adapter<Message: 'static, Map: FnMut(#name) -> Message + 'static> {
+            /// Consumer-owned FIFO access, without retaining the consumer.
+            sender: ::neocogi_com_events::EventSender<Message>,
+            /// Translation runs immediately; application behavior runs during dispatch.
+            map: Map,
+            /// Domain validation applied after decoding and before translation.
+            validate: Option<fn(&#name) -> Result<(), ::neocogi_com::NcStatus>>,
+        }
+        impl<Message: 'static, Map: FnMut(#name) -> Message + 'static> #receiver for #adapter<Message, Map> {
+            fn post(&mut self, message: ::neocogi_com::NcMessage<'_, #name>) -> Result<(), ::neocogi_com::NcStatus> {
+                let message = message.to_owned()?;
+                if let Some(validate) = self.validate { validate(&message)?; }
+                self.sender.post((self.map)(message))
+            }
+        }
+        #[doc(hidden)]
+        /// Compiler support for a concrete mapping; authors use Events::map.
+        pub fn #factory<Message: 'static, Map: FnMut(#name) -> Message + 'static>(sender: ::neocogi_com_events::EventSender<Message>, map: Map, validate: Option<fn(&#name) -> Result<(), ::neocogi_com::NcStatus>>) -> Result<::neocogi_com::ComPtr<#receiver_abi>, ::neocogi_com::NcStatus> {
+            #adapter::from_value(#adapter { sender, map, validate }).query()
+        }
+    })
+}
+
+/// Selects owned storage, exact wire fields, and checked conversion for one message field.
+fn field_codec(
+    graph: &ResolvedModules,
+    module: &ResolvedModule,
+    ty: &AbiType,
+    field: &Ident,
+) -> Result<(TokenStream, TokenStream, TokenStream, TokenStream, bool), GenerateError> {
+    match ty {
+        AbiType::String | AbiType::Slice(_) => {
+            let (element, owned, bytes, acquire) = match ty {
+                AbiType::String => (
+                    quote! { u8 },
+                    quote! { ::alloc::string::String },
+                    quote! { #field.as_bytes() },
+                    quote! { ::neocogi_com_events::copy_text(buffer)? },
+                ),
+                AbiType::Slice(element) => {
+                    let element = value_type(graph, module, element)?;
+                    (
+                        element.clone(),
+                        quote! { ::alloc::vec::Vec<#element> },
+                        quote! { #field.as_slice() },
+                        quote! { ::neocogi_com_events::copy_slice(buffer)? },
+                    )
+                }
+                _ => unreachable!(),
+            };
+            Ok((
+                owned,
+                quote! { ::neocogi_com::NcMessageSlice<#element> },
+                quote! { ::neocogi_com::NcMessageSlice::new(#bytes) },
+                quote! {{
+                    // SAFETY: the raw caller guarantees readable, initialized backing storage.
+                    let buffer = unsafe { ::neocogi_com::NcCopyFromBufferOffset::__nc_from_raw_parts(0, raw.#field.pointer, raw.#field.len) }?;
+                    #acquire
+                }},
+                true,
+            ))
+        }
+        AbiType::Named(path) if matches!(resolve(graph, module, path)?.declaration.kind, DeclarationKind::Interface(_)) => {
+            let abi = named_rust_type(module, resolve(graph, module, path)?, true)?;
+            let owned = object_reference_type(graph, module, path, true)?;
+            let borrowed = object_reference_type(graph, module, path, false)?;
+            Ok((
+                owned,
+                quote! { *mut #abi },
+                quote! { #field.as_mut_ptr() },
+                quote! {
+                    // SAFETY: the raw caller keeps this object live; its full identity is checked.
+                    unsafe { <#borrowed>::__nc_from_raw_borrowed_checked(raw.#field) }?.add_ref()
+                },
+                false,
+            ))
+        }
+        AbiType::Scalar(name) if name == "bool" => Ok((
+            quote! { bool },
+            quote! { u8 },
+            quote! { u8::from(*#field) },
+            quote! { match raw.#field { 0 => false, 1 => true, _ => return Err(::neocogi_com::NC_E_INVALID_ARG) } },
+            true,
+        )),
+        _ => {
+            let owned = event_owned_type(graph, module, ty)?;
+            let abi = value_type(graph, module, ty)?;
+            let encoding = event_encode(graph, module, ty, field)?;
+            let decoding = event_decode(graph, module, ty, field)?;
+            Ok((owned, abi, encoding, quote! {{ let #field = raw.#field; #decoding }}, true))
+        }
+    }
+}

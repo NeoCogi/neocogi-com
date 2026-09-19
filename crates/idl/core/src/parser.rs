@@ -427,6 +427,7 @@ fn declaration(name: Ident, metadata: Attributes, kind: DeclarationKind) -> Decl
         docs: metadata.docs,
         name: name.to_string(),
         id: metadata.id,
+        message: metadata.message,
         kind,
     }
 }
@@ -985,6 +986,8 @@ enum AttributeContext {
 /// Fully parsed common declaration attributes.
 #[derive(Clone)]
 struct Attributes {
+    /// Selects concrete message encoding for a record or enum.
+    message: bool,
     /// Documentation lines retained for generated APIs and tools.
     docs: Vec<String>,
     /// Required version and optional explicit UUID.
@@ -1005,6 +1008,7 @@ struct Attributes {
 
 /// Parses common attributes and rejects ambiguous or inapplicable combinations.
 fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> syn::Result<Attributes> {
+    let mut message = false;
     let mut docs = Vec::new();
     let mut id = None;
     let mut threading = None;
@@ -1017,6 +1021,11 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
     for attribute in attributes {
         if attribute.path().is_ident("doc") {
             docs.push(parse_doc_attribute(&attribute)?);
+        } else if attribute.path().is_ident("message") && matches!(context, AttributeContext::Plain | AttributeContext::Enum) {
+            if message || !matches!(attribute.meta, syn::Meta::Path(_)) {
+                return Err(syn::Error::new_spanned(attribute, "specify #[message] once without arguments"));
+            }
+            message = true;
         } else if attribute.path().is_ident("version") {
             if id.is_some() {
                 return Err(syn::Error::new_spanned(attribute, "specify exactly one of `version` or `id`"));
@@ -1071,7 +1080,14 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
     }
 
     let id = id.ok_or_else(|| syn::Error::new(Span::call_site(), "every IDL declaration requires `#[version(N)]` or `#[id(N, \"UUID\")]`"))?;
+    if message && (deserialize || dense || enum_names.is_some()) {
+        return Err(syn::Error::new(
+            Span::call_site(),
+            "message declarations cannot request deserialize, dense, or names policies",
+        ));
+    }
     Ok(Attributes {
+        message,
         docs,
         id,
         threading,

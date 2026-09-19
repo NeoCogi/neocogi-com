@@ -10,6 +10,8 @@ use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote;
 
 use crate::EVENT_BINDING_API_VERSION;
+#[path = "message.rs"]
+mod message;
 
 /// Failure to select a module or lower one validated IDL construct to Rust.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -49,7 +51,7 @@ pub fn generate_rust(graph: &ResolvedModules, module_name: &str) -> Result<Strin
         .source
         .declarations
         .iter()
-        .any(|item| matches!(&item.kind, DeclarationKind::Interface(interface) if interface.role == InterfaceRole::Port))
+        .any(|item| item.message || matches!(&item.kind, DeclarationKind::Interface(interface) if interface.role == InterfaceRole::Port))
         .then(|| quote! { extern crate alloc; });
     let event_binding_check = module.source.declarations.iter().any(uses_event_support).then(|| {
         let version = Literal::u32_unsuffixed(EVENT_BINDING_API_VERSION);
@@ -101,6 +103,9 @@ pub fn generate_rust(graph: &ResolvedModules, module_name: &str) -> Result<Strin
 /// A protocol needs a typed receiver adapter; a named binding needs an accessor
 /// even when its protocol is imported from another module.
 fn uses_event_support(declaration: &Declaration) -> bool {
+    if declaration.message {
+        return true;
+    }
     match &declaration.kind {
         DeclarationKind::Interface(interface) => {
             interface.role == InterfaceRole::Port || interface.callables.iter().any(|callable| matches!(callable, Callable::Port(_)))
@@ -128,6 +133,9 @@ fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declar
         .declarations
         .get(source_index)
         .ok_or_else(|| GenerateError::new("resolved declaration order does not match its source module"))?;
+    if declaration.message {
+        return message::generate_message(graph, module, declaration, identity);
+    }
     // One contract module remains the compatibility unit, but the resolver
     // folds the declaration ID into each signature so typed metadata can still
     // distinguish two aggregates from the same exact module revision.

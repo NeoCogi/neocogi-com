@@ -512,7 +512,8 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
                 for field in &record.fields {
                     collect_diagnostics(
                         &mut diagnostics,
-                        validate_value_type(
+                        validate_field_type(
+                            declaration.message,
                             index,
                             &field.ty,
                             entries,
@@ -531,7 +532,8 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
                             for (field_index, field) in fields.iter().enumerate() {
                                 collect_diagnostics(
                                     &mut diagnostics,
-                                    validate_value_type(
+                                    validate_field_type(
+                                        declaration.message,
                                         index,
                                         field,
                                         entries,
@@ -545,7 +547,8 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
                             for field in fields {
                                 collect_diagnostics(
                                     &mut diagnostics,
-                                    validate_value_type(
+                                    validate_field_type(
+                                        declaration.message,
                                         index,
                                         &field.ty,
                                         entries,
@@ -965,13 +968,77 @@ fn validate_callables(index: usize, callables: &[Callable], entries: &[ModuleEnt
     }
 }
 
+/// Visits message storage without synthesizing callback methods or delivery parameters.
+fn message_fields(declaration: &Declaration) -> Vec<&AbiType> {
+    match &declaration.kind {
+        DeclarationKind::Struct(record) => record.fields.iter().map(|field| &field.ty).collect(),
+        DeclarationKind::Enum(enumeration) => enumeration
+            .variants
+            .iter()
+            .flat_map(|variant| match &variant.fields {
+                VariantFields::Unit => Vec::new(),
+                VariantFields::Tuple(fields) => fields.iter().collect(),
+                VariantFields::Named(fields) => fields.iter().map(|field| &field.ty).collect(),
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Message fields own strings and object references; ordinary records remain plain ABI data.
+fn validate_field_type(message: bool, index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+    if message {
+        match ty {
+            AbiType::String => return Ok(()),
+            AbiType::Named(name) => {
+                let symbol = resolve_named(index, name, entries)?;
+                if entries[symbol.module].module.declarations[symbol.declaration].message {
+                    return Err(source_error(
+                        &entries[index].module,
+                        "EIDL080",
+                        span,
+                        format!("{context} cannot nest another message"),
+                        "use a plain value or an object reference",
+                    ));
+                }
+                return Ok(());
+            }
+            AbiType::Slice(element) => return validate_value_type(index, element, entries, context, span),
+            _ => {}
+        }
+    }
+    validate_value_type(index, ty, entries, context, span)
+}
+
 /// Requires a recursively copyable type in aggregate payload storage.
 fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     let span = type_span(ty).unwrap_or(span);
     match ty {
         AbiType::Scalar(_) => Ok(()),
         AbiType::Named(name) => match resolve_named_or_str(index, name, entries)? {
-            ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => Ok(()),
+            ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => {
+                let declaration = &entries[symbol.module].module.declarations[symbol.declaration];
+                if declaration.message {
+                    // A copyable message can also remain an ordinary ABI value.
+                    // Owned fields must never slip into a by-value COM aggregate.
+                    for field in message_fields(declaration) {
+                        if let AbiType::Named(name) = field {
+                            let target = resolve_named(symbol.module, name, entries)?;
+                            if entries[target.module].module.declarations[target.declaration].message {
+                                return Err(source_error(
+                                    &entries[index].module,
+                                    "EIDL060",
+                                    span,
+                                    format!("{context} cannot embed a message"),
+                                    "message nesting is not supported",
+                                ));
+                            }
+                        }
+                        validate_value_type(symbol.module, field, entries, context, span)?;
+                    }
+                }
+                Ok(())
+            }
             ResolvedName::Symbol(symbol) => Err(kind_mismatch_error(
                 index,
                 symbol,
@@ -1013,7 +1080,7 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
         )),
         AbiType::Scalar(_) => Ok(()),
         AbiType::Named(name) => match resolve_named_or_str(index, name, entries)? {
-            ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => Ok(()),
+            ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => validate_value_type(index, ty, entries, context, span),
             ResolvedName::Symbol(symbol) => Err(kind_mismatch_error(
                 index,
                 symbol,
@@ -1065,6 +1132,7 @@ fn validate_output_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], con
     match ty {
         AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Ok(()),
         AbiType::Named(name) => match resolve_named_or_str(index, name, entries)? {
+            ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => validate_value_type(index, ty, entries, context, span),
             ResolvedName::Symbol(_) => Ok(()),
             ResolvedName::Str => Err(source_error(
                 &entries[index].module,
@@ -1235,7 +1303,7 @@ fn encode_declaration(
     encoder.guid(id);
     match &declaration.kind {
         DeclarationKind::Struct(record) => {
-            encoder.tag(1);
+            encoder.tag(if declaration.message { 7 } else { 1 });
             encoder.u32(u32_len(record.fields.len(), &entries[index].name, "field count")?);
             for field in &record.fields {
                 encoder.text(&field.name, &entries[index].name)?;
@@ -1243,7 +1311,7 @@ fn encode_declaration(
             }
         }
         DeclarationKind::Enum(enumeration) => {
-            encoder.tag(2);
+            encoder.tag(if declaration.message { 8 } else { 2 });
             encoder.tag(enum_repr_tag(enumeration.repr));
             encoder.u32(u32_len(enumeration.variants.len(), &entries[index].name, "variant count")?);
             let mut previous = -1i64;
