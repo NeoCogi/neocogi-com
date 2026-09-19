@@ -5,25 +5,23 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 
 ## Unreleased
 
-- Replace producer event queues and state-owning sessions with `Events<Message>`:
-  typed mappers post directly into one consumer FIFO and ordinary mutable state
-  consumes application messages through a single runtime-owned update operation.
-  Remove handler traits, registration transactions and dispatch from connection
-  leases. Cancellation stops future posts and preserves committed consumer facts.
-- Pump private component inboxes automatically in descendant-first passes, one
-  message per component per visit, before consuming one application message.
-  Share one update budget, preserve unattempted work on failure, revoke scoped
-  borrowed dispatchers on return, and stop delivery immediately after mount removal.
-  Composite models use ordinary mutable methods behind their single shared COM
-  access boundary. Rust event binding API is 4; both deployment ABIs remain v1.
-- Declare notification protocols with `port` and named `name: Protocol;` bindings.
-  Generate typed accessors on owned and borrowed handles and concrete owned message
-  types. File-dialog completion belongs directly to `IFileDialog`.
+- Replace custom event queues and posting wrappers with `std::sync::mpsc`.
+  Applications and composites own ordinary receivers; typed COM mappings hold
+  senders and translate each concrete event into a local Rust message. Receiver
+  destruction discards later delivery; mapping still runs before sending fails.
+- Dispatch exactly one message per COM visit and discover nested component drivers
+  automatically. The runtime owns descendant-first scheduling, frame boundaries,
+  retirement checks and one finite update budget. Reaching the exact ceiling stops
+  before another dequeue; unattempted work remains for the next update.
+- Declare published outputs as concrete `#[message]` data with named
+  `name: Message;` bindings. Producers own one optional typed receiver, installed
+  by an ordinary mutable setter. Remove output projections, subscriptions, leases,
+  generations and support-version negotiation. Both deployment ABIs remain v1.
 
 - Simplify contracts to compile-time Rust bindings and transitive signatures;
   remove native contract libraries/archives, module getters/registries, and
   intrinsic-event seeding. Plugins remain dynamically loadable or statically linked.
-- Unify callable declarations as interfaces with factory/port roles. Keep typed
+- Unify callable declarations as interfaces and factories. Keep typed
   factory construction, required sibling projections, exact signatures, and
   mutable call gating; remove duplicate object descriptions and ordinary unit
   objects' generated zero-argument constructors.

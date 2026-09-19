@@ -18,7 +18,7 @@ of the optional `cargo-neocogi` assembly driver.
 structs/enums for checked COM posting. A named output such as `changed: TextChanged;`
 generates a one-shot installation closure on `ComPtr` and `ComRef`. Producers
 implement the ordinary generated receiver setter and store one optional concrete
-COM receiver. `events.map(output(), mapper)?` replaces its destination and returns
+COM receiver. `events::map(output(), sender, mapper)?` replaces its destination and returns
 `Result<()>`; there is no connection projection or subscription lifetime.
 Application enums stay in Rust. Generated receivers depend on COM alone, with
 no consumer queue dependency or separate support-version protocol.
