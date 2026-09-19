@@ -13,6 +13,11 @@
 
 #![deny(missing_docs)]
 
+mod inbox;
+pub use inbox::{Events, EventSender, MappedPort};
+mod scoped;
+pub use scoped::with_dispatcher;
+
 mod source;
 pub use source::{EventEndpoint, EventPayload, EventSource};
 mod session;
