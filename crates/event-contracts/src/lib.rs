@@ -1,11 +1,11 @@
-//! Generated COM event lease and dispatcher interfaces.
-//!
-//! The NCIDL module is the only source of the ABI definitions and the canonical
-//! lease identity required by the COM-owned IDL compiler's named port bindings.
-//! It is independent of UI and of the process-global COM runtime implementation;
-//! generated binding and transport semantics are version-checked separately.
+//! COM dispatcher contract shared by runtime and consumer implementations.
+//! Concrete output receivers are generated with their message declarations;
+//! this crate owns no queue, mapping or application behavior.
 
 #![no_std]
 #![deny(missing_docs)]
 
 include!(concat!(env!("OUT_DIR"), "/neocogi_com_events.rs"));
+
+/// A finite dispatcher budget was exhausted while messages remained queued.
+pub const EVENT_E_LIMIT: neocogi_com::NcStatus = neocogi_com::NcStatus::from_code(-1007);

@@ -15,7 +15,16 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
         #[version(1)] #[message] struct Batch { values: &[u32] }
         #[version(1)] interface IProducer { completed: Completion; }
     "#;
-    let graph = resolve_modules(vec![parse_module(Path::new("example/messages.ncidl"), source).unwrap()]).unwrap();
+    let consumer = parse_module(
+        Path::new("example/consumer.ncidl"),
+        r#"
+        extern example.messages;
+        use example.messages::Completion;
+        #[version(1)] interface IForward { completed: Completion; }
+    "#,
+    )
+    .unwrap();
+    let graph = resolve_modules(vec![parse_module(Path::new("example/messages.ncidl"), source).unwrap(), consumer]).unwrap();
     let generated = neocogi_idl_build::generate_rust(&graph, "example.messages").unwrap();
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
@@ -24,7 +33,15 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
         "[package]\nname='message-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\nneocogi-com-events={{path={:?}}}\n",
         root.join("crates/com/api"), root.join("crates/com/events"),
     )).unwrap();
-    fs::write(project.path().join("src/lib.rs"), generated + include_str!("fixtures/messages.rs")).unwrap();
+    // The imported-output module has no local message declaration. Compile it too,
+    // so allocation imports and cross-crate receiver paths are checked by rustc.
+    let consumer = neocogi_idl_build::generate_rust(&graph, "example.consumer").unwrap();
+    fs::write(project.path().join("src/consumer.rs"), consumer).unwrap();
+    fs::write(
+        project.path().join("src/lib.rs"),
+        generated + "\nextern crate self as example_messages_contracts;\npub mod consumer;\n" + include_str!("fixtures/messages.rs"),
+    )
+    .unwrap();
     let output = Command::new("cargo")
         .args(["test", "--offline", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))

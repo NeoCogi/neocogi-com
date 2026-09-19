@@ -6,8 +6,8 @@
 //!
 //! Concrete message data generates checked borrowed COM posting. Named outputs
 //! expose one-shot installation closures; producers implement ordinary COM setters. Application
-//! messages remain Rust values in consumer-owned FIFOs. Generated support APIs
-//! are versioned independently of NCIDL wire signatures.
+//! messages remain Rust values in consumer-owned FIFOs. Generated receivers depend
+//! only on COM; queues and application scheduling stay in consumer code.
 
 #![deny(missing_docs)]
 #![warn(clippy::missing_docs_in_private_items)]
@@ -19,8 +19,3 @@ mod source;
 pub use cargo::{BuildError, BuildOutput, Module};
 pub use generate::{GenerateError, generate_rust};
 pub use source::ModuleSources;
-
-/// Rust API protocol required from `neocogi-com-events` by generated event bodies.
-/// This is not an NCIDL ABI version: bump it together with the COM transport
-/// support crate when compiler-generated adapter requirements or semantics change.
-pub const EVENT_BINDING_API_VERSION: u32 = 6;

@@ -10,9 +10,3 @@ description = "Direct typed COM mappings and consumer-owned message inboxes"
 [dependencies]
 neocogi-com = { workspace = true, features = ["macros", "std"] }
 neocogi-com-events-contracts.workspace = true
-
-[features]
-test-support = []
-
-[dev-dependencies]
-neocogi-idl-build.workspace = true

@@ -9,7 +9,7 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
 
 /// Imported messages generate typed access without pulling transport into the baseline ABI crate.
 #[test]
-fn imported_message_outputs_check_transport_support() {
+fn imported_outputs_need_allocation_but_no_queue_runtime() {
     let message = module("example/messages.ncidl", "#[version(1)] #[message] struct Changed { value: u32 }");
     let source = module(
         "example/source.ncidl",
@@ -26,7 +26,8 @@ fn imported_message_outputs_check_transport_support() {
     let graph = resolve_modules(vec![message, source, transport]).unwrap();
     let generated = neocogi_idl_build::generate_rust(&graph, "example.source").unwrap();
     syn::parse_file(&generated).expect("imported message bindings parse");
-    assert!(generated.contains("EVENT_BINDING_API_VERSION == 6"));
+    assert!(generated.contains("extern crate alloc"));
+    assert!(!generated.contains("neocogi_com_events"));
     assert!(generated.contains("fn first("));
     assert!(generated.contains("fn second("));
     assert!(generated.contains("example_messages_contracts::__ChangedReceiverAbi"));
