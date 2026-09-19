@@ -23,4 +23,4 @@ pub use source::ModuleSources;
 /// Rust API protocol required from `neocogi-com-events` by generated event bodies.
 /// This is not an NCIDL ABI version: bump it together with the COM transport
 /// support crate when compiler-generated adapter requirements or semantics change.
-pub const EVENT_BINDING_API_VERSION: u32 = 3;
+pub const EVENT_BINDING_API_VERSION: u32 = 4;

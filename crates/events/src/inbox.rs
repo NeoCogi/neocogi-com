@@ -10,7 +10,7 @@ use crate::{IEventSubscriptionAbi, EVENT_E_CLOSED, EVENT_E_LIMIT};
 
 /// Generated connection operation for a concrete protocol and consumer message type.
 /// The temporary port retains its source only until connection returns.
-pub trait MappedPort {
+pub trait EventPort {
     /// Owned protocol message decoded by the generated receiver.
     type Event;
     /// Installs a receiver that translates protocol messages directly into the consumer inbox.
@@ -81,7 +81,7 @@ impl<Message> Events<Message> {
 }
 impl<Message: 'static> Events<Message> {
     /// Connects a typed protocol to this inbox without capturing application state.
-    pub fn map<Port: MappedPort>(&mut self, port: Port, map: impl FnMut(Port::Event) -> Message + 'static) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus> {
+    pub fn map<Port: EventPort>(&mut self, port: Port, map: impl FnMut(Port::Event) -> Message + 'static) -> Result<ComPtr<IEventSubscriptionAbi>, NcStatus> {
         // Prune disconnected receivers during setup; there is no dispatch registry to sweep.
         let mut index = 0;
         while index < self.connections.len() {
@@ -155,5 +155,58 @@ mod tests {
         assert_eq!(events.pop(), Some(3));
         drop(events);
         assert_eq!(sender.post(4), Err(EVENT_E_CLOSED));
+    }
+}
+
+/// Separate component driver automatically pumped when its root exposes IComponentEventProvider.
+/// The driver retains neither the component nor its inbox, so mounting creates no ownership cycle.
+#[neocogi_com::com_object(interfaces(neocogi_com_events_contracts::IEventDispatcher))]
+struct ComponentDispatcher<Owner: 'static, Message: 'static> {
+    /// Component ownership belongs to its widget/controller, never the mounted driver.
+    owner: Weak<Owner>,
+    /// Messages remain private to this one consumer and its generated receivers.
+    pending: Weak<RefCell<VecDeque<Message>>>,
+    /// Ordinary component entry point; no per-event handler type or scheduling loop is needed.
+    consume: fn(&Owner, Message) -> Result<(), NcStatus>,
+}
+impl<Owner: 'static, Message: 'static> neocogi_com_events_contracts::IEventDispatcher for ComponentDispatcher<Owner, Message> {
+    /// Visits the starting FIFO prefix without carrying a queue borrow into component behavior.
+    fn dispatch(&mut self, limit: u32) -> Result<u32, NcStatus> {
+        let count = match self.pending.upgrade() {
+            Some(pending) => pending.borrow().len().min(limit as usize),
+            None => return Ok(0),
+        };
+        if count == 0 && self.pending.upgrade().is_some_and(|pending| !pending.borrow().is_empty()) {
+            return Err(EVENT_E_LIMIT);
+        }
+        let mut delivered = 0;
+        for _ in 0..count {
+            let Some(owner) = self.owner.upgrade() else { break };
+            let message = self.pending.upgrade().and_then(|pending| pending.borrow_mut().pop_front());
+            match message {
+                Some(message) => {
+                    (self.consume)(&owner, message)?;
+                    delivered += 1;
+                }
+                None => break,
+            }
+        }
+        Ok(delivered)
+    }
+}
+impl<Message: 'static> Events<Message> {
+    /// Creates the framework driver exposed by a composite's mounted root.
+    /// The consumer entry point handles one message; the framework owns all queue traversal.
+    pub fn component_dispatcher<Owner: 'static>(
+        &self,
+        owner: &Rc<Owner>,
+        consume: fn(&Owner, Message) -> Result<(), NcStatus>,
+    ) -> Result<ComPtr<crate::IEventDispatcherAbi>, NcStatus> {
+        ComponentDispatcher::from_value(ComponentDispatcher {
+            owner: Rc::downgrade(owner),
+            pending: Rc::downgrade(&self.pending),
+            consume,
+        })
+        .query()
     }
 }

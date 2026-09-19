@@ -3,7 +3,7 @@
 use std::{cell::Cell, rc::Rc};
 use neocogi_com::{com_object, ComRef, NcStatus};
 use neocogi_com_events_contracts::{IEventDispatcher, IEventDispatcherAbi, IEventDispatcherInterfacesFor};
-use crate::{EVENT_E_BUSY, EVENT_E_CLOSED};
+use crate::EVENT_E_CLOSED;
 
 /// Exact invocation pair created together by one monomorphized Rust trampoline.
 #[derive(Clone, Copy)]
@@ -18,8 +18,6 @@ struct Invocation {
 enum State {
     /// The stack callback is live and no invocation currently borrows it.
     Ready(Invocation),
-    /// Reentry must not manufacture a second mutable reference to the callback.
-    Calling,
     /// The enclosing call returned or unwound; no stack address remains accessible.
     Closed,
 }
@@ -31,31 +29,16 @@ struct ScopedDispatcher {
 }
 impl IEventDispatcher for ScopedDispatcher {
     /// Borrows the callback exclusively and restores availability after success, failure or panic.
-    fn dispatch(&self, limit: u32) -> Result<u32, NcStatus> {
+    fn dispatch(&mut self, limit: u32) -> Result<u32, NcStatus> {
         match self.state.get() {
             State::Ready(invocation) => {
-                self.state.set(State::Calling);
-                let _restore = Restore { state: &self.state, invocation };
-                // SAFETY: the scope guard keeps this exact trampoline/context pair live;
-                // Calling excludes reentry before the trampoline creates a mutable reference.
+                // SAFETY: the scope keeps this exact pair live. The generated
+                // mutable COM call gate excludes recursive access before a second
+                // callback borrow could be manufactured.
                 unsafe { (invocation.call)(invocation.context, limit) }
             }
-            State::Calling => Err(EVENT_E_BUSY),
             State::Closed => Err(EVENT_E_CLOSED),
         }
-    }
-}
-/// Restores exclusive invocation availability before unwinding returns to the scope owner.
-struct Restore<'a> {
-    /// The COM call keeps this cell alive for the full attempted invocation.
-    state: &'a Cell<State>,
-    /// Exact borrowed callback pair taken by this invocation.
-    invocation: Invocation,
-}
-impl Drop for Restore<'_> {
-    /// No foreign call or callback destructor runs while restoring this plain copied state.
-    fn drop(&mut self) {
-        self.state.set(State::Ready(self.invocation));
     }
 }
 /// Invalidates all retained COM references before the borrowed callback can leave scope.
@@ -68,8 +51,8 @@ impl Drop for Scope {
 }
 /// Restores only the concrete callback type associated with this invocation's context.
 unsafe fn invoke<Callback: FnMut(u32) -> Result<u32, NcStatus>>(context: *mut (), limit: u32) -> Result<u32, NcStatus> {
-    // SAFETY: with_dispatcher creates this pointer from Callback, and the shared
-    // state machine admits calls only during that borrow, one at a time.
+    // SAFETY: with_dispatcher creates this pointer from Callback, and the scope
+    // and generated mutable call gate admit only one live borrow at a time.
     unsafe { (&mut *context.cast::<Callback>())(limit) }
 }
 /// Gives a synchronous runtime call dispatch access to a borrowed native closure.
@@ -97,12 +80,12 @@ mod tests {
     #[test]
     fn borrowed_callback_is_revoked_on_return() {
         let mut total = 0;
-        let retained = with_dispatcher(
+        let mut retained = with_dispatcher(
             &mut |count| {
                 total += count;
                 Ok(count)
             },
-            |dispatcher| {
+            |mut dispatcher| {
                 assert_eq!(dispatcher.dispatch(3), Ok(3));
                 dispatcher.add_ref()
             },

@@ -39,7 +39,7 @@ fn generates_protocol_messages_and_binding_accessors() {
     assert!(generated.contains("::neocogi_com_events::copy_text(text)?"));
     assert!(generated.contains("create_changes_sink"));
     assert!(generated.contains("if let Some(validate) = self.validate"));
-    assert!(generated.contains("EVENT_BINDING_API_VERSION == 3"));
+    assert!(generated.contains("EVENT_BINDING_API_VERSION == 4"));
     assert!(generated.contains("fn subscribe_changed"));
     assert!(generated.contains("pub trait IEditorPorts"));
     assert!(generated.contains("fn changed(&self) -> IEditorChangedPort<M>"));
@@ -86,7 +86,7 @@ fn source_only_event_port_checks_support_api() {
     let graph = resolve_modules(vec![source, sink, transport]).unwrap();
     let generated = neocogi_idl_build::generate_rust(&graph, "example.source").unwrap();
     syn::parse_file(&generated).expect("source-only event bindings must parse");
-    assert!(generated.contains("EVENT_BINDING_API_VERSION == 3"));
+    assert!(generated.contains("EVENT_BINDING_API_VERSION == 4"));
     assert!(generated.contains("fn changed(&self) -> ISourceChangedPort<M>"));
     assert!(!generated.contains("pub fn i_source_subscribe_port"));
     assert!(generated.contains("example_sink_contracts::create_changes_port_sink"));

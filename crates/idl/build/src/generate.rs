@@ -376,7 +376,7 @@ fn generate_port_protocol(
                 #method_docs fn #method_name(&mut self) -> Result<(), ::neocogi_com::NcStatus> {
                     let event = #captured;
                     if let Some(validate) = self.validate { validate(&event)?; }
-                    self.delivery.deliver(event)
+                    self.sender.post((self.map)(event))
                 }
             });
         } else {
@@ -395,7 +395,7 @@ fn generate_port_protocol(
                 #method_docs fn #method_name(&mut self, #(#parameters),*) -> Result<(), ::neocogi_com::NcStatus> {
                     let event = #captured { #(#decoded),* };
                     if let Some(validate) = self.validate { validate(&event)?; }
-                    self.delivery.deliver(event)
+                    self.sender.post((self.map)(event))
                 }
             });
         }
@@ -440,6 +440,13 @@ fn generate_port_protocol(
         impl ::neocogi_com_events::EventPayload for #payload_name {
             type Sink = #sink_abi_name;
 
+            /// Creates a receiver that posts directly into a concrete consumer inbox.
+            fn receiver<Message: 'static, Map: FnMut(Self) -> Message + 'static>(
+                sender: ::neocogi_com_events::EventSender<Message>, map: Map,
+            ) -> Result<::neocogi_com::ComPtr<Self::Sink>, ::neocogi_com::NcStatus> {
+                #adapter_factory(sender, map, None)
+            }
+
             /// Replays the captured snapshot through its one generated sink interface.
             fn deliver(&self, mut sink: ::neocogi_com::ComRef<'_, Self::Sink>) -> Result<(), ::neocogi_com::NcStatus> {
                 match self { #(#producer_arms),* }
@@ -447,26 +454,28 @@ fn generate_port_protocol(
         }
 
         #[::neocogi_com::com_object(interfaces(#name))]
-        /// Concrete local application adapter with the exact state and handler types.
-        struct #adapter_name<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, #payload_name> + 'static> {
-            /// Application-owned typed delivery; the producer retains only a COM lease.
-            delivery: ::neocogi_com_events::EventDelivery<State, Handler>,
-            /// Concrete semantic check runs after decoding but before state or handler borrowing.
+        /// Concrete local protocol-to-message mapper; no application state is retained.
+        struct #adapter_name<Message: 'static, Map: FnMut(#payload_name) -> Message + 'static> {
+            /// Weak typed posting access; the consumer owns its sole FIFO.
+            sender: ::neocogi_com_events::EventSender<Message>,
+            /// Concrete translation callable, exclusively borrowed by the receiver method.
+            map: Map,
+            /// Concrete semantic check runs after decoding but before message translation.
             validate: Option<fn(&#payload_name) -> Result<(), ::neocogi_com::NcStatus>>,
         }
 
-        impl<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, #payload_name> + 'static> #name for #adapter_name<State, Handler> {
+        impl<Message: 'static, Map: FnMut(#payload_name) -> Message + 'static> #name for #adapter_name<Message, Map> {
             #(#adapter_methods)*
         }
 
         /// Creates a typed sink for a native source or generated port, with an optional domain check.
-        /// Validation follows ABI decoding and precedes the owner's mutable state borrow.
-        pub fn #adapter_factory<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, #payload_name> + 'static>(
-            session: &::neocogi_com_events::EventSession<State>,
-            handler: Handler,
+        /// Validation follows ABI decoding and precedes message translation.
+        pub fn #adapter_factory<Message: 'static, Map: FnMut(#payload_name) -> Message + 'static>(
+            sender: ::neocogi_com_events::EventSender<Message>,
+            map: Map,
             validate: Option<fn(&#payload_name) -> Result<(), ::neocogi_com::NcStatus>>,
         ) -> Result<::neocogi_com::ComPtr<#sink_abi_name>, ::neocogi_com::NcStatus> {
-            #adapter_name::from_value(#adapter_name { delivery: session.delivery(handler), validate }).query()
+            #adapter_name::from_value(#adapter_name { sender, map, validate }).query()
         }
     })
 }
@@ -737,7 +746,7 @@ fn port_bindings(
             pub struct #port_type<M: ::neocogi_com::ThreadingModel = #mode> {
                 /// Exact source projection retained only until connection finishes.
                 source: ::neocogi_com::ComPtr<#source_abi, M>,
-                /// Semantic validation runs after decoding and before application-state borrowing.
+                /// Semantic validation runs after decoding and before message translation.
                 validate: Option<fn(&#payload) -> Result<(), ::neocogi_com::NcStatus>>,
             }
 
@@ -752,14 +761,14 @@ fn port_bindings(
             impl<M: ::neocogi_com::ThreadingModel> ::neocogi_com_events::EventPort for #port_type<M> {
                 type Event = #payload;
 
-                /// Connects exactly one generated sink while registration excludes reentry.
-                fn connect<State: 'static, Handler: ::neocogi_com_events::EventHandler<State, Self::Event> + 'static>(
+                /// Connects exactly one generated sink while the consumer owns registration exclusively.
+                fn connect<Message: 'static, Map: FnMut(Self::Event) -> Message + 'static>(
                     self,
-                    session: &::neocogi_com_events::EventSession<State>,
-                    handler: Handler,
+                    sender: ::neocogi_com_events::EventSender<Message>,
+                    map: Map,
                 ) -> Result<::neocogi_com::ComPtr<::neocogi_com_events::IEventSubscriptionAbi>, ::neocogi_com::NcStatus> {
-                    let sink = #prefix #factory(session, handler, self.validate)?;
-                    // Connection changes queue ownership without mutating the source object.
+                    let sink = #prefix #factory(sender, map, self.validate)?;
+                    // Connection installs a weak receiver link without mutating the source object.
                     let source = self.source;
                     source.#port_name(sink.as_com_ref())
                 }

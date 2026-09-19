@@ -1,18 +1,16 @@
 #[version(1)]
-/// One application-owned lease over a producer-owned typed event queue.
+/// Consumer-owned connection lease; messages already posted belong to the consumer.
 interface IEventSubscription {
-    /// Delivers at most limit callbacks from one bounded FIFO prefix.
-    /// A callback error consumes the attempted event and preserves unattempted events.
-    fn dispatch(&self, limit: u32) -> Result<u32>;
-    /// Reports a live source or an undelivered terminal fact.
+    /// Reports whether this exact connection accepts new messages.
     fn active(&self) -> Result<bool>;
-    /// Disconnects explicitly; final release also disconnects without invoking user code.
+    /// Disconnects future posts; final release also disconnects without invoking behavior.
     fn cancel(&self) -> Result<()>;
 }
 
 #[version(1)]
-/// Borrowed dispatcher that sweeps application registrations in deterministic order.
+/// Runtime-invoked consumer capability, independent of any source registration order.
 interface IEventDispatcher {
-    /// Delivers finite cascades up to the supplied callback budget.
-    fn dispatch(&self, limit: u32) -> Result<u32>;
+    /// Consumes a bounded FIFO prefix; new work waits for a later visit.
+    /// A zero budget reports LIMIT only when work remains, otherwise zero.
+    fn dispatch(&mut self, limit: u32) -> Result<u32>;
 }

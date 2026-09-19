@@ -1,40 +1,29 @@
-//! Process-neutral typed event transport for COM component producers and consumers.
-//!
-//! Producer queues and application handlers remain native Rust data in their
-//! respective binaries. Only the generated lease, dispatcher, and event sink
-//! interfaces cross a plugin boundary. The process-global COM runtime neither
-//! owns queues nor stores application state.
-//!
-//! Subscription setup uses a consumed [`EventPort`] with explicit producer
-//! and policy fields. [`EventSession::subscribe`] claims its ordered transaction
-//! before calling the port; only the resulting lease is retained. Generated
-//! NCIDL helpers supply these operations without application-written sink wiring.
-//! This setup protocol is separate from [`EventHandler`] invocation during dispatch.
+//! Typed protocol connections and consumer-owned message inboxes.
+//! Only generated protocol receivers and connection leases cross plugin boundaries.
+//! Mapping is immediate; consumer behavior is deferred to runtime dispatch.
 
 #![deny(missing_docs)]
 
 mod inbox;
-pub use inbox::{Events, EventSender, MappedPort};
+pub use inbox::{Events, EventSender, EventPort};
 mod scoped;
 pub use scoped::with_dispatcher;
 
+/// Isolated native algorithm collectors, absent from production builds.
+#[cfg(feature = "test-support")]
+pub mod test_support;
+
 mod source;
 pub use source::{EventEndpoint, EventPayload, EventSource};
-mod session;
-pub use session::{EventPort, EventDelivery, EventHandler, EventSession, EVENT_DISPATCH_LIMIT};
-
-/// Isolated transport-algorithm fixtures, absent from ordinary builds.
-#[cfg(feature = "test-support")]
-pub mod test_support {
-    pub use super::source::{DeliveryWindow, EventLease, SubscribeError};
-}
+/// Finite work limit shared by every consumer at one runtime update boundary.
+pub const EVENT_DISPATCH_LIMIT: u32 = 1_000_000;
 
 pub use neocogi_com_events_contracts::{IEventDispatcher, IEventDispatcherAbi, IEventSubscription, IEventSubscriptionAbi};
 
 /// Rust binding protocol accepted by compiler-generated COM event adapters and ports.
 /// Bump this with the IDL generator when its required transport API or delivery
 /// semantics change; an unchanged NCIDL wire ABI alone does not cover that case.
-pub const EVENT_BINDING_API_VERSION: u32 = 3;
+pub const EVENT_BINDING_API_VERSION: u32 = 4;
 
 #[cfg(test)]
 mod compiler_binding_tests {
