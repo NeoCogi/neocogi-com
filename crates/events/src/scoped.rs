@@ -11,7 +11,7 @@ struct Invocation {
     /// Borrowed callback address; dereferenced only while its enclosing scope remains live.
     context: *mut (),
     /// The matching trampoline restores the callback's concrete type before invoking it.
-    call: unsafe fn(*mut (), u32) -> Result<u32, NcStatus>,
+    call: unsafe fn(*mut ()) -> Result<bool, NcStatus>,
 }
 /// A retained foreign capability is callable only inside its original synchronous scope.
 #[derive(Clone, Copy)]
@@ -29,13 +29,13 @@ struct ScopedDispatcher {
 }
 impl IEventDispatcher for ScopedDispatcher {
     /// Borrows the callback exclusively and restores availability after success, failure or panic.
-    fn dispatch(&mut self, limit: u32) -> Result<u32, NcStatus> {
+    fn dispatch(&mut self) -> Result<bool, NcStatus> {
         match self.state.get() {
             State::Ready(invocation) => {
                 // SAFETY: the scope keeps this exact pair live. The generated
                 // mutable COM call gate excludes recursive access before a second
                 // callback borrow could be manufactured.
-                unsafe { (invocation.call)(invocation.context, limit) }
+                unsafe { (invocation.call)(invocation.context) }
             }
             State::Closed => Err(EVENT_E_CLOSED),
         }
@@ -53,10 +53,10 @@ impl Drop for Scope {
     }
 }
 /// Restores only the concrete callback type associated with this invocation's context.
-unsafe fn invoke<Callback: FnMut(u32) -> Result<u32, NcStatus>>(context: *mut (), limit: u32) -> Result<u32, NcStatus> {
+unsafe fn invoke<Callback: FnMut() -> Result<bool, NcStatus>>(context: *mut ()) -> Result<bool, NcStatus> {
     // SAFETY: with_dispatcher creates this pointer from Callback, and the scope
     // and generated mutable call gate admit only one live borrow at a time.
-    unsafe { (&mut *context.cast::<Callback>())(limit) }
+    unsafe { (&mut *context.cast::<Callback>())() }
 }
 /// Gives a synchronous runtime call dispatch access to a borrowed native closure.
 /// Retaining the capability is harmless: after return it permanently reports CLOSED.
@@ -64,7 +64,7 @@ unsafe fn invoke<Callback: FnMut(u32) -> Result<u32, NcStatus>>(context: *mut ()
 #[doc(hidden)]
 pub fn with_dispatcher<Callback, ResultValue>(callback: &mut Callback, run: impl FnOnce(ComRef<'_, IEventDispatcherAbi>) -> ResultValue) -> ResultValue
 where
-    Callback: FnMut(u32) -> Result<u32, NcStatus>,
+    Callback: FnMut() -> Result<bool, NcStatus>,
 {
     let scope = Scope(Rc::new(Cell::new(State::Ready(Invocation {
         context: core::ptr::from_mut(callback).cast(),
@@ -84,45 +84,45 @@ mod tests {
     fn borrowed_callback_is_revoked_on_return() {
         let mut total = 0;
         let mut retained = with_dispatcher(
-            &mut |count| {
-                total += count;
-                Ok(count)
+            &mut || {
+                total += 1;
+                Ok(true)
             },
             |mut dispatcher| {
-                assert_eq!(dispatcher.dispatch(3), Ok(3));
+                assert_eq!(dispatcher.dispatch(), Ok(true));
                 dispatcher.add_ref()
             },
         );
-        assert_eq!(total, 3);
-        assert_eq!(retained.dispatch(2), Err(EVENT_E_CLOSED));
+        assert_eq!(total, 1);
+        assert_eq!(retained.dispatch(), Err(EVENT_E_CLOSED));
     }
     /// An outer panic also revokes a foreign reference before local state goes out of scope.
     #[test]
     fn panic_revokes_the_borrow() {
         let mut retained = None;
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            with_dispatcher(&mut |_| Ok(0), |dispatcher| {
+            with_dispatcher(&mut || Ok(false), |dispatcher| {
                 retained = Some(dispatcher.add_ref());
                 panic!("scope exit");
             });
         }));
         assert!(result.is_err());
-        assert_eq!(retained.unwrap().dispatch(1), Err(EVENT_E_CLOSED));
+        assert_eq!(retained.unwrap().dispatch(), Err(EVENT_E_CLOSED));
     }
     /// The existing mutable COM gate rejects recursion before a second callback borrow exists.
     #[test]
     fn mutable_dispatch_gate_excludes_recursive_borrows() {
         let retained = std::cell::RefCell::new(None::<neocogi_com::ComPtr<IEventDispatcherAbi>>);
         with_dispatcher(
-            &mut |_| {
-                assert_eq!(retained.borrow_mut().as_mut().unwrap().dispatch(1), Err(neocogi_com::NC_E_BUSY));
-                Ok(1)
+            &mut || {
+                assert_eq!(retained.borrow_mut().as_mut().unwrap().dispatch(), Err(neocogi_com::NC_E_BUSY));
+                Ok(true)
             },
             |mut dispatcher| {
                 *retained.borrow_mut() = Some(dispatcher.add_ref());
-                assert_eq!(dispatcher.dispatch(1), Ok(1));
+                assert_eq!(dispatcher.dispatch(), Ok(true));
             },
         );
-        assert_eq!(retained.borrow_mut().as_mut().unwrap().dispatch(1), Err(EVENT_E_CLOSED));
+        assert_eq!(retained.borrow_mut().as_mut().unwrap().dispatch(), Err(EVENT_E_CLOSED));
     }
 }

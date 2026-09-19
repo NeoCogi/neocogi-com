@@ -137,14 +137,14 @@ mod tests {
             .unwrap();
         events.sender().post(1).unwrap();
         let held = state.borrow();
-        assert_eq!(driver.dispatch(1), Err(crate::EVENT_E_BUSY));
+        assert_eq!(driver.dispatch(), Err(crate::EVENT_E_BUSY));
         assert_eq!(events.len(), 1);
         drop(held);
-        assert_eq!(driver.dispatch(1), Ok(1));
+        assert_eq!(driver.dispatch(), Ok(true));
         assert_eq!(&*state.borrow(), &[1]);
         assert_eq!(events.pop(), None);
         drop(events);
-        assert_eq!(driver.dispatch(1), Ok(0));
+        assert_eq!(driver.dispatch(), Ok(false));
     }
 }
 
@@ -160,31 +160,18 @@ struct ComponentDispatcher<Owner: 'static, Message: 'static> {
     consume: fn(&mut Owner, Message) -> Result<(), NcStatus>,
 }
 impl<Owner: 'static, Message: 'static> neocogi_com_events_contracts::IEventDispatcher for ComponentDispatcher<Owner, Message> {
-    /// Visits the starting FIFO prefix without carrying a queue borrow into component behavior.
-    fn dispatch(&mut self, limit: u32) -> Result<u32, NcStatus> {
-        let count = match self.pending.upgrade() {
-            Some(pending) => pending.borrow().len().min(limit as usize),
-            None => return Ok(0),
-        };
-        if count == 0 && self.pending.upgrade().is_some_and(|pending| !pending.borrow().is_empty()) {
-            return Err(EVENT_E_LIMIT);
-        }
-        let mut delivered = 0;
-        for _ in 0..count {
-            let Some(owner) = self.owner.upgrade() else { break };
-            // Claim the component before removing a message. A conflicting public
-            // operation must leave the entire unattempted FIFO available for retry.
-            let mut owner = owner.try_borrow_mut().map_err(|_| crate::EVENT_E_BUSY)?;
-            let message = self.pending.upgrade().and_then(|pending| pending.borrow_mut().pop_front());
-            match message {
-                Some(message) => {
-                    (self.consume)(&mut owner, message)?;
-                    delivered += 1;
-                }
-                None => break,
+    /// Claims the component before taking one message so a busy owner loses no work.
+    fn dispatch(&mut self) -> Result<bool, NcStatus> {
+        let Some(owner) = self.owner.upgrade() else { return Ok(false) };
+        let mut owner = owner.try_borrow_mut().map_err(|_| crate::EVENT_E_BUSY)?;
+        let message = self.pending.upgrade().and_then(|pending| pending.borrow_mut().pop_front());
+        match message {
+            Some(message) => {
+                (self.consume)(&mut owner, message)?;
+                Ok(true)
             }
+            None => Ok(false),
         }
-        Ok(delivered)
     }
 }
 impl<Message: 'static> Events<Message> {

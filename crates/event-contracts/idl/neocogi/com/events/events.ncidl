@@ -1,7 +1,7 @@
 #[version(1)]
 /// Runtime-invoked consumer capability, independent of any source registration order.
 interface IEventDispatcher {
-    /// Consumes a bounded FIFO prefix; new work waits for a later visit.
-    /// A zero budget reports LIMIT only when work remains, otherwise zero.
-    fn dispatch(&mut self, limit: u32) -> Result<u32>;
+    /// Consumes at most one pending message and reports whether work was performed.
+    /// The runtime owns visit order and the update-wide budget; consumers never peek or batch.
+    fn dispatch(&mut self) -> Result<bool>;
 }

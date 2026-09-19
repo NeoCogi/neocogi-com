@@ -7,5 +7,5 @@
 
 include!(concat!(env!("OUT_DIR"), "/neocogi_com_events.rs"));
 
-/// A finite dispatcher budget was exhausted while messages remained queued.
+/// The runtime reached its finite update budget before establishing quiescence.
 pub const EVENT_E_LIMIT: neocogi_com::NcStatus = neocogi_com::NcStatus::from_code(-1007);
