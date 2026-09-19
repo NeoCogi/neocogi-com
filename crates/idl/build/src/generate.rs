@@ -703,7 +703,7 @@ fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[
 }
 
 /// Generates typed accessor methods on owned and borrowed source projections.
-/// Each accessor constructs its port directly; only the session calls the source.
+/// Each accessor constructs its port directly; only mapping setup calls the source.
 /// The source's threading capability is preserved without querying or weakening it.
 fn port_bindings(
     graph: &ResolvedModules,

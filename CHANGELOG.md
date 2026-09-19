@@ -5,22 +5,20 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 
 ## Unreleased
 
-- Accept typed state methods, functions, and mutable closures directly in
-  `EventSession::subscribe`. Remove per-handler adapter types from demos and the
-  file picker; retain optional explicit handlers, checked delivery, cancellation,
-  and automatic nested dispatch. Captures stay concrete and need no extra cells.
-
-- Declare notification protocols with `port` and bind named connection points
-  with `name: Protocol;`. Generate typed accessors on owned and borrowed handles
-  with fixed shared connection receivers; remove free port constructors. Preserve
-  handle threading, canonical leases, mutable sink delivery, and ABI v1 tables.
-
-- Generate typed `EventPort` values for `EventSession::subscribe` and require
-  mutable event sinks. Remove UI-family session duplication, connector helpers,
-  handler interior mutability, and detached-batch restoration. Rust binding
-  protocol 3 requires regenerated bindings; plugin and runtime ABIs remain v1.
-- Model session registration as Ready/Busy/Closed and retain owned source FIFOs,
-  explicit cancellation, terminal facts, and completed-request delivery.
+- Replace producer event queues and state-owning sessions with `Events<Message>`:
+  typed mappers post directly into one consumer FIFO and ordinary mutable state
+  consumes application messages through a single runtime-owned update operation.
+  Remove handler traits, registration transactions and dispatch from connection
+  leases. Cancellation stops future posts and preserves committed consumer facts.
+- Pump private component inboxes automatically in descendant-first passes, one
+  message per component per visit, before consuming one application message.
+  Share one update budget, preserve unattempted work on failure, revoke scoped
+  borrowed dispatchers on return, and stop delivery immediately after mount removal.
+  Composite models use ordinary mutable methods behind their single shared COM
+  access boundary. Rust event binding API is 4; both deployment ABIs remain v1.
+- Declare notification protocols with `port` and named `name: Protocol;` bindings.
+  Generate typed accessors on owned and borrowed handles and concrete owned message
+  types. File-dialog completion belongs directly to `IFileDialog`.
 
 - Simplify contracts to compile-time Rust bindings and transitive signatures;
   remove native contract libraries/archives, module getters/registries, and

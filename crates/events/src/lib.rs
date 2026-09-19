@@ -37,13 +37,13 @@ mod compiler_binding_tests {
 
 /// An event source has permanently closed before a new subscription was claimed.
 pub const EVENT_E_CLOSED: neocogi_com::NcStatus = neocogi_com::NcStatus::from_code(-1000);
-/// A synchronous event transaction would reenter an active subscription or session.
+/// A port post or shared component access would reenter an active mutable operation.
 pub const EVENT_E_BUSY: neocogi_com::NcStatus = neocogi_com::NcStatus::from_code(-1001);
 /// A finite dispatch budget was exhausted while events were still pending.
 pub const EVENT_E_LIMIT: neocogi_com::NcStatus = neocogi_com::NcStatus::from_code(-1007);
 
 /// Copies a complete offset-zero UTF-8 delivery argument into local owned text.
-/// No foreign string view or producer borrow is retained across a handler call.
+/// No foreign string view or producer borrow is retained across a mapper call.
 pub fn copy_text(value: neocogi_com::NcCopyFromBufferOffset<'_, u8>) -> Result<String, neocogi_com::NcStatus> {
     if value.offset() != 0 {
         return Err(neocogi_com::NC_E_INVALID_ARG);
@@ -66,7 +66,7 @@ mod copy_tests {
     use super::*;
     use neocogi_com::{NC_E_INVALID_ARG, NcCopyFromBufferOffset};
 
-    /// An event adapter must own foreign input before its application handler runs.
+    /// An event adapter must own foreign input before its mapper runs.
     #[test]
     fn text_and_slice_decoding_copy_complete_valid_arguments() {
         let text = String::from("éclair");
