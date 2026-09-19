@@ -82,8 +82,8 @@ implementation objects. `#[version(N)]` derives an IID; `#[id(N, "UUID")]` pins 
 The first required interface is the physical base; later requirements are
 sibling projections. The required projection graph must be acyclic. A factory
 may serve as the runtime's zero-argument construction root. Named output bindings
-return generated connection projections; their single mutable receiver operation
-accepts `NcMessage<T>`. Passing tag `NC_ABI_PASSING_MESSAGE` (`0x07`) describes a
+lower to ordinary mutable receiver setters. Each receiver has one `post` operation
+accepting `NcMessage<T>`. Passing tag `NC_ABI_PASSING_MESSAGE` (`0x07`) describes a
 borrowed pointer to the exact message C record/union, identified by its aggregate
 signature. Decoding checks the active tag and acquires owned fields before mapping.
 Strings/slices use pointer/count pairs; objects use checked concrete COM pointers.

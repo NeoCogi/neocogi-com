@@ -5,7 +5,7 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Intrinsic COM event lease and dispatcher ABI used by NCIDL event lowering"
+description = "COM dispatcher ABI shared by runtimes and typed consumer queues"
 links = "nc_contract_neocogi_com_events"
 
 [package.metadata.neocogi-contract]

@@ -31,13 +31,12 @@ boundaries, and [ABI v7](docs/abi-v7.md) for the binary model.
 ## IDL
 
 The COM-owned [IDL compiler](idl) generates checked COM posting for concrete
-`#[message]` structs/enums and connection getters for `name: Message;` outputs.
-Producers bind `Port<Message>` fields with `com_object(..., ports(...))`. Consumers
-map generated `PortRef<Message>` values into their own ordinary Rust enums.
-[`neocogi-com-events`](events) supplies connections and consumer-owned FIFOs;
-[the event ABI](event-contracts) supplies cancellation and scoped dispatch.
-No producer queue, authored sink protocol or state-owning session is needed.
-Generated support API 5 is checked separately from native wire fingerprints.
+`#[message]` structs/enums and receiver setters for `name: Message;` outputs.
+Producers own one optional typed receiver; consumers call
+`events.map(producer.changed(), AppEvent::Changed)?` to install or replace it.
+[`neocogi-com-events`](events) supplies consumer-owned FIFOs and scoped dispatch.
+There are no producer queues, output projections, subscription leases or registries.
+Generated receivers depend on COM alone; queues stay in the consumer library.
 
 Contracts use `struct`, `enum`, `bitenum`, `interface`, and `factory`. All declarations
 and members are public by definition:

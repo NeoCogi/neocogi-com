@@ -16,12 +16,12 @@ of the optional `cargo-neocogi` assembly driver.
 
 `interface` and `factory` share the callable model. `#[message]` marks concrete
 structs/enums for checked COM posting. A named output such as `changed: TextChanged;`
-generates a `PortRef<TextChanged>` accessor on `ComPtr` and `ComRef`. Producers bind
-`Port<TextChanged>` fields using `com_object(..., ports(...))`; the compiler supplies
-the connection getter and one typed receiver operation. No authored callback
-protocol, invented message name, or handwritten subscription is needed.
-Application enums stay in Rust. Generated support checks API version 5 separately
-from native wire signatures, and keeps the canonical connection lease internal.
+generates a one-shot installation closure on `ComPtr` and `ComRef`. Producers
+implement the ordinary generated receiver setter and store one optional concrete
+COM receiver. `events.map(output(), mapper)?` replaces its destination and returns
+`Result<()>`; there is no connection projection or subscription lifetime.
+Application enums stay in Rust. Generated receivers depend on COM alone, with
+no consumer queue dependency or separate support-version protocol.
 
 All contracts, including events, are compile-time definitions. The build helper
 emits no native artifact, exported getter, runtime module graph, or built-in

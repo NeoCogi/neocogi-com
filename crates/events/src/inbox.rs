@@ -81,7 +81,7 @@ impl<Message> Default for Events<Message> {
         Self::new()
     }
 }
-/// Typed, non-owning posting access used by generated protocol receivers.
+/// Typed, non-owning posting access for local application or component work.
 pub struct EventSender<Message> {
     /// Weak ownership ensures senders cannot prolong an abandoned inbox.
     pending: Weak<RefCell<VecDeque<Message>>>,

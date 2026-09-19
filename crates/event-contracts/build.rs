@@ -1,4 +1,4 @@
-//! Generates the intrinsic COM event lease and dispatcher contracts from NCIDL.
+//! Generates the COM dispatcher contract from its NCIDL declaration.
 
 /// Emits typed Rust bindings and the source graph, without a separate native artifact.
 fn main() {
