@@ -3,7 +3,6 @@
 mod message_tests {
     use super::*;
     use neocogi_com::{com_object, ComMessage, ComPtr, NcMessage, NcStatus};
-    use neocogi_com_events::{Events};
 
     #[com_object(interfaces(IToken))]
     /// Object lifetime is observable after all producer-side references are dropped.
@@ -32,51 +31,51 @@ mod message_tests {
     #[test]
     fn generated_output_installs_a_direct_receiver() {
         let producer: ComPtr<IProducerAbi> = Producer::from_value(Producer { completed: None }).query().unwrap();
-        let mut first = Events::new();
-        first.map(producer.completed(), |_| 1).unwrap();
-        let mut second = Events::new();
-        second.map(producer.completed(), |_| 2).unwrap();
+        let (first_tx, first) = std::sync::mpsc::channel();
+        neocogi_com_events::map(producer.completed(), first_tx.clone(), |_| 1).unwrap();
+        let (second_tx, second) = std::sync::mpsc::channel();
+        neocogi_com_events::map(producer.completed(), second_tx.clone(), |_| 2).unwrap();
         drop(producer);
-        assert_eq!(first.pop(), Some(1));
-        assert_eq!(second.pop(), Some(2));
+        assert_eq!(first.try_recv().ok(), Some(1));
+        assert_eq!(second.try_recv().ok(), Some(2));
     }
 
     /// Producer release cannot destroy consumer-owned object or text snapshots.
     #[test]
     fn typed_delivery_retains_objects_and_copies_strings() {
         let mut source = None;
-        let mut events = Events::new();
-        events.map(|consume| { source = Some(Completion::__receiver(consume)?); Ok(()) }, |message| message).unwrap();
+        let (events_tx, events) = std::sync::mpsc::channel();
+        neocogi_com_events::map(|consume| { source = Some(Completion::__receiver(consume)?); Ok(()) }, events_tx.clone(), |message| message).unwrap();
         let token: ComPtr<ITokenAbi> = Token::from_value(Token).query().unwrap();
         Completion::Accepted { token }.post_to(&mut source).unwrap();
         drop(source);
-        match events.pop().unwrap() {
+        match events.try_recv().unwrap() {
             Completion::Accepted { token } => assert_eq!(token.value(), Ok(42)),
             Completion::Cancelled => panic!("wrong case"),
         }
         let mut source = None;
-        let mut events = Events::new();
-        events.map(|consume| { source = Some(TextChanged::__receiver(consume)?); Ok(()) }, |message| message).unwrap();
+        let (events_tx, events) = std::sync::mpsc::channel();
+        neocogi_com_events::map(|consume| { source = Some(TextChanged::__receiver(consume)?); Ok(()) }, events_tx.clone(), |message| message).unwrap();
         TextChanged { text: "héllo".into(), cursor: 2 }.post_to(&mut source).unwrap();
         drop(source);
-        assert_eq!(events.pop().unwrap().text, "héllo");
+        assert_eq!(events.try_recv().unwrap().text, "héllo");
     }
 
     /// Unit facts retain their checked copied ABI and slices become independent consumer storage.
     #[test]
     fn unit_messages_and_owned_slices_round_trip() {
         assert_eq!(Notice::try_from(NoticeAbi::from(Notice::Ready)).unwrap(), Notice::Ready);
-        let mut port = None;
-        let mut events = Events::new();
-        events.map(|consume| { port = Some(Notice::__receiver(consume)?); Ok(()) }, |message| message).unwrap();
-        Notice::Done.post_to(&mut port).unwrap();
-        assert_eq!(events.pop(), Some(Notice::Done));
-        let mut port = None;
-        let mut events = Events::new();
-        events.map(|consume| { port = Some(Batch::__receiver(consume)?); Ok(()) }, |message| message.values).unwrap();
-        Batch { values: vec![1, 2, 3] }.post_to(&mut port).unwrap();
-        drop(port);
-        assert_eq!(events.pop(), Some(vec![1, 2, 3]));
+        let mut destination = None;
+        let (events_tx, events) = std::sync::mpsc::channel();
+        neocogi_com_events::map(|consume| { destination = Some(Notice::__receiver(consume)?); Ok(()) }, events_tx.clone(), |message| message).unwrap();
+        Notice::Done.post_to(&mut destination).unwrap();
+        assert_eq!(events.try_recv().ok(), Some(Notice::Done));
+        let mut destination = None;
+        let (events_tx, events) = std::sync::mpsc::channel();
+        neocogi_com_events::map(|consume| { destination = Some(Batch::__receiver(consume)?); Ok(()) }, events_tx.clone(), |message| message.values).unwrap();
+        Batch { values: vec![1, 2, 3] }.post_to(&mut destination).unwrap();
+        drop(destination);
+        assert_eq!(events.try_recv().ok(), Some(vec![1, 2, 3]));
         let value = Batch { values: vec![1] };
         let mut wire = value.encode();
         wire.payload.case_0.values.len = u64::MAX;
@@ -87,27 +86,27 @@ mod message_tests {
     /// Invalid wire values fail before the mapping closure or queue is reached.
     #[test]
     fn malformed_payloads_never_reach_the_mapper() {
-        let mut events = Events::new();
-        let sender = events.sender();
-        let mut receiver = NumberChanged::__receiver(Box::new(move |message| sender.post(message))).unwrap();
+        let (events_tx, events) = std::sync::mpsc::channel();
+        let sender = events_tx.clone();
+        let mut receiver = NumberChanged::__receiver(Box::new(move |message| sender.send(message).map_err(|_| neocogi_com::NC_E_INVALID_ARG))).unwrap();
         let message = NumberChanged { value: 12.5, checked: true };
         receiver.post(NcMessage::new(&message)).unwrap();
-        assert_eq!(events.pop().unwrap(), message);
+        assert_eq!(events.try_recv().unwrap(), message);
         let mut wire = message.encode();
         wire.tag = 99;
         assert_eq!(receiver.post(unsafe { NcMessage::from_raw(&wire) }.unwrap()), Err(neocogi_com::NC_E_INVALID_TAG));
         wire = message.encode();
         wire.payload.case_0.checked = 3;
         assert_eq!(receiver.post(unsafe { NcMessage::from_raw(&wire) }.unwrap()), Err(neocogi_com::NC_E_INVALID_ARG));
-        assert!(events.is_empty());
-        let mut text = Events::new();
-        let sender = text.sender();
-        let mut receiver = TextChanged::__receiver(Box::new(move |message| sender.post(message))).unwrap();
+        assert!(events.try_recv().is_err());
+        let (text_tx, text) = std::sync::mpsc::channel();
+        let sender = text_tx.clone();
+        let mut receiver = TextChanged::__receiver(Box::new(move |message| sender.send(message).map_err(|_| neocogi_com::NC_E_INVALID_ARG))).unwrap();
         let bad = [0xff];
         let message = TextChanged { text: String::new(), cursor: 0 };
         let mut wire = message.encode();
         wire.payload.case_0.text = neocogi_com::NcMessageSlice::new(&bad);
         assert_eq!(receiver.post(unsafe { NcMessage::from_raw(&wire) }.unwrap()), Err(neocogi_com::NC_E_INVALID_ARG));
-        assert!(text.pop().is_none());
+        assert!(text.try_recv().is_err());
     }
 }

@@ -456,7 +456,7 @@ fn port_bindings(
         let body = quote! {
             #docs fn #accessor(&self) -> #install + use<M> {
                 // Own the producer only for this one setup operation. The installed
-                // receiver holds weak consumer access, never this producer reference.
+                // receiver holds the consumer callback, never this producer reference.
                 let mut producer = self.clone();
                 move |consume| {
                     let receiver = #message::__receiver(consume)?;
