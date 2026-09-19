@@ -5,6 +5,11 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 
 ## Unreleased
 
+- Accept typed state methods, functions, and mutable closures directly in
+  `EventSession::subscribe`. Remove per-handler adapter types from demos and the
+  file picker; retain optional explicit handlers, checked delivery, cancellation,
+  and automatic nested dispatch. Captures stay concrete and need no extra cells.
+
 - Declare notification protocols with `port` and bind named connection points
   with `name: Protocol;`. Generate typed accessors on owned and borrowed handles
   with fixed shared connection receivers; remove free port constructors. Preserve
