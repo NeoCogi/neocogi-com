@@ -18,8 +18,8 @@ runtime    -> registers plugins, checks factories, retains loaded libraries
 
 Contracts exist only at build time. No contract `.so`, native description
 archive, getter, runtime inventory, or event-contract seeding is produced.
-`interface` describes callable behavior; `factory` and `port` are roles over
-that same representation. An object is private Rust state implementing it.
+`interface` describes callable behavior; `factory` marks construction roots.
+An object is private Rust state. Concrete message data defines its published outputs.
 
 The [plain-Cargo sample](../../examples/com-plugin/README.md) builds the same
 plugin as a shared library and as an rlib statically linked into a monolith.
@@ -30,19 +30,16 @@ boundaries, and [ABI v7](docs/abi-v7.md) for the binary model.
 
 ## IDL
 
-The COM-owned IDL compiler lives under [`crates/com/idl`](idl). It defines `port`
-protocols and lowers named `name: Protocol` bindings against the canonical
-`neocogi.com.events.IEventSubscription` interface; a same-named foreign lease
-is rejected. The [`neocogi.com.events`](event-contracts) NCIDL module defines
-that lease and the borrowed dispatcher ABI. [`neocogi-com-events`](events)
-implements typed producer queues and application-owned sessions in their
-respective binaries. Generated event bindings check the support crate's event
-binding API version at compile time, because a Rust adapter change need not
-change an NCIDL wire fingerprint. Event contracts use the ordinary compile-time
-source graph. UI event families use this COM support without making generic
-COM events depend on UI.
+The COM-owned [IDL compiler](idl) generates checked COM posting for concrete
+`#[message]` structs/enums and connection getters for `name: Message;` outputs.
+Producers bind `Port<Message>` fields with `com_object(..., ports(...))`. Consumers
+map generated `PortRef<Message>` values into their own ordinary Rust enums.
+[`neocogi-com-events`](events) supplies connections and consumer-owned FIFOs;
+[the event ABI](event-contracts) supplies cancellation and scoped dispatch.
+No producer queue, authored sink protocol or state-owning session is needed.
+Generated support API 5 is checked separately from native wire fingerprints.
 
-Contracts use `struct`, `enum`, `bitenum`, `interface`, `port`, and `factory`. All declarations
+Contracts use `struct`, `enum`, `bitenum`, `interface`, and `factory`. All declarations
 and members are public by definition:
 
 ```rust

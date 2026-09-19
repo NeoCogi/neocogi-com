@@ -14,15 +14,14 @@ of the optional `cargo-neocogi` assembly driver.
   and imported contracts. [examples/com-plugin](../../../examples/com-plugin)
   demonstrates their dynamic and monolithic use.
 
-`interface`, `factory`, and `port` share one callable model. The port role
-requires mutable, unit-returning delivery and generates owned snapshots and typed sinks.
-A source binds `changed: ChangesPort;` alongside ordinary methods.
-It generates `.changed()` accessors for `ComPtr` and `ComRef` and the standard
-`subscribe_changed(&self, sink)` connection operation. Every binding has a name;
-each retains its own subscription even when protocols are shared.
-Ports require the canonical `neocogi.com.events.IEventSubscription` lease;
-a foreign same-named lease is rejected. Generated adapters check their event
-support API version at compile time independently of wire signatures.
+`interface` and `factory` share the callable model. `#[message]` marks concrete
+structs/enums for checked COM posting. A named output such as `changed: TextChanged;`
+generates a `PortRef<TextChanged>` accessor on `ComPtr` and `ComRef`. Producers bind
+`Port<TextChanged>` fields using `com_object(..., ports(...))`; the compiler supplies
+the connection getter and one typed receiver operation. No authored callback
+protocol, invented message name, or handwritten subscription is needed.
+Application enums stay in Rust. Generated support checks API version 5 separately
+from native wire signatures, and keeps the canonical connection lease internal.
 
 All contracts, including events, are compile-time definitions. The build helper
 emits no native artifact, exported getter, runtime module graph, or built-in

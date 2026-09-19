@@ -76,15 +76,18 @@ itself prove safe concurrent method calls or destruction.
 ## 4. Contract declarations
 
 `.ncidl` supports copied `struct`, `enum`, and `bitenum` values plus callable
-`interface`, `factory`, and `port` roles. The callable roles share one interface
-representation. Every declaration/member is public; private fields belong to
+`interface` and `factory` roles. Concrete output structs/enums use `#[message]`. Every declaration/member is public; private fields belong to
 implementation objects. `#[version(N)]` derives an IID; `#[id(N, "UUID")]` pins it.
 
 The first required interface is the physical base; later requirements are
 sibling projections. The required projection graph must be acyclic. A factory
-may serve as the runtime's zero-argument construction root. Port protocols remain
-local, use mutable delivery receivers with unit results, and generate owned messages.
-Named interface bindings expose ports; the call gate protects plain handler fields.
+may serve as the runtime's zero-argument construction root. Named output bindings
+return generated connection projections; their single mutable receiver operation
+accepts `NcMessage<T>`. Passing tag `NC_ABI_PASSING_MESSAGE` (`0x07`) describes a
+borrowed pointer to the exact message C record/union, identified by its aggregate
+signature. Decoding checks the active tag and acquires owned fields before mapping.
+Strings/slices use pointer/count pairs; objects use checked concrete COM pointers.
+The mapper and consumer FIFO remain entirely in the receiving Rust binary.
 
 ## 5. Compile-time modules
 
