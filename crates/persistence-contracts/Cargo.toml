@@ -1,0 +1,19 @@
+[package]
+name = "neocogi-com-persistence-contracts"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Opt-in COM object persistence and reconstruction contracts"
+links = "nc_contract_neocogi_com_persistence"
+
+[package.metadata.neocogi-contract]
+module = "neocogi.com.persistence"
+source = "idl/neocogi/com/persistence"
+
+[dependencies]
+neocogi-com = { workspace = true, features = ["macros"] }
+
+[build-dependencies]
+neocogi-idl-build.workspace = true

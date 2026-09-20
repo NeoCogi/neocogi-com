@@ -30,3 +30,9 @@ compiled into consumers. Source-part names and documentation do not affect ABI
 fingerprints; ordered members and transitive dependency revisions do.
 
 See [IDL modules](../../../docs/IDL_MODULES.md) for syntax and package setup.
+
+Core capability types `IUnknown` and `INcBytes` may be borrowed as inputs and
+returned as owned references without an imported contract module. They cannot
+be embedded in copied records or passed as unborrowed inputs. Their exact core
+interface identities participate in generated signatures. `Guid` is the copied
+`NcGuid` value type. These spellings are reserved and cannot be shadowed.

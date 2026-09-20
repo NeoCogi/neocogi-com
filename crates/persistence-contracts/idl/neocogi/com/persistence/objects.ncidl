@@ -1,0 +1,33 @@
+#[version(1)]
+/// An ordered, owning list used only while constructing a persistent parent.
+interface IObjectChildren {
+    /// Returns the number of fully initialized child objects.
+    fn count(&self) -> Result<u32>;
+    /// Returns an owned reference; indices must be less than count.
+    fn get(&self, index: u32) -> Result<IUnknown>;
+}
+
+#[version(1)]
+/// Optional snapshot capability for an owned construction tree.
+interface IPersistable {
+    /// Identifies the registered construction recipe, not this object instance.
+    fn type_id(&self) -> Result<Guid>;
+    /// Identifies the persistent initialization schema, independently of COM ABI.
+    fn schema_version(&self) -> Result<u32>;
+    /// Exports initialization data only: no receivers, runtime pointers or caches.
+    fn save_state(&self) -> Result<INcBytes>;
+    /// Returns the number of owned persistent children; parent links are excluded.
+    fn child_count(&self) -> Result<u32>;
+    /// Returns one child in the order described by the parent's initialization.
+    fn child(&self, index: u32) -> Result<IUnknown>;
+}
+
+#[version(1)]
+/// A provider bound to the runtime services required by its construction recipe.
+interface IPersistenceFactory {
+    /// Rejects unsupported revisions before any child object is constructed.
+    fn validate(&self, version: u32, state: &[u8], child_count: u32) -> Result<()>;
+    /// Returns a fully initialized object; every child is already constructed.
+    /// Failure must release resources acquired by this call and publish no root.
+    fn restore(&self, version: u32, state: &[u8], children: &IObjectChildren) -> Result<IUnknown>;
+}

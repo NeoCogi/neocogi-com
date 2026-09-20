@@ -603,7 +603,7 @@ fn lower_path_type(path: &syn::Path) -> syn::Result<AbiType> {
         let name = segment.ident.to_string();
         if matches!(
             name.as_str(),
-            "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" | "Status"
+            "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" | "Guid" | "Status"
         ) {
             if segment.arguments != PathArguments::None {
                 return Err(syn::Error::new_spanned(segment, "scalar IDL types do not accept generic arguments"));

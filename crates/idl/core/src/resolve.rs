@@ -1000,6 +1000,13 @@ fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], cont
 /// Validates an input without allowing implicit COM ownership transfer.
 fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     let span = type_span(ty).unwrap_or(span);
+    if let AbiType::Borrowed(referent) = ty {
+        if let AbiType::Named(name) = referent.as_ref() {
+            if builtin_object(name).is_some() {
+                return Ok(());
+            }
+        }
+    }
     match ty {
         AbiType::Unit | AbiType::String => Err(source_error(
             &entries[index].module,
@@ -1059,6 +1066,11 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
 /// Validates an output where bare COM names mean owned references.
 fn validate_output_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     let span = type_span(ty).unwrap_or(span);
+    if let AbiType::Named(name) = ty {
+        if builtin_object(name).is_some() {
+            return Ok(());
+        }
+    }
     match ty {
         AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Ok(()),
         AbiType::Named(name) => match resolve_named_or_str(index, name, entries)? {
@@ -1356,6 +1368,12 @@ fn encode_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], encoder: &mu
             encoder.tag(3);
             if name.segments.as_slice() == ["str"] {
                 encoder.tag(0);
+            } else if let Some(identity) = builtin_object(name) {
+                // Fixed core capabilities contribute their exact ABI identity.
+                encoder.tag(2);
+                encoder.guid(identity.iid);
+                // SAFETY: built-in signatures point to immutable core constants.
+                encoder.bytes(unsafe { identity.abi_signature.as_bytes().expect("static core signature") });
             } else {
                 encoder.tag(1);
                 encode_named(index, name, entries, encoder)?;
@@ -1502,7 +1520,25 @@ fn symbol_kind(kind: &DeclarationKind) -> SymbolKind {
 fn is_reserved_name(name: &str) -> bool {
     matches!(
         name,
-        "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" | "Status" | "str" | "String" | "Option" | "Result"
+        "bool"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "f32"
+            | "f64"
+            | "Guid"
+            | "Status"
+            | "IUnknown"
+            | "INcBytes"
+            | "str"
+            | "String"
+            | "Option"
+            | "Result"
     )
 }
 
@@ -1585,5 +1621,15 @@ fn error(module: Option<&str>, message: impl Into<String>) -> ResolutionError {
                 None => message,
             },
         )],
+    }
+}
+
+/// Recognizes core object capabilities without manufacturing IDL declarations.
+fn builtin_object(name: &NamedType) -> Option<neocogi_com_core::NcInterfaceId> {
+    use neocogi_com_core::ComInterface;
+    match name.segments.as_slice() {
+        [name] if name == "IUnknown" => Some(neocogi_com_core::IUnknown::INTERFACE_ID),
+        [name] if name == "INcBytes" => Some(neocogi_com_core::INcBytesAbi::INTERFACE_ID),
+        _ => None,
     }
 }

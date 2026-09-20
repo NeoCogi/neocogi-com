@@ -556,6 +556,7 @@ fn output_type(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType) -
     match ty {
         AbiType::Unit => Ok(quote! { () }),
         AbiType::String => Ok(quote! { ::neocogi_com::ComPtr<::neocogi_com::INcStringAbi> }),
+        AbiType::Named(name) if builtin_object_type(name).is_some() => object_reference_type(graph, module, name, true),
         AbiType::Named(name) => {
             let resolved = resolve(graph, module, name)?;
             if matches!(
@@ -577,6 +578,13 @@ fn output_type(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType) -
 
 /// Produces a `ComRef` or `ComPtr` for one interface-like declaration.
 fn object_reference_type(graph: &ResolvedModules, module: &ResolvedModule, name: &NamedType, owned: bool) -> Result<TokenStream, GenerateError> {
+    if let Some(abi) = builtin_object_type(name) {
+        return Ok(if owned {
+            quote! { ::neocogi_com::ComPtr<#abi> }
+        } else {
+            quote! { ::neocogi_com::ComRef<'_, #abi> }
+        });
+    }
     let resolved = resolve(graph, module, name)?;
     if matches!(
         resolved.declaration.kind,
@@ -687,11 +695,21 @@ fn threading_ident(value: Threading) -> Ident {
 /// Converts one supported scalar spelling into a Rust type token.
 fn scalar(value: &str) -> Result<TokenStream, GenerateError> {
     match value {
+        "Guid" => Ok(quote! { ::neocogi_com::NcGuid }),
         "Status" => Ok(quote! { ::neocogi_com::NcStatus }),
         "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" => {
             let ident = rust_ident(value)?;
             Ok(quote! { #ident })
         }
         _ => Err(GenerateError::new(format!("unsupported scalar type {value:?}"))),
+    }
+}
+
+/// Maps the two explicit core-capability spellings to existing COM headers.
+fn builtin_object_type(name: &NamedType) -> Option<TokenStream> {
+    match name.segments.as_slice() {
+        [name] if name == "IUnknown" => Some(quote! { ::neocogi_com::IUnknown }),
+        [name] if name == "INcBytes" => Some(quote! { ::neocogi_com::INcBytesAbi }),
+        _ => None,
     }
 }
