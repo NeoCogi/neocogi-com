@@ -456,28 +456,28 @@ pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_
 #[cfg(feature = "macros")]
 pub use macros::{ComDeserialize, ComSerialize, com_enum, com_factory, com_interface, com_object, com_struct, factory_plugin};
 #[cfg(feature = "alloc")]
-pub use neocogi_com_core::{format_abi_signature, format_method_signature};
+pub use neocogi_com_core::{ComEvent, format_abi_signature, format_method_signature};
 pub use neocogi_com_core::{
     __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClientInterface, ComDeserialize,
     ComSerialize, ComSerializer, ComDeserializer, ComEnum, ComFactoryBootstrap, ComFactoryInterface, ComFactoryImplementation, ComInterface, ComPtr, ComRecord,
-    ComRecordAccess, ComRef, ComMessage, NcMessage, NcMessageSlice, ComSequence, ComSequenceAccess, ComStruct, ComVariantAccess, NcClientPointer,
-    IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME,
-    IUnknown, IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET,
-    NC_ABI_PASSING_OUT, NC_ABI_PASSING_MESSAGE, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
-    NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8,
-    NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8,
-    NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION, NC_COM_GUID_NAMESPACE,
-    NC_COM_RUNTIME_ABI_VERSION, NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR,
-    NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION,
-    NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG,
-    NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_FACTORY_PLUGIN_ABI_VERSION,
-    NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiFieldLayout, NcAbiSignature, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver,
-    NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcActivatePluginFactory, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1,
-    NcDebugMessengerCreateInfoV1, NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGuid, NcInspectFactoryPluginDescriptionCallbackV1,
-    NcInspectionApiV1, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcMethodReturnDescriptor, NcModuleInfoV1,
-    NcPluginDependencyDescriptor, NcPluginInfoV1, NcPluginRegistryV1, NcQualifiedNameError, NcRuntimeApiV1, NcStaticUtf8, NcStatus, NcUtf8View,
-    NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel,
-    activate_factory_implementation, guid_from_qualified_name, raw, return_factory_plugin_description, validate_factory_plugin_description,
+    ComRecordAccess, ComRef, ComMessage, ComOutputInterface, NcMessage, NcMessageSlice, ComSequence, ComSequenceAccess, ComStruct, ComVariantAccess,
+    NcClientPointer, IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID,
+    IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET,
+    NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT, NC_ABI_PASSING_MESSAGE, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE,
+    NC_ABI_RECEIVER_SHARED, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32,
+    NC_ABI_TYPE_F64, NC_ABI_TYPE_I8, NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID,
+    NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8, NC_ABI_TYPE_U16, NC_ABI_TYPE_U32, NC_ABI_TYPE_U64, NC_ABI_TYPE_USIZE, NC_ABI_TYPE_VOID, NC_COM_CORE_ABI_VERSION,
+    NC_COM_GUID_NAMESPACE, NC_COM_RUNTIME_ABI_VERSION, NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_DEBUG_SEVERITY_ALL,
+    NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME,
+    NC_DEBUG_TYPE_VALIDATION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INSUFFICIENT_BUFFER,
+    NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER,
+    NC_FACTORY_PLUGIN_ABI_VERSION, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiFieldLayout, NcAbiSignature, NcAbiPassing,
+    NcAbiPassingDescriptor, NcAbiReceiver, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcActivatePluginFactory, NcDebugApiV1,
+    NcDebugCallbackV1, NcDebugMessageV1, NcDebugMessengerCreateInfoV1, NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGuid,
+    NcInspectFactoryPluginDescriptionCallbackV1, NcInspectionApiV1, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor,
+    NcMethodReturnDescriptor, NcModuleInfoV1, NcPluginDependencyDescriptor, NcPluginInfoV1, NcPluginRegistryV1, NcQualifiedNameError, NcRuntimeApiV1,
+    NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe,
+    ThreadingModel, activate_factory_implementation, guid_from_qualified_name, raw, return_factory_plugin_description, validate_factory_plugin_description,
     validate_qualified_name, validate_version_text,
 };
 #[cfg(feature = "alloc")]

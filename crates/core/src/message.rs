@@ -115,3 +115,20 @@ impl<T: Copy> NcMessageSlice<T> {
         }
     }
 }
+
+/// Generated typed callback construction for one declared event payload.
+/// The concrete receiver is queried through IUnknown only during binding.
+#[cfg(feature = "alloc")]
+pub trait ComEvent: ComMessage {
+    /// Wraps a local mapper in the payload's exact receiver interface.
+    fn make_receiver(consume: alloc::boxed::Box<dyn FnMut(Self) -> Result<(), NcStatus>>) -> Result<crate::ComPtr<crate::IUnknown>, NcStatus>;
+}
+
+/// Generated named installation on one producer interface, used only at setup.
+/// This local Rust trait does not introduce a generic COM vtable or event payload.
+pub trait ComOutputInterface: crate::ComInterface {
+    /// Looks up the exact receiver contract without allocating an adapter.
+    fn output_receiver(name: &str) -> Result<crate::NcInterfaceId, NcStatus>;
+    /// Checks the destination and installs it through the concrete typed setter.
+    fn bind_output(source: crate::ComRef<'_, Self>, name: &str, receiver: crate::ComRef<'_, crate::IUnknown>) -> Result<(), NcStatus>;
+}

@@ -4,6 +4,8 @@
 
 #![deny(missing_docs)]
 
+mod named;
+pub use named::{NamedOutputs, bind_output};
 mod mapping;
 pub use mapping::map;
 mod component;
@@ -11,7 +13,7 @@ pub use component::component_dispatcher;
 mod scoped;
 pub use scoped::with_dispatcher;
 
-pub use neocogi_com_events_contracts::{IEventDispatcher, IEventDispatcherAbi, EVENT_E_LIMIT};
+pub use neocogi_com_events_contracts::{INamedOutputs, INamedOutputsAbi, IEventDispatcher, IEventDispatcherAbi, EVENT_E_LIMIT};
 
 /// A scoped dispatcher was retained beyond its borrowed callback lifetime.
 pub const EVENT_E_CLOSED: neocogi_com::NcStatus = neocogi_com::NcStatus::from_code(-1000);

@@ -440,6 +440,8 @@ fn port_bindings(
         Threading::Shared => quote! { ::neocogi_com::ThreadSafe },
     };
     let mut ports = Vec::new();
+    let mut identities = Vec::new();
+    let mut bindings = Vec::new();
     let mut accessors = Vec::new();
     let mut owned_accessors = Vec::new();
     let mut borrowed_accessors = Vec::new();
@@ -447,7 +449,15 @@ fn port_bindings(
         let Callable::Port(port) = callable else { continue };
         let output = resolve(graph, module, &port.message)?;
         let message = named_rust_type(module, output, false)?;
+        let receiver = message::receiver_type(module, output)?;
+        let port_name = Literal::string(&port.name);
         let setter = rust_ident(&port.setter_name())?;
+        identities.push(quote! { #port_name => Ok(<#receiver as ::neocogi_com::ComInterface>::INTERFACE_ID) });
+        bindings.push(quote! { #port_name => {
+            // Query before mutation: a wrong event contract cannot replace a good binding.
+            let destination = receiver.add_ref().query::<#receiver>()?;
+            source.add_ref().#setter(destination.as_com_ref())
+        } });
         let accessor = rust_ident(&port.name)?;
         let docs = docs(&port.docs);
         let install =
@@ -477,6 +487,16 @@ fn port_bindings(
     }
     if !accessors.is_empty() {
         ports.push(quote! {
+            impl ::neocogi_com::ComOutputInterface for #source_abi {
+                /// Finds only outputs declared on this exact projection.
+                fn output_receiver(name: &str) -> Result<::neocogi_com::NcInterfaceId, ::neocogi_com::NcStatus> {
+                    match name { #(#identities,)* _ => Err(::neocogi_com::NC_E_NOT_FOUND) }
+                }
+                /// Named setup immediately delegates to the original concrete setter.
+                fn bind_output(source: ::neocogi_com::ComRef<'_, Self>, name: &str, receiver: ::neocogi_com::ComRef<'_, ::neocogi_com::IUnknown>) -> Result<(), ::neocogi_com::NcStatus> {
+                    match name { #(#bindings,)* _ => Err(::neocogi_com::NC_E_NOT_FOUND) }
+                }
+            }
             /// One-shot installation operations for concrete output destinations.
             pub trait #extension<M: ::neocogi_com::ThreadingModel = #mode> {
                 #(#accessors)*

@@ -19,6 +19,9 @@ mod message_tests {
         completed: Option<ComPtr<__CompletionReceiverAbi>>,
     }
     impl IProducer for Producer {
+        /// Allows tests to deliver after binding has finished.
+        fn emit(&mut self) -> Result<(), NcStatus> { Completion::Cancelled.post_to(&mut self.completed) }
+
         /// Ordinary COM mutation installs the only destination, replacing the old one.
         fn __map_completed(&mut self, destination: neocogi_com::ComRef<'_, __CompletionReceiverAbi>) -> Result<(), NcStatus> {
             self.completed = Some(destination.add_ref());
@@ -108,5 +111,51 @@ mod message_tests {
         wire.payload.case_0.text = neocogi_com::NcMessageSlice::new(&bad);
         assert_eq!(receiver.post(unsafe { NcMessage::from_raw(&wire) }.unwrap()), Err(neocogi_com::NC_E_INVALID_ARG));
         assert!(text.try_recv().is_err());
+    }
+}
+
+#[cfg(test)]
+mod named_output_tests {
+    use super::*;
+    use neocogi_com::{com_object, ComPtr, ComRef, NcStatus};
+    use neocogi_com_events::{NamedOutputs, bind_output};
+
+    /// An independent producer that emits only when explicitly requested.
+    #[com_object(IProducer)]
+    struct Source {
+        /// Exactly one concrete destination; the named table is not on this path.
+        destination: Option<ComPtr<__CompletionReceiverAbi>>,
+    }
+    impl IProducer for Source {
+        /// Replaces the destination after generated binding has validated its type.
+        fn __map_completed(&mut self, receiver: ComRef<'_, __CompletionReceiverAbi>) -> Result<(), NcStatus> {
+            self.destination = Some(receiver.add_ref()); Ok(())
+        }
+        /// Publishes directly to the installed generated receiver.
+        fn emit(&mut self) -> Result<(), NcStatus> { Completion::Cancelled.post_to(&mut self.destination) }
+    }
+
+    /// Applications see only names and payload contracts, never the private producer.
+    #[test]
+    fn opaque_named_binding_preserves_type_checks_replacement_and_lifetimes() {
+        let mut source: ComPtr<IProducerAbi> = Source::from_value(Source { destination: None }).query().unwrap();
+        let mut names = NamedOutputs::new();
+        assert!(names.export("bad", source.clone(), "missing").is_err());
+        names.export("finished", source.clone(), "completed").unwrap();
+        assert!(names.export("finished", source.clone(), "completed").is_err());
+        let opaque = names.into_com().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        bind_output(opaque.as_com_ref(), "finished", tx.clone(), |_: Completion| 1_u32).unwrap();
+        assert_eq!(bind_output(opaque.as_com_ref(), "missing", tx.clone(), |_: Completion| 8), Err(neocogi_com::NC_E_NOT_FOUND));
+        assert!(bind_output(opaque.as_com_ref(), "finished", tx.clone(), |_: NumberChanged| 9).is_err());
+        source.emit().unwrap();
+        assert_eq!(rx.try_recv().unwrap(), 1, "failed binding must leave the old destination intact");
+        bind_output(opaque.as_com_ref(), "finished", tx, |_: Completion| 2).unwrap();
+        drop(opaque);
+        // Binding-table destruction cannot break a receiver already installed on a live source.
+        source.emit().unwrap();
+        assert_eq!(rx.try_recv().unwrap(), 2);
+        drop(rx);
+        source.emit().unwrap();
     }
 }

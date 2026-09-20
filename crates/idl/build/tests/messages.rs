@@ -13,7 +13,7 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
         #[version(1)] #[message] enum Completion { Accepted { token: IToken }, Cancelled }
         #[version(1)] #[message] enum Notice { Ready, Done }
         #[version(1)] #[message] struct Batch { values: &[u32] }
-        #[version(1)] interface IProducer { completed: Completion; }
+        #[version(1)] interface IProducer { completed: Completion; fn emit(&mut self) -> Result<()>; }
     "#;
     let consumer = parse_module(
         Path::new("example/consumer.ncidl"),

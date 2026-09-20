@@ -204,3 +204,12 @@ cross-library marshalling format.
 
 This runtime is trusted same-process native code, not a sandbox or plugin
 marketplace. Applications own installation, trust, signatures, and path policy.
+
+## Experimental object persistence and named integration
+
+[`persistence`](persistence/README.md) adds opt-in semantic snapshots and explicit,
+context-bound factory reconstruction. The portable value codec remains separate
+from object activation; arbitrary private object memory is never serialized.
+[`events`](events/README.md) also supports named outputs on opaque components.
+Generated receiver adapters keep concrete payload types and direct delivery,
+while application code binds only to a public name and its message contract.

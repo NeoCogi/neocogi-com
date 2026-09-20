@@ -194,6 +194,14 @@ pub(super) fn generate_message(
                 #adapter::from_value(#adapter { consume }).query()
             }
         }
+        impl ::neocogi_com::ComEvent for #name {
+            /// Keeps the concrete payload and callback local while exposing a COM capability.
+            fn make_receiver(consume: ::alloc::boxed::Box<dyn FnMut(Self) -> Result<(), ::neocogi_com::NcStatus>>)
+                -> Result<::neocogi_com::ComPtr<::neocogi_com::IUnknown>, ::neocogi_com::NcStatus>
+            {
+                Self::__receiver(consume)?.query()
+            }
+        }
         #[::neocogi_com::com_object(interfaces(#receiver))]
         /// Owns only a typed callback; no registration or connection object is allocated.
         struct #adapter {

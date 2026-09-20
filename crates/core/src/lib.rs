@@ -48,7 +48,9 @@ extern crate alloc;
 extern crate std;
 
 pub use abi::{__NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComStruct};
-pub use message::{ComMessage, NcMessage, NcMessageSlice};
+#[cfg(feature = "alloc")]
+pub use message::ComEvent;
+pub use message::{ComOutputInterface, ComMessage, NcMessage, NcMessageSlice};
 pub use client::{ComClientInterface, NcClientPointer};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
 pub use encode::{ComSerialize, ComSerializer};
