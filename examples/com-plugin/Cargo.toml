@@ -19,6 +19,9 @@ host = ["neocogi-com/runtime"]
 monolith = ["host", "neocogi-com/static-runtime"]
 
 [dependencies]
+neocogi-com-persistence.workspace = true
+neocogi-com-events.workspace = true
+neocogi-com-events-contracts.workspace = true
 neocogi-com = { workspace = true, features = ["macros", "std"] }
 neocogi-idl-example-contracts = { path = "../../tools/idl/example-contracts" }
 
@@ -29,3 +32,8 @@ required-features = ["host"]
 
 [dev-dependencies]
 tempfile.workspace = true
+
+[[example]]
+name = "event_allocations"
+path = "examples/event_allocations.rs"
+required-features = ["monolith"]

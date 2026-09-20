@@ -18,3 +18,10 @@ factory ExampleFactory {
     /// Creates one initialized example object.
     fn create(&self, extent: Extent) -> Result<ExampleObject>;
 }
+
+/// Opaque composition exposes only its mountable root, never internal controls.
+#[version(1)]
+interface ICompositionRoot {
+    /// Returns the root capability for a host-specific mount operation.
+    fn root(&self) -> Result<IUnknown>;
+}

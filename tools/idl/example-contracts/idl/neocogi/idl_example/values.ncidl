@@ -6,3 +6,20 @@ struct Extent {
     /// Vertical extent.
     height: u32,
 }
+
+/// Concrete scalar event used by shared and monolithic named-binding proofs.
+#[version(1)]
+#[message]
+struct ExtentChanged {
+    /// Committed width.
+    width: u32,
+    /// Committed height.
+    height: u32,
+}
+
+/// Optional output capability of the example object.
+#[version(1)]
+interface IExampleEvents {
+    /// Reports the committed dimensions after resize.
+    changed: ExtentChanged;
+}
