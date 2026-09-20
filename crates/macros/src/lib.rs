@@ -137,6 +137,7 @@ mod interface;
 mod model;
 mod object;
 mod plain_data;
+mod serialize;
 mod structs;
 mod util;
 
@@ -151,7 +152,7 @@ use structs::expand_com_struct;
 /// Derives format-neutral, statically typed decoding for a local Rust value.
 ///
 /// Named structs decode as records, tuple structs decode as sequences, and
-/// fieldless enums decode by variant name. Use
+/// enums decode by variant name and typed payload. Use
 /// `#[com_deserialize(default)]` on a named struct to retain `Default` values
 /// for omitted fields, `#[com_deserialize(sequence)]` to decode a named struct
 /// positionally, or `#[com_deserialize(rename_all = "snake_case")]` on an enum.
@@ -163,6 +164,17 @@ pub fn derive_com_deserialize(item: TokenStream) -> TokenStream {
     match expand_com_deserialize_derive(input) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
+    }
+}
+
+/// Derives field-by-field serialization for owned initialization records and enums.
+/// Uses the same com_deserialize naming/sequence policy as the matching decoder.
+#[proc_macro_derive(ComSerialize, attributes(com_deserialize))]
+pub fn derive_com_serialize(item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+    match serialize::expand_derive(input) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.to_compile_error().into(),
     }
 }
 

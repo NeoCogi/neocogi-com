@@ -26,9 +26,12 @@
 #![deny(missing_docs)]
 
 mod abi;
+#[cfg(feature = "alloc")]
+pub mod binary;
 mod client;
 mod data;
 mod decode;
+mod encode;
 mod factory_plugin;
 mod guid;
 mod message;
@@ -48,6 +51,7 @@ pub use abi::{__NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain
 pub use message::{ComMessage, NcMessage, NcMessageSlice};
 pub use client::{ComClientInterface, NcClientPointer};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
+pub use encode::{ComSerialize, ComSerializer};
 pub use decode::{ComDeserialize, ComDeserializer, ComEnum, ComRecord, ComRecordAccess, ComSequence, ComSequenceAccess, ComVariantAccess};
 #[cfg(feature = "alloc")]
 pub use decode::{ComMap, ComMapAccess};

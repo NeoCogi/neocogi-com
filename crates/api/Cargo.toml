@@ -79,3 +79,7 @@ path = "integration-tests/inheritance.rs"
 name = "factory_plugin_runtime"
 path = "integration-tests/factory_plugin_runtime.rs"
 required-features = ["runtime"]
+
+[[test]]
+name = "binary_persistence"
+path = "integration-tests/binary_persistence.rs"

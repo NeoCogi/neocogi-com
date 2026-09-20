@@ -45,3 +45,24 @@ value tree, descriptor-offset mutation, or a runtime type registry.
 Core is `no_std` by default. `alloc` enables owned decoding/diagnostic helpers;
 `std` implies `alloc`. Loading, process state, object allocation, and deployment
 policy belong in other crates.
+
+## Experimental persistent values
+
+`ComSerialize` streams explicit initialization records through `ComSerializer`.
+The facade derives `ComSerialize` and `ComDeserialize` for owned records and
+enums, including recursive vectors and named/tuple payloads. Both derives honor
+the existing `com_deserialize(sequence)` and `rename_all` policy. This is value
+serialization; opting a live object into persistence remains its provider's job.
+
+With `alloc`, `binary::to_vec` and `binary::from_slice` use NCB version 1: a
+four-byte marker, little-endian scalars, u32 lengths/variant ordinals, and
+declaration-order record fields. usize/isize occupy eight bytes; reads check
+the target range. No native padding, pointers, or ABI signatures are saved.
+Record/variant schema evolution must be versioned by the enclosing object
+record; a changed COM method does not change the binary initialization schema.
+
+Decoding rejects trailing bytes, truncated data, invalid booleans/UTF-8/variants,
+unknown record fields, and duplicate map keys. Limits bound document bytes,
+container counts, recursive construction, and total decoded values. Missing
+trailing record fields only work with explicit default-backed decoding.
+The wire format is experimental and is not yet a promised long-term file ABI.

@@ -14,13 +14,13 @@ use crate::util::{push_error, validate_no_generics};
 
 /// Parsed behavior requested by the `ComDeserialize` derive helper attribute.
 #[derive(Default)]
-struct DeriveOptions {
+pub(crate) struct DeriveOptions {
     /// Retain `Default` values for omitted named fields.
-    default: bool,
+    pub(crate) default: bool,
     /// Decode struct fields positionally from a sequence.
-    sequence: bool,
+    pub(crate) sequence: bool,
     /// Rename enum variants using the supported source naming convention.
-    rename_all: Option<LitStr>,
+    pub(crate) rename_all: Option<LitStr>,
 }
 
 /// Expands `#[derive(ComDeserialize)]` for an ordinary struct or fieldless enum.
@@ -39,15 +39,11 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
                     "default and sequence are only valid when deriving ComDeserialize for a struct",
                 ));
             }
-            for variant in &data.variants {
-                if !matches!(variant.fields, Fields::Unit) {
-                    return Err(syn::Error::new_spanned(
-                        variant,
-                        "ComDeserialize derive currently accepts fieldless enums; use #[com_enum(..., deserialize)] for payload variants",
-                    ));
-                }
+            if data.variants.iter().all(|variant| matches!(variant.fields, Fields::Unit)) {
+                expand_unit_enum(ident, data.variants.iter().map(|variant| &variant.ident), &nc, options.rename_all.as_ref())
+            } else {
+                expand_owned_enum(ident, data, &nc, options.rename_all.as_ref())
             }
-            expand_unit_enum(ident, data.variants.iter().map(|variant| &variant.ident), &nc, options.rename_all.as_ref())
         }
         Data::Union(data) => Err(syn::Error::new_spanned(
             data.union_token,
@@ -279,7 +275,7 @@ fn expand_positional_struct<'a>(ident: &Ident, fields: impl Iterator<Item = (Ide
 }
 
 /// Parses the derive's optional `#[com_deserialize(...)]` behavior.
-fn parse_options(attrs: &[Attribute]) -> Result<DeriveOptions> {
+pub(crate) fn parse_options(attrs: &[Attribute]) -> Result<DeriveOptions> {
     let mut options = DeriveOptions::default();
     let mut errors = None;
     for attr in attrs.iter().filter(|attr| attr.path().is_ident("com_deserialize")) {
@@ -319,7 +315,7 @@ fn parse_options(attrs: &[Attribute]) -> Result<DeriveOptions> {
 }
 
 /// Converts a Rust variant identifier to the JSON-style snake-case spelling.
-fn to_snake_case(source: &str) -> String {
+pub(crate) fn to_snake_case(source: &str) -> String {
     let mut result = String::with_capacity(source.len());
     for (index, character) in source.chars().enumerate() {
         if character.is_uppercase() {
@@ -332,4 +328,61 @@ fn to_snake_case(source: &str) -> String {
         }
     }
     result
+}
+
+/// Generates owned enum construction using private typed payload records.
+fn expand_owned_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path, rename: Option<&LitStr>) -> Result<TokenStream> {
+    let mut helpers = Vec::new();
+    let mut names = Vec::new();
+    let mut arms = Vec::new();
+    for (index, variant) in data.variants.iter().enumerate() {
+        let index = index as u32;
+        let variant_name = &variant.ident;
+        let label = match rename {
+            Some(rule) if rule.value() == "snake_case" => to_snake_case(&variant_name.to_string()),
+            Some(rule) => return Err(syn::Error::new_spanned(rule, "only snake_case is supported")),
+            None => variant_name.to_string(),
+        };
+        names.push(label);
+        let body = match &variant.fields {
+            Fields::Unit => quote! { value.unit()?; Ok(Self::#variant_name) },
+            Fields::Unnamed(fields) if fields.unnamed.len() == 1 => quote! { Ok(Self::#variant_name(value.newtype()?)) },
+            fields => {
+                let helper = format_ident!("__Nc{}{}Decode", ident, variant_name);
+                let members = fields
+                    .iter()
+                    .enumerate()
+                    .map(|(i, field)| field.ident.clone().unwrap_or_else(|| format_ident!("field_{i}")))
+                    .collect::<Vec<_>>();
+                let types = fields.iter().map(|field| &field.ty).collect::<Vec<_>>();
+                let definition: syn::ItemStruct = syn::parse_quote! {
+                    struct #helper { #(#members: #types),* }
+                };
+                let sequence = matches!(fields, Fields::Unnamed(_));
+                let decoder = expand_struct(&helper, &definition.fields, nc, false, sequence)?;
+                helpers.push(quote! { #definition #decoder });
+                match fields {
+                    Fields::Named(_) => quote! { let payload: #helper = value.record()?; Ok(Self::#variant_name { #(#members: payload.#members),* }) },
+                    _ => {
+                        let len = members.len();
+                        quote! { let payload: #helper = value.tuple(#len)?; Ok(Self::#variant_name(#(payload.#members),*)) }
+                    }
+                }
+            }
+        };
+        arms.push(quote! { #index => { #body } });
+    }
+    Ok(quote! {
+        #(#helpers)*
+        impl #nc::ComDeserialize for #ident {
+            fn com_deserialize<'__de, __D: #nc::ComDeserializer<'__de>>(decoder: __D) -> Result<Self, __D::Error> { decoder.deserialize_enum::<Self>() }
+        }
+        impl #nc::ComEnum for #ident {
+            const NAME: &'static str = stringify!(#ident);
+            const VARIANTS: &'static [&'static str] = &[#(#names),*];
+            fn read_variant<'__de, __V: #nc::ComVariantAccess<'__de>>(variant: u32, value: __V) -> Result<Self, __V::Error> {
+                match variant { #(#arms,)* _ => Err(value.invalid_variant(variant, Self::VARIANTS)) }
+            }
+        }
+    })
 }
