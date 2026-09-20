@@ -359,7 +359,11 @@ where
     where
         A: ComSequenceAccess<'de>,
     {
-        let capacity = sequence.size_hint().unwrap_or(0).min(sequence.element_limit());
+        // A count is not a memory-size proof: a short malformed document can
+        // advertise many large records. Reserve at most 4 KiB before decoding
+        // elements; normal amortized growth follows only validated values.
+        let eager_elements = 4096 / core::mem::size_of::<T>().max(1);
+        let capacity = sequence.size_hint().unwrap_or(0).min(sequence.element_limit()).min(eager_elements);
         let mut values = Vec::with_capacity(capacity);
         while let Some(value) = sequence.next_element()? {
             values.push(value);

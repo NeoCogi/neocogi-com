@@ -66,3 +66,8 @@ unknown record fields, and duplicate map keys. Limits bound document bytes,
 container counts, recursive construction, and total decoded values. Missing
 trailing record fields only work with explicit default-backed decoding.
 The wire format is experimental and is not yet a promised long-term file ABI.
+
+Owned sequence decoding caps initial reservation at 4 KiB regardless of the
+advertised element count or Rust element size. Capacity grows only as typed
+elements are successfully decoded, so malformed counts cannot force a large
+eager allocation before the first element is checked.

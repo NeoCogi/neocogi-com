@@ -13,6 +13,8 @@ use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent,
 static COUNTING: AtomicBool = AtomicBool::new(false);
 /// Counts allocation/reallocation calls, not bytes or elapsed time.
 static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);
+/// Largest requested allocation in a measured operation.
+static LARGEST_ALLOCATION: AtomicUsize = AtomicUsize::new(0);
 
 /// Delegates every memory operation unchanged to the system allocator.
 struct CountingAllocator;
@@ -20,28 +22,29 @@ struct CountingAllocator;
 static ALLOCATOR: CountingAllocator = CountingAllocator;
 
 /// Records allocation calls without allocating or taking a lock itself.
-fn allocated() {
+fn allocated(bytes: usize) {
     if COUNTING.load(Ordering::Relaxed) {
         ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+        LARGEST_ALLOCATION.fetch_max(bytes, Ordering::Relaxed);
     }
 }
 // SAFETY: Every operation forwards the caller's original allocation contract to System.
 unsafe impl GlobalAlloc for CountingAllocator {
     /// Measures a normal allocation while preserving its requested layout.
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        allocated();
+        allocated(layout.size());
         // SAFETY: GlobalAlloc callers provide the required valid layout.
         unsafe { System.alloc(layout) }
     }
     /// Measures a zeroed allocation without changing initialization guarantees.
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        allocated();
+        allocated(layout.size());
         // SAFETY: The forwarded layout satisfies the allocator contract.
         unsafe { System.alloc_zeroed(layout) }
     }
     /// Reallocation may allocate even if a particular allocator grows in place.
     unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, size: usize) -> *mut u8 {
-        allocated();
+        allocated(size);
         // SAFETY: The pointer, old layout and new size come from a valid realloc call.
         unsafe { System.realloc(pointer, layout, size) }
     }
@@ -55,6 +58,7 @@ unsafe impl GlobalAlloc for CountingAllocator {
 /// Measures one synchronous operation after all fixtures and channels exist.
 fn count(operation: impl FnOnce()) -> usize {
     ALLOCATIONS.store(0, Ordering::Relaxed);
+    LARGEST_ALLOCATION.store(0, Ordering::Relaxed);
     COUNTING.store(true, Ordering::Relaxed);
     operation();
     COUNTING.store(false, Ordering::Relaxed);
@@ -71,6 +75,14 @@ fn deliver(object: &mut ComPtr<ExampleObjectAbi>, messages: &std::sync::mpsc::Re
 
 /// Equal allocation counts expose any allocation accidentally added to named delivery.
 fn main() {
+    // A valid collection count followed by no elements must not reserve 64 MiB
+    // for 65,536 records of 1,024 bytes each before detecting truncated input.
+    count(|| {
+        assert!(neocogi_com::binary::from_slice::<Vec<[u8; 1024]>>(b"NCB\x01\0\0\x01\0").is_err());
+    });
+    let largest = LARGEST_ALLOCATION.load(Ordering::Relaxed);
+    assert!(largest <= 4096, "malformed input reserved {largest} bytes before validation");
+    println!("largest eager allocation for truncated large-record collection: {largest} bytes");
     let runtime = Runtime::global();
     // SAFETY: The immutable descriptor and implementation are linked into this executable.
     unsafe { runtime.register_factory_plugin_description(neocogi_example_com_plugin::factory_plugin_description()) }.unwrap();

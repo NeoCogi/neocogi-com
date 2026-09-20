@@ -96,3 +96,6 @@ cargo run -p neocogi-example-com-plugin --example event_allocations --features m
 
 It checks that named binding adds no allocation to either measured path. It is
 an allocation comparison, not a latency benchmark or a zero-allocation promise.
+
+The probe also feeds the decoder a truncated collection advertising 65,536
+large records and checks that its initial allocation stays within 4 KiB.
