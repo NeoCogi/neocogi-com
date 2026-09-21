@@ -1,4 +1,4 @@
-//! A small C-ABI COM runtime for cross-platform Rust component interop.
+//! Typed COM clients and object implementation helpers for Rust component interop.
 //!
 //! `neocogi-com` keeps the binary boundary explicit: interfaces are represented as
 //! `#[repr(C)]` structs containing a vtable pointer and an opaque object
@@ -127,8 +127,7 @@
 //! Adding a method, changing method order or lowered types, changing ownership
 //! semantics, or changing the canonical IDL fingerprint format requires a new versioned
 //! interface ID. Built-in status-code numbers are stable once published and
-//! must not be renumbered.
-//! or reused.
+//! must not be renumbered or reused.
 //!
 //! Proc macros run at compile time and are not linked into the target artifact
 //! that LTO optimizes. LTO can optimize inside an artifact, but the component
@@ -141,11 +140,15 @@
 //!
 //! # Features
 //!
-//! The runtime is `no_std` when the `std` feature is disabled. Generated
+//! This facade is `no_std` when the `std` feature is disabled. The separate
+//! runtime implementation always requires `std`. Generated
 //! interfaces and [`ComPtr`] work without allocation. Generated objects require
 //! the `alloc` feature because `#[com_object]` stores each COM object in a
 //! reference-counted heap allocation. `Runtime` requires the `runtime`
 //! feature, which also enables `std`; `std` enables `alloc`.
+//! Defaults enable `std` and `macros`, but do not link a runtime. `static-runtime`
+//! implies `runtime` and selects the implementation rlib instead of the shared
+//! library. Consequently, `--all-features` uses static runtime linkage.
 //!
 //! Cross-component declarations belong in `.ncidl`. `neocogi-idl-build`
 //! invokes the macros below with precomputed 32-byte declaration signatures;
@@ -176,7 +179,7 @@
 //! # Ok::<(), NcStatus>(())
 //! ```
 //!
-//! Classes with fields are created with the generated `from_value` constructor:
+//! Objects with fields are created with the generated `from_value` constructor:
 //!
 //! ```
 //! use neocogi_com::{com_interface, com_object, ComPtr, IUnknown, NcStatus};
@@ -203,14 +206,16 @@
 //! # Ok::<(), NcStatus>(())
 //! ```
 //!
-//! Prefer `auto_guid = "stable.abi.Name:v1"` for new interfaces. The exact
-//! qualified-name UTF-8 bytes are stored in the descriptor and hashed with the
-//! specified `neocogi-com` namespace to produce a deterministic UUIDv5 interface
+//! For low-level macro fixtures, `auto_guid = "stable.abi.Name:v1"` stores the exact
+//! qualified-name UTF-8 bytes in the descriptor and hashes them with the
+//! `neocogi-com` namespace to produce a deterministic UUIDv5 interface
 //! ID. Explicit UUID syntax additionally requires the same `name = "..."` and
 //! serves as a compile-time golden assertion of that derivation. Generated
-//! interface, class, and plugin descriptors validate their qualified-name and
-//! version literals during macro expansion. Direct metadata producers can use
-//! [`validate_qualified_name`] and [`validate_version_text`] to apply the same
+//! interface and factory-plugin descriptors validate their qualified names;
+//! plugin release-version literals are validated during macro expansion too.
+//! IDL declarations instead use `assigned_guid` from the resolver, whose identity
+//! derivation includes the declaration name and binary version. Direct metadata
+//! producers can use [`validate_qualified_name`] and [`validate_version_text`] to apply the same
 //! allocation-free policy, including in const contexts.
 //!
 //! ```no_run
@@ -274,8 +279,9 @@
 //! Generated interfaces expose
 //! `ABI_SIGNATURE`, typed method descriptors, rendered diagnostic method signature
 //! text, and [`NcInterfaceDescriptor`]
-//! metadata. IDL classes and factories expose description traits used at compile
-//! time by implementations; object construction is an implementation detail or
+//! metadata. IDL interfaces and factories share [`ComInterface`]; factories also
+//! implement [`ComFactoryInterface`]. No separate object description is emitted.
+//! Object construction is an implementation detail or
 //! an ordinary typed factory method.
 //! Loaded plugin libraries are retained by the process-global `Runtime` and
 //! can be inspected through process-local `LoadedModuleId` values.
@@ -285,7 +291,7 @@
 //! `Inspection::loaded_module`, or query descriptor metadata directly with
 //! `Inspection::plugin_info`. Statically registered plugins have plugin
 //! metadata but no loaded-module path.
-//! Runtime core ABI v7 retains at most [`NC_COM_RUNTIME_MAX_LOADED_MODULES`] dynamic
+//! Runtime ABI v1 tracks at most [`NC_COM_RUNTIME_MAX_LOADED_MODULES`] live-loaded
 //! modules and permits at most
 //! [`NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS`] simultaneous debug messenger
 //! registrations. Exceeding the module limit is a fatal live-activation error;
@@ -497,3 +503,8 @@ pub use neocogi_com_core::{__nc_interface_chain, __nc_object_interface_count};
 
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::binary;
+
+/// Compile the runnable README examples against this crate's real public API.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+mod readme_examples {}

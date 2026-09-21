@@ -23,7 +23,10 @@ shared library (and, on Windows, its import library) when Cargo also needs to
 link a host against it. The build script adds that directory and its `deps`
 subdirectory to the native linker search path. The shared library must still be
 discoverable through `PATH`, `DYLD_LIBRARY_PATH`, or `LD_LIBRARY_PATH` when the
-host runs.
+host runs, or through an appropriate embedded runtime search path. Setting
+`NC_COM_RUNTIME_LINK_DIR` does not build the library or configure those loader
+paths. The native link name is `nc_com`; runtime builds produce `libnc_com.so`,
+`libnc_com.dylib`, or `nc_com.dll` depending on the target.
 
 Most Rust hosts should use `neocogi-com` with its `runtime` feature instead. Use this
 crate directly only when building a lower-level wrapper around the shared

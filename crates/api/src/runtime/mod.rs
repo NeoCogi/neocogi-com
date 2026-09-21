@@ -4,7 +4,7 @@
 //! data. The facade checks the mandatory runtime ABI generation before every
 //! table lookup, validates each table's advertised size, and converts borrowed C
 //! records into owned Rust values. Context views keep registry enumeration,
-//! relationship inspection, and diagnostics separate from mutation operations.
+//! plugin dependency inspection, and diagnostics separate from mutation operations.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -194,7 +194,7 @@ impl Runtime {
         PluginRegistry::new(self)
     }
 
-    /// Returns runtime relationship and metadata inspection operations.
+    /// Returns plugin metadata, module provenance, and dependency inspection operations.
     pub fn inspection(&self) -> Inspection<'_> {
         Inspection::new(self)
     }

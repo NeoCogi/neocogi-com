@@ -1,4 +1,4 @@
-//! ABI table for contract registration, plugin loading, and root activation.
+//! ABI table for factory-plugin registration, plugin loading, and root activation.
 //!
 //! Runtime ABI v1 accepts static descriptors and loads trusted plugin libraries,
 //! and activates the one typed root factory exported by each plugin.

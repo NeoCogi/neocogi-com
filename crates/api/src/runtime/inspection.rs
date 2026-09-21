@@ -1,4 +1,4 @@
-//! Safe owned metadata and relationship inspection.
+//! Safe owned plugin metadata, module provenance, and dependency inspection.
 //!
 //! Raw inspection records contain borrowed UTF-8 pointers. Public methods copy
 //! those views before returning, so callers never inherit a C lifetime or need
@@ -6,7 +6,7 @@
 //! and path); factory descriptions remain the authoritative source for plugin
 //! names and versions. [`Inspection::loaded_module`] joins both records into an
 //! owned [`LoadedModuleInfo`]. Missing record lookups return `None`;
-//! relationship queries return an empty collection when no edge exists.
+//! dependency queries return an empty collection when no dependency exists.
 //! Trusted, unregistered libraries can be opened and validated through a
 //! callback-scoped factory-description visitor.
 
@@ -20,8 +20,8 @@ use super::{LoadedModuleId, LoadedModuleInfo, Runtime, read_utf8_view, read_vec,
 
 /// Owned descriptor metadata for one registered plugin.
 ///
-/// Call [`Inspection::plugin_info`] with a plugin ID obtained from a registry,
-/// class, or loaded-module record. This lookup also works for statically
+/// Call [`Inspection::plugin_info`] with a plugin ID obtained from the plugin registry
+/// or a loaded-module record. This lookup also works for statically
 /// registered plugins, which have no module path or [`LoadedModuleId`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PluginInfo {
@@ -33,7 +33,7 @@ pub struct PluginInfo {
     pub version: String,
 }
 
-/// Read-only metadata and relationship queries for the runtime state.
+/// Read-only plugin metadata, module provenance, and dependency queries.
 #[derive(Clone, Copy, Debug)]
 pub struct Inspection<'runtime> {
     /// Facade used to retrieve and validate the inspection ABI table.

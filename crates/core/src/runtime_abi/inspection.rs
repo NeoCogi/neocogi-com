@@ -1,4 +1,4 @@
-//! ABI records and queries for runtime metadata, provenance, and relationships.
+//! ABI records and queries for runtime plugin metadata, module provenance, and dependencies.
 //!
 //! Registry tables answer which identities exist. Inspection complements them
 //! with descriptive records and edges between plugins and modules. Text fields
@@ -44,7 +44,7 @@ pub struct NcModuleInfoV1 {
     pub path: NcUtf8View,
 }
 
-/// Read-only metadata and relationship inspection for runtime ABI v1.
+/// Read-only plugin metadata, module provenance, and dependency inspection for runtime ABI v1.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NcInspectionApiV1 {

@@ -9,7 +9,7 @@ Runtime discovery is separately versioned and currently uses runtime ABI v1.
 
 ## 1. Scope
 
-The stable boundary is C-shaped:
+The binary boundary is C-shaped:
 
 - fixed-width values and explicit `#[repr(C)]` records;
 - `extern "C"` function pointers;
@@ -43,8 +43,9 @@ threading, referenced declaration identities, and exact dependency revisions.
 It then derives each declaration signature from that fingerprint and the
 declaration ID. Distinct aggregates therefore remain distinct in typed
 descriptors, while any module revision change still changes every declaration
-signature. rustc emits the typed layouts, vtables, and descriptors plus the
-completed 32 bytes; it contains no contract serializer or SHA-256 implementation.
+signature. Generated target bindings contain the typed layouts, vtables,
+descriptors, and completed 32 bytes; they do not reconstruct or hash the IDL
+graph at runtime. The IDL compiler computes those hashes during the Cargo build.
 
 `QueryInterface` matches both GUID and ABI signature. A GUID collision or a
 stale binding therefore cannot silently produce a typed pointer. A successful
@@ -104,7 +105,7 @@ per process.
 
 ## 6. Factory plugin descriptions
 
-A plugin shared library exports exactly one symbol:
+A plugin shared library must export this discovery symbol:
 
 ```text
 nc_get_factory_plugin_description_v1
@@ -129,8 +130,12 @@ pub struct NcFactoryPluginDescription {
 }
 ```
 
-The descriptor ABI is independently versioned as 2. The versioned getter
-prevents an old plugin layout from being interpreted as this one.
+The descriptor ABI is independently versioned as **1**, matching
+`NC_FACTORY_PLUGIN_ABI_VERSION` and the getter suffix. These pre-alpha versions
+have not been incremented for every layout change, so matching version numbers
+alone do not establish compatibility with older checkouts. Rebuild the runtime,
+host, and plugins together. Additional symbols are permitted; this is the one
+plugin discovery entrypoint the loader requests.
 
 The activation function has one fixed shape:
 
@@ -139,6 +144,9 @@ unsafe extern "C" fn(out: *mut *mut IUnknown) -> NcStatus
 ```
 
 It takes no erased arguments and returns one owned root reference on success.
+The bootstrap clears its output to null before fallible work; failure transfers
+no reference. This differs from ordinary generated method payload outputs,
+which remain unwritten on failure.
 The runtime checks the requested generated factory ID/signature and threading
 capability before invoking bootstrap, then validates the returned projection.
 A signature mismatch returns `NC_E_ABI_VERSION` without constructing a root. All later construction happens by
@@ -189,24 +197,37 @@ Successful snapshot capture calls `NcPersistenceWriteBytesV1` exactly once with
 a borrowed complete document. The callback may copy it, must not unwind, and
 cannot retain the byte pointer. Failed capture never calls the sink. The runtime
 retains ownership of temporary storage, and no Rust allocation crosses the ABI.
-The existing persistence interface identities and NCB-v1 schema remain stable.
+The persistence consolidation preserved the existing interface identities and
+NCB-v1 record schema; both remain experimental contracts.
 
-The runtime retains at most 1,024 dynamic modules and 64 simultaneous debug
+The runtime tracks at most 1,024 live-loaded module records and 64 simultaneous debug
 messengers. The public Rust facade additionally bounds copied enumeration data
-and inspection text.
+and inspection text. Offline inspection pins opened libraries without adding
+module catalog records, so the live-load record limit does not bound those
+inspection handles.
 
 ## 9. ABI signatures
 
-Every generated ABI signature is a SHA-256 digest of its canonical typed
+Every IDL-generated ABI signature is a SHA-256 digest of its canonical typed
 stream. This representation is unconditional across hosts, plugins, inspection,
-and monolithic builds. Names and versions remain diagnostic; ABI compatibility
-is determined by identities, fingerprints, and signatures.
+and monolithic builds. Runtime calls compare identities and exact signatures.
+Declaration names and versions participate in the build-time identity and
+fingerprint inputs. A plugin's qualified name is also validated against its
+derived plugin ID; its release-version text is diagnostic and does not select
+a compatible implementation.
 
 ## 10. Ownership and trust
 
 Description pointers and static UTF-8 views are borrowed from retained native
 libraries or runtime storage. Inspection callbacks must copy values they need
 after the call. Successful activation transfers one COM reference to the host.
+
+`NcStaticUtf8` stores `(*const u8, u32)`. Its
+`unsafe as_str<'a>(self) -> Result<&'a str, NcStatus>` validates UTF-8 without
+copying; `'a` is supplied by the caller and is not tied to a descriptor borrow.
+`NcUtf8View` stores `(*const u8, usize)` and currently has no conversion methods.
+Both are raw views that do not own storage or retain libraries. See the
+[conversion and lifetime table](../core/README.md#text-bytes-and-borrowed-storage).
 
 Structural validation protects against mistakes by trusted producers. It is
 not memory isolation and cannot make arbitrary pointers or untrusted native code

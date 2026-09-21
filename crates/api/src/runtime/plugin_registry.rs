@@ -1,7 +1,7 @@
 //! Safe Rust view of the runtime plugin registry.
 //!
 //! This context answers only what plugin and module identities exist. Metadata
-//! and relationships belong to `Inspection`, while loading remains on
+//! and plugin dependencies belong to `Inspection`, while loading remains on
 //! `Runtime`, preventing one catch-all registry API from growing again.
 
 use std::vec::Vec;

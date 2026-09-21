@@ -45,9 +45,11 @@ implements a context-bound settings-view provider with real button, checkbox,
 and linear widgets. Application code receives only an opaque mountable root and
 named output capability. It clicks the normal UI, snapshots the edited checkbox,
 restores a new component, and rebinds it with the same application messages.
-That example is one explicitly supported composition, not a complete authored UI
-schema or automatic persistence for every built-in widget. A future UI editor
-will need to define those initialization schemas and property inspectors.
+That example defines one supported composition; it does not automatically add
+persistence to every built-in widget. The [UI document layer](../../ui/document/README.md)
+and [UI designer](../../../tools/ui-designer/README.md) define their own authored
+UI schema and integration. Those application contracts are separate from this
+generic COM object-persistence service.
 
 ## Ownership and linkage
 
@@ -70,6 +72,29 @@ copies the completed document into caller-owned storage; failure publishes no
 partial document. The runtime releases its temporary bytes after the callback.
 Restoration accepts a borrowed byte range and returns one owned COM root.
 Neither direction exposes Rust container layout or transfers allocator ownership.
+
+## Limits and failure behavior
+
+`snapshot_with_limits` and `FactoryRegistry::restore_with_limits` accept the
+same `Limits`. Defaults allow 4,096 objects and at most 48 objects along a
+root-to-leaf path. The nested binary policy defaults to a 16 MiB document,
+65,536 elements/fields per container, 64 levels of value nesting, and 1,000,000
+decoded values. Binary nesting counts the encoded record/sequence structure,
+so it can be exhausted before the object-depth budget. Provider-state bytes
+and children also count toward binary container limits.
+
+Registration consumes an owned factory pointer. The runtime retains one
+reference on success; duplicate IDs return `NC_E_INVALID_ARG` and preserve
+the existing provider. Restoration reports `NC_E_NOT_FOUND` for an unregistered
+recipe. Providers decide which schema versions they support and return their
+own validation errors. No factory constructor runs until the full preflight
+succeeds, although provider `validate` calls have already run.
+
+Cycles return `NC_E_INVALID_ARG`; explicit object/state traversal budget checks
+return `NC_E_OUT_OF_RANGE`. Codec failures are mapped to `NC_E_INVALID_ARG`,
+including codec limits, so callers must not assume every limit failure has one
+status. Application bindings and publication remain the caller's responsibility
+after a successful restore.
 
 ## Crate migration
 

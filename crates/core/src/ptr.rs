@@ -31,7 +31,8 @@
 //! been erased, so [`crate::ComInterface`] identifies the vtable contract but
 //! not the implementation's threading behavior.
 //!
-//! An IDL class or factory description carries a threading capability, but Rust
+//! An IDL interface declares a minimum threading capability and a plugin
+//! descriptor records its factory implementation capability, but Rust
 //! auto traits cannot depend on metadata inspected at runtime: a value's `Send`
 //! and `Sync` implementations must be known from its type. Generated factory
 //! bindings bridge the two systems and return a statically marked

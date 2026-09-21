@@ -34,6 +34,10 @@ pub const NC_COM_RUNTIME_ABI_VERSION: u32 = 1;
 ///
 /// Unless a narrower lifetime is documented, views returned by runtime
 /// inspection calls remain valid until the runtime shared library is unloaded.
+/// The view itself does not retain that library or encode a Rust borrow lifetime.
+/// Its public API consists of the raw fields and [`Self::EMPTY`]; it has no
+/// `as_str` or `as_bytes` method. The COM facade validates and copies inspection
+/// text into owned `String` values before returning it to application code.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct NcUtf8View {

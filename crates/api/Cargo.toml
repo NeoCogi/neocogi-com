@@ -8,7 +8,7 @@ repository = "https://github.com/NeoCogi/neocogi-foundations"
 homepage = "https://github.com/NeoCogi/neocogi-foundations"
 documentation = "https://docs.rs/neocogi-com"
 readme = "README.md"
-description = "Small C-ABI COM runtime and proc macros for Rust interfaces"
+description = "Typed C-ABI COM clients, object helpers, and optional runtime bindings"
 keywords = ["com", "abi", "ffi", "plugin"]
 categories = ["api-bindings", "development-tools::ffi"]
 

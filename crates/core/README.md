@@ -1,8 +1,9 @@
 # neocogi-com-core
 
-The allocation-free C-shaped ABI shared by generated contracts, hosts, plugins,
-and the process runtime. Most authors use the `neocogi-com` facade. Core object
-ABI v7 remains experimental.
+The C-shaped ABI shared by generated contracts, hosts, plugins, and the process
+runtime. Its default configuration is allocation-free; optional `alloc` helpers
+own decoded values and binary documents. Most authors use the `neocogi-com`
+facade. Core object ABI v7 remains experimental.
 
 Core defines statuses, GUIDs, exact signatures, typed metadata, interface headers
 and vtables, `IUnknown`, `ComPtr`, and `ComRef`. `ComInterface` owns identity and
@@ -19,7 +20,7 @@ reconstruct an IDL graph.
 Plugin descriptor ABI v1 publishes plugin identity/version, hard dependencies,
 full root-factory IID/signature, threading, and one zero-argument bootstrap.
 Its getter is `nc_get_factory_plugin_description_v1`. Runtime discovery is v1,
-with operation, plugin-registry, inspection, and debug tables. See the
+with operation, plugin-registry, inspection, debug, and persistence tables. See the
 [ABI specification](../docs/abi-v7.md) for layouts and ownership rules.
 
 ## Interface safety
@@ -45,6 +46,32 @@ value tree, descriptor-offset mutation, or a runtime type registry.
 Core is `no_std` by default. `alloc` enables owned decoding/diagnostic helpers;
 `std` implies `alloc`. Loading, process state, object allocation, and deployment
 policy belong in other crates.
+
+## Text, bytes, and borrowed storage
+
+These types have different ownership and conversion rules:
+
+| Type | Conversion | Ownership and validation |
+| --- | --- | --- |
+| `NcStaticUtf8` | `unsafe as_str<'a>(self) -> Result<&'a str, NcStatus>` and `unsafe as_bytes<'a>(self) -> Result<&'a [u8], NcStatus>` | Borrows descriptor storage; the caller establishes memory validity and the returned lifetime. `as_str` validates UTF-8. |
+| `NcUtf8View` | Public `data: *const u8`, `len: usize`, and `EMPTY`; no conversion methods | Runtime-owned bytes with an externally specified lifetime. The facade copies inspection text into owned strings. |
+| `NcAbiSignature` | `unsafe as_bytes<'a>(self) -> Result<&'a [u8], NcStatus>` | Binary signature storage, not text. `from_static` accepts an empty sentinel or exactly 32 bytes. |
+| `NcCopyFromBufferOffset<'a, T>` | `as_slice(&self) -> &'a [T]` | Holds an actual Rust slice. The logical offset does not slice or shift its storage. |
+| `NcCopyToBufferOffset<'a, T>` | `as_mut_slice(&mut self) -> &mut [T]` | Holds exclusive caller-provided storage; counts are elements, not necessarily bytes. |
+| `INcStringAbi` / `INcBytesAbi` | Raw length, indexed-byte, and bulk-copy vtable operations | A COM reference retains the provider. Safe allocating conversions live in the facade. |
+
+`NcStaticUtf8` uses a `u32` byte count. An empty view returns an empty slice/text
+even with a null pointer; a nonempty null view returns `NC_E_POINTER`. Invalid
+UTF-8 returns `NC_E_INVALID_ARG`. Neither check proves that another non-null
+pointer is readable. Its `Copy` implementation copies only the pointer/count,
+and the returned `'a` is chosen by the unsafe caller rather than tied to `self`.
+The word “Static” describes metadata's intended lifetime in its owning module;
+the value neither owns those bytes nor pins a shared library.
+
+For a readable `NcCopyFromBufferOffset<u8>`, use
+`core::str::from_utf8(buffer.as_slice())` when text is required. There is no
+universal safe `as_str(&self) -> &str` on raw ABI views. See the
+[facade's data helpers](../api/README.md#strings-and-byte-buffers) for owned copies.
 
 ## Experimental persistent values
 

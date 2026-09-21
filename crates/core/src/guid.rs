@@ -2,10 +2,10 @@
 //!
 //! neocogi-com identities use canonical UUID byte order and deterministic UUID-v5
 //! derivation from validated qualified-name bytes. The module keeps the hashing
-//! implementation const-evaluable so plugin, class, and interface IDs can be
+//! implementation const-evaluable so plugin and low-level interface IDs can be
 //! emitted directly into static descriptor data.
 
-/// A plugin, class, or COM interface identifier.
+/// A 128-bit identifier used for plugins, interfaces, and application-defined recipes.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct NcGuid {
@@ -24,8 +24,10 @@ pub const NC_GUID_NIL: NcGuid = NcGuid::from_fields(0, 0, 0, [0; 8]);
 
 /// UUID namespace reserved for `neocogi-com` ABI identities.
 ///
-/// User-defined plugin, class, and interface identifiers are UUIDv5 values
-/// derived from this namespace and their exact qualified-name UTF-8 bytes.
+/// Plugin IDs and low-level `auto_guid` interface IDs are UUIDv5 values derived
+/// from this namespace and their exact qualified-name UTF-8 bytes. The IDL
+/// compiler uses its own derived namespace and a framed name/version preimage
+/// with [`guid_from_name`] for declaration IDs.
 pub const NC_COM_GUID_NAMESPACE: NcGuid =
     NcGuid::from_uuid_bytes([0x72, 0x0d, 0x6b, 0x32, 0x1f, 0x75, 0x48, 0x28, 0xa8, 0x95, 0x6f, 0xb7, 0x3f, 0x82, 0x02, 0xee]);
 

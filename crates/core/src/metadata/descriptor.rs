@@ -42,6 +42,12 @@ pub struct NcMethodReturnDescriptor {
 }
 
 /// Static UTF-8 metadata stored in descriptor tables.
+///
+/// This is a raw pointer/count view, not an owning string or a Rust borrow with
+/// a tracked lifetime. Copying it does not copy its bytes or retain their module.
+/// [`Self::as_str`] validates UTF-8 but is unsafe because the caller must keep
+/// the backing allocation readable and immutable for the chosen return lifetime.
+/// Public fields also allow foreign producers to supply invalid metadata.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct NcStaticUtf8 {
@@ -62,6 +68,11 @@ impl NcStaticUtf8 {
 
     /// Creates static UTF-8 metadata from a string literal or other static
     /// string.
+    ///
+    /// The ABI stores the byte length with `value.len() as u32`; this constructor
+    /// does not reject an overlong input. Descriptor authors should use the
+    /// much smaller limits enforced by [`crate::validate_qualified_name`] and
+    /// [`crate::validate_version_text`] for their respective metadata fields.
     pub const fn from_static(value: &'static str) -> Self {
         Self {
             data: value.as_ptr(),
@@ -81,10 +92,16 @@ impl NcStaticUtf8 {
 
     /// Borrows the metadata bytes.
     ///
+    /// This performs no allocation or UTF-8 validation. Zero length returns an
+    /// empty slice; a nonzero length with a null pointer returns `NC_E_POINTER`.
+    /// No check can establish the validity of a non-null foreign pointer.
+    ///
     /// # Safety
     ///
     /// If `self.len != 0`, `self.data` must point to `self.len` bytes that
-    /// remain valid for the returned lifetime.
+    /// remain readable and immutable for the returned lifetime and satisfy
+    /// [`core::slice::from_raw_parts`]'s allocation and size requirements.
+    /// The caller selects `'a`; it is not constrained by this copied descriptor.
     pub unsafe fn as_bytes<'a>(self) -> Result<&'a [u8], NcStatus> {
         if self.len == 0 {
             return Ok(&[]);
@@ -98,6 +115,20 @@ impl NcStaticUtf8 {
     }
 
     /// Borrows the metadata as UTF-8 text.
+    ///
+    /// No string is allocated. Invalid UTF-8 returns `NC_E_INVALID_ARG`; pointer
+    /// errors are forwarded from [`Self::as_bytes`]. The raw view does not expose
+    /// a safe, infallible `as_str(&self) -> &str` method.
+    ///
+    /// ```
+    /// use neocogi_com_core::NcStaticUtf8;
+    ///
+    /// let name = NcStaticUtf8::from_static("example.widget");
+    /// // SAFETY: The literal's immutable bytes remain live for the whole program.
+    /// let text = unsafe { name.as_str() }?;
+    /// assert_eq!(text, "example.widget");
+    /// # Ok::<(), neocogi_com_core::NcStatus>(())
+    /// ```
     ///
     /// # Safety
     ///

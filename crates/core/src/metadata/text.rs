@@ -7,10 +7,10 @@
 
 use core::fmt;
 
-/// Maximum UTF-8 byte length of a plugin, class, or interface qualified name.
+/// Maximum UTF-8 byte length of a plugin or interface qualified name.
 pub const NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN: usize = 1024;
 
-/// Maximum UTF-8 byte length of plugin or class version text.
+/// Maximum UTF-8 byte length of plugin release-version text.
 pub const NC_DESCRIPTOR_VERSION_MAX_LEN: usize = 128;
 
 /// Reason a descriptor qualified name violates the ABI text policy.
@@ -90,7 +90,7 @@ impl fmt::Display for NcVersionTextError {
 #[cfg(feature = "std")]
 impl std::error::Error for NcVersionTextError {}
 
-/// Validates a plugin, class, or interface qualified name.
+/// Validates a plugin or interface qualified name.
 ///
 /// A valid name contains `1..=1024` ASCII bytes split into nonempty segments
 /// by `.` or `:`. Each segment starts with an ASCII letter or `_`; subsequent
@@ -129,7 +129,7 @@ pub const fn validate_qualified_name(value: &str) -> Result<(), NcQualifiedNameE
     Ok(())
 }
 
-/// Validates plugin or class version text.
+/// Validates plugin release-version text.
 ///
 /// Valid version text contains `1..=128` ASCII graphic bytes (`!` through
 /// `~`). Spaces, control bytes, and non-ASCII characters are rejected.

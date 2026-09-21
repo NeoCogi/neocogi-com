@@ -2,7 +2,7 @@
 //!
 //! Projection functions translate runtime-owned records into small C ABI views
 //! without allocating or changing registration state. Static descriptor text is
-//! exposed as borrowed UTF-8 slices; relationship IDs preserve their registry
+//! exposed as borrowed UTF-8 slices; plugin dependency IDs preserve their registry
 //! insertion order.
 //!
 //! These helpers build C ABI records without owning a second metadata catalog.

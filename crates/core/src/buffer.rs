@@ -45,7 +45,10 @@ impl<'a, T> NcCopyFromBufferOffset<'a, T> {
         self.data.is_empty()
     }
 
-    /// Returns the readable slice.
+    /// Returns the complete readable slice without applying the logical offset.
+    ///
+    /// For `T = u8`, `core::str::from_utf8(self.as_slice())` validates and borrows
+    /// text without allocation. The buffer itself permits arbitrary bytes.
     pub const fn as_slice(&self) -> &'a [T] {
         self.data
     }

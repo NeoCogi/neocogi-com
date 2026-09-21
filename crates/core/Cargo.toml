@@ -8,7 +8,7 @@ repository = "https://github.com/NeoCogi/neocogi-foundations"
 homepage = "https://github.com/NeoCogi/neocogi-foundations"
 documentation = "https://docs.rs/neocogi-com"
 readme = "README.md"
-description = "Stable core ABI types for neocogi-com"
+description = "Experimental core ABI types for neocogi-com"
 keywords = ["com", "abi", "ffi", "plugin"]
 categories = ["api-bindings", "development-tools::ffi"]
 

@@ -2,7 +2,7 @@
 //!
 //! The table exposes stable plugin IDs and process-local loaded-module IDs using
 //! the shared count/fill convention. It describes catalog existence only;
-//! names, versions, paths, and relationships are provided by inspection APIs.
+//! names, versions, paths, and plugin dependencies are provided by inspection APIs.
 //!
 //! Counts are deliberately infallible snapshots. Fill calls report the current
 //! required length so callers can retry if append-only runtime state grows
@@ -10,7 +10,10 @@
 
 use crate::{NcGuid, NcStatus};
 
-/// Maximum number of dynamic plugin modules retained by runtime ABI v1.
+/// Maximum number of live-loaded module records tracked by runtime ABI v1.
+///
+/// Inspection-only opens do not enter this catalog; their pinned handles are
+/// outside this limit and remain live until the inspector process exits.
 pub const NC_COM_RUNTIME_MAX_LOADED_MODULES: usize = 1_024;
 
 /// Read-only process-global plugin and loaded-module registry for runtime ABI v1.

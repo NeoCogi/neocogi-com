@@ -50,6 +50,41 @@ construct. Handwritten helpers such as `INcStringComPtrExt::to_string` remain
 separate because they add bounded copying, allocation, and UTF-8 validation
 rather than duplicate a generated interface method.
 
+## Strings and byte buffers
+
+With `alloc` (also enabled by the default `std` feature), `NcString` and
+`NcBytes` are constructor namespaces. They return owning COM pointers; they
+are not Rust string/vector wrappers that expose their provider's allocation.
+
+```rust
+use neocogi_com::{INcStringComPtrExt, NcStatus, NcString};
+
+let value = NcString::from_utf8_str("hello");
+let owned = value.to_string()?;
+assert_eq!(owned.as_str(), "hello");
+
+let mut prefix = [0; 2];
+value.copy_to(0, &mut prefix)?;
+assert_eq!(&prefix, b"he");
+# Ok::<(), NcStatus>(())
+```
+
+`INcStringComPtrExt` works on both `ComPtr<INcStringAbi>` and
+`ComRef<'_, INcStringAbi>`. Its `to_string(&self) -> Result<String, NcStatus>`
+copies through the ABI and validates UTF-8; `to_bytes` returns owned bytes.
+`INcBytesComPtrExt::to_vec` and `to_i8_vec` copy byte objects. These helpers
+default to a 64 MiB allocation ceiling; `_bounded(max_len)` variants select a
+different maximum. `copy_to(offset, &mut [u8])` copies the requested range into
+caller storage without allocating a complete result. The COM string contract
+offers no borrowed `as_str` or provider-storage pointer.
+
+Metadata is different: `NcStaticUtf8::as_str` is an **unsafe**, fallible borrow
+with a caller-chosen lifetime, and `NcUtf8View` has no conversion methods.
+Neither raw descriptor retains its backing library. See the
+[core conversion table](../core/README.md#text-bytes-and-borrowed-storage).
+Runtime inspection returns owned text: `LoadedModuleInfo::qualified_name()` and
+`plugin_version()` can safely return `&str` because the info value owns its copy.
+
 ## Boundary rules
 
 - Methods return `Result<T, NcStatus>`; `Result<()>` is the status-only form.
@@ -62,7 +97,8 @@ rather than duplicate a generated interface method.
 - Never expose Rust trait objects, `String`, `Vec<T>`, slices, arbitrary
   references, allocator ownership, panics, or `Any` across the ABI.
 - Interface compatibility requires both the generated IID and exact ABI
-  signature. Names and versions are diagnostic information.
+  signature. Declaration names/versions are inputs to IDL identity and
+  signature generation; plugin release-version text is diagnostic.
 
 Objects are thread-local by default. An IDL interface or factory declared
 thread-safe produces `ComPtr<T, ThreadSafe>` and its implementation must satisfy
@@ -109,7 +145,8 @@ neocogi_com::export_factory_plugin!();
 `#[com_factory(Factory)]` adds the factory-role proof and typed bootstrap.
 The plugin descriptor stores plugin metadata, full root identity/signature,
 threading, and activation. Ordinary objects require an initialized value;
-only factories receive a generated zero-argument constructor.
+unit factories receive a generated zero-argument bootstrap; stateful roots
+implement `ComFactoryBootstrap` explicitly.
 
 ## Runtime flow
 
@@ -131,13 +168,25 @@ Unconnected contract revisions can coexist; incompatible calls fail with
 `NC_E_ABI_VERSION`. Required live-load failures diagnose and abort. Loaded
 libraries remain mapped until process exit.
 
-For static assemblies, call
-`Runtime::register_factory_plugin_description(factory_plugin_description())`
-and then use the same typed activation method. Plugin dependency IDs affect
+For static assemblies, register the descriptor before using the same typed
+activation method:
+
+```rust,ignore
+// SAFETY: The linked descriptor and all its code/data live for the process lifetime.
+unsafe {
+    runtime.register_factory_plugin_description(factory_plugin_description())?;
+}
+```
+
+This is unsafe even when the outer descriptor reference is `&'static`: all
+reachable metadata pointers and bootstrap code must also remain valid, and the
+producer must honor its threading promise. Plugin dependency IDs affect
 load order but never trigger path discovery or recursive loading.
 
-Offline inspection uses
-`Inspection::with_plugin_library_description(path, visitor)`. It borrows the
+Offline inspection uses the unsafe
+`runtime.inspection().with_plugin_library_description(path, visitor)` method.
+The path must identify trusted code, and the visitor must not panic across its
+C callback boundary. It borrows the
 validated `NcFactoryPluginDescription` only for the callback and does not mutate
 the process registry. The inspection JSON schema is factory-native: each plugin
 contains a factory IID/signature/threading record and hard dependencies.
@@ -174,13 +223,28 @@ See [persistence semantics and ownership](../runtime/PERSISTENCE.md).
 
 ## Features and scope
 
-- `std` (default) enables standard-library integrations and allocation.
-- `alloc` enables generated heap-backed objects and owned data helpers.
-- `macros` (default) exposes implementation/generation macros.
-- `runtime` links the shared-runtime facade and implies `std`. Unification of
-  this feature is intentional: the facade contains no registry state and all
-  calls resolve to the same process-loaded runtime shared object.
-- `static-runtime` links one runtime into the final binary.
+| Selection | Available behavior |
+| --- | --- |
+| `default-features = false` | `no_std` core ABI, pointer/client support, persistence contracts, and serialization traits; no runtime linkage |
+| `alloc` | Heap-backed object helpers, owned string/byte objects, the binary codec, and `ObjectRecord` |
+| `macros` | Macro and derive re-exports; generating heap-backed object storage also needs `alloc` |
+| `std` | `alloc` plus standard-library integrations; no runtime linkage by itself |
+| Defaults: `std`, `macros` | Local object implementations and owned data helpers; no runtime linkage |
+| `runtime` | Implies `std`; links the `nc_com` native runtime through `runtime-sys` and enables runtime/persistence clients |
+| `static-runtime` | Implies `runtime`; links the `nc_com` implementation as an rlib inside the final native binary or browser module |
+
+For shared mode, build and deploy `libnc_com.so` on Linux, `libnc_com.dylib` on
+macOS, or `nc_com.dll` with its import library on Windows. Ordinary
+`cargo build -p neocogi-com-runtime` produces an rlib; use
+`cargo rustc -p neocogi-com-runtime --lib --crate-type cdylib` for a standalone
+shared runtime, or use the assembly tool. `NC_COM_RUNTIME_LINK_DIR` supplies
+native linker search paths; deployment must separately satisfy the OS loader.
+
+Shared-mode `runtime` feature unification is intentional: facade instances
+hold no catalog, and their external calls resolve to the staged runtime.
+`static-runtime` wins if both are enabled. Keep it out of separate plugin
+images; `--all-features` therefore selects static linkage rather than validating
+a shared deployment.
 
 This is not Windows COM, a source-reflection system, a sandbox, or a plugin
 marketplace. Applications own installation, path discovery, trust, and policy.

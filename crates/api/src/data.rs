@@ -45,6 +45,19 @@ pub struct NcBytes;
 /// [`INcBytesAbi`] to inspect its UTF-8 bytes. [`INcStringAbi`] itself provides
 /// bounded bulk copying; the secondary interface is not required for efficient
 /// conversion.
+///
+/// This type only constructs COM objects. It has no borrowed `as_str` method,
+/// and the returned interface exposes bounded copying rather than its storage
+/// address. Import [`INcStringComPtrExt`] to obtain an owned Rust string:
+///
+/// ```
+/// use neocogi_com::{INcStringComPtrExt, NcString};
+///
+/// let value = NcString::from_utf8_str("hello");
+/// let text = value.to_string()?;
+/// assert_eq!(text.as_str(), "hello");
+/// # Ok::<(), neocogi_com::NcStatus>(())
+/// ```
 pub struct NcString;
 
 #[repr(C)]
