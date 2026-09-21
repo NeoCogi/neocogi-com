@@ -17,7 +17,7 @@ fn build_factory_plugin() -> PathBuf {
         .expect("failed to build factory fixture");
     assert_success("factory plugin build", &output);
     target.join("debug").join(format!(
-        "{}neocogi_example_com_plugin{}",
+        "{}nc_example_com{}",
         std::env::consts::DLL_PREFIX,
         std::env::consts::DLL_SUFFIX
     ))

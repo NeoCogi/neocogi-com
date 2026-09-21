@@ -58,14 +58,14 @@ fn ordinary_cargo_builds_both_linkage_modes_without_contract_artifacts() {
             "dynamic-plugin",
         ],
     ));
-    let plugin = library("neocogi_example_com_plugin");
+    let plugin = library("nc_example_com");
     std::fs::copy(target.join("debug").join(&plugin), dynamic_stage.path().join(&plugin)).unwrap();
     run(&mut cargo(
         &workspace,
         &target,
         &["rustc", "-p", "neocogi-com-runtime", "--lib", "--crate-type", "cdylib"],
     ));
-    let runtime = library("nc_com_shared_runtime");
+    let runtime = library("nc_com");
     std::fs::copy(target.join("debug").join(&runtime), dynamic_stage.path().join(runtime)).unwrap();
     run(cargo(
         &workspace,

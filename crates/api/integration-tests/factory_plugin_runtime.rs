@@ -117,7 +117,7 @@ fn build_dynamic_fixture() -> PathBuf {
         String::from_utf8_lossy(&output.stderr),
     );
     target.join("debug").join(format!(
-        "{}neocogi_example_com_plugin{}",
+        "{}nc_example_com{}",
         std::env::consts::DLL_PREFIX,
         std::env::consts::DLL_SUFFIX,
     ))

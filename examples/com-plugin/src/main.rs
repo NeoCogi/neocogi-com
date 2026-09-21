@@ -3,7 +3,7 @@
 use neocogi_com::{binary, Runtime, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, guid_from_qualified_name};
 use neocogi_com::persistence::{FactoryRegistry, snapshot};
 use neocogi_com_events::{INamedOutputsAbi, bind_output};
-use neocogi_example_com_plugin::{ExtentState, PERSISTENT_KIND};
+use nc_example_com::{ExtentState, PERSISTENT_KIND};
 use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentChanged};
 
 /// Registers the selected plugin, acquires its checked factory, and mutates one object.
@@ -46,7 +46,7 @@ fn main() {
 #[cfg(feature = "monolith")]
 fn register_plugin(runtime: &Runtime) {
     // SAFETY: Both the descriptor and its code are linked into this process.
-    unsafe { runtime.register_factory_plugin_description(neocogi_example_com_plugin::factory_plugin_description()) }.expect("static plugin registration");
+    unsafe { runtime.register_factory_plugin_description(nc_example_com::factory_plugin_description()) }.expect("static plugin registration");
 }
 
 /// Loads the trusted sample plugin supplied as the executable's first argument.

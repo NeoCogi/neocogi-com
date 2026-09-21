@@ -41,7 +41,7 @@
 //! cross-platform ABI pattern.
 //!
 //! With the `runtime` feature, `neocogi-com` exposes the process-global
-//! `Runtime` facade backed by the linked `libnc_com_shared_runtime` shared library.
+//! `Runtime` facade backed by the linked `libnc_com` shared library.
 //! Hosts still choose which factory plugins to accept, but successful dynamic
 //! plugin libraries remain mapped until process exit.
 //! The facade and `neocogi-com-runtime-sys` contain no registry state. Cargo

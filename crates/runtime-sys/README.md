@@ -1,7 +1,7 @@
 # neocogi-com-runtime-sys
 
 `neocogi-com-runtime-sys` contains link-time declarations for the C ABI exported by a
-`libnc_com_shared_runtime` shared library.
+`libnc_com` shared library.
 
 This is a client binding, not another runtime instance: it contains no registry
 or mutable runtime state. When Cargo unifies the shared-runtime feature through

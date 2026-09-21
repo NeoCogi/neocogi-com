@@ -3,7 +3,7 @@
 `neocogi-com` is the user-facing Rust facade for NeoCogi's explicit C-shaped
 component ABI. It provides typed COM pointers, generated interface/object
 support, factory-only plugins, and an optional facade over the linked
-`libnc_com_shared_runtime`.
+`libnc_com`.
 
 Public cross-library contracts should be authored as Rust-like `.ncidl`
 modules. See [IDL contract modules](../../../docs/IDL_MODULES.md) for their

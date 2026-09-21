@@ -42,10 +42,10 @@ From the repository root, on Linux:
 cargo rustc -p neocogi-example-com-plugin --lib --crate-type cdylib --features dynamic-plugin
 cargo rustc -p neocogi-com-runtime --lib --crate-type cdylib
 NC_COM_RUNTIME_LINK_DIR="$PWD/target/debug" cargo build -p neocogi-example-com-plugin --bin com-plugin-host --features host
-LD_LIBRARY_PATH="$PWD/target/debug" target/debug/com-plugin-host "$PWD/target/debug/libneocogi_example_com_plugin.so"
+LD_LIBRARY_PATH="$PWD/target/debug" target/debug/com-plugin-host "$PWD/target/debug/libnc_example_com.so"
 ```
 
-The deployment contains the executable, `libnc_com_shared_runtime.so`, and the
+The deployment contains the executable, `libnc_com.so`, and the
 plugin `.so`. No contract libraries are built or copied. On macOS use the
 `.dylib` filenames and `DYLD_LIBRARY_PATH`; on Windows use the generated DLLs
 beside the executable and point the link directory at their import libraries.

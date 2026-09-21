@@ -18,9 +18,9 @@ pub use neocogi_com_core::{NcPersistenceApiV1, NcDebugApiV1, NcInspectFactoryPlu
 // Keep the implementation in the link graph so the exact same exported C
 // symbols resolve from its rlib. No alternate tables or catalog are introduced.
 #[cfg(feature = "static-runtime")]
-extern crate nc_com_shared_runtime as _;
+extern crate nc_com as _;
 
-#[cfg_attr(all(not(test), not(feature = "static-runtime")), link(name = "nc_com_shared_runtime"))]
+#[cfg_attr(all(not(test), not(feature = "static-runtime")), link(name = "nc_com"))]
 unsafe extern "C" {
     /// Returns the runtime ABI v1 caller-scoped persistence table.
     pub fn nc_com_get_persistence_api_v1() -> *const NcPersistenceApiV1;

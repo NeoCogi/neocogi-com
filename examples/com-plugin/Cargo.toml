@@ -6,6 +6,8 @@ license.workspace = true
 publish = false
 
 [lib]
+# The Rust target also defines the deployed shared-library name on each platform.
+name = "nc_example_com"
 # The same implementation links into a monolith; dynamic builds override this
 # target's crate type with `cargo rustc --lib --crate-type cdylib`.
 crate-type = ["rlib"]

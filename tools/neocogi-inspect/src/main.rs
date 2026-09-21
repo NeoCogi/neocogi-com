@@ -9,7 +9,7 @@
 
 use std::path::Path;
 
-use nc_com_shared_runtime::{inspect_plugin_library, plan_plugin_load_order};
+use nc_com::{inspect_plugin_library, plan_plugin_load_order};
 
 use crate::cli::{Command, DiffMode, OutputFormat, USAGE, parse_args};
 use crate::compat::check_compatibility;
@@ -160,12 +160,12 @@ fn read_json(path: &Path) -> Result<InspectionArtifact, CliError> {
 #[derive(Debug)]
 enum CliError {
     Usage(String),
-    Inspect(nc_com_shared_runtime::PluginLoadError),
+    Inspect(nc_com::PluginLoadError),
     Io(std::io::Error),
     Json(serde_json::Error),
     Artifact(ArtifactValidationError),
     Different(String),
     Incompatible(String),
     PlanInspection(Vec<String>),
-    Plan(nc_com_shared_runtime::PluginDependencyPlanError),
+    Plan(nc_com::PluginDependencyPlanError),
 }

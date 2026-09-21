@@ -1,6 +1,6 @@
 //! Safe Rust facade over the linked runtime's versioned C tables.
 //!
-//! `Runtime` is stateless: the linked `libnc_com_shared_runtime` owns all process-wide
+//! `Runtime` is stateless: the linked `libnc_com` owns all process-wide
 //! data. The facade checks the mandatory runtime ABI generation before every
 //! table lookup, validates each table's advertised size, and converts borrowed C
 //! records into owned Rust values. Context views keep registry enumeration,
@@ -47,7 +47,7 @@ pub const NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES: usize = 1024 * 1024;
 /// Handle for the process-global neocogi-com runtime.
 ///
 /// The registry and all API tables are owned by the linked
-/// `libnc_com_shared_runtime` shared library.
+/// `libnc_com` shared library.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Runtime {
     /// Prevents external struct literals while keeping the handle zero-sized.
