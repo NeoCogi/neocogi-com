@@ -5,8 +5,8 @@
 //!
 //! - [`com_interface`] keeps the input trait as the Rust implementation
 //!   contract and generates a C-compatible `*Abi` interface type, `*VTable`,
-//!   safe `ComPtr` extension methods, static interface ABI metadata, and the
-//!   `unsafe impl neocogi_com::ComInterface` that certifies their raw invariants.
+//!   one safe `*Client` view lent by both `ComPtr` and `ComRef`, static interface
+//!   ABI metadata, and the `unsafe impl neocogi_com::ComInterface` that certifies their raw invariants.
 //! - [`com_object`] wraps a Rust implementation struct in generated storage containing
 //!   `IUnknown`, one header per exposed interface, an atomic reference count,
 //!   and the original Rust value. It derives public projections from an IDL
@@ -16,7 +16,7 @@
 //! - [`com_factory`] associates an implementation with one generated IDL
 //!   factory interface.
 //! - [`factory_plugin`] creates immutable plugin metadata for one typed root
-//!   factory; it never generates a object table or erased argument frame.
+//!   factory; it never generates an object table or erased argument frame.
 //! - [`com_struct`] marks a fixed-size record as ABI plain data, owns its
 //!   `repr(C)`/packing/alignment choice, and records its physical layout. It
 //!   checks fields through `neocogi_com::AbiPlainValue` by default, or through
@@ -50,7 +50,7 @@
 //!
 //! # Current ABI lowering
 //!
-//! This first version supports methods shaped like:
+//! Callable methods use shared or mutable receivers and typed results, for example:
 //!
 //! ```text
 //! fn method(&self, arg: AbiSafeType) -> Result<AbiSafeReturn, neocogi_com::NcStatus>;
@@ -110,14 +110,13 @@
 //! low-level generator/test infrastructure and must also provide a complete
 //! precomputed signature; there is intentionally no compiler-side fallback.
 //!
-//! The qualified-name string is normative descriptor data and the sole UUIDv5
-//! input. Explicit UUID syntax is a checked pin of that same derivation and
-//! therefore also requires `name = "..."`. It should not be a Rust module path
-//! unless you intend refactors to change the interface ID.
-//! Interface, object, and plugin qualified-name literals are validated during
-//! macro expansion against the ABI descriptor text policy. Class and plugin
-//! version literals are checked at the same time, so generated descriptors
-//! cannot defer malformed text failures until runtime activation.
+//! The generator supplies `assigned_guid` after resolving the IDL declaration
+//! name and version, including an explicit ID when authored. Low-level
+//! `auto_guid` instead derives a UUIDv5 directly from its qualified-name text;
+//! a positional UUID literal is a checked pin of that derivation and requires
+//! `name = "..."`. These are distinct identity paths. Interface/plugin names
+//! and plugin release-version literals are validated against the descriptor
+//! text policy during macro expansion.
 //!
 //! Generated code uses the canonical `::neocogi_com` crate path. Use
 //! `neocogi_com = path` on a macro invocation only when generated code must target
@@ -211,7 +210,7 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Defines concrete COM object storage for a Rust implementation struct.
 ///
-/// A bare `Class` path implements one constructor-free IDL interface without
+/// A bare `Interface` path implements one IDL interface without
 /// repeating its identity, threading, or required protocol list.
 /// `interfaces(...)` exposes a local
 /// object made only from shared interface contracts. Local object storage is

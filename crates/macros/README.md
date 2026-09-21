@@ -59,8 +59,9 @@ neocogi_com::export_factory_plugin!();
 `factory_plugin!` creates immutable Rust-accessible metadata. The final dynamic
 library calls `export_factory_plugin!` exactly once to export
 `nc_get_factory_plugin_description_v1`. Static assemblies call
-`factory_plugin_description()` directly. There is no class table, generated
-constructor function pointer, erased argument frame, or legacy plugin export.
+`factory_plugin_description()` directly. The descriptor contains one fixed
+bootstrap function pointer for the root factory; there is no per-object
+constructor table or erased argument frame.
 
 ## Interface and value lowering
 
@@ -83,8 +84,8 @@ Supported methods return `Result<T, NcStatus>`:
 
 `#[com_struct]` defines fixed C-layout records. `#[com_enum]` defines explicit
 tagged payload layouts. `com_int_enum!` defines a transparent integer newtype
-that preserves unknown values. `ComDeserialize` derives typed local decoding;
-it is unrelated to runtime activation.
+that preserves unknown values. `ComDeserialize` and `ComSerialize` derive typed
+local value decoding/encoding, separate from runtime object activation.
 
 `com_interface` also accepts the generator-owned `threading = local|shared`
 and `factory` role. The same expansion owns required sibling projections and

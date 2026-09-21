@@ -1,6 +1,8 @@
 //! Concrete COM mappings into standard Rust channels.
 //! Only generated typed receivers cross plugin boundaries.
-//! Mapping is immediate; consumer behavior is deferred to runtime dispatch.
+//! Mapping is immediate; consumer behavior is deferred to caller-driven dispatch.
+//! The retained UI runtime schedules mounted drivers. This crate owns the Rust
+//! adapters and neither links the COM process runtime nor implements its catalog.
 
 #![deny(missing_docs)]
 

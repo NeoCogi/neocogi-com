@@ -16,7 +16,8 @@ host       -> compiles contract types and requests the exact factory
 runtime    -> registers plugins, checks factories, retains loaded libraries
 ```
 
-Contracts exist only at build time. No contract `.so`, native description
+Contract sources are resolved at build time; generated interfaces, vtables,
+metadata, and signatures remain in their consumers. No separate contract `.so`, native description
 archive, getter, runtime inventory, or event-contract seeding is produced.
 `interface` describes callable behavior; `factory` marks construction roots.
 An object is private Rust state. Concrete message data defines its published outputs.
@@ -153,7 +154,8 @@ runtime never discovers or recursively loads their paths. Required live-load
 failure is diagnosed and aborts rather than exposing partial state. Successful
 libraries remain mapped until process exit.
 
-Runtime ABI v1 has operation, plugin-registry, inspection, and debug tables.
+Runtime ABI v1 has operation, plugin-registry, inspection, debug, and
+caller-scoped persistence tables.
 Activation checks the exact factory signature before bootstrap. Unconnected
 contract revisions can coexist; incompatible pointer transfers are rejected.
 `neocogi-inspect` emits schema 9 with plugin/dependency/root-factory metadata,
@@ -163,7 +165,8 @@ without constructing objects. IDL tools retain build-time source inventories.
 
 - Interface calls are `extern "C"` vtable functions returning `NcStatus`.
 - Compatibility requires both generated interface ID and exact ABI signature.
-- `ComPtr<T>` owns one reference; `ComRef<'_, T>` borrows for one call.
+- `ComPtr<T>` owns one reference; `ComRef<'a, T>` borrows a live interface for
+  `'a`. Generated interface parameters restrict that borrow to the ABI call.
 - Both handle kinds lend the same generated client method view; derived client
   views provide inherited lookup without generating another calling trait.
 - `Result<()>` lowers without an output slot; other successful returns write
@@ -198,9 +201,19 @@ cross-library marshalling format.
 - `neocogi-com-macros`: procedural macro implementation.
 - `neocogi-com`: user-facing facade and generated object helpers.
 - `neocogi-com-runtime-sys`: linked runtime discovery declarations.
-- `neocogi-com-runtime`: process-global runtime implementation.
+- `neocogi-com-runtime`: plugin catalog, loader, and persistence implementation;
+  its Rust library target is `nc_com`.
+- `neocogi-com-events-contracts`: generated dispatch and named-output contracts.
+- `neocogi-com-events`: standard-channel mappings and component/scoped dispatch adapters.
 - `neocogi-idl` and `neocogi-idl-build` under `crates/com/idl`: IDL parser/resolver
   and Cargo build integration shared by contract crates and `cargo-neocogi`.
+
+The facade's defaults (`std`, `macros`) support local objects without linking a
+runtime. `runtime` enables clients of the shared `nc_com` library;
+`static-runtime` implies `runtime` and links its implementation rlib instead.
+See the [feature and deployment table](api/README.md#features-and-scope).
+The [core data guide](core/README.md#text-bytes-and-borrowed-storage) distinguishes
+unsafe descriptor borrows such as `NcStaticUtf8::as_str` from owned string copies.
 
 This runtime is trusted same-process native code, not a sandbox or plugin
 marketplace. Applications own installation, trust, signatures, and path policy.
@@ -213,3 +226,23 @@ from object activation; arbitrary private object memory is never serialized.
 [`events`](events/README.md) also supports named outputs on opaque components.
 Generated receiver adapters keep concrete payload types and direct delivery,
 while application code binds only to a public name and its message contract.
+
+## Checking the documentation
+
+Run these commands from the workspace root:
+
+```sh
+cargo test -p neocogi-com-core -p neocogi-com --doc --all-features
+python3 crates/com/scripts/check-markdown-links.py
+RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --all-features \
+  -p neocogi-com-core -p neocogi-com -p neocogi-com-macros \
+  -p neocogi-com-runtime -p neocogi-com-runtime-sys \
+  -p neocogi-com-events-contracts -p neocogi-com-events \
+  -p neocogi-idl -p neocogi-idl-build
+```
+
+The facade's runnable README examples participate in doctests. Examples marked
+`ignore` are integration sketches requiring application-specific contracts or
+plugin paths. `--all-features` uses static runtime linkage for these checks;
+the [plain-Cargo fixture](../../examples/com-plugin/README.md) separately checks
+real shared and monolithic deployments.

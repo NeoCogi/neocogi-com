@@ -4,6 +4,36 @@
 The mapper immediately translates an owned event into an application message;
 the application consumes its standard channel later at a safe update boundary.
 
+This crate always enables `std` and COM macros. It provides Rust adapters and
+implements generated contracts from `neocogi-com-events-contracts`; it neither
+links `neocogi-com-runtime` by itself nor owns a process event loop. The retained
+UI runtime owns mounted-driver discovery, visit order, and the update budget.
+
+## Mapping and dispatch
+
+- `map` takes the output's generated installation closure, a
+  `std::sync::mpsc::Sender<Message>`, and a `FnMut(Event) -> Message` mapper.
+  Installing returns `Result<(), NcStatus>`; there is no subscription handle.
+  Mapping executes synchronously during the producer's COM call. If the
+  channel is disconnected, mapping still runs and the undeliverable value is
+  dropped; delivery reports success to the producer.
+- `component_dispatcher` creates a separate `IEventDispatcher` over a weak
+  reference to `Rc<RefCell<Owner>>`. It borrows the owner mutably before dequeuing
+  and processes at most one message. `EVENT_E_BUSY` leaves queued work intact;
+  an empty/disconnected queue or dropped owner returns `Ok(false)`. A handler
+  error propagates after that message has been removed. This shared owner is
+  needed because controller and mounted driver are distinct COM identities.
+- The hidden framework helper `with_dispatcher` lends a stack callback through
+  COM for one synchronous scope. It revokes the callback on return or unwind;
+  retained projections subsequently return `EVENT_E_CLOSED`. Generated mutable
+  COM call gating rejects recursive access with `NC_E_BUSY` before reborrowing
+  the callback. The callback must not panic through the C dispatch boundary.
+
+`EVENT_E_LIMIT` is a re-export from the event contracts, used by the UI runtime
+when its update budget is exhausted. The COM process runtime does not schedule
+these dispatchers. See the [UI event guide](../../ui/runtime/docs/EVENTS.md) for
+application update and mounted-component integration.
+
 ## Experimental named component outputs
 
 A provider owns a `NamedOutputs` table and registers private sources with

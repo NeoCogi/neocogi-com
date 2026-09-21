@@ -5,13 +5,24 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 
 ## Unreleased
 
+- Consolidate persistence contracts and the portable `ObjectRecord` schema into
+  core, provider helpers into the facade, and snapshot/restore execution into
+  the runtime's fifth ABI v1 table. `FactoryRegistry::new()` is fallible;
+  registration uses `&mut self` and contexts remain caller-owned and thread-local.
+- Adopt NeoCogi Foundations naming. The runtime package remains
+  `neocogi-com-runtime`, its Rust target is `nc_com`, and native shared builds
+  emit `libnc_com.so`, `libnc_com.dylib`, or `nc_com.dll`.
+- Align crate guides and rustdoc with the current ABI, feature/linkage choices,
+  raw text lifetimes, owned string copying, factory bootstrap, persistence,
+  and the division between event adapters and UI scheduling.
+
 - Replace custom event queues and posting wrappers with `std::sync::mpsc`.
   Applications and composites own ordinary receivers; typed COM mappings hold
   senders and translate each concrete event into a local Rust message. Receiver
   destruction discards later delivery; mapping still runs before sending fails.
 - Dispatch exactly one message per COM visit and discover nested component drivers
-  automatically. The runtime owns descendant-first scheduling, frame boundaries,
-  retirement checks and one finite update budget. Reaching the exact ceiling stops
+  automatically. The retained UI runtime owns descendant-first scheduling, frame
+  boundaries, retirement checks and one finite update budget. Reaching the exact ceiling stops
   before another dequeue; unattempted work remains for the next update.
 - Declare published outputs as concrete `#[message]` data with named
   `name: Message;` bindings. Producers own one optional typed receiver, installed
@@ -30,6 +41,12 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
   Reject incompatible factory signatures before bootstrap. Add an ordinary-Cargo
   sample exercising both dynamic deployment and a self-contained monolith.
 
+## Earlier pre-alpha iterations
+
+These entries record superseded designs, not the current API. Native contract
+artifacts, `trait`/`class` IDL declarations, global contract registration, and
+runtime ABI v2 were subsequently removed or replaced. Current binary contracts
+are core v7, factory-plugin v1, and runtime v1; see the [ABI guide](docs/abi-v7.md).
 
 - Added Rust-like `.ncidl` modules with `struct`, `enum`, `trait`, `class`, and
   `factory` declarations. Every module is an ordinary Cargo crate whose
