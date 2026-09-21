@@ -1,4 +1,4 @@
-//! Parser and canonical source model for NeoCogi IDL contract modules.
+//! NeoCogi IDL parsing, canonical resolution, Rust generation, and Cargo integration.
 //!
 //! A module name comes from its normalized source file or directory path below
 //! an explicitly selected IDL root. The parser accepts the deliberately small
@@ -47,3 +47,10 @@ impl Module {
         self.declarations.iter().find(|declaration| declaration.name == name)
     }
 }
+
+/// Build-script integration and transitive contract source exchange.
+pub mod cargo;
+/// Pure Rust binding generation; deployment and runtime policy remain elsewhere.
+pub mod generate;
+pub use cargo::{BuildError, BuildOutput, ModuleSources};
+pub use generate::{GenerateError, generate_rust};

@@ -24,5 +24,4 @@ syn.workspace = true
 
 [dev-dependencies]
 neocogi-idl.workspace = true
-neocogi-idl-build.workspace = true
 prettyplease.workspace = true

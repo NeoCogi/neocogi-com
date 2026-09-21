@@ -2,7 +2,7 @@
 
 /// Builds the dependent example without locating another crate's source tree.
 fn main() {
-    neocogi_idl_build::Module::new("idl", "neocogi/idl_consumer.ncidl")
+    neocogi_idl::cargo::Module::new("idl", "neocogi/idl_consumer.ncidl")
         .build()
         .expect("failed to build neocogi.idl_consumer");
 }

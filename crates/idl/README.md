@@ -4,12 +4,15 @@ The compiler owns contract parsing, canonical transitive ABI signatures, and
 Rust binding generation. It runs during ordinary Cargo builds and is independent
 of the optional `cargo-neocogi` assembly driver.
 
-- `core` (`neocogi-idl`) parses files/module directories, resolves copied values
+The single `neocogi-idl` package separates responsibilities into Rust modules:
+
+- `model`, `parser`, and `resolve` parse files/module directories, resolves copied values
   and interfaces, validates roles/threading/required projections, and fingerprints
   the complete source graph.
-- `build` (`neocogi-idl-build`) discovers sources, exchanges schema-4 source graphs
-  through Cargo `links`/`DEP_*`, and emits formatted Rust bindings with fixed
-  declaration signatures.
+- `cargo` discovers sources and exchanges schema-4 source graphs through
+  Cargo `links`/`DEP_*`. Build scripts use `neocogi_idl::cargo::Module`.
+- `generate` emits formatted Rust bindings with fixed declaration signatures.
+  Its pure entrypoints perform no Cargo environment access.
 - `tools/idl/example-contracts` and `example-consumer-contracts` cover standalone
   and imported contracts. [examples/com-plugin](../../../examples/com-plugin)
   demonstrates their dynamic and monolithic use.
@@ -52,7 +55,7 @@ source = "idl/example/widgets"
 neocogi-com = { version = "0.1.0", default-features = false, features = ["macros"] }
 
 [build-dependencies]
-neocogi-idl-build = "0.1.0"
+neocogi-idl = "0.1.0"
 ```
 
 The version selectors assume published matching packages; inside this checkout
@@ -63,9 +66,9 @@ and owned payload decoding. `build.rs` owns generation:
 
 ```rust,no_run
 /// Generates this contract crate's bindings during its ordinary Cargo build.
-fn main() -> Result<(), neocogi_idl_build::BuildError> {
+fn main() -> Result<(), neocogi_idl::BuildError> {
     // Resolve this directory's module and its imported source graphs through Cargo.
-    neocogi_idl_build::Module::directory("idl", "example/widgets").build()?;
+    neocogi_idl::cargo::Module::directory("idl", "example/widgets").build()?;
     Ok(())
 }
 ```

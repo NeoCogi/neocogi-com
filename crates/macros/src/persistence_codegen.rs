@@ -25,7 +25,7 @@ fn persistence_bindings_match_idl() {
     )
     .unwrap();
     let graph = neocogi_idl::resolve_modules(vec![module]).unwrap();
-    let generated = neocogi_idl_build::generate_rust(&graph, "neocogi.com.persistence").unwrap();
+    let generated = neocogi_idl::generate_rust(&graph, "neocogi.com.persistence").unwrap();
     let mut abi = proc_macro2::TokenStream::new();
     let mut provider = proc_macro2::TokenStream::new();
     for item in syn::parse_file(&generated).unwrap().items {

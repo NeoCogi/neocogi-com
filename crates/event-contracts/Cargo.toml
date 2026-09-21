@@ -16,4 +16,4 @@ source = "idl/neocogi/com/events"
 neocogi-com = { workspace = true, features = ["macros"] }
 
 [build-dependencies]
-neocogi-idl-build.workspace = true
+neocogi-idl.workspace = true

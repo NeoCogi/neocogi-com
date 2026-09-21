@@ -15,4 +15,4 @@ neocogi-com = { workspace = true, features = ["macros"] }
 neocogi-idl-example-contracts = { path = "../example-contracts" }
 
 [build-dependencies]
-neocogi-idl-build.workspace = true
+neocogi-idl.workspace = true

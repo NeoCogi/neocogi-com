@@ -150,7 +150,7 @@
 //! implies `runtime` and selects the implementation rlib instead of the shared
 //! library. Consequently, `--all-features` uses static runtime linkage.
 //!
-//! Cross-component declarations belong in `.ncidl`. `neocogi-idl-build`
+//! Cross-component declarations belong in `.ncidl`. `neocogi-idl`
 //! invokes the macros below with precomputed 32-byte declaration signatures;
 //! rustc never hashes a contract. The explicit `assigned_signature` values in
 //! these low-level macro examples are test fixtures, not a manual authoring

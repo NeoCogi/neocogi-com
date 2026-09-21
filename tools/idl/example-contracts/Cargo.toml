@@ -14,4 +14,4 @@ source = "idl/neocogi/idl_example"
 neocogi-com = { workspace = true, default-features = false, features = ["macros", "alloc"] }
 
 [build-dependencies]
-neocogi-idl-build.workspace = true
+neocogi-idl.workspace = true

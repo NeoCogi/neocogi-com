@@ -8,7 +8,7 @@ pub(super) fn generate_message(
     graph: &ResolvedModules,
     module: &ResolvedModule,
     declaration: &Declaration,
-    identity: &neocogi_idl::DeclarationIdentity,
+    identity: &crate::DeclarationIdentity,
 ) -> Result<String, GenerateError> {
     let name = rust_ident(&declaration.name)?;
     let wire = format_ident!("__{name}Wire");

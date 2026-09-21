@@ -18,6 +18,6 @@ its owning module. They are not collected in this crate. Named binding resolves
 the receiver's exact interface before replacing an existing binding; the
 standard implementation is `NamedOutputs` in the adapter crate.
 
-`build.rs` uses `neocogi-idl-build` to emit Rust bindings and schema-4 source-graph
+`build.rs` uses `neocogi-idl` to emit Rust bindings and schema-4 source-graph
 metadata through Cargo `links`/`DEP_*`. No contract shared library, runtime
 registration hook, or event queue is emitted. See [IDL setup](../idl/README.md).

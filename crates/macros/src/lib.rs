@@ -105,7 +105,7 @@
 //!
 //! # Interface IDs
 //!
-//! `neocogi-idl-build` supplies the deterministic interface GUID, qualified
+//! `neocogi-idl` supplies the deterministic interface GUID, qualified
 //! name, and `assigned_signature` byte string. Direct macro invocations are
 //! low-level generator/test infrastructure and must also provide a complete
 //! precomputed signature; there is intentionally no compiler-side fallback.
@@ -194,7 +194,7 @@ pub fn derive_com_serialize(item: TokenStream) -> TokenStream {
 /// not require user-written unsafe code.
 ///
 /// The required `assigned_signature = b"..."` is the 32-byte declaration
-/// signature computed by `neocogi-idl-build`. `auto_guid =
+/// signature computed by `neocogi-idl`. `auto_guid =
 /// "qualified.Name:v1"` stores that exact qualified name and derives its UUIDv5
 /// identity. The qualified name must satisfy the ABI descriptor text policy;
 /// invalid literals are rejected during macro expansion.

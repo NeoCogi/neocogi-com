@@ -25,8 +25,8 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
     )
     .unwrap();
     let graph = resolve_modules(vec![parse_module(Path::new("example/messages.ncidl"), source).unwrap(), consumer]).unwrap();
-    let generated = neocogi_idl_build::generate_rust(&graph, "example.messages").unwrap();
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../..").canonicalize().unwrap();
+    let generated = neocogi_idl::generate_rust(&graph, "example.messages").unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
@@ -35,7 +35,7 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
     )).unwrap();
     // The imported-output module has no local message declaration. Compile it too,
     // so allocation imports and cross-crate receiver paths are checked by rustc.
-    let consumer = neocogi_idl_build::generate_rust(&graph, "example.consumer").unwrap();
+    let consumer = neocogi_idl::generate_rust(&graph, "example.consumer").unwrap();
     fs::write(project.path().join("src/consumer.rs"), consumer).unwrap();
     fs::write(
         project.path().join("src/lib.rs"),

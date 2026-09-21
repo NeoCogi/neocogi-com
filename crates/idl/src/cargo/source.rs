@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use neocogi_idl::{ModuleSource, parse_module, parse_module_parts};
+use crate::{ModuleSource, parse_module, parse_module_parts};
 use serde::{Deserialize, Serialize};
 
 use crate::cargo::BuildError;
@@ -66,7 +66,7 @@ impl ModuleSources {
     }
 
     /// Parses the loaded text using file or directory module identity semantics.
-    pub fn parse(&self) -> Result<neocogi_idl::Module, BuildError> {
+    pub fn parse(&self) -> Result<crate::Module, BuildError> {
         let module_path = self.module_path();
         if module_path.extension().and_then(|extension| extension.to_str()) == Some("ncidl") {
             if self.sources.len() != 1 {

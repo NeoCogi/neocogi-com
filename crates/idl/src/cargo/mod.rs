@@ -6,10 +6,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use neocogi_idl::resolve_modules;
+use crate::resolve_modules;
 use serde::{Deserialize, Serialize};
 
-use crate::{ModuleSources, generate_rust};
+use crate::generate_rust;
+
+mod source;
+pub use source::ModuleSources;
 
 /// Declarative build request for exactly one contract module crate.
 #[derive(Clone, Debug)]

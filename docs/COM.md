@@ -181,7 +181,7 @@ Object pointers carry either `ThreadLocal` or `ThreadSafe`. The latter is a
 positive producer promise enforced on generated implementations with
 `Send + Sync`; it can be weakened but not safely upgraded.
 
-`neocogi-idl-build` computes one SHA-256 fingerprint from the canonical typed
+`neocogi-idl` computes one SHA-256 fingerprint from the canonical typed
 module graph, derives a distinct signature for each declaration, and embeds
 the final 32-byte values. rustc compiles those constants and the complete typed
 descriptors; it does not serialize or hash contracts. Dynamic and monolithic
@@ -204,7 +204,7 @@ cross-library marshalling format.
   its Rust library target is `nc_com`.
 - `neocogi-com-events-contracts`: generated dispatch and named-output contracts.
 - `neocogi-com-events`: standard-channel mappings and component/scoped dispatch adapters.
-- `neocogi-idl` and `neocogi-idl-build` under `crates/com/idl`: IDL parser/resolver
+- `neocogi-idl` under `crates/com/idl`: IDL parser/resolver
   and Cargo build integration shared by contract crates and `cargo-neocogi`.
 
 The facade's defaults (`std`, `macros`) support local objects without linking a
@@ -237,7 +237,7 @@ RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --all-features \
   -p neocogi-com-core -p neocogi-com -p neocogi-com-macros \
   -p neocogi-com-runtime \
   -p neocogi-com-events-contracts -p neocogi-com-events \
-  -p neocogi-idl -p neocogi-idl-build
+  -p neocogi-idl
 ```
 
 The facade's runnable README examples participate in doctests. Examples marked

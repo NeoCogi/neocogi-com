@@ -21,17 +21,17 @@ fn imported_outputs_need_allocation_but_no_queue_runtime() {
     );
     let transport = module(
         "neocogi/com/events.ncidl",
-        include_str!("../../../event-contracts/idl/neocogi/com/events/events.ncidl"),
+        include_str!("../../event-contracts/idl/neocogi/com/events/events.ncidl"),
     );
     let graph = resolve_modules(vec![message, source, transport]).unwrap();
-    let generated = neocogi_idl_build::generate_rust(&graph, "example.source").unwrap();
+    let generated = neocogi_idl::generate_rust(&graph, "example.source").unwrap();
     syn::parse_file(&generated).expect("imported message bindings parse");
     assert!(generated.contains("extern crate alloc"));
     assert!(!generated.contains("neocogi_com_events"));
     assert!(generated.contains("fn first("));
     assert!(generated.contains("fn second("));
     assert!(generated.contains("example_messages_contracts::__ChangedReceiverAbi"));
-    let baseline = neocogi_idl_build::generate_rust(&graph, "neocogi.com.events").unwrap();
+    let baseline = neocogi_idl::generate_rust(&graph, "neocogi.com.events").unwrap();
     assert!(!baseline.contains("EVENT_BINDING_API_VERSION"));
     assert!(!baseline.contains("__nc_get_contract_module_description"));
 }
@@ -88,8 +88,8 @@ fn generates_rust_bindings_for_a_module_graph() {
     let ui = module("neocogi/ui.ncidl", ui_source);
     let graph = resolve_modules(vec![ui, render]).unwrap();
 
-    let generated = neocogi_idl_build::generate_rust(&graph, "neocogi.ui").unwrap();
-    let generated_render = neocogi_idl_build::generate_rust(&graph, "neocogi.render").unwrap();
+    let generated = neocogi_idl::generate_rust(&graph, "neocogi.ui").unwrap();
+    let generated_render = neocogi_idl::generate_rust(&graph, "neocogi.render").unwrap();
     syn::parse_file(&generated).expect("generated bindings must be valid Rust syntax");
     assert!(generated.lines().count() > 20, "generated bindings must use readable multiline formatting");
     assert!(generated.contains("com_interface"));
@@ -135,7 +135,7 @@ fn preserves_documentation_without_making_it_an_abi_input() {
         "#,
     );
     let graph = resolve_modules(vec![source]).unwrap();
-    let generated = neocogi_idl_build::generate_rust(&graph, "example.value").unwrap();
+    let generated = neocogi_idl::generate_rust(&graph, "example.value").unwrap();
 
     assert!(generated.contains("/// Public generated value."));
     assert!(generated.contains("/// Copied numeric payload."));
@@ -184,7 +184,7 @@ fn multipart_permutations_generate_identical_bindings() {
         .collect::<Vec<_>>();
     let bindings = graphs
         .iter()
-        .map(|graph| neocogi_idl_build::generate_rust(graph, "example.contract").unwrap())
+        .map(|graph| neocogi_idl::generate_rust(graph, "example.contract").unwrap())
         .collect::<Vec<_>>();
 
     assert!(fingerprints.windows(2).all(|pair| pair[0] == pair[1]));
