@@ -1,6 +1,6 @@
 //! Assembly of runtime ABI v1 operations and shared C callback utilities.
 //!
-//! Only the version function and four table getters are exported as dynamic
+//! Only the version function and five table getters are exported as dynamic
 //! symbols. Operation callbacks remain private function pointers inside these
 //! immutable tables, keeping the shared-library symbol surface small while
 //! still grouping behavior by responsibility. Common helpers validate borrowed
@@ -20,6 +20,8 @@ mod exports;
 mod inspection;
 mod plugin_registry;
 mod runtime;
+mod persistence;
+use persistence::PERSISTENCE_API_V1;
 
 use inspection::{inspect_plugin_library_utf8, module_info, plugin_dependency_count, plugin_dependency_ids, plugin_info};
 use plugin_registry::{loaded_module_count, loaded_module_ids, plugin_count, plugin_ids};

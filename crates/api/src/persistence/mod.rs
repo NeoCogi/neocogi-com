@@ -8,3 +8,8 @@ pub use neocogi_com_core::persistence::*;
 mod providers;
 #[doc(hidden)]
 pub use providers::*;
+
+#[cfg(feature = "runtime")]
+mod client;
+#[cfg(feature = "runtime")]
+pub use client::{FactoryRegistry, snapshot, snapshot_with_limits};

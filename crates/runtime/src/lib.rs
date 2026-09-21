@@ -40,6 +40,7 @@ mod inspection;
 mod loader;
 mod module_registry;
 mod state;
+mod persistence;
 
 pub use loader::{
     FactoryInspection, PluginDependencyPlanError, PluginInspection, PluginLoadError, PluginLoadErrorKind, inspect_plugin_library, plan_plugin_load_order,

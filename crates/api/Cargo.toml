@@ -83,3 +83,8 @@ required-features = ["runtime"]
 [[test]]
 name = "binary_persistence"
 path = "integration-tests/binary_persistence.rs"
+
+[[test]]
+name = "object_persistence"
+path = "integration-tests/object_persistence.rs"
+required-features = ["runtime"]

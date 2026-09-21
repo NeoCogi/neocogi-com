@@ -9,6 +9,8 @@ mod debug;
 mod inspection;
 mod plugin_registry;
 mod runtime;
+mod persistence;
+pub use persistence::{NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1};
 
 pub use debug::{
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING,

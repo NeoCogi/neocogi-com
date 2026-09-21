@@ -40,6 +40,9 @@ mod message;
 mod metadata;
 mod object;
 mod ptr;
+mod ref_count;
+#[doc(hidden)]
+pub use ref_count::{__com_add_ref_count, __com_release_ref_count};
 pub mod runtime_abi;
 mod signature;
 mod status;
@@ -80,6 +83,7 @@ pub use object::{
 };
 pub use ptr::{ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};
 pub use runtime_abi::{
+    NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1,
     NC_COM_RUNTIME_ABI_VERSION, NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR,
     NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV1,
     NcDebugCallbackV1, NcDebugMessageV1, NcDebugMessengerCreateInfoV1, NcInspectFactoryPluginDescriptionCallbackV1, NcInspectionApiV1, NcModuleInfoV1,
