@@ -475,6 +475,7 @@ pub use neocogi_com_core::{
     NcAbiPassingDescriptor, NcAbiReceiver, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcActivatePluginFactory, NcDebugApiV1,
     NcDebugCallbackV1, NcDebugMessageV1, NcDebugMessengerCreateInfoV1, NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGuid,
     NcInspectFactoryPluginDescriptionCallbackV1, NcInspectionApiV1, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor,
+    NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1,
     NcMethodReturnDescriptor, NcModuleInfoV1, NcPluginDependencyDescriptor, NcPluginInfoV1, NcPluginRegistryV1, NcQualifiedNameError, NcRuntimeApiV1,
     NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe,
     ThreadingModel, activate_factory_implementation, guid_from_qualified_name, raw, return_factory_plugin_description, validate_factory_plugin_description,

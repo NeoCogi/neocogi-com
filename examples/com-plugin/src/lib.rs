@@ -11,7 +11,7 @@ use neocogi_idl_example_contracts::{ExampleFactory, ExampleObject, ExampleObject
 #[com_object(interfaces(
     neocogi_idl_example_contracts::ExampleObject,
     neocogi_idl_example_contracts::IExampleEvents,
-    neocogi_com_persistence::IPersistable,
+    neocogi_com::persistence::IPersistable,
     neocogi_com_events_contracts::INamedOutputs
 ))]
 struct DynamicExampleObject {
@@ -95,7 +95,7 @@ impl neocogi_com_events_contracts::INamedOutputs for DynamicExampleObject {
         }
     }
 }
-impl neocogi_com_persistence::IPersistable for DynamicExampleObject {
+impl neocogi_com::persistence::IPersistable for DynamicExampleObject {
     /// Returns a recipe identity independent from ABI revisions.
     fn type_id(&self) -> Result<NcGuid, NcStatus> {
         Ok(PERSISTENT_KIND)

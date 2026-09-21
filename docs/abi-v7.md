@@ -164,7 +164,8 @@ Hot unload/reload is outside this ABI.
 
 Hosts first call `nc_com_runtime_abi_version` and require
 `NC_COM_RUNTIME_ABI_VERSION == 1`. They then obtain the immutable size-prefixed
-`NcRuntimeApiV1`, `NcPluginRegistryV1`, `NcInspectionApiV1`, and `NcDebugApiV1`
+`NcRuntimeApiV1`, `NcPluginRegistryV1`, `NcInspectionApiV1`, `NcDebugApiV1`, and
+`NcPersistenceApiV1`
 tables through the corresponding `_v1` getters. There is no contract-registry
 table. Plugin descriptor ABI also remains v1; core object ABI remains v7.
 The plugin and runtime version numbers stay at one during pre-alpha and do not
@@ -176,6 +177,19 @@ plugins together.
 plugins and loaded modules, inspect plugin metadata, and manage diagnostic
 callbacks. Count/fill operations report required length for retryable growth.
 There is no contract-module enumeration or intrinsic initialization step.
+
+`NcPersistenceApiV1` creates/destroys caller-owned, thread-local recipe contexts,
+registers borrowed `IPersistenceFactory` objects with one retained reference,
+snapshots `IPersistable` trees, and restores one owned `IUnknown` root. Its fixed
+`NcPersistenceLimitsV1` policy explicitly carries binary and object-tree budgets.
+Context mutation/destruction requires exclusive access; restore takes a shared
+borrow. Contexts never participate in the global plugin catalog.
+
+Successful snapshot capture calls `NcPersistenceWriteBytesV1` exactly once with
+a borrowed complete document. The callback may copy it, must not unwind, and
+cannot retain the byte pointer. Failed capture never calls the sink. The runtime
+retains ownership of temporary storage, and no Rust allocation crosses the ABI.
+The existing persistence interface identities and NCB-v1 schema remain stable.
 
 The runtime retains at most 1,024 dynamic modules and 64 simultaneous debug
 messengers. The public Rust facade additionally bounds copied enumeration data

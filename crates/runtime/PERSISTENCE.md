@@ -1,6 +1,6 @@
 # Experimental COM object persistence
 
-This optional layer saves and reconstructs explicit initialization trees. It
+The runtime persistence service saves and reconstructs explicit initialization trees. It
 supports shared components, monolithic applications, and WebAssembly through
 the same generated COM interfaces. It has no filesystem or dynamic-loader
 policy and does not register factories in the process-global COM runtime.
@@ -11,8 +11,8 @@ GPU handles, receivers, pointers, caches, and parent links are excluded. Parent
 state owns edge properties such as grid placement. Repeated noncyclic references
 are copied as separate tree instances; graph aliasing is not preserved.
 
-The application registers context-bound `IPersistenceFactory` objects in a
-`FactoryRegistry`. `restore` decodes a bounded `ObjectRecord` tree, validates
+Through `neocogi_com::persistence`, the application registers context-bound `IPersistenceFactory` objects in a
+`FactoryRegistry`. Creating a registry is fallible: `FactoryRegistry::new()?`. `restore` decodes a bounded `ObjectRecord` tree, validates
 all recipe IDs, revisions and provider state, then constructs descendants
 before their parents. Provider `validate` must be observational; `restore`
 must still validate its input when called directly through COM. A factory can
@@ -48,3 +48,35 @@ restores a new component, and rebinds it with the same application messages.
 That example is one explicitly supported composition, not a complete authored UI
 schema or automatic persistence for every built-in widget. A future UI editor
 will need to define those initialization schemas and property inspectors.
+
+## Ownership and linkage
+
+Persistence is implemented in `neocogi-com-runtime` and called through
+`NcPersistenceApiV1`, returned by `nc_com_get_persistence_api_v1`. Enable the
+facade's `runtime` feature for shared hosts, or `static-runtime` for monoliths
+and browser modules. Runtime and host must be rebuilt together for this added
+pre-alpha ABI table. Providers only implementing the contracts need neither
+feature. The built-in contracts remain available without allocation; portable
+`ObjectRecord` authoring requires `alloc` but no linked runtime.
+
+`FactoryRegistry` is an owning, non-Clone, thread-local handle. Its runtime
+allocation contains an ordinary `BTreeMap`; `register(&mut self, ...)` is the
+only mutating operation, and `restore(&self, ...)` borrows it. Dropping the
+handle destroys its context and releases retained factories in the allocating
+runtime. Independently owned restored objects remain valid afterward.
+
+Snapshot traversal produces the document once. A synchronous byte callback
+copies the completed document into caller-owned storage; failure publishes no
+partial document. The runtime releases its temporary bytes after the callback.
+Restoration accepts a borrowed byte range and returns one owned COM root.
+Neither direction exposes Rust container layout or transfers allocator ownership.
+
+## Crate migration
+
+Replace imports from `neocogi_com_persistence` or
+`neocogi_com_persistence_contracts` with `neocogi_com::persistence` and remove the
+old Cargo dependencies. Snapshot/restore consumers enable `neocogi-com/runtime`.
+Use `FactoryRegistry::new()?` (or explicitly handle its error) instead of the old
+infallible constructor or `Default`. Context creation checks runtime and core ABI
+compatibility before calling the table. Interface identities, signatures, recipe
+semantics, and the NCB-v1 record bytes remain unchanged.

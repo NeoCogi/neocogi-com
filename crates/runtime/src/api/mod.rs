@@ -119,7 +119,7 @@ fn emit_error(message_type: u32, status: NcStatus, text: &str) {
 #[cfg(test)]
 mod tests {
     use super::exports::{
-        nc_com_get_debug_api_v1, nc_com_get_inspection_api_v1, nc_com_get_plugin_registry_v1, nc_com_get_runtime_api_v1, nc_com_runtime_abi_version,
+        nc_com_get_persistence_api_v1, nc_com_get_debug_api_v1, nc_com_get_inspection_api_v1, nc_com_get_plugin_registry_v1, nc_com_get_runtime_api_v1, nc_com_runtime_abi_version,
     };
     use super::*;
     use core::ffi::c_void;
@@ -155,7 +155,10 @@ mod tests {
         let plugins = unsafe { &*nc_com_get_plugin_registry_v1() };
         let inspection = unsafe { &*nc_com_get_inspection_api_v1() };
         let debug = unsafe { &*nc_com_get_debug_api_v1() };
+        let persistence = unsafe { &*nc_com_get_persistence_api_v1() };
 
+        assert_eq!(persistence.size, mem::size_of::<neocogi_com_core::NcPersistenceApiV1>());
+        assert_eq!(persistence.core_abi_version, NC_COM_CORE_ABI_VERSION);
         assert_eq!(runtime.size, mem::size_of::<NcRuntimeApiV1>());
         assert_eq!(runtime.core_abi_version, NC_COM_CORE_ABI_VERSION);
         assert_eq!(plugins.size, mem::size_of::<NcPluginRegistryV1>());

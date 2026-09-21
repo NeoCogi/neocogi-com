@@ -12,11 +12,12 @@ pub(crate) struct Registry {
 }
 impl Registry {
     /// Creates an empty loader with no dynamically discovered providers.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
     /// Registers one recipe exactly once; duplicate IDs preserve the prior entry.
-    pub fn register(&mut self, id: NcGuid, factory: ComPtr<IPersistenceFactoryAbi>) -> Result<(), NcStatus> {
+    pub(crate) fn register(&mut self, id: NcGuid, factory: ComPtr<IPersistenceFactoryAbi>) -> Result<(), NcStatus> {
+        // Entry matching prevents replacement and releases rejected factory owners.
         match self.factories.entry(id.to_uuid_bytes()) {
             std::collections::btree_map::Entry::Vacant(entry) => {
                 entry.insert(factory);
@@ -26,8 +27,9 @@ impl Registry {
         }
     }
     /// Uses bounded decoding and preflight before invoking any constructors.
-    pub fn restore_with_limits(&self, bytes: &[u8], limits: Limits) -> Result<ComPtr<IUnknown>, NcStatus> {
+    pub(crate) fn restore_with_limits(&self, bytes: &[u8], limits: Limits) -> Result<ComPtr<IUnknown>, NcStatus> {
         let record: ObjectRecord = binary::from_slice_with_limits(bytes, limits.binary).map_err(|_| NC_E_INVALID_ARG)?;
+        // Complete preflight must succeed before the first constructor runs.
         let mut remaining = limits.objects;
         self.validate(&record, limits, 0, &mut remaining)?;
         self.construct(&record)
@@ -38,6 +40,8 @@ impl Registry {
             return Err(NC_E_OUT_OF_RANGE);
         }
         *remaining -= 1;
+        // Providers inspect immutable initialization state; they must not publish
+        // resources during validation. Their constructor validates again on direct use.
         let factory = self.factories.get(&record.type_id).ok_or(NC_E_NOT_FOUND)?;
         factory.validate(
             record.schema_version,
@@ -51,6 +55,8 @@ impl Registry {
     }
     /// Children are ordinary owning COM references until the parent adopts them.
     fn construct(&self, record: &ObjectRecord) -> Result<ComPtr<IUnknown>, NcStatus> {
+        // Collection drops already-built siblings on failure. The COM list then
+        // owns all descendants until a successful parent adopts its chosen children.
         let children = record.children.iter().map(|child| self.construct(child)).collect::<Result<Vec<_>, _>>()?;
         let children = super::children::create(children)?;
         self.factories.get(&record.type_id).ok_or(NC_E_NOT_FOUND)?.restore(

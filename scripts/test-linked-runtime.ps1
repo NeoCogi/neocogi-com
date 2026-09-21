@@ -56,7 +56,8 @@ Write-Host $listed
 
 $requiredTests = @(
     "generated_contract_factory_activates_without_a_class_table",
-    "dynamic_factory_plugin_links_the_exact_contract_dso"
+    "dynamic_factory_plugin_links_the_exact_contract_dso",
+    "registry_ownership_is_local_and_releases_retained_factories"
 )
 foreach ($requiredTest in $requiredTests) {
     if (-not $listed.Contains("${requiredTest}: test")) {

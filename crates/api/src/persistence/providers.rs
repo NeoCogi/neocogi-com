@@ -3,6 +3,7 @@
 
 use super::*;
 #[doc(hidden)]
+/// Interface projections embedded in one generated provider allocation.
 pub struct IObjectChildrenInterfacesFor<T> {
     /// Projection whose header advertises this exact interface contract.
     own: IObjectChildrenAbi,
@@ -43,7 +44,11 @@ impl<T> IObjectChildrenInterfacesFor<T> {
     }
 }
 #[doc(hidden)]
-pub struct IObjectChildrenVtblFor<T>(core::marker::PhantomData<T>);
+/// Statically typed vtable and lifecycle adapters for one provider type.
+pub struct IObjectChildrenVtblFor<T>(
+    /// Associates dispatch with T without allocating or owning a value.
+    core::marker::PhantomData<T>,
+);
 impl<T> IObjectChildrenVtblFor<T>
 where
     T: IObjectChildren + ::neocogi_com::ComAbiObject,
@@ -67,6 +72,11 @@ where
             get: Self::get_thunk,
         }
     }
+    /// Routes this projection to the allocation-wide interface lookup.
+    ///
+    /// # Safety
+    /// The live header belongs to T; identity and output storage satisfy
+    /// the QueryInterface contract. The owning allocation validates them.
     unsafe extern "C" fn query_interface_thunk(
         this: *mut ::neocogi_com::IUnknown,
         interface_id: *const ::neocogi_com::NcInterfaceId,
@@ -84,6 +94,10 @@ where
             )
         }
     }
+    /// Retains the common allocation through this interface projection.
+    ///
+    /// # Safety
+    /// Non-null this belongs to T's live generated object storage.
     unsafe extern "C" fn add_ref_thunk(this: *mut ::neocogi_com::IUnknown) -> u32 {
         if this.is_null() {
             return 0;
@@ -91,6 +105,10 @@ where
         let object = unsafe { (*this).object };
         unsafe { <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object(object) }
     }
+    /// Releases the common allocation through this interface projection.
+    ///
+    /// # Safety
+    /// Non-null this transfers one live reference from T's object storage.
     unsafe extern "C" fn release_thunk(this: *mut ::neocogi_com::IUnknown) -> u32 {
         if this.is_null() {
             return 0;
@@ -98,6 +116,14 @@ where
         let object = unsafe { (*this).object };
         unsafe { <T as ::neocogi_com::ComAbiObject>::release_from_abi_object(object) }
     }
+    /// Validates raw pointers, borrows the concrete provider through its
+    /// object-wide gate, invokes its typed method, and lowers the result.
+    /// The gate is released before transferring an owned result; errors
+    /// are normalized so an unwritten output can never look successful.
+    ///
+    /// # Safety
+    /// The interface belongs to T's live generated storage. Non-null ABI
+    /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn count_thunk(
         this: *mut IObjectChildrenAbi,
         __nc_out: *mut u32,
@@ -127,6 +153,14 @@ where
             Err(status) => status.normalize_error(),
         }
     }
+    /// Validates raw pointers, borrows the concrete provider through its
+    /// object-wide gate, invokes its typed method, and lowers the result.
+    /// The gate is released before transferring an owned result; errors
+    /// are normalized so an unwritten output can never look successful.
+    ///
+    /// # Safety
+    /// The interface belongs to T's live generated storage. Non-null ABI
+    /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn get_thunk(
         this: *mut IObjectChildrenAbi,
         index: u32,
@@ -159,6 +193,7 @@ where
     }
 }
 #[doc(hidden)]
+/// Interface projections embedded in one generated provider allocation.
 pub struct IPersistableInterfacesFor<T> {
     /// Projection whose header advertises this exact interface contract.
     own: IPersistableAbi,
@@ -199,7 +234,11 @@ impl<T> IPersistableInterfacesFor<T> {
     }
 }
 #[doc(hidden)]
-pub struct IPersistableVtblFor<T>(core::marker::PhantomData<T>);
+/// Statically typed vtable and lifecycle adapters for one provider type.
+pub struct IPersistableVtblFor<T>(
+    /// Associates dispatch with T without allocating or owning a value.
+    core::marker::PhantomData<T>,
+);
 impl<T> IPersistableVtblFor<T>
 where
     T: IPersistable + ::neocogi_com::ComAbiObject,
@@ -226,6 +265,11 @@ where
             child: Self::child_thunk,
         }
     }
+    /// Routes this projection to the allocation-wide interface lookup.
+    ///
+    /// # Safety
+    /// The live header belongs to T; identity and output storage satisfy
+    /// the QueryInterface contract. The owning allocation validates them.
     unsafe extern "C" fn query_interface_thunk(
         this: *mut ::neocogi_com::IUnknown,
         interface_id: *const ::neocogi_com::NcInterfaceId,
@@ -243,6 +287,10 @@ where
             )
         }
     }
+    /// Retains the common allocation through this interface projection.
+    ///
+    /// # Safety
+    /// Non-null this belongs to T's live generated object storage.
     unsafe extern "C" fn add_ref_thunk(this: *mut ::neocogi_com::IUnknown) -> u32 {
         if this.is_null() {
             return 0;
@@ -250,6 +298,10 @@ where
         let object = unsafe { (*this).object };
         unsafe { <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object(object) }
     }
+    /// Releases the common allocation through this interface projection.
+    ///
+    /// # Safety
+    /// Non-null this transfers one live reference from T's object storage.
     unsafe extern "C" fn release_thunk(this: *mut ::neocogi_com::IUnknown) -> u32 {
         if this.is_null() {
             return 0;
@@ -257,6 +309,14 @@ where
         let object = unsafe { (*this).object };
         unsafe { <T as ::neocogi_com::ComAbiObject>::release_from_abi_object(object) }
     }
+    /// Validates raw pointers, borrows the concrete provider through its
+    /// object-wide gate, invokes its typed method, and lowers the result.
+    /// The gate is released before transferring an owned result; errors
+    /// are normalized so an unwritten output can never look successful.
+    ///
+    /// # Safety
+    /// The interface belongs to T's live generated storage. Non-null ABI
+    /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn type_id_thunk(
         this: *mut IPersistableAbi,
         __nc_out: *mut ::neocogi_com::NcGuid,
@@ -286,6 +346,14 @@ where
             Err(status) => status.normalize_error(),
         }
     }
+    /// Validates raw pointers, borrows the concrete provider through its
+    /// object-wide gate, invokes its typed method, and lowers the result.
+    /// The gate is released before transferring an owned result; errors
+    /// are normalized so an unwritten output can never look successful.
+    ///
+    /// # Safety
+    /// The interface belongs to T's live generated storage. Non-null ABI
+    /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn schema_version_thunk(
         this: *mut IPersistableAbi,
         __nc_out: *mut u32,
@@ -315,6 +383,14 @@ where
             Err(status) => status.normalize_error(),
         }
     }
+    /// Validates raw pointers, borrows the concrete provider through its
+    /// object-wide gate, invokes its typed method, and lowers the result.
+    /// The gate is released before transferring an owned result; errors
+    /// are normalized so an unwritten output can never look successful.
+    ///
+    /// # Safety
+    /// The interface belongs to T's live generated storage. Non-null ABI
+    /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn save_state_thunk(
         this: *mut IPersistableAbi,
         __nc_out: *mut *mut ::neocogi_com::INcBytesAbi,
@@ -344,6 +420,14 @@ where
             Err(status) => status.normalize_error(),
         }
     }
+    /// Validates raw pointers, borrows the concrete provider through its
+    /// object-wide gate, invokes its typed method, and lowers the result.
+    /// The gate is released before transferring an owned result; errors
+    /// are normalized so an unwritten output can never look successful.
+    ///
+    /// # Safety
+    /// The interface belongs to T's live generated storage. Non-null ABI
+    /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn child_count_thunk(
         this: *mut IPersistableAbi,
         __nc_out: *mut u32,
@@ -373,6 +457,14 @@ where
             Err(status) => status.normalize_error(),
         }
     }
+    /// Validates raw pointers, borrows the concrete provider through its
+    /// object-wide gate, invokes its typed method, and lowers the result.
+    /// The gate is released before transferring an owned result; errors
+    /// are normalized so an unwritten output can never look successful.
+    ///
+    /// # Safety
+    /// The interface belongs to T's live generated storage. Non-null ABI
+    /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn child_thunk(
         this: *mut IPersistableAbi,
         index: u32,
@@ -405,6 +497,7 @@ where
     }
 }
 #[doc(hidden)]
+/// Interface projections embedded in one generated provider allocation.
 pub struct IPersistenceFactoryInterfacesFor<T> {
     /// Projection whose header advertises this exact interface contract.
     own: IPersistenceFactoryAbi,
@@ -448,7 +541,11 @@ impl<T> IPersistenceFactoryInterfacesFor<T> {
     }
 }
 #[doc(hidden)]
-pub struct IPersistenceFactoryVtblFor<T>(core::marker::PhantomData<T>);
+/// Statically typed vtable and lifecycle adapters for one provider type.
+pub struct IPersistenceFactoryVtblFor<T>(
+    /// Associates dispatch with T without allocating or owning a value.
+    core::marker::PhantomData<T>,
+);
 impl<T> IPersistenceFactoryVtblFor<T>
 where
     T: IPersistenceFactory + ::neocogi_com::ComAbiObject,
@@ -472,6 +569,11 @@ where
             restore: Self::restore_thunk,
         }
     }
+    /// Routes this projection to the allocation-wide interface lookup.
+    ///
+    /// # Safety
+    /// The live header belongs to T; identity and output storage satisfy
+    /// the QueryInterface contract. The owning allocation validates them.
     unsafe extern "C" fn query_interface_thunk(
         this: *mut ::neocogi_com::IUnknown,
         interface_id: *const ::neocogi_com::NcInterfaceId,
@@ -489,6 +591,10 @@ where
             )
         }
     }
+    /// Retains the common allocation through this interface projection.
+    ///
+    /// # Safety
+    /// Non-null this belongs to T's live generated object storage.
     unsafe extern "C" fn add_ref_thunk(this: *mut ::neocogi_com::IUnknown) -> u32 {
         if this.is_null() {
             return 0;
@@ -496,6 +602,10 @@ where
         let object = unsafe { (*this).object };
         unsafe { <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object(object) }
     }
+    /// Releases the common allocation through this interface projection.
+    ///
+    /// # Safety
+    /// Non-null this transfers one live reference from T's object storage.
     unsafe extern "C" fn release_thunk(this: *mut ::neocogi_com::IUnknown) -> u32 {
         if this.is_null() {
             return 0;
@@ -503,6 +613,14 @@ where
         let object = unsafe { (*this).object };
         unsafe { <T as ::neocogi_com::ComAbiObject>::release_from_abi_object(object) }
     }
+    /// Validates raw pointers, borrows the concrete provider through its
+    /// object-wide gate, invokes its typed method, and lowers the result.
+    /// The gate is released before transferring an owned result; errors
+    /// are normalized so an unwritten output can never look successful.
+    ///
+    /// # Safety
+    /// The interface belongs to T's live generated storage. Non-null ABI
+    /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn validate_thunk(
         this: *mut IPersistenceFactoryAbi,
         version: u32,
@@ -544,6 +662,14 @@ where
             Err(status) => status.normalize_error(),
         }
     }
+    /// Validates raw pointers, borrows the concrete provider through its
+    /// object-wide gate, invokes its typed method, and lowers the result.
+    /// The gate is released before transferring an owned result; errors
+    /// are normalized so an unwritten output can never look successful.
+    ///
+    /// # Safety
+    /// The interface belongs to T's live generated storage. Non-null ABI
+    /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn restore_thunk(
         this: *mut IPersistenceFactoryAbi,
         version: u32,

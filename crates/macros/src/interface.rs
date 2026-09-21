@@ -435,8 +435,14 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             },
         };
         quote! {
-            // Raw vtable entry that validates ABI pointers, reconstructs safe
-            // parameters, invokes the Rust trait method, and lowers its result.
+            /// Validates raw pointers, borrows the concrete provider through its
+            /// object-wide gate, invokes its typed method, and lowers the result.
+            /// The gate is released before transferring an owned result; errors
+            /// are normalized so an unwritten output can never look successful.
+            ///
+            /// # Safety
+            /// The interface belongs to T's live generated storage. Non-null ABI
+            /// arguments must satisfy their method's readable/writable contracts.
             unsafe extern "C" fn #thunk_ident(
                 this: *mut #abi_ident,
                 #(#params,)*
@@ -597,6 +603,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         // Header storage is recursive only over the statically known base
         // chain. It is embedded directly in the one object allocation.
         #[doc(hidden)]
+        /// Interface projections embedded in one generated provider allocation.
         #vis struct #interfaces_ident<T> {
             /// Projection whose header advertises this exact interface contract.
             own: #abi_ident,
@@ -641,7 +648,11 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         }
 
         #[doc(hidden)]
-        #vis struct #vtable_for_ident<T>(core::marker::PhantomData<T>);
+        /// Statically typed vtable and lifecycle adapters for one provider type.
+        #vis struct #vtable_for_ident<T>(
+            /// Associates dispatch with T without allocating or owning a value.
+            core::marker::PhantomData<T>
+        );
 
         impl<T> #vtable_for_ident<T>
         where
@@ -658,8 +669,11 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 }
             }
 
-            // Routes this interface header's IUnknown prefix to the generated
-            // object's allocation-wide interface negotiation implementation.
+            /// Routes this projection to the allocation-wide interface lookup.
+            ///
+            /// # Safety
+            /// The live header belongs to T; identity and output storage satisfy
+            /// the QueryInterface contract. The owning allocation validates them.
             unsafe extern "C" fn query_interface_thunk(
                 this: *mut #nc::IUnknown,
                 interface_id: *const #nc::NcInterfaceId,
@@ -683,7 +697,10 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 }
             }
 
-            // Routes this interface header's AddRef to shared object storage.
+            /// Retains the common allocation through this interface projection.
+            ///
+            /// # Safety
+            /// Non-null this belongs to T's live generated object storage.
             unsafe extern "C" fn add_ref_thunk(this: *mut #nc::IUnknown) -> u32 {
                 if this.is_null() {
                     return 0;
@@ -695,7 +712,10 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 unsafe { <T as #nc::ComAbiObject>::add_ref_from_abi_object(object) }
             }
 
-            // Routes this interface header's Release to shared object storage.
+            /// Releases the common allocation through this interface projection.
+            ///
+            /// # Safety
+            /// Non-null this transfers one live reference from T's object storage.
             unsafe extern "C" fn release_thunk(this: *mut #nc::IUnknown) -> u32 {
                 if this.is_null() {
                     return 0;

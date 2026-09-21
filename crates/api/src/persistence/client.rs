@@ -48,10 +48,7 @@ impl FactoryRegistry {
         // SAFETY: &mut self excludes competing operations, and factory lends a
         // live interface until the runtime has retained its own reference.
         let status = unsafe { (self.api.register_factory)(self.context.as_ptr(), id, factory.as_mut_ptr()) };
-        match status.is_ok() {
-            true => Ok(()),
-            false => Err(status),
-        }
+        if status.is_ok() { Ok(()) } else { Err(status) }
     }
 
     /// Restores a complete owned tree using the default finite resource policy.

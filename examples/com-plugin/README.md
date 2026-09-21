@@ -76,7 +76,8 @@ is not used by this example.
 ## Experimental persistence and opaque outputs
 
 The object also exposes optional `IPersistable` and `INamedOutputs` capabilities.
-The host binds `resized` using only its `ExtentChanged` payload contract, saves
+The host uses `neocogi_com::persistence` through its selected runtime and
+binds `resized` using only its `ExtentChanged` payload contract, saves
 current dimensions, restores through an explicitly registered factory adapter,
 and binds the reconstructed object again. The adapter reuses the original
 `ExampleFactory::create` constructor, demonstrating how an existing component

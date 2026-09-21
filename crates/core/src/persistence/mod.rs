@@ -4,6 +4,7 @@
 //! initialization records are enabled with `alloc`; no runtime implementation
 //! or process registry is linked by depending on these contracts.
 
+#[rustfmt::skip]
 mod interfaces;
 pub use interfaces::*;
 #[cfg(feature = "alloc")]

@@ -144,6 +144,34 @@ contains a factory IID/signature/threading record and hard dependencies.
 The [sample plugin](../../../examples/com-plugin/README.md) demonstrates both
 linkage modes with ordinary Cargo.
 
+## Object persistence
+
+`neocogi_com::persistence` exposes the built-in `IPersistable`,
+`IPersistenceFactory`, and `IObjectChildren` contracts. Providers implement these
+without enabling a runtime. `ObjectRecord` and `Limits` require only `alloc`.
+With `runtime`, hosts can capture and reconstruct explicit initialization trees:
+
+```rust,ignore
+use neocogi_com::persistence::{FactoryRegistry, snapshot};
+
+let mut recipes = FactoryRegistry::new()?;
+recipes.register(recipe_id, factory)?;
+let bytes = snapshot(object.as_com_ref())?;
+let restored = recipes.restore(&bytes)?;
+```
+
+Each registry is thread-local and independently owned. The runtime retains its
+factories until the registry is dropped; registration requires mutable access.
+The same operations run through the shared runtime in native shared deployments
+and through its linked implementation with `static-runtime`. The NCB-v1 document
+format and provider interface identities are unchanged.
+
+The former `neocogi-com-persistence` and `neocogi-com-persistence-contracts` crates
+have been absorbed into core, runtime and this facade. Replace their Rust import
+paths with `neocogi_com::persistence`, enable `runtime` for snapshot/restore callers,
+and handle the new `Result` from `FactoryRegistry::new()`.
+See [persistence semantics and ownership](../runtime/PERSISTENCE.md).
+
 ## Features and scope
 
 - `std` (default) enables standard-library integrations and allocation.

@@ -207,7 +207,7 @@ marketplace. Applications own installation, trust, signatures, and path policy.
 
 ## Experimental object persistence and named integration
 
-[`persistence`](persistence/README.md) adds opt-in semantic snapshots and explicit,
+[`neocogi_com::persistence`](runtime/PERSISTENCE.md) provides runtime-owned opt-in semantic snapshots and explicit,
 context-bound factory reconstruction. The portable value codec remains separate
 from object activation; arbitrary private object memory is never serialized.
 [`events`](events/README.md) also supports named outputs on opaque components.

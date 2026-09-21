@@ -1,7 +1,7 @@
 //! Exercises identical typed construction in dynamic and monolithic hosts.
 
 use neocogi_com::{binary, Runtime, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, guid_from_qualified_name};
-use neocogi_com_persistence::{FactoryRegistry, snapshot};
+use neocogi_com::persistence::{FactoryRegistry, snapshot};
 use neocogi_com_events::{INamedOutputsAbi, bind_output};
 use neocogi_example_com_plugin::{ExtentState, PERSISTENT_KIND};
 use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentChanged};
@@ -26,7 +26,7 @@ fn main() {
     assert_eq!(extent, Extent { width: 44, height: 31 });
     assert_eq!(messages.try_recv().unwrap(), (44, 31));
     let saved = snapshot(object.query::<IUnknown>().unwrap().as_com_ref()).unwrap();
-    let mut registry = FactoryRegistry::new();
+    let mut registry = FactoryRegistry::new().unwrap();
     registry
         .register(PERSISTENT_KIND, PersistenceAdapter::from_value(PersistenceAdapter { factory }).query().unwrap())
         .unwrap();
@@ -59,7 +59,7 @@ fn register_plugin(runtime: &Runtime) {
 }
 
 /// Adapts an existing typed factory without changing its construction ABI.
-#[neocogi_com::com_object(interfaces(neocogi_com_persistence::IPersistenceFactory))]
+#[neocogi_com::com_object(interfaces(neocogi_com::persistence::IPersistenceFactory))]
 struct PersistenceAdapter {
     /// In shared mode this is a checked factory in the separately loaded plugin.
     factory: ComPtr<ExampleFactoryAbi>,
@@ -74,7 +74,7 @@ fn decode(version: u32, state: NcCopyFromBufferOffset<'_, u8>, children: u32) ->
     }
     binary::from_slice(state.as_slice()).map_err(|_| NC_E_INVALID_ARG)
 }
-impl neocogi_com_persistence::IPersistenceFactory for PersistenceAdapter {
+impl neocogi_com::persistence::IPersistenceFactory for PersistenceAdapter {
     /// Preflight has no construction side effects.
     fn validate(&self, version: u32, state: NcCopyFromBufferOffset<'_, u8>, children: u32) -> Result<(), NcStatus> {
         decode(version, state, children).map(|_| ())
@@ -84,7 +84,7 @@ impl neocogi_com_persistence::IPersistenceFactory for PersistenceAdapter {
         &self,
         version: u32,
         state: NcCopyFromBufferOffset<'_, u8>,
-        children: ComRef<'_, neocogi_com_persistence::IObjectChildrenAbi>,
+        children: ComRef<'_, neocogi_com::persistence::IObjectChildrenAbi>,
     ) -> Result<ComPtr<IUnknown>, NcStatus> {
         let state = decode(version, state, children.count()?)?;
         self.factory.create(Extent { width: state.width, height: state.height })?.query()
