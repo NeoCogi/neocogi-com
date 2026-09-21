@@ -44,7 +44,7 @@
 //! `Runtime` facade backed by the linked `libnc_com` shared library.
 //! Hosts still choose which factory plugins to accept, but successful dynamic
 //! plugin libraries remain mapped until process exit.
-//! The facade and `neocogi-com-runtime-sys` contain no registry state. Cargo
+//! The facade and its internal link declarations contain no registry state. Cargo
 //! feature unification may compile the facade into multiple dependents, but
 //! their external calls resolve to the same loader-owned shared object and
 //! therefore the same process registry. Static runtime linkage is reserved for

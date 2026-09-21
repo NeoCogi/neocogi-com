@@ -8,7 +8,7 @@ use core::{
 };
 use std::vec::Vec;
 use neocogi_com_core::{NcPersistenceApiV1, NcPersistenceContext};
-use neocogi_com_runtime_sys as runtime_sys;
+use crate::runtime::ffi as runtime_sys;
 use crate::{
     ComPtr, ComRef, IUnknown, NcGuid, NcStatus, NC_COM_CORE_ABI_VERSION, NC_COM_RUNTIME_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY,
     NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK,

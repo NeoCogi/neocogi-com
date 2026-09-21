@@ -37,7 +37,7 @@ run_workspace_tests() {
   echo "==> [$toolchain] $row"
   # Do not use --all-features here: the runtime feature intentionally requires
   # an already built neocogi-com-runtime shared library on the native link path.
-  cargo "+$toolchain" test -p neocogi-com-core -p neocogi-com-macros -p neocogi-com-runtime-sys -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect "$@"
+  cargo "+$toolchain" test -p neocogi-com-core -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect "$@"
 }
 
 run_linked_facade_smoke_tests() {

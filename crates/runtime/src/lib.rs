@@ -12,8 +12,7 @@
 //! lock, then publishes correlated plugin/module records atomically after
 //! checking dependencies and existing registrations. There is no class or
 //! contract-module registry. Concurrent reads share the catalog
-//! read lock. The crate is intentionally `std`-only`; `neocogi-com-core` and
-//! `neocogi-com-runtime-sys` retain the allocation-free and `no_std` ABI layers.
+//! read lock. The crate is intentionally `std`-only`; `neocogi-com-core` retains the allocation-free and `no_std` ABI layer.
 //!
 //! Loaded-module records retain one diagnostic path alongside the native
 //! library handle. Qualified plugin names and versions are not copied into that

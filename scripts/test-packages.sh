@@ -19,7 +19,6 @@ fi
 packages=(
   neocogi-com-core
   neocogi-com-macros
-  neocogi-com-runtime-sys
   neocogi-com-runtime
   neocogi-com
   neocogi-inspect
@@ -38,7 +37,7 @@ echo "==> [packages] fetch locked registry dependencies"
 cargo fetch --locked
 
 echo "==> [packages] build workspace archives"
-cargo package -p neocogi-com-core -p neocogi-com-macros -p neocogi-com-runtime-sys -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --no-verify --allow-dirty --locked
+cargo package -p neocogi-com-core -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --no-verify --allow-dirty --locked
 
 package_dir="${CARGO_TARGET_DIR:-target}/package"
 for package in "${packages[@]}"; do
@@ -96,14 +95,12 @@ verify_package() {
 verify_package neocogi-com-core
 verify_package neocogi-com-macros \
   --config "patch.crates-io.neocogi-com-core.path='$verify_root/neocogi-com-core-$version'"
-verify_package neocogi-com-runtime-sys \
-  --config "patch.crates-io.neocogi-com-core.path='$verify_root/neocogi-com-core-$version'"
 verify_package neocogi-com-runtime \
   --config "patch.crates-io.neocogi-com-core.path='$verify_root/neocogi-com-core-$version'"
 verify_package neocogi-com \
   --config "patch.crates-io.neocogi-com-core.path='$verify_root/neocogi-com-core-$version'" \
   --config "patch.crates-io.neocogi-com-macros.path='$verify_root/neocogi-com-macros-$version'" \
-  --config "patch.crates-io.neocogi-com-runtime-sys.path='$verify_root/neocogi-com-runtime-sys-$version'"
+  --config "patch.crates-io.neocogi-com-runtime.path='$verify_root/neocogi-com-runtime-$version'"
 verify_package neocogi-inspect \
   --config "patch.crates-io.neocogi-com-core.path='$verify_root/neocogi-com-core-$version'" \
   --config "patch.crates-io.neocogi-com-runtime.path='$verify_root/neocogi-com-runtime-$version'"

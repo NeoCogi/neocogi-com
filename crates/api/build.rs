@@ -8,7 +8,7 @@ const RUNTIME_LINK_DIR: &str = "NC_COM_RUNTIME_LINK_DIR";
 fn main() {
     println!("cargo:rerun-if-env-changed={RUNTIME_LINK_DIR}");
 
-    if env::var_os("CARGO_FEATURE_STATIC_RUNTIME").is_some() {
+    if env::var_os("CARGO_FEATURE_RUNTIME").is_none() || env::var_os("CARGO_FEATURE_STATIC_RUNTIME").is_some() {
         return;
     }
 

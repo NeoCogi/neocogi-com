@@ -230,7 +230,7 @@ See [persistence semantics and ownership](../runtime/PERSISTENCE.md).
 | `macros` | Macro and derive re-exports; generating heap-backed object storage also needs `alloc` |
 | `std` | `alloc` plus standard-library integrations; no runtime linkage by itself |
 | Defaults: `std`, `macros` | Local object implementations and owned data helpers; no runtime linkage |
-| `runtime` | Implies `std`; links the `nc_com` native runtime through `runtime-sys` and enables runtime/persistence clients |
+| `runtime` | Implies `std`; links the `nc_com` native runtime through internal C declarations and enables runtime/persistence clients |
 | `static-runtime` | Implies `runtime`; links the `nc_com` implementation as an rlib inside the final native binary or browser module |
 
 For shared mode, build and deploy `libnc_com.so` on Linux, `libnc_com.dylib` on
@@ -248,3 +248,9 @@ a shared deployment.
 
 This is not Windows COM, a source-reflection system, a sandbox, or a plugin
 marketplace. Applications own installation, path discovery, trust, and policy.
+
+Runtime discovery declarations live in `src/runtime/ffi.rs`. Shared builds may
+set `NC_COM_RUNTIME_LINK_DIR` to the runtime/import-library directory. Without
+`runtime`, the facade emits no runtime link requirement. `static-runtime` retains
+the implementation rlib and takes precedence over shared linkage when features
+unify; separately loaded plugins must not enable it.

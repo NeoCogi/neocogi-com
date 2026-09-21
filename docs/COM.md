@@ -200,7 +200,6 @@ cross-library marshalling format.
 - `neocogi-com-core`: raw ABI layouts and traits (`no_std` by default).
 - `neocogi-com-macros`: procedural macro implementation.
 - `neocogi-com`: user-facing facade and generated object helpers.
-- `neocogi-com-runtime-sys`: linked runtime discovery declarations.
 - `neocogi-com-runtime`: plugin catalog, loader, and persistence implementation;
   its Rust library target is `nc_com`.
 - `neocogi-com-events-contracts`: generated dispatch and named-output contracts.
@@ -236,7 +235,7 @@ cargo test -p neocogi-com-core -p neocogi-com --doc --all-features
 python3 crates/com/scripts/check-markdown-links.py
 RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --all-features \
   -p neocogi-com-core -p neocogi-com -p neocogi-com-macros \
-  -p neocogi-com-runtime -p neocogi-com-runtime-sys \
+  -p neocogi-com-runtime \
   -p neocogi-com-events-contracts -p neocogi-com-events \
   -p neocogi-idl -p neocogi-idl-build
 ```

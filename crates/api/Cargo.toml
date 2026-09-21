@@ -15,7 +15,7 @@ categories = ["api-bindings", "development-tools::ffi"]
 [dependencies]
 neocogi-com-core = { workspace = true, default-features = false }
 neocogi-com-macros = { workspace = true, optional = true }
-neocogi-com-runtime-sys = { workspace = true, optional = true, default-features = false }
+neocogi-com-runtime = { workspace = true, optional = true, default-features = false }
 
 [package.metadata.docs.rs]
 all-features = true
@@ -59,9 +59,9 @@ std = ["alloc", "neocogi-com-core/std"]
 alloc = ["neocogi-com-core/alloc"]
 # Shared-mode unification is intentional: every facade resolves the same
 # process registry from libnc_com.
-runtime = ["std", "dep:neocogi-com-runtime-sys"]
+runtime = ["std"]
 # Static/browser hosts own one instance of the existing runtime implementation.
-static-runtime = ["runtime", "neocogi-com-runtime-sys/static-runtime"]
+static-runtime = ["runtime", "dep:neocogi-com-runtime"]
 
 [[test]]
 name = "recursive_interfaces"

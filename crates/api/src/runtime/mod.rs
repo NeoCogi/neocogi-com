@@ -16,7 +16,10 @@ use crate::{
     NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NcDebugApiV1, NcFactoryPluginDescription, NcGuid, NcInspectionApiV1, NcPluginRegistryV1,
     NcRuntimeApiV1, NcStatus, NcUtf8View, ThreadingModel,
 };
-use neocogi_com_runtime_sys as runtime_sys;
+use self::ffi as runtime_sys;
+
+/// Linkage declarations shared with the persistence client, without runtime state.
+pub(crate) mod ffi;
 
 mod debug;
 mod inspection;
