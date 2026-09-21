@@ -52,7 +52,7 @@ fn register_plugin(runtime: &Runtime) {
 /// Loads the trusted sample plugin supplied as the executable's first argument.
 #[cfg(not(feature = "monolith"))]
 fn register_plugin(runtime: &Runtime) {
-    let path = std::env::args_os().nth(1).expect("usage: com-plugin-host PATH_TO_PLUGIN");
+    let path = std::env::args_os().nth(1).expect("usage: neocogi-example-com PATH_TO_PLUGIN");
     // SAFETY: This demonstration accepts its own trusted build artifact. The
     // runtime retains the mapping while any factory or object can reference it.
     unsafe { runtime.load_plugin_library(std::path::Path::new(&path)) };

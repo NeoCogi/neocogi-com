@@ -40,7 +40,7 @@ fn ordinary_cargo_builds_both_linkage_modes_without_contract_artifacts() {
     let target = workspace.join("target/plain-cargo-com-fixture");
     let dynamic_stage = tempfile::tempdir().unwrap();
     let monolith_stage = tempfile::tempdir().unwrap();
-    let executable = format!("com-plugin-host{}", std::env::consts::EXE_SUFFIX);
+    let executable = format!("neocogi-example-com{}", std::env::consts::EXE_SUFFIX);
 
     // Plugin compilation has no dependency on a prebuilt runtime or an external
     // driver. The crate-type override affects only this final library target.
@@ -70,7 +70,7 @@ fn ordinary_cargo_builds_both_linkage_modes_without_contract_artifacts() {
     run(cargo(
         &workspace,
         &target,
-        &["build", "-p", "neocogi-example-com-plugin", "--bin", "com-plugin-host", "--features", "host"],
+        &["build", "-p", "neocogi-example-com-plugin", "--bin", "neocogi-example-com", "--features", "host"],
     )
     .env("NC_COM_RUNTIME_LINK_DIR", target.join("debug")));
     std::fs::copy(target.join("debug").join(&executable), dynamic_stage.path().join(&executable)).unwrap();
@@ -94,7 +94,7 @@ fn ordinary_cargo_builds_both_linkage_modes_without_contract_artifacts() {
             "-p",
             "neocogi-example-com-plugin",
             "--bin",
-            "com-plugin-host",
+            "neocogi-example-com",
             "--features",
             "monolith",
         ],

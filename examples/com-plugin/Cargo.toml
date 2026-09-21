@@ -1,4 +1,6 @@
 [package]
+# Installed executable names are declared explicitly below.
+autobins = false
 name = "neocogi-example-com-plugin"
 version = "0.1.0"
 edition.workspace = true
@@ -27,7 +29,7 @@ neocogi-com = { workspace = true, features = ["macros", "std"] }
 neocogi-idl-example-contracts = { path = "../../tools/idl/example-contracts" }
 
 [[bin]]
-name = "com-plugin-host"
+name = "neocogi-example-com"
 path = "src/main.rs"
 required-features = ["host"]
 
