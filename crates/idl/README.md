@@ -9,7 +9,7 @@ The single `neocogi-idl` package separates responsibilities into Rust modules:
 - `model`, `parser`, and `resolve` parse files/module directories, resolves copied values
   and interfaces, validates roles/threading/required projections, and fingerprints
   the complete source graph.
-- `cargo` discovers sources and exchanges schema-4 source graphs through
+- `cargo` discovers sources and exchanges schema-5 source graphs through
   Cargo `links`/`DEP_*`. Build scripts use `neocogi_idl::cargo::Module`.
 - `generate` emits formatted Rust bindings with fixed declaration signatures.
   Its pure entrypoints perform no Cargo environment access.
@@ -98,3 +98,17 @@ returned as owned references without an imported contract module. They cannot
 be embedded in copied records or passed as unborrowed inputs. Their exact core
 interface identities participate in generated signatures. `Guid` is the copied
 `NcGuid` value type. These spellings are reserved and cannot be shadowed.
+
+## Publishing contracts inside an existing Rust crate
+
+A logical IDL module does not have to occupy a dedicated Rust crate. An owner
+can use `Module::directory(...).rust_path("shared_api::contracts").build()` to
+publish an explicit crate-rooted Rust path in its schema-5 Cargo source graph.
+Dependent generators use that path for imported values, interfaces, and message
+receivers. The owner still declares the logical module's existing `links` value.
+Without an override, the conventional `<module>_contracts` crate name applies.
+
+Rust paths are backend metadata: they never participate in resolution, UUIDs,
+or ABI fingerprints. Conflicting owners and malformed paths fail generation.
+The pure `generate::generate_rust_with_paths` API accepts a validated
+`RustModulePaths` mapping for callers outside Cargo; it requires no global state.

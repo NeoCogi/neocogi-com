@@ -5,7 +5,7 @@ use quote::format_ident;
 
 /// Emits owned data, a C wire record, checked conversion and one concrete receiver.
 pub(super) fn generate_message(
-    graph: &ResolvedModules,
+    graph: &Generation<'_>,
     module: &ResolvedModule,
     declaration: &Declaration,
     identity: &crate::DeclarationIdentity,
@@ -220,7 +220,7 @@ pub(super) fn generate_message(
 
 /// Selects owned storage, exact wire fields, and checked conversion for one message field.
 fn field_codec(
-    graph: &ResolvedModules,
+    graph: &Generation<'_>,
     module: &ResolvedModule,
     ty: &AbiType,
     field: &Ident,
@@ -258,7 +258,7 @@ fn field_codec(
             ))
         }
         AbiType::Named(path) if matches!(resolve(graph, module, path)?.declaration.kind, DeclarationKind::Interface(_)) => {
-            let abi = named_rust_type(module, resolve(graph, module, path)?, true)?;
+            let abi = named_rust_type(graph, module, resolve(graph, module, path)?, true)?;
             let owned = object_reference_type(graph, module, path, true)?;
             let borrowed = object_reference_type(graph, module, path, false)?;
             Ok((
@@ -284,7 +284,7 @@ fn field_codec(
             match ty {
                 AbiType::Named(path) => {
                     let resolved = resolve(graph, module, path)?;
-                    let owned = named_rust_type(module, resolved, false)?;
+                    let owned = named_rust_type(graph, module, resolved, false)?;
                     match &resolved.declaration.kind {
                         DeclarationKind::Enum(enumeration) if enum_has_payload(enumeration) || resolved.declaration.message => Ok((
                             owned.clone(),
@@ -303,12 +303,12 @@ fn field_codec(
 }
 
 /// Names the exact generated message receiver in its owning contract crate.
-pub(super) fn receiver_type(module: &ResolvedModule, resolved: ResolvedDeclaration<'_>) -> Result<TokenStream, GenerateError> {
+pub(super) fn receiver_type(graph: &Generation<'_>, module: &ResolvedModule, resolved: ResolvedDeclaration<'_>) -> Result<TokenStream, GenerateError> {
     let name = format_ident!("__{}ReceiverAbi", resolved.declaration.name);
     if resolved.module.source.name == module.source.name {
         Ok(quote! { #name })
     } else {
-        let owner = contract_crate_ident(&resolved.module.source.name.to_string())?;
-        Ok(quote! { ::#owner::#name })
+        let owner = graph.paths.path(&resolved.module.source.name.to_string())?;
+        Ok(quote! { #owner::#name })
     }
 }

@@ -37,9 +37,16 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
     // so allocation imports and cross-crate receiver paths are checked by rustc.
     let consumer = neocogi_idl::generate_rust(&graph, "example.consumer").unwrap();
     fs::write(project.path().join("src/consumer.rs"), consumer).unwrap();
+    // Compile the same imported output through a nested Rust location. This
+    // checks concrete receiver ABI paths as well as ordinary authored imports.
+    let mut paths = neocogi_idl::generate::RustModulePaths::default();
+    paths.insert("example.messages", "example_messages_contracts::relocated").unwrap();
+    let relocated = neocogi_idl::generate::generate_rust_with_paths(&graph, "example.consumer", &paths).unwrap();
+    fs::write(project.path().join("src/relocated_consumer.rs"), relocated).unwrap();
+
     fs::write(
         project.path().join("src/lib.rs"),
-        generated + "\nextern crate self as example_messages_contracts;\npub mod consumer;\n" + include_str!("fixtures/messages.rs"),
+        generated + "\nextern crate self as example_messages_contracts;\npub mod consumer;\npub mod relocated { pub use super::*; }\npub mod relocated_consumer;\n" + include_str!("fixtures/messages.rs"),
     )
     .unwrap();
     let output = Command::new("cargo")

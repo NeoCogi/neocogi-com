@@ -11,6 +11,8 @@ use quote::quote;
 
 #[path = "message.rs"]
 mod message;
+mod paths;
+pub use paths::RustModulePaths;
 
 /// Failure to select a module or lower one validated IDL construct to Rust.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -42,10 +44,42 @@ impl std::error::Error for GenerateError {}
 /// module descriptions are unnecessary: exact signatures travel with interface
 /// identities, and implementations remain private to their owning component.
 pub fn generate_rust(graph: &ResolvedModules, module_name: &str) -> Result<String, GenerateError> {
-    let module = graph
+    generate_rust_with_paths(graph, module_name, &RustModulePaths::default())
+}
+
+/// Generates bindings using explicit Rust locations independently of ABI identity.
+///
+/// Paths only affect emitted Rust imports. The already-resolved module graph and
+/// all declaration signatures remain unchanged. Unmapped modules retain the
+/// conventional `<dotted_module_with_underscores>_contracts` crate location.
+pub fn generate_rust_with_paths(
+    graph: &ResolvedModules,
+    module_name: &str,
+    paths: &RustModulePaths,
+) -> Result<String, GenerateError> {
+    // A typo must fail here instead of silently falling back to an unrelated crate.
+    for name in paths.modules.keys() {
+        if graph.module(name).is_none() {
+            return Err(GenerateError::new(format!("Rust location names unknown IDL module {name:?}")));
+        }
+    }
+    generate_module(&Generation { graph, paths }, module_name)
+}
+
+/// Immutable inputs shared by ordinary declarations and generated message receivers.
+struct Generation<'a> {
+    /// Canonical semantic ownership, identity, and type resolution.
+    graph: &'a ResolvedModules,
+    /// Backend-only Rust locations; never part of an ABI fingerprint.
+    paths: &'a RustModulePaths,
+}
+
+/// Emits one module after validating backend mappings against its semantic graph.
+fn generate_module(graph: &Generation<'_>, module_name: &str) -> Result<String, GenerateError> {
+    let module = graph.graph
         .module(module_name)
         .ok_or_else(|| GenerateError::new(format!("resolved graph has no module {module_name:?}")))?;
-    let imports = generate_imports(module)?;
+    let imports = generate_imports(graph, module)?;
     let event_alloc = module
         .source
         .declarations
@@ -102,18 +136,18 @@ fn needs_message_allocation(declaration: &Declaration) -> bool {
 }
 
 /// Generates explicit imports from conventionally named contract crates.
-fn generate_imports(module: &ResolvedModule) -> Result<TokenStream, GenerateError> {
+fn generate_imports(graph: &Generation<'_>, module: &ResolvedModule) -> Result<TokenStream, GenerateError> {
     let imports = module.source.imports.iter().map(|import| {
-        let crate_ident = contract_crate_ident(&import.module)?;
+        let crate_ident = graph.paths.path(&import.module)?;
         let names = import.names.iter().map(|name| rust_ident(name)).collect::<Result<Vec<_>, _>>()?;
-        Ok(quote! { pub use ::#crate_ident::{#(#names),*}; })
+        Ok(quote! { pub use #crate_ident::{#(#names),*}; })
     });
     let imports = imports.collect::<Result<Vec<_>, GenerateError>>()?;
     Ok(quote! { #(#imports)* })
 }
 
 /// Generates one public declaration from its resolved source-order identity.
-fn generate_declaration(graph: &ResolvedModules, module: &ResolvedModule, declaration: &Declaration, source_index: usize) -> Result<String, GenerateError> {
+fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration, source_index: usize) -> Result<String, GenerateError> {
     let declaration_docs = docs(&declaration.docs);
     let name = rust_ident(&declaration.name)?;
     let identity = module
@@ -368,7 +402,7 @@ fn snake_case(value: &str) -> String {
 }
 
 /// Generates a Rust supertrait suffix from IDL required interfaces.
-fn bases(graph: &ResolvedModules, module: &ResolvedModule, values: &[NamedType]) -> Result<TokenStream, GenerateError> {
+fn bases(graph: &Generation<'_>, module: &ResolvedModule, values: &[NamedType]) -> Result<TokenStream, GenerateError> {
     if values.is_empty() {
         return Ok(quote! {});
     }
@@ -376,14 +410,14 @@ fn bases(graph: &ResolvedModules, module: &ResolvedModule, values: &[NamedType])
         .iter()
         .map(|value| {
             let resolved = resolve(graph, module, value)?;
-            named_rust_type(module, resolved, false)
+            named_rust_type(graph, module, resolved, false)
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(quote! { : #(#values)+* })
 }
 
 /// Emits ordinary methods and named output getters in their normative vtable order.
-fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[Callable]) -> Result<Vec<TokenStream>, GenerateError> {
+fn callable_methods(graph: &Generation<'_>, module: &ResolvedModule, values: &[Callable]) -> Result<Vec<TokenStream>, GenerateError> {
     values
         .iter()
         .map(|callable| {
@@ -412,7 +446,7 @@ fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[
                 Callable::Port(port) => {
                     let resolved = resolve(graph, module, &port.message)?;
                     let getter = rust_ident(&port.setter_name())?;
-                    let abi = message::receiver_type(module, resolved)?;
+                    let abi = message::receiver_type(graph, module, resolved)?;
                     let docs = docs(&port.docs);
                     quote! {
                         #docs #[doc(hidden)]
@@ -427,7 +461,7 @@ fn callable_methods(graph: &ResolvedModules, module: &ResolvedModule, values: &[
 /// Generates typed accessor methods on owned and borrowed source projections.
 /// Each closure installs one receiver directly through the producer ABI.
 fn port_bindings(
-    graph: &ResolvedModules,
+    graph: &Generation<'_>,
     module: &ResolvedModule,
     source: &Declaration,
     values: &[Callable],
@@ -448,8 +482,8 @@ fn port_bindings(
     for callable in values {
         let Callable::Port(port) = callable else { continue };
         let output = resolve(graph, module, &port.message)?;
-        let message = named_rust_type(module, output, false)?;
-        let receiver = message::receiver_type(module, output)?;
+        let message = named_rust_type(graph, module, output, false)?;
+        let receiver = message::receiver_type(graph, module, output)?;
         let port_name = Literal::string(&port.name);
         let setter = rust_ident(&port.setter_name())?;
         identities.push(quote! { #port_name => Ok(<#receiver as ::neocogi_com::ComInterface>::INTERFACE_ID) });
@@ -513,14 +547,14 @@ fn port_bindings(
 }
 
 /// Lowers one copied aggregate field or payload type.
-fn value_type(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
+fn value_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
     match ty {
         AbiType::Scalar(name) => scalar(name),
         AbiType::Named(name) => {
             let resolved = resolve(graph, module, name)?;
             match resolved.declaration.kind {
-                DeclarationKind::Struct(_) | DeclarationKind::BitEnum(_) => named_rust_type(module, resolved, false),
-                DeclarationKind::Enum(_) => named_rust_type(module, resolved, true),
+                DeclarationKind::Struct(_) | DeclarationKind::BitEnum(_) => named_rust_type(graph, module, resolved, false),
+                DeclarationKind::Enum(_) => named_rust_type(graph, module, resolved, true),
                 _ => Err(GenerateError::new(format!("{} is not a copied value declaration", name.rust_path()))),
             }
         }
@@ -537,7 +571,7 @@ fn value_type(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType) ->
 }
 
 /// Lowers one method input according to its explicit IDL ownership form.
-fn parameter_type(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
+fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
     match ty {
         AbiType::Scalar(_) | AbiType::Named(_) | AbiType::Array { .. } => {
             if let AbiType::Named(name) = ty {
@@ -572,7 +606,7 @@ fn parameter_type(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType
 }
 
 /// Lowers one successful method output and its ownership transfer.
-fn output_type(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
+fn output_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
     match ty {
         AbiType::Unit => Ok(quote! { () }),
         AbiType::String => Ok(quote! { ::neocogi_com::ComPtr<::neocogi_com::INcStringAbi> }),
@@ -597,7 +631,7 @@ fn output_type(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType) -
 }
 
 /// Produces a `ComRef` or `ComPtr` for one interface-like declaration.
-fn object_reference_type(graph: &ResolvedModules, module: &ResolvedModule, name: &NamedType, owned: bool) -> Result<TokenStream, GenerateError> {
+fn object_reference_type(graph: &Generation<'_>, module: &ResolvedModule, name: &NamedType, owned: bool) -> Result<TokenStream, GenerateError> {
     if let Some(abi) = builtin_object_type(name) {
         return Ok(if owned {
             quote! { ::neocogi_com::ComPtr<#abi> }
@@ -612,7 +646,7 @@ fn object_reference_type(graph: &ResolvedModules, module: &ResolvedModule, name:
     ) {
         return Err(GenerateError::new(format!("{} is a copied value, not an object reference", name.rust_path())));
     }
-    let abi = named_rust_type(module, resolved, true)?;
+    let abi = named_rust_type(graph, module, resolved, true)?;
     let threading = match &resolved.declaration.kind {
         DeclarationKind::Interface(interface) => interface.threading,
         _ => unreachable!("value declarations were rejected above"),
@@ -626,14 +660,14 @@ fn object_reference_type(graph: &ResolvedModules, module: &ResolvedModule, name:
 }
 
 /// Resolves a type through the semantic graph with an internal-invariant error.
-fn resolve<'a>(graph: &'a ResolvedModules, module: &ResolvedModule, name: &NamedType) -> Result<ResolvedDeclaration<'a>, GenerateError> {
-    graph
+fn resolve<'a>(graph: &Generation<'a>, module: &ResolvedModule, name: &NamedType) -> Result<ResolvedDeclaration<'a>, GenerateError> {
+    graph.graph
         .resolve_declaration(&module.source.name.to_string(), name)
         .ok_or_else(|| GenerateError::new(format!("resolved module {} lost type mapping for {}", module.source.name, name.rust_path())))
 }
 
 /// Selects a local/imported Rust type and optionally its generated ABI suffix.
-fn named_rust_type(module: &ResolvedModule, resolved: ResolvedDeclaration<'_>, abi_suffix: bool) -> Result<TokenStream, GenerateError> {
+fn named_rust_type(graph: &Generation<'_>, module: &ResolvedModule, resolved: ResolvedDeclaration<'_>, abi_suffix: bool) -> Result<TokenStream, GenerateError> {
     let mut name = resolved.declaration.name.clone();
     if abi_suffix && declaration_has_abi_wrapper(resolved.declaration) {
         name.push_str("Abi");
@@ -642,8 +676,8 @@ fn named_rust_type(module: &ResolvedModule, resolved: ResolvedDeclaration<'_>, a
     if resolved.module.source.name == module.source.name {
         Ok(quote! { #name })
     } else {
-        let crate_ident = contract_crate_ident(&resolved.module.source.name.to_string())?;
-        Ok(quote! { ::#crate_ident::#name })
+        let crate_ident = graph.paths.path(&resolved.module.source.name.to_string())?;
+        Ok(quote! { #crate_ident::#name })
     }
 }
 
@@ -673,12 +707,6 @@ fn docs(lines: &[String]) -> TokenStream {
 /// Converts one validated IDL identifier into a Rust token identifier.
 fn rust_ident(value: &str) -> Result<Ident, GenerateError> {
     syn::parse_str::<Ident>(value).map_err(|_| GenerateError::new(format!("IDL identifier {value:?} is not a Rust identifier")))
-}
-
-/// Derives the conventional Rust crate identifier for an imported module.
-fn contract_crate_ident(module: &str) -> Result<Ident, GenerateError> {
-    let crate_name = format!("{}_contracts", module.replace('.', "_"));
-    rust_ident(&crate_name)
 }
 
 /// Emits a field-wise GUID expression independent of host byte order.

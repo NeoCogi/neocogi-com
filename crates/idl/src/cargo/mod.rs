@@ -9,7 +9,7 @@ use std::{
 use crate::resolve_modules;
 use serde::{Deserialize, Serialize};
 
-use crate::generate_rust;
+use crate::generate::{RustModulePaths, generate_rust_with_paths};
 
 mod source;
 pub use source::ModuleSources;
@@ -21,6 +21,8 @@ pub struct Module {
     idl_root: PathBuf,
     /// File or directory that defines the logical module and its source parts.
     input: ModuleInput,
+    /// Optional Rust location published to consumers, independent of IDL identity.
+    rust_path: Option<String>,
 }
 
 /// Source layout selected for one logical contract module.
@@ -38,6 +40,7 @@ impl Module {
         Self {
             idl_root: idl_root.into(),
             input: ModuleInput::File(source.into()),
+            rust_path: None,
         }
     }
 
@@ -49,7 +52,18 @@ impl Module {
         Self {
             idl_root: idl_root.into(),
             input: ModuleInput::Directory(module_directory.into()),
+            rust_path: None,
         }
+    }
+
+    /// Publishes declarations from a crate-rooted Rust module instead of a dedicated crate.
+    ///
+    /// For example, `neocogi_com::events` keeps the logical contract identity
+    /// `neocogi.com.events` while exposing its bindings inside the COM facade.
+    /// Validation occurs during build, before any generated output is written.
+    pub fn rust_path(mut self, path: impl Into<String>) -> Self {
+        self.rust_path = Some(path.into());
+        self
     }
 
     /// Generates bindings and publishes the resolved graph to dependent builds.
@@ -77,7 +91,7 @@ impl Module {
                 sources
             }
         };
-        let own_record = GraphModule { sources: own_sources };
+        let own_record = GraphModule { sources: own_sources, rust_path: self.rust_path };
 
         let own_module = own_record.sources.parse()?;
         let module_name = own_module.name.to_string();
@@ -141,7 +155,16 @@ impl Module {
         let resolved_module = resolved
             .module(&own_module.name.to_string())
             .ok_or_else(|| BuildError::Idl("resolved graph lost the crate's own module".into()))?;
-        let bindings = generate_rust(&resolved, &own_module.name.to_string()).map_err(|source| BuildError::Idl(source.to_string()))?;
+        // Rust locations travel with the source owner but never enter resolution
+        // or hashing. Every transitive consumer uses the same validated mapping.
+        let mut paths = RustModulePaths::default();
+        for (name, record) in &records {
+            if let Some(path) = &record.rust_path {
+                paths.insert(name, path).map_err(|source| BuildError::Idl(source.to_string()))?;
+            }
+        }
+        let bindings = generate_rust_with_paths(&resolved, &own_module.name.to_string(), &paths)
+            .map_err(|source| BuildError::Idl(source.to_string()))?;
         let stem = own_module.name.segments().join("_");
         let bindings_path = output_dir.join(format!("{stem}.rs"));
         write_changed(&bindings_path, bindings.as_bytes())?;
@@ -264,7 +287,7 @@ impl std::error::Error for BuildError {
 }
 
 /// Schema version for Cargo-to-Cargo IDL source graph exchange.
-const GRAPH_SCHEMA: u32 = 4;
+const GRAPH_SCHEMA: u32 = 5;
 
 /// Serializable transitive module graph produced by a dependency build.
 #[derive(Deserialize, Serialize)]
@@ -281,13 +304,16 @@ struct GraphModule {
     /// Canonically loaded source topology, flattened in graph schema v4.
     #[serde(flatten)]
     sources: ModuleSources,
+    /// Optional absolute Rust location; omitted for conventional contract crates.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    rust_path: Option<String>,
 }
 
 /// Merges dependency records while rejecting two sources for one logical name.
 fn merge_records(target: &mut BTreeMap<String, GraphModule>, incoming: BTreeMap<String, GraphModule>) -> Result<(), BuildError> {
     for (name, record) in incoming {
         if target.get(&name).is_some_and(|existing| existing != &record) {
-            return Err(BuildError::Idl(format!("dependency graphs provide conflicting sources for module {name:?}")));
+            return Err(BuildError::Idl(format!("dependency graphs provide conflicting sources or Rust locations for module {name:?}")));
         }
         target.entry(name).or_insert(record);
     }
