@@ -21,13 +21,13 @@ fn imported_outputs_need_allocation_but_no_queue_runtime() {
     );
     let transport = module(
         "neocogi/com/events.ncidl",
-        include_str!("../../event-contracts/idl/neocogi/com/events/events.ncidl"),
+        include_str!("../../api/idl/neocogi/com/events/events.ncidl"),
     );
     let graph = resolve_modules(vec![message, source, transport]).unwrap();
     let generated = neocogi_idl::generate_rust(&graph, "example.source").unwrap();
     syn::parse_file(&generated).expect("imported message bindings parse");
     assert!(generated.contains("extern crate alloc"));
-    assert!(!generated.contains("neocogi_com_events"));
+    assert!(!generated.contains("neocogi_com::events"));
     assert!(generated.contains("fn first("));
     assert!(generated.contains("fn second("));
     assert!(generated.contains("example_messages_contracts::__ChangedReceiverAbi"));

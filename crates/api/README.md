@@ -227,9 +227,9 @@ See [persistence semantics and ownership](../runtime/PERSISTENCE.md).
 | --- | --- |
 | `default-features = false` | `no_std` core ABI, pointer/client support, persistence contracts, and serialization traits; no runtime linkage |
 | `alloc` | Heap-backed object helpers, owned string/byte objects, the binary codec, and `ObjectRecord` |
-| `macros` | Macro and derive re-exports; generating heap-backed object storage also needs `alloc` |
+| `macros` | Macro/derive re-exports and built-in event contracts; heap-backed object storage also needs `alloc` |
 | `std` | `alloc` plus standard-library integrations; no runtime linkage by itself |
-| Defaults: `std`, `macros` | Local object implementations and owned data helpers; no runtime linkage |
+| Defaults: `std`, `macros` | Local objects, owned data, and event adapters; no runtime linkage |
 | `runtime` | Implies `std`; links the `nc_com` native runtime through internal C declarations and enables runtime/persistence clients |
 | `static-runtime` | Implies `runtime`; links the `nc_com` implementation as an rlib inside the final native binary or browser module |
 
@@ -254,3 +254,8 @@ set `NC_COM_RUNTIME_LINK_DIR` to the runtime/import-library directory. Without
 `runtime`, the facade emits no runtime link requirement. `static-runtime` retains
 the implementation rlib and takes precedence over shared linkage when features
 unify; separately loaded plugins must not enable it.
+
+The `macros` feature also exposes built-in event contracts through
+[`neocogi_com::events`](EVENTS.md). Contracts need no allocation or runtime;
+channel and dispatcher adapters additionally require `std`. Event IDL compilation
+is an optional build dependency of this feature and runs on the build machine.

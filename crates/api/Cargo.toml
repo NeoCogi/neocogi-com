@@ -12,6 +12,16 @@ description = "Typed C-ABI COM clients, object helpers, and optional runtime bin
 keywords = ["com", "abi", "ffi", "plugin"]
 categories = ["api-bindings", "development-tools::ffi"]
 
+# Own the unchanged logical events module while exposing it through this facade.
+links = "nc_contract_neocogi_com_events"
+
+[package.metadata.neocogi-contract]
+module = "neocogi.com.events"
+source = "idl/neocogi/com/events"
+
+[build-dependencies]
+neocogi-idl = { workspace = true, optional = true }
+
 [dependencies]
 neocogi-com-core = { workspace = true, default-features = false }
 neocogi-com-macros = { workspace = true, optional = true }
@@ -54,7 +64,7 @@ trybuild = "1"
 
 [features]
 default = ["macros", "std"]
-macros = ["dep:neocogi-com-macros"]
+macros = ["dep:neocogi-com-macros", "dep:neocogi-idl"]
 std = ["alloc", "neocogi-com-core/std"]
 alloc = ["neocogi-com-core/alloc"]
 # Shared-mode unification is intentional: every facade resolves the same

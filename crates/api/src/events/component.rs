@@ -6,10 +6,10 @@ use std::{
     sync::mpsc::{Receiver, TryRecvError},
 };
 use neocogi_com::{ComPtr, NcStatus};
-use crate::{IEventDispatcher, IEventDispatcherAbi, EVENT_E_BUSY};
+use super::{IEventDispatcher, IEventDispatcherAbi, EVENT_E_BUSY};
 
 /// Separate mounted driver; the component retains ownership of both state and receiver.
-#[neocogi_com::com_object(interfaces(neocogi_com_events_contracts::IEventDispatcher))]
+#[neocogi_com::com_object(interfaces(neocogi_com::events::IEventDispatcher))]
 struct ComponentDispatcher<Owner: 'static, Message: 'static> {
     /// A mounted runtime cannot keep an otherwise abandoned component alive.
     owner: Weak<RefCell<Owner>>,

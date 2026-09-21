@@ -6,7 +6,7 @@ use std::{
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 use neocogi_com::{ComPtr, Runtime, guid_from_qualified_name};
-use neocogi_com_events::{NamedOutputs, bind_output, map};
+use neocogi_com::events::{NamedOutputs, bind_output, map};
 use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentChanged, IExampleEventsAbi, IExampleEventsOutputs};
 
 /// Gates counting around the measured setup or synchronous delivery only.

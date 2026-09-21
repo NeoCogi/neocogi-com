@@ -446,6 +446,9 @@ extern crate self as neocogi_com;
 pub extern crate alloc as __alloc;
 
 pub mod persistence;
+/// Built-in dispatch/output contracts and optional standard-channel adapters.
+#[cfg(feature = "macros")]
+pub mod events;
 #[cfg(feature = "alloc")]
 mod data;
 mod macros;

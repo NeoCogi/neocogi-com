@@ -12,7 +12,7 @@ use neocogi_idl_example_contracts::{ExampleFactory, ExampleObject, ExampleObject
     neocogi_idl_example_contracts::ExampleObject,
     neocogi_idl_example_contracts::IExampleEvents,
     neocogi_com::persistence::IPersistable,
-    neocogi_com_events_contracts::INamedOutputs
+    neocogi_com::events::INamedOutputs
 ))]
 struct DynamicExampleObject {
     /// Dimensions owned entirely by this COM object allocation.
@@ -80,7 +80,7 @@ impl IExampleEvents for DynamicExampleObject {
         Ok(())
     }
 }
-impl neocogi_com_events_contracts::INamedOutputs for DynamicExampleObject {
+impl neocogi_com::events::INamedOutputs for DynamicExampleObject {
     /// A self-owned output binds directly under the existing exclusive borrow.
     fn bind_output(&mut self, name: NcCopyFromBufferOffset<'_, u8>, receiver: ComRef<'_, IUnknown>) -> Result<(), NcStatus> {
         if name.offset() != 0 {

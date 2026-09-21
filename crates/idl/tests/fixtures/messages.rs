@@ -35,9 +35,9 @@ mod message_tests {
     fn generated_output_installs_a_direct_receiver() {
         let producer: ComPtr<IProducerAbi> = Producer::from_value(Producer { completed: None }).query().unwrap();
         let (first_tx, first) = std::sync::mpsc::channel();
-        neocogi_com_events::map(producer.completed(), first_tx.clone(), |_| 1).unwrap();
+        neocogi_com::events::map(producer.completed(), first_tx.clone(), |_| 1).unwrap();
         let (second_tx, second) = std::sync::mpsc::channel();
-        neocogi_com_events::map(producer.completed(), second_tx.clone(), |_| 2).unwrap();
+        neocogi_com::events::map(producer.completed(), second_tx.clone(), |_| 2).unwrap();
         drop(producer);
         assert_eq!(first.try_recv().ok(), Some(1));
         assert_eq!(second.try_recv().ok(), Some(2));
@@ -48,7 +48,7 @@ mod message_tests {
     fn typed_delivery_retains_objects_and_copies_strings() {
         let mut source = None;
         let (events_tx, events) = std::sync::mpsc::channel();
-        neocogi_com_events::map(|consume| { source = Some(Completion::__receiver(consume)?); Ok(()) }, events_tx.clone(), |message| message).unwrap();
+        neocogi_com::events::map(|consume| { source = Some(Completion::__receiver(consume)?); Ok(()) }, events_tx.clone(), |message| message).unwrap();
         let token: ComPtr<ITokenAbi> = Token::from_value(Token).query().unwrap();
         Completion::Accepted { token }.post_to(&mut source).unwrap();
         drop(source);
@@ -58,7 +58,7 @@ mod message_tests {
         }
         let mut source = None;
         let (events_tx, events) = std::sync::mpsc::channel();
-        neocogi_com_events::map(|consume| { source = Some(TextChanged::__receiver(consume)?); Ok(()) }, events_tx.clone(), |message| message).unwrap();
+        neocogi_com::events::map(|consume| { source = Some(TextChanged::__receiver(consume)?); Ok(()) }, events_tx.clone(), |message| message).unwrap();
         TextChanged { text: "héllo".into(), cursor: 2 }.post_to(&mut source).unwrap();
         drop(source);
         assert_eq!(events.try_recv().unwrap().text, "héllo");
@@ -70,12 +70,12 @@ mod message_tests {
         assert_eq!(Notice::try_from(NoticeAbi::from(Notice::Ready)).unwrap(), Notice::Ready);
         let mut destination = None;
         let (events_tx, events) = std::sync::mpsc::channel();
-        neocogi_com_events::map(|consume| { destination = Some(Notice::__receiver(consume)?); Ok(()) }, events_tx.clone(), |message| message).unwrap();
+        neocogi_com::events::map(|consume| { destination = Some(Notice::__receiver(consume)?); Ok(()) }, events_tx.clone(), |message| message).unwrap();
         Notice::Done.post_to(&mut destination).unwrap();
         assert_eq!(events.try_recv().ok(), Some(Notice::Done));
         let mut destination = None;
         let (events_tx, events) = std::sync::mpsc::channel();
-        neocogi_com_events::map(|consume| { destination = Some(Batch::__receiver(consume)?); Ok(()) }, events_tx.clone(), |message| message.values).unwrap();
+        neocogi_com::events::map(|consume| { destination = Some(Batch::__receiver(consume)?); Ok(()) }, events_tx.clone(), |message| message.values).unwrap();
         Batch { values: vec![1, 2, 3] }.post_to(&mut destination).unwrap();
         drop(destination);
         assert_eq!(events.try_recv().ok(), Some(vec![1, 2, 3]));
@@ -118,7 +118,7 @@ mod message_tests {
 mod named_output_tests {
     use super::*;
     use neocogi_com::{com_object, ComPtr, ComRef, NcStatus};
-    use neocogi_com_events::{NamedOutputs, bind_output};
+    use neocogi_com::events::{NamedOutputs, bind_output};
 
     /// An independent producer that emits only when explicitly requested.
     #[com_object(IProducer)]

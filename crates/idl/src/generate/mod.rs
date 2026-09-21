@@ -532,6 +532,9 @@ fn port_bindings(
                 }
             }
             /// One-shot installation operations for concrete output destinations.
+            // The explicit callback keeps payload ownership and fallibility visible;
+            // generated code should not invent a public alias for each output port.
+            #[allow(clippy::type_complexity, reason = "generated concrete output installation signatures")]
             pub trait #extension<M: ::neocogi_com::ThreadingModel = #mode> {
                 #(#accessors)*
             }

@@ -30,8 +30,8 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
-        "[package]\nname='message-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\nneocogi-com-events={{path={:?}}}\n",
-        root.join("crates/com/api"), root.join("crates/com/events"),
+        "[package]\nname='message-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+        root.join("crates/com/api"),
     )).unwrap();
     // The imported-output module has no local message declaration. Compile it too,
     // so allocation imports and cross-crate receiver paths are checked by rustc.

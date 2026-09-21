@@ -35,7 +35,7 @@ The COM-owned [IDL compiler](idl) generates checked COM posting for concrete
 `#[message]` structs/enums and receiver setters for `name: Message;` outputs.
 Producers own one optional typed receiver; consumers call
 `events::map(producer.changed(), sender, AppEvent::Changed)?` to install or replace it.
-[`neocogi-com-events`](events) connects standard channels to scoped and component dispatch.
+[`neocogi_com::events`](api/EVENTS.md) connects standard channels to scoped and component dispatch.
 There are no producer queues, output projections, subscription leases or registries.
 Generated receivers depend on COM alone; standard channel endpoints stay in the consuming binary.
 
@@ -199,11 +199,10 @@ cross-library marshalling format.
 
 - `neocogi-com-core`: raw ABI layouts and traits (`no_std` by default).
 - `neocogi-com-macros`: procedural macro implementation.
-- `neocogi-com`: user-facing facade and generated object helpers.
+- `neocogi-com`: object helpers, built-in event contracts/adapters, and optional
+  shared/static runtime clients.
 - `neocogi-com-runtime`: plugin catalog, loader, and persistence implementation;
   its Rust library target is `nc_com`.
-- `neocogi-com-events-contracts`: generated dispatch and named-output contracts.
-- `neocogi-com-events`: standard-channel mappings and component/scoped dispatch adapters.
 - `neocogi-idl` under `crates/com/idl`: IDL parser/resolver
   and Cargo build integration shared by contract crates and `cargo-neocogi`.
 
@@ -222,7 +221,7 @@ marketplace. Applications own installation, trust, signatures, and path policy.
 [`neocogi_com::persistence`](runtime/PERSISTENCE.md) provides runtime-owned opt-in semantic snapshots and explicit,
 context-bound factory reconstruction. The portable value codec remains separate
 from object activation; arbitrary private object memory is never serialized.
-[`events`](events/README.md) also supports named outputs on opaque components.
+[`events`](api/EVENTS.md) also supports named outputs on opaque components.
 Generated receiver adapters keep concrete payload types and direct delivery,
 while application code binds only to a public name and its message contract.
 
@@ -236,7 +235,6 @@ python3 crates/com/scripts/check-markdown-links.py
 RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --all-features \
   -p neocogi-com-core -p neocogi-com -p neocogi-com-macros \
   -p neocogi-com-runtime \
-  -p neocogi-com-events-contracts -p neocogi-com-events \
   -p neocogi-idl
 ```
 

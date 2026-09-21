@@ -2,7 +2,7 @@
 
 use neocogi_com::{binary, Runtime, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, guid_from_qualified_name};
 use neocogi_com::persistence::{FactoryRegistry, snapshot};
-use neocogi_com_events::{INamedOutputsAbi, bind_output};
+use neocogi_com::events::{INamedOutputsAbi, bind_output};
 use nc_example_com::{ExtentState, PERSISTENT_KIND};
 use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentChanged};
 

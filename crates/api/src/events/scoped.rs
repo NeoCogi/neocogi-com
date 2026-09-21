@@ -2,8 +2,8 @@
 
 use std::{cell::Cell, rc::Rc};
 use neocogi_com::{com_object, ComRef, NcStatus};
-use neocogi_com_events_contracts::{IEventDispatcher, IEventDispatcherAbi, IEventDispatcherInterfacesFor};
-use crate::EVENT_E_CLOSED;
+use neocogi_com::events::{IEventDispatcher, IEventDispatcherAbi, IEventDispatcherInterfacesFor};
+use super::EVENT_E_CLOSED;
 
 /// Exact invocation pair created together by one monomorphized Rust trampoline.
 #[derive(Clone, Copy)]

@@ -2,7 +2,7 @@
 
 use std::{collections::BTreeMap, sync::mpsc::Sender};
 use neocogi_com::{ComEvent, ComOutputInterface, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_INVALID_ARG, NC_E_NOT_FOUND};
-use neocogi_com_events_contracts::{INamedOutputs, INamedOutputsAbi};
+use neocogi_com::events::{INamedOutputs, INamedOutputsAbi};
 
 /// A single setup function; it is never invoked during event delivery.
 type Install = fn(ComRef<'_, IUnknown>, &str, ComRef<'_, IUnknown>) -> Result<(), NcStatus>;
@@ -74,7 +74,7 @@ fn install<T: ComOutputInterface>(source: ComRef<'_, IUnknown>, name: &str, rece
 }
 
 /// Optional standalone owner of a completed export table.
-#[neocogi_com::com_object(interfaces(neocogi_com_events_contracts::INamedOutputs))]
+#[neocogi_com::com_object(interfaces(neocogi_com::events::INamedOutputs))]
 struct OutputObject {
     /// Ordinary exclusive state used only during binding calls.
     outputs: NamedOutputs,
@@ -97,7 +97,7 @@ pub fn bind_output<E: ComEvent, M: 'static>(
     sender: Sender<M>,
     translate: impl FnMut(E) -> M + 'static,
 ) -> Result<(), NcStatus> {
-    crate::map(
+    super::map(
         |consume| {
             let receiver = E::make_receiver(consume)?;
             outputs

@@ -4,9 +4,10 @@
 The mapper immediately translates an owned event into an application message;
 the application consumes its standard channel later at a safe update boundary.
 
-This crate always enables `std` and COM macros. It provides Rust adapters and
-implements generated contracts from `neocogi-com-events-contracts`; it neither
-links `neocogi-com-runtime` by itself nor owns a process event loop. The retained
+`neocogi_com::events` is available with the facade's `macros` feature. Its
+`IEventDispatcher` and `INamedOutputs` contracts work without `std` or allocation.
+The channel, named-output, and dispatcher adapters additionally require `std`.
+Neither feature links `neocogi-com-runtime` or owns a process event loop. The retained
 UI runtime owns mounted-driver discovery, visit order, and the update budget.
 
 ## Mapping and dispatch
@@ -47,7 +48,7 @@ ordinary mutable table's `bind_com`, or publishes `NamedOutputs::into_com()`.
 Only this capability needs to reach application code. The application calls:
 
 ```rust,ignore
-neocogi_com_events::bind_output(
+neocogi_com::events::bind_output(
     component.as_com_ref(), "volume_changed", sender,
     |event: NumericChanged| AppEvent::Volume(event.value),
 )?;
@@ -75,3 +76,17 @@ channel queue blocks may allocate. This is not a zero-allocation queue API.
 
 This API supplies typed binding, not runtime discovery of arbitrary Rust types.
 New payload contracts still require a consumer compiled against that contract.
+
+## Contract ownership and build metadata
+
+The facade owns `idl/neocogi/com/events/events.ncidl` and generates its contracts
+into `OUT_DIR`. Its build script publishes the unchanged `neocogi.com.events`
+module with the explicit Rust location `neocogi_com::events`. Contract consumers
+import the same IDL module and depend directly on `neocogi-com` with `macros`;
+there is no separate events contract crate or event shared library.
+
+`EVENT_E_LIMIT` is -1007, `EVENT_E_CLOSED` is -1000, and `EVENT_E_BUSY` is -1001.
+They describe update limits and adapter lifetime/reentry conditions, respectively.
+The remaining `Rc<Cell<State>>` revokes a retained scoped dispatcher; the
+component's `Rc<RefCell<Owner>>` coordinates its independent COM identities.
+Channel queues require neither wrapper, and ordinary handlers use `&mut self`.

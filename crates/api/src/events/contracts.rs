@@ -1,9 +1,6 @@
 //! COM dispatcher contract shared by runtime and consumer implementations.
 //! Concrete output receivers are generated with their message declarations;
-//! this crate owns no queue, mapping or application behavior.
-
-#![no_std]
-#![deny(missing_docs)]
+//! this contract module owns no queue, mapping or application behavior.
 
 include!(concat!(env!("OUT_DIR"), "/neocogi_com_events.rs"));
 

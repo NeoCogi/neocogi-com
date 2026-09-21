@@ -127,26 +127,28 @@ unsafe extern "C" fn receive_snapshot(user_data: *mut c_void, bytes: *const u8, 
     }
     // SAFETY: Only snapshot_with_limits installs this callback/data pair.
     let destination = unsafe { &mut *user_data.cast::<SnapshotDestination>() };
+    // Model delivery as a one-way transition: an existing result is immutable.
     match destination.bytes {
-        Some(_) => return NC_E_INVALID_ARG,
-        None => {}
+        Some(_) => NC_E_INVALID_ARG,
+        None => {
+            if len > destination.maximum || len > isize::MAX as usize {
+                return NC_E_OUT_OF_RANGE;
+            }
+            let mut output = Vec::new();
+            if output.try_reserve_exact(len).is_err() {
+                return NC_E_OUT_OF_MEMORY;
+            }
+            let input = match len {
+                0 => &[],
+                // SAFETY: The runtime lends readable bytes and the length was checked.
+                _ => unsafe { slice::from_raw_parts(bytes, len) },
+            };
+            // Publish the completed copy only after all fallible allocation has finished.
+            output.extend_from_slice(input);
+            destination.bytes = Some(output);
+            NC_OK
+        }
     }
-    if len > destination.maximum || len > isize::MAX as usize {
-        return NC_E_OUT_OF_RANGE;
-    }
-    let mut output = Vec::new();
-    if output.try_reserve_exact(len).is_err() {
-        return NC_E_OUT_OF_MEMORY;
-    }
-    let input = match len {
-        0 => &[],
-        // SAFETY: The runtime lends readable bytes and the length was checked.
-        _ => unsafe { slice::from_raw_parts(bytes, len) },
-    };
-    // Publish the completed copy only after all fallible allocation has finished.
-    output.extend_from_slice(input);
-    destination.bytes = Some(output);
-    NC_OK
 }
 
 /// Checks mandatory ABI discovery before reading the size-prefixed operation table.

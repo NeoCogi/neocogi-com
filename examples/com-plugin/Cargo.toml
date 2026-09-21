@@ -23,8 +23,6 @@ host = ["neocogi-com/runtime"]
 monolith = ["host", "neocogi-com/static-runtime"]
 
 [dependencies]
-neocogi-com-events.workspace = true
-neocogi-com-events-contracts.workspace = true
 neocogi-com = { workspace = true, features = ["macros", "std"] }
 neocogi-idl-example-contracts = { path = "../../tools/idl/example-contracts" }
 
