@@ -41,6 +41,23 @@ pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Res
 /// The emitted source trait remains intact, while `methods` become vtable
 /// slots, typed descriptions, thunks, and safe client methods.
 pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: ItemTrait, methods: Vec<AbiMethod>) -> Result<proc_macro2::TokenStream> {
+    let InterfaceExpansion { abi, provider } = expand_interface_parts(args, input, methods)?;
+    Ok(quote! { #abi #provider })
+}
+
+/// Separately emitted contract and provider support for built-in interfaces.
+///
+/// Core owns the ABI and safe clients. The facade owns generated object thunks,
+/// whose borrow gates and concrete object storage must not enter the core ABI.
+pub(crate) struct InterfaceExpansion {
+    /// Traits, headers, clients and metadata, using only allocation-free core types.
+    pub(crate) abi: proc_macro2::TokenStream,
+    /// Concrete-provider projections and thunks, using facade object support.
+    pub(crate) provider: proc_macro2::TokenStream,
+}
+
+/// Lowers both halves once so checked-in built-ins and ordinary IDL stay identical.
+pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, methods: Vec<AbiMethod>) -> Result<InterfaceExpansion> {
     // Generated names are deliberately mechanical and predictable. A trait
     // named `IFoo` produces `IFooAbi`, `IFooVTable`, `IFooVtblFor<T>`, and
     // `IFooClient`.
@@ -475,7 +492,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
         quote! { #(#user_docs)* #(#generated_docs)* pub #body }
     });
 
-    Ok(quote! {
+    let abi = quote! {
         #input
 
         #signature_static
@@ -575,6 +592,8 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
                 #nc::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[#(&#required_abis::INTERFACE_CHAIN,)*]);
         }
 
+    };
+    let provider = quote! {
         // Header storage is recursive only over the statically known base
         // chain. It is embedded directly in the one object allocation.
         #[doc(hidden)]
@@ -690,7 +709,8 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
 
             #(#thunks)*
         }
-    })
+    };
+    Ok(InterfaceExpansion { abi, provider })
 }
 
 /// Checks names shared by ordinary interfaces and callable object projections.

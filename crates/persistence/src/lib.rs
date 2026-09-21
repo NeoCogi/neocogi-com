@@ -8,43 +8,9 @@
 
 use std::collections::BTreeMap;
 use neocogi_com::{
-    binary, ComDeserialize, ComSerialize, ComPtr, ComRef, IUnknown, NcGuid, NcStatus, INcBytesComPtrExt, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE,
+    binary, ComPtr, ComRef, IUnknown, NcGuid, NcStatus, INcBytesComPtrExt, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_RANGE,
 };
 pub use neocogi_com_persistence_contracts::*;
-
-/// One recursive initialization record; fields have a stable NCB-v1 order.
-#[derive(Clone, Debug, PartialEq, Eq, ComSerialize, ComDeserialize)]
-pub struct ObjectRecord {
-    /// Canonical UUID bytes identifying the construction recipe, not an instance.
-    pub type_id: [u8; 16],
-    /// Provider-owned persistent schema revision.
-    pub schema_version: u32,
-    /// Explicit provider initialization; normally another typed NCB value.
-    pub state: Vec<u8>,
-    /// Owned children in the order referenced by parent-specific edge settings.
-    pub children: Vec<ObjectRecord>,
-}
-
-/// Bounded tree policy, shared by snapshot and factory reconstruction.
-#[derive(Clone, Copy, Debug)]
-pub struct Limits {
-    /// Binary document policy, including maximum state bytes per sequence.
-    pub binary: binary::Limits,
-    /// Maximum object count in the complete owned tree.
-    pub objects: usize,
-    /// Maximum number of objects along one ownership path.
-    pub depth: usize,
-}
-impl Default for Limits {
-    /// Leaves ample room for ordinary forms while bounding recursive providers.
-    fn default() -> Self {
-        Self {
-            binary: binary::Limits::default(),
-            objects: 4096,
-            depth: 48,
-        }
-    }
-}
 
 /// Captures a complete tree with the default limits.
 pub fn snapshot(object: ComRef<'_, IUnknown>) -> Result<Vec<u8>, NcStatus> {

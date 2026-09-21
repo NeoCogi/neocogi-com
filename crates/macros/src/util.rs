@@ -17,6 +17,8 @@ use crate::args::InterfaceGuid;
 /// only type-checks and stores the resulting fixed-size array.
 pub(crate) fn abi_signature_static_tokens(bytes_ident: &Ident, assigned_signature: &LitByteStr, nc: &Path) -> proc_macro2::TokenStream {
     quote! {
+        /// Exact signature bytes assigned by the IDL compiler.
+        #[allow(non_upper_case_globals)]
         static #bytes_ident: [u8; #nc::NcAbiSignature::SHA256_LEN] = *#assigned_signature;
     }
 }

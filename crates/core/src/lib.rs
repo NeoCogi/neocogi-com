@@ -26,6 +26,8 @@
 #![deny(missing_docs)]
 
 mod abi;
+mod buffer;
+pub mod persistence;
 #[cfg(feature = "alloc")]
 pub mod binary;
 mod client;
@@ -51,6 +53,7 @@ pub use abi::{__NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain
 #[cfg(feature = "alloc")]
 pub use message::ComEvent;
 pub use message::{ComOutputInterface, ComMessage, NcMessage, NcMessageSlice};
+pub use buffer::{NcCopyFromBufferOffset, NcCopyToBufferOffset};
 pub use client::{ComClientInterface, NcClientPointer};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
 pub use encode::{ComSerialize, ComSerializer};

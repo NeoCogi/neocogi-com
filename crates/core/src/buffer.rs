@@ -10,7 +10,7 @@
 
 use core::slice;
 
-use neocogi_com_core::{NC_E_OUT_OF_RANGE, NC_E_POINTER, NcStatus};
+use crate::{NC_E_OUT_OF_RANGE, NC_E_POINTER, NcStatus};
 
 /// Call-scoped readable buffer parameter with an explicit source offset.
 ///

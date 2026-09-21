@@ -360,3 +360,6 @@ pub fn com_enum(attr: TokenStream, item: TokenStream) -> TokenStream {
         Err(err) => err.to_compile_error().into(),
     }
 }
+
+#[cfg(test)]
+mod persistence_codegen;

@@ -439,7 +439,7 @@ extern crate self as neocogi_com;
 #[doc(hidden)]
 pub extern crate alloc as __alloc;
 
-mod buffer;
+pub mod persistence;
 #[cfg(feature = "alloc")]
 mod data;
 mod macros;
@@ -450,7 +450,7 @@ mod runtime;
 #[cfg(all(test, feature = "std"))]
 mod tests;
 
-pub use buffer::{NcCopyFromBufferOffset, NcCopyToBufferOffset};
+pub use neocogi_com_core::{NcCopyFromBufferOffset, NcCopyToBufferOffset};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]

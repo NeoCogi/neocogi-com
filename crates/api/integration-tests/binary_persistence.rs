@@ -6,6 +6,42 @@ use neocogi_com::{
 };
 use std::collections::BTreeMap;
 
+/// The former persistence crate's derive-based schema, retained as a wire baseline.
+mod legacy {
+    use neocogi_com::{ComDeserialize, ComSerialize};
+
+    /// Preserve the old record name as well as its exact field order and types.
+    #[derive(ComSerialize, ComDeserialize)]
+    pub struct ObjectRecord {
+        /// Canonical recipe UUID bytes.
+        pub type_id: [u8; 16],
+        /// Provider initialization revision.
+        pub schema_version: u32,
+        /// Opaque provider initialization payload.
+        pub state: Vec<u8>,
+        /// Recursively owned initialization records.
+        pub children: Vec<ObjectRecord>,
+    }
+}
+
+/// Moving the schema into core must leave existing nested NCB documents readable.
+#[test]
+fn builtin_object_records_preserve_the_existing_wire_format() {
+    let previous = legacy::ObjectRecord {
+        type_id: [7; 16], schema_version: 9, state: vec![1, 3, 5],
+        children: vec![legacy::ObjectRecord {
+            type_id: [8; 16], schema_version: 2, state: vec![4, 6], children: vec![],
+        }],
+    };
+    // Decode bytes emitted by the old derive into the new core-owned schema,
+    // then require the encoder to produce exactly the same bytes.
+    let original = binary::to_vec(&previous).unwrap();
+    let current: neocogi_com::persistence::ObjectRecord = binary::from_slice(&original).unwrap();
+    assert_eq!(current.type_id, [7; 16]);
+    assert_eq!(current.children[0].state, [4, 6]);
+    assert_eq!(binary::to_vec(&current).unwrap(), original);
+}
+
 /// Representative recursive construction data, independent from live objects.
 #[derive(Debug, PartialEq, ComSerialize, ComDeserialize)]
 enum Node {

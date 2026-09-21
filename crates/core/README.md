@@ -71,3 +71,13 @@ Owned sequence decoding caps initial reservation at 4 KiB regardless of the
 advertised element count or Rust element size. Capacity grows only as typed
 elements are successfully decoded, so malformed counts cannot force a large
 eager allocation before the first element is checked.
+
+Built-in persistence contracts live in `persistence`: provider traits, interface
+headers, clients and metadata require neither allocation nor a runtime. With
+`alloc`, the module also provides the portable `ObjectRecord` schema and limits.
+The COM facade re-exports these contracts and supplies concrete-provider thunks.
+
+The canonical IDL is `idl/neocogi/com/persistence/objects.ncidl`. Its built-in
+bindings are checked in because core cannot depend on its own IDL compiler.
+Verify them with `cargo test -p neocogi-com-macros persistence_bindings_match_idl`;
+set `NC_UPDATE_PERSISTENCE_BINDINGS=1` on that command to regenerate both halves.
