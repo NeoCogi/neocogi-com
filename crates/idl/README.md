@@ -33,7 +33,7 @@ Inherited interfaces retain their own output contracts; the attribute groups
 only outputs declared on the annotated interface.
 
 `interface` and `factory` share the callable model. `#[message]` marks concrete
-structs/enums for checked COM posting. A named output such as `changed: TextChanged;`
+structs/enums for checked COM posting. On an unannotated producer, a named output such as `changed: TextChanged;`
 generates a one-shot installation closure on `ComPtr` and `ComRef`. Producers
 implement the ordinary generated receiver setter and store one optional concrete
 COM receiver. `events::bind(output(), sender, mapper)?` replaces its destination and returns

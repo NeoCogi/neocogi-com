@@ -82,8 +82,14 @@ implementation objects. `#[version(N)]` derives an IID; `#[id(N, "UUID")]` pins 
 
 The first required interface is the physical base; later requirements are
 sibling projections. The required projection graph must be acyclic. A factory
-may serve as the runtime's zero-argument construction root. Named output bindings
-lower to ordinary mutable receiver setters. Each receiver has one `post` operation
+may serve as the runtime's zero-argument construction root. Unannotated output
+bindings lower to ordinary mutable receiver setters. A thread-local interface
+marked `#[observer]` instead synthesizes one concrete observer with a method for
+each declared output and no setters on the producer. Factories may explicitly
+borrow that observer with `Option<&ProducerObserver>`. Optional borrowed COM
+inputs use passing tag `NC_ABI_PASSING_OPTIONAL_COM_REF` (`0x08`): null means
+absence, and a present pointer must satisfy the same exact interface identity
+and borrowing contract as an ordinary `ComRef`. Each receiver has one `post` operation
 accepting `NcMessage<T>`. Passing tag `NC_ABI_PASSING_MESSAGE` (`0x07`) describes a
 borrowed pointer to the exact message C record/union, identified by its aggregate
 signature. Decoding checks the active tag and acquires owned fields before mapping.

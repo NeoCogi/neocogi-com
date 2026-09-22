@@ -33,11 +33,13 @@ boundaries, and [ABI v7](docs/abi-v7.md) for the binary model.
 
 The COM-owned [IDL compiler](idl) generates checked COM posting for concrete
 `#[message]` structs/enums and receiver setters for `name: Message;` outputs.
-Producers own one optional typed receiver; consumers call
+Unannotated producers own one optional typed receiver per output; consumers use
 `events::bind(producer.changed(), sender, AppEvent::Changed)?` to install or replace it.
-[`neocogi_com::events`](api/EVENTS.md) connects standard channels to scoped and component dispatch.
+[`neocogi_com::events`](api/EVENTS.md) connects standard channels to ordinary output receivers and named component exports.
 There are no producer queues, output projections, subscription leases or registries.
-Generated receivers depend on COM alone; standard channel endpoints stay in the consuming binary.
+`#[observer]` interfaces instead generate one typed observer covering all declared
+outputs, suitable for a constructor argument; those producers have no output setters.
+Generated receivers and observers depend on COM alone; standard channel endpoints stay in the consuming binary.
 
 Contracts use `struct`, `enum`, `bitenum`, `interface`, and `factory`. All declarations
 and members are public by definition:

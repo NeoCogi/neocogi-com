@@ -1,5 +1,11 @@
 # Typed COM event bindings
 
+This guide describes ordinary, unannotated IDL outputs and named component
+exports. `#[observer]` producers instead generate a single concrete observer
+for use by constructor APIs; they have no output setters. The UI facade supplies
+channel shims for those observers. See the
+[constructor observer guide](../../../docs/CONSTRUCTION_OBSERVERS.md).
+
 `bind(producer.changed(), sender, mapper)` installs a concrete generated receiver.
 The mapper immediately translates an owned event into the receiving binary's
 private message and sends it through a standard Rust channel. The owner handles
@@ -34,11 +40,15 @@ for construction, nested ownership, scheduling and retirement.
 
 ## Experimental named component outputs
 
-A provider owns a `NamedOutputs` table and registers private sources with
+For an unannotated producer, a provider owns a `NamedOutputs` table and registers private sources with
 `export("volume_changed", slider, "changed")`. Generated `ComOutputInterface`
 implementations validate the declared port and know its exact receiver contract.
 Register an inherited output through the interface that declares that output.
 Public names are component contracts, independent from widget layout paths.
+For `#[observer]` producers, register the generated `exported_observer()`'s
+`INamedOutputs` projection with `export_component` and supply its observer
+projection to the actual factory. Named binding changes downstream fields on
+that fixed observer, never a setter on the widget.
 
 The component implements `INamedOutputs::bind_output` by delegating to the
 ordinary mutable table's `bind_com`, or publishes `NamedOutputs::into_com()`.
