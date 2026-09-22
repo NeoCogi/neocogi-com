@@ -15,6 +15,14 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
         #[version(1)] #[message] struct Batch { values: &[u32] }
         #[version(1)] interface IProducer { completed: Completion; fn emit(&mut self) -> Result<()>; }
         #[version(1)] interface IMessageInput { fn accept(&mut self, value: &Completion) -> Result<()>; }
+        #[version(1)] #[observer] interface Editor {
+            /// Captured edit, before any submission from the same input.
+            changed: TextChanged;
+            /// Captured completion through the same observer identity.
+            completed: Completion;
+            fn emit(&mut self) -> Result<()>;
+        }
+        #[version(1)] factory Editors { fn create(&self, observer: Option<&EditorObserver>) -> Result<Editor>; }
     "#;
     let consumer = parse_module(
         Path::new("example/consumer.ncidl"),
@@ -67,6 +75,20 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+/// Generated names are real declarations and cannot shadow authored contracts.
+#[test]
+fn observer_contracts_validate_names_and_policy() {
+    for invalid in [
+        "#[version(1)] #[observer] interface Empty {}",
+        "#[version(1)] #[observer] #[threading(shared)] interface Shared { changed: TextChanged; }",
+        "#[version(1)] #[observer] interface Editor { changed: TextChanged; } #[version(1)] interface EditorObserver {}",
+        "#[version(1)] interface EditorObserver {} #[version(1)] #[observer] interface Editor { changed: TextChanged; }",
+    ] {
+        let source = format!("#[version(1)] #[message] struct TextChanged {{ text: String }} {invalid}");
+        assert!(parse_module(Path::new("example/observers.ncidl"), &source).is_err(), "{invalid}");
+    }
 }
 
 /// Ownership-bearing messages cannot silently become copied fields or method values.

@@ -185,6 +185,8 @@ pub enum VariantFields {
 /// are sibling projections guaranteed by QueryInterface on the same object.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Interface {
+    /// Outputs describe one constructor-supplied observer instead of mutable setters.
+    pub observer: bool,
     /// Base followed by required sibling interfaces, in declared query order.
     pub bases: Vec<NamedType>,
     /// Ordinary methods and named output getters in normative vtable order.

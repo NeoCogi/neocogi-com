@@ -188,3 +188,69 @@ mod named_output_tests {
         source.emit().unwrap();
     }
 }
+#[cfg(test)]
+mod observer_tests {
+    use super::*;
+    use neocogi_com::{com_object, ComPtr, ComRef, NcStatus};
+
+    /// Producer retains exactly the optional destination supplied by its factory.
+    #[com_object(Editor)]
+    struct EditorValue {
+        /// One destination handles both outputs for the producer's whole lifetime.
+        observer: Option<ComPtr<EditorObserverAbi>>,
+    }
+    impl Editor for EditorValue {
+        /// Two facts from one update preserve their order across the COM boundary.
+        fn emit(&mut self) -> Result<(), NcStatus> {
+            EditorEvent::Changed(TextChanged { text: "hello".into(), cursor: 5 }).post_to(&mut self.observer)?;
+            EditorEvent::Completed(Completion::Cancelled).post_to(&mut self.observer)
+        }
+    }
+
+    /// Construction itself is a COM call, including the nullable observer input.
+    #[com_object(Editors)]
+    struct EditorFactory;
+    impl Editors for EditorFactory {
+        /// Retains the borrowed observer before publishing the initialized object.
+        fn create(&self, observer: Option<ComRef<'_, EditorObserverAbi>>) -> Result<ComPtr<EditorAbi>, NcStatus> {
+            EditorValue::from_value(EditorValue { observer: observer.map(|value| value.add_ref()) }).query()
+        }
+    }
+
+    /// Constructor retention, ordering, absence and capture release use actual thunks.
+    #[test]
+    fn one_observer_owns_both_outputs_until_the_producer_drops() {
+        let factory: ComPtr<EditorsAbi> = EditorFactory::from_value(EditorFactory).query().unwrap();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let observer = EditorEvent::observer(move |event| {
+            let _ = sender.send(event);
+            Ok(())
+        }).unwrap();
+        let mut editor = factory.create(Some(observer.as_com_ref())).unwrap();
+        drop(observer);
+        editor.emit().unwrap();
+        assert!(matches!(receiver.try_recv().unwrap(), EditorEvent::Changed(TextChanged { text, cursor: 5 }) if text == "hello"));
+        assert!(matches!(receiver.try_recv().unwrap(), EditorEvent::Completed(Completion::Cancelled)));
+        drop(editor);
+        assert!(matches!(receiver.try_recv(), Err(std::sync::mpsc::TryRecvError::Disconnected)));
+        // No dummy observer is needed when the destination is absent.
+        factory.create(None).unwrap().emit().unwrap();
+    }
+
+    /// A malformed wire message never invokes the generated local callback.
+    #[test]
+    fn observer_checks_payload_before_mapping() {
+        use neocogi_com::ComMessage;
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let mut observer = EditorEvent::observer(move |event| { sender.send(event).unwrap(); Ok(()) }).unwrap();
+        let value = TextChanged { text: String::new(), cursor: 0 };
+        let mut wire = value.encode();
+        let invalid_utf8 = [0xff];
+        wire.payload.case_0.text = neocogi_com::NcMessageSlice::new(&invalid_utf8);
+        // SAFETY: The wire and its backing bytes remain live for the call. The
+        // deliberately invalid text tests the boundary's checked UTF-8 decoder.
+        let input = unsafe { neocogi_com::NcMessage::from_raw(&wire) }.unwrap();
+        assert_eq!(observer.changed(input), Err(neocogi_com::NC_E_INVALID_ARG));
+        assert!(receiver.try_recv().is_err());
+    }
+}

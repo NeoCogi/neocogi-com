@@ -351,7 +351,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     };
                 })
             }
-            AbiArgKind::ComRef { interface_ty, mode_ty } => {
+            AbiArgKind::ComRef { interface_ty, mode_ty, optional } => {
                 let ident = &arg.ident;
                 let interface_ty = interface_ty.as_ref();
                 let mode_ty = mode_ty
@@ -361,8 +361,8 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                         quote! { #ty }
                     })
                     .unwrap_or_else(|| quote! { #nc::ThreadLocal });
-                Some(quote! {
-                    let #ident = match unsafe {
+                let checked = quote! {
+                    match unsafe {
                         // SAFETY: The raw thunk checks the call-scoped pointer
                         // against the callee's expected full interface identity.
                         // Null and mismatched pointers fail before dispatch;
@@ -372,7 +372,15 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     } {
                         Ok(value) => value,
                         Err(status) => return status,
-                    };
+                    }
+                };
+                Some(match optional {
+                    true => quote! {
+                        // Absence needs no validation; present capabilities use
+                        // exactly the same identity checks as required inputs.
+                        let #ident = if #ident.is_null() { None } else { Some(#checked) };
+                    },
+                    false => quote! { let #ident = #checked; },
                 })
             }
         });
@@ -904,10 +912,11 @@ fn arg_passing_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_ma
         AbiArgKind::CopyToBufferOffset { .. } => quote! {
             #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::CopyToBufferOffset)
         },
-        AbiArgKind::ComRef { mode_ty, .. } => {
+        AbiArgKind::ComRef { mode_ty, optional, .. } => {
             let mode = threading_mode_expr(nc, mode_ty.as_deref());
+            let passing = if *optional { quote! { OptionalComRef } } else { quote! { ComRef } };
             quote! {
-                #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::ComRef {
+                #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::#passing {
                     mode: #mode,
                 })
             }
@@ -1049,7 +1058,8 @@ fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
     match &arg.kind {
         AbiArgKind::Message { .. } => vec![quote! { #ident.as_ptr() }],
         AbiArgKind::Plain => vec![quote! { #ident }],
-        AbiArgKind::ComRef { .. } => vec![quote! { #ident.as_mut_ptr() }],
+        AbiArgKind::ComRef { optional: true, .. } => vec![quote! { #ident.map_or(::core::ptr::null_mut(), |value| value.as_mut_ptr()) }],
+        AbiArgKind::ComRef { optional: false, .. } => vec![quote! { #ident.as_mut_ptr() }],
         AbiArgKind::CopyFromBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.__nc_len_u64()? }, quote! { #ident.as_ptr() }],
         AbiArgKind::CopyToBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.__nc_len_u64()? }, quote! { #ident.__nc_mut_ptr() }],
     }

@@ -11,6 +11,7 @@ use quote::quote;
 
 #[path = "message.rs"]
 mod message;
+mod observer;
 mod paths;
 pub use paths::RustModulePaths;
 
@@ -304,10 +305,14 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
         }
         DeclarationKind::Interface(interface) => {
             let bases = bases(graph, module, &interface.bases)?;
-            let methods = callable_methods(graph, module, &interface.callables)?;
+            let callables = interface.callables.iter().filter(|item| !interface.observer || matches!(item, Callable::Method(_))).cloned().collect::<Vec<_>>();
+            let methods = callable_methods(graph, module, &callables)?;
             let threading = threading_ident(interface.threading);
             let factory = matches!(interface.role, InterfaceRole::Factory).then(|| quote! { factory, });
-            let ports = port_bindings(graph, module, declaration, &interface.callables, interface.threading)?;
+            let ports = match interface.observer {
+                true => vec![observer::generate(graph, module, declaration, &interface.callables)?],
+                false => port_bindings(graph, module, declaration, &interface.callables, interface.threading)?,
+            };
             format_rust(quote! {
                 #[::neocogi_com::com_interface(
                     assigned_guid = #id,
@@ -613,9 +618,16 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
             let element = value_type(graph, module, element)?;
             Ok(quote! { ::neocogi_com::NcCopyToBufferOffset<'_, #element> })
         }
-        AbiType::Option(_) => Err(GenerateError::new(
-            "Option<T> parameter generation requires the dedicated optional-value ABI layout",
-        )),
+        AbiType::Option(value) => match value.as_ref() {
+            AbiType::Borrowed(inner) => match inner.as_ref() {
+                AbiType::Named(name) => {
+                    let reference = object_reference_type(graph, module, name, false)?;
+                    Ok(quote! { Option<#reference> })
+                }
+                _ => Err(GenerateError::new("optional inputs require a borrowed interface")),
+            },
+            _ => Err(GenerateError::new("optional inputs require a borrowed interface")),
+        },
         AbiType::Unit | AbiType::String => Err(GenerateError::new("unit and owned String are not valid method inputs")),
     }
 }

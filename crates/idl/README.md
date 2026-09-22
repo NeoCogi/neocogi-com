@@ -17,6 +17,21 @@ The single `neocogi-idl` package separates responsibilities into Rust modules:
   and imported contracts. [examples/com-plugin](../../../examples/com-plugin)
   demonstrates their dynamic and monolithic use.
 
+`#[observer]` on a thread-local interface groups its declared outputs into one
+constructor-supplied destination. For `Textbox`, the compiler derives
+`TextboxObserver` (one COM method per output) and `TextboxEvent` (an owned Rust
+enum). `TextboxEvent::observer(callback)` stores the callback inline in one COM
+allocation. It has no channel dependency; a Rust UI shim can capture an mpsc
+sender and map snapshots into the owner's message type.
+
+Factories declare `observer: Option<&TextboxObserver>` explicitly. `None` crosses
+the ABI as null and allocates no observer. A present pointer undergoes the same
+identity checks as a required borrowed interface, and the producer retains it
+before publishing the widget. Observer producers have no generated output
+setters. Their observer and factory signatures participate in module identity.
+Inherited interfaces retain their own output contracts; the attribute groups
+only outputs declared on the annotated interface.
+
 `interface` and `factory` share the callable model. `#[message]` marks concrete
 structs/enums for checked COM posting. A named output such as `changed: TextChanged;`
 generates a one-shot installation closure on `ComPtr` and `ComRef`. Producers

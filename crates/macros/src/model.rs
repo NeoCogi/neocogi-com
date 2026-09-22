@@ -54,6 +54,8 @@ pub(crate) enum AbiArgKind {
     CopyToBufferOffset { element_ty: Box<Type> },
     /// Borrowed interface lowered to its raw ABI pointer.
     ComRef {
+        /// Whether a null pointer denotes an explicitly absent capability.
+        optional: bool,
         /// Generated ABI interface type borrowed by the parameter.
         interface_ty: Box<Type>,
         /// Optional explicit `ThreadLocal` or `ThreadSafe` marker.

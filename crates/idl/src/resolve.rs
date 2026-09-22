@@ -1298,7 +1298,9 @@ fn encode_declaration(
             }
         }
         DeclarationKind::Interface(interface) => {
-            encoder.tag(3);
+            // Observer outputs no longer occupy setter slots on the producer.
+            // The separate tag records that ABI change even at the same version.
+            encoder.tag(if interface.observer { 9 } else { 3 });
             // Roles affect construction and delivery semantics even when slots
             // match. Include them alongside threading and required projections.
             encoder.tag(match interface.role {

@@ -234,6 +234,23 @@ fn parse_result_ok_type(method: &TraitItemFn) -> Result<Type> {
 
 /// Selects the raw parameter type and ownership rule for one Rust argument.
 fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
+    // Optional borrowed interfaces use null for absence. Other optional values
+    // still require their own value layout and must not fall through this rule.
+    if let Some(args) = type_generic_args_named(&ty, "Option") {
+        if args.args.len() == 1 {
+            if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
+                if let Some(com_ref) = parse_com_ref_type(inner)? {
+                    let abi_ty = raw_interface_pointer_ty(&com_ref.interface_ty);
+                    return Ok((ty, abi_ty, AbiArgKind::ComRef {
+                        optional: true,
+                        interface_ty: Box::new(com_ref.interface_ty),
+                        mode_ty: com_ref.mode_ty.map(Box::new),
+                    }));
+                }
+            }
+        }
+        return Err(syn::Error::new_spanned(ty, "optional COM inputs must be Option<ComRef<'_, InterfaceAbi>>"));
+    }
     // Recognize ownership-bearing wrappers before the plain-value fallback.
     // Ordering matters because raw ABI pointer types alone cannot communicate
     // whether an interface or buffer is borrowed, mutable, or transferred.
@@ -264,6 +281,7 @@ fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
             ty,
             abi_ty,
             AbiArgKind::ComRef {
+                optional: false,
                 interface_ty: Box::new(com_ref.interface_ty),
                 mode_ty: com_ref.mode_ty.map(Box::new),
             },

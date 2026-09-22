@@ -169,9 +169,9 @@ fn write_passing_type(out: &mut String, passing: NcAbiPassingDescriptor, ty: &Nc
             write_type(out, ty)?;
             out.push('>');
         }
-        NC_ABI_PASSING_COM_REF => {
+        NC_ABI_PASSING_COM_REF | crate::NC_ABI_PASSING_OPTIONAL_COM_REF => {
             validate_interface_type(ty)?;
-            out.push_str("com_ref<");
+            out.push_str(if passing.tag == NC_ABI_PASSING_COM_REF { "com_ref<" } else { "optional_com_ref<" });
             write_threading(out, passing.threading)?;
             out.push_str(", ");
             write_type(out, ty)?;
