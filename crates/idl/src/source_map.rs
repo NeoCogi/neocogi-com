@@ -35,7 +35,7 @@ impl SourceMapRange {
 pub struct SourceMapOrigin {
     /// Normalized path relative to the map's IDL source root.
     pub path: String,
-    /// Exact parser range of the originating identifier or import statement.
+    /// Exact parser range of the originating identifier or import keyword.
     /// Derived helpers inherit their nearest authored declaration/member origin.
     pub range: SourceMapRange,
 }
@@ -94,7 +94,7 @@ pub struct RustSourceMap {
     pub module: String,
     /// Name of the generated Rust file, relative to the map's directory.
     pub generated_file: String,
-    /// IDL root relative to the map directory when Cargo supplies filesystem context.
+    /// IDL root relative to the map directory, or absolute across filesystem roots.
     /// Pure in-memory generation leaves this unset for its caller to resolve.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_root: Option<String>,

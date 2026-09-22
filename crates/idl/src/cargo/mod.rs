@@ -9,9 +9,10 @@ use std::{
 use crate::resolve_modules;
 use serde::{Deserialize, Serialize};
 
-use crate::generate::{RustModulePaths, generate_rust_with_paths};
+use crate::generate::{RustModulePaths, generate_rust_with_paths_and_source_map};
 
 mod source;
+mod source_map;
 pub use source::ModuleSources;
 
 /// Declarative build request for exactly one contract module crate.
@@ -91,7 +92,10 @@ impl Module {
                 sources
             }
         };
-        let own_record = GraphModule { sources: own_sources, rust_path: self.rust_path };
+        let own_record = GraphModule {
+            sources: own_sources,
+            rust_path: self.rust_path,
+        };
 
         let own_module = own_record.sources.parse()?;
         let module_name = own_module.name.to_string();
@@ -163,11 +167,19 @@ impl Module {
                 paths.insert(name, path).map_err(|source| BuildError::Idl(source.to_string()))?;
             }
         }
-        let bindings = generate_rust_with_paths(&resolved, &own_module.name.to_string(), &paths)
-            .map_err(|source| BuildError::Idl(source.to_string()))?;
+        let mut bindings =
+            generate_rust_with_paths_and_source_map(&resolved, &own_module.name.to_string(), &paths).map_err(|source| BuildError::Idl(source.to_string()))?;
         let stem = own_module.name.segments().join("_");
         let bindings_path = output_dir.join(format!("{stem}.rs"));
-        write_changed(&bindings_path, bindings.as_bytes())?;
+        let source_map_path = output_dir.join(format!("{stem}.rs.map"));
+        bindings.source_map.source_root = Some(source_map::relative_source_root(&output_dir, &source_root)?);
+        let map_bytes = serde_json::to_vec_pretty(&bindings.source_map).map_err(|source_error| BuildError::Json {
+            operation: "encode Rust source map",
+            path: source_map_path.clone(),
+            source: source_error,
+        })?;
+        write_changed(&bindings_path, bindings.source.as_bytes())?;
+        write_changed(&source_map_path, &map_bytes)?;
 
         let graph = GraphRecord { schema: GRAPH_SCHEMA, modules: records };
         let graph_bytes = serde_json::to_vec_pretty(&graph).map_err(|source_error| BuildError::Json {
@@ -179,6 +191,7 @@ impl Module {
         write_changed(&graph_path, &graph_bytes)?;
 
         println!("cargo::metadata=idl_graph={}", graph_path.display());
+        println!("cargo::metadata=idl_source_map={}", source_map_path.display());
         println!("cargo::metadata=module_name={}", own_module.name);
         println!("cargo::metadata=module_id={}", resolved_module.module_id);
         println!("cargo::metadata=abi_fingerprint={}", resolved_module.fingerprint_hex());
@@ -188,6 +201,7 @@ impl Module {
             module_id: resolved_module.module_id,
             abi_fingerprint: resolved_module.abi_fingerprint,
             bindings: bindings_path,
+            source_map: source_map_path,
             dependency_graph: graph_path,
         })
     }
@@ -204,6 +218,8 @@ pub struct BuildOutput {
     pub abi_fingerprint: [u8; 32],
     /// Generated Rust source included by the module crate.
     pub bindings: PathBuf,
+    /// Readable provenance sidecar for exactly the generated bindings.
+    pub source_map: PathBuf,
     /// Machine-readable source graph exported through Cargo metadata.
     pub dependency_graph: PathBuf,
 }
@@ -313,7 +329,9 @@ struct GraphModule {
 fn merge_records(target: &mut BTreeMap<String, GraphModule>, incoming: BTreeMap<String, GraphModule>) -> Result<(), BuildError> {
     for (name, record) in incoming {
         if target.get(&name).is_some_and(|existing| existing != &record) {
-            return Err(BuildError::Idl(format!("dependency graphs provide conflicting sources or Rust locations for module {name:?}")));
+            return Err(BuildError::Idl(format!(
+                "dependency graphs provide conflicting sources or Rust locations for module {name:?}"
+            )));
         }
         target.entry(name).or_insert(record);
     }
