@@ -22,7 +22,7 @@ factory ExampleFactory {
 ```rust,ignore
 neocogi_com::factory_plugin! {
     name = "nc.examples.factory_plugin_component",
-    version = "1.0.0",
+    version = "0.0.0",
     factory = DynamicExampleFactory,
 }
 

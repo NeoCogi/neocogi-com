@@ -58,7 +58,7 @@ do not change signatures; member order inside a declaration does.
 ```toml
 [package]
 name = "example-widgets-contracts"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2024"
 links = "nc_contract_example_widgets"
 
@@ -67,10 +67,10 @@ module = "example.widgets"
 source = "idl/example/widgets"
 
 [dependencies]
-neocogi-com = { version = "0.1.0", default-features = false, features = ["macros"] }
+neocogi-com = { version = "0.0.0", default-features = false, features = ["macros"] }
 
 [build-dependencies]
-neocogi-idl = "0.1.0"
+neocogi-idl = "0.0.0"
 ```
 
 The version selectors assume published matching packages; inside this checkout

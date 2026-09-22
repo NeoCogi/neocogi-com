@@ -2,7 +2,7 @@
 # Installed executable names are declared explicitly below.
 autobins = false
 name = "neocogi-example-com-plugin"
-version = "0.1.0"
+version = "0.0.0"
 edition.workspace = true
 license.workspace = true
 publish = false

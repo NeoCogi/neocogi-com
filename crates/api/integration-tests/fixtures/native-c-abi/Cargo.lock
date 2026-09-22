@@ -33,7 +33,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "neocogi-com-core",
  "neocogi-com-macros",
@@ -42,11 +42,11 @@ dependencies = [
 
 [[package]]
 name = "neocogi-com-core"
-version = "0.1.0"
+version = "0.0.0"
 
 [[package]]
 name = "neocogi-com-macros"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "neocogi-com-core",
  "proc-macro2",
@@ -56,7 +56,7 @@ dependencies = [
 
 [[package]]
 name = "neocogi-idl"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "neocogi-com-core",
  "prettyplease",
