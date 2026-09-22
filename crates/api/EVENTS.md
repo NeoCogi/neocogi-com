@@ -18,12 +18,6 @@ UI runtime owns mounted-driver discovery, visit order, and the update budget.
   Mapping executes synchronously during the producer's COM call. If the
   channel is disconnected, mapping still runs and the undeliverable value is
   dropped; delivery reports success to the producer.
-- `component_dispatcher` creates a separate `IEventDispatcher` over a weak
-  reference to `Rc<RefCell<Owner>>`. It borrows the owner mutably before dequeuing
-  and processes at most one message. `EVENT_E_BUSY` leaves queued work intact;
-  an empty/disconnected queue or dropped owner returns `Ok(false)`. A handler
-  error propagates after that message has been removed. This shared owner is
-  needed because controller and mounted driver are distinct COM identities.
 - The hidden framework helper `with_dispatcher` lends a stack callback through
   COM for one synchronous scope. It revokes the callback on return or unwind;
   retained projections subsequently return `EVENT_E_CLOSED`. Generated mutable
@@ -87,6 +81,6 @@ there is no separate events contract crate or event shared library.
 
 `EVENT_E_LIMIT` is -1007, `EVENT_E_CLOSED` is -1000, and `EVENT_E_BUSY` is -1001.
 They describe update limits and adapter lifetime/reentry conditions, respectively.
-The remaining `Rc<Cell<State>>` revokes a retained scoped dispatcher; the
-component's `Rc<RefCell<Owner>>` coordinates its independent COM identities.
-Channel queues require neither wrapper, and ordinary handlers use `&mut self`.
+The remaining scoped dispatcher adapter is temporary during application migration.
+Persistent UI controllers live in the UI facade and use its `IEventOwner`
+contract; COM binding itself does not own application or component state.

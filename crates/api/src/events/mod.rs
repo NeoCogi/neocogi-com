@@ -19,10 +19,6 @@ mod mapping;
 #[cfg(feature = "std")]
 pub use mapping::bind;
 #[cfg(feature = "std")]
-mod component;
-#[cfg(feature = "std")]
-pub use component::component_dispatcher;
-#[cfg(feature = "std")]
 mod scoped;
 #[cfg(feature = "std")]
 pub use scoped::with_dispatcher;
