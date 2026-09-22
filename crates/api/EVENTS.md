@@ -1,33 +1,36 @@
-# Typed COM event mappings
+# Typed COM event bindings
 
 `bind(producer.changed(), sender, mapper)` installs a concrete generated receiver.
-The mapper immediately translates an owned event into an application message;
-the application consumes its standard channel later at a safe update boundary.
+The mapper immediately translates an owned event into the receiving binary's
+private message and sends it through a standard Rust channel. The owner handles
+that message later, after the producer and UI traversal release their borrows.
 
-`neocogi_com::events` is available with the facade's `macros` feature. Its
-`IEventDispatcher` and `INamedOutputs` contracts work without `std` or allocation.
-The channel, named-output, and dispatcher adapters additionally require `std`.
-Neither feature links `neocogi-com-runtime` or owns a process event loop. The retained
-UI runtime owns mounted-driver discovery, visit order, and the update budget.
+`neocogi_com::events` is available with the facade's `macros` feature.
+`INamedOutputs` needs neither allocation nor `std`. The channel and named-output
+adapters additionally require `std`. These features do not link the COM process
+runtime or create an event loop. UI scheduling and persistent controller ownership
+belong to `neocogi_ui::events` and the UI core `IEventOwner` contract.
 
-## Mapping and dispatch
+## Binding ownership
 
-- `bind` takes the output's generated installation closure, a
-  `std::sync::mpsc::Sender<Message>`, and a `FnMut(Event) -> Message` mapper.
-  Installing returns `Result<(), NcStatus>`; there is no subscription handle.
-  Mapping executes synchronously during the producer's COM call. If the
-  channel is disconnected, mapping still runs and the undeliverable value is
-  dropped; delivery reports success to the producer.
-- The hidden framework helper `with_dispatcher` lends a stack callback through
-  COM for one synchronous scope. It revokes the callback on return or unwind;
-  retained projections subsequently return `EVENT_E_CLOSED`. Generated mutable
-  COM call gating rejects recursive access with `NC_E_BUSY` before reborrowing
-  the callback. The callback must not panic through the C dispatch boundary.
+`bind` accepts the output's generated installation closure, a
+`std::sync::mpsc::Sender<Message>`, and a `FnMut(Event) -> Message` mapper. It
+returns `Result<(), NcStatus>`; there is no subscription handle. Setup validates
+the concrete output contract once. The producer retains the generated receiver,
+which owns the mapper and sender. Mapping executes inside the producer's COM call
+and should only translate values or attach routing information.
 
-`EVENT_E_LIMIT` is a re-export from the event contracts, used by the UI runtime
-when its update budget is exhausted. The COM process runtime does not schedule
-these dispatchers. See the [UI event guide](../../ui/runtime/docs/EVENTS.md) for
-application update and mounted-component integration.
+A replacement binding affects future emissions. Queued messages remain in their
+original receiver. Producer closure releases its adapter without retracting
+posted facts. If the channel is disconnected, a valid post still runs its mapper
+and discards the undeliverable value, reporting success to the producer.
+Decoding, validation and installation failures propagate; committed producer
+state does not roll back. Captures must be owned or otherwise `'static`.
+
+Application and component behavior uses an owned `Controller<Model>` in the UI
+facade. There is no COM-facade dispatcher, borrowed callback bridge, weak model
+driver, or revocation state. See the [UI event guide](../../ui/runtime/docs/EVENTS.md)
+for construction, nested ownership, scheduling and retirement.
 
 ## Experimental named component outputs
 
@@ -73,14 +76,9 @@ New payload contracts still require a consumer compiled against that contract.
 
 ## Contract ownership and build metadata
 
-The facade owns `idl/neocogi/com/events/events.ncidl` and generates its contracts
-into `OUT_DIR`. Its build script publishes the unchanged `neocogi.com.events`
-module with the explicit Rust location `neocogi_com::events`. Contract consumers
-import the same IDL module and depend directly on `neocogi-com` with `macros`;
-there is no separate events contract crate or event shared library.
-
-`EVENT_E_LIMIT` is -1007, `EVENT_E_CLOSED` is -1000, and `EVENT_E_BUSY` is -1001.
-They describe update limits and adapter lifetime/reentry conditions, respectively.
-The remaining scoped dispatcher adapter is temporary during application migration.
-Persistent UI controllers live in the UI facade and use its `IEventOwner`
-contract; COM binding itself does not own application or component state.
+The facade owns `idl/neocogi/com/events/events.ncidl` and generates its named-output
+contract into `OUT_DIR`. Its build script publishes the `neocogi.com.events`
+module at `neocogi_com::events`. Consumers use `neocogi-com` with `macros`; output
+receivers are generated alongside their concrete messages. There is no separate
+events contract crate or event shared library. UI scheduling limits and lifecycle
+statuses live in UI core contracts, independently of COM binding support.
