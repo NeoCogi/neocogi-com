@@ -37,7 +37,7 @@ pub(super) fn generate(graph: &Generation<'_>, module: &ResolvedModule, source: 
             })
             .collect::<String>();
         let variant = rust_ident(&variant_name)?;
-        let documentation = docs(&port.docs);
+        let documentation = origin_docs(&port.docs, &port.span);
         variants.push(quote! { #documentation #variant(#payload) });
         methods.push(quote! {
             #documentation

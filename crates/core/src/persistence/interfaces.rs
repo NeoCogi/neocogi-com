@@ -17,10 +17,13 @@ pub const ABI_FINGERPRINT: [u8; 32] = [
 /// Exact dotted module name derived from the normalized IDL path.
 pub const MODULE_NAME: &str = "neocogi.com.persistence";
 /// An ordered, owning list used only while constructing a persistent parent.
+/// IDL source: `neocogi/com/persistence/objects.ncidl:3:11`.
 pub trait IObjectChildren {
     /// Returns the number of fully initialized child objects.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:5:8`.
     fn count(&self) -> Result<u32, crate::NcStatus>;
     /// Returns an owned reference; indices must be less than count.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:7:8`.
     fn get(&self, index: u32) -> Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus>;
 }
 /// Exact signature bytes assigned by the IDL compiler.
@@ -115,6 +118,7 @@ unsafe impl crate::ComClientInterface for IObjectChildrenAbi {
 }
 impl<M: crate::ThreadingModel> IObjectChildrenClient<M> {
     /// Returns the number of fully initialized child objects.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:5:8`.
     ///
     #[doc = concat!(
         "Calls [`", stringify!(IObjectChildren), "::", stringify!(count),
@@ -133,6 +137,7 @@ impl<M: crate::ThreadingModel> IObjectChildrenClient<M> {
         if status.is_ok() { Ok(unsafe { __nc_out.assume_init() }) } else { Err(status) }
     }
     /// Returns an owned reference; indices must be less than count.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:7:8`.
     ///
     #[doc = concat!(
         "Calls [`", stringify!(IObjectChildren), "::", stringify!(get),
@@ -237,16 +242,22 @@ impl IObjectChildrenAbi {
     );
 }
 /// Optional snapshot capability for an owned construction tree.
+/// IDL source: `neocogi/com/persistence/objects.ncidl:12:11`.
 pub trait IPersistable {
     /// Identifies the registered construction recipe, not this object instance.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8`.
     fn type_id(&self) -> Result<crate::NcGuid, crate::NcStatus>;
     /// Identifies the persistent initialization schema, independently of COM ABI.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8`.
     fn schema_version(&self) -> Result<u32, crate::NcStatus>;
     /// Exports initialization data only: no receivers, runtime pointers or caches.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8`.
     fn save_state(&self) -> Result<crate::ComPtr<crate::INcBytesAbi>, crate::NcStatus>;
     /// Returns the number of owned persistent children; parent links are excluded.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8`.
     fn child_count(&self) -> Result<u32, crate::NcStatus>;
     /// Returns one child in the order described by the parent's initialization.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:22:8`.
     fn child(
         &self,
         index: u32,
@@ -390,6 +401,7 @@ unsafe impl crate::ComClientInterface for IPersistableAbi {
 }
 impl<M: crate::ThreadingModel> IPersistableClient<M> {
     /// Identifies the registered construction recipe, not this object instance.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8`.
     ///
     #[doc = concat!(
         "Calls [`", stringify!(IPersistable), "::", stringify!(type_id),
@@ -408,6 +420,7 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
         if status.is_ok() { Ok(unsafe { __nc_out.assume_init() }) } else { Err(status) }
     }
     /// Identifies the persistent initialization schema, independently of COM ABI.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8`.
     ///
     #[doc = concat!(
         "Calls [`", stringify!(IPersistable), "::", stringify!(schema_version),
@@ -428,6 +441,7 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
         if status.is_ok() { Ok(unsafe { __nc_out.assume_init() }) } else { Err(status) }
     }
     /// Exports initialization data only: no receivers, runtime pointers or caches.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8`.
     ///
     #[doc = concat!(
         "Calls [`", stringify!(IPersistable), "::", stringify!(save_state),
@@ -461,6 +475,7 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
         }
     }
     /// Returns the number of owned persistent children; parent links are excluded.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8`.
     ///
     #[doc = concat!(
         "Calls [`", stringify!(IPersistable), "::", stringify!(child_count),
@@ -481,6 +496,7 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
         if status.is_ok() { Ok(unsafe { __nc_out.assume_init() }) } else { Err(status) }
     }
     /// Returns one child in the order described by the parent's initialization.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:22:8`.
     ///
     #[doc = concat!(
         "Calls [`", stringify!(IPersistable), "::", stringify!(child),
@@ -637,8 +653,10 @@ impl IPersistableAbi {
     );
 }
 /// A provider bound to the runtime services required by its construction recipe.
+/// IDL source: `neocogi/com/persistence/objects.ncidl:27:11`.
 pub trait IPersistenceFactory {
     /// Rejects unsupported revisions before any child object is constructed.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8`.
     fn validate(
         &self,
         version: u32,
@@ -647,6 +665,7 @@ pub trait IPersistenceFactory {
     ) -> Result<(), crate::NcStatus>;
     /// Returns a fully initialized object; every child is already constructed.
     /// Failure must release resources acquired by this call and publish no root.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:32:8`.
     fn restore(
         &self,
         version: u32,
@@ -778,6 +797,7 @@ unsafe impl crate::ComClientInterface for IPersistenceFactoryAbi {
 }
 impl<M: crate::ThreadingModel> IPersistenceFactoryClient<M> {
     /// Rejects unsupported revisions before any child object is constructed.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8`.
     ///
     #[doc = concat!(
         "Calls [`", stringify!(IPersistenceFactory), "::", stringify!(validate),
@@ -820,6 +840,7 @@ impl<M: crate::ThreadingModel> IPersistenceFactoryClient<M> {
     }
     /// Returns a fully initialized object; every child is already constructed.
     /// Failure must release resources acquired by this call and publish no root.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:32:8`.
     ///
     #[doc = concat!(
         "Calls [`", stringify!(IPersistenceFactory), "::", stringify!(restore),

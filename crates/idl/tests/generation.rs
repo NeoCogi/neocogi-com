@@ -19,10 +19,7 @@ fn imported_outputs_need_allocation_but_no_queue_runtime() {
         #[version(1)] interface ISource { first: Changed; second: Changed; }
     "#,
     );
-    let transport = module(
-        "neocogi/com/events.ncidl",
-        include_str!("../../api/idl/neocogi/com/events/events.ncidl"),
-    );
+    let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));
     let graph = resolve_modules(vec![message, source, transport]).unwrap();
     let generated = neocogi_idl::generate_rust(&graph, "example.source").unwrap();
     syn::parse_file(&generated).expect("imported message bindings parse");
@@ -144,9 +141,9 @@ fn preserves_documentation_without_making_it_an_abi_input() {
 }
 
 /// Confirms file names, declaration placement, and discovery order do not
-/// affect the fingerprint or generated Rust for one logical module.
+/// affect the fingerprint or generated Rust behavior; provenance records the new locations.
 #[test]
-fn multipart_permutations_generate_identical_bindings() {
+fn multipart_permutations_preserve_bindings_except_provenance() {
     let geometry = "/// Size docs.\n#[version(1)] struct Size { width: u32, height: u32 }";
     let widgets = "/// Widget docs.\n#[version(1)] interface IWidget { fn resize(&mut self, size: Size) -> Result<()>; }";
     let first_parts = [
@@ -188,5 +185,15 @@ fn multipart_permutations_generate_identical_bindings() {
         .collect::<Vec<_>>();
 
     assert!(fingerprints.windows(2).all(|pair| pair[0] == pair[1]));
-    assert!(bindings.windows(2).all(|pair| pair[0] == pair[1]));
+    assert_ne!(bindings[0], bindings[1], "source layout changes must update provenance");
+    let without_provenance = bindings
+        .iter()
+        .map(|source| {
+            source
+                .lines()
+                .filter(|line| !line.trim_start().starts_with("/// IDL source:"))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    assert!(without_provenance.windows(2).all(|pair| pair[0] == pair[1]));
 }

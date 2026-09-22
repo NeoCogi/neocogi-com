@@ -53,4 +53,8 @@ pub mod cargo;
 /// Pure Rust binding generation; deployment and runtime policy remain elsewhere.
 pub mod generate;
 pub use cargo::{BuildError, BuildOutput, ModuleSources};
-pub use generate::{GenerateError, generate_rust};
+pub use generate::{GenerateError, generate_rust, generate_rust_with_source_map};
+
+/// Generated Rust provenance independent of ABI identity and runtime metadata.
+pub mod source_map;
+pub use source_map::{GeneratedRust, RustSourceMap, SourceMapKind, SourceMapOrigin, SourceMapPosition, SourceMapRange, SourceMapping};

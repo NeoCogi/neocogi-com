@@ -16,20 +16,26 @@ pub(super) fn generate_message(
     let receiver = format_ident!("__{name}Receiver");
     let receiver_abi = format_ident!("__{name}ReceiverAbi");
     let adapter = format_ident!("__{name}Mapping");
-    let declaration_docs = docs(&declaration.docs);
+    let declaration_docs = origin_docs(&declaration.docs, &declaration.span);
     let signature = signature_literal(identity.abi_signature);
     let receiver_name = format!("{}.{}.__receiver", module.source.name, declaration.name);
     let id = Literal::string(&neocogi_com_core::guid_from_qualified_name(&receiver_name).to_string());
     let qualified_name = Literal::string(&receiver_name);
     let mut cases = Vec::new();
     match &declaration.kind {
-        DeclarationKind::Struct(record) => cases.push((None, 0i64, VariantFields::Named(record.fields.clone()), Vec::new())),
+        DeclarationKind::Struct(record) => cases.push((None, 0i64, VariantFields::Named(record.fields.clone()), Vec::new(), declaration.span.clone())),
         DeclarationKind::Enum(enumeration) => {
             let mut previous = -1;
             for variant in &enumeration.variants {
                 let tag = variant.discriminant.unwrap_or(previous + 1);
                 previous = tag;
-                cases.push((Some(rust_ident(&variant.name)?), tag, variant.fields.clone(), variant.docs.clone()));
+                cases.push((
+                    Some(rust_ident(&variant.name)?),
+                    tag,
+                    variant.fields.clone(),
+                    variant.docs.clone(),
+                    variant.span.clone(),
+                ));
             }
         }
         _ => return Err(GenerateError::new("messages require structs or enums")),
@@ -40,20 +46,20 @@ pub(super) fn generate_message(
     let mut encode = Vec::new();
     let mut decode = Vec::new();
     let mut comparable = true;
-    for (index, (variant, tag, fields, documentation)) in cases.iter().enumerate() {
+    for (index, (variant, tag, fields, documentation, origin)) in cases.iter().enumerate() {
         let case = format_ident!("__{name}Case{index}");
         let member = format_ident!("case_{index}");
-        let case_docs = docs(documentation);
+        let case_docs = origin_docs(documentation, origin);
         let values = match fields {
             VariantFields::Unit => Vec::new(),
             VariantFields::Named(fields) => fields
                 .iter()
-                .map(|field| Ok((rust_ident(&field.name)?, &field.ty, docs(&field.docs))))
+                .map(|field| Ok((rust_ident(&field.name)?, &field.ty, origin_docs(&field.docs, &field.span), &field.span)))
                 .collect::<Result<Vec<_>, GenerateError>>()?,
             VariantFields::Tuple(fields) => fields
                 .iter()
                 .enumerate()
-                .map(|(index, ty)| (format_ident!("field_{index}"), ty, quote! { #[doc = "Owned message field."] }))
+                .map(|(index, ty)| (format_ident!("field_{index}"), ty, quote! { #[doc = "Owned message field."] }, origin))
                 .collect(),
         };
         let mut native = Vec::new();
@@ -61,7 +67,7 @@ pub(super) fn generate_message(
         let mut encodings = Vec::new();
         let mut decodings = Vec::new();
         let mut bindings = Vec::new();
-        for (field, ty, field_docs) in values {
+        for (field, ty, field_docs, field_origin) in values {
             let (owned, abi, encoded, decoded, equality) = field_codec(graph, module, ty, &field)?;
             comparable &= equality;
             native.push(match fields {
@@ -69,8 +75,9 @@ pub(super) fn generate_message(
                 _ if variant.is_none() => quote! { #field_docs pub #field: #owned },
                 _ => quote! { #field_docs #field: #owned },
             });
+            let wire_origin = origin_docs(&[], field_origin);
             raw.push(quote! { /// Borrowed field, valid only during this message's COM call.
-            pub #field: #abi });
+            #wire_origin pub #field: #abi });
             encodings.push(quote! { #field: #encoded });
             decodings.push(decoded);
             bindings.push(field);
@@ -101,13 +108,14 @@ pub(super) fn generate_message(
             pub empty: u8 });
             encodings.push(quote! { empty: 0 });
         }
+        let case_origin = origin_docs(&[], origin);
         wire_cases.push(quote! {
             #[doc(hidden)] #[repr(C)] #[derive(Clone, Copy)]
             /// Generated payload for one concrete message case.
-            pub struct #case { #(#raw),* }
+            #case_origin pub struct #case { #(#raw),* }
         });
         members.push(quote! { /// Payload selected by its declaration-order tag.
-        pub #member: #case });
+        #case_origin pub #member: #case });
         encode.push(quote! { #pattern => #wire { tag: #tag, payload: #union { #member: #case { #(#encodings),* } } } });
         let read_payload = (!bindings.is_empty()).then(|| {
             quote! {
@@ -125,7 +133,7 @@ pub(super) fn generate_message(
     let equality = comparable.then(|| quote! { #[derive(Debug, PartialEq)] });
     let mut plain = declaration.clone();
     plain.message = false;
-    let copyable = cases.iter().all(|(_, _, fields, _)| match fields {
+    let copyable = cases.iter().all(|(_, _, fields, _, _)| match fields {
         VariantFields::Unit => true,
         VariantFields::Tuple(fields) => fields.iter().all(|ty| value_type(graph, module, ty).is_ok()),
         VariantFields::Named(fields) => fields.iter().all(|field| value_type(graph, module, &field.ty).is_ok()),
