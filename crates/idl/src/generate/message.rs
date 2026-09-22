@@ -198,13 +198,13 @@ pub(super) fn generate_message(
             }
             #[doc(hidden)]
             /// Wraps a local, concretely typed callback in the one checked COM receiver.
-            pub fn __receiver(consume: ::alloc::boxed::Box<dyn FnMut(Self) -> Result<(), ::neocogi_com::NcStatus>>) -> Result<::neocogi_com::ComPtr<#receiver_abi>, ::neocogi_com::NcStatus> {
+            pub fn __receiver(consume: self::alloc::boxed::Box<dyn FnMut(Self) -> Result<(), ::neocogi_com::NcStatus>>) -> Result<::neocogi_com::ComPtr<#receiver_abi>, ::neocogi_com::NcStatus> {
                 #adapter::from_value(#adapter { consume }).query()
             }
         }
         impl ::neocogi_com::ComEvent for #name {
             /// Keeps the concrete payload and callback local while exposing a COM capability.
-            fn make_receiver(consume: ::alloc::boxed::Box<dyn FnMut(Self) -> Result<(), ::neocogi_com::NcStatus>>)
+            fn make_receiver(consume: self::alloc::boxed::Box<dyn FnMut(Self) -> Result<(), ::neocogi_com::NcStatus>>)
                 -> Result<::neocogi_com::ComPtr<::neocogi_com::IUnknown>, ::neocogi_com::NcStatus>
             {
                 Self::__receiver(consume)?.query()
@@ -214,7 +214,7 @@ pub(super) fn generate_message(
         /// Owns only a typed callback; no registration or connection object is allocated.
         struct #adapter {
             /// Decoded messages reach this local callback before producer storage expires.
-            consume: ::alloc::boxed::Box<dyn FnMut(#name) -> Result<(), ::neocogi_com::NcStatus>>,
+            consume: self::alloc::boxed::Box<dyn FnMut(#name) -> Result<(), ::neocogi_com::NcStatus>>,
         }
         impl #receiver for #adapter {
             /// Validate and acquire borrowed fields before mapping or queueing anything.
@@ -238,15 +238,15 @@ fn field_codec(
             let (element, owned, bytes, acquire) = match ty {
                 AbiType::String => (
                     quote! { u8 },
-                    quote! { ::alloc::string::String },
+                    quote! { self::alloc::string::String },
                     quote! { #field.as_bytes() },
-                    quote! { ::alloc::string::String::from_utf8(buffer.to_vec()).map_err(|_| ::neocogi_com::NC_E_INVALID_ARG)? },
+                    quote! { self::alloc::string::String::from_utf8(buffer.to_vec()).map_err(|_| ::neocogi_com::NC_E_INVALID_ARG)? },
                 ),
                 AbiType::Slice(element) => {
                     let element = value_type(graph, module, element)?;
                     (
                         element.clone(),
-                        quote! { ::alloc::vec::Vec<#element> },
+                        quote! { self::alloc::vec::Vec<#element> },
                         quote! { #field.as_slice() },
                         quote! { buffer.to_vec() },
                     )

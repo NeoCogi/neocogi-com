@@ -2,4 +2,4 @@
 //! Concrete output receivers are generated with their message declarations;
 //! this contract module owns no queue, mapping or application behavior.
 
-include!(concat!(env!("OUT_DIR"), "/neocogi_com_events.rs"));
+include!(concat!(env!("OUT_DIR"), "/neocogi_com_events.include.rs"));

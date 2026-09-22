@@ -92,7 +92,7 @@ The contract's `src/lib.rs` includes the generated bindings:
 
 ```rust,ignore
 #![no_std]
-include!(concat!(env!("OUT_DIR"), "/example_widgets.rs"));
+include!(concat!(env!("OUT_DIR"), "/example_widgets.include.rs"));
 ```
 
 `Module::new("idl", "example/widgets.ncidl")` selects a single-file module.
@@ -100,6 +100,11 @@ include!(concat!(env!("OUT_DIR"), "/example_widgets.rs"));
 the exact Cargo `links` name and consume imported graph paths from `DEP_*`.
 `ModuleSources` provides the same file/directory loading for tools; `generate_rust`
 works on an already resolved graph without Cargo environment variables.
+
+The entry file (`BuildOutput::include`, Cargo `idl_include`) loads the definitions
+as a normal private module and re-exports them. This lets editor navigation reach
+the generated `.rs` rather than stopping at the include macro. Message allocation
+paths resolve within the generated module and need no crate-root `alloc` import.
 
 Every build also emits `<module_stem>.rs.map`, exposed as `BuildOutput::source_map`
 and Cargo `idl_source_map` metadata. It maps the final formatted Rust's declarations,

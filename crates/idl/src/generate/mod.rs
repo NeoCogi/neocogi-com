@@ -523,7 +523,7 @@ fn port_bindings(
         let accessor = rust_ident(&port.name)?;
         let docs = origin_docs(&port.docs, &port.span);
         let install =
-            quote! { impl FnOnce(::alloc::boxed::Box<dyn FnMut(#message) -> Result<(), ::neocogi_com::NcStatus>>) -> Result<(), ::neocogi_com::NcStatus> };
+            quote! { impl FnOnce(self::alloc::boxed::Box<dyn FnMut(#message) -> Result<(), ::neocogi_com::NcStatus>>) -> Result<(), ::neocogi_com::NcStatus> };
         accessors.push(quote! { #docs fn #accessor(&self) -> #install + use<Self, M>; });
         let body = quote! {
             #docs fn #accessor(&self) -> #install + use<M> {

@@ -171,6 +171,7 @@ impl Module {
             generate_rust_with_paths_and_source_map(&resolved, &own_module.name.to_string(), &paths).map_err(|source| BuildError::Idl(source.to_string()))?;
         let stem = own_module.name.segments().join("_");
         let bindings_path = output_dir.join(format!("{stem}.rs"));
+        let include_path = output_dir.join(format!("{stem}.include.rs"));
         let source_map_path = output_dir.join(format!("{stem}.rs.map"));
         bindings.source_map.source_root = Some(source_map::relative_source_root(&output_dir, &source_root)?);
         let map_bytes = serde_json::to_vec_pretty(&bindings.source_map).map_err(|source_error| BuildError::Json {
@@ -180,6 +181,25 @@ impl Module {
         })?;
         write_changed(&bindings_path, bindings.source.as_bytes())?;
         write_changed(&source_map_path, &map_bytes)?;
+        // Only this small entry is macro-included. A normal Rust module gives
+        // attribute-macro definitions an actual source file for IDE navigation.
+        // Its relative path also keeps the pair relocatable within OUT_DIR.
+        // Explicit imports retain their original precedence over consumer glob
+        // re-exports. In particular, another contract's module metadata must not
+        // make this contract's MODULE_ID or ABI_FINGERPRINT ambiguous.
+        let explicit_exports = std::iter::once("MODULE_ID, ABI_FINGERPRINT, MODULE_NAME".to_owned())
+            .chain(own_module.imports.iter().flat_map(|import| import.names.iter()).cloned())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let entry = format!(
+            "// Generated module entry. Include this file from the contract's Rust module.\n\
+             #[path = \"{stem}.rs\"]\n\
+             mod __nc_idl_{stem};\n\
+             // Preserve the contract's public Rust paths at the include site.\n\
+             pub use self::__nc_idl_{stem}::*;\n\
+             pub use self::__nc_idl_{stem}::{{{explicit_exports}}};\n"
+        );
+        write_changed(&include_path, entry.as_bytes())?;
 
         let graph = GraphRecord { schema: GRAPH_SCHEMA, modules: records };
         let graph_bytes = serde_json::to_vec_pretty(&graph).map_err(|source_error| BuildError::Json {
@@ -192,6 +212,7 @@ impl Module {
 
         println!("cargo::metadata=idl_graph={}", graph_path.display());
         println!("cargo::metadata=idl_source_map={}", source_map_path.display());
+        println!("cargo::metadata=idl_include={}", include_path.display());
         println!("cargo::metadata=module_name={}", own_module.name);
         println!("cargo::metadata=module_id={}", resolved_module.module_id);
         println!("cargo::metadata=abi_fingerprint={}", resolved_module.fingerprint_hex());
@@ -201,6 +222,7 @@ impl Module {
             module_id: resolved_module.module_id,
             abi_fingerprint: resolved_module.abi_fingerprint,
             bindings: bindings_path,
+            include: include_path,
             source_map: source_map_path,
             dependency_graph: graph_path,
         })
@@ -216,8 +238,11 @@ pub struct BuildOutput {
     pub module_id: neocogi_com_core::NcGuid,
     /// Transitive canonical ABI fingerprint.
     pub abi_fingerprint: [u8; 32],
-    /// Generated Rust source included by the module crate.
+    /// Generated Rust definitions loaded as a normal module by `include`.
     pub bindings: PathBuf,
+    /// Small `.include.rs` entry that the contract crate includes and re-exports.
+    /// Loading the definitions through a module preserves editor navigation.
+    pub include: PathBuf,
     /// Readable provenance sidecar for exactly the generated bindings.
     pub source_map: PathBuf,
     /// Machine-readable source graph exported through Cargo metadata.
