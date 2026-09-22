@@ -1,0 +1,16 @@
+error[E0505]: cannot move out of `owner` because it is borrowed
+  --> integration-tests/ui/local_guard_owner_lifetime.rs:9:10
+   |
+ 7 |     let owner = Model::into_local(Model { value: 1 });
+   |         ----- binding `owner` declared here
+ 8 |     let model = owner.try_borrow().unwrap();
+   |                 ----- borrow of `owner` occurs here
+ 9 |     drop(owner);
+   |          ^^^^^ move out of `owner` occurs here
+10 |     println!("{}", model.value);
+   |                    ----- borrow later used here
+   |
+help: consider cloning the value if the performance cost is acceptable
+   |
+ 8 |     let model = owner.clone().try_borrow().unwrap();
+   |                      ++++++++

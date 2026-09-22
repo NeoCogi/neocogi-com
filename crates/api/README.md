@@ -50,6 +50,16 @@ construct. Handwritten helpers such as `INcStringComPtrExt::to_string` remain
 separate because they add bounded copying, allocation, and UTF-8 validation
 rather than duplicate a generated interface method.
 
+When the creating binary also needs the concrete implementation, use
+`Implementation::into_local(value)` to obtain `LocalCom<Implementation>`.
+Query and cache COM interfaces from that owner; use `try_borrow()` or
+`try_borrow_mut()` between interface calls to access ordinary Rust fields.
+These guards share the generated COM call gate and report `NC_E_BUSY` on
+conflicting access. They perform no allocation, query, or reference-count
+operation and cannot outlive or escape the threading mode of the local owner.
+Cloning the local handle retains the same allocation. There is no safe downcast
+from an arbitrary foreign interface to a local implementation.
+
 ## Strings and byte buffers
 
 With `alloc` (also enabled by the default `std` feature), `NcString` and

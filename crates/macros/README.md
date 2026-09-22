@@ -24,6 +24,12 @@ surface, and required interfaces. The implementation supplies private
 state and method bodies. Generated storage contains one canonical `IUnknown`
 projection, one header per required interface, reference counting,
 signature-checked `QueryInterface`, and `from_value(initialized_value)`.
+`into_local(initialized_value)` returns a `LocalCom<Implementation>` when the
+creating binary also needs typed access to the owned implementation. Its
+`try_borrow` and `try_borrow_mut` guards share the generated COM call gate;
+release them before calling an interface that enters the same object. Neither
+guard performs a query, allocation, or reference-count operation. A local handle
+cannot be recovered safely from an arbitrary foreign interface.
 Ordinary unit objects have no generated zero-argument constructor.
 
 `#[com_object(interfaces(IFoo, IBar))]` remains available for local or built-in

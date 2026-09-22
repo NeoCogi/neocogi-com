@@ -82,6 +82,10 @@ name = "borrowed_calls"
 path = "integration-tests/borrowed_calls.rs"
 
 [[test]]
+name = "local_com"
+path = "integration-tests/local_com.rs"
+
+[[test]]
 name = "inheritance"
 path = "integration-tests/inheritance.rs"
 

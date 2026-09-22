@@ -230,6 +230,15 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
             /// Number of unique contracts, including automatically exposed bases.
             pub const COM_INTERFACE_COUNT: usize = #nc::__nc_object_interface_count(Self::COM_INTERFACE_CHAINS);
 
+            /// Owns this exact implementation and permits checked local access
+            /// between COM calls without downcasting or borrowing external state.
+            #object_vis fn into_local(value: Self) -> #nc::LocalCom<Self> {
+                // SAFETY: from_value allocates this exact generated storage and
+                // transfers its canonical owning IUnknown. The local handle and
+                // all interface projections use this allocation's one call gate.
+                unsafe { #nc::LocalCom::__from_owned(Self::from_value(value)) }
+            }
+
             #[doc = "Wraps a fully initialized Rust value as a COM object and returns its `IUnknown` interface."]
             #object_vis fn from_value(value: Self) -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
                 // Force validation of repeated IIDs before allocating storage.

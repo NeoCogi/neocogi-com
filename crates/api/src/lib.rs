@@ -493,6 +493,8 @@ pub use neocogi_com_core::{
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{ComMap, ComMapAccess};
 pub use object::{__ComCallGate, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComObject, ThreadSafeComObject};
+mod local;
+pub use local::{LocalCom, LocalMut, LocalRef};
 #[doc(hidden)]
 pub use neocogi_com_core::__ComSupportsInterfaceThreading;
 #[cfg(feature = "runtime")]
