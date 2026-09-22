@@ -1063,7 +1063,29 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
         },
         AbiType::Slice(element) | AbiType::OutputSlice(element) => validate_value_type(index, element, entries, context, span),
         AbiType::Array { element, .. } => validate_value_type(index, element, entries, context, span),
-        AbiType::Option(value) => validate_parameter_type(index, value, entries, context, span),
+        AbiType::Option(value) => {
+            // Null is defined only for an explicitly borrowed object capability.
+            // Optional copied values and message records need different layouts.
+            if let AbiType::Borrowed(referent) = value.as_ref() {
+                if let AbiType::Named(name) = referent.as_ref() {
+                    if builtin_object(name).is_some() {
+                        return Ok(());
+                    }
+                    if let ResolvedName::Symbol(symbol) = resolve_named_or_str(index, name, entries)? {
+                        if symbol.kind != SymbolKind::Value {
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+            Err(source_error(
+                &entries[index].module,
+                "EIDL061",
+                span,
+                format!("{context} requires Option<&Interface> for an optional input"),
+                "optional input is not a borrowed interface",
+            ))
+        }
     }
 }
 

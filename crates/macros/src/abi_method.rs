@@ -241,11 +241,15 @@ fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
             if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
                 if let Some(com_ref) = parse_com_ref_type(inner)? {
                     let abi_ty = raw_interface_pointer_ty(&com_ref.interface_ty);
-                    return Ok((ty, abi_ty, AbiArgKind::ComRef {
-                        optional: true,
-                        interface_ty: Box::new(com_ref.interface_ty),
-                        mode_ty: com_ref.mode_ty.map(Box::new),
-                    }));
+                    return Ok((
+                        ty,
+                        abi_ty,
+                        AbiArgKind::ComRef {
+                            optional: true,
+                            interface_ty: Box::new(com_ref.interface_ty),
+                            mode_ty: com_ref.mode_ty.map(Box::new),
+                        },
+                    ));
                 }
             }
         }
@@ -530,10 +534,10 @@ pub(crate) fn raw_vtable_method_docs(trait_ident: &Ident, method: &AbiMethod) ->
     };
     let safety_doc = match &method.ok.kind {
         AbiReturnKind::Void => quote! {
-            #[doc = "`this` must be a non-null valid pointer. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call."]
+            #[doc = "`this` must be a non-null valid pointer. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence."]
         },
         AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => quote! {
-            #[doc = "`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call."]
+            #[doc = "`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence."]
         },
     };
     let return_docs = raw_vtable_return_docs(&method.ok);
@@ -564,10 +568,11 @@ fn raw_vtable_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
                 #[doc = concat!("- `", stringify!(#ident), "` is passed by value as `", stringify!(#abi_ty), "`.")]
             }]
         }
-        AbiArgKind::ComRef { interface_ty, .. } => {
+        AbiArgKind::ComRef { interface_ty, optional, .. } => {
             let interface_ty = interface_ty.as_ref();
+            let absence = if *optional { " Null represents absence." } else { " Null is invalid." };
             vec![quote! {
-                #[doc = concat!("- `", stringify!(#ident), "` is a borrowed `", stringify!(#interface_ty), "` interface pointer. The callee must call `AddRef` before retaining it after the call returns.")]
+                #[doc = concat!("- `", stringify!(#ident), "` is a borrowed `", stringify!(#interface_ty), "` interface pointer.", #absence, " The callee must call `AddRef` before retaining a present interface after the call returns.")]
             }]
         }
         AbiArgKind::CopyFromBufferOffset { element_ty } => {
@@ -646,10 +651,15 @@ fn safe_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
                 #[doc = concat!("- `", stringify!(#ident), "` is passed by value as `", stringify!(#rust_ty), "`.")]
             }]
         }
-        AbiArgKind::ComRef { interface_ty, .. } => {
+        AbiArgKind::ComRef { interface_ty, optional, .. } => {
             let interface_ty = interface_ty.as_ref();
+            let absence = if *optional {
+                " None supplies no interface."
+            } else {
+                " An interface is required."
+            };
             vec![quote! {
-                #[doc = concat!("- `", stringify!(#ident), "` borrows a `", stringify!(#interface_ty), "` interface for the duration of the call. The callee must call `AddRef` before retaining it.")]
+                #[doc = concat!("- `", stringify!(#ident), "` borrows a `", stringify!(#interface_ty), "` interface for the duration of the call.", #absence, " The callee must call `AddRef` before retaining a present interface.")]
             }]
         }
         AbiArgKind::CopyFromBufferOffset { element_ty } => {

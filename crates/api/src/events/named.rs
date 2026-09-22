@@ -49,6 +49,25 @@ impl NamedOutputs {
             std::collections::btree_map::Entry::Occupied(_) => Err(NC_E_INVALID_ARG),
         }
     }
+    /// Re-exports a child component's named binding capability under a public name.
+    /// A generated export observer can be supplied before its widget is created;
+    /// subsequent binding changes the component destination, never that observer.
+    pub fn export_component(&mut self, name: &str, source: ComPtr<INamedOutputsAbi>, port: &str) -> Result<(), NcStatus> {
+        if name.is_empty() || port.is_empty() {
+            return Err(NC_E_INVALID_ARG);
+        }
+        match self.exports.entry(name.into()) {
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(Export {
+                    source: source.query()?,
+                    port: port.into(),
+                    install: install_component,
+                });
+                Ok(())
+            }
+            std::collections::btree_map::Entry::Occupied(_) => Err(NC_E_INVALID_ARG),
+        }
+    }
     /// Performs the only public-name lookup; events bypass this table entirely.
     pub fn bind(&mut self, name: &str, receiver: ComRef<'_, IUnknown>) -> Result<(), NcStatus> {
         let export = self.exports.get(name).ok_or(NC_E_NOT_FOUND)?;
@@ -66,6 +85,14 @@ impl NamedOutputs {
     pub fn into_com(self) -> Result<ComPtr<INamedOutputsAbi>, NcStatus> {
         OutputObject::from_value(OutputObject { outputs: self }).query()
     }
+}
+
+/// Resolves a child capability once per binding; posted messages never use this table.
+fn install_component(source: ComRef<'_, IUnknown>, name: &str, receiver: ComRef<'_, IUnknown>) -> Result<(), NcStatus> {
+    source
+        .add_ref()
+        .query::<INamedOutputsAbi>()?
+        .bind_output(NcCopyFromBufferOffset::new(0, name.as_bytes()), receiver)
 }
 
 /// Installs through exact source and receiver interfaces, never an unchecked cast.

@@ -10,14 +10,21 @@ pub(super) fn generate(graph: &Generation<'_>, module: &ResolvedModule, source: 
     let observer = rust_ident(&format!("{}Observer", source.name))?;
     let abi = rust_ident(&format!("{}ObserverAbi", source.name))?;
     let adapter = rust_ident(&format!("__{}Observer", source.name))?;
+    let exports = rust_ident(&format!("__{}Exports", source.name))?;
     let mut variants = Vec::new();
     let mut methods = Vec::new();
     let mut posts = Vec::new();
+    let mut export_fields = Vec::new();
+    let mut export_inits = Vec::new();
+    let mut export_posts = Vec::new();
+    let mut export_binds = Vec::new();
     for callable in callables {
         let Callable::Port(port) = callable else { continue };
         let resolved = resolve(graph, module, &port.message)?;
         let payload = named_rust_type(graph, module, resolved, false)?;
         let method = rust_ident(&port.name)?;
+        let receiver = message::receiver_type(graph, module, resolved)?;
+        let port_name = Literal::string(&port.name);
         let variant_name = port
             .name
             .split('_')
@@ -40,6 +47,29 @@ pub(super) fn generate(graph: &Generation<'_>, module: &ResolvedModule, source: 
             }
         });
         posts.push(quote! { Self::#variant(value) => destination.#method(::neocogi_com::NcMessage::new(value)) });
+        export_fields.push(quote! {
+            /// Optional component-facing destination; replacing it never changes the widget's observer.
+            #method: Option<::neocogi_com::ComPtr<#receiver>>
+        });
+        export_inits.push(quote! { #method: None });
+        export_posts.push(quote! {
+            #documentation
+            fn #method(&mut self, event: ::neocogi_com::NcMessage<'_, #payload>) -> Result<(), ::neocogi_com::NcStatus> {
+                // The borrow remains within this synchronous call. The eventual
+                // consumer decodes once; the forwarding object retains no payload.
+                match &mut self.#method {
+                    Some(destination) => destination.post(event),
+                    None => Ok(()),
+                }
+            }
+        });
+        export_binds.push(quote! {
+            #port_name => {
+                // Validate the exact message contract before replacing a good binding.
+                self.#method = Some(destination.add_ref().query::<#receiver>()?);
+                Ok(())
+            }
+        });
     }
     Ok(quote! {
         /// Owned local snapshots of this producer's outputs, in declared order.
@@ -53,6 +83,17 @@ pub(super) fn generate(graph: &Generation<'_>, module: &ResolvedModule, source: 
             pub fn observer<F>(consume: F) -> Result<::neocogi_com::ComPtr<#abi>, ::neocogi_com::NcStatus>
             where F: FnMut(Self) -> Result<(), ::neocogi_com::NcStatus> + 'static {
                 #adapter::from_value(#adapter { consume }).query()
+            }
+
+            /// Creates a fixed observer for a component that exports output names.
+            /// The component binds its public destinations through the second
+            /// capability. Ordinary channel consumers should use `observer`.
+            pub fn exported_observer() -> Result<(
+                ::neocogi_com::ComPtr<#abi>,
+                ::neocogi_com::ComPtr<::neocogi_com::events::INamedOutputsAbi>,
+            ), ::neocogi_com::NcStatus> {
+                let owner = #exports::from_value(#exports { #(#export_inits),* });
+                Ok((owner.query()?, owner.query()?))
             }
 
             /// Posts through the observer retained at construction, or does nothing
@@ -75,6 +116,23 @@ pub(super) fn generate(graph: &Generation<'_>, module: &ResolvedModule, source: 
         impl<F> #observer for #adapter<F>
         where F: FnMut(#event) -> Result<(), ::neocogi_com::NcStatus> + 'static {
             #(#methods)*
+        }
+
+        #[::neocogi_com::com_object(interfaces(#observer, ::neocogi_com::events::INamedOutputs))]
+        /// Optional component export adapter; never allocated by ordinary observers.
+        /// It retains downstream receivers, never the widget or a Rust model pointer.
+        struct #exports { #(#export_fields),* }
+        impl #observer for #exports { #(#export_posts)* }
+        impl ::neocogi_com::events::INamedOutputs for #exports {
+            /// Resolves a declared port during setup; delivery uses its field directly.
+            fn bind_output(&mut self, name: ::neocogi_com::NcCopyFromBufferOffset<'_, u8>, destination: ::neocogi_com::ComRef<'_, ::neocogi_com::IUnknown>) -> Result<(), ::neocogi_com::NcStatus> {
+                if name.offset() != 0 { return Err(::neocogi_com::NC_E_INVALID_ARG); }
+                let name = ::core::str::from_utf8(name.as_slice()).map_err(|_| ::neocogi_com::NC_E_INVALID_ARG)?;
+                match name {
+                    #(#export_binds),*,
+                    _ => Err(::neocogi_com::NC_E_NOT_FOUND),
+                }
+            }
         }
     })
 }

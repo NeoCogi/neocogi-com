@@ -51,7 +51,7 @@ pub struct IObjectChildrenVTable {
     ///
     ///# Safety
     ///
-    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call.
+    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
     #[doc = concat!("On success, `out` receives `", stringify!(u32), "`.")]
     pub count: unsafe extern "C" fn(
         this: *mut IObjectChildrenAbi,
@@ -66,7 +66,7 @@ pub struct IObjectChildrenVTable {
     ///
     ///# Safety
     ///
-    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call.
+    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
     #[doc = concat!(
         "- `", stringify!(index), "` is passed by value as `", stringify!(u32), "`."
     )]
@@ -280,7 +280,7 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call.
+    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
     #[doc = concat!("On success, `out` receives `", stringify!(crate ::NcGuid), "`.")]
     pub type_id: unsafe extern "C" fn(
         this: *mut IPersistableAbi,
@@ -295,7 +295,7 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call.
+    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
     #[doc = concat!("On success, `out` receives `", stringify!(u32), "`.")]
     pub schema_version: unsafe extern "C" fn(
         this: *mut IPersistableAbi,
@@ -310,7 +310,7 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call.
+    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
     #[doc = concat!(
         "On success, `out` receives an owned `", stringify!(crate ::INcBytesAbi),
         "` interface pointer transferred to the caller."
@@ -328,7 +328,7 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call.
+    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
     #[doc = concat!("On success, `out` receives `", stringify!(u32), "`.")]
     pub child_count: unsafe extern "C" fn(
         this: *mut IPersistableAbi,
@@ -343,7 +343,7 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call.
+    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
     #[doc = concat!(
         "- `", stringify!(index), "` is passed by value as `", stringify!(u32), "`."
     )]
@@ -684,7 +684,7 @@ pub struct IPersistenceFactoryVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be a non-null valid pointer. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call.
+    ///`this` must be a non-null valid pointer. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
     #[doc = concat!(
         "- `", stringify!(version), "` is passed by value as `", stringify!(u32), "`."
     )]
@@ -715,7 +715,7 @@ pub struct IPersistenceFactoryVTable {
     ///
     ///# Safety
     ///
-    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call.
+    ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
     #[doc = concat!(
         "- `", stringify!(version), "` is passed by value as `", stringify!(u32), "`."
     )]
@@ -726,7 +726,8 @@ pub struct IPersistenceFactoryVTable {
     )]
     #[doc = concat!(
         "- `", stringify!(children), "` is a borrowed `", stringify!(IObjectChildrenAbi),
-        "` interface pointer. The callee must call `AddRef` before retaining it after the call returns."
+        "` interface pointer.", " Null is invalid.",
+        " The callee must call `AddRef` before retaining a present interface after the call returns."
     )]
     #[doc = concat!(
         "On success, `out` receives an owned `", stringify!(crate ::IUnknown),
@@ -836,7 +837,8 @@ impl<M: crate::ThreadingModel> IPersistenceFactoryClient<M> {
     )]
     #[doc = concat!(
         "- `", stringify!(children), "` borrows a `", stringify!(IObjectChildrenAbi),
-        "` interface for the duration of the call. The callee must call `AddRef` before retaining it."
+        "` interface for the duration of the call.", " An interface is required.",
+        " The callee must call `AddRef` before retaining a present interface."
     )]
     #[doc = concat!(
         "On success, adopts the owned `", stringify!(crate ::IUnknown),
