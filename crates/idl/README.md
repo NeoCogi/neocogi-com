@@ -101,6 +101,15 @@ the exact Cargo `links` name and consume imported graph paths from `DEP_*`.
 `ModuleSources` provides the same file/directory loading for tools; `generate_rust`
 works on an already resolved graph without Cargo environment variables.
 
+Every build also emits `<module_stem>.rs.map`, exposed as `BuildOutput::source_map`
+and Cargo `idl_source_map` metadata. It maps the final formatted Rust's declarations,
+fields, variants, methods and derived helpers to their IDL origins. Generated Rust
+includes readable `IDL source: path:line:column` documentation. For in-memory tools,
+`generate_rust_with_source_map` returns the Rust and map together; explicit Rust
+locations use `generate::generate_rust_with_paths_and_source_map`. These provenance
+artifacts do not affect ABI identity. See [source mapping](../../../docs/IDL_SOURCE_MAPS.md)
+for schema, coordinates, path resolution and macro-expansion limits.
+
 The resolver gives IDL declarations a UUID derived from their qualified name and
 binary version, or the explicit UUID from `#[id]`. Generated macros receive it as
 `assigned_guid`. This differs from the low-level macro's `auto_guid` path, which
