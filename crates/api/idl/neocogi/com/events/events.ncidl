@@ -1,12 +1,4 @@
 #[version(1)]
-/// Runtime-invoked consumer capability, independent of any source registration order.
-interface IEventDispatcher {
-    /// Consumes at most one pending message and reports whether work was performed.
-    /// The runtime owns visit order and the update-wide budget; consumers never peek or batch.
-    fn dispatch(&mut self) -> Result<bool>;
-}
-
-#[version(1)]
 /// Named event exports of an opaque component; its internal objects stay private.
 interface INamedOutputs {
     /// Resolves one exact UTF-8 name and installs a compatible typed receiver.

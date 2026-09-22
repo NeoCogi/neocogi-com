@@ -18,12 +18,3 @@ pub use named::{NamedOutputs, bind_output};
 mod mapping;
 #[cfg(feature = "std")]
 pub use mapping::bind;
-#[cfg(feature = "std")]
-mod scoped;
-#[cfg(feature = "std")]
-pub use scoped::with_dispatcher;
-
-/// A scoped dispatcher was retained beyond its borrowed callback lifetime.
-pub const EVENT_E_CLOSED: neocogi_com::NcStatus = neocogi_com::NcStatus::from_code(-1000);
-/// Shared component access would reenter an active mutable operation.
-pub const EVENT_E_BUSY: neocogi_com::NcStatus = neocogi_com::NcStatus::from_code(-1001);
