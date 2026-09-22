@@ -97,7 +97,7 @@ pub fn bind_output<E: ComEvent, M: 'static>(
     sender: Sender<M>,
     translate: impl FnMut(E) -> M + 'static,
 ) -> Result<(), NcStatus> {
-    super::map(
+    super::bind(
         |consume| {
             let receiver = E::make_receiver(consume)?;
             outputs

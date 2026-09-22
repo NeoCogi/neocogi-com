@@ -6,7 +6,7 @@ use std::{
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 use neocogi_com::{ComPtr, Runtime, guid_from_qualified_name};
-use neocogi_com::events::{NamedOutputs, bind_output, map};
+use neocogi_com::events::{NamedOutputs, bind_output, bind};
 use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentChanged, IExampleEventsAbi, IExampleEventsOutputs};
 
 /// Gates counting around the measured setup or synchronous delivery only.
@@ -95,7 +95,7 @@ fn main() {
     exports.export("resized", source.clone(), "changed").unwrap();
     let opaque = exports.into_com().unwrap();
     let (direct_sender, direct_messages) = std::sync::mpsc::channel();
-    let direct_binding = count(|| map(source.changed(), direct_sender, |value: ExtentChanged| value.width).unwrap());
+    let direct_binding = count(|| bind(source.changed(), direct_sender, |value: ExtentChanged| value.width).unwrap());
     let direct_delivery = count(|| deliver(&mut object, &direct_messages));
     let (named_sender, named_messages) = std::sync::mpsc::channel();
     let named_binding = count(|| bind_output(opaque.as_com_ref(), "resized", named_sender, |value: ExtentChanged| value.width).unwrap());

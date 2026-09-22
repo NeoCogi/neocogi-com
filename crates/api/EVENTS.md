@@ -1,6 +1,6 @@
 # Typed COM event mappings
 
-`map(producer.changed(), sender, mapper)` installs a concrete generated receiver.
+`bind(producer.changed(), sender, mapper)` installs a concrete generated receiver.
 The mapper immediately translates an owned event into an application message;
 the application consumes its standard channel later at a safe update boundary.
 
@@ -12,7 +12,7 @@ UI runtime owns mounted-driver discovery, visit order, and the update budget.
 
 ## Mapping and dispatch
 
-- `map` takes the output's generated installation closure, a
+- `bind` takes the output's generated installation closure, a
   `std::sync::mpsc::Sender<Message>`, and a `FnMut(Event) -> Message` mapper.
   Installing returns `Result<(), NcStatus>`; there is no subscription handle.
   Mapping executes synchronously during the producer's COM call. If the

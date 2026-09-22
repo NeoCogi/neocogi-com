@@ -17,7 +17,7 @@ pub use named::{NamedOutputs, bind_output};
 #[cfg(feature = "std")]
 mod mapping;
 #[cfg(feature = "std")]
-pub use mapping::map;
+pub use mapping::bind;
 #[cfg(feature = "std")]
 mod component;
 #[cfg(feature = "std")]
