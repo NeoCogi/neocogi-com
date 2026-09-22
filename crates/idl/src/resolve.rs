@@ -1039,6 +1039,10 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
             AbiType::Named(name) => match resolve_named_or_str(index, name, entries)? {
                 ResolvedName::Str => Ok(()),
                 ResolvedName::Symbol(symbol) if symbol.kind != SymbolKind::Value => Ok(()),
+                // Marked messages have an explicit borrowed wire form. The
+                // callee validates/copies it before retaining owned fields;
+                // ordinary copied records still reject reference parameters.
+                ResolvedName::Symbol(symbol) if entries[symbol.module].module.declarations[symbol.declaration].message => Ok(()),
                 ResolvedName::Symbol(symbol) => Err(kind_mismatch_error(
                     index,
                     symbol,

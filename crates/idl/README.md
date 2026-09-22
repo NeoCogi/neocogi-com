@@ -99,6 +99,12 @@ be embedded in copied records or passed as unborrowed inputs. Their exact core
 interface identities participate in generated signatures. `Guid` is the copied
 `NcGuid` value type. These spellings are reserved and cannot be shadowed.
 
+Methods may explicitly borrow a `#[message]` value as `value: &Message`. Generated
+Rust uses `NcMessage<'_, Message>` and the message's concrete checked wire codec;
+the callee calls `to_owned()` before retaining strings, arrays, or capabilities.
+Unborrowed ownership-bearing message parameters and copied aggregate fields
+remain rejected. Imported message parameters honor published Rust module paths.
+
 ## Publishing contracts inside an existing Rust crate
 
 A logical IDL module does not have to occupy a dedicated Rust crate. An owner

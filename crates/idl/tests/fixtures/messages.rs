@@ -4,6 +4,35 @@ mod message_tests {
     use super::*;
     use neocogi_com::{com_object, ComMessage, ComPtr, NcMessage, NcStatus};
 
+    #[com_object(interfaces(IMessageInput))]
+    /// Explicit message arguments retain their concrete contents after the caller returns.
+    struct MessageInput {
+        /// The callee owns this value after decoding its borrowed wire representation.
+        value: Option<Completion>,
+    }
+    impl IMessageInput for MessageInput {
+        /// Validates the exact tag and retains an interface payload before returning.
+        fn accept(&mut self, value: NcMessage<'_, Completion>) -> Result<(), NcStatus> {
+            self.value = Some(value.to_owned()?);
+            Ok(())
+        }
+    }
+
+    /// Borrowed message arguments carry owned capabilities without weakening copied-value rules.
+    #[test]
+    fn ordinary_method_accepts_an_explicit_borrowed_message() {
+        let input = MessageInput::into_local(MessageInput { value: None });
+        let mut interface = input.query::<IMessageInputAbi>().unwrap();
+        {
+            let value = Completion::Accepted { token: Token::from_value(Token).query().unwrap() };
+            interface.accept(NcMessage::new(&value)).unwrap();
+        }
+        match input.try_borrow().unwrap().value.as_ref().unwrap() {
+            Completion::Accepted { token } => assert_eq!(token.value(), Ok(42)),
+            Completion::Cancelled => panic!("retained the wrong alternative"),
+        }
+    }
+
     #[com_object(interfaces(IToken))]
     /// Object lifetime is observable after all producer-side references are dropped.
     struct Token;

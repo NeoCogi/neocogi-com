@@ -590,6 +590,18 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
         }
         AbiType::Borrowed(referent) => match referent.as_ref() {
             AbiType::Named(name) if name.segments.as_slice() == ["str"] => Ok(quote! { ::neocogi_com::NcCopyFromBufferOffset<'_, u8> }),
+            AbiType::Named(name) if builtin_object_type(name).is_none() => {
+                let resolved = resolve(graph, module, name)?;
+                match resolved.declaration.message {
+                    true => {
+                        // A borrowed concrete message uses its generated wire
+                        // codec, never a copied Rust enum or owning interface field.
+                        let message = named_rust_type(graph, module, resolved, false)?;
+                        Ok(quote! { ::neocogi_com::NcMessage<'_, #message> })
+                    }
+                    false => object_reference_type(graph, module, name, false),
+                }
+            }
             AbiType::Named(name) => object_reference_type(graph, module, name, false),
             _ => Err(GenerateError::new("IDL borrows support only str and object declarations")),
         },
