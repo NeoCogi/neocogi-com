@@ -40,7 +40,7 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
         quote! {}
     };
     let field_layouts = com_struct_field_layouts(&input.fields);
-    let signature_bytes_ident = format_ident!("__nc_{struct_ident}_abi_signature_bytes");
+    let signature_bytes_ident = format_ident!("__nc_{struct_ident}_abi_signature_bytes", span = struct_ident.span());
     let mut field_type_expressions = Vec::new();
     for (_, _, ty) in &field_layouts {
         let field_type = if args.c_struct {

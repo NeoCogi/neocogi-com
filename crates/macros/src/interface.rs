@@ -64,11 +64,14 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
     let trait_ident = &input.ident;
     let vis = &input.vis;
-    let abi_ident = format_ident!("{trait_ident}Abi");
-    let vtable_ident = format_ident!("{trait_ident}VTable");
-    let vtable_for_ident = format_ident!("{trait_ident}VtblFor");
-    let client_ident = format_ident!("{trait_ident}Client");
-    let interfaces_ident = format_ident!("{trait_ident}InterfacesFor");
+    // Implicit format captures do not pass Ident fragments to quote's span
+    // inference. Keep each derived public name anchored to the source trait,
+    // including when the trait comes from an OUT_DIR include.
+    let abi_ident = format_ident!("{trait_ident}Abi", span = trait_ident.span());
+    let vtable_ident = format_ident!("{trait_ident}VTable", span = trait_ident.span());
+    let vtable_for_ident = format_ident!("{trait_ident}VtblFor", span = trait_ident.span());
+    let client_ident = format_ident!("{trait_ident}Client", span = trait_ident.span());
+    let interfaces_ident = format_ident!("{trait_ident}InterfacesFor", span = trait_ident.span());
     let threading = match args.threading {
         InterfaceThreading::Local => quote! { #nc::ThreadLocal },
         InterfaceThreading::Shared => quote! { #nc::ThreadSafe },
@@ -252,7 +255,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             }
         }
     });
-    let signature_bytes_ident = format_ident!("__nc_{abi_ident}_abi_signature_bytes");
+    let signature_bytes_ident = format_ident!("__nc_{abi_ident}_abi_signature_bytes", span = trait_ident.span());
     let signature_static = abi_signature_static_tokens(&signature_bytes_ident, &assigned_signature, &nc);
     let method_count_usize = methods.len();
 
@@ -288,7 +291,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     // Rust's normal panic and ABI unwind rules.
     let thunks = methods.iter().map(|method| {
         let method_ident = &method.ident;
-        let thunk_ident = format_ident!("{method_ident}_thunk");
+        let thunk_ident = format_ident!("{method_ident}_thunk", span = method_ident.span());
         // Mixed-site names cannot collide with source parameters that happen
         // to use the same spelling after buffer lowering.
         let object_ident = syn::Ident::new("__nc_dispatch_object", proc_macro2::Span::mixed_site());
@@ -492,7 +495,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     // call the correct concrete Rust type without dynamic Rust dispatch.
     let vtable_entries = methods.iter().map(|method| {
         let method_ident = &method.ident;
-        let thunk_ident = format_ident!("{method_ident}_thunk");
+        let thunk_ident = format_ident!("{method_ident}_thunk", span = method_ident.span());
         quote! { #method_ident: Self::#thunk_ident }
     });
 
@@ -1067,17 +1070,17 @@ fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
 
 /// Builds the generated offset parameter name for a bounded buffer.
 fn buffer_offset_ident(ident: &syn::Ident) -> syn::Ident {
-    format_ident!("__nc_{ident}_offset")
+    format_ident!("__nc_{ident}_offset", span = ident.span())
 }
 
 /// Builds the generated length parameter name for a bounded buffer.
 fn buffer_len_ident(ident: &syn::Ident) -> syn::Ident {
-    format_ident!("__nc_{ident}_len")
+    format_ident!("__nc_{ident}_len", span = ident.span())
 }
 
 /// Builds the generated data-pointer parameter name for a bounded buffer.
 fn buffer_ptr_ident(ident: &syn::Ident) -> syn::Ident {
-    format_ident!("__nc_{ident}_ptr")
+    format_ident!("__nc_{ident}_ptr", span = ident.span())
 }
 
 /// Rejects source names that collide after helper and raw-parameter generation.

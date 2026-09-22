@@ -362,3 +362,6 @@ pub fn com_enum(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[cfg(test)]
 mod persistence_codegen;
+
+#[cfg(test)]
+mod navigation_tests;

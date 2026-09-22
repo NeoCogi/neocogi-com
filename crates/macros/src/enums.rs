@@ -31,9 +31,9 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
     }
     let vis = &input.vis;
     let tag_ty = &args.tag;
-    let abi_ident = format_ident!("{enum_ident}Abi");
-    let tag_ident = format_ident!("{enum_ident}Tag");
-    let payload_ident = format_ident!("{enum_ident}Payload");
+    let abi_ident = format_ident!("{enum_ident}Abi", span = enum_ident.span());
+    let tag_ident = format_ident!("{enum_ident}Tag", span = enum_ident.span());
+    let payload_ident = format_ident!("{enum_ident}Payload", span = enum_ident.span());
     let debug_impl = has_derive(&input.attrs, "Debug").then(|| {
         quote! {
             impl core::fmt::Debug for #abi_ident {
@@ -83,7 +83,7 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
             "com_enum requires an IDL-generator assigned_signature; define cross-component contracts in .ncidl",
         )
     })?;
-    let signature_bytes_ident = format_ident!("__nc_{abi_ident}_abi_signature_bytes");
+    let signature_bytes_ident = format_ident!("__nc_{abi_ident}_abi_signature_bytes", span = enum_ident.span());
     let signature_static = abi_signature_static_tokens(&signature_bytes_ident, assigned_signature, &nc);
 
     let (deserialize_payload_impls, deserialize_impl) = if args.deserialize {
@@ -792,7 +792,7 @@ fn strip_com_enum_attrs(attrs: &[Attribute]) -> Vec<Attribute> {
 
 /// Builds the private payload struct name for one variant.
 fn variant_payload_ident(enum_ident: &Ident, variant_ident: &Ident) -> Ident {
-    format_ident!("{enum_ident}{variant_ident}Payload")
+    format_ident!("{enum_ident}{variant_ident}Payload", span = variant_ident.span())
 }
 
 /// Builds the union field name used to store one variant payload.
@@ -801,7 +801,7 @@ fn union_payload_field(variant_ident: &Ident) -> Ident {
     name.make_ascii_lowercase();
     // A private prefix keeps Move/Type/Crate and other keyword-shaped variants
     // valid without special-case keyword lists or changing their ABI layout.
-    format_ident!("__nc_{name}")
+    format_ident!("__nc_{name}", span = variant_ident.span())
 }
 
 /// Rejects case-folded variant names that would collide as generated union fields.

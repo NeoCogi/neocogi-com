@@ -19,7 +19,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
     let object_ident = &input.ident;
     let object_vis = create_visibility(&input.vis);
-    let storage_ident = format_ident!("{object_ident}ComObject");
+    let storage_ident = format_ident!("{object_ident}ComObject", span = object_ident.span());
     // Rust implementation generics stay inside the allocating binary, and COM
     // pointers cannot carry the lifetime of borrowed application storage.
     let generic = !input.generics.params.is_empty();
