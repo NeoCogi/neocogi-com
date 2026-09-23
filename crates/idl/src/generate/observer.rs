@@ -1,4 +1,4 @@
-//! One typed destination per producer, derived from its declared output messages.
+//! Typed producer outputs can deliver one borrowed event to several bound destinations.
 
 use super::*;
 
@@ -48,25 +48,30 @@ pub(super) fn generate(graph: &Generation<'_>, module: &ResolvedModule, source: 
         });
         posts.push(quote! { Self::#variant(value) => destination.#method(::neocogi_com::NcMessage::new(value)) });
         export_fields.push(quote! {
-            /// Optional component-facing destination; replacing it never changes the widget's observer.
-            #method: Option<::neocogi_com::ComPtr<#receiver>>
+            /// Component-facing subscribers retain only concrete typed receiver capabilities.
+            #method: ::neocogi_com::__alloc::vec::Vec<::neocogi_com::ComPtr<#receiver>>
         });
-        export_inits.push(quote! { #method: None });
+        export_inits.push(quote! { #method: ::neocogi_com::__alloc::vec::Vec::new() });
         export_posts.push(quote! {
             #documentation
             fn #method(&mut self, event: ::neocogi_com::NcMessage<'_, #payload>) -> Result<(), ::neocogi_com::NcStatus> {
-                // The borrow remains within this synchronous call. The eventual
-                // consumer decodes once; the forwarding object retains no payload.
-                match &mut self.#method {
-                    Some(destination) => destination.post(event),
-                    None => Ok(()),
+                // Every receiver sees the same call-scoped wire record. Deliver after an error
+                // so one closed application subscriber cannot suppress an independent route.
+                let mut first_error = None;
+                for destination in &mut self.#method {
+                    if let Err(error) = destination.post(event) {
+                        first_error.get_or_insert(error);
+                    }
                 }
+                first_error.map_or(Ok(()), Err)
             }
         });
         export_binds.push(quote! {
             #port_name => {
-                // Validate the exact message contract before replacing a good binding.
-                self.#method = Some(destination.add_ref().query::<#receiver>()?);
+                // Validate before append; a malformed binding cannot disturb existing routes.
+                let receiver = destination.add_ref().query::<#receiver>()?;
+                if self.#method.len() >= 4096 { return Err(::neocogi_com::NC_E_OUT_OF_RANGE); }
+                self.#method.push(receiver);
                 Ok(())
             }
         });

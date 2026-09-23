@@ -333,9 +333,11 @@ mod observer_tests {
         assert!(receiver.try_recv().is_err());
         neocogi_com::events::bind_output(exports.as_com_ref(), "changed", sender, |value: TextChanged| value.text.to_uppercase()).unwrap();
         editor.emit().unwrap();
+        assert_eq!(receiver.try_recv().unwrap(), "hello");
         assert_eq!(receiver.try_recv().unwrap(), "HELLO");
         drop(exports);
         editor.emit().unwrap();
+        assert_eq!(receiver.try_recv().unwrap(), "hello");
         assert_eq!(receiver.try_recv().unwrap(), "HELLO");
     }
 }

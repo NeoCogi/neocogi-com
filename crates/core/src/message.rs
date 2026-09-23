@@ -34,6 +34,13 @@ pub struct NcMessage<'a, M: ComMessage> {
     /// Prevents safe callers from retaining the wire after its owner is released.
     owner: PhantomData<&'a M>,
 }
+impl<'a, M: ComMessage> Copy for NcMessage<'a, M> {}
+impl<'a, M: ComMessage> Clone for NcMessage<'a, M> {
+    /// Duplicates only the call-scoped wire record, retaining the same borrowed owner lifetime.
+    fn clone(&self) -> Self {
+        *self
+    }
+}
 impl<'a, M: ComMessage> NcMessage<'a, M> {
     /// Encodes a borrowed message without relinquishing any producer-owned allocation.
     pub fn new(message: &'a M) -> Self {
