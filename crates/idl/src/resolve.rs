@@ -915,22 +915,17 @@ fn message_fields(declaration: &Declaration) -> Vec<&AbiType> {
     }
 }
 
-/// Message fields own strings and object references; ordinary records remain plain ABI data.
+/// Message fields may recursively own messages, strings, and object references;
+/// ordinary records remain plain ABI data.
 fn validate_field_type(message: bool, index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     if message {
         match ty {
             AbiType::String => return Ok(()),
             AbiType::Named(name) => {
-                let symbol = resolve_named(index, name, entries)?;
-                if entries[symbol.module].module.declarations[symbol.declaration].message {
-                    return Err(source_error(
-                        &entries[index].module,
-                        "EIDL080",
-                        span,
-                        format!("{context} cannot nest another message"),
-                        "use a plain value or an object reference",
-                    ));
-                }
+                // Message fields may hold other messages and object capabilities.
+                // Nested messages borrow their concrete wires; validate_layouts
+                // rejects inline cycles before generation.
+                resolve_named(index, name, entries)?;
                 return Ok(());
             }
             AbiType::Slice(element) => return validate_value_type(index, element, entries, context, span),

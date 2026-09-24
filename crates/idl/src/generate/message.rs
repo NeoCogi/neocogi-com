@@ -133,10 +133,17 @@ pub(super) fn generate_message(
     let equality = comparable.then(|| quote! { #[derive(Debug, PartialEq)] });
     let mut plain = declaration.clone();
     plain.message = false;
+    // A nested message uses its borrowed wire inside this message. Even when
+    // its current fields are copyable, keep the enclosing declaration on the
+    // owned-message path so future nested ownership cannot become plain ABI.
+    let copyable_field = |ty: &AbiType| {
+        !matches!(ty, AbiType::Named(path) if resolve(graph, module, path).is_ok_and(|nested| nested.declaration.message))
+            && value_type(graph, module, ty).is_ok()
+    };
     let copyable = cases.iter().all(|(_, _, fields, _, _)| match fields {
         VariantFields::Unit => true,
-        VariantFields::Tuple(fields) => fields.iter().all(|ty| value_type(graph, module, ty).is_ok()),
-        VariantFields::Named(fields) => fields.iter().all(|field| value_type(graph, module, &field.ty).is_ok()),
+        VariantFields::Tuple(fields) => fields.iter().all(&copyable_field),
+        VariantFields::Named(fields) => fields.iter().all(|field| copyable_field(&field.ty)),
     });
     let data = if copyable {
         // A plain message keeps its existing ordinary ABI representation as well
@@ -233,6 +240,26 @@ fn field_codec(
     ty: &AbiType,
     field: &Ident,
 ) -> Result<(TokenStream, TokenStream, TokenStream, TokenStream, bool), GenerateError> {
+    // A nested message is an inline C wire record, not a Rust value passed
+    // through the ABI. The outer borrow keeps every nested pointer live until
+    // recursive decoding has acquired the complete owned value.
+    if let AbiType::Named(path) = ty {
+        let nested = resolve(graph, module, path)?;
+        if nested.declaration.message {
+            let owned = named_rust_type(graph, module, nested, false)?;
+            return Ok((
+                owned.clone(),
+                quote! { <#owned as ::neocogi_com::ComMessage>::Wire },
+                quote! { <#owned as ::neocogi_com::ComMessage>::encode(#field) },
+                quote! {
+                    // SAFETY: the outer call guarantees the nested inline wire and
+                    // all its borrowed backing storage remain live for this decode.
+                    unsafe { <#owned as ::neocogi_com::ComMessage>::decode(raw.#field) }?
+                },
+                false,
+            ));
+        }
+    }
     match ty {
         AbiType::String | AbiType::Slice(_) => {
             let (element, owned, bytes, acquire) = match ty {

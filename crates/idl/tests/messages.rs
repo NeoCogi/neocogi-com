@@ -10,6 +10,7 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
         #[version(1)] interface IToken { fn value(&self) -> Result<u32>; }
         #[version(1)] #[message] struct NumberChanged { value: f32, checked: bool }
         #[version(1)] #[message] struct TextChanged { text: String, cursor: u64 }
+        #[version(1)] #[message] struct TextEnvelope { changed: TextChanged }
         #[version(1)] #[message] enum Completion { Accepted { token: IToken }, Cancelled }
         #[version(1)] #[message] enum Notice { Ready, Done }
         #[version(1)] #[message] struct Batch { values: &[u32] }
@@ -17,7 +18,7 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
         #[version(1)] interface IMessageInput { fn accept(&mut self, value: &Completion) -> Result<()>; }
         #[version(1)] #[message] enum EditorEvent {
             /// Captured edit, before any completion from the same input.
-            Changed { text: String, cursor: u64 },
+            Changed(TextChanged),
             /// Captured completion through the same observer identity.
             Completed,
         }
@@ -108,4 +109,30 @@ fn owned_message_fields_do_not_weaken_plain_abi_rules() {
         let module = parse_module(Path::new("example/messages.ncidl"), &source).unwrap();
         assert!(resolve_modules(vec![module]).is_err(), "{use_site}");
     }
+}
+
+/// Nested messages preserve finite inline layout; ordinary copied values still
+/// reject them, and ownership cycles fail before Rust code generation.
+#[test]
+fn nested_message_layouts_reject_inline_cycles() {
+    for source in [
+        "#[version(1)] #[message] struct Loop { value: Loop }",
+        "#[version(1)] #[message] struct First { next: Second } #[version(1)] #[message] struct Second { next: First }",
+    ] {
+        let error = resolve_modules(vec![parse_module(Path::new("example/messages.ncidl"), source).unwrap()]).unwrap_err().to_string();
+        assert!(error.contains("recursive copied-value layout"), "{error}");
+    }
+}
+
+/// A nested message cannot silently acquire ordinary copied-aggregate semantics,
+/// even if its current innermost payload happens to be copyable.
+#[test]
+fn nested_messages_stay_out_of_plain_value_fields() {
+    let source = r#"
+        #[version(1)] #[message] struct Inner { value: u32 }
+        #[version(1)] #[message] struct Outer { nested: Inner }
+        #[version(1)] struct Copied { value: Outer }
+    "#;
+    let error = resolve_modules(vec![parse_module(Path::new("example/messages.ncidl"), source).unwrap()]).unwrap_err().to_string();
+    assert!(error.contains("cannot embed a message"), "{error}");
 }

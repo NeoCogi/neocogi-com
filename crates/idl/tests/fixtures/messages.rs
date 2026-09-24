@@ -243,7 +243,7 @@ mod named_output_tests {
 #[cfg(test)]
 mod observer_tests {
     use super::*;
-    use neocogi_com::{com_object, ComPtr, ComRef, NcStatus};
+    use neocogi_com::{com_object, ComMessage, ComPtr, ComRef, NcStatus};
 
     /// Producer retains exactly the optional destination supplied by its factory.
     #[com_object(Editor)]
@@ -254,7 +254,7 @@ mod observer_tests {
     impl Editor for EditorValue {
         /// Two facts from one update preserve their order across the COM boundary.
         fn emit(&mut self) -> Result<(), NcStatus> {
-            EditorEvent::Changed { text: "hello".into(), cursor: 5 }.post_to_observer(&mut self.observer)?;
+            EditorEvent::Changed(TextChanged { text: "hello".into(), cursor: 5 }).post_to_observer(&mut self.observer)?;
             EditorEvent::Completed.post_to_observer(&mut self.observer)
         }
     }
@@ -285,7 +285,7 @@ mod observer_tests {
         let mut editor = factory.create(Some(observer.as_com_ref())).unwrap();
         drop(observer);
         editor.emit().unwrap();
-        assert!(matches!(receiver.try_recv().unwrap(), EditorEvent::Changed { text, cursor: 5 } if text == "hello"));
+        assert!(matches!(receiver.try_recv().unwrap(), EditorEvent::Changed(TextChanged { text, cursor: 5 }) if text == "hello"));
         assert!(matches!(receiver.try_recv().unwrap(), EditorEvent::Completed));
         drop(editor);
         assert!(matches!(receiver.try_recv(), Err(std::sync::mpsc::TryRecvError::Disconnected)));
@@ -296,22 +296,40 @@ mod observer_tests {
     /// A malformed wire message never invokes the generated local callback.
     #[test]
     fn observer_checks_payload_before_mapping() {
-        use neocogi_com::ComMessage;
         let (sender, receiver) = std::sync::mpsc::channel();
         let mut observer = EditorEvent::observer(move |event| {
             sender.send(event).unwrap();
             Ok(())
         })
         .unwrap();
-        let value = EditorEvent::Changed { text: String::new(), cursor: 0 };
+        let value = EditorEvent::Changed(TextChanged { text: String::new(), cursor: 0 });
         let mut wire = value.encode();
         let invalid_utf8 = [0xff];
-        wire.payload.case_0.text = neocogi_com::NcMessageSlice::new(&invalid_utf8);
+        wire.payload.case_0.field_0.payload.case_0.text = neocogi_com::NcMessageSlice::new(&invalid_utf8);
         // SAFETY: The wire and its backing bytes remain live for the call. The
         // deliberately invalid text tests the boundary's checked UTF-8 decoder.
         let input = unsafe { neocogi_com::NcMessage::from_raw(&wire) }.unwrap();
         assert_eq!(observer.event(input), Err(neocogi_com::NC_E_INVALID_ARG));
         assert!(receiver.try_recv().is_err());
+    }
+
+    /// A nested borrowed wire copies its text exactly once and rejects malformed
+    /// nested UTF-8 before any caller can retain a partially decoded envelope.
+    #[test]
+    fn nested_struct_messages_decode_owned_fields_recursively() {
+        let source = TextEnvelope { changed: TextChanged { text: "nested".into(), cursor: 6 } };
+        let wire = source.encode();
+        // SAFETY: The source message owns every borrowed byte until decoding ends.
+        let acquired = unsafe { TextEnvelope::decode(wire) }.unwrap();
+        drop(source);
+        assert_eq!(acquired.changed.text, "nested");
+        assert_eq!(acquired.changed.cursor, 6);
+        let source = TextEnvelope { changed: TextChanged { text: String::new(), cursor: 0 } };
+        let mut wire = source.encode();
+        let invalid_utf8 = [0xff];
+        wire.payload.case_0.changed.payload.case_0.text = neocogi_com::NcMessageSlice::new(&invalid_utf8);
+        // SAFETY: The malformed borrowed bytes remain live for the checked decode.
+        assert!(matches!(unsafe { TextEnvelope::decode(wire) }, Err(neocogi_com::NC_E_INVALID_ARG)));
     }
 
     /// Public export binding changes only the component destination, while the
@@ -323,14 +341,14 @@ mod observer_tests {
         let mut editor = factory.create(Some(observer.as_com_ref())).unwrap();
         drop(observer);
         let (sender, receiver) = std::sync::mpsc::channel();
-        neocogi_com::events::bind_output(exports.as_com_ref(), "event", sender.clone(), |value: EditorEvent| match value { EditorEvent::Changed { text, .. } => text, EditorEvent::Completed => "completed".into() }).unwrap();
+        neocogi_com::events::bind_output(exports.as_com_ref(), "event", sender.clone(), |value: EditorEvent| match value { EditorEvent::Changed(TextChanged { text, .. }) => text, EditorEvent::Completed => "completed".into() }).unwrap();
         assert!(neocogi_com::events::bind_output(exports.as_com_ref(), "event", sender.clone(), |_: Completion| String::new()).is_err());
         assert!(neocogi_com::events::bind_output(exports.as_com_ref(), "absent", sender.clone(), |_: EditorEvent| String::new()).is_err());
         editor.emit().unwrap();
         assert_eq!(receiver.try_recv().unwrap(), "hello");
         // A failed bind left the destination intact for both event variants.
         assert_eq!(receiver.try_recv().unwrap(), "completed");
-        neocogi_com::events::bind_output(exports.as_com_ref(), "event", sender, |value: EditorEvent| match value { EditorEvent::Changed { text, .. } => text.to_uppercase(), EditorEvent::Completed => "COMPLETED".into() }).unwrap();
+        neocogi_com::events::bind_output(exports.as_com_ref(), "event", sender, |value: EditorEvent| match value { EditorEvent::Changed(TextChanged { text, .. }) => text.to_uppercase(), EditorEvent::Completed => "COMPLETED".into() }).unwrap();
         editor.emit().unwrap();
         assert_eq!(receiver.try_recv().unwrap(), "HELLO");
         assert_eq!(receiver.try_recv().unwrap(), "COMPLETED");
