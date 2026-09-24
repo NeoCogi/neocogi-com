@@ -1,4 +1,4 @@
-//! Typed producer outputs can deliver one borrowed event to several bound destinations.
+//! One construction-time observer receives the typed event stream; public rebinding replaces its sole destination.
 
 use super::*;
 
@@ -20,7 +20,9 @@ pub(super) fn generate(graph: &Generation<'_>, module: &ResolvedModule, source: 
     let direct_event = match event_ports.as_slice() {
         [port] => {
             let payload = resolve(graph, module, &port.message)?;
-            payload.declaration.name == format!("{}Event", source.name)
+            std::ptr::eq(payload.module, module)
+                && payload.declaration.message
+                && payload.declaration.name == format!("{}Event", source.name)
                 && matches!(payload.declaration.kind, DeclarationKind::Enum(_))
         }
         _ => false,
@@ -71,30 +73,27 @@ pub(super) fn generate(graph: &Generation<'_>, module: &ResolvedModule, source: 
             posts.push(quote! { Self::#variant(value) => destination.#method(::neocogi_com::NcMessage::new(value)) });
         }
         export_fields.push(quote! {
-            /// Component-facing subscribers retain only concrete typed receiver capabilities.
-            #method: ::neocogi_com::__alloc::vec::Vec<::neocogi_com::ComPtr<#receiver>>
+            /// At most one component-facing receiver is installed for this event port.
+            #method: Option<::neocogi_com::ComPtr<#receiver>>
         });
-        export_inits.push(quote! { #method: ::neocogi_com::__alloc::vec::Vec::new() });
+        export_inits.push(quote! { #method: None });
         export_posts.push(quote! {
             #documentation
             fn #method(&mut self, event: ::neocogi_com::NcMessage<'_, #payload>) -> Result<(), ::neocogi_com::NcStatus> {
-                // Every receiver sees the same call-scoped wire record. Deliver after an error
-                // so one closed application subscriber cannot suppress an independent route.
-                let mut first_error = None;
-                for destination in &mut self.#method {
-                    if let Err(error) = destination.post(event) {
-                        first_error.get_or_insert(error);
-                    }
+                // The form owns visual actions; this relay has one application
+                // destination and retains no borrowed event after this call.
+                match &mut self.#method {
+                    Some(destination) => destination.post(event),
+                    None => Ok(()),
                 }
-                first_error.map_or(Ok(()), Err)
             }
         });
         export_binds.push(quote! {
             #port_name => {
-                // Validate before append; a malformed binding cannot disturb existing routes.
+                // Query before replacement; a malformed binding preserves the
+                // previous application's sole receiver on this port.
                 let receiver = destination.add_ref().query::<#receiver>()?;
-                if self.#method.len() >= 4096 { return Err(::neocogi_com::NC_E_OUT_OF_RANGE); }
-                self.#method.push(receiver);
+                self.#method = Some(receiver);
                 Ok(())
             }
         });

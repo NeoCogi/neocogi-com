@@ -86,6 +86,7 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
 fn observer_contracts_validate_names_and_policy() {
     for invalid in [
         "#[version(1)] #[observer] interface Empty {}",
+        "#[version(1)] #[observer] interface Many { first: TextChanged; second: TextChanged; }",
         "#[version(1)] #[observer] #[threading(shared)] interface Shared { changed: TextChanged; }",
         "#[version(1)] #[observer] interface Editor { changed: TextChanged; } #[version(1)] interface EditorObserver {}",
         "#[version(1)] interface EditorObserver {} #[version(1)] #[observer] interface Editor { changed: TextChanged; }",

@@ -332,15 +332,11 @@ mod observer_tests {
         assert_eq!(receiver.try_recv().unwrap(), "completed");
         neocogi_com::events::bind_output(exports.as_com_ref(), "event", sender, |value: EditorEvent| match value { EditorEvent::Changed { text, .. } => text.to_uppercase(), EditorEvent::Completed => "COMPLETED".into() }).unwrap();
         editor.emit().unwrap();
-        assert_eq!(receiver.try_recv().unwrap(), "hello");
         assert_eq!(receiver.try_recv().unwrap(), "HELLO");
-        assert_eq!(receiver.try_recv().unwrap(), "completed");
         assert_eq!(receiver.try_recv().unwrap(), "COMPLETED");
         drop(exports);
         editor.emit().unwrap();
-        assert_eq!(receiver.try_recv().unwrap(), "hello");
         assert_eq!(receiver.try_recv().unwrap(), "HELLO");
-        assert_eq!(receiver.try_recv().unwrap(), "completed");
         assert_eq!(receiver.try_recv().unwrap(), "COMPLETED");
     }
 }

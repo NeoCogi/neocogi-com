@@ -401,8 +401,15 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>, role: Int
     let bases = parse_bases(input)?;
     let callables = parse_callables(input)?;
     let observer = metadata.observer;
-    if observer && (!matches!(threading, Threading::Local) || !callables.iter().any(|item| matches!(item, Callable::Port(_)))) {
-        return Err(syn::Error::new(name.span(), "#[observer] requires a thread-local interface with its own declared outputs"));
+    if observer {
+        if !matches!(threading, Threading::Local) {
+            return Err(syn::Error::new(name.span(), "#[observer] requires a thread-local interface"));
+        }
+        // One observer call is the widget's sole event stream. Event variants
+        // belong in a declared message enum rather than separate output ports.
+        if callables.iter().filter(|item| matches!(item, Callable::Port(_))).count() != 1 {
+            return Err(syn::Error::new(name.span(), "#[observer] requires exactly one declared output port"));
+        }
     }
     Ok(declaration(
         name,
