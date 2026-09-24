@@ -45,10 +45,11 @@ For an unannotated producer, a provider owns a `NamedOutputs` table and register
 implementations validate the declared port and know its exact receiver contract.
 Register an inherited output through the interface that declares that output.
 Public names are component contracts, independent from widget layout paths.
-For `#[observer]` producers, register the generated `exported_observer()`'s
-`INamedOutputs` projection with `export_component` and supply its observer
-projection to the actual factory. Named binding changes downstream fields on
-that fixed observer, never a setter on the widget.
+For a document form, supply one child-to-form observer to each observed
+widget factory. If that child is public, register a separate form-owned
+`exported_observer()` projection with `export_component`. Named binding
+replaces that proxy's sole application destination. The form receives the
+child event first and chooses both visual actions and optional public delivery.
 
 The component implements `INamedOutputs::bind_output` by delegating to the
 ordinary mutable table's `bind_com`, or publishes `NamedOutputs::into_com()`.
