@@ -15,11 +15,15 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
         #[version(1)] #[message] struct Batch { values: &[u32] }
         #[version(1)] interface IProducer { completed: Completion; fn emit(&mut self) -> Result<()>; }
         #[version(1)] interface IMessageInput { fn accept(&mut self, value: &Completion) -> Result<()>; }
-        #[version(1)] #[observer] interface Editor {
-            /// Captured edit, before any submission from the same input.
-            changed: TextChanged;
+        #[version(1)] #[message] enum EditorEvent {
+            /// Captured edit, before any completion from the same input.
+            Changed { text: String, cursor: u64 },
             /// Captured completion through the same observer identity.
-            completed: Completion;
+            Completed,
+        }
+        #[version(1)] #[observer] interface Editor {
+            /// The sole output carries every editor event to its owner.
+            event: EditorEvent;
             fn emit(&mut self) -> Result<()>;
         }
         #[version(1)] factory Editors { fn create(&self, observer: Option<&EditorObserver>) -> Result<Editor>; }

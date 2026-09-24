@@ -23,7 +23,6 @@ const TYPES: &str = r#"/* café 😀 */ #[version(1)] struct Size { width: u32, 
 const WIDGETS: &str = r#"#[version(1)] #[observer] interface Textbox {
     fn resize(&mut self, size: Size) -> Result<()>;
     changed: Changed;
-    completed: Completed;
 }
 #[version(1)] factory Widgets {
     fn textbox(&self, observer: Option<&TextboxObserver>) -> Result<Textbox>;

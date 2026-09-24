@@ -254,8 +254,8 @@ mod observer_tests {
     impl Editor for EditorValue {
         /// Two facts from one update preserve their order across the COM boundary.
         fn emit(&mut self) -> Result<(), NcStatus> {
-            EditorEvent::Changed(TextChanged { text: "hello".into(), cursor: 5 }).post_to(&mut self.observer)?;
-            EditorEvent::Completed(Completion::Cancelled).post_to(&mut self.observer)
+            EditorEvent::Changed { text: "hello".into(), cursor: 5 }.post_to_observer(&mut self.observer)?;
+            EditorEvent::Completed.post_to_observer(&mut self.observer)
         }
     }
 
@@ -285,8 +285,8 @@ mod observer_tests {
         let mut editor = factory.create(Some(observer.as_com_ref())).unwrap();
         drop(observer);
         editor.emit().unwrap();
-        assert!(matches!(receiver.try_recv().unwrap(), EditorEvent::Changed(TextChanged { text, cursor: 5 }) if text == "hello"));
-        assert!(matches!(receiver.try_recv().unwrap(), EditorEvent::Completed(Completion::Cancelled)));
+        assert!(matches!(receiver.try_recv().unwrap(), EditorEvent::Changed { text, cursor: 5 } if text == "hello"));
+        assert!(matches!(receiver.try_recv().unwrap(), EditorEvent::Completed));
         drop(editor);
         assert!(matches!(receiver.try_recv(), Err(std::sync::mpsc::TryRecvError::Disconnected)));
         // No dummy observer is needed when the destination is absent.
@@ -303,14 +303,14 @@ mod observer_tests {
             Ok(())
         })
         .unwrap();
-        let value = TextChanged { text: String::new(), cursor: 0 };
+        let value = EditorEvent::Changed { text: String::new(), cursor: 0 };
         let mut wire = value.encode();
         let invalid_utf8 = [0xff];
         wire.payload.case_0.text = neocogi_com::NcMessageSlice::new(&invalid_utf8);
         // SAFETY: The wire and its backing bytes remain live for the call. The
         // deliberately invalid text tests the boundary's checked UTF-8 decoder.
         let input = unsafe { neocogi_com::NcMessage::from_raw(&wire) }.unwrap();
-        assert_eq!(observer.changed(input), Err(neocogi_com::NC_E_INVALID_ARG));
+        assert_eq!(observer.event(input), Err(neocogi_com::NC_E_INVALID_ARG));
         assert!(receiver.try_recv().is_err());
     }
 
@@ -323,21 +323,24 @@ mod observer_tests {
         let mut editor = factory.create(Some(observer.as_com_ref())).unwrap();
         drop(observer);
         let (sender, receiver) = std::sync::mpsc::channel();
-        neocogi_com::events::bind_output(exports.as_com_ref(), "changed", sender.clone(), |value: TextChanged| value.text).unwrap();
-        assert!(neocogi_com::events::bind_output(exports.as_com_ref(), "changed", sender.clone(), |_: Completion| String::new()).is_err());
-        assert!(neocogi_com::events::bind_output(exports.as_com_ref(), "absent", sender.clone(), |_: TextChanged| String::new()).is_err());
+        neocogi_com::events::bind_output(exports.as_com_ref(), "event", sender.clone(), |value: EditorEvent| match value { EditorEvent::Changed { text, .. } => text, EditorEvent::Completed => "completed".into() }).unwrap();
+        assert!(neocogi_com::events::bind_output(exports.as_com_ref(), "event", sender.clone(), |_: Completion| String::new()).is_err());
+        assert!(neocogi_com::events::bind_output(exports.as_com_ref(), "absent", sender.clone(), |_: EditorEvent| String::new()).is_err());
         editor.emit().unwrap();
         assert_eq!(receiver.try_recv().unwrap(), "hello");
-        // A failed bind left the destination intact. The unbound completion was
-        // ignored without retaining its borrowed fields in the forwarding object.
-        assert!(receiver.try_recv().is_err());
-        neocogi_com::events::bind_output(exports.as_com_ref(), "changed", sender, |value: TextChanged| value.text.to_uppercase()).unwrap();
+        // A failed bind left the destination intact for both event variants.
+        assert_eq!(receiver.try_recv().unwrap(), "completed");
+        neocogi_com::events::bind_output(exports.as_com_ref(), "event", sender, |value: EditorEvent| match value { EditorEvent::Changed { text, .. } => text.to_uppercase(), EditorEvent::Completed => "COMPLETED".into() }).unwrap();
         editor.emit().unwrap();
         assert_eq!(receiver.try_recv().unwrap(), "hello");
         assert_eq!(receiver.try_recv().unwrap(), "HELLO");
+        assert_eq!(receiver.try_recv().unwrap(), "completed");
+        assert_eq!(receiver.try_recv().unwrap(), "COMPLETED");
         drop(exports);
         editor.emit().unwrap();
         assert_eq!(receiver.try_recv().unwrap(), "hello");
         assert_eq!(receiver.try_recv().unwrap(), "HELLO");
+        assert_eq!(receiver.try_recv().unwrap(), "completed");
+        assert_eq!(receiver.try_recv().unwrap(), "COMPLETED");
     }
 }

@@ -11,6 +11,20 @@ pub(super) fn generate(graph: &Generation<'_>, module: &ResolvedModule, source: 
     let abi = rust_ident(&format!("{}ObserverAbi", source.name))?;
     let adapter = rust_ident(&format!("__{}Observer", source.name))?;
     let exports = rust_ident(&format!("__{}Exports", source.name))?;
+    // A sole enum-valued port already is the widget event sum. Reuse that
+    // declared message instead of generating a second wrapper enum around it.
+    let event_ports = callables.iter().filter_map(|callable| match callable {
+        Callable::Port(port) => Some(port),
+        _ => None,
+    }).collect::<Vec<_>>();
+    let direct_event = match event_ports.as_slice() {
+        [port] => {
+            let payload = resolve(graph, module, &port.message)?;
+            payload.declaration.name == format!("{}Event", source.name)
+                && matches!(payload.declaration.kind, DeclarationKind::Enum(_))
+        }
+        _ => false,
+    };
     let mut variants = Vec::new();
     let mut methods = Vec::new();
     let mut posts = Vec::new();
@@ -38,15 +52,24 @@ pub(super) fn generate(graph: &Generation<'_>, module: &ResolvedModule, source: 
             .collect::<String>();
         let variant = rust_ident(&variant_name)?;
         let documentation = origin_docs(&port.docs, &port.span);
-        variants.push(quote! { #documentation #variant(#payload) });
-        methods.push(quote! {
-            #documentation
-            fn #method(&mut self, event: ::neocogi_com::NcMessage<'_, #payload>) -> Result<(), ::neocogi_com::NcStatus> {
-                // Copy borrowed fields before passing the snapshot to local Rust.
-                (self.consume)(#event::#variant(event.to_owned()?))
-            }
-        });
-        posts.push(quote! { Self::#variant(value) => destination.#method(::neocogi_com::NcMessage::new(value)) });
+        if direct_event {
+            methods.push(quote! {
+                #documentation
+                fn #method(&mut self, event: ::neocogi_com::NcMessage<'_, #payload>) -> Result<(), ::neocogi_com::NcStatus> {
+                    (self.consume)(event.to_owned()?)
+                }
+            });
+        } else {
+            variants.push(quote! { #documentation #variant(#payload) });
+            methods.push(quote! {
+                #documentation
+                fn #method(&mut self, event: ::neocogi_com::NcMessage<'_, #payload>) -> Result<(), ::neocogi_com::NcStatus> {
+                    // Copy borrowed fields before passing the snapshot to local Rust.
+                    (self.consume)(#event::#variant(event.to_owned()?))
+                }
+            });
+            posts.push(quote! { Self::#variant(value) => destination.#method(::neocogi_com::NcMessage::new(value)) });
+        }
         export_fields.push(quote! {
             /// Component-facing subscribers retain only concrete typed receiver capabilities.
             #method: ::neocogi_com::__alloc::vec::Vec<::neocogi_com::ComPtr<#receiver>>
@@ -76,11 +99,25 @@ pub(super) fn generate(graph: &Generation<'_>, module: &ResolvedModule, source: 
             }
         });
     }
+    let event_declaration = if direct_event {
+        quote! {}
+    } else {
+        quote! {
+            /// Owned local snapshots of this producer's outputs, in declared order.
+            /// This enum is a Rust convenience and never crosses the COM ABI.
+            #[derive(Clone)]
+            pub enum #event { #(#variants),* }
+        }
+    };
+    let post_body = if direct_event {
+        let method = rust_ident(&event_ports[0].name)?;
+        quote! { destination.#method(::neocogi_com::NcMessage::new(self)) }
+    } else {
+        quote! { match self { #(#posts),* } }
+    };
+    let post_method = if direct_event { rust_ident("post_to_observer")? } else { rust_ident("post_to")? };
     Ok(quote! {
-        /// Owned local snapshots of this producer's outputs, in declared order.
-        /// This enum is a Rust convenience and never crosses the COM ABI.
-        #[derive(Clone)]
-        pub enum #event { #(#variants),* }
+        #event_declaration
 
         impl #event {
             /// Owns one callback in the observer allocation for all output kinds.
@@ -103,9 +140,9 @@ pub(super) fn generate(graph: &Generation<'_>, module: &ResolvedModule, source: 
 
             /// Posts through the observer retained at construction, or does nothing
             /// when the widget was explicitly created without a consumer.
-            pub fn post_to(&self, destination: &mut Option<::neocogi_com::ComPtr<#abi>>) -> Result<(), ::neocogi_com::NcStatus> {
+            pub fn #post_method(&self, destination: &mut Option<::neocogi_com::ComPtr<#abi>>) -> Result<(), ::neocogi_com::NcStatus> {
                 match destination {
-                    Some(destination) => match self { #(#posts),* },
+                    Some(destination) => #post_body,
                     None => Ok(()),
                 }
             }
