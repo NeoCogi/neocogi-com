@@ -247,6 +247,7 @@ fn nc_string_wraps_utf8_and_queries_as_bytes() {
 }
 
 
+/// A metadata identity query accepts an implemented projection and rejects an ABI mismatch.
 #[test]
 fn metadata_identity_query_checks_and_releases_a_concrete_projection() {
     let text = NcString::from_utf8_str("metadata");
