@@ -523,3 +523,24 @@ fn rejects_recursive_and_weakened_required_interfaces() {
         assert!(resolve_modules(vec![parsed]).unwrap_err().to_string().contains(diagnostic));
     }
 }
+
+/// Generated ABI and output companions share a Rust namespace with authored and imported names.
+#[test]
+fn rejects_generated_rust_name_collisions_before_emission() {
+    let local = module(
+        "example/local.ncidl",
+        "#[version(1)] interface IFoo {} #[version(1)] struct IFooAbi { value: u32 }",
+    );
+    let error = resolve_modules(vec![local]).unwrap_err().to_string();
+    assert!(error.contains("error[EIDL021]"), "{error}");
+    assert!(error.contains("IFooAbi"), "{error}");
+
+    let origin = module("example/origin.ncidl", "#[version(1)] struct IFooAbi { value: u32 }");
+    let consumer = module(
+        "example/consumer.ncidl",
+        "extern example.origin; use example.origin::IFooAbi; #[version(1)] interface IFoo {}",
+    );
+    let error = resolve_modules(vec![origin, consumer]).unwrap_err().to_string();
+    assert!(error.contains("error[EIDL021]"), "{error}");
+    assert!(error.contains("IFooAbi"), "{error}");
+}

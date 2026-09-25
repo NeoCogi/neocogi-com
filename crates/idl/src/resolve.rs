@@ -504,6 +504,7 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
 fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), ResolutionError> {
     let entry = &entries[index];
     let mut diagnostics = Vec::new();
+    collect_diagnostics(&mut diagnostics, validate_generated_names(entry));
     for declaration in &entry.module.declarations {
         match &declaration.kind {
             DeclarationKind::Struct(record) => {
@@ -567,6 +568,88 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
         }
     }
     collect_diagnostics(&mut diagnostics, validate_layouts(index, entries));
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(ResolutionError { diagnostics })
+    }
+}
+
+/// Reserves visible Rust companion types before generation, including imported names.
+///
+/// Authored declarations and explicit imports already have unambiguous IDL lookup,
+/// but an interface or tagged enum also emits Rust types that share this module's
+/// namespace. Reject collisions at the source location rather than leaving a
+/// duplicate-item compiler error in an unrelated generated file.
+fn validate_generated_names(entry: &ModuleEntry) -> Result<(), ResolutionError> {
+    let mut occupied = HashMap::<String, (SourceSpan, String)>::new();
+    for declaration in &entry.module.declarations {
+        occupied
+            .entry(declaration.name.clone())
+            .or_insert_with(|| (declaration.span.clone(), format!("declaration {}", declaration.name)));
+    }
+    for import in &entry.module.imports {
+        for name in &import.names {
+            occupied
+                .entry(name.clone())
+                .or_insert_with(|| (import.span.clone(), format!("imported name {name}")));
+        }
+    }
+
+    let mut diagnostics = Vec::new();
+    for declaration in &entry.module.declarations {
+        let mut companions = Vec::new();
+        match &declaration.kind {
+            DeclarationKind::Interface(interface) => {
+                companions.push(format!("{}Abi", declaration.name));
+                let has_output = interface.callables.iter().any(|item| matches!(item, Callable::Port(_)));
+                if has_output && !interface.observer {
+                    companions.push(format!("{}Outputs", declaration.name));
+                }
+                if interface.observer {
+                    let event_name = format!("{}Event", declaration.name);
+                    let direct_event = interface
+                        .callables
+                        .iter()
+                        .find_map(|item| match item {
+                            Callable::Port(port) => Some(&port.message),
+                            Callable::Method(_) => None,
+                        })
+                        .is_some_and(|path| {
+                            (path.segments.as_slice() == [event_name.as_str()] || path.segments.join(".") == format!("{}.{}", entry.module.name, event_name))
+                                && entry
+                                    .module
+                                    .declaration(&event_name)
+                                    .is_some_and(|event| event.message && matches!(event.kind, DeclarationKind::Enum(_)))
+                        });
+                    if !direct_event {
+                        companions.push(event_name);
+                    }
+                }
+            }
+            DeclarationKind::Enum(enumeration)
+                if declaration.message || enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit)) =>
+            {
+                companions.push(format!("{}Abi", declaration.name));
+            }
+            DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) => {}
+        }
+        for name in companions {
+            if let Some((previous_span, previous_name)) = occupied.get(&name) {
+                diagnostics.push(
+                    Diagnostic::new(
+                        "EIDL021",
+                        format!("generated Rust name {name:?} from {} conflicts with {previous_name}", declaration.name),
+                    )
+                    .with_sources(&entry.module.sources)
+                    .primary(&declaration.span, "this declaration generates the conflicting name")
+                    .secondary(previous_span, "name is already present here"),
+                );
+            } else {
+                occupied.insert(name, (declaration.span.clone(), format!("generated companion of {}", declaration.name)));
+            }
+        }
+    }
     if diagnostics.is_empty() {
         Ok(())
     } else {

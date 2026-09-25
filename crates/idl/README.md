@@ -151,3 +151,8 @@ The pure `generate::generate_rust_with_paths` API accepts a validated
 Signed `i8`, `i16`, and `i32` enum representations can use negative
 discriminants. The resolver checks their range and duplicate values before
 generation; generated unit and payload enums retain the signed tag.
+
+The resolver reserves generated Rust companion names such as `IFooAbi` and
+output extension traits before code generation. Local declarations or explicit
+imports that collide with these names receive source-located IDL diagnostics
+instead of duplicate-item errors from generated Rust.
