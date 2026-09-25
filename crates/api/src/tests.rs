@@ -246,6 +246,15 @@ fn nc_string_wraps_utf8_and_queries_as_bytes() {
     assert_eq!(bytes.to_vec().unwrap(), "hi \u{2603}".as_bytes());
 }
 
+
+#[test]
+fn metadata_identity_query_checks_and_releases_a_concrete_projection() {
+    let text = NcString::from_utf8_str("metadata");
+    assert_eq!(text.supports_interface_id(&INcBytesAbi::INTERFACE_ID), Ok(()));
+    let wrong_signature = NcInterfaceId::new(INcBytesAbi::IID, IUnknown::ABI_SIGNATURE);
+    assert_eq!(text.supports_interface_id(&wrong_signature), Err(NC_E_ABI_VERSION));
+    assert_eq!(text.to_string().unwrap(), "metadata");
+}
 struct BulkStringProbe {
     value: &'static [u8],
     reported_len: u64,

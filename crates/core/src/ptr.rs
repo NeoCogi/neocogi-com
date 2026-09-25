@@ -345,6 +345,30 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
         }
     }
 
+    /// Checks a metadata-supplied interface identity without naming its Rust projection.
+    ///
+    /// This is useful when a designer has a generated COM descriptor but the
+    /// concrete projection type is selected by a registered widget provider.
+    /// A successful query is released immediately; no typeless handle escapes.
+    pub fn supports_interface_id(&self, expected: &crate::NcInterfaceId) -> Result<(), NcStatus> {
+        let mut out = core::ptr::null_mut();
+        let unknown = T::iunknown(self.as_mut_ptr());
+        // SAFETY: this live pointer has a valid IUnknown prefix, and QueryInterface
+        // receives a readable identity and writable pointer slot for this call.
+        let status = unsafe { ((*(*unknown).vtable).query_interface)(unknown, expected, &mut out) };
+        if !status.is_ok() {
+            return Err(status);
+        }
+        if out.is_null() {
+            return Err(crate::NC_E_POINTER);
+        }
+        let projected = out.cast::<crate::IUnknown>();
+        // SAFETY: successful QueryInterface returned one owned COM reference.
+        // Every interface shares the IUnknown vtable prefix used to release it.
+        unsafe { ((*(*projected).vtable).release)(projected) };
+        Ok(())
+    }
+
     /// Returns whether this object supports interface `U`.
     ///
     /// Use [`ComPtr::query`] instead when the exact failure status matters.
