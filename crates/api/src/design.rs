@@ -3,7 +3,8 @@
 //! These immutable records supplement the physical ABI descriptors used by
 //! `neocogi-inspect`: ABI signatures identify compatibility, while these records
 //! retain declared event, struct, and enum names needed by authoring tools.
-//! They are Rust-side metadata and never cross a COM call boundary.
+//! Generated records stay local to their defining binary. A plugin may copy
+//! their values into a versioned COM design catalog for unlinked authoring hosts.
 
 use crate::NcInterfaceDescriptor;
 
