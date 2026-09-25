@@ -133,6 +133,11 @@ Rust uses `NcMessage<'_, Message>` and the message's concrete checked wire codec
 the callee calls `to_owned()` before retaining strings, arrays, or capabilities.
 Unborrowed ownership-bearing message parameters and copied aggregate fields
 remain rejected. Imported message parameters honor published Rust module paths.
+Message slices admit scalar elements only; `&[bool]` is encoded as checked `u8`
+bytes, while aggregate and enum slice elements are rejected until a checked
+wire-element codec exists. Generated delivery shares an 8 MiB byte limit and a
+64-record nesting limit across the whole message, checking slice length before
+constructing a Rust reference. These rules do not change ordinary method buffers.
 
 ## Publishing contracts inside an existing Rust crate
 

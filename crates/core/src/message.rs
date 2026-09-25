@@ -254,3 +254,23 @@ impl NcMessageSlice<u8> {
         Self { pointer: values.as_ptr().cast::<u8>(), len: values.len() as u64 }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{MAX_MESSAGE_DECODE_BYTES, MessageDecodeBudget, NcMessageSlice};
+    use crate::NC_E_OUT_OF_RANGE;
+
+    /// The size gate must run before a raw pointer is turned into a Rust slice.
+    #[test]
+    fn oversized_slice_is_rejected_without_accessing_its_pointer() {
+        let wire = NcMessageSlice {
+            pointer: core::ptr::NonNull::<u8>::dangling().as_ptr(),
+            len: (MAX_MESSAGE_DECODE_BYTES + 1) as u64,
+        };
+        let budget = MessageDecodeBudget::default();
+        // SAFETY: this length exceeds the budget and is rejected before the
+        // pointer is dereferenced or used to construct a reference.
+        let result = unsafe { wire.as_slice_bounded(&budget) };
+        assert_eq!(result, Err(NC_E_OUT_OF_RANGE));
+    }
+}
