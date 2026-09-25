@@ -575,6 +575,17 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
     }
 }
 
+/// Adds every top-level type emitted by `com_interface` for one trait name.
+///
+/// Keep this inventory aligned with `crates/com/macros/src/interface.rs`. Both
+/// authored interfaces and parser-expanded observer declarations use the same
+/// macro, so a single inventory covers both namespaces.
+fn interface_companions(name: &str, companions: &mut Vec<String>) {
+    for suffix in ["Abi", "VTable", "VtblFor", "Client", "InterfacesFor"] {
+        companions.push(format!("{name}{suffix}"));
+    }
+}
+
 /// Reserves visible Rust companion types before generation, including imported names.
 ///
 /// Authored declarations and explicit imports already have unambiguous IDL lookup,
@@ -601,12 +612,15 @@ fn validate_generated_names(entry: &ModuleEntry) -> Result<(), ResolutionError> 
         let mut companions = Vec::new();
         match &declaration.kind {
             DeclarationKind::Interface(interface) => {
-                companions.push(format!("{}Abi", declaration.name));
+                interface_companions(&declaration.name, &mut companions);
                 let has_output = interface.callables.iter().any(|item| matches!(item, Callable::Port(_)));
                 if has_output && !interface.observer {
                     companions.push(format!("{}Outputs", declaration.name));
                 }
                 if interface.observer {
+                    // The parser has already inserted the observer as its own
+                    // ordinary interface declaration. Its macro companions are
+                    // collected when that declaration is visited.
                     let event_name = format!("{}Event", declaration.name);
                     let direct_event = interface
                         .callables
@@ -628,9 +642,19 @@ fn validate_generated_names(entry: &ModuleEntry) -> Result<(), ResolutionError> 
                 }
             }
             DeclarationKind::Enum(enumeration)
-                if declaration.message || enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit)) =>
+                if !declaration.message && enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit)) =>
             {
+                // `com_enum` emits these names and one payload record per
+                // non-unit variant. Message enums take a different generator
+                // path whose private companions all start with `__`.
                 companions.push(format!("{}Abi", declaration.name));
+                companions.push(format!("{}Tag", declaration.name));
+                companions.push(format!("{}Payload", declaration.name));
+                for variant in &enumeration.variants {
+                    if !matches!(variant.fields, VariantFields::Unit) {
+                        companions.push(format!("{}{}Payload", declaration.name, variant.name));
+                    }
+                }
             }
             DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) => {}
         }

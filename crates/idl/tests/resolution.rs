@@ -524,6 +524,50 @@ fn rejects_recursive_and_weakened_required_interfaces() {
     }
 }
 
+/// Every visible macro companion must be reserved, including observer and
+/// payload-variant types; message-only private wire names cannot collide.
+#[test]
+fn reserves_all_visible_macro_companions() {
+    for suffix in ["Abi", "VTable", "VtblFor", "Client", "InterfacesFor"] {
+        let name = format!("IFoo{suffix}");
+        let source = format!(
+            "#[version(1)] interface IFoo {{}} #[version(1)] struct {name} {{ value: u32 }}"
+        );
+        let error = resolve_modules(vec![module("example/interfaces.ncidl", &source)]).unwrap_err().to_string();
+        assert!(error.contains("error[EIDL021]") && error.contains(&name), "{error}");
+    }
+
+    for name in ["ChoiceAbi", "ChoiceTag", "ChoicePayload", "ChoiceSelectedPayload"] {
+        let source = format!(
+            "#[version(1)] enum Choice: u8 {{ Selected(u32), Empty }} #[version(1)] struct {name} {{ value: u32 }}"
+        );
+        let error = resolve_modules(vec![module("example/enums.ncidl", &source)]).unwrap_err().to_string();
+        assert!(error.contains("error[EIDL021]") && error.contains(name), "{error}");
+    }
+
+    for suffix in ["Abi", "VTable", "VtblFor", "Client", "InterfacesFor"] {
+        let name = format!("EditorObserver{suffix}");
+        let source = format!(
+            r#"
+                #[version(1)] #[message] enum EditorEvent {{ Changed }}
+                #[version(1)] #[observer] interface Editor {{ event: EditorEvent; }}
+                #[version(1)] struct {name} {{ value: u32 }}
+            "#
+        );
+        let error = resolve_modules(vec![module("example/observers.ncidl", &source)]).unwrap_err().to_string();
+        assert!(error.contains("error[EIDL021]") && error.contains(&name), "{error}");
+    }
+
+    let message = module(
+        "example/messages.ncidl",
+        r#"
+            #[version(1)] #[message] enum Choice { Selected(u32) }
+            #[version(1)] struct ChoiceAbi { value: u32 }
+        "#,
+    );
+    resolve_modules(vec![message]).unwrap();
+}
+
 /// Generated ABI and output companions share a Rust namespace with authored and imported names.
 #[test]
 fn rejects_generated_rust_name_collisions_before_emission() {
