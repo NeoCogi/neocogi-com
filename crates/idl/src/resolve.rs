@@ -1062,7 +1062,23 @@ fn validate_field_type(message: bool, index: usize, ty: &AbiType, entries: &[Mod
                 resolve_named(index, name, entries)?;
                 return Ok(());
             }
-            AbiType::Slice(element) => return validate_value_type(index, element, entries, context, span),
+            AbiType::Slice(element) => {
+                // Message slices are borrowed as raw contiguous elements before decoding.
+                // Only scalar wire layouts have a complete element codec here: booleans
+                // use byte storage and every other supported scalar accepts all bits.
+                // A copied struct or enum can contain invalid Rust bit patterns, so it
+                // must gain its own wire codec before it may occupy this position.
+                if !matches!(element.as_ref(), AbiType::Scalar(_)) {
+                    return Err(source_error(
+                        &entries[index].module,
+                        "EIDL060",
+                        span,
+                        format!("{context} requires a scalar message-slice element"),
+                        "aggregate and enum message slices have no checked element wire codec; use scalar elements or a separately declared message",
+                    ));
+                }
+                return validate_value_type(index, element, entries, context, span);
+            },
             _ => {}
         }
     }

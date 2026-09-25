@@ -14,6 +14,8 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
         #[version(1)] #[message] enum Completion { Accepted { token: IToken }, Cancelled }
         #[version(1)] #[message] enum Notice { Ready, Done }
         #[version(1)] #[message] struct Batch { values: &[u32] }
+        #[version(1)] #[message] struct BoolBatch { flags: &[bool] }
+        #[version(1)] #[message] struct TextPair { left: String, right: String }
         #[version(1)] interface IProducer { completed: Completion; fn emit(&mut self) -> Result<()>; }
         #[version(1)] interface IMessageInput { fn accept(&mut self, value: &Completion) -> Result<()>; }
         #[version(1)] #[message] enum EditorEvent {
@@ -135,4 +137,20 @@ fn nested_messages_stay_out_of_plain_value_fields() {
     "#;
     let error = resolve_modules(vec![parse_module(Path::new("example/messages.ncidl"), source).unwrap()]).unwrap_err().to_string();
     assert!(error.contains("cannot embed a message"), "{error}");
+}
+
+/// A message slice requires an element codec before a foreign buffer can be
+/// interpreted as initialized Rust values. Copied structs and enums have no
+/// generated checked element codec, even when their current fields look simple.
+#[test]
+fn message_slices_reject_unvalidated_aggregate_elements() {
+    for declaration in [
+        "#[version(1)] struct Item { checked: bool }",
+        "#[version(1)] enum Item { Ready, Waiting }",
+    ] {
+        let source = format!("{declaration} #[version(1)] #[message] struct Batch {{ values: &[Item] }}");
+        let module = parse_module(Path::new("example/invalid_slice.ncidl"), &source).unwrap();
+        let error = resolve_modules(vec![module]).unwrap_err().to_string();
+        assert!(error.contains("scalar message-slice element"), "{error}");
+    }
 }

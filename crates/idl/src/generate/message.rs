@@ -183,7 +183,8 @@ pub(super) fn generate_message(
             type Wire = #wire;
             const SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(#signature);
             fn encode(&self) -> Self::Wire { match self { #(#encode),* } }
-            unsafe fn decode(wire: Self::Wire) -> Result<Self, ::neocogi_com::NcStatus> {
+            unsafe fn decode_with_budget(wire: Self::Wire, budget: &mut ::neocogi_com::MessageDecodeBudget) -> Result<Self, ::neocogi_com::NcStatus> {
+                budget.record()?;
                 match wire.tag { #(#decode),*, _ => Err(::neocogi_com::NC_E_INVALID_TAG) }
             }
         }
@@ -254,7 +255,7 @@ fn field_codec(
                 quote! {
                     // SAFETY: the outer call guarantees the nested inline wire and
                     // all its borrowed backing storage remain live for this decode.
-                    unsafe { <#owned as ::neocogi_com::ComMessage>::decode(raw.#field) }?
+                    unsafe { <#owned as ::neocogi_com::ComMessage>::decode_with_budget(raw.#field, budget) }?
                 },
                 false,
             ));
@@ -267,7 +268,13 @@ fn field_codec(
                     quote! { u8 },
                     quote! { self::alloc::string::String },
                     quote! { #field.as_bytes() },
-                    quote! { self::alloc::string::String::from_utf8(buffer.to_vec()).map_err(|_| ::neocogi_com::NC_E_INVALID_ARG)? },
+                    quote! { ::neocogi_com::copy_message_text(buffer, budget)? },
+                ),
+                AbiType::Slice(element) if matches!(element.as_ref(), AbiType::Scalar(name) if name == "bool") => (
+                    quote! { u8 },
+                    quote! { self::alloc::vec::Vec<bool> },
+                    quote! { #field.as_slice() },
+                    quote! { ::neocogi_com::copy_message_bools(buffer, budget)? },
                 ),
                 AbiType::Slice(element) => {
                     let element = value_type(graph, module, element)?;
@@ -275,7 +282,7 @@ fn field_codec(
                         element.clone(),
                         quote! { self::alloc::vec::Vec<#element> },
                         quote! { #field.as_slice() },
-                        quote! { buffer.to_vec() },
+                        quote! { ::neocogi_com::copy_message_slice(buffer, budget)? },
                     )
                 }
                 _ => unreachable!(),
@@ -283,10 +290,14 @@ fn field_codec(
             Ok((
                 owned,
                 quote! { ::neocogi_com::NcMessageSlice<#element> },
-                quote! { ::neocogi_com::NcMessageSlice::new(#bytes) },
+                if matches!(ty, AbiType::Slice(element) if matches!(element.as_ref(), AbiType::Scalar(name) if name == "bool")) {
+                    quote! { ::neocogi_com::NcMessageSlice::from_bools(#bytes) }
+                } else {
+                    quote! { ::neocogi_com::NcMessageSlice::new(#bytes) }
+                },
                 quote! {{
                     // SAFETY: the raw caller guarantees readable, initialized backing storage.
-                    let buffer = unsafe { raw.#field.as_slice() }?;
+                    let buffer = unsafe { raw.#field.as_slice_bounded(budget) }?;
                     #acquire
                 }},
                 true,

@@ -145,6 +145,19 @@ mod message_tests {
         Batch { values: vec![1, 2, 3] }.post_to(&mut destination).unwrap();
         drop(destination);
         assert_eq!(events.try_recv().ok(), Some(vec![1, 2, 3]));
+        let mut bool_destination = None;
+        let (bool_tx, bool_events) = std::sync::mpsc::channel();
+        neocogi_com::events::bind(
+            |consume| {
+                bool_destination = Some(BoolBatch::__receiver(consume)?);
+                Ok(())
+            },
+            bool_tx,
+            |message| message.flags,
+        )
+        .unwrap();
+        BoolBatch { flags: vec![false, true, false] }.post_to(&mut bool_destination).unwrap();
+        assert_eq!(bool_events.try_recv().unwrap(), vec![false, true, false]);
         let value = Batch { values: vec![1] };
         let mut wire = value.encode();
         wire.payload.case_0.values.len = u64::MAX;
@@ -186,6 +199,53 @@ mod message_tests {
             Err(neocogi_com::NC_E_INVALID_ARG)
         );
         assert!(text.try_recv().is_err());
+        let (bool_tx, bool_events) = std::sync::mpsc::channel();
+        let sender = bool_tx.clone();
+        let mut receiver = BoolBatch::__receiver(Box::new(move |message| sender.send(message).map_err(|_| neocogi_com::NC_E_INVALID_ARG))).unwrap();
+        let source = BoolBatch { flags: vec![true] };
+        let mut wire = source.encode();
+        let invalid_bools = [0_u8, 2_u8];
+        wire.payload.case_0.flags = neocogi_com::NcMessageSlice::new(&invalid_bools);
+        assert_eq!(
+            receiver.post(unsafe { NcMessage::from_raw(&wire) }.unwrap()),
+            Err(neocogi_com::NC_E_INVALID_ARG)
+        );
+        assert!(bool_events.try_recv().is_err());
+    }
+
+    /// Both owned fields and nested messages consume one shared decode budget.
+    #[test]
+    fn generated_decoders_enforce_cumulative_bytes_and_record_depth() {
+        let pair = TextPair { left: "abc".into(), right: "def".into() };
+        let mut bytes = neocogi_com::MessageDecodeBudget::new(5, 1);
+        assert_eq!(
+            unsafe { TextPair::decode_with_budget(pair.encode(), &mut bytes) },
+            Err(neocogi_com::NC_E_OUT_OF_RANGE)
+        );
+        assert_eq!(NcMessage::new(&pair).to_owned(), Ok(pair));
+
+        let nested = TextEnvelope { changed: TextChanged { text: "ok".into(), cursor: 2 } };
+        let mut records = neocogi_com::MessageDecodeBudget::new(2, 1);
+        assert!(matches!(
+            unsafe { TextEnvelope::decode_with_budget(nested.encode(), &mut records) },
+            Err(neocogi_com::NC_E_OUT_OF_RANGE)
+        ));
+        let mut enough = neocogi_com::MessageDecodeBudget::new(2, 2);
+        assert!(matches!(
+            unsafe { TextEnvelope::decode_with_budget(nested.encode(), &mut enough) },
+            Ok(TextEnvelope { changed: TextChanged { text, cursor: 2 } }) if text == "ok"
+        ));
+    }
+
+    /// A valid but oversized wire buffer is rejected by the generated entry point.
+    #[test]
+    fn generated_receiver_rejects_oversized_buffer_before_copying() {
+        let (tx, events) = std::sync::mpsc::channel();
+        let mut receiver = TextChanged::__receiver(Box::new(move |message| tx.send(message).map_err(|_| neocogi_com::NC_E_INVALID_ARG))).unwrap();
+        let text = "x".repeat(neocogi_com::MAX_MESSAGE_DECODE_BYTES + 1);
+        let message = TextChanged { text, cursor: 0 };
+        assert_eq!(receiver.post(NcMessage::new(&message)), Err(neocogi_com::NC_E_OUT_OF_RANGE));
+        assert!(events.try_recv().is_err());
     }
 }
 

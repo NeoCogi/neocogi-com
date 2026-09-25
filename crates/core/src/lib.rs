@@ -54,8 +54,8 @@ extern crate std;
 
 pub use abi::{__NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComStruct};
 #[cfg(feature = "alloc")]
-pub use message::ComEvent;
-pub use message::{ComOutputInterface, ComMessage, NcMessage, NcMessageSlice};
+pub use message::{ComEvent, copy_message_bools, copy_message_slice, copy_message_text};
+pub use message::{ComOutputInterface, ComMessage, MessageDecodeBudget, NcMessage, NcMessageSlice, MAX_MESSAGE_DECODE_BYTES, MAX_MESSAGE_DECODE_RECORDS};
 pub use buffer::{NcCopyFromBufferOffset, NcCopyToBufferOffset};
 pub use client::{ComClientInterface, NcClientPointer};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
