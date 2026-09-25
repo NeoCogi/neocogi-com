@@ -147,3 +147,7 @@ Rust paths are backend metadata: they never participate in resolution, UUIDs,
 or ABI fingerprints. Conflicting owners and malformed paths fail generation.
 The pure `generate::generate_rust_with_paths` API accepts a validated
 `RustModulePaths` mapping for callers outside Cargo; it requires no global state.
+
+Signed `i8`, `i16`, and `i32` enum representations can use negative
+discriminants. The resolver checks their range and duplicate values before
+generation; generated unit and payload enums retain the signed tag.

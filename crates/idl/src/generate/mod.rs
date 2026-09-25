@@ -261,13 +261,16 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
                     let variant_name = rust_ident(&variant.name)?;
                     let discriminant = variant.discriminant.unwrap_or(previous + 1);
                     previous = discriminant;
-                    if discriminant < 0 {
-                        return Err(GenerateError::new(format!(
-                            "enum {} uses negative discriminant {discriminant}, which generated tagged enums do not yet support",
-                            declaration.name
-                        )));
-                    }
-                    let tag = Literal::u64_unsuffixed(discriminant as u64);
+                    // Signed IDL representations may use negative values. Emit a
+                    // unary minus and magnitude so both Rust enum syntax and the
+                    // COM tag parser see the same integer expression.
+                    let tag = if discriminant < 0 {
+                        let magnitude = Literal::u64_unsuffixed(discriminant.unsigned_abs());
+                        quote! { -#magnitude }
+                    } else {
+                        let value = Literal::u64_unsuffixed(discriminant as u64);
+                        quote! { #value }
+                    };
                     let fields = match &variant.fields {
                         VariantFields::Unit => quote! {},
                         VariantFields::Tuple(fields) => {
