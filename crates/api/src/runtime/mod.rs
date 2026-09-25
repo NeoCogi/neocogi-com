@@ -13,7 +13,7 @@ use std::vec::Vec;
 
 use crate::{
     ComFactoryInterface, ComInterface, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND,
-    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NcDebugApiV1, NcFactoryPluginDescription, NcGuid, NcInspectionApiV1, NcPluginRegistryV1,
+    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_ABI_THREADING_THREAD_LOCAL, NcDebugApiV1, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcInspectionApiV1, NcPluginRegistryV1,
     NcRuntimeApiV1, NcStatus, NcUtf8View, ThreadingModel,
 };
 use self::ffi as runtime_sys;
@@ -249,6 +249,25 @@ impl Runtime {
         unknown.query::<T>()
     }
 
+    /// Activates a registered root by its inspected, exact COM identity.
+    ///
+    /// A generic host does not know the plugin-specific root factory Rust type.
+    /// It obtains this identity from the validated plugin description, asks the
+    /// runtime to enforce it, then queries a common COM capability on the root.
+    /// A thread-local request is compatible with either local or shared roots;
+    /// the returned handle remains confined to the calling thread.
+    pub fn activate_plugin_root(&self, plugin_id: NcGuid, root: NcInterfaceId) -> Result<ComPtr<IUnknown>, NcStatus> {
+        let mut out = core::ptr::null_mut::<IUnknown>();
+        // SAFETY: The local slot is writable. The runtime verifies the exact
+        // root identity and its threading capability before transferring it.
+        let status = unsafe {
+            (self.runtime_api().activate_factory_plugin)(plugin_id, root, NC_ABI_THREADING_THREAD_LOCAL, &mut out)
+        };
+        status_to_result(status)?;
+        // SAFETY: Successful activation transfers one owned IUnknown reference.
+        unsafe { ComPtr::<IUnknown>::from_raw_owned(out) }.ok_or(NC_E_POINTER)
+    }
+
     /// Loads a trusted plugin shared library into the process-global runtime.
     ///
     /// The path must have a nonempty UTF-8 representation without interior NUL
@@ -272,23 +291,31 @@ impl Runtime {
     /// `path` must identify trusted neocogi-com factory plugin code. The runtime
     /// requires the standard generated factory-description export.
     pub unsafe fn load_plugin_library(&self, path: impl AsRef<Path>) -> LoadedModuleInfo {
-        let path = path.as_ref();
-        let path = path
-            .to_str()
-            .unwrap_or_else(|| fatal_plugin_load(format_args!("path is not valid UTF-8: {}", path.display())));
+        // SAFETY: the caller accepted the trusted-library requirement.
+        unsafe { self.try_load_plugin_library(path) }.unwrap_or_else(|status| fatal_plugin_load(status))
+    }
+
+    /// Loads a trusted plugin library and returns a recoverable status on failure.
+    ///
+    /// The runtime retains successful modules for the process lifetime. A failed
+    /// load does not register a partial plugin. Use this form in interactive
+    /// tools that must report a bad path or incompatible plugin without aborting.
+    ///
+    /// # Safety
+    ///
+    /// `path` must identify code the caller trusts to execute during loading.
+    pub unsafe fn try_load_plugin_library(&self, path: impl AsRef<Path>) -> Result<LoadedModuleInfo, NcStatus> {
+        let path = path.as_ref().to_str().ok_or(NC_E_INVALID_ARG)?;
         let mut module_id = 0;
-        // SAFETY: The UTF-8 path is readable for this call and the output slot
-        // is valid. The caller accepted the trusted-library requirement.
+        // SAFETY: the UTF-8 path and output slot live through this call; the
+        // caller accepted the trusted-library requirement.
         let status = unsafe { (self.runtime_api().load_plugin_library_utf8)(path.as_ptr(), path.len(), &mut module_id) };
-        if status.is_err() {
-            fatal_plugin_load(status);
-        }
+        status_to_result(status)?;
         // The C load returns only an opaque module ID. Inspection supplies an
-        // owned Rust summary without widening the C operation table.
+        // owned summary without exposing descriptor pointer lifetimes.
         self.inspection()
-            .loaded_module(LoadedModuleId::from_raw(module_id))
-            .and_then(|module| module.ok_or(NC_E_NOT_FOUND))
-            .unwrap_or_else(|status| fatal_plugin_load(status))
+            .loaded_module(LoadedModuleId::from_raw(module_id))?
+            .ok_or(NC_E_NOT_FOUND)
     }
 
     /// Loads trusted plugin libraries sequentially.

@@ -51,6 +51,12 @@ impl NcAbiSignature {
         }
     }
 
+    /// Borrows one digest only for an immediate in-process interface query.
+    /// The returned view must never outlive `bytes` or be stored in metadata.
+    pub(crate) fn from_borrowed(bytes: &[u8; Self::SHA256_LEN]) -> Self {
+        Self { data: bytes.as_ptr(), len: Self::SHA256_LEN as u32 }
+    }
+
     /// Returns the signature length in bytes.
     pub const fn len(self) -> u32 {
         self.len

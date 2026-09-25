@@ -345,6 +345,16 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
         }
     }
 
+    /// Checks a discovered interface using a call-scoped owned ABI digest.
+    ///
+    /// The borrowed signature view cannot escape this method. This allows a
+    /// standalone designer to verify plugin-provided COM identities without
+    /// leaking a static digest or pretending to know the concrete Rust type.
+    pub fn supports_interface_bytes(&self, iid: crate::NcGuid, signature: &[u8; 32]) -> Result<(), NcStatus> {
+        let expected = crate::NcInterfaceId::new(iid, crate::NcAbiSignature::from_borrowed(signature));
+        self.supports_interface_id(&expected)
+    }
+
     /// Checks a metadata-supplied interface identity without naming its Rust projection.
     ///
     /// This is useful when a designer has a generated COM descriptor but the
