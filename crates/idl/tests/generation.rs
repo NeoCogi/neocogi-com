@@ -212,3 +212,24 @@ fn generates_negative_signed_enum_discriminants() {
     assert!(generated.contains("Failed = -1"), "{generated}");
     assert!(generated.contains("com_tag(-2)"), "{generated}");
 }
+
+/// Generated COM projections retain the message shape needed by designer tools.
+#[test]
+fn generated_interface_exposes_its_idl_event_and_nested_message_shape() {
+    let source = module("example/widget.ncidl", r#"
+        #[version(1)] #[message] struct Changed { text: String }
+        #[version(1)] #[message] enum WidgetEvent: u8 {
+            Changed(Changed),
+            Submitted,
+        }
+        #[version(1)] interface Widget { event: WidgetEvent; }
+    "#);
+    let graph = resolve_modules(vec![source]).unwrap();
+    let generated = neocogi_idl::generate_rust(&graph, "example.widget").unwrap();
+    syn::parse_file(&generated).unwrap();
+    assert!(generated.contains("pub const IDL_MESSAGE"));
+    assert!(generated.contains("pub const IDL_INTERFACE"));
+    assert!(generated.contains("message: &WidgetEvent::IDL_MESSAGE"));
+    assert!(generated.contains(r#"name: "Changed""#));
+    assert!(generated.contains(r#"name: "Submitted""#));
+}

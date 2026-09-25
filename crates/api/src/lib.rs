@@ -449,6 +449,8 @@ pub mod persistence;
 /// Built-in dispatch/output contracts and optional standard-channel adapters.
 #[cfg(feature = "macros")]
 pub mod events;
+/// Generated source-level descriptions used by typed authoring tools.
+pub mod design;
 #[cfg(feature = "alloc")]
 mod data;
 mod macros;
