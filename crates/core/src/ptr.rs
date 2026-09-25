@@ -363,10 +363,15 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
             return Err(crate::NC_E_POINTER);
         }
         let projected = out.cast::<crate::IUnknown>();
+        // SAFETY: successful QueryInterface returned a live interface header.
+        // Validate the actual projection before reporting capability, just as
+        // the typed `query` path does for a concrete Rust interface type.
+        let validation = unsafe { raw::__nc_validate_iunknown_interface(projected, expected) };
         // SAFETY: successful QueryInterface returned one owned COM reference.
-        // Every interface shares the IUnknown vtable prefix used to release it.
+        // Every interface shares the IUnknown vtable prefix used to release it,
+        // even when its advertised identity was wrong.
         unsafe { ((*(*projected).vtable).release)(projected) };
-        Ok(())
+        validation
     }
 
     /// Returns whether this object supports interface `U`.
