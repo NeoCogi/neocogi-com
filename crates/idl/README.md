@@ -157,5 +157,6 @@ interfaces and payload enums before code generation. This includes interface
 ABI, vtable, client, and provider types; observer interface companions; and
 payload enum tag, union, and variant records. Local declarations or explicit
 imports that collide with these names receive source-located IDL diagnostics
-instead of duplicate-item errors from generated Rust. Message wire helpers
-start with `__` and cannot collide with the IDL's UpperCamel declarations.
+instead of duplicate-item errors from generated Rust. Copyable message enums
+also emit the tagged-enum companions; owned message wire helpers start with
+`__` and cannot collide with the IDL's UpperCamel declarations.

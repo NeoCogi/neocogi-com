@@ -504,7 +504,7 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
 fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), ResolutionError> {
     let entry = &entries[index];
     let mut diagnostics = Vec::new();
-    collect_diagnostics(&mut diagnostics, validate_generated_names(entry));
+    collect_diagnostics(&mut diagnostics, validate_generated_names(index, entries));
     for declaration in &entry.module.declarations {
         match &declaration.kind {
             DeclarationKind::Struct(record) => {
@@ -586,13 +586,40 @@ fn interface_companions(name: &str, companions: &mut Vec<String>) {
     }
 }
 
+/// Reports whether a message field also has the ordinary copied-value Rust representation.
+///
+/// This mirrors the decision in `generate::message`: messages nested inside
+/// messages remain owned even when their current fields happen to be copyable.
+/// Unknown references are diagnosed elsewhere and cannot reach generation.
+fn copied_message_field(index: usize, ty: &AbiType, entries: &[ModuleEntry]) -> bool {
+    match ty {
+        AbiType::Scalar(_) => true,
+        AbiType::Named(name) => resolve_named(index, name, entries).is_ok_and(|symbol| {
+            let declaration = &entries[symbol.module].module.declarations[symbol.declaration];
+            !declaration.message && matches!(declaration.kind, DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_))
+        }),
+        AbiType::Array { element, .. } => copied_message_field(index, element, entries),
+        AbiType::Option(_) | AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) | AbiType::Unit | AbiType::String => false,
+    }
+}
+
+/// Reports whether the message generator reuses the ordinary tagged enum macro.
+fn copied_message_enum(index: usize, enumeration: &Enum, entries: &[ModuleEntry]) -> bool {
+    enumeration.variants.iter().all(|variant| match &variant.fields {
+        VariantFields::Unit => true,
+        VariantFields::Tuple(fields) => fields.iter().all(|field| copied_message_field(index, field, entries)),
+        VariantFields::Named(fields) => fields.iter().all(|field| copied_message_field(index, &field.ty, entries)),
+    })
+}
+
 /// Reserves visible Rust companion types before generation, including imported names.
 ///
 /// Authored declarations and explicit imports already have unambiguous IDL lookup,
 /// but an interface or tagged enum also emits Rust types that share this module's
 /// namespace. Reject collisions at the source location rather than leaving a
 /// duplicate-item compiler error in an unrelated generated file.
-fn validate_generated_names(entry: &ModuleEntry) -> Result<(), ResolutionError> {
+fn validate_generated_names(index: usize, entries: &[ModuleEntry]) -> Result<(), ResolutionError> {
+    let entry = &entries[index];
     let mut occupied = HashMap::<String, (SourceSpan, String)>::new();
     for declaration in &entry.module.declarations {
         occupied
@@ -642,11 +669,11 @@ fn validate_generated_names(entry: &ModuleEntry) -> Result<(), ResolutionError> 
                 }
             }
             DeclarationKind::Enum(enumeration)
-                if !declaration.message && enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit)) =>
+                if (declaration.message && copied_message_enum(index, enumeration, entries))
+                    || (!declaration.message && enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit))) =>
             {
-                // `com_enum` emits these names and one payload record per
-                // non-unit variant. Message enums take a different generator
-                // path whose private companions all start with `__`.
+                // `com_enum` also handles copyable message enums, including
+                // unit-only messages. Owned messages use private `__` helpers.
                 companions.push(format!("{}Abi", declaration.name));
                 companions.push(format!("{}Tag", declaration.name));
                 companions.push(format!("{}Payload", declaration.name));

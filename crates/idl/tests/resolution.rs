@@ -558,14 +558,28 @@ fn reserves_all_visible_macro_companions() {
         assert!(error.contains("error[EIDL021]") && error.contains(&name), "{error}");
     }
 
-    let message = module(
-        "example/messages.ncidl",
+    for variants in ["Selected(u32)", "Ready"] {
+        let source = format!(
+            "#[version(1)] #[message] enum Choice {{ {variants} }}
+#[version(1)] struct ChoiceAbi {{ value: u32 }}"
+        );
+        let error = resolve_modules(vec![module("example/messages.ncidl", &source)]).unwrap_err().to_string();
+        assert!(error.contains("error[EIDL021]") && error.contains("ChoiceAbi"), "{error}");
+    }
+
+    // An owned message does not invoke `com_enum`; its private wire helpers
+    // cannot shadow a normal UpperCamel declaration.
+    let owned_message = module(
+        "example/owned_messages.ncidl",
         r#"
-            #[version(1)] #[message] enum Choice { Selected(u32) }
+            #[version(1)] #[message] enum Choice { Selected(String) }
             #[version(1)] struct ChoiceAbi { value: u32 }
         "#,
     );
-    resolve_modules(vec![message]).unwrap();
+    let graph = resolve_modules(vec![owned_message]).unwrap();
+    let generated = neocogi_idl::generate_rust(&graph, "example.owned_messages").unwrap();
+    assert!(generated.contains("pub struct ChoiceAbi"));
+    assert!(!generated.contains("pub struct ChoiceTag"));
 }
 
 /// Generated ABI and output companions share a Rust namespace with authored and imported names.
