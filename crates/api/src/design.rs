@@ -25,6 +25,15 @@ pub struct IdlVariant {
     pub fields: &'static [IdlField],
 }
 
+/// One declared bit flag or alias with its exact integer value.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IdlFlag {
+    /// Source-level flag identifier.
+    pub name: &'static str,
+    /// Explicit nonnegative raw bit pattern.
+    pub value: u64,
+}
+
 /// Authored aggregate shape, separate from physical ABI layout.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IdlShape {
@@ -32,17 +41,21 @@ pub enum IdlShape {
     Struct(&'static [IdlField]),
     /// A tagged sum with cases in declaration order.
     Enum(&'static [IdlVariant]),
+    /// A transparent set of named integer flags and aliases.
+    BitEnum(&'static [IdlFlag]),
 }
 
-/// A generated message declaration and its public Rust payload location.
+/// A generated IDL aggregate and its public Rust payload location.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct IdlMessage {
+pub struct IdlType {
     /// Exact logical module and declaration name.
     pub qualified_name: &'static str,
     /// Public Rust path generated for application handler signatures.
     pub rust_type: &'static str,
-    /// Complete source-level struct or enum shape.
+    /// Complete source-level struct, enum, or bit-enum shape.
     pub shape: IdlShape,
+    /// Whether this declaration is a postable `#[message]` payload.
+    pub message: bool,
 }
 
 /// One output port declared directly by an IDL COM interface.
@@ -51,7 +64,7 @@ pub struct IdlOutput {
     /// Port name as written in IDL and exposed by the generated output trait.
     pub name: &'static str,
     /// Exact generated message type delivered through this port.
-    pub message: &'static IdlMessage,
+    pub message: &'static IdlType,
 }
 
 /// A generated COM interface paired with its authoring-level output contracts.
@@ -59,6 +72,8 @@ pub struct IdlOutput {
 pub struct IdlInterface {
     /// The existing physical interface description and identity.
     pub abi: &'static NcInterfaceDescriptor,
+    /// This projection and its required base/sibling descriptors in query order.
+    pub chain: &'static [&'static NcInterfaceDescriptor],
     /// Public Rust path of the generated `*Abi` projection.
     pub rust_abi: &'static str,
     /// Public Rust path of the generated output-accessor trait, if any.

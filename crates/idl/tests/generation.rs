@@ -217,6 +217,9 @@ fn generates_negative_signed_enum_discriminants() {
 #[test]
 fn generated_interface_exposes_its_idl_event_and_nested_message_shape() {
     let source = module("example/widget.ncidl", r#"
+        #[version(1)] struct Bounds { x: i32, y: i32 }
+        #[version(1)] enum State: u8 { Idle = 0, Busy = 1 }
+        #[version(1)] bitenum Flags: u8 { NONE = 0, READY = 1 }
         #[version(1)] #[message] struct Changed { text: String }
         #[version(1)] #[message] enum WidgetEvent: u8 {
             Changed(Changed),
@@ -227,7 +230,9 @@ fn generated_interface_exposes_its_idl_event_and_nested_message_shape() {
     let graph = resolve_modules(vec![source]).unwrap();
     let generated = neocogi_idl::generate_rust(&graph, "example.widget").unwrap();
     syn::parse_file(&generated).unwrap();
+    assert!(generated.contains("pub const IDL_TYPE"));
     assert!(generated.contains("pub const IDL_MESSAGE"));
+    assert!(generated.contains("IdlShape::BitEnum"));
     assert!(generated.contains("pub const IDL_INTERFACE"));
     assert!(generated.contains("message: &WidgetEvent::IDL_MESSAGE"));
     assert!(generated.contains(r#"name: "Changed""#));
