@@ -28,6 +28,7 @@ mod keyword {
 
     syn::custom_keyword!(interface);
     syn::custom_keyword!(factory);
+    syn::custom_keyword!(class);
     syn::custom_keyword!(bitenum);
 }
 
@@ -163,6 +164,7 @@ fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleS
         externals: externals.into_values().collect(),
         imports: canonical_imports(imports),
         declarations: declarations.into_values().collect(),
+        templates: Vec::new(),
     })
 }
 
@@ -246,10 +248,12 @@ impl Parse for ModuleSyntax {
                 parse_bit_enum(attributes, input)?
             } else if input.peek(keyword::interface) {
                 parse_interface(attributes, input, InterfaceRole::Ordinary)?
+            } else if input.peek(keyword::class) {
+                parse_interface(attributes, input, InterfaceRole::Class)?
             } else if input.peek(keyword::factory) {
                 parse_interface(attributes, input, InterfaceRole::Factory)?
             } else {
-                return Err(input.error("expected `extern`, `use`, `struct`, `enum`, `bitenum`, `interface`, or `factory`"));
+                return Err(input.error("expected `extern`, `use`, `struct`, `enum`, `bitenum`, `interface`, `class`, or `factory`"));
             };
 
             if let Some(previous) = declaration_names.insert(declaration.name.clone(), declaration.span.clone()) {
@@ -398,6 +402,13 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>, role: Int
     input.parse::<Ident>()?;
     let name = input.parse::<Ident>()?;
     require_upper_camel_case(&name, "interface")?;
+    let parameters = parse_type_parameters(input)?;
+    if !parameters.is_empty() && role != InterfaceRole::Ordinary {
+        return Err(syn::Error::new(
+            name.span(),
+            "only interfaces may declare type parameters; classes and factories must be concrete",
+        ));
+    }
     let bases = parse_bases(input)?;
     let callables = parse_callables(input)?;
     let observer = metadata.observer;
@@ -414,7 +425,14 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>, role: Int
     Ok(declaration(
         name,
         metadata,
-        DeclarationKind::Interface(Interface { observer, bases, callables, role, threading }),
+        DeclarationKind::Interface(Interface {
+            parameters,
+            observer,
+            bases,
+            callables,
+            role,
+            threading,
+        }),
     ))
 }
 
@@ -423,29 +441,43 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>, role: Int
 /// folded into a differently versioned observer.
 fn observer_declaration(source: &Declaration) -> Option<Declaration> {
     let DeclarationKind::Interface(interface) = &source.kind else { return None };
-    if !interface.observer { return None; }
-    let callables = interface.callables.iter().filter_map(|callable| {
-        let Callable::Port(port) = callable else { return None };
-        Some(Callable::Method(Method {
-            span: port.span.clone(),
-            docs: port.docs.clone(),
-            name: port.name.clone(),
-            receiver: Receiver::Mutable,
-            parameters: vec![Parameter {
+    if !interface.observer {
+        return None;
+    }
+    let callables = interface
+        .callables
+        .iter()
+        .filter_map(|callable| {
+            let Callable::Port(port) = callable else { return None };
+            Some(Callable::Method(Method {
                 span: port.span.clone(),
-                name: "event".into(),
-                ty: AbiType::Borrowed(Box::new(AbiType::Named(port.message.clone()))),
-            }],
-            output: AbiType::Unit,
-        }))
-    }).collect();
+                docs: port.docs.clone(),
+                name: port.name.clone(),
+                receiver: Receiver::Mutable,
+                parameters: vec![Parameter {
+                    span: port.span.clone(),
+                    name: "event".into(),
+                    ty: AbiType::Borrowed(Box::new(AbiType::Named(port.message.clone()))),
+                }],
+                output: AbiType::Unit,
+            }))
+        })
+        .collect();
     Some(Declaration {
         span: source.span.clone(),
-        docs: vec![format!("Construction-time destination for all {} outputs; payloads are borrowed only for each call.", source.name)],
+        docs: vec![format!(
+            "Construction-time destination for all {} outputs; payloads are borrowed only for each call.",
+            source.name
+        )],
         name: format!("{}Observer", source.name),
-        id: DeclarationId { version: source.id.version, explicit: None },
+        id: DeclarationId {
+            version: source.id.version,
+            explicit: None,
+        },
         message: false,
+        specialization: None,
         kind: DeclarationKind::Interface(Interface {
+            parameters: Vec::new(),
             observer: false,
             bases: Vec::new(),
             callables,
@@ -463,6 +495,7 @@ fn declaration(name: Ident, metadata: Attributes, kind: DeclarationKind) -> Decl
         name: name.to_string(),
         id: metadata.id,
         message: metadata.message,
+        specialization: None,
         kind,
     }
 }
@@ -693,14 +726,27 @@ fn lower_path_type(path: &syn::Path) -> syn::Result<AbiType> {
     Ok(AbiType::Named(named_path(path)?))
 }
 
-/// Converts a nongeneric source path into a stable segment vector.
+/// Parses named interface arguments without accepting lifetime, const, or associated-type syntax.
 fn named_path(path: &syn::Path) -> syn::Result<NamedType> {
-    let mut segments = Vec::with_capacity(path.segments.len());
-    for segment in &path.segments {
-        if segment.arguments != PathArguments::None {
-            return Err(syn::Error::new_spanned(segment, "named IDL types cannot have generic arguments"));
-        }
+    if path.leading_colon.is_some() {
+        return Err(syn::Error::new_spanned(path, "IDL paths are module-qualified without a leading ::"));
+    }
+    let mut segments = Vec::new();
+    let mut arguments = Vec::new();
+    for (index, segment) in path.segments.iter().enumerate() {
         segments.push(segment.ident.to_string());
+        match &segment.arguments {
+            PathArguments::None => {}
+            PathArguments::AngleBracketed(values) if index + 1 == path.segments.len() && !values.args.is_empty() => {
+                for value in &values.args {
+                    match value {
+                        GenericArgument::Type(value) => arguments.push(lower_type(value)?),
+                        _ => return Err(syn::Error::new_spanned(value, "interface arguments must be types")),
+                    }
+                }
+            }
+            _ => return Err(syn::Error::new_spanned(segment, "type arguments belong on the final interface name")),
+        }
     }
     if segments.is_empty() {
         return Err(syn::Error::new_spanned(path, "IDL type path cannot be empty"));
@@ -708,7 +754,32 @@ fn named_path(path: &syn::Path) -> syn::Result<NamedType> {
     Ok(NamedType {
         span: SourceSpan::from_parser(path.span()),
         segments,
+        arguments,
     })
+}
+
+/// Accepts a small ordered set of plain type parameters; bounds are checked at each closed use.
+fn parse_type_parameters(input: ParseStream<'_>) -> syn::Result<Vec<String>> {
+    if !input.peek(Token![<]) {
+        return Ok(Vec::new());
+    }
+    input.parse::<Token![<]>()?;
+    let mut parameters = Vec::new();
+    loop {
+        let parameter = input.parse::<Ident>()?;
+        require_upper_camel_case(&parameter, "type parameter")?;
+        let name = parameter.to_string();
+        if parameters.contains(&name) {
+            return Err(syn::Error::new_spanned(parameter, "duplicate interface type parameter"));
+        }
+        parameters.push(name);
+        if !input.peek(Token![,]) {
+            break;
+        }
+        input.parse::<Token![,]>()?;
+    }
+    input.parse::<Token![>]>()?;
+    Ok(parameters)
 }
 
 /// Parses one named field and consumes its required comma when another follows.
@@ -949,7 +1020,12 @@ fn attach_method_source(method: &mut Method, source: &SourceFile) {
 /// Attaches a source file to every named path nested in one ABI type.
 fn attach_type_source(ty: &mut AbiType, source: &SourceFile) {
     match ty {
-        AbiType::Named(name) => name.span.attach(source),
+        AbiType::Named(name) => {
+            name.span.attach(source);
+            for argument in &mut name.arguments {
+                attach_type_source(argument, source);
+            }
+        }
         AbiType::Borrowed(value) | AbiType::Slice(value) | AbiType::OutputSlice(value) | AbiType::Option(value) | AbiType::Array { element: value, .. } => {
             attach_type_source(value, source)
         }

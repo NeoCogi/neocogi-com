@@ -46,6 +46,8 @@ pub struct Declaration {
     pub id: DeclarationId,
     /// Generate an owned message and its borrowed COM representation.
     pub message: bool,
+    /// Canonical origin of an instantiated interface template, when applicable.
+    pub specialization: Option<Specialization>,
     /// Declaration-specific ABI contents.
     pub kind: DeclarationKind,
 }
@@ -185,6 +187,8 @@ pub enum VariantFields {
 /// are sibling projections guaranteed by QueryInterface on the same object.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Interface {
+    /// Type parameters of a reusable interface template; empty after specialization.
+    pub parameters: Vec<String>,
     /// Outputs describe one constructor-supplied observer instead of mutable setters.
     pub observer: bool,
     /// Base followed by required sibling interfaces, in declared query order.
@@ -202,6 +206,8 @@ pub struct Interface {
 pub enum InterfaceRole {
     /// A callable projection acquired from another object or factory.
     Ordinary,
+    /// A concrete object contract declaring its complete required COM projections.
+    Class,
     /// A construction/provider interface eligible for plugin bootstrap.
     Factory,
 }
@@ -298,6 +304,8 @@ pub struct NamedType {
     pub span: SourceSpan,
     /// Path segments in source order without rewriting.
     pub segments: Vec<String>,
+    /// Arguments to an interface template, resolved before ordinary ABI validation.
+    pub arguments: Vec<AbiType>,
 }
 
 impl NamedType {
@@ -305,7 +313,11 @@ impl NamedType {
     pub fn rust_path(&self) -> String {
         // Source rendering is diagnostic only; identity resolution uses the
         // original segment vector to avoid splitting normalized text again.
-        self.segments.join("::")
+        let path = self.segments.join("::");
+        match self.arguments.is_empty() {
+            true => path,
+            false => format!("{}<{}>", path, self.arguments.iter().map(AbiType::source_name).collect::<Vec<_>>().join(", ")),
+        }
     }
 }
 
@@ -350,4 +362,30 @@ pub enum AbiType {
         /// Value present when the generated tag selects `Some`.
         Box<AbiType>,
     ),
+}
+
+/// Origin of a closed interface; generated Rust names never determine its COM identity.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Specialization {
+    /// Fully qualified template declaration with no arguments.
+    pub template: NamedType,
+    /// Fully qualified, substituted argument types in template parameter order.
+    pub arguments: Vec<AbiType>,
+}
+
+impl AbiType {
+    /// Renders a structural spelling for diagnostics and template fingerprinting.
+    pub fn source_name(&self) -> String {
+        match self {
+            Self::Unit => "()".into(),
+            Self::Scalar(name) => name.clone(),
+            Self::String => "String".into(),
+            Self::Named(name) => name.rust_path(),
+            Self::Borrowed(value) => format!("&{}", value.source_name()),
+            Self::Slice(value) => format!("&[{}]", value.source_name()),
+            Self::OutputSlice(value) => format!("&mut [{}]", value.source_name()),
+            Self::Array { element, len } => format!("[{}; {}]", element.source_name(), len),
+            Self::Option(value) => format!("Option<{}>", value.source_name()),
+        }
+    }
 }

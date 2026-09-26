@@ -73,10 +73,11 @@ impl ResolvedModule {
 
     /// Returns one resolved declaration by its exact source identifier.
     pub fn declaration(&self, name: &str) -> Option<&DeclarationIdentity> {
-        let qualified_name = self.source.name.qualify(name);
-        // Declaration names are unique after source parsing, so an exact
-        // qualified-name match is unambiguous.
-        self.declarations.iter().find(|declaration| declaration.qualified_name == qualified_name)
+        self.source
+            .declarations
+            .iter()
+            .position(|declaration| declaration.name == name)
+            .map(|index| &self.declarations[index])
     }
 }
 
@@ -179,6 +180,11 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
             .then_with(|| left.sources.iter().map(SourceFile::path).cmp(right.sources.iter().map(SourceFile::path)))
             .then_with(|| left.sources.iter().map(SourceFile::text).cmp(right.sources.iter().map(SourceFile::text)))
     });
+    // Validate authored names and dependencies before templates are removed;
+    // unused templates must not hide duplicate identities or ambiguous imports.
+    let mut authored = build_entries(modules.clone())?;
+    connect_externals_and_imports(&mut authored)?;
+    let modules = crate::specialize::expand(modules)?;
     let mut entries = build_entries(modules)?;
     connect_externals_and_imports(&mut entries)?;
     let mut diagnostics = Vec::new();
@@ -245,7 +251,19 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
             }
         })
         .collect();
-    Ok(ResolvedModules { modules })
+    let mut graph = ResolvedModules { modules };
+    let mut signatures = Vec::new();
+    for (module_index, module) in graph.modules.iter().enumerate() {
+        for (declaration_index, declaration) in module.source.declarations.iter().enumerate() {
+            if let Some(specialization) = &declaration.specialization {
+                signatures.push((module_index, declaration_index, crate::specialize::signature(&graph, specialization)?));
+            }
+        }
+    }
+    for (module, declaration, signature) in signatures {
+        graph.modules[module].declarations[declaration].abi_signature = signature;
+    }
+    Ok(graph)
 }
 
 /// Internal graph node with precomputed declaration identities.
@@ -316,7 +334,13 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
     let mut entries = Vec::with_capacity(modules.len());
     for module in modules {
         let name = module.name.to_string();
-        let module_span = module.declarations[0].span.clone();
+        let module_span = module
+            .declarations
+            .first()
+            .or_else(|| module.templates.first())
+            .expect("parsed module contains declarations or templates")
+            .span
+            .clone();
         if let Some((previous_span, previous_sources)) = module_names.insert(name.clone(), (module_span.clone(), module.sources.clone())) {
             let sources = combined_sources(previous_sources, &module.sources);
             return Err(ResolutionError {
@@ -342,7 +366,13 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
                     "reserved type-system name",
                 ));
             }
-            let qualified_name = module.name.qualify(&declaration.name);
+            let qualified_name = match &declaration.specialization {
+                Some(specialization) => {
+                    let segments = &specialization.template.segments;
+                    format!("{}.{}", segments[..segments.len() - 1].join("."), declaration.name)
+                }
+                None => module.name.qualify(&declaration.name),
+            };
             let id = declaration
                 .id
                 .explicit
@@ -360,15 +390,17 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
             if let Some((previous_name, previous_span, previous_sources)) =
                 global_declaration_ids.insert(id, (qualified_name.clone(), declaration.span.clone(), module.sources.clone()))
             {
-                let sources = combined_sources(previous_sources, &module.sources);
-                return Err(ResolutionError {
-                    diagnostics: vec![
-                        Diagnostic::new("EIDL012", format!("declaration {qualified_name:?} reuses the ID assigned to {previous_name:?}"))
-                            .with_sources(&sources)
-                            .primary(&declaration.span, "duplicate declaration ID")
-                            .secondary(&previous_span, format!("ID belongs to {previous_name}")),
-                    ],
-                });
+                if declaration.specialization.is_none() || previous_name != qualified_name {
+                    let sources = combined_sources(previous_sources, &module.sources);
+                    return Err(ResolutionError {
+                        diagnostics: vec![
+                            Diagnostic::new("EIDL012", format!("declaration {qualified_name:?} reuses the ID assigned to {previous_name:?}"))
+                                .with_sources(&sources)
+                                .primary(&declaration.span, "duplicate declaration ID")
+                                .secondary(&previous_span, format!("ID belongs to {previous_name}")),
+                        ],
+                    });
+                }
             }
             let symbol = Symbol {
                 module: entries.len(),
@@ -596,7 +628,11 @@ fn copied_message_field(index: usize, ty: &AbiType, entries: &[ModuleEntry]) -> 
         AbiType::Scalar(_) => true,
         AbiType::Named(name) => resolve_named(index, name, entries).is_ok_and(|symbol| {
             let declaration = &entries[symbol.module].module.declarations[symbol.declaration];
-            !declaration.message && matches!(declaration.kind, DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_))
+            !declaration.message
+                && matches!(
+                    declaration.kind,
+                    DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_)
+                )
         }),
         AbiType::Array { element, .. } => copied_message_field(index, element, entries),
         AbiType::Option(_) | AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) | AbiType::Unit | AbiType::String => false,
@@ -1078,7 +1114,7 @@ fn validate_field_type(message: bool, index: usize, ty: &AbiType, entries: &[Mod
                     ));
                 }
                 return validate_value_type(index, element, entries, context, span);
-            },
+            }
             _ => {}
         }
     }
@@ -1385,6 +1421,7 @@ fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, 
     // no older byte stream may accidentally describe the new representation.
     encoder.bytes(b"neocogi-idl:module-abi:v2\0");
     encoder.guid(entry.module_id);
+    encoder.bytes(&crate::specialize::template_fingerprint(&entry.module.templates));
 
     encoder.u32(u32_len(dependencies.len(), &entry.name, "dependency count")?);
     for (dependency, fingerprint) in dependencies {
@@ -1473,6 +1510,7 @@ fn encode_declaration(
             encoder.tag(match interface.role {
                 InterfaceRole::Ordinary => 0,
                 InterfaceRole::Factory => 1,
+                InterfaceRole::Class => 2,
             });
             encode_callable(index, &interface.bases, &interface.callables, interface.threading, entries, encoder)?;
         }
@@ -1657,7 +1695,7 @@ fn derive_module_id(module_name: &str) -> NcGuid {
 }
 
 /// Derives one declaration ID from exact name and binary version fields.
-fn derive_declaration_id(qualified_name: &str, version: u32) -> NcGuid {
+pub(crate) fn derive_declaration_id(qualified_name: &str, version: u32) -> NcGuid {
     let mut preimage = Vec::with_capacity(qualified_name.len() + 40);
     preimage.extend_from_slice(b"neocogi-idl:declaration:v1\0");
     preimage.extend_from_slice(&(qualified_name.len() as u64).to_be_bytes());
@@ -1798,7 +1836,7 @@ fn error(module: Option<&str>, message: impl Into<String>) -> ResolutionError {
 }
 
 /// Recognizes core object capabilities without manufacturing IDL declarations.
-fn builtin_object(name: &NamedType) -> Option<neocogi_com_core::NcInterfaceId> {
+pub(crate) fn builtin_object(name: &NamedType) -> Option<neocogi_com_core::NcInterfaceId> {
     use neocogi_com_core::ComInterface;
     match name.segments.as_slice() {
         [name] if name == "IUnknown" => Some(neocogi_com_core::IUnknown::INTERFACE_ID),
