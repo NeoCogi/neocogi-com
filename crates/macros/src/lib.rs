@@ -129,6 +129,7 @@ use syn::{DeriveInput, ItemEnum, ItemStruct, ItemTrait, parse_macro_input};
 
 mod abi_method;
 mod args;
+mod class;
 mod deserialize;
 mod enums;
 mod factory_plugin;
@@ -365,3 +366,20 @@ mod persistence_codegen;
 
 #[cfg(test)]
 mod navigation_tests;
+
+/// Implements a concrete IDL class and optionally delegates its single event stream.
+///
+/// `#[com_class(Textbox, event = events)]` generates ordinary COM storage and
+/// forwards the class stream's `attach` method to the named `TextboxEventPort`
+/// field. Initialize that field with `Default::default()`, emit with `post`,
+/// and retire it with `close`. The field remains ordinary exclusively owned
+/// Rust state, visible in every constructor; the macro adds no hidden queue.
+#[proc_macro_attribute]
+pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as class::ClassArgs);
+    let input = parse_macro_input!(item as ItemStruct);
+    match class::expand(args, input) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.to_compile_error().into(),
+    }
+}

@@ -6,3 +6,17 @@ interface INamedOutputs {
     /// A failed lookup or type check preserves the previously installed receiver.
     fn bind_output(&mut self, name: &[u8], receiver: &IUnknown) -> Result<()>;
 }
+
+#[version(1)]
+/// A concrete message receiver; application closures and queue types remain local.
+interface IMessageSink<T> {
+    /// Validates and acquires the message before its call-scoped storage expires.
+    fn post(&mut self, message: &T) -> Result<()>;
+}
+
+#[version(1)]
+/// One complete typed stream owned by one behavioral parent for its lifetime.
+interface IEventStream<E> {
+    /// Installs the sole consumer. A second attachment fails without replacing it.
+    fn attach(&mut self, consumer: &IMessageSink<E>) -> Result<()>;
+}

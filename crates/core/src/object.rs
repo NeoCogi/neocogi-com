@@ -159,6 +159,13 @@ pub unsafe trait ComInterface {
 /// marker certifies construction policy without changing the interface ABI.
 pub unsafe trait ComFactoryInterface: ComInterface {}
 
+/// A concrete object contract whose required projections belong to one COM identity.
+///
+/// # Safety
+/// Implementations must be generated from an explicit IDL `class` declaration.
+/// The marker certifies the class role without altering its callable ABI.
+pub unsafe trait ComClassInterface: ComInterface {}
+
 /// Compile-time connection between a Rust factory implementation and its IDL interface.
 ///
 /// `#[com_factory(Factory)]` is the normal and only generated implementation.

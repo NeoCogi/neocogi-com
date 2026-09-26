@@ -78,7 +78,7 @@ pub use metadata::{
     NcQualifiedNameError, NcStaticUtf8, NcVersionTextError, validate_qualified_name, validate_version_text,
 };
 pub use object::{
-    __ComSupportsInterfaceThreading, ComFactoryBootstrap, ComFactoryInterface, ComFactoryImplementation, ComInterface, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID,
+    __ComSupportsInterfaceThreading, ComFactoryBootstrap, ComFactoryInterface, ComClassInterface, ComFactoryImplementation, ComInterface, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID,
     IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
 };
 pub use ptr::{ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};
@@ -90,7 +90,7 @@ pub use runtime_abi::{
     NcPluginInfoV1, NcPluginRegistryV1, NcRuntimeApiV1, NcUtf8View,
 };
 pub use status::{
-    NC_E_ABI_VERSION, NC_E_BUSY, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND,
+    NC_E_ABI_VERSION, NC_E_BUSY, NC_E_ALREADY_BOUND, NC_E_CLOSED, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND,
     NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK, NcStatus,
 };
 

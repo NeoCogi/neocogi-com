@@ -13,6 +13,7 @@ mod mapping;
 #[path = "message.rs"]
 mod message;
 mod observer;
+mod streams;
 mod paths;
 pub use paths::RustModulePaths;
 
@@ -464,6 +465,12 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
             let methods = callable_methods(graph, module, &callables)?;
             let threading = threading_ident(interface.threading);
             let factory = matches!(interface.role, InterfaceRole::Factory).then(|| quote! { factory, });
+            let stream_support = streams::generate(graph, module, declaration)?;
+            let class_abi = rust_ident(&format!("{}Abi", declaration.name))?;
+            let class_marker = (interface.role == InterfaceRole::Class).then(|| quote! {
+                // SAFETY: this projection was declared by an explicit IDL class contract.
+                unsafe impl ::neocogi_com::ComClassInterface for #class_abi {}
+            });
             let ports = match interface.observer {
                 true => vec![observer::generate(graph, module, declaration, &interface.callables)?],
                 false => port_bindings(graph, module, declaration, &interface.callables, interface.threading)?,
@@ -479,6 +486,8 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
                 #declaration_docs
                 pub trait #name #bases { #(#methods)* }
                 #(#ports)*
+                #class_marker
+                #stream_support
             })
         }
     }

@@ -59,6 +59,8 @@ impl NcStatus {
                 | NC_E_LOAD_FAILED
                 | NC_E_OUT_OF_MEMORY
                 | NC_E_BUSY
+                | NC_E_ALREADY_BOUND
+                | NC_E_CLOSED
         )
     }
 
@@ -77,6 +79,8 @@ impl NcStatus {
             NC_E_LOAD_FAILED => "NC_E_LOAD_FAILED",
             NC_E_OUT_OF_MEMORY => "NC_E_OUT_OF_MEMORY",
             NC_E_BUSY => "NC_E_BUSY",
+            NC_E_ALREADY_BOUND => "NC_E_ALREADY_BOUND",
+            NC_E_CLOSED => "NC_E_CLOSED",
             _ => "NC_STATUS_UNKNOWN",
         }
     }
@@ -131,6 +135,12 @@ pub const NC_E_OUT_OF_MEMORY: NcStatus = NcStatus::from_code(-10);
 
 /// Returned when a call requires exclusive object access but another call is active.
 pub const NC_E_BUSY: NcStatus = NcStatus::from_code(-11);
+
+/// A single-consumer capability already has its lifetime destination.
+pub const NC_E_ALREADY_BOUND: NcStatus = NcStatus::from_code(-12);
+
+/// A logically retired capability cannot accept further operations.
+pub const NC_E_CLOSED: NcStatus = NcStatus::from_code(-13);
 
 #[cfg(test)]
 mod tests {

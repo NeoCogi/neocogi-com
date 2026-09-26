@@ -18,3 +18,10 @@ pub use named::{NamedOutputs, bind_output};
 mod mapping;
 #[cfg(feature = "std")]
 pub use mapping::bind;
+
+#[cfg(feature = "alloc")]
+mod stream;
+#[cfg(feature = "alloc")]
+pub use stream::{EventOf, EventPort, EventSource, EventStreamInterface, MessageSinkInterface};
+#[cfg(feature = "std")]
+pub use stream::{bind_source, bind_stream};
