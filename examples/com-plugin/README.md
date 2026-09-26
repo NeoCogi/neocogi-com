@@ -6,7 +6,7 @@ crate's `build.rs` generates Rust bindings and source-graph metadata only.
 
 ```rust
 #[version(1)]
-interface ExampleObject: IMeasured {
+class ExampleObject: IMeasured + IExampleEvents {
     fn resize(&mut self, extent: Extent) -> Result<()>;
 }
 
@@ -73,30 +73,29 @@ contract artifacts or inherited library-search paths.
 link and loader directories. `cargo-neocogi` is optional deployment tooling and
 is not used by this example.
 
-## Experimental persistence and opaque outputs
+## Persistence and a typed class stream
 
-The object also exposes optional `IPersistable` and `INamedOutputs` capabilities.
-The host uses `neocogi_com::persistence` through its selected runtime and
-binds `resized` using only its `ExtentChanged` payload contract, saves
-current dimensions, restores through an explicitly registered factory adapter,
-and binds the reconstructed object again. The adapter reuses the original
-`ExampleFactory::create` constructor, demonstrating how an existing component
-can adopt persistence without changing its factory's ordinary construction ABI.
+The object exposes `IPersistable` and inherits `IEventStream<ExtentChanged>`
+through `IExampleEvents`. The host attaches its typed sink directly with
+`events::bind_source`, saves dimensions, and restores through an explicitly
+registered factory adapter. A restored object is a fresh instance with an
+unbound stream; its original instance cannot be rebound. The adapter reuses
+`ExampleFactory::create` rather than a separate construction mechanism.
 
 The same relocation test executes this sequence across a real shared-library
 boundary and in the monolith. The implementation library also checks for Wasm.
 The host's output remains `factory object: 44 x 31`; assertions verify the extra
 snapshot and event behavior before printing it.
 
-An allocation probe compares identical scalar traffic through direct and named
-bindings, including standard-channel storage:
+An allocation probe measures one typed attachment and scalar event delivery,
+including standard-channel storage:
 
 ```sh
 cargo run -p neocogi-example-com-plugin --example event_allocations --features monolith
 ```
 
-It checks that named binding adds no allocation to either measured path. It is
-an allocation comparison, not a latency benchmark or a zero-allocation promise.
+It reports allocation counts for setup and repeated posts; channel storage can
+allocate. It is not a latency benchmark or a zero-allocation promise.
 
 The probe also feeds the decoder a truncated collection advertising 65,536
 large records and checks that its initial allocation stays within 4 KiB.

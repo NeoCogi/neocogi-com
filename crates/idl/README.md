@@ -17,29 +17,24 @@ The single `neocogi-idl` package separates responsibilities into Rust modules:
   and imported contracts. [examples/com-plugin](../../../examples/com-plugin)
   demonstrates their dynamic and monolithic use.
 
-`#[observer]` on a thread-local interface groups its declared outputs into one
-constructor-supplied destination. For `Textbox`, the compiler derives
-`TextboxObserver` (one COM method per output) and `TextboxEvent` (an owned Rust
-enum). `TextboxEvent::observer(callback)` stores the callback inline in one COM
-allocation. It has no channel dependency; a Rust UI shim can capture an mpsc
-sender and map snapshots into the owner's message type.
+Ordinary interfaces support type parameters. Closed uses are specialized into
+concrete vtables and deterministic COM identities before ABI resolution. `class`
+marks a concrete object contract, `interface` a reusable capability, and `factory`
+a construction root. `#[message]` marks concrete structs/enums for checked
+borrowed-message arguments and owned decoding.
 
-Factories declare `observer: Option<&TextboxObserver>` explicitly. `None` crosses
-the ABI as null and allocates no observer. A present pointer undergoes the same
-identity checks as a required borrowed interface, and the producer retains it
-before publishing the widget. Observer producers have no generated output
-setters. Their observer and factory signatures participate in module identity.
-Inherited interfaces retain their own output contracts; the attribute groups
-only outputs declared on the annotated interface.
+The shared `IMessageSink<T>` and `IEventStream<E>` templates express event delivery
+without special IDL syntax. A class such as `Textbox: IWidget + IEventStream<TextboxEvent>`
+has one complete stream; its event enum contains Changed and Submitted. A class
+cannot accumulate different event stream types through its parents. Generated
+metadata resolves that inherited stream against the complete COM projection chain.
 
-`interface` and `factory` share the callable model. `#[message]` marks concrete
-structs/enums for checked COM posting. On an unannotated producer, a named output such as `changed: TextChanged;`
-generates a one-shot installation closure on `ComPtr` and `ComRef`. Producers
-implement the ordinary generated receiver setter and store one optional concrete
-COM receiver. `events::bind(output(), sender, mapper)?` replaces its destination and returns
-`Result<()>`; there is no connection projection or subscription lifetime.
-Application enums stay in Rust. Generated receivers depend on COM alone, with
-no consumer queue dependency or separate support-version protocol.
+`#[com_class(Contract, event = events)]` delegates attachment to an explicitly
+initialized `ContractEventPort`. The behavioral parent attaches one sink after
+factory creation and before publication. Later attachment is rejected, and
+closure is terminal. Generated adapters acquire each event and map it into the
+parent's application queue; private message and model types stay in Rust.
+See [the class stream guide](../../../docs/CLASS_EVENT_STREAMS.md).
 
 All contracts, including events, are compile-time definitions. The build helper
 emits no native artifact, exported getter, runtime module graph, or built-in
@@ -159,7 +154,7 @@ generation; generated unit and payload enums retain the signed tag.
 
 The resolver reserves every visible Rust companion emitted by generated
 interfaces and payload enums before code generation. This includes interface
-ABI, vtable, client, and provider types; observer interface companions; and
+ABI, vtable, client, and provider types; and
 payload enum tag, union, and variant records. Local declarations or explicit
 imports that collide with these names receive source-located IDL diagnostics
 instead of duplicate-item errors from generated Rust. Copyable message enums

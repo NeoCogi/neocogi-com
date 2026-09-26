@@ -77,16 +77,16 @@ itself prove safe concurrent method calls or destruction.
 ## 4. Contract declarations
 
 `.ncidl` supports copied `struct`, `enum`, and `bitenum` values plus callable
-`interface` and `factory` roles. Concrete output structs/enums use `#[message]`. Every declaration/member is public; private fields belong to
+`interface`, `class`, and `factory` roles. Concrete output structs/enums use `#[message]`. Every declaration/member is public; private fields belong to
 implementation objects. `#[version(N)]` derives an IID; `#[id(N, "UUID")]` pins it.
 
 The first required interface is the physical base; later requirements are
 sibling projections. The required projection graph must be acyclic. A factory
-may serve as the runtime's zero-argument construction root. Unannotated output
-bindings lower to ordinary mutable receiver setters. A thread-local interface
-marked `#[observer]` instead synthesizes one concrete observer with a method for
-each declared output and no setters on the producer. Factories may explicitly
-borrow that observer with `Option<&ProducerObserver>`. Optional borrowed COM
+may serve as the runtime's zero-argument construction root. Ordinary generic
+interfaces are specialized before ABI generation. `IEventStream<E>` and
+`IMessageSink<E>` therefore cross COM as concrete attach/post vtables with exact
+identities and signatures. A class has at most one resolved event stream;
+`EventPort` enforces one lifetime attachment and terminal closure. Optional COM
 inputs use passing tag `NC_ABI_PASSING_OPTIONAL_COM_REF` (`0x08`): null means
 absence, and a present pointer must satisfy the same exact interface identity
 and borrowing contract as an ordinary `ComRef`. Each receiver has one `post` operation

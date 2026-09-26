@@ -267,6 +267,6 @@ unify; separately loaded plugins must not enable it.
 
 The `macros` feature also exposes built-in event contracts through
 [`neocogi_com::events`](EVENTS.md). Contracts need no allocation or runtime;
-channel and named-output adapters additionally require `std`. Persistent UI
+receiver allocation needs `alloc`, and channel adapters additionally require `std`. Persistent UI
 controllers and scheduling belong to the UI facade and core contracts. Event IDL compilation
 is an optional build dependency of this feature and runs on the build machine.

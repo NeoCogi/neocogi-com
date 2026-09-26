@@ -37,13 +37,13 @@ traversal, duplicate recipe rejection, and cleanup after parent failure.
 ## Executable integration examples
 
 The [plain-Cargo plugin example](../../../examples/com-plugin/README.md) snapshots
-objects and binds named outputs across a relocated shared library and in a
+objects and attaches typed class streams across a relocated shared library and in a
 monolith. Its adapter reconstructs through the provider's existing typed factory.
 
 The [UI round-trip test](../../ui/runtime/src/runtime/tests/retained/persistence.rs)
 implements a context-bound settings-view provider with real button, checkbox,
-and linear widgets. Application code receives only an opaque mountable root and
-named output capability. It clicks the normal UI, snapshots the edited checkbox,
+and linear widgets. Application code receives a mountable root and looks up
+concrete children through its composition interface. It clicks the normal UI, snapshots the edited checkbox,
 restores a new component, and rebinds it with the same application messages.
 That example defines one supported composition; it does not automatically add
 persistence to every built-in widget. The [UI document layer](../../ui/document/README.md)

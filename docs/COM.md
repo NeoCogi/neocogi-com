@@ -31,17 +31,16 @@ boundaries, and [ABI v7](docs/abi-v7.md) for the binary model.
 
 ## IDL
 
-The COM-owned [IDL compiler](idl) generates checked COM posting for concrete
-`#[message]` structs/enums and receiver setters for `name: Message;` outputs.
-Unannotated producers own one optional typed receiver per output; consumers use
-`events::bind(producer.changed(), sender, AppEvent::Changed)?` to install or replace it.
-[`neocogi_com::events`](api/EVENTS.md) connects standard channels to ordinary output receivers and named component exports.
-There are no producer queues, output projections, subscription leases or registries.
-`#[observer]` interfaces instead generate one typed observer covering all declared
-outputs, suitable for a constructor argument; those producers have no output setters.
-Generated receivers and observers depend on COM alone; standard channel endpoints stay in the consuming binary.
+The COM-owned [IDL compiler](idl) generates concrete checked ABIs for copied
+values, messages, and closed generic interfaces. A concrete class can require
+`IEventStream<Event>` and own one `EventPort` with a lifetime consumer.
+[`neocogi_com::events`](api/EVENTS.md) attaches a typed sink that acquires each
+event, maps it to an application message, and posts the parent's standard queue.
+Second attachment is rejected. `com_class` supplies delegation; application
+behavior runs later under ordinary mutable access. No event syntax or named
+output relay remains.
 
-Contracts use `struct`, `enum`, `bitenum`, `interface`, and `factory`. All declarations
+Contracts use `struct`, `enum`, `bitenum`, `interface`, `class`, and `factory`. All declarations
 and members are public by definition:
 
 ```rust
@@ -218,14 +217,14 @@ unsafe descriptor borrows such as `NcStaticUtf8::as_str` from owned string copie
 This runtime is trusted same-process native code, not a sandbox or plugin
 marketplace. Applications own installation, trust, signatures, and path policy.
 
-## Experimental object persistence and named integration
+## Experimental object persistence and typed integration
 
 [`neocogi_com::persistence`](runtime/PERSISTENCE.md) provides runtime-owned opt-in semantic snapshots and explicit,
 context-bound factory reconstruction. The portable value codec remains separate
 from object activation; arbitrary private object memory is never serialized.
-[`events`](api/EVENTS.md) also supports named outputs on opaque components.
-Generated receiver adapters keep concrete payload types and direct delivery,
-while application code binds only to a public name and its message contract.
+[`events`](api/EVENTS.md) binds concrete class streams directly. Generated form
+fields expose checked widget interfaces, and typed receivers post application
+messages without an intermediate component relay.
 
 ## Checking the documentation
 
