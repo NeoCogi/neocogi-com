@@ -108,3 +108,34 @@ The canonical IDL is `idl/neocogi/com/persistence/objects.ncidl`. Its built-in
 bindings are checked in because core cannot depend on its own IDL compiler.
 Verify them with `cargo test -p neocogi-com-macros persistence_bindings_match_idl`;
 set `NC_UPDATE_PERSISTENCE_BINDINGS=1` on that command to regenerate both halves.
+
+
+### Binary resource limits
+
+The encoder and decoder apply the same `binary::Limits` policy. For the built-in
+and derived codec pairs, encoding a valid value successfully produces a document
+that the matching decoder accepts under the same limits. Custom serializer and
+deserializer implementations must describe the same schema and consume all its
+members. Format/schema validation and provider activation remain separate checks.
+
+- `bytes` bounds the complete encoding, including the NCB marker, lengths, and tags.
+- `elements` bounds immediate sequence elements, record fields, or map pairs in
+  each container. It is not a cumulative count across sibling collections.
+- `values` bounds all scalar and container values throughout the document. A
+  vector of N scalar elements costs N + 1; a map costs one plus its keys and
+  values. Empty containers and zero-sized unit values still cost one each.
+- `depth` bounds the number of values on a root-to-leaf path. A scalar or empty
+  container root requires one; a nonempty vector of scalars requires two.
+
+`None` costs one value; `Some(x)` costs one plus `x`. An enum costs one value,
+with no additional payload for a unit case. Newtype cases contain their value;
+tuple/record cases contain a sequence/record value and its fields. Text costs one
+value and its bytes consume `bytes`; string lengths, enum tags, and presence tags
+are framing, not extra values or depth levels.
+
+`Vec<u8>` always remains a collection: each byte consumes a value and an element
+of that collection. In particular, `ObjectRecord.state` receives this accounting
+even though its bytes may themselves encode provider initialization. A separate
+opaque-blob type would require an explicit schema/codec operation; the current
+codec does not implicitly convert byte vectors to blobs. A byte ceiling therefore
+does not promise that every smaller document fits the other limits.

@@ -17,6 +17,8 @@ pub trait ComSerialize {
 ///
 /// Every begin must have a matching end. Counts describe actual fields, elements,
 /// or map pairs. Implementations must not serialize process-local addresses.
+/// A format error aborts the encoding: propagate it rather than continuing with
+/// a partially written value or an unfinished container.
 pub trait ComSerializer: Sized {
     /// Format-specific failure, including byte or nesting limits.
     type Error;
@@ -67,6 +69,8 @@ pub trait ComSerializer: Sized {
     /// Ends the current map.
     fn end_map(&mut self) -> Result<(), Self::Error>;
     /// Begins a variant by declaration ordinal, followed by its typed payload.
+    /// A unit case has no payload operation; a newtype writes its value, while
+    /// tuple/record cases open a sequence/record containing their members.
     fn begin_variant(&mut self, name: &'static str, index: u32, variant: &'static str) -> Result<(), Self::Error>;
     /// Ends the current variant.
     fn end_variant(&mut self) -> Result<(), Self::Error>;

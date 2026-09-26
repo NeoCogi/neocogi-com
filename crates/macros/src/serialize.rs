@@ -53,6 +53,10 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
                 };
                 let values = bindings.iter().map(|field| quote! { #field }).collect::<Vec<_>>();
                 let payload = match &variant.fields {
+                    // A unit case has no payload value. The enum's discriminant
+                    // already identifies it; emitting serialize_unit would add
+                    // a logical child that the matching decoder never visits.
+                    Fields::Unit => quote! {},
                     Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
                         let field = &values[0];
                         quote! { #nc::ComSerialize::com_serialize(#field, serializer)?; }
