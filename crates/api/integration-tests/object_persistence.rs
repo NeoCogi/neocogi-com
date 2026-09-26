@@ -212,3 +212,58 @@ fn tree_limits_and_duplicate_registration_preserve_existing_state() {
     drop(root);
     assert_eq!(counts.live.load(Ordering::Relaxed), 0);
 }
+
+/// Snapshot and restore expose the same binary limits through actual COM calls,
+/// including the value cost of the envelope's ordinary byte-vector state.
+#[test]
+fn binary_limits_agree_across_snapshot_and_factory_restore() {
+    let original = record("persistent label", vec![]);
+    let bytes = binary::to_vec(&original).unwrap();
+    let (registry, counts) = registry();
+    let root = registry.restore(&bytes).unwrap();
+    // This leaf envelope contains 21 values besides state bytes: one record,
+    // one UUID array plus 16 bytes, one schema value, and two vector containers.
+    let exact = Limits {
+        binary: binary::Limits {
+            bytes: bytes.len(),
+            elements: original.state.len(),
+            depth: 3,
+            values: original.state.len() + 21,
+        },
+        objects: 1,
+        depth: 1,
+    };
+    assert_eq!(snapshot_with_limits(root.as_com_ref(), exact).unwrap(), bytes);
+    let restored = registry.restore_with_limits(&bytes, exact).unwrap();
+    drop(restored);
+    let created = counts.created.load(Ordering::Relaxed);
+
+    for binary in [
+        binary::Limits {
+            bytes: exact.binary.bytes - 1,
+            ..exact.binary
+        },
+        binary::Limits {
+            elements: exact.binary.elements - 1,
+            ..exact.binary
+        },
+        binary::Limits {
+            depth: exact.binary.depth - 1,
+            ..exact.binary
+        },
+        binary::Limits {
+            values: exact.binary.values - 1,
+            ..exact.binary
+        },
+    ] {
+        let insufficient = Limits { binary, ..exact };
+        assert!(snapshot_with_limits(root.as_com_ref(), insufficient).is_err());
+        assert!(registry.restore_with_limits(&bytes, insufficient).is_err());
+        // A resource rejection must precede factory activation, preserving the
+        // already-live root and preventing construction of a partial copy.
+        assert_eq!(counts.created.load(Ordering::Relaxed), created);
+        assert_eq!(counts.live.load(Ordering::Relaxed), 1);
+    }
+    drop(root);
+    assert_eq!(counts.live.load(Ordering::Relaxed), 0);
+}

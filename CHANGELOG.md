@@ -5,6 +5,13 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 
 ## Unreleased
 
+- Enforce the same byte, element, value, and depth policy when encoding and
+  decoding binary persistence values. Count scalar and container values through
+  a shared budget, exclude format framing, and give unit enum cases no synthetic
+  payload. Byte vectors remain collections. Over-limit snapshots and authored
+  documents now fail on save instead of producing data rejected on reopening.
+  Add exact-boundary codec, COM snapshot/restore, and document regressions.
+
 - Consolidate nine COM production crates into five: move runtime link declarations
   into the facade, combine IDL parsing/generation/Cargo integration in
   `neocogi-idl`, and expose built-in event contracts and channel adapters through
