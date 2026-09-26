@@ -45,6 +45,14 @@ fn persistence_bindings_match_idl() {
                 abi.extend(parts.abi);
                 provider.extend(parts.provider);
             }
+            // Authoring descriptions depend on the facade's design module.
+            // Core persistence exposes its physical ABI only; retaining these
+            // convenience constants here would create a core -> facade cycle.
+            Item::Impl(definition)
+                if definition
+                    .items
+                    .iter()
+                    .any(|item| matches!(item, syn::ImplItem::Const(value) if value.ident == "IDL_INTERFACE")) => {}
             // Module identity/fingerprint constants belong to the contract.
             item => abi.extend(quote! { #item }),
         }

@@ -1,13 +1,4 @@
 #[version(1)]
-/// Named event exports of an opaque component; its internal objects stay private.
-interface INamedOutputs {
-    /// Resolves one exact UTF-8 name and installs a compatible typed receiver.
-    /// One name has at most one installed receiver; successful rebinding replaces it.
-    /// A failed lookup or type check preserves the previously installed receiver.
-    fn bind_output(&mut self, name: &[u8], receiver: &IUnknown) -> Result<()>;
-}
-
-#[version(1)]
 /// A concrete message receiver; application closures and queue types remain local.
 interface IMessageSink<T> {
     /// Validates and acquires the message before its call-scoped storage expires.

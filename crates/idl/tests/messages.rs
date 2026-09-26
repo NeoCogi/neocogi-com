@@ -7,6 +7,7 @@ use neocogi_idl::{parse_module, resolve_modules};
 #[test]
 fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
     let source = r#"
+        extern neocogi.com.events; use neocogi.com.events::IEventStream;
         #[version(1)] interface IToken { fn value(&self) -> Result<u32>; }
         #[version(1)] #[message] struct NumberChanged { value: f32, checked: bool }
         #[version(1)] #[message] struct TextChanged { text: String, cursor: u64 }
@@ -16,39 +17,50 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
         #[version(1)] #[message] struct Batch { values: &[u32] }
         #[version(1)] #[message] struct BoolBatch { flags: &[bool] }
         #[version(1)] #[message] struct TextPair { left: String, right: String }
-        #[version(1)] interface IProducer { completed: Completion; fn emit(&mut self) -> Result<()>; }
+        #[version(1)] class IProducer: IEventStream<Completion> { fn emit(&mut self) -> Result<()>; }
         #[version(1)] interface IMessageInput { fn accept(&mut self, value: &Completion) -> Result<()>; }
         #[version(1)] #[message] enum EditorEvent {
             /// Captured edit, before any completion from the same input.
             Changed(TextChanged),
-            /// Captured completion through the same observer identity.
+            /// Captured completion through the same stream identity.
             Completed,
         }
-        #[version(1)] #[observer] interface Editor {
-            /// The sole output carries every editor event to its owner.
-            event: EditorEvent;
+        #[version(1)] class Editor: IEventStream<EditorEvent> {
             fn emit(&mut self) -> Result<()>;
         }
-        #[version(1)] factory Editors { fn create(&self, observer: Option<&EditorObserver>) -> Result<Editor>; }
+        #[version(1)] factory Editors { fn create(&self) -> Result<Editor>; }
     "#;
     let consumer = parse_module(
         Path::new("example/consumer.ncidl"),
         r#"
         extern example.messages;
         use example.messages::Completion;
-        #[version(1)] interface IForward { completed: Completion; fn accept(&mut self, value: &Completion) -> Result<()>; }
+        #[version(1)] interface IForward { fn accept(&mut self, value: &Completion) -> Result<()>; }
     "#,
     )
     .unwrap();
-    let graph = resolve_modules(vec![parse_module(Path::new("example/messages.ncidl"), source).unwrap(), consumer]).unwrap();
+    let graph = resolve_modules(vec![
+        parse_module(Path::new("example/messages.ncidl"), source).unwrap(),
+        consumer,
+        parse_module(
+            Path::new("neocogi/com/events.ncidl"),
+            include_str!("../../api/idl/neocogi/com/events/events.ncidl"),
+        )
+        .unwrap(),
+    ])
+    .unwrap();
     let generated = neocogi_idl::generate_rust(&graph, "example.messages").unwrap();
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
-    fs::write(project.path().join("Cargo.toml"), format!(
-        "[package]\nname='message-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-        root.join("crates/com/api"),
-    )).unwrap();
+    fs::write(
+        project.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname='message-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            root.join("crates/com/api"),
+        ),
+    )
+    .unwrap();
     // The imported-output module has no local message declaration. Compile it too,
     // so allocation imports and cross-crate receiver paths are checked by rustc.
     let consumer = neocogi_idl::generate_rust(&graph, "example.consumer").unwrap();
@@ -62,7 +74,9 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
 
     fs::write(
         project.path().join("src/lib.rs"),
-        generated + "\nextern crate self as example_messages_contracts;\npub mod consumer;\npub mod relocated { pub use super::*; }\npub mod relocated_consumer;\n" + include_str!("fixtures/messages.rs"),
+        generated
+            + "\nextern crate self as example_messages_contracts;\npub mod consumer;\npub mod relocated { pub use super::*; }\npub mod relocated_consumer;\n"
+            + include_str!("fixtures/messages.rs"),
     )
     .unwrap();
     let output = Command::new("cargo")
@@ -86,7 +100,7 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
 
 /// Generated names are real declarations and cannot shadow authored contracts.
 #[test]
-fn observer_contracts_validate_names_and_policy() {
+fn removed_observer_syntax_is_rejected() {
     for invalid in [
         "#[version(1)] #[observer] interface Empty {}",
         "#[version(1)] #[observer] interface Many { first: TextChanged; second: TextChanged; }",
@@ -121,7 +135,9 @@ fn nested_message_layouts_reject_inline_cycles() {
         "#[version(1)] #[message] struct Loop { value: Loop }",
         "#[version(1)] #[message] struct First { next: Second } #[version(1)] #[message] struct Second { next: First }",
     ] {
-        let error = resolve_modules(vec![parse_module(Path::new("example/messages.ncidl"), source).unwrap()]).unwrap_err().to_string();
+        let error = resolve_modules(vec![parse_module(Path::new("example/messages.ncidl"), source).unwrap()])
+            .unwrap_err()
+            .to_string();
         assert!(error.contains("recursive copied-value layout"), "{error}");
     }
 }
@@ -135,7 +151,9 @@ fn nested_messages_stay_out_of_plain_value_fields() {
         #[version(1)] #[message] struct Outer { nested: Inner }
         #[version(1)] struct Copied { value: Outer }
     "#;
-    let error = resolve_modules(vec![parse_module(Path::new("example/messages.ncidl"), source).unwrap()]).unwrap_err().to_string();
+    let error = resolve_modules(vec![parse_module(Path::new("example/messages.ncidl"), source).unwrap()])
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("cannot embed a message"), "{error}");
 }
 
@@ -144,10 +162,7 @@ fn nested_messages_stay_out_of_plain_value_fields() {
 /// generated checked element codec, even when their current fields look simple.
 #[test]
 fn message_slices_reject_unvalidated_aggregate_elements() {
-    for declaration in [
-        "#[version(1)] struct Item { checked: bool }",
-        "#[version(1)] enum Item { Ready, Waiting }",
-    ] {
+    for declaration in ["#[version(1)] struct Item { checked: bool }", "#[version(1)] enum Item { Ready, Waiting }"] {
         let source = format!("{declaration} #[version(1)] #[message] struct Batch {{ values: &[Item] }}");
         let module = parse_module(Path::new("example/invalid_slice.ncidl"), &source).unwrap();
         let error = resolve_modules(vec![module]).unwrap_err().to_string();

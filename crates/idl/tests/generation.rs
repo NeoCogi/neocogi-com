@@ -9,25 +9,25 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
 
 /// Imported messages generate typed access without pulling transport into the baseline ABI crate.
 #[test]
-fn imported_outputs_need_allocation_but_no_queue_runtime() {
+fn imported_messages_use_closed_generic_streams() {
     let message = module("example/messages.ncidl", "#[version(1)] #[message] struct Changed { value: u32 }");
     let source = module(
         "example/source.ncidl",
         r#"
         extern example.messages;
         use example.messages::Changed;
-        #[version(1)] interface ISource { first: Changed; second: Changed; }
+        extern neocogi.com.events; use neocogi.com.events::IEventStream;
+        #[version(1)] class ISource: IEventStream<Changed> {}
     "#,
     );
     let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));
     let graph = resolve_modules(vec![message, source, transport]).unwrap();
     let generated = neocogi_idl::generate_rust(&graph, "example.source").unwrap();
     syn::parse_file(&generated).expect("imported message bindings parse");
-    assert!(generated.contains("extern crate alloc"));
-    assert!(!generated.contains("neocogi_com::events"));
-    assert!(generated.contains("fn first("));
-    assert!(generated.contains("fn second("));
-    assert!(generated.contains("example_messages_contracts::__ChangedReceiverAbi"));
+    assert!(generated.contains("EventSource for ISourceAbi"));
+    assert!(generated.contains("example_messages_contracts::Changed"));
+    assert!(generated.contains("IMessageSinkInstance"));
+    assert!(!generated.contains("__map_"));
     let baseline = neocogi_idl::generate_rust(&graph, "neocogi.com.events").unwrap();
     assert!(!baseline.contains("EVENT_BINDING_API_VERSION"));
     assert!(!baseline.contains("__nc_get_contract_module_description"));
@@ -216,7 +216,9 @@ fn generates_negative_signed_enum_discriminants() {
 /// Generated COM projections retain the message shape needed by designer tools.
 #[test]
 fn generated_interface_exposes_its_idl_event_and_nested_message_shape() {
-    let source = module("example/widget.ncidl", r#"
+    let source = module(
+        "example/widget.ncidl",
+        r#"
         #[version(1)] struct Bounds { x: i32, y: i32 }
         #[version(1)] enum State: u8 { Idle = 0, Busy = 1 }
         #[version(1)] bitenum Flags: u8 { NONE = 0, READY = 1 }
@@ -225,9 +227,12 @@ fn generated_interface_exposes_its_idl_event_and_nested_message_shape() {
             Changed(Changed),
             Submitted,
         }
-        #[version(1)] interface Widget { event: WidgetEvent; }
-    "#);
-    let graph = resolve_modules(vec![source]).unwrap();
+        extern neocogi.com.events; use neocogi.com.events::IEventStream;
+        #[version(1)] class Widget: IEventStream<WidgetEvent> {}
+    "#,
+    );
+    let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));
+    let graph = resolve_modules(vec![source, transport]).unwrap();
     let generated = neocogi_idl::generate_rust(&graph, "example.widget").unwrap();
     syn::parse_file(&generated).unwrap();
     assert!(generated.contains("pub const IDL_TYPE"));

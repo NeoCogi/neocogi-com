@@ -59,26 +59,24 @@ pub struct IdlType {
     pub message: bool,
 }
 
-/// One output port declared directly by an IDL COM interface.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct IdlOutput {
-    /// Port name as written in IDL and exposed by the generated output trait.
-    pub name: &'static str,
-    /// Exact generated message type delivered through this port.
+/// One resolved typed stream, including its inherited COM projection.
+#[derive(Clone, Copy)]
+pub struct IdlEventStream {
+    /// Concrete closed-generic interface; must occur in the class's COM chain.
+    pub abi: &'static NcInterfaceDescriptor,
+    /// Complete event value carried by the stream's single receiver.
     pub message: &'static IdlType,
 }
 
-/// A generated COM interface paired with its authoring-level output contracts.
+/// A COM class/interface and its complete transitive authoring contract.
 #[derive(Clone, Copy)]
 pub struct IdlInterface {
-    /// The existing physical interface description and identity.
+    /// Existing physical interface identity.
     pub abi: &'static NcInterfaceDescriptor,
-    /// This projection and its required base/sibling descriptors in query order.
+    /// This projection and required base/sibling descriptors in query order.
     pub chain: &'static [&'static NcInterfaceDescriptor],
-    /// Public Rust path of the generated `*Abi` projection.
+    /// Public Rust path of the generated concrete projection.
     pub rust_abi: &'static str,
-    /// Public Rust path of the generated output-accessor trait, if any.
-    pub rust_outputs: Option<&'static str>,
-    /// Ports in IDL declaration order. A widget policy can require at most one.
-    pub outputs: &'static [IdlOutput],
+    /// Sole resolved stream, including one inherited through an interface.
+    pub stream: Option<IdlEventStream>,
 }

@@ -7,21 +7,21 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
     parse_module(Path::new(path), source).unwrap()
 }
 
-/// Only marked data types can be connected; authors never import a lease to declare an output.
+/// The library stream accepts declared messages, while general IDL remains event-agnostic.
 #[test]
-fn outputs_require_concrete_messages() {
-    let valid = module(
-        "example/events.ncidl",
-        "#[version(1)] #[message] struct Changed { value: u32 } #[version(1)] interface ISource { changed: Changed; }",
-    );
-    resolve_modules(vec![valid]).expect("message output without authored transport dependencies");
+fn generic_event_sink_requires_message_arguments() {
     for declaration in ["interface Changed {}", "struct Changed { value: u32 }"] {
         let source = module(
             "example/events.ncidl",
-            &format!("#[version(1)] {declaration} #[version(1)] interface ISource {{ changed: Changed; }}"),
+            &format!(
+                "extern neocogi.com.events; use neocogi.com.events::IEventStream; #[version(1)] {declaration} #[version(1)] class Source: IEventStream<Changed> {{}}"
+            ),
         );
-        let error = resolve_modules(vec![source]).unwrap_err().to_string();
-        assert!(error.contains("must name a concrete message"), "{error}");
+        let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));
+        match resolve_modules(vec![source, transport]) {
+            Err(_) => {}
+            Ok(graph) => assert!(neocogi_idl::generate_rust(&graph, "example.events").is_err()),
+        }
     }
 }
 
@@ -524,33 +524,29 @@ fn rejects_recursive_and_weakened_required_interfaces() {
     }
 }
 
-/// Every visible macro companion must be reserved, including observer and
+/// Every visible macro companion must be reserved, including interface and
 /// payload-variant types; message-only private wire names cannot collide.
 #[test]
 fn reserves_all_visible_macro_companions() {
     for suffix in ["Abi", "VTable", "VtblFor", "Client", "InterfacesFor"] {
         let name = format!("IFoo{suffix}");
-        let source = format!(
-            "#[version(1)] interface IFoo {{}} #[version(1)] struct {name} {{ value: u32 }}"
-        );
+        let source = format!("#[version(1)] interface IFoo {{}} #[version(1)] struct {name} {{ value: u32 }}");
         let error = resolve_modules(vec![module("example/interfaces.ncidl", &source)]).unwrap_err().to_string();
         assert!(error.contains("error[EIDL021]") && error.contains(&name), "{error}");
     }
 
     for name in ["ChoiceAbi", "ChoiceTag", "ChoicePayload", "ChoiceSelectedPayload"] {
-        let source = format!(
-            "#[version(1)] enum Choice: u8 {{ Selected(u32), Empty }} #[version(1)] struct {name} {{ value: u32 }}"
-        );
+        let source = format!("#[version(1)] enum Choice: u8 {{ Selected(u32), Empty }} #[version(1)] struct {name} {{ value: u32 }}");
         let error = resolve_modules(vec![module("example/enums.ncidl", &source)]).unwrap_err().to_string();
         assert!(error.contains("error[EIDL021]") && error.contains(name), "{error}");
     }
 
     for suffix in ["Abi", "VTable", "VtblFor", "Client", "InterfacesFor"] {
-        let name = format!("EditorObserver{suffix}");
+        let name = format!("Editor{suffix}");
         let source = format!(
             r#"
                 #[version(1)] #[message] enum EditorEvent {{ Changed }}
-                #[version(1)] #[observer] interface Editor {{ event: EditorEvent; }}
+                #[version(1)] class Editor {{ fn post(&mut self, event: &EditorEvent) -> Result<()>; }}
                 #[version(1)] struct {name} {{ value: u32 }}
             "#
         );

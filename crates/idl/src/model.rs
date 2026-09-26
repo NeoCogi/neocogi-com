@@ -189,11 +189,9 @@ pub enum VariantFields {
 pub struct Interface {
     /// Type parameters of a reusable interface template; empty after specialization.
     pub parameters: Vec<String>,
-    /// Outputs describe one constructor-supplied observer instead of mutable setters.
-    pub observer: bool,
     /// Base followed by required sibling interfaces, in declared query order.
     pub bases: Vec<NamedType>,
-    /// Ordinary methods and named output getters in normative vtable order.
+    /// Ordinary methods in normative vtable order.
     pub callables: Vec<Callable>,
     /// Construction or delivery policy layered over the common interface ABI.
     pub role: InterfaceRole,
@@ -243,8 +241,6 @@ pub struct Method {
 pub enum Callable {
     /// An ordinary author-declared COM method.
     Method(Method),
-    /// A named connection point bound to a concrete message.
-    Port(PortBinding),
 }
 
 impl Callable {
@@ -252,28 +248,7 @@ impl Callable {
     pub fn span(&self) -> &SourceSpan {
         match self {
             Self::Method(method) => &method.span,
-            Self::Port(port) => &port.span,
         }
-    }
-}
-
-/// One named output whose message is a marked struct or enum.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PortBinding {
-    /// Output identifier and source of mapping diagnostics.
-    pub span: SourceSpan,
-    /// Documentation lines for the generated output accessor.
-    pub docs: Vec<String>,
-    /// Explicit stream name used for the native accessor and receiver installation operation.
-    pub name: String,
-    /// Concrete message delivered by this output; ordinary interfaces are rejected.
-    pub message: NamedType,
-}
-
-impl PortBinding {
-    /// Reserved ABI destination setter used by the compiler; callers use the named accessor.
-    pub fn setter_name(&self) -> String {
-        format!("__map_{}", self.name)
     }
 }
 

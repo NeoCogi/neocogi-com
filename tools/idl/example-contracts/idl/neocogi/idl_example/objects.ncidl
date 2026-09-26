@@ -7,7 +7,7 @@ interface IMeasured {
 
 /// Public object shape constructed only by `ExampleFactory`.
 #[version(1)]
-interface ExampleObject: IMeasured {
+class ExampleObject: IMeasured + IExampleEvents {
     /// Replaces the dimensions using an exclusive implementation borrow.
     fn resize(&mut self, extent: Extent) -> Result<()>;
 }
@@ -24,4 +24,6 @@ factory ExampleFactory {
 interface ICompositionRoot {
     /// Returns the root capability for a host-specific mount operation.
     fn root(&self) -> Result<IUnknown>;
+    /// Resolves one authored child for a checked concrete class query.
+    fn widget(&self, name: &[u8]) -> Result<IUnknown>;
 }

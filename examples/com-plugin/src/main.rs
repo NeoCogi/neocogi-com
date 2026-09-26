@@ -2,7 +2,7 @@
 
 use neocogi_com::{binary, Runtime, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, guid_from_qualified_name};
 use neocogi_com::persistence::{FactoryRegistry, snapshot};
-use neocogi_com::events::{INamedOutputsAbi, bind_output};
+use neocogi_com::events::bind_source;
 use nc_example_com::{ExtentState, PERSISTENT_KIND};
 use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentChanged};
 
@@ -15,12 +15,8 @@ fn main() {
         .activate_plugin_factory::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .expect("compatible example factory");
     let mut object = factory.create(Extent { width: 20, height: 10 }).expect("typed object construction");
-    let outputs = object.query::<INamedOutputsAbi>().expect("opaque event capability");
     let (sender, messages) = std::sync::mpsc::channel();
-    bind_output(outputs.as_com_ref(), "resized", sender.clone(), |event: ExtentChanged| {
-        (event.width, event.height)
-    })
-    .unwrap();
+    bind_source(object.as_com_ref(), sender.clone(), |event: ExtentChanged| (event.width, event.height)).unwrap();
     object.resize(Extent { width: 44, height: 31 }).expect("exclusive object mutation");
     let extent = object.extent().expect("inherited interface call");
     assert_eq!(extent, Extent { width: 44, height: 31 });
@@ -32,11 +28,8 @@ fn main() {
         .unwrap();
     let restored = registry.restore(&saved).unwrap();
     assert_eq!(snapshot(restored.as_com_ref()).unwrap(), saved);
-    let restored_outputs = restored.query::<INamedOutputsAbi>().unwrap();
-    bind_output(restored_outputs.as_com_ref(), "resized", sender, |event: ExtentChanged| {
-        (event.width, event.height)
-    })
-    .unwrap();
+    let restored_source = restored.query::<ExampleObjectAbi>().unwrap();
+    bind_source(restored_source.as_com_ref(), sender, |event: ExtentChanged| (event.width, event.height)).unwrap();
     restored.query::<ExampleObjectAbi>().unwrap().resize(Extent { width: 45, height: 32 }).unwrap();
     assert_eq!(messages.try_recv().unwrap(), (45, 32));
     println!("factory object: {} x {}", extent.width, extent.height);

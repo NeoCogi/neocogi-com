@@ -117,54 +117,45 @@ fn parses_a_complete_contract_module() {
         panic!("Button should be a class");
     };
     assert_eq!(button.bases[0].rust_path(), "IWidget");
-    let Callable::Method(method) = &button.callables[0] else {
-        panic!("Button call should be an ordinary method")
-    };
+    let Callable::Method(method) = &button.callables[0];
     assert_eq!(method.receiver, Receiver::Mutable);
 
     let DeclarationKind::Interface(factory) = &module.declaration("UiFactory").unwrap().kind else {
         panic!("UiFactory should be a factory");
     };
     assert_eq!(factory.threading, Threading::Shared);
-    let Callable::Method(first) = &factory.callables[0] else {
-        panic!("first factory call should be ordinary")
-    };
-    let Callable::Method(second) = &factory.callables[1] else {
-        panic!("second factory call should be ordinary")
-    };
-    let Callable::Method(third) = &factory.callables[2] else {
-        panic!("third factory call should be ordinary")
-    };
+    let Callable::Method(first) = &factory.callables[0];
+    let Callable::Method(second) = &factory.callables[1];
+    let Callable::Method(third) = &factory.callables[2];
     assert!(matches!(first.parameters[0].ty, AbiType::Borrowed(_)));
     assert!(matches!(second.parameters[0].ty, AbiType::Slice(_)));
     assert!(matches!(third.parameters[0].ty, AbiType::OutputSlice(_)));
 }
 
-/// A message is data; independent named outputs preserve their own interface slots.
+/// A typed stream is an ordinary generic base; IDL contains no event-specific members.
 #[test]
-fn parses_messages_and_named_outputs_in_order() {
+fn parses_message_stream_as_an_ordinary_class_base() {
     let module = parse_module(
         Path::new("example/events.ncidl"),
         r#"
-        #[version(1)] #[message] struct Changed { text: String, cursor: u64 }
-        #[version(1)] interface IEditor {
-            fn revision(&self) -> Result<u64>;
-            changed: Changed;
-            search: Changed;
-        }
+        #[version(1)] #[message] enum Changed { Edited(String), Submitted }
+        #[version(1)] interface IStream<T> {}
+        #[version(1)] class Editor: IStream<Changed> { fn revision(&self) -> Result<u64>; }
     "#,
     )
     .unwrap();
     assert!(module.declaration("Changed").unwrap().message);
-    let DeclarationKind::Interface(editor) = &module.declaration("IEditor").unwrap().kind else {
-        panic!("interface")
+    let DeclarationKind::Interface(editor) = &module.declaration("Editor").unwrap().kind else {
+        panic!("class")
     };
-    assert!(matches!(editor.callables[0], Callable::Method(_)));
-    let Callable::Port(changed) = &editor.callables[1] else { panic!("output") };
-    let Callable::Port(search) = &editor.callables[2] else { panic!("output") };
-    assert_eq!(changed.message.rust_path(), "Changed");
-    assert_eq!(search.message.segments, changed.message.segments);
-    assert_ne!(changed.setter_name(), search.setter_name());
+    assert_eq!(editor.bases[0].arguments.len(), 1);
+    assert_eq!(editor.callables.len(), 1);
+    for legacy in [
+        "#[version(1)] interface Old { changed: Changed; }",
+        "#[version(1)] #[observer] interface Old {}",
+    ] {
+        assert!(parse_module(Path::new("example/old.ncidl"), legacy).is_err());
+    }
 }
 
 /// Obsolete protocol syntax and accessor/getter collisions receive parser diagnostics.

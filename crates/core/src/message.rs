@@ -22,7 +22,10 @@ pub struct MessageDecodeBudget {
 impl MessageDecodeBudget {
     /// Creates explicit limits for a receiver that needs a smaller accepted payload.
     pub const fn new(bytes: usize, records: usize) -> Self {
-        Self { remaining_bytes: bytes, remaining_records: records }
+        Self {
+            remaining_bytes: bytes,
+            remaining_records: records,
+        }
     }
 
     /// Charges one concrete message before examining its active fields.
@@ -238,20 +241,14 @@ pub trait ComEvent: ComMessage {
     fn make_receiver(consume: alloc::boxed::Box<dyn FnMut(Self) -> Result<(), NcStatus>>) -> Result<crate::ComPtr<crate::IUnknown>, NcStatus>;
 }
 
-/// Generated named installation on one producer interface, used only at setup.
-/// This local Rust trait does not introduce a generic COM vtable or event payload.
-pub trait ComOutputInterface: crate::ComInterface {
-    /// Looks up the exact receiver contract without allocating an adapter.
-    fn output_receiver(name: &str) -> Result<crate::NcInterfaceId, NcStatus>;
-    /// Checks the destination and installs it through the concrete typed setter.
-    fn bind_output(source: crate::ComRef<'_, Self>, name: &str, receiver: crate::ComRef<'_, crate::IUnknown>) -> Result<(), NcStatus>;
-}
-
 impl NcMessageSlice<u8> {
     /// Borrows valid Rust booleans as their specified one-byte 0/1 wire form.
     /// The enclosing NcMessage keeps the input slice alive for the COM call.
     pub fn from_bools(values: &[bool]) -> Self {
-        Self { pointer: values.as_ptr().cast::<u8>(), len: values.len() as u64 }
+        Self {
+            pointer: values.as_ptr().cast::<u8>(),
+            len: values.len() as u64,
+        }
     }
 }
 

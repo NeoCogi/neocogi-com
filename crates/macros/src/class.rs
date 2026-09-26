@@ -2,7 +2,10 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Ident, ItemStruct, Path, Token, parse::{Parse, ParseStream}};
+use syn::{
+    Ident, ItemStruct, Path, Token,
+    parse::{Parse, ParseStream},
+};
 
 /// The class contract and optional explicitly owned producer field.
 pub(crate) struct ClassArgs {
@@ -16,14 +19,20 @@ impl Parse for ClassArgs {
     /// Accepts `Class` or `Class, event = events`; no duplicate interface lists.
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let contract = Path::parse_mod_style(input)?;
-        let event = if input.is_empty() { None } else {
+        let event = if input.is_empty() {
+            None
+        } else {
             input.parse::<Token![,]>()?;
             let key: Ident = input.parse()?;
-            if key != "event" { return Err(syn::Error::new(key.span(), "expected event = field")); }
+            if key != "event" {
+                return Err(syn::Error::new(key.span(), "expected event = field"));
+            }
             input.parse::<Token![=]>()?;
             Some(input.parse()?)
         };
-        if !input.is_empty() { return Err(input.error("unexpected class option")); }
+        if !input.is_empty() {
+            return Err(input.error("unexpected class option"));
+        }
         Ok(Self { contract, event })
     }
 }

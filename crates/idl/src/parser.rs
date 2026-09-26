@@ -18,9 +18,9 @@ use syn::{
 };
 
 use crate::{
-    AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant, PortBinding,
-    ExternalModule, Field, Import, Interface, InterfaceRole, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile,
-    SourceSpan, Struct, Threading, VariantFields,
+    AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule,
+    Field, Import, Interface, InterfaceRole, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile, SourceSpan, Struct,
+    Threading, VariantFields,
 };
 
 mod keyword {
@@ -259,15 +259,6 @@ impl Parse for ModuleSyntax {
             if let Some(previous) = declaration_names.insert(declaration.name.clone(), declaration.span.clone()) {
                 return Err(duplicate_error("EIDL010", "declaration", &declaration.name, &declaration.span, &previous));
             }
-            // Expand the observer into an ordinary interface before resolution.
-            // Factories can name it explicitly, and its methods participate in
-            // import checks, metadata, and ABI fingerprints like authored ones.
-            if let Some(observer) = observer_declaration(&declaration) {
-                if let Some(previous) = declaration_names.insert(observer.name.clone(), observer.span.clone()) {
-                    return Err(duplicate_error("EIDL010", "declaration", &observer.name, &observer.span, &previous));
-                }
-                declarations.push(observer);
-            }
             declarations.push(declaration);
         }
 
@@ -411,80 +402,17 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>, role: Int
     }
     let bases = parse_bases(input)?;
     let callables = parse_callables(input)?;
-    let observer = metadata.observer;
-    if observer {
-        if !matches!(threading, Threading::Local) {
-            return Err(syn::Error::new(name.span(), "#[observer] requires a thread-local interface"));
-        }
-        // One observer call is the widget's sole event stream. Event variants
-        // belong in a declared message enum rather than separate output ports.
-        if callables.iter().filter(|item| matches!(item, Callable::Port(_))).count() != 1 {
-            return Err(syn::Error::new(name.span(), "#[observer] requires exactly one declared output port"));
-        }
-    }
     Ok(declaration(
         name,
         metadata,
         DeclarationKind::Interface(Interface {
             parameters,
-            observer,
             bases,
             callables,
             role,
             threading,
         }),
     ))
-}
-
-/// Derives the concrete observer contract from the producer's own output list.
-/// Inherited capabilities keep their own contracts; they are never silently
-/// folded into a differently versioned observer.
-fn observer_declaration(source: &Declaration) -> Option<Declaration> {
-    let DeclarationKind::Interface(interface) = &source.kind else { return None };
-    if !interface.observer {
-        return None;
-    }
-    let callables = interface
-        .callables
-        .iter()
-        .filter_map(|callable| {
-            let Callable::Port(port) = callable else { return None };
-            Some(Callable::Method(Method {
-                span: port.span.clone(),
-                docs: port.docs.clone(),
-                name: port.name.clone(),
-                receiver: Receiver::Mutable,
-                parameters: vec![Parameter {
-                    span: port.span.clone(),
-                    name: "event".into(),
-                    ty: AbiType::Borrowed(Box::new(AbiType::Named(port.message.clone()))),
-                }],
-                output: AbiType::Unit,
-            }))
-        })
-        .collect();
-    Some(Declaration {
-        span: source.span.clone(),
-        docs: vec![format!(
-            "Construction-time destination for all {} outputs; payloads are borrowed only for each call.",
-            source.name
-        )],
-        name: format!("{}Observer", source.name),
-        id: DeclarationId {
-            version: source.id.version,
-            explicit: None,
-        },
-        message: false,
-        specialization: None,
-        kind: DeclarationKind::Interface(Interface {
-            parameters: Vec::new(),
-            observer: false,
-            bases: Vec::new(),
-            callables,
-            role: InterfaceRole::Ordinary,
-            threading: Threading::Local,
-        }),
-    })
 }
 
 /// Combines common metadata with one declaration-specific payload.
@@ -524,19 +452,11 @@ fn parse_callables(input: ParseStream<'_>) -> syn::Result<Vec<Callable>> {
     let mut names = HashMap::new();
     while !body.is_empty() {
         let attributes = Attribute::parse_outer(&body)?;
-        let callable = if body.peek(Ident) && body.peek2(Token![:]) {
-            Callable::Port(parse_port_binding(attributes, &body)?)
-        } else {
-            let mut source = body.parse::<TraitItemFn>()?;
-            source.attrs.splice(0..0, attributes);
-            Callable::Method(lower_method(source)?)
-        };
-        // Reserve the Rust accessor as well as the ABI operation, regardless of
-        // declaration order, so generated methods cannot silently shadow a port.
-        let reserved = match &callable {
-            Callable::Method(method) => vec![method.name.clone()],
-            Callable::Port(port) => vec![port.name.clone(), port.setter_name()],
-        };
+        let mut source = body.parse::<TraitItemFn>()?;
+        source.attrs.splice(0..0, attributes);
+        let method = lower_method(source)?;
+        let reserved = [method.name.clone()];
+        let callable = Callable::Method(method);
         for name in reserved {
             if let Some(previous) = names.insert(name.clone(), callable.span().clone()) {
                 return Err(duplicate_error("EIDL016", "method or port", &name, callable.span(), &previous));
@@ -545,22 +465,6 @@ fn parse_callables(input: ParseStream<'_>) -> syn::Result<Vec<Callable>> {
         callables.push(callable);
     }
     Ok(callables)
-}
-
-/// Parses a named connection point, leaving message-kind validation to resolution.
-fn parse_port_binding(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<PortBinding> {
-    let docs = parse_doc_only_attributes(&attributes)?;
-    let name = input.parse::<Ident>()?;
-    require_snake_case(&name, "port binding")?;
-    input.parse::<Token![:]>()?;
-    let message = named_path(&input.parse::<syn::Path>()?)?;
-    input.parse::<Token![;]>()?;
-    Ok(PortBinding {
-        span: SourceSpan::from_parser(name.span()),
-        docs,
-        name: name.to_string(),
-        message,
-    })
 }
 
 /// Validates and lowers one Syn trait method into the language-neutral model.
@@ -999,10 +903,6 @@ fn attach_callable_source(bases: &mut [NamedType], callables: &mut [Callable], s
     for callable in callables {
         match callable {
             Callable::Method(method) => attach_method_source(method, source),
-            Callable::Port(port) => {
-                port.span.attach(source);
-                port.message.span.attach(source);
-            }
         }
     }
 }
@@ -1097,8 +997,6 @@ enum AttributeContext {
 /// Fully parsed common declaration attributes.
 #[derive(Clone)]
 struct Attributes {
-    /// Groups interface outputs into one constructor-supplied observer.
-    observer: bool,
     /// Selects concrete message encoding for a record or enum.
     message: bool,
     /// Documentation lines retained for generated APIs and tools.
@@ -1121,7 +1019,6 @@ struct Attributes {
 
 /// Parses common attributes and rejects ambiguous or inapplicable combinations.
 fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> syn::Result<Attributes> {
-    let mut observer = false;
     let mut message = false;
     let mut docs = Vec::new();
     let mut id = None;
@@ -1135,11 +1032,6 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
     for attribute in attributes {
         if attribute.path().is_ident("doc") {
             docs.push(parse_doc_attribute(&attribute)?);
-        } else if attribute.path().is_ident("observer") && matches!(context, AttributeContext::Interface) {
-            if observer || !matches!(attribute.meta, syn::Meta::Path(_)) {
-                return Err(syn::Error::new_spanned(attribute, "specify #[observer] once without arguments"));
-            }
-            observer = true;
         } else if attribute.path().is_ident("message") && matches!(context, AttributeContext::Plain | AttributeContext::Enum) {
             if message || !matches!(attribute.meta, syn::Meta::Path(_)) {
                 return Err(syn::Error::new_spanned(attribute, "specify #[message] once without arguments"));
@@ -1206,7 +1098,6 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
         ));
     }
     Ok(Attributes {
-        observer,
         message,
         docs,
         id,

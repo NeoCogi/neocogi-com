@@ -347,14 +347,3 @@ fn field_codec(
         }
     }
 }
-
-/// Names the exact generated message receiver in its owning contract crate.
-pub(super) fn receiver_type(graph: &Generation<'_>, module: &ResolvedModule, resolved: ResolvedDeclaration<'_>) -> Result<TokenStream, GenerateError> {
-    let name = format_ident!("__{}ReceiverAbi", resolved.declaration.name);
-    if resolved.module.source.name == module.source.name {
-        Ok(quote! { #name })
-    } else {
-        let owner = graph.paths.path(&resolved.module.source.name.to_string())?;
-        Ok(quote! { #owner::#name })
-    }
-}

@@ -51,24 +51,33 @@ pub struct EventPort<S: MessageSinkInterface> {
 
 impl<S: MessageSinkInterface> Default for EventPort<S> {
     /// Creates an unbound stream for factory initialization before publication.
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<S: MessageSinkInterface> EventPort<S> {
     /// Creates an unbound stream without allocating a queue or receiver.
-    pub const fn new() -> Self { Self { phase: Phase::Unbound } }
+    pub const fn new() -> Self {
+        Self { phase: Phase::Unbound }
+    }
 
     /// Attaches once. Failure leaves the original consumer and queued messages intact.
     pub fn attach(&mut self, consumer: ComRef<'_, S>) -> Result<(), NcStatus> {
         match self.phase {
-            Phase::Unbound => { self.phase = Phase::Bound(consumer.add_ref()); Ok(()) }
+            Phase::Unbound => {
+                self.phase = Phase::Bound(consumer.add_ref());
+                Ok(())
+            }
             Phase::Bound(_) => Err(NC_E_ALREADY_BOUND),
             Phase::Closed => Err(NC_E_CLOSED),
         }
     }
 
     /// Reports whether snapshots need to be constructed for a live consumer.
-    pub fn is_bound(&self) -> bool { matches!(self.phase, Phase::Bound(_)) }
+    pub fn is_bound(&self) -> bool {
+        matches!(self.phase, Phase::Bound(_))
+    }
 
     /// Posts a call-scoped snapshot. Unobserved previews intentionally discard events.
     /// Receiver decoding owns all variable data before the producer can release it.
@@ -81,7 +90,9 @@ impl<S: MessageSinkInterface> EventPort<S> {
     }
 
     /// Drops the receiver and permanently retires the stream; repeated closure is harmless.
-    pub fn close(&mut self) { self.phase = Phase::Closed; }
+    pub fn close(&mut self) {
+        self.phase = Phase::Closed;
+    }
 }
 
 /// Maps a concrete stream into the behavioral parent's owned application queue.
@@ -111,4 +122,16 @@ pub fn bind_source<C: EventSource, M: 'static>(
 ) -> Result<(), NcStatus> {
     let stream = source.add_ref().query::<C::Stream>()?;
     bind_stream(stream.as_com_ref(), sender, map)
+}
+
+/// Exact receiver interface associated with a concrete event source.
+pub type SinkOf<C> = <<C as EventSource>::Stream as EventStreamInterface>::Sink;
+
+/// Attaches a caller-owned typed sink after factory creation, before publication.
+/// Querying the stream checks the same generic ABI used by independent plugins.
+pub fn attach_source<C: EventSource, S: MessageSinkInterface<Message = EventOf<C>>>(source: ComRef<'_, C>, sink: ComRef<'_, S>) -> Result<(), NcStatus> {
+    let stream = source.add_ref().query::<C::Stream>()?;
+    // Independently generated Rust projections share COM identity, not Rust nominal type.
+    let sink = sink.add_ref().query::<SinkOf<C>>()?;
+    C::Stream::attach(stream.as_com_ref(), sink.as_com_ref())
 }

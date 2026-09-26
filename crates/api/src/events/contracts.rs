@@ -1,5 +1,5 @@
-//! Named output binding contract shared by independent producer and consumer binaries.
-//! Concrete output receivers are generated with their message declarations;
-//! this contract module owns no queue, mapping or application behavior.
+//! Ordinary generic sink and stream templates shared by producer and consumer binaries.
+//! Concrete specializations are generated in the consuming contract modules;
+//! this module owns no queue, mapping, or application behavior.
 
 include!(concat!(env!("OUT_DIR"), "/neocogi_com_events.include.rs"));

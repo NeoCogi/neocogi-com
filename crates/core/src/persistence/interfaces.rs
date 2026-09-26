@@ -10,9 +10,9 @@ pub const MODULE_ID: crate::NcGuid = crate::NcGuid::from_fields(
 );
 /// Transitive canonical ABI fingerprint of this generated module.
 pub const ABI_FINGERPRINT: [u8; 32] = [
-    157u8, 53u8, 119u8, 143u8, 62u8, 132u8, 139u8, 254u8, 146u8, 39u8, 24u8, 92u8, 170u8,
-    126u8, 41u8, 116u8, 15u8, 120u8, 40u8, 39u8, 167u8, 2u8, 240u8, 92u8, 213u8, 64u8,
-    90u8, 241u8, 207u8, 87u8, 210u8, 56u8,
+    115u8, 42u8, 219u8, 185u8, 45u8, 165u8, 187u8, 22u8, 122u8, 85u8, 167u8, 217u8, 52u8,
+    24u8, 111u8, 227u8, 31u8, 66u8, 150u8, 160u8, 152u8, 101u8, 134u8, 227u8, 189u8,
+    43u8, 24u8, 194u8, 117u8, 3u8, 76u8, 81u8,
 ];
 /// Exact dotted module name derived from the normalized IDL path.
 pub const MODULE_NAME: &str = "neocogi.com.persistence";
@@ -28,7 +28,7 @@ pub trait IObjectChildren {
 }
 /// Exact signature bytes assigned by the IDL compiler.
 #[allow(non_upper_case_globals)]
-static __nc_IObjectChildrenAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"2q\xB4}\t\x8D\x8AvF\xFEs\x16\xA6G\x8D\x96\x92\xE6 9\xC2:\xF8\x81G\xC6m\xDBy\xB9\x0B>";
+static __nc_IObjectChildrenAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"\x1B$\x1A\xC5}\xFE\x91N\x1C\xC1\xF6\xB2\xD0\xDAB \xA9\xE5]\xFD|_H^\xA4\xDD9r\xFD\xED\r\x0F";
 #[repr(C)]
 #[doc = concat!("C-compatible ABI header for [`", stringify!(IObjectChildren), "`].")]
 pub struct IObjectChildrenAbi {
@@ -265,7 +265,7 @@ pub trait IPersistable {
 }
 /// Exact signature bytes assigned by the IDL compiler.
 #[allow(non_upper_case_globals)]
-static __nc_IPersistableAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"\xDB\xB0\x8B\xA6`\xBE95\x90^\xCC\xAB.\xA2a\x1B\x03\x97\xFC\xB6$y\xA5\x08'a\x08\xF3\xB62\xBFm";
+static __nc_IPersistableAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"\xB2s\xCA\x01U\xAE\xBAn\x8B\xD9\xFF\xD4\xCAZD\xB9Nd\x19\xB2}\xD1p,\x88\x0E:]\xF2\x16jr";
 #[repr(C)]
 #[doc = concat!("C-compatible ABI header for [`", stringify!(IPersistable), "`].")]
 pub struct IPersistableAbi {
@@ -675,7 +675,7 @@ pub trait IPersistenceFactory {
 }
 /// Exact signature bytes assigned by the IDL compiler.
 #[allow(non_upper_case_globals)]
-static __nc_IPersistenceFactoryAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"\x87\x83^\xDA'\xF8/\xD1[n\xFF\xBF\xA3\xD6\x8D\xEC`\xA9\xB2T\xE9\xBBfiyl\x82\xAE\x03\xB7\xB1\x90";
+static __nc_IPersistenceFactoryAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"\xD9\x14\xE9\xC5\x02qV\xF2\xD4\xBF\xDB\x93\x1D\xF5\xAB!V\xC4I2\xC2\xFB\x81(:\xA8DS\xB5\xF0p\xDD";
 #[repr(C)]
 #[doc = concat!(
     "C-compatible ABI header for [`", stringify!(IPersistenceFactory), "`]."

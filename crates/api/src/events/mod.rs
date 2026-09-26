@@ -7,13 +7,10 @@
 #![deny(missing_docs)]
 
 // Contract definitions require macros but neither allocation nor runtime linkage.
+#[allow(unused_imports)]
 mod contracts;
 pub use contracts::*;
 
-#[cfg(feature = "std")]
-mod named;
-#[cfg(feature = "std")]
-pub use named::{NamedOutputs, bind_output};
 #[cfg(feature = "std")]
 mod mapping;
 #[cfg(feature = "std")]
@@ -22,6 +19,6 @@ pub use mapping::bind;
 #[cfg(feature = "alloc")]
 mod stream;
 #[cfg(feature = "alloc")]
-pub use stream::{EventOf, EventPort, EventSource, EventStreamInterface, MessageSinkInterface};
+pub use stream::{attach_source, SinkOf, EventOf, EventPort, EventSource, EventStreamInterface, MessageSinkInterface};
 #[cfg(feature = "std")]
 pub use stream::{bind_source, bind_stream};

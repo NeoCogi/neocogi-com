@@ -48,33 +48,34 @@ mod message_tests {
     /// A producer owns its destination directly and implements an ordinary setter.
     struct Producer {
         /// One optional concrete receiver is all the producer-side delivery storage.
-        completed: Option<ComPtr<__CompletionReceiverAbi>>,
+        completed: IProducerEventPort,
     }
     impl IProducer for Producer {
         /// Allows tests to deliver after binding has finished.
         fn emit(&mut self) -> Result<(), NcStatus> {
-            Completion::Cancelled.post_to(&mut self.completed)
+            self.completed.post(&Completion::Cancelled)
         }
 
-        /// Ordinary COM mutation installs the only destination, replacing the old one.
-        fn __map_completed(&mut self, destination: neocogi_com::ComRef<'_, __CompletionReceiverAbi>) -> Result<(), NcStatus> {
-            self.completed = Some(destination.add_ref());
-            // Emit during setup to exercise the actual producer/receiver ABI end to end.
-            Completion::Cancelled.post_to(&mut self.completed)
+    }
+    impl IProducerStream for Producer {
+        /// Only the first consumer receives the event emitted during attachment.
+        fn attach(&mut self, destination: neocogi_com::ComRef<'_, IProducerSinkAbi>) -> Result<(), NcStatus> {
+            self.completed.attach(destination)?;
+            self.completed.post(&Completion::Cancelled)
         }
     }
 
     /// Mapping replaces destinations; setup and producer destruction cannot retract queued facts.
     #[test]
     fn generated_output_installs_a_direct_receiver() {
-        let producer: ComPtr<IProducerAbi> = Producer::from_value(Producer { completed: None }).query().unwrap();
+        let producer: ComPtr<IProducerAbi> = Producer::from_value(Producer { completed: Default::default() }).query().unwrap();
         let (first_tx, first) = std::sync::mpsc::channel();
-        neocogi_com::events::bind(producer.completed(), first_tx.clone(), |_| 1).unwrap();
+        neocogi_com::events::bind_source(producer.as_com_ref(), first_tx.clone(), |_| 1).unwrap();
         let (second_tx, second) = std::sync::mpsc::channel();
-        neocogi_com::events::bind(producer.completed(), second_tx.clone(), |_| 2).unwrap();
+        assert_eq!(neocogi_com::events::bind_source(producer.as_com_ref(), second_tx.clone(), |_| 2), Err(neocogi_com::NC_E_ALREADY_BOUND));
         drop(producer);
         assert_eq!(first.try_recv().ok(), Some(1));
-        assert_eq!(second.try_recv().ok(), Some(2));
+        assert!(second.try_recv().is_err());
     }
 
     /// Producer release cannot destroy consumer-owned object or text snapshots.
@@ -250,114 +251,116 @@ mod message_tests {
 }
 
 #[cfg(test)]
-mod named_output_tests {
+mod direct_stream_tests {
     use super::*;
     use neocogi_com::{com_object, ComPtr, ComRef, NcStatus};
-    use neocogi_com::events::{NamedOutputs, bind_output};
+    use neocogi_com::events::bind_source;
 
     /// An independent producer that emits only when explicitly requested.
     #[com_object(IProducer)]
     struct Source {
-        /// Exactly one concrete destination; the named table is not on this path.
-        destination: Option<ComPtr<__CompletionReceiverAbi>>,
+        /// Exactly one concrete destination shared by every projection.
+        destination: IProducerEventPort,
+    }
+    impl IProducerStream for Source {
+        /// Checks the single lifetime slot before retaining the typed receiver.
+        fn attach(&mut self, receiver: ComRef<'_, IProducerSinkAbi>) -> Result<(), NcStatus> {
+            self.destination.attach(receiver)
+        }
     }
     impl IProducer for Source {
-        /// Replaces the destination after generated binding has validated its type.
-        fn __map_completed(&mut self, receiver: ComRef<'_, __CompletionReceiverAbi>) -> Result<(), NcStatus> {
-            self.destination = Some(receiver.add_ref());
-            Ok(())
-        }
         /// Publishes directly to the installed generated receiver.
         fn emit(&mut self) -> Result<(), NcStatus> {
-            Completion::Cancelled.post_to(&mut self.destination)
+            self.destination.post(&Completion::Cancelled)
         }
     }
 
-    /// Applications see only names and payload contracts, never the private producer.
+    /// Queried stream projections preserve concrete type checks and one lifetime consumer.
     #[test]
-    fn opaque_named_binding_preserves_type_checks_replacement_and_lifetimes() {
-        let mut source: ComPtr<IProducerAbi> = Source::from_value(Source { destination: None }).query().unwrap();
-        let mut names = NamedOutputs::new();
-        assert!(names.export("bad", source.clone(), "missing").is_err());
-        names.export("finished", source.clone(), "completed").unwrap();
-        assert!(names.export("finished", source.clone(), "completed").is_err());
-        let opaque = names.into_com().unwrap();
+    fn direct_binding_preserves_type_checks_single_attachment_and_lifetimes() {
+        let mut source: ComPtr<IProducerAbi> = Source::from_value(Source { destination: Default::default() }).query().unwrap();
+        // Querying another event type fails; aliases of this stream share its slot.
+        assert!(source.query::<EditorStreamAbi>().is_err());
+        let stream = source.query::<IProducerStreamAbi>().unwrap();
+        let opaque = source.clone();
         let (tx, rx) = std::sync::mpsc::channel();
-        bind_output(opaque.as_com_ref(), "finished", tx.clone(), |_: Completion| 1_u32).unwrap();
+        bind_source(opaque.as_com_ref(), tx.clone(), |_: Completion| 1_u32).unwrap();
         assert_eq!(
-            bind_output(opaque.as_com_ref(), "missing", tx.clone(), |_: Completion| 8),
-            Err(neocogi_com::NC_E_NOT_FOUND)
+            bind_source(opaque.as_com_ref(), tx.clone(), |_: Completion| 8),
+            Err(neocogi_com::NC_E_ALREADY_BOUND)
         );
-        assert!(bind_output(opaque.as_com_ref(), "finished", tx.clone(), |_: NumberChanged| 9).is_err());
+        assert!(source.query::<EditorSinkAbi>().is_err());
         source.emit().unwrap();
         assert_eq!(rx.try_recv().unwrap(), 1, "failed binding must leave the old destination intact");
-        bind_output(opaque.as_com_ref(), "finished", tx, |_: Completion| 2).unwrap();
+        assert_eq!(neocogi_com::events::bind_stream(stream.as_com_ref(), tx, |_: Completion| 2), Err(neocogi_com::NC_E_ALREADY_BOUND));
         drop(opaque);
-        // Binding-table destruction cannot break a receiver already installed on a live source.
+        // Dropping an extra source handle cannot detach a live source's receiver.
         source.emit().unwrap();
-        assert_eq!(rx.try_recv().unwrap(), 2);
+        assert_eq!(rx.try_recv().unwrap(), 1);
         drop(rx);
         source.emit().unwrap();
     }
 }
 #[cfg(test)]
-mod observer_tests {
+mod class_sink_tests {
     use super::*;
-    use neocogi_com::{com_object, ComMessage, ComPtr, ComRef, NcStatus};
+    use neocogi_com::{com_object, ComMessage, ComPtr, NcStatus};
+    use neocogi_com::events::MessageSinkInterface;
 
-    /// Producer retains exactly the optional destination supplied by its factory.
-    #[com_object(Editor)]
+    /// Producer starts unbound and retains exactly the receiver attached by its parent.
+    #[neocogi_com::com_class(Editor, event = events)]
     struct EditorValue {
-        /// One destination handles both outputs for the producer's whole lifetime.
-        observer: Option<ComPtr<EditorObserverAbi>>,
+        /// One destination handles both enum variants for the producer's whole lifetime.
+        events: EditorEventPort,
     }
     impl Editor for EditorValue {
         /// Two facts from one update preserve their order across the COM boundary.
         fn emit(&mut self) -> Result<(), NcStatus> {
-            EditorEvent::Changed(TextChanged { text: "hello".into(), cursor: 5 }).post_to_observer(&mut self.observer)?;
-            EditorEvent::Completed.post_to_observer(&mut self.observer)
+            self.events.post(&EditorEvent::Changed(TextChanged { text: "hello".into(), cursor: 5 }))?;
+            self.events.post(&EditorEvent::Completed)
         }
     }
 
-    /// Construction itself is a COM call, including the nullable observer input.
+    /// Construction itself is a COM call and returns an unbound stream.
     #[com_object(Editors)]
     struct EditorFactory;
     impl Editors for EditorFactory {
-        /// Retains the borrowed observer before publishing the initialized object.
-        fn create(&self, observer: Option<ComRef<'_, EditorObserverAbi>>) -> Result<ComPtr<EditorAbi>, NcStatus> {
+        /// Returns an initialized object whose parent can attach its sole consumer.
+        fn create(&self) -> Result<ComPtr<EditorAbi>, NcStatus> {
             EditorValue::from_value(EditorValue {
-                observer: observer.map(|value| value.add_ref()),
+                events: Default::default(),
             })
             .query()
         }
     }
 
-    /// Constructor retention, ordering, absence and capture release use actual thunks.
+    /// Sink retention, variant ordering, unbound posting and capture release use actual thunks.
     #[test]
-    fn one_observer_owns_both_outputs_until_the_producer_drops() {
+    fn one_sink_owns_both_variants_until_the_producer_drops() {
         let factory: ComPtr<EditorsAbi> = EditorFactory::from_value(EditorFactory).query().unwrap();
         let (sender, receiver) = std::sync::mpsc::channel();
-        let observer = EditorEvent::observer(move |event| {
+        let sink = EditorSinkAbi::receiver(move |event| {
             let _ = sender.send(event);
             Ok(())
         })
         .unwrap();
-        let mut editor = factory.create(Some(observer.as_com_ref())).unwrap();
-        drop(observer);
+        let mut editor = factory.create().unwrap();
+        neocogi_com::events::attach_source(editor.as_com_ref(), sink.as_com_ref()).unwrap();
+        drop(sink);
         editor.emit().unwrap();
         assert!(matches!(receiver.try_recv().unwrap(), EditorEvent::Changed(TextChanged { text, cursor: 5 }) if text == "hello"));
         assert!(matches!(receiver.try_recv().unwrap(), EditorEvent::Completed));
         drop(editor);
         assert!(matches!(receiver.try_recv(), Err(std::sync::mpsc::TryRecvError::Disconnected)));
-        // No dummy observer is needed when the destination is absent.
-        factory.create(None).unwrap().emit().unwrap();
+        // An unbound preview emits without allocating a dummy sink.
+        factory.create().unwrap().emit().unwrap();
     }
 
     /// A malformed wire message never invokes the generated local callback.
     #[test]
-    fn observer_checks_payload_before_mapping() {
+    fn sink_checks_payload_before_mapping() {
         let (sender, receiver) = std::sync::mpsc::channel();
-        let mut observer = EditorEvent::observer(move |event| {
+        let mut sink = EditorSinkAbi::receiver(move |event| {
             sender.send(event).unwrap();
             Ok(())
         })
@@ -369,7 +372,7 @@ mod observer_tests {
         // SAFETY: The wire and its backing bytes remain live for the call. The
         // deliberately invalid text tests the boundary's checked UTF-8 decoder.
         let input = unsafe { neocogi_com::NcMessage::from_raw(&wire) }.unwrap();
-        assert_eq!(observer.event(input), Err(neocogi_com::NC_E_INVALID_ARG));
+        assert_eq!(sink.post(input), Err(neocogi_com::NC_E_INVALID_ARG));
         assert!(receiver.try_recv().is_err());
     }
 
@@ -392,29 +395,27 @@ mod observer_tests {
         assert!(matches!(unsafe { TextEnvelope::decode(wire) }, Err(neocogi_com::NC_E_INVALID_ARG)));
     }
 
-    /// Public export binding changes only the component destination, while the
-    /// widget keeps the one observer supplied by its constructor.
+    /// Cloning a concrete handle never creates another attachment slot.
     #[test]
-    fn named_exports_forward_without_rebinding_the_widget() {
+    fn cloned_handles_cannot_rebind_the_widget() {
         let factory: ComPtr<EditorsAbi> = EditorFactory::from_value(EditorFactory).query().unwrap();
-        let (observer, exports) = EditorEvent::exported_observer().unwrap();
-        let mut editor = factory.create(Some(observer.as_com_ref())).unwrap();
-        drop(observer);
+        let mut editor = factory.create().unwrap();
+        let exports = editor.clone();
         let (sender, receiver) = std::sync::mpsc::channel();
-        neocogi_com::events::bind_output(exports.as_com_ref(), "event", sender.clone(), |value: EditorEvent| match value { EditorEvent::Changed(TextChanged { text, .. }) => text, EditorEvent::Completed => "completed".into() }).unwrap();
-        assert!(neocogi_com::events::bind_output(exports.as_com_ref(), "event", sender.clone(), |_: Completion| String::new()).is_err());
-        assert!(neocogi_com::events::bind_output(exports.as_com_ref(), "absent", sender.clone(), |_: EditorEvent| String::new()).is_err());
+        neocogi_com::events::bind_source(exports.as_com_ref(), sender.clone(), |value: EditorEvent| match value { EditorEvent::Changed(TextChanged { text, .. }) => text, EditorEvent::Completed => "completed".into() }).unwrap();
+        assert!(exports.query::<IProducerStreamAbi>().is_err());
+        assert_eq!(neocogi_com::events::bind_source(exports.as_com_ref(), sender.clone(), |_: EditorEvent| String::new()), Err(neocogi_com::NC_E_ALREADY_BOUND));
         editor.emit().unwrap();
         assert_eq!(receiver.try_recv().unwrap(), "hello");
         // A failed bind left the destination intact for both event variants.
         assert_eq!(receiver.try_recv().unwrap(), "completed");
-        neocogi_com::events::bind_output(exports.as_com_ref(), "event", sender, |value: EditorEvent| match value { EditorEvent::Changed(TextChanged { text, .. }) => text.to_uppercase(), EditorEvent::Completed => "COMPLETED".into() }).unwrap();
+        assert_eq!(neocogi_com::events::bind_source(exports.as_com_ref(), sender, |value: EditorEvent| match value { EditorEvent::Changed(TextChanged { text, .. }) => text.to_uppercase(), EditorEvent::Completed => "COMPLETED".into() }), Err(neocogi_com::NC_E_ALREADY_BOUND));
         editor.emit().unwrap();
-        assert_eq!(receiver.try_recv().unwrap(), "HELLO");
-        assert_eq!(receiver.try_recv().unwrap(), "COMPLETED");
+        assert_eq!(receiver.try_recv().unwrap(), "hello");
+        assert_eq!(receiver.try_recv().unwrap(), "completed");
         drop(exports);
         editor.emit().unwrap();
-        assert_eq!(receiver.try_recv().unwrap(), "HELLO");
-        assert_eq!(receiver.try_recv().unwrap(), "COMPLETED");
+        assert_eq!(receiver.try_recv().unwrap(), "hello");
+        assert_eq!(receiver.try_recv().unwrap(), "completed");
     }
 }

@@ -6,8 +6,8 @@ use std::{
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 use neocogi_com::{ComPtr, Runtime, guid_from_qualified_name};
-use neocogi_com::events::{NamedOutputs, bind_output, bind};
-use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentChanged, IExampleEventsAbi, IExampleEventsOutputs};
+use neocogi_com::events::bind_source;
+use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentChanged};
 
 /// Gates counting around the measured setup or synchronous delivery only.
 static COUNTING: AtomicBool = AtomicBool::new(false);
@@ -90,18 +90,9 @@ fn main() {
         .activate_plugin_factory::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .unwrap();
     let mut object = factory.create(Extent { width: 0, height: 0 }).unwrap();
-    let source = object.query::<IExampleEventsAbi>().unwrap();
-    let mut exports = NamedOutputs::new();
-    exports.export("resized", source.clone(), "changed").unwrap();
-    let opaque = exports.into_com().unwrap();
-    let (direct_sender, direct_messages) = std::sync::mpsc::channel();
-    let direct_binding = count(|| bind(source.changed(), direct_sender, |value: ExtentChanged| value.width).unwrap());
-    let direct_delivery = count(|| deliver(&mut object, &direct_messages));
-    let (named_sender, named_messages) = std::sync::mpsc::channel();
-    let named_binding = count(|| bind_output(opaque.as_com_ref(), "resized", named_sender, |value: ExtentChanged| value.width).unwrap());
-    let named_delivery = count(|| deliver(&mut object, &named_messages));
-    assert_eq!(direct_binding, named_binding);
-    assert_eq!(direct_delivery, named_delivery);
-    println!("binding allocations: direct={direct_binding}, named={named_binding}");
-    println!("10,000 scalar events including channel storage: direct={direct_delivery}, named={named_delivery}");
+    let (sender, messages) = std::sync::mpsc::channel();
+    let binding = count(|| bind_source(object.as_com_ref(), sender, |value: ExtentChanged| value.width).unwrap());
+    let delivery = count(|| deliver(&mut object, &messages));
+    println!("one typed COM receiver binding: {binding} allocations");
+    println!("10,000 scalar events including channel storage: {delivery} allocations");
 }

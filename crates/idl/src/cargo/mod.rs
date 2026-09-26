@@ -188,7 +188,7 @@ impl Module {
         // re-exports. In particular, another contract's module metadata must not
         // make this contract's MODULE_ID or ABI_FINGERPRINT ambiguous.
         let explicit_exports = std::iter::once("MODULE_ID, ABI_FINGERPRINT, MODULE_NAME".to_owned())
-            .chain(own_module.imports.iter().flat_map(|import| import.names.iter()).cloned())
+            .chain(resolved_module.source.imports.iter().flat_map(|import| import.names.iter()).cloned())
             .collect::<Vec<_>>()
             .join(", ");
         let entry = format!(

@@ -610,7 +610,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
 /// Adds every top-level type emitted by `com_interface` for one trait name.
 ///
 /// Keep this inventory aligned with `crates/com/macros/src/interface.rs`. Both
-/// authored interfaces and parser-expanded observer declarations use the same
+/// authored interfaces and closed generic specializations use the same
 /// macro, so a single inventory covers both namespaces.
 fn interface_companions(name: &str, companions: &mut Vec<String>) {
     for suffix in ["Abi", "VTable", "VtblFor", "Client", "InterfacesFor"] {
@@ -674,35 +674,8 @@ fn validate_generated_names(index: usize, entries: &[ModuleEntry]) -> Result<(),
     for declaration in &entry.module.declarations {
         let mut companions = Vec::new();
         match &declaration.kind {
-            DeclarationKind::Interface(interface) => {
+            DeclarationKind::Interface(_) => {
                 interface_companions(&declaration.name, &mut companions);
-                let has_output = interface.callables.iter().any(|item| matches!(item, Callable::Port(_)));
-                if has_output && !interface.observer {
-                    companions.push(format!("{}Outputs", declaration.name));
-                }
-                if interface.observer {
-                    // The parser has already inserted the observer as its own
-                    // ordinary interface declaration. Its macro companions are
-                    // collected when that declaration is visited.
-                    let event_name = format!("{}Event", declaration.name);
-                    let direct_event = interface
-                        .callables
-                        .iter()
-                        .find_map(|item| match item {
-                            Callable::Port(port) => Some(&port.message),
-                            Callable::Method(_) => None,
-                        })
-                        .is_some_and(|path| {
-                            (path.segments.as_slice() == [event_name.as_str()] || path.segments.join(".") == format!("{}.{}", entry.module.name, event_name))
-                                && entry
-                                    .module
-                                    .declaration(&event_name)
-                                    .is_some_and(|event| event.message && matches!(event.kind, DeclarationKind::Enum(_)))
-                        });
-                    if !direct_event {
-                        companions.push(event_name);
-                    }
-                }
             }
             DeclarationKind::Enum(enumeration)
                 if (declaration.message && copied_message_enum(index, enumeration, entries))
@@ -1043,22 +1016,6 @@ fn validate_callables(index: usize, callables: &[Callable], entries: &[ModuleEnt
                     validate_output_type(index, &method.output, entries, &format!("{owner}::{} result", method.name), &method.span),
                 );
             }
-            Callable::Port(port) => match resolve_named(index, &port.message, entries) {
-                Ok(symbol) if entries[symbol.module].module.declarations[symbol.declaration].message => {}
-                Ok(symbol) => collect_diagnostics(
-                    &mut diagnostics,
-                    Err(kind_mismatch_error(
-                        index,
-                        symbol,
-                        entries,
-                        &port.message.span,
-                        format!("{owner}::{} must name a concrete message", port.name),
-                        "output bindings require owned message declarations",
-                        "mark a struct or enum with #[message]",
-                    )),
-                ),
-                Err(error) => collect_diagnostics(&mut diagnostics, Err(error)),
-            },
         }
     }
     if diagnostics.is_empty() {
@@ -1502,9 +1459,7 @@ fn encode_declaration(
             }
         }
         DeclarationKind::Interface(interface) => {
-            // Observer outputs no longer occupy setter slots on the producer.
-            // The separate tag records that ABI change even at the same version.
-            encoder.tag(if interface.observer { 9 } else { 3 });
+            encoder.tag(3);
             // Roles affect construction and delivery semantics even when slots
             // match. Include them alongside threading and required projections.
             encoder.tag(match interface.role {
@@ -1541,14 +1496,6 @@ fn encode_callable(
             Callable::Method(method) => {
                 encoder.tag(0);
                 method
-            }
-            Callable::Port(port) => {
-                // A direct mutable receiver setter has a different wire shape from
-                // the removed connection getter, even at the same pre-alpha version.
-                encoder.tag(3);
-                encoder.text(&port.name, &entries[index].name)?;
-                encode_named(index, &port.message, entries, encoder)?;
-                continue;
             }
         };
         encoder.text(&method.name, &entries[index].name)?;

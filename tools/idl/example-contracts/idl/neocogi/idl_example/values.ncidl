@@ -1,3 +1,5 @@
+use neocogi.com.events::IEventStream;
+extern neocogi.com.events;
 /// Copied dimensions used by the example object surface.
 #[version(1)]
 struct Extent {
@@ -7,7 +9,7 @@ struct Extent {
     height: u32,
 }
 
-/// Concrete scalar event used by shared and monolithic named-binding proofs.
+/// Concrete scalar event used by shared and monolithic typed-stream proofs.
 #[version(1)]
 #[message]
 struct ExtentChanged {
@@ -19,7 +21,4 @@ struct ExtentChanged {
 
 /// Optional output capability of the example object.
 #[version(1)]
-interface IExampleEvents {
-    /// Reports the committed dimensions after resize.
-    changed: ExtentChanged;
-}
+interface IExampleEvents: IEventStream<ExtentChanged> {}

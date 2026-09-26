@@ -20,12 +20,12 @@ const TYPES: &str = r#"/* café 😀 */ #[version(1)] struct Size { width: u32, 
 #[version(1)] #[message] enum Completed { Accepted { text: String }, Cancelled }
 "#;
 /// Both authored and synthesized interfaces originate in this separate part.
-const WIDGETS: &str = r#"#[version(1)] #[observer] interface Textbox {
+const WIDGETS: &str = r#"#[version(1)] interface IStream<T> { fn post(&mut self, value: &T) -> Result<()>; }
+#[version(1)] class Textbox: IStream<Changed> {
     fn resize(&mut self, size: Size) -> Result<()>;
-    changed: Changed;
 }
 #[version(1)] factory Widgets {
-    fn textbox(&self, observer: Option<&TextboxObserver>) -> Result<Textbox>;
+    fn textbox(&self) -> Result<Textbox>;
 }
 "#;
 
@@ -47,7 +47,7 @@ fn graph(reverse: bool) -> neocogi_idl::ResolvedModules {
     resolve_modules(vec![parse_module_parts(Path::new("example/widgets"), &parts).unwrap()]).unwrap()
 }
 
-/// Definitions and members map through formatting, ordinary macros and derived observer code.
+/// Definitions and members map through formatting, macros and closed generic code.
 #[test]
 fn formatted_rust_and_derived_helpers_retain_exact_idl_origins() {
     let generated = generate_rust_with_source_map(&graph(false), "example.widgets").unwrap();
@@ -60,8 +60,8 @@ fn formatted_rust_and_derived_helpers_retain_exact_idl_origins() {
         ("Right = 1", TYPES, "Right", "types.ncidl", SourceMapKind::Variant),
         ("ACTIVE = 1", TYPES, "ACTIVE", "types.ncidl", SourceMapKind::Variant),
         ("fn resize(", WIDGETS, "resize", "controls.ncidl", SourceMapKind::Method),
-        ("pub trait TextboxObserver", WIDGETS, "Textbox", "controls.ncidl", SourceMapKind::Trait),
-        ("Changed(Changed)", WIDGETS, "changed:", "controls.ncidl", SourceMapKind::Variant),
+        ("pub trait Textbox", WIDGETS, "Textbox", "controls.ncidl", SourceMapKind::Trait),
+        ("Cancelled", TYPES, "Cancelled", "types.ncidl", SourceMapKind::Variant),
         ("pub struct __ChangedWire", TYPES, "Changed", "types.ncidl", SourceMapKind::Struct),
         ("pub struct __CompletedCase0", TYPES, "Accepted", "types.ncidl", SourceMapKind::Struct),
     ] {
@@ -74,7 +74,7 @@ fn formatted_rust_and_derived_helpers_retain_exact_idl_origins() {
     let callback = map
         .mappings
         .iter()
-        .find(|entry| entry.kind == SourceMapKind::Method && entry.name.contains("__TextboxObserver") && entry.name.ends_with("::changed"))
+        .find(|entry| entry.kind == SourceMapKind::Method && entry.name.contains("__Changed") && entry.name.ends_with("::post"))
         .unwrap();
     let inside_body = SourceMapPosition {
         line: callback.generated.end.line,
@@ -82,7 +82,7 @@ fn formatted_rust_and_derived_helpers_retain_exact_idl_origins() {
     };
     let mapped_body = map.lookup(inside_body).unwrap();
     assert_eq!(mapped_body.kind, SourceMapKind::Method);
-    assert_eq!(mapped_body.original.range.start, position(WIDGETS, "changed:"));
+    assert_eq!(mapped_body.original.range.start, position(TYPES, "Changed"));
     // The owned payload and borrowed wire field share the authored field location.
     let text_fields = map
         .mappings

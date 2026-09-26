@@ -19,14 +19,22 @@ fn class_stream_maps_to_parent_queue_and_never_replaces_consumer() {
     let graph = resolve_modules(vec![
         parse_module(Path::new("neocogi/com/events.ncidl"), &templates).unwrap(),
         parse_module(Path::new("proof/emitter.ncidl"), source).unwrap(),
-    ]).unwrap();
+    ])
+    .unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
-    fs::write(project.path().join("Cargo.toml"), format!(
-        "[package]\nname='stream-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n", root.join("crates/com/api")
-    )).unwrap();
+    fs::write(
+        project.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname='stream-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            root.join("crates/com/api")
+        ),
+    )
+    .unwrap();
     fs::write(project.path().join("src/contract.rs"), generate_rust(&graph, "proof.emitter").unwrap()).unwrap();
-    fs::write(project.path().join("src/lib.rs"), r#"
+    fs::write(
+        project.path().join("src/lib.rs"),
+        r#"
         pub mod contract;
         use neocogi_com::*;
         #[com_class(contract::Counter, event = events)]
@@ -40,6 +48,12 @@ fn class_stream_maps_to_parent_queue_and_never_replaces_consumer() {
         }
         #[test]
         fn one_lifetime_consumer() {
+            // The authoring metadata must resolve the same inherited stream as COM.
+            let metadata = contract::CounterAbi::IDL_INTERFACE;
+            let inherited = metadata.stream.expect("inherited stream metadata");
+            assert_eq!(inherited.abi.interface_id, contract::CounterStreamAbi::INTERFACE_DESCRIPTOR.interface_id);
+            assert!(metadata.chain.iter().any(|abi| abi.interface_id == inherited.abi.interface_id));
+            assert_eq!(inherited.message.qualified_name, contract::Event::IDL_TYPE.qualified_name);
             let owner = Counter::from_value(Counter { events: Default::default() });
             let mut source = owner.query::<contract::CounterAbi>().unwrap();
             let (tx, rx) = std::sync::mpsc::channel();
@@ -60,10 +74,21 @@ fn class_stream_maps_to_parent_queue_and_never_replaces_consumer() {
             assert_eq!(events::bind_source(source.as_com_ref(), tx, |_| ()), Err(NC_E_CLOSED));
             assert_eq!(source.emit(NcMessage::new(&contract::Event::Submitted)), Err(NC_E_CLOSED));
         }
-    "#).unwrap();
-    let output = Command::new("cargo").args(["test", "--offline", "--manifest-path"])
-        .arg(project.path().join("Cargo.toml")).env("CARGO_TARGET_DIR", root.join("target/message-proof")).output().unwrap();
-    assert!(output.status.success(), "{}\n{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+    "#,
+    )
+    .unwrap();
+    let output = Command::new("cargo")
+        .args(["test", "--offline", "--manifest-path"])
+        .arg(project.path().join("Cargo.toml"))
+        .env("CARGO_TARGET_DIR", root.join("target/message-proof"))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 /// Concrete classes may not accumulate different event streams through their parents.
@@ -79,6 +104,15 @@ fn rejects_two_transitive_stream_types_on_one_class() {
         #[version(1)] interface IB: IEventStream<B> {}
         #[version(1)] class Invalid: IA + IB {}
     "#;
-    let graph = resolve_modules(vec![parse_module(Path::new("neocogi/com/events.ncidl"), &templates).unwrap(), parse_module(Path::new("proof/invalid.ncidl"), source).unwrap()]).unwrap();
-    assert!(generate_rust(&graph, "proof.invalid").unwrap_err().to_string().contains("multiple event streams"));
+    let graph = resolve_modules(vec![
+        parse_module(Path::new("neocogi/com/events.ncidl"), &templates).unwrap(),
+        parse_module(Path::new("proof/invalid.ncidl"), source).unwrap(),
+    ])
+    .unwrap();
+    assert!(
+        generate_rust(&graph, "proof.invalid")
+            .unwrap_err()
+            .to_string()
+            .contains("multiple event streams")
+    );
 }

@@ -379,7 +379,6 @@ fn visit_types(declaration: &mut Declaration, visit: &mut impl FnMut(&mut AbiTyp
                         }
                         visit(&mut method.output)?;
                     }
-                    Callable::Port(port) => visit_named(&mut port.message, visit)?,
                 }
             }
         }
@@ -413,7 +412,7 @@ pub(crate) fn template_fingerprint(templates: &[Declaration]) -> [u8; 32] {
         };
         parts.push(format!("parameters:{}", interface.parameters.len()));
         parts.extend(interface.parameters.iter().cloned());
-        parts.push(format!("{:?}:{:?}:{}", interface.role, interface.threading, interface.observer));
+        parts.push(format!("{:?}:{:?}", interface.role, interface.threading));
         parts.push(format!("bases:{}", interface.bases.len()));
         parts.extend(interface.bases.iter().map(NamedType::rust_path));
         parts.push(format!("methods:{}", interface.callables.len()));
@@ -427,7 +426,6 @@ pub(crate) fn template_fingerprint(templates: &[Declaration]) -> [u8; 32] {
                     }
                     parts.push(format!("return:{}", method.output.source_name()));
                 }
-                Callable::Port(port) => parts.push(format!("port:{}:{}", port.name, port.message.rust_path())),
             }
         }
     }

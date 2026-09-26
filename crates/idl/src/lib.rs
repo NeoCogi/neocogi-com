@@ -17,8 +17,8 @@ mod sha256;
 mod specialize;
 
 pub use model::{
-    AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, PortBinding, ExternalModule,
-    Field, Import, Interface, InterfaceRole, Method, NamedType, Parameter, Receiver, Struct, Threading, VariantFields, Specialization,
+    AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Field, Import,
+    Interface, InterfaceRole, Method, NamedType, Parameter, Receiver, Struct, Threading, VariantFields, Specialization,
 };
 pub use diagnostic::{Diagnostic, DiagnosticLabel, LabelStyle, SourceFile, SourcePosition, SourceSpan};
 pub use parser::{ModuleSource, ParseError, parse_module, parse_module_parts};

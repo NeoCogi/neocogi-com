@@ -12,9 +12,8 @@ use quote::quote;
 mod mapping;
 #[path = "message.rs"]
 mod message;
-mod observer;
-mod streams;
 mod paths;
+mod streams;
 pub use paths::RustModulePaths;
 
 /// Failure to select a module or lower one validated IDL construct to Rust.
@@ -165,30 +164,40 @@ fn generate_design_metadata(graph: &Generation<'_>, module: &ResolvedModule) -> 
                         let fields = match &variant.fields {
                             VariantFields::Unit => Vec::new(),
                             VariantFields::Named(fields) => design_fields(graph, module, fields)?,
-                            VariantFields::Tuple(types) => types.iter().enumerate().map(|(index, ty)| {
-                                let field = Literal::string(&index.to_string());
-                                let ty = Literal::string(&design_type(graph, module, ty)?);
-                                Ok(quote! { ::neocogi_com::design::IdlField { name: #field, ty: #ty } })
-                            }).collect::<Result<Vec<_>, GenerateError>>()?,
+                            VariantFields::Tuple(types) => types
+                                .iter()
+                                .enumerate()
+                                .map(|(index, ty)| {
+                                    let field = Literal::string(&index.to_string());
+                                    let ty = Literal::string(&design_type(graph, module, ty)?);
+                                    Ok(quote! { ::neocogi_com::design::IdlField { name: #field, ty: #ty } })
+                                })
+                                .collect::<Result<Vec<_>, GenerateError>>()?,
                         };
                         variants.push(quote! { ::neocogi_com::design::IdlVariant { name: #variant_name, fields: &[#(#fields),*] } });
                     }
                     quote! { ::neocogi_com::design::IdlShape::Enum(&[#(#variants),*]) }
                 }
                 DeclarationKind::BitEnum(bit_enum) => {
-                    let flags = bit_enum.flags.iter().map(|flag| {
-                        let name = Literal::string(&flag.name);
-                        let value = flag.value;
-                        quote! { ::neocogi_com::design::IdlFlag { name: #name, value: #value } }
-                    }).collect::<Vec<_>>();
+                    let flags = bit_enum
+                        .flags
+                        .iter()
+                        .map(|flag| {
+                            let name = Literal::string(&flag.name);
+                            let value = flag.value;
+                            quote! { ::neocogi_com::design::IdlFlag { name: #name, value: #value } }
+                        })
+                        .collect::<Vec<_>>();
                     quote! { ::neocogi_com::design::IdlShape::BitEnum(&[#(#flags),*]) }
                 }
                 DeclarationKind::Interface(_) => unreachable!("interfaces are handled separately"),
             };
             let is_message = declaration.message;
-            let message_alias = is_message.then(|| quote! {
-                /// Postable message contract, identical to this declaration's source-level type description.
-                pub const IDL_MESSAGE: ::neocogi_com::design::IdlType = Self::IDL_TYPE;
+            let message_alias = is_message.then(|| {
+                quote! {
+                    /// Postable message contract, identical to this declaration's source-level type description.
+                    pub const IDL_MESSAGE: ::neocogi_com::design::IdlType = Self::IDL_TYPE;
+                }
             });
             descriptions.push(quote! {
                 impl #name {
@@ -203,34 +212,32 @@ fn generate_design_metadata(graph: &Generation<'_>, module: &ResolvedModule) -> 
                 }
             });
         }
-        if let DeclarationKind::Interface(interface) = &declaration.kind {
+        if let DeclarationKind::Interface(_) = &declaration.kind {
             let abi = rust_ident(&format!("{}Abi", declaration.name))?;
             let rust_abi = Literal::string(&public_rust_path(graph, module, &format!("{}Abi", declaration.name))?);
-            let ports = interface.callables.iter().filter_map(|callable| match callable {
-                Callable::Port(port) => Some(port),
-                Callable::Method(_) => None,
-            }).collect::<Vec<_>>();
-            let rust_outputs = if ports.is_empty() || interface.observer {
-                quote! { None }
-            } else {
-                let path = Literal::string(&public_rust_path(graph, module, &format!("{}Outputs", declaration.name))?);
-                quote! { Some(#path) }
+            let sources = streams::collect(graph, module, declaration)?;
+            let stream = match sources.as_slice() {
+                [stream] => {
+                    let stream_abi = named_rust_type(graph, module, *stream, true)?;
+                    let specialization = stream.declaration.specialization.as_ref().expect("collected stream is closed");
+                    let [AbiType::Named(message)] = specialization.arguments.as_slice() else {
+                        return Err(GenerateError::new("event stream requires one named message"));
+                    };
+                    let message = resolve(graph, stream.module, message)?;
+                    let message = named_rust_type(graph, module, message, false)?;
+                    quote! { Some(::neocogi_com::design::IdlEventStream { abi: &#stream_abi::INTERFACE_DESCRIPTOR, message: &#message::IDL_MESSAGE }) }
+                }
+                // General-purpose interfaces can aggregate streams; concrete event sources cannot.
+                _ => quote! { None },
             };
-            let outputs = ports.iter().map(|port| {
-                let port_name = Literal::string(&port.name);
-                let resolved = resolve(graph, module, &port.message)?;
-                let message = named_rust_type(graph, module, resolved, false)?;
-                Ok(quote! { ::neocogi_com::design::IdlOutput { name: #port_name, message: &#message::IDL_MESSAGE } })
-            }).collect::<Result<Vec<_>, GenerateError>>()?;
             descriptions.push(quote! {
                 impl #abi {
-                    /// Physical COM identity and source-level outputs, generated from one IDL interface.
+                    /// Physical COM identity and resolved stream, generated from the complete IDL interface chain.
                     pub const IDL_INTERFACE: ::neocogi_com::design::IdlInterface = ::neocogi_com::design::IdlInterface {
                         abi: &Self::INTERFACE_DESCRIPTOR,
                         chain: &Self::INTERFACE_CHAIN,
                         rust_abi: #rust_abi,
-                        rust_outputs: #rust_outputs,
-                        outputs: &[#(#outputs),*],
+                        stream: #stream,
                     };
                 }
             });
@@ -264,23 +271,20 @@ fn design_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) ->
 
 /// Converts ordered named fields into immutable generated descriptor records.
 fn design_fields(graph: &Generation<'_>, module: &ResolvedModule, fields: &[crate::Field]) -> Result<Vec<TokenStream>, GenerateError> {
-    fields.iter().map(|field| {
-        let name = Literal::string(&field.name);
-        let ty = Literal::string(&design_type(graph, module, &field.ty)?);
-        Ok(quote! { ::neocogi_com::design::IdlField { name: #name, ty: #ty } })
-    }).collect()
+    fields
+        .iter()
+        .map(|field| {
+            let name = Literal::string(&field.name);
+            let ty = Literal::string(&design_type(graph, module, &field.ty)?);
+            Ok(quote! { ::neocogi_com::design::IdlField { name: #name, ty: #ty } })
+        })
+        .collect()
 }
 
 /// Both local messages and outputs of imported messages use alloc::boxed::Box.
 /// Receiver generation requires only COM; it has no queue-library dependency.
 fn needs_message_allocation(declaration: &Declaration) -> bool {
-    if declaration.message {
-        return true;
-    }
-    match &declaration.kind {
-        DeclarationKind::Interface(interface) => interface.callables.iter().any(|callable| matches!(callable, Callable::Port(_))),
-        DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) => false,
-    }
+    declaration.message
 }
 
 /// Generates explicit imports from conventionally named contract crates.
@@ -456,25 +460,17 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
         }
         DeclarationKind::Interface(interface) => {
             let bases = bases(graph, module, &interface.bases)?;
-            let callables = interface
-                .callables
-                .iter()
-                .filter(|item| !interface.observer || matches!(item, Callable::Method(_)))
-                .cloned()
-                .collect::<Vec<_>>();
-            let methods = callable_methods(graph, module, &callables)?;
+            let methods = callable_methods(graph, module, &interface.callables)?;
             let threading = threading_ident(interface.threading);
             let factory = matches!(interface.role, InterfaceRole::Factory).then(|| quote! { factory, });
             let stream_support = streams::generate(graph, module, declaration)?;
             let class_abi = rust_ident(&format!("{}Abi", declaration.name))?;
-            let class_marker = (interface.role == InterfaceRole::Class).then(|| quote! {
-                // SAFETY: this projection was declared by an explicit IDL class contract.
-                unsafe impl ::neocogi_com::ComClassInterface for #class_abi {}
+            let class_marker = (interface.role == InterfaceRole::Class).then(|| {
+                quote! {
+                    // SAFETY: this projection was declared by an explicit IDL class contract.
+                    unsafe impl ::neocogi_com::ComClassInterface for #class_abi {}
+                }
             });
-            let ports = match interface.observer {
-                true => vec![observer::generate(graph, module, declaration, &interface.callables)?],
-                false => port_bindings(graph, module, declaration, &interface.callables, interface.threading)?,
-            };
             format_rust(quote! {
                 #[::neocogi_com::com_interface(
                     assigned_guid = #id,
@@ -485,7 +481,6 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
                 )]
                 #declaration_docs
                 pub trait #name #bases { #(#methods)* }
-                #(#ports)*
                 #class_marker
                 #stream_support
             })
@@ -585,7 +580,7 @@ fn bases(graph: &Generation<'_>, module: &ResolvedModule, values: &[NamedType]) 
     Ok(quote! { : #(#values)+* })
 }
 
-/// Emits ordinary methods and named output getters in their normative vtable order.
+/// Emits ordinary methods in their normative vtable order.
 fn callable_methods(graph: &Generation<'_>, module: &ResolvedModule, values: &[Callable]) -> Result<Vec<TokenStream>, GenerateError> {
     values
         .iter()
@@ -612,110 +607,9 @@ fn callable_methods(graph: &Generation<'_>, module: &ResolvedModule, values: &[C
                         #docs fn #name(#receiver, #(#parameters),*) -> Result<#output, ::neocogi_com::NcStatus>;
                     }
                 }
-                Callable::Port(port) => {
-                    let resolved = resolve(graph, module, &port.message)?;
-                    let getter = rust_ident(&port.setter_name())?;
-                    let abi = message::receiver_type(graph, module, resolved)?;
-                    let docs = origin_docs(&port.docs, &port.span);
-                    quote! {
-                        #docs #[doc(hidden)]
-                        fn #getter(&mut self, destination: ::neocogi_com::ComRef<'_, #abi>) -> Result<(), ::neocogi_com::NcStatus>;
-                    }
-                }
             })
         })
         .collect()
-}
-
-/// Generates typed accessor methods on owned and borrowed source projections.
-/// Each closure installs one receiver directly through the producer ABI.
-fn port_bindings(
-    graph: &Generation<'_>,
-    module: &ResolvedModule,
-    source: &Declaration,
-    values: &[Callable],
-    threading: Threading,
-) -> Result<Vec<TokenStream>, GenerateError> {
-    let source_abi = rust_ident(&format!("{}Abi", source.name))?;
-    let extension = rust_ident(&format!("{}Outputs", source.name))?;
-    let mode = match threading {
-        Threading::Local => quote! { ::neocogi_com::ThreadLocal },
-        Threading::Shared => quote! { ::neocogi_com::ThreadSafe },
-    };
-    let mut ports = Vec::new();
-    let mut identities = Vec::new();
-    let mut bindings = Vec::new();
-    let mut accessors = Vec::new();
-    let mut owned_accessors = Vec::new();
-    let mut borrowed_accessors = Vec::new();
-    for callable in values {
-        let Callable::Port(port) = callable else { continue };
-        let output = resolve(graph, module, &port.message)?;
-        let message = named_rust_type(graph, module, output, false)?;
-        let receiver = message::receiver_type(graph, module, output)?;
-        let port_name = Literal::string(&port.name);
-        let setter = rust_ident(&port.setter_name())?;
-        identities.push(quote! { #port_name => Ok(<#receiver as ::neocogi_com::ComInterface>::INTERFACE_ID) });
-        bindings.push(quote! { #port_name => {
-            // Query before mutation: a wrong event contract cannot replace a good binding.
-            let destination = receiver.add_ref().query::<#receiver>()?;
-            source.add_ref().#setter(destination.as_com_ref())
-        } });
-        let accessor = rust_ident(&port.name)?;
-        let docs = origin_docs(&port.docs, &port.span);
-        let install =
-            quote! { impl FnOnce(self::alloc::boxed::Box<dyn FnMut(#message) -> Result<(), ::neocogi_com::NcStatus>>) -> Result<(), ::neocogi_com::NcStatus> };
-        accessors.push(quote! { #docs fn #accessor(&self) -> #install + use<Self, M>; });
-        let body = quote! {
-            #docs fn #accessor(&self) -> #install + use<M> {
-                // Own the producer only for this one setup operation. The installed
-                // receiver holds the consumer callback, never this producer reference.
-                let mut producer = self.clone();
-                move |consume| {
-                    let receiver = #message::__receiver(consume)?;
-                    producer.#setter(receiver.as_com_ref())
-                }
-            }
-        };
-        owned_accessors.push(body.clone());
-        borrowed_accessors.push(quote! {
-            #docs fn #accessor(&self) -> #install + use<'a, M> {
-                let mut producer = self.add_ref();
-                move |consume| {
-                    let receiver = #message::__receiver(consume)?;
-                    producer.#setter(receiver.as_com_ref())
-                }
-            }
-        });
-    }
-    if !accessors.is_empty() {
-        ports.push(quote! {
-            impl ::neocogi_com::ComOutputInterface for #source_abi {
-                /// Finds only outputs declared on this exact projection.
-                fn output_receiver(name: &str) -> Result<::neocogi_com::NcInterfaceId, ::neocogi_com::NcStatus> {
-                    match name { #(#identities,)* _ => Err(::neocogi_com::NC_E_NOT_FOUND) }
-                }
-                /// Named setup immediately delegates to the original concrete setter.
-                fn bind_output(source: ::neocogi_com::ComRef<'_, Self>, name: &str, receiver: ::neocogi_com::ComRef<'_, ::neocogi_com::IUnknown>) -> Result<(), ::neocogi_com::NcStatus> {
-                    match name { #(#bindings,)* _ => Err(::neocogi_com::NC_E_NOT_FOUND) }
-                }
-            }
-            /// One-shot installation operations for concrete output destinations.
-            // The explicit callback keeps payload ownership and fallibility visible;
-            // generated code should not invent a public alias for each output port.
-            #[allow(clippy::type_complexity, reason = "generated concrete output installation signatures")]
-            pub trait #extension<M: ::neocogi_com::ThreadingModel = #mode> {
-                #(#accessors)*
-            }
-            impl<M: ::neocogi_com::ThreadingModel> #extension<M> for ::neocogi_com::ComPtr<#source_abi, M> {
-                #(#owned_accessors)*
-            }
-            impl<'a, M: ::neocogi_com::ThreadingModel> #extension<M> for ::neocogi_com::ComRef<'a, #source_abi, M> {
-                #(#borrowed_accessors)*
-            }
-        });
-    }
-    Ok(ports)
 }
 
 /// Lowers one copied aggregate field or payload type.

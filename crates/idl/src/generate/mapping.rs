@@ -60,7 +60,7 @@ pub(super) fn map_header(source: &str, module: &ResolvedModule, map: &mut RustSo
 }
 
 /// Maps a complete declaration fragment and refines it with nested syntax ranges.
-/// Synthetic observers retain the producer/port spans assigned by the parser.
+/// Closed generic specializations retain the source spans of their template declarations.
 pub(super) fn map_declaration(source: &str, offset: usize, declaration: &Declaration, map: &mut RustSourceMap) -> Result<(), GenerateError> {
     let origin = original(&declaration.span);
     map.mappings.push(SourceMapping {

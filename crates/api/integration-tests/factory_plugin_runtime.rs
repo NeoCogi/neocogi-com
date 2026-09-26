@@ -3,15 +3,19 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-use neocogi_com::{ComPtr, NcStatus, Runtime, com_factory, com_object, factory_plugin, guid_from_qualified_name};
+use neocogi_com::{ComPtr, NcStatus, Runtime, com_factory, com_class, factory_plugin, guid_from_qualified_name};
 use neocogi_idl_example_contracts::{ExampleFactory, ExampleFactoryAbi, ExampleObject, ExampleObjectAbi, Extent, IMeasured};
 
 /// Private mutable implementation of the constructor-free IDL class.
-#[com_object(neocogi_idl_example_contracts::ExampleObject)]
+#[com_class(neocogi_idl_example_contracts::ExampleObject, event = events)]
 struct ExampleObjectImplementation {
     /// Current dimensions returned by both callable projections.
     extent: Extent,
+    /// The sole stream shared by the concrete class and inherited event capability.
+    events: neocogi_idl_example_contracts::ExampleObjectEventPort,
 }
+
+impl neocogi_idl_example_contracts::IExampleEvents for ExampleObjectImplementation {}
 
 impl IMeasured for ExampleObjectImplementation {
     /// Returns a copy of the object's current dimensions.
@@ -24,7 +28,10 @@ impl ExampleObject for ExampleObjectImplementation {
     /// Replaces dimensions through the generated exclusive `&mut self` call.
     fn resize(&mut self, extent: Extent) -> Result<(), NcStatus> {
         self.extent = extent;
-        Ok(())
+        self.events.post(&neocogi_idl_example_contracts::ExtentChanged {
+            width: extent.width,
+            height: extent.height,
+        })
     }
 }
 
@@ -35,7 +42,7 @@ struct ExampleFactoryImplementation;
 impl ExampleFactory for ExampleFactoryImplementation {
     /// Creates one object directly without a runtime class registry lookup.
     fn create(&self, extent: Extent) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
-        ExampleObjectImplementation::from_value(ExampleObjectImplementation { extent }).query()
+        ExampleObjectImplementation::from_value(ExampleObjectImplementation { extent, events: Default::default() }).query()
     }
 }
 
@@ -116,9 +123,7 @@ fn build_dynamic_fixture() -> PathBuf {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
-    target.join("debug").join(format!(
-        "{}nc_example_com{}",
-        std::env::consts::DLL_PREFIX,
-        std::env::consts::DLL_SUFFIX,
-    ))
+    target
+        .join("debug")
+        .join(format!("{}nc_example_com{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX,))
 }
