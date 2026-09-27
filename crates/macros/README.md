@@ -22,8 +22,15 @@ struct ButtonObject {
 The interface supplies the public identity, threading capability, callable
 surface, and required interfaces. The implementation supplies private
 state and method bodies. Generated storage contains one canonical `IUnknown`
-projection, one header per required interface, reference counting,
+projection, one header per distinct required interface, reference counting,
 signature-checked `QueryInterface`, and `from_value(initialized_value)`.
+Header count, ordering, and typed vtable bindings are computed at compilation;
+shared ancestors occupy one slot even in repeated diamonds. Conflicting
+signatures for the same IID fail compilation. Runtime initialization installs
+back-pointers through `&mut self` before publishing a handle. The
+[storage contract](../../../docs/COM_INTERFACE_STORAGE.md) separates this flat
+header array from inherited vtable prefixes and documents the query rules.
+
 `into_local(initialized_value)` returns a `LocalCom<Implementation>` when the
 creating binary also needs typed access to the owned implementation. Its
 `try_borrow` and `try_borrow_mut` guards share the generated COM call gate;
@@ -74,8 +81,9 @@ constructor table or erased argument frame.
 `#[com_interface]` generates a C-compatible interface header and vtable, one
 typed `IFooClient` method view, exact ABI signature metadata, method
 descriptions, and the audited `unsafe impl ComInterface`. IDL-generated
-bindings use the same machinery. Both `ComPtr<IFooAbi>` and
-`ComRef<'_, IFooAbi>` lend the client view, and derived clients dereference to
+bindings use the same machinery. `IFooVtblFor<T>` supplies static typed provider
+bindings; the former recursive `IFooInterfacesFor<T>` helper has been removed.
+Both `ComPtr<IFooAbi>` and `ComRef<'_, IFooAbi>` lend the client view, and derived clients dereference to
 their base clients. The macro therefore emits each safe Rust-to-ABI lowering
 once and requires no interface-specific extension-trait import at call sites.
 
