@@ -15,6 +15,8 @@ mod path;
 mod resolve;
 mod sha256;
 mod specialize;
+mod standard;
+pub use standard::is_bundled_module;
 
 pub use model::{
     DeserializePolicy, AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Field, Import,

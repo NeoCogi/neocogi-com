@@ -95,9 +95,9 @@ mod message_tests {
         let decoded = NcValueRef::new(&tree).unwrap().to_owned().unwrap();
         drop(tree);
         assert!(!decoded.children[0].enabled);
-        let shapes = Shapes { optional: Some(NumberChanged { value: 1.0, checked: true }), flags: [false, true, false] };
+        let shapes = Shapes { optional: OptionalNumber::Some(NumberChanged { value: 1.0, checked: true }).into(), flags: [false, true, false] };
         let decoded = NcValueRef::new(&shapes).unwrap().to_owned().unwrap();
-        assert!(decoded.optional.unwrap().checked);
+        assert!(matches!(OptionalNumber::try_from(decoded.optional).unwrap(), OptionalNumber::Some(value) if value.checked));
         assert_eq!(decoded.flags, [false, true, false]);
     }
 
@@ -113,10 +113,10 @@ mod message_tests {
         let mut wire = unsafe { guard.as_ptr().read() };
         wire.values.pointer = &element;
         assert_eq!(receiver.batch(unsafe { NcValueRef::from_raw(&wire) }.unwrap()), Err(neocogi_com::NC_E_INVALID_ARG));
-        let shapes = Shapes { optional: None, flags: [true; 3] };
+        let shapes = Shapes { optional: OptionalNumber::None.into(), flags: [true; 3] };
         let guard = NcValueRef::new(&shapes).unwrap();
         let mut wire = unsafe { guard.as_ptr().read() };
-        wire.optional.present = 3;
+        wire.optional.tag = 3;
         assert_eq!(receiver.shapes(unsafe { NcValueRef::from_raw(&wire) }.unwrap()), Err(neocogi_com::NC_E_INVALID_TAG));
         assert_eq!(local.try_borrow().unwrap().accepted, 0);
     }

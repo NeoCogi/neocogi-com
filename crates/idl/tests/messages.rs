@@ -57,7 +57,20 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
         .unwrap(),
     ])
     .unwrap();
-    let generated = neocogi_idl::generate_rust(&graph, "example.messages").unwrap();
+    let option = graph
+        .module("example.messages")
+        .unwrap()
+        .source
+        .declarations
+        .iter()
+        .find(|declaration| {
+            declaration
+                .specialization
+                .as_ref()
+                .is_some_and(|instance| instance.template.segments.last().is_some_and(|name| name == "Option"))
+        })
+        .unwrap();
+    let generated = neocogi_idl::generate_rust(&graph, "example.messages").unwrap() + &format!("\npub use {} as OptionalNumber;\n", option.name);
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
@@ -168,9 +181,11 @@ fn nested_records_and_aggregate_sequences_resolve_uniformly() {
 #[test]
 fn optional_cycles_and_removed_message_annotation_are_rejected() {
     let source = "#[version(1)] struct StillInvalid { child: Option<StillInvalid> }";
-    assert!(resolve_modules(vec![parse_module(Path::new("example/values.ncidl"), source).unwrap()])
-        .unwrap_err()
-        .to_string()
-        .contains("recursive copied-value layout"));
+    assert!(
+        resolve_modules(vec![parse_module(Path::new("example/values.ncidl"), source).unwrap()])
+            .unwrap_err()
+            .to_string()
+            .contains("recursive copied-value layout")
+    );
     assert!(parse_module(Path::new("example/values.ncidl"), "#[version(1)] #[message] struct Gone { value: bool }").is_err());
 }

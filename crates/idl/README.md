@@ -145,8 +145,7 @@ while a `Vec<Self>` field provides explicit indirection. Booleans use checked by
 even inside ordinary copied records, enum payloads, and method buffers.
 
 Copied method slots and buffer elements accept scalars, finite copied
-records/enums/bit sets, and arrays whose elements are recursively copied. Values containing strings, sequences, object fields,
-or options must be borrowed through a named record/enum. Unsupported
+records/enums/bit sets, and arrays whose elements are recursively copied. Values containing strings, sequences or object fields must be borrowed through a named record/enum. Unsupported
 copied positions fail during IDL resolution. See the normative
 [recursive value contract](../../../docs/RECURSIVE_VALUE_CONTRACT.md) for limits,
 ownership, wire memory obligations, and examples.
@@ -183,3 +182,10 @@ Rust generation. `#[deserialize(if_supported)]` makes that capability conditiona
 for library values; it does not weaken an enclosing required decoder. Enum
 payloads use the ordinary named variant protocol, including owned and recursive
 payloads. Record-only `default` and `sequence` policies remain explicit.
+
+`Option<T>` comes from the bundled [ordinary IDL enum](stdlib/neocogi/lang.ncidl).
+It follows lexical lookup and normal specialization; copied payloads permit
+copied calls, and owned payloads require a borrow of the whole enum. See the
+[generic value guide](../../../docs/IDL_GENERIC_VALUES.md) and
+[compiled example](examples/generic_values.ncidl) for collection constructors,
+borrowed optional COM capabilities, and the remaining explicit limitations.

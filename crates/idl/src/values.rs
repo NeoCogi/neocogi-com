@@ -22,10 +22,8 @@ pub enum ValueType {
     Sequence(Box<ValueType>),
     /// Inline fixed-size aggregate.
     Array(Box<ValueType>, u32),
-    /// Inline tagged absence/presence aggregate.
-    Optional(Box<ValueType>),
 }
-/// Availability of the IDL-requested format-neutral record decoder.
+/// Availability of the IDL-requested format-neutral record/enum decoder.
 /// This is separate from transporting a value that already exists in memory.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Deserialization {
@@ -98,7 +96,7 @@ impl ValueGraph {
                 .get(name)
                 .is_some_and(|value| value.deserialization == Deserialization::Supported),
             ValueType::Object(_) => false,
-            ValueType::Sequence(value) | ValueType::Array(value, _) | ValueType::Optional(value) => self.can_deserialize(value),
+            ValueType::Sequence(value) | ValueType::Array(value, _) => self.can_deserialize(value),
         }
     }
 
@@ -127,7 +125,7 @@ impl ValueGraph {
                         Deserialization::Unsupported | Deserialization::Supported => None,
                     }
                 }
-                ValueType::Sequence(value) | ValueType::Array(value, _) | ValueType::Optional(value) => visit(graph, value, visited),
+                ValueType::Sequence(value) | ValueType::Array(value, _) => visit(graph, value, visited),
                 ValueType::Unit | ValueType::Text => None,
             }
         }
@@ -140,7 +138,7 @@ impl ValueGraph {
             ValueType::Scalar(_) => true,
             ValueType::Array(element, _) => self.is_copied(element),
             ValueType::Named(name) => self.definitions.get(name).is_some_and(|value| value.copied),
-            ValueType::Unit | ValueType::Text | ValueType::Object(_) | ValueType::Sequence(_) | ValueType::Optional(_) => false,
+            ValueType::Unit | ValueType::Text | ValueType::Object(_) | ValueType::Sequence(_) => false,
         }
     }
 }
@@ -151,7 +149,7 @@ impl ValueDefinition {
         fn visit<'a>(ty: &'a ValueType, names: &mut Vec<&'a str>) {
             match ty {
                 ValueType::Named(name) => names.push(name),
-                ValueType::Array(value, _) | ValueType::Optional(value) => visit(value, names),
+                ValueType::Array(value, _) => visit(value, names),
                 _ => {}
             }
         }

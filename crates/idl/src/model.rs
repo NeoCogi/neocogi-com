@@ -330,7 +330,7 @@ pub enum AbiType {
         /// Exact built-in scalar spelling.
         String,
     ),
-    /// An owned immutable UTF-8 COM string.
+    /// Owned UTF-8 text data; an owned COM string is explicitly ComPtr<INcString>.
     String,
     /// A declaration referenced by a local, imported, or qualified path.
     Named(NamedType),
@@ -369,11 +369,6 @@ pub enum AbiType {
         /// Compile-time array element count.
         len: u32,
     },
-    /// An explicitly optional value with generated tag-and-payload layout.
-    Option(
-        /// Value present when the generated tag selects `Some`.
-        Box<AbiType>,
-    ),
 }
 
 /// Origin of a closed declaration; generated Rust names never determine its COM identity.
@@ -400,7 +395,6 @@ impl AbiType {
             Self::Slice(value) => format!("&[{}]", value.source_name()),
             Self::OutputSlice(value) => format!("&mut [{}]", value.source_name()),
             Self::Array { element, len } => format!("[{}; {}]", element.source_name(), len),
-            Self::Option(value) => format!("Option<{}>", value.source_name()),
         }
     }
 }

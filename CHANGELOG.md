@@ -28,6 +28,15 @@ prefixes and full explicit inspection remain supported.
 
 ## Unreleased
 
+- Make IDL collection ownership explicit with `Vec<T>`, `Slice<T>` / `[T]`, and
+  `Array<T, N>` / `[T; N]`. Support recursively copied arrays in methods and
+  buffers through checked wire codecs. Move `Option<T>` into an ordinary bundled
+  generic enum, remove special optional lowering, and require borrowing the whole
+  enum for owned payloads. Expose enum deserialization and conditional library
+  decoder policies. COM designer catalog schema 5 uses named enum definitions
+  for optional fields. See [the generic value contract](../../docs/IDL_GENERIC_VALUES.md) for syntax,
+  ownership, migration rules, and the remaining explicit limits.
+
 - Unify IDL records/enums as recursively checked values and remove `#[message]`.
   Separate application storage, raw wire fields, and typed producer guards;
   check bool bytes and selected enum payloads in copied slots, borrowed values,

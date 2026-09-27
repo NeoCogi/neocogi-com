@@ -85,11 +85,13 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
     "#;
     let module = parse_module(Path::new("proof/operations.ncidl"), source).unwrap();
     let graph = resolve_modules(vec![module]).unwrap();
-    assert!(graph
-        .values
-        .definitions
-        .values()
-        .all(|value| value.deserialization == neocogi_idl::Deserialization::Supported));
+    assert!(
+        graph
+            .values
+            .definitions
+            .values()
+            .all(|value| value.deserialization == neocogi_idl::Deserialization::Supported)
+    );
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
@@ -101,9 +103,22 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
         ),
     )
     .unwrap();
+    let option = graph
+        .module("proof.operations")
+        .unwrap()
+        .source
+        .declarations
+        .iter()
+        .find(|declaration| {
+            declaration
+                .specialization
+                .as_ref()
+                .is_some_and(|instance| instance.template.segments.last().is_some_and(|name| name == "Option"))
+        })
+        .unwrap();
     fs::write(
         project.path().join("src/contract.rs"),
-        neocogi_idl::generate_rust(&graph, "proof.operations").unwrap(),
+        neocogi_idl::generate_rust(&graph, "proof.operations").unwrap() + &format!("\npub use {} as OptionalFlags;\n", option.name),
     )
     .unwrap();
     fs::write(
@@ -121,8 +136,11 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
         /// A named inner record used through an optional field.
         struct Flags { enabled: bool }
         #[derive(neocogi_com::ComSerialize)]
+        /// Matches the ordinary enum schema supplied by the bundled IDL library.
+        enum OptionalFlags { None, Some(Flags) }
+        #[derive(neocogi_com::ComSerialize)]
         /// Independent writer exercises generated record and sequence decoders.
-        struct Snapshot { root: Node, optional: Option<Flags>, mask: [bool; 3], pair: [u32; 2], units: Vec<()> }
+        struct Snapshot { root: Node, optional: OptionalFlags, mask: [bool; 3], pair: [u32; 2], units: Vec<()> }
         #[derive(neocogi_com::ComSerialize)]
         /// Writes an empty named record through the actual format encoder.
         struct EmptyRecord {}
@@ -130,12 +148,12 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
         fn reconstructs_the_complete_closed_value() {
             let source = Snapshot {
                 root: Node { value: "parent".into(), children: vec![Node { value: "child".into(), children: vec![] }] },
-                optional: Some(Flags { enabled: true }), mask: [false, true, false], pair: [7, 9], units: vec![(), ()],
+                optional: OptionalFlags::Some(Flags { enabled: true }), mask: [false, true, false], pair: [7, 9], units: vec![(), ()],
             };
             let bytes = neocogi_com::binary::to_vec(&source).unwrap();
             let decoded: contract::Snapshot = neocogi_com::binary::from_slice(&bytes).unwrap();
             assert_eq!(decoded.root.children[0].value, "child");
-            assert!(decoded.optional.unwrap().enabled);
+            assert!(matches!(decoded.optional, contract::OptionalFlags::Some(flags) if flags.enabled));
             assert_eq!(decoded.mask, [false, true, false]);
             assert_eq!((decoded.pair.first, decoded.pair.second), (7, 9));
             assert_eq!(decoded.units.len(), 2);

@@ -84,10 +84,6 @@ pub(super) fn owned_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &A
             let value = owned_type(graph, module, value)?;
             quote! { self::alloc::vec::Vec<#value> }
         }
-        AbiType::Option(value) => {
-            let value = owned_type(graph, module, value)?;
-            quote! { Option<#value> }
-        }
         AbiType::Array { element, len } => {
             let value = owned_type(graph, module, element)?;
             let len = *len as usize;

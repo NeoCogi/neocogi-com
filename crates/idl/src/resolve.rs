@@ -210,7 +210,7 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
         return Err(error(None, "at least one IDL module is required"));
     }
 
-    let mut modules = modules;
+    let mut modules = crate::standard::attach(modules)?;
     modules.sort_by(|left, right| {
         left.name
             .cmp(&right.name)
@@ -382,7 +382,6 @@ fn validate_closed_argument(graph: &ResolvedModules, module: &ResolvedModule, ty
         | AbiType::UnsizedSlice(value)
         | AbiType::Slice(value)
         | AbiType::OutputSlice(value)
-        | AbiType::Option(value)
         | AbiType::Array { element: value, .. } => validate_closed_argument(graph, module, value, span),
         AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Ok(()),
     }
@@ -860,6 +859,18 @@ fn validate_layouts(index: usize, entries: &[ModuleEntry], values: &crate::Value
     Ok(())
 }
 
+/// Shows source template arguments instead of leaking a generated Rust hash name.
+fn authored_declaration_name(declaration: &Declaration) -> String {
+    match &declaration.specialization {
+        Some(instance) => {
+            let mut name = instance.template.clone();
+            name.arguments = instance.arguments.clone();
+            name.rust_path()
+        }
+        None => declaration.name.clone(),
+    }
+}
+
 /// Walks one local declaration and reports the edge closing a cycle.
 fn visit_layout(
     module: usize,
@@ -921,9 +932,9 @@ fn visit_layout(
                 let cycle_start = stack.iter().position(|candidate| *candidate == symbol.declaration).unwrap_or(0);
                 let mut names = stack[cycle_start..]
                     .iter()
-                    .map(|index| entries[module].module.declarations[*index].name.as_str())
+                    .map(|index| authored_declaration_name(&entries[module].module.declarations[*index]))
                     .collect::<Vec<_>>();
-                names.push(entries[module].module.declarations[symbol.declaration].name.as_str());
+                names.push(authored_declaration_name(&entries[module].module.declarations[symbol.declaration]));
                 let definition = &entries[module].module.declarations[symbol.declaration];
                 return Err(ResolutionError {
                     diagnostics: vec![
@@ -981,7 +992,7 @@ fn collect_layout_references<'a>(declaration: &'a Declaration, output: &mut Vec<
 fn collect_type_references<'a>(ty: &'a AbiType, output: &mut Vec<&'a NamedType>) {
     match ty {
         AbiType::Named(name) => output.push(name),
-        AbiType::Array { element, .. } | AbiType::Option(element) => collect_type_references(element, output),
+        AbiType::Array { element, .. } => collect_type_references(element, output),
         AbiType::ComPtr(_)
         | AbiType::Borrowed(_)
         | AbiType::Vector(_)
@@ -1235,7 +1246,7 @@ fn validate_field_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], cont
                 )),
             }
         }
-        AbiType::Array { element, .. } | AbiType::Option(element) | AbiType::Vector(element) => validate_field_type(index, element, entries, context, span),
+        AbiType::Array { element, .. } | AbiType::Vector(element) => validate_field_type(index, element, entries, context, span),
         AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::UnsizedSlice(_) | AbiType::OutputSlice(_) => Err(source_error(
             &entries[index].module,
             "EIDL060",
@@ -1307,7 +1318,6 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
             }
             AbiType::Vector(value) => V::Sequence(Box::new(field(index, value, entries)?)),
             AbiType::Array { element, len } => V::Array(Box::new(field(index, element, entries)?), *len),
-            AbiType::Option(value) => V::Optional(Box::new(field(index, value, entries)?)),
             AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) | AbiType::UnsizedSlice(_) => V::Unit,
         })
     }
@@ -1353,7 +1363,7 @@ fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], cont
             "EIDL060",
             span,
             format!("{context} has no copied ABI lowering"),
-            "borrow a named value with &; strings, sequences, object fields and options use the checked borrowed value representation",
+            "borrow a named value with &; strings, sequences and object fields use the checked borrowed value representation",
         ))
     }
 }
@@ -1412,29 +1422,6 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
         },
         AbiType::Slice(element) | AbiType::OutputSlice(element) => validate_value_type(index, element, entries, context, span),
         AbiType::Array { .. } => validate_value_type(index, ty, entries, context, span),
-        AbiType::Option(value) => {
-            // Null is defined only for an explicitly borrowed object capability.
-            // Optional copied values and message records need different layouts.
-            if let AbiType::Borrowed(referent) = value.as_ref() {
-                if let AbiType::Named(name) = referent.as_ref() {
-                    if builtin_object(name).is_some() {
-                        return Ok(());
-                    }
-                    if let ResolvedName::Symbol(symbol) = resolve_named_or_str(index, name, entries)? {
-                        if symbol.kind != SymbolKind::Value {
-                            return Ok(());
-                        }
-                    }
-                }
-            }
-            Err(source_error(
-                &entries[index].module,
-                "EIDL061",
-                span,
-                format!("{context} requires Option<&Interface> for an optional input"),
-                "optional input is not a borrowed interface",
-            ))
-        }
     }
 }
 
@@ -1444,7 +1431,7 @@ fn validate_output_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], con
     match ty {
         AbiType::Unit | AbiType::Scalar(_) => Ok(()),
         AbiType::ComPtr(value) => validate_object_target(index, value, entries, context, span),
-        AbiType::Named(_) | AbiType::Array { .. } | AbiType::Option(_) => validate_value_type(index, ty, entries, context, span),
+        AbiType::Named(_) | AbiType::Array { .. } => validate_value_type(index, ty, entries, context, span),
         AbiType::String => Err(source_error(
             &entries[index].module,
             "EIDL062",
@@ -1759,10 +1746,6 @@ fn encode_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], encoder: &mu
             encoder.u32(*len);
             encode_type(index, element, entries, encoder)?;
         }
-        AbiType::Option(value) => {
-            encoder.tag(7);
-            encode_type(index, value, entries, encoder)?;
-        }
         AbiType::ComPtr(target) => {
             encoder.tag(9);
             encode_type(index, target, entries, encoder)?;
@@ -1921,7 +1904,6 @@ pub(crate) fn is_reserved_name(name: &str) -> bool {
             | "Array"
             | "str"
             | "String"
-            | "Option"
             | "Result"
     )
 }
@@ -1941,7 +1923,6 @@ fn type_span(ty: &AbiType) -> Option<&SourceSpan> {
         | AbiType::UnsizedSlice(value)
         | AbiType::Slice(value)
         | AbiType::OutputSlice(value)
-        | AbiType::Option(value)
         | AbiType::Array { element: value, .. } => type_span(value),
         AbiType::Unit | AbiType::Scalar(_) | AbiType::String => None,
     }

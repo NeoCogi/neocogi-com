@@ -178,7 +178,6 @@ impl Expansion {
             | AbiType::UnsizedSlice(value)
             | AbiType::Slice(value)
             | AbiType::OutputSlice(value)
-            | AbiType::Option(value)
             | AbiType::Array { element: value, .. } => {
                 self.normalize_type(owner, value, substitutions)?;
             }
@@ -219,7 +218,6 @@ impl Expansion {
             | AbiType::UnsizedSlice(value)
             | AbiType::Slice(value)
             | AbiType::OutputSlice(value)
-            | AbiType::Option(value)
             | AbiType::Array { element: value, .. } => {
                 self.lower_type(target, value, depth)?;
             }
@@ -340,7 +338,6 @@ impl Expansion {
             | AbiType::UnsizedSlice(value)
             | AbiType::Slice(value)
             | AbiType::OutputSlice(value)
-            | AbiType::Option(value)
             | AbiType::Array { element: value, .. } => {
                 bytes.extend_from_slice(match ty {
                     AbiType::ComPtr(_) => b"com_ptr",
@@ -349,7 +346,6 @@ impl Expansion {
                     AbiType::UnsizedSlice(_) => b"unsized_slice",
                     AbiType::Slice(_) => b"slice",
                     AbiType::OutputSlice(_) => b"output",
-                    AbiType::Option(_) => b"option",
                     _ => b"array",
                 });
                 if let AbiType::Array { len, .. } = ty {
@@ -369,7 +365,7 @@ fn is_template(declaration: &Declaration) -> bool {
 }
 
 /// Visits each type root once; recursive type structure belongs to the supplied operation.
-fn visit_types(declaration: &mut Declaration, visit: &mut impl FnMut(&mut AbiType) -> Result<(), ResolutionError>) -> Result<(), ResolutionError> {
+pub(crate) fn visit_types(declaration: &mut Declaration, visit: &mut impl FnMut(&mut AbiType) -> Result<(), ResolutionError>) -> Result<(), ResolutionError> {
     match &mut declaration.kind {
         DeclarationKind::Struct(record) => {
             for field in &mut record.fields {
@@ -509,7 +505,6 @@ fn has_arguments(ty: &AbiType) -> bool {
         | AbiType::UnsizedSlice(value)
         | AbiType::Slice(value)
         | AbiType::OutputSlice(value)
-        | AbiType::Option(value)
         | AbiType::Array { element: value, .. } => has_arguments(value),
         _ => false,
     }
@@ -569,7 +564,6 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &AbiType) -> Result<[u8; 3
         | AbiType::UnsizedSlice(value)
         | AbiType::Slice(value)
         | AbiType::OutputSlice(value)
-        | AbiType::Option(value)
         | AbiType::Array { element: value, .. } => {
             bytes.extend_from_slice(match ty {
                 AbiType::ComPtr(_) => b"com_ptr",
@@ -578,7 +572,6 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &AbiType) -> Result<[u8; 3
                 AbiType::UnsizedSlice(_) => b"unsized_slice",
                 AbiType::Slice(_) => b"slice",
                 AbiType::OutputSlice(_) => b"output",
-                AbiType::Option(_) => b"option",
                 _ => b"array",
             });
             if let AbiType::Array { len, .. } = ty {

@@ -1,0 +1,12 @@
+/// An ordinary tagged optional value. T follows the same ownership and layout
+/// rules as any other enum payload; absence does not provide layout indirection.
+/// Conditional persistence keeps live COM capabilities transportable without
+/// pretending that a decoder can recreate their implementation objects.
+#[version(1)]
+#[deserialize(if_supported)]
+enum Option<T> {
+    /// No payload is active and no payload storage may be inspected.
+    None = 0,
+    /// One recursively checked owned value is active.
+    Some(T) = 1,
+}

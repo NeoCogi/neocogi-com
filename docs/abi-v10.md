@@ -167,9 +167,11 @@ ordinary event value before mapping it to the behavioral parent's queue; later
 application dispatch handles it with mutable access to the parent. No visual
 widget routing belongs to this contract.
 
-Optional COM inputs use passing tag `NC_ABI_PASSING_OPTIONAL_COM_REF` (`0x08`):
-null means absence, and a present pointer must satisfy the same exact interface
-identity and borrowing contract as an ordinary `ComRef`.
+Hand-authored Rust COM contracts can use nullable `Option<ComRef<I>>` inputs,
+identified by `NC_ABI_PASSING_OPTIONAL_COM_REF` (`0x08`). Current IDL does not
+emit that shortcut: `&Option<ComPtr<I>>` borrows an ordinary tagged library enum.
+Its active COM payload uses the standard checked object reference codec. See the
+[generic value contract](../../../docs/IDL_GENERIC_VALUES.md).
 
 ## 5. Compile-time modules
 

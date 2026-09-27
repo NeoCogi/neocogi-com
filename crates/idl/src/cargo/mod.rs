@@ -113,6 +113,11 @@ impl Module {
         records.insert(own_module.name.to_string(), own_record);
         let dependency_modules = own_module.externals.iter().map(|external| external.module.clone()).collect::<BTreeSet<_>>();
         for dependency in dependency_modules {
+            // Bundled source is injected and fingerprinted by the resolver; it
+            // has no separately built Rust crate or Cargo DEP_* exchange file.
+            if crate::is_bundled_module(&dependency) {
+                continue;
+            }
             let variable = dependency_graph_variable(&dependency);
             println!("cargo::rerun-if-env-changed={variable}");
             let graph_path = env::var_os(&variable).ok_or_else(|| BuildError::MissingDependency {

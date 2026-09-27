@@ -25,8 +25,6 @@ pub enum IdlValueType {
     Sequence(&'static IdlValueType),
     /// Inline fixed-size array.
     Array(&'static IdlValueType, u32),
-    /// Inline tag and recursively defined optional payload.
-    Optional(&'static IdlValueType),
 }
 
 /// One source field, including the IDL spelling of its declared value type.

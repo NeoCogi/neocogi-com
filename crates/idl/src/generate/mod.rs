@@ -280,10 +280,6 @@ fn design_value_type(ty: &crate::ValueType) -> TokenStream {
             let value = design_value_type(value);
             quote! { Array(&#value, #len) }
         }
-        V::Optional(value) => {
-            let value = design_value_type(value);
-            quote! { Optional(&#value) }
-        }
     };
     quote! { ::neocogi_com::design::IdlValueType::#expression }
 }
@@ -316,7 +312,7 @@ fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, dec
     fn edge(ty: &crate::ValueType, graph: &Generation<'_>, names: &mut BTreeSet<String>) {
         match ty {
             crate::ValueType::Named(name) => data(name, graph, names),
-            crate::ValueType::Sequence(value) | crate::ValueType::Array(value, _) | crate::ValueType::Optional(value) => edge(value, graph, names),
+            crate::ValueType::Sequence(value) | crate::ValueType::Array(value, _) => edge(value, graph, names),
             _ => {}
         }
     }
@@ -334,8 +330,7 @@ fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, dec
             | AbiType::UnsizedSlice(value)
             | AbiType::Slice(value)
             | AbiType::OutputSlice(value)
-            | AbiType::Array { element: value, .. }
-            | AbiType::Option(value) => root(value, graph, module, names)?,
+            | AbiType::Array { element: value, .. } => root(value, graph, module, names)?,
             _ => {}
         }
         Ok(())
@@ -392,7 +387,7 @@ fn needs_value_allocation(value: &crate::ValueType) -> bool {
     // storage spelled inside this module requires its own alloc import.
     match value {
         crate::ValueType::Text | crate::ValueType::Sequence(_) => true,
-        crate::ValueType::Array(value, _) | crate::ValueType::Optional(value) => needs_value_allocation(value),
+        crate::ValueType::Array(value, _) => needs_value_allocation(value),
         _ => false,
     }
 }
@@ -745,9 +740,6 @@ fn value_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> 
             let len = Literal::u32_unsuffixed(*len);
             Ok(quote! { [#element; #len] })
         }
-        AbiType::Option(_) => Err(GenerateError::new(
-            "Option<T> binding generation requires the dedicated optional-value ABI layout",
-        )),
         _ => Err(GenerateError::new("borrowed, string, and unit types cannot occupy copied aggregate storage")),
     }
 }
@@ -790,18 +782,8 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
             let element = value_type(graph, module, element)?;
             Ok(quote! { ::neocogi_com::NcCopyToBufferOffset<'_, #element> })
         }
-        AbiType::Option(value) => match value.as_ref() {
-            AbiType::Borrowed(inner) => match inner.as_ref() {
-                AbiType::Named(name) => {
-                    let reference = object_reference_type(graph, module, name, false)?;
-                    Ok(quote! { Option<#reference> })
-                }
-                _ => Err(GenerateError::new("optional inputs require a borrowed interface")),
-            },
-            _ => Err(GenerateError::new("optional inputs require a borrowed interface")),
-        },
         AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => {
-            Err(GenerateError::new("unit and owned String are not valid method inputs"))
+            Err(GenerateError::new("unit, owned collections/text, and unborrowed slices are not valid method inputs"))
         }
     }
 }
