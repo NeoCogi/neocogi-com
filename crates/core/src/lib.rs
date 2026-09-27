@@ -36,6 +36,7 @@ mod encode;
 mod factory_plugin;
 mod guid;
 mod message;
+mod value;
 mod metadata;
 mod object;
 pub mod persistence;
@@ -56,6 +57,9 @@ pub use abi::{__NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain
 #[cfg(feature = "alloc")]
 pub use message::{ComEvent, copy_message_bools, copy_message_slice, copy_message_text};
 pub use message::{ComMessage, MessageDecodeBudget, NcMessage, NcMessageSlice, MAX_MESSAGE_DECODE_BYTES, MAX_MESSAGE_DECODE_RECORDS};
+pub use value::{ComValue, ComValueType, ComInlineValue, NcValueRef, ValueBudget, ValueArray, ValueOption, ValueSlice, MAX_VALUE_BYTES, MAX_VALUE_COUNT, MAX_VALUE_DEPTH};
+#[cfg(feature = "alloc")]
+pub use value::ValueSequenceStorage;
 pub use buffer::{NcCopyFromBufferOffset, NcCopyToBufferOffset};
 pub use client::{ComClientInterface, NcClientPointer};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
