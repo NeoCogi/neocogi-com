@@ -377,9 +377,13 @@ fn validate_closed_argument(graph: &ResolvedModules, module: &ResolvedModule, ty
             }
             Ok(())
         }
-        AbiType::Borrowed(value) | AbiType::Slice(value) | AbiType::OutputSlice(value) | AbiType::Option(value) | AbiType::Array { element: value, .. } => {
-            validate_closed_argument(graph, module, value, span)
-        }
+        AbiType::Borrowed(value)
+        | AbiType::Vector(value)
+        | AbiType::UnsizedSlice(value)
+        | AbiType::Slice(value)
+        | AbiType::OutputSlice(value)
+        | AbiType::Option(value)
+        | AbiType::Array { element: value, .. } => validate_closed_argument(graph, module, value, span),
         AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Ok(()),
     }
 }
@@ -464,12 +468,10 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
         if let Some((previous_span, previous_sources)) = module_names.insert(name.clone(), (module_span.clone(), module.sources.clone())) {
             let sources = combined_sources(previous_sources, &module.sources);
             return Err(ResolutionError {
-                diagnostics: vec![
-                    Diagnostic::new("EIDL011", format!("duplicate logical IDL module {name:?}"))
-                        .with_sources(&sources)
-                        .primary(&module_span, "second module supplied here")
-                        .secondary(&previous_span, "first module supplied here"),
-                ],
+                diagnostics: vec![Diagnostic::new("EIDL011", format!("duplicate logical IDL module {name:?}"))
+                    .with_sources(&sources)
+                    .primary(&module_span, "second module supplied here")
+                    .secondary(&previous_span, "first module supplied here")],
             });
         }
         let module_id = derive_module_id(&name);
@@ -615,12 +617,10 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
                 if let Some(local) = entries[index].local_symbols.get(&name) {
                     let local_span = &entries[index].module.declarations[local.declaration].span;
                     return Err(ResolutionError {
-                        diagnostics: vec![
-                            Diagnostic::new("EIDL032", format!("import {name:?} conflicts with a local declaration"))
-                                .with_sources(&entries[index].module.sources)
-                                .primary(&import.span, "conflicting import")
-                                .secondary(local_span, "local declaration is here"),
-                        ],
+                        diagnostics: vec![Diagnostic::new("EIDL032", format!("import {name:?} conflicts with a local declaration"))
+                            .with_sources(&entries[index].module.sources)
+                            .primary(&import.span, "conflicting import")
+                            .secondary(local_span, "local declaration is here")],
                     });
                 }
                 let Some(&symbol) = entries[dependency].local_symbols.get(&name) else {
@@ -635,13 +635,11 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
                 if imported_symbols.insert(name.clone(), symbol).is_some() {
                     let previous = imported_origins.get(&name).expect("an imported symbol always records its origin");
                     return Err(ResolutionError {
-                        diagnostics: vec![
-                            Diagnostic::new("EIDL034", format!("imported name {name:?} is ambiguous"))
-                                .with_sources(&entries[index].module.sources)
-                                .primary(&import.span, "second unqualified import")
-                                .secondary(previous, "first unqualified import")
-                                .note("remove one import or use a module-qualified type path"),
-                        ],
+                        diagnostics: vec![Diagnostic::new("EIDL034", format!("imported name {name:?} is ambiguous"))
+                            .with_sources(&entries[index].module.sources)
+                            .primary(&import.span, "second unqualified import")
+                            .secondary(previous, "first unqualified import")
+                            .note("remove one import or use a module-qualified type path")],
                     });
                 }
                 imported_origins.insert(name, import.span.clone());
@@ -908,13 +906,11 @@ fn visit_layout(
                 names.push(entries[module].module.declarations[symbol.declaration].name.as_str());
                 let definition = &entries[module].module.declarations[symbol.declaration];
                 return Err(ResolutionError {
-                    diagnostics: vec![
-                        Diagnostic::new("EIDL063", format!("recursive {layout}: {}", names.join(" -> ")))
-                            .with_sources(&entries[module].module.sources)
-                            .primary(span, format!("this {label} closes the recursive layout"))
-                            .secondary(&definition.span, "recursive declaration is defined here")
-                            .note(note),
-                    ],
+                    diagnostics: vec![Diagnostic::new("EIDL063", format!("recursive {layout}: {}", names.join(" -> ")))
+                        .with_sources(&entries[module].module.sources)
+                        .primary(span, format!("this {label} closes the recursive layout"))
+                        .secondary(&definition.span, "recursive declaration is defined here")
+                        .note(note)],
                 });
             }
             VisitState::Unvisited => visit_layout(module, symbol.declaration, entries, values, states, stack)?,
@@ -964,7 +960,15 @@ fn collect_type_references<'a>(ty: &'a AbiType, output: &mut Vec<&'a NamedType>)
     match ty {
         AbiType::Named(name) => output.push(name),
         AbiType::Array { element, .. } | AbiType::Option(element) => collect_type_references(element, output),
-        AbiType::ComPtr(_) | AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) | AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
+        AbiType::ComPtr(_)
+        | AbiType::Borrowed(_)
+        | AbiType::Vector(_)
+        | AbiType::UnsizedSlice(_)
+        | AbiType::Slice(_)
+        | AbiType::OutputSlice(_)
+        | AbiType::Unit
+        | AbiType::Scalar(_)
+        | AbiType::String => {}
     }
 }
 
@@ -1052,15 +1056,13 @@ fn validate_enum(entry: &ModuleEntry, declaration: &Declaration, enumeration: &E
         }
         if let Some(previous) = values.insert(value, variant.span.clone()) {
             return Err(ResolutionError {
-                diagnostics: vec![
-                    Diagnostic::new(
-                        "EIDL046",
-                        format!("enum {} variant {} repeats discriminant {value}", declaration.name, variant.name),
-                    )
-                    .with_sources(&entry.module.sources)
-                    .primary(&variant.span, "duplicate discriminant")
-                    .secondary(&previous, "discriminant first assigned here"),
-                ],
+                diagnostics: vec![Diagnostic::new(
+                    "EIDL046",
+                    format!("enum {} variant {} repeats discriminant {value}", declaration.name, variant.name),
+                )
+                .with_sources(&entry.module.sources)
+                .primary(&variant.span, "duplicate discriminant")
+                .secondary(&previous, "discriminant first assigned here")],
             });
         }
         if enumeration.dense && value != ordinal as i128 {
@@ -1121,12 +1123,10 @@ fn validate_interface_bases(index: usize, interface: &crate::Interface, entries:
         }
         if let Some(previous) = identities.insert((symbol.module, symbol.id), base.span.clone()) {
             return Err(ResolutionError {
-                diagnostics: vec![
-                    Diagnostic::new("EIDL051", format!("{owner} repeats interface {}", base.rust_path()))
-                        .with_sources(&entries[index].module.sources)
-                        .primary(&base.span, "repeated base interface")
-                        .secondary(&previous, "base first listed here"),
-                ],
+                diagnostics: vec![Diagnostic::new("EIDL051", format!("{owner} repeats interface {}", base.rust_path()))
+                    .with_sources(&entries[index].module.sources)
+                    .primary(&base.span, "repeated base interface")
+                    .secondary(&previous, "base first listed here")],
             });
         }
     }
@@ -1209,13 +1209,13 @@ fn validate_field_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], cont
                 )),
             }
         }
-        AbiType::Array { element, .. } | AbiType::Option(element) | AbiType::Slice(element) => validate_field_type(index, element, entries, context, span),
-        AbiType::Borrowed(_) | AbiType::OutputSlice(_) => Err(source_error(
+        AbiType::Array { element, .. } | AbiType::Option(element) | AbiType::Vector(element) => validate_field_type(index, element, entries, context, span),
+        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::UnsizedSlice(_) | AbiType::OutputSlice(_) => Err(source_error(
             &entries[index].module,
             "EIDL060",
             span,
             format!("{context} requires an owned field"),
-            "use a sequence for indirect ownership; borrowed fields cannot escape a call",
+            "use Vec<T> for indirect ownership; borrowed fields cannot escape a call",
         )),
     }
 }
@@ -1278,10 +1278,10 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
                     _ => V::Object(name),
                 }
             }
-            AbiType::Slice(value) => V::Sequence(Box::new(field(index, value, entries)?)),
+            AbiType::Vector(value) => V::Sequence(Box::new(field(index, value, entries)?)),
             AbiType::Array { element, len } => V::Array(Box::new(field(index, element, entries)?), *len),
             AbiType::Option(value) => V::Optional(Box::new(field(index, value, entries)?)),
-            AbiType::Borrowed(_) | AbiType::OutputSlice(_) => V::Unit,
+            AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) | AbiType::UnsizedSlice(_) => V::Unit,
         })
     }
     let mut graph = crate::ValueGraph::default();
@@ -1341,7 +1341,7 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
         }
     }
     match ty {
-        AbiType::ComPtr(_) | AbiType::Unit | AbiType::String => Err(source_error(
+        AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => Err(source_error(
             &entries[index].module,
             "EIDL061",
             span,
@@ -1424,7 +1424,14 @@ fn validate_output_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], con
             format!("{context}: return ComPtr<INcString> for an owned COM string"),
             "owned String values cannot escape a call-scoped wire guard",
         )),
-        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) => Err(source_error(
+        AbiType::Vector(_) => Err(source_error(
+            &entries[index].module,
+            "EIDL062",
+            span,
+            format!("{context} cannot transfer an owned collection through a call-scoped wire guard"),
+            "use an explicit COM collection contract or a caller-owned output buffer",
+        )),
+        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) | AbiType::UnsizedSlice(_) => Err(source_error(
             &entries[index].module,
             "EIDL062",
             span,
@@ -1732,6 +1739,14 @@ fn encode_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], encoder: &mu
             encoder.tag(9);
             encode_type(index, target, entries, encoder)?;
         }
+        AbiType::Vector(element) => {
+            encoder.tag(10);
+            encode_type(index, element, entries, encoder)?;
+        }
+        AbiType::UnsizedSlice(element) => {
+            encoder.tag(11);
+            encode_type(index, element, entries, encoder)?;
+        }
         AbiType::OutputSlice(element) => {
             encoder.tag(8);
             encode_type(index, element, entries, encoder)?;
@@ -1873,6 +1888,9 @@ pub(crate) fn is_reserved_name(name: &str) -> bool {
             | "INcBytes"
             | "INcString"
             | "ComPtr"
+            | "Vec"
+            | "Slice"
+            | "Array"
             | "str"
             | "String"
             | "Option"
@@ -1891,6 +1909,8 @@ fn type_span(ty: &AbiType) -> Option<&SourceSpan> {
         AbiType::Named(name) => Some(&name.span),
         AbiType::ComPtr(value)
         | AbiType::Borrowed(value)
+        | AbiType::Vector(value)
+        | AbiType::UnsizedSlice(value)
         | AbiType::Slice(value)
         | AbiType::OutputSlice(value)
         | AbiType::Option(value)
@@ -1919,16 +1939,14 @@ fn kind_mismatch_error(
     let definition = &entries[symbol.module].module.declarations[symbol.declaration];
     let sources = combined_sources(entries[owner].module.sources.clone(), &entries[symbol.module].module.sources);
     ResolutionError {
-        diagnostics: vec![
-            Diagnostic::new("EIDL060", message)
-                .with_sources(&sources)
-                .primary(span, label)
-                .secondary(
-                    &definition.span,
-                    format!("{} {:?} is declared here", symbol.kind.description(), definition.name),
-                )
-                .note(help),
-        ],
+        diagnostics: vec![Diagnostic::new("EIDL060", message)
+            .with_sources(&sources)
+            .primary(span, label)
+            .secondary(
+                &definition.span,
+                format!("{} {:?} is declared here", symbol.kind.description(), definition.name),
+            )
+            .note(help)],
     }
 }
 

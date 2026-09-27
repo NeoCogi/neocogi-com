@@ -12,7 +12,7 @@ fn unsupported_deserialization_reports_the_missing_field_operation() {
             "object reconstruction contract",
         ),
         (
-            "#[version(1)] #[deserialize] struct Snapshot { tokens: &[Option<ComPtr<IToken>>] }",
+            "#[version(1)] #[deserialize] struct Snapshot { tokens: Vec<Option<ComPtr<IToken>>> }",
             "object reconstruction contract",
         ),
         (
@@ -24,7 +24,7 @@ fn unsupported_deserialization_reports_the_missing_field_operation() {
             "object reconstruction contract",
         ),
         (
-            "#[version(1)] #[deserialize] struct Node<T> { children: &[Node<T>], value: T } #[version(1)] struct Snapshot { data: Node<ComPtr<IToken>> }",
+            "#[version(1)] #[deserialize] struct Node<T> { children: Vec<Node<T>>, value: T } #[version(1)] struct Snapshot { data: Node<ComPtr<IToken>> }",
             "object reconstruction contract",
         ),
         (
@@ -75,23 +75,21 @@ fn transport_and_local_deserialization_are_separate_capabilities() {
 #[test]
 fn accepted_generic_deserializers_compile_and_reconstruct_values() {
     let source = r#"
-        #[version(1)] #[deserialize] struct Node<T> { value: T, children: &[Node<T>] }
+        #[version(1)] #[deserialize] struct Node<T> { value: T, children: Vec<Node<T>> }
         #[version(1)] #[deserialize] struct Flags { enabled: bool }
         #[version(1)] #[deserialize(sequence)] struct Pair<T> { first: T, second: T }
         #[version(1)] #[deserialize] struct Snapshot {
-            root: Node<String>, optional: Option<Flags>, mask: [bool; 3], pair: Pair<u32>, units: &[()],
+            root: Node<String>, optional: Option<Flags>, mask: [bool; 3], pair: Pair<u32>, units: Vec<()>,
         }
         #[version(1)] #[deserialize(default)] struct Config { enabled: bool }
     "#;
     let module = parse_module(Path::new("proof/operations.ncidl"), source).unwrap();
     let graph = resolve_modules(vec![module]).unwrap();
-    assert!(
-        graph
-            .values
-            .definitions
-            .values()
-            .all(|value| value.deserialization == neocogi_idl::Deserialization::Supported)
-    );
+    assert!(graph
+        .values
+        .definitions
+        .values()
+        .all(|value| value.deserialization == neocogi_idl::Deserialization::Supported));
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();

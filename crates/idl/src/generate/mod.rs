@@ -330,6 +330,8 @@ fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, dec
             }
             AbiType::ComPtr(value)
             | AbiType::Borrowed(value)
+            | AbiType::Vector(value)
+            | AbiType::UnsizedSlice(value)
             | AbiType::Slice(value)
             | AbiType::OutputSlice(value)
             | AbiType::Array { element: value, .. }
@@ -799,7 +801,9 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
             },
             _ => Err(GenerateError::new("optional inputs require a borrowed interface")),
         },
-        AbiType::ComPtr(_) | AbiType::Unit | AbiType::String => Err(GenerateError::new("unit and owned String are not valid method inputs")),
+        AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => {
+            Err(GenerateError::new("unit and owned String are not valid method inputs"))
+        }
     }
 }
 

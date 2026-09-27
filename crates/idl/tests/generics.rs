@@ -200,7 +200,7 @@ fn generic_values_reject_invalid_closed_layout_and_ownership() {
         "#[version(1)] struct Loop<T> { child: Option<Loop<T>> } #[version(1)] struct Bad { value: Loop<u32> }",
         "#[version(1)] struct Boxed<T> { value: T } #[version(1)] struct Bad { value: Boxed }",
         "#[version(1)] enum Choice<T> { Value(T) } #[version(1)] struct Bad { value: Choice<u32, bool> }",
-        "#[version(1)] struct Grow<T> { children: &[Grow<Option<T>>] } #[version(1)] struct Bad { value: Grow<u32> }",
+        "#[version(1)] struct Grow<T> { children: Vec<Grow<Option<T>>> } #[version(1)] struct Bad { value: Grow<u32> }",
         "#[version(1)] struct Marker<T> { value: u32 } #[version(1)] struct Bad { value: Marker<ComPtr<u32>> }",
         "#[version(1)] struct Boxed<T> { value: T } #[version(1)] interface IBad { fn get(&self) -> Result<Boxed<String>>; }",
     ] {
@@ -223,7 +223,7 @@ fn generic_values_compile_cross_module_calls_and_event_adapters() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
     let template_source = r#"
         #[version(1)] struct Pair<T> { first: T, second: T }
-        #[version(1)] struct Node<T> { value: T, children: &[Node<T>] }
+        #[version(1)] struct Node<T> { value: T, children: Vec<Node<T>> }
         #[version(1)] enum Change<T>: u8 { Set(T), Clear }
         #[version(1)] struct Handle<I> { object: ComPtr<I> }
         #[version(1)] interface IExchange<T> { fn roundtrip(&self, value: T) -> Result<T>; }

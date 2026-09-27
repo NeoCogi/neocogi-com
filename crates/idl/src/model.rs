@@ -316,6 +316,16 @@ pub enum AbiType {
         /// Borrowed referent type.
         Box<AbiType>,
     ),
+    /// An explicitly owned variable-length sequence; generated Rust stores a Vec.
+    Vector(
+        /// Recursively owned element type, never an implicit borrowed field.
+        Box<AbiType>,
+    ),
+    /// An unsized sequence referent, valid through a call-scoped borrow only.
+    UnsizedSlice(
+        /// Element type before a borrow selects readable or writable passing.
+        Box<AbiType>,
+    ),
     /// A borrowed contiguous sequence.
     Slice(
         /// ABI-safe sequence element type.
@@ -359,6 +369,8 @@ impl AbiType {
             Self::Named(name) => name.rust_path(),
             Self::ComPtr(value) => format!("ComPtr<{}>", value.source_name()),
             Self::Borrowed(value) => format!("&{}", value.source_name()),
+            Self::Vector(value) => format!("Vec<{}>", value.source_name()),
+            Self::UnsizedSlice(value) => format!("[{}]", value.source_name()),
             Self::Slice(value) => format!("&[{}]", value.source_name()),
             Self::OutputSlice(value) => format!("&mut [{}]", value.source_name()),
             Self::Array { element, len } => format!("[{}; {}]", element.source_name(), len),

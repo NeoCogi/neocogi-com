@@ -14,12 +14,12 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
         #[version(1)] struct TextEnvelope { changed: TextChanged }
         #[version(1)] enum Completion { Accepted { token: ComPtr<IToken> }, Cancelled }
         #[version(1)] enum Notice { Ready, Done }
-        #[version(1)] struct Batch { values: &[u32] }
-        #[version(1)] struct BoolBatch { flags: &[bool] }
+        #[version(1)] struct Batch { values: Vec<u32> }
+        #[version(1)] struct BoolBatch { flags: Vec<bool> }
         #[version(1)] struct TextPair { left: String, right: String }
-        #[version(1)] struct Tree { enabled: bool, children: &[Tree] }
+        #[version(1)] struct Tree { enabled: bool, children: Vec<Tree> }
         #[version(1)] struct Shapes { optional: Option<NumberChanged>, flags: [bool; 3] }
-        #[version(1)] struct NestedBatch { values: &[NumberChanged] }
+        #[version(1)] struct NestedBatch { values: Vec<NumberChanged> }
         #[version(1)] interface IValidate {
             fn tree(&mut self, value: &Tree) -> Result<()>;
             fn shapes(&mut self, value: &Shapes) -> Result<()>;
@@ -154,8 +154,8 @@ fn nested_message_layouts_reject_inline_cycles() {
 fn nested_records_and_aggregate_sequences_resolve_uniformly() {
     let source = r#"
         #[version(1)] struct Inner { checked: bool }
-        #[version(1)] struct Outer { nested: Inner, values: &[Inner], option: Option<Inner> }
-        #[version(1)] struct Tree { children: &[Tree] }
+        #[version(1)] struct Outer { nested: Inner, values: Vec<Inner>, option: Option<Inner> }
+        #[version(1)] struct Tree { children: Vec<Tree> }
         #[version(1)] interface IUse { fn accept(&self, value: &Outer) -> Result<()>; }
     "#;
     let graph = resolve_modules(vec![parse_module(Path::new("example/values.ncidl"), source).unwrap()]).unwrap();
@@ -168,11 +168,9 @@ fn nested_records_and_aggregate_sequences_resolve_uniformly() {
 #[test]
 fn optional_cycles_and_removed_message_annotation_are_rejected() {
     let source = "#[version(1)] struct StillInvalid { child: Option<StillInvalid> }";
-    assert!(
-        resolve_modules(vec![parse_module(Path::new("example/values.ncidl"), source).unwrap()])
-            .unwrap_err()
-            .to_string()
-            .contains("recursive copied-value layout")
-    );
+    assert!(resolve_modules(vec![parse_module(Path::new("example/values.ncidl"), source).unwrap()])
+        .unwrap_err()
+        .to_string()
+        .contains("recursive copied-value layout"));
     assert!(parse_module(Path::new("example/values.ncidl"), "#[version(1)] #[message] struct Gone { value: bool }").is_err());
 }

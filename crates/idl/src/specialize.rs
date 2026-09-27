@@ -174,6 +174,8 @@ impl Expansion {
             }
             AbiType::ComPtr(value)
             | AbiType::Borrowed(value)
+            | AbiType::Vector(value)
+            | AbiType::UnsizedSlice(value)
             | AbiType::Slice(value)
             | AbiType::OutputSlice(value)
             | AbiType::Option(value)
@@ -181,6 +183,12 @@ impl Expansion {
                 self.normalize_type(owner, value, substitutions)?;
             }
             AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
+        }
+        // A generic T may close to Slice<U>; normalize &T just like &[U].
+        if let AbiType::Borrowed(value) = ty {
+            if let AbiType::UnsizedSlice(element) = value.as_ref() {
+                *ty = AbiType::Slice(element.clone());
+            }
         }
         Ok(())
     }
@@ -207,6 +215,8 @@ impl Expansion {
             }
             AbiType::ComPtr(value)
             | AbiType::Borrowed(value)
+            | AbiType::Vector(value)
+            | AbiType::UnsizedSlice(value)
             | AbiType::Slice(value)
             | AbiType::OutputSlice(value)
             | AbiType::Option(value)
@@ -326,6 +336,8 @@ impl Expansion {
             }
             AbiType::ComPtr(value)
             | AbiType::Borrowed(value)
+            | AbiType::Vector(value)
+            | AbiType::UnsizedSlice(value)
             | AbiType::Slice(value)
             | AbiType::OutputSlice(value)
             | AbiType::Option(value)
@@ -333,6 +345,8 @@ impl Expansion {
                 bytes.extend_from_slice(match ty {
                     AbiType::ComPtr(_) => b"com_ptr",
                     AbiType::Borrowed(_) => b"borrow",
+                    AbiType::Vector(_) => b"vector",
+                    AbiType::UnsizedSlice(_) => b"unsized_slice",
                     AbiType::Slice(_) => b"slice",
                     AbiType::OutputSlice(_) => b"output",
                     AbiType::Option(_) => b"option",
@@ -491,6 +505,8 @@ fn has_arguments(ty: &AbiType) -> bool {
         AbiType::Named(name) => !name.arguments.is_empty(),
         AbiType::ComPtr(value)
         | AbiType::Borrowed(value)
+        | AbiType::Vector(value)
+        | AbiType::UnsizedSlice(value)
         | AbiType::Slice(value)
         | AbiType::OutputSlice(value)
         | AbiType::Option(value)
@@ -549,6 +565,8 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &AbiType) -> Result<[u8; 3
         }
         AbiType::ComPtr(value)
         | AbiType::Borrowed(value)
+        | AbiType::Vector(value)
+        | AbiType::UnsizedSlice(value)
         | AbiType::Slice(value)
         | AbiType::OutputSlice(value)
         | AbiType::Option(value)
@@ -556,6 +574,8 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &AbiType) -> Result<[u8; 3
             bytes.extend_from_slice(match ty {
                 AbiType::ComPtr(_) => b"com_ptr",
                 AbiType::Borrowed(_) => b"borrow",
+                AbiType::Vector(_) => b"vector",
+                AbiType::UnsizedSlice(_) => b"unsized_slice",
                 AbiType::Slice(_) => b"slice",
                 AbiType::OutputSlice(_) => b"output",
                 AbiType::Option(_) => b"option",

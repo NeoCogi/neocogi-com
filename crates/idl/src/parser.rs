@@ -567,15 +567,16 @@ fn lower_type(source: &Type) -> syn::Result<AbiType> {
     match source {
         Type::Tuple(tuple) if tuple.elems.is_empty() => Ok(AbiType::Unit),
         Type::Path(path) if path.qself.is_none() => lower_path_type(&path.path),
-        Type::Reference(reference) if reference.lifetime.is_none() => match (reference.mutability.is_some(), reference.elem.as_ref()) {
-            (false, Type::Slice(slice)) => Ok(AbiType::Slice(Box::new(lower_type(&slice.elem)?))),
-            (true, Type::Slice(slice)) => Ok(AbiType::OutputSlice(Box::new(lower_type(&slice.elem)?))),
-            (false, referent) => Ok(AbiType::Borrowed(Box::new(lower_type(referent)?))),
-            (true, referent) => Err(syn::Error::new_spanned(
-                referent,
-                "IDL mutable borrows are output buffers and must use `&mut [T]`",
-            )),
-        },
+        Type::Reference(reference) if reference.lifetime.is_none() => {
+            // Bracket and intrinsic spellings normalize before ownership validation.
+            let referent = lower_type(&reference.elem)?;
+            match (reference.mutability.is_some(), referent) {
+                (false, AbiType::UnsizedSlice(element)) => Ok(AbiType::Slice(element)),
+                (true, AbiType::UnsizedSlice(element)) => Ok(AbiType::OutputSlice(element)),
+                (false, referent) => Ok(AbiType::Borrowed(Box::new(referent))),
+                (true, _) => Err(syn::Error::new_spanned(reference, "IDL mutable borrows must use `&mut [T]` or `&mut Slice<T>`")),
+            }
+        }
         Type::Array(array) => {
             let len = parse_unsigned_integer(&array.len)?;
             let len = u32::try_from(len).map_err(|_| syn::Error::new_spanned(&array.len, "IDL array length exceeds u32"))?;
@@ -584,7 +585,7 @@ fn lower_type(source: &Type) -> syn::Result<AbiType> {
                 len,
             })
         }
-        Type::Slice(slice) => Err(syn::Error::new_spanned(slice, "IDL slices must be borrowed as `&[T]`")),
+        Type::Slice(slice) => Ok(AbiType::UnsizedSlice(Box::new(lower_type(&slice.elem)?))),
         _ => Err(syn::Error::new_spanned(source, "unsupported IDL ABI type")),
     }
 }
@@ -609,7 +610,24 @@ fn lower_path_type(path: &syn::Path) -> syn::Result<AbiType> {
             }
             return Ok(AbiType::String);
         }
-        if name == "Option" || name == "ComPtr" {
+        if name == "Array" {
+            let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+                return Err(syn::Error::new_spanned(segment, "Array requires an element type and integer length"));
+            };
+            let arguments = arguments.args.iter().collect::<Vec<_>>();
+            let [GenericArgument::Type(element), GenericArgument::Const(length)] = arguments.as_slice() else {
+                return Err(syn::Error::new_spanned(
+                    segment,
+                    "Array requires Array<T, N> with a literal nonnegative u32 length",
+                ));
+            };
+            let len = u32::try_from(parse_unsigned_integer(length)?).map_err(|_| syn::Error::new_spanned(length, "IDL array length exceeds u32"))?;
+            return Ok(AbiType::Array {
+                element: Box::new(lower_type(element)?),
+                len,
+            });
+        }
+        if matches!(name.as_str(), "Option" | "ComPtr" | "Vec" | "Slice") {
             let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
                 return Err(syn::Error::new_spanned(segment, format!("IDL `{name}` requires one type argument")));
             };
@@ -621,6 +639,8 @@ fn lower_path_type(path: &syn::Path) -> syn::Result<AbiType> {
             };
             return Ok(match name.as_str() {
                 "ComPtr" => AbiType::ComPtr(Box::new(lower_type(value)?)),
+                "Vec" => AbiType::Vector(Box::new(lower_type(value)?)),
+                "Slice" => AbiType::UnsizedSlice(Box::new(lower_type(value)?)),
                 _ => AbiType::Option(Box::new(lower_type(value)?)),
             });
         }
@@ -933,6 +953,8 @@ fn attach_type_source(ty: &mut AbiType, source: &SourceFile) {
         }
         AbiType::ComPtr(value)
         | AbiType::Borrowed(value)
+        | AbiType::Vector(value)
+        | AbiType::UnsizedSlice(value)
         | AbiType::Slice(value)
         | AbiType::OutputSlice(value)
         | AbiType::Option(value)

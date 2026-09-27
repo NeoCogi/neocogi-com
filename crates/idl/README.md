@@ -139,9 +139,9 @@ wire storage through the call, and `to_owned()` validates and acquires retained
 contents. `#[message]` has been removed and is rejected.
 
 Scalar fields, records, enum payloads, fixed arrays, options, and sequences share
-one recursive codec. Sequence fields use `&[T]` in IDL and own `Vec<T>` in Rust;
+one recursive codec. Sequence fields use `Vec<T>` in both IDL and generated Rust;
 aggregate elements are supported. `Option<Self>` is an invalid inline cycle,
-while a `&[Self]` field provides explicit indirection. Booleans use checked bytes
+while a `Vec<Self>` field provides explicit indirection. Booleans use checked bytes
 even inside ordinary copied records, enum payloads, and method buffers.
 
 Copied method slots and buffer elements currently accept scalar-only finite

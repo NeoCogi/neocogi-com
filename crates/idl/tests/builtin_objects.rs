@@ -26,7 +26,7 @@ fn pointer_constructor_requires_a_closed_object_contract() {
     let prefix = "#[version(1)] interface IToken {} #[version(1)] struct Value { count: u32 } ";
     for body in [
         "#[version(1)] struct Snapshot { token: IToken }",
-        "#[version(1)] struct Snapshot { tokens: &[IToken] }",
+        "#[version(1)] struct Snapshot { tokens: Vec<IToken> }",
         "#[version(1)] struct Snapshot { token: Option<IToken> }",
         "#[version(1)] struct Snapshot { token: ComPtr<Value> }",
         "#[version(1)] struct Snapshot { token: ComPtr<u32> }",
@@ -38,7 +38,7 @@ fn pointer_constructor_requires_a_closed_object_contract() {
         assert!(!resolves(&format!("{prefix}{body}")), "must reject {body}");
     }
     assert!(resolves(&format!(
-        "{prefix} #[version(1)] struct Snapshot {{ tokens: &[ComPtr<IToken>], current: Option<ComPtr<IToken>> }}"
+        "{prefix} #[version(1)] struct Snapshot {{ tokens: Vec<ComPtr<IToken>>, current: Option<ComPtr<IToken>> }}"
     )));
     assert!(resolves("#[version(1)] interface IFactory { fn label(&self) -> Result<ComPtr<INcString>>; }"));
     for name in ["ComPtr", "INcString"] {

@@ -87,7 +87,7 @@ pub(super) fn owned_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &A
             _ => return Err(GenerateError::new("resolved ComPtr target is not a contract")),
         },
         AbiType::Named(name) => named_rust_type(graph, module, resolve(graph, module, name)?, false)?,
-        AbiType::Slice(value) => {
+        AbiType::Vector(value) => {
             let value = owned_type(graph, module, value)?;
             quote! { self::alloc::vec::Vec<#value> }
         }
