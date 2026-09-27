@@ -10,7 +10,7 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
 /// Imported messages generate typed access without pulling transport into the baseline ABI crate.
 #[test]
 fn imported_messages_use_closed_generic_streams() {
-    let message = module("example/messages.ncidl", "#[version(1)] #[message] struct Changed { value: u32 }");
+    let message = module("example/messages.ncidl", "#[version(1)] struct Changed { value: u32 }");
     let source = module(
         "example/source.ncidl",
         r#"
@@ -222,8 +222,8 @@ fn generated_interface_exposes_its_idl_event_and_nested_message_shape() {
         #[version(1)] struct Bounds { x: i32, y: i32 }
         #[version(1)] enum State: u8 { Idle = 0, Busy = 1 }
         #[version(1)] bitenum Flags: u8 { NONE = 0, READY = 1 }
-        #[version(1)] #[message] struct Changed { text: String }
-        #[version(1)] #[message] enum WidgetEvent: u8 {
+        #[version(1)] struct Changed { text: String }
+        #[version(1)] enum WidgetEvent: u8 {
             Changed(Changed),
             Submitted,
         }
@@ -236,10 +236,10 @@ fn generated_interface_exposes_its_idl_event_and_nested_message_shape() {
     let generated = neocogi_idl::generate_rust(&graph, "example.widget").unwrap();
     syn::parse_file(&generated).unwrap();
     assert!(generated.contains("pub const IDL_TYPE"));
-    assert!(generated.contains("pub const IDL_MESSAGE"));
+    assert!(generated.contains("pub const IDL_TYPE"));
     assert!(generated.contains("IdlShape::BitEnum"));
     assert!(generated.contains("pub const IDL_INTERFACE"));
-    assert!(generated.contains("message: &WidgetEvent::IDL_MESSAGE"));
+    assert!(generated.contains("message: &WidgetEvent::IDL_TYPE"));
     assert!(generated.contains(r#"name: "Changed""#));
     assert!(generated.contains(r#"name: "Submitted""#));
 }

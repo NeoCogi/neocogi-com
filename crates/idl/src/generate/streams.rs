@@ -156,8 +156,8 @@ fn sink(
         return Err(GenerateError::new("IMessageSink requires one declared message type"));
     };
     let resolved = resolve(graph, module, message)?;
-    if !resolved.declaration.message {
-        return Err(GenerateError::new("IMessageSink requires a #[message] struct or enum"));
+    if matches!(resolved.declaration.kind, DeclarationKind::Interface(_)) {
+        return Err(GenerateError::new("IMessageSink requires a declared value type"));
     }
     let message = named_rust_type(graph, module, resolved, false)?;
     let interface = rust_ident(&declaration.name)?;
@@ -169,7 +169,7 @@ fn sink(
             type Message = #message;
             /// Borrows producer-owned storage for this synchronous foreign call.
             fn post(mut destination: ::neocogi_com::ComRef<'_, Self>, message: &Self::Message) -> Result<(), ::neocogi_com::NcStatus> {
-                destination.post(::neocogi_com::NcMessage::new(message))
+                destination.post(::neocogi_com::NcValueRef::new(message)?)
             }
             /// Stores one typed application mapper inline in its COM receiver allocation.
             fn receiver<F: FnMut(Self::Message) -> Result<(), ::neocogi_com::NcStatus> + 'static>(consume: F) -> Result<::neocogi_com::ComPtr<Self>, ::neocogi_com::NcStatus> {
@@ -184,7 +184,7 @@ fn sink(
         }
         impl<F: FnMut(#message) -> Result<(), ::neocogi_com::NcStatus> + 'static> #interface for #adapter<F> {
             /// Validates and owns the snapshot before invoking the application mapper.
-            fn post(&mut self, message: ::neocogi_com::NcMessage<'_, #message>) -> Result<(), ::neocogi_com::NcStatus> {
+            fn post(&mut self, message: ::neocogi_com::NcValueRef<'_, #message>) -> Result<(), ::neocogi_com::NcStatus> {
                 // The foreign producer may release its storage as soon as this call returns.
                 (self.consume)(message.to_owned()?)
             }

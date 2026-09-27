@@ -20,7 +20,7 @@ fn templates() -> Module {
 
 /// An event lives independently of the modules that instantiate its stream.
 fn messages() -> Module {
-    module("test/messages.ncidl", "#[version(1)] #[message] enum Event { Changed(u32), Submitted }")
+    module("test/messages.ncidl", "#[version(1)] enum Event { Changed(u32), Submitted }")
 }
 
 /// Builds a concrete class with generic sibling interfaces and a constructor.
@@ -76,7 +76,7 @@ fn independent_consumers_share_specialization_identity_and_signature() {
 #[test]
 fn changing_argument_layout_changes_signature_but_not_nominal_identity() {
     let first = resolve_modules(vec![templates(), messages(), consumer("first", "")]).unwrap();
-    let changed = module("test/messages.ncidl", "#[version(1)] #[message] enum Event { Changed(u64), Submitted }");
+    let changed = module("test/messages.ncidl", "#[version(1)] enum Event { Changed(u64), Submitted }");
     let second = resolve_modules(vec![templates(), changed, consumer("first", "")]).unwrap();
     for ((_, left_id, left_sig), (_, right_id, right_sig)) in instances(&first, "test.first").into_iter().zip(instances(&second, "test.first")) {
         assert_eq!(left_id, right_id);

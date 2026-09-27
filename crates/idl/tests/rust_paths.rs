@@ -13,7 +13,7 @@ fn rust_locations_only_change_import_paths() {
         r#"
         #[version(1)] struct Value { number: u32 }
         #[version(1)] interface IBase { fn value(&self) -> Result<Value>; }
-        #[version(1)] #[message] struct Changed { value: u32 }
+        #[version(1)] struct Changed { value: u32 }
     "#,
     )
     .unwrap();

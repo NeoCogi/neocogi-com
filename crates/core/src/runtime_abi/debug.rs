@@ -79,7 +79,7 @@ impl NcDebugMessageV1 {
 /// The runtime supplies a non-null message pointer that remains valid only for
 /// this call. Callbacks may run concurrently on any thread and must not destroy
 /// a debug messenger.
-pub type NcDebugCallbackV1 = unsafe extern "C" fn(severity: u32, message_type: u32, message: *const NcDebugMessageV1, user_data: *mut c_void);
+pub type NcDebugCallbackV1 = unsafe extern "C" fn(severity: u32, value_type: u32, message: *const NcDebugMessageV1, user_data: *mut c_void);
 
 /// Configuration used to create one runtime debug messenger.
 #[repr(C)]
@@ -90,7 +90,7 @@ pub struct NcDebugMessengerCreateInfoV1 {
     /// Bitwise OR of `NC_DEBUG_SEVERITY_*` values.
     pub severity_mask: u32,
     /// Bitwise OR of `NC_DEBUG_TYPE_*` values.
-    pub message_type_mask: u32,
+    pub value_type_mask: u32,
     /// Callback invoked for matching diagnostics; null is invalid.
     pub callback: Option<NcDebugCallbackV1>,
     /// Opaque caller data passed to `callback`.

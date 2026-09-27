@@ -2,7 +2,7 @@
 
 An emitting concrete class requires the ordinary generic interface
 `IEventStream<Event>`. Its one `attach` method accepts `IMessageSink<Event>`.
-The complete event type is a concrete IDL `#[message]` struct or enum; an enum
+The complete event type is a concrete IDL struct or enum; an enum
 represents several event kinds without creating several ports.
 
 ```text

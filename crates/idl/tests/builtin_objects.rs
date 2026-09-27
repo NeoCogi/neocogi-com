@@ -15,7 +15,7 @@ fn builtins_accept_explicit_object_ownership() {
         "#[version(1)] interface IFactory { fn load(&self, bytes: &INcBytes, owner: &IUnknown, kind: Guid) -> Result<IUnknown>; fn save(&self) -> Result<INcBytes>; }"
     ));
     assert!(!resolves("#[version(1)] interface IWrong { fn take(&self, value: IUnknown) -> Result<()>; }"));
-    assert!(!resolves("#[version(1)] struct Wrong { value: INcBytes }"));
+    assert!(resolves("#[version(1)] struct Owned { value: INcBytes }"));
     assert!(!resolves("#[version(1)] interface IUnknown {}"));
     assert!(!resolves("#[version(1)] interface INcBytes {}"));
 }

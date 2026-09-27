@@ -393,19 +393,8 @@ pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn com_value(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as StructArgs);
     let input = parse_macro_input!(item as syn::DeriveInput);
-    let nc = crate::util::runtime_crate_path(args.runtime_crate.as_ref());
-    let Some(signature) = args.assigned_signature else {
-        return syn::Error::new_spanned(&input, "com_value requires an IDL assigned_signature").to_compile_error().into();
-    };
-    let cases = match &input.data {
-        syn::Data::Struct(record) => vec![value::ValueCase { variant: None, tag: quote::quote! { 0 }, fields: record.fields.clone() }],
-        syn::Data::Enum(enumeration) => enumeration.variants.iter().enumerate().map(|(index, variant)| {
-            let tag = variant.discriminant.as_ref().map(|(_, tag)| quote::quote! { #tag }).unwrap_or_else(|| { let index = index as i64; quote::quote! { #index } });
-            value::ValueCase { variant: Some(variant.ident.clone()), tag, fields: variant.fields.clone() }
-        }).collect(),
-        syn::Data::Union(_) => return syn::Error::new_spanned(&input, "unions require an explicit enum tag").to_compile_error().into(),
-    };
-    let signature = quote::quote! { #nc::NcAbiSignature::from_static(#signature) };
-    let codec = value::expand(&input.ident, &input.vis, &cases, signature, false, &nc);
-    quote::quote! { #input #codec }.into()
+    match value::expand_owned(args, input) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.to_compile_error().into(),
+    }
 }

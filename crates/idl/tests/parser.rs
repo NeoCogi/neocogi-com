@@ -138,13 +138,13 @@ fn parses_message_stream_as_an_ordinary_class_base() {
     let module = parse_module(
         Path::new("example/events.ncidl"),
         r#"
-        #[version(1)] #[message] enum Changed { Edited(String), Submitted }
+        #[version(1)] enum Changed { Edited(String), Submitted }
         #[version(1)] interface IStream<T> {}
         #[version(1)] class Editor: IStream<Changed> { fn revision(&self) -> Result<u64>; }
     "#,
     )
     .unwrap();
-    assert!(module.declaration("Changed").unwrap().message);
+    assert!(matches!(module.declaration("Changed").unwrap().kind, DeclarationKind::Enum(_)));
     let DeclarationKind::Interface(editor) = &module.declaration("Editor").unwrap().kind else {
         panic!("class")
     };
@@ -169,7 +169,7 @@ fn rejects_obsolete_protocols_and_ambiguous_outputs() {
         "#[version(1)] interface ISource { port changed: Changed; }",
         "#[version(1)] interface ISource { event subscribe(&self): Changed; }",
         "#[version(1)] #[message] interface Wrong {}",
-        "#[version(1)] #[message] #[message] struct Wrong { value: u32 }",
+        "#[version(1)] #[message] struct Wrong { value: u32 }",
     ] {
         assert!(parse_module(Path::new("example/events.ncidl"), source).is_err(), "{source}");
     }

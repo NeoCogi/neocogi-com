@@ -4,12 +4,12 @@
 //! the receiving queue and supplies an adapter that maps E into its own message.
 //! A stream never retains the parent's Rust model or allows receiver replacement.
 
-use crate::{ComInterface, ComMessage, ComPtr, ComRef, NcStatus, ThreadLocal, NC_E_ALREADY_BOUND, NC_E_CLOSED};
+use crate::{ComInterface, ComValue, ComPtr, ComRef, NcStatus, ThreadLocal, NC_E_ALREADY_BOUND, NC_E_CLOSED};
 
 /// Operations supplied by a closed IDL `IMessageSink<T>` specialization.
 pub trait MessageSinkInterface: ComInterface<Threading = ThreadLocal> + Sized + 'static {
     /// The concrete owned value acquired before the foreign call returns.
-    type Message: ComMessage + 'static;
+    type Message: ComValue + 'static;
     /// Posts one borrowed value through the specialization's checked ABI.
     fn post(destination: ComRef<'_, Self>, message: &Self::Message) -> Result<(), NcStatus>;
     /// Allocates an application-local receiver holding only this typed callback.

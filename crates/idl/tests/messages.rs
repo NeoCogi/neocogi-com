@@ -9,17 +9,25 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
     let source = r#"
         extern neocogi.com.events; use neocogi.com.events::IEventStream;
         #[version(1)] interface IToken { fn value(&self) -> Result<u32>; }
-        #[version(1)] #[message] struct NumberChanged { value: f32, checked: bool }
-        #[version(1)] #[message] struct TextChanged { text: String, cursor: u64 }
-        #[version(1)] #[message] struct TextEnvelope { changed: TextChanged }
-        #[version(1)] #[message] enum Completion { Accepted { token: IToken }, Cancelled }
-        #[version(1)] #[message] enum Notice { Ready, Done }
-        #[version(1)] #[message] struct Batch { values: &[u32] }
-        #[version(1)] #[message] struct BoolBatch { flags: &[bool] }
-        #[version(1)] #[message] struct TextPair { left: String, right: String }
+        #[version(1)] struct NumberChanged { value: f32, checked: bool }
+        #[version(1)] struct TextChanged { text: String, cursor: u64 }
+        #[version(1)] struct TextEnvelope { changed: TextChanged }
+        #[version(1)] enum Completion { Accepted { token: IToken }, Cancelled }
+        #[version(1)] enum Notice { Ready, Done }
+        #[version(1)] struct Batch { values: &[u32] }
+        #[version(1)] struct BoolBatch { flags: &[bool] }
+        #[version(1)] struct TextPair { left: String, right: String }
+        #[version(1)] struct Tree { enabled: bool, children: &[Tree] }
+        #[version(1)] struct Shapes { optional: Option<NumberChanged>, flags: [bool; 3] }
+        #[version(1)] struct NestedBatch { values: &[NumberChanged] }
+        #[version(1)] interface IValidate {
+            fn tree(&mut self, value: &Tree) -> Result<()>;
+            fn shapes(&mut self, value: &Shapes) -> Result<()>;
+            fn batch(&mut self, value: &NestedBatch) -> Result<()>;
+        }
         #[version(1)] class IProducer: IEventStream<Completion> { fn emit(&mut self) -> Result<()>; }
         #[version(1)] interface IMessageInput { fn accept(&mut self, value: &Completion) -> Result<()>; }
-        #[version(1)] #[message] enum EditorEvent {
+        #[version(1)] enum EditorEvent {
             /// Captured edit, before any completion from the same input.
             Changed(TextChanged),
             /// Captured completion through the same stream identity.
@@ -108,7 +116,7 @@ fn removed_observer_syntax_is_rejected() {
         "#[version(1)] #[observer] interface Editor { changed: TextChanged; } #[version(1)] interface EditorObserver {}",
         "#[version(1)] interface EditorObserver {} #[version(1)] #[observer] interface Editor { changed: TextChanged; }",
     ] {
-        let source = format!("#[version(1)] #[message] struct TextChanged {{ text: String }} {invalid}");
+        let source = format!("#[version(1)] struct TextChanged {{ text: String }} {invalid}");
         assert!(parse_module(Path::new("example/observers.ncidl"), &source).is_err(), "{invalid}");
     }
 }
@@ -117,11 +125,10 @@ fn removed_observer_syntax_is_rejected() {
 #[test]
 fn owned_message_fields_do_not_weaken_plain_abi_rules() {
     for use_site in [
-        "#[version(1)] struct Copied { value: TextChanged }",
         "#[version(1)] interface IWrong { fn take(&self, value: TextChanged) -> Result<()>; }",
         "#[version(1)] interface IWrong { fn get(&self) -> Result<TextChanged>; }",
     ] {
-        let source = format!("#[version(1)] #[message] struct TextChanged {{ text: String }} {use_site}");
+        let source = format!("#[version(1)] struct TextChanged {{ text: String }} {use_site}");
         let module = parse_module(Path::new("example/messages.ncidl"), &source).unwrap();
         assert!(resolve_modules(vec![module]).is_err(), "{use_site}");
     }
@@ -132,8 +139,8 @@ fn owned_message_fields_do_not_weaken_plain_abi_rules() {
 #[test]
 fn nested_message_layouts_reject_inline_cycles() {
     for source in [
-        "#[version(1)] #[message] struct Loop { value: Loop }",
-        "#[version(1)] #[message] struct First { next: Second } #[version(1)] #[message] struct Second { next: First }",
+        "#[version(1)] struct Loop { value: Loop }",
+        "#[version(1)] struct First { next: Second } #[version(1)] struct Second { next: First }",
     ] {
         let error = resolve_modules(vec![parse_module(Path::new("example/messages.ncidl"), source).unwrap()])
             .unwrap_err()
@@ -142,30 +149,25 @@ fn nested_message_layouts_reject_inline_cycles() {
     }
 }
 
-/// A nested message cannot silently acquire ordinary copied-aggregate semantics,
-/// even if its current innermost payload happens to be copyable.
+/// All ordinary aggregate fields participate in recursive conversion without annotations.
 #[test]
-fn nested_messages_stay_out_of_plain_value_fields() {
+fn nested_records_and_aggregate_sequences_resolve_uniformly() {
     let source = r#"
-        #[version(1)] #[message] struct Inner { value: u32 }
-        #[version(1)] #[message] struct Outer { nested: Inner }
-        #[version(1)] struct Copied { value: Outer }
+        #[version(1)] struct Inner { checked: bool }
+        #[version(1)] struct Outer { nested: Inner, values: &[Inner], option: Option<Inner> }
+        #[version(1)] struct Tree { children: &[Tree] }
+        #[version(1)] interface IUse { fn accept(&self, value: &Outer) -> Result<()>; }
     "#;
-    let error = resolve_modules(vec![parse_module(Path::new("example/messages.ncidl"), source).unwrap()])
-        .unwrap_err()
-        .to_string();
-    assert!(error.contains("cannot embed a message"), "{error}");
+    let graph = resolve_modules(vec![parse_module(Path::new("example/values.ncidl"), source).unwrap()]).unwrap();
+    assert!(graph.values.definitions["example.values.Inner"].copied);
+    assert!(!graph.values.definitions["example.values.Outer"].copied);
+    assert!(neocogi_idl::generate_rust(&graph, "example.values").unwrap().contains("com_value"));
 }
 
-/// A message slice requires an element codec before a foreign buffer can be
-/// interpreted as initialized Rust values. Copied structs and enums have no
-/// generated checked element codec, even when their current fields look simple.
+/// Inline option recursion is just as infinite as an ordinary recursive field.
 #[test]
-fn message_slices_reject_unvalidated_aggregate_elements() {
-    for declaration in ["#[version(1)] struct Item { checked: bool }", "#[version(1)] enum Item { Ready, Waiting }"] {
-        let source = format!("{declaration} #[version(1)] #[message] struct Batch {{ values: &[Item] }}");
-        let module = parse_module(Path::new("example/invalid_slice.ncidl"), &source).unwrap();
-        let error = resolve_modules(vec![module]).unwrap_err().to_string();
-        assert!(error.contains("scalar message-slice element"), "{error}");
-    }
+fn optional_cycles_and_removed_message_annotation_are_rejected() {
+    let source = "#[version(1)] struct StillInvalid { child: Option<StillInvalid> }";
+    assert!(resolve_modules(vec![parse_module(Path::new("example/values.ncidl"), source).unwrap()]).unwrap_err().to_string().contains("recursive copied-value layout"));
+    assert!(parse_module(Path::new("example/values.ncidl"), "#[version(1)] #[message] struct Gone { value: bool }").is_err());
 }

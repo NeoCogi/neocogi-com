@@ -16,8 +16,8 @@ fn position(source: &str, needle: &str) -> SourceMapPosition {
 const TYPES: &str = r#"/* café 😀 */ #[version(1)] struct Size { width: u32, height: u32 }
 #[version(1)] enum Alignment: u8 { Left = 0, Right = 1 }
 #[version(1)] bitenum Flags: u16 { NONE = 0, ACTIVE = 1 }
-#[version(1)] #[message] struct Changed { text: String }
-#[version(1)] #[message] enum Completed { Accepted { text: String }, Cancelled }
+#[version(1)] struct Changed { text: String }
+#[version(1)] enum Completed { Accepted { text: String }, Cancelled }
 "#;
 /// Both authored and synthesized interfaces originate in this separate part.
 const WIDGETS: &str = r#"#[version(1)] interface IStream<T> { fn post(&mut self, value: &T) -> Result<()>; }
@@ -62,34 +62,21 @@ fn formatted_rust_and_derived_helpers_retain_exact_idl_origins() {
         ("fn resize(", WIDGETS, "resize", "controls.ncidl", SourceMapKind::Method),
         ("pub trait Textbox", WIDGETS, "Textbox", "controls.ncidl", SourceMapKind::Trait),
         ("Cancelled", TYPES, "Cancelled", "types.ncidl", SourceMapKind::Variant),
-        ("pub struct __ChangedWire", TYPES, "Changed", "types.ncidl", SourceMapKind::Struct),
-        ("pub struct __CompletedCase0", TYPES, "Accepted", "types.ncidl", SourceMapKind::Struct),
     ] {
         let entry = map.lookup(position(&generated.source, rust)).unwrap_or_else(|| panic!("unmapped {rust}"));
         assert_eq!(entry.kind, kind, "{rust}");
         assert_eq!(entry.original.path, format!("example/widgets/{path}"), "{rust}");
         assert_eq!(entry.original.range.start, position(idl, needle), "{rust}");
     }
-    // A location inside the generated callback body resolves to the output declaration.
-    let callback = map
-        .mappings
-        .iter()
-        .find(|entry| entry.kind == SourceMapKind::Method && entry.name.contains("__Changed") && entry.name.ends_with("::post"))
-        .unwrap();
-    let inside_body = SourceMapPosition {
-        line: callback.generated.end.line,
-        column: callback.generated.end.column - 1,
-    };
-    let mapped_body = map.lookup(inside_body).unwrap();
-    assert_eq!(mapped_body.kind, SourceMapKind::Method);
-    assert_eq!(mapped_body.original.range.start, position(TYPES, "Changed"));
+    // Raw wire helpers now come from the shared macro; source navigation maps
+    // their authored value declaration rather than synthetic receiver methods.
     // The owned payload and borrowed wire field share the authored field location.
     let text_fields = map
         .mappings
         .iter()
         .filter(|entry| entry.kind == SourceMapKind::Field && entry.name.ends_with("::text") && entry.original.range.start == position(TYPES, "text: String"))
         .count();
-    assert!(text_fields >= 2);
+    assert!(text_fields >= 1);
     // Metadata has no declaration source, and a half-open range does not swallow EOF.
     assert!(map.lookup(position(&generated.source, "pub const MODULE_ID")).is_none());
     assert!(

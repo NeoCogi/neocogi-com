@@ -55,8 +55,6 @@ pub struct IdlType {
     pub rust_type: &'static str,
     /// Complete source-level struct, enum, or bit-enum shape.
     pub shape: IdlShape,
-    /// Whether this declaration is a postable `#[message]` payload.
-    pub message: bool,
 }
 
 /// One resolved typed stream, including its inherited COM projection.

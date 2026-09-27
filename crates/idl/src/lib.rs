@@ -61,3 +61,6 @@ pub use generate::{GenerateError, generate_rust, generate_rust_with_source_map};
 /// Generated Rust provenance independent of ABI identity and runtime metadata.
 pub mod source_map;
 pub use source_map::{GeneratedRust, RustSourceMap, SourceMapKind, SourceMapOrigin, SourceMapPosition, SourceMapRange, SourceMapping};
+
+mod values;
+pub use values::{ValueDefinition, ValueGraph, ValueType};

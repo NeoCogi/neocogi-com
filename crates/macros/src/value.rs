@@ -190,3 +190,66 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
         #inline_impl
     }
 }
+
+/// Parses owned declaration policy before sharing the ordinary field converter.
+pub(crate) fn expand_owned(args: crate::args::StructArgs, mut input: syn::DeriveInput) -> syn::Result<TokenStream> {
+    crate::util::validate_no_generics(&input.generics, "IDL values")?;
+    let nc = crate::util::runtime_crate_path(args.runtime_crate.as_ref());
+    let signature = args
+        .assigned_signature
+        .as_ref()
+        .ok_or_else(|| syn::Error::new_spanned(&input, "com_value requires an IDL assigned_signature"))?;
+    let deserialize = if args.deserialize {
+        match &input.data {
+            syn::Data::Struct(record) => {
+                crate::deserialize::expand_struct(&input.ident, &record.fields, &nc, args.deserialize_default, args.deserialize_sequence)?
+            }
+            _ => return Err(syn::Error::new_spanned(&input, "deserialize record policy requires a struct")),
+        }
+    } else {
+        quote! {}
+    };
+    let cases = match &mut input.data {
+        syn::Data::Struct(record) => vec![ValueCase {
+            variant: None,
+            tag: quote! { 0 },
+            fields: record.fields.clone(),
+        }],
+        syn::Data::Enum(enumeration) => enumeration
+            .variants
+            .iter_mut()
+            .enumerate()
+            .map(|(index, variant)| {
+                let explicit = variant
+                    .attrs
+                    .iter()
+                    .find(|attr| attr.path().is_ident("com_tag"))
+                    .map(|attr| attr.parse_args::<syn::Expr>())
+                    .transpose()?;
+                variant.attrs.retain(|attr| !attr.path().is_ident("com_tag"));
+                let tag = match explicit.or_else(|| variant.discriminant.as_ref().map(|(_, value)| value.clone())) {
+                    Some(tag) => quote! { #tag },
+                    None => {
+                        let index = index as i64;
+                        quote! { #index }
+                    }
+                };
+                Ok(ValueCase {
+                    variant: Some(variant.ident.clone()),
+                    tag,
+                    fields: variant.fields.clone(),
+                })
+            })
+            .collect::<syn::Result<Vec<_>>>()?,
+        syn::Data::Union(_) => return Err(syn::Error::new_spanned(&input, "unions require an explicit enum tag")),
+    };
+    let codec = expand(
+        &input.ident,
+        &input.vis,
+        &cases,
+        quote! { #nc::NcAbiSignature::from_static(#signature) },
+        false,
+        &nc,
+    );
+    Ok(quote! { #input #codec #deserialize })
+}

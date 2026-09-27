@@ -121,7 +121,7 @@ pub enum NcAbiPassing {
         mode: NcAbiThreadingMode,
     },
     /// Pointer to one concrete generated message record, borrowed for this call.
-    Message,
+    BorrowedValue,
     /// No success value is carried.
     Void,
     /// Plain value passed directly in the ABI signature.
@@ -257,7 +257,7 @@ pub const NC_ABI_PASSING_COM_REF: u32 = 0x05;
 /// C-stable passing tag for an owned COM pointer success out slot.
 pub const NC_ABI_PASSING_COM_PTR_OUT: u32 = 0x06;
 /// Call-scoped pointer to a concrete generated message representation.
-pub const NC_ABI_PASSING_MESSAGE: u32 = 0x07;
+pub const NC_ABI_PASSING_BORROWED_VALUE: u32 = 0x07;
 /// Nullable borrowed interface input; distinct from a required capability.
 pub const NC_ABI_PASSING_OPTIONAL_COM_REF: u32 = 0x08;
 
@@ -358,8 +358,8 @@ impl NcAbiPassingDescriptor {
                 tag: NC_ABI_PASSING_OPTIONAL_COM_REF,
                 threading: threading_descriptor(mode),
             },
-            NcAbiPassing::Message => Self {
-                tag: NC_ABI_PASSING_MESSAGE,
+            NcAbiPassing::BorrowedValue => Self {
+                tag: NC_ABI_PASSING_BORROWED_VALUE,
                 threading: NC_ABI_THREADING_THREAD_LOCAL,
             },
             NcAbiPassing::Void => Self {

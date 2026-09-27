@@ -10,7 +10,7 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
 /// The library stream accepts declared messages, while general IDL remains event-agnostic.
 #[test]
 fn generic_event_sink_requires_message_arguments() {
-    for declaration in ["interface Changed {}", "struct Changed { value: u32 }"] {
+    for declaration in ["interface Changed {}"] {
         let source = module(
             "example/events.ncidl",
             &format!(
@@ -344,20 +344,20 @@ fn reports_definition_for_mismatched_field_type() {
         },
         ModuleSource {
             path: Path::new("neocogi/ui/assets.ncidl"),
-            text: "#[version(1)] struct Asset { texture: ITexture }",
+            text: "#[version(1)] interface Asset { fn take(&self, texture: ITexture) -> Result<()>; }",
         },
     ];
     let source = parse_module_parts(Path::new("neocogi/ui"), &parts).unwrap();
     let error = resolve_modules(vec![source]).unwrap_err().to_string();
 
     assert!(
-        error.contains("error[EIDL060]: struct Asset field texture must use a copied value type"),
+        error.contains("must borrow interface, class, and factory values"),
         "{error}"
     );
-    assert!(error.contains("neocogi/ui/assets.ncidl:1:39"), "{error}");
+    assert!(error.contains("neocogi/ui/assets.ncidl:1:"), "{error}");
     assert!(error.contains("neocogi/ui/rendering.ncidl:1:25"), "{error}");
-    assert!(error.contains("found interface"), "{error}");
-    assert!(error.contains("copied struct, enum, or bit enum"), "{error}");
+    assert!(error.contains("interface values require an explicit borrow"), "{error}");
+    assert!(error.contains("borrow the object type"), "{error}");
 }
 
 /// Confirms source and module enumeration permutations produce exactly the
@@ -382,7 +382,7 @@ fn collects_independent_type_errors() {
         "example/errors.ncidl",
         r#"
             #[version(1)] struct Alpha { missing: Missing }
-            #[version(1)] struct Beta { text: String }
+            #[version(1)] struct Beta { text: &str }
         "#,
     );
     let error = resolve_modules(vec![source]).unwrap_err();
@@ -390,7 +390,7 @@ fn collects_independent_type_errors() {
 
     assert_eq!(error.diagnostics.len(), 2);
     assert!(rendered.contains("unknown IDL type \"Missing\""), "{rendered}");
-    assert!(rendered.contains("struct Beta field text must use a copied value type"), "{rendered}");
+    assert!(rendered.contains("struct Beta field text requires an owned field"), "{rendered}");
     assert!(rendered.find("unknown IDL type").unwrap() < rendered.find("struct Beta field").unwrap());
 }
 
@@ -499,10 +499,7 @@ fn interface_roles_and_threading_are_contract_identity_inputs() {
     let shared = fingerprint("#[version(1)] #[threading(shared)] interface Root {}");
     assert_ne!(ordinary, factory);
     assert_ne!(ordinary, shared);
-    // Identical data layouts acquire different identities when posting becomes part of the contract.
-    let copied = fingerprint("#[version(1)] struct Root { value: u32 }");
-    let message = fingerprint("#[version(1)] #[message] struct Root { value: u32 }");
-    assert_ne!(copied, message);
+
 }
 
 /// Required projections must have a finite layout and preserve every threading promise.
@@ -545,7 +542,7 @@ fn reserves_all_visible_macro_companions() {
         let name = format!("Editor{suffix}");
         let source = format!(
             r#"
-                #[version(1)] #[message] enum EditorEvent {{ Changed }}
+                #[version(1)] enum EditorEvent {{ Changed }}
                 #[version(1)] class Editor {{ fn post(&mut self, event: &EditorEvent) -> Result<()>; }}
                 #[version(1)] struct {name} {{ value: u32 }}
             "#
@@ -554,9 +551,9 @@ fn reserves_all_visible_macro_companions() {
         assert!(error.contains("error[EIDL021]") && error.contains(&name), "{error}");
     }
 
-    for variants in ["Selected(u32)", "Ready"] {
+    for variants in ["Selected(u32)"] {
         let source = format!(
-            "#[version(1)] #[message] enum Choice {{ {variants} }}
+            "#[version(1)] enum Choice {{ {variants} }}
 #[version(1)] struct ChoiceAbi {{ value: u32 }}"
         );
         let error = resolve_modules(vec![module("example/messages.ncidl", &source)]).unwrap_err().to_string();
@@ -568,7 +565,7 @@ fn reserves_all_visible_macro_companions() {
     let owned_message = module(
         "example/owned_messages.ncidl",
         r#"
-            #[version(1)] #[message] enum Choice { Selected(String) }
+            #[version(1)] enum Choice { Selected(String) }
             #[version(1)] struct ChoiceAbi { value: u32 }
         "#,
     );

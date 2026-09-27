@@ -298,12 +298,12 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         let value_ident = syn::Ident::new("__nc_dispatch_value", proc_macro2::Span::mixed_site());
         let params = method.args.iter().flat_map(|arg| raw_vtable_arg_params(arg));
         let arg_conversions = method.args.iter().filter_map(|arg| match &arg.kind {
-            AbiArgKind::Message { message_ty } => {
+            AbiArgKind::BorrowedValue { value_ty } => {
                 let ident = &arg.ident;
                 Some(quote! {
                     // SAFETY: the caller supplies this concrete message's C record
                     // and keeps its selected borrowed fields live for the call.
-                    let #ident = match unsafe { #nc::NcMessage::<#message_ty>::from_raw(#ident) } {
+                    let #ident = match unsafe { #nc::NcValueRef::<#value_ty>::from_raw(#ident) } {
                         Ok(message) => message,
                         Err(status) => return status,
                     };
@@ -911,8 +911,8 @@ fn method_return_descriptor(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::
 /// Maps an argument kind to its C-shaped passing descriptor.
 fn arg_passing_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_macro2::TokenStream {
     match &arg.kind {
-        AbiArgKind::Message { .. } => quote! {
-            #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::Message)
+        AbiArgKind::BorrowedValue { .. } => quote! {
+            #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::BorrowedValue)
         },
         AbiArgKind::Plain => quote! {
             #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::Value)
@@ -938,9 +938,9 @@ fn arg_passing_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_ma
 /// Maps an argument's source type to its canonical ABI type descriptor.
 fn arg_type_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_macro2::TokenStream {
     match &arg.kind {
-        AbiArgKind::Message { message_ty } => quote! {
+        AbiArgKind::BorrowedValue { value_ty } => quote! {
             #nc::NcAbiTypeDescriptor::from_abi_type(#nc::NcAbiType::Aggregate(
-                <#message_ty as #nc::ComMessage>::SIGNATURE
+                <#value_ty as #nc::ComValueType>::VALUE_SIGNATURE
             ))
         },
         AbiArgKind::Plain => {
@@ -1023,7 +1023,7 @@ fn method_return_const_ident(index: usize) -> syn::Ident {
 fn raw_vtable_arg_params(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.ident;
     match &arg.kind {
-        AbiArgKind::Plain | AbiArgKind::Message { .. } | AbiArgKind::ComRef { .. } => {
+        AbiArgKind::Plain | AbiArgKind::BorrowedValue { .. } | AbiArgKind::ComRef { .. } => {
             let ty = &arg.abi_ty;
             vec![quote! { #ident: #ty }]
         }
@@ -1063,7 +1063,7 @@ fn safe_arg_preparation(nc: &syn::Path, arg: &crate::model::AbiArg) -> Option<pr
             let slice = match &arg.kind { AbiArgKind::CopyToBufferOffset { .. } => quote! { #ident.as_mut_slice() }, _ => quote! { #ident.as_slice() } };
             Some(quote! { let mut #ident = #ident; let mut #wires = #nc::encode_value_buffer(#slice)?; })
         }
-        AbiArgKind::Message { .. } | AbiArgKind::ComRef { .. } => None,
+        AbiArgKind::BorrowedValue { .. } | AbiArgKind::ComRef { .. } => None,
     }
 }
 
@@ -1072,7 +1072,7 @@ fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
     let ident = &arg.ident;
     let wires = format_ident!("__nc_{}_wire_buffer", ident);
     match &arg.kind {
-        AbiArgKind::Message { .. } => vec![quote! { #ident.as_ptr() }],
+        AbiArgKind::BorrowedValue { .. } => vec![quote! { #ident.as_ptr() }],
         AbiArgKind::Plain => vec![quote! { #ident }],
         AbiArgKind::ComRef { optional: true, .. } => vec![quote! { #ident.map_or(::core::ptr::null_mut(), |value| value.as_mut_ptr()) }],
         AbiArgKind::ComRef { optional: false, .. } => vec![quote! { #ident.as_mut_ptr() }],
@@ -1117,7 +1117,7 @@ fn validate_generated_method_identifiers(methods: &[AbiMethod], errors: &mut Opt
             let arg_name = arg.ident.to_string();
             let fixed_collision = match arg_name.as_str() {
                 "this" => Some("the generated client receiver pointer"),
-                "object" if matches!(&arg.kind, AbiArgKind::Plain | AbiArgKind::Message { .. } | AbiArgKind::ComRef { .. }) => {
+                "object" if matches!(&arg.kind, AbiArgKind::Plain | AbiArgKind::BorrowedValue { .. } | AbiArgKind::ComRef { .. }) => {
                     Some("the generated ABI object back-pointer local")
                 }
                 "__nc_value" => Some("the generated Rust implementation pointer local"),
@@ -1162,7 +1162,7 @@ fn validate_generated_method_identifiers(methods: &[AbiMethod], errors: &mut Opt
 fn raw_parameter_names(arg: &crate::model::AbiArg) -> Vec<(String, bool)> {
     let ident = &arg.ident;
     match &arg.kind {
-        AbiArgKind::Plain | AbiArgKind::Message { .. } | AbiArgKind::ComRef { .. } => vec![(ident.to_string(), false)],
+        AbiArgKind::Plain | AbiArgKind::BorrowedValue { .. } | AbiArgKind::ComRef { .. } => vec![(ident.to_string(), false)],
         AbiArgKind::CopyFromBufferOffset { .. } | AbiArgKind::CopyToBufferOffset { .. } => vec![
             (buffer_offset_ident(ident).to_string(), true),
             (buffer_len_ident(ident).to_string(), true),

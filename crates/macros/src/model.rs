@@ -45,7 +45,7 @@ pub(crate) struct AbiArg {
 /// Ownership/passing rule selected for a method parameter.
 pub(crate) enum AbiArgKind {
     /// Concrete generated message borrowed through its own C record.
-    Message { message_ty: Box<Type> },
+    BorrowedValue { value_ty: Box<Type> },
     /// ABI-safe scalar or aggregate passed directly by value.
     Plain,
     /// Call-scoped source buffer lowered to a const element pointer plus bounds.

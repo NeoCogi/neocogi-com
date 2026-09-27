@@ -86,6 +86,8 @@ impl ResolvedModule {
 pub struct ResolvedModules {
     /// Modules retained in canonical logical-name and source-content order.
     modules: Vec<ResolvedModule>,
+    /// Canonical recursive data graph shared with generated conversion and inspection.
+    pub values: crate::ValueGraph,
 }
 
 /// Borrowed declaration selected through one already-validated type path.
@@ -187,6 +189,10 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
     let modules = crate::specialize::expand(modules)?;
     let mut entries = build_entries(modules)?;
     connect_externals_and_imports(&mut entries)?;
+    let values = resolve_value_graph(&entries)?;
+    for entry in &mut entries {
+        entry.copied_values = values.definitions.values().filter(|value| value.copied).map(|value| value.name.clone()).collect();
+    }
     let mut diagnostics = Vec::new();
     for index in 0..entries.len() {
         if let Err(error) = validate_module(index, &entries) {
@@ -251,7 +257,7 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
             }
         })
         .collect();
-    let mut graph = ResolvedModules { modules };
+    let mut graph = ResolvedModules { modules, values };
     let mut signatures = Vec::new();
     for (module_index, module) in graph.modules.iter().enumerate() {
         for (declaration_index, declaration) in module.source.declarations.iter().enumerate() {
@@ -263,11 +269,27 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
     for (module, declaration, signature) in signatures {
         graph.modules[module].declarations[declaration].abi_signature = signature;
     }
+    // Library adapters add constraints to their ordinary closed interfaces.
+    // Report unsupported instantiations at the IDL type argument, not generation.
+    for module in &graph.modules {
+        for declaration in &module.source.declarations {
+            if let Some(specialization) = &declaration.specialization {
+                if specialization.template.segments.join(".") == "neocogi.com.events.IMessageSink" {
+                    match specialization.arguments.as_slice() {
+                        [AbiType::Named(name)] if graph.resolve_declaration(&module.source.name.to_string(), name).is_some_and(|target| !matches!(target.declaration.kind, DeclarationKind::Interface(_))) => {},
+                        _ => return Err(source_error(&module.source, "EIDL060", &declaration.span, "IMessageSink requires a declared value type", "object capabilities are fields, not complete sink payload types")),
+                    }
+                }
+            }
+        }
+    }
     Ok(graph)
 }
 
 /// Internal graph node with precomputed declaration identities.
 struct ModuleEntry {
+    /// Cached copied-use-site facts from the authoritative resolved value graph.
+    copied_values: std::collections::BTreeSet<String>,
     /// Parsed source owned by this graph node.
     module: Module,
     /// Cached dotted name used for lookup and diagnostics.
@@ -419,6 +441,7 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
             });
         }
         entries.push(ModuleEntry {
+            copied_values: Default::default(),
             module,
             name,
             module_id,
@@ -544,7 +567,6 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
                     collect_diagnostics(
                         &mut diagnostics,
                         validate_field_type(
-                            declaration.message,
                             index,
                             &field.ty,
                             entries,
@@ -564,8 +586,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
                                 collect_diagnostics(
                                     &mut diagnostics,
                                     validate_field_type(
-                                        declaration.message,
-                                        index,
+                                                    index,
                                         field,
                                         entries,
                                         &format!("enum {} variant {} field {field_index}", declaration.name, variant.name),
@@ -579,8 +600,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
                                 collect_diagnostics(
                                     &mut diagnostics,
                                     validate_field_type(
-                                        declaration.message,
-                                        index,
+                                                    index,
                                         &field.ty,
                                         entries,
                                         &format!("enum {} variant {} field {}", declaration.name, variant.name, field.name),
@@ -618,36 +638,6 @@ fn interface_companions(name: &str, companions: &mut Vec<String>) {
     }
 }
 
-/// Reports whether a message field also has the ordinary copied-value Rust representation.
-///
-/// This mirrors the decision in `generate::message`: messages nested inside
-/// messages remain owned even when their current fields happen to be copyable.
-/// Unknown references are diagnosed elsewhere and cannot reach generation.
-fn copied_message_field(index: usize, ty: &AbiType, entries: &[ModuleEntry]) -> bool {
-    match ty {
-        AbiType::Scalar(_) => true,
-        AbiType::Named(name) => resolve_named(index, name, entries).is_ok_and(|symbol| {
-            let declaration = &entries[symbol.module].module.declarations[symbol.declaration];
-            !declaration.message
-                && matches!(
-                    declaration.kind,
-                    DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_)
-                )
-        }),
-        AbiType::Array { element, .. } => copied_message_field(index, element, entries),
-        AbiType::Option(_) | AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) | AbiType::Unit | AbiType::String => false,
-    }
-}
-
-/// Reports whether the message generator reuses the ordinary tagged enum macro.
-fn copied_message_enum(index: usize, enumeration: &Enum, entries: &[ModuleEntry]) -> bool {
-    enumeration.variants.iter().all(|variant| match &variant.fields {
-        VariantFields::Unit => true,
-        VariantFields::Tuple(fields) => fields.iter().all(|field| copied_message_field(index, field, entries)),
-        VariantFields::Named(fields) => fields.iter().all(|field| copied_message_field(index, &field.ty, entries)),
-    })
-}
-
 /// Reserves visible Rust companion types before generation, including imported names.
 ///
 /// Authored declarations and explicit imports already have unambiguous IDL lookup,
@@ -678,11 +668,8 @@ fn validate_generated_names(index: usize, entries: &[ModuleEntry]) -> Result<(),
                 interface_companions(&declaration.name, &mut companions);
             }
             DeclarationKind::Enum(enumeration)
-                if (declaration.message && copied_message_enum(index, enumeration, entries))
-                    || (!declaration.message && enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit))) =>
+                if entry.copied_values.contains(&entry.module.name.qualify(&declaration.name)) && enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit)) =>
             {
-                // `com_enum` also handles copyable message enums, including
-                // unit-only messages. Owned messages use private `__` helpers.
                 companions.push(format!("{}Abi", declaration.name));
                 companions.push(format!("{}Tag", declaration.name));
                 companions.push(format!("{}Payload", declaration.name));
@@ -1026,7 +1013,7 @@ fn validate_callables(index: usize, callables: &[Callable], entries: &[ModuleEnt
 }
 
 /// Visits message storage without synthesizing callback methods or delivery parameters.
-fn message_fields(declaration: &Declaration) -> Vec<&AbiType> {
+fn value_fields(declaration: &Declaration) -> Vec<&AbiType> {
     match &declaration.kind {
         DeclarationKind::Struct(record) => record.fields.iter().map(|field| &field.ty).collect(),
         DeclarationKind::Enum(enumeration) => enumeration
@@ -1042,96 +1029,75 @@ fn message_fields(declaration: &Declaration) -> Vec<&AbiType> {
     }
 }
 
-/// Message fields may recursively own messages, strings, and object references;
-/// ordinary records remain plain ABI data.
-fn validate_field_type(message: bool, index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
-    if message {
-        match ty {
-            AbiType::String => return Ok(()),
-            AbiType::Named(name) => {
-                // Message fields may hold other messages and object capabilities.
-                // Nested messages borrow their concrete wires; validate_layouts
-                // rejects inline cycles before generation.
-                resolve_named(index, name, entries)?;
-                return Ok(());
-            }
-            AbiType::Slice(element) => {
-                // Message slices are borrowed as raw contiguous elements before decoding.
-                // Only scalar wire layouts have a complete element codec here: booleans
-                // use byte storage and every other supported scalar accepts all bits.
-                // A copied struct or enum can contain invalid Rust bit patterns, so it
-                // must gain its own wire codec before it may occupy this position.
-                if !matches!(element.as_ref(), AbiType::Scalar(_)) {
-                    return Err(source_error(
-                        &entries[index].module,
-                        "EIDL060",
-                        span,
-                        format!("{context} requires a scalar message-slice element"),
-                        "aggregate and enum message slices have no checked element wire codec; use scalar elements or a separately declared message",
-                    ));
-                }
-                return validate_value_type(index, element, entries, context, span);
-            }
-            _ => {}
-        }
+/// Validates recursive field syntax independently from method ownership positions.
+fn validate_field_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+    match ty {
+        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Ok(()),
+        AbiType::Named(name) if builtin_object(name).is_some() => Ok(()),
+        AbiType::Named(name) => resolve_named(index, name, entries).map(|_| ()),
+        AbiType::Array { element, .. } | AbiType::Option(element) | AbiType::Slice(element) => validate_field_type(index, element, entries, context, span),
+        AbiType::Borrowed(_) | AbiType::OutputSlice(_) => Err(source_error(&entries[index].module, "EIDL060", span,
+            format!("{context} requires an owned field"), "use a sequence for indirect ownership; borrowed fields cannot escape a call")),
     }
-    validate_value_type(index, ty, entries, context, span)
 }
 
-/// Requires a recursively copyable type in aggregate payload storage.
-fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
-    let span = type_span(ty).unwrap_or(span);
+/// Reads copied use-site eligibility from the resolved structural graph.
+/// Layout validation separately reports inline cycles with source spans.
+fn copied_type(index: usize, ty: &AbiType, entries: &[ModuleEntry]) -> bool {
     match ty {
-        AbiType::Scalar(_) => Ok(()),
-        AbiType::Named(name) => match resolve_named_or_str(index, name, entries)? {
-            ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => {
+        AbiType::Scalar(_) => true,
+        AbiType::Named(name) => resolve_named(index, name, entries).is_ok_and(|symbol| {
+            let declaration = &entries[symbol.module].module.declarations[symbol.declaration];
+            entries[index].copied_values.contains(&entries[symbol.module].module.name.qualify(&declaration.name))
+        }),
+        _ => false,
+    }
+}
+
+/// Resolves field paths once into finite named graph edges, including indirect recursion.
+fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, ResolutionError> {
+    fn field(index: usize, ty: &AbiType, entries: &[ModuleEntry]) -> Result<crate::ValueType, ResolutionError> {
+        use crate::ValueType as V;
+        Ok(match ty {
+            AbiType::Unit => V::Unit,
+            AbiType::Scalar(name) => V::Scalar(name.clone()),
+            AbiType::String => V::Text,
+            AbiType::Named(name) if builtin_object(name).is_some() => V::Object(name.segments.join(".")),
+            AbiType::Named(name) => {
+                let Ok(symbol) = resolve_named(index, name, entries) else {
+                    // Keep diagnostic collection in validate_module; unresolved
+                    // edges are never eligible for copied lowering.
+                    return Ok(V::Named(name.segments.join(".")));
+                };
                 let declaration = &entries[symbol.module].module.declarations[symbol.declaration];
-                if declaration.message {
-                    // A copyable message can also remain an ordinary ABI value.
-                    // Owned fields must never slip into a by-value COM aggregate.
-                    for field in message_fields(declaration) {
-                        if let AbiType::Named(name) = field {
-                            let target = resolve_named(symbol.module, name, entries)?;
-                            if entries[target.module].module.declarations[target.declaration].message {
-                                return Err(source_error(
-                                    &entries[index].module,
-                                    "EIDL060",
-                                    span,
-                                    format!("{context} cannot embed a message"),
-                                    "message nesting is not supported",
-                                ));
-                            }
-                        }
-                        validate_value_type(symbol.module, field, entries, context, span)?;
-                    }
-                }
-                Ok(())
+                let name = entries[symbol.module].module.name.qualify(&declaration.name);
+                match symbol.kind { SymbolKind::Value => V::Named(name), _ => V::Object(name) }
             }
-            ResolvedName::Symbol(symbol) => Err(kind_mismatch_error(
-                index,
-                symbol,
-                entries,
-                span,
-                format!("{context} must use a copied value type"),
-                format!("expected a copied value, found {}", symbol.kind.description()),
-                "copied struct, enum, or bit enum",
-            )),
-            ResolvedName::Str => Err(source_error(
-                &entries[index].module,
-                "EIDL060",
-                span,
-                format!("{context} must use a copied value type"),
-                "str is unsized",
-            )),
-        },
-        AbiType::Array { element, .. } | AbiType::Option(element) => validate_value_type(index, element, entries, context, span),
-        AbiType::Unit | AbiType::String | AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) => Err(source_error(
-            &entries[index].module,
-            "EIDL060",
-            span,
-            format!("{context} must use a copied value type"),
-            "non-copying type used in aggregate storage",
-        )),
+            AbiType::Slice(value) => V::Sequence(Box::new(field(index, value, entries)?)),
+            AbiType::Array { element, len } => V::Array(Box::new(field(index, element, entries)?), *len),
+            AbiType::Option(value) => V::Optional(Box::new(field(index, value, entries)?)),
+            AbiType::Borrowed(_) | AbiType::OutputSlice(_) => V::Unit,
+        })
+    }
+    let mut graph = crate::ValueGraph::default();
+    for (index, entry) in entries.iter().enumerate() {
+        for declaration in &entry.module.declarations {
+            if matches!(declaration.kind, DeclarationKind::Interface(_)) { continue; }
+            let name = entry.module.name.qualify(&declaration.name);
+            let fields = value_fields(declaration).into_iter().map(|ty| field(index, ty, entries)).collect::<Result<Vec<_>, _>>()?;
+            graph.definitions.insert(name.clone(), crate::ValueDefinition { name, fields, copied: true });
+        }
+    }
+    graph.resolve_copied();
+    Ok(graph)
+}
+
+/// Requires an implemented self-contained copied lowering at this method position.
+fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+    validate_field_type(index, ty, entries, context, span)?;
+    if copied_type(index, ty, entries) { Ok(()) } else {
+        Err(source_error(&entries[index].module, "EIDL060", span, format!("{context} has no copied ABI lowering"),
+            "borrow a named value with &; strings, sequences, object fields, arrays and options use the checked borrowed value representation"))
     }
 }
 
@@ -1177,19 +1143,7 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
             AbiType::Named(name) => match resolve_named_or_str(index, name, entries)? {
                 ResolvedName::Str => Ok(()),
                 ResolvedName::Symbol(symbol) if symbol.kind != SymbolKind::Value => Ok(()),
-                // Marked messages have an explicit borrowed wire form. The
-                // callee validates/copies it before retaining owned fields;
-                // ordinary copied records still reject reference parameters.
-                ResolvedName::Symbol(symbol) if entries[symbol.module].module.declarations[symbol.declaration].message => Ok(()),
-                ResolvedName::Symbol(symbol) => Err(kind_mismatch_error(
-                    index,
-                    symbol,
-                    entries,
-                    span,
-                    format!("{context} cannot borrow a copied value type"),
-                    "copied values are passed by value",
-                    "remove the `&`",
-                )),
+                ResolvedName::Symbol(_) => Ok(()),
             },
             _ => Err(source_error(
                 &entries[index].module,
@@ -1200,7 +1154,7 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
             )),
         },
         AbiType::Slice(element) | AbiType::OutputSlice(element) => validate_value_type(index, element, entries, context, span),
-        AbiType::Array { element, .. } => validate_value_type(index, element, entries, context, span),
+        AbiType::Array { .. } => validate_value_type(index, ty, entries, context, span),
         AbiType::Option(value) => {
             // Null is defined only for an explicitly borrowed object capability.
             // Optional copied values and message records need different layouts.
@@ -1248,8 +1202,8 @@ fn validate_output_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], con
                 "unsized return type",
             )),
         },
-        AbiType::Array { element, .. } => validate_value_type(index, element, entries, context, span),
-        AbiType::Option(value) => validate_output_type(index, value, entries, context, span),
+        AbiType::Array { .. } => validate_value_type(index, ty, entries, context, span),
+        AbiType::Option(_) => validate_value_type(index, ty, entries, context, span),
         AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) => Err(source_error(
             &entries[index].module,
             "EIDL062",
@@ -1374,9 +1328,9 @@ fn fingerprint_module(
 fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, [u8; 32])]) -> Result<[u8; 32], ResolutionError> {
     let entry = &entries[index];
     let mut encoder = CanonicalEncoder::new();
-    // Version the canonical encoding when unifying callable kinds into roles:
-    // no older byte stream may accidentally describe the new representation.
-    encoder.bytes(b"neocogi-idl:module-abi:v2\0");
+    // Version the canonical encoding for recursive raw value lowering; no
+    // native-layout contract may share a signature with a checked-wire slot.
+    encoder.bytes(b"neocogi-idl:module-abi:v3\0");
     encoder.guid(entry.module_id);
     encoder.bytes(&crate::specialize::template_fingerprint(&entry.module.templates));
 
@@ -1410,7 +1364,7 @@ fn encode_declaration(
     encoder.guid(id);
     match &declaration.kind {
         DeclarationKind::Struct(record) => {
-            encoder.tag(if declaration.message { 7 } else { 1 });
+            encoder.tag(1);
             encoder.u32(u32_len(record.fields.len(), &entries[index].name, "field count")?);
             for field in &record.fields {
                 encoder.text(&field.name, &entries[index].name)?;
@@ -1418,7 +1372,7 @@ fn encode_declaration(
             }
         }
         DeclarationKind::Enum(enumeration) => {
-            encoder.tag(if declaration.message { 8 } else { 2 });
+            encoder.tag(2);
             encoder.tag(enum_repr_tag(enumeration.repr));
             encoder.u32(u32_len(enumeration.variants.len(), &entries[index].name, "variant count")?);
             let mut previous = -1i64;

@@ -44,8 +44,6 @@ pub struct Declaration {
     pub name: String,
     /// Version and optional explicit UUID parsed from attributes.
     pub id: DeclarationId,
-    /// Generate an owned message and its borrowed COM representation.
-    pub message: bool,
     /// Canonical origin of an instantiated interface template, when applicable.
     pub specialization: Option<Specialization>,
     /// Declaration-specific ABI contents.

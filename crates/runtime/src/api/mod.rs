@@ -109,11 +109,11 @@ unsafe fn copy_slice_to_out<T: Copy>(items: &[T], out: *mut T, capacity: usize, 
 }
 
 /// Delivers one synchronous error message through the global debug registry.
-fn emit_error(message_type: u32, status: NcStatus, text: &str) {
+fn emit_error(value_type: u32, status: NcStatus, text: &str) {
     // Debug dispatch is synchronous, so this borrowed text remains valid for
     // every callback and need not be copied into runtime-owned storage.
     let message = NcDebugMessageV1::new(status, NcUtf8View { data: text.as_ptr(), len: text.len() });
-    debug::emit(NC_DEBUG_SEVERITY_ERROR, message_type, &message);
+    debug::emit(NC_DEBUG_SEVERITY_ERROR, value_type, &message);
 }
 
 #[cfg(test)]
@@ -132,7 +132,7 @@ mod tests {
         NC_OK
     }
 
-    unsafe extern "C" fn record_debug_status(_severity: u32, _message_type: u32, message: *const NcDebugMessageV1, user_data: *mut c_void) {
+    unsafe extern "C" fn record_debug_status(_severity: u32, _value_type: u32, message: *const NcDebugMessageV1, user_data: *mut c_void) {
         if message.is_null() || user_data.is_null() {
             return;
         }
@@ -232,7 +232,7 @@ mod tests {
         let create_info = NcDebugMessengerCreateInfoV1 {
             size: mem::size_of::<NcDebugMessengerCreateInfoV1>(),
             severity_mask: NC_DEBUG_SEVERITY_ERROR,
-            message_type_mask: NC_DEBUG_TYPE_VALIDATION,
+            value_type_mask: NC_DEBUG_TYPE_VALIDATION,
             callback: Some(record_debug_status),
             user_data: ptr::from_ref(&observed).cast_mut().cast(),
         };

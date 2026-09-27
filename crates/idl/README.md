@@ -20,8 +20,8 @@ The single `neocogi-idl` package separates responsibilities into Rust modules:
 Ordinary interfaces support type parameters. Closed uses are specialized into
 concrete vtables and deterministic COM identities before ABI resolution. `class`
 marks a concrete object contract, `interface` a reusable capability, and `factory`
-a construction root. `#[message]` marks concrete structs/enums for checked
-borrowed-message arguments and owned decoding.
+a construction root. Records and enums share recursive checked conversion;
+there is no separate message declaration category.
 
 The shared `IMessageSink<T>` and `IEventStream<E>` templates express event delivery
 without special IDL syntax. A class such as `Textbox: IWidget + IEventStream<TextboxEvent>`
@@ -70,7 +70,7 @@ neocogi-idl = "0.0.0"
 
 The version selectors assume published matching packages; inside this checkout
 use the corresponding workspace dependencies or local paths. This minimal
-copied-value/interface setup needs `macros`; modules declaring `#[message]` also
+copied-value/interface setup needs `macros`; modules declaring also
 need the facade's `alloc` feature (or `std`) for their generated receiver objects
 and owned payload decoding. `build.rs` owns generation:
 
@@ -118,21 +118,28 @@ the module fingerprint and declaration UUID; runtime calls compare those exact
 identity/signature bytes.
 
 Core capability types `IUnknown` and `INcBytes` may be borrowed as inputs and
-returned as owned references without an imported contract module. They cannot
-be embedded in copied records or passed as unborrowed inputs. Their exact core
+returned as owned references without an imported contract module. They may be owned record/enum fields; such records must be borrowed in method
+inputs. Object capabilities cannot be passed as unborrowed inputs. Their exact core
 interface identities participate in generated signatures. `Guid` is the copied
 `NcGuid` value type. These spellings are reserved and cannot be shadowed.
 
-Methods may explicitly borrow a `#[message]` value as `value: &Message`. Generated
-Rust uses `NcMessage<'_, Message>` and the message's concrete checked wire codec;
-the callee calls `to_owned()` before retaining strings, arrays, or capabilities.
-Unborrowed ownership-bearing message parameters and copied aggregate fields
-remain rejected. Imported message parameters honor published Rust module paths.
-Message slices admit scalar elements only; `&[bool]` is encoded as checked `u8`
-bytes, while aggregate and enum slice elements are rejected until a checked
-wire-element codec exists. Generated delivery shares an 8 MiB byte limit and a
-64-record nesting limit across the whole message, checking slice length before
-constructing a Rust reference. These rules do not change ordinary method buffers.
+Methods may borrow any named value as `value: &Record`. Generated Rust accepts
+`NcValueRef<'_, Record>`; `NcValueRef::new(&value)?` retains the value and typed
+wire storage through the call, and `to_owned()` validates and acquires retained
+contents. `#[message]` has been removed and is rejected.
+
+Scalar fields, records, enum payloads, fixed arrays, options, and sequences share
+one recursive codec. Sequence fields use `&[T]` in IDL and own `Vec<T>` in Rust;
+aggregate elements are supported. `Option<Self>` is an invalid inline cycle,
+while a `&[Self]` field provides explicit indirection. Booleans use checked bytes
+even inside ordinary copied records, enum payloads, and method buffers.
+
+Copied method slots and buffer elements currently accept scalar-only finite
+records/enums/bit sets. Values containing strings, sequences, object fields,
+arrays, or options must be borrowed through a named record/enum. Unsupported
+copied positions fail during IDL resolution. See the normative
+[recursive value contract](../../../docs/RECURSIVE_VALUE_CONTRACT.md) for limits,
+ownership, wire memory obligations, and examples.
 
 ## Publishing contracts inside an existing Rust crate
 

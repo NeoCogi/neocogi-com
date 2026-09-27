@@ -25,7 +25,7 @@ struct Messenger {
     // Handles provide stable removal keys even when the Vec is compacted.
     handle: u64,
     severity_mask: u32,
-    message_type_mask: u32,
+    value_type_mask: u32,
     callback: NcDebugCallbackV1,
     user_data: *mut c_void,
     lifecycle: Mutex<MessengerLifecycle>,
@@ -50,8 +50,8 @@ unsafe impl Sync for Messenger {}
 
 impl Messenger {
     /// Tests the registration's severity and category masks.
-    fn matches(&self, severity: u32, message_type: u32) -> bool {
-        self.severity_mask & severity != 0 && self.message_type_mask & message_type != 0
+    fn matches(&self, severity: u32, value_type: u32) -> bool {
+        self.severity_mask & severity != 0 && self.value_type_mask & value_type != 0
     }
 
     /// Marks one callback in flight unless destruction already deactivated it.
@@ -135,7 +135,7 @@ impl DebugState {
         };
         if create_info.size != core::mem::size_of::<NcDebugMessengerCreateInfoV1>()
             || create_info.severity_mask & !NC_DEBUG_SEVERITY_ALL != 0
-            || create_info.message_type_mask & !NC_DEBUG_TYPE_ALL != 0
+            || create_info.value_type_mask & !NC_DEBUG_TYPE_ALL != 0
         {
             return NC_E_INVALID_ARG;
         }
@@ -154,7 +154,7 @@ impl DebugState {
         registry.messengers.push(Arc::new(Messenger {
             handle,
             severity_mask: create_info.severity_mask,
-            message_type_mask: create_info.message_type_mask,
+            value_type_mask: create_info.value_type_mask,
             callback,
             user_data: create_info.user_data,
             lifecycle: Mutex::new(MessengerLifecycle { active: true, in_flight: 0 }),
@@ -187,7 +187,7 @@ impl DebugState {
     }
 
     /// Snapshots matching registrations and invokes them outside the registry lock.
-    fn emit(&self, severity: u32, message_type: u32, message: &NcDebugMessageV1) {
+    fn emit(&self, severity: u32, value_type: u32, message: &NcDebugMessageV1) {
         // Snapshotting reference-counted records keeps them alive after releasing
         // the registry lock. The active/in-flight transition below decides
         // whether each snapshotted callback may still begin.
@@ -196,7 +196,7 @@ impl DebugState {
             registry
                 .messengers
                 .iter()
-                .filter(|messenger| messenger.matches(severity, message_type))
+                .filter(|messenger| messenger.matches(severity, value_type))
                 .cloned()
                 .collect::<Vec<_>>()
         };
@@ -208,7 +208,7 @@ impl DebugState {
             // SAFETY: The callback and opaque user pointer were supplied by the
             // caller. The in-flight guard keeps their registration active until
             // the callback returns, and the message remains live for the call.
-            unsafe { (messenger.callback)(severity, message_type, message, messenger.user_data) };
+            unsafe { (messenger.callback)(severity, value_type, message, messenger.user_data) };
         }
     }
 
@@ -231,8 +231,8 @@ pub(crate) unsafe extern "C" fn destroy_messenger(handle: u64) {
 }
 
 /// Sends a borrowed diagnostic through every matching active messenger.
-pub(crate) fn emit(severity: u32, message_type: u32, message: &NcDebugMessageV1) {
-    RuntimeState::global().debug().emit(severity, message_type, message);
+pub(crate) fn emit(severity: u32, value_type: u32, message: &NcDebugMessageV1) {
+    RuntimeState::global().debug().emit(severity, value_type, message);
 }
 
 #[cfg(test)]
@@ -242,12 +242,12 @@ mod tests {
     use neocogi_com_core::{NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_RUNTIME, NcDebugMessengerCreateInfoV1, NcUtf8View};
     use std::sync::{Arc, Barrier};
 
-    unsafe extern "C" fn count_callback(_severity: u32, _message_type: u32, _message: *const NcDebugMessageV1, user_data: *mut c_void) {
+    unsafe extern "C" fn count_callback(_severity: u32, _value_type: u32, _message: *const NcDebugMessageV1, user_data: *mut c_void) {
         // SAFETY: The test installs a pointer to a live `AtomicUsize`.
         unsafe { &*(user_data.cast::<AtomicUsize>()) }.fetch_add(1, Ordering::Relaxed);
     }
 
-    unsafe extern "C" fn noop_callback(_severity: u32, _message_type: u32, _message: *const NcDebugMessageV1, _user_data: *mut c_void) {}
+    unsafe extern "C" fn noop_callback(_severity: u32, _value_type: u32, _message: *const NcDebugMessageV1, _user_data: *mut c_void) {}
 
     #[test]
     fn messenger_filters_and_stops_after_destroy() {
@@ -256,7 +256,7 @@ mod tests {
         let info = NcDebugMessengerCreateInfoV1 {
             size: core::mem::size_of::<NcDebugMessengerCreateInfoV1>(),
             severity_mask: NC_DEBUG_SEVERITY_ERROR,
-            message_type_mask: NC_DEBUG_TYPE_RUNTIME,
+            value_type_mask: NC_DEBUG_TYPE_RUNTIME,
             callback: Some(count_callback),
             user_data: core::ptr::from_ref(&count).cast_mut().cast(),
         };
@@ -280,7 +280,7 @@ mod tests {
         let info = NcDebugMessengerCreateInfoV1 {
             size: core::mem::size_of::<NcDebugMessengerCreateInfoV1>(),
             severity_mask: NC_DEBUG_SEVERITY_ERROR,
-            message_type_mask: NC_DEBUG_TYPE_RUNTIME,
+            value_type_mask: NC_DEBUG_TYPE_RUNTIME,
             callback: Some(count_callback),
             user_data: core::ptr::from_ref(&count).cast_mut().cast(),
         };
@@ -309,7 +309,7 @@ mod tests {
         let info = NcDebugMessengerCreateInfoV1 {
             size: core::mem::size_of::<NcDebugMessengerCreateInfoV1>(),
             severity_mask: NC_DEBUG_SEVERITY_ERROR,
-            message_type_mask: NC_DEBUG_TYPE_RUNTIME,
+            value_type_mask: NC_DEBUG_TYPE_RUNTIME,
             callback: Some(count_callback),
             user_data: core::ptr::from_ref(&count).cast_mut().cast(),
         };
@@ -339,7 +339,7 @@ mod tests {
                 let info = NcDebugMessengerCreateInfoV1 {
                     size: core::mem::size_of::<NcDebugMessengerCreateInfoV1>(),
                     severity_mask: 0,
-                    message_type_mask: 0,
+                    value_type_mask: 0,
                     callback: Some(noop_callback),
                     user_data: core::ptr::null_mut(),
                 };
@@ -370,7 +370,7 @@ mod tests {
         release: Barrier,
     }
 
-    unsafe extern "C" fn blocking_callback(_severity: u32, _message_type: u32, _message: *const NcDebugMessageV1, user_data: *mut c_void) {
+    unsafe extern "C" fn blocking_callback(_severity: u32, _value_type: u32, _message: *const NcDebugMessageV1, user_data: *mut c_void) {
         // SAFETY: The test retains the `Arc` that owns this value until all
         // callback and destruction threads have joined.
         let state = unsafe { &*user_data.cast::<BlockingCallback>() };
@@ -388,7 +388,7 @@ mod tests {
         let info = NcDebugMessengerCreateInfoV1 {
             size: core::mem::size_of::<NcDebugMessengerCreateInfoV1>(),
             severity_mask: NC_DEBUG_SEVERITY_ERROR,
-            message_type_mask: NC_DEBUG_TYPE_RUNTIME,
+            value_type_mask: NC_DEBUG_TYPE_RUNTIME,
             callback: Some(blocking_callback),
             user_data: Arc::as_ptr(&callback).cast_mut().cast(),
         };
