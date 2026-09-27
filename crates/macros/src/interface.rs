@@ -602,9 +602,11 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 methods: Self::METHOD_DESCRIPTORS.as_ptr(),
             };
 
-            /// This projection followed by every required base and sibling.
-            /// Object storage deduplicates identities and rejects ABI conflicts.
-            pub const INTERFACE_CHAIN: [&'static #nc::NcInterfaceDescriptor; 1 #(+ #required_abis::INTERFACE_CHAIN.len())*] =
+            /// Distinct projections in derived-first, declared-parent order.
+            /// Shared ancestors occur once; repeated identities must have the same ABI.
+            pub const INTERFACE_CHAIN: [&'static #nc::NcInterfaceDescriptor; #nc::__nc_object_interface_count(&[
+                &[&Self::INTERFACE_DESCRIPTOR], #(&#required_abis::INTERFACE_CHAIN,)*
+            ])] =
                 #nc::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[#(&#required_abis::INTERFACE_CHAIN,)*]);
         }
 
