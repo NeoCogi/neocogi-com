@@ -109,6 +109,9 @@ fn generates_rust_bindings_for_a_module_graph() {
     assert!(generated_render.contains("pub status: ::neocogi_com::NcStatus"));
     assert!(generated_render.contains("com_struct("));
     assert!(generated_render.contains("deserialize,"));
+    // Neither copied declarations nor COM object methods require alloc syntax.
+    assert!(!generated_render.contains("extern crate alloc"));
+    assert!(!generated.contains("extern crate alloc"));
     assert_eq!(generated.matches("assigned_signature = b").count(), 2);
     assert_eq!(generated_render.matches("assigned_signature = b").count(), 2);
     assert!(!generated.contains("NcAbiSignaturePart"));

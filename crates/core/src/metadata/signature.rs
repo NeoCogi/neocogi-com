@@ -48,7 +48,7 @@ pub unsafe fn format_abi_signature(signature: NcAbiSignature) -> Result<String, 
 ///
 /// # Safety
 ///
-/// Every pointer transitively reached through `method` must satisfy the core-ABI-v7
+/// Every pointer transitively reached through `method` must satisfy the core-ABI-v8
 /// descriptor contract for the duration of this call. In particular, a
 /// non-empty method or parameter name must point to its declared number of
 /// readable bytes, and nonzero `param_count` requires `params` to point to that
@@ -144,7 +144,7 @@ fn write_passing_type(out: &mut String, passing: NcAbiPassingDescriptor, ty: &Nc
             if ty.tag != NC_ABI_TYPE_AGGREGATE {
                 return Err(NC_E_INVALID_ARG);
             }
-            out.push_str("message<");
+            out.push_str("value_ref<");
             write_type(out, ty)?;
             out.push('>');
         }
@@ -171,7 +171,11 @@ fn write_passing_type(out: &mut String, passing: NcAbiPassingDescriptor, ty: &Nc
         }
         NC_ABI_PASSING_COM_REF | crate::NC_ABI_PASSING_OPTIONAL_COM_REF => {
             validate_interface_type(ty)?;
-            out.push_str(if passing.tag == NC_ABI_PASSING_COM_REF { "com_ref<" } else { "optional_com_ref<" });
+            out.push_str(if passing.tag == NC_ABI_PASSING_COM_REF {
+                "com_ref<"
+            } else {
+                "optional_com_ref<"
+            });
             write_threading(out, passing.threading)?;
             out.push_str(", ");
             write_type(out, ty)?;

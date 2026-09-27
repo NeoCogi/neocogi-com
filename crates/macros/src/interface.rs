@@ -301,10 +301,10 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             AbiArgKind::BorrowedValue { value_ty } => {
                 let ident = &arg.ident;
                 Some(quote! {
-                    // SAFETY: the caller supplies this concrete message's C record
+                    // SAFETY: the caller supplies this concrete value's raw C record
                     // and keeps its selected borrowed fields live for the call.
                     let #ident = match unsafe { #nc::NcValueRef::<#value_ty>::from_raw(#ident) } {
-                        Ok(message) => message,
+                        Ok(value) => value,
                         Err(status) => return status,
                     };
                 })

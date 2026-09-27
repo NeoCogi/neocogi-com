@@ -1,10 +1,10 @@
-# neocogi-com core ABI v7
+# neocogi-com core ABI v8
 
 This document specifies the current experimental Rust-to-Rust component ABI.
 The authoritative layouts are the public `#[repr(C)]` definitions in
 `neocogi-com-core`; this guide explains how those layouts compose.
 
-Core ABI v7 is pre-alpha and not yet a cross-release compatibility promise.
+Core ABI v8 is pre-alpha and not yet a cross-release compatibility promise.
 Runtime discovery is separately versioned and currently uses runtime ABI v1.
 
 ## 1. Scope
@@ -20,8 +20,9 @@ The binary boundary is C-shaped:
 
 Rust trait objects, native enum layout, slices, arbitrary references,
 allocator-owned `String`/`Vec`, unwinding, and compiler-specific Rust ABIs do not
-cross the boundary. Variable-size owned values cross as COM interfaces; bounded
-borrowed buffers use explicit pointer/count lowering.
+cross the boundary. Recursive application values cross as checked raw records,
+integer tags, and call-scoped pointer/count storage. The receiver acquires any
+contents it retains. Object identity crosses as explicit COM references.
 
 This is not Windows COM. It has no registry activation, apartments, `HRESULT`,
 or operating-system marshalling.
@@ -76,25 +77,53 @@ itself prove safe concurrent method calls or destruction.
 
 ## 4. Contract declarations
 
-`.ncidl` supports copied `struct`, `enum`, and `bitenum` values plus callable
-`interface`, `class`, and `factory` roles. Concrete output structs/enums use `#[message]`. Every declaration/member is public; private fields belong to
-implementation objects. `#[version(N)]` derives an IID; `#[id(N, "UUID")]` pins it.
+`.ncidl` supports `struct`, `enum`, and `bitenum` values plus callable
+`interface`, `class`, and `factory` roles. All records/enums use one recursive
+value model; there is no `#[message]` category. Every declaration/member is
+public; private fields belong to implementation objects. `#[version(N)]` derives
+an IID; `#[id(N, "UUID")]` pins it.
+
+`ComValue` defines an application type's separate raw `Wire` and concrete
+producer `Storage`. Booleans lower to bytes checked for 0 or 1. Enum decoding
+matches an integer tag before reading only its selected recursively lowered
+payload. Records, optional fields, arrays, and sequence elements follow the
+same conversion. `ComInlineValue` additionally proves self-contained copied
+wire storage; generated copied slots and buffers require that proof. Merely
+implementing `AbiType`, `AbiPlainValue`, or having `repr(C)` is insufficient.
+
+Borrowed named values use `NcValueRef<'_, T>`. Passing tag
+`NC_ABI_PASSING_BORROWED_VALUE` (`0x07`) identifies a pointer to the exact raw
+record/union by its aggregate signature. `NcValueRef::new(&value)?` retains typed
+producer storage; `to_owned()` recursively validates and acquires contents.
+Sequence fields own `Vec<T>` in application Rust. Inline cycles, including
+`Option<Self>`, fail IDL resolution; explicit sequence indirection permits finite
+recursive trees. Raw memory validity remains the caller's obligation.
+
+One shared conversion budget bounds temporary/acquired storage to 8 MiB, visited
+values to one million, and depth to 64. Allocation is fallible. Converted buffers
+use the same checked codecs; numeric buffers may remain direct borrows only with
+an explicit proof of recursively identical layout and unrestricted contents.
+Direct borrows allocate and traverse no elements, so these conversion budgets do
+not cap their length. Operation-specific limits still apply. The complete
+[recursive value contract](../../../docs/RECURSIVE_VALUE_CONTRACT.md) specifies
+supported use sites, budget accounting, raw storage obligations, and failure
+semantics. `ComStruct::ABI_STRUCT_LAYOUT` describes the application C-layout
+record; the method's actual raw type is `ComValue::Wire`, which can differ.
 
 The first required interface is the physical base; later requirements are
 sibling projections. The required projection graph must be acyclic. A factory
 may serve as the runtime's zero-argument construction root. Ordinary generic
 interfaces are specialized before ABI generation. `IEventStream<E>` and
-`IMessageSink<E>` therefore cross COM as concrete attach/post vtables with exact
-identities and signatures. A class has at most one resolved event stream;
-`EventPort` enforces one lifetime attachment and terminal closure. Optional COM
-inputs use passing tag `NC_ABI_PASSING_OPTIONAL_COM_REF` (`0x08`): null means
-absence, and a present pointer must satisfy the same exact interface identity
-and borrowing contract as an ordinary `ComRef`. Each receiver has one `post` operation
-accepting `NcMessage<T>`. Passing tag `NC_ABI_PASSING_MESSAGE` (`0x07`) describes a
-borrowed pointer to the exact message C record/union, identified by its aggregate
-signature. Decoding checks the active tag and acquires owned fields before mapping.
-Strings/slices use pointer/count pairs; objects use checked concrete COM pointers.
-The mapper and consumer FIFO remain entirely in the receiving Rust binary.
+`IMessageSink<E>` cross COM as concrete attach/post vtables with exact identities
+and signatures. A class has at most one resolved event stream; `EventPort`
+enforces one lifetime attachment and terminal closure. The receiver acquires the
+ordinary event value before mapping it to the behavioral parent's queue; later
+application dispatch handles it with mutable access to the parent. No visual
+widget routing belongs to this contract.
+
+Optional COM inputs use passing tag `NC_ABI_PASSING_OPTIONAL_COM_REF` (`0x08`):
+null means absence, and a present pointer must satisfy the same exact interface
+identity and borrowing contract as an ordinary `ComRef`.
 
 ## 5. Compile-time modules
 
@@ -181,7 +210,7 @@ Hosts first call `nc_com_runtime_abi_version` and require
 `NcRuntimeApiV1`, `NcPluginRegistryV1`, `NcInspectionApiV1`, `NcDebugApiV1`, and
 `NcPersistenceApiV1`
 tables through the corresponding `_v1` getters. There is no contract-registry
-table. Plugin descriptor ABI also remains v1; core object ABI remains v7.
+table. Plugin descriptor ABI also remains v1; core object ABI remains v8.
 The plugin and runtime version numbers stay at one during pre-alpha and do not
 promise compatibility between checkout revisions. Rebuild hosts, runtimes, and
 plugins together.
@@ -215,7 +244,8 @@ inspection handles.
 ## 9. ABI signatures
 
 Every IDL-generated ABI signature is a SHA-256 digest of its canonical typed
-stream. This representation is unconditional across hosts, plugins, inspection,
+stream, currently encoding revision 3. Core version 8 and encoding revision 3
+distinguish checked recursive wire lowering from previous native aggregate slots. This representation is unconditional across hosts, plugins, inspection,
 and monolithic builds. Runtime calls compare identities and exact signatures.
 Declaration names and versions participate in the build-time identity and
 fingerprint inputs. A plugin's qualified name is also validated against its

@@ -126,7 +126,7 @@ where
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn count_thunk(
         this: *mut IObjectChildrenAbi,
-        __nc_out: *mut u32,
+        __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
@@ -143,10 +143,15 @@ where
         };
         let result = <T as IObjectChildren>::count(&*__nc_dispatch_value);
         drop(__nc_dispatch_value);
+        if result.is_ok() {}
         match result {
             Ok(value) => {
+                let raw = match ::neocogi_com::encode_inline(&value) {
+                    Ok(raw) => raw,
+                    Err(status) => return status,
+                };
                 unsafe {
-                    *__nc_out = value;
+                    *__nc_out = raw;
                 }
                 ::neocogi_com::NC_OK
             }
@@ -163,7 +168,7 @@ where
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn get_thunk(
         this: *mut IObjectChildrenAbi,
-        index: u32,
+        index: <u32 as ::neocogi_com::ComValue>::Wire,
         __nc_out: *mut *mut ::neocogi_com::IUnknown,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
@@ -173,6 +178,10 @@ where
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
+        let index = match unsafe { ::neocogi_com::decode_inline::<u32>(index) } {
+            Ok(value) => value,
+            Err(status) => return status,
+        };
         let mut __nc_dispatch_value = match unsafe {
             <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
@@ -181,6 +190,7 @@ where
         };
         let result = <T as IObjectChildren>::get(&*__nc_dispatch_value, index);
         drop(__nc_dispatch_value);
+        if result.is_ok() {}
         match result {
             Ok(value) => {
                 unsafe {
@@ -319,7 +329,7 @@ where
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn type_id_thunk(
         this: *mut IPersistableAbi,
-        __nc_out: *mut ::neocogi_com::NcGuid,
+        __nc_out: *mut <::neocogi_com::NcGuid as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
@@ -336,10 +346,15 @@ where
         };
         let result = <T as IPersistable>::type_id(&*__nc_dispatch_value);
         drop(__nc_dispatch_value);
+        if result.is_ok() {}
         match result {
             Ok(value) => {
+                let raw = match ::neocogi_com::encode_inline(&value) {
+                    Ok(raw) => raw,
+                    Err(status) => return status,
+                };
                 unsafe {
-                    *__nc_out = value;
+                    *__nc_out = raw;
                 }
                 ::neocogi_com::NC_OK
             }
@@ -356,7 +371,7 @@ where
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn schema_version_thunk(
         this: *mut IPersistableAbi,
-        __nc_out: *mut u32,
+        __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
@@ -373,10 +388,15 @@ where
         };
         let result = <T as IPersistable>::schema_version(&*__nc_dispatch_value);
         drop(__nc_dispatch_value);
+        if result.is_ok() {}
         match result {
             Ok(value) => {
+                let raw = match ::neocogi_com::encode_inline(&value) {
+                    Ok(raw) => raw,
+                    Err(status) => return status,
+                };
                 unsafe {
-                    *__nc_out = value;
+                    *__nc_out = raw;
                 }
                 ::neocogi_com::NC_OK
             }
@@ -410,6 +430,7 @@ where
         };
         let result = <T as IPersistable>::save_state(&*__nc_dispatch_value);
         drop(__nc_dispatch_value);
+        if result.is_ok() {}
         match result {
             Ok(value) => {
                 unsafe {
@@ -430,7 +451,7 @@ where
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn child_count_thunk(
         this: *mut IPersistableAbi,
-        __nc_out: *mut u32,
+        __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
@@ -447,10 +468,15 @@ where
         };
         let result = <T as IPersistable>::child_count(&*__nc_dispatch_value);
         drop(__nc_dispatch_value);
+        if result.is_ok() {}
         match result {
             Ok(value) => {
+                let raw = match ::neocogi_com::encode_inline(&value) {
+                    Ok(raw) => raw,
+                    Err(status) => return status,
+                };
                 unsafe {
-                    *__nc_out = value;
+                    *__nc_out = raw;
                 }
                 ::neocogi_com::NC_OK
             }
@@ -467,7 +493,7 @@ where
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn child_thunk(
         this: *mut IPersistableAbi,
-        index: u32,
+        index: <u32 as ::neocogi_com::ComValue>::Wire,
         __nc_out: *mut *mut ::neocogi_com::IUnknown,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
@@ -477,6 +503,10 @@ where
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
+        let index = match unsafe { ::neocogi_com::decode_inline::<u32>(index) } {
+            Ok(value) => value,
+            Err(status) => return status,
+        };
         let mut __nc_dispatch_value = match unsafe {
             <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
@@ -485,6 +515,7 @@ where
         };
         let result = <T as IPersistable>::child(&*__nc_dispatch_value, index);
         drop(__nc_dispatch_value);
+        if result.is_ok() {}
         match result {
             Ok(value) => {
                 unsafe {
@@ -623,11 +654,11 @@ where
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn validate_thunk(
         this: *mut IPersistenceFactoryAbi,
-        version: u32,
+        version: <u32 as ::neocogi_com::ComValue>::Wire,
         __nc_state_offset: u64,
         __nc_state_len: u64,
-        __nc_state_ptr: *const u8,
-        child_count: u32,
+        __nc_state_ptr: *const <u8 as ::neocogi_com::ComValue>::Wire,
+        child_count: <u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() {
             return ::neocogi_com::NC_E_POINTER;
@@ -636,13 +667,25 @@ where
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let state = match unsafe {
-            ::neocogi_com::NcCopyFromBufferOffset::<
-                u8,
-            >::__nc_from_raw_parts(__nc_state_offset, __nc_state_ptr, __nc_state_len)
+        let version = match unsafe { ::neocogi_com::decode_inline::<u32>(version) } {
+            Ok(value) => value,
+            Err(status) => return status,
+        };
+        let mut __nc_state_values = match unsafe {
+            ::neocogi_com::DecodedInput::<u8>::from_raw(__nc_state_ptr, __nc_state_len)
+        } {
+            Ok(values) => values,
+            Err(status) => return status,
+        };
+        let state = ::neocogi_com::NcCopyFromBufferOffset::new(
+            __nc_state_offset,
+            __nc_state_values.as_slice(),
+        );
+        let child_count = match unsafe {
+            ::neocogi_com::decode_inline::<u32>(child_count)
         } {
             Ok(value) => value,
-            Err(status) => return status.normalize_error(),
+            Err(status) => return status,
         };
         let mut __nc_dispatch_value = match unsafe {
             <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
@@ -657,6 +700,7 @@ where
             child_count,
         );
         drop(__nc_dispatch_value);
+        if result.is_ok() {}
         match result {
             Ok(()) => ::neocogi_com::NC_OK,
             Err(status) => status.normalize_error(),
@@ -672,10 +716,10 @@ where
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn restore_thunk(
         this: *mut IPersistenceFactoryAbi,
-        version: u32,
+        version: <u32 as ::neocogi_com::ComValue>::Wire,
         __nc_state_offset: u64,
         __nc_state_len: u64,
-        __nc_state_ptr: *const u8,
+        __nc_state_ptr: *const <u8 as ::neocogi_com::ComValue>::Wire,
         children: *mut IObjectChildrenAbi,
         __nc_out: *mut *mut ::neocogi_com::IUnknown,
     ) -> ::neocogi_com::NcStatus {
@@ -686,14 +730,20 @@ where
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let state = match unsafe {
-            ::neocogi_com::NcCopyFromBufferOffset::<
-                u8,
-            >::__nc_from_raw_parts(__nc_state_offset, __nc_state_ptr, __nc_state_len)
-        } {
+        let version = match unsafe { ::neocogi_com::decode_inline::<u32>(version) } {
             Ok(value) => value,
-            Err(status) => return status.normalize_error(),
+            Err(status) => return status,
         };
+        let mut __nc_state_values = match unsafe {
+            ::neocogi_com::DecodedInput::<u8>::from_raw(__nc_state_ptr, __nc_state_len)
+        } {
+            Ok(values) => values,
+            Err(status) => return status,
+        };
+        let state = ::neocogi_com::NcCopyFromBufferOffset::new(
+            __nc_state_offset,
+            __nc_state_values.as_slice(),
+        );
         let children = match unsafe {
             ::neocogi_com::ComRef::<
                 IObjectChildrenAbi,
@@ -716,6 +766,7 @@ where
             children,
         );
         drop(__nc_dispatch_value);
+        if result.is_ok() {}
         match result {
             Ok(value) => {
                 unsafe {

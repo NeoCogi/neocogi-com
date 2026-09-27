@@ -3,7 +3,7 @@
 The C-shaped ABI shared by generated contracts, hosts, plugins, and the process
 runtime. Its default configuration is allocation-free; optional `alloc` helpers
 own decoded values and binary documents. Most authors use the `neocogi-com`
-facade. Core object ABI v7 remains experimental.
+facade. Core object ABI v8 remains experimental.
 
 Core defines statuses, GUIDs, exact signatures, typed metadata, interface headers
 and vtables, `IUnknown`, `ComPtr`, and `ComRef`. `ComInterface` owns identity and
@@ -21,7 +21,7 @@ Plugin descriptor ABI v1 publishes plugin identity/version, hard dependencies,
 full root-factory IID/signature, threading, and one zero-argument bootstrap.
 Its getter is `nc_get_factory_plugin_description_v1`. Runtime discovery is v1,
 with operation, plugin-registry, inspection, debug, and persistence tables. See the
-[ABI specification](../docs/abi-v7.md) for layouts and ownership rules.
+[ABI specification](../docs/abi-v8.md) for layouts and ownership rules.
 
 ## Interface safety
 
@@ -46,6 +46,17 @@ value tree, descriptor-offset mutation, or a runtime type registry.
 Core is `no_std` by default. `alloc` enables owned decoding/diagnostic helpers;
 `std` implies `alloc`. Loading, process state, object allocation, and deployment
 policy belong in other crates.
+
+## Recursive checked values
+
+`ComValue` separates application data from raw wire fields and typed producer
+storage. `NcValueRef::new(&value)?` keeps that storage alive through a synchronous
+call; `to_owned()` recursively checks fields and acquires receiver-owned data.
+`ComInlineValue` additionally permits self-contained copied results and buffers.
+Booleans and enum tags are validated before typed values are constructed, even
+inside nested ordinary records. Numeric buffers can borrow in place only when
+all fields prove identical layout and unrestricted contents. See the normative
+[recursive value contract](../../../docs/RECURSIVE_VALUE_CONTRACT.md).
 
 ## Text, bytes, and borrowed storage
 

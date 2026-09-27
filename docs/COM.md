@@ -5,7 +5,7 @@ through an explicit C-shaped ABI. Rust-like IDL is the source of public contract
 truth; generated COM interfaces carry calls, and plugins expose one typed root
 factory.
 
-The current core ABI v7 is experimental and may change before ratification.
+The current core ABI v8 is experimental and may change before ratification.
 
 ## Component model
 
@@ -27,7 +27,7 @@ plugin as a shared library and as an rlib statically linked into a monolith.
 
 See [IDL contract modules](../../docs/IDL_MODULES.md) for authoring and native
 builds, [component design](../../docs/COM_DESIGN.md) for responsibility
-boundaries, and [ABI v7](docs/abi-v7.md) for the binary model.
+boundaries, and [ABI v8](docs/abi-v8.md) for the binary model.
 
 ## IDL
 

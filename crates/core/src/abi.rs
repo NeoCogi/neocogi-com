@@ -10,7 +10,9 @@ use crate::metadata::{NcAbiStructLayout, NcAbiType};
 use crate::signature::NcAbiSignature;
 use crate::status::NcStatus;
 
-/// Marker for plain values that may cross an `neocogi-com` ABI boundary by value.
+/// Nominal type metadata for copied application values with a stable C layout.
+/// Generated methods transport [`crate::ComValue::Wire`], not `Self` directly;
+/// this marker alone neither validates foreign contents nor supplies a codec.
 ///
 /// # Safety
 ///
@@ -37,7 +39,9 @@ pub unsafe trait AbiType: Copy + 'static {
 /// validity requirements separately before reading the value.
 pub unsafe trait AbiPlainValue: AbiType {}
 
-/// Marker for macro-generated COM structs with physical layout metadata.
+/// Marker for macro-generated application structs with physical C-layout metadata.
+/// This describes `Self`, not the separate [`crate::ComValue::Wire`] transported
+/// by generated methods. Raw field layouts may differ, especially for nested enums.
 ///
 /// # Safety
 ///
@@ -58,7 +62,7 @@ pub unsafe trait ComStruct: Copy + 'static {
     /// Generator-assigned ABI identity for this structure declaration.
     const ABI_SIGNATURE: NcAbiSignature;
 
-    /// Physical ABI layout for this COM struct.
+    /// Physical application layout; do not use it to address recursive wire fields.
     const ABI_STRUCT_LAYOUT: NcAbiStructLayout;
 }
 

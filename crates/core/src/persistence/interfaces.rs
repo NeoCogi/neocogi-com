@@ -10,9 +10,9 @@ pub const MODULE_ID: crate::NcGuid = crate::NcGuid::from_fields(
 );
 /// Transitive canonical ABI fingerprint of this generated module.
 pub const ABI_FINGERPRINT: [u8; 32] = [
-    115u8, 42u8, 219u8, 185u8, 45u8, 165u8, 187u8, 22u8, 122u8, 85u8, 167u8, 217u8, 52u8,
-    24u8, 111u8, 227u8, 31u8, 66u8, 150u8, 160u8, 152u8, 101u8, 134u8, 227u8, 189u8,
-    43u8, 24u8, 194u8, 117u8, 3u8, 76u8, 81u8,
+    252u8, 41u8, 249u8, 35u8, 21u8, 101u8, 191u8, 87u8, 168u8, 196u8, 61u8, 238u8, 202u8,
+    128u8, 9u8, 64u8, 0u8, 221u8, 103u8, 201u8, 90u8, 40u8, 114u8, 203u8, 4u8, 213u8,
+    123u8, 106u8, 41u8, 113u8, 210u8, 35u8,
 ];
 /// Exact dotted module name derived from the normalized IDL path.
 pub const MODULE_NAME: &str = "neocogi.com.persistence";
@@ -28,7 +28,7 @@ pub trait IObjectChildren {
 }
 /// Exact signature bytes assigned by the IDL compiler.
 #[allow(non_upper_case_globals)]
-static __nc_IObjectChildrenAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"\x1B$\x1A\xC5}\xFE\x91N\x1C\xC1\xF6\xB2\xD0\xDAB \xA9\xE5]\xFD|_H^\xA4\xDD9r\xFD\xED\r\x0F";
+static __nc_IObjectChildrenAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"O\xD5/.\x96\xD03\x9A\t\xED\x8F\x7F\x18\xB5\x8Es\x96\x16\xA0\xEE\x11\xCE+AI\xBFGD\xAE\xE8\xF9\xCC";
 #[repr(C)]
 #[doc = concat!("C-compatible ABI header for [`", stringify!(IObjectChildren), "`].")]
 pub struct IObjectChildrenAbi {
@@ -55,10 +55,13 @@ pub struct IObjectChildrenVTable {
     ///# Safety
     ///
     ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
-    #[doc = concat!("On success, `out` receives `", stringify!(u32), "`.")]
+    #[doc = concat!(
+        "On success, `out` receives `", stringify!(< u32 as crate ::ComValue > ::Wire),
+        "`."
+    )]
     pub count: unsafe extern "C" fn(
         this: *mut IObjectChildrenAbi,
-        __nc_out: *mut u32,
+        __nc_out: *mut <u32 as crate::ComValue>::Wire,
     ) -> crate::NcStatus,
     #[doc = concat!(
         "Raw COM ABI vtable slot for [`", stringify!(IObjectChildren), "::",
@@ -71,7 +74,8 @@ pub struct IObjectChildrenVTable {
     ///
     ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
     #[doc = concat!(
-        "- `", stringify!(index), "` is passed by value as `", stringify!(u32), "`."
+        "- `", stringify!(index), "` is passed by value as `", stringify!(< u32 as crate
+        ::ComValue > ::Wire), "`."
     )]
     #[doc = concat!(
         "On success, `out` receives an owned `", stringify!(crate ::IUnknown),
@@ -79,7 +83,7 @@ pub struct IObjectChildrenVTable {
     )]
     pub get: unsafe extern "C" fn(
         this: *mut IObjectChildrenAbi,
-        index: u32,
+        index: <u32 as crate::ComValue>::Wire,
         __nc_out: *mut *mut crate::IUnknown,
     ) -> crate::NcStatus,
 }
@@ -131,10 +135,20 @@ impl<M: crate::ThreadingModel> IObjectChildrenClient<M> {
         "On success, returns `", stringify!(u32), "` from the ABI out slot."
     )]
     pub fn count(&self) -> Result<u32, crate::NcStatus> {
-        let mut __nc_out = core::mem::MaybeUninit::<u32>::uninit();
+        let mut __nc_out = core::mem::MaybeUninit::<
+            <u32 as crate::ComValue>::Wire,
+        >::uninit();
         let this = self.__nc_pointer.as_mut_ptr();
         let status = unsafe { ((*(*this).vtable).count)(this, __nc_out.as_mut_ptr()) };
-        if status.is_ok() { Ok(unsafe { __nc_out.assume_init() }) } else { Err(status) }
+        if status.is_ok() {
+            let result: Result<u32, crate::NcStatus> = (|| {
+                unsafe { crate::decode_inline::<u32>(__nc_out.assume_init()) }
+            })();
+            let result = result?;
+            Ok(result)
+        } else {
+            Err(status)
+        }
     }
     /// Returns an owned reference; indices must be less than count.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:7:8`.
@@ -158,16 +172,23 @@ impl<M: crate::ThreadingModel> IObjectChildrenClient<M> {
         &self,
         index: u32,
     ) -> Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
+        let index = crate::encode_inline(&index)?;
         let mut __nc_out = core::mem::MaybeUninit::<*mut crate::IUnknown>::uninit();
         let this = self.__nc_pointer.as_mut_ptr();
         let status = unsafe {
             ((*(*this).vtable).get)(this, index, __nc_out.as_mut_ptr())
         };
         if status.is_ok() {
-            let __nc_out = unsafe { __nc_out.assume_init() };
-            unsafe {
-                <crate::ComPtr<crate::IUnknown>>::__nc_from_raw_owned_checked(__nc_out)
-            }
+            let result: Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> = (|| {
+                let __nc_out = unsafe { __nc_out.assume_init() };
+                unsafe {
+                    <crate::ComPtr<
+                        crate::IUnknown,
+                    >>::__nc_from_raw_owned_checked(__nc_out)
+                }
+            })();
+            let result = result?;
+            Ok(result)
         } else {
             Err(status)
         }
@@ -265,7 +286,7 @@ pub trait IPersistable {
 }
 /// Exact signature bytes assigned by the IDL compiler.
 #[allow(non_upper_case_globals)]
-static __nc_IPersistableAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"\xB2s\xCA\x01U\xAE\xBAn\x8B\xD9\xFF\xD4\xCAZD\xB9Nd\x19\xB2}\xD1p,\x88\x0E:]\xF2\x16jr";
+static __nc_IPersistableAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"t\x15\xF0jA\xDD\t\x01:\xB5\xBE\xF5\xB9/t\xACN@\xF38\xE2\xE2\xAAiD\x19\x9157\xB8\x82\xFF";
 #[repr(C)]
 #[doc = concat!("C-compatible ABI header for [`", stringify!(IPersistable), "`].")]
 pub struct IPersistableAbi {
@@ -292,10 +313,13 @@ pub struct IPersistableVTable {
     ///# Safety
     ///
     ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
-    #[doc = concat!("On success, `out` receives `", stringify!(crate ::NcGuid), "`.")]
+    #[doc = concat!(
+        "On success, `out` receives `", stringify!(< crate ::NcGuid as crate ::ComValue >
+        ::Wire), "`."
+    )]
     pub type_id: unsafe extern "C" fn(
         this: *mut IPersistableAbi,
-        __nc_out: *mut crate::NcGuid,
+        __nc_out: *mut <crate::NcGuid as crate::ComValue>::Wire,
     ) -> crate::NcStatus,
     #[doc = concat!(
         "Raw COM ABI vtable slot for [`", stringify!(IPersistable), "::",
@@ -307,10 +331,13 @@ pub struct IPersistableVTable {
     ///# Safety
     ///
     ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
-    #[doc = concat!("On success, `out` receives `", stringify!(u32), "`.")]
+    #[doc = concat!(
+        "On success, `out` receives `", stringify!(< u32 as crate ::ComValue > ::Wire),
+        "`."
+    )]
     pub schema_version: unsafe extern "C" fn(
         this: *mut IPersistableAbi,
-        __nc_out: *mut u32,
+        __nc_out: *mut <u32 as crate::ComValue>::Wire,
     ) -> crate::NcStatus,
     #[doc = concat!(
         "Raw COM ABI vtable slot for [`", stringify!(IPersistable), "::",
@@ -340,10 +367,13 @@ pub struct IPersistableVTable {
     ///# Safety
     ///
     ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
-    #[doc = concat!("On success, `out` receives `", stringify!(u32), "`.")]
+    #[doc = concat!(
+        "On success, `out` receives `", stringify!(< u32 as crate ::ComValue > ::Wire),
+        "`."
+    )]
     pub child_count: unsafe extern "C" fn(
         this: *mut IPersistableAbi,
-        __nc_out: *mut u32,
+        __nc_out: *mut <u32 as crate::ComValue>::Wire,
     ) -> crate::NcStatus,
     #[doc = concat!(
         "Raw COM ABI vtable slot for [`", stringify!(IPersistable), "::",
@@ -356,7 +386,8 @@ pub struct IPersistableVTable {
     ///
     ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
     #[doc = concat!(
-        "- `", stringify!(index), "` is passed by value as `", stringify!(u32), "`."
+        "- `", stringify!(index), "` is passed by value as `", stringify!(< u32 as crate
+        ::ComValue > ::Wire), "`."
     )]
     #[doc = concat!(
         "On success, `out` receives an owned `", stringify!(crate ::IUnknown),
@@ -364,7 +395,7 @@ pub struct IPersistableVTable {
     )]
     pub child: unsafe extern "C" fn(
         this: *mut IPersistableAbi,
-        index: u32,
+        index: <u32 as crate::ComValue>::Wire,
         __nc_out: *mut *mut crate::IUnknown,
     ) -> crate::NcStatus,
 }
@@ -414,10 +445,20 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
         "On success, returns `", stringify!(crate ::NcGuid), "` from the ABI out slot."
     )]
     pub fn type_id(&self) -> Result<crate::NcGuid, crate::NcStatus> {
-        let mut __nc_out = core::mem::MaybeUninit::<crate::NcGuid>::uninit();
+        let mut __nc_out = core::mem::MaybeUninit::<
+            <crate::NcGuid as crate::ComValue>::Wire,
+        >::uninit();
         let this = self.__nc_pointer.as_mut_ptr();
         let status = unsafe { ((*(*this).vtable).type_id)(this, __nc_out.as_mut_ptr()) };
-        if status.is_ok() { Ok(unsafe { __nc_out.assume_init() }) } else { Err(status) }
+        if status.is_ok() {
+            let result: Result<crate::NcGuid, crate::NcStatus> = (|| {
+                unsafe { crate::decode_inline::<crate::NcGuid>(__nc_out.assume_init()) }
+            })();
+            let result = result?;
+            Ok(result)
+        } else {
+            Err(status)
+        }
     }
     /// Identifies the persistent initialization schema, independently of COM ABI.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8`.
@@ -433,12 +474,22 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
         "On success, returns `", stringify!(u32), "` from the ABI out slot."
     )]
     pub fn schema_version(&self) -> Result<u32, crate::NcStatus> {
-        let mut __nc_out = core::mem::MaybeUninit::<u32>::uninit();
+        let mut __nc_out = core::mem::MaybeUninit::<
+            <u32 as crate::ComValue>::Wire,
+        >::uninit();
         let this = self.__nc_pointer.as_mut_ptr();
         let status = unsafe {
             ((*(*this).vtable).schema_version)(this, __nc_out.as_mut_ptr())
         };
-        if status.is_ok() { Ok(unsafe { __nc_out.assume_init() }) } else { Err(status) }
+        if status.is_ok() {
+            let result: Result<u32, crate::NcStatus> = (|| {
+                unsafe { crate::decode_inline::<u32>(__nc_out.assume_init()) }
+            })();
+            let result = result?;
+            Ok(result)
+        } else {
+            Err(status)
+        }
     }
     /// Exports initialization data only: no receivers, runtime pointers or caches.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8`.
@@ -464,12 +515,16 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
             ((*(*this).vtable).save_state)(this, __nc_out.as_mut_ptr())
         };
         if status.is_ok() {
-            let __nc_out = unsafe { __nc_out.assume_init() };
-            unsafe {
-                <crate::ComPtr<
-                    crate::INcBytesAbi,
-                >>::__nc_from_raw_owned_checked(__nc_out)
-            }
+            let result: Result<crate::ComPtr<crate::INcBytesAbi>, crate::NcStatus> = (|| {
+                let __nc_out = unsafe { __nc_out.assume_init() };
+                unsafe {
+                    <crate::ComPtr<
+                        crate::INcBytesAbi,
+                    >>::__nc_from_raw_owned_checked(__nc_out)
+                }
+            })();
+            let result = result?;
+            Ok(result)
         } else {
             Err(status)
         }
@@ -488,12 +543,22 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
         "On success, returns `", stringify!(u32), "` from the ABI out slot."
     )]
     pub fn child_count(&self) -> Result<u32, crate::NcStatus> {
-        let mut __nc_out = core::mem::MaybeUninit::<u32>::uninit();
+        let mut __nc_out = core::mem::MaybeUninit::<
+            <u32 as crate::ComValue>::Wire,
+        >::uninit();
         let this = self.__nc_pointer.as_mut_ptr();
         let status = unsafe {
             ((*(*this).vtable).child_count)(this, __nc_out.as_mut_ptr())
         };
-        if status.is_ok() { Ok(unsafe { __nc_out.assume_init() }) } else { Err(status) }
+        if status.is_ok() {
+            let result: Result<u32, crate::NcStatus> = (|| {
+                unsafe { crate::decode_inline::<u32>(__nc_out.assume_init()) }
+            })();
+            let result = result?;
+            Ok(result)
+        } else {
+            Err(status)
+        }
     }
     /// Returns one child in the order described by the parent's initialization.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:22:8`.
@@ -517,16 +582,23 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
         &self,
         index: u32,
     ) -> Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
+        let index = crate::encode_inline(&index)?;
         let mut __nc_out = core::mem::MaybeUninit::<*mut crate::IUnknown>::uninit();
         let this = self.__nc_pointer.as_mut_ptr();
         let status = unsafe {
             ((*(*this).vtable).child)(this, index, __nc_out.as_mut_ptr())
         };
         if status.is_ok() {
-            let __nc_out = unsafe { __nc_out.assume_init() };
-            unsafe {
-                <crate::ComPtr<crate::IUnknown>>::__nc_from_raw_owned_checked(__nc_out)
-            }
+            let result: Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> = (|| {
+                let __nc_out = unsafe { __nc_out.assume_init() };
+                unsafe {
+                    <crate::ComPtr<
+                        crate::IUnknown,
+                    >>::__nc_from_raw_owned_checked(__nc_out)
+                }
+            })();
+            let result = result?;
+            Ok(result)
         } else {
             Err(status)
         }
@@ -675,7 +747,7 @@ pub trait IPersistenceFactory {
 }
 /// Exact signature bytes assigned by the IDL compiler.
 #[allow(non_upper_case_globals)]
-static __nc_IPersistenceFactoryAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"\xD9\x14\xE9\xC5\x02qV\xF2\xD4\xBF\xDB\x93\x1D\xF5\xAB!V\xC4I2\xC2\xFB\x81(:\xA8DS\xB5\xF0p\xDD";
+static __nc_IPersistenceFactoryAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b")W\xE0\x91\x0C\xA3\xA9<\r\xFD\xB6\xCF\xAB\xCAB0\x19\x96\xB5\x9D\x10\t\x8Dh\xA8\x99\x0E\xF1\xC0\x19\x1E\xC5";
 #[repr(C)]
 #[doc = concat!(
     "C-compatible ABI header for [`", stringify!(IPersistenceFactory), "`]."
@@ -705,7 +777,8 @@ pub struct IPersistenceFactoryVTable {
     ///
     ///`this` must be a non-null valid pointer. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
     #[doc = concat!(
-        "- `", stringify!(version), "` is passed by value as `", stringify!(u32), "`."
+        "- `", stringify!(version), "` is passed by value as `", stringify!(< u32 as
+        crate ::ComValue > ::Wire), "`."
     )]
     #[doc = concat!(
         "- `", stringify!(state),
@@ -713,17 +786,17 @@ pub struct IPersistenceFactoryVTable {
         "` buffer."
     )]
     #[doc = concat!(
-        "- `", stringify!(child_count), "` is passed by value as `", stringify!(u32),
-        "`."
+        "- `", stringify!(child_count), "` is passed by value as `", stringify!(< u32 as
+        crate ::ComValue > ::Wire), "`."
     )]
     ///On success, no output value is written.
     pub validate: unsafe extern "C" fn(
         this: *mut IPersistenceFactoryAbi,
-        version: u32,
+        version: <u32 as crate::ComValue>::Wire,
         __nc_state_offset: u64,
         __nc_state_len: u64,
-        __nc_state_ptr: *const u8,
-        child_count: u32,
+        __nc_state_ptr: *const <u8 as crate::ComValue>::Wire,
+        child_count: <u32 as crate::ComValue>::Wire,
     ) -> crate::NcStatus,
     #[doc = concat!(
         "Raw COM ABI vtable slot for [`", stringify!(IPersistenceFactory), "::",
@@ -736,7 +809,8 @@ pub struct IPersistenceFactoryVTable {
     ///
     ///`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence.
     #[doc = concat!(
-        "- `", stringify!(version), "` is passed by value as `", stringify!(u32), "`."
+        "- `", stringify!(version), "` is passed by value as `", stringify!(< u32 as
+        crate ::ComValue > ::Wire), "`."
     )]
     #[doc = concat!(
         "- `", stringify!(state),
@@ -754,10 +828,10 @@ pub struct IPersistenceFactoryVTable {
     )]
     pub restore: unsafe extern "C" fn(
         this: *mut IPersistenceFactoryAbi,
-        version: u32,
+        version: <u32 as crate::ComValue>::Wire,
         __nc_state_offset: u64,
         __nc_state_len: u64,
-        __nc_state_ptr: *const u8,
+        __nc_state_ptr: *const <u8 as crate::ComValue>::Wire,
         children: *mut IObjectChildrenAbi,
         __nc_out: *mut *mut crate::IUnknown,
     ) -> crate::NcStatus,
@@ -824,6 +898,9 @@ impl<M: crate::ThreadingModel> IPersistenceFactoryClient<M> {
         state: crate::NcCopyFromBufferOffset<'_, u8>,
         child_count: u32,
     ) -> Result<(), crate::NcStatus> {
+        let version = crate::encode_inline(&version)?;
+        let state = crate::EncodedInput::new(state)?;
+        let child_count = crate::encode_inline(&child_count)?;
         let this = self.__nc_pointer.as_mut_ptr();
         let status = unsafe {
             ((*(*this).vtable)
@@ -831,7 +908,7 @@ impl<M: crate::ThreadingModel> IPersistenceFactoryClient<M> {
                 this,
                 version,
                 state.offset(),
-                state.__nc_len_u64()?,
+                state.len(),
                 state.as_ptr(),
                 child_count,
             )
@@ -872,6 +949,8 @@ impl<M: crate::ThreadingModel> IPersistenceFactoryClient<M> {
         state: crate::NcCopyFromBufferOffset<'_, u8>,
         children: crate::ComRef<'_, IObjectChildrenAbi>,
     ) -> Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
+        let version = crate::encode_inline(&version)?;
+        let state = crate::EncodedInput::new(state)?;
         let mut __nc_out = core::mem::MaybeUninit::<*mut crate::IUnknown>::uninit();
         let this = self.__nc_pointer.as_mut_ptr();
         let status = unsafe {
@@ -880,17 +959,23 @@ impl<M: crate::ThreadingModel> IPersistenceFactoryClient<M> {
                 this,
                 version,
                 state.offset(),
-                state.__nc_len_u64()?,
+                state.len(),
                 state.as_ptr(),
                 children.as_mut_ptr(),
                 __nc_out.as_mut_ptr(),
             )
         };
         if status.is_ok() {
-            let __nc_out = unsafe { __nc_out.assume_init() };
-            unsafe {
-                <crate::ComPtr<crate::IUnknown>>::__nc_from_raw_owned_checked(__nc_out)
-            }
+            let result: Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> = (|| {
+                let __nc_out = unsafe { __nc_out.assume_init() };
+                unsafe {
+                    <crate::ComPtr<
+                        crate::IUnknown,
+                    >>::__nc_from_raw_owned_checked(__nc_out)
+                }
+            })();
+            let result = result?;
+            Ok(result)
         } else {
             Err(status)
         }

@@ -120,13 +120,13 @@ pub enum NcAbiPassing {
         /// Threading capability of a present borrowed pointer.
         mode: NcAbiThreadingMode,
     },
-    /// Pointer to one concrete generated message record, borrowed for this call.
+    /// Pointer to one recursively lowered raw value record, borrowed for this call.
     BorrowedValue,
     /// No success value is carried.
     Void,
-    /// Plain value passed directly in the ABI signature.
+    /// Copied value whose checked raw representation appears in the ABI signature.
     Value,
-    /// Plain success value written through an out pointer.
+    /// Copied success value written as checked raw storage through an out pointer.
     Out,
     /// Caller buffer copied into the callee/object at an explicit offset.
     CopyFromBufferOffset,
@@ -248,15 +248,15 @@ pub const NC_ABI_PASSING_VOID: u32 = 0x00;
 pub const NC_ABI_PASSING_VALUE: u32 = 0x01;
 /// C-stable passing tag for a plain success-value out pointer.
 pub const NC_ABI_PASSING_OUT: u32 = 0x02;
-/// C-stable passing tag for caller bytes copied from an explicit offset.
+/// C-stable passing tag for readable raw elements at a logical operation offset.
 pub const NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET: u32 = 0x03;
-/// C-stable passing tag for bytes copied to a caller buffer from an offset.
+/// C-stable passing tag for writable raw elements at a logical operation offset.
 pub const NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET: u32 = 0x04;
 /// C-stable passing tag for a call-scoped borrowed COM pointer.
 pub const NC_ABI_PASSING_COM_REF: u32 = 0x05;
 /// C-stable passing tag for an owned COM pointer success out slot.
 pub const NC_ABI_PASSING_COM_PTR_OUT: u32 = 0x06;
-/// Call-scoped pointer to a concrete generated message representation.
+/// Call-scoped pointer to a recursively lowered raw value representation.
 pub const NC_ABI_PASSING_BORROWED_VALUE: u32 = 0x07;
 /// Nullable borrowed interface input; distinct from a required capability.
 pub const NC_ABI_PASSING_OPTIONAL_COM_REF: u32 = 0x08;

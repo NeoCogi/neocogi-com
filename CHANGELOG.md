@@ -5,6 +5,18 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 
 ## Unreleased
 
+- Unify IDL records/enums as recursively checked values and remove `#[message]`.
+  Separate application storage, raw wire fields, and typed producer guards;
+  check bool bytes and selected enum payloads in copied slots, borrowed values,
+  and buffers. Reject inline recursion, allow explicit recursive sequences, and
+  share byte/work/depth budgets through nested conversion. Preserve zero-copy
+  numeric buffers only through an explicit layout/content proof. Advance core
+  ABI to 8 and canonical IDL encoding to 3; rebuild all components together.
+- Transport complete structured value definitions, named recursion, and enum tags
+  through COM designer catalog schema 4. Keep one stream/one lifetime consumer
+  and explicit application handlers; values no longer manufacture receivers.
+  See [the recursive value contract](../../../docs/RECURSIVE_VALUE_CONTRACT.md) for the supported positions and validation evidence.
+
 - Enforce the same byte, element, value, and depth policy when encoding and
   decoding binary persistence values. Count scalar and container values through
   a shared budget, exclude format framing, and give unit enum cases no synthetic
@@ -64,7 +76,7 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 These entries record superseded designs, not the current API. Native contract
 artifacts, `trait`/`class` IDL declarations, global contract registration, and
 runtime ABI v2 were subsequently removed or replaced. Current binary contracts
-are core v7, factory-plugin v1, and runtime v1; see the [ABI guide](docs/abi-v7.md).
+are core v8, factory-plugin v1, and runtime v1; see the [ABI guide](docs/abi-v8.md).
 
 - Added Rust-like `.ncidl` modules with `struct`, `enum`, `trait`, `class`, and
   `factory` declarations. Every module is an ordinary Cargo crate whose

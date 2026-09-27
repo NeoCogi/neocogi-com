@@ -103,7 +103,7 @@
 //!
 //! # Build Compatibility
 //!
-//! core ABI v7 is currently an experimental pre-alpha draft. The generated C-shaped
+//! core ABI v8 is currently an experimental pre-alpha draft. The generated C-shaped
 //! surface is the intended compatibility boundary, but cross-release
 //! compatibility does not begin until an explicitly named future ratification
 //! milestone. Draft golden vectors prevent accidental drift within the current
