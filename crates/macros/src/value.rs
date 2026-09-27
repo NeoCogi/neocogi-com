@@ -29,6 +29,10 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
     let mut storages = Vec::new();
     let mut encode = Vec::new();
     let mut decode = Vec::new();
+    let mut encode_prechecked = Vec::new();
+    let mut decode_prechecked = Vec::new();
+    let mut fixed_costs = Vec::new();
+    let mut maximum_costs = Vec::new();
     for (index, case) in cases.iter().enumerate() {
         let case_wire = if is_enum {
             format_ident!("__{name}ValueCase{index}")
@@ -42,6 +46,8 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
         let mut bindings = Vec::new();
         let mut encoding = Vec::new();
         let mut decoding = Vec::new();
+        let mut encoding_fixed = Vec::new();
+        let mut decoding_fixed = Vec::new();
         let mut raw_values = Vec::new();
         let mut stored_values = Vec::new();
         for (position, field) in case.fields.iter().enumerate() {
@@ -59,10 +65,30 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
             } else {
                 quote! { #binding }
             };
-            encoding.push(quote! { let (#raw, #stored) = <#ty as #nc::ComValue>::encode_value(#field_value, budget)?; });
+            encoding.push(quote! {
+                let (#raw, #stored) = match <#ty as #nc::ComValue>::FIXED_COST {
+                    // SAFETY: this alternative's aggregate preflight includes every fixed child.
+                    Some(_) => unsafe { <#ty as #nc::ComValue>::encode_prechecked(#field_value) },
+                    None => <#ty as #nc::ComValue>::encode_value(#field_value, budget),
+                }?;
+            });
             decoding.push(quote! {
-                // SAFETY: the selected raw field and its active backing are live.
-                unsafe { <#ty as #nc::ComValue>::decode_value(raw.#binding, budget) }?
+                match <#ty as #nc::ComValue>::FIXED_COST {
+                    // SAFETY: the selected raw field is live and its cost was included
+                    // in the enclosing preflight. Content validation still happens here.
+                    Some(_) => unsafe { <#ty as #nc::ComValue>::decode_prechecked(raw.#binding) },
+                    // SAFETY: this field's active backing remains live for conversion.
+                    None => unsafe { <#ty as #nc::ComValue>::decode_value(raw.#binding, budget) },
+                }?
+            });
+            encoding_fixed.push(quote! {
+                // SAFETY: the enclosing resource preflight includes this active child.
+                let (#raw, #stored) = unsafe { <#ty as #nc::ComValue>::encode_prechecked(#field_value) }?;
+            });
+            decoding_fixed.push(quote! {
+                // SAFETY: the selected field is initialized, its resource requirements were checked,
+                // and this converter still validates every restricted raw value.
+                unsafe { <#ty as #nc::ComValue>::decode_prechecked(raw.#binding) }?
             });
             raw_values.push(quote! { #binding: #raw });
             stored_values.push(quote! { #binding: #stored });
@@ -73,13 +99,24 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
             None => quote! { Self },
         };
         let (pattern, decoded) = match &case.fields {
-            Fields::Unit => (constructor.clone(), constructor),
+            Fields::Unit => (constructor.clone(), constructor.clone()),
             Fields::Named(_) => (
                 quote! { #constructor { #(#bindings),* } },
                 quote! { #constructor { #(#bindings: #decoding),* } },
             ),
             Fields::Unnamed(_) => (quote! { #constructor(#(#bindings),*) }, quote! { #constructor(#(#decoding),*) }),
         };
+        let decoded_fixed = match &case.fields {
+            Fields::Unit => constructor,
+            Fields::Named(_) => quote! { #constructor { #(#bindings: #decoding_fixed),* } },
+            Fields::Unnamed(_) => quote! { #constructor(#(#decoding_fixed),*) },
+        };
+        let field_types: Vec<_> = case.fields.iter().map(|field| &field.ty).collect();
+        // Only the active alternative contributes values. Fixed children are
+        // counted here; dynamic children receive the shared budget individually.
+        let known_cost = quote! { #nc::ValueCost::known_fields(&[#(<#field_types as #nc::ComValue>::FIXED_COST),*]) };
+        fixed_costs.push(quote! { #nc::ValueCost::aggregate(&[#(<#field_types as #nc::ComValue>::FIXED_COST),*]) });
+        maximum_costs.push(quote! { #nc::ValueCost::aggregate(&[#(<#field_types as #nc::ComValue>::MAX_COST),*]) });
         if raw_fields.is_empty() {
             raw_fields.push(quote! { /// Initialized placeholder for an empty raw record.
             pub empty: u8 });
@@ -106,7 +143,13 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
         } else {
             quote! { #storage_name::#case_storage { #(#stored_values),* } }
         };
-        encode.push(quote! { #pattern => { #(#encoding)* Ok((#wire, #stored)) } });
+        encode.push(quote! { #pattern => {
+            const COST: Option<#nc::ValueCost> = #known_cost;
+            budget.aggregate(COST.ok_or(#nc::NC_E_OUT_OF_RANGE)?, |budget| {
+                #(#encoding)* Ok((#wire, #stored))
+            })
+        } });
+        encode_prechecked.push(quote! { #pattern => { #(#encoding_fixed)* Ok((#wire, #stored)) } });
         let read = (!bindings.is_empty()).then(|| {
             if is_enum {
                 quote! { // SAFETY: this match arm validated the tag before selecting a payload.
@@ -115,10 +158,21 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
                 quote! { let raw = wire; }
             }
         });
-        decode.push(if is_enum {
-            quote! { #tag => { #read Ok(#decoded) } }
+        decode_prechecked.push(if is_enum {
+            quote! { #tag => { #read Ok(#decoded_fixed) } }
         } else {
-            quote! { #read Ok(#decoded) }
+            quote! { #read Ok(#decoded_fixed) }
+        });
+        let decode_case = quote! {
+            const COST: Option<#nc::ValueCost> = #known_cost;
+            budget.aggregate(COST.ok_or(#nc::NC_E_OUT_OF_RANGE)?, |budget| {
+                #read Ok(#decoded)
+            })
+        };
+        decode.push(if is_enum {
+            quote! { #tag => { #decode_case } }
+        } else {
+            decode_case
         });
     }
     let tagged_wire = is_enum.then(|| {
@@ -149,9 +203,28 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
         }
     });
     let decode_body = if is_enum {
-        quote! { match wire.tag { #(#decode),*, _ => Err(#nc::NC_E_INVALID_TAG) } }
+        quote! { match wire.tag {
+            #(#decode),*,
+            // An unknown tag still consumes the enum root before being rejected.
+            _ => budget.value(|_| Err(#nc::NC_E_INVALID_TAG)),
+        } }
     } else {
         quote! { #(#decode)* }
+    };
+    let decode_prechecked_body = if is_enum {
+        quote! { match wire.tag { #(#decode_prechecked),*, _ => Err(#nc::NC_E_INVALID_TAG) } }
+    } else {
+        quote! { #(#decode_prechecked)* }
+    };
+    let fixed_cost = if is_enum {
+        quote! { #nc::ValueCost::alternatives(&[#(#fixed_costs),*]) }
+    } else {
+        fixed_costs[0].clone()
+    };
+    let maximum_cost = if is_enum {
+        quote! { #nc::ValueCost::maximum(&[#(#maximum_costs),*]) }
+    } else {
+        maximum_costs[0].clone()
     };
     let borrow_wire = if !is_enum && inline {
         let fields = cases.iter().flat_map(|case| case.fields.iter()).map(|field| &field.ty);
@@ -170,6 +243,25 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
     } else {
         quote! {}
     };
+    let direct_encode = inline.then(|| {
+        quote! {
+            if Self::BORROW_WIRE {
+                // SAFETY: BORROW_WIRE proves identical field offsets/size/alignment,
+                // unrestricted initialized bits, and no ownership or conversion work.
+                let wire = unsafe { core::ptr::from_ref(self).cast::<Self::Wire>().read() };
+                return Ok((wire, ()));
+            }
+        }
+    });
+    let direct_decode = inline.then(|| {
+        quote! {
+            if Self::BORROW_WIRE {
+                // SAFETY: the recursive proof excludes bools/tags and equates every
+                // active field layout. Padding stays padding in the copied value.
+                return Ok(unsafe { core::ptr::from_ref(&wire).cast::<Self>().read() });
+            }
+        }
+    });
     let encode_source = if inline {
         quote! { *self }
     } else {
@@ -191,15 +283,47 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
         // validates tags and values before constructing application data.
         unsafe impl #nc::ComValue for #name {
             #borrow_wire
+            const FIXED_COST: Option<#nc::ValueCost> = #fixed_cost;
+            const MAX_COST: Option<#nc::ValueCost> = #maximum_cost;
             type Wire = #wire_name;
             type Storage = #storage_type;
             /// Retains the storage required by every recursively converted child.
+            /// Keep the budgeted traversal shared; isolated small copies use prechecked conversion.
+            #[inline(never)]
             fn encode_value(&self, budget: &mut #nc::ValueBudget) -> Result<(Self::Wire, Self::Storage), #nc::NcStatus> {
-                budget.value(|budget| match #encode_source { #(#encode),* })
+                match Self::FIXED_COST {
+                    Some(cost) => {
+                        budget.fixed(cost)?;
+                        // SAFETY: this exact allocation-free subtree has been charged.
+                        unsafe { Self::encode_prechecked(self) }
+                    }
+                    None => match #encode_source { #(#encode),* },
+                }
             }
             /// Selects the valid alternative before decoding any application field.
+            /// A shared traversal avoids duplicating its budget handling into every buffer adapter.
+            #[inline(never)]
             unsafe fn decode_value(wire: Self::Wire, budget: &mut #nc::ValueBudget) -> Result<Self, #nc::NcStatus> {
-                budget.value(|budget| { #decode_body })
+                match Self::FIXED_COST {
+                    Some(cost) => {
+                        budget.fixed(cost)?;
+                        // SAFETY: raw backing satisfies this codec and cost was charged.
+                        unsafe { Self::decode_prechecked(wire) }
+                    }
+                    None => { #decode_body },
+                }
+            }
+            /// Converts fields through their same validators after the resource preflight.
+            #[inline]
+            unsafe fn encode_prechecked(&self) -> Result<(Self::Wire, Self::Storage), #nc::NcStatus> {
+                #direct_encode
+                match #encode_source { #(#encode_prechecked),* }
+            }
+            /// Checks tags and every field after the whole conversion was proved to fit.
+            #[inline]
+            unsafe fn decode_prechecked(wire: Self::Wire) -> Result<Self, #nc::NcStatus> {
+                #direct_decode
+                #decode_prechecked_body
             }
         }
         impl #nc::ComValueType for #name {

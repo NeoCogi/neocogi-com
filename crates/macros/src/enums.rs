@@ -413,13 +413,25 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
         // SAFETY: the legacy application wrapper is converted through the same
         // recursively checked enum codec before it crosses any COM boundary.
         unsafe impl #nc::ComValue for #abi_ident {
+            const FIXED_COST: Option<#nc::ValueCost> = <#enum_ident as #nc::ComValue>::FIXED_COST;
+            const MAX_COST: Option<#nc::ValueCost> = <#enum_ident as #nc::ComValue>::MAX_COST;
             type Wire = <#enum_ident as #nc::ComValue>::Wire;
             type Storage = ();
+            /// Preserves checked conversion while adapting the legacy application wrapper.
             fn encode_value(&self, budget: &mut #nc::ValueBudget) -> Result<(Self::Wire, ()), #nc::NcStatus> {
                 <#enum_ident as #nc::ComValue>::encode_value(&#enum_ident::try_from(*self)?, budget)
             }
+            /// Constructs the wrapper only after the shared enum codec validates its fields.
             unsafe fn decode_value(wire: Self::Wire, budget: &mut #nc::ValueBudget) -> Result<Self, #nc::NcStatus> {
                 unsafe { <#enum_ident as #nc::ComValue>::decode_value(wire, budget) }.map(Self::from)
+            }
+            /// The checked enum conversion retains validation after prepaid accounting.
+            unsafe fn encode_prechecked(&self) -> Result<(Self::Wire, ()), #nc::NcStatus> {
+                unsafe { <#enum_ident as #nc::ComValue>::encode_prechecked(&#enum_ident::try_from(*self)?) }
+            }
+            /// Converts only the validated selected alternative back into its wrapper.
+            unsafe fn decode_prechecked(wire: Self::Wire) -> Result<Self, #nc::NcStatus> {
+                unsafe { <#enum_ident as #nc::ComValue>::decode_prechecked(wire) }.map(Self::from)
             }
         }
         unsafe impl #nc::ComInlineValue for #abi_ident {}

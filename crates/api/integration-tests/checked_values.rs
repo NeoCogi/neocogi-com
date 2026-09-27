@@ -1,4 +1,6 @@
 //! Restricted nested fields cross real generated COM slots only as checked wire values.
+// The depth-limit regression deliberately instantiates a 65-level wire type.
+#![recursion_limit = "256"]
 use neocogi_com::*;
 
 #[com_struct(assigned_signature = b"00000000000000000000000000000081")]
@@ -148,4 +150,174 @@ fn writable_identity_buffers_retain_the_original_allocation() {
     decoded.finish().unwrap();
     encoded.finish().unwrap();
     assert_eq!(values, [1, 8, 3]);
+}
+
+/// Fixed-shape optimization must preserve the exact nested count/depth contract.
+#[test]
+fn copied_aggregate_budget_boundaries_remain_exact() {
+    use neocogi_com::{ValueBudget, NC_E_OUT_OF_RANGE};
+    let value = Settings { flags: Flags { enabled: true } };
+    // Settings -> Flags -> bool is three logical values and three levels deep.
+    let (wire, _) = value.encode_value(&mut ValueBudget::new(0, 3, 3)).unwrap();
+    for (values, depth) in [(2, 3), (3, 2)] {
+        assert!(matches!(value.encode_value(&mut ValueBudget::new(0, values, depth)), Err(NC_E_OUT_OF_RANGE)));
+        // SAFETY: the successful encoding supplies a fully initialized raw record.
+        assert_eq!(
+            unsafe { Settings::decode_value(wire, &mut ValueBudget::new(0, values, depth)) },
+            Err(NC_E_OUT_OF_RANGE)
+        );
+    }
+    // Siblings share the cumulative count, but each completed subtree restores depth.
+    let mut encode_budget = ValueBudget::new(0, 4, 3);
+    value.encode_value(&mut encode_budget).unwrap();
+    true.encode_value(&mut encode_budget).unwrap();
+    assert!(matches!(true.encode_value(&mut encode_budget), Err(NC_E_OUT_OF_RANGE)));
+    let mut decode_budget = ValueBudget::new(0, 4, 3);
+    // SAFETY: wire came from the checked encoder and bool uses an unrestricted byte.
+    unsafe {
+        assert_eq!(Settings::decode_value(wire, &mut decode_budget), Ok(value));
+        assert_eq!(bool::decode_value(1, &mut decode_budget), Ok(true));
+        assert_eq!(bool::decode_value(1, &mut decode_budget), Err(NC_E_OUT_OF_RANGE));
+    }
+}
+
+/// Array preflight must include its root and every nested record, then validate bits.
+#[test]
+fn fixed_arrays_charge_whole_subtrees_and_still_validate_each_element() {
+    let value = [Settings { flags: Flags { enabled: true } }; 2];
+    // One array plus two Settings/Flags/bool subtrees: seven values, depth four.
+    let (mut wire, _) = value.encode_value(&mut ValueBudget::new(0, 7, 4)).unwrap();
+    assert!(matches!(value.encode_value(&mut ValueBudget::new(0, 6, 4)), Err(NC_E_OUT_OF_RANGE)));
+    assert!(matches!(value.encode_value(&mut ValueBudget::new(0, 7, 3)), Err(NC_E_OUT_OF_RANGE)));
+    wire.elements[1].flags.enabled = 7;
+    // SAFETY: the raw array is initialized; its invalid boolean must be rejected.
+    assert_eq!(
+        unsafe { <[Settings; 2]>::decode_value(wire, &mut ValueBudget::new(0, 7, 4)) },
+        Err(NC_E_INVALID_ARG)
+    );
+}
+
+/// Unequal enum alternatives must pay their selected shape, not the maximum shape.
+#[test]
+fn variant_dependent_shapes_retain_exact_dynamic_accounting() {
+    let idle = Action::Idle;
+    let configured = Action::Configure(Settings { flags: Flags { enabled: true } });
+    assert_eq!(Action::FIXED_COST, None);
+    let (idle_wire, _) = idle.encode_value(&mut ValueBudget::new(0, 1, 1)).unwrap();
+    let (configured_wire, _) = configured.encode_value(&mut ValueBudget::new(0, 4, 4)).unwrap();
+    assert!(matches!(configured.encode_value(&mut ValueBudget::new(0, 3, 4)), Err(NC_E_OUT_OF_RANGE)));
+    // SAFETY: both wires came from checked conversion and contain no indirect data.
+    unsafe {
+        assert_eq!(Action::decode_value(idle_wire, &mut ValueBudget::new(0, 1, 1)), Ok(idle));
+        assert_eq!(Action::decode_value(configured_wire, &mut ValueBudget::new(0, 4, 4)), Ok(configured));
+        assert_eq!(Action::decode_value(configured_wire, &mut ValueBudget::new(0, 4, 3)), Err(NC_E_OUT_OF_RANGE));
+    }
+}
+
+#[com_value(assigned_signature = b"00000000000000000000000000000086")]
+#[derive(Debug, PartialEq)]
+/// Mixes fixed records, a selected enum variant, and variable-length ownership.
+pub struct MixedSettings {
+    /// This fixed record is counted together with the enclosing root.
+    pub settings: Settings,
+    /// Text remains dynamically byte-counted and independently acquired.
+    pub title: String,
+    /// Only the selected alternative contributes logical values and depth.
+    pub action: Action,
+}
+
+/// Counting known fields together must leave exact shared limits for dynamic fields.
+#[test]
+fn mixed_records_preserve_cumulative_bytes_values_and_depth() {
+    let value = MixedSettings {
+        settings: Settings { flags: Flags { enabled: true } },
+        title: "ok".to_owned(),
+        action: Action::Configure(Settings { flags: Flags { enabled: false } }),
+    };
+    // Root + Settings(3) + String(1) + Configure(4) = nine values, depth five.
+    assert_eq!(MixedSettings::MAX_COST, None);
+    let (wire, _storage) = value.encode_value(&mut ValueBudget::new(2, 9, 5)).unwrap();
+    for (bytes, values, depth) in [(1, 9, 5), (2, 8, 5), (2, 9, 4)] {
+        assert!(matches!(
+            value.encode_value(&mut ValueBudget::new(bytes, values, depth)),
+            Err(NC_E_OUT_OF_RANGE)
+        ));
+        // SAFETY: the source and typed guard retain every active wire field.
+        assert_eq!(
+            unsafe { MixedSettings::decode_value(wire, &mut ValueBudget::new(bytes, values, depth)) },
+            Err(NC_E_OUT_OF_RANGE)
+        );
+    }
+    // SAFETY: the retained source supplies the valid string backing.
+    assert_eq!(unsafe { MixedSettings::decode_value(wire, &mut ValueBudget::new(2, 9, 5)) }, Ok(value));
+}
+
+/// Eight optional levels compose a small value whose largest shape exceeds depth 64.
+type Optional8<T> = Option<Option<Option<Option<Option<Option<Option<Option<T>>>>>>>>;
+/// A 64-option chain adds one more level for its scalar leaf.
+type Optional64 = Optional8<Optional8<Optional8<Optional8<Optional8<Optional8<Optional8<Optional8<bool>>>>>>>>;
+
+/// Builds eight present levels without allocation or an untyped payload.
+fn present8<T>(value: T) -> Optional8<T> {
+    Some(Some(Some(Some(Some(Some(Some(Some(value))))))))
+}
+
+/// An excessive upper bound must fall back to the actual shape, never reject it alone.
+#[test]
+fn inline_bound_falls_back_to_selected_depth() {
+    let absent: Optional64 = None;
+    let wire = encode_inline(&absent).unwrap();
+    // SAFETY: absent storage has no initialized payload requirement.
+    assert_eq!(unsafe { decode_inline::<Optional64>(wire) }, Ok(absent));
+    let deepest = present8(present8(present8(present8(present8(present8(present8(present8(true))))))));
+    assert!(matches!(encode_inline(&deepest), Err(NC_E_OUT_OF_RANGE)));
+    // Produce valid depth-65 storage with an explicit larger budget, then ensure
+    // ordinary inline acquisition still enforces its depth-64 default.
+    let (wire, _storage) = deepest.encode_value(&mut ValueBudget::new(0, 65, 65)).unwrap();
+    // SAFETY: all selected optional fields are initialized by the checked encoder.
+    assert_eq!(unsafe { decode_inline::<Optional64>(wire) }, Err(NC_E_OUT_OF_RANGE));
+}
+
+/// Buffer bounds may exceed the budget while the actual small variants still fit.
+#[test]
+fn buffers_count_selected_variants_without_charging_larger_alternatives() {
+    let values = vec![Action::Idle; MAX_VALUE_COUNT / 4 + 1];
+    // Configure needs four values; Idle needs one. Multiplying the maximum would
+    // reject this valid buffer, so the actual active alternatives must be counted.
+    let mut wire = encode_value_buffer(&values).unwrap();
+    // SAFETY: wire owns initialized, self-contained enum representations.
+    let decoded = unsafe { decode_value_buffer::<Action>(wire.as_ptr(), wire.len() as u64) }.unwrap();
+    assert_eq!(decoded.len(), values.len());
+    assert!(decoded.iter().all(|value| *value == Action::Idle));
+    wire.last_mut().unwrap().tag = 99;
+    // SAFETY: unknown raw tags are valid wire integers and must be rejected.
+    assert!(matches!(
+        unsafe { decode_value_buffer::<Action>(wire.as_ptr(), wire.len() as u64) },
+        Err(NC_E_INVALID_TAG)
+    ));
+}
+
+/// Fixed buffer elements must count nested records, not just the number of elements.
+#[test]
+fn buffer_count_includes_each_nested_record() {
+    let values = vec![Settings { flags: Flags { enabled: true } }; MAX_VALUE_COUNT / 3 + 1];
+    assert!(matches!(encode_value_buffer(&values), Err(NC_E_OUT_OF_RANGE)));
+    let wire = vec![__SettingsValueWire { flags: __FlagsValueWire { enabled: 1 } }; values.len()];
+    // SAFETY: all wire records are initialized, but their total work exceeds policy.
+    assert!(matches!(
+        unsafe { decode_value_buffer::<Settings>(wire.as_ptr(), wire.len() as u64) },
+        Err(NC_E_OUT_OF_RANGE)
+    ));
+}
+
+/// Array identity propagates only when every nested element has unrestricted bits.
+#[test]
+fn numeric_arrays_borrow_in_place_but_boolean_arrays_are_checked() {
+    let values = [[Coordinates { x: 1.0, y: 2.0 }; 2]];
+    let encoded = EncodedInput::new(NcCopyFromBufferOffset::new(0, &values)).unwrap();
+    assert_eq!(encoded.as_ptr().cast::<[Coordinates; 2]>(), values.as_ptr());
+    // SAFETY: the encoded guard borrows the original initialized numeric array.
+    let decoded = unsafe { DecodedInput::<[Coordinates; 2]>::from_raw(encoded.as_ptr(), encoded.len()) }.unwrap();
+    assert_eq!(decoded.as_slice().as_ptr(), values.as_ptr());
+    assert!(!<[Settings; 2]>::BORROW_WIRE);
 }

@@ -119,13 +119,25 @@ macro_rules! com_int_enum {
 
         // SAFETY: the raw integer is validated before accepting a declared value.
         unsafe impl $crate::ComValue for $name {
+            const FIXED_COST: Option<$crate::ValueCost> = <$repr as $crate::ComValue>::FIXED_COST;
             type Wire = $repr;
             type Storage = ();
+            /// Accounts for the scalar before validating its authored domain.
             fn encode_value(&self, budget: &mut $crate::ValueBudget) -> Result<($repr, ()), $crate::NcStatus> {
-                budget.value(|_| match self.is_known() { true => Ok((self.raw(), ())), false => Err($crate::NC_E_INVALID_TAG) })
+                budget.value(|_| unsafe { Self::encode_prechecked(self) })
             }
+            /// Accounts for the scalar before accepting any raw integer.
             unsafe fn decode_value(wire: $repr, budget: &mut $crate::ValueBudget) -> Result<Self, $crate::NcStatus> {
-                budget.value(|_| { let value = Self::from_raw(wire); match value.is_known() { true => Ok(value), false => Err($crate::NC_E_INVALID_TAG) } })
+                budget.value(|_| unsafe { Self::decode_prechecked(wire) })
+            }
+            /// Preserves domain checks inside a prepaid fixed aggregate.
+            unsafe fn encode_prechecked(&self) -> Result<($repr, ()), $crate::NcStatus> {
+                match self.is_known() { true => Ok((self.raw(), ())), false => Err($crate::NC_E_INVALID_TAG) }
+            }
+            /// Rejects unknown tags/bits even when accounting was prepaid.
+            unsafe fn decode_prechecked(wire: $repr) -> Result<Self, $crate::NcStatus> {
+                let value = Self::from_raw(wire);
+                match value.is_known() { true => Ok(value), false => Err($crate::NC_E_INVALID_TAG) }
             }
         }
         // SAFETY: a validated integer is self-contained and carries no pointers.
@@ -313,13 +325,25 @@ macro_rules! com_bit_enum {
 
         // SAFETY: the raw integer is validated before accepting a declared value.
         unsafe impl $crate::ComValue for $name {
+            const FIXED_COST: Option<$crate::ValueCost> = <$repr as $crate::ComValue>::FIXED_COST;
             type Wire = $repr;
             type Storage = ();
+            /// Accounts for the scalar before validating its authored domain.
             fn encode_value(&self, budget: &mut $crate::ValueBudget) -> Result<($repr, ()), $crate::NcStatus> {
-                budget.value(|_| match self.is_valid() { true => Ok((self.raw(), ())), false => Err($crate::NC_E_INVALID_TAG) })
+                budget.value(|_| unsafe { Self::encode_prechecked(self) })
             }
+            /// Accounts for the scalar before accepting any raw integer.
             unsafe fn decode_value(wire: $repr, budget: &mut $crate::ValueBudget) -> Result<Self, $crate::NcStatus> {
-                budget.value(|_| { let value = Self::from_raw(wire); match value.is_valid() { true => Ok(value), false => Err($crate::NC_E_INVALID_TAG) } })
+                budget.value(|_| unsafe { Self::decode_prechecked(wire) })
+            }
+            /// Preserves domain checks inside a prepaid fixed aggregate.
+            unsafe fn encode_prechecked(&self) -> Result<($repr, ()), $crate::NcStatus> {
+                match self.is_valid() { true => Ok((self.raw(), ())), false => Err($crate::NC_E_INVALID_TAG) }
+            }
+            /// Rejects unknown tags/bits even when accounting was prepaid.
+            unsafe fn decode_prechecked(wire: $repr) -> Result<Self, $crate::NcStatus> {
+                let value = Self::from_raw(wire);
+                match value.is_valid() { true => Ok(value), false => Err($crate::NC_E_INVALID_TAG) }
             }
         }
         // SAFETY: a validated integer is self-contained and carries no pointers.

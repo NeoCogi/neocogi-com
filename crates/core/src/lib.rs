@@ -36,6 +36,8 @@ mod encode;
 mod factory_plugin;
 mod guid;
 mod value;
+mod value_cost;
+pub use value_cost::ValueCost;
 mod value_buffer;
 mod metadata;
 mod object;

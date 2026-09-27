@@ -6,7 +6,7 @@
 //! the boundary, and no erased allocation registry participates in conversion.
 
 use core::marker::PhantomData;
-use crate::{NcStatus, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_OUT_OF_RANGE, NC_E_POINTER};
+use crate::{ValueCost, NcStatus, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_OUT_OF_RANGE, NC_E_POINTER};
 #[cfg(feature = "alloc")]
 use alloc::{string::String, vec::Vec};
 #[cfg(feature = "alloc")]
@@ -46,6 +46,44 @@ impl ValueBudget {
         self.depth += 1;
         result
     }
+    /// Counts one entire allocation-free value, including its nested fields.
+    /// Fixed preflight consumes the exact count once and observes the same depth
+    /// bound without entering each descendant. Failure may leave the budget spent;
+    /// callers must discard a failed conversion rather than reuse its partial work.
+    #[inline(always)]
+    pub fn fixed(&mut self, cost: ValueCost) -> Result<(), NcStatus> {
+        if self.depth < cost.depth {
+            return Err(NC_E_OUT_OF_RANGE);
+        }
+        self.values = self.values.checked_sub(cost.values).ok_or(NC_E_OUT_OF_RANGE)?;
+        Ok(())
+    }
+    /// Counts an aggregate and all of its known fixed fields together.
+    ///
+    /// Generated code converts those fields with their prepaid validators and
+    /// passes this budget to every remaining dynamic field. Descending one level
+    /// keeps those dynamic fields at the same depth as an ordinary traversal.
+    #[doc(hidden)]
+    pub fn aggregate<T>(&mut self, cost: ValueCost, operation: impl FnOnce(&mut Self) -> Result<T, NcStatus>) -> Result<T, NcStatus> {
+        self.fixed(cost)?;
+        // Every aggregate cost includes its root, so preflight ensured depth > 0.
+        self.depth -= 1;
+        let result = operation(self);
+        self.depth += 1;
+        result
+    }
+    /// Prepays all fixed elements before their backing allocation or raw reads.
+    /// Dynamic codecs return false and retain their ordinary recursive accounting.
+    #[cfg(feature = "alloc")]
+    fn fixed_elements<T: ComValue>(&mut self, len: usize) -> Result<bool, NcStatus> {
+        match T::FIXED_COST {
+            Some(cost) => {
+                self.fixed(cost.elements(len).ok_or(NC_E_OUT_OF_RANGE)?)?;
+                Ok(true)
+            }
+            None => Ok(false),
+        }
+    }
     /// Charges an allocation/copy before touching producer-controlled storage.
     pub fn bytes(&mut self, amount: usize) -> Result<(), NcStatus> {
         self.bytes = self.bytes.checked_sub(amount).ok_or(NC_E_OUT_OF_RANGE)?;
@@ -61,6 +99,7 @@ impl ValueBudget {
 }
 impl Default for ValueBudget {
     /// Uses the same finite defaults for producer encoding and receiver decoding.
+    #[inline(always)]
     fn default() -> Self {
         Self::new(MAX_VALUE_BYTES, MAX_VALUE_COUNT, MAX_VALUE_DEPTH)
     }
@@ -79,12 +118,44 @@ pub unsafe trait ComValue: Sized + 'static {
     /// bit patterns require no content validation, ownership, or conversion.
     /// The unsafe implementor must prove this for every field recursively.
     const BORROW_WIRE: bool = false;
+    /// Exact cost when every active alternative has the same allocation-free shape.
+    /// Some(cost) promises that the hidden fixed converters validate the same raw
+    /// fields as ordinary conversion without allocating or visiting dynamic data.
+    const FIXED_COST: Option<ValueCost> = None;
+    /// Upper bound for allocation-free shapes, including differing enum alternatives.
+    ///
+    /// A fresh inline conversion can omit bookkeeping when every possible shape
+    /// fits its complete budget. A bound that does not fit is never a rejection:
+    /// conversion falls back to exact accounting for the actual value instead.
+    /// Both prechecked converters must work for every active shape covered here.
+    const MAX_COST: Option<ValueCost> = Self::FIXED_COST;
     /// Call-scoped raw representation, recursively composed of wire fields.
     type Wire: Copy;
     /// Concrete producer-owned backing storage for converted indirect fields.
     type Storage;
     /// Encodes this value, retaining every temporary wire allocation in Storage.
     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, Self::Storage), NcStatus>;
+    /// Converts fields after their resource requirements have been checked.
+    /// This is macro infrastructure, not an alternative unchecked wire format.
+    ///
+    /// # Safety
+    /// Either FIXED_COST was charged to the shared conversion budget, or MAX_COST
+    /// fits the entire budget of an isolated conversion with no subsequent work.
+    /// Every active child must have a finite allocation-free MAX_COST. Content
+    /// validation remains required even though budget bookkeeping is omitted.
+    #[doc(hidden)]
+    unsafe fn encode_prechecked(&self) -> Result<(Self::Wire, Self::Storage), NcStatus> {
+        unreachable!("unbounded codec cannot use prechecked conversion")
+    }
+    /// Validates raw fields after proving the entire conversion fits its budget.
+    ///
+    /// # Safety
+    /// The caller must satisfy decode_value's memory contract and encode_prechecked's
+    /// resource preflight contract. Restricted boolean/tag values still require checks.
+    #[doc(hidden)]
+    unsafe fn decode_prechecked(_wire: Self::Wire) -> Result<Self, NcStatus> {
+        unreachable!("unbounded codec cannot use prechecked conversion")
+    }
     /// Validates a raw value and acquires independent application-owned contents.
     ///
     /// # Safety
@@ -166,14 +237,21 @@ macro_rules! scalar_values {
         // borrowed fields, or ownership obligations.
         unsafe impl ComValue for $ty {
             const BORROW_WIRE: bool = true;
+            const FIXED_COST: Option<ValueCost> = Some(ValueCost::SCALAR);
             type Wire = Self;
             type Storage = ();
+            /// Counts this scalar and copies its unrestricted value.
             fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self, ()), NcStatus> {
                 budget.value(|_| Ok((*self, ())))
             }
+            /// Counts the scalar before accepting any initialized bit pattern.
             unsafe fn decode_value(wire: Self, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
                 budget.value(|_| Ok(wire))
             }
+            /// Copies a scalar whose resource requirements were already checked.
+            unsafe fn encode_prechecked(&self) -> Result<(Self, ()), NcStatus> { Ok((*self, ())) }
+            /// Accepts unrestricted scalar bits after the enclosing resource check.
+            unsafe fn decode_prechecked(wire: Self) -> Result<Self, NcStatus> { Ok(wire) }
         }
         // SAFETY: primitive scalar wires are self-contained copied values.
         unsafe impl ComInlineValue for $ty {}
@@ -183,17 +261,28 @@ scalar_values!(u8, u16, u32, u64, usize, i8, i16, i32, i64, isize, f32, f64, cra
 
 // SAFETY: boolean wire storage is an unrestricted byte, checked before conversion.
 unsafe impl ComValue for bool {
+    const FIXED_COST: Option<ValueCost> = Some(ValueCost::SCALAR);
     type Wire = u8;
     type Storage = ();
+    /// Counts the boolean and lowers its known Rust value to a valid wire byte.
     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(u8, ()), NcStatus> {
         budget.value(|_| Ok((u8::from(*self), ())))
     }
+    /// Counts this leaf and validates its raw byte before constructing a Rust value.
     unsafe fn decode_value(wire: u8, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
-        budget.value(|_| match wire {
+        budget.value(|_| unsafe { Self::decode_prechecked(wire) })
+    }
+    /// Encodes the sole active leaf after its enclosing resource check.
+    unsafe fn encode_prechecked(&self) -> Result<(u8, ()), NcStatus> {
+        Ok((u8::from(*self), ()))
+    }
+    /// Rejects invalid raw bytes even when no budget bookkeeping is needed.
+    unsafe fn decode_prechecked(wire: u8) -> Result<Self, NcStatus> {
+        match wire {
             0 => Ok(false),
             1 => Ok(true),
             _ => Err(NC_E_INVALID_ARG),
-        })
+        }
     }
 }
 // SAFETY: boolean wire bytes do not borrow any source storage.
@@ -216,6 +305,7 @@ impl<W: Copy> Clone for ValueOption<W> {
 }
 // SAFETY: the optional tag is inspected before the recursively checked payload.
 unsafe impl<T: ComValue> ComValue for Option<T> {
+    const MAX_COST: Option<ValueCost> = ValueCost::aggregate(&[T::MAX_COST]);
     type Wire = ValueOption<T::Wire>;
     type Storage = Option<T::Storage>;
     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, Self::Storage), NcStatus> {
@@ -247,6 +337,38 @@ unsafe impl<T: ComValue> ComValue for Option<T> {
             _ => Err(NC_E_INVALID_TAG),
         })
     }
+    /// Converts the selected optional payload after the complete bound was checked.
+    unsafe fn encode_prechecked(&self) -> Result<(Self::Wire, Self::Storage), NcStatus> {
+        match self {
+            None => Ok((
+                ValueOption {
+                    present: 0,
+                    payload: core::mem::MaybeUninit::uninit(),
+                },
+                None,
+            )),
+            Some(value) => {
+                // SAFETY: the enclosing bound includes the present child's maximum cost.
+                let (wire, storage) = unsafe { value.encode_prechecked() }?;
+                Ok((
+                    ValueOption {
+                        present: 1,
+                        payload: core::mem::MaybeUninit::new(wire),
+                    },
+                    Some(storage),
+                ))
+            }
+        }
+    }
+    /// Validates presence before inspecting the prechecked optional payload.
+    unsafe fn decode_prechecked(wire: Self::Wire) -> Result<Self, NcStatus> {
+        match wire.present {
+            0 => Ok(None),
+            // SAFETY: the tag selects initialized storage and the child bound fits.
+            1 => unsafe { T::decode_prechecked(wire.payload.assume_init()) }.map(Some),
+            _ => Err(NC_E_INVALID_TAG),
+        }
+    }
 }
 
 /// C-layout wrapper keeps arrays out of native Rust by-value array ABI positions.
@@ -258,29 +380,70 @@ pub struct ValueArray<W: Copy, const N: usize> {
 }
 // SAFETY: every array element uses its declared checked raw representation.
 unsafe impl<T: ComValue, const N: usize> ComValue for [T; N] {
+    // The repr(C) wrapper contains exactly the element array at offset zero.
+    const BORROW_WIRE: bool = T::BORROW_WIRE
+        && core::mem::size_of::<Self>() == core::mem::size_of::<Self::Wire>()
+        && core::mem::align_of::<Self>() == core::mem::align_of::<Self::Wire>();
+    const FIXED_COST: Option<ValueCost> = ValueCost::array(T::FIXED_COST, N);
+    const MAX_COST: Option<ValueCost> = ValueCost::array(T::MAX_COST, N);
     type Wire = ValueArray<T::Wire, N>;
     type Storage = [T::Storage; N];
+    /// Preflights a fixed array once or shares dynamic accounting with its children.
     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, Self::Storage), NcStatus> {
-        budget.value(|budget| {
-            let mut slots: [Option<(T::Wire, T::Storage)>; N] = core::array::from_fn(|_| None);
-            for (slot, value) in slots.iter_mut().zip(self) {
-                *slot = Some(value.encode_value(budget)?);
+        match Self::FIXED_COST {
+            Some(cost) => {
+                budget.fixed(cost)?;
+                // SAFETY: every element's exact fixed cost is included above.
+                unsafe { Self::encode_prechecked(self) }
             }
-            let elements = core::array::from_fn(|index| slots[index].as_ref().expect("initialized wire slot").0);
-            let storage = slots.map(|slot| slot.expect("initialized storage slot").1);
-            Ok((ValueArray { elements }, storage))
-        })
+            None => budget.value(|budget| encode_array(self, |value| value.encode_value(budget))),
+        }
     }
+    /// Active raw elements remain checked in both accounting modes.
     unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
-        budget.value(|budget| {
-            let mut values: [Option<T>; N] = core::array::from_fn(|_| None);
-            for (slot, raw) in values.iter_mut().zip(wire.elements) {
-                // SAFETY: the caller guarantees initialized raw elements and pointees.
-                *slot = Some(unsafe { T::decode_value(raw, budget) }?);
+        match Self::FIXED_COST {
+            Some(cost) => {
+                budget.fixed(cost)?;
+                // SAFETY: raw element memory is valid and their exact cost is paid.
+                unsafe { Self::decode_prechecked(wire) }
             }
-            Ok(values.map(|value| value.expect("initialized application slot")))
-        })
+            None => budget.value(|budget| decode_array(wire, |raw| unsafe { T::decode_value(raw, budget) })),
+        }
     }
+    /// Converts each statically accounted child without double charging it.
+    unsafe fn encode_prechecked(&self) -> Result<(Self::Wire, Self::Storage), NcStatus> {
+        encode_array(self, |value| unsafe { T::encode_prechecked(value) })
+    }
+    /// Validates each statically accounted child before assembling application storage.
+    unsafe fn decode_prechecked(wire: Self::Wire) -> Result<Self, NcStatus> {
+        decode_array(wire, |raw| unsafe { T::decode_prechecked(raw) })
+    }
+}
+
+/// Retains initialized array guards and drops a partial prefix on conversion failure.
+fn encode_array<T: ComValue, const N: usize>(
+    values: &[T; N],
+    mut convert: impl FnMut(&T) -> Result<(T::Wire, T::Storage), NcStatus>,
+) -> Result<(ValueArray<T::Wire, N>, [T::Storage; N]), NcStatus> {
+    let mut slots: [Option<(T::Wire, T::Storage)>; N] = core::array::from_fn(|_| None);
+    for (slot, value) in slots.iter_mut().zip(values) {
+        *slot = Some(convert(value)?);
+    }
+    let elements = core::array::from_fn(|index| slots[index].as_ref().expect("initialized wire slot").0);
+    let storage = slots.map(|slot| slot.expect("initialized storage slot").1);
+    Ok((ValueArray { elements }, storage))
+}
+
+/// Acquires an array transactionally without leaking an already-decoded prefix.
+fn decode_array<T: ComValue, const N: usize>(
+    wire: ValueArray<T::Wire, N>,
+    mut convert: impl FnMut(T::Wire) -> Result<T, NcStatus>,
+) -> Result<[T; N], NcStatus> {
+    let mut values: [Option<T>; N] = core::array::from_fn(|_| None);
+    for (slot, raw) in values.iter_mut().zip(wire.elements) {
+        *slot = Some(convert(raw)?);
+    }
+    Ok(values.map(|value| value.expect("initialized application slot")))
 }
 
 /// A raw sequence points to wire elements rather than application Rust values.
@@ -338,11 +501,16 @@ unsafe impl<T: ComValue> ComValue for Vec<T> {
             budget.sequence::<T::Wire>(self.len())?;
             // The second allocation owns child guards as well as the wire array.
             budget.bytes(self.len().checked_mul(core::mem::size_of::<T::Storage>()).ok_or(NC_E_OUT_OF_RANGE)?)?;
+            let fixed = budget.fixed_elements::<T>(self.len())?;
             let mut storage = ValueSequenceStorage { wires: Vec::new(), children: Vec::new() };
             storage.wires.try_reserve_exact(self.len()).map_err(|_| NC_E_OUT_OF_MEMORY)?;
             storage.children.try_reserve_exact(self.len()).map_err(|_| NC_E_OUT_OF_MEMORY)?;
             for value in self {
-                let (wire, child) = value.encode_value(budget)?;
+                let (wire, child) = match fixed {
+                    // SAFETY: fixed_elements prepaid this element's exact cost.
+                    true => unsafe { value.encode_prechecked() },
+                    false => value.encode_value(budget),
+                }?;
                 storage.wires.push(wire);
                 storage.children.push(child);
             }
@@ -357,13 +525,18 @@ unsafe impl<T: ComValue> ComValue for Vec<T> {
         budget.value(|budget| {
             let len = usize::try_from(wire.len).map_err(|_| NC_E_OUT_OF_RANGE)?;
             budget.sequence::<T>(len)?;
+            let fixed = budget.fixed_elements::<T>(len)?;
             // SAFETY: the caller supplies live raw elements; size checks precede this borrow.
             let elements = unsafe { wire.elements() }?;
             let mut values = Vec::new();
             values.try_reserve_exact(len).map_err(|_| NC_E_OUT_OF_MEMORY)?;
             for element in elements {
                 // SAFETY: each element and active backing satisfy the enclosing raw contract.
-                values.push(unsafe { T::decode_value(*element, budget) }?);
+                values.push(match fixed {
+                    // SAFETY: elements are initialized; their fixed costs were prepaid.
+                    true => unsafe { T::decode_prechecked(*element) },
+                    false => unsafe { T::decode_value(*element, budget) },
+                }?);
             }
             Ok(values)
         })
@@ -423,15 +596,32 @@ unsafe impl<T: ComInlineValue, const N: usize> ComInlineValue for [T; N] {}
 
 /// Converts a copied input or output using the same recursive checked codec.
 /// Inline proof ensures discarded storage cannot invalidate the returned wire.
+#[inline(always)]
 pub fn encode_inline<T: ComInlineValue>(value: &T) -> Result<T::Wire, NcStatus> {
-    value.encode_value(&mut ValueBudget::default()).map(|(wire, _storage)| wire)
+    match T::MAX_COST {
+        Some(cost) if cost.values <= MAX_VALUE_COUNT && cost.depth <= MAX_VALUE_DEPTH => {
+            // SAFETY: every possible allocation-free shape fits this isolated conversion.
+            unsafe { value.encode_prechecked() }.map(|(wire, _storage)| wire)
+        }
+        // A large bound is not grounds to reject a smaller active alternative.
+        _ => value.encode_value(&mut ValueBudget::default()).map(|(wire, _storage)| wire),
+    }
 }
 /// Acquires a copied value after validating every active field.
 ///
 /// # Safety
 /// The raw value must satisfy ComValue::decode_value's initialized-storage contract.
+#[inline(always)]
 pub unsafe fn decode_inline<T: ComInlineValue>(wire: T::Wire) -> Result<T, NcStatus> {
-    unsafe { T::decode_value(wire, &mut ValueBudget::default()) }
+    match T::MAX_COST {
+        Some(cost) if cost.values <= MAX_VALUE_COUNT && cost.depth <= MAX_VALUE_DEPTH => {
+            // SAFETY: raw storage is initialized; the complete bound fits an isolated
+            // conversion. This still validates the selected tag and every active field.
+            unsafe { T::decode_prechecked(wire) }
+        }
+        // SAFETY: the caller supplies the same raw backing for ordinary accounting.
+        _ => unsafe { T::decode_value(wire, &mut ValueBudget::default()) },
+    }
 }
 
 /// Encodes an initialized buffer into raw elements without assuming Rust layout.
@@ -439,10 +629,18 @@ pub unsafe fn decode_inline<T: ComInlineValue>(wire: T::Wire) -> Result<T, NcSta
 pub fn encode_value_buffer<T: ComInlineValue>(values: &[T]) -> Result<Vec<T::Wire>, NcStatus> {
     let mut budget = ValueBudget::default();
     budget.sequence::<T::Wire>(values.len())?;
+    let prechecked = budget.fixed_elements::<T>(values.len())?;
     let mut result = Vec::new();
     result.try_reserve_exact(values.len()).map_err(|_| NC_E_OUT_OF_MEMORY)?;
     for value in values {
-        result.push(value.encode_value(&mut budget)?.0);
+        result.push(
+            match prechecked {
+                // SAFETY: the complete buffer fits the isolated logical count/depth budget.
+                true => unsafe { value.encode_prechecked() },
+                false => value.encode_value(&mut budget),
+            }?
+            .0,
+        );
     }
     Ok(result)
 }
@@ -456,28 +654,43 @@ pub unsafe fn decode_value_buffer<T: ComInlineValue>(pointer: *const T::Wire, le
     let mut budget = ValueBudget::default();
     let count = usize::try_from(len).map_err(|_| NC_E_OUT_OF_RANGE)?;
     budget.sequence::<T>(count)?;
+    let prechecked = budget.fixed_elements::<T>(count)?;
     let descriptor = ValueSlice { pointer, len };
     let elements = unsafe { descriptor.elements() }?;
     let mut result = Vec::new();
     result.try_reserve_exact(count).map_err(|_| NC_E_OUT_OF_MEMORY)?;
     for element in elements {
-        result.push(unsafe { T::decode_value(*element, &mut budget) }?);
+        result.push(match prechecked {
+            // SAFETY: raw elements are initialized and the entire buffer bound fits.
+            true => unsafe { T::decode_prechecked(*element) },
+            false => unsafe { T::decode_value(*element, &mut budget) },
+        }?);
     }
     Ok(result)
 }
 
 // SAFETY: unit has a concrete byte representation; only its sole value is accepted.
 unsafe impl ComValue for () {
+    const FIXED_COST: Option<ValueCost> = Some(ValueCost::SCALAR);
     type Wire = u8;
     type Storage = ();
     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(u8, ()), NcStatus> {
         budget.value(|_| Ok((0, ())))
     }
+    /// Counts this leaf and validates its raw byte before constructing a Rust value.
     unsafe fn decode_value(wire: u8, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
-        budget.value(|_| match wire {
+        budget.value(|_| unsafe { Self::decode_prechecked(wire) })
+    }
+    /// Encodes the sole active leaf after its enclosing resource check.
+    unsafe fn encode_prechecked(&self) -> Result<(u8, ()), NcStatus> {
+        Ok((0, ()))
+    }
+    /// Rejects invalid raw bytes even when no budget bookkeeping is needed.
+    unsafe fn decode_prechecked(wire: u8) -> Result<Self, NcStatus> {
+        match wire {
             0 => Ok(()),
             _ => Err(NC_E_INVALID_ARG),
-        })
+        }
     }
 }
 // SAFETY: the unit byte is self-contained.
