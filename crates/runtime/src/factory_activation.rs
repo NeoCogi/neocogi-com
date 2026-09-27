@@ -87,40 +87,18 @@ pub(crate) unsafe fn activate_factory(
         return NC_E_POINTER;
     }
     // SAFETY: activation success promises a matching live allocation/table pair.
-    let vtable = root.vtable;
-
-    let mut projection = neocogi_com_core::ComRaw::null();
-    // SAFETY: The successful activation result owns a live common prefix and
-    // the local output slot receives one queried owned reference.
-    let query_status = unsafe { ((*vtable).query_interface)(root.object, &factory_interface, &mut projection) };
-    if query_status.is_err() || projection.is_null() {
-        // Consume the activated reference rather than leaking a root that does
-        // not implement the plugin's canonical factory declaration.
-        // SAFETY: The activation success contract transferred one live owner.
-        unsafe { ((*vtable).release)(root.object) };
-        // SAFETY: `out` remains writable for this call.
-        unsafe { *out = neocogi_com_core::ComRaw::null() };
-        return if query_status.is_err() { query_status } else { NC_E_POINTER };
-    }
-
-    // SAFETY: success transfers a releasable pair; validate before typed activation.
-    let validation = unsafe { raw::__nc_validate_iunknown_interface(projection, &factory_interface) }.and_then(|()| match projection.object == root.object {
-        true => Ok(()),
-        false => Err(neocogi_com_core::NC_E_INVALID_ARG),
-    });
-    // SAFETY: the bootstrap reference is replaced by the independently retained projection.
+    // The common query body validates the result and releases rejected transfers.
+    let projection = unsafe { raw::__nc_query_interface(root, &factory_interface) };
+    // SAFETY: the bootstrap owner is consumed whether acquisition succeeds or fails.
     unsafe { raw::release(root) };
-    match validation {
-        Ok(()) => {
-            // SAFETY: return the exact validated factory view, not an arbitrary bootstrap view.
+    match projection {
+        Ok(projection) => {
+            // SAFETY: transfer the exact validated factory view to the caller.
             unsafe { *out = projection };
         }
         Err(status) => {
-            // SAFETY: validation failure still consumes the successful query's reference.
-            unsafe {
-                raw::release(projection);
-                *out = neocogi_com_core::ComRaw::null();
-            }
+            // SAFETY: the common query already consumed any rejected reference.
+            unsafe { *out = neocogi_com_core::ComRaw::null() };
             return status;
         }
     }

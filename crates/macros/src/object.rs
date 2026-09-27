@@ -287,28 +287,18 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                 interface_id: *const #nc::NcInterfaceId,
                 out: *mut #nc::ComRaw<#nc::IUnknown>,
             ) -> #nc::NcStatus {
-                if object.is_null() || interface_id.is_null() || out.is_null() {
-                    return #nc::NC_E_POINTER;
-                }
-                // SAFETY: `out` was checked non-null and is valid for one
-                // ComRaw record write under the raw ABI contract.
-                unsafe { *out = #nc::ComRaw::null(); }
-                // SAFETY: `interface_id` was checked non-null and is readable
-                // for this call.
-                let interface_id = unsafe { &*interface_id };
-                // SAFETY: static tables and their identities are immutable and
-                // describe this implementation, independent of inspection data.
-                match unsafe { #nc::__nc_find_interface(&Self::COM_VTABLES, interface_id) } {
-                    Ok(projection) => {
-                        // SAFETY: the live allocation transfers exactly one
-                        // reference after a successful identity/signature match.
-                        unsafe {
-                            Self::add_ref_from_abi_object(object);
-                            *out = #nc::ComRaw { object, vtable: projection };
-                        }
-                        #nc::NC_OK
-                    }
-                    Err(status) => status,
+                if object.is_null() { return #nc::NC_E_POINTER; }
+                // SAFETY: this adapter knows the concrete storage layout. The
+                // shared query body receives its counter explicitly and never
+                // recovers fields from the opaque allocation address.
+                unsafe {
+                    #nc::__com_query_interfaces(
+                        object,
+                        &(*object.cast::<#storage_type>()).ref_count,
+                        &Self::COM_VTABLES,
+                        interface_id,
+                        out,
+                    )
                 }
             }
 

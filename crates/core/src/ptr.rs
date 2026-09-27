@@ -178,6 +178,12 @@ impl<T: ComInterface + ?Sized> LiveInterface<T> {
 /// Inherited method-table prefixes remain a separate dispatch-layout decision:
 /// two-pointer handles do not by themselves deduplicate their function entries.
 /// There is no backward-compatibility requirement to preserve the former ABI.
+///
+/// Query execution and ownership validation deliberately use one non-generic
+/// body. Source and destination identities are data, not reasons to emit another
+/// copy of the same checks for every typed handle. Generated object queries use
+/// the same separation: small typed adapters supply their counter and tables to
+/// one common implementation without exposing application state or field offsets.
 pub struct ComPtr<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
     /// Present raw pair owning exactly one allocation-wide reference.
     raw: LiveInterface<T>,
@@ -318,42 +324,25 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
     /// Selects another contract on the same allocation and acquires one reference.
     /// The object address stays unchanged; the selected interface table may differ.
     pub fn query<U: ComInterface>(&self) -> Result<ComPtr<U, M>, NcStatus> {
-        let mut out = ComRaw::<crate::IUnknown>::null();
-        let source = self.as_raw().erase();
-        // SAFETY: this owner retains the object and matching common vtable prefix.
-        let status = unsafe { ((*source.vtable).query_interface)(source.object, &U::INTERFACE_ID, &mut out) };
-        if status.is_err() {
-            return Err(status);
-        }
-        // SAFETY: success transfers one releasable reference, checked before typed access.
-        let destination = unsafe { ComPtr::<U, M>::__nc_from_raw_owned_checked(out.cast()) }?;
-        if destination.as_raw().object != source.object {
-            return Err(crate::NC_E_INVALID_ARG);
-        }
-        Ok(destination)
+        // SAFETY: this owner keeps the matching allocation/table pair alive.
+        let out = unsafe { raw::__nc_query_interface(self.as_raw().erase(), &U::INTERFACE_ID) }?;
+        // SAFETY: the shared query body validates exact identity and transfers one owner.
+        unsafe { ComPtr::<U, M>::from_raw_owned(out.cast()) }.ok_or(NC_E_POINTER)
     }
+
     /// Checks a discovered contract with a call-scoped borrowed digest.
     pub fn supports_interface_bytes(&self, iid: crate::NcGuid, signature: &[u8; 32]) -> Result<(), NcStatus> {
         self.supports_interface_id(&crate::NcInterfaceId::new(iid, crate::NcAbiSignature::from_borrowed(signature)))
     }
     /// Queries and releases a discovered exact contract without inventing a Rust type.
     pub fn supports_interface_id(&self, expected: &crate::NcInterfaceId) -> Result<(), NcStatus> {
-        let source = self.as_raw().erase();
-        let mut out = ComRaw::null();
-        // SAFETY: common source prefix and the local output record are live.
-        let status = unsafe { ((*source.vtable).query_interface)(source.object, expected, &mut out) };
-        if status.is_err() {
-            return Err(status);
-        }
-        // SAFETY: success supplies a common releasable pair even if its identity is wrong.
-        let result = unsafe { raw::__nc_validate_iunknown_interface(out, expected) }.and_then(|()| match out.object == source.object {
-            true => Ok(()),
-            false => Err(crate::NC_E_INVALID_ARG),
-        });
-        // SAFETY: the temporary successful query transferred one reference.
+        // SAFETY: this owner retains the source through the common checked query.
+        let out = unsafe { raw::__nc_query_interface(self.as_raw().erase(), expected) }?;
+        // SAFETY: the validated query transfers exactly one temporary reference.
         unsafe { raw::release(out) };
-        result
+        Ok(())
     }
+
     /// Reports support for U; query preserves the detailed failure status when needed.
     pub fn is<U: ComInterface>(&self) -> bool {
         self.query::<U>().is_ok()
@@ -467,6 +456,45 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> core::fmt::Debug for ComRef<'_
 /// Unsafe ABI operations on explicit object/table pairs.
 pub mod raw {
     use crate::{ComInterface, ComRaw, IUnknown, NcInterfaceId};
+    /// Performs query, exact contract validation, and ownership cleanup once for
+    /// every source/destination interface combination. Types are checked at the
+    /// boundary; the body requires only the common lifecycle prefix.
+    ///
+    /// Keeping this body non-generic prevents typed constants and ownership
+    /// cleanup from duplicating the full query sequence in every caller. Success
+    /// transfers one exact requested interface on the source allocation. A failed
+    /// foreign call transfers nothing; a rejected successful result is released.
+    ///
+    /// # Safety
+    /// Source must be a present, matching live object/table pair retained through
+    /// the call. Expected identity metadata must be readable. A successful foreign
+    /// query transfers one reference with a readable, releasable lifecycle prefix;
+    /// null/half-null result shapes are rejected without reading their pointers.
+    #[doc(hidden)]
+    #[inline(never)]
+    pub unsafe fn __nc_query_interface(source: ComRaw<IUnknown>, expected: &NcInterfaceId) -> Result<ComRaw<IUnknown>, crate::NcStatus> {
+        let mut out = ComRaw::null();
+        // SAFETY: the source owner lives through this synchronous operation.
+        let status = unsafe { ((*source.vtable).query_interface)(source.object, expected, &mut out) };
+        if status.is_err() {
+            return Err(status);
+        }
+        // SAFETY: successful queries supply one common, releasable owned pair.
+        let validation = unsafe { __nc_validate_iunknown_interface(out, expected) }.and_then(|()| match out.object == source.object {
+            true => Ok(()),
+            false => Err(crate::NC_E_INVALID_ARG),
+        });
+        match validation {
+            Ok(()) => Ok(out),
+            Err(status) => {
+                // SAFETY: consume the successful query's transfer on rejection.
+                unsafe {
+                    release(out);
+                }
+                Err(status)
+            }
+        }
+    }
     /// Checks presence and exact interface identity without invoking typed methods.
     ///
     /// # Safety

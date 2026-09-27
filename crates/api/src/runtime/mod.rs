@@ -265,18 +265,13 @@ impl Runtime {
         // its table identity is not IUnknown. Query canonical IUnknown before
         // constructing that safe typed handle; erasing the raw table type alone
         // is not an interface conversion.
-        let mut identity = crate::ComRaw::null();
-        // SAFETY: the runtime returned a present, validated factory pair.
-        let status = unsafe { ((*out.vtable).query_interface)(out.object, &IUnknown::INTERFACE_ID, &mut identity) };
+        // SAFETY: the runtime supplies a live factory pair. The common query
+        // checks canonical identity, same-object ownership, and rejected results.
+        let identity = unsafe { crate::raw::__nc_query_interface(out, &IUnknown::INTERFACE_ID) };
         // SAFETY: the original factory reference is consumed on every result path.
         unsafe { crate::raw::release(out) };
-        status_to_result(status)?;
-        // SAFETY: query success transfers one reference; adoption checks exact identity.
-        let owner = unsafe { ComPtr::<IUnknown>::__nc_from_raw_owned_checked(identity) }?;
-        if owner.as_raw().object != out.object {
-            return Err(crate::NC_E_INVALID_ARG);
-        }
-        Ok(owner)
+        // SAFETY: the common query returned exactly one validated IUnknown owner.
+        unsafe { ComPtr::<IUnknown>::from_raw_owned(identity?) }.ok_or(crate::NC_E_POINTER)
     }
 
     /// Loads a trusted plugin shared library into the process-global runtime.

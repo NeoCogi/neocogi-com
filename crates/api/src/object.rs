@@ -182,6 +182,48 @@ impl Drop for ExclusiveCall<'_> {
 
 pub use neocogi_com_core::{__com_add_ref_count, __com_release_ref_count};
 
+/// Shared query body used by generated objects regardless of their Rust state.
+/// The small generated adapter supplies its actual counter and static tables;
+/// this function knows no field offsets or concrete implementation types.
+///
+/// A per-type table address prevents identical generated query bodies from being
+/// merged. Passing that address as data preserves one copy of validation, lookup,
+/// retention and output publication, rather than hoping the linker merges them.
+///
+/// # Safety
+/// Object must identify the live allocation owning references. Tables must be
+/// immutable matching projections of that allocation. Non-null requested/out
+/// pointers must be readable/writable for one record and must not alias storage.
+#[doc(hidden)]
+#[inline(never)]
+pub unsafe fn __com_query_interfaces(
+    object: *mut c_void,
+    references: &core::sync::atomic::AtomicU32,
+    tables: &[*const crate::IUnknownVTable],
+    requested: *const NcInterfaceId,
+    out: *mut crate::ComRaw<crate::IUnknown>,
+) -> NcStatus {
+    if requested.is_null() || out.is_null() {
+        return NC_E_POINTER;
+    }
+    // SAFETY: valid output storage is distinct from this allocation and request.
+    unsafe {
+        *out = crate::ComRaw::null();
+    }
+    // SAFETY: generated tables and the requested identity remain live for this call.
+    match unsafe { crate::__nc_find_interface(tables, &*requested) } {
+        Ok(vtable) => {
+            __com_add_ref_count(references);
+            // SAFETY: retain transferred one owner with the exact requested table.
+            unsafe {
+                *out = crate::ComRaw { object, vtable };
+            }
+            crate::NC_OK
+        }
+        Err(status) => status,
+    }
+}
+
 /// Implemented by generated COM class storage.
 ///
 /// # Safety
