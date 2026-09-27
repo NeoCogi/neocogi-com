@@ -12,5 +12,5 @@ struct ConsumerOptions {
 #[version(1)]
 factory ConsumerFactory: IMeasured {
     /// Creates an object declared by the exact linked dependency revision.
-    fn create(&self, options: ConsumerOptions) -> Result<ExampleObject>;
+    fn create(&self, options: ConsumerOptions) -> Result<ComPtr<ExampleObject>>;
 }

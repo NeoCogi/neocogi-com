@@ -16,14 +16,14 @@ class ExampleObject: IMeasured + IExampleEvents {
 #[version(1)]
 factory ExampleFactory {
     /// Creates one initialized example object.
-    fn create(&self, extent: Extent) -> Result<ExampleObject>;
+    fn create(&self, extent: Extent) -> Result<ComPtr<ExampleObject>>;
 }
 
 /// Opaque composition exposes only its mountable root, never internal controls.
 #[version(1)]
 interface ICompositionRoot {
     /// Returns the root capability for a host-specific mount operation.
-    fn root(&self) -> Result<IUnknown>;
+    fn root(&self) -> Result<ComPtr<IUnknown>>;
     /// Resolves one authored child for a checked concrete class query.
-    fn widget(&self, name: &[u8]) -> Result<IUnknown>;
+    fn widget(&self, name: &[u8]) -> Result<ComPtr<IUnknown>>;
 }

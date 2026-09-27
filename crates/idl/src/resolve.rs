@@ -191,7 +191,12 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
     connect_externals_and_imports(&mut entries)?;
     let values = resolve_value_graph(&entries)?;
     for entry in &mut entries {
-        entry.copied_values = values.definitions.values().filter(|value| value.copied).map(|value| value.name.clone()).collect();
+        entry.copied_values = values
+            .definitions
+            .values()
+            .filter(|value| value.copied)
+            .map(|value| value.name.clone())
+            .collect();
     }
     let mut diagnostics = Vec::new();
     for index in 0..entries.len() {
@@ -276,8 +281,19 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
             if let Some(specialization) = &declaration.specialization {
                 if specialization.template.segments.join(".") == "neocogi.com.events.IMessageSink" {
                     match specialization.arguments.as_slice() {
-                        [AbiType::Named(name)] if graph.resolve_declaration(&module.source.name.to_string(), name).is_some_and(|target| !matches!(target.declaration.kind, DeclarationKind::Interface(_))) => {},
-                        _ => return Err(source_error(&module.source, "EIDL060", &declaration.span, "IMessageSink requires a declared value type", "object capabilities are fields, not complete sink payload types")),
+                        [AbiType::Named(name)]
+                            if graph
+                                .resolve_declaration(&module.source.name.to_string(), name)
+                                .is_some_and(|target| !matches!(target.declaration.kind, DeclarationKind::Interface(_))) => {}
+                        _ => {
+                            return Err(source_error(
+                                &module.source,
+                                "EIDL060",
+                                &declaration.span,
+                                "IMessageSink requires a declared value type",
+                                "object capabilities are fields, not complete sink payload types",
+                            ));
+                        }
                     }
                 }
             }
@@ -586,7 +602,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
                                 collect_diagnostics(
                                     &mut diagnostics,
                                     validate_field_type(
-                                                    index,
+                                        index,
                                         field,
                                         entries,
                                         &format!("enum {} variant {} field {field_index}", declaration.name, variant.name),
@@ -600,7 +616,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
                                 collect_diagnostics(
                                     &mut diagnostics,
                                     validate_field_type(
-                                                    index,
+                                        index,
                                         &field.ty,
                                         entries,
                                         &format!("enum {} variant {} field {}", declaration.name, variant.name, field.name),
@@ -668,7 +684,8 @@ fn validate_generated_names(index: usize, entries: &[ModuleEntry]) -> Result<(),
                 interface_companions(&declaration.name, &mut companions);
             }
             DeclarationKind::Enum(enumeration)
-                if entry.copied_values.contains(&entry.module.name.qualify(&declaration.name)) && enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit)) =>
+                if entry.copied_values.contains(&entry.module.name.qualify(&declaration.name))
+                    && enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit)) =>
             {
                 companions.push(format!("{}Abi", declaration.name));
                 companions.push(format!("{}Tag", declaration.name));
@@ -715,7 +732,14 @@ fn validate_layouts(index: usize, entries: &[ModuleEntry], values: &crate::Value
 }
 
 /// Walks one local declaration and reports the edge closing a cycle.
-fn visit_layout(module: usize, declaration: usize, entries: &[ModuleEntry], values: &crate::ValueGraph, states: &mut [VisitState], stack: &mut Vec<usize>) -> Result<(), ResolutionError> {
+fn visit_layout(
+    module: usize,
+    declaration: usize,
+    entries: &[ModuleEntry],
+    values: &crate::ValueGraph,
+    states: &mut [VisitState],
+    stack: &mut Vec<usize>,
+) -> Result<(), ResolutionError> {
     match states[declaration] {
         VisitState::Complete => return Ok(()),
         VisitState::Visiting => return Ok(()),
@@ -728,17 +752,28 @@ fn visit_layout(module: usize, declaration: usize, entries: &[ModuleEntry], valu
     let mut source_references = Vec::new();
     collect_layout_references(owner, &mut source_references);
     let references = match values.definitions.get(&entries[module].module.name.qualify(&owner.name)) {
-        Some(definition) => definition.inline_references().into_iter().filter_map(|name| {
-            let (owner_name, value_name) = name.rsplit_once('.')?;
-            let target_module = entries.iter().position(|entry| entry.name == owner_name)?;
-            let target = *entries[target_module].local_symbols.get(value_name)?;
-            // Only locations are recovered from syntax. The structural graph
-            // above exclusively decides which named edges determine layout.
-            let span = source_references.iter().find(|reference| resolve_named(module, reference, entries).is_ok_and(|symbol| symbol.module == target.module && symbol.declaration == target.declaration))
-                .map_or(&owner.span, |reference| &reference.span);
-            Some((target, span))
-        }).collect::<Vec<_>>(),
-        None => source_references.iter().filter_map(|reference| resolve_named(module, reference, entries).ok().map(|symbol| (symbol, &reference.span))).collect(),
+        Some(definition) => definition
+            .inline_references()
+            .into_iter()
+            .filter_map(|name| {
+                let (owner_name, value_name) = name.rsplit_once('.')?;
+                let target_module = entries.iter().position(|entry| entry.name == owner_name)?;
+                let target = *entries[target_module].local_symbols.get(value_name)?;
+                // Only locations are recovered from syntax. The structural graph
+                // above exclusively decides which named edges determine layout.
+                let span = source_references
+                    .iter()
+                    .find(|reference| {
+                        resolve_named(module, reference, entries).is_ok_and(|symbol| symbol.module == target.module && symbol.declaration == target.declaration)
+                    })
+                    .map_or(&owner.span, |reference| &reference.span);
+                Some((target, span))
+            })
+            .collect::<Vec<_>>(),
+        None => source_references
+            .iter()
+            .filter_map(|reference| resolve_named(module, reference, entries).ok().map(|symbol| (symbol, &reference.span)))
+            .collect(),
     };
     for (symbol, span) in references {
         if symbol.module != module || symbol.kind != symbol_kind(&owner.kind) {
@@ -820,7 +855,7 @@ fn collect_type_references<'a>(ty: &'a AbiType, output: &mut Vec<&'a NamedType>)
     match ty {
         AbiType::Named(name) => output.push(name),
         AbiType::Array { element, .. } | AbiType::Option(element) => collect_type_references(element, output),
-        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) | AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
+        AbiType::ComPtr(_) | AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) | AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
     }
 }
 
@@ -1042,12 +1077,57 @@ fn value_fields(declaration: &Declaration) -> Vec<&AbiType> {
 fn validate_field_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     match ty {
         AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Ok(()),
-        AbiType::Named(name) if builtin_object(name).is_some() => Ok(()),
-        AbiType::Named(name) => resolve_named(index, name, entries).map(|_| ()),
+        AbiType::ComPtr(value) => validate_object_target(index, value, entries, context, span),
+        AbiType::Named(name) => {
+            if builtin_object(name).is_some() {
+                return Err(source_error(
+                    &entries[index].module,
+                    "EIDL060",
+                    span,
+                    format!("{context} must spell owned references as ComPtr<{}>", name.rust_path()),
+                    "an object contract is not inline value storage",
+                ));
+            }
+            let symbol = resolve_named(index, name, entries)?;
+            match symbol.kind {
+                SymbolKind::Value => Ok(()),
+                SymbolKind::Interface => Err(source_error(
+                    &entries[index].module,
+                    "EIDL060",
+                    span,
+                    format!("{context} must spell owned references as ComPtr<{}>", name.rust_path()),
+                    "an object contract is not inline value storage",
+                )),
+            }
+        }
         AbiType::Array { element, .. } | AbiType::Option(element) | AbiType::Slice(element) => validate_field_type(index, element, entries, context, span),
-        AbiType::Borrowed(_) | AbiType::OutputSlice(_) => Err(source_error(&entries[index].module, "EIDL060", span,
-            format!("{context} requires an owned field"), "use a sequence for indirect ownership; borrowed fields cannot escape a call")),
+        AbiType::Borrowed(_) | AbiType::OutputSlice(_) => Err(source_error(
+            &entries[index].module,
+            "EIDL060",
+            span,
+            format!("{context} requires an owned field"),
+            "use a sequence for indirect ownership; borrowed fields cannot escape a call",
+        )),
     }
+}
+
+/// Checks the referent kind of an explicit owner without treating it as stored data.
+fn validate_object_target(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+    if let AbiType::Named(name) = ty {
+        if builtin_object(name).is_some() {
+            return Ok(());
+        }
+        if resolve_named(index, name, entries)?.kind == SymbolKind::Interface {
+            return Ok(());
+        }
+    }
+    Err(source_error(
+        &entries[index].module,
+        "EIDL060",
+        span,
+        format!("{context}: ComPtr requires a closed interface, class, or factory contract"),
+        "invalid owned-reference target",
+    ))
 }
 
 /// Reads copied use-site eligibility from the resolved structural graph.
@@ -1057,7 +1137,9 @@ fn copied_type(index: usize, ty: &AbiType, entries: &[ModuleEntry]) -> bool {
         AbiType::Scalar(_) => true,
         AbiType::Named(name) => resolve_named(index, name, entries).is_ok_and(|symbol| {
             let declaration = &entries[symbol.module].module.declarations[symbol.declaration];
-            entries[index].copied_values.contains(&entries[symbol.module].module.name.qualify(&declaration.name))
+            entries[index]
+                .copied_values
+                .contains(&entries[symbol.module].module.name.qualify(&declaration.name))
         }),
         _ => false,
     }
@@ -1068,6 +1150,10 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
     fn field(index: usize, ty: &AbiType, entries: &[ModuleEntry]) -> Result<crate::ValueType, ResolutionError> {
         use crate::ValueType as V;
         Ok(match ty {
+            AbiType::ComPtr(value) => match field(index, value, entries)? {
+                V::Object(name) => V::Object(name),
+                other => other,
+            },
             AbiType::Unit => V::Unit,
             AbiType::Scalar(name) => V::Scalar(name.clone()),
             AbiType::String => V::Text,
@@ -1080,7 +1166,10 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
                 };
                 let declaration = &entries[symbol.module].module.declarations[symbol.declaration];
                 let name = entries[symbol.module].module.name.qualify(&declaration.name);
-                match symbol.kind { SymbolKind::Value => V::Named(name), _ => V::Object(name) }
+                match symbol.kind {
+                    SymbolKind::Value => V::Named(name),
+                    _ => V::Object(name),
+                }
             }
             AbiType::Slice(value) => V::Sequence(Box::new(field(index, value, entries)?)),
             AbiType::Array { element, len } => V::Array(Box::new(field(index, element, entries)?), *len),
@@ -1091,9 +1180,14 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
     let mut graph = crate::ValueGraph::default();
     for (index, entry) in entries.iter().enumerate() {
         for declaration in &entry.module.declarations {
-            if matches!(declaration.kind, DeclarationKind::Interface(_)) { continue; }
+            if matches!(declaration.kind, DeclarationKind::Interface(_)) {
+                continue;
+            }
             let name = entry.module.name.qualify(&declaration.name);
-            let fields = value_fields(declaration).into_iter().map(|ty| field(index, ty, entries)).collect::<Result<Vec<_>, _>>()?;
+            let fields = value_fields(declaration)
+                .into_iter()
+                .map(|ty| field(index, ty, entries))
+                .collect::<Result<Vec<_>, _>>()?;
             graph.definitions.insert(name.clone(), crate::ValueDefinition { name, fields, copied: true });
         }
     }
@@ -1104,9 +1198,16 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
 /// Requires an implemented self-contained copied lowering at this method position.
 fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     validate_field_type(index, ty, entries, context, span)?;
-    if copied_type(index, ty, entries) { Ok(()) } else {
-        Err(source_error(&entries[index].module, "EIDL060", span, format!("{context} has no copied ABI lowering"),
-            "borrow a named value with &; strings, sequences, object fields, arrays and options use the checked borrowed value representation"))
+    if copied_type(index, ty, entries) {
+        Ok(())
+    } else {
+        Err(source_error(
+            &entries[index].module,
+            "EIDL060",
+            span,
+            format!("{context} has no copied ABI lowering"),
+            "borrow a named value with &; strings, sequences, object fields, arrays and options use the checked borrowed value representation",
+        ))
     }
 }
 
@@ -1121,7 +1222,7 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
         }
     }
     match ty {
-        AbiType::Unit | AbiType::String => Err(source_error(
+        AbiType::ComPtr(_) | AbiType::Unit | AbiType::String => Err(source_error(
             &entries[index].module,
             "EIDL061",
             span,
@@ -1193,26 +1294,17 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
 /// Validates an output where bare COM names mean owned references.
 fn validate_output_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     let span = type_span(ty).unwrap_or(span);
-    if let AbiType::Named(name) = ty {
-        if builtin_object(name).is_some() {
-            return Ok(());
-        }
-    }
     match ty {
-        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Ok(()),
-        AbiType::Named(name) => match resolve_named_or_str(index, name, entries)? {
-            ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => validate_value_type(index, ty, entries, context, span),
-            ResolvedName::Symbol(_) => Ok(()),
-            ResolvedName::Str => Err(source_error(
-                &entries[index].module,
-                "EIDL062",
-                span,
-                format!("{context} cannot return unsized str; return String"),
-                "unsized return type",
-            )),
-        },
-        AbiType::Array { .. } => validate_value_type(index, ty, entries, context, span),
-        AbiType::Option(_) => validate_value_type(index, ty, entries, context, span),
+        AbiType::Unit | AbiType::Scalar(_) => Ok(()),
+        AbiType::ComPtr(value) => validate_object_target(index, value, entries, context, span),
+        AbiType::Named(_) | AbiType::Array { .. } | AbiType::Option(_) => validate_value_type(index, ty, entries, context, span),
+        AbiType::String => Err(source_error(
+            &entries[index].module,
+            "EIDL062",
+            span,
+            format!("{context}: return ComPtr<INcString> for an owned COM string"),
+            "owned String values cannot escape a call-scoped wire guard",
+        )),
         AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) => Err(source_error(
             &entries[index].module,
             "EIDL062",
@@ -1339,7 +1431,7 @@ fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, 
     let mut encoder = CanonicalEncoder::new();
     // Version the canonical encoding for recursive raw value lowering; no
     // native-layout contract may share a signature with a checked-wire slot.
-    encoder.bytes(b"neocogi-idl:module-abi:v3\0");
+    encoder.bytes(b"neocogi-idl:module-abi:v4\0");
     encoder.guid(entry.module_id);
     encoder.bytes(&crate::specialize::template_fingerprint(&entry.module.templates));
 
@@ -1517,6 +1609,10 @@ fn encode_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], encoder: &mu
             encoder.tag(7);
             encode_type(index, value, entries, encoder)?;
         }
+        AbiType::ComPtr(target) => {
+            encoder.tag(9);
+            encode_type(index, target, entries, encoder)?;
+        }
         AbiType::OutputSlice(element) => {
             encoder.tag(8);
             encode_type(index, element, entries, encoder)?;
@@ -1656,6 +1752,8 @@ fn is_reserved_name(name: &str) -> bool {
             | "Status"
             | "IUnknown"
             | "INcBytes"
+            | "INcString"
+            | "ComPtr"
             | "str"
             | "String"
             | "Option"
@@ -1672,9 +1770,12 @@ fn u32_len(value: usize, module: &str, field: &str) -> Result<u32, ResolutionErr
 fn type_span(ty: &AbiType) -> Option<&SourceSpan> {
     match ty {
         AbiType::Named(name) => Some(&name.span),
-        AbiType::Borrowed(value) | AbiType::Slice(value) | AbiType::OutputSlice(value) | AbiType::Option(value) | AbiType::Array { element: value, .. } => {
-            type_span(value)
-        }
+        AbiType::ComPtr(value)
+        | AbiType::Borrowed(value)
+        | AbiType::Slice(value)
+        | AbiType::OutputSlice(value)
+        | AbiType::Option(value)
+        | AbiType::Array { element: value, .. } => type_span(value),
         AbiType::Unit | AbiType::Scalar(_) | AbiType::String => None,
     }
 }
@@ -1751,6 +1852,7 @@ pub(crate) fn builtin_object(name: &NamedType) -> Option<neocogi_com_core::NcInt
     match name.segments.as_slice() {
         [name] if name == "IUnknown" => Some(neocogi_com_core::IUnknown::INTERFACE_ID),
         [name] if name == "INcBytes" => Some(neocogi_com_core::INcBytesAbi::INTERFACE_ID),
+        [name] if name == "INcString" => Some(neocogi_com_core::INcStringAbi::INTERFACE_ID),
         _ => None,
     }
 }

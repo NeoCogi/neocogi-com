@@ -51,7 +51,7 @@ fn resolves_a_contract_dependency_graph() {
 
             #[version(1)]
             factory UiFactory {
-                fn create_button(&self, size: Size) -> Result<Button>;
+                fn create_button(&self, size: Size) -> Result<ComPtr<Button>>;
             }
         "#,
     );
@@ -350,10 +350,7 @@ fn reports_definition_for_mismatched_field_type() {
     let source = parse_module_parts(Path::new("neocogi/ui"), &parts).unwrap();
     let error = resolve_modules(vec![source]).unwrap_err().to_string();
 
-    assert!(
-        error.contains("must borrow interface, class, and factory values"),
-        "{error}"
-    );
+    assert!(error.contains("must borrow interface, class, and factory values"), "{error}");
     assert!(error.contains("neocogi/ui/assets.ncidl:1:"), "{error}");
     assert!(error.contains("neocogi/ui/rendering.ncidl:1:25"), "{error}");
     assert!(error.contains("interface values require an explicit borrow"), "{error}");
@@ -499,7 +496,6 @@ fn interface_roles_and_threading_are_contract_identity_inputs() {
     let shared = fingerprint("#[version(1)] #[threading(shared)] interface Root {}");
     assert_ne!(ordinary, factory);
     assert_ne!(ordinary, shared);
-
 }
 
 /// Required projections must have a finite layout and preserve every threading promise.

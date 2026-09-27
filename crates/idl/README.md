@@ -117,11 +117,19 @@ hashes a qualified-name string directly. The declaration signature then includes
 the module fingerprint and declaration UUID; runtime calls compare those exact
 identity/signature bytes.
 
-Core capability types `IUnknown` and `INcBytes` may be borrowed as inputs and
-returned as owned references without an imported contract module. They may be owned record/enum fields; such records must be borrowed in method
-inputs. Object capabilities cannot be passed as unborrowed inputs. Their exact core
-interface identities participate in generated signatures. `Guid` is the copied
-`NcGuid` value type. These spellings are reserved and cannot be shadowed.
+`ComPtr<I>` is a compiler-known ownership constructor whose argument must be a
+closed interface, class, or factory contract. Fields and owned method results
+must use it explicitly; a bare object contract is not a stored value. Inputs
+borrow an object as `&I`; direct `ComPtr<I>` inputs are rejected because the IDL
+does not define ownership transfer for that position. Records containing object
+references may be borrowed as `&Record` and recursively acquired by the receiver.
+
+Core capabilities `IUnknown`, `INcBytes`, and `INcString` need no imported module.
+For example, `Result<ComPtr<INcString>>` returns an owned COM string object;
+`String` in a record is owned text data. `Result<String>` is rejected rather than
+silently changing its meaning to an object. Exact core interface signatures are
+included in contract signatures. `Guid` is the copied `NcGuid` type. These names
+and `ComPtr` are reserved and cannot be shadowed.
 
 Methods may borrow any named value as `value: &Record`. Generated Rust accepts
 `NcValueRef<'_, Record>`; `NcValueRef::new(&value)?` retains the value and typed

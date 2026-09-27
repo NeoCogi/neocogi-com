@@ -12,7 +12,7 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
         #[version(1)] struct NumberChanged { value: f32, checked: bool }
         #[version(1)] struct TextChanged { text: String, cursor: u64 }
         #[version(1)] struct TextEnvelope { changed: TextChanged }
-        #[version(1)] enum Completion { Accepted { token: IToken }, Cancelled }
+        #[version(1)] enum Completion { Accepted { token: ComPtr<IToken> }, Cancelled }
         #[version(1)] enum Notice { Ready, Done }
         #[version(1)] struct Batch { values: &[u32] }
         #[version(1)] struct BoolBatch { flags: &[bool] }
@@ -36,7 +36,7 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
         #[version(1)] class Editor: IEventStream<EditorEvent> {
             fn emit(&mut self) -> Result<()>;
         }
-        #[version(1)] factory Editors { fn create(&self) -> Result<Editor>; }
+        #[version(1)] factory Editors { fn create(&self) -> Result<ComPtr<Editor>>; }
     "#;
     let consumer = parse_module(
         Path::new("example/consumer.ncidl"),
@@ -168,6 +168,11 @@ fn nested_records_and_aggregate_sequences_resolve_uniformly() {
 #[test]
 fn optional_cycles_and_removed_message_annotation_are_rejected() {
     let source = "#[version(1)] struct StillInvalid { child: Option<StillInvalid> }";
-    assert!(resolve_modules(vec![parse_module(Path::new("example/values.ncidl"), source).unwrap()]).unwrap_err().to_string().contains("recursive copied-value layout"));
+    assert!(
+        resolve_modules(vec![parse_module(Path::new("example/values.ncidl"), source).unwrap()])
+            .unwrap_err()
+            .to_string()
+            .contains("recursive copied-value layout")
+    );
     assert!(parse_module(Path::new("example/values.ncidl"), "#[version(1)] #[message] struct Gone { value: bool }").is_err());
 }

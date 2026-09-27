@@ -4,7 +4,7 @@ interface IObjectChildren {
     /// Returns the number of fully initialized child objects.
     fn count(&self) -> Result<u32>;
     /// Returns an owned reference; indices must be less than count.
-    fn get(&self, index: u32) -> Result<IUnknown>;
+    fn get(&self, index: u32) -> Result<ComPtr<IUnknown>>;
 }
 
 #[version(1)]
@@ -15,11 +15,11 @@ interface IPersistable {
     /// Identifies the persistent initialization schema, independently of COM ABI.
     fn schema_version(&self) -> Result<u32>;
     /// Exports initialization data only: no receivers, runtime pointers or caches.
-    fn save_state(&self) -> Result<INcBytes>;
+    fn save_state(&self) -> Result<ComPtr<INcBytes>>;
     /// Returns the number of owned persistent children; parent links are excluded.
     fn child_count(&self) -> Result<u32>;
     /// Returns one child in the order described by the parent's initialization.
-    fn child(&self, index: u32) -> Result<IUnknown>;
+    fn child(&self, index: u32) -> Result<ComPtr<IUnknown>>;
 }
 
 #[version(1)]
@@ -29,5 +29,5 @@ interface IPersistenceFactory {
     fn validate(&self, version: u32, state: &[u8], child_count: u32) -> Result<()>;
     /// Returns a fully initialized object; every child is already constructed.
     /// Failure must release resources acquired by this call and publish no root.
-    fn restore(&self, version: u32, state: &[u8], children: &IObjectChildren) -> Result<IUnknown>;
+    fn restore(&self, version: u32, state: &[u8], children: &IObjectChildren) -> Result<ComPtr<IUnknown>>;
 }

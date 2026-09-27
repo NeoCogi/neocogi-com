@@ -175,7 +175,12 @@ impl Expansion {
                     self.normalize_type(owner, argument, substitutions)?;
                 }
             }
-            AbiType::Borrowed(value) | AbiType::Slice(value) | AbiType::OutputSlice(value) | AbiType::Option(value) | AbiType::Array { element: value, .. } => {
+            AbiType::ComPtr(value)
+            | AbiType::Borrowed(value)
+            | AbiType::Slice(value)
+            | AbiType::OutputSlice(value)
+            | AbiType::Option(value)
+            | AbiType::Array { element: value, .. } => {
                 self.normalize_type(owner, value, substitutions)?;
             }
             AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
@@ -203,7 +208,12 @@ impl Expansion {
                     }
                 }
             }
-            AbiType::Borrowed(value) | AbiType::Slice(value) | AbiType::OutputSlice(value) | AbiType::Option(value) | AbiType::Array { element: value, .. } => {
+            AbiType::ComPtr(value)
+            | AbiType::Borrowed(value)
+            | AbiType::Slice(value)
+            | AbiType::OutputSlice(value)
+            | AbiType::Option(value)
+            | AbiType::Array { element: value, .. } => {
                 self.lower_type(target, value, depth)?;
             }
             AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
@@ -317,8 +327,14 @@ impl Expansion {
                     bytes.extend_from_slice(&self.type_identity(argument)?.to_uuid_bytes());
                 }
             }
-            AbiType::Borrowed(value) | AbiType::Slice(value) | AbiType::OutputSlice(value) | AbiType::Option(value) | AbiType::Array { element: value, .. } => {
+            AbiType::ComPtr(value)
+            | AbiType::Borrowed(value)
+            | AbiType::Slice(value)
+            | AbiType::OutputSlice(value)
+            | AbiType::Option(value)
+            | AbiType::Array { element: value, .. } => {
                 bytes.extend_from_slice(match ty {
+                    AbiType::ComPtr(_) => b"com_ptr",
                     AbiType::Borrowed(_) => b"borrow",
                     AbiType::Slice(_) => b"slice",
                     AbiType::OutputSlice(_) => b"output",
@@ -449,9 +465,12 @@ fn failure(span: &SourceSpan, message: impl Into<String>) -> ResolutionError {
 fn has_arguments(ty: &AbiType) -> bool {
     match ty {
         AbiType::Named(name) => !name.arguments.is_empty(),
-        AbiType::Borrowed(value) | AbiType::Slice(value) | AbiType::OutputSlice(value) | AbiType::Option(value) | AbiType::Array { element: value, .. } => {
-            has_arguments(value)
-        }
+        AbiType::ComPtr(value)
+        | AbiType::Borrowed(value)
+        | AbiType::Slice(value)
+        | AbiType::OutputSlice(value)
+        | AbiType::Option(value)
+        | AbiType::Array { element: value, .. } => has_arguments(value),
         _ => false,
     }
 }
@@ -504,8 +523,14 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &AbiType) -> Result<[u8; 3
                 bytes.extend_from_slice(&type_signature(graph, argument)?);
             }
         }
-        AbiType::Borrowed(value) | AbiType::Slice(value) | AbiType::OutputSlice(value) | AbiType::Option(value) | AbiType::Array { element: value, .. } => {
+        AbiType::ComPtr(value)
+        | AbiType::Borrowed(value)
+        | AbiType::Slice(value)
+        | AbiType::OutputSlice(value)
+        | AbiType::Option(value)
+        | AbiType::Array { element: value, .. } => {
             bytes.extend_from_slice(match ty {
+                AbiType::ComPtr(_) => b"com_ptr",
                 AbiType::Borrowed(_) => b"borrow",
                 AbiType::Slice(_) => b"slice",
                 AbiType::OutputSlice(_) => b"output",

@@ -35,7 +35,7 @@ fn consumer(name: &str, extra: &str) -> Module {
         use test.messages::Event;
         #[version(1)] interface IObject {{ fn value(&self) -> Result<u32>; }}
         #[version(1)] class Object: IObject + IStream<Event> {{}}
-        #[version(1)] factory Factory {{ fn create(&self) -> Result<Object>; }}
+        #[version(1)] factory Factory {{ fn create(&self) -> Result<ComPtr<Object>>; }}
         {extra}
     "#
         ),

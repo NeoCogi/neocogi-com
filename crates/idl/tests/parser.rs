@@ -57,8 +57,8 @@ fn parses_a_complete_contract_module() {
             #[threading(shared)]
             #[version(1)]
             factory UiFactory {
-                fn create_button(&self, label: &str, options: WidgetOptions) -> Result<Button>;
-                fn upload(&self, bytes: &[u8]) -> Result<ITexture>;
+                fn create_button(&self, label: &str, options: WidgetOptions) -> Result<ComPtr<Button>>;
+                fn upload(&self, bytes: &[u8]) -> Result<ComPtr<ITexture>>;
                 fn read(&self, output: &mut [u8]) -> Result<u32>;
             }
         "#,
@@ -295,7 +295,7 @@ fn rejects_constructor_attributes() {
             #[version(1)]
             interface Button {
                 #[constructor]
-                fn new(&self) -> Result<Button>;
+                fn new(&self) -> Result<ComPtr<Button>>;
             }
         "#,
     )

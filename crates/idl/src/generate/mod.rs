@@ -321,9 +321,12 @@ fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, dec
                     data(&value.identity.qualified_name, graph, names);
                 }
             }
-            AbiType::Borrowed(value) | AbiType::Slice(value) | AbiType::OutputSlice(value) | AbiType::Array { element: value, .. } | AbiType::Option(value) => {
-                root(value, graph, module, names)?
-            }
+            AbiType::ComPtr(value)
+            | AbiType::Borrowed(value)
+            | AbiType::Slice(value)
+            | AbiType::OutputSlice(value)
+            | AbiType::Array { element: value, .. }
+            | AbiType::Option(value) => root(value, graph, module, names)?,
             _ => {}
         }
         Ok(())
@@ -788,7 +791,7 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
             },
             _ => Err(GenerateError::new("optional inputs require a borrowed interface")),
         },
-        AbiType::Unit | AbiType::String => Err(GenerateError::new("unit and owned String are not valid method inputs")),
+        AbiType::ComPtr(_) | AbiType::Unit | AbiType::String => Err(GenerateError::new("unit and owned String are not valid method inputs")),
     }
 }
 
@@ -796,24 +799,11 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
 fn output_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
     match ty {
         AbiType::Unit => Ok(quote! { () }),
-        AbiType::String => Ok(quote! { ::neocogi_com::ComPtr<::neocogi_com::INcStringAbi> }),
-        AbiType::Named(name) if builtin_object_type(name).is_some() => object_reference_type(graph, module, name, true),
-        AbiType::Named(name) => {
-            let resolved = resolve(graph, module, name)?;
-            if matches!(
-                resolved.declaration.kind,
-                DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_)
-            ) {
-                value_type(graph, module, ty)
-            } else {
-                object_reference_type(graph, module, name, true)
-            }
-        }
-        AbiType::Scalar(_) | AbiType::Array { .. } => value_type(graph, module, ty),
-        AbiType::Option(_) => Err(GenerateError::new(
-            "Option<T> result generation requires the dedicated optional-value ABI layout",
-        )),
-        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) => Err(GenerateError::new("methods cannot return borrowed values")),
+        AbiType::ComPtr(value) => match value.as_ref() {
+            AbiType::Named(name) => object_reference_type(graph, module, name, true),
+            _ => Err(GenerateError::new("resolved ComPtr target is not a contract")),
+        },
+        _ => value_type(graph, module, ty),
     }
 }
 
@@ -946,6 +936,7 @@ fn builtin_object_type(name: &NamedType) -> Option<TokenStream> {
     match name.segments.as_slice() {
         [name] if name == "IUnknown" => Some(quote! { ::neocogi_com::IUnknown }),
         [name] if name == "INcBytes" => Some(quote! { ::neocogi_com::INcBytesAbi }),
+        [name] if name == "INcString" => Some(quote! { ::neocogi_com::INcStringAbi }),
         _ => None,
     }
 }

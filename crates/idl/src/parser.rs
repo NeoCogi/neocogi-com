@@ -609,17 +609,20 @@ fn lower_path_type(path: &syn::Path) -> syn::Result<AbiType> {
             }
             return Ok(AbiType::String);
         }
-        if name == "Option" {
+        if name == "Option" || name == "ComPtr" {
             let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
-                return Err(syn::Error::new_spanned(segment, "IDL `Option` requires one value type"));
+                return Err(syn::Error::new_spanned(segment, format!("IDL `{name}` requires one type argument")));
             };
             if arguments.args.len() != 1 {
-                return Err(syn::Error::new_spanned(arguments, "IDL `Option` accepts exactly one value type"));
+                return Err(syn::Error::new_spanned(arguments, format!("IDL `{name}` accepts exactly one type argument")));
             }
             let Some(GenericArgument::Type(value)) = arguments.args.first() else {
-                return Err(syn::Error::new_spanned(arguments, "IDL `Option` value must be a type"));
+                return Err(syn::Error::new_spanned(arguments, format!("IDL `{name}` argument must be a type")));
             };
-            return Ok(AbiType::Option(Box::new(lower_type(value)?)));
+            return Ok(match name.as_str() {
+                "ComPtr" => AbiType::ComPtr(Box::new(lower_type(value)?)),
+                _ => AbiType::Option(Box::new(lower_type(value)?)),
+            });
         }
         if name == "Result" {
             return Err(syn::Error::new_spanned(segment, "IDL `Result` is valid only as a method return"));
@@ -925,9 +928,12 @@ fn attach_type_source(ty: &mut AbiType, source: &SourceFile) {
                 attach_type_source(argument, source);
             }
         }
-        AbiType::Borrowed(value) | AbiType::Slice(value) | AbiType::OutputSlice(value) | AbiType::Option(value) | AbiType::Array { element: value, .. } => {
-            attach_type_source(value, source)
-        }
+        AbiType::ComPtr(value)
+        | AbiType::Borrowed(value)
+        | AbiType::Slice(value)
+        | AbiType::OutputSlice(value)
+        | AbiType::Option(value)
+        | AbiType::Array { element: value, .. } => attach_type_source(value, source),
         AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
     }
 }

@@ -25,7 +25,7 @@ const WIDGETS: &str = r#"#[version(1)] interface IStream<T> { fn post(&mut self,
     fn resize(&mut self, size: Size) -> Result<()>;
 }
 #[version(1)] factory Widgets {
-    fn textbox(&self) -> Result<Textbox>;
+    fn textbox(&self) -> Result<ComPtr<Textbox>>;
 }
 "#;
 

@@ -78,7 +78,7 @@ fn generates_rust_bindings_for_a_module_graph() {
         #[threading(shared)]
         #[version(3)]
         factory UiFactory {
-            fn create(&self, size: Size, texture: &ITexture) -> Result<Button>;
+            fn create(&self, size: Size, texture: &ITexture) -> Result<ComPtr<Button>>;
             fn read(&self, output: &mut [u8]) -> Result<u32>;
         }
     "#;

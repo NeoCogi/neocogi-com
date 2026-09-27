@@ -82,14 +82,11 @@ pub(super) fn owned_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &A
         AbiType::Unit => quote! { () },
         AbiType::Scalar(name) => scalar(name)?,
         AbiType::String => quote! { self::alloc::string::String },
-        AbiType::Named(name) if builtin_object_type(name).is_some() => object_reference_type(graph, module, name, true)?,
-        AbiType::Named(name) => {
-            let resolved = resolve(graph, module, name)?;
-            match resolved.declaration.kind {
-                DeclarationKind::Interface(_) => object_reference_type(graph, module, name, true)?,
-                _ => named_rust_type(graph, module, resolved, false)?,
-            }
-        }
+        AbiType::ComPtr(value) => match value.as_ref() {
+            AbiType::Named(name) => object_reference_type(graph, module, name, true)?,
+            _ => return Err(GenerateError::new("resolved ComPtr target is not a contract")),
+        },
+        AbiType::Named(name) => named_rust_type(graph, module, resolve(graph, module, name)?, false)?,
         AbiType::Slice(value) => {
             let value = owned_type(graph, module, value)?;
             quote! { self::alloc::vec::Vec<#value> }

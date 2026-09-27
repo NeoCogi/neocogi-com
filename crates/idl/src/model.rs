@@ -308,6 +308,9 @@ pub enum AbiType {
     String,
     /// A declaration referenced by a local, imported, or qualified path.
     Named(NamedType),
+    /// An owned COM reference to a closed interface, class, or factory contract.
+    /// Ownership is explicit; the referenced implementation is never stored inline.
+    ComPtr(Box<AbiType>),
     /// A value borrowed only for the duration of one ABI call.
     Borrowed(
         /// Borrowed referent type.
@@ -354,6 +357,7 @@ impl AbiType {
             Self::Scalar(name) => name.clone(),
             Self::String => "String".into(),
             Self::Named(name) => name.rust_path(),
+            Self::ComPtr(value) => format!("ComPtr<{}>", value.source_name()),
             Self::Borrowed(value) => format!("&{}", value.source_name()),
             Self::Slice(value) => format!("&[{}]", value.source_name()),
             Self::OutputSlice(value) => format!("&mut [{}]", value.source_name()),
