@@ -45,13 +45,13 @@ method lookup. Obtaining an owned base projection still requires checked
 `QueryInterface`.
 
 `com_object` generates reference-counted storage and signature-checked
-`QueryInterface`. Its compile-time layout reserves one canonical header per
-distinct interface contract, including shared ancestors in diamonds. See
-[canonical interface storage](../../../docs/COM_INTERFACE_STORAGE.md) for the
-layout, ownership, and query contract. It does not publish the object as
-something the runtime can construct. Handwritten helpers such as
-`INcStringComPtrExt::to_string` remain separate because they add bounded copying, allocation, and UTF-8 validation
+`QueryInterface`. It does not publish the object as something the runtime can
+construct. Handwritten helpers such as `INcStringComPtrExt::to_string` remain
+separate because they add bounded copying, allocation, and UTF-8 validation
 rather than duplicate a generated interface method.
+Interface projection storage is recursive; distinct ancestry paths may contain
+separate headers for the same ancestor. The storage rollback
+records this open limitation and the measured deployment-size recovery.
 
 When the creating binary also needs the concrete implementation, use
 `Implementation::into_local(value)` to obtain `LocalCom<Implementation>`.
