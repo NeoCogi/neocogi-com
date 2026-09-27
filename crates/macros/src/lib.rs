@@ -20,7 +20,8 @@
 //! - [`com_struct`] marks a fixed-size record as ABI plain data, owns its
 //!   `repr(C)`/packing/alignment choice, and records its physical layout. It
 //!   checks fields through `neocogi_com::AbiPlainValue` by default, or through
-//!   compiler FFI layout checks with the `c_struct` option.
+//!   compiler FFI layout checks with the `c_struct` option. Both modes require
+//!   checked `ComValue` conversion and self-contained `ComInlineValue` wires.
 //! - [`com_enum`] keeps a Rust payload enum for ergonomic code and generates an
 //!   explicit tag + union ABI representation next to it.
 //!
@@ -282,8 +283,9 @@ pub fn factory_plugin(input: TokenStream) -> TokenStream {
 /// a raw `#[repr(...)]` attribute; the macro rejects it so the representation and
 /// generated layout metadata have one source of truth.
 ///
-/// `#[com_struct(c_struct)]` accepts external C-layout field types without COM
-/// traits or macro annotations. The option can be combined with packing and
+/// `#[com_struct(c_struct)]` accepts external C-layout field types without generated
+/// `AbiType`/`AbiPlainValue` metadata. Every field still requires an explicit
+/// `ComValue` codec and `ComInlineValue` proof. The option can be combined with packing and
 /// alignment options. The compiler checks the record's FFI layout, including
 /// nested field layouts, through `improper_ctypes_definitions`, promoted to an
 /// error. An incompatible Rust-layout field fails to compile; `Copy` and syntactic

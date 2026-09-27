@@ -342,42 +342,75 @@
 //! alignment, field order, field offsets, and field ABI types. Compatibility
 //! uses the precomputed fingerprint of the IDL module that declared the record.
 //!
-//! For external C-layout fields without neocogi-com traits, use
-//! `#[com_struct(c_struct)]`:
+//! `#[com_struct(c_struct)]` allows fields without generated COM layout metadata,
+//! but every field still needs a checked [`ComValue`] codec and the
+//! [`ComInlineValue`] proof required by copied method slots. For a type owned by
+//! another crate, provide these implementations on a local adapter/newtype:
 //!
 //! ```
-//! use neocogi_com::com_struct;
+//! use neocogi_com::{com_struct, ComInlineValue, ComValue, NcStatus, ValueBudget};
 //!
-//! // Represents a dependency's type with no neocogi-com annotations or traits.
+//! /// Local adapter for a C-compatible pair of unrestricted floating-point values.
 //! #[repr(C)]
 //! #[derive(Clone, Copy)]
 //! pub struct Vec2f {
+//!     /// Horizontal component.
 //!     pub x: f32,
+//!     /// Vertical component.
 //!     pub y: f32,
 //! }
 //!
+//! // SAFETY: the raw record contains only f32 fields, whose initialized bit
+//! // patterns are all valid. It contains no references or ownership duties.
+//! unsafe impl ComValue for Vec2f {
+//!     /// Application and wire layouts are identical and need no validation.
+//!     const BORROW_WIRE: bool = true;
+//!     /// Both components already have unrestricted C-compatible wire storage.
+//!     type Wire = Self;
+//!     /// No indirect backing allocation is needed.
+//!     type Storage = ();
+//!     /// Charges the record and both scalar fields to the shared work budget.
+//!     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self, ()), NcStatus> {
+//!         budget.value(|budget| {
+//!             let (x, ()) = self.x.encode_value(budget)?;
+//!             let (y, ()) = self.y.encode_value(budget)?;
+//!             Ok((Self { x, y }, ()))
+//!         })
+//!     }
+//!     /// Acquires the copied components under the same recursive budget.
+//!     unsafe fn decode_value(wire: Self, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+//!         budget.value(|budget| {
+//!             // SAFETY: each initialized f32 bit pattern is a valid scalar wire.
+//!             let x = unsafe { f32::decode_value(wire.x, budget)? };
+//!             let y = unsafe { f32::decode_value(wire.y, budget)? };
+//!             Ok(Self { x, y })
+//!         })
+//!     }
+//! }
+//! // SAFETY: the copied wire owns no allocation and borrows no producer storage.
+//! unsafe impl ComInlineValue for Vec2f {}
+//!
 //! #[com_struct(c_struct, assigned_signature = b"00000000000000000000000000000005")]
+//! /// A generated record recursively composes the explicit field codec.
 //! pub struct Vertex {
+//!     /// Geometry location.
 //!     pub position: Vec2f,
+//!     /// Texture location.
 //!     pub uv: Vec2f,
 //! }
 //! ```
 //!
-//! The generated record implements the COM traits. Its external field types
-//! need none. The compiler checks nested FFI layouts through
-//! `improper_ctypes_definitions`, promoted to an error, so an incompatible
-//! Rust-layout field fails to compile. `Copy` and syntactic field checks still
-//! apply. The author must ensure external fields contain no hidden pointers,
-//! references, borrowed addresses, or ownership/release obligations. C layout
-//! alone cannot prove those plain-value requirements.
+//! The compiler additionally checks nested FFI layouts through
+//! `improper_ctypes_definitions`, promoted to an error. That check does not prove
+//! wire validity: an adapter containing a boolean must use a raw byte and reject
+//! values other than zero and one before constructing the boolean. Such an
+//! adapter cannot claim `BORROW_WIRE = true`.
 //!
-//! In this mode, every field is represented by size and alignment; the outer
-//! record also records field order and offsets. Field internals and scalar type
-//! identities are not encoded. Incompatible changes preserving this metadata
-//! require a new interface identity. Dependency versions may differ only while
-//! their actual layouts and value semantics remain compatible. The checks add
-//! no runtime conversion or allocation. The option can be combined with packing
-//! or alignment options.
+//! The enclosing record's assigned contract signature remains authoritative;
+//! external field internals do not acquire independent generated identities.
+//! Changing an adapter's raw representation or validation contract requires a
+//! corresponding contract revision. The option can be combined with packing or
+//! alignment options, but neither layout option bypasses checked conversion.
 //!
 //! Enum-like ABI scalar values should use transparent integer newtypes generated
 //! by [`com_int_enum!`]:
