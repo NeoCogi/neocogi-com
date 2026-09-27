@@ -240,7 +240,12 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
         }
     }
     if !diagnostics.is_empty() {
-        return Err(ResolutionError { diagnostics });
+        // A specialized field retains its template's location while the closed
+        // use belongs to a consumer. Include both source sets in diagnostics.
+        let sources = entries.iter().flat_map(|entry| entry.module.sources.iter().cloned()).collect::<Vec<_>>();
+        return Err(ResolutionError {
+            diagnostics: diagnostics.into_iter().map(|diagnostic| diagnostic.with_sources(&sources)).collect(),
+        });
     }
 
     let mut states = vec![VisitState::Unvisited; entries.len()];
@@ -656,6 +661,33 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
     for declaration in &entry.module.declarations {
         match &declaration.kind {
             DeclarationKind::Struct(record) => {
+                if record.deserialize {
+                    let symbol = entry.local_symbols[&declaration.name];
+                    let value = &values.definitions[&entry.declaration_identities[symbol.declaration].qualified_name];
+                    for (field, ty) in record.fields.iter().zip(&value.fields) {
+                        if let Some(reason) = values.deserialization_failure(ty) {
+                            let authored = match &declaration.specialization {
+                                Some(instance) => {
+                                    let mut name = instance.template.clone();
+                                    name.arguments = instance.arguments.clone();
+                                    name.rust_path()
+                                }
+                                None => declaration.name.clone(),
+                            };
+                            let mut diagnostic = Diagnostic::new(
+                                "EIDL064",
+                                format!("struct {authored} field {} cannot implement requested deserialization", field.name),
+                            )
+                            .with_sources(&entry.module.sources)
+                            .primary(&field.span, "field has no supported decoder")
+                            .note(reason);
+                            if declaration.specialization.is_some() {
+                                diagnostic = diagnostic.secondary(&declaration.span, "decoder required for this closed specialization");
+                            }
+                            diagnostics.push(diagnostic);
+                        }
+                    }
+                }
                 for field in &record.fields {
                     collect_diagnostics(
                         &mut diagnostics,
@@ -1261,10 +1293,22 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
                 .into_iter()
                 .map(|ty| field(index, ty, entries))
                 .collect::<Result<Vec<_>, _>>()?;
-            graph.definitions.insert(name.clone(), crate::ValueDefinition { name, fields, copied: true });
+            let deserialization = match &declaration.kind {
+                DeclarationKind::Struct(record) if record.deserialize => crate::Deserialization::Supported,
+                _ => crate::Deserialization::NotRequested,
+            };
+            graph.definitions.insert(
+                name.clone(),
+                crate::ValueDefinition {
+                    name,
+                    fields,
+                    copied: true,
+                    deserialization,
+                },
+            );
         }
     }
-    graph.resolve_copied();
+    graph.resolve_capabilities();
     Ok(graph)
 }
 

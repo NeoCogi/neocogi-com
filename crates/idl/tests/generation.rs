@@ -42,7 +42,11 @@ fn generates_rust_bindings_for_a_module_graph() {
             /// Pixel dimensions.
             #[deserialize]
             #[version(1)]
-            struct Size { width: u32, height: u32, status: Status }
+            struct Size { width: u32, height: u32 }
+
+            // Status is transportable but has no automatic deserializer.
+            #[version(1)]
+            struct StatusValue { status: Status }
 
             #[version(2)]
             interface ITexture { fn size(&self) -> Result<Size>; }
@@ -113,7 +117,7 @@ fn generates_rust_bindings_for_a_module_graph() {
     assert!(!generated_render.contains("extern crate alloc"));
     assert!(!generated.contains("extern crate alloc"));
     assert_eq!(generated.matches("assigned_signature = b").count(), 2);
-    assert_eq!(generated_render.matches("assigned_signature = b").count(), 2);
+    assert_eq!(generated_render.matches("assigned_signature = b").count(), 3);
     assert!(!generated.contains("NcAbiSignaturePart"));
     assert!(!generated.contains("__encode"));
     assert!(!generated.contains("std::any::Any"));

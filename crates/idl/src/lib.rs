@@ -63,4 +63,4 @@ pub mod source_map;
 pub use source_map::{GeneratedRust, RustSourceMap, SourceMapKind, SourceMapOrigin, SourceMapPosition, SourceMapRange, SourceMapping};
 
 mod values;
-pub use values::{ValueDefinition, ValueGraph, ValueType};
+pub use values::{Deserialization, ValueDefinition, ValueGraph, ValueType};
