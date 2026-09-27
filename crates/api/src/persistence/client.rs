@@ -47,7 +47,7 @@ impl FactoryRegistry {
     pub fn register(&mut self, id: NcGuid, factory: ComPtr<IPersistenceFactoryAbi>) -> Result<(), NcStatus> {
         // SAFETY: &mut self excludes competing operations, and factory lends a
         // live interface until the runtime has retained its own reference.
-        let status = unsafe { (self.api.register_factory)(self.context.as_ptr(), id, factory.as_mut_ptr()) };
+        let status = unsafe { (self.api.register_factory)(self.context.as_ptr(), id, factory.as_raw()) };
         if status.is_ok() { Ok(()) } else { Err(status) }
     }
 
@@ -58,7 +58,7 @@ impl FactoryRegistry {
 
     /// Validates every recipe and state before invoking any construction callback.
     pub fn restore_with_limits(&self, bytes: &[u8], limits: Limits) -> Result<ComPtr<IUnknown>, NcStatus> {
-        let mut root = ptr::null_mut();
+        let mut root = crate::ComRaw::null();
         // SAFETY: The context, input slice and output slot all live through the
         // synchronous call. The returned root transfers one COM reference.
         let status = unsafe { (self.api.restore)(self.context.as_ptr(), bytes.as_ptr(), bytes.len(), limits.into(), &mut root) };
@@ -94,14 +94,7 @@ pub fn snapshot_with_limits(object: ComRef<'_, IUnknown>, limits: Limits) -> Res
     };
     // SAFETY: Object remains borrowed and destination stays at this address for
     // the whole synchronous operation. The runtime never retains either pointer.
-    let status = unsafe {
-        (api.snapshot)(
-            object.as_mut_ptr(),
-            limits.into(),
-            Some(receive_snapshot),
-            ptr::from_mut(&mut destination).cast(),
-        )
-    };
+    let status = unsafe { (api.snapshot)(object.as_raw(), limits.into(), Some(receive_snapshot), ptr::from_mut(&mut destination).cast()) };
     if status.is_err() {
         return Err(status);
     }

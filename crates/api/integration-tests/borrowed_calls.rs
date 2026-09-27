@@ -29,8 +29,6 @@ struct Counts {
 #[repr(C)]
 /// Heap-owned test object with a real reference-counted lifetime.
 struct Counter {
-    /// Projected interface whose static offset identifies this allocation.
-    header: IDerivedCounterAbi,
     /// Strong references held by clients of this test object.
     references: Cell<u32>,
     /// Shared observations remain private to the test implementation binary.
@@ -38,20 +36,20 @@ struct Counter {
 }
 
 /// Recovers test storage while the caller keeps its interface reference alive.
-unsafe fn storage<'a>(this: *mut IUnknown) -> &'a Counter {
-    // SAFETY: The static offset locates the header inside its live Counter allocation.
-    unsafe { &*(neocogi_com::__nc_object_from_interface(this.cast()).cast::<Counter>()) }
+unsafe fn storage<'a>(this: *mut c_void) -> &'a Counter {
+    // SAFETY: The paired table accepts this live Counter allocation directly.
+    unsafe { &*(this.cast::<Counter>()) }
 }
 
 /// This probe has no additional interface projection; failure transfers nothing.
-unsafe extern "C" fn query(_this: *mut IUnknown, _id: *const NcInterfaceId, out: *mut *mut c_void) -> NcStatus {
+unsafe extern "C" fn query(_this: *mut c_void, _id: *const NcInterfaceId, out: *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus {
     // SAFETY: The test's raw callers provide a writable pointer output slot.
-    unsafe { *out = std::ptr::null_mut() };
+    unsafe { *out = neocogi_com::ComRaw::null() };
     NC_E_NOINTERFACE
 }
 
 /// Records every ownership acquisition and keeps its allocation alive.
-unsafe extern "C" fn add_ref(this: *mut IUnknown) -> u32 {
+unsafe extern "C" fn add_ref(this: *mut c_void) -> u32 {
     // SAFETY: The caller holds a live reference for this lifecycle call.
     let value = unsafe { storage(this) };
     value.counts.additions.set(value.counts.additions.get() + 1);
@@ -60,7 +58,7 @@ unsafe extern "C" fn add_ref(this: *mut IUnknown) -> u32 {
 }
 
 /// Consumes one reference and destroys the allocation exactly at zero.
-unsafe extern "C" fn release(this: *mut IUnknown) -> u32 {
+unsafe extern "C" fn release(this: *mut c_void) -> u32 {
     // SAFETY: The caller transfers one live reference to this function.
     let value = unsafe { storage(this) };
     value.counts.releases.set(value.counts.releases.get() + 1);
@@ -68,28 +66,34 @@ unsafe extern "C" fn release(this: *mut IUnknown) -> u32 {
     value.references.set(remaining);
     if remaining == 0 {
         // SAFETY: This is the last reference to the original Box allocation.
-        unsafe { drop(Box::from_raw(neocogi_com::__nc_object_from_interface(this.cast()).cast::<Counter>())) };
+        unsafe { drop(Box::from_raw(this.cast::<Counter>())) };
     }
     remaining
 }
 
 /// Reads observations without touching COM ownership.
-unsafe extern "C" fn additions(this: *mut ICounterAbi, out: *mut u32) -> NcStatus {
-    // SAFETY: The generated client supplies a live header and writable output.
+unsafe extern "C" fn additions(this: *mut c_void, out: *mut u32) -> NcStatus {
+    // SAFETY: The generated client supplies a live allocation and writable output.
     unsafe { *out = storage(this.cast()).counts.additions.get() };
     NC_OK
 }
 
 /// Simulates a foreign implementation that transfers ownership but returns an
 /// invalid boolean byte. The wrapper must release the transfer when decoding fails.
-unsafe extern "C" fn malformed_output(this: *mut ICounterAbi, _offset: u64, len: u64, output: *mut u8, out: *mut *mut IDerivedCounterAbi) -> NcStatus {
+unsafe extern "C" fn malformed_output(
+    this: *mut c_void,
+    _offset: u64,
+    len: u64,
+    output: *mut u8,
+    out: *mut neocogi_com::ComRaw<IDerivedCounterAbi>,
+) -> NcStatus {
     assert_eq!(len, 1);
     // SAFETY: test calls supply one initialized writable byte and an output slot.
     // AddRef transfers a real reference even though the separate byte is malformed.
     unsafe {
         add_ref(this.cast());
         *output = 2;
-        *out = this.cast();
+        *out = neocogi_com::ComRaw { object: this, vtable: &VTABLE };
     }
     NC_OK
 }
@@ -99,7 +103,6 @@ static VTABLE: IDerivedCounterVTable = IDerivedCounterVTable {
     base: ICounterVTable {
         unknown: IUnknownVTable {
             interface_id: &IDerivedCounterAbi::INTERFACE_ID,
-            object_offset: core::mem::offset_of!(Counter, header),
             query_interface: query,
             add_ref,
             release,
@@ -113,12 +116,17 @@ static VTABLE: IDerivedCounterVTable = IDerivedCounterVTable {
 fn borrowed_generated_calls_perform_no_lifecycle_operations() {
     let counts = Rc::new(Counts::default());
     let allocation = Box::into_raw(Box::new(Counter {
-        header: IDerivedCounterAbi { vtable: &VTABLE },
         references: Cell::new(1),
         counts: counts.clone(),
     }));
-    // SAFETY: The allocation is private until its fully initialized header is published.
-    let owner = unsafe { ComPtr::<IDerivedCounterAbi>::from_raw_owned(&mut (*allocation).header).unwrap() };
+    // SAFETY: The allocation is private until its matching object/table pair is published.
+    let owner = unsafe {
+        ComPtr::<IDerivedCounterAbi>::from_raw_owned(neocogi_com::ComRaw {
+            object: allocation.cast(),
+            vtable: &VTABLE,
+        })
+        .unwrap()
+    };
     let borrowed = owner.as_com_ref();
     assert_eq!(borrowed.additions(), Ok(0));
     assert_eq!(owner.additions(), Ok(0));

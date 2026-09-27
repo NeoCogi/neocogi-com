@@ -1,6 +1,7 @@
 # neocogi-com core ABI v9
 
-This document specifies the current experimental Rust-to-Rust component ABI.
+Historical specification: current code implements [core ABI v10](abi-v10.md).
+Generation 9 used embedded headers and is rejected by generation-10 discovery.
 The authoritative layouts are the public `#[repr(C)]` definitions in
 `neocogi-com-core`; this guide explains how those layouts compose.
 

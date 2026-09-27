@@ -38,61 +38,13 @@ where
         IObjectChildrenVTable {
             unknown: ::neocogi_com::IUnknownVTable {
                 interface_id: identity,
-                object_offset: ::neocogi_com::__nc_interface_offset(
-                    T::ABI_HEADERS,
-                    identity,
-                ),
-                query_interface: Self::query_interface_thunk,
-                add_ref: Self::add_ref_thunk,
-                release: Self::release_thunk,
+                query_interface: <T as ::neocogi_com::ComAbiObject>::query_interface_from_abi_object,
+                add_ref: <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object,
+                release: <T as ::neocogi_com::ComAbiObject>::release_from_abi_object,
             },
             count: Self::count_thunk,
             get: Self::get_thunk,
         }
-    }
-    /// Routes this projection to the allocation-wide interface lookup.
-    ///
-    /// # Safety
-    /// The live header belongs to T; identity and output storage satisfy
-    /// the QueryInterface contract. The owning allocation validates them.
-    unsafe extern "C" fn query_interface_thunk(
-        this: *mut ::neocogi_com::IUnknown,
-        interface_id: *const ::neocogi_com::NcInterfaceId,
-        out: *mut *mut core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus {
-        if this.is_null() {
-            return ::neocogi_com::NC_E_POINTER;
-        }
-        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
-        unsafe {
-            <T as ::neocogi_com::ComAbiObject>::query_interface_from_abi_object(
-                object,
-                interface_id,
-                out,
-            )
-        }
-    }
-    /// Retains the common allocation through this interface projection.
-    ///
-    /// # Safety
-    /// Non-null this belongs to T's live generated object storage.
-    unsafe extern "C" fn add_ref_thunk(this: *mut ::neocogi_com::IUnknown) -> u32 {
-        if this.is_null() {
-            return 0;
-        }
-        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
-        unsafe { <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object(object) }
-    }
-    /// Releases the common allocation through this interface projection.
-    ///
-    /// # Safety
-    /// Non-null this transfers one live reference from T's object storage.
-    unsafe extern "C" fn release_thunk(this: *mut ::neocogi_com::IUnknown) -> u32 {
-        if this.is_null() {
-            return 0;
-        }
-        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
-        unsafe { <T as ::neocogi_com::ComAbiObject>::release_from_abi_object(object) }
     }
     /// Validates raw pointers, borrows the concrete provider through its
     /// object-wide gate, invokes its typed method, and lowers the result.
@@ -103,15 +55,13 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn count_thunk(
-        this: *mut IObjectChildrenAbi,
+        this: *mut core::ffi::c_void,
         __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe {
-            ::neocogi_com::__nc_object_from_interface(this.cast())
-        };
+        let __nc_dispatch_object = this;
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -147,16 +97,14 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn get_thunk(
-        this: *mut IObjectChildrenAbi,
+        this: *mut core::ffi::c_void,
         index: <u32 as ::neocogi_com::ComValue>::Wire,
-        __nc_out: *mut *mut ::neocogi_com::IUnknown,
+        __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe {
-            ::neocogi_com::__nc_object_from_interface(this.cast())
-        };
+        let __nc_dispatch_object = this;
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -220,13 +168,9 @@ where
         IPersistableVTable {
             unknown: ::neocogi_com::IUnknownVTable {
                 interface_id: identity,
-                object_offset: ::neocogi_com::__nc_interface_offset(
-                    T::ABI_HEADERS,
-                    identity,
-                ),
-                query_interface: Self::query_interface_thunk,
-                add_ref: Self::add_ref_thunk,
-                release: Self::release_thunk,
+                query_interface: <T as ::neocogi_com::ComAbiObject>::query_interface_from_abi_object,
+                add_ref: <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object,
+                release: <T as ::neocogi_com::ComAbiObject>::release_from_abi_object,
             },
             type_id: Self::type_id_thunk,
             schema_version: Self::schema_version_thunk,
@@ -234,50 +178,6 @@ where
             child_count: Self::child_count_thunk,
             child: Self::child_thunk,
         }
-    }
-    /// Routes this projection to the allocation-wide interface lookup.
-    ///
-    /// # Safety
-    /// The live header belongs to T; identity and output storage satisfy
-    /// the QueryInterface contract. The owning allocation validates them.
-    unsafe extern "C" fn query_interface_thunk(
-        this: *mut ::neocogi_com::IUnknown,
-        interface_id: *const ::neocogi_com::NcInterfaceId,
-        out: *mut *mut core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus {
-        if this.is_null() {
-            return ::neocogi_com::NC_E_POINTER;
-        }
-        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
-        unsafe {
-            <T as ::neocogi_com::ComAbiObject>::query_interface_from_abi_object(
-                object,
-                interface_id,
-                out,
-            )
-        }
-    }
-    /// Retains the common allocation through this interface projection.
-    ///
-    /// # Safety
-    /// Non-null this belongs to T's live generated object storage.
-    unsafe extern "C" fn add_ref_thunk(this: *mut ::neocogi_com::IUnknown) -> u32 {
-        if this.is_null() {
-            return 0;
-        }
-        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
-        unsafe { <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object(object) }
-    }
-    /// Releases the common allocation through this interface projection.
-    ///
-    /// # Safety
-    /// Non-null this transfers one live reference from T's object storage.
-    unsafe extern "C" fn release_thunk(this: *mut ::neocogi_com::IUnknown) -> u32 {
-        if this.is_null() {
-            return 0;
-        }
-        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
-        unsafe { <T as ::neocogi_com::ComAbiObject>::release_from_abi_object(object) }
     }
     /// Validates raw pointers, borrows the concrete provider through its
     /// object-wide gate, invokes its typed method, and lowers the result.
@@ -288,15 +188,13 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn type_id_thunk(
-        this: *mut IPersistableAbi,
+        this: *mut core::ffi::c_void,
         __nc_out: *mut <::neocogi_com::NcGuid as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe {
-            ::neocogi_com::__nc_object_from_interface(this.cast())
-        };
+        let __nc_dispatch_object = this;
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -332,15 +230,13 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn schema_version_thunk(
-        this: *mut IPersistableAbi,
+        this: *mut core::ffi::c_void,
         __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe {
-            ::neocogi_com::__nc_object_from_interface(this.cast())
-        };
+        let __nc_dispatch_object = this;
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -376,15 +272,13 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn save_state_thunk(
-        this: *mut IPersistableAbi,
-        __nc_out: *mut *mut ::neocogi_com::INcBytesAbi,
+        this: *mut core::ffi::c_void,
+        __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::INcBytesAbi>,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe {
-            ::neocogi_com::__nc_object_from_interface(this.cast())
-        };
+        let __nc_dispatch_object = this;
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -416,15 +310,13 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn child_count_thunk(
-        this: *mut IPersistableAbi,
+        this: *mut core::ffi::c_void,
         __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe {
-            ::neocogi_com::__nc_object_from_interface(this.cast())
-        };
+        let __nc_dispatch_object = this;
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -460,16 +352,14 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn child_thunk(
-        this: *mut IPersistableAbi,
+        this: *mut core::ffi::c_void,
         index: <u32 as ::neocogi_com::ComValue>::Wire,
-        __nc_out: *mut *mut ::neocogi_com::IUnknown,
+        __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe {
-            ::neocogi_com::__nc_object_from_interface(this.cast())
-        };
+        let __nc_dispatch_object = this;
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -533,61 +423,13 @@ where
         IPersistenceFactoryVTable {
             unknown: ::neocogi_com::IUnknownVTable {
                 interface_id: identity,
-                object_offset: ::neocogi_com::__nc_interface_offset(
-                    T::ABI_HEADERS,
-                    identity,
-                ),
-                query_interface: Self::query_interface_thunk,
-                add_ref: Self::add_ref_thunk,
-                release: Self::release_thunk,
+                query_interface: <T as ::neocogi_com::ComAbiObject>::query_interface_from_abi_object,
+                add_ref: <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object,
+                release: <T as ::neocogi_com::ComAbiObject>::release_from_abi_object,
             },
             validate: Self::validate_thunk,
             restore: Self::restore_thunk,
         }
-    }
-    /// Routes this projection to the allocation-wide interface lookup.
-    ///
-    /// # Safety
-    /// The live header belongs to T; identity and output storage satisfy
-    /// the QueryInterface contract. The owning allocation validates them.
-    unsafe extern "C" fn query_interface_thunk(
-        this: *mut ::neocogi_com::IUnknown,
-        interface_id: *const ::neocogi_com::NcInterfaceId,
-        out: *mut *mut core::ffi::c_void,
-    ) -> ::neocogi_com::NcStatus {
-        if this.is_null() {
-            return ::neocogi_com::NC_E_POINTER;
-        }
-        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
-        unsafe {
-            <T as ::neocogi_com::ComAbiObject>::query_interface_from_abi_object(
-                object,
-                interface_id,
-                out,
-            )
-        }
-    }
-    /// Retains the common allocation through this interface projection.
-    ///
-    /// # Safety
-    /// Non-null this belongs to T's live generated object storage.
-    unsafe extern "C" fn add_ref_thunk(this: *mut ::neocogi_com::IUnknown) -> u32 {
-        if this.is_null() {
-            return 0;
-        }
-        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
-        unsafe { <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object(object) }
-    }
-    /// Releases the common allocation through this interface projection.
-    ///
-    /// # Safety
-    /// Non-null this transfers one live reference from T's object storage.
-    unsafe extern "C" fn release_thunk(this: *mut ::neocogi_com::IUnknown) -> u32 {
-        if this.is_null() {
-            return 0;
-        }
-        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
-        unsafe { <T as ::neocogi_com::ComAbiObject>::release_from_abi_object(object) }
     }
     /// Validates raw pointers, borrows the concrete provider through its
     /// object-wide gate, invokes its typed method, and lowers the result.
@@ -598,7 +440,7 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn validate_thunk(
-        this: *mut IPersistenceFactoryAbi,
+        this: *mut core::ffi::c_void,
         version: <u32 as ::neocogi_com::ComValue>::Wire,
         __nc_state_offset: u64,
         __nc_state_len: u64,
@@ -608,9 +450,7 @@ where
         if this.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe {
-            ::neocogi_com::__nc_object_from_interface(this.cast())
-        };
+        let __nc_dispatch_object = this;
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -662,20 +502,18 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn restore_thunk(
-        this: *mut IPersistenceFactoryAbi,
+        this: *mut core::ffi::c_void,
         version: <u32 as ::neocogi_com::ComValue>::Wire,
         __nc_state_offset: u64,
         __nc_state_len: u64,
         __nc_state_ptr: *const <u8 as ::neocogi_com::ComValue>::Wire,
-        children: *mut IObjectChildrenAbi,
-        __nc_out: *mut *mut ::neocogi_com::IUnknown,
+        children: ::neocogi_com::ComRaw<IObjectChildrenAbi>,
+        __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe {
-            ::neocogi_com::__nc_object_from_interface(this.cast())
-        };
+        let __nc_dispatch_object = this;
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }

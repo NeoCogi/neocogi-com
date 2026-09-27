@@ -160,7 +160,7 @@ pub unsafe trait ComValue: Sized + 'static {
     ///
     /// # Safety
     /// Active raw storage and pointees must be initialized, aligned, readable,
-    /// and live for this call. Interface fields must address valid COM headers.
+    /// and live for this call. Interface fields must pair live COM objects with their matching tables.
     /// These memory obligations do not require raw boolean/tag values to be valid.
     unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus>;
 }
@@ -576,14 +576,14 @@ unsafe impl ComValue for String {
 // SAFETY: wire object fields borrow a valid COM projection. Acquisition checks
 // its complete interface identity and obtains a reference before returning.
 unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue for crate::ComPtr<T, M> {
-    type Wire = *mut T;
+    type Wire = crate::ComRaw<T>;
     type Storage = ();
     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, ()), NcStatus> {
-        budget.value(|_| Ok((self.as_mut_ptr(), ())))
+        budget.value(|_| Ok((self.as_raw(), ())))
     }
     unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|_| {
-            // SAFETY: raw callers provide a live common header; this operation
+            // SAFETY: raw callers provide a live common lifecycle pair; this operation
             // checks identity before acquiring a separately owned reference.
             Ok(unsafe { crate::ComRef::<T, M>::__nc_from_raw_borrowed_checked(wire) }?.add_ref())
         })

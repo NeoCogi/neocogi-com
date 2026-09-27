@@ -30,6 +30,8 @@ pub struct NcRuntimeApiV1 {
     pub load_plugin_library_utf8: unsafe extern "C" fn(path: *const u8, path_len: usize, out_module_id: *mut u64) -> NcStatus,
     /// Activates one registered plugin's root factory after checking its exact
     /// interface identity and requested threading capability.
+    /// Success transfers the exact factory object/table pair, erased only in
+    /// its raw table type. It does not advertise canonical IUnknown identity.
     pub activate_factory_plugin:
-        unsafe extern "C" fn(plugin_id: NcGuid, factory_interface: NcInterfaceId, requested_threading: u32, out: *mut *mut IUnknown) -> NcStatus,
+        unsafe extern "C" fn(plugin_id: NcGuid, factory_interface: NcInterfaceId, requested_threading: u32, out: *mut crate::ComRaw<IUnknown>) -> NcStatus,
 }

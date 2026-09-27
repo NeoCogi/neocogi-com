@@ -226,18 +226,18 @@ fn nc_string_wraps_utf8_and_queries_as_bytes() {
     let mut unchanged = [0xaa; 2];
     assert_eq!(text.copy_to(5, &mut unchanged).unwrap_err(), NC_E_OUT_OF_RANGE);
     assert_eq!(unchanged, [0xaa; 2]);
-    let raw = text.as_mut_ptr();
+    let raw = text.as_raw();
     // SAFETY: `raw` is a live string interface. A zero-length copy permits a
     // null output pointer.
-    assert_eq!(unsafe { ((*(*raw).vtable).copy_to)(raw, 6, 0, core::ptr::null_mut()) }, NC_OK);
+    assert_eq!(unsafe { ((*raw.vtable).copy_to)(raw.object, 6, 0, core::ptr::null_mut()) }, NC_OK);
     // SAFETY: `raw` is live; the call rejects the null nonempty output before
     // attempting a write.
-    assert_eq!(unsafe { ((*(*raw).vtable).copy_to)(raw, 0, 1, core::ptr::null_mut()) }, NC_E_POINTER);
+    assert_eq!(unsafe { ((*raw.vtable).copy_to)(raw.object, 0, 1, core::ptr::null_mut()) }, NC_E_POINTER);
     let mut overflow_unchanged = [0xbb; 2];
     // SAFETY: `raw` is live and `overflow_unchanged` is valid for two writes;
     // the overflowing range is rejected before writing.
     assert_eq!(
-        unsafe { ((*(*raw).vtable).copy_to)(raw, u64::MAX, 2, overflow_unchanged.as_mut_ptr()) },
+        unsafe { ((*raw.vtable).copy_to)(raw.object, u64::MAX, 2, overflow_unchanged.as_mut_ptr()) },
         NC_E_OUT_OF_RANGE
     );
     assert_eq!(overflow_unchanged, [0xbb; 2]);
@@ -256,11 +256,9 @@ fn metadata_identity_query_checks_and_releases_a_concrete_projection() {
     assert_eq!(text.to_string().unwrap(), "metadata");
 }
 
-/// Stack-owned foreign string fixture with an embedded ABI header.
+/// Stack-owned foreign string fixture paired with static interface tables.
 #[repr(C)]
 struct BulkStringProbe {
-    /// Static offset recovery reaches this enclosing fixture from its header.
-    header: INcStringAbi,
     /// Stable source bytes used by the bulk-copy method.
     value: &'static [u8],
     /// Advertised length can deliberately exceed the readable source in limit tests.
@@ -273,17 +271,16 @@ struct BulkStringProbe {
     copy_to_calls: AtomicUsize,
 }
 
-unsafe extern "C" fn probe_string_query_interface(this: *mut IUnknown, interface_id: *const NcInterfaceId, out: *mut *mut c_void) -> NcStatus {
+unsafe extern "C" fn probe_string_query_interface(this: *mut c_void, interface_id: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if this.is_null() || interface_id.is_null() || out.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: `this` is the IUnknown-compatible prefix of the live test string
-    // interface embedded in the live probe allocation.
-    let probe = unsafe { &*(crate::__nc_object_from_interface(this.cast()).cast::<BulkStringProbe>()) };
+    // SAFETY: `this` is the live probe allocation paired with this table.
+    let probe = unsafe { &*(this.cast::<BulkStringProbe>()) };
     probe.query_calls.fetch_add(1, Ordering::Relaxed);
     // SAFETY: `out` was checked non-null and the test caller provides one
-    // writable pointer slot.
-    unsafe { *out = core::ptr::null_mut() };
+    // writable pair slot.
+    unsafe { *out = ComRaw::null() };
     // SAFETY: `interface_id` was checked non-null and is readable for the call.
     let interface_id = unsafe { &*interface_id };
     if interface_id.iid == IUnknown::IID {
@@ -297,37 +294,46 @@ unsafe extern "C" fn probe_string_query_interface(this: *mut IUnknown, interface
     } else {
         return NC_E_NOINTERFACE;
     }
-    // SAFETY: The test object uses the same header address for IUnknown and
-    // INcStringAbi and remains live for the returned owned test reference.
-    unsafe { *out = this.cast::<c_void>() };
+    // SAFETY: Both exact tables share this live, externally retained probe
+    // allocation. The test owns the storage throughout all interface uses.
+    unsafe {
+        *out = ComRaw {
+            object: this,
+            vtable: if interface_id.iid == IUnknown::IID {
+                &PROBE_UNKNOWN_VTABLE
+            } else {
+                &PROBE_STRING_VTABLE.unknown
+            },
+        }
+    };
     NC_OK
 }
 
-unsafe extern "C" fn probe_string_add_ref(_this: *mut IUnknown) -> u32 {
+unsafe extern "C" fn probe_string_add_ref(_this: *mut c_void) -> u32 {
     1
 }
 
-unsafe extern "C" fn probe_string_release(_this: *mut IUnknown) -> u32 {
+unsafe extern "C" fn probe_string_release(_this: *mut c_void) -> u32 {
     0
 }
 
-unsafe extern "C" fn probe_string_len(this: *mut INcStringAbi, out: *mut u64) -> NcStatus {
+unsafe extern "C" fn probe_string_len(this: *mut c_void, out: *mut u64) -> NcStatus {
     if this.is_null() || out.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: The static vtable offset identifies this live embedded BulkStringProbe header.
-    let probe = unsafe { &*(crate::__nc_object_from_interface(this.cast()).cast::<BulkStringProbe>()) };
+    // SAFETY: The paired table receives this live BulkStringProbe allocation directly.
+    let probe = unsafe { &*(this.cast::<BulkStringProbe>()) };
     // SAFETY: `out` was checked non-null and is writable for this call.
     unsafe { *out = probe.reported_len };
     NC_OK
 }
 
-unsafe extern "C" fn probe_string_byte_at(this: *mut INcStringAbi, index: u64, out: *mut u8) -> NcStatus {
+unsafe extern "C" fn probe_string_byte_at(this: *mut c_void, index: u64, out: *mut u8) -> NcStatus {
     if this.is_null() || out.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: The static vtable offset identifies this live embedded BulkStringProbe header.
-    let probe = unsafe { &*(crate::__nc_object_from_interface(this.cast()).cast::<BulkStringProbe>()) };
+    // SAFETY: The paired table receives this live BulkStringProbe allocation directly.
+    let probe = unsafe { &*(this.cast::<BulkStringProbe>()) };
     probe.byte_at_calls.fetch_add(1, Ordering::Relaxed);
     let Ok(index) = usize::try_from(index) else {
         return NC_E_OUT_OF_RANGE;
@@ -340,12 +346,12 @@ unsafe extern "C" fn probe_string_byte_at(this: *mut INcStringAbi, index: u64, o
     NC_OK
 }
 
-unsafe extern "C" fn probe_string_copy_to(this: *mut INcStringAbi, offset: u64, len: u64, out: *mut u8) -> NcStatus {
+unsafe extern "C" fn probe_string_copy_to(this: *mut c_void, offset: u64, len: u64, out: *mut u8) -> NcStatus {
     if this.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: The static vtable offset identifies this live embedded BulkStringProbe header.
-    let probe = unsafe { &*(crate::__nc_object_from_interface(this.cast()).cast::<BulkStringProbe>()) };
+    // SAFETY: The paired table receives this live BulkStringProbe allocation directly.
+    let probe = unsafe { &*(this.cast::<BulkStringProbe>()) };
     probe.copy_to_calls.fetch_add(1, Ordering::Relaxed);
     let (Ok(offset), Ok(len)) = (usize::try_from(offset), usize::try_from(len)) else {
         return NC_E_OUT_OF_RANGE;
@@ -367,10 +373,16 @@ unsafe extern "C" fn probe_string_copy_to(this: *mut INcStringAbi, offset: u64, 
     NC_OK
 }
 
+/// Canonical identity table for the stack-owned probe's lifetime callbacks.
+static PROBE_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
+    interface_id: &IUnknown::INTERFACE_ID,
+    query_interface: probe_string_query_interface,
+    add_ref: probe_string_add_ref,
+    release: probe_string_release,
+};
 static PROBE_STRING_VTABLE: INcStringVTable = INcStringVTable {
     unknown: IUnknownVTable {
         interface_id: &INcStringAbi::INTERFACE_ID,
-        object_offset: core::mem::offset_of!(BulkStringProbe, header),
         query_interface: probe_string_query_interface,
         add_ref: probe_string_add_ref,
         release: probe_string_release,
@@ -384,16 +396,21 @@ static PROBE_STRING_VTABLE: INcStringVTable = INcStringVTable {
 fn foreign_string_to_bytes_uses_one_bulk_copy_without_inc_bytes() {
     static VALUE: &[u8] = b"foreign string bulk-copy probe";
     let mut probe = BulkStringProbe {
-        header: INcStringAbi { vtable: &PROBE_STRING_VTABLE },
         value: VALUE,
         reported_len: VALUE.len() as u64,
         query_calls: AtomicUsize::new(0),
         byte_at_calls: AtomicUsize::new(0),
         copy_to_calls: AtomicUsize::new(0),
     };
-    // SAFETY: the complete probe, including its embedded header, remains at this
+    // SAFETY: the complete probe remains at this
     // address until string is dropped. The test vtable does not free stack storage.
-    let string = unsafe { ComPtr::<INcStringAbi>::from_raw_owned(core::ptr::addr_of_mut!(probe.header)) }.unwrap();
+    let string = unsafe {
+        ComPtr::<INcStringAbi>::from_raw_owned(ComRaw {
+            object: core::ptr::addr_of_mut!(probe).cast(),
+            vtable: &PROBE_STRING_VTABLE,
+        })
+    }
+    .unwrap();
 
     assert_eq!(string.to_bytes().unwrap(), VALUE);
     assert_eq!(probe.query_calls.load(Ordering::Relaxed), 0);
@@ -404,16 +421,21 @@ fn foreign_string_to_bytes_uses_one_bulk_copy_without_inc_bytes() {
 #[test]
 fn foreign_string_rejects_unrepresentable_reported_lengths_before_copying() {
     let mut probe = BulkStringProbe {
-        header: INcStringAbi { vtable: &PROBE_STRING_VTABLE },
         value: b"",
         reported_len: usize::MAX as u64,
         query_calls: AtomicUsize::new(0),
         byte_at_calls: AtomicUsize::new(0),
         copy_to_calls: AtomicUsize::new(0),
     };
-    // SAFETY: the complete probe, including its embedded header, remains at this
+    // SAFETY: the complete probe remains at this
     // address until string is dropped. The test vtable does not free stack storage.
-    let string = unsafe { ComPtr::<INcStringAbi>::from_raw_owned(core::ptr::addr_of_mut!(probe.header)) }.unwrap();
+    let string = unsafe {
+        ComPtr::<INcStringAbi>::from_raw_owned(ComRaw {
+            object: core::ptr::addr_of_mut!(probe).cast(),
+            vtable: &PROBE_STRING_VTABLE,
+        })
+    }
+    .unwrap();
 
     assert_eq!(string.to_bytes().unwrap_err(), NC_E_OUT_OF_RANGE);
     assert_eq!(string.to_bytes_bounded(usize::MAX).unwrap_err(), NC_E_OUT_OF_RANGE);

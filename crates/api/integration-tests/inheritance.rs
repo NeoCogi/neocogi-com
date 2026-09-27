@@ -68,7 +68,7 @@ impl contract::IWidget for Toggle {
 }
 
 impl IAudit for Toggle {
-    /// Reads the same implementation value through the sibling header.
+    /// Reads the same implementation value through the sibling interface table.
     fn active(&self) -> Result<bool, NcStatus> {
         Ok(self.value != 0)
     }
@@ -104,20 +104,20 @@ fn inherited_methods_and_queries_share_one_allocation() {
         .unwrap();
     toggle.copy_value(source.as_com_ref()).unwrap();
     assert_eq!(toggle.button().unwrap().value(), Ok(23));
-    assert_eq!(widget.query::<IUnknown>().unwrap().as_mut_ptr(), unknown.as_mut_ptr());
-    assert_eq!(button.query::<IUnknown>().unwrap().as_mut_ptr(), unknown.as_mut_ptr());
-    assert_eq!(widget.as_mut_ptr(), button.query::<contract::IWidgetAbi>().unwrap().as_mut_ptr());
+    assert_eq!(widget.query::<IUnknown>().unwrap().as_raw(), unknown.as_raw());
+    assert_eq!(button.query::<IUnknown>().unwrap().as_raw(), unknown.as_raw());
+    assert_eq!(widget.as_raw(), button.query::<contract::IWidgetAbi>().unwrap().as_raw());
     assert_eq!(Toggle::COM_INTERFACE_COUNT, 5);
     let audit = toggle.query::<IAuditAbi>().unwrap();
     assert_eq!(audit.active(), Ok(true));
-    assert_eq!(audit.query::<IUnknown>().unwrap().as_mut_ptr(), unknown.as_mut_ptr());
+    assert_eq!(audit.query::<IUnknown>().unwrap().as_raw(), unknown.as_raw());
     drop(audit);
     // Independent physical base projections advertise their own exact identity.
     unsafe {
-        neocogi_com::raw::validate_interface::<IToggleAbi>(toggle.as_mut_ptr()).unwrap();
-        neocogi_com::raw::validate_interface::<contract::IWidgetAbi>(widget.as_mut_ptr()).unwrap();
+        neocogi_com::raw::validate_interface::<IToggleAbi>(toggle.as_raw()).unwrap();
+        neocogi_com::raw::validate_interface::<contract::IWidgetAbi>(widget.as_raw()).unwrap();
         assert_eq!(
-            neocogi_com::raw::validate_interface::<contract::IWidgetAbi>(toggle.as_mut_ptr().cast()),
+            neocogi_com::raw::validate_interface::<contract::IWidgetAbi>(toggle.as_raw().cast()),
             Err(NC_E_NOINTERFACE)
         );
     }
@@ -140,42 +140,103 @@ fn inherited_vtable_is_a_physical_prefix_and_signs_the_base() {
 #[path = "fixtures/diamond.rs"]
 mod diamond;
 
-/// Each physical header must lead back to the same concrete allocation, including
-/// inherited calls whose static method type differs from the actual projection.
+/// Contract selection changes only the table; every view retains one allocation.
 #[test]
-fn single_pointer_headers_recover_one_owner_from_distinct_offsets() {
-    use neocogi_com::{ComAbiObject, __nc_object_from_interface};
-    assert_eq!(core::mem::size_of::<IUnknown>(), core::mem::size_of::<usize>());
-    assert_eq!(core::mem::size_of::<IToggleAbi>(), core::mem::size_of::<usize>());
-    assert_eq!(core::mem::size_of::<ComPtr<IToggleAbi>>(), core::mem::size_of::<usize>());
-    assert_eq!(core::mem::size_of::<ComRef<'_, IToggleAbi>>(), core::mem::size_of::<usize>());
+fn interface_pairs_share_one_object_without_embedded_headers() {
+    use neocogi_com::ComRaw;
+    let word = core::mem::size_of::<usize>();
+    assert_eq!(core::mem::size_of::<ComPtr<IToggleAbi>>(), 2 * word);
+    assert_eq!(core::mem::size_of::<Option<ComPtr<IToggleAbi>>>(), 2 * word);
+    assert_eq!(core::mem::size_of::<ComRef<'_, IToggleAbi>>(), 2 * word);
+    assert_eq!(core::mem::size_of::<Option<ComRef<'_, IToggleAbi>>>(), 2 * word);
+    assert_eq!(core::mem::size_of::<ComRaw<IToggleAbi>>(), 2 * word);
     let owner = Toggle::from_value(Toggle { value: 41, drops: Rc::new(Cell::new(0)) });
     let toggle = owner.query::<IToggleAbi>().unwrap();
     let button = owner.query::<IButtonAbi>().unwrap();
     let widget = owner.query::<contract::IWidgetAbi>().unwrap();
     let audit = owner.query::<IAuditAbi>().unwrap();
     let projections = [
-        owner.as_mut_ptr(),
-        toggle.as_mut_ptr().cast(),
-        button.as_mut_ptr().cast(),
-        widget.as_mut_ptr().cast(),
-        audit.as_mut_ptr().cast(),
+        owner.as_raw(),
+        toggle.as_raw().erase(),
+        button.as_raw().erase(),
+        widget.as_raw().erase(),
+        audit.as_raw().erase(),
     ];
-    // SAFETY: canonical IUnknown is interfaces[0] in this known generated storage.
-    let allocation = unsafe { owner.as_mut_ptr().cast::<u8>().sub(core::mem::offset_of!(ToggleComObject, interfaces)) };
-    for (header, layout) in projections.into_iter().zip(Toggle::ABI_HEADERS) {
-        // SAFETY: all acquired references retain the same live allocation, and
-        // each vtable is the immutable table installed by the generated constructor.
-        unsafe {
-            let prefix = &*(*header).vtable;
-            assert_eq!(prefix.object_offset, header.cast::<u8>().offset_from(allocation) as usize);
-            assert_eq!(prefix.object_offset, layout.object_offset);
-            assert_eq!(*prefix.interface_id, layout.identity);
-            assert_eq!(__nc_object_from_interface(header), allocation.cast());
-        }
+    let identities = [
+        IUnknown::INTERFACE_ID,
+        IToggleAbi::INTERFACE_ID,
+        IButtonAbi::INTERFACE_ID,
+        contract::IWidgetAbi::INTERFACE_ID,
+        IAuditAbi::INTERFACE_ID,
+    ];
+    for (projection, identity) in projections.into_iter().zip(identities) {
+        assert_eq!(projection.object, owner.as_raw().object);
+        // SAFETY: each queried pair retains its immutable matching table.
+        assert_eq!(unsafe { *(*projection.vtable).interface_id }, identity);
     }
-    // The same base slot executes through three different physical headers.
+    assert_ne!(toggle.as_raw().vtable.cast::<()>(), button.as_raw().vtable.cast::<()>());
     assert_eq!(toggle.value(), Ok(41));
     assert_eq!(button.value(), Ok(41));
     assert_eq!(widget.value(), Ok(41));
+    // Only the allocation-wide refcount and borrow gate precede Rust state.
+    assert_eq!(core::mem::offset_of!(ToggleComObject, value), 16);
+}
+
+/// Exercises nullable raw pairs through real generated argument lowering.
+mod pair_inputs {
+    use neocogi_com::{com_interface, com_object, ComPtr, ComRaw, ComRef, IUnknown, NcStatus, NC_E_POINTER, NC_OK};
+
+    #[com_interface(auto_guid = "nc.tests.inheritance.AcceptPair:v1", assigned_signature = b"00000000000000000000000000000019")]
+    /// A mutating receiver makes accidental entry with malformed arguments visible.
+    trait IAcceptPair {
+        /// Reports presence and counts only successfully decoded invocations.
+        fn accept(&mut self, value: Option<ComRef<'_, IUnknown>>) -> Result<bool, NcStatus>;
+    }
+
+    #[com_object(IAcceptPair)]
+    /// Local state can be inspected through the same borrow gate as its COM calls.
+    struct Receiver {
+        /// Calls that reached the typed implementation after raw validation.
+        calls: usize,
+    }
+    impl IAcceptPair for Receiver {
+        /// Uses an ordinary mutable borrow; raw input validation precedes this method.
+        fn accept(&mut self, value: Option<ComRef<'_, IUnknown>>) -> Result<bool, NcStatus> {
+            self.calls += 1;
+            Ok(value.is_some())
+        }
+    }
+
+    /// Absence is exactly two null fields; neither half-null shape is absence.
+    #[test]
+    fn optional_pairs_validate_both_words_before_entering_rust() {
+        let local = Receiver::into_local(Receiver { calls: 0 });
+        let receiver = local.query::<IAcceptPairAbi>().unwrap();
+        let root: ComPtr<IUnknown> = receiver.query().unwrap();
+        let source = receiver.as_raw();
+        let present = root.as_raw();
+        let mut output = 99u8;
+        // SAFETY: source/output are live; rejected pairs require no pointer reads.
+        unsafe {
+            assert_eq!(((*source.vtable).accept)(source.object, ComRaw::null(), &mut output), NC_OK);
+            assert_eq!(output, 0);
+            for malformed in [
+                ComRaw {
+                    object: present.object,
+                    vtable: core::ptr::null(),
+                },
+                ComRaw {
+                    object: core::ptr::null_mut(),
+                    vtable: present.vtable,
+                },
+            ] {
+                output = 99;
+                assert_eq!(((*source.vtable).accept)(source.object, malformed, &mut output), NC_E_POINTER);
+                assert_eq!(output, 99);
+            }
+            assert_eq!(((*source.vtable).accept)(source.object, present, &mut output), NC_OK);
+        }
+        assert_eq!(output, 1);
+        assert_eq!(local.try_borrow().unwrap().calls, 2);
+    }
 }

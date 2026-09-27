@@ -25,7 +25,7 @@ pub(super) static PERSISTENCE_API_V1: NcPersistenceApiV1 = NcPersistenceApiV1 {
 /// Allocates an empty registry in this runtime and transfers its opaque ownership.
 ///
 /// # Safety
-/// Non-null `out` must be writable for one pointer and not alias live runtime data.
+/// Non-null `out` must be writable for one context pointer and not alias live runtime data.
 unsafe extern "C" fn create_context(out: *mut *mut NcPersistenceContext) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
@@ -55,7 +55,7 @@ unsafe extern "C" fn destroy_context(context: *mut NcPersistenceContext) {
 /// # Safety
 /// Context is exclusively borrowed on its creating thread; factory is a live
 /// common COM projection. Neither may be invalidated by reentrant callbacks.
-unsafe extern "C" fn register_factory(context: *mut NcPersistenceContext, id: NcGuid, factory: *mut IPersistenceFactoryAbi) -> NcStatus {
+unsafe extern "C" fn register_factory(context: *mut NcPersistenceContext, id: NcGuid, factory: neocogi_com_core::ComRaw<IPersistenceFactoryAbi>) -> NcStatus {
     if context.is_null() {
         return NC_E_POINTER;
     }
@@ -77,7 +77,7 @@ unsafe extern "C" fn register_factory(context: *mut NcPersistenceContext, id: Nc
 /// Object is a live common COM projection. The callback and its opaque data
 /// satisfy the declared byte-sink contract and must not unwind across the ABI.
 unsafe extern "C" fn snapshot(
-    object: *mut IUnknown,
+    object: neocogi_com_core::ComRaw<IUnknown>,
     limits: NcPersistenceLimitsV1,
     write: Option<NcPersistenceWriteBytesV1>,
     user_data: *mut c_void,
@@ -111,13 +111,13 @@ unsafe extern "C" fn restore(
     bytes: *const u8,
     len: usize,
     limits: NcPersistenceLimitsV1,
-    out: *mut *mut IUnknown,
+    out: *mut neocogi_com_core::ComRaw<IUnknown>,
 ) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
     // SAFETY: Initialize the caller's output before any validation or provider call.
-    unsafe { out.write(ptr::null_mut()) };
+    unsafe { out.write(neocogi_com_core::ComRaw::null()) };
     if context.is_null() || (len != 0 && bytes.is_null()) {
         return NC_E_POINTER;
     }
@@ -155,22 +155,31 @@ mod tests {
     fn invalid_arguments_never_publish_a_context_or_root() {
         let limits = Limits::default().into();
         let mut context = ptr::null_mut();
-        let mut root = ptr::dangling_mut();
+        let mut root = neocogi_com_core::ComRaw {
+            object: ptr::dangling_mut(),
+            vtable: ptr::null(),
+        };
         // SAFETY: Null arguments deliberately exercise defensive rejection; all
         // non-null output slots and the allocated context remain valid here.
         unsafe {
             assert_eq!(create_context(ptr::null_mut()), NC_E_POINTER);
             assert_eq!(create_context(&mut context), NC_OK);
             assert!(!context.is_null());
-            assert_eq!(register_factory(context, NcGuid::from_uuid_bytes([0; 16]), ptr::null_mut()), NC_E_POINTER);
+            assert_eq!(
+                register_factory(context, NcGuid::from_uuid_bytes([0; 16]), neocogi_com_core::ComRaw::null()),
+                NC_E_POINTER
+            );
             assert_eq!(restore(context, ptr::null(), 1, limits, &mut root), NC_E_POINTER);
             assert!(root.is_null());
-            root = ptr::dangling_mut();
+            root = neocogi_com_core::ComRaw {
+                object: ptr::dangling_mut(),
+                vtable: ptr::null(),
+            };
             assert_eq!(restore(ptr::null(), ptr::null(), 0, limits, &mut root), NC_E_POINTER);
             assert!(root.is_null());
             assert_eq!(restore(context, ptr::dangling(), usize::MAX, limits, &mut root), NC_E_INVALID_ARG);
             assert!(root.is_null());
-            assert_eq!(snapshot(ptr::null_mut(), limits, None, ptr::null_mut()), NC_E_POINTER);
+            assert_eq!(snapshot(neocogi_com_core::ComRaw::null(), limits, None, ptr::null_mut()), NC_E_POINTER);
             destroy_context(context);
             destroy_context(ptr::null_mut());
         }

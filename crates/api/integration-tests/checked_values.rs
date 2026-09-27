@@ -64,24 +64,24 @@ impl ICheck for Check {
 #[test]
 fn invalid_nested_bool_fails_copied_and_buffer_thunks() {
     let check = Check::from_value(Check).query::<ICheckAbi>().unwrap();
-    let ptr = check.as_mut_ptr();
+    let ptr = check.as_raw();
     let wire = __SettingsValueWire { flags: __FlagsValueWire { enabled: 2 } };
     let mut out = core::mem::MaybeUninit::uninit();
     // SAFETY: all raw storage is initialized, aligned and live; invalid bytes
     // deliberately test conversion before a restricted Rust value is created.
     unsafe {
-        assert_eq!(((*(*ptr).vtable).settings)(ptr, wire, out.as_mut_ptr()), NC_E_INVALID_ARG);
+        assert_eq!(((*ptr.vtable).settings)(ptr.object, wire, out.as_mut_ptr()), NC_E_INVALID_ARG);
         let mut count = 0;
-        assert_eq!(((*(*ptr).vtable).input)(ptr, 0, 1, &wire, &mut count), NC_E_INVALID_ARG);
+        assert_eq!(((*ptr.vtable).input)(ptr.object, 0, 1, &wire, &mut count), NC_E_INVALID_ARG);
         let mut destination = wire;
-        assert_eq!(((*(*ptr).vtable).output)(ptr, 0, 1, &mut destination), NC_E_INVALID_ARG);
+        assert_eq!(((*ptr.vtable).output)(ptr.object, 0, 1, &mut destination), NC_E_INVALID_ARG);
     }
 }
 
 #[test]
 fn enum_tag_is_checked_before_payload_and_nested_field_is_checked_afterward() {
     let check = Check::from_value(Check).query::<ICheckAbi>().unwrap();
-    let ptr = check.as_mut_ptr();
+    let ptr = check.as_raw();
     let bad_field = __ActionValueWire {
         tag: 4,
         payload: __ActionValuePayload {
@@ -96,8 +96,8 @@ fn enum_tag_is_checked_before_payload_and_nested_field_is_checked_afterward() {
     };
     let mut out = core::mem::MaybeUninit::uninit();
     unsafe {
-        assert_eq!(((*(*ptr).vtable).action)(ptr, bad_field, out.as_mut_ptr()), NC_E_INVALID_ARG);
-        assert_eq!(((*(*ptr).vtable).action)(ptr, bad_tag, out.as_mut_ptr()), NC_E_INVALID_TAG);
+        assert_eq!(((*ptr.vtable).action)(ptr.object, bad_field, out.as_mut_ptr()), NC_E_INVALID_ARG);
+        assert_eq!(((*ptr.vtable).action)(ptr.object, bad_tag, out.as_mut_ptr()), NC_E_INVALID_TAG);
     }
 }
 

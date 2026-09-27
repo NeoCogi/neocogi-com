@@ -939,7 +939,7 @@ fn scalar(value: &str) -> Result<TokenStream, GenerateError> {
     }
 }
 
-/// Maps the two explicit core-capability spellings to existing COM headers.
+/// Maps the two explicit core-capability spellings to existing COM interface markers.
 fn builtin_object_type(name: &NamedType) -> Option<TokenStream> {
     match name.segments.as_slice() {
         [name] if name == "IUnknown" => Some(quote! { ::neocogi_com::IUnknown }),

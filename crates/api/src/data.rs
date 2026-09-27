@@ -1,8 +1,8 @@
 //! Owned COM implementations and safe clients for byte strings and UTF-8 text.
 //!
 //! [`NcBytes`] and [`NcString`] allocate immutable Rust values behind
-//! reference-counted ABI headers. A string exposes both `INcStringAbi` and
-//! `INcBytesAbi`, with every header pointing back to one allocation so
+//! reference-counted object/table pairs. A string exposes both `INcStringAbi` and
+//! `INcBytesAbi`, with every pair using one allocation address so
 //! `QueryInterface`, `AddRef`, and `Release` share the same identity and
 //! lifetime. The extension traits turn raw vtable calls into checked Rust
 //! results and place explicit limits on allocations requested by foreign
@@ -22,7 +22,7 @@ use crate::__alloc::boxed::Box;
 use crate::__alloc::string::String;
 use crate::__alloc::vec::Vec;
 use crate::object::{__com_add_ref_count, __com_release_ref_count};
-use crate::{ComPtr, ComRef, ThreadSafe, ThreadingModel};
+use crate::{ComRaw, ComPtr, ComRef, ThreadSafe, ThreadingModel};
 
 /// Default maximum allocation performed by an owned COM byte/string conversion.
 ///
@@ -63,16 +63,12 @@ pub struct NcString;
 #[repr(C)]
 /// Heap allocation backing an [`INcBytesAbi`] COM object.
 ///
-/// Static vtable offsets locate this allocation from either embedded header. Field order
+/// Method tables receive this allocation address directly. Field order
 /// is fixed for internal pointer recovery, although this structure is never
 /// passed across the public ABI as a value.
 struct BytesObject {
-    /// Shared strong-reference count for every interface header.
+    /// Shared strong-reference count for every selected interface.
     ref_count: AtomicU32,
-    /// Canonical identity header returned for `IUnknown` queries.
-    unknown: IUnknown,
-    /// Byte-sequence interface header returned to callers.
-    bytes: INcBytesAbi,
     /// Immutable bytes owned until the final COM release.
     value: Vec<u8>,
 }
@@ -80,14 +76,8 @@ struct BytesObject {
 #[repr(C)]
 /// Heap allocation backing a UTF-8 string and its byte-sequence projection.
 struct StringObject {
-    /// Shared strong-reference count for all three interface headers.
+    /// Shared strong-reference count for all three selected interfaces.
     ref_count: AtomicU32,
-    /// Canonical identity header returned for `IUnknown` queries.
-    unknown: IUnknown,
-    /// Primary UTF-8 string interface header.
-    string: INcStringAbi,
-    /// Secondary byte-sequence header over the same UTF-8 storage.
-    bytes: INcBytesAbi,
     /// Immutable valid UTF-8 storage owned until final release.
     value: String,
 }
@@ -201,10 +191,10 @@ macro_rules! impl_bytes_client {
             /// Calls the raw `len` slot and reads its initialized output on success.
             fn len(&self) -> Result<u64, NcStatus> {
                 let mut out = MaybeUninit::<u64>::uninit();
-                let this = self.as_mut_ptr();
+                let this = self.as_raw();
                 // SAFETY: `self` holds a live bytes interface reference and `out`
                 // remains valid until the call returns.
-                let status = unsafe { ((*(*this).vtable).len)(this, out.as_mut_ptr()) };
+                let status = unsafe { ((*this.vtable).len)(this.object, out.as_mut_ptr()) };
                 if status.is_ok() {
                     // SAFETY: A successful ABI call initializes the out slot.
                     Ok(unsafe { out.assume_init() })
@@ -221,10 +211,10 @@ macro_rules! impl_bytes_client {
             /// Calls the raw indexed-byte slot and validates its output status.
             fn byte_at(&self, index: u64) -> Result<u8, NcStatus> {
                 let mut out = MaybeUninit::<u8>::uninit();
-                let this = self.as_mut_ptr();
+                let this = self.as_raw();
                 // SAFETY: `self` holds a live bytes interface reference and `out`
                 // remains valid until the call returns.
-                let status = unsafe { ((*(*this).vtable).byte_at)(this, index, out.as_mut_ptr()) };
+                let status = unsafe { ((*this.vtable).byte_at)(this.object, index, out.as_mut_ptr()) };
                 if status.is_ok() {
                     // SAFETY: A successful ABI call initializes the out slot.
                     Ok(unsafe { out.assume_init() })
@@ -236,7 +226,7 @@ macro_rules! impl_bytes_client {
             /// Calls the raw bulk-copy slot with a checked fixed-width slice length.
             fn copy_to(&self, offset: u64, out: &mut [u8]) -> Result<(), NcStatus> {
                 let len = u64::try_from(out.len()).map_err(|_| NC_E_OUT_OF_RANGE)?;
-                copy_to_raw(self.as_mut_ptr(), offset, len, out.as_mut_ptr())
+                copy_to_raw(self.as_raw(), offset, len, out.as_mut_ptr())
             }
 
             /// Copies using the crate's default owned-allocation ceiling.
@@ -247,7 +237,7 @@ macro_rules! impl_bytes_client {
             /// Allocates a bounded vector and fills it with one bulk ABI call.
             fn to_vec_bounded(&self, max_len: usize) -> Result<Vec<u8>, NcStatus> {
                 let len = self.len()?;
-                copy_owned_bytes(len, max_len, |out| copy_to_raw(self.as_mut_ptr(), 0, len, out))
+                copy_owned_bytes(len, max_len, |out| copy_to_raw(self.as_raw(), 0, len, out))
             }
 
             /// Copies bytes and reinterprets their bits as signed eight-bit values.
@@ -310,10 +300,10 @@ macro_rules! impl_string_client {
             /// Calls the raw byte-length slot and reads its output on success.
             fn byte_len(&self) -> Result<u64, NcStatus> {
                 let mut out = MaybeUninit::<u64>::uninit();
-                let this = self.as_mut_ptr();
+                let this = self.as_raw();
                 // SAFETY: `self` holds a live string interface reference and `out`
                 // remains valid until the call returns.
-                let status = unsafe { ((*(*this).vtable).byte_len)(this, out.as_mut_ptr()) };
+                let status = unsafe { ((*this.vtable).byte_len)(this.object, out.as_mut_ptr()) };
                 if status.is_ok() {
                     // SAFETY: A successful ABI call initializes the out slot.
                     Ok(unsafe { out.assume_init() })
@@ -330,10 +320,10 @@ macro_rules! impl_string_client {
             /// Calls the raw indexed-byte slot without imposing character boundaries.
             fn byte_at(&self, index: u64) -> Result<u8, NcStatus> {
                 let mut out = MaybeUninit::<u8>::uninit();
-                let this = self.as_mut_ptr();
+                let this = self.as_raw();
                 // SAFETY: `self` holds a live string interface reference and `out`
                 // remains valid until the call returns.
-                let status = unsafe { ((*(*this).vtable).byte_at)(this, index, out.as_mut_ptr()) };
+                let status = unsafe { ((*this.vtable).byte_at)(this.object, index, out.as_mut_ptr()) };
                 if status.is_ok() {
                     // SAFETY: A successful ABI call initializes the out slot.
                     Ok(unsafe { out.assume_init() })
@@ -345,7 +335,7 @@ macro_rules! impl_string_client {
             /// Calls the string's raw bulk-copy slot with a checked slice length.
             fn copy_to(&self, offset: u64, out: &mut [u8]) -> Result<(), NcStatus> {
                 let len = u64::try_from(out.len()).map_err(|_| NC_E_OUT_OF_RANGE)?;
-                copy_string_to_raw(self.as_mut_ptr(), offset, len, out.as_mut_ptr())
+                copy_string_to_raw(self.as_raw(), offset, len, out.as_mut_ptr())
             }
 
             /// Copies UTF-8 bytes using the default owned-allocation ceiling.
@@ -356,7 +346,7 @@ macro_rules! impl_string_client {
             /// Allocates a bounded byte vector and fills it with one ABI call.
             fn to_bytes_bounded(&self, max_len: usize) -> Result<Vec<u8>, NcStatus> {
                 let len = self.byte_len()?;
-                copy_owned_bytes(len, max_len, |out| copy_string_to_raw(self.as_mut_ptr(), 0, len, out))
+                copy_owned_bytes(len, max_len, |out| copy_string_to_raw(self.as_raw(), 0, len, out))
             }
 
             /// Copies and validates UTF-8 using the default allocation ceiling.
@@ -411,32 +401,29 @@ fn bytes_into_i8_vec(value: Vec<u8>) -> Vec<i8> {
 impl BytesObject {
     /// Allocates byte storage with its static vtables and returns ownership
     /// through the primary bytes interface with an initial count of one.
-    fn allocate(value: Vec<u8>) -> *mut INcBytesAbi {
-        let object = Box::new(Self {
-            ref_count: AtomicU32::new(1),
-            unknown: IUnknown { vtable: &BYTES_UNKNOWN_VTABLE },
-            bytes: INcBytesAbi { vtable: &BYTES_VTABLE },
-            value,
-        });
+    fn allocate(value: Vec<u8>) -> ComRaw<INcBytesAbi> {
+        let object = Box::new(Self { ref_count: AtomicU32::new(1), value });
         let raw = Box::into_raw(object);
         // SAFETY: `raw` was just allocated and is uniquely initialized before
         // any COM interface pointer is published.
-        unsafe { core::ptr::addr_of_mut!((*raw).bytes) }
+        ComRaw {
+            object: raw.cast(),
+            vtable: &BYTES_VTABLE,
+        }
     }
 
     /// Validates and borrows byte storage from an interface's opaque pointer.
     ///
     /// # Safety
     ///
-    /// A non-null `object` must be recovered from an embedded header created by
+    /// A non-null `object` must be the allocation address created by
     /// [`Self::allocate`] and must remain live for the returned borrow.
     unsafe fn from_object<'a>(object: *mut c_void) -> Result<&'a Self, NcStatus> {
         let object = object.cast::<Self>();
         if object.is_null() {
             return Err(NC_E_POINTER);
         }
-        // SAFETY: The caller recovered this allocation through the header's
-        // compiler-derived static vtable offset.
+        // SAFETY: The paired vtable certifies the concrete allocation type.
         Ok(unsafe { &*object })
     }
 
@@ -481,34 +468,30 @@ impl BytesObject {
 }
 
 impl StringObject {
-    /// Allocates UTF-8 storage with each embedded header fully initialized.
-    fn allocate(value: String) -> *mut INcStringAbi {
-        let object = Box::new(Self {
-            ref_count: AtomicU32::new(1),
-            unknown: IUnknown { vtable: &STRING_UNKNOWN_VTABLE },
-            string: INcStringAbi { vtable: &STRING_VTABLE },
-            bytes: INcBytesAbi { vtable: &STRING_BYTES_VTABLE },
-            value,
-        });
+    /// Allocates UTF-8 storage and pairs it with the static string table.
+    fn allocate(value: String) -> ComRaw<INcStringAbi> {
+        let object = Box::new(Self { ref_count: AtomicU32::new(1), value });
         let raw = Box::into_raw(object);
         // SAFETY: `raw` was just allocated and is uniquely initialized before
         // any COM interface pointer is published.
-        unsafe { core::ptr::addr_of_mut!((*raw).string) }
+        ComRaw {
+            object: raw.cast(),
+            vtable: &STRING_VTABLE,
+        }
     }
 
     /// Validates and borrows string storage from an interface's opaque pointer.
     ///
     /// # Safety
     ///
-    /// A non-null `object` must be recovered from an embedded header created by
+    /// A non-null `object` must be the allocation address created by
     /// [`Self::allocate`] and remain live for the returned borrow.
     unsafe fn from_object<'a>(object: *mut c_void) -> Result<&'a Self, NcStatus> {
         let object = object.cast::<Self>();
         if object.is_null() {
             return Err(NC_E_POINTER);
         }
-        // SAFETY: The caller recovered this allocation through the header's
-        // compiler-derived static vtable offset.
+        // SAFETY: The paired vtable certifies the concrete allocation type.
         Ok(unsafe { &*object })
     }
 
@@ -555,7 +538,6 @@ impl StringObject {
 /// Standalone `IUnknown` dispatch table for byte objects.
 static BYTES_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
     interface_id: &IUnknown::INTERFACE_ID,
-    object_offset: core::mem::offset_of!(BytesObject, unknown),
     query_interface: bytes_query_interface,
     add_ref: bytes_unknown_add_ref,
     release: bytes_unknown_release,
@@ -565,7 +547,6 @@ static BYTES_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
 static BYTES_VTABLE: INcBytesVTable = INcBytesVTable {
     unknown: IUnknownVTable {
         interface_id: &INcBytesAbi::INTERFACE_ID,
-        object_offset: core::mem::offset_of!(BytesObject, bytes),
         query_interface: bytes_query_interface,
         add_ref: bytes_unknown_add_ref,
         release: bytes_unknown_release,
@@ -578,7 +559,6 @@ static BYTES_VTABLE: INcBytesVTable = INcBytesVTable {
 /// Standalone `IUnknown` dispatch table for string objects.
 static STRING_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
     interface_id: &IUnknown::INTERFACE_ID,
-    object_offset: core::mem::offset_of!(StringObject, unknown),
     query_interface: string_query_interface,
     add_ref: string_unknown_add_ref,
     release: string_unknown_release,
@@ -588,7 +568,6 @@ static STRING_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
 static STRING_VTABLE: INcStringVTable = INcStringVTable {
     unknown: IUnknownVTable {
         interface_id: &INcStringAbi::INTERFACE_ID,
-        object_offset: core::mem::offset_of!(StringObject, string),
         query_interface: string_query_interface,
         add_ref: string_unknown_add_ref,
         release: string_unknown_release,
@@ -602,7 +581,6 @@ static STRING_VTABLE: INcStringVTable = INcStringVTable {
 static STRING_BYTES_VTABLE: INcBytesVTable = INcBytesVTable {
     unknown: IUnknownVTable {
         interface_id: &INcBytesAbi::INTERFACE_ID,
-        object_offset: core::mem::offset_of!(StringObject, bytes),
         query_interface: string_query_interface,
         add_ref: string_unknown_add_ref,
         release: string_unknown_release,
@@ -613,19 +591,15 @@ static STRING_BYTES_VTABLE: INcBytesVTable = INcBytesVTable {
 };
 
 /// Implements ABI identity and interface negotiation for a byte object.
-unsafe extern "C" fn bytes_query_interface(this: *mut IUnknown, interface_id: *const NcInterfaceId, out: *mut *mut c_void) -> NcStatus {
+unsafe extern "C" fn bytes_query_interface(this: *mut c_void, interface_id: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if this.is_null() || interface_id.is_null() || out.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: `out` was checked non-null and is valid for one pointer write by
+    // SAFETY: `out` was checked non-null and is valid for one ComRaw record write by
     // the raw ABI contract.
-    unsafe { *out = core::ptr::null_mut() };
-    // SAFETY: `this` was checked non-null and is an IUnknown-compatible header.
-    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
-    let storage = match unsafe { BytesObject::from_object(object) } {
-        Ok(storage) => storage,
-        Err(status) => return status,
-    };
+    unsafe { *out = ComRaw::null() };
+    // SAFETY: `this` was checked non-null and identifies the paired allocation.
+    let object = this;
     // SAFETY: `interface_id` was checked non-null and is readable for this call.
     let interface_id = unsafe { &*interface_id };
     if interface_id.iid == IUnknown::IID {
@@ -635,7 +609,12 @@ unsafe extern "C" fn bytes_query_interface(this: *mut IUnknown, interface_id: *c
         // SAFETY: The storage pointer came from a live bytes object.
         unsafe { BytesObject::add_ref(object) };
         // SAFETY: `out` was checked non-null.
-        unsafe { *out = core::ptr::addr_of!(storage.unknown).cast_mut().cast::<c_void>() };
+        unsafe {
+            *out = ComRaw {
+                object,
+                vtable: &BYTES_UNKNOWN_VTABLE as *const _ as *const IUnknownVTable,
+            }
+        };
         NC_OK
     } else if interface_id.iid == <INcBytesAbi as ComInterface>::IID {
         if *interface_id != <INcBytesAbi as ComInterface>::INTERFACE_ID {
@@ -644,38 +623,43 @@ unsafe extern "C" fn bytes_query_interface(this: *mut IUnknown, interface_id: *c
         // SAFETY: The storage pointer came from a live bytes object.
         unsafe { BytesObject::add_ref(object) };
         // SAFETY: `out` was checked non-null.
-        unsafe { *out = core::ptr::addr_of!(storage.bytes).cast_mut().cast::<c_void>() };
+        unsafe {
+            *out = ComRaw {
+                object,
+                vtable: &BYTES_VTABLE as *const _ as *const IUnknownVTable,
+            }
+        };
         NC_OK
     } else {
         NC_E_NOINTERFACE
     }
 }
 
-/// Forwards `IUnknown::AddRef` from a byte header to its shared storage.
-unsafe extern "C" fn bytes_unknown_add_ref(this: *mut IUnknown) -> u32 {
+/// Forwards `IUnknown::AddRef` from a byte interface call to its shared storage.
+unsafe extern "C" fn bytes_unknown_add_ref(this: *mut c_void) -> u32 {
     if this.is_null() {
         return 0;
     }
-    // SAFETY: `this` was checked non-null and is an IUnknown-compatible header.
-    unsafe { BytesObject::add_ref(crate::__nc_object_from_interface(this.cast())) }
+    // SAFETY: `this` was checked non-null and identifies the paired allocation.
+    unsafe { BytesObject::add_ref(this) }
 }
 
-/// Forwards `IUnknown::Release` from a byte header to its shared storage.
-unsafe extern "C" fn bytes_unknown_release(this: *mut IUnknown) -> u32 {
+/// Forwards `IUnknown::Release` from a byte interface call to its shared storage.
+unsafe extern "C" fn bytes_unknown_release(this: *mut c_void) -> u32 {
     if this.is_null() {
         return 0;
     }
-    // SAFETY: `this` was checked non-null and is an IUnknown-compatible header.
-    unsafe { BytesObject::release(crate::__nc_object_from_interface(this.cast())) }
+    // SAFETY: `this` was checked non-null and identifies the paired allocation.
+    unsafe { BytesObject::release(this) }
 }
 
 /// Writes the immutable byte vector's length to an ABI output slot.
-unsafe extern "C" fn bytes_len(this: *mut INcBytesAbi, out: *mut u64) -> NcStatus {
+unsafe extern "C" fn bytes_len(this: *mut c_void, out: *mut u64) -> NcStatus {
     if this.is_null() || out.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: `this` was checked non-null and is a bytes interface header.
-    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
+    // SAFETY: `this` was checked non-null and is the allocation paired with the bytes table.
+    let object = this;
     let storage = match unsafe { BytesObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -686,12 +670,12 @@ unsafe extern "C" fn bytes_len(this: *mut INcBytesAbi, out: *mut u64) -> NcStatu
 }
 
 /// Writes one checked element of a byte object to an ABI output slot.
-unsafe extern "C" fn bytes_byte_at(this: *mut INcBytesAbi, index: u64, out: *mut u8) -> NcStatus {
+unsafe extern "C" fn bytes_byte_at(this: *mut c_void, index: u64, out: *mut u8) -> NcStatus {
     if this.is_null() || out.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: `this` was checked non-null and is a bytes interface header.
-    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
+    // SAFETY: `this` was checked non-null and is the allocation paired with the bytes table.
+    let object = this;
     let storage = match unsafe { BytesObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -708,12 +692,12 @@ unsafe extern "C" fn bytes_byte_at(this: *mut INcBytesAbi, index: u64, out: *mut
 }
 
 /// Copies a checked byte-object range into caller-owned ABI memory.
-unsafe extern "C" fn bytes_copy_to(this: *mut INcBytesAbi, offset: u64, len: u64, out: *mut u8) -> NcStatus {
+unsafe extern "C" fn bytes_copy_to(this: *mut c_void, offset: u64, len: u64, out: *mut u8) -> NcStatus {
     if this.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: `this` was checked non-null and is a bytes interface header.
-    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
+    // SAFETY: `this` was checked non-null and is the allocation paired with the bytes table.
+    let object = this;
     let storage = match unsafe { BytesObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -722,19 +706,15 @@ unsafe extern "C" fn bytes_copy_to(this: *mut INcBytesAbi, offset: u64, len: u64
 }
 
 /// Negotiates the identity, string, and byte views of a string object.
-unsafe extern "C" fn string_query_interface(this: *mut IUnknown, interface_id: *const NcInterfaceId, out: *mut *mut c_void) -> NcStatus {
+unsafe extern "C" fn string_query_interface(this: *mut c_void, interface_id: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if this.is_null() || interface_id.is_null() || out.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: `out` was checked non-null and is valid for one pointer write by
+    // SAFETY: `out` was checked non-null and is valid for one ComRaw record write by
     // the raw ABI contract.
-    unsafe { *out = core::ptr::null_mut() };
-    // SAFETY: `this` was checked non-null and is an IUnknown-compatible header.
-    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
-    let storage = match unsafe { StringObject::from_object(object) } {
-        Ok(storage) => storage,
-        Err(status) => return status,
-    };
+    unsafe { *out = ComRaw::null() };
+    // SAFETY: `this` was checked non-null and identifies the paired allocation.
+    let object = this;
     // SAFETY: `interface_id` was checked non-null and is readable for this call.
     let interface_id = unsafe { &*interface_id };
     if interface_id.iid == IUnknown::IID {
@@ -744,7 +724,12 @@ unsafe extern "C" fn string_query_interface(this: *mut IUnknown, interface_id: *
         // SAFETY: The storage pointer came from a live string object.
         unsafe { StringObject::add_ref(object) };
         // SAFETY: `out` was checked non-null.
-        unsafe { *out = core::ptr::addr_of!(storage.unknown).cast_mut().cast::<c_void>() };
+        unsafe {
+            *out = ComRaw {
+                object,
+                vtable: &STRING_UNKNOWN_VTABLE as *const _ as *const IUnknownVTable,
+            }
+        };
         NC_OK
     } else if interface_id.iid == <INcStringAbi as ComInterface>::IID {
         if *interface_id != <INcStringAbi as ComInterface>::INTERFACE_ID {
@@ -753,7 +738,12 @@ unsafe extern "C" fn string_query_interface(this: *mut IUnknown, interface_id: *
         // SAFETY: The storage pointer came from a live string object.
         unsafe { StringObject::add_ref(object) };
         // SAFETY: `out` was checked non-null.
-        unsafe { *out = core::ptr::addr_of!(storage.string).cast_mut().cast::<c_void>() };
+        unsafe {
+            *out = ComRaw {
+                object,
+                vtable: &STRING_VTABLE as *const _ as *const IUnknownVTable,
+            }
+        };
         NC_OK
     } else if interface_id.iid == <INcBytesAbi as ComInterface>::IID {
         if *interface_id != <INcBytesAbi as ComInterface>::INTERFACE_ID {
@@ -762,38 +752,43 @@ unsafe extern "C" fn string_query_interface(this: *mut IUnknown, interface_id: *
         // SAFETY: The storage pointer came from a live string object.
         unsafe { StringObject::add_ref(object) };
         // SAFETY: `out` was checked non-null.
-        unsafe { *out = core::ptr::addr_of!(storage.bytes).cast_mut().cast::<c_void>() };
+        unsafe {
+            *out = ComRaw {
+                object,
+                vtable: &STRING_BYTES_VTABLE as *const _ as *const IUnknownVTable,
+            }
+        };
         NC_OK
     } else {
         NC_E_NOINTERFACE
     }
 }
 
-/// Forwards `IUnknown::AddRef` from a string header to shared storage.
-unsafe extern "C" fn string_unknown_add_ref(this: *mut IUnknown) -> u32 {
+/// Forwards `IUnknown::AddRef` from a string interface call to shared storage.
+unsafe extern "C" fn string_unknown_add_ref(this: *mut c_void) -> u32 {
     if this.is_null() {
         return 0;
     }
-    // SAFETY: `this` was checked non-null and is an IUnknown-compatible header.
-    unsafe { StringObject::add_ref(crate::__nc_object_from_interface(this.cast())) }
+    // SAFETY: `this` was checked non-null and identifies the paired allocation.
+    unsafe { StringObject::add_ref(this) }
 }
 
-/// Forwards `IUnknown::Release` from a string header to shared storage.
-unsafe extern "C" fn string_unknown_release(this: *mut IUnknown) -> u32 {
+/// Forwards `IUnknown::Release` from a string interface call to shared storage.
+unsafe extern "C" fn string_unknown_release(this: *mut c_void) -> u32 {
     if this.is_null() {
         return 0;
     }
-    // SAFETY: `this` was checked non-null and is an IUnknown-compatible header.
-    unsafe { StringObject::release(crate::__nc_object_from_interface(this.cast())) }
+    // SAFETY: `this` was checked non-null and identifies the paired allocation.
+    unsafe { StringObject::release(this) }
 }
 
 /// Writes the UTF-8 storage length through the primary string interface.
-unsafe extern "C" fn string_byte_len(this: *mut INcStringAbi, out: *mut u64) -> NcStatus {
+unsafe extern "C" fn string_byte_len(this: *mut c_void, out: *mut u64) -> NcStatus {
     if this.is_null() || out.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: `this` was checked non-null and is a string interface header.
-    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
+    // SAFETY: `this` was checked non-null and is the allocation paired with the string table.
+    let object = this;
     let storage = match unsafe { StringObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -804,12 +799,12 @@ unsafe extern "C" fn string_byte_len(this: *mut INcStringAbi, out: *mut u64) -> 
 }
 
 /// Reads one UTF-8 byte through the primary string interface.
-unsafe extern "C" fn string_byte_at(this: *mut INcStringAbi, index: u64, out: *mut u8) -> NcStatus {
+unsafe extern "C" fn string_byte_at(this: *mut c_void, index: u64, out: *mut u8) -> NcStatus {
     if this.is_null() || out.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: `this` was checked non-null and is a string interface header.
-    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
+    // SAFETY: `this` was checked non-null and is the allocation paired with the string table.
+    let object = this;
     let storage = match unsafe { StringObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -818,12 +813,12 @@ unsafe extern "C" fn string_byte_at(this: *mut INcStringAbi, index: u64, out: *m
 }
 
 /// Copies a UTF-8 byte range through the primary string interface.
-unsafe extern "C" fn string_copy_to(this: *mut INcStringAbi, offset: u64, len: u64, out: *mut u8) -> NcStatus {
+unsafe extern "C" fn string_copy_to(this: *mut c_void, offset: u64, len: u64, out: *mut u8) -> NcStatus {
     if this.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: `this` was checked non-null and is a string interface header.
-    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
+    // SAFETY: `this` was checked non-null and is the allocation paired with the string table.
+    let object = this;
     let storage = match unsafe { StringObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -832,13 +827,13 @@ unsafe extern "C" fn string_copy_to(this: *mut INcStringAbi, offset: u64, len: u
 }
 
 /// Writes the UTF-8 storage length through its byte-sequence projection.
-unsafe extern "C" fn string_bytes_len(this: *mut INcBytesAbi, out: *mut u64) -> NcStatus {
+unsafe extern "C" fn string_bytes_len(this: *mut c_void, out: *mut u64) -> NcStatus {
     if this.is_null() || out.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: `this` was checked non-null and is a bytes interface header for a
+    // SAFETY: `this` was checked non-null and is the allocation paired with the bytes table for a
     // string object.
-    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
+    let object = this;
     let storage = match unsafe { StringObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -849,13 +844,13 @@ unsafe extern "C" fn string_bytes_len(this: *mut INcBytesAbi, out: *mut u64) -> 
 }
 
 /// Reads one UTF-8 byte through the byte-sequence projection.
-unsafe extern "C" fn string_bytes_byte_at(this: *mut INcBytesAbi, index: u64, out: *mut u8) -> NcStatus {
+unsafe extern "C" fn string_bytes_byte_at(this: *mut c_void, index: u64, out: *mut u8) -> NcStatus {
     if this.is_null() || out.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: `this` was checked non-null and is a bytes interface header for a
+    // SAFETY: `this` was checked non-null and is the allocation paired with the bytes table for a
     // string object.
-    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
+    let object = this;
     let storage = match unsafe { StringObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -864,13 +859,13 @@ unsafe extern "C" fn string_bytes_byte_at(this: *mut INcBytesAbi, index: u64, ou
 }
 
 /// Copies UTF-8 bytes through the string object's byte-sequence projection.
-unsafe extern "C" fn string_bytes_copy_to(this: *mut INcBytesAbi, offset: u64, len: u64, out: *mut u8) -> NcStatus {
+unsafe extern "C" fn string_bytes_copy_to(this: *mut c_void, offset: u64, len: u64, out: *mut u8) -> NcStatus {
     if this.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: `this` was checked non-null and is a bytes interface header for a
+    // SAFETY: `this` was checked non-null and is the allocation paired with the bytes table for a
     // string object.
-    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
+    let object = this;
     let storage = match unsafe { StringObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -892,18 +887,18 @@ fn string_byte_from_storage(storage: &StringObject, index: u64, out: *mut u8) ->
 }
 
 /// Calls a byte interface's bulk-copy slot and maps its status to `Result`.
-fn copy_to_raw(this: *mut INcBytesAbi, offset: u64, len: u64, out: *mut u8) -> Result<(), NcStatus> {
+fn copy_to_raw(this: ComRaw<INcBytesAbi>, offset: u64, len: u64, out: *mut u8) -> Result<(), NcStatus> {
     // SAFETY: The caller owns a live bytes interface and supplies an output
     // buffer valid for `len` writes, except when `len` is zero.
-    let status = unsafe { ((*(*this).vtable).copy_to)(this, offset, len, out) };
+    let status = unsafe { ((*this.vtable).copy_to)(this.object, offset, len, out) };
     if status.is_ok() { Ok(()) } else { Err(status) }
 }
 
 /// Calls a string interface's bulk-copy slot and maps its status to `Result`.
-fn copy_string_to_raw(this: *mut INcStringAbi, offset: u64, len: u64, out: *mut u8) -> Result<(), NcStatus> {
+fn copy_string_to_raw(this: ComRaw<INcStringAbi>, offset: u64, len: u64, out: *mut u8) -> Result<(), NcStatus> {
     // SAFETY: The caller owns a live string interface and supplies an output
     // buffer valid for `len` writes, except when `len` is zero.
-    let status = unsafe { ((*(*this).vtable).copy_to)(this, offset, len, out) };
+    let status = unsafe { ((*this.vtable).copy_to)(this.object, offset, len, out) };
     if status.is_ok() { Ok(()) } else { Err(status) }
 }
 

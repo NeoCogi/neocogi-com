@@ -240,7 +240,7 @@ fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
         if args.args.len() == 1 {
             if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
                 if let Some(com_ref) = parse_com_ref_type(inner)? {
-                    let abi_ty = raw_interface_pointer_ty(&com_ref.interface_ty);
+                    let abi_ty = raw_interface_pointer_ty(&com_ref.interface_ty, nc);
                     return Ok((
                         ty,
                         abi_ty,
@@ -280,7 +280,7 @@ fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
     }
 
     if let Some(com_ref) = parse_com_ref_type(&ty)? {
-        let abi_ty = raw_interface_pointer_ty(&com_ref.interface_ty);
+        let abi_ty = raw_interface_pointer_ty(&com_ref.interface_ty, nc);
         return Ok((
             ty,
             abi_ty,
@@ -331,7 +331,7 @@ fn lower_abi_return(ty: Type, nc: &syn::Path) -> Result<AbiReturn> {
     }
 
     if let Some(com_ptr) = parse_com_ptr_type(&ty)? {
-        let abi_ty = raw_interface_pointer_ty(&com_ptr.interface_ty);
+        let abi_ty = raw_interface_pointer_ty(&com_ptr.interface_ty, nc);
         return Ok(AbiReturn {
             rust_ty: ty,
             abi_ty,
@@ -510,9 +510,9 @@ fn type_generic_args_named<'a>(ty: &'a Type, expected_ident: &str) -> Option<&'a
     }
 }
 
-/// Builds the mutable raw interface pointer used in generated C signatures.
-fn raw_interface_pointer_ty(interface_ty: &Type) -> Type {
-    syn::parse_quote! { *mut #interface_ty }
+/// Builds the by-value raw object/table record used in generated C signatures.
+fn raw_interface_pointer_ty(interface_ty: &Type, nc: &syn::Path) -> Type {
+    syn::parse_quote! { #nc::ComRaw<#interface_ty> }
 }
 
 /// Retains only user rustdoc attributes for propagation to generated methods.
@@ -534,10 +534,10 @@ pub(crate) fn raw_vtable_method_docs(trait_ident: &Ident, method: &AbiMethod) ->
     };
     let safety_doc = match &method.ok.kind {
         AbiReturnKind::Void => quote! {
-            #[doc = "`this` must be a non-null valid pointer. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence."]
+            #[doc = "`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call; `Option<ComRef>` additionally permits both fields null for absence; half-null pairs are invalid."]
         },
         AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => quote! {
-            #[doc = "`this` and `out` must be non-null valid pointers. Arguments lowered from `ComRef` must be valid borrowed interface pointers for the duration of the call; `Option<ComRef>` additionally permits null for absence."]
+            #[doc = "`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call; `Option<ComRef>` additionally permits both fields null for absence; half-null pairs are invalid."]
         },
     };
     let return_docs = raw_vtable_return_docs(&method.ok);
@@ -570,9 +570,13 @@ fn raw_vtable_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
         }
         AbiArgKind::ComRef { interface_ty, optional, .. } => {
             let interface_ty = interface_ty.as_ref();
-            let absence = if *optional { " Null represents absence." } else { " Null is invalid." };
+            let absence = if *optional {
+                " Both-null represents absence; half-null is invalid."
+            } else {
+                " Both fields must be non-null."
+            };
             vec![quote! {
-                #[doc = concat!("- `", stringify!(#ident), "` is a borrowed `", stringify!(#interface_ty), "` interface pointer.", #absence, " The callee must call `AddRef` before retaining a present interface after the call returns.")]
+                #[doc = concat!("- `", stringify!(#ident), "` is a borrowed `", stringify!(#interface_ty), "` object/table pair.", #absence, " The callee must call `AddRef` before retaining a present interface after the call returns.")]
             }]
         }
         AbiArgKind::CopyFromBufferOffset { element_ty } => {
@@ -607,7 +611,7 @@ fn raw_vtable_return_docs(ok: &AbiReturn) -> Vec<proc_macro2::TokenStream> {
         AbiReturnKind::ComPtr { interface_ty, .. } => {
             let interface_ty = interface_ty.as_ref();
             vec![quote! {
-                #[doc = concat!("On success, `out` receives an owned `", stringify!(#interface_ty), "` interface pointer transferred to the caller.")]
+                #[doc = concat!("On success, `out` receives an owned `", stringify!(#interface_ty), "` object/table pair transferred to the caller.")]
             }]
         }
     }

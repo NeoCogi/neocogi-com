@@ -69,33 +69,38 @@ typedef struct NcDebugApiV1Prefix {
     void (*create_messenger)(void);
 } NcDebugApiV1Prefix;
 
+/* A raw borrowed/owned capability; ownership follows the enclosing operation. */
 struct IUnknown {
+    void *object;
     const IUnknownVTable *vtable;
 };
 
 struct IUnknownVTable {
-    /* Immutable projection identity and embedded-header offset; core ABI 9. */
+    /* Exact selected contract; receivers are direct object addresses in core ABI 10. */
     const NcInterfaceId *interface_id;
-    size_t object_offset;
     NcStatus (*query_interface)(
-        IUnknown *self,
+        void *self,
         const NcInterfaceId *interface_id,
-        void **out
+        IUnknown *out
     );
-    uint32_t (*add_ref)(IUnknown *self);
-    uint32_t (*release)(IUnknown *self);
+    uint32_t (*add_ref)(void *self);
+    uint32_t (*release)(void *self);
 };
 
+/* A raw borrowed/owned capability; ownership follows the enclosing operation. */
 struct INativeValueAbi {
+    void *object;
     const INativeValueVTable *vtable;
 };
 
 struct INativeValueVTable {
     IUnknownVTable unknown;
-    NcStatus (*value)(INativeValueAbi *self, int32_t *out);
+    NcStatus (*value)(void *self, int32_t *out);
 };
 
+/* A raw borrowed/owned capability; ownership follows the enclosing operation. */
 struct INativeCalculatorAbi {
+    void *object;
     const INativeCalculatorVTable *vtable;
 };
 
@@ -108,25 +113,25 @@ typedef struct NativeAggregate {
 struct INativeCalculatorVTable {
     /* The complete INativeValue contract is the physical prefix. */
     INativeValueVTable base;
-    NcStatus (*add)(INativeCalculatorAbi *self, int32_t a, int32_t b, int32_t *out);
-    NcStatus (*reset)(INativeCalculatorAbi *self);
-    NcStatus (*make_value)(INativeCalculatorAbi *self, int32_t value, INativeValueAbi **out);
-    NcStatus (*read_value)(INativeCalculatorAbi *self, INativeValueAbi *value, int32_t *out);
+    NcStatus (*add)(void *self, int32_t a, int32_t b, int32_t *out);
+    NcStatus (*reset)(void *self);
+    NcStatus (*make_value)(void *self, int32_t value, INativeValueAbi *out);
+    NcStatus (*read_value)(void *self, INativeValueAbi value, int32_t *out);
     NcStatus (*sum_buffer)(
-        INativeCalculatorAbi *self,
+        void *self,
         uint64_t offset,
         uint64_t len,
         const uint8_t *input,
         uint64_t *out
     );
     NcStatus (*fill_buffer)(
-        INativeCalculatorAbi *self,
+        void *self,
         uint64_t offset,
         uint64_t len,
         uint8_t *output
     );
     NcStatus (*transform)(
-        INativeCalculatorAbi *self,
+        void *self,
         NativeAggregate input,
         NativeAggregate *out
     );
@@ -167,6 +172,11 @@ typedef struct NativeAbiLayouts {
     size_t aggregate_count_offset;
     size_t aggregate_value_offset;
 } NativeAbiLayouts;
+
+/* The ABI pair has no hidden allocation, header pointer, or ownership counter. */
+_Static_assert(sizeof(IUnknown) == 2 * sizeof(void *), "raw capability must contain two pointer words");
+_Static_assert(offsetof(IUnknown, object) == 0, "object is the first raw capability word");
+_Static_assert(offsetof(IUnknown, vtable) == sizeof(void *), "vtable is the second raw capability word");
 
 _Static_assert(offsetof(NcInterfaceDescriptor, qualified_name) == 16,
     "NcInterfaceDescriptor.qualified_name ABI offset changed");
@@ -236,90 +246,103 @@ static int failed(NcStatus status) {
 }
 
 NcStatus nc_c_exercise_calculator(
-    IUnknown *unknown,
+    IUnknown unknown,
     const NcInterfaceId *calculator_interface_id,
     NativeCResults *results,
     NcStatus pointer_status
 ) {
-    if (unknown == 0 || calculator_interface_id == 0 || results == 0) {
+    if ((unknown.object == 0 || unknown.vtable == 0) || calculator_interface_id == 0 || results == 0) {
         return pointer_status;
     }
 
     memset(results, 0, sizeof(*results));
 
-    void *queried = 0;
+    IUnknown queried = {0};
     NcStatus status =
-        unknown->vtable->query_interface(
-            unknown,
+        unknown.vtable->query_interface(
+            unknown.object,
             calculator_interface_id,
             &queried
         );
     if (failed(status)) {
         return status;
     }
-    if (queried == 0) {
+    if (queried.object == 0 || queried.vtable == 0 || queried.object != unknown.object) {
         return pointer_status;
     }
 
-    INativeCalculatorAbi *calculator = (INativeCalculatorAbi *)queried;
-    IUnknown *calculator_unknown = (IUnknown *)calculator;
+    INativeCalculatorAbi calculator = {queried.object, (const INativeCalculatorVTable *)queried.vtable};
+    void *calculator_unknown = calculator.object;
     int32_t inherited = 0;
-    if (calculator->vtable->base.value((INativeValueAbi *)calculator, &inherited) != 0 || inherited != 23) {
+    if (calculator.vtable->base.value(calculator.object, &inherited) != 0 || inherited != 23) {
         status = -99;
         goto release_calculator;
     }
 
     results->add_ref_count =
-        calculator->vtable->base.unknown.add_ref(calculator_unknown);
+        calculator.vtable->base.unknown.add_ref(calculator_unknown);
     results->release_extra_count =
-        calculator->vtable->base.unknown.release(calculator_unknown);
+        calculator.vtable->base.unknown.release(calculator_unknown);
 
-    status = calculator->vtable->add(calculator, 2, 3, &results->sum);
+    status = calculator.vtable->add(calculator.object, 2, 3, &results->sum);
     if (failed(status)) {
         goto release_calculator;
     }
 
-    results->null_method_status = calculator->vtable->add(calculator, 1, 1, 0);
+    results->null_method_status = calculator.vtable->add(calculator.object, 1, 1, 0);
     if (results->null_method_status != pointer_status) {
         status = results->null_method_status;
         goto release_calculator;
     }
 
-    results->reset_status = calculator->vtable->reset(calculator);
+    results->reset_status = calculator.vtable->reset(calculator.object);
     if (failed(results->reset_status)) {
         status = results->reset_status;
         goto release_calculator;
     }
 
-    results->null_reset_status = calculator->vtable->reset(0);
+    results->null_reset_status = calculator.vtable->reset(0);
     if (results->null_reset_status != pointer_status) {
         status = results->null_reset_status;
         goto release_calculator;
     }
 
-    INativeValueAbi *value = 0;
-    status = calculator->vtable->make_value(calculator, 42, &value);
+    INativeValueAbi value = {0};
+    status = calculator.vtable->make_value(calculator.object, 42, &value);
     if (failed(status)) {
         goto release_calculator;
     }
-    if (value == 0) {
+    if (value.object == 0 || value.vtable == 0) {
         status = pointer_status;
         goto release_calculator;
     }
 
-    status = value->vtable->value(value, &results->made_value);
+    status = value.vtable->value(value.object, &results->made_value);
     if (failed(status)) {
         goto release_value;
     }
 
-    status = calculator->vtable->read_value(calculator, value, &results->borrowed_value);
+    status = calculator.vtable->read_value(calculator.object, value, &results->borrowed_value);
     if (failed(status)) {
+        goto release_value;
+    }
+
+    /* Both half-null shapes must fail before reading any typed method slot. */
+    INativeValueAbi malformed = {value.object, 0};
+    if (calculator.vtable->read_value(calculator.object, malformed, &results->borrowed_value) != pointer_status) {
+        status = -98;
+        goto release_value;
+    }
+    malformed.object = 0;
+    malformed.vtable = value.vtable;
+    if (calculator.vtable->read_value(calculator.object, malformed, &results->borrowed_value) != pointer_status) {
+        status = -98;
         goto release_value;
     }
 
     const uint8_t input[] = {1, 2, 3, 4};
-    status = calculator->vtable->sum_buffer(
-        calculator,
+    status = calculator.vtable->sum_buffer(
+        calculator.object,
         15,
         sizeof(input),
         input,
@@ -329,8 +352,8 @@ NcStatus nc_c_exercise_calculator(
         goto release_value;
     }
 
-    status = calculator->vtable->fill_buffer(
-        calculator,
+    status = calculator.vtable->fill_buffer(
+        calculator.object,
         7,
         sizeof(results->filled_buffer),
         results->filled_buffer
@@ -339,8 +362,8 @@ NcStatus nc_c_exercise_calculator(
         goto release_value;
     }
 
-    results->null_copy_from_status = calculator->vtable->sum_buffer(
-        calculator,
+    results->null_copy_from_status = calculator.vtable->sum_buffer(
+        calculator.object,
         0,
         1,
         0,
@@ -351,8 +374,8 @@ NcStatus nc_c_exercise_calculator(
         goto release_value;
     }
 
-    results->null_copy_to_status = calculator->vtable->fill_buffer(
-        calculator,
+    results->null_copy_to_status = calculator.vtable->fill_buffer(
+        calculator.object,
         0,
         1,
         0
@@ -363,8 +386,8 @@ NcStatus nc_c_exercise_calculator(
     }
 
     uint64_t zero_sum = UINT64_MAX;
-    results->zero_copy_from_status = calculator->vtable->sum_buffer(
-        calculator,
+    results->zero_copy_from_status = calculator.vtable->sum_buffer(
+        calculator.object,
         0,
         0,
         0,
@@ -377,8 +400,8 @@ NcStatus nc_c_exercise_calculator(
         goto release_value;
     }
 
-    results->zero_copy_to_status = calculator->vtable->fill_buffer(
-        calculator,
+    results->zero_copy_to_status = calculator.vtable->fill_buffer(
+        calculator.object,
         0,
         0,
         0
@@ -389,18 +412,18 @@ NcStatus nc_c_exercise_calculator(
     }
 
     const NativeAggregate aggregate = {3, 5, 11};
-    status = calculator->vtable->transform(
-        calculator,
+    status = calculator.vtable->transform(
+        calculator.object,
         aggregate,
         &results->aggregate
     );
 
 release_value:
     results->release_value_count =
-        value->vtable->unknown.release((IUnknown *)value);
+        value.vtable->unknown.release(value.object);
 
 release_calculator:
     results->release_query_count =
-        calculator->vtable->base.unknown.release(calculator_unknown);
+        calculator.vtable->base.unknown.release(calculator_unknown);
     return status;
 }

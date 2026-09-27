@@ -172,14 +172,12 @@ fn factory_bootstrap_transfers_the_exact_typed_root() {
     // repeating a factory ID beside the implementation.
     assert_description::<ValueFactoryObject>();
 
-    let mut unknown = core::ptr::null_mut::<IUnknown>();
-    // SAFETY: The local output slot accepts one owned IUnknown reference.
+    let mut unknown = neocogi_com::ComRaw::<IUnknown>::null();
+    // SAFETY: The local output slot accepts one erased owned factory pair.
     assert_eq!(unsafe { activate_factory_implementation::<ValueFactoryObject>(&mut unknown) }, NC_OK);
     // SAFETY: Successful activation transferred exactly one live reference.
-    let unknown = unsafe { ComPtr::<IUnknown>::from_raw_owned(unknown) }.expect("factory activation returned null");
-    let factory = unknown
-        .query::<ValueFactoryAbi>()
-        .expect("activated object omitted its declared factory interface");
+    let factory =
+        unsafe { ComPtr::<ValueFactoryAbi>::__nc_from_raw_owned_checked(unknown.cast()) }.expect("activation did not return the exact declared factory table");
     let value = factory.create(41).expect("factory method failed");
     assert_eq!(value.value().expect("value method failed"), 41);
 }

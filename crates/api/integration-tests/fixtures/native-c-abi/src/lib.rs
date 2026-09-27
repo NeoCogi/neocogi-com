@@ -134,7 +134,7 @@ mod tests {
 
     unsafe extern "C" {
         fn nc_c_exercise_calculator(
-            unknown: *mut IUnknown,
+            unknown: neocogi_com::ComRaw<IUnknown>,
             calculator_interface_id: *const NcInterfaceId,
             results: *mut NativeCResults,
             pointer_status: NcStatus,
@@ -166,7 +166,7 @@ mod tests {
         let unknown: ComPtr<IUnknown> = NativeCalculator::from_value(NativeCalculator);
         let mut results = NativeCResults::default();
 
-        let status = unsafe { nc_c_exercise_calculator(unknown.as_mut_ptr(), &INativeCalculatorAbi::INTERFACE_ID, &mut results, NC_E_POINTER) };
+        let status = unsafe { nc_c_exercise_calculator(unknown.as_raw(), &INativeCalculatorAbi::INTERFACE_ID, &mut results, NC_E_POINTER) };
 
         assert_eq!(status, NC_OK);
         assert_eq!(results.sum, 5);

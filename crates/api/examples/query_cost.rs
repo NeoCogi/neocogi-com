@@ -1,4 +1,4 @@
-//! Controlled five-header query/ownership probe; no rendering or application work.
+//! Controlled five-interface query/ownership probe; no rendering or application work.
 //! Run with `cargo run --release -p neocogi-com --example query_cost`.
 //! Each line reports integer nanoseconds per successful query plus balanced release;
 //! discard the first warmup line and compare the remaining samples on the same host.
@@ -35,22 +35,22 @@ fn main() {
         ILayoutAbi::INTERFACE_ID,
         IEventsAbi::INTERFACE_ID,
     ];
-    let source = black_box(object.as_mut_ptr());
+    let source = black_box(object.as_raw());
     // Repeated runs expose scheduling variation; ignore the first warmup sample.
     for _ in 0..6 {
         let start = Instant::now();
         for _ in 0..200_000 {
             for identity in &identities {
-                let mut out = core::ptr::null_mut();
+                let mut out = neocogi_com::ComRaw::null();
                 // SAFETY: the owning handle retains source; identities are static
                 // generated contracts and every successful result is released once.
                 unsafe {
                     assert_eq!(
-                        ((*(*source).vtable).query_interface)(source, black_box(identity as *const NcInterfaceId), &mut out),
+                        ((*source.vtable).query_interface)(source.object, black_box(identity as *const NcInterfaceId), &mut out),
                         NC_OK
                     );
-                    let header = out.cast::<IUnknown>();
-                    ((*(*header).vtable).release)(header);
+                    let view = out.cast::<IUnknown>();
+                    ((*view.vtable).release)(view.object);
                 }
             }
         }

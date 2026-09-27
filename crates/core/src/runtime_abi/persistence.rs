@@ -56,11 +56,11 @@ pub struct NcPersistenceApiV1 {
     pub destroy_context: unsafe extern "C" fn(context: *mut NcPersistenceContext),
     /// Registers a live borrowed factory, retaining one reference on success.
     /// Requires exclusive context access; duplicate IDs leave the map unchanged.
-    pub register_factory: unsafe extern "C" fn(context: *mut NcPersistenceContext, id: NcGuid, factory: *mut IPersistenceFactoryAbi) -> NcStatus,
+    pub register_factory: unsafe extern "C" fn(context: *mut NcPersistenceContext, id: NcGuid, factory: crate::ComRaw<IPersistenceFactoryAbi>) -> NcStatus,
     /// Captures a live borrowed object and emits one complete document.
     /// The callback and its data must remain valid until this synchronous call ends.
     pub snapshot: unsafe extern "C" fn(
-        object: *mut IUnknown,
+        object: crate::ComRaw<IUnknown>,
         limits: NcPersistenceLimitsV1,
         write: Option<NcPersistenceWriteBytesV1>,
         user_data: *mut c_void,
@@ -73,7 +73,7 @@ pub struct NcPersistenceApiV1 {
         bytes: *const u8,
         len: usize,
         limits: NcPersistenceLimitsV1,
-        out: *mut *mut IUnknown,
+        out: *mut crate::ComRaw<IUnknown>,
     ) -> NcStatus,
 }
 

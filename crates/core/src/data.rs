@@ -1,6 +1,6 @@
 //! Built-in COM interfaces for immutable byte sequences and UTF-8 strings.
 //!
-//! The module defines their stable identities, C-shaped interface headers and
+//! The module defines their stable identities, C-shaped handle contracts and
 //! vtables, and the complete typed method metadata used to calculate and
 //! validate ABI signatures. Concrete allocation-backed Rust implementations live in
 //! the higher-level `neocogi-com` crate; this core module contains only ABI contracts.
@@ -11,7 +11,7 @@ use crate::metadata::{
     NcAbiPassing, NcAbiPassingDescriptor, NcAbiType, NcAbiTypeDescriptor, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor,
     NcMethodReturnDescriptor, NcStaticUtf8,
 };
-use crate::object::{ComInterface, IUnknown, IUnknownVTable};
+use crate::object::{ComInterface, IUnknownVTable};
 use crate::status::NcStatus;
 
 /// Normative qualified name for [`INcBytesAbi`].
@@ -32,11 +32,7 @@ pub const IID_INC_STRING: NcGuid = guid_from_qualified_name(QUALIFIED_NAME_INC_S
 /// bit-preserving `Vec<i8>` data crossing an `neocogi-com` boundary. Ownership is
 /// still carried by COM reference counting; Rust vector layout and allocator
 /// ownership never cross the boundary.
-#[repr(C)]
-pub struct INcBytesAbi {
-    /// Function table for this interface.
-    pub vtable: *const INcBytesVTable,
-}
+pub enum INcBytesAbi {}
 
 /// Raw vtable for [`INcBytesAbi`].
 #[repr(C)]
@@ -47,41 +43,34 @@ pub struct INcBytesVTable {
     ///
     /// # Safety
     ///
-    /// `this` must be a live byte-sequence interface pointer. `out` must be
+    /// `this` must be a live allocation address paired with this byte-sequence table. `out` must be
     /// valid for one `u64` write.
-    pub len: unsafe extern "C" fn(this: *mut INcBytesAbi, out: *mut u64) -> NcStatus,
+    pub len: unsafe extern "C" fn(this: *mut core::ffi::c_void, out: *mut u64) -> NcStatus,
     /// Returns the byte at `index`.
     ///
     /// # Safety
     ///
-    /// `this` must be a live byte-sequence interface pointer. `out` must be
+    /// `this` must be a live allocation address paired with this byte-sequence table. `out` must be
     /// valid for one `u8` write.
-    pub byte_at: unsafe extern "C" fn(this: *mut INcBytesAbi, index: u64, out: *mut u8) -> NcStatus,
+    pub byte_at: unsafe extern "C" fn(this: *mut core::ffi::c_void, index: u64, out: *mut u8) -> NcStatus,
     /// Copies `len` bytes starting at `offset` into `out`.
     ///
     /// # Safety
     ///
-    /// `this` must be a live byte-sequence interface pointer. When `len` is
+    /// `this` must be a live allocation address paired with this byte-sequence table. When `len` is
     /// nonzero, `out` must be valid for `len` byte writes and must not overlap
     /// the source byte range exposed by `this`. Implementations must validate
     /// the complete request before writing so failures leave `out` unchanged.
-    pub copy_to: unsafe extern "C" fn(this: *mut INcBytesAbi, offset: u64, len: u64, out: *mut u8) -> NcStatus,
+    pub copy_to: unsafe extern "C" fn(this: *mut core::ffi::c_void, offset: u64, len: u64, out: *mut u8) -> NcStatus,
 }
 
-// SAFETY: `INcBytesAbi` is a `repr(C)` interface header with an
-// `INcBytesVTable` whose first field is the canonical `IUnknownVTable`. The
-// identity/signature below describe that exact vtable, and `iunknown` only casts the
-// shared header prefix without dereferencing it.
+// SAFETY: This marker names an exact table with an IUnknownVTable prefix.
+// Every method receives the matching implementation allocation directly.
 unsafe impl ComInterface for INcBytesAbi {
     type Threading = crate::ThreadLocal;
     const INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(IID_INC_BYTES, Self::ABI_SIGNATURE);
 
     type VTable = INcBytesVTable;
-
-    /// Reinterprets the shared interface header as its `IUnknown` prefix.
-    fn iunknown(this: *mut Self) -> *mut IUnknown {
-        this.cast::<IUnknown>()
-    }
 }
 
 /// Precomputed SHA-256 signature for the built-in byte-sequence contract.
@@ -173,11 +162,7 @@ impl INcBytesAbi {
 /// an `neocogi-com` boundary. The bytes exposed by this interface are guaranteed by
 /// the object contract to be valid UTF-8 and can be copied in bounded bulk
 /// ranges through [`INcStringVTable::copy_to`].
-#[repr(C)]
-pub struct INcStringAbi {
-    /// Function table for this interface.
-    pub vtable: *const INcStringVTable,
-}
+pub enum INcStringAbi {}
 
 /// Raw vtable for [`INcStringAbi`].
 #[repr(C)]
@@ -188,41 +173,34 @@ pub struct INcStringVTable {
     ///
     /// # Safety
     ///
-    /// `this` must be a live string interface pointer. `out` must be valid for
+    /// `this` must be a live allocation address paired with this string table. `out` must be valid for
     /// one `u64` write.
-    pub byte_len: unsafe extern "C" fn(this: *mut INcStringAbi, out: *mut u64) -> NcStatus,
+    pub byte_len: unsafe extern "C" fn(this: *mut core::ffi::c_void, out: *mut u64) -> NcStatus,
     /// Returns the UTF-8 byte at `index`.
     ///
     /// # Safety
     ///
-    /// `this` must be a live string interface pointer. `out` must be valid for
+    /// `this` must be a live allocation address paired with this string table. `out` must be valid for
     /// one `u8` write.
-    pub byte_at: unsafe extern "C" fn(this: *mut INcStringAbi, index: u64, out: *mut u8) -> NcStatus,
+    pub byte_at: unsafe extern "C" fn(this: *mut core::ffi::c_void, index: u64, out: *mut u8) -> NcStatus,
     /// Copies `len` UTF-8 bytes starting at `offset` into `out`.
     ///
     /// # Safety
     ///
-    /// `this` must be a live string interface pointer. When `len` is nonzero,
+    /// `this` must be a live allocation address paired with this string table. When `len` is nonzero,
     /// `out` must be valid for `len` byte writes and must not overlap the
     /// source byte range exposed by `this`. Implementations must validate the
     /// complete request before writing so failures leave `out` unchanged.
-    pub copy_to: unsafe extern "C" fn(this: *mut INcStringAbi, offset: u64, len: u64, out: *mut u8) -> NcStatus,
+    pub copy_to: unsafe extern "C" fn(this: *mut core::ffi::c_void, offset: u64, len: u64, out: *mut u8) -> NcStatus,
 }
 
-// SAFETY: `INcStringAbi` is a `repr(C)` interface header with an
-// `INcStringVTable` whose first field is the canonical `IUnknownVTable`. The
-// identity/signature below describe that exact vtable, and `iunknown` only casts the
-// shared header prefix without dereferencing it.
+// SAFETY: This marker names an exact table with an IUnknownVTable prefix.
+// Every method receives the matching implementation allocation directly.
 unsafe impl ComInterface for INcStringAbi {
     type Threading = crate::ThreadLocal;
     const INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(IID_INC_STRING, Self::ABI_SIGNATURE);
 
     type VTable = INcStringVTable;
-
-    /// Reinterprets the shared interface header as its `IUnknown` prefix.
-    fn iunknown(this: *mut Self) -> *mut IUnknown {
-        this.cast::<IUnknown>()
-    }
 }
 
 /// Precomputed SHA-256 signature for the built-in UTF-8 string contract.
@@ -360,14 +338,15 @@ mod tests {
         );
     }
 
+    /// Built-in erasure preserves the allocation and table address without reading them.
     #[test]
-    fn builtin_iunknown_conversions_preserve_the_header_pointer_without_dereferencing() {
-        assert!(INcBytesAbi::iunknown(core::ptr::null_mut()).is_null());
-        assert!(INcStringAbi::iunknown(core::ptr::null_mut()).is_null());
-
-        let bytes = core::ptr::NonNull::<INcBytesAbi>::dangling().as_ptr();
-        let string = core::ptr::NonNull::<INcStringAbi>::dangling().as_ptr();
-        assert_eq!(INcBytesAbi::iunknown(bytes), bytes.cast());
-        assert_eq!(INcStringAbi::iunknown(string), string.cast());
+    fn builtin_pair_erasure_is_non_dereferencing() {
+        let raw = crate::ComRaw::<INcBytesAbi> {
+            object: core::ptr::NonNull::<u8>::dangling().as_ptr().cast(),
+            vtable: core::ptr::NonNull::<crate::INcBytesVTable>::dangling().as_ptr(),
+        };
+        assert_eq!(raw.erase().object, raw.object);
+        assert_eq!(raw.erase().vtable, raw.vtable.cast());
+        assert!(crate::ComRaw::<INcStringAbi>::null().erase().is_null());
     }
 }

@@ -3,6 +3,19 @@
 All notable changes to the experimental component ABI are documented here.
 Semantic-version compatibility begins only after an explicitly ratified ABI.
 
+## Object/table handles (core ABI 10)
+
+COM references now carry the allocation address and selected interface table.
+Generated objects have no per-interface headers, and dispatch no longer recovers
+owners using offsets. Query preserves object identity; all views share one
+reference count and borrow guard. Raw nullable pairs distinguish absence from
+half-null errors. Plugin factories, persistence, native C fixtures and consumers
+use the new representation; older core generations are rejected. The deliberate
+16-byte handle and its memory tradeoff are documented on `ComPtr` and in the
+[storage decision](../../docs/COM_INTERFACE_STORAGE.md). Static inherited method
+prefixes and full explicit inspection remain supported.
+
+
 ## Single-pointer interface headers (experimental ABI 9)
 
 - Store one vtable pointer per interface and recover its owner through the
@@ -86,7 +99,7 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 These entries record superseded designs, not the current API. Native contract
 artifacts, `trait`/`class` IDL declarations, global contract registration, and
 runtime ABI v2 were subsequently removed or replaced. Current binary contracts
-are core v9, factory-plugin v1, and runtime v1; see the [ABI guide](docs/abi-v9.md).
+are core v10, factory-plugin v1, and runtime v1; see the [ABI guide](docs/abi-v10.md).
 
 - Added Rust-like `.ncidl` modules with `struct`, `enum`, `trait`, `class`, and
   `factory` declarations. Every module is an ordinary Cargo crate whose

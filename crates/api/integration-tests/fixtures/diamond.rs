@@ -42,7 +42,7 @@ level!(IA6, IB6, IA5, IB5, "test.diamond.A6:v1", "test.diamond.B6:v1");
 trait ITop: IA6 + IB6 {}
 
 #[com_object(ITop)]
-/// Generic application storage proves header count is independent of Rust state type.
+/// Generic application storage proves interface storage is independent of Rust state type.
 struct Diamond<T: 'static> {
     /// One ordinary mutable counter, shared by all inherited capabilities.
     value: u32,
@@ -70,7 +70,7 @@ struct Lifetime {
     drops: Arc<AtomicUsize>,
 }
 impl Drop for Lifetime {
-    /// Counts one concrete destructor, independent of the number of headers.
+    /// Counts one concrete destructor, independent of the number of interfaces.
     fn drop(&mut self) {
         self.drops.fetch_add(1, Ordering::SeqCst);
     }
@@ -78,15 +78,12 @@ impl Drop for Lifetime {
 
 /// The actual generated storage reserves exactly one slot per distinct contract.
 #[test]
-fn repeated_diamond_has_linear_physical_storage() {
+fn repeated_diamond_adds_no_per_object_interface_storage() {
     assert_eq!(ITopAbi::INTERFACE_CHAIN.len(), 15);
     assert_eq!(Diamond::<()>::COM_INTERFACE_COUNT, 16); // Includes canonical IUnknown.
-    let header_bytes = core::mem::size_of::<IUnknown>();
-    let start = core::mem::offset_of!(DiamondComObject<()>, interfaces);
-    let end = core::mem::offset_of!(DiamondComObject<()>, value);
-    assert_eq!(end - start, 16 * header_bytes);
-    // A second state specialization must use exactly the same header set.
-    assert_eq!(core::mem::offset_of!(DiamondComObject<Lifetime>, value) - start, 16 * header_bytes);
+    assert_eq!(core::mem::offset_of!(DiamondComObject<()>, value), 16);
+    // A second state specialization must use exactly the same contract set.
+    assert_eq!(core::mem::offset_of!(DiamondComObject<Lifetime>, value), 16);
     let object = Diamond::from_value(Diamond { value: 7, _lifetime: () });
     let top = object.query::<ITopAbi>().unwrap();
     assert_eq!(top.value(), Ok(7)); // Calls the inherited physical vtable prefix.
@@ -97,11 +94,11 @@ fn repeated_diamond_has_linear_physical_storage() {
 /// # Safety
 /// Source is a live projection of the retained test object. Success transfers
 /// one reference; the caller must release it through the returned common prefix.
-unsafe fn query(source: *mut IUnknown, identity: &NcInterfaceId) -> Result<*mut IUnknown, NcStatus> {
+unsafe fn query(source: neocogi_com::ComRaw<IUnknown>, identity: &NcInterfaceId) -> Result<neocogi_com::ComRaw<IUnknown>, NcStatus> {
     // Begin non-null so failures must actively clear the caller's output slot.
     let mut result = source.cast();
-    // SAFETY: the fixture supplies a live header and valid independent argument slots.
-    let status = unsafe { ((*(*source).vtable).query_interface)(source, identity, &mut result) };
+    // SAFETY: the fixture supplies a live allocation and valid independent argument slots.
+    let status = unsafe { ((*source.vtable).query_interface)(source.object, identity, &mut result) };
     match status {
         NC_OK => {
             assert!(!result.is_null());
@@ -118,10 +115,10 @@ unsafe fn query(source: *mut IUnknown, identity: &NcInterfaceId) -> Result<*mut 
 ///
 /// # Safety
 /// Source owns one reference returned by query; this consumes it exactly once.
-unsafe fn release(source: *mut IUnknown) {
+unsafe fn release(source: neocogi_com::ComRaw<IUnknown>) {
     // SAFETY: source's complete vtable and allocation remain live until this release.
     unsafe {
-        ((*(*source).vtable).release)(source);
+        ((*source.vtable).release)(source.object);
     }
 }
 
@@ -144,17 +141,17 @@ fn all_projection_pairs_share_addresses_state_and_lifetime() {
     // SAFETY: object owns the allocation throughout all raw query/release pairs.
     unsafe {
         for identity in &identities {
-            let projection = query(object.as_mut_ptr(), identity).unwrap();
+            let projection = query(object.as_raw(), identity).unwrap();
             canonical.push(projection);
             release(projection);
         }
         for source in &identities {
-            let source = query(object.as_mut_ptr(), source).unwrap();
+            let source = query(object.as_raw(), source).unwrap();
             for (index, target) in identities.iter().enumerate() {
                 let target = query(source, target).unwrap();
                 assert_eq!(target, canonical[index]);
                 let unknown = query(target, &IUnknown::INTERFACE_ID).unwrap();
-                assert_eq!(unknown, object.as_mut_ptr());
+                assert_eq!(unknown, object.as_raw());
                 release(unknown);
                 release(target);
             }
@@ -226,7 +223,7 @@ fn distinct_qualified_interfaces_can_share_a_final_name() {
     let object = Namespaced::from_value(Namespaced);
     let first = object.query::<first::IValueAbi>().unwrap();
     let second = first.query::<second::IValueAbi>().unwrap();
-    assert_eq!(second.query::<IUnknown>().unwrap().as_mut_ptr(), object.as_mut_ptr());
+    assert_eq!(second.query::<IUnknown>().unwrap().as_raw(), object.as_raw());
     assert_eq!(Namespaced::COM_INTERFACE_COUNT, 3);
 }
 
@@ -245,15 +242,13 @@ struct UnknownOnly<T: 'static> {
 
 /// Empty authored interface lists must compile and retain ordinary local access.
 #[test]
-fn unknown_only_generic_owner_has_one_header() {
+fn unknown_only_generic_owner_has_no_interface_storage() {
     let owner = UnknownOnly::into_local(UnknownOnly { value: 42_u32 });
     let unknown = owner.query::<IUnknown>().unwrap();
     assert_eq!(UnknownOnly::<u32>::COM_INTERFACE_COUNT, 1);
     assert_eq!(owner.try_borrow().unwrap().value, 42);
     assert!(matches!(unknown.query::<IA0Abi>(), Err(NC_E_NOINTERFACE)));
-    let start = core::mem::offset_of!(UnknownOnlyComObject<u32>, interfaces);
-    let end = core::mem::offset_of!(UnknownOnlyComObject<u32>, value);
-    assert_eq!(end - start, core::mem::size_of::<IUnknown>());
+    assert_eq!(core::mem::offset_of!(UnknownOnlyComObject<u32>, value), 16);
 }
 
 #[com_object(interfaces(IA0, IB0, IA1))]
@@ -279,30 +274,27 @@ impl IA1 for OverlappingRoots {}
 
 /// Deduplication applies across authored roots as well as inside a single diamond.
 #[test]
-fn explicit_roots_reuse_their_inherited_headers() {
+fn explicit_roots_reuse_their_inherited_contracts() {
     let object = OverlappingRoots::from_value(OverlappingRoots { value: 7 });
     let root = object.query::<IA0Abi>().unwrap();
     let child = object.query::<IA1Abi>().unwrap();
-    assert_eq!(child.query::<IA0Abi>().unwrap().as_mut_ptr(), root.as_mut_ptr());
+    assert_eq!(child.query::<IA0Abi>().unwrap().as_raw(), root.as_raw());
     assert_eq!(child.value(), Ok(7));
     assert_eq!(OverlappingRoots::COM_INTERFACE_COUNT, 4);
-    let start = core::mem::offset_of!(OverlappingRootsComObject, interfaces);
-    let end = core::mem::offset_of!(OverlappingRootsComObject, value);
-    assert_eq!(end - start, 4 * core::mem::size_of::<IUnknown>());
+    assert_eq!(core::mem::offset_of!(OverlappingRootsComObject, value), 16);
 }
 
-/// Forces padding between the header array and concrete state without changing
-/// the required alignment of each individual COM interface header.
+/// Forces extra padding before concrete state; interface count must not affect
+/// the allocation address or its required alignment.
 #[repr(align(64))]
 struct AlignedState {
     /// Application state remains directly accessible through the local owner.
     marker: u64,
 }
 
-/// Owner recovery must use header placement, not assume where padded Rust state starts.
+/// Direct object addresses must preserve alignment without assuming the state offset.
 #[test]
-fn generic_aligned_state_keeps_owner_recovery_and_mutable_access_correct() {
-    use neocogi_com::__nc_object_from_interface;
+fn generic_aligned_state_keeps_direct_object_access_correct() {
     let local = Diamond::into_local(Diamond {
         value: 17,
         _lifetime: AlignedState { marker: 5 },
@@ -310,13 +302,11 @@ fn generic_aligned_state_keeps_owner_recovery_and_mutable_access_correct() {
     let top = local.query::<ITopAbi>().unwrap();
     let base = top.query::<IA0Abi>().unwrap();
     let unknown = top.query::<IUnknown>().unwrap();
-    // SAFETY: these independently acquired projections retain one live allocation.
-    unsafe {
-        let owner = __nc_object_from_interface(unknown.as_mut_ptr());
-        assert_eq!(__nc_object_from_interface(top.as_mut_ptr().cast()), owner);
-        assert_eq!(__nc_object_from_interface(base.as_mut_ptr().cast()), owner);
-        assert_eq!(owner as usize % core::mem::align_of::<DiamondComObject<AlignedState>>(), 0);
-    }
+    // Every queried view carries the aligned allocation address unchanged.
+    let owner = unknown.as_raw().object;
+    assert_eq!(top.as_raw().object, owner);
+    assert_eq!(base.as_raw().object, owner);
+    assert_eq!(owner as usize % core::mem::align_of::<DiamondComObject<AlignedState>>(), 0);
     {
         let mut value = local.try_borrow_mut().unwrap();
         value.value = 29;

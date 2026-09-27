@@ -8,7 +8,7 @@ support, factory-only plugins, and an optional facade over the linked
 Public cross-library contracts should be authored as Rust-like `.ncidl`
 modules. See [IDL contract modules](../../../docs/IDL_MODULES.md) for their
 source, crate, signature, and tooling model. The
-[core ABI v9 specification](../docs/abi-v9.md) defines the binary boundary.
+[core ABI v10 specification](../docs/abi-v10.md) defines the binary boundary.
 
 ## Local object example
 
@@ -36,7 +36,7 @@ fn calculate() -> Result<i32, NcStatus> {
 }
 ```
 
-`com_interface` generates the portable header, vtable, ABI signature, and one
+`com_interface` generates the interface marker, vtable, ABI signature, and one
 borrowed `IFooClient` method view. Both `ComPtr<IFooAbi>` and
 `ComRef<'_, IFooAbi>` lend that view through `Deref`, so ordinary calls use the
 same `pointer.method()` syntax without importing an interface-specific trait.
@@ -49,15 +49,17 @@ method lookup. Obtaining an owned base projection still requires checked
 construct. Handwritten helpers such as `INcStringComPtrExt::to_string` remain
 separate because they add bounded copying, allocation, and UTF-8 validation
 rather than duplicate a generated interface method.
-Interface storage contains one canonical header per distinct interface ID,
-including `IUnknown`. Shared ancestors reached through a diamond reuse that
-header; conflicting signatures fail compilation. Construction uses only typed
-vtable pointers, and querying reads the compact identity in each existing vtable.
-Each header contains one pointer; a static vtable offset recovers its enclosing
-allocation, including calls through inherited prefixes. `ComPtr` stays one word.
-Full descriptions remain available to explicit inspection without being retained
-by ordinary object construction. See [interface storage](../../../docs/COM_INTERFACE_STORAGE.md)
-for the contract, ownership rules, tests, and size measurements.
+Objects contain state, one reference count, and one shared borrow guard;
+interfaces add no fields to each allocation. `ComPtr` and `ComRef` carry
+`{object, interface_vtable}` (16 bytes on 64-bit targets), while raw calls use
+`ComRaw<T>`. Query changes the table and preserves the object address. Methods
+receive that address directly: there are no embedded headers or owner offsets.
+Shared ancestors occur once in the compiler's contract set; conflicting
+signatures fail compilation. Runtime queries scan static vtable pointers whose
+compact identities are separate from full inspection schemas. Inherited table
+prefixes remain; this change does not deduplicate their function entries.
+See [interface storage](../../../docs/COM_INTERFACE_STORAGE.md) and `ComPtr`
+rustdoc for the architectural rationale, ownership rules, and cost tradeoff.
 
 When the creating binary also needs the concrete implementation, use
 `Implementation::into_local(value)` to obtain `LocalCom<Implementation>`.

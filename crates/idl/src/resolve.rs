@@ -929,7 +929,7 @@ fn visit_layout(
 
 /// Collects inline value dependencies and required interface relationships for
 /// cycle validation. Method arguments and owned COM handles do not inline their
-/// referents; interface requirements determine a canonical set of headers.
+/// referents; interface requirements determine a canonical set of interface contracts.
 fn collect_layout_references<'a>(declaration: &'a Declaration, output: &mut Vec<&'a NamedType>) {
     match &declaration.kind {
         DeclarationKind::Struct(record) => {

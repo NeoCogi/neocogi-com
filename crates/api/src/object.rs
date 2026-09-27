@@ -1,9 +1,9 @@
 //! Reference-count primitives and object hooks used by generated COM classes.
 //!
-//! Generated class storage embeds an atomic strong count and one header per
-//! implemented interface. The helpers here implement saturating `AddRef` and
+//! Generated class storage embeds an atomic strong count and no interface headers.
+//! Object/table handles select each implemented interface. The helpers here implement saturating `AddRef` and
 //! non-underflowing `Release`; the unsafe traits describe how generated thunks
-//! recover the concrete Rust value from a header's static owner offset, perform
+//! access the concrete Rust value from the allocation address, perform
 //! interface negotiation, and destroy storage on the final release. They are
 //! public only as hidden macro support and are not the ordinary end-user API.
 
@@ -189,17 +189,11 @@ pub use neocogi_com_core::{__com_add_ref_count, __com_release_ref_count};
 /// Implementors must map opaque generated storage pointers back to the exact
 /// allocation and Rust value that produced them. Reference-count operations must
 /// keep the allocation alive until the final `Release`, and `QueryInterface`
-/// must only return interface headers owned by that allocation.
+/// must only return tables paired with that same allocation address.
 ///
 /// Interface thunks receive an opaque object pointer and use this trait to
 /// recover the Rust implementation and delegate IUnknown behavior.
 pub unsafe trait ComAbiObject: Sized {
-    /// Compiler-only placement of this implementation's canonical interface headers.
-    /// The generator derives offsets from the concrete storage type and uses the
-    /// records only during vtable constant evaluation, never for runtime dispatch.
-    /// Every advertised offset must designate its exact live embedded header.
-    const ABI_HEADERS: &'static [crate::__ComHeaderLayout];
-
     /// Acquires shared access to the Rust value in generated storage.
     ///
     /// # Safety
@@ -224,12 +218,16 @@ pub unsafe trait ComAbiObject: Sized {
     ///
     /// `object` must be valid generated storage, `interface_id` must point to a
     /// readable initialized identity, and `out` must point to a distinct slot
-    /// valid for one pointer write. Given those preconditions, `NC_OK` writes
-    /// one non-null owned interface reference to `*out`; every other returned
-    /// status leaves `*out` null and transfers no reference. Null or otherwise
+    /// valid for one ComRaw record write. Given those preconditions, `NC_OK` writes
+    /// one present owned interface pair to `*out`; every other returned
+    /// status leaves both fields of `*out` null and transfers no reference. Null or otherwise
     /// invalid arguments violate this safety contract even when an
     /// implementation rejects them defensively.
-    unsafe fn query_interface_from_abi_object(object: *mut c_void, interface_id: *const NcInterfaceId, out: *mut *mut c_void) -> NcStatus;
+    unsafe extern "C" fn query_interface_from_abi_object(
+        object: *mut c_void,
+        interface_id: *const NcInterfaceId,
+        out: *mut crate::ComRaw<crate::IUnknown>,
+    ) -> NcStatus;
 
     /// Increments the reference count for generated object storage.
     ///
@@ -240,7 +238,7 @@ pub unsafe trait ComAbiObject: Sized {
     /// # Safety
     ///
     /// `object` must be valid generated storage or null.
-    unsafe fn add_ref_from_abi_object(object: *mut c_void) -> u32;
+    unsafe extern "C" fn add_ref_from_abi_object(object: *mut c_void) -> u32;
 
     /// Decrements the reference count for generated object storage.
     ///
@@ -252,7 +250,7 @@ pub unsafe trait ComAbiObject: Sized {
     /// destruction, and must not resurrect the object. Debug builds assert if
     /// `Release` observes an already-zero count; release builds refuse to
     /// underflow.
-    unsafe fn release_from_abi_object(object: *mut c_void) -> u32;
+    unsafe extern "C" fn release_from_abi_object(object: *mut c_void) -> u32;
 }
 
 /// Associates a generated COM implementation object with the strongest
@@ -278,7 +276,7 @@ pub unsafe trait ComAbiObject: Sized {
 ///
 /// # Safety
 ///
-/// `Threading` must describe every interface header backed by this implementation's
+/// `Threading` must describe every interface projection backed by this implementation's
 /// generated object storage. Selecting [`ThreadSafe`] promises that all exposed
 /// methods may be called concurrently from arbitrary threads and that final
 /// destruction may occur on any thread. IDL-backed implementations derive this

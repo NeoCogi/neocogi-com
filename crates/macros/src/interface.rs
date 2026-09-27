@@ -1,6 +1,6 @@
-//! Generation of interface headers, vtables, thunks, wrappers, and ABI metadata.
+//! Generation of interface markers, vtables, thunks, wrappers, and ABI metadata.
 //!
-//! A validated trait is lowered into one `repr(C)` interface header and vtable,
+//! A validated trait is lowered into an interface marker and `repr(C)` method table,
 //! per-implementor thunk table, one borrowed client method view, and immutable
 //! method descriptors. The client view is the sole safe Rust-to-ABI lowering
 //! surface, so pointer ownership, buffer bounds, and documentation stay aligned.
@@ -50,7 +50,7 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
 /// Core owns the ABI and safe clients. The facade owns generated object thunks,
 /// whose borrow gates and concrete object storage must not enter the core ABI.
 pub(crate) struct InterfaceExpansion {
-    /// Traits, headers, clients and metadata, using only allocation-free core types.
+    /// Traits, markers, clients and metadata, using only allocation-free core types.
     pub(crate) abi: proc_macro2::TokenStream,
     /// Concrete-provider projections and thunks, using facade object support.
     pub(crate) provider: proc_macro2::TokenStream,
@@ -129,10 +129,9 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     let mut prefix_value = quote! {
         unknown: #nc::IUnknownVTable {
             interface_id: identity,
-            object_offset: #nc::__nc_interface_offset(T::ABI_HEADERS, identity),
-            query_interface: Self::query_interface_thunk,
-            add_ref: Self::add_ref_thunk,
-            release: Self::release_thunk,
+            query_interface: <T as #nc::ComAbiObject>::query_interface_from_abi_object,
+            add_ref: <T as #nc::ComAbiObject>::add_ref_from_abi_object,
+            release: <T as #nc::ComAbiObject>::release_from_abi_object,
         },
     };
     let mut client_base = quote! {};
@@ -154,7 +153,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     // SAFETY: Both generated views are transparent pointer words.
                     // The inherited table is a physical prefix of the derived table.
                     // This lends methods only; ownership and checked base projection
-                    // still require QueryInterface on the actual derived header.
+                    // still require QueryInterface on the same object with the actual derived table.
                     unsafe { &*core::ptr::from_ref(self).cast::<Self::Target>() }
                 }
             }
@@ -226,7 +225,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         quote! {
             #(#docs)*
             pub #method_ident: unsafe extern "C" fn(
-                this: *mut #abi_ident,
+                this: *mut core::ffi::c_void,
                 #(#abi_args,)*
                 #out_param
             ) -> #nc::NcStatus,
@@ -234,7 +233,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     });
 
     // A thunk adapts one C ABI vtable call back into the Rust trait method.
-    // It recovers the owning generated storage through the interface header's
+    // It accesses the owning generated storage directly through the handle's
     // opaque `object` pointer, then asks `ComAbiObject` for the concrete Rust
     // value through the generated object-wide borrow gate. Panics are
     // intentionally not caught here; the non-unwind C ABI boundary follows
@@ -403,21 +402,21 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             /// The interface belongs to T's live generated storage. Non-null ABI
             /// arguments must satisfy their method's readable/writable contracts.
             unsafe extern "C" fn #thunk_ident(
-                this: *mut #abi_ident,
+                this: *mut core::ffi::c_void,
                 #(#params,)*
                 #out_param
             ) -> #nc::NcStatus {
                 #pointer_check
 
                 // SAFETY: `this` was checked non-null above and is a generated
-                // interface header for this vtable call.
-                let #object_ident = unsafe { #nc::__nc_object_from_interface(this.cast()) };
+                // object address paired with this vtable.
+                let #object_ident = this;
                 if #object_ident.is_null() {
                     return #nc::NC_E_POINTER;
                 }
                 #(#arg_conversions)*
-                // SAFETY: The object pointer came from a generated interface
-                // header. `ComAbiObject` validates the requested Rust borrow
+                // SAFETY: The object pointer is paired with this generated table.
+                // `ComAbiObject` validates the requested Rust borrow
                 // against every call active on the same allocation.
                 let mut #value_ident = match unsafe { #borrow } {
                     Ok(value) => value,
@@ -463,17 +462,10 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
 
         #signature_static
 
-        // The generated interface header is the pointer type stored in
-        // `ComPtr<IFooAbi>`. The first field must remain the vtable pointer so
-        // `iunknown()` can reinterpret the header as `IUnknown` for common
-        // lifecycle operations. The static vtable prefix records the offset
-        // used to recover this header's enclosing allocation.
-        #[repr(C)]
-        #[doc = concat!("C-compatible ABI header for [`", stringify!(#trait_ident), "`].")]
-        #vis struct #abi_ident {
-            #[doc = concat!("Pointer to the [`", stringify!(#vtable_ident), "`] used by this interface header.")]
-            pub vtable: *const #vtable_ident,
-        }
+        // The marker gives ComRaw/ComPtr their static interface contract.
+        // No IFooAbi instance is stored in the object allocation.
+        #[doc = concat!("Interface marker for [`", stringify!(#trait_ident), "`]; handles carry its object/table pair.")]
+        #vis enum #abi_ident {}
 
         // Vtables start with the `IUnknown` function table, then append the
         // interface-specific methods in source order.
@@ -484,11 +476,9 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             #(#method_fields)*
         }
 
-        // SAFETY: `com_interface` generates `#abi_ident` as a `repr(C)` header
-        // with the same single-pointer prefix as `IUnknown`, generates
-        // `#vtable_ident` with `IUnknownVTable` first, and combines the derived
-        // GUID with the IDL-generator-assigned signature. `iunknown` performs
-        // only the shared-prefix pointer cast.
+        // SAFETY: The generated table has the common IUnknownVTable prefix,
+        // exact identity, and thunks accepting the matching object allocation.
+        // The marker carries the IDL-assigned contract and threading mode.
         unsafe impl #nc::ComInterface for #abi_ident {
             const IID: #nc::NcGuid = #guid;
             const INTERFACE_ID: #nc::NcInterfaceId =
@@ -497,12 +487,6 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             type Threading = #threading;
 
 
-            // All generated interface headers share the same prefix as
-            // `IUnknown`, so this is the canonical route for AddRef, Release,
-            // and QueryInterface from any interface pointer.
-            fn iunknown(this: *mut Self) -> *mut #nc::IUnknown {
-                this.cast::<#nc::IUnknown>()
-            }
         }
 
         #factory_marker
@@ -576,8 +560,8 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             pub const PROJECTIONS: [#nc::__ComProjection<T>; #abi_ident::INTERFACE_CHAIN.len()] =
                 #nc::__nc_projection_table(
                     &#abi_ident::INTERFACE_CHAIN,
-                    // SAFETY: this macro emits the exact descriptor, one-pointer
-                    // C header and complete prefix-compatible vtable for T.
+                    // SAFETY: this macro emits the exact contract identity and
+                    // complete prefix-compatible vtable for T's allocation.
                     unsafe { #nc::__ComProjection::new(<#abi_ident as #nc::ComInterface>::INTERFACE_ID,
                         &Self::VTABLE as *const #vtable_ident as *const #nc::IUnknownVTable) },
                     &[#(&#required_providers::<T>::PROJECTIONS,)*],
@@ -592,64 +576,6 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     #prefix_value
                     #(#vtable_entries,)*
                 }
-            }
-
-            /// Routes this projection to the allocation-wide interface lookup.
-            ///
-            /// # Safety
-            /// The live header belongs to T; identity and output storage satisfy
-            /// the QueryInterface contract. The owning allocation validates them.
-            unsafe extern "C" fn query_interface_thunk(
-                this: *mut #nc::IUnknown,
-                interface_id: *const #nc::NcInterfaceId,
-                out: *mut *mut core::ffi::c_void,
-            ) -> #nc::NcStatus {
-                if this.is_null() {
-                    return #nc::NC_E_POINTER;
-                }
-                // SAFETY: Non-null `this` is a generated interface header and
-                // has the correct owner offset in its actual vtable prefix.
-                let object = unsafe { #nc::__nc_object_from_interface(this.cast()) };
-                // SAFETY: Delegates to the generated owning object, which
-                // validates `object`, `interface_id`, and `out` before
-                // dereferencing.
-                unsafe {
-                    <T as #nc::ComAbiObject>::query_interface_from_abi_object(
-                        object,
-                        interface_id,
-                        out,
-                    )
-                }
-            }
-
-            /// Retains the common allocation through this interface projection.
-            ///
-            /// # Safety
-            /// Non-null this belongs to T's live generated object storage.
-            unsafe extern "C" fn add_ref_thunk(this: *mut #nc::IUnknown) -> u32 {
-                if this.is_null() {
-                    return 0;
-                }
-                // SAFETY: Non-null `this` is a generated interface header and
-                // has the correct owner offset in its actual vtable prefix.
-                let object = unsafe { #nc::__nc_object_from_interface(this.cast()) };
-                // SAFETY: Delegates to generated storage refcount handling.
-                unsafe { <T as #nc::ComAbiObject>::add_ref_from_abi_object(object) }
-            }
-
-            /// Releases the common allocation through this interface projection.
-            ///
-            /// # Safety
-            /// Non-null this transfers one live reference from T's object storage.
-            unsafe extern "C" fn release_thunk(this: *mut #nc::IUnknown) -> u32 {
-                if this.is_null() {
-                    return 0;
-                }
-                // SAFETY: Non-null `this` is a generated interface header and
-                // has the correct owner offset in its actual vtable prefix.
-                let object = unsafe { #nc::__nc_object_from_interface(this.cast()) };
-                // SAFETY: Delegates to generated storage refcount handling.
-                unsafe { <T as #nc::ComAbiObject>::release_from_abi_object(object) }
             }
 
             #(#thunks)*
@@ -711,13 +637,13 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
             // vtable slot.
             fn #method_ident(#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
                 #(#arg_preparations)*
-                let this = self.__nc_pointer.as_mut_ptr();
+                let this = self.__nc_pointer.as_raw();
                 // SAFETY: The client view borrows a live interface reference.
                 // The raw vtable method receives pointers valid for this call
                 // and returns only an `NcStatus`.
                 let status = unsafe {
-                    ((*(*this).vtable).#method_ident)(
-                        this,
+                    ((*this.vtable).#method_ident)(
+                        this.object,
                         #(#arg_names,)*
                     )
                 };
@@ -752,13 +678,13 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
                 fn #method_ident(#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
                     #(#arg_preparations)*
                     let mut __nc_out = core::mem::MaybeUninit::<#abi_ret>::uninit();
-                    let this = self.__nc_pointer.as_mut_ptr();
+                    let this = self.__nc_pointer.as_raw();
                     // SAFETY: The client view borrows a live interface reference.
                     // The out pointer targets local storage that remains valid
                     // until the call returns.
                     let status = unsafe {
-                        ((*(*this).vtable).#method_ident)(
-                            this,
+                        ((*this.vtable).#method_ident)(
+                            this.object,
                             #(#arg_names,)*
                             __nc_out.as_mut_ptr(),
                         )
@@ -1000,8 +926,8 @@ fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
     match &arg.kind {
         AbiArgKind::BorrowedValue { .. } => vec![quote! { #ident.as_ptr() }],
         AbiArgKind::Plain => vec![quote! { #ident }],
-        AbiArgKind::ComRef { optional: true, .. } => vec![quote! { #ident.map_or(::core::ptr::null_mut(), |value| value.as_mut_ptr()) }],
-        AbiArgKind::ComRef { optional: false, .. } => vec![quote! { #ident.as_mut_ptr() }],
+        AbiArgKind::ComRef { optional: true, .. } => vec![quote! { #ident.map_or(::core::default::Default::default(), |value| value.as_raw()) }],
+        AbiArgKind::ComRef { optional: false, .. } => vec![quote! { #ident.as_raw() }],
         AbiArgKind::CopyFromBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.len() }, quote! { #ident.as_ptr() }],
         AbiArgKind::CopyToBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.len() }, quote! { #ident.as_mut_ptr() }],
     }

@@ -1,9 +1,8 @@
 //! The root `IUnknown` contract and the marker for C-shaped COM interfaces.
 //!
-//! This module fixes the canonical `IUnknown` identity, header, vtable prefix,
+//! This module fixes the canonical `IUnknown` identity, raw handle pair, vtable prefix,
 //! and empty method descriptor. Generated and built-in interfaces implement
-//! [`ComInterface`] to describe their identity, vtable type, and pointer-safe
-//! conversion back to the shared `IUnknown` header.
+//! [`ComInterface`] to describe their identity, vtable type, and shared lifecycle prefix, independent of object layout.
 
 use core::ffi::c_void;
 
@@ -34,49 +33,41 @@ pub const IUNKNOWN_ABI_SIGNATURE: NcAbiSignature = NcAbiSignature::from_static(&
 /// Interface identity for [`IUnknown`].
 pub const IUNKNOWN_INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(IID_IUNKNOWN, IUNKNOWN_ABI_SIGNATURE);
 
-/// The base interface implemented by every COM object.
-#[repr(C)]
-pub struct IUnknown {
-    /// Function table for `IUnknown`.
-    pub vtable: *const IUnknownVTable,
-}
+/// The root contract marker implemented by every COM object.
+/// No instance of this marker is stored in the allocation; ComRaw carries its table.
+pub enum IUnknown {}
 
 /// C-compatible vtable for [`IUnknown`].
 #[repr(C)]
 pub struct IUnknownVTable {
-    /// Identity of the actual interface header using this vtable, including its
+    /// Identity of the actual interface selected by this vtable, including its
     /// complete local contract signature. This points to immutable static metadata;
     /// it describes the projected interface, which may differ from IUnknown.
     pub interface_id: *const NcInterfaceId,
-
-    /// Byte offset of this physical header within its owning allocation.
-    /// Inherited vtable prefixes retain the outer header's offset. This immutable
-    /// value replaces an object back-pointer in every individual header.
-    pub object_offset: usize,
 
     /// Queries the object for another interface by identity.
     ///
     /// # Safety
     ///
-    /// `this` must be a live `IUnknown` header for the object being queried.
+    /// `this` must be the live allocation address paired with this table.
     /// `interface_id` must point to the expected interface GUID/signature pair, and
-    /// `out` must point to a distinct slot valid for one pointer write. Given
-    /// those preconditions, the implementation initializes `*out` to null.
-    /// `NC_OK` replaces it with one non-null owned interface reference that the
+    /// `out` must point to a distinct slot valid for one ComRaw record write. Given
+    /// those preconditions, the implementation initializes both fields of `*out` to null.
+    /// `NC_OK` replaces it with one present owned interface pair with the same object address that the
     /// caller must eventually release; every other returned status leaves it
     /// null and transfers no reference. Null or otherwise invalid arguments
     /// violate this safety contract even when an implementation rejects them
     /// defensively.
-    pub query_interface: unsafe extern "C" fn(this: *mut IUnknown, interface_id: *const NcInterfaceId, out: *mut *mut c_void) -> NcStatus,
+    pub query_interface: unsafe extern "C" fn(this: *mut c_void, interface_id: *const NcInterfaceId, out: *mut crate::ComRaw<IUnknown>) -> NcStatus,
 
     /// Increments the object's reference count and returns the new count.
     ///
     /// # Safety
     ///
-    /// `this` must be a live `IUnknown` header. The caller only needs a
+    /// `this` must be the live allocation address paired with this table. The caller only needs a
     /// borrowed reference for the duration of the call; success creates one new
     /// owned reference.
-    pub add_ref: unsafe extern "C" fn(this: *mut IUnknown) -> u32,
+    pub add_ref: unsafe extern "C" fn(this: *mut c_void) -> u32,
 
     /// Decrements the object's reference count and returns the remaining count.
     ///
@@ -84,33 +75,17 @@ pub struct IUnknownVTable {
     ///
     /// `this` must own one live reference. The call consumes that reference and
     /// may destroy the object immediately when the remaining count reaches zero.
-    pub release: unsafe extern "C" fn(this: *mut IUnknown) -> u32,
+    pub release: unsafe extern "C" fn(this: *mut c_void) -> u32,
 }
 
-// SAFETY: Vtables contain only function pointers, an integer byte offset, and
+// SAFETY: Vtables contain only function pointers and
 // immutable static identity metadata. Sharing the table does not grant cross-thread access to an object.
 unsafe impl Sync for IUnknownVTable {}
 
-/// Recovers the owner of a live embedded one-pointer interface header.
-///
-/// # Safety
-/// `this` must be non-null and point into its live owning allocation. Its vtable
-/// prefix must be valid, and `object_offset` must equal this header's byte offset
-/// from that allocation's start. The subtraction preserves pointer provenance;
-/// neither raw pointer is converted to an integer or retained beyond the call.
-#[doc(hidden)]
-#[inline]
-pub unsafe fn __nc_object_from_interface(this: *mut IUnknown) -> *mut c_void {
-    // SAFETY: the caller supplies a live header and immutable matching vtable.
-    let offset = unsafe { (*(*this).vtable).object_offset };
-    // SAFETY: the declared offset leads backward within the same allocation.
-    unsafe { this.cast::<u8>().sub(offset).cast() }
-}
-
-/// Metadata and pointer conversion implemented by every COM ABI interface type.
+/// Metadata and raw-pair contract implemented by every COM ABI interface type.
 ///
 /// Prefer defining interfaces with `#[com_interface]` from the `neocogi-com` crate.
-/// The macro generates this implementation together with the interface header,
+/// The macro generates this implementation together with the interface marker,
 /// vtable, identity, and ABI signature. The trait remains public and unsealed for
 /// low-level foreign-interface adapters, but handwritten implementations are an
 /// unsafe extension point.
@@ -126,29 +101,18 @@ pub unsafe fn __nc_object_from_interface(this: *mut IUnknown) -> *mut c_void {
 ///
 /// An implementation is a proof that all of the following invariants hold:
 ///
-/// - `Self` is the exact C-compatible interface header identified by
-///   [`Self::INTERFACE_ID`]. Its first field is a live pointer to `Self::VTable`,
-///   and the vtable starts with a valid [`IUnknownVTable`] prefix.
-/// - `Self::INTERFACE_ID`, including its ABI signature, describes the actual vtable
-///   method order, signatures, passing modes, and referenced interface IIDs.
-///   Every COM pointer argument/return is checked against its expected full
-///   identity before invoking any interface-specific method. The common prefix
-///   publishes this actual interface identity in immutable static storage.
-/// - Every header is embedded in its owning allocation. The common vtable's
-///   object_offset identifies that physical header, including inherited calls;
-///   it is not the offset of an independently queried base projection.
+/// - Self is a marker for an exact interface contract. Its VTable has the
+///   common IUnknownVTable prefix and methods accepting the allocation address.
+/// - Every published ComRaw<Self> pairs that table with its matching live object.
+///   Tables and identities remain immutable and live while any reference exists.
+/// - Exact identity checks precede typed argument/result dispatch. Borrowed
+///   inherited method views may use a physically compatible base table prefix.
 /// - `Self::Threading` is the minimum implementation guarantee. Shared
 ///   contracts require thread-safe calls, ownership, and destruction; a
 ///   pointer may retain a stronger guarantee or explicitly weaken it.
-/// - Every live `*mut Self` stored in a [`crate::ComPtr`] or [`crate::ComRef`]
-///   remains backed by its interface header, vtable, and object storage for the
-///   reference's lifetime.
-/// - A successful `QueryInterface` for `Self::INTERFACE_ID` returns a genuine
-///   `Self` header and transfers exactly one owned reference.
-/// - [`ComInterface::iunknown`] performs only the representation-preserving
-///   pointer conversion. It must not dereference `this`, must map null to null,
-///   and must map every live `Self` pointer to the live [`IUnknown`] header for
-///   the same object and reference-count identity.
+/// - QueryInterface preserves the object address, selects the exact requested
+///   table, and transfers exactly one reference on success. Failure clears both
+///   output fields. AddRef and Release share the allocation's single count.
 ///
 /// Violating these invariants can make safe operations such as
 /// [`crate::ComPtr::query`], `Clone`, or `Drop` cause undefined behavior.
@@ -167,9 +131,6 @@ pub unsafe trait ComInterface {
 
     /// The C-compatible vtable type for this interface.
     type VTable;
-
-    /// Converts an interface pointer to its `IUnknown` header.
-    fn iunknown(this: *mut Self) -> *mut IUnknown;
 }
 
 /// An interface eligible to serve as a plugin's zero-argument root.
@@ -226,19 +187,13 @@ pub trait __ComSupportsInterfaceThreading<M: ThreadingModel> {}
 impl<T: 'static> __ComSupportsInterfaceThreading<ThreadLocal> for T {}
 impl<T: Send + Sync + 'static> __ComSupportsInterfaceThreading<ThreadSafe> for T {}
 
-// SAFETY: `IUnknown` is the canonical interface header and vtable prefix. Its
-// pointer conversion is the identity operation, and the constants describe the
-// exact built-in root-interface contract.
+// SAFETY: IUnknown names the canonical common vtable contract. Its marker stores
+// no object data; the constants describe the exact built-in root interface.
 unsafe impl ComInterface for IUnknown {
     const INTERFACE_ID: NcInterfaceId = IUNKNOWN_INTERFACE_ID;
 
     type Threading = ThreadLocal;
     type VTable = IUnknownVTable;
-
-    /// Returns the pointer unchanged because this is already `IUnknown`.
-    fn iunknown(this: *mut Self) -> *mut IUnknown {
-        this
-    }
 }
 
 impl IUnknown {
@@ -282,34 +237,32 @@ mod tests {
         assert!(IUnknown::INTERFACE_DESCRIPTOR.methods.is_null());
     }
 
+    /// Erasure preserves both words without dereferencing a foreign allocation.
     #[test]
-    fn iunknown_pointer_conversion_is_null_preserving_and_non_dereferencing() {
-        assert!(IUnknown::iunknown(core::ptr::null_mut()).is_null());
-
-        let raw = core::ptr::NonNull::<IUnknown>::dangling().as_ptr();
-        assert_eq!(IUnknown::iunknown(raw), raw);
+    fn unknown_raw_pair_is_two_words_and_absence_is_canonical() {
+        assert_eq!(core::mem::size_of::<crate::ComRaw<IUnknown>>(), 2 * core::mem::size_of::<usize>());
+        assert!(crate::ComRaw::<IUnknown>::null().erase().is_null());
     }
 }
 
-/// Finds a canonical header by the identity already stored in its vtable prefix.
+/// Finds a canonical table by the identity already stored in its common prefix.
 ///
 /// This shared lookup has no implementation-type parameter and reads no inspection
 /// descriptors. The caller owns reference transfer, so failed lookup cannot leak a
 /// reference and successful lookup alone does not extend the allocation's lifetime.
 ///
 /// # Safety
-/// Every header must belong to one live allocation, have a permanently valid
-/// IUnknownVTable prefix with a readable generated identity, and remain immutable
-/// while this function runs. The returned pointer is borrowed from that allocation.
+/// Every table must have a permanently valid IUnknownVTable prefix with a readable
+/// generated identity and remain immutable while this function runs. The caller
+/// must pair the returned table with an allocation of its matching implementation.
 #[doc(hidden)]
-pub unsafe fn __nc_find_interface(headers: &[IUnknown], requested: &NcInterfaceId) -> Result<*mut IUnknown, crate::NcStatus> {
-    for header in headers {
-        // SAFETY: the generated object publishes headers only after installing
-        // static vtables whose leading identity describes this exact projection.
-        let actual = unsafe { &*(*header.vtable).interface_id };
+pub unsafe fn __nc_find_interface(vtables: &[*const IUnknownVTable], requested: &NcInterfaceId) -> Result<*const IUnknownVTable, crate::NcStatus> {
+    for &vtable in vtables {
+        // SAFETY: generated compact tables retain only valid permanent vtables.
+        let actual = unsafe { &*(*vtable).interface_id };
         if actual.iid == requested.iid {
             return match actual.abi_signature == requested.abi_signature {
-                true => Ok(core::ptr::from_ref(header).cast_mut()),
+                true => Ok(vtable),
                 false => Err(crate::NC_E_ABI_VERSION),
             };
         }

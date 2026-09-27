@@ -1,11 +1,11 @@
 error[E0200]: the trait `ComInterface` requires an `unsafe impl` declaration
- --> integration-tests/ui/interface_manual_safe_impl.rs:9:1
+ --> integration-tests/ui/interface_manual_safe_impl.rs:6:1
   |
-9 | impl ComInterface for ManualInterface {
+6 | impl ComInterface for ManualInterface {
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
   = note: the trait `ComInterface` enforces invariants that the compiler can't check. Review the trait documentation and make sure this implementation upholds those invariants before adding the `unsafe` keyword
 help: add `unsafe` to this trait implementation
   |
-9 | unsafe impl ComInterface for ManualInterface {
+6 | unsafe impl ComInterface for ManualInterface {
   | ++++++

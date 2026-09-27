@@ -34,7 +34,7 @@ pub(crate) enum InterfaceThreading {
 
 /// Generated contract and statically typed provider paths for one object interface.
 pub(crate) struct ObjectInterface {
-    /// Path to the macro-generated C-shaped interface header.
+    /// Path to the macro-generated interface marker.
     pub(crate) abi_path: Path,
     /// Path to the generated vtable provider and canonical binding table.
     pub(crate) vtable_for_path: Path,

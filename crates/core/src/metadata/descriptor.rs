@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn core_abi_identity_is_stable() {
-        assert_eq!(NC_COM_CORE_ABI_VERSION, 9);
+        assert_eq!(NC_COM_CORE_ABI_VERSION, 10);
     }
 
     #[test]

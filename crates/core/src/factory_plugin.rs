@@ -7,9 +7,8 @@
 //! constructor frame is present in this ABI.
 
 use crate::{
-    ComFactoryBootstrap, ComInterface, IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode,
-    NcAbiSignature, NcInterfaceId, NcGuid, NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name,
-    validate_version_text,
+    ComFactoryBootstrap, IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode, NcAbiSignature,
+    NcInterfaceId, NcGuid, NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name, validate_version_text,
 };
 
 /// Pre-alpha factory metadata ABI with an exact root interface and no module graph.
@@ -25,9 +24,12 @@ pub const NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL: &str = "nc_get_factory_plugi
 ///
 /// # Safety
 ///
-/// `out` must be valid for one pointer write. The function must clear it before
-/// fallible work and return one owned `IUnknown` reference only on success.
-pub type NcActivatePluginFactory = unsafe extern "C" fn(out: *mut *mut IUnknown) -> NcStatus;
+/// `out` must be valid for one ComRaw record write. The function must clear both
+/// fields before fallible work and return one owned factory pair only on success.
+/// Its erased table preserves the declared factory identity, not IUnknown's
+/// identity. Common lifecycle calls are valid; typed IUnknown adoption requires
+/// QueryInterface. Erasure neither casts the object nor acquires a reference.
+pub type NcActivatePluginFactory = unsafe extern "C" fn(out: *mut crate::ComRaw<IUnknown>) -> NcStatus;
 
 /// Adapts a safe typed root-factory constructor to the fixed plugin ABI.
 ///
@@ -37,9 +39,9 @@ pub type NcActivatePluginFactory = unsafe extern "C" fn(out: *mut *mut IUnknown)
 ///
 /// # Safety
 ///
-/// `out` must be valid for one pointer write. It is always cleared before the
+/// `out` must be valid for one ComRaw record write. It is always cleared before the
 /// implementation's fallible bootstrap code runs.
-pub unsafe extern "C" fn activate_factory_implementation<T>(out: *mut *mut IUnknown) -> NcStatus
+pub unsafe extern "C" fn activate_factory_implementation<T>(out: *mut crate::ComRaw<IUnknown>) -> NcStatus
 where
     T: ComFactoryBootstrap,
 {
@@ -47,7 +49,7 @@ where
         return NC_E_POINTER;
     }
     // SAFETY: The caller grants one output write and null was rejected above.
-    unsafe { *out = core::ptr::null_mut() };
+    unsafe { *out = crate::ComRaw::null() };
     let factory = match T::create_factory() {
         Ok(factory) => factory,
         Err(status) => return status.normalize_error(),
@@ -56,7 +58,7 @@ where
     // address. Consuming the typed pointer transfers its existing ownership
     // into the untyped bootstrap slot without AddRef or Release.
     let raw_factory = factory.into_raw();
-    let unknown = T::Interface::iunknown(raw_factory);
+    let unknown = raw_factory.erase();
     if unknown.is_null() {
         // A valid owned ComPtr cannot contain null. Retain a defensive check at
         // this unsafe plugin boundary in case a foreign implementation violates
@@ -117,7 +119,7 @@ impl NcFactoryPluginDescription {
 ///
 /// # Safety
 ///
-/// `out` must be valid for one pointer write. On success it receives immutable
+/// `out` must be valid for one ComRaw record write. On success it receives immutable
 /// metadata that remains live while the exporting library is mapped.
 pub type NcGetFactoryPluginDescription = unsafe extern "C" fn(out: *mut *const NcFactoryPluginDescription) -> NcStatus;
 
@@ -231,14 +233,14 @@ mod tests {
     const FACTORY_ID: NcInterfaceId = NcInterfaceId::new(NcGuid::from_fields(6, 7, 8, [9; 8]), NcAbiSignature::from_static(&[5; 32]));
 
     /// Satisfies the fixed factory activation shape for descriptor validation.
-    unsafe extern "C" fn activate_factory(out: *mut *mut IUnknown) -> NcStatus {
+    unsafe extern "C" fn activate_factory(out: *mut crate::ComRaw<IUnknown>) -> NcStatus {
         if out.is_null() {
             return NC_E_POINTER;
         }
         // This fixture verifies metadata only, so it reports a predictable
         // activation failure after honoring the required cleared-output rule.
         // SAFETY: Null was rejected and the ABI contract grants one write.
-        unsafe { *out = ptr::null_mut() };
+        unsafe { *out = crate::ComRaw::null() };
         NC_E_INVALID_ARG
     }
 
@@ -294,12 +296,14 @@ mod tests {
         assert_eq!(unsafe { validate_factory_plugin_description(&unsigned) }, NC_E_INVALID_ARG);
     }
 
-    /// Generation-8 plugins must be rejected before their incompatible headers can be used.
+    /// Header-based generations must be rejected before their call ABI can be used.
     #[test]
-    fn rejects_previous_two_pointer_header_generation() {
-        let previous = NcFactoryPluginDescription { core_abi_version: 8, ..VALID_PLUGIN };
-        // SAFETY: the discovery record is readable; activation is never attempted.
-        assert_eq!(unsafe { validate_factory_plugin_description(&previous) }, NC_E_ABI_VERSION);
+    fn rejects_previous_embedded_header_generations() {
+        for core_abi_version in [8, 9] {
+            let previous = NcFactoryPluginDescription { core_abi_version, ..VALID_PLUGIN };
+            // SAFETY: the discovery record is readable; activation is never attempted.
+            assert_eq!(unsafe { validate_factory_plugin_description(&previous) }, NC_E_ABI_VERSION);
+        }
     }
 
     /// Locks the new descriptor's field order to its documented C ABI layout.

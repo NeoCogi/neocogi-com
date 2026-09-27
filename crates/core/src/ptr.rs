@@ -3,7 +3,7 @@
 //! [`ComPtr`] models one owned reference and performs `AddRef`/`Release` on
 //! clone/drop, while [`ComRef`] represents a call-scoped borrowed pointer.
 //! Threading marker types make the capability carried by each pointer visible
-//! to Rust without changing the underlying C pointer representation.
+//! to Rust without changing the underlying C object/table representation.
 //!
 //! # Thread-safety table
 //!
@@ -22,7 +22,7 @@
 //!
 //! # Why the marker is necessary
 //!
-//! The C ABI pointer contains only an interface-header address. It has the same
+//! The C ABI handle contains an object address and interface-table address. It has the same
 //! representation for thread-local and thread-safe objects and therefore has
 //! no runtime bit from which Rust could infer `Send` or `Sync`. The interface
 //! type `T` cannot provide the answer either: the same interface contract may
@@ -59,13 +59,12 @@
 //! thread-local aliases.
 
 use core::marker::PhantomData;
-use core::ptr::NonNull;
 
-use crate::{ComInterface, NC_E_POINTER, NcAbiThreadingMode, NcStatus};
+use crate::{ComRaw, ComInterface, NC_E_POINTER, NcAbiThreadingMode, NcStatus};
 
 /// Sealed marker for the compile-time threading capability of a COM handle.
 ///
-/// The marker is part of the Rust type only; C ABI interface pointers have the
+/// The marker is part of the Rust type only; C ABI interface pairs have the
 /// same representation regardless of threading mode. Sealing is important
 /// because the crate's safe `Send` and `Sync` implementations recognize the two
 /// supported capabilities and must not accept downstream-invented modes with
@@ -111,37 +110,92 @@ mod sealed {
     impl Sealed for super::ThreadSafe {}
 }
 
-/// Owning smart pointer for a COM interface pointer.
+/// Proven-present representation shared by safe owners and borrowed views.
+/// NonNull preserves the two-word niche for Option<ComPtr>, unlike storing the
+/// nullable C record directly. Its repr(C) fields match ComRaw for borrowed clients.
+#[repr(C)]
+struct LiveInterface<T: ComInterface + ?Sized> {
+    /// Allocation retained or borrowed by the enclosing safe handle.
+    object: core::ptr::NonNull<core::ffi::c_void>,
+    /// Matching immutable selected method table.
+    vtable: core::ptr::NonNull<T::VTable>,
+}
+impl<T: ComInterface + ?Sized> Copy for LiveInterface<T> {}
+impl<T: ComInterface + ?Sized> Clone for LiveInterface<T> {
+    /// Copies addresses without changing the enclosing handle's ownership policy.
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<T: ComInterface + ?Sized> LiveInterface<T> {
+    /// Checks both pointers without reading foreign storage or proving identity.
+    fn new(raw: ComRaw<T>) -> Option<Self> {
+        Some(Self {
+            object: core::ptr::NonNull::new(raw.object)?,
+            vtable: core::ptr::NonNull::new(raw.vtable.cast_mut())?,
+        })
+    }
+    /// Borrows a C record without transferring a reference.
+    fn as_raw(self) -> ComRaw<T> {
+        ComRaw {
+            object: self.object.as_ptr(),
+            vtable: self.vtable.as_ptr(),
+        }
+    }
+}
+
+/// Owning, typed `{ object, interface_vtable }` COM handle.
 ///
-/// Cloning calls `AddRef`; dropping calls `Release`. Values returned from
-/// [`ComPtr::query`] already own one reference. `ComPtr<T>` is thread-local by
-/// default; `ComPtr<T, ThreadSafe>` is `Send` and `Sync`. The marker describes
-/// permissions on this handle rather than changing the interface pointer's ABI
-/// representation.
+/// Clone acquires one reference and Drop releases one. The count and mutable-call
+/// guard live once in the object, never in each handle. ComRef uses the same pair
+/// with a borrowed lifetime; neither representation uses std::any::Any or a Rust
+/// trait-object vtable. The interface marker and threading mode remain static.
+///
+/// # Why two pointers are intentional
+///
+/// Earlier implementations stored one interface header per inheritance path,
+/// then one per distinct contract, then one pointer per header with an owner
+/// offset in its vtable. Those designs coupled logical interface identities to
+/// physical object slots. They required header initialization, offset generation,
+/// inherited-prefix owner recovery, and object storage growing with interfaces.
+/// One early flattening also retained full inspection metadata at runtime; compact
+/// dispatch must remain independent of those schemas under any representation.
+///
+/// This representation deliberately stores the allocation and selected table in
+/// every handle. Query changes the table while preserving the object address;
+/// ordinary methods receive the object directly. Objects contain no interface
+/// headers and vtables contain no owner offsets. This removes that layout problem
+/// rather than requiring a C++-style primary-base sharing algorithm.
+///
+/// The cost is explicit: on 64-bit targets a handle is 16 rather than 8 bytes.
+/// Removing five old headers saves 40 bytes per object, offset by 8 extra bytes
+/// per stored handle; the header/handle storage breaks even at five handles.
+/// Alignment, application state, and static tables are separate costs. Larger
+/// handles can increase memory traffic; no blanket speed or binary-size win is
+/// promised. Review changes against measured object, handle, and deployment costs,
+/// rather than treating the second pointer itself as accidental duplication.
+///
+/// Inherited method-table prefixes remain a separate dispatch-layout decision:
+/// two-pointer handles do not by themselves deduplicate their function entries.
+/// There is no backward-compatibility requirement to preserve the former ABI.
 pub struct ComPtr<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
-    ptr: NonNull<T>,
+    /// Present raw pair owning exactly one allocation-wide reference.
+    raw: LiveInterface<T>,
+    /// Preserves the selected interface type without owning a Rust T value.
     _interface: PhantomData<T>,
+    /// Carries the producer's statically established threading capability.
     _mode: PhantomData<M>,
 }
 
-// SAFETY: `ThreadSafe` is only constructible through APIs whose safety contract
-// requires the pointee to support cross-thread COM calls.
+// SAFETY: constructors require the producer's concurrent-call/destruction guarantee.
 unsafe impl<T: ComInterface + ?Sized> Send for ComPtr<T, ThreadSafe> {}
-// SAFETY: Sharing follows the same `ThreadSafe` contract as sending. Method
-// calls still go through the pointee's vtable and object-level synchronization.
+// SAFETY: the same guarantee permits simultaneous calls through shared handles.
 unsafe impl<T: ComInterface + ?Sized> Sync for ComPtr<T, ThreadSafe> {}
 
-/// Borrowed COM interface pointer valid for a call-scoped lifetime.
+/// Borrowed typed object/table pair; copying it neither retains nor releases.
 ///
-/// `ComRef` does not own a reference and does not call `Release` on drop. It is
-/// the Rust representation for borrowed interface pointer parameters in
-/// generated COM methods. If a callee wants to retain the object beyond the
-/// current call, it must call [`ComRef::add_ref`], which performs `AddRef` and
-/// returns a normal owning [`ComPtr`] carrying the same threading capability.
-/// The lifetime parameter still limits how long either threading mode may be
-/// borrowed; `ThreadSafe` changes cross-thread permission, not borrow duration.
-///
-/// A borrowed client cannot extend its owner's lifetime:
+/// The lifetime ties synchronous calls to a live owner. Call add_ref to retain
+/// it beyond the borrow. The representation tradeoff is documented on ComPtr.
 ///
 /// ```compile_fail
 /// use neocogi_com_core::{ComPtr, ComRef, IUnknown};
@@ -150,442 +204,286 @@ unsafe impl<T: ComInterface + ?Sized> Sync for ComPtr<T, ThreadSafe> {}
 /// }
 /// ```
 pub struct ComRef<'a, T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
-    ptr: NonNull<T>,
+    /// Present pair borrowed for the declared lifetime.
+    raw: LiveInterface<T>,
+    /// Prevents the view from outliving its lending owner.
     _interface: PhantomData<&'a T>,
+    /// Preserves thread affinity without changing the C representation.
     _mode: PhantomData<M>,
 }
-
-impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> Copy for ComRef<'a, T, M> {}
-
-impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> Clone for ComRef<'a, T, M> {
-    /// Copies the non-owning pointer and its existing borrow lifetime.
+impl<T: ComInterface + ?Sized, M: ThreadingModel> Copy for ComRef<'_, T, M> {}
+impl<T: ComInterface + ?Sized, M: ThreadingModel> Clone for ComRef<'_, T, M> {
+    /// Copies only an existing borrow, never another owned reference.
     fn clone(&self) -> Self {
         *self
     }
 }
+// SAFETY: construction establishes cross-thread permission for the borrow's lifetime.
+unsafe impl<T: ComInterface + ?Sized> Send for ComRef<'_, T, ThreadSafe> {}
+// SAFETY: concurrent access follows that same producer guarantee.
+unsafe impl<T: ComInterface + ?Sized> Sync for ComRef<'_, T, ThreadSafe> {}
 
-// SAFETY: `ComRef` is a borrowed view. `ThreadSafe` construction requires the
-// pointee to be callable from other threads for the borrow's lifetime.
-unsafe impl<'a, T: ComInterface + ?Sized> Send for ComRef<'a, T, ThreadSafe> {}
-// SAFETY: Shared access has the same object-level requirement as `ComPtr`:
-// every exposed method must be safe under concurrent calls.
-unsafe impl<'a, T: ComInterface + ?Sized> Sync for ComRef<'a, T, ThreadSafe> {}
-
-// Method views borrow the pointer word rather than forging a ComRef with a
-// longer lifetime. The optional unsafe interface trait certifies the view layout.
 impl<T: crate::ComClientInterface, M: ThreadingModel> core::ops::Deref for ComPtr<T, M> {
     type Target = T::Client<M>;
-    /// Lends the generated method view without AddRef or a second allocation.
+    /// Lends a transparent method view over this pair without allocating or retaining.
     fn deref(&self) -> &Self::Target {
-        // SAFETY: ComClientInterface certifies transparent pointer storage and
-        // borrowing-only operations. This reference cannot outlive &self.
-        unsafe { &*core::ptr::from_ref(&self.ptr).cast::<Self::Target>() }
+        // SAFETY: ComClientInterface certifies a transparent view over ComRaw<T>.
+        // LiveInterface has the same repr(C) fields; its non-null pointers are
+        // valid raw pointers. Client methods cannot mutate or replace this pair.
+        unsafe { &*core::ptr::from_ref(&self.raw).cast() }
     }
 }
-
 impl<T: crate::ComClientInterface, M: ThreadingModel> core::ops::DerefMut for ComPtr<T, M> {
-    /// Lends a mutable method view without claiming exclusive ownership of the COM object.
+    /// Lends mutable method lookup; the object-wide gate arbitrates aliased callers.
     fn deref_mut(&mut self) -> &mut Self::Target {
-        // SAFETY: The generated view is transparent over this pointer word.
-        // Object-level exclusivity is enforced by the callee's dispatch gate,
-        // because another independently owned COM pointer may still exist.
-        unsafe { &mut *core::ptr::from_mut(&mut self.ptr).cast::<Self::Target>() }
+        // SAFETY: the generated transparent view cannot escape this borrow.
+        unsafe { &mut *core::ptr::from_mut(&mut self.raw).cast() }
     }
 }
-
 impl<T: crate::ComClientInterface, M: ThreadingModel> core::ops::Deref for ComRef<'_, T, M> {
     type Target = T::Client<M>;
-    /// Lends inherited methods within the existing borrow's lifetime.
+    /// Lends method access within the existing borrowed lifetime.
     fn deref(&self) -> &Self::Target {
-        // SAFETY: The certified view shares the pointer word, capability and
-        // lifetime of this live ComRef; it cannot manufacture another owner.
-        unsafe { &*core::ptr::from_ref(&self.ptr).cast::<Self::Target>() }
+        // SAFETY: the transparent generated client neither owns nor extends the borrow.
+        unsafe { &*core::ptr::from_ref(&self.raw).cast() }
     }
 }
-
 impl<T: crate::ComClientInterface, M: ThreadingModel> core::ops::DerefMut for ComRef<'_, T, M> {
-    /// Lends a mutable method view for the duration of this borrowed handle.
+    /// Lends mutable lookup without asserting unique ownership of the COM object.
     fn deref_mut(&mut self) -> &mut Self::Target {
-        // SAFETY: The generated view is transparent over this pointer word.
-        // The callee's generated dispatch gate arbitrates aliases, including
-        // copies of this non-owning handle.
-        unsafe { &mut *core::ptr::from_mut(&mut self.ptr).cast::<Self::Target>() }
+        // SAFETY: the caller's exclusive handle borrow bounds this transparent view.
+        unsafe { &mut *core::ptr::from_mut(&mut self.raw).cast() }
     }
 }
-
 impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
-    /// Wraps a raw owned interface pointer.
-    ///
-    /// This function does not call `AddRef`; the pointer must already represent
-    /// an owned reference. For a borrowed raw pointer, use
-    /// [`ComPtr::clone_from_raw`] instead so the returned owner receives its own
-    /// reference.
+    /// Adopts one raw owned reference without incrementing its count.
     ///
     /// # Safety
-    ///
-    /// `ptr` must be either null or a valid pointer for interface `T` with one
-    /// owned reference. If non-null, it must remain valid until the returned
-    /// [`ComPtr`] is dropped or cloned according to COM reference-count rules.
-    /// When constructing `ComPtr<T, ThreadSafe>`, the pointed-to object must
-    /// also satisfy the high-level `ThreadSafeComObject` contract or an
-    /// equivalent foreign-ABI thread-safety guarantee.
-    pub unsafe fn from_raw_owned(ptr: *mut T) -> Option<Self> {
-        NonNull::new(ptr).map(|ptr| Self {
-            ptr,
+    /// A present pair must identify T's exact live implementation and table and
+    /// transfer one reference. The implementation must satisfy threading mode M.
+    /// Both-null absence is allowed. A half-null pair violates the raw contract.
+    pub unsafe fn from_raw_owned(raw: ComRaw<T>) -> Option<Self> {
+        Some(Self {
+            raw: LiveInterface::new(raw)?,
             _interface: PhantomData,
             _mode: PhantomData,
         })
     }
-
-    /// Validates a transferred reference before exposing its typed methods.
-    /// A rejected non-null result is released exactly once through its common
-    /// prefix. No typed vtable slot is read before the identity check succeeds.
+    /// Validates a returned contract before adopting its transferred reference.
     ///
     /// # Safety
-    /// `ptr` must be null or own one reference to a live core-ABI-5 interface
-    /// header. Its common prefix must be valid, even when it is not interface T.
-    /// The caller guarantees the threading capability M of the returned object.
+    /// Present pointers must be readable/live and support their common lifecycle
+    /// prefix under this core ABI. Even a wrong typed identity must be releasable.
+    /// The raw caller establishes threading mode M. Null shapes need no dereference.
     #[doc(hidden)]
-    pub unsafe fn __nc_from_raw_owned_checked(ptr: *mut T) -> Result<Self, NcStatus> {
-        // SAFETY: The caller guarantees the live common prefix and ownership.
-        if let Err(status) = unsafe { raw::validate_interface(ptr) } {
-            // SAFETY: Release only needs the common prefix, not T's methods.
-            unsafe { raw::release(ptr) };
+    pub unsafe fn __nc_from_raw_owned_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
+        // SAFETY: the caller supplies readable common lifecycle storage.
+        if let Err(status) = unsafe { raw::validate_interface(raw) } {
+            // SAFETY: a present mismatched interface still owns one common reference.
+            unsafe { raw::release(raw) };
             return Err(status);
         }
-        // SAFETY: Identity now proves the exact interface; ownership is unchanged.
-        unsafe { Self::from_raw_owned(ptr) }.ok_or(NC_E_POINTER)
+        // SAFETY: validation proved T and the input transfers ownership unchanged.
+        unsafe { Self::from_raw_owned(raw) }.ok_or(NC_E_POINTER)
     }
-
-    /// Clones a borrowed raw interface pointer by calling `AddRef`.
-    ///
-    /// Returns `None` for null.
+    /// Retains a raw borrowed reference and returns a new owning handle.
     ///
     /// # Safety
-    ///
-    /// `ptr` must be either null or a valid borrowed interface pointer for `T`.
-    /// If non-null, it must point to a live COM object whose `IUnknown` header and
-    /// vtable are valid for an `AddRef` call. This function does not take
-    /// ownership of the incoming raw pointer; it creates a new owned reference.
-    /// When constructing `ComPtr<T, ThreadSafe>`, the pointed-to object must
-    /// also satisfy the high-level `ThreadSafeComObject` contract or an
-    /// equivalent foreign-ABI thread-safety guarantee.
-    pub unsafe fn clone_from_raw(ptr: *mut T) -> Option<Self> {
-        let ptr = NonNull::new(ptr)?;
-        // SAFETY: The caller guarantees that `ptr` is a live borrowed interface
-        // pointer whose `IUnknown` header and vtable are valid for `AddRef`.
-        unsafe { raw::add_ref(ptr.as_ptr()) };
-        Some(Self {
-            ptr,
-            _interface: PhantomData,
-            _mode: PhantomData,
-        })
+    /// A present pair must implement T, remain live during AddRef, and satisfy M.
+    pub unsafe fn clone_from_raw(raw: ComRaw<T>) -> Option<Self> {
+        if !raw.is_present() {
+            return None;
+        }
+        // SAFETY: the caller supplies T's live borrowed pair.
+        unsafe { raw::add_ref(raw) };
+        // SAFETY: the preceding AddRef transferred one new owner.
+        unsafe { Self::from_raw_owned(raw) }
     }
-
-    /// Returns a borrowed const raw interface pointer without changing its
-    /// reference count.
-    pub fn as_ptr(&self) -> *const T {
-        self.ptr.as_ptr()
+    /// Borrows the raw ABI pair without transferring ownership or extending lifetime.
+    pub fn as_raw(&self) -> ComRaw<T> {
+        self.raw.as_raw()
     }
-
-    /// Returns a borrowed mutable raw interface pointer without changing its
-    /// reference count.
-    ///
-    /// COM vtable methods usually take `*mut Interface` even for logically shared
-    /// calls. This pointer is borrowed from `self`; callers must not release it or
-    /// store it beyond the lifetime guaranteed by the owning [`ComPtr`].
-    pub fn as_mut_ptr(&self) -> *mut T {
-        self.ptr.as_ptr()
-    }
-
-    /// Returns the borrowed non-null interface pointer.
-    pub fn as_non_null(&self) -> NonNull<T> {
-        self.ptr
-    }
-
-    /// Returns a borrowed COM reference without changing the reference count.
+    /// Borrows a typed view without changing the count.
     pub fn as_com_ref(&self) -> ComRef<'_, T, M> {
         ComRef {
-            ptr: self.ptr,
+            raw: self.raw,
             _interface: PhantomData,
             _mode: PhantomData,
         }
     }
-
-    /// Transfers this owned COM reference to the caller as a raw pointer.
-    ///
-    /// The caller becomes responsible for eventually releasing this reference,
-    /// either by passing it to [`ComPtr::from_raw_owned`] or by calling
-    /// [`raw::release`].
-    pub fn into_raw(self) -> *mut T {
-        let this = core::mem::ManuallyDrop::new(self);
-        this.ptr.as_ptr()
+    /// Transfers this owner's pair; the recipient must eventually release it once.
+    pub fn into_raw(self) -> ComRaw<T> {
+        core::mem::ManuallyDrop::new(self).raw.as_raw()
     }
-
-    /// Queries this object for another interface by identity.
-    ///
-    /// This is the only supported interface cast operation. The returned
-    /// pointer may have a different address from `self`. The object must support
-    /// `U::INTERFACE_ID`. Failures preserve the exact [`NcStatus`]; use
-    /// [`ComPtr::is`] when only a boolean capability check is needed.
+    /// Selects another contract on the same allocation and acquires one reference.
+    /// The object address stays unchanged; the selected interface table may differ.
     pub fn query<U: ComInterface>(&self) -> Result<ComPtr<U, M>, NcStatus> {
-        let mut out = core::ptr::null_mut();
-        let unknown = T::iunknown(self.as_mut_ptr());
-        // SAFETY: `self` owns a live interface pointer, so its `IUnknown`
-        // prefix and vtable remain valid for the duration of this call. A
-        // successful `QueryInterface` writes one owned reference to `out`.
-        let status = unsafe { ((*(*unknown).vtable).query_interface)(unknown, &U::INTERFACE_ID, &mut out) };
-        if status.is_ok() {
-            // SAFETY: Successful `QueryInterface` transfers ownership of one
-            // reference for the requested interface. Null is still guarded and
-            // mapped to `NC_E_POINTER` for defensive foreign implementations.
-            unsafe { ComPtr::<U, M>::__nc_from_raw_owned_checked(out.cast::<U>()) }
-        } else {
-            Err(status)
-        }
-    }
-
-    /// Checks a discovered interface using a call-scoped owned ABI digest.
-    ///
-    /// The borrowed signature view cannot escape this method. This allows a
-    /// standalone designer to verify plugin-provided COM identities without
-    /// leaking a static digest or pretending to know the concrete Rust type.
-    pub fn supports_interface_bytes(&self, iid: crate::NcGuid, signature: &[u8; 32]) -> Result<(), NcStatus> {
-        let expected = crate::NcInterfaceId::new(iid, crate::NcAbiSignature::from_borrowed(signature));
-        self.supports_interface_id(&expected)
-    }
-
-    /// Checks a metadata-supplied interface identity without naming its Rust projection.
-    ///
-    /// This is useful when a designer has a generated COM descriptor but the
-    /// concrete projection type is selected by a registered widget provider.
-    /// A successful query is released immediately; no typeless handle escapes.
-    pub fn supports_interface_id(&self, expected: &crate::NcInterfaceId) -> Result<(), NcStatus> {
-        let mut out = core::ptr::null_mut();
-        let unknown = T::iunknown(self.as_mut_ptr());
-        // SAFETY: this live pointer has a valid IUnknown prefix, and QueryInterface
-        // receives a readable identity and writable pointer slot for this call.
-        let status = unsafe { ((*(*unknown).vtable).query_interface)(unknown, expected, &mut out) };
-        if !status.is_ok() {
+        let mut out = ComRaw::<crate::IUnknown>::null();
+        let source = self.as_raw().erase();
+        // SAFETY: this owner retains the object and matching common vtable prefix.
+        let status = unsafe { ((*source.vtable).query_interface)(source.object, &U::INTERFACE_ID, &mut out) };
+        if status.is_err() {
             return Err(status);
         }
-        if out.is_null() {
-            return Err(crate::NC_E_POINTER);
+        // SAFETY: success transfers one releasable reference, checked before typed access.
+        let destination = unsafe { ComPtr::<U, M>::__nc_from_raw_owned_checked(out.cast()) }?;
+        if destination.as_raw().object != source.object {
+            return Err(crate::NC_E_INVALID_ARG);
         }
-        let projected = out.cast::<crate::IUnknown>();
-        // SAFETY: successful QueryInterface returned a live interface header.
-        // Validate the actual projection before reporting capability, just as
-        // the typed `query` path does for a concrete Rust interface type.
-        let validation = unsafe { raw::__nc_validate_iunknown_interface(projected, expected) };
-        // SAFETY: successful QueryInterface returned one owned COM reference.
-        // Every interface shares the IUnknown vtable prefix used to release it,
-        // even when its advertised identity was wrong.
-        unsafe { ((*(*projected).vtable).release)(projected) };
-        validation
+        Ok(destination)
     }
-
-    /// Returns whether this object supports interface `U`.
-    ///
-    /// Use [`ComPtr::query`] instead when the exact failure status matters.
+    /// Checks a discovered contract with a call-scoped borrowed digest.
+    pub fn supports_interface_bytes(&self, iid: crate::NcGuid, signature: &[u8; 32]) -> Result<(), NcStatus> {
+        self.supports_interface_id(&crate::NcInterfaceId::new(iid, crate::NcAbiSignature::from_borrowed(signature)))
+    }
+    /// Queries and releases a discovered exact contract without inventing a Rust type.
+    pub fn supports_interface_id(&self, expected: &crate::NcInterfaceId) -> Result<(), NcStatus> {
+        let source = self.as_raw().erase();
+        let mut out = ComRaw::null();
+        // SAFETY: common source prefix and the local output record are live.
+        let status = unsafe { ((*source.vtable).query_interface)(source.object, expected, &mut out) };
+        if status.is_err() {
+            return Err(status);
+        }
+        // SAFETY: success supplies a common releasable pair even if its identity is wrong.
+        let result = unsafe { raw::__nc_validate_iunknown_interface(out, expected) }.and_then(|()| match out.object == source.object {
+            true => Ok(()),
+            false => Err(crate::NC_E_INVALID_ARG),
+        });
+        // SAFETY: the temporary successful query transferred one reference.
+        unsafe { raw::release(out) };
+        result
+    }
+    /// Reports support for U; query preserves the detailed failure status when needed.
     pub fn is<U: ComInterface>(&self) -> bool {
-        let queried = self.query::<U>();
-        queried.is_ok()
+        self.query::<U>().is_ok()
     }
 }
-
 impl<T: ComInterface + ?Sized> ComPtr<T, ThreadSafe> {
-    /// Consumes this owner and removes its cross-thread capability.
-    ///
-    /// This is a zero-cost capability downgrade: it preserves the interface
-    /// pointer and transfers the same single owned COM reference without
-    /// calling either `AddRef` or `Release`. Other thread-safe aliases to the
-    /// underlying object remain thread-safe.
+    /// Transfers ownership while weakening cross-thread permission, with no count change.
     pub fn into_thread_local(self) -> ComPtr<T, ThreadLocal> {
         let this = core::mem::ManuallyDrop::new(self);
         ComPtr {
-            ptr: this.ptr,
+            raw: this.raw,
             _interface: PhantomData,
             _mode: PhantomData,
         }
     }
-
-    /// Borrows this owner through a thread-local capability.
-    ///
-    /// The returned reference has the same lifetime and pointer but cannot be
-    /// sent or shared across threads. No COM reference-count operation occurs.
+    /// Lends the same pair with thread-local permission only.
     pub fn as_thread_local_ref(&self) -> ComRef<'_, T, ThreadLocal> {
         ComRef {
-            ptr: self.ptr,
+            raw: self.raw,
             _interface: PhantomData,
             _mode: PhantomData,
         }
     }
 }
-
 impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
-    /// Checks an incoming pointer's complete identity without acquiring ownership.
+    /// Validates an incoming borrowed contract before exposing typed methods.
     ///
     /// # Safety
-    /// A non-null pointer must have a live core-ABI-5 common header/vtable for
-    /// lifetime 'a and carry threading capability M. Its typed slots may differ
-    /// from T; they are never called unless the full identity matches.
+    /// Present pairs must have a live common prefix, stay live for 'a, and satisfy M.
     #[doc(hidden)]
-    pub unsafe fn __nc_from_raw_borrowed_checked(ptr: *mut T) -> Result<Self, NcStatus> {
-        // SAFETY: The call's borrowed common prefix is valid by contract.
-        unsafe { raw::validate_interface(ptr) }?;
-        // SAFETY: Validation establishes T without changing the borrowed lifetime.
-        unsafe { Self::from_raw_borrowed(ptr) }.ok_or(NC_E_POINTER)
+    pub unsafe fn __nc_from_raw_borrowed_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
+        // SAFETY: the caller supplies readable common storage for the borrow.
+        unsafe { raw::validate_interface(raw) }?;
+        // SAFETY: the validated pair has the exact contract and unchanged lifetime.
+        unsafe { Self::from_raw_borrowed(raw) }.ok_or(NC_E_POINTER)
     }
-
-    /// Wraps a borrowed raw interface pointer.
-    ///
-    /// This function does not call `AddRef`; the returned value is a borrowed
-    /// view over the incoming pointer.
+    /// Wraps a borrowed pair without retaining it.
     ///
     /// # Safety
-    ///
-    /// `ptr` must be either null or a valid borrowed interface pointer for `T`.
-    /// If non-null, it must remain valid for `'a`. When constructing
-    /// `ComRef<'_, T, ThreadSafe>`, the pointed-to object must also satisfy the
-    /// high-level `ThreadSafeComObject` contract or an equivalent foreign-ABI
-    /// thread-safety guarantee.
-    pub unsafe fn from_raw_borrowed(ptr: *mut T) -> Option<Self> {
-        NonNull::new(ptr).map(|ptr| Self {
-            ptr,
+    /// Present pairs must implement T, remain live for 'a, and satisfy M.
+    pub unsafe fn from_raw_borrowed(raw: ComRaw<T>) -> Option<Self> {
+        Some(Self {
+            raw: LiveInterface::new(raw)?,
             _interface: PhantomData,
             _mode: PhantomData,
         })
     }
-
-    /// Returns the borrowed const raw interface pointer.
-    pub fn as_ptr(&self) -> *const T {
-        self.ptr.as_ptr()
+    /// Borrows the raw pair without reference-count changes.
+    pub fn as_raw(&self) -> ComRaw<T> {
+        self.raw.as_raw()
     }
-
-    /// Returns the borrowed mutable raw interface pointer.
-    pub fn as_mut_ptr(&self) -> *mut T {
-        self.ptr.as_ptr()
-    }
-
-    /// Returns the borrowed non-null interface pointer.
-    pub fn as_non_null(&self) -> NonNull<T> {
-        self.ptr
-    }
-
-    /// Creates an owned COM reference to this same interface by calling
-    /// `AddRef`.
-    ///
-    /// Use this when a method receives a borrowed [`ComRef`] argument and needs
-    /// to retain the object after the current call returns.
+    /// Acquires an owner that can outlive this borrowed view.
     pub fn add_ref(&self) -> ComPtr<T, M> {
-        // SAFETY: `ComRef` construction required a live borrowed pointer for
-        // `'a`; `AddRef` converts that borrow into a new owned reference.
-        unsafe { raw::add_ref(self.as_mut_ptr()) };
+        // SAFETY: the view guarantees a live matching pair throughout AddRef.
+        unsafe { raw::add_ref(self.as_raw()) };
         ComPtr {
-            ptr: self.ptr,
+            raw: self.raw,
             _interface: PhantomData,
             _mode: PhantomData,
         }
     }
 }
-
 impl<'a, T: ComInterface + ?Sized> ComRef<'a, T, ThreadSafe> {
-    /// Removes the cross-thread capability from this borrowed reference.
-    ///
-    /// The pointer and borrow lifetime are unchanged, and no `AddRef` occurs.
-    /// Calling [`ComRef::add_ref`] on the returned value consequently creates a
-    /// thread-local owner.
+    /// Removes cross-thread permission without changing the borrow or count.
     pub fn into_thread_local(self) -> ComRef<'a, T, ThreadLocal> {
         ComRef {
-            ptr: self.ptr,
+            raw: self.raw,
             _interface: PhantomData,
             _mode: PhantomData,
         }
     }
 }
-
 impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> From<&'a ComPtr<T, M>> for ComRef<'a, T, M> {
-    /// Borrows an owned COM pointer without changing its reference count.
+    /// Borrows the owner for exactly the supplied lifetime.
     fn from(value: &'a ComPtr<T, M>) -> Self {
         value.as_com_ref()
     }
 }
-
 impl<T: ComInterface + ?Sized, M: ThreadingModel> Clone for ComPtr<T, M> {
-    /// Creates another owner by incrementing the COM reference count.
+    /// Acquires one additional allocation-wide reference.
     fn clone(&self) -> Self {
-        // SAFETY: `self` owns a live reference, so the pointee is valid for
-        // `AddRef` and cloning creates another owned reference.
-        unsafe { raw::add_ref(self.as_mut_ptr()) };
+        // SAFETY: this owner keeps its common lifecycle prefix live.
+        unsafe { raw::add_ref(self.as_raw()) };
         Self {
-            ptr: self.ptr,
+            raw: self.raw,
             _interface: PhantomData,
             _mode: PhantomData,
         }
     }
 }
-
 impl<T: ComInterface + ?Sized, M: ThreadingModel> Drop for ComPtr<T, M> {
-    /// Releases the single COM reference owned by this smart pointer.
+    /// Consumes exactly this reference; final release destroys the shared allocation.
     fn drop(&mut self) {
-        // SAFETY: `ComPtr` owns exactly one reference. Dropping releases that
-        // reference and does not use the pointer afterward.
-        unsafe { raw::release(self.as_mut_ptr()) };
+        // SAFETY: construction/clone established exactly one owned reference.
+        unsafe { raw::release(self.as_raw()) };
     }
 }
-
 impl<T: ComInterface + ?Sized, M: ThreadingModel> core::fmt::Debug for ComPtr<T, M> {
-    /// Formats the interface pointer without dereferencing foreign memory.
+    /// Formats both addresses without dereferencing foreign storage.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_tuple("ComPtr").field(&self.as_ptr()).finish()
+        f.debug_tuple("ComPtr").field(&self.as_raw()).finish()
+    }
+}
+impl<T: ComInterface + ?Sized, M: ThreadingModel> core::fmt::Debug for ComRef<'_, T, M> {
+    /// Formats the borrowed pair without extending its lifetime.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("ComRef").field(&self.as_raw()).finish()
     }
 }
 
-impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> core::fmt::Debug for ComRef<'a, T, M> {
-    /// Formats the borrowed interface pointer without dereferencing it.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_tuple("ComRef").field(&self.as_ptr()).finish()
-    }
-}
-
-/// Raw COM pointer helpers.
-///
-/// Prefer [`ComPtr`] for normal ownership management. These functions are for
-/// FFI adapters and low-level glue that must operate directly on interface
-/// pointers.
+/// Unsafe ABI operations on explicit object/table pairs.
 pub mod raw {
-    use super::ComInterface;
-    use crate::{IUnknown, NcInterfaceId};
-
-    /// Validates a common COM header against one complete expected interface identity.
-    ///
-    /// This non-generic function is the shared validation body used by every
-    /// typed raw-pointer check. Keeping interface-specific constants in the
-    /// small generic wrapper below prevents the complete pointer and identity
-    /// validation sequence from being generated once per interface type.
+    use crate::{ComInterface, ComRaw, IUnknown, NcInterfaceId};
+    /// Checks presence and exact interface identity without invoking typed methods.
     ///
     /// # Safety
-    ///
-    /// A non-null `unknown` must have a readable common header and vtable from
-    /// the current core ABI. Non-null identity metadata reached through that
-    /// vtable must remain readable and immutable for the call.
+    /// Present object/table pairs must have readable common prefixes under the
+    /// current core ABI. Validation cannot establish arbitrary pointer validity.
     #[doc(hidden)]
     #[inline(never)]
-    pub unsafe fn __nc_validate_iunknown_interface(unknown: *mut IUnknown, expected: &NcInterfaceId) -> Result<(), crate::NcStatus> {
-        if unknown.is_null() {
+    pub unsafe fn __nc_validate_iunknown_interface(raw: ComRaw<IUnknown>, expected: &NcInterfaceId) -> Result<(), crate::NcStatus> {
+        if !raw.is_present() {
             return Err(crate::NC_E_POINTER);
         }
-        // SAFETY: Only the common header is read before the identity is known.
-        let vtable = unsafe { (*unknown).vtable };
-        if vtable.is_null() {
-            return Err(crate::NC_E_POINTER);
-        }
-        // SAFETY: A non-null vtable is readable under the raw caller's contract.
-        let identity = unsafe { (*vtable).interface_id };
+        // SAFETY: the caller grants access to the common prefix and static identity.
+        let identity = unsafe { (*raw.vtable).interface_id };
         if identity.is_null() {
             return Err(crate::NC_E_POINTER);
         }
-        // SAFETY: Non-null metadata has static immutable storage by contract.
+        // SAFETY: non-null identity metadata remains readable by the raw contract.
         let identity = unsafe { &*identity };
         if identity.iid != expected.iid {
             return Err(crate::NC_E_NOINTERFACE);
@@ -595,63 +493,148 @@ pub mod raw {
         }
         Ok(())
     }
-
-    /// Validates the actual projected interface against the receiver's contract.
-    /// This performs no AddRef/Release and never follows interface-specific slots.
+    /// Validates T's exact contract through the common table prefix.
     ///
     /// # Safety
-    /// A non-null pointer must have a readable common header and vtable from the
-    /// current core ABI. Non-null identity metadata must be readable and immutable.
-    /// Pointer validity and the core ABI generation are established by the loader
-    /// or raw FFI caller; identity checking cannot validate arbitrary addresses.
+    /// Present pairs must have a readable common prefix for this core ABI.
     #[inline(always)]
-    pub unsafe fn validate_interface<T: ComInterface + ?Sized>(ptr: *mut T) -> Result<(), crate::NcStatus> {
-        if ptr.is_null() {
-            return Err(crate::NC_E_POINTER);
-        }
-        let unknown = T::iunknown(ptr);
-        // SAFETY: The caller supplies the common-header validity required by
-        // this wrapper; the generated interface identity is immutable static
-        // metadata for the complete expected contract.
-        unsafe { __nc_validate_iunknown_interface(unknown, &T::INTERFACE_ID) }
+    pub unsafe fn validate_interface<T: ComInterface + ?Sized>(raw: ComRaw<T>) -> Result<(), crate::NcStatus> {
+        // SAFETY: the interface trait certifies the common table prefix.
+        unsafe { __nc_validate_iunknown_interface(raw.erase(), &T::INTERFACE_ID) }
     }
-
-    /// Calls `AddRef` on a raw interface pointer.
-    ///
-    /// Returns `0` for null.
+    /// Retains a present borrowed pair; absent/malformed null shapes return zero.
     ///
     /// # Safety
-    ///
-    /// If non-null, `ptr` must be a valid borrowed interface pointer for `T` with
-    /// a live `IUnknown` header and vtable. The object must remain live for the
-    /// duration of the call.
-    pub unsafe fn add_ref<T: ComInterface + ?Sized>(ptr: *mut T) -> u32 {
-        if ptr.is_null() {
+    /// Present pairs must identify a live allocation and matching lifecycle table.
+    pub unsafe fn add_ref<T: ComInterface + ?Sized>(raw: ComRaw<T>) -> u32 {
+        if !raw.is_present() {
             return 0;
         }
-        let unknown = T::iunknown(ptr);
-        // SAFETY: The caller guarantees that `ptr` is a live borrowed interface
-        // pointer whose `IUnknown` header and vtable are valid for `AddRef`.
-        unsafe { ((*(*unknown).vtable).add_ref)(unknown) }
+        let raw = raw.erase();
+        // SAFETY: caller guarantees the matching live object and table.
+        unsafe { ((*raw.vtable).add_ref)(raw.object) }
     }
-
-    /// Calls `Release` on a raw owned interface pointer.
-    ///
-    /// Returns `0` for null.
+    /// Consumes one owned reference; never accesses the object after final release.
     ///
     /// # Safety
-    ///
-    /// If non-null, `ptr` must be a valid interface pointer for `T` that owns one
-    /// reference. After this call, the pointer may be dangling if the returned
-    /// reference count is zero. A zero return means the object was destroyed
-    /// immediately; final `Release` is not a fallible cleanup boundary.
-    pub unsafe fn release<T: ComInterface + ?Sized>(ptr: *mut T) -> u32 {
-        if ptr.is_null() {
+    /// Present pairs must transfer one reference to their matching lifecycle table.
+    pub unsafe fn release<T: ComInterface + ?Sized>(raw: ComRaw<T>) -> u32 {
+        if !raw.is_present() {
             return 0;
         }
-        let unknown = T::iunknown(ptr);
-        // SAFETY: The caller guarantees that `ptr` owns one live reference.
-        // The vtable call consumes that reference and may destroy the object.
-        unsafe { ((*(*unknown).vtable).release)(unknown) }
+        let raw = raw.erase();
+        // SAFETY: caller transfers one reference and the table owns destruction.
+        unsafe { ((*raw.vtable).release)(raw.object) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::{
+        ffi::c_void,
+        sync::atomic::{AtomicU32, Ordering},
+    };
+    use crate::{IUnknown, IUnknownVTable, NcInterfaceId, NC_E_INVALID_ARG, NC_OK};
+
+    /// Stack-owned foreign fixture; counts track logical owners without freeing storage.
+    /// Tests keep it alive until every logical COM owner has been released.
+    struct Probe {
+        /// Live logical references, including transient successful query results.
+        references: AtomicU32,
+        /// Optional substitute allocation simulating a broken QueryInterface.
+        destination: *mut c_void,
+    }
+    /// Publishes a matching root table, optionally paired with the wrong object.
+    unsafe extern "C" fn query(object: *mut c_void, _: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
+        // SAFETY: tests supply a live Probe and writable output record.
+        let source = unsafe { &*object.cast::<Probe>() };
+        let destination = match source.destination.is_null() {
+            true => object,
+            false => source.destination,
+        };
+        // SAFETY: destination is another live Probe; AddRef transfers one logical owner.
+        unsafe {
+            retain(destination);
+            *out = ComRaw { object: destination, vtable: &TABLE };
+        }
+        NC_OK
+    }
+    /// Counts the exact extra ownership created by a successful query.
+    unsafe extern "C" fn retain(object: *mut c_void) -> u32 {
+        // SAFETY: tests retain stack storage throughout all logical ownership.
+        unsafe { (*object.cast::<Probe>()).references.fetch_add(1, Ordering::Relaxed) + 1 }
+    }
+    /// Balances logical ownership; the enclosing test owns the actual stack storage.
+    unsafe extern "C" fn release(object: *mut c_void) -> u32 {
+        // SAFETY: each caller transfers one existing logical reference.
+        unsafe { (*object.cast::<Probe>()).references.fetch_sub(1, Ordering::Relaxed) - 1 }
+    }
+    /// Valid root contract makes object-identity rejection independent of table checks.
+    static TABLE: IUnknownVTable = IUnknownVTable {
+        interface_id: &IUnknown::INTERFACE_ID,
+        query_interface: query,
+        add_ref: retain,
+        release,
+    };
+
+    /// Typed and discovered queries reject substitution and release its extra owner.
+    #[test]
+    fn query_rejects_another_object_without_leaking_its_reference() {
+        let mut destination = Probe {
+            references: AtomicU32::new(0),
+            destination: core::ptr::null_mut(),
+        };
+        let mut source = Probe {
+            references: AtomicU32::new(1),
+            destination: core::ptr::from_mut(&mut destination).cast(),
+        };
+        let raw = ComRaw {
+            object: core::ptr::from_mut(&mut source).cast(),
+            vtable: &TABLE,
+        };
+        // SAFETY: source lives through Drop and its table supplies balanced lifecycle calls.
+        let owner = unsafe { ComPtr::<IUnknown>::from_raw_owned(raw) }.unwrap();
+        assert_eq!(owner.query::<IUnknown>().unwrap_err(), NC_E_INVALID_ARG);
+        assert_eq!(destination.references.load(Ordering::Relaxed), 0);
+        assert_eq!(owner.supports_interface_id(&IUnknown::INTERFACE_ID), Err(NC_E_INVALID_ARG));
+        assert_eq!(destination.references.load(Ordering::Relaxed), 0);
+        drop(owner);
+        assert_eq!(source.references.load(Ordering::Relaxed), 0);
+    }
+
+    /// A wrong returned contract is rejected through its common lifecycle table.
+    #[test]
+    fn wrong_identity_releases_owned_pair_and_null_shapes_are_rejected() {
+        let mut source = Probe {
+            references: AtomicU32::new(1),
+            destination: core::ptr::null_mut(),
+        };
+        let wrong_table = IUnknownVTable {
+            interface_id: &NcInterfaceId::NONE,
+            ..TABLE
+        };
+        let raw = ComRaw {
+            object: core::ptr::from_mut(&mut source).cast(),
+            vtable: &wrong_table,
+        };
+        // SAFETY: the wrong identity still supplies a live common lifecycle prefix.
+        assert!(unsafe { ComPtr::<IUnknown>::__nc_from_raw_owned_checked(raw) }.is_err());
+        assert_eq!(source.references.load(Ordering::Relaxed), 0);
+        for malformed in [
+            ComRaw::null(),
+            ComRaw {
+                object: raw.object,
+                vtable: core::ptr::null(),
+            },
+            ComRaw {
+                object: core::ptr::null_mut(),
+                vtable: &TABLE,
+            },
+        ] {
+            // SAFETY: shape validation rejects these records without reading their pointers.
+            assert_eq!(unsafe { ComPtr::<IUnknown>::__nc_from_raw_owned_checked(malformed) }.unwrap_err(), NC_E_POINTER);
+        }
+        assert_eq!(source.references.load(Ordering::Relaxed), 0);
     }
 }

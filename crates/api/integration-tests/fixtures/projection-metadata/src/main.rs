@@ -21,7 +21,7 @@ trait ILeft: IBase {}
     auto_guid = "test.projection.MetadataRetentionSentinelRight:v1",
     assigned_signature = b"00000000000000000000000000000003"
 )]
-/// Second inheritance path must resolve to the same physical base header.
+/// Second inheritance path must resolve to the same exact base contract and object address.
 trait IRight: IBase {}
 #[com_interface(
     auto_guid = "test.projection.MetadataRetentionSentinelTop:v1",

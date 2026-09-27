@@ -34,18 +34,21 @@ fn invalid_error_statuses() -> [NcStatus; 2] {
 #[test]
 fn generated_thunks_normalize_non_negative_result_errors_for_every_return_shape() {
     let invalid = InvalidStatusObject::from_value(InvalidStatusObject).query::<IInvalidStatusAbi>().unwrap();
-    let raw = invalid.as_mut_ptr();
+    let raw = invalid.as_raw();
 
     for invalid_error in invalid_error_statuses() {
         let mut plain_out = 0xfeed_beef;
-        let status = unsafe { ((*(*raw).vtable).plain)(raw, invalid_error, &mut plain_out) };
+        let status = unsafe { ((*raw.vtable).plain)(raw.object, invalid_error, &mut plain_out) };
         assert_eq!(status, NC_E_INVALID_ARG);
         assert_eq!(plain_out, 0xfeed_beef);
         assert_eq!(invalid.plain(invalid_error), Err(NC_E_INVALID_ARG));
 
-        let sentinel = core::ptr::NonNull::<IUnknown>::dangling().as_ptr();
+        let sentinel = neocogi_com::ComRaw::<IUnknown> {
+            object: core::ptr::dangling_mut(),
+            vtable: core::ptr::null(),
+        };
         let mut object_out = sentinel;
-        let status = unsafe { ((*(*raw).vtable).object)(raw, invalid_error, &mut object_out) };
+        let status = unsafe { ((*raw.vtable).object)(raw.object, invalid_error, &mut object_out) };
         assert_eq!(status, NC_E_INVALID_ARG);
         assert_eq!(object_out, sentinel);
         match invalid.object(invalid_error) {
@@ -53,7 +56,7 @@ fn generated_thunks_normalize_non_negative_result_errors_for_every_return_shape(
             Err(status) => assert_eq!(status, NC_E_INVALID_ARG),
         }
 
-        let status = unsafe { ((*(*raw).vtable).void)(raw, invalid_error) };
+        let status = unsafe { ((*raw.vtable).void)(raw.object, invalid_error) };
         assert_eq!(status, NC_E_INVALID_ARG);
         assert_eq!(invalid.void(invalid_error), Err(NC_E_INVALID_ARG));
     }

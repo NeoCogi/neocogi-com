@@ -17,7 +17,7 @@
 //! format-specific adapter; it does not reinterpret descriptor metadata, write
 //! through ABI field offsets, or perform runtime class-registry lookup.
 //!
-//! Core ABI v9 is currently an experimental pre-alpha draft. The core ABI version
+//! Core ABI v10 is currently an experimental pre-alpha draft. The core ABI version
 //! identifies its current binary generation, not a ratified compatibility
 //! baseline. Cross-release compatibility begins only at an explicitly named
 //! future ratification milestone.
@@ -38,12 +38,14 @@ mod guid;
 mod value;
 mod value_cost;
 pub use value_cost::ValueCost;
-mod value_buffer;
 mod metadata;
 mod object;
 pub mod persistence;
 mod ptr;
+#[path = "raw.rs"]
+mod raw_handle;
 mod ref_count;
+mod value_buffer;
 #[doc(hidden)]
 pub use ref_count::{__com_add_ref_count, __com_release_ref_count};
 pub mod runtime_abi;
@@ -56,7 +58,10 @@ extern crate alloc;
 extern crate std;
 
 pub use abi::{__NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComStruct};
-pub use value::{encode_inline, decode_inline,ComValue, ComValueType, ComInlineValue, NcValueRef, ValueBudget, ValueArray, ValueOption, ValueSlice, MAX_VALUE_BYTES, MAX_VALUE_COUNT, MAX_VALUE_DEPTH};
+pub use value::{
+    encode_inline, decode_inline, ComValue, ComValueType, ComInlineValue, NcValueRef, ValueBudget, ValueArray, ValueOption, ValueSlice, MAX_VALUE_BYTES,
+    MAX_VALUE_COUNT, MAX_VALUE_DEPTH,
+};
 #[cfg(feature = "alloc")]
 pub use value::{ValueSequenceStorage, encode_value_buffer, decode_value_buffer};
 pub use buffer::{NcCopyFromBufferOffset, NcCopyToBufferOffset};
@@ -81,9 +86,10 @@ pub use metadata::{
     NcPluginDependencyDescriptor, NcQualifiedNameError, NcStaticUtf8, NcVersionTextError, validate_qualified_name, validate_version_text,
 };
 pub use object::{
-    __nc_object_from_interface, __nc_find_interface, __ComSupportsInterfaceThreading, ComFactoryBootstrap, ComFactoryInterface, ComClassInterface, ComFactoryImplementation, ComInterface, IID_IUNKNOWN,
-    IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
+    __nc_find_interface, __ComSupportsInterfaceThreading, ComFactoryBootstrap, ComFactoryInterface, ComClassInterface, ComFactoryImplementation, ComInterface,
+    IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
 };
+pub use raw_handle::ComRaw;
 pub use ptr::{ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};
 pub use runtime_abi::{
     NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1, NC_COM_RUNTIME_ABI_VERSION,
@@ -98,7 +104,7 @@ pub use status::{
 };
 
 #[doc(hidden)]
-pub use metadata::{__ComHeaderLayout, __nc_header_layout, __nc_interface_offset, __ComProjection, __nc_interface_chain, __nc_object_interface_count, __nc_projection_table, __nc_projection_vtables};
+pub use metadata::{__ComProjection, __nc_interface_chain, __nc_object_interface_count, __nc_projection_table, __nc_projection_vtables};
 pub use factory_plugin::{
     NC_FACTORY_PLUGIN_ABI_VERSION, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NcActivatePluginFactory, NcFactoryPluginDescription,
     NcGetFactoryPluginDescription, activate_factory_implementation, return_factory_plugin_description, validate_factory_plugin_description,

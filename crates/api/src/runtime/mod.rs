@@ -13,8 +13,8 @@ use std::vec::Vec;
 
 use crate::{
     ComFactoryInterface, ComInterface, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND,
-    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_ABI_THREADING_THREAD_LOCAL, NcDebugApiV1, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcInspectionApiV1, NcPluginRegistryV1,
-    NcRuntimeApiV1, NcStatus, NcUtf8View, ThreadingModel,
+    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_ABI_THREADING_THREAD_LOCAL, NcDebugApiV1, NcFactoryPluginDescription, NcGuid, NcInterfaceId,
+    NcInspectionApiV1, NcPluginRegistryV1, NcRuntimeApiV1, NcStatus, NcUtf8View, ThreadingModel,
 };
 use self::ffi as runtime_sys;
 
@@ -231,7 +231,7 @@ impl Runtime {
     where
         T: ComFactoryInterface,
     {
-        let mut out = core::ptr::null_mut::<IUnknown>();
+        let mut out = crate::ComRaw::<IUnknown>::null();
         // SAFETY: The local output slot is writable and the associated IDL
         // threading marker supplies the exact requested runtime capability.
         let status = unsafe {
@@ -245,8 +245,7 @@ impl Runtime {
         status_to_result(status)?;
         // SAFETY: Successful runtime activation transfers one owned live COM
         // reference with the requested threading capability.
-        let unknown = unsafe { ComPtr::<IUnknown, <T as ComInterface>::Threading>::from_raw_owned(out) }.ok_or(NC_E_POINTER)?;
-        unknown.query::<T>()
+        unsafe { ComPtr::<T, <T as ComInterface>::Threading>::__nc_from_raw_owned_checked(out.cast()) }
     }
 
     /// Activates a registered root by its inspected, exact COM identity.
@@ -257,15 +256,27 @@ impl Runtime {
     /// A thread-local request is compatible with either local or shared roots;
     /// the returned handle remains confined to the calling thread.
     pub fn activate_plugin_root(&self, plugin_id: NcGuid, root: NcInterfaceId) -> Result<ComPtr<IUnknown>, NcStatus> {
-        let mut out = core::ptr::null_mut::<IUnknown>();
+        let mut out = crate::ComRaw::<IUnknown>::null();
         // SAFETY: The local slot is writable. The runtime verifies the exact
         // root identity and its threading capability before transferring it.
-        let status = unsafe {
-            (self.runtime_api().activate_factory_plugin)(plugin_id, root, NC_ABI_THREADING_THREAD_LOCAL, &mut out)
-        };
+        let status = unsafe { (self.runtime_api().activate_factory_plugin)(plugin_id, root, NC_ABI_THREADING_THREAD_LOCAL, &mut out) };
         status_to_result(status)?;
-        // SAFETY: Successful activation transfers one owned IUnknown reference.
-        unsafe { ComPtr::<IUnknown>::from_raw_owned(out) }.ok_or(NC_E_POINTER)
+        // The dynamically selected factory has a common lifecycle prefix, but
+        // its table identity is not IUnknown. Query canonical IUnknown before
+        // constructing that safe typed handle; erasing the raw table type alone
+        // is not an interface conversion.
+        let mut identity = crate::ComRaw::null();
+        // SAFETY: the runtime returned a present, validated factory pair.
+        let status = unsafe { ((*out.vtable).query_interface)(out.object, &IUnknown::INTERFACE_ID, &mut identity) };
+        // SAFETY: the original factory reference is consumed on every result path.
+        unsafe { crate::raw::release(out) };
+        status_to_result(status)?;
+        // SAFETY: query success transfers one reference; adoption checks exact identity.
+        let owner = unsafe { ComPtr::<IUnknown>::__nc_from_raw_owned_checked(identity) }?;
+        if owner.as_raw().object != out.object {
+            return Err(crate::NC_E_INVALID_ARG);
+        }
+        Ok(owner)
     }
 
     /// Loads a trusted plugin shared library into the process-global runtime.
@@ -313,9 +324,7 @@ impl Runtime {
         status_to_result(status)?;
         // The C load returns only an opaque module ID. Inspection supplies an
         // owned summary without exposing descriptor pointer lifetimes.
-        self.inspection()
-            .loaded_module(LoadedModuleId::from_raw(module_id))?
-            .ok_or(NC_E_NOT_FOUND)
+        self.inspection().loaded_module(LoadedModuleId::from_raw(module_id))?.ok_or(NC_E_NOT_FOUND)
     }
 
     /// Loads trusted plugin libraries sequentially.

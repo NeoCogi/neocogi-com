@@ -8,7 +8,7 @@
 //!   one safe `*Client` view lent by both `ComPtr` and `ComRef`, static interface
 //!   ABI metadata, and the `unsafe impl neocogi_com::ComInterface` that certifies their raw invariants.
 //! - [`com_object`] wraps a Rust implementation struct in generated storage containing
-//!   `IUnknown`, one header per exposed interface, an atomic reference count,
+//!   `IUnknown`, static per-interface tables, an atomic reference count,
 //!   and the original Rust value. It derives public projections from an IDL
 //!   interface or an explicit local `interfaces(...)` list. Objects are
 //!   thread-local by default; add `thread_safe` to generate
@@ -140,8 +140,8 @@ mod object;
 mod plain_data;
 mod serialize;
 mod structs;
-mod value;
 mod util;
+mod value;
 
 use args::{ObjectArgs, EnumArgs, InterfaceArgs, StructArgs};
 use deserialize::expand_derive as expand_com_deserialize_derive;
@@ -185,14 +185,14 @@ pub fn derive_com_serialize(item: TokenStream) -> TokenStream {
 /// The macro keeps the trait as the Rust implementation surface and generates
 /// C-compatible ABI items next to it:
 ///
-/// - `ITraitAbi`: a `#[repr(C)]` interface pointer header.
+/// - `ITraitAbi`: a marker naming the typed interface contract.
 /// - `ITraitVTable`: a `#[repr(C)]` vtable.
 /// - `ITraitClient`: the safe method view lent by owning and borrowed pointers.
-/// - An `unsafe impl neocogi_com::ComInterface` for the generated header.
+/// - An `unsafe impl neocogi_com::ComInterface` for the generated marker.
 ///
 /// Generated items inherit the trait visibility.
-/// The generated unsafe implementation certifies the header layout, vtable
-/// prefix, interface identity/signature, and `IUnknown` pointer conversion required
+/// The generated unsafe implementation certifies the object/table pairing, vtable
+/// prefix, interface identity/signature, and lifecycle contract required
 /// by safe `ComPtr` operations. Defining an interface through this macro does
 /// not require user-written unsafe code.
 ///
@@ -231,8 +231,8 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// }
 /// ```
 ///
-/// The generated allocation owns its reference count, `IUnknown` header,
-/// queryable projections, and original Rust value. Construction remains local
+/// The generated allocation owns its reference count, shared borrow guard,
+/// and original Rust value. Queryable projections use static tables, not fields. Construction remains local
 /// to the owning implementation or is exposed through an IDL factory method.
 #[proc_macro_attribute]
 pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {

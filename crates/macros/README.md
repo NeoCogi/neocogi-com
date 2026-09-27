@@ -21,13 +21,14 @@ struct ButtonObject {
 
 The interface supplies the public identity, threading capability, callable
 surface, and required interfaces. The implementation supplies private
-state and method bodies. Generated storage contains one canonical `IUnknown`
-projection, recursively embedded interface headers, reference counting,
-signature-checked `QueryInterface`, and `from_value(initialized_value)`.
-Shared ancestors can occupy multiple headers through different inheritance paths;
-this remains the open [diamond-storage finding](../../../docs/COM_UI_ADVERSARIAL_REVIEW_2026-09-26.md).
-The canonical-array implementation was rolled back
-because it increased deployed binary size.
+state and method bodies. Generated storage contains one Rust value, one reference
+count, and one borrow guard. Static tables implement signature-checked
+`QueryInterface`; handles carry the allocation and selected table, so interfaces
+add no per-object fields. The compiler resolves distinct inherited contracts,
+including diamonds, without retaining full inspection metadata in dispatch.
+See the [storage decision](../../../docs/COM_INTERFACE_STORAGE.md) for the
+history of the reverted metadata-heavy version and the deliberate handle-size
+tradeoff in the current representation.
 `into_local(initialized_value)` returns a `LocalCom<Implementation>` when the
 creating binary also needs typed access to the owned implementation. Its
 `try_borrow` and `try_borrow_mut` guards share the generated COM call gate;
@@ -75,7 +76,7 @@ constructor table or erased argument frame.
 
 ## Interface and value lowering
 
-`#[com_interface]` generates a C-compatible interface header and vtable, one
+`#[com_interface]` generates an interface marker and C-compatible vtable, one
 typed `IFooClient` method view, exact ABI signature metadata, method
 descriptions, and the audited `unsafe impl ComInterface`. IDL-generated
 bindings use the same machinery. Both `ComPtr<IFooAbi>` and

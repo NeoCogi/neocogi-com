@@ -164,7 +164,7 @@ impl IRight for Pair {
 fn self_and_mutual_references_compile_and_preserve_identity() {
     let node: ComPtr<INodeAbi> = Node::from_value(Node).query().unwrap();
     let echoed = node.echo(node.as_com_ref()).unwrap();
-    assert_eq!(node.query::<IUnknown>().unwrap().as_ptr(), echoed.query::<IUnknown>().unwrap().as_ptr());
+    assert_eq!(node.query::<IUnknown>().unwrap().as_raw(), echoed.query::<IUnknown>().unwrap().as_raw());
     let pair = Pair::from_value(Pair);
     assert_eq!(pair.query::<ILeftAbi>().unwrap().right().unwrap_err(), NC_E_NOT_FOUND);
     assert_eq!(pair.query::<IRightAbi>().unwrap().left().unwrap_err(), NC_E_NOT_FOUND);

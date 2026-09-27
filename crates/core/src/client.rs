@@ -1,10 +1,10 @@
 //! Borrowed Rust method views for statically declared COM interface inheritance.
 //!
 //! Views lend methods, never COM ownership. In particular, an inherited view's
-//! header may still advertise the derived identity; obtaining an owned base
+//! table may still advertise the derived identity; obtaining an owned base
 //! projection continues to require checked QueryInterface.
 
-use core::{marker::PhantomData, ptr::NonNull};
+use core::marker::PhantomData;
 use crate::{ComInterface, ThreadLocal, ThreadSafe, ThreadingModel};
 
 /// Optional static method-view support generated for a COM interface.
@@ -19,7 +19,9 @@ use crate::{ComInterface, ThreadLocal, ThreadSafe, ThreadingModel};
 /// `NcClientPointer<Self, M>`. Its safe operations may only borrow the live
 /// interface and may not manufacture an owning reference or an escaping
 /// ComRef. Inherited views must preserve the exact base vtable prefix and the
-/// supplied threading capability. The generated macro establishes these rules.
+/// supplied threading capability. Client operations must never overwrite the borrowed pair, including via a
+/// mutable view: safe owners rely on its original non-null pointers. The
+/// generated macro establishes these rules.
 pub unsafe trait ComClientInterface: ComInterface + Sized {
     /// Borrowed method surface whose reference lifetime is tied to its pointer owner.
     type Client<M: ThreadingModel>;
@@ -28,25 +30,25 @@ pub unsafe trait ComClientInterface: ComInterface + Sized {
 /// Pointer storage for generated, non-owning method views.
 ///
 /// This type has no public constructor, Clone, Copy, or ownership conversion.
-/// Only a reference tied to a live ComPtr/ComRef is exposed. Its raw pointer may
+/// Only a reference tied to a live ComPtr/ComRef is exposed. Its raw pair may
 /// address an inherited prefix whose actual projected identity remains derived;
 /// such a pointer must not be adopted as a base COM reference by a cast.
 #[repr(transparent)]
 pub struct NcClientPointer<T: ComInterface, M: ThreadingModel = ThreadLocal> {
-    /// Same live pointer word stored by the lending COM owner or borrow.
-    pointer: NonNull<T>,
+    /// Same live object/table pair stored by the lending COM owner or borrow.
+    pointer: crate::ComRaw<T>,
     /// Preserves the handle's thread-affinity restriction in the borrowed view.
     mode: PhantomData<M>,
 }
 
 impl<T: ComInterface, M: ThreadingModel> NcClientPointer<T, M> {
-    /// Returns the raw vtable-prefix pointer used by generated synchronous calls.
+    /// Returns the raw object/table pair used by generated synchronous calls.
     ///
     /// This does not transfer ownership or certify the prefix as a separately
     /// projected base interface. Raw ABI use remains the caller's unsafe obligation.
     #[doc(hidden)]
-    pub fn as_mut_ptr(&self) -> *mut T {
-        self.pointer.as_ptr()
+    pub fn as_raw(&self) -> crate::ComRaw<T> {
+        self.pointer
     }
 }
 

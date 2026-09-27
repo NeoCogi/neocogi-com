@@ -1,7 +1,7 @@
 //! Expansion of Rust structs into reference-counted multi-interface COM objects.
 //!
 //! The generator builds one private allocation containing an atomic reference
-//! count, one canonical array of distinct interface headers, and the Rust value.
+//! count, one shared borrow guard, and the Rust value. Static tables carry interfaces.
 //! Metadata, table bindings, and QueryInterface share the same compile-time set.
 //! Generated lifecycle thunks, threading assertions, and construction helpers
 //! preserve the one allocation and its concrete implementation type.
@@ -179,18 +179,16 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
             ref_count: ::core::sync::atomic::AtomicU32,
             /// Generated borrow authority shared by every interface projection.
             call_gate: #nc::__ComCallGate,
-            /// One single-pointer C header per distinct contract; canonical IUnknown is first.
-            interfaces: [#nc::IUnknown; #interface_count],
             /// Owned Rust state; no reference into a caller's stack escapes through the COM pointer.
             value: core::cell::UnsafeCell<#object_type>,
         }
 
         impl #impl_generics #object_type #where_clause {
-            /// Number of physically stored headers, including canonical IUnknown.
+            /// Number of queryable contracts, including canonical IUnknown.
             /// The expression depends on contract types, never implementation generics.
             pub const COM_INTERFACE_COUNT: usize = #interface_count;
 
-            /// Runtime construction consumes only vtable pointers for this implementation.
+            /// Runtime queries consume only static vtable pointers for this implementation.
             /// Descriptor traversal and typed provider selection occur inside this constant;
             /// no full descriptor or duplicate query-identity table escapes into runtime use.
             const COM_VTABLES: [*const #nc::IUnknownVTable; #interface_count] = {
@@ -218,23 +216,20 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
 
             #[doc = "Wraps a fully initialized Rust value as a COM object and returns its `IUnknown` interface."]
             #object_vis fn from_value(value: Self) -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
-                // The array length and associated table are evaluated during
-                // compilation. Runtime construction only initializes those slots.
+                // Construction initializes only ownership, borrow authority and state.
+                // Interface tables are static and add no per-object fields.
                 let object = #nc::__alloc::boxed::Box::new(#storage_ident {
                     ref_count: ::core::sync::atomic::AtomicU32::new(1),
                     call_gate: #nc::__ComCallGate::new(),
-                    interfaces: ::core::array::from_fn(|index| #nc::IUnknown {
-                        vtable: Self::COM_VTABLES[index],
-                    }),
                     value: core::cell::UnsafeCell::new(value),
                 });
 
-                // Publish the owning allocation only after every static vtable
-                // pointer is installed. No per-header back-pointer writes follow.
+                // Publish the allocation paired with its canonical root table.
+                // The pair needs neither embedded headers nor owner recovery.
                 let raw = #nc::__alloc::boxed::Box::into_raw(object);
                 // SAFETY: The allocation has been leaked into COM ownership and
                 // remains live until the final generated `Release`.
-                let unknown = unsafe { core::ptr::addr_of_mut!((*raw).interfaces[0]) };
+                let unknown = #nc::ComRaw { object: raw.cast(), vtable: &<#storage_type>::UNKNOWN_VTABLE };
                 unsafe {
                     // SAFETY: `unknown` is non-null and owns the initial
                     // reference created with `ref_count = 1`.
@@ -249,18 +244,8 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
         #factory_assertion
 
         // SAFETY: This impl is generated together with the private storage
-        // layout above. Every accepted object pointer was recovered using the
-        // actual interface header's statically generated owner offset.
+        // layout above. Every paired vtable accepts this allocation directly.
         unsafe impl #impl_generics #nc::ComAbiObject for #object_type #where_clause {
-            /// Constant evaluation gives every vtable its physical header offset.
-            /// Full descriptors are consumed here and never enter runtime tables.
-            const ABI_HEADERS: &'static [#nc::__ComHeaderLayout] = &#nc::__nc_header_layout(
-                &#nc::__nc_interface_chain::<{ #interface_count }>(
-                    &#nc::IUnknown::INTERFACE_DESCRIPTOR, &[#(#declared_chains,)*],
-                ),
-                core::mem::offset_of!(#storage_type, interfaces),
-            );
-
             // The generated gate permits concurrent observers but rejects a
             // shared call while a mutable call owns the implementation.
             unsafe fn borrow_abi_ref<'a>(
@@ -296,32 +281,30 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
             }
 
             // Central QueryInterface implementation for the object. All
-            // interface-specific IUnknown thunks delegate here.
-            unsafe fn query_interface_from_abi_object(
+            // interface vtables point directly here, without adapter thunks.
+            unsafe extern "C" fn query_interface_from_abi_object(
                 object: *mut core::ffi::c_void,
                 interface_id: *const #nc::NcInterfaceId,
-                out: *mut *mut core::ffi::c_void,
+                out: *mut #nc::ComRaw<#nc::IUnknown>,
             ) -> #nc::NcStatus {
                 if object.is_null() || interface_id.is_null() || out.is_null() {
                     return #nc::NC_E_POINTER;
                 }
                 // SAFETY: `out` was checked non-null and is valid for one
-                // pointer write under the raw ABI contract.
-                unsafe { *out = core::ptr::null_mut(); }
-                let storage = object.cast::<#storage_type>();
+                // ComRaw record write under the raw ABI contract.
+                unsafe { *out = #nc::ComRaw::null(); }
                 // SAFETY: `interface_id` was checked non-null and is readable
                 // for this call.
                 let interface_id = unsafe { &*interface_id };
-                // SAFETY: all headers are initialized before publication and
-                // remain immutable until final Release. Their vtable prefixes
-                // carry exact generated identities, independent of inspection data.
-                match unsafe { #nc::__nc_find_interface(&(*storage).interfaces, interface_id) } {
+                // SAFETY: static tables and their identities are immutable and
+                // describe this implementation, independent of inspection data.
+                match unsafe { #nc::__nc_find_interface(&Self::COM_VTABLES, interface_id) } {
                     Ok(projection) => {
                         // SAFETY: the live allocation transfers exactly one
                         // reference after a successful identity/signature match.
                         unsafe {
                             Self::add_ref_from_abi_object(object);
-                            *out = projection.cast::<core::ffi::c_void>();
+                            *out = #nc::ComRaw { object, vtable: projection };
                         }
                         #nc::NC_OK
                     }
@@ -331,7 +314,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
 
             // Relaxed increment is enough for AddRef itself; Release uses
             // release/acquire ordering around destruction.
-            unsafe fn add_ref_from_abi_object(object: *mut core::ffi::c_void) -> u32 {
+            unsafe extern "C" fn add_ref_from_abi_object(object: *mut core::ffi::c_void) -> u32 {
                 if object.is_null() {
                     return 0;
                 }
@@ -344,7 +327,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
             // The final Release reconstructs the Box and drops the complete
             // generated storage, including the original Rust value and any COM
             // children it owns.
-            unsafe fn release_from_abi_object(object: *mut core::ffi::c_void) -> u32 {
+            unsafe extern "C" fn release_from_abi_object(object: *mut core::ffi::c_void) -> u32 {
                 if object.is_null() {
                     return 0;
                 }
@@ -370,65 +353,15 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
         #unit_factory_bootstrap
 
         impl #impl_generics #storage_type #where_clause {
-            // The standalone IUnknown header uses this vtable. Interface
-            // headers use their interface-specific vtables, which embed the
-            // same three lifecycle operations as the first field.
+            /// Canonical root table. Every other table embeds the same lifecycle
+            /// functions but advertises its own exact interface identity.
             const UNKNOWN_VTABLE: #nc::IUnknownVTable = #nc::IUnknownVTable {
                 interface_id: &#nc::IUnknown::INTERFACE_ID,
-                object_offset: core::mem::offset_of!(#storage_type, interfaces),
-                query_interface: Self::query_interface_thunk,
-                add_ref: Self::add_ref_thunk,
-                release: Self::release_thunk,
+                query_interface: <#object_type as #nc::ComAbiObject>::query_interface_from_abi_object,
+                add_ref: <#object_type as #nc::ComAbiObject>::add_ref_from_abi_object,
+                release: <#object_type as #nc::ComAbiObject>::release_from_abi_object,
             };
 
-            // Adapts the standalone IUnknown header to generated object-level
-            // interface negotiation through its static header offset.
-            unsafe extern "C" fn query_interface_thunk(
-                this: *mut #nc::IUnknown,
-                interface_id: *const #nc::NcInterfaceId,
-                out: *mut *mut core::ffi::c_void,
-            ) -> #nc::NcStatus {
-                if this.is_null() {
-                    return #nc::NC_E_POINTER;
-                }
-                // SAFETY: Non-null `this` is an interface header generated by
-                // this object and has its correct static owner offset.
-                let object = unsafe { #nc::__nc_object_from_interface(this.cast()) };
-                // SAFETY: Delegates to the object implementation, which validates
-                // null `object`, `interface_id`, and `out` before
-                // dereferencing.
-                unsafe {
-                    <#object_type as #nc::ComAbiObject>::query_interface_from_abi_object(
-                        object,
-                        interface_id,
-                        out,
-                    )
-                }
-            }
-
-            // Routes IUnknown AddRef to the allocation-wide generated count.
-            unsafe extern "C" fn add_ref_thunk(this: *mut #nc::IUnknown) -> u32 {
-                if this.is_null() {
-                    return 0;
-                }
-                // SAFETY: Non-null `this` is an interface header generated by
-                // this object and has its correct static owner offset.
-                let object = unsafe { #nc::__nc_object_from_interface(this.cast()) };
-                // SAFETY: Delegates to generated storage refcount handling.
-                unsafe { <#object_type as #nc::ComAbiObject>::add_ref_from_abi_object(object) }
-            }
-
-            // Routes IUnknown Release to final-drop-aware generated storage.
-            unsafe extern "C" fn release_thunk(this: *mut #nc::IUnknown) -> u32 {
-                if this.is_null() {
-                    return 0;
-                }
-                // SAFETY: Non-null `this` is an interface header generated by
-                // this object and has its correct static owner offset.
-                let object = unsafe { #nc::__nc_object_from_interface(this.cast()) };
-                // SAFETY: Delegates to generated storage refcount handling.
-                unsafe { <#object_type as #nc::ComAbiObject>::release_from_abi_object(object) }
-            }
         }
     }
 }

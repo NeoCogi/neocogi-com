@@ -50,19 +50,19 @@ fn threading_request_is_compatible(declared: u32, requested: u32) -> bool {
 ///
 /// # Safety
 ///
-/// `out` must be valid for one pointer write. `activate` must remain callable
+/// `out` must be valid for one ComRaw record write. `activate` must remain callable
 /// through this operation, which runtime registration and module retention
 /// guarantee for values returned by [`resolve_factory`].
 pub(crate) unsafe fn activate_factory(
     activate: Result<NcActivatePluginFactory, NcStatus>,
     factory_interface: NcInterfaceId,
-    out: *mut *mut IUnknown,
+    out: *mut neocogi_com_core::ComRaw<IUnknown>,
 ) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
     // SAFETY: The caller grants one output write and null was rejected above.
-    unsafe { *out = core::ptr::null_mut() };
+    unsafe { *out = neocogi_com_core::ComRaw::null() };
     let activate = match activate {
         Ok(activate) => activate,
         Err(status) => return status,
@@ -75,50 +75,54 @@ pub(crate) unsafe fn activate_factory(
         // A plugin must clear failed outputs. Clear defensively without
         // dereferencing an untrusted value supplied on an error path.
         // SAFETY: `out` was validated above.
-        unsafe { *out = core::ptr::null_mut() };
+        unsafe { *out = neocogi_com_core::ComRaw::null() };
         return status;
     }
     // SAFETY: The output slot remains readable after the plugin returns.
     let root = unsafe { *out };
-    if root.is_null() {
+    if !root.is_present() {
+        // Reject both absence and half-null records before any table access.
+        // SAFETY: the caller's output slot is still writable.
+        unsafe { *out = neocogi_com_core::ComRaw::null() };
         return NC_E_POINTER;
     }
-    // Read only the common vtable prefix needed for QueryInterface. A malformed
-    // trusted plugin is rejected before any factory-specific method is called.
-    // SAFETY: Successful activation promises one live COM interface prefix.
-    let vtable = unsafe { (*root).vtable };
-    if vtable.is_null() {
-        // SAFETY: `out` is still the caller's writable slot.
-        unsafe { *out = core::ptr::null_mut() };
-        return NC_E_POINTER;
-    }
+    // SAFETY: activation success promises a matching live allocation/table pair.
+    let vtable = root.vtable;
 
-    let mut projection = core::ptr::null_mut();
+    let mut projection = neocogi_com_core::ComRaw::null();
     // SAFETY: The successful activation result owns a live common prefix and
     // the local output slot receives one queried owned reference.
-    let query_status = unsafe { ((*vtable).query_interface)(root, &factory_interface, &mut projection) };
+    let query_status = unsafe { ((*vtable).query_interface)(root.object, &factory_interface, &mut projection) };
     if query_status.is_err() || projection.is_null() {
         // Consume the activated reference rather than leaking a root that does
         // not implement the plugin's canonical factory declaration.
         // SAFETY: The activation success contract transferred one live owner.
-        unsafe { ((*vtable).release)(root) };
+        unsafe { ((*vtable).release)(root.object) };
         // SAFETY: `out` remains writable for this call.
-        unsafe { *out = core::ptr::null_mut() };
+        unsafe { *out = neocogi_com_core::ComRaw::null() };
         return if query_status.is_err() { query_status } else { NC_E_POINTER };
     }
 
-    // SAFETY: QueryInterface returned one owned interface reference. Validate
-    // its complete IID/signature before releasing this temporary proof.
-    let validation = unsafe { raw::__nc_validate_iunknown_interface(projection.cast::<IUnknown>(), &factory_interface) };
-    // SAFETY: A non-null successful QueryInterface result owns one reference;
-    // every interface shares the release-compatible common prefix.
-    unsafe { raw::release(projection.cast::<IUnknown>()) };
-    if let Err(status) = validation {
-        // SAFETY: The original activation result still owns its independent reference.
-        unsafe { ((*vtable).release)(root) };
-        // SAFETY: `out` remains writable for this call.
-        unsafe { *out = core::ptr::null_mut() };
-        return status;
+    // SAFETY: success transfers a releasable pair; validate before typed activation.
+    let validation = unsafe { raw::__nc_validate_iunknown_interface(projection, &factory_interface) }.and_then(|()| match projection.object == root.object {
+        true => Ok(()),
+        false => Err(neocogi_com_core::NC_E_INVALID_ARG),
+    });
+    // SAFETY: the bootstrap reference is replaced by the independently retained projection.
+    unsafe { raw::release(root) };
+    match validation {
+        Ok(()) => {
+            // SAFETY: return the exact validated factory view, not an arbitrary bootstrap view.
+            unsafe { *out = projection };
+        }
+        Err(status) => {
+            // SAFETY: validation failure still consumes the successful query's reference.
+            unsafe {
+                raw::release(projection);
+                *out = neocogi_com_core::ComRaw::null();
+            }
+            return status;
+        }
     }
     NC_OK
 }
@@ -149,19 +153,17 @@ mod tests {
     /// Minimal owned COM storage used to exercise activation ownership rules.
     #[repr(C)]
     struct TestFactory {
-        /// Publicly returned common interface header.
-        unknown: IUnknown,
         /// Reference count shared by the fixture's one projection.
         references: AtomicU32,
     }
 
     /// Returns the same fixture projection when its complete identity matches.
-    unsafe extern "C" fn query_interface(this: *mut IUnknown, requested: *const NcInterfaceId, out: *mut *mut c_void) -> NcStatus {
+    unsafe extern "C" fn query_interface(this: *mut c_void, requested: *const NcInterfaceId, out: *mut neocogi_com_core::ComRaw<IUnknown>) -> NcStatus {
         if this.is_null() || requested.is_null() || out.is_null() {
             return NC_E_POINTER;
         }
         // SAFETY: The caller grants one output write.
-        unsafe { *out = core::ptr::null_mut() };
+        unsafe { *out = neocogi_com_core::ComRaw::null() };
         // SAFETY: Non-null requested identity remains readable for the call.
         let requested = unsafe { &*requested };
         if requested.iid != FACTORY_INTERFACE.iid {
@@ -170,31 +172,31 @@ mod tests {
         if requested.abi_signature != FACTORY_INTERFACE.abi_signature {
             return NC_E_ABI_VERSION;
         }
-        // SAFETY: The fixture header is embedded in its live owning allocation.
+        // SAFETY: The paired table describes this live fixture allocation.
         unsafe { add_ref(this) };
         // SAFETY: `out` is writable and this fixture has one projection address.
-        unsafe { *out = this.cast() };
+        unsafe { *out = neocogi_com_core::ComRaw { object: this, vtable: &VTABLE } };
         NC_OK
     }
 
     /// Adds one owned reference to the live fixture allocation.
-    unsafe extern "C" fn add_ref(this: *mut IUnknown) -> u32 {
-        // SAFETY: The fixture's static vtable offset locates its live allocation.
-        let object = unsafe { &*neocogi_com_core::__nc_object_from_interface(this.cast()).cast::<TestFactory>() };
+    unsafe extern "C" fn add_ref(this: *mut c_void) -> u32 {
+        // SAFETY: The paired table receives its live allocation directly.
+        let object = unsafe { &*this.cast::<TestFactory>() };
         object.references.fetch_add(1, Ordering::Relaxed) + 1
     }
 
     /// Releases one reference and destroys the fixture at zero.
-    unsafe extern "C" fn release(this: *mut IUnknown) -> u32 {
-        // SAFETY: The fixture's static vtable offset locates its live allocation.
-        let object = unsafe { &*neocogi_com_core::__nc_object_from_interface(this.cast()).cast::<TestFactory>() };
+    unsafe extern "C" fn release(this: *mut c_void) -> u32 {
+        // SAFETY: The paired table receives its live allocation directly.
+        let object = unsafe { &*this.cast::<TestFactory>() };
         let previous = object.references.fetch_sub(1, Ordering::Release);
         let remaining = previous - 1;
         if remaining == 0 {
             std::sync::atomic::fence(Ordering::Acquire);
             FACTORY_DROPS.fetch_add(1, Ordering::SeqCst);
             // SAFETY: The final unique reference rebuilds the original Box once.
-            unsafe { drop(Box::from_raw(neocogi_com_core::__nc_object_from_interface(this.cast()).cast::<TestFactory>())) };
+            unsafe { drop(Box::from_raw(this.cast::<TestFactory>())) };
         }
         remaining
     }
@@ -202,25 +204,21 @@ mod tests {
     /// Vtable prefix advertising the exact fake factory interface identity.
     static VTABLE: IUnknownVTable = IUnknownVTable {
         interface_id: &FACTORY_INTERFACE,
-        object_offset: core::mem::offset_of!(TestFactory, unknown),
         query_interface,
         add_ref,
         release,
     };
 
     /// Allocates and transfers one fake root factory reference.
-    unsafe extern "C" fn activate(out: *mut *mut IUnknown) -> NcStatus {
+    unsafe extern "C" fn activate(out: *mut neocogi_com_core::ComRaw<IUnknown>) -> NcStatus {
         if out.is_null() {
             return NC_E_POINTER;
         }
         FACTORY_ACTIVATIONS.fetch_add(1, Ordering::SeqCst);
-        let object = Box::new(TestFactory {
-            unknown: IUnknown { vtable: &VTABLE },
-            references: AtomicU32::new(1),
-        });
+        let object = Box::new(TestFactory { references: AtomicU32::new(1) });
         let raw = Box::into_raw(object);
         // SAFETY: The caller grants one output write and ownership transfers.
-        unsafe { *out = core::ptr::addr_of_mut!((*raw).unknown) };
+        unsafe { *out = neocogi_com_core::ComRaw { object: raw.cast(), vtable: &VTABLE } };
         NC_OK
     }
 
@@ -250,12 +248,12 @@ mod tests {
             dependency_ids: Vec::new(),
         });
         let resolved = resolve_factory(&registry, DESCRIPTION.plugin_id, FACTORY_INTERFACE, NC_ABI_THREADING_THREAD_LOCAL);
-        let mut out = core::ptr::null_mut();
+        let mut out = neocogi_com_core::ComRaw::null();
         // SAFETY: The local output slot receives one owned fixture reference.
         assert_eq!(unsafe { activate_factory(resolved, FACTORY_INTERFACE, &mut out) }, NC_OK);
         assert!(!out.is_null());
         // SAFETY: Successful activation transferred the fixture's initial owner.
-        unsafe { ((*(*out).vtable).release)(out) };
+        unsafe { ((*out.vtable).release)(out.object) };
         assert_eq!(FACTORY_DROPS.load(Ordering::SeqCst), 1);
     }
 
@@ -272,7 +270,10 @@ mod tests {
         });
         let mismatched = NcInterfaceId::new(FACTORY_ID, NcAbiSignature::from_static(&[8; 32]));
         let resolved = resolve_factory(&registry, DESCRIPTION.plugin_id, mismatched, NC_ABI_THREADING_THREAD_LOCAL);
-        let mut out = core::ptr::NonNull::<IUnknown>::dangling().as_ptr();
+        let mut out = neocogi_com_core::ComRaw {
+            object: core::ptr::dangling_mut(),
+            vtable: &VTABLE,
+        };
         // SAFETY: The output slot is writable; rejection must clear it without invoking code.
         assert_eq!(unsafe { activate_factory(resolved, mismatched, &mut out) }, NC_E_ABI_VERSION);
         assert!(out.is_null());
@@ -288,10 +289,50 @@ mod tests {
         let _fixture = FIXTURE_LOCK.lock().unwrap();
         FACTORY_DROPS.store(0, Ordering::SeqCst);
         let mismatched = NcInterfaceId::new(FACTORY_ID, NcAbiSignature::from_static(&MISMATCHED_SIGNATURE));
-        let mut out = core::ptr::null_mut();
+        let mut out = neocogi_com_core::ComRaw::null();
         // SAFETY: The activation function and local output slot satisfy the ABI.
         assert_eq!(unsafe { activate_factory(Ok(activate), mismatched, &mut out) }, NC_E_ABI_VERSION);
         assert!(out.is_null());
         assert_eq!(FACTORY_DROPS.load(Ordering::SeqCst), 1);
+    }
+}
+
+/// Bootstrap records can be malformed before a table is safe to read.
+#[cfg(test)]
+mod malformed_bootstrap_tests {
+    use super::*;
+    use neocogi_com_core::ComRaw;
+
+    /// Simulates a producer writing an object word without a method table.
+    unsafe extern "C" fn missing_table(out: *mut ComRaw<IUnknown>) -> NcStatus {
+        // SAFETY: the test supplies one writable output record; no object is acquired.
+        unsafe {
+            *out = ComRaw {
+                object: core::ptr::dangling_mut(),
+                vtable: core::ptr::null(),
+            };
+        }
+        NC_OK
+    }
+    /// Simulates the opposite half-null shape; its table must never be read.
+    unsafe extern "C" fn missing_object(out: *mut ComRaw<IUnknown>) -> NcStatus {
+        // SAFETY: the test supplies one writable output record; shape rejection comes first.
+        unsafe {
+            *out = ComRaw {
+                object: core::ptr::null_mut(),
+                vtable: core::ptr::dangling(),
+            };
+        }
+        NC_OK
+    }
+    /// Both malformed shapes return pointer errors and clear the external result.
+    #[test]
+    fn half_null_bootstrap_never_enters_query_or_release() {
+        for activate in [missing_table as NcActivatePluginFactory, missing_object] {
+            let mut out = ComRaw::null();
+            // SAFETY: these fixtures deliberately exercise validation before any pointer read.
+            assert_eq!(unsafe { activate_factory(Ok(activate), IUnknown::INTERFACE_ID, &mut out) }, NC_E_POINTER);
+            assert!(out.is_null());
+        }
     }
 }

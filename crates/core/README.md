@@ -3,9 +3,9 @@
 The C-shaped ABI shared by generated contracts, hosts, plugins, and the process
 runtime. Its default configuration is allocation-free; optional `alloc` helpers
 own decoded values and binary documents. Most authors use the `neocogi-com`
-facade. Core object ABI v9 remains experimental.
+facade. Core object ABI v10 remains experimental.
 
-Core defines statuses, GUIDs, exact signatures, typed metadata, interface headers
+Core defines statuses, GUIDs, exact signatures, typed metadata, raw object/table pairs
 and vtables, `IUnknown`, `ComPtr`, and `ComRef`. `ComInterface` owns identity and
 the minimum threading promise. `ComFactoryInterface` marks interfaces eligible
 for plugin bootstrap; `ComFactoryImplementation` associates private factory
@@ -21,12 +21,12 @@ Plugin descriptor ABI v1 publishes plugin identity/version, hard dependencies,
 full root-factory IID/signature, threading, and one zero-argument bootstrap.
 Its getter is `nc_get_factory_plugin_description_v1`. Runtime discovery is v1,
 with operation, plugin-registry, inspection, debug, and persistence tables. See the
-[ABI specification](../docs/abi-v9.md) for layouts and ownership rules.
+[ABI specification](../docs/abi-v10.md) for layouts and ownership rules.
 
 ## Interface safety
 
-`ComInterface` is an unsafe extension point: implementing it certifies header
-layout, vtable prefix, exact identity, lifetime, and conversion to `IUnknown`.
+`ComInterface` is an unsafe extension point: implementing it certifies handle/table
+layout, vtable prefix, exact identity, lifetime, and shared lifecycle calls.
 Generated interfaces provide the normal implementation.
 
 | Handle | Owns a reference | `Send` / `Sync` |
@@ -111,7 +111,7 @@ elements are successfully decoded, so malformed counts cannot force a large
 eager allocation before the first element is checked.
 
 Built-in persistence contracts live in `persistence`: provider traits, interface
-headers, clients and metadata require neither allocation nor a runtime. With
+markers, clients and metadata require neither allocation nor a runtime. With
 `alloc`, the module also provides the portable `ObjectRecord` schema and limits.
 The COM facade re-exports these contracts and supplies concrete-provider thunks.
 

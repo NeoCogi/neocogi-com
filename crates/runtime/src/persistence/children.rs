@@ -6,8 +6,8 @@
 
 use core::{ffi::c_void, ptr, sync::atomic::AtomicU32};
 use neocogi_com_core::{
-    ComInterface, ComPtr, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, __com_add_ref_count, __com_release_ref_count, NC_E_ABI_VERSION, NC_E_NOINTERFACE,
-    NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK,
+    ComInterface, ComPtr, ComRaw, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, __com_add_ref_count, __com_release_ref_count, NC_E_ABI_VERSION,
+    NC_E_NOINTERFACE, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK,
     persistence::{IObjectChildrenAbi, IObjectChildrenVTable},
 };
 
@@ -15,10 +15,6 @@ use neocogi_com_core::{
 struct Children {
     /// Shared strong count for the canonical identity and list projection.
     references: AtomicU32,
-    /// Canonical identity, with the exact IUnknown interface identity.
-    unknown: IUnknown,
-    /// Read-only list projection carrying the persistence contract identity.
-    interface: IObjectChildrenAbi,
     /// Fully constructed descendants, released when the final list owner leaves.
     values: Vec<ComPtr<IUnknown>>,
 }
@@ -27,22 +23,22 @@ struct Children {
 pub(super) fn create(values: Vec<ComPtr<IUnknown>>) -> Result<ComPtr<IObjectChildrenAbi>, NcStatus> {
     // Reject a count that the u32 list contract cannot represent before publish.
     u32::try_from(values.len()).map_err(|_| NC_E_OUT_OF_RANGE)?;
-    let object = Box::into_raw(Box::new(Children {
-        references: AtomicU32::new(1),
-        unknown: IUnknown { vtable: &UNKNOWN_VTABLE },
-        interface: IObjectChildrenAbi { vtable: &CHILDREN_VTABLE },
-        values,
-    }));
+    let object = Box::into_raw(Box::new(Children { references: AtomicU32::new(1), values }));
     // SAFETY: This allocation is exclusively owned and not yet published.
-    // Static vtables already describe both embedded headers before publication.
-    unsafe { ComPtr::from_raw_owned(ptr::addr_of_mut!((*object).interface)).ok_or(NC_E_POINTER) }
+    // Static vtables share this allocation; no interface fields need installation.
+    unsafe {
+        ComPtr::from_raw_owned(ComRaw {
+            object: object.cast(),
+            vtable: &CHILDREN_VTABLE,
+        })
+        .ok_or(NC_E_POINTER)
+    }
 }
 
 /// Immutable lifecycle table used by canonical identity projections.
 static UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
     // The embedded identity describes this projection, not its concrete storage.
     interface_id: &<IUnknown as ComInterface>::INTERFACE_ID,
-    object_offset: core::mem::offset_of!(Children, unknown),
     query_interface,
     add_ref,
     release,
@@ -52,7 +48,6 @@ static UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
 static CHILDREN_VTABLE: IObjectChildrenVTable = IObjectChildrenVTable {
     unknown: IUnknownVTable {
         interface_id: &<IObjectChildrenAbi as ComInterface>::INTERFACE_ID,
-        object_offset: core::mem::offset_of!(Children, interface),
         query_interface,
         add_ref,
         release,
@@ -64,25 +59,25 @@ static CHILDREN_VTABLE: IObjectChildrenVTable = IObjectChildrenVTable {
 /// Recovers immutable storage from either of this allocation's live projections.
 ///
 /// # Safety
-/// Non-null `this` must be one of our live interface headers for the returned borrow.
-unsafe fn storage<'a>(this: *mut IUnknown) -> Result<&'a Children, NcStatus> {
+/// Non-null `this` must be our live allocation address for the returned borrow.
+unsafe fn storage<'a>(this: *mut c_void) -> Result<&'a Children, NcStatus> {
     if this.is_null() {
         return Err(NC_E_POINTER);
     }
-    // SAFETY: The static vtable offset locates this header inside its live Children allocation.
-    unsafe { neocogi_com_core::__nc_object_from_interface(this.cast()).cast::<Children>().as_ref() }.ok_or(NC_E_POINTER)
+    // SAFETY: The paired table accepts the live Children allocation directly.
+    unsafe { this.cast::<Children>().as_ref() }.ok_or(NC_E_POINTER)
 }
 
 /// Returns only exact interface identities and clears outputs before validation.
 ///
 /// # Safety
 /// `this` is live; non-null requested/out point to readable/writable ABI storage.
-unsafe extern "C" fn query_interface(this: *mut IUnknown, requested: *const NcInterfaceId, out: *mut *mut c_void) -> NcStatus {
+unsafe extern "C" fn query_interface(this: *mut c_void, requested: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
     // SAFETY: The caller grants writable output storage.
-    unsafe { out.write(ptr::null_mut()) };
+    unsafe { out.write(ComRaw::null()) };
     if requested.is_null() {
         return NC_E_POINTER;
     }
@@ -96,19 +91,19 @@ unsafe extern "C" fn query_interface(this: *mut IUnknown, requested: *const NcIn
             if *requested != IUnknown::INTERFACE_ID {
                 return NC_E_ABI_VERSION;
             }
-            ptr::from_ref(&object.unknown).cast_mut().cast()
+            &UNKNOWN_VTABLE as *const IUnknownVTable
         }
         id if id == IObjectChildrenAbi::IID => {
             if *requested != IObjectChildrenAbi::INTERFACE_ID {
                 return NC_E_ABI_VERSION;
             }
-            ptr::from_ref(&object.interface).cast_mut().cast()
+            &CHILDREN_VTABLE as *const _ as *const IUnknownVTable
         }
         _ => return NC_E_NOINTERFACE,
     };
     __com_add_ref_count(&object.references);
     // SAFETY: The new reference owns the selected projection from this allocation.
-    unsafe { out.write(projection) };
+    unsafe { out.write(ComRaw { object: this, vtable: projection }) };
     NC_OK
 }
 
@@ -116,7 +111,7 @@ unsafe extern "C" fn query_interface(this: *mut IUnknown, requested: *const NcIn
 ///
 /// # Safety
 /// Non-null `this` must be a live projection from `create`.
-unsafe extern "C" fn add_ref(this: *mut IUnknown) -> u32 {
+unsafe extern "C" fn add_ref(this: *mut c_void) -> u32 {
     // SAFETY: The caller owns a live reference for this synchronous call.
     match unsafe { storage(this) } {
         Ok(object) => __com_add_ref_count(&object.references),
@@ -128,7 +123,7 @@ unsafe extern "C" fn add_ref(this: *mut IUnknown) -> u32 {
 ///
 /// # Safety
 /// Non-null `this` must transfer one owned reference from `create` or AddRef.
-unsafe extern "C" fn release(this: *mut IUnknown) -> u32 {
+unsafe extern "C" fn release(this: *mut c_void) -> u32 {
     // SAFETY: The transferred reference keeps storage alive until the decrement.
     let object = match unsafe { storage(this) } {
         Ok(object) => object,
@@ -151,11 +146,11 @@ unsafe extern "C" fn release(this: *mut IUnknown) -> u32 {
 ///
 /// # Safety
 /// `this` is a live list; non-null `out` accepts one u32 write.
-unsafe extern "C" fn count(this: *mut IObjectChildrenAbi, out: *mut u32) -> NcStatus {
+unsafe extern "C" fn count(this: *mut c_void, out: *mut u32) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: Every list projection shares the common header prefix.
+    // SAFETY: Every list table shares the common lifecycle prefix.
     match unsafe { storage(this.cast()) } {
         Ok(object) => {
             // SAFETY: The count fits u32 and the output is writable.
@@ -170,12 +165,12 @@ unsafe extern "C" fn count(this: *mut IObjectChildrenAbi, out: *mut u32) -> NcSt
 ///
 /// # Safety
 /// `this` is a live list; non-null `out` accepts one interface-pointer write.
-unsafe extern "C" fn get(this: *mut IObjectChildrenAbi, index: u32, out: *mut *mut IUnknown) -> NcStatus {
+unsafe extern "C" fn get(this: *mut c_void, index: u32, out: *mut neocogi_com_core::ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
     // SAFETY: Clear failures before entering any child reference-count callback.
-    unsafe { out.write(ptr::null_mut()) };
+    unsafe { out.write(ComRaw::null()) };
     // SAFETY: The live list carries our common storage prefix.
     let object = match unsafe { storage(this.cast()) } {
         Ok(object) => object,

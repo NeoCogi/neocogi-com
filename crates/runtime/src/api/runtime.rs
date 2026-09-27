@@ -68,7 +68,7 @@ pub(super) unsafe extern "C" fn activate_factory_plugin(
     plugin_id: NcGuid,
     factory_interface: NcInterfaceId,
     requested_threading: u32,
-    out: *mut *mut IUnknown,
+    out: *mut neocogi_com_core::ComRaw<IUnknown>,
 ) -> NcStatus {
     let runtime = RuntimeState::global();
     let activation = {

@@ -37,7 +37,7 @@ impl Capture {
         self.remaining -= 1;
         // Canonical IUnknown identity catches cycles even through different projections.
         let identity = object.add_ref().query::<IUnknown>()?;
-        if self.active.iter().any(|parent| parent.as_mut_ptr() == identity.as_mut_ptr()) {
+        if self.active.iter().any(|parent| parent.as_raw() == identity.as_raw()) {
             return Err(NC_E_INVALID_ARG);
         }
         let value = identity.query::<IPersistableAbi>()?;

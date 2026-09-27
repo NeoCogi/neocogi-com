@@ -1,8 +1,8 @@
-//! Compile-time provider bindings for canonical, fixed-size object header arrays.
+//! Compile-time provider bindings for canonical, static interface-table arrays.
 //!
-//! Contract identities determine ordering and storage size. The implementation
+//! Contract identities determine table ordering, not per-object storage. The implementation
 //! parameter keeps every selected vtable tied to the one Rust value type whose
-//! allocation its thunks understand. Only the ABI's common header pointer is
+//! allocation its thunks understand. Only the ABI's common vtable pointer is
 //! erased; application values and provider types remain statically typed.
 use core::marker::PhantomData;
 use crate::{IUnknownVTable, NcInterfaceDescriptor, NcInterfaceId};
@@ -36,8 +36,8 @@ impl<T> __ComProjection<T> {
     /// # Safety
     /// The vtable must be permanently live, have an IUnknownVTable prefix, and
     /// implement the exact supplied identity/signature. Every thunk must use
-    /// the allocation and lifetime contract of T's generated COM object. Its
-    /// interface header must have the same one-pointer layout as IUnknown.
+    /// the allocation and lifetime contract of T's generated COM object.
+    /// Methods and lifecycle slots receive the allocation address directly.
     pub const unsafe fn new(identity: NcInterfaceId, vtable: *const IUnknownVTable) -> Self {
         Self {
             identity,
@@ -90,9 +90,9 @@ pub const fn __nc_projection_table<T, const N: usize>(
     result
 }
 
-/// Discards compiler-only identities after binding every header to its typed vtable.
+/// Discards compiler-only identities after binding every interface to its typed vtable.
 ///
-/// Generated construction indexes only this result. Returning pointer words instead
+/// Generated queries scan only this result. Returning pointer words instead
 /// of provider records prevents a runtime reference from retaining descriptor graphs
 /// or a redundant per-implementation interface-identity array.
 #[doc(hidden)]

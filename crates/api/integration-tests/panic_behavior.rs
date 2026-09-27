@@ -106,9 +106,9 @@ fn abi_panic_helper_exits_if_thunk_returns_status() {
 
     let unknown: ComPtr<IUnknown> = PanickingObject::from_value(PanickingObject);
     let panics = unknown.query::<IPanicsAbi>().unwrap();
-    let raw = panics.as_mut_ptr();
+    let raw = panics.as_raw();
 
-    let status = unsafe { ((*(*raw).vtable).panic_now)(raw) };
+    let status = unsafe { ((*raw.vtable).panic_now)(raw.object) };
     eprintln!("generated ABI thunk returned {status}");
     std::process::exit(THUNK_RETURNED_STATUS_EXIT_CODE);
 }
