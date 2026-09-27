@@ -2,7 +2,9 @@
 //!
 //! `neocogi` resolves and hashes IDL before invoking rustc. Generated bindings
 //! contain only the final 32-byte digest, so compiling a host or plugin never
-//! serializes or hashes its contract schema. This module owns only the stable
+//! serializes or hashes its contract schema. Structural arrays additionally
+//! derive a const digest from their existing element identity and literal length.
+//! This module owns the stable
 //! C-compatible view and byte-wise comparison used at runtime.
 
 use core::hash::{Hash, Hasher};
@@ -54,7 +56,10 @@ impl NcAbiSignature {
     /// Borrows one digest only for an immediate in-process interface query.
     /// The returned view must never outlive `bytes` or be stored in metadata.
     pub(crate) fn from_borrowed(bytes: &[u8; Self::SHA256_LEN]) -> Self {
-        Self { data: bytes.as_ptr(), len: Self::SHA256_LEN as u32 }
+        Self {
+            data: bytes.as_ptr(),
+            len: Self::SHA256_LEN as u32,
+        }
     }
 
     /// Returns the signature length in bytes.
@@ -83,6 +88,14 @@ impl NcAbiSignature {
         }
         // SAFETY: The caller establishes the pointer, extent, and lifetime.
         Ok(unsafe { core::slice::from_raw_parts(self.data, self.len as usize) })
+    }
+
+    /// Borrows a compiler-provided digest for const construction of intrinsic identities.
+    /// Safe constructors and ABI producers establish the immutable storage invariant.
+    pub(crate) const fn const_bytes(self) -> &'static [u8] {
+        assert!(self.len == Self::SHA256_LEN as u32, "an aggregate element needs a complete signature");
+        // SAFETY: ABI_TYPE signatures are static by the unsafe AbiType contract.
+        unsafe { core::slice::from_raw_parts(self.data, self.len as usize) }
     }
 
     /// Compares two generated signatures during constant evaluation.

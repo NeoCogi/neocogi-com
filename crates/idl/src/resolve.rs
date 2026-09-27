@@ -468,10 +468,12 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
         if let Some((previous_span, previous_sources)) = module_names.insert(name.clone(), (module_span.clone(), module.sources.clone())) {
             let sources = combined_sources(previous_sources, &module.sources);
             return Err(ResolutionError {
-                diagnostics: vec![Diagnostic::new("EIDL011", format!("duplicate logical IDL module {name:?}"))
-                    .with_sources(&sources)
-                    .primary(&module_span, "second module supplied here")
-                    .secondary(&previous_span, "first module supplied here")],
+                diagnostics: vec![
+                    Diagnostic::new("EIDL011", format!("duplicate logical IDL module {name:?}"))
+                        .with_sources(&sources)
+                        .primary(&module_span, "second module supplied here")
+                        .secondary(&previous_span, "first module supplied here"),
+                ],
             });
         }
         let module_id = derive_module_id(&name);
@@ -617,10 +619,12 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
                 if let Some(local) = entries[index].local_symbols.get(&name) {
                     let local_span = &entries[index].module.declarations[local.declaration].span;
                     return Err(ResolutionError {
-                        diagnostics: vec![Diagnostic::new("EIDL032", format!("import {name:?} conflicts with a local declaration"))
-                            .with_sources(&entries[index].module.sources)
-                            .primary(&import.span, "conflicting import")
-                            .secondary(local_span, "local declaration is here")],
+                        diagnostics: vec![
+                            Diagnostic::new("EIDL032", format!("import {name:?} conflicts with a local declaration"))
+                                .with_sources(&entries[index].module.sources)
+                                .primary(&import.span, "conflicting import")
+                                .secondary(local_span, "local declaration is here"),
+                        ],
                     });
                 }
                 let Some(&symbol) = entries[dependency].local_symbols.get(&name) else {
@@ -635,11 +639,13 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
                 if imported_symbols.insert(name.clone(), symbol).is_some() {
                     let previous = imported_origins.get(&name).expect("an imported symbol always records its origin");
                     return Err(ResolutionError {
-                        diagnostics: vec![Diagnostic::new("EIDL034", format!("imported name {name:?} is ambiguous"))
-                            .with_sources(&entries[index].module.sources)
-                            .primary(&import.span, "second unqualified import")
-                            .secondary(previous, "first unqualified import")
-                            .note("remove one import or use a module-qualified type path")],
+                        diagnostics: vec![
+                            Diagnostic::new("EIDL034", format!("imported name {name:?} is ambiguous"))
+                                .with_sources(&entries[index].module.sources)
+                                .primary(&import.span, "second unqualified import")
+                                .secondary(previous, "first unqualified import")
+                                .note("remove one import or use a module-qualified type path"),
+                        ],
                     });
                 }
                 imported_origins.insert(name, import.span.clone());
@@ -906,11 +912,13 @@ fn visit_layout(
                 names.push(entries[module].module.declarations[symbol.declaration].name.as_str());
                 let definition = &entries[module].module.declarations[symbol.declaration];
                 return Err(ResolutionError {
-                    diagnostics: vec![Diagnostic::new("EIDL063", format!("recursive {layout}: {}", names.join(" -> ")))
-                        .with_sources(&entries[module].module.sources)
-                        .primary(span, format!("this {label} closes the recursive layout"))
-                        .secondary(&definition.span, "recursive declaration is defined here")
-                        .note(note)],
+                    diagnostics: vec![
+                        Diagnostic::new("EIDL063", format!("recursive {layout}: {}", names.join(" -> ")))
+                            .with_sources(&entries[module].module.sources)
+                            .primary(span, format!("this {label} closes the recursive layout"))
+                            .secondary(&definition.span, "recursive declaration is defined here")
+                            .note(note),
+                    ],
                 });
             }
             VisitState::Unvisited => visit_layout(module, symbol.declaration, entries, values, states, stack)?,
@@ -1056,13 +1064,15 @@ fn validate_enum(entry: &ModuleEntry, declaration: &Declaration, enumeration: &E
         }
         if let Some(previous) = values.insert(value, variant.span.clone()) {
             return Err(ResolutionError {
-                diagnostics: vec![Diagnostic::new(
-                    "EIDL046",
-                    format!("enum {} variant {} repeats discriminant {value}", declaration.name, variant.name),
-                )
-                .with_sources(&entry.module.sources)
-                .primary(&variant.span, "duplicate discriminant")
-                .secondary(&previous, "discriminant first assigned here")],
+                diagnostics: vec![
+                    Diagnostic::new(
+                        "EIDL046",
+                        format!("enum {} variant {} repeats discriminant {value}", declaration.name, variant.name),
+                    )
+                    .with_sources(&entry.module.sources)
+                    .primary(&variant.span, "duplicate discriminant")
+                    .secondary(&previous, "discriminant first assigned here"),
+                ],
             });
         }
         if enumeration.dense && value != ordinal as i128 {
@@ -1123,10 +1133,12 @@ fn validate_interface_bases(index: usize, interface: &crate::Interface, entries:
         }
         if let Some(previous) = identities.insert((symbol.module, symbol.id), base.span.clone()) {
             return Err(ResolutionError {
-                diagnostics: vec![Diagnostic::new("EIDL051", format!("{owner} repeats interface {}", base.rust_path()))
-                    .with_sources(&entries[index].module.sources)
-                    .primary(&base.span, "repeated base interface")
-                    .secondary(&previous, "base first listed here")],
+                diagnostics: vec![
+                    Diagnostic::new("EIDL051", format!("{owner} repeats interface {}", base.rust_path()))
+                        .with_sources(&entries[index].module.sources)
+                        .primary(&base.span, "repeated base interface")
+                        .secondary(&previous, "base first listed here"),
+                ],
             });
         }
     }
@@ -1244,6 +1256,7 @@ fn validate_object_target(index: usize, ty: &AbiType, entries: &[ModuleEntry], c
 fn copied_type(index: usize, ty: &AbiType, entries: &[ModuleEntry]) -> bool {
     match ty {
         AbiType::Scalar(_) => true,
+        AbiType::Array { element, .. } => copied_type(index, element, entries),
         AbiType::Named(name) => resolve_named(index, name, entries).is_ok_and(|symbol| {
             entries[index]
                 .copied_values
@@ -1325,7 +1338,7 @@ fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], cont
             "EIDL060",
             span,
             format!("{context} has no copied ABI lowering"),
-            "borrow a named value with &; strings, sequences, object fields, arrays and options use the checked borrowed value representation",
+            "borrow a named value with &; strings, sequences, object fields and options use the checked borrowed value representation",
         ))
     }
 }
@@ -1939,14 +1952,16 @@ fn kind_mismatch_error(
     let definition = &entries[symbol.module].module.declarations[symbol.declaration];
     let sources = combined_sources(entries[owner].module.sources.clone(), &entries[symbol.module].module.sources);
     ResolutionError {
-        diagnostics: vec![Diagnostic::new("EIDL060", message)
-            .with_sources(&sources)
-            .primary(span, label)
-            .secondary(
-                &definition.span,
-                format!("{} {:?} is declared here", symbol.kind.description(), definition.name),
-            )
-            .note(help)],
+        diagnostics: vec![
+            Diagnostic::new("EIDL060", message)
+                .with_sources(&sources)
+                .primary(span, label)
+                .secondary(
+                    &definition.span,
+                    format!("{} {:?} is declared here", symbol.kind.description(), definition.name),
+                )
+                .note(help),
+        ],
     }
 }
 

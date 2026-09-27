@@ -18,8 +18,9 @@ use crate::status::NcStatus;
 ///
 /// Implementors must have a stable ABI layout, must not contain Rust references,
 /// raw pointers, or other lifetime-bound data, must not rely on Rust drop glue
-/// across the ABI boundary, and must be valid to pass through an `extern "C"`
-/// function signature by value.
+/// across the ABI boundary. Inline arrays are permitted as C-layout fields;
+/// calls transport their repr(C) checked wire wrapper, never a native Rust array
+/// directly in an extern function signature.
 pub unsafe trait AbiType: Copy + 'static {
     /// Canonical ABI type identity stored in method and field descriptors.
     const ABI_TYPE: NcAbiType;
@@ -168,3 +169,68 @@ impl_abi_plain_value!(
     NcGuid => NcAbiType::NcGuid,
     NcStatus => NcAbiType::NcStatus,
 );
+
+/// Derives an intrinsic array identity from its element contract and fixed length.
+/// The domain, little-endian tag/count and zero-filled digest slot are normative.
+/// This constant-size calculation never hashes a declaration graph or its fields.
+const fn array_signature(element: NcAbiType, len: usize) -> [u8; 32] {
+    use crate::metadata::NcAbiTypeDescriptor;
+    let descriptor = NcAbiTypeDescriptor::from_abi_type(element);
+    let mut input = [0u8; 60];
+    let domain = b"neocogi.array:v1";
+    let mut index = 0;
+    while index < domain.len() {
+        input[index] = domain[index];
+        index += 1;
+    }
+    let tag = descriptor.tag.to_le_bytes();
+    index = 0;
+    while index < tag.len() {
+        input[16 + index] = tag[index];
+        index += 1;
+    }
+    let count = (len as u64).to_le_bytes();
+    index = 0;
+    while index < count.len() {
+        input[20 + index] = count[index];
+        index += 1;
+    }
+    match element {
+        NcAbiType::Aggregate(signature) => {
+            let digest = signature.const_bytes();
+            index = 0;
+            while index < digest.len() {
+                input[28 + index] = digest[index];
+                index += 1;
+            }
+        }
+        NcAbiType::Interface { .. } | NcAbiType::Void => panic!("an array element must be a plain value"),
+        _ => {}
+    }
+    crate::__nc_abi_digest(&input)
+}
+
+// SAFETY: A fixed array of plain values has contiguous stable field layout,
+// contains no ownership or call-scoped addresses, and is Copy. Its actual calls
+// use ValueArray<T::Wire, N>, whose decoder checks each element before construction.
+unsafe impl<T: AbiPlainValue, const N: usize> AbiType for [T; N] {
+    const ABI_TYPE: NcAbiType = NcAbiType::Aggregate(NcAbiSignature::from_static(&array_signature(T::ABI_TYPE, N)));
+}
+// SAFETY: Arrays introduce no resources or lifetime obligations beyond T.
+unsafe impl<T: AbiPlainValue, const N: usize> AbiPlainValue for [T; N] {}
+
+#[cfg(test)]
+mod array_tests {
+    use super::*;
+    /// Pins the intrinsic's domain and byte encoding independently of Rust layout.
+    #[test]
+    fn array_signature_matches_known_sha256_and_distinguishes_shapes() {
+        let bools = <[bool; 3] as AbiType>::ABI_TYPE;
+        const EXPECTED: [u8; 32] = [0x34, 0xa4, 0x31, 0xc9, 0xb2, 0xe9, 0xf3, 0x54, 0xf8, 0xce, 0x68, 0x9b, 0xbc, 0xe6, 0xc2, 0x2b, 0xd4, 0x85, 0x69, 0xb4, 0x95, 0xa3, 0x9d, 0x52, 0xd0, 0xa3, 0x79, 0x94, 0x79, 0x77, 0x5b, 0x80];
+        assert_eq!(bools, NcAbiType::Aggregate(NcAbiSignature::from_static(&EXPECTED)));
+        assert_ne!(bools, <[u8; 3] as AbiType>::ABI_TYPE);
+        assert_ne!(bools, <[bool; 4] as AbiType>::ABI_TYPE);
+        assert_ne!(<[bool; 4] as AbiType>::ABI_TYPE, <[[bool; 2]; 2] as AbiType>::ABI_TYPE);
+        assert_ne!(<[u8; 0] as AbiType>::ABI_TYPE, <[u16; 0] as AbiType>::ABI_TYPE);
+    }
+}

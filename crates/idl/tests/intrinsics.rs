@@ -10,8 +10,12 @@ fn graph(source: &str) -> neocogi_idl::ResolvedModules {
 /// Equivalent intrinsic spellings must not manufacture incompatible contracts.
 #[test]
 fn array_and_slice_shorthands_have_identical_fingerprints() {
-    let bracket = graph("#[version(1)] struct Data { values: [bool; 3] } #[version(1)] interface IInput { fn read(&self, values: &[u32]) -> Result<()>; fn write(&self, values: &mut [u32]) -> Result<()>; }");
-    let named = graph("#[version(1)] struct Data { values: Array<bool, 3> } #[version(1)] interface IInput { fn read(&self, values: &Slice<u32>) -> Result<()>; fn write(&self, values: &mut Slice<u32>) -> Result<()>; }");
+    let bracket = graph(
+        "#[version(1)] struct Data { values: [bool; 3] } #[version(1)] interface IInput { fn read(&self, values: &[u32]) -> Result<()>; fn write(&self, values: &mut [u32]) -> Result<()>; }",
+    );
+    let named = graph(
+        "#[version(1)] struct Data { values: Array<bool, 3> } #[version(1)] interface IInput { fn read(&self, values: &Slice<u32>) -> Result<()>; fn write(&self, values: &mut Slice<u32>) -> Result<()>; }",
+    );
     assert_eq!(bracket.modules()[0].abi_fingerprint, named.modules()[0].abi_fingerprint);
     for name in ["Data", "IInput"] {
         assert_eq!(
@@ -66,4 +70,50 @@ fn arrays_reject_invalid_counts_and_arity() {
         assert!(parse_module(Path::new("proof/invalid.ncidl"), &source).is_err(), "{ty}");
     }
     graph("#[version(1)] struct Empty { items: Array<u8, 0> }");
+}
+
+/// Resolver acceptance is backed by compiling and calling generated bindings.
+#[test]
+fn copied_arrays_compile_and_cross_real_com_thunks() {
+    let resolved = graph(
+        r#"
+        #[version(1)] struct Flags { bits: Array<[bool; 2], 2> }
+        #[version(1)] interface IArrays {
+            fn echo(&mut self, value: Array<bool, 3>) -> Result<[bool; 3]>;
+            fn record(&mut self, value: Flags) -> Result<Flags>;
+            fn input(&mut self, values: &[Array<bool, 3>]) -> Result<u32>;
+            fn output(&mut self, values: &mut [[bool; 3]]) -> Result<()>;
+        }
+    "#,
+    );
+    assert!(resolved.values.definitions["proof.intrinsics.Flags"].copied);
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let project = tempfile::tempdir().unwrap();
+    std::fs::create_dir(project.path().join("src")).unwrap();
+    std::fs::write(
+        project.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname='array-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            root.join("crates/com/api")
+        ),
+    )
+    .unwrap();
+    let generated = neocogi_idl::generate_rust(&resolved, "proof.intrinsics").unwrap();
+    std::fs::write(
+        project.path().join("src/lib.rs"),
+        generated + "\n" + include_str!("fixtures/arrays.rs").replace("//!", "//").as_str(),
+    )
+    .unwrap();
+    let result = std::process::Command::new("cargo")
+        .args(["test", "--offline", "--manifest-path"])
+        .arg(project.path().join("Cargo.toml"))
+        .env("CARGO_TARGET_DIR", root.join("target/message-proof"))
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
 }

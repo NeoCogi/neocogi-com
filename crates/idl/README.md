@@ -144,9 +144,9 @@ aggregate elements are supported. `Option<Self>` is an invalid inline cycle,
 while a `Vec<Self>` field provides explicit indirection. Booleans use checked bytes
 even inside ordinary copied records, enum payloads, and method buffers.
 
-Copied method slots and buffer elements currently accept scalar-only finite
-records/enums/bit sets. Values containing strings, sequences, object fields,
-arrays, or options must be borrowed through a named record/enum. Unsupported
+Copied method slots and buffer elements accept scalars, finite copied
+records/enums/bit sets, and arrays whose elements are recursively copied. Values containing strings, sequences, object fields,
+or options must be borrowed through a named record/enum. Unsupported
 copied positions fail during IDL resolution. See the normative
 [recursive value contract](../../../docs/RECURSIVE_VALUE_CONTRACT.md) for limits,
 ownership, wire memory obligations, and examples.

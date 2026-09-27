@@ -138,8 +138,9 @@ impl ValueGraph {
     pub fn is_copied(&self, ty: &ValueType) -> bool {
         match ty {
             ValueType::Scalar(_) => true,
+            ValueType::Array(element, _) => self.is_copied(element),
             ValueType::Named(name) => self.definitions.get(name).is_some_and(|value| value.copied),
-            ValueType::Unit | ValueType::Text | ValueType::Object(_) | ValueType::Sequence(_) | ValueType::Array(_, _) | ValueType::Optional(_) => false,
+            ValueType::Unit | ValueType::Text | ValueType::Object(_) | ValueType::Sequence(_) | ValueType::Optional(_) => false,
         }
     }
 }

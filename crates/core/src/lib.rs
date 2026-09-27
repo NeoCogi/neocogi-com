@@ -26,6 +26,9 @@
 #![deny(missing_docs)]
 
 mod abi;
+mod abi_hash;
+#[doc(hidden)]
+pub use abi_hash::__nc_abi_digest;
 #[cfg(feature = "alloc")]
 pub mod binary;
 mod buffer;
