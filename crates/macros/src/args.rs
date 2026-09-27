@@ -9,7 +9,7 @@ use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::{Ident, LitByteStr, LitInt, LitStr, Path, Result, Token, Type, parenthesized};
 
-use crate::util::path_with_last_ident;
+use crate::util::{interface_field, path_with_last_ident};
 
 /// Parsed options for concrete `#[com_object]` storage generation.
 pub(crate) struct ObjectArgs {
@@ -32,12 +32,14 @@ pub(crate) enum InterfaceThreading {
     Shared,
 }
 
-/// Generated contract and statically typed provider paths for one object interface.
+/// Generated paths and storage-field name for one object interface.
 pub(crate) struct ObjectInterface {
     /// Path to the macro-generated C-shaped interface header.
     pub(crate) abi_path: Path,
-    /// Path to the generated vtable provider and canonical binding table.
-    pub(crate) vtable_for_path: Path,
+    /// Path to the generated ancestry-header storage for one implementor.
+    pub(crate) interfaces_for_path: Path,
+    /// Collision-checked field identifier used in object storage.
+    pub(crate) field_ident: Ident,
 }
 
 /// Parsed options for `#[com_enum]`.
@@ -474,18 +476,24 @@ impl Parse for ObjectArgs {
 }
 
 impl ObjectInterface {
-    /// Derives generated ABI and vtable-provider names from a trait path.
+    /// Derives generated ABI, vtable, and storage names from a trait path.
     fn from_path(path: Path) -> Result<Self> {
         let abi_path = interface_abi_path(&path)?;
-        let vtable_for_path = interface_vtable_for_path(&path)?;
+        let interfaces_for_path = interface_interfaces_for_path(&path)?;
+        let field_ident = interface_field(&path);
 
-        Ok(Self { abi_path, vtable_for_path })
+        Ok(Self {
+            abi_path,
+            interfaces_for_path,
+            field_ident,
+        })
     }
 }
 
-/// Rejects explicit `IUnknown` and repeated authored interface paths.
+/// Rejects explicit `IUnknown`, duplicate paths, and generated-name collisions.
 fn validate_object_interface_paths<'a>(paths: impl Iterator<Item = &'a Path>) -> Result<()> {
     let mut seen_paths = Vec::new();
+    let mut seen_names = Vec::new();
 
     for path in paths {
         let Some(last) = path.segments.last() else {
@@ -499,10 +507,18 @@ fn validate_object_interface_paths<'a>(paths: impl Iterator<Item = &'a Path>) ->
         }
 
         let path_key = path.to_token_stream().to_string();
+        let name_key = last.ident.to_string();
         if seen_paths.contains(&path_key) {
             return Err(syn::Error::new_spanned(path, "duplicate COM interface in interfaces(...)"));
         }
+        if seen_names.contains(&name_key) {
+            return Err(syn::Error::new_spanned(
+                path,
+                "COM interfaces in one object must have distinct final path names",
+            ));
+        }
         seen_paths.push(path_key);
+        seen_names.push(name_key);
     }
 
     Ok(())
@@ -518,13 +534,13 @@ fn interface_abi_path(path: &Path) -> Result<Path> {
     Ok(path_with_last_ident(path, abi_ident))
 }
 
-/// Replaces the final trait segment with its statically typed vtable provider.
-fn interface_vtable_for_path(path: &Path) -> Result<Path> {
+/// Replaces the final trait segment with its generated ancestry storage type.
+fn interface_interfaces_for_path(path: &Path) -> Result<Path> {
     let Some(last) = path.segments.last() else {
         return Err(syn::Error::new(path.span(), "expected interface path"));
     };
     let trait_ident = &last.ident;
-    let vtable_for_ident = format_ident!("{trait_ident}VtblFor", span = trait_ident.span());
+    let vtable_for_ident = format_ident!("{trait_ident}InterfacesFor", span = trait_ident.span());
     Ok(path_with_last_ident(path, vtable_for_ident))
 }
 

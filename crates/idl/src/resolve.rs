@@ -758,7 +758,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
 /// authored interfaces and closed generic specializations use the same
 /// macro, so a single inventory covers both namespaces.
 fn interface_companions(name: &str, companions: &mut Vec<String>) {
-    for suffix in ["Abi", "VTable", "VtblFor", "Client"] {
+    for suffix in ["Abi", "VTable", "VtblFor", "Client", "InterfacesFor"] {
         companions.push(format!("{name}{suffix}"));
     }
 }
@@ -927,9 +927,7 @@ fn visit_layout(
     Ok(())
 }
 
-/// Collects inline value dependencies and required interface relationships for
-/// cycle validation. Method arguments and owned COM handles do not inline their
-/// referents; interface requirements determine a canonical set of headers.
+/// Collects references that recursively determine storage or interface headers. Mutable method arguments and COM object results do not inline their referents.
 fn collect_layout_references<'a>(declaration: &'a Declaration, output: &mut Vec<&'a NamedType>) {
     match &declaration.kind {
         DeclarationKind::Struct(record) => {

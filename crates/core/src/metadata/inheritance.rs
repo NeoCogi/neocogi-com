@@ -14,22 +14,13 @@ pub const fn __nc_interface_chain<const N: usize>(
     let mut result = [own; N];
     let mut output = 1;
     let mut chain = 0;
-    // Each parent already describes its distinct projections. Merge those
-    // finite sets in declaration order instead of expanding ancestry paths.
-    // The same identity must retain one exact signature through every parent.
+    // Required chains are finite because IDL rejects interface cycles. Keep
+    // duplicates here so the object-level identity check can compare them.
     while chain < required.len() {
         let mut item = 0;
         while item < required[chain].len() {
-            let candidate = required[chain][item];
-            let mut previous = 0;
-            while previous < output && !same_contract(result[previous], candidate) {
-                previous += 1;
-            }
-            if previous == output {
-                assert!(output < N, "interface projection count is too small");
-                result[output] = candidate;
-                output += 1;
-            }
+            result[output] = required[chain][item];
+            output += 1;
             item += 1;
         }
         chain += 1;
@@ -48,7 +39,11 @@ const fn repeated(chains: &[&[&NcInterfaceDescriptor]], chain: usize, item: usiz
         let mut previous_item = 0;
         while previous_item < limit {
             let previous = chains[previous_chain][previous_item];
-            if same_contract(current, previous) {
+            if bytes_equal(&current.interface_id.to_uuid_bytes(), &previous.interface_id.to_uuid_bytes()) {
+                assert!(
+                    current.abi_signature.__const_eq(previous.abi_signature),
+                    "conflicting inherited interface contracts"
+                );
                 return true;
             }
             previous_item += 1;
@@ -56,16 +51,6 @@ const fn repeated(chains: &[&[&NcInterfaceDescriptor]], chain: usize, item: usiz
         previous_chain += 1;
     }
     false
-}
-
-/// Compares nominal identities and rejects incompatible revisions of one identity.
-/// Both metadata merging and provider assembly use this exact contract rule.
-pub(crate) const fn same_contract(left: &NcInterfaceDescriptor, right: &NcInterfaceDescriptor) -> bool {
-    if !bytes_equal(&left.interface_id.to_uuid_bytes(), &right.interface_id.to_uuid_bytes()) {
-        return false;
-    }
-    assert!(left.abi_signature.__const_eq(right.abi_signature), "conflicting inherited interface contracts");
-    true
 }
 
 /// Const-compatible byte equality for GUIDs and signatures.
@@ -100,49 +85,4 @@ pub const fn __nc_object_interface_count(chains: &[&[&NcInterfaceDescriptor]]) -
     }
     assert!(count <= u32::MAX as usize, "object interface count exceeds the ABI limit");
     count
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{NcAbiSignature, NcGuid, NcInterfaceId, NcStaticUtf8};
-
-    /// Builds allocation-free descriptors with independently controlled identity and revision.
-    const fn descriptor(id: u32, signature: &'static [u8; 32]) -> NcInterfaceDescriptor {
-        NcInterfaceDescriptor {
-            interface_id: NcGuid::from_fields(id, 0, 0, [0; 8]),
-            qualified_name: NcStaticUtf8::from_static("test.Interface"),
-            abi_signature: NcAbiSignature::from_static(signature),
-            base: NcInterfaceId::NONE,
-            method_count: 0,
-            methods: core::ptr::null(),
-        }
-    }
-    /// Shared leaf encountered through both sides of the diamond.
-    const ROOT: NcInterfaceDescriptor = descriptor(1, b"00000000000000000000000000000001");
-    /// First parent determines the initial discovery order of shared ancestry.
-    const LEFT: NcInterfaceDescriptor = descriptor(2, b"00000000000000000000000000000002");
-    /// Second parent must reuse the leaf rather than append a second copy.
-    const RIGHT: NcInterfaceDescriptor = descriptor(3, b"00000000000000000000000000000003");
-    /// Concrete top of the diamond.
-    const TOP: NcInterfaceDescriptor = descriptor(4, b"00000000000000000000000000000004");
-    /// A compatible identity cannot silently select a different ABI revision.
-    const WRONG_ROOT: NcInterfaceDescriptor = descriptor(1, b"00000000000000000000000000000099");
-    /// Evaluated at compilation, as generated INTERFACE_CHAIN constants are.
-    const DIAMOND: [&NcInterfaceDescriptor; 4] = __nc_interface_chain(&TOP, &[&[&LEFT, &ROOT], &[&RIGHT, &ROOT]]);
-
-    /// Count and canonical enumeration agree without repeating the shared leaf.
-    #[test]
-    fn diamond_metadata_is_a_distinct_ordered_set() {
-        let ids = DIAMOND.map(|descriptor| descriptor.interface_id);
-        assert_eq!(ids, [TOP.interface_id, LEFT.interface_id, ROOT.interface_id, RIGHT.interface_id]);
-        assert_eq!(__nc_object_interface_count(&[&DIAMOND, &[&LEFT, &ROOT]]), 4);
-    }
-
-    /// Metadata construction validates every repeated identity before discarding it.
-    #[test]
-    #[should_panic(expected = "conflicting inherited interface contracts")]
-    fn metadata_merge_rejects_conflicting_shared_ancestor() {
-        let _ = __nc_interface_chain::<4>(&TOP, &[&[&LEFT, &ROOT], &[&RIGHT, &WRONG_ROOT]]);
-    }
 }

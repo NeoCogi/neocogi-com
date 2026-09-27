@@ -5,7 +5,7 @@
 //! collision-resistant generated identifiers, and combine independent `syn`
 //! errors so callers see all actionable problems from one expansion.
 
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{Generics, Ident, LitByteStr, LitStr, Path, Result, Visibility};
 
 use crate::args::InterfaceGuid;
@@ -159,6 +159,29 @@ pub(crate) fn path_with_last_ident(path: &Path, ident: Ident) -> Path {
     let last = path.segments.last_mut().expect("object interface path has at least one segment");
     last.ident = ident;
     path
+}
+
+/// Derives a deterministic private storage-field name from a full interface path.
+pub(crate) fn interface_field(path: &Path) -> Ident {
+    let mut parts = Vec::new();
+    if path.leading_colon.is_some() {
+        parts.push("root".to_string());
+    }
+    parts.extend(path.segments.iter().map(|segment| segment.ident.to_string()));
+
+    let mut name = String::from("__nc_interface");
+    for part in parts {
+        name.push('_');
+        for ch in part.chars() {
+            if ch.is_ascii_alphanumeric() || ch == '_' {
+                name.push(ch);
+            } else {
+                name.push('_');
+            }
+        }
+    }
+
+    format_ident!("{name}")
 }
 
 /// Propagates the source object visibility to generated construction helpers.

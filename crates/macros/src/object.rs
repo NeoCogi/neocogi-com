@@ -1,10 +1,9 @@
 //! Expansion of Rust structs into reference-counted multi-interface COM objects.
 //!
 //! The generator builds one private allocation containing an atomic reference
-//! count, one canonical array of distinct interface headers, and the Rust value.
-//! Metadata, table bindings, and QueryInterface share the same compile-time set.
-//! Generated lifecycle thunks, threading assertions, and construction helpers
-//! preserve the one allocation and its concrete implementation type.
+//! count, an `IUnknown` header, headers for each declared interface and its ancestors, and the Rust
+//! value. It emits query/add-ref/release thunks, threading assertions, and safe
+//! object-creation helpers.
 
 use quote::{format_ident, quote};
 use syn::{Fields, ItemStruct};
@@ -73,29 +72,14 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
     let is_unit_struct = matches!(input.fields, Fields::Unit);
     // Query order and exported metadata use the same derived-first ancestry.
     // Shared bases are advertised once even when several branches expose them.
-    let declared_chains = args
-        .interfaces
-        .iter()
-        .map(|iface| {
-            let abi = &iface.abi_path;
-            quote! { &#abi::INTERFACE_CHAIN }
-        })
-        .collect::<Vec<_>>();
+    let declared_chains = args.interfaces.iter().map(|iface| {
+        let abi = &iface.abi_path;
+        quote! { &#abi::INTERFACE_CHAIN }
+    });
     let interface_chains = quote! { &[
         &[&#nc::IUnknown::INTERFACE_DESCRIPTOR],
         #(#declared_chains,)*
     ] };
-    // This expression contains contract types only, never implementation type
-    // parameters. Fixed-size arrays therefore also work for generic Rust owners.
-    let interface_count = quote! { #nc::__nc_object_interface_count(#interface_chains) };
-    let providers = args
-        .interfaces
-        .iter()
-        .map(|iface| {
-            let provider = &iface.vtable_for_path;
-            quote! { &#provider::<#object_type>::PROJECTIONS }
-        })
-        .collect::<Vec<_>>();
     let thread_safe_marker_impl = (args.thread_safe && args.primary_interface.is_none()).then(|| {
         let assertion = (!generic).then(|| {
             quote! {
@@ -167,6 +151,59 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
         }
     });
 
+    // Each exposed interface gets its own header inside the same allocation.
+    // These headers may live at different addresses, so user-visible casting
+    // must always go through QueryInterface rather than pointer casts.
+    let interface_inits = args.interfaces.iter().map(|iface| {
+        let interfaces_for = &iface.interfaces_for_path;
+        let field = &iface.field_ident;
+        quote! {
+            #field: #interfaces_for::<#object_type>::__nc_new()
+        }
+    });
+
+    let interface_fields = args.interfaces.iter().map(|iface| {
+        let interfaces_for = &iface.interfaces_for_path;
+        let field = &iface.field_ident;
+        quote! {
+            /// Concrete interface headers and inherited projections for this exact stored implementation.
+            #field: #interfaces_for<#object_type>
+        }
+    });
+
+    // The object pointer is not known until the Box allocation exists. Headers
+    // are initialized with null and patched immediately before leaking the Box
+    // into reference-counted COM ownership. The Box path is reached through
+    // neocogi-com's hidden alloc re-export so no_std users do not need their own
+    // `extern crate alloc` just to use generated objects.
+    let set_interface_objects = args.interfaces.iter().map(|iface| {
+        let field = &iface.field_ident;
+        quote! { (*raw).#field.set_object(raw.cast::<core::ffi::c_void>()); }
+    });
+
+    // QueryInterface matches stable IIDs and returns the address of the
+    // matching interface header. Returning a pointer also transfers one owned
+    // reference, so every successful arm calls AddRef first.
+    let query_projections = args.interfaces.iter().map(|iface| {
+        let field = &iface.field_ident;
+        quote! {
+            // SAFETY: The shared borrow only obtains a header address in live
+            // object storage; query never changes object state.
+            let projection = match unsafe { (*storage).#field.query(interface_id) } {
+                Ok(pointer) => pointer,
+                Err(status) => return status,
+            };
+            if !projection.is_null() {
+                // SAFETY: The enclosing object is live and `out` is writable.
+                // Exactly one reference is transferred after finding the header.
+                unsafe {
+                    Self::add_ref_from_abi_object(object);
+                    *out = projection;
+                }
+                return #nc::NC_OK;
+            }
+        }
+    });
     quote! {
         #input
 
@@ -179,30 +216,19 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
             ref_count: ::core::sync::atomic::AtomicU32,
             /// Generated borrow authority shared by every interface projection.
             call_gate: #nc::__ComCallGate,
-            /// One two-pointer C header per distinct contract; canonical IUnknown is first.
-            interfaces: [#nc::IUnknown; #interface_count],
+            /// Canonical identity shared by every interface and inherited base projection.
+            unknown: #nc::IUnknown,
+            #(#interface_fields,)*
             /// Owned Rust state; no reference into a caller's stack escapes through the COM pointer.
             value: core::cell::UnsafeCell<#object_type>,
         }
 
         impl #impl_generics #object_type #where_clause {
-            /// Exact ordered contract set governing headers, provider bindings, and queries.
-            const COM_INTERFACE_DESCRIPTORS: [&'static #nc::NcInterfaceDescriptor; #interface_count] =
-                #nc::__nc_interface_chain(&#nc::IUnknown::INTERFACE_DESCRIPTOR, &[#(#declared_chains,)*]);
+            /// Static ancestry inputs; canonical IUnknown always comes first.
+            const COM_INTERFACE_CHAINS: &'static [&'static [&'static #nc::NcInterfaceDescriptor]] = #interface_chains;
 
-            /// Number of physically stored headers, including canonical IUnknown.
-            pub const COM_INTERFACE_COUNT: usize = Self::COM_INTERFACE_DESCRIPTORS.len();
-
-            /// Compiler-evaluated vtable selection for this exact implementation type.
-            /// This table holds bindings, not application state or runtime allocations.
-            const COM_PROJECTIONS: [#nc::__ComProjection<Self>; #interface_count] =
-                #nc::__nc_projection_table(
-                    &Self::COM_INTERFACE_DESCRIPTORS,
-                    // SAFETY: this allocation's canonical unknown table delegates
-                    // lifecycle and queries to the same stored implementation.
-                    unsafe { #nc::__ComProjection::new(&#nc::IUnknown::INTERFACE_DESCRIPTOR, &<#storage_type>::UNKNOWN_VTABLE) },
-                    &[#(#providers,)*],
-                );
+            /// Number of unique contracts, including automatically exposed bases.
+            pub const COM_INTERFACE_COUNT: usize = #nc::__nc_object_interface_count(Self::COM_INTERFACE_CHAINS);
 
             /// Owns this exact implementation and permits checked local access
             /// between COM calls without downcasting or borrowing external state.
@@ -215,24 +241,31 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
 
             #[doc = "Wraps a fully initialized Rust value as a COM object and returns its `IUnknown` interface."]
             #object_vis fn from_value(value: Self) -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
-                // The array length and associated table are evaluated during
-                // compilation. Runtime construction only initializes those slots.
+                // Force validation of repeated IIDs before allocating storage.
+                // Two projections of one object cannot promise different ABIs.
+                let _ = Self::COM_INTERFACE_COUNT;
                 let object = #nc::__alloc::boxed::Box::new(#storage_ident {
                     ref_count: ::core::sync::atomic::AtomicU32::new(1),
                     call_gate: #nc::__ComCallGate::new(),
-                    interfaces: ::core::array::from_fn(|index| Self::COM_PROJECTIONS[index].unpublished_header()),
+                    unknown: #nc::IUnknown {
+                        vtable: &<#storage_type>::UNKNOWN_VTABLE,
+                        object: core::ptr::null_mut(),
+                    },
+                    #(#interface_inits,)*
                     value: core::cell::UnsafeCell::new(value),
                 });
 
-                // Establish raw ownership before creating self-referential
-                // back-pointers; no subsequent Box borrow can retag the owner.
                 let raw = #nc::__alloc::boxed::Box::into_raw(object);
-                // SAFETY: this fresh allocation is still unpublished, so the
-                // initializer has exclusive mutable access to every header.
-                unsafe { (*raw).initialize_interfaces(raw.cast::<core::ffi::c_void>()); }
+                unsafe {
+                    // SAFETY: `raw` was just produced by `Box::into_raw` and is
+                    // uniquely initialized here before any interface pointer is
+                    // published.
+                    (*raw).unknown.object = raw.cast::<core::ffi::c_void>();
+                    #(#set_interface_objects)*
+                }
                 // SAFETY: The allocation has been leaked into COM ownership and
                 // remains live until the final generated `Release`.
-                let unknown = unsafe { core::ptr::addr_of_mut!((*raw).interfaces[0]) };
+                let unknown = unsafe { core::ptr::addr_of_mut!((*raw).unknown) };
                 unsafe {
                     // SAFETY: `unknown` is non-null and owns the initial
                     // reference created with `ref_count = 1`.
@@ -301,23 +334,23 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                 // SAFETY: `interface_id` was checked non-null and is readable
                 // for this call.
                 let interface_id = unsafe { &*interface_id };
-                // Metadata index is the physical header index. Every route to a
-                // shared ancestor returns the same stable address in this array.
-                for (index, descriptor) in Self::COM_INTERFACE_DESCRIPTORS.iter().enumerate() {
-                    if descriptor.interface_id == interface_id.iid {
-                        if descriptor.abi_signature != interface_id.abi_signature {
+                match interface_id {
+                    interface_id if interface_id.iid == <#nc::IUnknown as #nc::ComInterface>::IID => {
+                        if *interface_id != <#nc::IUnknown as #nc::ComInterface>::INTERFACE_ID {
                             return #nc::NC_E_ABI_VERSION;
                         }
-                        // SAFETY: the allocation is live; the canonical table
-                        // certifies this slot's exact header/vtable contract.
-                        unsafe {
-                            Self::add_ref_from_abi_object(object);
-                            *out = core::ptr::addr_of_mut!((*storage).interfaces[index]).cast::<core::ffi::c_void>();
-                        }
-                        return #nc::NC_OK;
+                        // SAFETY: `object` is this object's live storage pointer.
+                        unsafe { Self::add_ref_from_abi_object(object); }
+                        // SAFETY: `storage` points to the enclosing generated
+                        // storage and `out` was checked non-null.
+                        unsafe { *out = core::ptr::addr_of_mut!((*storage).unknown).cast::<core::ffi::c_void>(); }
+                        #nc::NC_OK
                     }
+                    _ => {
+                        #(#query_projections)*
+                        #nc::NC_E_NOINTERFACE
+                    },
                 }
-                #nc::NC_E_NOINTERFACE
             }
 
             // Relaxed increment is enough for AddRef itself; Release uses
@@ -361,14 +394,6 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
         #unit_factory_bootstrap
 
         impl #impl_generics #storage_type #where_clause {
-            /// Installs back-pointers through exclusive access before publication.
-            /// The caller supplies this allocation's stable raw ownership pointer.
-            fn initialize_interfaces(&mut self, object: *mut core::ffi::c_void) {
-                for header in &mut self.interfaces {
-                    header.object = object;
-                }
-            }
-
             // The standalone IUnknown header uses this vtable. Interface
             // headers use their interface-specific vtables, which embed the
             // same three lifecycle operations as the first field.

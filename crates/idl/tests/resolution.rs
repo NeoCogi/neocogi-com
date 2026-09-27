@@ -521,7 +521,7 @@ fn rejects_recursive_and_weakened_required_interfaces() {
 /// payload-variant types; message-only private wire names cannot collide.
 #[test]
 fn reserves_all_visible_macro_companions() {
-    for suffix in ["Abi", "VTable", "VtblFor", "Client"] {
+    for suffix in ["Abi", "VTable", "VtblFor", "Client", "InterfacesFor"] {
         let name = format!("IFoo{suffix}");
         let source = format!("#[version(1)] interface IFoo {{}} #[version(1)] struct {name} {{ value: u32 }}");
         let error = resolve_modules(vec![module("example/interfaces.ncidl", &source)]).unwrap_err().to_string();
@@ -534,7 +534,7 @@ fn reserves_all_visible_macro_companions() {
         assert!(error.contains("error[EIDL021]") && error.contains(name), "{error}");
     }
 
-    for suffix in ["Abi", "VTable", "VtblFor", "Client"] {
+    for suffix in ["Abi", "VTable", "VtblFor", "Client", "InterfacesFor"] {
         let name = format!("Editor{suffix}");
         let source = format!(
             r#"

@@ -136,6 +136,3 @@ fn inherited_vtable_is_a_physical_prefix_and_signs_the_base() {
     assert_eq!(IToggleAbi::INTERFACE_DESCRIPTOR.base, IButtonAbi::INTERFACE_ID);
     assert_eq!(IToggleAbi::INTERFACE_CHAIN.len(), 4);
 }
-
-#[path = "fixtures/diamond.rs"]
-mod diamond;
