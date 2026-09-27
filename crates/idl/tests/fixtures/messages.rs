@@ -156,4 +156,17 @@ mod message_tests {
         drop(source);
         match decoded { Completion::Accepted { token } => assert_eq!(token.value(), Ok(42)), Completion::Cancelled => panic!("wrong tag") }
     }
+    /// Inspection exposes a finite named graph for actual recursively generated values.
+    #[test]
+    fn resolved_recursive_metadata_is_complete_and_does_not_expand_cycles() {
+        use neocogi_com::design::{IdlShape, IdlValueType};
+        let values = IValidateAbi::IDL_INTERFACE.values;
+        assert_eq!(values.iter().filter(|value| value.qualified_name == "example.messages.Tree").count(), 1);
+        let tree = values.iter().find(|value| value.qualified_name == "example.messages.Tree").unwrap();
+        let IdlShape::Struct(fields) = tree.shape else { panic!("record expected") };
+        assert_eq!(fields[0].ty, IdlValueType::Scalar("bool"));
+        assert_eq!(fields[1].ty, IdlValueType::Sequence(&IdlValueType::Named("example.messages.Tree")));
+        assert!(values.iter().any(|value| value.qualified_name == "example.messages.NumberChanged"));
+    }
+
 }

@@ -30,7 +30,7 @@ pub enum ValueType {
 pub struct ValueDefinition {
     /// Canonical qualified identity used by every named reference.
     pub name: String,
-    /// Ordered fields grouped by record or enum alternative.
+    /// Flattened fields in declaration order, then variant order for an enum.
     pub fields: Vec<ValueType>,
     /// Whether this backend provides a self-contained copied method lowering.
     pub copied: bool,
@@ -66,5 +66,23 @@ impl ValueGraph {
             ValueType::Named(name) => self.definitions.get(name).is_some_and(|value| value.copied),
             ValueType::Unit | ValueType::Text | ValueType::Object(_) | ValueType::Sequence(_) | ValueType::Array(_, _) | ValueType::Optional(_) => false,
         }
+    }
+}
+
+impl ValueDefinition {
+    /// Returns only edges contributing to inline layout; sequences and objects break cycles.
+    pub(crate) fn inline_references(&self) -> Vec<&str> {
+        fn visit<'a>(ty: &'a ValueType, names: &mut Vec<&'a str>) {
+            match ty {
+                ValueType::Named(name) => names.push(name),
+                ValueType::Array(value, _) | ValueType::Optional(value) => visit(value, names),
+                _ => {}
+            }
+        }
+        let mut names = Vec::new();
+        for field in &self.fields {
+            visit(field, &mut names);
+        }
+        names
     }
 }

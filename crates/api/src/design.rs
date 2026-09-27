@@ -8,13 +8,34 @@
 
 use crate::NcInterfaceDescriptor;
 
+/// Structural field expression; named edges refer to the finite definition table.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IdlValueType {
+    /// Empty value.
+    Unit,
+    /// Built-in scalar, including its exact integer or float width.
+    Scalar(&'static str),
+    /// Owned UTF-8 text.
+    Text,
+    /// Canonical identity of another value definition.
+    Named(&'static str),
+    /// Canonical identity of an explicitly retained COM capability.
+    Object(&'static str),
+    /// Explicitly indirect owned sequence.
+    Sequence(&'static IdlValueType),
+    /// Inline fixed-size array.
+    Array(&'static IdlValueType, u32),
+    /// Inline tag and recursively defined optional payload.
+    Optional(&'static IdlValueType),
+}
+
 /// One source field, including the IDL spelling of its declared value type.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct IdlField {
     /// Field identifier, or the zero-based tuple position as decimal text.
     pub name: &'static str,
     /// IDL type expression; named types retain their source spelling.
-    pub ty: &'static str,
+    pub ty: IdlValueType,
 }
 
 /// One case of a tagged IDL enum message.
@@ -22,6 +43,8 @@ pub struct IdlField {
 pub struct IdlVariant {
     /// Declared case identifier.
     pub name: &'static str,
+    /// Exact declared integer discriminant used to select the payload.
+    pub tag: i64,
     /// Ordered tuple or named case fields; an empty slice denotes a unit case.
     pub fields: &'static [IdlField],
 }
@@ -77,4 +100,6 @@ pub struct IdlInterface {
     pub rust_abi: &'static str,
     /// Sole resolved stream, including one inherited through an interface.
     pub stream: Option<IdlEventStream>,
+    /// Finite definitions reachable from this interface chain and event value.
+    pub values: &'static [IdlType],
 }

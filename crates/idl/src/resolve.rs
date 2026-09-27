@@ -195,7 +195,7 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
     }
     let mut diagnostics = Vec::new();
     for index in 0..entries.len() {
-        if let Err(error) = validate_module(index, &entries) {
+        if let Err(error) = validate_module(index, &entries, &values) {
             diagnostics.extend(error.diagnostics);
         }
     }
@@ -556,7 +556,7 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
 }
 
 /// Validates declaration-specific ABI positions and referenced kinds.
-fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), ResolutionError> {
+fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueGraph) -> Result<(), ResolutionError> {
     let entry = &entries[index];
     let mut diagnostics = Vec::new();
     collect_diagnostics(&mut diagnostics, validate_generated_names(index, entries));
@@ -619,7 +619,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry]) -> Result<(), Resoluti
             }
         }
     }
-    collect_diagnostics(&mut diagnostics, validate_layouts(index, entries));
+    collect_diagnostics(&mut diagnostics, validate_layouts(index, entries, values));
     if diagnostics.is_empty() {
         Ok(())
     } else {
@@ -705,17 +705,17 @@ fn validate_generated_names(index: usize, entries: &[ModuleEntry]) -> Result<(),
 }
 
 /// Rejects inline-value and required-interface cycles before generated Rust reaches layout checking.
-fn validate_layouts(index: usize, entries: &[ModuleEntry]) -> Result<(), ResolutionError> {
+fn validate_layouts(index: usize, entries: &[ModuleEntry], values: &crate::ValueGraph) -> Result<(), ResolutionError> {
     let mut states = vec![VisitState::Unvisited; entries[index].module.declarations.len()];
     let mut stack = Vec::new();
     for declaration in 0..states.len() {
-        visit_layout(index, declaration, entries, &mut states, &mut stack)?;
+        visit_layout(index, declaration, entries, values, &mut states, &mut stack)?;
     }
     Ok(())
 }
 
 /// Walks one local declaration and reports the edge closing a cycle.
-fn visit_layout(module: usize, declaration: usize, entries: &[ModuleEntry], states: &mut [VisitState], stack: &mut Vec<usize>) -> Result<(), ResolutionError> {
+fn visit_layout(module: usize, declaration: usize, entries: &[ModuleEntry], values: &crate::ValueGraph, states: &mut [VisitState], stack: &mut Vec<usize>) -> Result<(), ResolutionError> {
     match states[declaration] {
         VisitState::Complete => return Ok(()),
         VisitState::Visiting => return Ok(()),
@@ -725,13 +725,22 @@ fn visit_layout(module: usize, declaration: usize, entries: &[ModuleEntry], stat
     stack.push(declaration);
 
     let owner = &entries[module].module.declarations[declaration];
-    let mut references = Vec::new();
-    collect_layout_references(owner, &mut references);
-    for reference in references {
-        let Ok(symbol) = resolve_named(module, reference, entries) else {
-            // Name resolution already emits the more direct diagnostic.
-            continue;
-        };
+    let mut source_references = Vec::new();
+    collect_layout_references(owner, &mut source_references);
+    let references = match values.definitions.get(&entries[module].module.name.qualify(&owner.name)) {
+        Some(definition) => definition.inline_references().into_iter().filter_map(|name| {
+            let (owner_name, value_name) = name.rsplit_once('.')?;
+            let target_module = entries.iter().position(|entry| entry.name == owner_name)?;
+            let target = *entries[target_module].local_symbols.get(value_name)?;
+            // Only locations are recovered from syntax. The structural graph
+            // above exclusively decides which named edges determine layout.
+            let span = source_references.iter().find(|reference| resolve_named(module, reference, entries).is_ok_and(|symbol| symbol.module == target.module && symbol.declaration == target.declaration))
+                .map_or(&owner.span, |reference| &reference.span);
+            Some((target, span))
+        }).collect::<Vec<_>>(),
+        None => source_references.iter().filter_map(|reference| resolve_named(module, reference, entries).ok().map(|symbol| (symbol, &reference.span))).collect(),
+    };
+    for (symbol, span) in references {
         if symbol.module != module || symbol.kind != symbol_kind(&owner.kind) {
             continue;
         }
@@ -741,7 +750,7 @@ fn visit_layout(module: usize, declaration: usize, entries: &[ModuleEntry], stat
                     SymbolKind::Value => (
                         "copied-value layout",
                         "field",
-                        "introduce an object interface boundary; copied IDL values must have a finite inline size",
+                        "values require finite inline size; use an explicit sequence or object reference, since optional and array fields remain inline",
                     ),
                     SymbolKind::Interface => (
                         "interface projections",
@@ -760,13 +769,13 @@ fn visit_layout(module: usize, declaration: usize, entries: &[ModuleEntry], stat
                     diagnostics: vec![
                         Diagnostic::new("EIDL063", format!("recursive {layout}: {}", names.join(" -> ")))
                             .with_sources(&entries[module].module.sources)
-                            .primary(&reference.span, format!("this {label} closes the recursive layout"))
+                            .primary(span, format!("this {label} closes the recursive layout"))
                             .secondary(&definition.span, "recursive declaration is defined here")
                             .note(note),
                     ],
                 });
             }
-            VisitState::Unvisited => visit_layout(module, symbol.declaration, entries, states, stack)?,
+            VisitState::Unvisited => visit_layout(module, symbol.declaration, entries, values, states, stack)?,
             VisitState::Complete => {}
         }
     }
