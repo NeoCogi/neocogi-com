@@ -102,3 +102,7 @@ path = "integration-tests/binary_persistence.rs"
 name = "object_persistence"
 path = "integration-tests/object_persistence.rs"
 required-features = ["runtime"]
+
+[[test]]
+name = "checked_values"
+path = "integration-tests/checked_values.rs"

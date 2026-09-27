@@ -80,8 +80,14 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
         }
     });
 
+    let value_codec = crate::value::expand(
+        struct_ident, &input.vis,
+        &[crate::value::ValueCase { variant: None, tag: quote! { 0 }, fields: input.fields.clone() }],
+        quote! { #nc::NcAbiSignature::from_static(&#signature_bytes_ident) }, true, &nc,
+    );
     Ok(quote! {
         #input
+        #value_codec
         #layout_check
         #signature_static
 

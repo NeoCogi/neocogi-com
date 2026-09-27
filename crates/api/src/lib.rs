@@ -465,7 +465,7 @@ pub use neocogi_com_core::{NcCopyFromBufferOffset, NcCopyToBufferOffset};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
-pub use macros::{ComDeserialize, ComSerialize, com_enum, com_class, com_factory, com_interface, com_object, com_struct, factory_plugin};
+pub use macros::{ComDeserialize, ComSerialize, com_enum, com_class, com_factory, com_interface, com_object, com_struct, com_value, factory_plugin};
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{ComEvent, copy_message_bools, copy_message_slice, copy_message_text, format_abi_signature, format_method_signature};
 pub use neocogi_com_core::{
@@ -515,3 +515,8 @@ pub use neocogi_com_core::binary;
 #[cfg(doctest)]
 #[doc = include_str!("../README.md")]
 mod readme_examples {}
+
+// Recursive value transport is independent of whether a value is used as a message.
+pub use neocogi_com_core::{ComValue, ComValueType, ComInlineValue, NcValueRef, ValueBudget, ValueArray, ValueOption, ValueSlice, encode_inline, decode_inline, MAX_VALUE_BYTES, MAX_VALUE_COUNT, MAX_VALUE_DEPTH};
+#[cfg(feature = "alloc")]
+pub use neocogi_com_core::{ValueSequenceStorage, encode_value_buffer, decode_value_buffer};

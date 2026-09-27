@@ -15,6 +15,22 @@ mod external_fields {
         y: f32,
     }
 
+    // SAFETY: this external C record contains only unrestricted f32 leaves.
+    // External layout alone is insufficient; the adapter explicitly provides
+    // the same checked conversion contract required of every other field.
+    unsafe impl neocogi_com::ComValue for Pair {
+        type Wire = Self;
+        type Storage = ();
+        fn encode_value(&self, budget: &mut neocogi_com::ValueBudget) -> Result<(Self, ()), NcStatus> {
+            budget.value(|_| Ok((*self, ())))
+        }
+        unsafe fn decode_value(wire: Self, budget: &mut neocogi_com::ValueBudget) -> Result<Self, NcStatus> {
+            budget.value(|_| Ok(wire))
+        }
+    }
+    // SAFETY: Pair has no pointer or ownership-bearing field.
+    unsafe impl neocogi_com::ComInlineValue for Pair {}
+
     #[com_struct(c_struct, assigned_signature = b"00000000000000000000000000000010")]
     #[derive(Debug, PartialEq)]
     struct Sample {
@@ -40,7 +56,7 @@ mod external_fields {
     }
 
     #[test]
-    fn external_c_fields_pass_by_value_and_buffer_without_com_traits() {
+    fn external_c_fields_require_an_explicit_checked_codec() {
         let interface: ComPtr<IExternalFieldsAbi> = ExternalFields::from_value(ExternalFields).query().unwrap();
         let value = Sample {
             pairs: [Pair { x: 1.25, y: -2.5 }, Pair { x: 4.0, y: 0.125 }],

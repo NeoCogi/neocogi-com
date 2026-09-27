@@ -139,6 +139,7 @@ mod object;
 mod plain_data;
 mod serialize;
 mod structs;
+mod value;
 mod util;
 
 use args::{ObjectArgs, EnumArgs, InterfaceArgs, StructArgs};
@@ -293,7 +294,9 @@ pub fn factory_plugin(input: TokenStream) -> TokenStream {
 /// scalar type identities are not encoded. An incompatible change preserving
 /// this metadata requires a new interface identity. Dependency versions may
 /// differ only while their actual layouts and value semantics remain compatible.
-/// The checks add no runtime conversion or allocation.
+/// External fields must implement `ComValue` and `ComInlineValue`, explicitly
+/// defining raw representations and validation. C layout alone never bypasses
+/// checked conversion. Generated method slots use the converted wire type.
 ///
 /// Use this for small plain records. Variable-size data, borrowed data, raw
 /// addresses, and values with ownership or release obligations should be modeled
@@ -382,4 +385,27 @@ pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
         Ok(tokens) => tokens.into(),
         Err(error) => error.to_compile_error().into(),
     }
+}
+
+/// Generates recursive raw fields and typed backing storage for an owned IDL value.
+/// This uses the same field codec as copied structs and enum payloads.
+#[proc_macro_attribute]
+pub fn com_value(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as StructArgs);
+    let input = parse_macro_input!(item as syn::DeriveInput);
+    let nc = crate::util::runtime_crate_path(args.runtime_crate.as_ref());
+    let Some(signature) = args.assigned_signature else {
+        return syn::Error::new_spanned(&input, "com_value requires an IDL assigned_signature").to_compile_error().into();
+    };
+    let cases = match &input.data {
+        syn::Data::Struct(record) => vec![value::ValueCase { variant: None, tag: quote::quote! { 0 }, fields: record.fields.clone() }],
+        syn::Data::Enum(enumeration) => enumeration.variants.iter().enumerate().map(|(index, variant)| {
+            let tag = variant.discriminant.as_ref().map(|(_, tag)| quote::quote! { #tag }).unwrap_or_else(|| { let index = index as i64; quote::quote! { #index } });
+            value::ValueCase { variant: Some(variant.ident.clone()), tag, fields: variant.fields.clone() }
+        }).collect(),
+        syn::Data::Union(_) => return syn::Error::new_spanned(&input, "unions require an explicit enum tag").to_compile_error().into(),
+    };
+    let signature = quote::quote! { #nc::NcAbiSignature::from_static(#signature) };
+    let codec = value::expand(&input.ident, &input.vis, &cases, signature, false, &nc);
+    quote::quote! { #input #codec }.into()
 }

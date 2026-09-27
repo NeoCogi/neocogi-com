@@ -265,7 +265,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     let method_fields = methods.iter().map(|method| {
         let method_ident = &method.ident;
         let docs = raw_vtable_method_docs(trait_ident, method);
-        let abi_args = method.args.iter().flat_map(raw_vtable_arg_params);
+        let abi_args = method.args.iter().flat_map(|arg| raw_vtable_arg_params(arg));
         let out_param = match &method.ok.kind {
             AbiReturnKind::Void => quote! {},
             AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => {
@@ -296,7 +296,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         // to use the same spelling after buffer lowering.
         let object_ident = syn::Ident::new("__nc_dispatch_object", proc_macro2::Span::mixed_site());
         let value_ident = syn::Ident::new("__nc_dispatch_value", proc_macro2::Span::mixed_site());
-        let params = method.args.iter().flat_map(raw_vtable_arg_params);
+        let params = method.args.iter().flat_map(|arg| raw_vtable_arg_params(arg));
         let arg_conversions = method.args.iter().filter_map(|arg| match &arg.kind {
             AbiArgKind::Message { message_ty } => {
                 let ident = &arg.ident;
@@ -309,49 +309,32 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     };
                 })
             }
-            AbiArgKind::Plain => None,
-            AbiArgKind::CopyFromBufferOffset { element_ty } => {
+            AbiArgKind::Plain => {
                 let ident = &arg.ident;
-                let element_ty = element_ty.as_ref();
-                let offset_ident = buffer_offset_ident(ident);
-                let len_ident = buffer_len_ident(ident);
-                let ptr_ident = buffer_ptr_ident(ident);
+                let ty = &arg.rust_ty;
                 Some(quote! {
-                    let #ident = match unsafe {
-                        // SAFETY: The raw ABI caller owns the buffer contract.
-                        // This conversion validates null and representable length
-                        // before the Rust trait method receives the safe wrapper.
-                        #nc::NcCopyFromBufferOffset::<#element_ty>::__nc_from_raw_parts(
-                            #offset_ident,
-                            #ptr_ident,
-                            #len_ident,
-                        )
-                    } {
-                        Ok(value) => value,
-                        Err(status) => return status.normalize_error(),
+                    // SAFETY: copied wire storage is initialized; restricted fields are validated here.
+                    let #ident = match unsafe { #nc::decode_inline::<#ty>(#ident) } {
+                        Ok(value) => value, Err(status) => return status,
                     };
                 })
-            }
-            AbiArgKind::CopyToBufferOffset { element_ty } => {
+            },
+            AbiArgKind::CopyFromBufferOffset { element_ty } | AbiArgKind::CopyToBufferOffset { element_ty } => {
                 let ident = &arg.ident;
-                let element_ty = element_ty.as_ref();
-                let offset_ident = buffer_offset_ident(ident);
-                let len_ident = buffer_len_ident(ident);
-                let ptr_ident = buffer_ptr_ident(ident);
+                let offset = buffer_offset_ident(ident);
+                let len = buffer_len_ident(ident);
+                let ptr = buffer_ptr_ident(ident);
+                let values = format_ident!("__nc_{}_values", ident);
+                let wrapper = match &arg.kind {
+                    AbiArgKind::CopyFromBufferOffset { .. } => quote! { #nc::NcCopyFromBufferOffset::new(#offset, &#values) },
+                    _ => quote! { #nc::NcCopyToBufferOffset::new(#offset, &mut #values) },
+                };
                 Some(quote! {
-                    let #ident = match unsafe {
-                        // SAFETY: The raw ABI caller owns the buffer contract.
-                        // This conversion validates null and representable length
-                        // before the Rust trait method receives the safe wrapper.
-                        #nc::NcCopyToBufferOffset::<#element_ty>::__nc_from_raw_parts(
-                            #offset_ident,
-                            #ptr_ident,
-                            #len_ident,
-                        )
-                    } {
-                        Ok(value) => value,
-                        Err(status) => return status.normalize_error(),
+                    // SAFETY: initialized raw elements are checked before any application slice exists.
+                    let mut #values = match unsafe { #nc::decode_value_buffer::<#element_ty>(#ptr, #len) } {
+                        Ok(values) => values, Err(status) => return status,
                     };
+                    let #ident = #wrapper;
                 })
             }
             AbiArgKind::ComRef { interface_ty, mode_ty, optional } => {
@@ -387,6 +370,17 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 })
             }
         });
+        let buffer_writeback = method.args.iter().filter_map(|arg| {
+            let AbiArgKind::CopyToBufferOffset { .. } = &arg.kind else { return None; };
+            let values = format_ident!("__nc_{}_values", arg.ident);
+            let ptr = buffer_ptr_ident(&arg.ident);
+            Some(quote! {
+                let wires = match #nc::encode_value_buffer(&#values) { Ok(wires) => wires, Err(status) => return status };
+                // SAFETY: raw output storage has this exact element count. Encode
+                // every field before writing so validation failure leaves it untouched.
+                if !wires.is_empty() { unsafe { core::ptr::copy_nonoverlapping(wires.as_ptr(), #ptr, wires.len()); } }
+            })
+        });
         let arg_names = method.args.iter().map(|arg| &arg.ident).collect::<Vec<_>>();
         let out_param = match &method.ok.kind {
             AbiReturnKind::Void => quote! {},
@@ -415,7 +409,8 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 Ok(value) => {
                     // SAFETY: Non-void thunks checked `__nc_out` for null before the
                     // Rust method was called.
-                    unsafe { *__nc_out = value; }
+                    let raw = match #nc::encode_inline(&value) { Ok(raw) => raw, Err(status) => return status };
+                    unsafe { *__nc_out = raw; }
                     #nc::NC_OK
                 }
             },
@@ -479,6 +474,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 // Release the object-wide borrow before lowering an owned
                 // result into the caller's output slot.
                 drop(#value_ident);
+                if result.is_ok() { #(#buffer_writeback)* }
                 match result {
                     #success_arm
                     // Rust `Result::Err` must map to a negative ABI status.
@@ -776,8 +772,18 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
         let ty = &arg.rust_ty;
         quote! { #ident: #ty }
     });
-    let arg_preparations = method.args.iter().filter_map(safe_arg_preparation);
+    let arg_preparations = method.args.iter().filter_map(|arg| safe_arg_preparation(nc, arg));
     let arg_names = method.args.iter().flat_map(safe_vtable_call_args).collect::<Vec<_>>();
+    let buffer_acquisition = method.args.iter().filter_map(|arg| {
+        let AbiArgKind::CopyToBufferOffset { element_ty } = &arg.kind else { return None; };
+        let ident = &arg.ident;
+        let wires = format_ident!("__nc_{}_wire_buffer", ident);
+        Some(quote! {
+            // SAFETY: successful foreign calls leave all raw output elements initialized.
+            let acquired = unsafe { #nc::decode_value_buffer::<#element_ty>(#wires.as_ptr(), #wires.len() as u64) }?;
+            #ident.as_mut_slice().copy_from_slice(&acquired);
+        })
+    }).collect::<Vec<_>>();
     let rust_ret = &method.ok.rust_ty;
     let receiver = safe_receiver(method.receiver);
     match &method.ok.kind {
@@ -797,6 +803,7 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
                     )
                 };
                 if status.is_ok() {
+                    #(#buffer_acquisition)*
                     Ok(())
                 } else {
                     Err(status)
@@ -809,7 +816,7 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
                 AbiReturnKind::Plain => quote! {
                     // SAFETY: The raw method returned success, which is the
                     // ABI contract that it initialized the out slot.
-                    Ok(unsafe { __nc_out.assume_init() })
+                    unsafe { #nc::decode_inline::<#rust_ret>(__nc_out.assume_init()) }
                 },
                 AbiReturnKind::ComPtr { .. } => quote! {
                     // SAFETY: The raw method returned success, which is the
@@ -838,6 +845,7 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
                         )
                     };
                     if status.is_ok() {
+                        #(#buffer_acquisition)*
                         #success_return
                     } else {
                         Err(status)
@@ -936,7 +944,7 @@ fn arg_type_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_macro
             ))
         },
         AbiArgKind::Plain => {
-            let ty = &arg.abi_ty;
+            let ty = &arg.rust_ty;
             quote! {
                 #nc::NcAbiTypeDescriptor::from_abi_type(#nc::__nc_abi_type::<#ty>())
             }
@@ -985,7 +993,7 @@ fn return_type_descriptor(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::To
             #nc::NcAbiTypeDescriptor::from_abi_type(#nc::NcAbiType::Void)
         },
         AbiReturnKind::Plain => {
-            let ty = &method.ok.abi_ty;
+            let ty = &method.ok.rust_ty;
             quote! {
                 #nc::NcAbiTypeDescriptor::from_abi_type(#nc::__nc_abi_type::<#ty>())
             }
@@ -1019,52 +1027,57 @@ fn raw_vtable_arg_params(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
             let ty = &arg.abi_ty;
             vec![quote! { #ident: #ty }]
         }
-        AbiArgKind::CopyFromBufferOffset { element_ty } => {
-            let element_ty = element_ty.as_ref();
+        AbiArgKind::CopyFromBufferOffset { .. } => {
             let offset_ident = buffer_offset_ident(ident);
             let len_ident = buffer_len_ident(ident);
             let ptr_ident = buffer_ptr_ident(ident);
             vec![
                 quote! { #offset_ident: u64 },
                 quote! { #len_ident: u64 },
-                quote! { #ptr_ident: *const #element_ty },
+                { let ty = &arg.abi_ty; quote! { #ptr_ident: #ty } },
             ]
         }
-        AbiArgKind::CopyToBufferOffset { element_ty } => {
-            let element_ty = element_ty.as_ref();
+        AbiArgKind::CopyToBufferOffset { .. } => {
             let offset_ident = buffer_offset_ident(ident);
             let len_ident = buffer_len_ident(ident);
             let ptr_ident = buffer_ptr_ident(ident);
             vec![
                 quote! { #offset_ident: u64 },
                 quote! { #len_ident: u64 },
-                quote! { #ptr_ident: *mut #element_ty },
+                { let ty = &arg.abi_ty; quote! { #ptr_ident: #ty } },
             ]
         }
     }
 }
 
 /// Emits pre-call pointer/bounds extraction required by a safe wrapper argument.
-fn safe_arg_preparation(arg: &crate::model::AbiArg) -> Option<proc_macro2::TokenStream> {
+fn safe_arg_preparation(nc: &syn::Path, arg: &crate::model::AbiArg) -> Option<proc_macro2::TokenStream> {
     match &arg.kind {
-        AbiArgKind::CopyToBufferOffset { .. } => {
+        AbiArgKind::Plain => {
             let ident = &arg.ident;
-            Some(quote! { let mut #ident = #ident; })
+            Some(quote! { let #ident = #nc::encode_inline(&#ident)?; })
         }
-        AbiArgKind::Plain | AbiArgKind::Message { .. } | AbiArgKind::CopyFromBufferOffset { .. } | AbiArgKind::ComRef { .. } => None,
+        AbiArgKind::CopyToBufferOffset { .. } | AbiArgKind::CopyFromBufferOffset { .. } => {
+            let ident = &arg.ident;
+            let wires = format_ident!("__nc_{}_wire_buffer", ident);
+            let slice = match &arg.kind { AbiArgKind::CopyToBufferOffset { .. } => quote! { #ident.as_mut_slice() }, _ => quote! { #ident.as_slice() } };
+            Some(quote! { let mut #ident = #ident; let mut #wires = #nc::encode_value_buffer(#slice)?; })
+        }
+        AbiArgKind::Message { .. } | AbiArgKind::ComRef { .. } => None,
     }
 }
 
 /// Emits the raw values passed for one source-level safe argument.
 fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.ident;
+    let wires = format_ident!("__nc_{}_wire_buffer", ident);
     match &arg.kind {
         AbiArgKind::Message { .. } => vec![quote! { #ident.as_ptr() }],
         AbiArgKind::Plain => vec![quote! { #ident }],
         AbiArgKind::ComRef { optional: true, .. } => vec![quote! { #ident.map_or(::core::ptr::null_mut(), |value| value.as_mut_ptr()) }],
         AbiArgKind::ComRef { optional: false, .. } => vec![quote! { #ident.as_mut_ptr() }],
-        AbiArgKind::CopyFromBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.__nc_len_u64()? }, quote! { #ident.as_ptr() }],
-        AbiArgKind::CopyToBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.__nc_len_u64()? }, quote! { #ident.__nc_mut_ptr() }],
+        AbiArgKind::CopyFromBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.__nc_len_u64()? }, quote! { #wires.as_ptr() }],
+        AbiArgKind::CopyToBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.__nc_len_u64()? }, quote! { #wires.as_mut_ptr() }],
     }
 }
 

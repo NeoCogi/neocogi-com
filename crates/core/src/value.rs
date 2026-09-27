@@ -101,7 +101,7 @@ pub trait ComValueType: ComValue {
 /// # Safety
 /// The wire is self-contained and can be returned through a copied ABI out slot.
 /// Dropping the original application value cannot invalidate any wire field.
-pub unsafe trait ComInlineValue: ComValue<Storage = ()> + Copy {}
+pub unsafe trait ComInlineValue: ComValue + Copy {}
 
 /// Typed owner of a value's raw record and all temporary producer wire storage.
 /// The application borrow prevents original string/interface backing from being
@@ -411,4 +411,53 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
             Ok(unsafe { crate::ComRef::<T, M>::__nc_from_raw_borrowed_checked(wire) }?.add_ref())
         })
     }
+}
+
+// SAFETY: optional and array wires remain self-contained when their elements do.
+unsafe impl<T: ComInlineValue> ComInlineValue for Option<T> {}
+unsafe impl<T: ComInlineValue, const N: usize> ComInlineValue for [T; N] {}
+
+/// Converts a copied input or output using the same recursive checked codec.
+/// Inline proof ensures discarded storage cannot invalidate the returned wire.
+pub fn encode_inline<T: ComInlineValue>(value: &T) -> Result<T::Wire, NcStatus> {
+    value.encode_value(&mut ValueBudget::default()).map(|(wire, _storage)| wire)
+}
+/// Acquires a copied value after validating every active field.
+///
+/// # Safety
+/// The raw value must satisfy ComValue::decode_value's initialized-storage contract.
+pub unsafe fn decode_inline<T: ComInlineValue>(wire: T::Wire) -> Result<T, NcStatus> {
+    unsafe { T::decode_value(wire, &mut ValueBudget::default()) }
+}
+
+/// Encodes an initialized buffer into raw elements without assuming Rust layout.
+#[cfg(feature = "alloc")]
+pub fn encode_value_buffer<T: ComInlineValue>(values: &[T]) -> Result<Vec<T::Wire>, NcStatus> {
+    let mut budget = ValueBudget::default();
+    budget.sequence::<T::Wire>(values.len())?;
+    let mut result = Vec::new();
+    result.try_reserve_exact(values.len()).map_err(|_| NC_E_OUT_OF_MEMORY)?;
+    for value in values {
+        result.push(value.encode_value(&mut budget)?.0);
+    }
+    Ok(result)
+}
+
+/// Validates every raw element before exposing an application buffer.
+///
+/// # Safety
+/// The pointer addresses len initialized raw elements, live for this call.
+#[cfg(feature = "alloc")]
+pub unsafe fn decode_value_buffer<T: ComInlineValue>(pointer: *const T::Wire, len: u64) -> Result<Vec<T>, NcStatus> {
+    let mut budget = ValueBudget::default();
+    let count = usize::try_from(len).map_err(|_| NC_E_OUT_OF_RANGE)?;
+    budget.sequence::<T>(count)?;
+    let descriptor = ValueSlice { pointer, len };
+    let elements = unsafe { descriptor.elements() }?;
+    let mut result = Vec::new();
+    result.try_reserve_exact(count).map_err(|_| NC_E_OUT_OF_MEMORY)?;
+    for element in elements {
+        result.push(unsafe { T::decode_value(*element, &mut budget) }?);
+    }
+    Ok(result)
 }

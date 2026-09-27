@@ -28,7 +28,7 @@ fn parse_abi_method(method: &TraitItemFn, nc: &syn::Path) -> Result<AbiMethod> {
             Vec::new()
         }
     };
-    let ok = match parse_result_ok_type(method).and_then(lower_abi_return) {
+    let ok = match parse_result_ok_type(method).and_then(|ty| lower_abi_return(ty, nc)) {
         Ok(ok) => ok,
         Err(err) => {
             push_error(&mut errors, err);
@@ -295,14 +295,14 @@ fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
     if let Some(buffer) = parse_copy_from_buffer_offset_type(&ty)? {
         let element_ty = buffer.element_ty;
         validate_plain_abi_type(&element_ty, PlainAbiTypeContext::BufferElement)?;
-        let abi_ty = syn::parse_quote! { *const #element_ty };
+        let abi_ty = syn::parse_quote! { *const <#element_ty as #nc::ComValue>::Wire };
         return Ok((ty, abi_ty, AbiArgKind::CopyFromBufferOffset { element_ty: Box::new(element_ty) }));
     }
 
     if let Some(buffer) = parse_copy_to_buffer_offset_type(&ty)? {
         let element_ty = buffer.element_ty;
         validate_plain_abi_type(&element_ty, PlainAbiTypeContext::BufferElement)?;
-        let abi_ty = syn::parse_quote! { *mut #element_ty };
+        let abi_ty = syn::parse_quote! { *mut <#element_ty as #nc::ComValue>::Wire };
         return Ok((ty, abi_ty, AbiArgKind::CopyToBufferOffset { element_ty: Box::new(element_ty) }));
     }
 
@@ -315,11 +315,11 @@ fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
 
     validate_plain_abi_type(&ty, PlainAbiTypeContext::MethodArgument)?;
 
-    Ok((ty.clone(), ty, AbiArgKind::Plain))
+    Ok((ty.clone(), syn::parse_quote! { <#ty as #nc::ComValue>::Wire }, AbiArgKind::Plain))
 }
 
 /// Selects status-only, plain out-value, or owned-interface return lowering.
-fn lower_abi_return(ty: Type) -> Result<AbiReturn> {
+fn lower_abi_return(ty: Type, nc: &syn::Path) -> Result<AbiReturn> {
     // `()` has no out slot, owned COM pointers transfer one reference, and all
     // remaining accepted types use a caller-provided plain-value out pointer.
     if is_unit_type(&ty) {
@@ -353,7 +353,7 @@ fn lower_abi_return(ty: Type) -> Result<AbiReturn> {
 
     Ok(AbiReturn {
         rust_ty: ty.clone(),
-        abi_ty: ty,
+        abi_ty: syn::parse_quote! { <#ty as #nc::ComValue>::Wire },
         kind: AbiReturnKind::Plain,
     })
 }

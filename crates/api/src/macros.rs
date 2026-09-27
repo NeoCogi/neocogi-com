@@ -7,7 +7,7 @@
 //! participating in the `AbiType` and `AbiPlainValue` contracts.
 
 #[cfg(feature = "macros")]
-pub use neocogi_com_macros::{ComDeserialize, ComSerialize, com_enum, com_class, com_factory, com_interface, com_object, com_struct, factory_plugin};
+pub use neocogi_com_macros::{ComDeserialize, ComSerialize, com_enum, com_class, com_factory, com_interface, com_object, com_struct, com_value, factory_plugin};
 
 /// Defines an ABI-stable enum-like integer newtype.
 ///
@@ -116,6 +116,20 @@ macro_rules! com_int_enum {
         where
             $repr: $crate::AbiPlainValue
         {}
+
+        // SAFETY: the raw integer is validated before accepting a declared value.
+        unsafe impl $crate::ComValue for $name {
+            type Wire = $repr;
+            type Storage = ();
+            fn encode_value(&self, budget: &mut $crate::ValueBudget) -> Result<($repr, ()), $crate::NcStatus> {
+                budget.value(|_| match self.is_known() { true => Ok((self.raw(), ())), false => Err($crate::NC_E_INVALID_TAG) })
+            }
+            unsafe fn decode_value(wire: $repr, budget: &mut $crate::ValueBudget) -> Result<Self, $crate::NcStatus> {
+                budget.value(|_| { let value = Self::from_raw(wire); match value.is_known() { true => Ok(value), false => Err($crate::NC_E_INVALID_TAG) } })
+            }
+        }
+        // SAFETY: a validated integer is self-contained and carries no pointers.
+        unsafe impl $crate::ComInlineValue for $name {}
 
         impl $crate::ComDeserialize for $name
         where
@@ -296,6 +310,20 @@ macro_rules! com_bit_enum {
         where
             $repr: $crate::AbiPlainValue
         {}
+
+        // SAFETY: the raw integer is validated before accepting a declared value.
+        unsafe impl $crate::ComValue for $name {
+            type Wire = $repr;
+            type Storage = ();
+            fn encode_value(&self, budget: &mut $crate::ValueBudget) -> Result<($repr, ()), $crate::NcStatus> {
+                budget.value(|_| match self.is_valid() { true => Ok((self.raw(), ())), false => Err($crate::NC_E_INVALID_TAG) })
+            }
+            unsafe fn decode_value(wire: $repr, budget: &mut $crate::ValueBudget) -> Result<Self, $crate::NcStatus> {
+                budget.value(|_| { let value = Self::from_raw(wire); match value.is_valid() { true => Ok(value), false => Err($crate::NC_E_INVALID_TAG) } })
+            }
+        }
+        // SAFETY: a validated integer is self-contained and carries no pointers.
+        unsafe impl $crate::ComInlineValue for $name {}
 
         impl $crate::ComDeserialize for $name
         where

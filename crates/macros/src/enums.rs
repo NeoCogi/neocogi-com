@@ -385,8 +385,29 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
         }
     });
 
+    let value_cases = variants.iter().map(|(variant, fields, tag)| crate::value::ValueCase {
+        variant: Some(variant.clone()), fields: fields.clone(), tag: quote! { #tag },
+    }).collect::<Vec<_>>();
+    let value_codec = crate::value::expand(enum_ident, vis, &value_cases,
+        quote! { #nc::NcAbiSignature::from_static(&#signature_bytes_ident) }, true, &nc);
     Ok(quote! {
         #input
+        #value_codec
+        // SAFETY: the legacy application wrapper is converted through the same
+        // recursively checked enum codec before it crosses any COM boundary.
+        unsafe impl #nc::ComValue for #abi_ident {
+            type Wire = <#enum_ident as #nc::ComValue>::Wire;
+            type Storage = ();
+            fn encode_value(&self, budget: &mut #nc::ValueBudget) -> Result<(Self::Wire, ()), #nc::NcStatus> {
+                <#enum_ident as #nc::ComValue>::encode_value(&#enum_ident::try_from(*self)?, budget)
+            }
+            unsafe fn decode_value(wire: Self::Wire, budget: &mut #nc::ValueBudget) -> Result<Self, #nc::NcStatus> {
+                unsafe { <#enum_ident as #nc::ComValue>::decode_value(wire, budget) }.map(Self::from)
+            }
+        }
+        unsafe impl #nc::ComInlineValue for #abi_ident {}
+        impl #nc::ComValueType for #abi_ident { const VALUE_SIGNATURE: #nc::NcAbiSignature = <#enum_ident as #nc::ComValueType>::VALUE_SIGNATURE; }
+
 
         #signature_static
 
