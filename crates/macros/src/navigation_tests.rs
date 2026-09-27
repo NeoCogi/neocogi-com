@@ -46,7 +46,7 @@ fn generated_interface_and_enum_names_keep_their_authored_identifier_spans() {
                     .unwrap();
                 let args = item.attrs.remove(index).parse_args().unwrap();
                 let expanded = crate::interface::expand_com_interface(args, item).unwrap();
-                for name in ["CounterAbi", "CounterVTable", "CounterVtblFor", "CounterClient", "CounterInterfacesFor"] {
+                for name in ["CounterAbi", "CounterVTable", "CounterVtblFor", "CounterClient"] {
                     assert_origin(expanded.clone(), name, expected);
                 }
                 verified += 1;

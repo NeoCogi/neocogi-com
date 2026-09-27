@@ -1,0 +1,21 @@
+[package]
+name = "projection-metadata-fixture"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+neocogi-com = { path = "../../.." }
+
+[features]
+# Inspection is a deliberate runtime consumer, independent of object construction.
+inspect = []
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"

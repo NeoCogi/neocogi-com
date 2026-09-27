@@ -49,9 +49,13 @@ method lookup. Obtaining an owned base projection still requires checked
 construct. Handwritten helpers such as `INcStringComPtrExt::to_string` remain
 separate because they add bounded copying, allocation, and UTF-8 validation
 rather than duplicate a generated interface method.
-Interface projection storage is recursive; distinct ancestry paths may contain
-separate headers for the same ancestor. The storage rollback
-records this open limitation and the measured deployment-size recovery.
+Interface storage contains one canonical header per distinct interface ID,
+including `IUnknown`. Shared ancestors reached through a diamond reuse that
+header; conflicting signatures fail compilation. Construction uses only typed
+vtable pointers, and querying reads the compact identity in each existing vtable.
+Full descriptions remain available to explicit inspection without being retained
+by ordinary object construction. See [interface storage](../../../docs/COM_INTERFACE_STORAGE.md)
+for the contract, ownership rules, tests, and size measurements.
 
 When the creating binary also needs the concrete implementation, use
 `Implementation::into_local(value)` to obtain `LocalCom<Implementation>`.

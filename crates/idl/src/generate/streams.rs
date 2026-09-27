@@ -38,19 +38,19 @@ pub(super) fn generate(graph: &Generation<'_>, module: &ResolvedModule, declarat
         return Ok(quote! {});
     };
     let stream_ty = named_rust_type(graph, module, *source, false)?;
-    let mut stream_storage: syn::Path = syn::parse2(stream_ty.clone()).map_err(|error| GenerateError::new(error.to_string()))?;
-    let last = stream_storage.segments.last_mut().expect("named stream path is nonempty");
-    last.ident = rust_ident(&format!("{}InterfacesFor", last.ident))?;
-    let storage_alias = rust_ident(&format!("{}StreamInterfacesFor", declaration.name))?;
+    let mut stream_provider: syn::Path = syn::parse2(stream_ty.clone()).map_err(|error| GenerateError::new(error.to_string()))?;
+    let last = stream_provider.segments.last_mut().expect("named stream path is nonempty");
+    last.ident = rust_ident(&format!("{}VtblFor", last.ident))?;
+    let provider_alias = rust_ident(&format!("{}StreamVtblFor", declaration.name))?;
     let stream_abi = named_rust_type(graph, module, *source, true)?;
     let sink_ty = stream_sink(graph, *source)?;
     let sink_abi = named_rust_type(graph, module, sink_ty, true)?;
     let sink_trait = named_rust_type(graph, module, sink_ty, false)?;
-    let mut sink_storage: syn::Path = syn::parse2(sink_trait.clone()).map_err(|error| GenerateError::new(error.to_string()))?;
-    let last = sink_storage.segments.last_mut().expect("sink path is nonempty");
-    last.ident = rust_ident(&format!("{}InterfacesFor", last.ident))?;
+    let mut sink_provider: syn::Path = syn::parse2(sink_trait.clone()).map_err(|error| GenerateError::new(error.to_string()))?;
+    let last = sink_provider.segments.last_mut().expect("sink path is nonempty");
+    last.ident = rust_ident(&format!("{}VtblFor", last.ident))?;
     let sink_alias = rust_ident(&format!("{}Sink", declaration.name))?;
-    let sink_storage_alias = rust_ident(&format!("{}SinkInterfacesFor", declaration.name))?;
+    let sink_provider_alias = rust_ident(&format!("{}SinkVtblFor", declaration.name))?;
     let abi = rust_ident(&format!("{}Abi", declaration.name))?;
     let alias = rust_ident(&format!("{}Stream", declaration.name))?;
     let alias_abi = rust_ident(&format!("{}StreamAbi", declaration.name))?;
@@ -59,14 +59,14 @@ pub(super) fn generate(graph: &Generation<'_>, module: &ResolvedModule, declarat
     Ok(quote! {
         /// Ordinary implementation trait for this object's complete event stream.
         pub use #stream_ty as #alias;
-        /// COM storage projection for local implementation lists using the stream alias.
-        pub use #stream_storage as #storage_alias;
+        /// Typed vtable provider for local implementation lists using the stream alias.
+        pub use #stream_provider as #provider_alias;
         /// Closed generic COM projection queried from this object's identity.
         pub type #alias_abi = #stream_abi;
         /// Ordinary typed sink implementation trait for local receiver objects.
         pub use #sink_trait as #sink_alias;
-        /// Sink projection storage for explicit local COM implementation lists.
-        pub use #sink_storage as #sink_storage_alias;
+        /// Typed sink vtable provider for explicit local COM implementation lists.
+        pub use #sink_provider as #sink_provider_alias;
         /// Exact typed receiver accepted by the one event stream.
         pub type #alias_sink = #sink_abi;
         /// Producer-owned state generated for the class's single lifetime attachment.

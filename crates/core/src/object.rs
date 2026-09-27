@@ -268,3 +268,29 @@ mod tests {
         assert_eq!(IUnknown::iunknown(raw), raw);
     }
 }
+
+/// Finds a canonical header by the identity already stored in its vtable prefix.
+///
+/// This shared lookup has no implementation-type parameter and reads no inspection
+/// descriptors. The caller owns reference transfer, so failed lookup cannot leak a
+/// reference and successful lookup alone does not extend the allocation's lifetime.
+///
+/// # Safety
+/// Every header must belong to one live allocation, have a permanently valid
+/// IUnknownVTable prefix with a readable generated identity, and remain immutable
+/// while this function runs. The returned pointer is borrowed from that allocation.
+#[doc(hidden)]
+pub unsafe fn __nc_find_interface(headers: &[IUnknown], requested: &NcInterfaceId) -> Result<*mut IUnknown, crate::NcStatus> {
+    for header in headers {
+        // SAFETY: the generated object publishes headers only after installing
+        // static vtables whose leading identity describes this exact projection.
+        let actual = unsafe { &*(*header.vtable).interface_id };
+        if actual.iid == requested.iid {
+            return match actual.abi_signature == requested.abi_signature {
+                true => Ok(core::ptr::from_ref(header).cast_mut()),
+                false => Err(crate::NC_E_ABI_VERSION),
+            };
+        }
+    }
+    Err(crate::NC_E_NOINTERFACE)
+}

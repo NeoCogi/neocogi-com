@@ -1,0 +1,34 @@
+error[E0080]: evaluation panicked: conflicting inherited interface contracts
+  --> integration-tests/ui/interface_conflicting_diamond.rs:10:1
+   |
+10 | #[com_interface(auto_guid = "test.conflict.Top:v1", assigned_signature = b"00000000000000000000000000000003")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `ITopAbi::INTERFACE_CHAIN::{constant#0}` failed inside this call
+   |
+note: inside `neocogi_com::__nc_object_interface_count`
+  --> $WORKSPACE/crates/com/core/src/metadata/inheritance.rs
+   |
+   |             if !repeated(chains, chain, item) {
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: inside `neocogi_com_core::metadata::inheritance::repeated`
+  --> $WORKSPACE/crates/com/core/src/metadata/inheritance.rs
+   |
+   |             if same_contract(current, previous) {
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: inside `neocogi_com_core::metadata::inheritance::same_contract`
+  --> $WORKSPACE/crates/com/core/src/metadata/inheritance.rs
+   |
+   | /     same_identity(
+   | |         &NcInterfaceId::new(left.interface_id, left.abi_signature),
+   | |         &NcInterfaceId::new(right.interface_id, right.abi_signature),
+   | |     )
+   | |_____^
+note: inside `neocogi_com_core::metadata::inheritance::same_identity`
+  --> $RUST/core/src/panic.rs
+   |
+   |         $crate::panicking::panic_fmt($crate::const_format_args!($($t)+));
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the failure occurred here
+   |
+  ::: $WORKSPACE/crates/com/core/src/metadata/inheritance.rs
+   |
+   |     assert!(left.abi_signature.__const_eq(right.abi_signature), "conflicting inherited interface contracts");
+   |     -------------------------------------------------------------------------------------------------------- in this macro invocation

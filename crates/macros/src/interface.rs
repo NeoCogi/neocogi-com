@@ -11,7 +11,7 @@ use syn::{ItemTrait, Result, TypeParamBound, TraitBoundModifier, PathArguments};
 use crate::abi_method::{parse_abi_trait_item, raw_vtable_method_docs, safe_method_docs, validate_interface_trait};
 use crate::args::{InterfaceArgs, InterfaceThreading};
 use crate::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind};
-use crate::util::{abi_signature_static_tokens, checked_u32_len, collect_syn_results, interface_field, interface_guid, push_error, runtime_crate_path};
+use crate::util::{abi_signature_static_tokens, checked_u32_len, collect_syn_results, interface_guid, push_error, runtime_crate_path};
 
 /// Expands one validated interface trait into its complete Rust and C ABI surface.
 pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Result<proc_macro2::TokenStream> {
@@ -71,7 +71,6 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     let vtable_ident = format_ident!("{trait_ident}VTable", span = trait_ident.span());
     let vtable_for_ident = format_ident!("{trait_ident}VtblFor", span = trait_ident.span());
     let client_ident = format_ident!("{trait_ident}Client", span = trait_ident.span());
-    let interfaces_ident = format_ident!("{trait_ident}InterfacesFor", span = trait_ident.span());
     let threading = match args.threading {
         InterfaceThreading::Local => quote! { #nc::ThreadLocal },
         InterfaceThreading::Shared => quote! { #nc::ThreadSafe },
@@ -120,16 +119,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     let base = interface_paths.first();
     // The first supertrait supplies the physical prefix. Every later one is
     // a required sibling projection; all refer to the same owned Rust value.
-    let additional_interfaces = interface_paths
-        .iter()
-        .skip(1)
-        .map(|path| {
-            let abi = generated_path(path, "Abi");
-            let interfaces_for = generated_path(path, "InterfacesFor");
-            let field = interface_field(path);
-            (abi, interfaces_for, field)
-        })
-        .collect::<Vec<_>>();
+    let required_providers = interface_paths.iter().map(|path| generated_path(path, "VtblFor")).collect::<Vec<_>>();
     let required_abis = interface_paths.iter().map(|path| generated_path(path, "Abi")).collect::<Vec<_>>();
     let mut base_identity = quote! { #nc::NcInterfaceId::NONE };
     let mut prefix_field = quote! {
@@ -145,16 +135,11 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         },
     };
     let mut client_base = quote! {};
-    let mut storage_base = quote! {};
-    let mut storage_base_init = quote! {};
-    let mut storage_base_set = quote! {};
-    let mut storage_base_query = quote! {};
     if let Some(base) = base {
         let base_abi = generated_path(base, "Abi");
         let base_vtable = generated_path(base, "VTable");
         let base_vtable_for = generated_path(base, "VtblFor");
         let base_client = generated_path(base, "Client");
-        let base_interfaces = generated_path(base, "InterfacesFor");
         base_identity = quote! { <#base_abi as #nc::ComInterface>::INTERFACE_ID };
         prefix_field = quote! {
             /// Complete inherited vtable at offset zero; local slots follow it.
@@ -181,43 +166,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 }
             }
         };
-        storage_base = quote! {
-            /// Base projections share this object's allocation and reference count.
-            base: #base_interfaces<T>,
-        };
-        storage_base_init = quote! { base: #base_interfaces::<T>::__nc_new(), };
-        storage_base_set = quote! { self.base.set_object(object); };
-        storage_base_query = quote! {
-            let projection = self.base.query(interface)?;
-            if !projection.is_null() {
-                return Ok(projection);
-            }
-        };
     }
-    let additional_storage = additional_interfaces.iter().map(|(_, interfaces_for, field)| {
-        quote! {
-            #[doc = "Required sibling interface projections sharing this object allocation."]
-            #field: #interfaces_for<T>,
-        }
-    });
-    let additional_storage_init = additional_interfaces.iter().map(|(_, interfaces_for, field)| {
-        quote! {
-            #field: #interfaces_for::<T>::__nc_new(),
-        }
-    });
-    let additional_storage_set = additional_interfaces.iter().map(|(_, _, field)| {
-        quote! {
-            self.#field.set_object(object);
-        }
-    });
-    let additional_storage_query = additional_interfaces.iter().map(|(_, _, field)| {
-        quote! {
-            let projection = self.#field.query(interface)?;
-            if !projection.is_null() {
-                return Ok(projection);
-            }
-        }
-    });
 
     let method_count = checked_u32_len(methods.len(), trait_ident.span(), "interface method count")?;
     let method_param_counts = methods
@@ -612,53 +561,6 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
 
     };
     let provider = quote! {
-        // Header storage is recursive only over the statically known base
-        // chain. It is embedded directly in the one object allocation.
-        #[doc(hidden)]
-        /// Interface projections embedded in one generated provider allocation.
-        #vis struct #interfaces_ident<T> {
-            /// Projection whose header advertises this exact interface contract.
-            own: #abi_ident,
-            #storage_base
-            #(#additional_storage)*
-            /// Associates the thunk implementor without owning a second value.
-            implementor: core::marker::PhantomData<fn() -> T>,
-        }
-
-        impl<T: #trait_ident + #nc::ComAbiObject> #interfaces_ident<T> {
-            /// Creates unpublished headers; the object installs its back-pointer.
-            pub const fn __nc_new() -> Self {
-                Self {
-                    own: #abi_ident { vtable: &#vtable_for_ident::<T>::VTABLE, object: core::ptr::null_mut() },
-                    #storage_base_init
-                    #(#additional_storage_init)*
-                    implementor: core::marker::PhantomData,
-                }
-            }
-        }
-
-        impl<T> #interfaces_ident<T> {
-            /// Patches every projection before the object is published.
-            pub fn set_object(&mut self, object: *mut core::ffi::c_void) {
-                self.own.object = object;
-                #storage_base_set
-                #(#additional_storage_set)*
-            }
-
-            /// Finds a checked projection without changing the reference count.
-            pub fn query(&self, interface: &#nc::NcInterfaceId) -> Result<*mut core::ffi::c_void, #nc::NcStatus> {
-                if interface.iid == <#abi_ident as #nc::ComInterface>::IID {
-                    if *interface != <#abi_ident as #nc::ComInterface>::INTERFACE_ID {
-                        return Err(#nc::NC_E_ABI_VERSION);
-                    }
-                    return Ok(core::ptr::from_ref(&self.own).cast_mut().cast());
-                }
-                #storage_base_query
-                #(#additional_storage_query)*
-                Ok(core::ptr::null_mut())
-            }
-        }
-
         #[doc(hidden)]
         /// Statically typed vtable and lifecycle adapters for one provider type.
         #vis struct #vtable_for_ident<T>(
@@ -670,6 +572,18 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         where
             T: #trait_ident + #nc::ComAbiObject,
         {
+            /// Distinct provider bindings in the interface's canonical metadata order.
+            /// T fixes the thunk implementation; no object headers are stored here.
+            pub const PROJECTIONS: [#nc::__ComProjection<T>; #abi_ident::INTERFACE_CHAIN.len()] =
+                #nc::__nc_projection_table(
+                    &#abi_ident::INTERFACE_CHAIN,
+                    // SAFETY: this macro emits the exact descriptor, two-pointer
+                    // C header and complete prefix-compatible vtable for T.
+                    unsafe { #nc::__ComProjection::new(<#abi_ident as #nc::ComInterface>::INTERFACE_ID,
+                        &Self::VTABLE as *const #vtable_ident as *const #nc::IUnknownVTable) },
+                    &[#(&#required_providers::<T>::PROJECTIONS,)*],
+                );
+
             /// Table for a standalone projection of this interface.
             pub const VTABLE: #vtable_ident = Self::with_identity(&<#abi_ident as #nc::ComInterface>::INTERFACE_ID);
 

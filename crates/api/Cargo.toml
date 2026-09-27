@@ -106,3 +106,7 @@ required-features = ["runtime"]
 [[test]]
 name = "checked_values"
 path = "integration-tests/checked_values.rs"
+
+[[test]]
+name = "projection_metadata"
+path = "integration-tests/projection_metadata.rs"

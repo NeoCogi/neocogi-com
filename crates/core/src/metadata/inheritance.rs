@@ -6,7 +6,7 @@
 //! construction and querying must not read it at runtime: retaining descriptor
 //! pointers there also retains method/type descriptions and their relocations.
 
-use super::NcInterfaceDescriptor;
+use super::{NcInterfaceDescriptor, NcInterfaceId};
 
 /// Builds a derived-first ancestry list from one descriptor and all required projections.
 #[doc(hidden)]
@@ -64,7 +64,16 @@ const fn repeated(chains: &[&[&NcInterfaceDescriptor]], chain: usize, item: usiz
 /// Compares nominal identities and rejects incompatible revisions of one identity.
 /// Both metadata merging and provider assembly use this exact contract rule.
 pub(crate) const fn same_contract(left: &NcInterfaceDescriptor, right: &NcInterfaceDescriptor) -> bool {
-    if !bytes_equal(&left.interface_id.to_uuid_bytes(), &right.interface_id.to_uuid_bytes()) {
+    same_identity(
+        &NcInterfaceId::new(left.interface_id, left.abi_signature),
+        &NcInterfaceId::new(right.interface_id, right.abi_signature),
+    )
+}
+
+/// Validates nominal identity consistently for descriptor and typed-vtable merging.
+/// Only compact identities are needed by provider bindings; they never own schemas.
+pub(crate) const fn same_identity(left: &NcInterfaceId, right: &NcInterfaceId) -> bool {
+    if !bytes_equal(&left.iid.to_uuid_bytes(), &right.iid.to_uuid_bytes()) {
         return false;
     }
     assert!(left.abi_signature.__const_eq(right.abi_signature), "conflicting inherited interface contracts");

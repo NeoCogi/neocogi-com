@@ -3,47 +3,6 @@
 
 use super::*;
 #[doc(hidden)]
-/// Interface projections embedded in one generated provider allocation.
-pub struct IObjectChildrenInterfacesFor<T> {
-    /// Projection whose header advertises this exact interface contract.
-    own: IObjectChildrenAbi,
-    /// Associates the thunk implementor without owning a second value.
-    implementor: core::marker::PhantomData<fn() -> T>,
-}
-impl<T: IObjectChildren + ::neocogi_com::ComAbiObject> IObjectChildrenInterfacesFor<T> {
-    /// Creates unpublished headers; the object installs its back-pointer.
-    pub const fn __nc_new() -> Self {
-        Self {
-            own: IObjectChildrenAbi {
-                vtable: &IObjectChildrenVtblFor::<T>::VTABLE,
-                object: core::ptr::null_mut(),
-            },
-            implementor: core::marker::PhantomData,
-        }
-    }
-}
-impl<T> IObjectChildrenInterfacesFor<T> {
-    /// Patches every projection before the object is published.
-    pub fn set_object(&mut self, object: *mut core::ffi::c_void) {
-        self.own.object = object;
-    }
-    /// Finds a checked projection without changing the reference count.
-    pub fn query(
-        &self,
-        interface: &::neocogi_com::NcInterfaceId,
-    ) -> Result<*mut core::ffi::c_void, ::neocogi_com::NcStatus> {
-        if interface.iid == <IObjectChildrenAbi as ::neocogi_com::ComInterface>::IID {
-            if *interface
-                != <IObjectChildrenAbi as ::neocogi_com::ComInterface>::INTERFACE_ID
-            {
-                return Err(::neocogi_com::NC_E_ABI_VERSION);
-            }
-            return Ok(core::ptr::from_ref(&self.own).cast_mut().cast());
-        }
-        Ok(core::ptr::null_mut())
-    }
-}
-#[doc(hidden)]
 /// Statically typed vtable and lifecycle adapters for one provider type.
 pub struct IObjectChildrenVtblFor<T>(
     /// Associates dispatch with T without allocating or owning a value.
@@ -53,6 +12,21 @@ impl<T> IObjectChildrenVtblFor<T>
 where
     T: IObjectChildren + ::neocogi_com::ComAbiObject,
 {
+    /// Distinct provider bindings in the interface's canonical metadata order.
+    /// T fixes the thunk implementation; no object headers are stored here.
+    pub const PROJECTIONS: [::neocogi_com::__ComProjection<
+        T,
+    >; IObjectChildrenAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_projection_table(
+        &IObjectChildrenAbi::INTERFACE_CHAIN,
+        unsafe {
+            ::neocogi_com::__ComProjection::new(
+                <IObjectChildrenAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                &Self::VTABLE as *const IObjectChildrenVTable
+                    as *const ::neocogi_com::IUnknownVTable,
+            )
+        },
+        &[],
+    );
     /// Table for a standalone projection of this interface.
     pub const VTABLE: IObjectChildrenVTable = Self::with_identity(
         &<IObjectChildrenAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
@@ -203,47 +177,6 @@ where
     }
 }
 #[doc(hidden)]
-/// Interface projections embedded in one generated provider allocation.
-pub struct IPersistableInterfacesFor<T> {
-    /// Projection whose header advertises this exact interface contract.
-    own: IPersistableAbi,
-    /// Associates the thunk implementor without owning a second value.
-    implementor: core::marker::PhantomData<fn() -> T>,
-}
-impl<T: IPersistable + ::neocogi_com::ComAbiObject> IPersistableInterfacesFor<T> {
-    /// Creates unpublished headers; the object installs its back-pointer.
-    pub const fn __nc_new() -> Self {
-        Self {
-            own: IPersistableAbi {
-                vtable: &IPersistableVtblFor::<T>::VTABLE,
-                object: core::ptr::null_mut(),
-            },
-            implementor: core::marker::PhantomData,
-        }
-    }
-}
-impl<T> IPersistableInterfacesFor<T> {
-    /// Patches every projection before the object is published.
-    pub fn set_object(&mut self, object: *mut core::ffi::c_void) {
-        self.own.object = object;
-    }
-    /// Finds a checked projection without changing the reference count.
-    pub fn query(
-        &self,
-        interface: &::neocogi_com::NcInterfaceId,
-    ) -> Result<*mut core::ffi::c_void, ::neocogi_com::NcStatus> {
-        if interface.iid == <IPersistableAbi as ::neocogi_com::ComInterface>::IID {
-            if *interface
-                != <IPersistableAbi as ::neocogi_com::ComInterface>::INTERFACE_ID
-            {
-                return Err(::neocogi_com::NC_E_ABI_VERSION);
-            }
-            return Ok(core::ptr::from_ref(&self.own).cast_mut().cast());
-        }
-        Ok(core::ptr::null_mut())
-    }
-}
-#[doc(hidden)]
 /// Statically typed vtable and lifecycle adapters for one provider type.
 pub struct IPersistableVtblFor<T>(
     /// Associates dispatch with T without allocating or owning a value.
@@ -253,6 +186,21 @@ impl<T> IPersistableVtblFor<T>
 where
     T: IPersistable + ::neocogi_com::ComAbiObject,
 {
+    /// Distinct provider bindings in the interface's canonical metadata order.
+    /// T fixes the thunk implementation; no object headers are stored here.
+    pub const PROJECTIONS: [::neocogi_com::__ComProjection<
+        T,
+    >; IPersistableAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_projection_table(
+        &IPersistableAbi::INTERFACE_CHAIN,
+        unsafe {
+            ::neocogi_com::__ComProjection::new(
+                <IPersistableAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                &Self::VTABLE as *const IPersistableVTable
+                    as *const ::neocogi_com::IUnknownVTable,
+            )
+        },
+        &[],
+    );
     /// Table for a standalone projection of this interface.
     pub const VTABLE: IPersistableVTable = Self::with_identity(
         &<IPersistableAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
@@ -528,50 +476,6 @@ where
     }
 }
 #[doc(hidden)]
-/// Interface projections embedded in one generated provider allocation.
-pub struct IPersistenceFactoryInterfacesFor<T> {
-    /// Projection whose header advertises this exact interface contract.
-    own: IPersistenceFactoryAbi,
-    /// Associates the thunk implementor without owning a second value.
-    implementor: core::marker::PhantomData<fn() -> T>,
-}
-impl<
-    T: IPersistenceFactory + ::neocogi_com::ComAbiObject,
-> IPersistenceFactoryInterfacesFor<T> {
-    /// Creates unpublished headers; the object installs its back-pointer.
-    pub const fn __nc_new() -> Self {
-        Self {
-            own: IPersistenceFactoryAbi {
-                vtable: &IPersistenceFactoryVtblFor::<T>::VTABLE,
-                object: core::ptr::null_mut(),
-            },
-            implementor: core::marker::PhantomData,
-        }
-    }
-}
-impl<T> IPersistenceFactoryInterfacesFor<T> {
-    /// Patches every projection before the object is published.
-    pub fn set_object(&mut self, object: *mut core::ffi::c_void) {
-        self.own.object = object;
-    }
-    /// Finds a checked projection without changing the reference count.
-    pub fn query(
-        &self,
-        interface: &::neocogi_com::NcInterfaceId,
-    ) -> Result<*mut core::ffi::c_void, ::neocogi_com::NcStatus> {
-        if interface.iid == <IPersistenceFactoryAbi as ::neocogi_com::ComInterface>::IID
-        {
-            if *interface
-                != <IPersistenceFactoryAbi as ::neocogi_com::ComInterface>::INTERFACE_ID
-            {
-                return Err(::neocogi_com::NC_E_ABI_VERSION);
-            }
-            return Ok(core::ptr::from_ref(&self.own).cast_mut().cast());
-        }
-        Ok(core::ptr::null_mut())
-    }
-}
-#[doc(hidden)]
 /// Statically typed vtable and lifecycle adapters for one provider type.
 pub struct IPersistenceFactoryVtblFor<T>(
     /// Associates dispatch with T without allocating or owning a value.
@@ -581,6 +485,21 @@ impl<T> IPersistenceFactoryVtblFor<T>
 where
     T: IPersistenceFactory + ::neocogi_com::ComAbiObject,
 {
+    /// Distinct provider bindings in the interface's canonical metadata order.
+    /// T fixes the thunk implementation; no object headers are stored here.
+    pub const PROJECTIONS: [::neocogi_com::__ComProjection<
+        T,
+    >; IPersistenceFactoryAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_projection_table(
+        &IPersistenceFactoryAbi::INTERFACE_CHAIN,
+        unsafe {
+            ::neocogi_com::__ComProjection::new(
+                <IPersistenceFactoryAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
+                &Self::VTABLE as *const IPersistenceFactoryVTable
+                    as *const ::neocogi_com::IUnknownVTable,
+            )
+        },
+        &[],
+    );
     /// Table for a standalone projection of this interface.
     pub const VTABLE: IPersistenceFactoryVTable = Self::with_identity(
         &<IPersistenceFactoryAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,

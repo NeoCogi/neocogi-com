@@ -79,7 +79,7 @@ pub use metadata::{
     NcPluginDependencyDescriptor, NcQualifiedNameError, NcStaticUtf8, NcVersionTextError, validate_qualified_name, validate_version_text,
 };
 pub use object::{
-    __ComSupportsInterfaceThreading, ComFactoryBootstrap, ComFactoryInterface, ComClassInterface, ComFactoryImplementation, ComInterface, IID_IUNKNOWN,
+    __nc_find_interface, __ComSupportsInterfaceThreading, ComFactoryBootstrap, ComFactoryInterface, ComClassInterface, ComFactoryImplementation, ComInterface, IID_IUNKNOWN,
     IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
 };
 pub use ptr::{ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};
@@ -96,7 +96,7 @@ pub use status::{
 };
 
 #[doc(hidden)]
-pub use metadata::{__nc_interface_chain, __nc_object_interface_count};
+pub use metadata::{__ComProjection, __nc_interface_chain, __nc_object_interface_count, __nc_projection_table, __nc_projection_vtables};
 pub use factory_plugin::{
     NC_FACTORY_PLUGIN_ABI_VERSION, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NcActivatePluginFactory, NcFactoryPluginDescription,
     NcGetFactoryPluginDescription, activate_factory_implementation, return_factory_plugin_description, validate_factory_plugin_description,

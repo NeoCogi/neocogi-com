@@ -539,7 +539,7 @@ pub use runtime::{
 };
 
 #[doc(hidden)]
-pub use neocogi_com_core::{__nc_interface_chain, __nc_object_interface_count};
+pub use neocogi_com_core::{__ComProjection, __nc_interface_chain, __nc_object_interface_count, __nc_projection_table, __nc_projection_vtables, __nc_find_interface};
 
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::binary;
