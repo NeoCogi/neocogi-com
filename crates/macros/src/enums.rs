@@ -93,7 +93,17 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
     let signature_static = abi_signature_static_tokens(&signature_bytes_ident, assigned_signature, &nc);
 
     let (deserialize_payload_impls, deserialize_impl) = if args.deserialize {
-        expand_enum_deserialize(enum_ident, &variants, &nc)?
+        let (payloads, decoder) = expand_enum_deserialize(enum_ident, &variants, &nc)?;
+        let wrapper_decoder = quote! {
+            impl #nc::ComDeserialize for #abi_ident {
+                /// Builds the C-layout application wrapper only from a decoded enum.
+                /// Its field codecs and selected variant share the enum's policy.
+                fn com_deserialize<'__de, D: #nc::ComDeserializer<'__de>>(decoder: D) -> Result<Self, D::Error> {
+                    <#enum_ident as #nc::ComDeserialize>::com_deserialize(decoder).map(Self::from)
+                }
+            }
+        };
+        (payloads, quote! { #decoder #wrapper_decoder })
     } else {
         (Vec::new(), quote! {})
     };

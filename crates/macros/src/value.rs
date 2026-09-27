@@ -346,7 +346,10 @@ pub(crate) fn expand_owned(args: crate::args::StructArgs, mut input: syn::Derive
             syn::Data::Struct(record) => {
                 crate::deserialize::expand_struct(&input.ident, &record.fields, &nc, args.deserialize_default, args.deserialize_sequence)?
             }
-            _ => return Err(syn::Error::new_spanned(&input, "deserialize record policy requires a struct")),
+            syn::Data::Enum(enumeration) if !args.deserialize_default && !args.deserialize_sequence => {
+                crate::deserialize::expand_owned_enum(&input.ident, enumeration, &nc, None)?
+            }
+            _ => return Err(syn::Error::new_spanned(&input, "default/sequence deserialization requires a struct")),
         }
     } else {
         quote! {}

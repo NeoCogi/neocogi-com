@@ -112,7 +112,7 @@ fn generates_rust_bindings_for_a_module_graph() {
     assert!(generated.contains("NcCopyToBufferOffset"));
     assert!(generated_render.contains("pub status: ::neocogi_com::NcStatus"));
     assert!(generated_render.contains("com_struct("));
-    assert!(generated_render.contains("deserialize,"));
+    assert!(generated_render.contains("deserialize"));
     // Neither copied declarations nor COM object methods require alloc syntax.
     assert!(!generated_render.contains("extern crate alloc"));
     assert!(!generated.contains("extern crate alloc"));

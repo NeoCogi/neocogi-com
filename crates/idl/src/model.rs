@@ -87,17 +87,41 @@ pub struct BitFlag {
     pub value: u64,
 }
 
+/// Format-neutral decoder generation requested on a record or enum.
+/// Transport remains available independently of this persistence operation.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum DeserializePolicy {
+    /// No generated decoder is requested.
+    #[default]
+    None,
+    /// Every active field must provide decoding; otherwise resolution fails.
+    Required,
+    /// A named record starts from the host-authored Default implementation.
+    Default,
+    /// A record accepts a positional sequence in declaration order.
+    Sequence,
+    /// Generate decoding only when all reachable field decoders exist.
+    /// Useful for generic library values that also carry live COM capabilities.
+    IfSupported,
+}
+impl DeserializePolicy {
+    /// Whether capability resolution should attempt this decoder.
+    pub fn requested(self) -> bool {
+        !matches!(self, Self::None)
+    }
+    /// Whether a missing field operation is a source error at this declaration.
+    pub fn required(self) -> bool {
+        matches!(self, Self::Required | Self::Default | Self::Sequence)
+    }
+}
+
 /// An ABI record declaration.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Struct {
     /// Named fields in normative ABI order.
     pub fields: Vec<Field>,
-    /// Whether generated bindings implement format-neutral typed decoding.
-    pub deserialize: bool,
-    /// Whether omitted named fields retain values from `Default::default`.
-    pub deserialize_default: bool,
-    /// Whether the record may also decode from an ordered sequence.
-    pub deserialize_sequence: bool,
+    /// Explicit format-neutral construction policy, separate from wire transport.
+    pub deserialize: DeserializePolicy,
 }
 
 /// One named field in a struct or named enum payload.
@@ -133,6 +157,8 @@ pub enum EnumRepr {
 /// An ABI enum declaration.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Enum {
+    /// Enum construction policy; default/sequence record modes are not valid here.
+    pub deserialize: DeserializePolicy,
     /// Fixed discriminant representation selected by the suffix or default.
     pub repr: EnumRepr,
     /// Whether unit variants form the exact zero-based contiguous range.

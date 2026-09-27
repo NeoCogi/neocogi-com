@@ -38,11 +38,11 @@ fn unsupported_deserialization_reports_the_missing_field_operation() {
         ),
         (
             "#[version(1)] enum Mode { First, Second } #[version(1)] #[deserialize] struct Snapshot { mode: Mode }",
-            "enum and bit-set decoders",
+            "referenced records/enums",
         ),
         (
             "#[version(1)] bitenum Flags: u8 { A = 1 } #[version(1)] #[deserialize] struct Snapshot { flags: Flags }",
-            "enum and bit-set decoders",
+            "referenced records/enums",
         ),
     ] {
         let module = parse_module(Path::new("proof/operations.ncidl"), &format!("{prefix}{source}")).unwrap();

@@ -331,7 +331,7 @@ pub(crate) fn to_snake_case(source: &str) -> String {
 }
 
 /// Generates owned enum construction using private typed payload records.
-fn expand_owned_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path, rename: Option<&LitStr>) -> Result<TokenStream> {
+pub(crate) fn expand_owned_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path, rename: Option<&LitStr>) -> Result<TokenStream> {
     let mut helpers = Vec::new();
     let mut names = Vec::new();
     let mut arms = Vec::new();

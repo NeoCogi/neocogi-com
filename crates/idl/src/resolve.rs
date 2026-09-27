@@ -665,7 +665,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
     for declaration in &entry.module.declarations {
         match &declaration.kind {
             DeclarationKind::Struct(record) => {
-                if record.deserialize {
+                if record.deserialize.required() {
                     let symbol = entry.local_symbols[&declaration.name];
                     let value = &values.definitions[&entry.declaration_identities[symbol.declaration].qualified_name];
                     for (field, ty) in record.fields.iter().zip(&value.fields) {
@@ -707,6 +707,20 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
             }
             DeclarationKind::Enum(enumeration) => {
                 collect_diagnostics(&mut diagnostics, validate_enum(entry, declaration, enumeration));
+                if enumeration.deserialize.required() {
+                    let symbol = entry.local_symbols[&declaration.name];
+                    let value = &values.definitions[&entry.declaration_identities[symbol.declaration].qualified_name];
+                    for ty in &value.fields {
+                        if let Some(reason) = values.deserialization_failure(ty) {
+                            diagnostics.push(
+                                Diagnostic::new("EIDL064", format!("enum {} cannot implement requested deserialization", declaration.name))
+                                    .with_sources(&entry.module.sources)
+                                    .primary(&declaration.span, "enum payload has no supported decoder")
+                                    .note(reason),
+                            );
+                        }
+                    }
+                }
                 for variant in &enumeration.variants {
                     match &variant.fields {
                         VariantFields::Unit => {}
@@ -1309,7 +1323,8 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
                 .map(|ty| field(index, ty, entries))
                 .collect::<Result<Vec<_>, _>>()?;
             let deserialization = match &declaration.kind {
-                DeclarationKind::Struct(record) if record.deserialize => crate::Deserialization::Supported,
+                DeclarationKind::Struct(record) if record.deserialize.requested() => crate::Deserialization::Supported,
+                DeclarationKind::Enum(enumeration) if enumeration.deserialize.requested() => crate::Deserialization::Supported,
                 _ => crate::Deserialization::NotRequested,
             };
             graph.definitions.insert(

@@ -121,7 +121,7 @@ impl ValueGraph {
                     };
                     match value.deserialization {
                         Deserialization::NotRequested => Some(format!(
-                            "{name} does not declare a generated decoder; referenced records must also request #[deserialize] (enum and bit-set decoders are not exposed by IDL)"
+                            "{name} does not declare a generated decoder; referenced records/enums must also request #[deserialize] (bit-set decoders are not exposed by IDL)"
                         )),
                         Deserialization::Unsupported if visited.insert(name.clone()) => value.fields.iter().find_map(|field| visit(graph, field, visited)),
                         Deserialization::Unsupported | Deserialization::Supported => None,

@@ -177,3 +177,9 @@ imports that collide with these names receive source-located IDL diagnostics
 instead of duplicate-item errors from generated Rust. Copyable message enums
 also emit the tagged-enum companions; owned message wire helpers start with
 `__` and cannot collide with the IDL's UpperCamel declarations.
+
+Records and enums can request `#[deserialize]`, validated recursively before
+Rust generation. `#[deserialize(if_supported)]` makes that capability conditional
+for library values; it does not weaken an enclosing required decoder. Enum
+payloads use the ordinary named variant protocol, including owned and recursive
+payloads. Record-only `default` and `sequence` policies remain explicit.

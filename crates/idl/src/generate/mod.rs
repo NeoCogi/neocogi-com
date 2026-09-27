@@ -428,13 +428,8 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
     let qualified_name = Literal::string(&identity.qualified_name);
     match &declaration.kind {
         DeclarationKind::Struct(record) => {
-            let com_struct = match (record.deserialize, record.deserialize_default, record.deserialize_sequence) {
-                (false, false, false) => quote! { #[::neocogi_com::com_struct(assigned_signature = #assigned_signature)] },
-                (true, false, false) => quote! { #[::neocogi_com::com_struct(deserialize, assigned_signature = #assigned_signature)] },
-                (true, true, false) => quote! { #[::neocogi_com::com_struct(deserialize, default, assigned_signature = #assigned_signature)] },
-                (true, false, true) => quote! { #[::neocogi_com::com_struct(deserialize, sequence, assigned_signature = #assigned_signature)] },
-                _ => return Err(GenerateError::new("resolved struct contains an invalid deserialize policy")),
-            };
+            let deserialize = value::decoder_arguments(graph, declaration, identity);
+            let com_struct = quote! { #[::neocogi_com::com_struct(assigned_signature = #assigned_signature #deserialize)] };
             let fields = record
                 .fields
                 .iter()
@@ -542,14 +537,18 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
                 })
                 .collect::<Result<Vec<_>, GenerateError>>()?;
             if has_payload {
+                let deserialize = value::decoder_arguments(graph, declaration, identity);
                 format_rust(quote! {
-                    #[::neocogi_com::com_enum(tag = #repr, assigned_signature = #assigned_signature)]
+                    #[::neocogi_com::com_enum(tag = #repr, assigned_signature = #assigned_signature #deserialize)]
                     #[derive(Clone, Copy, Debug, PartialEq)]
                     #declaration_docs
                     pub enum #name { #(#variants)* }
                 })
             } else {
                 let mut source = format_macro_enum("com_int_enum", "enum", declaration_docs, &name, &repr, &variants)?;
+                if graph.graph.values.definitions[&identity.qualified_name].deserialization == crate::Deserialization::Supported {
+                    source.push_str(&format_rust(value::unit_enum_decoder(&name, &enumeration.variants))?);
+                }
                 source.push_str(&format_rust(quote! {
                     #dense_members
                     impl ::neocogi_com::ComValueType for #name { const VALUE_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(#assigned_signature); }

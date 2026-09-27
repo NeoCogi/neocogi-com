@@ -75,9 +75,7 @@ fn parses_a_complete_contract_module() {
     let DeclarationKind::Struct(options) = &module.declaration("WidgetOptions").unwrap().kind else {
         panic!("WidgetOptions should be a struct");
     };
-    assert!(options.deserialize);
-    assert!(options.deserialize_default);
-    assert!(!options.deserialize_sequence);
+    assert_eq!(options.deserialize, neocogi_idl::DeserializePolicy::Default);
     assert_eq!(
         options.fields[1].ty,
         AbiType::Array {

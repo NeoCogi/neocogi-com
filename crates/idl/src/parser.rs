@@ -18,9 +18,9 @@ use syn::{
 };
 
 use crate::{
-    AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule,
-    Field, Import, Interface, InterfaceRole, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile, SourceSpan, Struct,
-    Threading, VariantFields,
+    DeserializePolicy, AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant,
+    ExternalModule, Field, Import, Interface, InterfaceRole, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile,
+    SourceSpan, Struct, Threading, VariantFields,
 };
 
 mod keyword {
@@ -347,8 +347,6 @@ fn parse_struct(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Resu
         DeclarationKind::Struct(Struct {
             fields,
             deserialize: metadata.deserialize,
-            deserialize_default: metadata.deserialize_default,
-            deserialize_sequence: metadata.deserialize_sequence,
         }),
     ))
 }
@@ -380,6 +378,7 @@ fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result
         parameters,
         metadata.clone(),
         DeclarationKind::Enum(Enum {
+            deserialize: metadata.deserialize,
             repr,
             dense: metadata.dense,
             names: metadata.enum_names,
@@ -1033,12 +1032,8 @@ struct Attributes {
     id: DeclarationId,
     /// Interface threading capability.
     threading: Option<Threading>,
-    /// Whether generated bindings implement format-neutral typed decoding.
-    deserialize: bool,
-    /// Whether omitted record fields start with their Rust default.
-    deserialize_default: bool,
-    /// Whether a record also accepts positional sequence input.
-    deserialize_sequence: bool,
+    /// Typed construction policy selected independently of live transport.
+    deserialize: DeserializePolicy,
     /// Whether an enum is a zero-based contiguous unit-value domain.
     dense: bool,
     /// Optional canonical naming policy for dense enum values.
@@ -1050,9 +1045,7 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
     let mut docs = Vec::new();
     let mut id = None;
     let mut threading = None;
-    let mut deserialize = false;
-    let mut deserialize_default = false;
-    let mut deserialize_sequence = false;
+    let mut deserialize = DeserializePolicy::None;
     let mut dense = false;
     let mut enum_names = None;
 
@@ -1082,14 +1075,14 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
                 return Err(syn::Error::new_spanned(attribute, "duplicate threading capability"));
             }
             threading = Some(parse_threading(&attribute)?);
-        } else if attribute.path().is_ident("deserialize") && matches!(context, AttributeContext::Plain) {
-            if deserialize {
+        } else if attribute.path().is_ident("deserialize") && matches!(context, AttributeContext::Plain | AttributeContext::Enum) {
+            if deserialize.requested() {
                 return Err(syn::Error::new_spanned(attribute, "duplicate deserialize policy"));
             }
-            let policy = parse_deserialize(&attribute)?;
-            deserialize = true;
-            deserialize_default = policy.default;
-            deserialize_sequence = policy.sequence;
+            deserialize = parse_deserialize(&attribute)?;
+            if matches!(context, AttributeContext::Enum) && matches!(deserialize, DeserializePolicy::Default | DeserializePolicy::Sequence) {
+                return Err(syn::Error::new_spanned(attribute, "default and sequence decoder policies require a struct"));
+            }
         } else if attribute.path().is_ident("dense") && matches!(context, AttributeContext::Enum) {
             if dense {
                 return Err(syn::Error::new_spanned(attribute, "duplicate dense enum policy"));
@@ -1118,46 +1111,26 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
         id,
         threading,
         deserialize,
-        deserialize_default,
-        deserialize_sequence,
         dense,
         enum_names,
     })
 }
 
-/// Optional non-ABI decoding behavior attached to one generated record.
-#[derive(Default)]
-struct DeserializePolicy {
-    /// Retains the record's default value for absent named fields.
-    default: bool,
-    /// Accepts the fields as a positional sequence instead of a named record.
-    sequence: bool,
-}
-
-/// Parses `#[deserialize]` and its mutually exclusive record options.
+/// Parses one mutually exclusive construction policy without ambiguous boolean states.
 fn parse_deserialize(attribute: &Attribute) -> syn::Result<DeserializePolicy> {
-    let mut policy = DeserializePolicy::default();
     if matches!(&attribute.meta, syn::Meta::Path(_)) {
-        return Ok(policy);
+        return Ok(DeserializePolicy::Required);
     }
-    attribute.parse_nested_meta(|meta| {
-        if meta.path.is_ident("default") && !policy.default {
-            policy.default = true;
-            Ok(())
-        } else if meta.path.is_ident("sequence") && !policy.sequence {
-            policy.sequence = true;
-            Ok(())
-        } else {
-            Err(meta.error("expected one `default` or `sequence` option"))
-        }
-    })?;
-    if policy.default && policy.sequence {
-        return Err(syn::Error::new_spanned(
-            attribute,
-            "deserialize default and sequence policies are mutually exclusive",
-        ));
+    let policy = attribute.parse_args::<Ident>()?;
+    match policy.to_string().as_str() {
+        "default" => Ok(DeserializePolicy::Default),
+        "sequence" => Ok(DeserializePolicy::Sequence),
+        "if_supported" => Ok(DeserializePolicy::IfSupported),
+        _ => Err(syn::Error::new_spanned(
+            policy,
+            "expected one default, sequence, or if_supported decoder policy",
+        )),
     }
-    Ok(policy)
 }
 
 /// Returns a callable object's declared capability or the conservative local default.

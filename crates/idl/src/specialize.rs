@@ -438,14 +438,14 @@ pub(crate) fn template_fingerprint(templates: &[Declaration]) -> [u8; 32] {
         parts.extend(template.parameters.iter().cloned());
         match &template.kind {
             DeclarationKind::Struct(record) => {
-                parts.push(format!(
-                    "struct:{}:{}:{}",
-                    record.deserialize, record.deserialize_default, record.deserialize_sequence
-                ));
+                parts.push(format!("struct:{:?}", record.deserialize));
                 fingerprint_fields(&record.fields, &mut parts);
             }
             DeclarationKind::Enum(enumeration) => {
-                parts.push(format!("enum:{:?}:{}:{:?}", enumeration.repr, enumeration.dense, enumeration.names));
+                parts.push(format!(
+                    "enum:{:?}:{}:{:?}:{:?}",
+                    enumeration.repr, enumeration.dense, enumeration.names, enumeration.deserialize
+                ));
                 parts.push(format!("variants:{}", enumeration.variants.len()));
                 for variant in &enumeration.variants {
                     parts.push(format!("{}:{:?}", variant.name, variant.discriminant));
