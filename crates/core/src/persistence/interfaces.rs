@@ -255,12 +255,11 @@ impl IObjectChildrenAbi {
         method_count: 2u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
     };
-    /// This projection followed by every required base and sibling.
-    /// Object storage deduplicates identities and rejects ABI conflicts.
-    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; 1] = crate::__nc_interface_chain(
-        &Self::INTERFACE_DESCRIPTOR,
-        &[],
-    );
+    /// Distinct projections in derived-first, declared-parent order.
+    /// Shared ancestors occur once; repeated identities must have the same ABI.
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
+        &[&[&Self::INTERFACE_DESCRIPTOR]],
+    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
 /// Optional snapshot capability for an owned construction tree.
 /// IDL source: `neocogi/com/persistence/objects.ncidl:12:11`.
@@ -717,12 +716,11 @@ impl IPersistableAbi {
         method_count: 5u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
     };
-    /// This projection followed by every required base and sibling.
-    /// Object storage deduplicates identities and rejects ABI conflicts.
-    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; 1] = crate::__nc_interface_chain(
-        &Self::INTERFACE_DESCRIPTOR,
-        &[],
-    );
+    /// Distinct projections in derived-first, declared-parent order.
+    /// Shared ancestors occur once; repeated identities must have the same ABI.
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
+        &[&[&Self::INTERFACE_DESCRIPTOR]],
+    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
 /// A provider bound to the runtime services required by its construction recipe.
 /// IDL source: `neocogi/com/persistence/objects.ncidl:27:11`.
@@ -1084,10 +1082,9 @@ impl IPersistenceFactoryAbi {
         method_count: 2u32,
         methods: Self::METHOD_DESCRIPTORS.as_ptr(),
     };
-    /// This projection followed by every required base and sibling.
-    /// Object storage deduplicates identities and rejects ABI conflicts.
-    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; 1] = crate::__nc_interface_chain(
-        &Self::INTERFACE_DESCRIPTOR,
-        &[],
-    );
+    /// Distinct projections in derived-first, declared-parent order.
+    /// Shared ancestors occur once; repeated identities must have the same ABI.
+    pub const INTERFACE_CHAIN: [&'static crate::NcInterfaceDescriptor; crate::__nc_object_interface_count(
+        &[&[&Self::INTERFACE_DESCRIPTOR]],
+    )] = crate::__nc_interface_chain(&Self::INTERFACE_DESCRIPTOR, &[]);
 }
