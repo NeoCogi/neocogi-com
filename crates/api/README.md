@@ -8,7 +8,7 @@ support, factory-only plugins, and an optional facade over the linked
 Public cross-library contracts should be authored as Rust-like `.ncidl`
 modules. See [IDL contract modules](../../../docs/IDL_MODULES.md) for their
 source, crate, signature, and tooling model. The
-[core ABI v8 specification](../docs/abi-v8.md) defines the binary boundary.
+[core ABI v9 specification](../docs/abi-v9.md) defines the binary boundary.
 
 ## Local object example
 
@@ -53,6 +53,8 @@ Interface storage contains one canonical header per distinct interface ID,
 including `IUnknown`. Shared ancestors reached through a diamond reuse that
 header; conflicting signatures fail compilation. Construction uses only typed
 vtable pointers, and querying reads the compact identity in each existing vtable.
+Each header contains one pointer; a static vtable offset recovers its enclosing
+allocation, including calls through inherited prefixes. `ComPtr` stays one word.
 Full descriptions remain available to explicit inspection without being retained
 by ordinary object construction. See [interface storage](../../../docs/COM_INTERFACE_STORAGE.md)
 for the contract, ownership rules, tests, and size measurements.

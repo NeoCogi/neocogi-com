@@ -71,12 +71,12 @@ typedef struct NcDebugApiV1Prefix {
 
 struct IUnknown {
     const IUnknownVTable *vtable;
-    void *object;
 };
 
 struct IUnknownVTable {
-    /* Immutable identity of the projected interface; draft core ABI 2. */
+    /* Immutable projection identity and embedded-header offset; core ABI 9. */
     const NcInterfaceId *interface_id;
+    size_t object_offset;
     NcStatus (*query_interface)(
         IUnknown *self,
         const NcInterfaceId *interface_id,
@@ -88,7 +88,6 @@ struct IUnknownVTable {
 
 struct INativeValueAbi {
     const INativeValueVTable *vtable;
-    void *object;
 };
 
 struct INativeValueVTable {
@@ -98,7 +97,6 @@ struct INativeValueVTable {
 
 struct INativeCalculatorAbi {
     const INativeCalculatorVTable *vtable;
-    void *object;
 };
 
 typedef struct NativeAggregate {

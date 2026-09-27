@@ -63,7 +63,7 @@ pub struct NcString;
 #[repr(C)]
 /// Heap allocation backing an [`INcBytesAbi`] COM object.
 ///
-/// The interface headers store a back-pointer to this allocation. Field order
+/// Static vtable offsets locate this allocation from either embedded header. Field order
 /// is fixed for internal pointer recovery, although this structure is never
 /// passed across the public ABI as a value.
 struct BytesObject {
@@ -409,44 +409,34 @@ fn bytes_into_i8_vec(value: Vec<u8>) -> Vec<i8> {
 }
 
 impl BytesObject {
-    /// Allocates byte storage, installs its back-pointers, and returns ownership
+    /// Allocates byte storage with its static vtables and returns ownership
     /// through the primary bytes interface with an initial count of one.
     fn allocate(value: Vec<u8>) -> *mut INcBytesAbi {
         let object = Box::new(Self {
             ref_count: AtomicU32::new(1),
-            unknown: IUnknown {
-                vtable: &BYTES_UNKNOWN_VTABLE,
-                object: core::ptr::null_mut(),
-            },
-            bytes: INcBytesAbi {
-                vtable: &BYTES_VTABLE,
-                object: core::ptr::null_mut(),
-            },
+            unknown: IUnknown { vtable: &BYTES_UNKNOWN_VTABLE },
+            bytes: INcBytesAbi { vtable: &BYTES_VTABLE },
             value,
         });
         let raw = Box::into_raw(object);
         // SAFETY: `raw` was just allocated and is uniquely initialized before
         // any COM interface pointer is published.
-        unsafe {
-            (*raw).unknown.object = raw.cast::<c_void>();
-            (*raw).bytes.object = raw.cast::<c_void>();
-            core::ptr::addr_of_mut!((*raw).bytes)
-        }
+        unsafe { core::ptr::addr_of_mut!((*raw).bytes) }
     }
 
     /// Validates and borrows byte storage from an interface's opaque pointer.
     ///
     /// # Safety
     ///
-    /// A non-null `object` must be the back-pointer installed by
+    /// A non-null `object` must be recovered from an embedded header created by
     /// [`Self::allocate`] and must remain live for the returned borrow.
     unsafe fn from_object<'a>(object: *mut c_void) -> Result<&'a Self, NcStatus> {
         let object = object.cast::<Self>();
         if object.is_null() {
             return Err(NC_E_POINTER);
         }
-        // SAFETY: The caller supplied the back-pointer installed in this
-        // object's interface headers.
+        // SAFETY: The caller recovered this allocation through the header's
+        // compiler-derived static vtable offset.
         Ok(unsafe { &*object })
     }
 
@@ -491,48 +481,34 @@ impl BytesObject {
 }
 
 impl StringObject {
-    /// Allocates UTF-8 storage and initializes all interface back-pointers.
+    /// Allocates UTF-8 storage with each embedded header fully initialized.
     fn allocate(value: String) -> *mut INcStringAbi {
         let object = Box::new(Self {
             ref_count: AtomicU32::new(1),
-            unknown: IUnknown {
-                vtable: &STRING_UNKNOWN_VTABLE,
-                object: core::ptr::null_mut(),
-            },
-            string: INcStringAbi {
-                vtable: &STRING_VTABLE,
-                object: core::ptr::null_mut(),
-            },
-            bytes: INcBytesAbi {
-                vtable: &STRING_BYTES_VTABLE,
-                object: core::ptr::null_mut(),
-            },
+            unknown: IUnknown { vtable: &STRING_UNKNOWN_VTABLE },
+            string: INcStringAbi { vtable: &STRING_VTABLE },
+            bytes: INcBytesAbi { vtable: &STRING_BYTES_VTABLE },
             value,
         });
         let raw = Box::into_raw(object);
         // SAFETY: `raw` was just allocated and is uniquely initialized before
         // any COM interface pointer is published.
-        unsafe {
-            (*raw).unknown.object = raw.cast::<c_void>();
-            (*raw).string.object = raw.cast::<c_void>();
-            (*raw).bytes.object = raw.cast::<c_void>();
-            core::ptr::addr_of_mut!((*raw).string)
-        }
+        unsafe { core::ptr::addr_of_mut!((*raw).string) }
     }
 
     /// Validates and borrows string storage from an interface's opaque pointer.
     ///
     /// # Safety
     ///
-    /// A non-null `object` must be the back-pointer installed by
+    /// A non-null `object` must be recovered from an embedded header created by
     /// [`Self::allocate`] and remain live for the returned borrow.
     unsafe fn from_object<'a>(object: *mut c_void) -> Result<&'a Self, NcStatus> {
         let object = object.cast::<Self>();
         if object.is_null() {
             return Err(NC_E_POINTER);
         }
-        // SAFETY: The caller supplied the back-pointer installed in this
-        // object's interface headers.
+        // SAFETY: The caller recovered this allocation through the header's
+        // compiler-derived static vtable offset.
         Ok(unsafe { &*object })
     }
 
@@ -579,6 +555,7 @@ impl StringObject {
 /// Standalone `IUnknown` dispatch table for byte objects.
 static BYTES_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
     interface_id: &IUnknown::INTERFACE_ID,
+    object_offset: core::mem::offset_of!(BytesObject, unknown),
     query_interface: bytes_query_interface,
     add_ref: bytes_unknown_add_ref,
     release: bytes_unknown_release,
@@ -588,6 +565,7 @@ static BYTES_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
 static BYTES_VTABLE: INcBytesVTable = INcBytesVTable {
     unknown: IUnknownVTable {
         interface_id: &INcBytesAbi::INTERFACE_ID,
+        object_offset: core::mem::offset_of!(BytesObject, bytes),
         query_interface: bytes_query_interface,
         add_ref: bytes_unknown_add_ref,
         release: bytes_unknown_release,
@@ -600,6 +578,7 @@ static BYTES_VTABLE: INcBytesVTable = INcBytesVTable {
 /// Standalone `IUnknown` dispatch table for string objects.
 static STRING_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
     interface_id: &IUnknown::INTERFACE_ID,
+    object_offset: core::mem::offset_of!(StringObject, unknown),
     query_interface: string_query_interface,
     add_ref: string_unknown_add_ref,
     release: string_unknown_release,
@@ -609,6 +588,7 @@ static STRING_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
 static STRING_VTABLE: INcStringVTable = INcStringVTable {
     unknown: IUnknownVTable {
         interface_id: &INcStringAbi::INTERFACE_ID,
+        object_offset: core::mem::offset_of!(StringObject, string),
         query_interface: string_query_interface,
         add_ref: string_unknown_add_ref,
         release: string_unknown_release,
@@ -622,6 +602,7 @@ static STRING_VTABLE: INcStringVTable = INcStringVTable {
 static STRING_BYTES_VTABLE: INcBytesVTable = INcBytesVTable {
     unknown: IUnknownVTable {
         interface_id: &INcBytesAbi::INTERFACE_ID,
+        object_offset: core::mem::offset_of!(StringObject, bytes),
         query_interface: string_query_interface,
         add_ref: string_unknown_add_ref,
         release: string_unknown_release,
@@ -640,7 +621,7 @@ unsafe extern "C" fn bytes_query_interface(this: *mut IUnknown, interface_id: *c
     // the raw ABI contract.
     unsafe { *out = core::ptr::null_mut() };
     // SAFETY: `this` was checked non-null and is an IUnknown-compatible header.
-    let object = unsafe { (*this).object };
+    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
     let storage = match unsafe { BytesObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -676,7 +657,7 @@ unsafe extern "C" fn bytes_unknown_add_ref(this: *mut IUnknown) -> u32 {
         return 0;
     }
     // SAFETY: `this` was checked non-null and is an IUnknown-compatible header.
-    unsafe { BytesObject::add_ref((*this).object) }
+    unsafe { BytesObject::add_ref(crate::__nc_object_from_interface(this.cast())) }
 }
 
 /// Forwards `IUnknown::Release` from a byte header to its shared storage.
@@ -685,7 +666,7 @@ unsafe extern "C" fn bytes_unknown_release(this: *mut IUnknown) -> u32 {
         return 0;
     }
     // SAFETY: `this` was checked non-null and is an IUnknown-compatible header.
-    unsafe { BytesObject::release((*this).object) }
+    unsafe { BytesObject::release(crate::__nc_object_from_interface(this.cast())) }
 }
 
 /// Writes the immutable byte vector's length to an ABI output slot.
@@ -694,7 +675,7 @@ unsafe extern "C" fn bytes_len(this: *mut INcBytesAbi, out: *mut u64) -> NcStatu
         return NC_E_POINTER;
     }
     // SAFETY: `this` was checked non-null and is a bytes interface header.
-    let object = unsafe { (*this).object };
+    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
     let storage = match unsafe { BytesObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -710,7 +691,7 @@ unsafe extern "C" fn bytes_byte_at(this: *mut INcBytesAbi, index: u64, out: *mut
         return NC_E_POINTER;
     }
     // SAFETY: `this` was checked non-null and is a bytes interface header.
-    let object = unsafe { (*this).object };
+    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
     let storage = match unsafe { BytesObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -732,7 +713,7 @@ unsafe extern "C" fn bytes_copy_to(this: *mut INcBytesAbi, offset: u64, len: u64
         return NC_E_POINTER;
     }
     // SAFETY: `this` was checked non-null and is a bytes interface header.
-    let object = unsafe { (*this).object };
+    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
     let storage = match unsafe { BytesObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -749,7 +730,7 @@ unsafe extern "C" fn string_query_interface(this: *mut IUnknown, interface_id: *
     // the raw ABI contract.
     unsafe { *out = core::ptr::null_mut() };
     // SAFETY: `this` was checked non-null and is an IUnknown-compatible header.
-    let object = unsafe { (*this).object };
+    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
     let storage = match unsafe { StringObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -794,7 +775,7 @@ unsafe extern "C" fn string_unknown_add_ref(this: *mut IUnknown) -> u32 {
         return 0;
     }
     // SAFETY: `this` was checked non-null and is an IUnknown-compatible header.
-    unsafe { StringObject::add_ref((*this).object) }
+    unsafe { StringObject::add_ref(crate::__nc_object_from_interface(this.cast())) }
 }
 
 /// Forwards `IUnknown::Release` from a string header to shared storage.
@@ -803,7 +784,7 @@ unsafe extern "C" fn string_unknown_release(this: *mut IUnknown) -> u32 {
         return 0;
     }
     // SAFETY: `this` was checked non-null and is an IUnknown-compatible header.
-    unsafe { StringObject::release((*this).object) }
+    unsafe { StringObject::release(crate::__nc_object_from_interface(this.cast())) }
 }
 
 /// Writes the UTF-8 storage length through the primary string interface.
@@ -812,7 +793,7 @@ unsafe extern "C" fn string_byte_len(this: *mut INcStringAbi, out: *mut u64) -> 
         return NC_E_POINTER;
     }
     // SAFETY: `this` was checked non-null and is a string interface header.
-    let object = unsafe { (*this).object };
+    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
     let storage = match unsafe { StringObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -828,7 +809,7 @@ unsafe extern "C" fn string_byte_at(this: *mut INcStringAbi, index: u64, out: *m
         return NC_E_POINTER;
     }
     // SAFETY: `this` was checked non-null and is a string interface header.
-    let object = unsafe { (*this).object };
+    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
     let storage = match unsafe { StringObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -842,7 +823,7 @@ unsafe extern "C" fn string_copy_to(this: *mut INcStringAbi, offset: u64, len: u
         return NC_E_POINTER;
     }
     // SAFETY: `this` was checked non-null and is a string interface header.
-    let object = unsafe { (*this).object };
+    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
     let storage = match unsafe { StringObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -857,7 +838,7 @@ unsafe extern "C" fn string_bytes_len(this: *mut INcBytesAbi, out: *mut u64) -> 
     }
     // SAFETY: `this` was checked non-null and is a bytes interface header for a
     // string object.
-    let object = unsafe { (*this).object };
+    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
     let storage = match unsafe { StringObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -874,7 +855,7 @@ unsafe extern "C" fn string_bytes_byte_at(this: *mut INcBytesAbi, index: u64, ou
     }
     // SAFETY: `this` was checked non-null and is a bytes interface header for a
     // string object.
-    let object = unsafe { (*this).object };
+    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
     let storage = match unsafe { StringObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,
@@ -889,7 +870,7 @@ unsafe extern "C" fn string_bytes_copy_to(this: *mut INcBytesAbi, offset: u64, l
     }
     // SAFETY: `this` was checked non-null and is a bytes interface header for a
     // string object.
-    let object = unsafe { (*this).object };
+    let object = unsafe { crate::__nc_object_from_interface(this.cast()) };
     let storage = match unsafe { StringObject::from_object(object) } {
         Ok(storage) => storage,
         Err(status) => return status,

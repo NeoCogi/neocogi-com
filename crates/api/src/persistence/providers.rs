@@ -38,6 +38,10 @@ where
         IObjectChildrenVTable {
             unknown: ::neocogi_com::IUnknownVTable {
                 interface_id: identity,
+                object_offset: ::neocogi_com::__nc_interface_offset(
+                    T::ABI_HEADERS,
+                    identity,
+                ),
                 query_interface: Self::query_interface_thunk,
                 add_ref: Self::add_ref_thunk,
                 release: Self::release_thunk,
@@ -59,7 +63,7 @@ where
         if this.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let object = unsafe { (*this).object };
+        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
         unsafe {
             <T as ::neocogi_com::ComAbiObject>::query_interface_from_abi_object(
                 object,
@@ -76,7 +80,7 @@ where
         if this.is_null() {
             return 0;
         }
-        let object = unsafe { (*this).object };
+        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
         unsafe { <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object(object) }
     }
     /// Releases the common allocation through this interface projection.
@@ -87,7 +91,7 @@ where
         if this.is_null() {
             return 0;
         }
-        let object = unsafe { (*this).object };
+        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
         unsafe { <T as ::neocogi_com::ComAbiObject>::release_from_abi_object(object) }
     }
     /// Validates raw pointers, borrows the concrete provider through its
@@ -105,7 +109,9 @@ where
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe { (*this).object };
+        let __nc_dispatch_object = unsafe {
+            ::neocogi_com::__nc_object_from_interface(this.cast())
+        };
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -148,7 +154,9 @@ where
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe { (*this).object };
+        let __nc_dispatch_object = unsafe {
+            ::neocogi_com::__nc_object_from_interface(this.cast())
+        };
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -212,6 +220,10 @@ where
         IPersistableVTable {
             unknown: ::neocogi_com::IUnknownVTable {
                 interface_id: identity,
+                object_offset: ::neocogi_com::__nc_interface_offset(
+                    T::ABI_HEADERS,
+                    identity,
+                ),
                 query_interface: Self::query_interface_thunk,
                 add_ref: Self::add_ref_thunk,
                 release: Self::release_thunk,
@@ -236,7 +248,7 @@ where
         if this.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let object = unsafe { (*this).object };
+        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
         unsafe {
             <T as ::neocogi_com::ComAbiObject>::query_interface_from_abi_object(
                 object,
@@ -253,7 +265,7 @@ where
         if this.is_null() {
             return 0;
         }
-        let object = unsafe { (*this).object };
+        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
         unsafe { <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object(object) }
     }
     /// Releases the common allocation through this interface projection.
@@ -264,7 +276,7 @@ where
         if this.is_null() {
             return 0;
         }
-        let object = unsafe { (*this).object };
+        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
         unsafe { <T as ::neocogi_com::ComAbiObject>::release_from_abi_object(object) }
     }
     /// Validates raw pointers, borrows the concrete provider through its
@@ -282,7 +294,9 @@ where
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe { (*this).object };
+        let __nc_dispatch_object = unsafe {
+            ::neocogi_com::__nc_object_from_interface(this.cast())
+        };
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -324,7 +338,9 @@ where
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe { (*this).object };
+        let __nc_dispatch_object = unsafe {
+            ::neocogi_com::__nc_object_from_interface(this.cast())
+        };
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -366,7 +382,9 @@ where
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe { (*this).object };
+        let __nc_dispatch_object = unsafe {
+            ::neocogi_com::__nc_object_from_interface(this.cast())
+        };
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -404,7 +422,9 @@ where
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe { (*this).object };
+        let __nc_dispatch_object = unsafe {
+            ::neocogi_com::__nc_object_from_interface(this.cast())
+        };
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -447,7 +467,9 @@ where
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe { (*this).object };
+        let __nc_dispatch_object = unsafe {
+            ::neocogi_com::__nc_object_from_interface(this.cast())
+        };
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -511,6 +533,10 @@ where
         IPersistenceFactoryVTable {
             unknown: ::neocogi_com::IUnknownVTable {
                 interface_id: identity,
+                object_offset: ::neocogi_com::__nc_interface_offset(
+                    T::ABI_HEADERS,
+                    identity,
+                ),
                 query_interface: Self::query_interface_thunk,
                 add_ref: Self::add_ref_thunk,
                 release: Self::release_thunk,
@@ -532,7 +558,7 @@ where
         if this.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let object = unsafe { (*this).object };
+        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
         unsafe {
             <T as ::neocogi_com::ComAbiObject>::query_interface_from_abi_object(
                 object,
@@ -549,7 +575,7 @@ where
         if this.is_null() {
             return 0;
         }
-        let object = unsafe { (*this).object };
+        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
         unsafe { <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object(object) }
     }
     /// Releases the common allocation through this interface projection.
@@ -560,7 +586,7 @@ where
         if this.is_null() {
             return 0;
         }
-        let object = unsafe { (*this).object };
+        let object = unsafe { ::neocogi_com::__nc_object_from_interface(this.cast()) };
         unsafe { <T as ::neocogi_com::ComAbiObject>::release_from_abi_object(object) }
     }
     /// Validates raw pointers, borrows the concrete provider through its
@@ -582,7 +608,9 @@ where
         if this.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe { (*this).object };
+        let __nc_dispatch_object = unsafe {
+            ::neocogi_com::__nc_object_from_interface(this.cast())
+        };
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -645,7 +673,9 @@ where
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let __nc_dispatch_object = unsafe { (*this).object };
+        let __nc_dispatch_object = unsafe {
+            ::neocogi_com::__nc_object_from_interface(this.cast())
+        };
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }

@@ -129,6 +129,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     let mut prefix_value = quote! {
         unknown: #nc::IUnknownVTable {
             interface_id: identity,
+            object_offset: #nc::__nc_interface_offset(T::ABI_HEADERS, identity),
             query_interface: Self::query_interface_thunk,
             add_ref: Self::add_ref_thunk,
             release: Self::release_thunk,
@@ -410,7 +411,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
 
                 // SAFETY: `this` was checked non-null above and is a generated
                 // interface header for this vtable call.
-                let #object_ident = unsafe { (*this).object };
+                let #object_ident = unsafe { #nc::__nc_object_from_interface(this.cast()) };
                 if #object_ident.is_null() {
                     return #nc::NC_E_POINTER;
                 }
@@ -465,15 +466,13 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         // The generated interface header is the pointer type stored in
         // `ComPtr<IFooAbi>`. The first field must remain the vtable pointer so
         // `iunknown()` can reinterpret the header as `IUnknown` for common
-        // lifecycle operations. The opaque object pointer lets every interface
-        // header point back to the same generated allocation.
+        // lifecycle operations. The static vtable prefix records the offset
+        // used to recover this header's enclosing allocation.
         #[repr(C)]
         #[doc = concat!("C-compatible ABI header for [`", stringify!(#trait_ident), "`].")]
         #vis struct #abi_ident {
             #[doc = concat!("Pointer to the [`", stringify!(#vtable_ident), "`] used by this interface header.")]
             pub vtable: *const #vtable_ident,
-            #[doc = "Opaque pointer to the owning COM object storage."]
-            pub object: *mut core::ffi::c_void,
         }
 
         // Vtables start with the `IUnknown` function table, then append the
@@ -486,7 +485,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         }
 
         // SAFETY: `com_interface` generates `#abi_ident` as a `repr(C)` header
-        // with the same vtable/object prefix as `IUnknown`, generates
+        // with the same single-pointer prefix as `IUnknown`, generates
         // `#vtable_ident` with `IUnknownVTable` first, and combines the derived
         // GUID with the IDL-generator-assigned signature. `iunknown` performs
         // only the shared-prefix pointer cast.
@@ -577,7 +576,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             pub const PROJECTIONS: [#nc::__ComProjection<T>; #abi_ident::INTERFACE_CHAIN.len()] =
                 #nc::__nc_projection_table(
                     &#abi_ident::INTERFACE_CHAIN,
-                    // SAFETY: this macro emits the exact descriptor, two-pointer
+                    // SAFETY: this macro emits the exact descriptor, one-pointer
                     // C header and complete prefix-compatible vtable for T.
                     unsafe { #nc::__ComProjection::new(<#abi_ident as #nc::ComInterface>::INTERFACE_ID,
                         &Self::VTABLE as *const #vtable_ident as *const #nc::IUnknownVTable) },
@@ -609,9 +608,9 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     return #nc::NC_E_POINTER;
                 }
                 // SAFETY: Non-null `this` is a generated interface header and
-                // carries the storage back-pointer.
-                let object = unsafe { (*this).object };
-                // SAFETY: Delegates to the generated object object, which
+                // has the correct owner offset in its actual vtable prefix.
+                let object = unsafe { #nc::__nc_object_from_interface(this.cast()) };
+                // SAFETY: Delegates to the generated owning object, which
                 // validates `object`, `interface_id`, and `out` before
                 // dereferencing.
                 unsafe {
@@ -632,8 +631,8 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     return 0;
                 }
                 // SAFETY: Non-null `this` is a generated interface header and
-                // carries the storage back-pointer.
-                let object = unsafe { (*this).object };
+                // has the correct owner offset in its actual vtable prefix.
+                let object = unsafe { #nc::__nc_object_from_interface(this.cast()) };
                 // SAFETY: Delegates to generated storage refcount handling.
                 unsafe { <T as #nc::ComAbiObject>::add_ref_from_abi_object(object) }
             }
@@ -647,8 +646,8 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     return 0;
                 }
                 // SAFETY: Non-null `this` is a generated interface header and
-                // carries the storage back-pointer.
-                let object = unsafe { (*this).object };
+                // has the correct owner offset in its actual vtable prefix.
+                let object = unsafe { #nc::__nc_object_from_interface(this.cast()) };
                 // SAFETY: Delegates to generated storage refcount handling.
                 unsafe { <T as #nc::ComAbiObject>::release_from_abi_object(object) }
             }
@@ -1045,7 +1044,7 @@ fn validate_generated_method_identifiers(methods: &[AbiMethod], errors: &mut Opt
             let fixed_collision = match arg_name.as_str() {
                 "this" => Some("the generated client receiver pointer"),
                 "object" if matches!(&arg.kind, AbiArgKind::Plain | AbiArgKind::BorrowedValue { .. } | AbiArgKind::ComRef { .. }) => {
-                    Some("the generated ABI object back-pointer local")
+                    Some("the generated ABI owning-storage pointer local")
                 }
                 "__nc_value" => Some("the generated Rust implementation pointer local"),
                 "__nc_out" if has_out => Some("the generated non-void output slot"),

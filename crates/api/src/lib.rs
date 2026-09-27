@@ -1,8 +1,8 @@
 //! Typed COM clients and object implementation helpers for Rust component interop.
 //!
 //! `neocogi-com` keeps the binary boundary explicit: interfaces are represented as
-//! `#[repr(C)]` structs containing a vtable pointer and an opaque object
-//! pointer, methods are `extern "C"` function pointers, and errors are returned
+//! `#[repr(C)]` headers containing one vtable pointer. Static vtable offsets
+//! recover the owning allocation; methods are `extern "C"` function pointers and errors are returned
 //! as [`NcStatus`] values. IDL-generated Rust traits are the implementation
 //! surface; the generated `*Abi` types are the portable ABI surface.
 //! `com_interface` also generates the `unsafe impl` of [`ComInterface`] that
@@ -103,7 +103,7 @@
 //!
 //! # Build Compatibility
 //!
-//! core ABI v8 is currently an experimental pre-alpha draft. The generated C-shaped
+//! core ABI v9 is currently an experimental pre-alpha draft. The generated C-shaped
 //! surface is the intended compatibility boundary, but cross-release
 //! compatibility does not begin until an explicitly named future ratification
 //! milestone. Draft golden vectors prevent accidental drift within the current
@@ -539,7 +539,7 @@ pub use runtime::{
 };
 
 #[doc(hidden)]
-pub use neocogi_com_core::{__ComProjection, __nc_interface_chain, __nc_object_interface_count, __nc_projection_table, __nc_projection_vtables, __nc_find_interface};
+pub use neocogi_com_core::{__ComHeaderLayout, __nc_header_layout, __nc_interface_offset, __ComProjection, __nc_interface_chain, __nc_object_interface_count, __nc_projection_table, __nc_projection_vtables, __nc_find_interface, __nc_object_from_interface};
 
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::binary;

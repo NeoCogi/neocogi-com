@@ -72,7 +72,7 @@ impl<T: ComObject> LocalCom<T> {
     /// # Safety
     ///
     /// `owner` must be the canonical IUnknown produced by T's generated object
-    /// storage. Its back-pointer must satisfy T's `ComAbiObject` contract for
+    /// storage. Its static owner offset must satisfy T's `ComAbiObject` contract for
     /// every borrow. An interface implemented by a different Rust type is not
     /// sufficient, even if its IID and ABI signature match.
     pub unsafe fn __from_owned(owner: ComPtr<IUnknown, T::Threading>) -> Self {
@@ -92,7 +92,7 @@ impl<T: ComObject> LocalCom<T> {
         // SAFETY: Construction established this exact T allocation, and the
         // returned guard borrows self, retaining its strong owner until release.
         // The generated lease uses the same gate as every interface projection.
-        let lease = unsafe { T::borrow_abi_ref((*self.owner.as_ptr()).object) }?;
+        let lease = unsafe { T::borrow_abi_ref(crate::__nc_object_from_interface(self.owner.as_mut_ptr())) }?;
         Ok(LocalRef { lease, owner: PhantomData })
     }
 
@@ -104,7 +104,7 @@ impl<T: ComObject> LocalCom<T> {
         // SAFETY: The constructor proves T's storage layout, self keeps the
         // allocation live, and the generated exclusive lease excludes all
         // competing local and COM borrows for the returned guard's lifetime.
-        let lease = unsafe { T::borrow_abi_mut((*self.owner.as_ptr()).object) }?;
+        let lease = unsafe { T::borrow_abi_mut(crate::__nc_object_from_interface(self.owner.as_mut_ptr())) }?;
         Ok(LocalMut { lease, owner: PhantomData })
     }
 }

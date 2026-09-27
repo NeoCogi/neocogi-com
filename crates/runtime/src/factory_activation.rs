@@ -170,7 +170,7 @@ mod tests {
         if requested.abi_signature != FACTORY_INTERFACE.abi_signature {
             return NC_E_ABI_VERSION;
         }
-        // SAFETY: The fixture header owns a live storage back-pointer.
+        // SAFETY: The fixture header is embedded in its live owning allocation.
         unsafe { add_ref(this) };
         // SAFETY: `out` is writable and this fixture has one projection address.
         unsafe { *out = this.cast() };
@@ -179,22 +179,22 @@ mod tests {
 
     /// Adds one owned reference to the live fixture allocation.
     unsafe extern "C" fn add_ref(this: *mut IUnknown) -> u32 {
-        // SAFETY: The fixture installs its allocation pointer before publication.
-        let object = unsafe { &*(*this).object.cast::<TestFactory>() };
+        // SAFETY: The fixture's static vtable offset locates its live allocation.
+        let object = unsafe { &*neocogi_com_core::__nc_object_from_interface(this.cast()).cast::<TestFactory>() };
         object.references.fetch_add(1, Ordering::Relaxed) + 1
     }
 
     /// Releases one reference and destroys the fixture at zero.
     unsafe extern "C" fn release(this: *mut IUnknown) -> u32 {
-        // SAFETY: The fixture installs its allocation pointer before publication.
-        let object = unsafe { &*(*this).object.cast::<TestFactory>() };
+        // SAFETY: The fixture's static vtable offset locates its live allocation.
+        let object = unsafe { &*neocogi_com_core::__nc_object_from_interface(this.cast()).cast::<TestFactory>() };
         let previous = object.references.fetch_sub(1, Ordering::Release);
         let remaining = previous - 1;
         if remaining == 0 {
             std::sync::atomic::fence(Ordering::Acquire);
             FACTORY_DROPS.fetch_add(1, Ordering::SeqCst);
             // SAFETY: The final unique reference rebuilds the original Box once.
-            unsafe { drop(Box::from_raw((*this).object.cast::<TestFactory>())) };
+            unsafe { drop(Box::from_raw(neocogi_com_core::__nc_object_from_interface(this.cast()).cast::<TestFactory>())) };
         }
         remaining
     }
@@ -202,6 +202,7 @@ mod tests {
     /// Vtable prefix advertising the exact fake factory interface identity.
     static VTABLE: IUnknownVTable = IUnknownVTable {
         interface_id: &FACTORY_INTERFACE,
+        object_offset: core::mem::offset_of!(TestFactory, unknown),
         query_interface,
         add_ref,
         release,
@@ -214,15 +215,10 @@ mod tests {
         }
         FACTORY_ACTIVATIONS.fetch_add(1, Ordering::SeqCst);
         let object = Box::new(TestFactory {
-            unknown: IUnknown {
-                vtable: &VTABLE,
-                object: core::ptr::null_mut(),
-            },
+            unknown: IUnknown { vtable: &VTABLE },
             references: AtomicU32::new(1),
         });
         let raw = Box::into_raw(object);
-        // SAFETY: `raw` is uniquely owned until the header pointer is published.
-        unsafe { (*raw).unknown.object = raw.cast() };
         // SAFETY: The caller grants one output write and ownership transfers.
         unsafe { *out = core::ptr::addr_of_mut!((*raw).unknown) };
         NC_OK

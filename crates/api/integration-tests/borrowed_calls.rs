@@ -29,7 +29,7 @@ struct Counts {
 #[repr(C)]
 /// Heap-owned test object with a real reference-counted lifetime.
 struct Counter {
-    /// Projected interface at offset zero; points back to this allocation.
+    /// Projected interface whose static offset identifies this allocation.
     header: IDerivedCounterAbi,
     /// Strong references held by clients of this test object.
     references: Cell<u32>,
@@ -39,8 +39,8 @@ struct Counter {
 
 /// Recovers test storage while the caller keeps its interface reference alive.
 unsafe fn storage<'a>(this: *mut IUnknown) -> &'a Counter {
-    // SAFETY: All test headers carry their live Counter allocation back-pointer.
-    unsafe { &*((*this).object.cast::<Counter>()) }
+    // SAFETY: The static offset locates the header inside its live Counter allocation.
+    unsafe { &*(neocogi_com::__nc_object_from_interface(this.cast()).cast::<Counter>()) }
 }
 
 /// This probe has no additional interface projection; failure transfers nothing.
@@ -68,7 +68,7 @@ unsafe extern "C" fn release(this: *mut IUnknown) -> u32 {
     value.references.set(remaining);
     if remaining == 0 {
         // SAFETY: This is the last reference to the original Box allocation.
-        unsafe { drop(Box::from_raw((*this).object.cast::<Counter>())) };
+        unsafe { drop(Box::from_raw(neocogi_com::__nc_object_from_interface(this.cast()).cast::<Counter>())) };
     }
     remaining
 }
@@ -99,6 +99,7 @@ static VTABLE: IDerivedCounterVTable = IDerivedCounterVTable {
     base: ICounterVTable {
         unknown: IUnknownVTable {
             interface_id: &IDerivedCounterAbi::INTERFACE_ID,
+            object_offset: core::mem::offset_of!(Counter, header),
             query_interface: query,
             add_ref,
             release,
@@ -112,18 +113,12 @@ static VTABLE: IDerivedCounterVTable = IDerivedCounterVTable {
 fn borrowed_generated_calls_perform_no_lifecycle_operations() {
     let counts = Rc::new(Counts::default());
     let allocation = Box::into_raw(Box::new(Counter {
-        header: IDerivedCounterAbi {
-            vtable: &VTABLE,
-            object: std::ptr::null_mut(),
-        },
+        header: IDerivedCounterAbi { vtable: &VTABLE },
         references: Cell::new(1),
         counts: counts.clone(),
     }));
     // SAFETY: The allocation is private until its fully initialized header is published.
-    let owner = unsafe {
-        (*allocation).header.object = allocation.cast();
-        ComPtr::<IDerivedCounterAbi>::from_raw_owned(&mut (*allocation).header).unwrap()
-    };
+    let owner = unsafe { ComPtr::<IDerivedCounterAbi>::from_raw_owned(&mut (*allocation).header).unwrap() };
     let borrowed = owner.as_com_ref();
     assert_eq!(borrowed.additions(), Ok(0));
     assert_eq!(owner.additions(), Ok(0));

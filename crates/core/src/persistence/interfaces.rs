@@ -37,8 +37,6 @@ pub struct IObjectChildrenAbi {
         "`] used by this interface header."
     )]
     pub vtable: *const IObjectChildrenVTable,
-    ///Opaque pointer to the owning COM object storage.
-    pub object: *mut core::ffi::c_void,
 }
 #[repr(C)]
 #[doc = concat!("C-compatible vtable for [`", stringify!(IObjectChildren), "`].")]
@@ -294,8 +292,6 @@ pub struct IPersistableAbi {
         "`] used by this interface header."
     )]
     pub vtable: *const IPersistableVTable,
-    ///Opaque pointer to the owning COM object storage.
-    pub object: *mut core::ffi::c_void,
 }
 #[repr(C)]
 #[doc = concat!("C-compatible vtable for [`", stringify!(IPersistable), "`].")]
@@ -756,8 +752,6 @@ pub struct IPersistenceFactoryAbi {
         "`] used by this interface header."
     )]
     pub vtable: *const IPersistenceFactoryVTable,
-    ///Opaque pointer to the owning COM object storage.
-    pub object: *mut core::ffi::c_void,
 }
 #[repr(C)]
 #[doc = concat!("C-compatible vtable for [`", stringify!(IPersistenceFactory), "`].")]

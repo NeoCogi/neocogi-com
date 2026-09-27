@@ -1,6 +1,10 @@
 # neocogi-com core ABI v8
 
-This document specifies the current experimental Rust-to-Rust component ABI.
+This is the historical two-pointer-header ABI. The current specification is
+[core ABI v9](abi-v9.md), which replaces owner back-pointers with static vtable
+offsets. Generation-8 and generation-9 interface headers are incompatible.
+
+This document specifies the generation-8 Rust-to-Rust component ABI.
 The authoritative layouts are the public `#[repr(C)]` definitions in
 `neocogi-com-core`; this guide explains how those layouts compose.
 

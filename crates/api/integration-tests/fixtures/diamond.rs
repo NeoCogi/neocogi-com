@@ -290,3 +290,38 @@ fn explicit_roots_reuse_their_inherited_headers() {
     let end = core::mem::offset_of!(OverlappingRootsComObject, value);
     assert_eq!(end - start, 4 * core::mem::size_of::<IUnknown>());
 }
+
+/// Forces padding between the header array and concrete state without changing
+/// the required alignment of each individual COM interface header.
+#[repr(align(64))]
+struct AlignedState {
+    /// Application state remains directly accessible through the local owner.
+    marker: u64,
+}
+
+/// Owner recovery must use header placement, not assume where padded Rust state starts.
+#[test]
+fn generic_aligned_state_keeps_owner_recovery_and_mutable_access_correct() {
+    use neocogi_com::__nc_object_from_interface;
+    let local = Diamond::into_local(Diamond {
+        value: 17,
+        _lifetime: AlignedState { marker: 5 },
+    });
+    let top = local.query::<ITopAbi>().unwrap();
+    let base = top.query::<IA0Abi>().unwrap();
+    let unknown = top.query::<IUnknown>().unwrap();
+    // SAFETY: these independently acquired projections retain one live allocation.
+    unsafe {
+        let owner = __nc_object_from_interface(unknown.as_mut_ptr());
+        assert_eq!(__nc_object_from_interface(top.as_mut_ptr().cast()), owner);
+        assert_eq!(__nc_object_from_interface(base.as_mut_ptr().cast()), owner);
+        assert_eq!(owner as usize % core::mem::align_of::<DiamondComObject<AlignedState>>(), 0);
+    }
+    {
+        let mut value = local.try_borrow_mut().unwrap();
+        value.value = 29;
+        value._lifetime.marker = 11;
+    }
+    assert_eq!(top.value(), Ok(29));
+    assert_eq!(local.try_borrow().unwrap()._lifetime.marker, 11);
+}

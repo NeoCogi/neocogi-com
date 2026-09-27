@@ -37,7 +37,7 @@ impl<T> __ComProjection<T> {
     /// The vtable must be permanently live, have an IUnknownVTable prefix, and
     /// implement the exact supplied identity/signature. Every thunk must use
     /// the allocation and lifetime contract of T's generated COM object. Its
-    /// interface header must have the same two-field layout as IUnknown.
+    /// interface header must have the same one-pointer layout as IUnknown.
     pub const unsafe fn new(identity: NcInterfaceId, vtable: *const IUnknownVTable) -> Self {
         Self {
             identity,

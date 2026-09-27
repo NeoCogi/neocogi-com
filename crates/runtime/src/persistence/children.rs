@@ -29,29 +29,20 @@ pub(super) fn create(values: Vec<ComPtr<IUnknown>>) -> Result<ComPtr<IObjectChil
     u32::try_from(values.len()).map_err(|_| NC_E_OUT_OF_RANGE)?;
     let object = Box::into_raw(Box::new(Children {
         references: AtomicU32::new(1),
-        unknown: IUnknown {
-            vtable: &UNKNOWN_VTABLE,
-            object: ptr::null_mut(),
-        },
-        interface: IObjectChildrenAbi {
-            vtable: &CHILDREN_VTABLE,
-            object: ptr::null_mut(),
-        },
+        unknown: IUnknown { vtable: &UNKNOWN_VTABLE },
+        interface: IObjectChildrenAbi { vtable: &CHILDREN_VTABLE },
         values,
     }));
     // SAFETY: This allocation is exclusively owned and not yet published.
-    // Install stable back-pointers before transferring the initial reference.
-    unsafe {
-        (*object).unknown.object = object.cast();
-        (*object).interface.object = object.cast();
-        ComPtr::from_raw_owned(ptr::addr_of_mut!((*object).interface)).ok_or(NC_E_POINTER)
-    }
+    // Static vtables already describe both embedded headers before publication.
+    unsafe { ComPtr::from_raw_owned(ptr::addr_of_mut!((*object).interface)).ok_or(NC_E_POINTER) }
 }
 
 /// Immutable lifecycle table used by canonical identity projections.
 static UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
     // The embedded identity describes this projection, not its concrete storage.
     interface_id: &<IUnknown as ComInterface>::INTERFACE_ID,
+    object_offset: core::mem::offset_of!(Children, unknown),
     query_interface,
     add_ref,
     release,
@@ -61,6 +52,7 @@ static UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
 static CHILDREN_VTABLE: IObjectChildrenVTable = IObjectChildrenVTable {
     unknown: IUnknownVTable {
         interface_id: &<IObjectChildrenAbi as ComInterface>::INTERFACE_ID,
+        object_offset: core::mem::offset_of!(Children, interface),
         query_interface,
         add_ref,
         release,
@@ -77,8 +69,8 @@ unsafe fn storage<'a>(this: *mut IUnknown) -> Result<&'a Children, NcStatus> {
     if this.is_null() {
         return Err(NC_E_POINTER);
     }
-    // SAFETY: Our headers always carry a Children pointer installed before publish.
-    unsafe { (*this).object.cast::<Children>().as_ref() }.ok_or(NC_E_POINTER)
+    // SAFETY: The static vtable offset locates this header inside its live Children allocation.
+    unsafe { neocogi_com_core::__nc_object_from_interface(this.cast()).cast::<Children>().as_ref() }.ok_or(NC_E_POINTER)
 }
 
 /// Returns only exact interface identities and clears outputs before validation.

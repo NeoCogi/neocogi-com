@@ -3,7 +3,7 @@
 //! Generated class storage embeds an atomic strong count and one header per
 //! implemented interface. The helpers here implement saturating `AddRef` and
 //! non-underflowing `Release`; the unsafe traits describe how generated thunks
-//! recover the concrete Rust value from a header's opaque back-pointer, perform
+//! recover the concrete Rust value from a header's static owner offset, perform
 //! interface negotiation, and destroy storage on the final release. They are
 //! public only as hidden macro support and are not the ordinary end-user API.
 
@@ -194,6 +194,12 @@ pub use neocogi_com_core::{__com_add_ref_count, __com_release_ref_count};
 /// Interface thunks receive an opaque object pointer and use this trait to
 /// recover the Rust implementation and delegate IUnknown behavior.
 pub unsafe trait ComAbiObject: Sized {
+    /// Compiler-only placement of this implementation's canonical interface headers.
+    /// The generator derives offsets from the concrete storage type and uses the
+    /// records only during vtable constant evaluation, never for runtime dispatch.
+    /// Every advertised offset must designate its exact live embedded header.
+    const ABI_HEADERS: &'static [crate::__ComHeaderLayout];
+
     /// Acquires shared access to the Rust value in generated storage.
     ///
     /// # Safety

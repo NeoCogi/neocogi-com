@@ -179,7 +179,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
             ref_count: ::core::sync::atomic::AtomicU32,
             /// Generated borrow authority shared by every interface projection.
             call_gate: #nc::__ComCallGate,
-            /// One two-pointer C header per distinct contract; canonical IUnknown is first.
+            /// One single-pointer C header per distinct contract; canonical IUnknown is first.
             interfaces: [#nc::IUnknown; #interface_count],
             /// Owned Rust state; no reference into a caller's stack escapes through the COM pointer.
             value: core::cell::UnsafeCell<#object_type>,
@@ -225,17 +225,13 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                     call_gate: #nc::__ComCallGate::new(),
                     interfaces: ::core::array::from_fn(|index| #nc::IUnknown {
                         vtable: Self::COM_VTABLES[index],
-                        object: core::ptr::null_mut(),
                     }),
                     value: core::cell::UnsafeCell::new(value),
                 });
 
-                // Establish raw ownership before creating self-referential
-                // back-pointers; no subsequent Box borrow can retag the owner.
+                // Publish the owning allocation only after every static vtable
+                // pointer is installed. No per-header back-pointer writes follow.
                 let raw = #nc::__alloc::boxed::Box::into_raw(object);
-                // SAFETY: this fresh allocation is still unpublished, so the
-                // initializer has exclusive mutable access to every header.
-                unsafe { (*raw).initialize_interfaces(raw.cast::<core::ffi::c_void>()); }
                 // SAFETY: The allocation has been leaked into COM ownership and
                 // remains live until the final generated `Release`.
                 let unknown = unsafe { core::ptr::addr_of_mut!((*raw).interfaces[0]) };
@@ -253,9 +249,18 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
         #factory_assertion
 
         // SAFETY: This impl is generated together with the private storage
-        // layout above. Every object pointer accepted here is the back-pointer
-        // installed in one of that storage allocation's interface headers.
+        // layout above. Every accepted object pointer was recovered using the
+        // actual interface header's statically generated owner offset.
         unsafe impl #impl_generics #nc::ComAbiObject for #object_type #where_clause {
+            /// Constant evaluation gives every vtable its physical header offset.
+            /// Full descriptors are consumed here and never enter runtime tables.
+            const ABI_HEADERS: &'static [#nc::__ComHeaderLayout] = &#nc::__nc_header_layout(
+                &#nc::__nc_interface_chain::<{ #interface_count }>(
+                    &#nc::IUnknown::INTERFACE_DESCRIPTOR, &[#(#declared_chains,)*],
+                ),
+                core::mem::offset_of!(#storage_type, interfaces),
+            );
+
             // The generated gate permits concurrent observers but rejects a
             // shared call while a mutable call owns the implementation.
             unsafe fn borrow_abi_ref<'a>(
@@ -365,26 +370,19 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
         #unit_factory_bootstrap
 
         impl #impl_generics #storage_type #where_clause {
-            /// Installs back-pointers through exclusive access before publication.
-            /// The caller supplies this allocation's stable raw ownership pointer.
-            fn initialize_interfaces(&mut self, object: *mut core::ffi::c_void) {
-                for header in &mut self.interfaces {
-                    header.object = object;
-                }
-            }
-
             // The standalone IUnknown header uses this vtable. Interface
             // headers use their interface-specific vtables, which embed the
             // same three lifecycle operations as the first field.
             const UNKNOWN_VTABLE: #nc::IUnknownVTable = #nc::IUnknownVTable {
                 interface_id: &#nc::IUnknown::INTERFACE_ID,
+                object_offset: core::mem::offset_of!(#storage_type, interfaces),
                 query_interface: Self::query_interface_thunk,
                 add_ref: Self::add_ref_thunk,
                 release: Self::release_thunk,
             };
 
             // Adapts the standalone IUnknown header to generated object-level
-            // interface negotiation through its opaque storage back-pointer.
+            // interface negotiation through its static header offset.
             unsafe extern "C" fn query_interface_thunk(
                 this: *mut #nc::IUnknown,
                 interface_id: *const #nc::NcInterfaceId,
@@ -394,8 +392,8 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                     return #nc::NC_E_POINTER;
                 }
                 // SAFETY: Non-null `this` is an interface header generated by
-                // this object and carries the storage back-pointer.
-                let object = unsafe { (*this).object };
+                // this object and has its correct static owner offset.
+                let object = unsafe { #nc::__nc_object_from_interface(this.cast()) };
                 // SAFETY: Delegates to the object implementation, which validates
                 // null `object`, `interface_id`, and `out` before
                 // dereferencing.
@@ -414,8 +412,8 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                     return 0;
                 }
                 // SAFETY: Non-null `this` is an interface header generated by
-                // this object and carries the storage back-pointer.
-                let object = unsafe { (*this).object };
+                // this object and has its correct static owner offset.
+                let object = unsafe { #nc::__nc_object_from_interface(this.cast()) };
                 // SAFETY: Delegates to generated storage refcount handling.
                 unsafe { <#object_type as #nc::ComAbiObject>::add_ref_from_abi_object(object) }
             }
@@ -426,8 +424,8 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                     return 0;
                 }
                 // SAFETY: Non-null `this` is an interface header generated by
-                // this object and carries the storage back-pointer.
-                let object = unsafe { (*this).object };
+                // this object and has its correct static owner offset.
+                let object = unsafe { #nc::__nc_object_from_interface(this.cast()) };
                 // SAFETY: Delegates to generated storage refcount handling.
                 unsafe { <#object_type as #nc::ComAbiObject>::release_from_abi_object(object) }
             }

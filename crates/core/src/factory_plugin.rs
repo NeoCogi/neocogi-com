@@ -294,6 +294,14 @@ mod tests {
         assert_eq!(unsafe { validate_factory_plugin_description(&unsigned) }, NC_E_INVALID_ARG);
     }
 
+    /// Generation-8 plugins must be rejected before their incompatible headers can be used.
+    #[test]
+    fn rejects_previous_two_pointer_header_generation() {
+        let previous = NcFactoryPluginDescription { core_abi_version: 8, ..VALID_PLUGIN };
+        // SAFETY: the discovery record is readable; activation is never attempted.
+        assert_eq!(unsafe { validate_factory_plugin_description(&previous) }, NC_E_ABI_VERSION);
+    }
+
     /// Locks the new descriptor's field order to its documented C ABI layout.
     #[test]
     fn factory_plugin_description_layout_is_c_stable() {

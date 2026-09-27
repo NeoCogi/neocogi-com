@@ -3,6 +3,16 @@
 All notable changes to the experimental component ABI are documented here.
 Semantic-version compatibility begins only after an explicitly ratified ABI.
 
+## Single-pointer interface headers (experimental ABI 9)
+
+- Store one vtable pointer per interface and recover its owner through the
+  common vtable's compiler-derived offset. Inherited prefixes retain the actual
+  outer projection's offset, and all interfaces keep one borrow guard/refcount.
+- Update generated, built-in, persistence, foreign-fixture, and native C bindings
+  together. Discovery rejects the previous two-pointer-header ABI generation.
+- Retain one-word COM handles and full explicit inspection metadata. Object
+  allocation savings and linked deployment changes are measured separately.
+
 ## Unreleased
 
 - Unify IDL records/enums as recursively checked values and remove `#[message]`.
@@ -76,7 +86,7 @@ Semantic-version compatibility begins only after an explicitly ratified ABI.
 These entries record superseded designs, not the current API. Native contract
 artifacts, `trait`/`class` IDL declarations, global contract registration, and
 runtime ABI v2 were subsequently removed or replaced. Current binary contracts
-are core v8, factory-plugin v1, and runtime v1; see the [ABI guide](docs/abi-v8.md).
+are core v9, factory-plugin v1, and runtime v1; see the [ABI guide](docs/abi-v9.md).
 
 - Added Rust-like `.ncidl` modules with `struct`, `enum`, `trait`, `class`, and
   `factory` declarations. Every module is an ordinary Cargo crate whose

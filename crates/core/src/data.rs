@@ -5,8 +5,6 @@
 //! validate ABI signatures. Concrete allocation-backed Rust implementations live in
 //! the higher-level `neocogi-com` crate; this core module contains only ABI contracts.
 
-use core::ffi::c_void;
-
 use crate::guid::{NcGuid, guid_from_qualified_name};
 use crate::signature::NcAbiSignature;
 use crate::metadata::{
@@ -38,8 +36,6 @@ pub const IID_INC_STRING: NcGuid = guid_from_qualified_name(QUALIFIED_NAME_INC_S
 pub struct INcBytesAbi {
     /// Function table for this interface.
     pub vtable: *const INcBytesVTable,
-    /// Opaque object pointer.
-    pub object: *mut c_void,
 }
 
 /// Raw vtable for [`INcBytesAbi`].
@@ -181,8 +177,6 @@ impl INcBytesAbi {
 pub struct INcStringAbi {
     /// Function table for this interface.
     pub vtable: *const INcStringVTable,
-    /// Opaque object pointer.
-    pub object: *mut c_void,
 }
 
 /// Raw vtable for [`INcStringAbi`].

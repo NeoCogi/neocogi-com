@@ -39,8 +39,6 @@ pub const IUNKNOWN_INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(IID_IUNKNOWN
 pub struct IUnknown {
     /// Function table for `IUnknown`.
     pub vtable: *const IUnknownVTable,
-    /// Opaque pointer to generated object storage.
-    pub object: *mut c_void,
 }
 
 /// C-compatible vtable for [`IUnknown`].
@@ -50,6 +48,11 @@ pub struct IUnknownVTable {
     /// complete local contract signature. This points to immutable static metadata;
     /// it describes the projected interface, which may differ from IUnknown.
     pub interface_id: *const NcInterfaceId,
+
+    /// Byte offset of this physical header within its owning allocation.
+    /// Inherited vtable prefixes retain the outer header's offset. This immutable
+    /// value replaces an object back-pointer in every individual header.
+    pub object_offset: usize,
 
     /// Queries the object for another interface by identity.
     ///
@@ -84,9 +87,25 @@ pub struct IUnknownVTable {
     pub release: unsafe extern "C" fn(this: *mut IUnknown) -> u32,
 }
 
-// SAFETY: Vtables contain only function pointers and immutable static identity
-// metadata. Sharing the table does not grant cross-thread access to an object.
+// SAFETY: Vtables contain only function pointers, an integer byte offset, and
+// immutable static identity metadata. Sharing the table does not grant cross-thread access to an object.
 unsafe impl Sync for IUnknownVTable {}
+
+/// Recovers the owner of a live embedded one-pointer interface header.
+///
+/// # Safety
+/// `this` must be non-null and point into its live owning allocation. Its vtable
+/// prefix must be valid, and `object_offset` must equal this header's byte offset
+/// from that allocation's start. The subtraction preserves pointer provenance;
+/// neither raw pointer is converted to an integer or retained beyond the call.
+#[doc(hidden)]
+#[inline]
+pub unsafe fn __nc_object_from_interface(this: *mut IUnknown) -> *mut c_void {
+    // SAFETY: the caller supplies a live header and immutable matching vtable.
+    let offset = unsafe { (*(*this).vtable).object_offset };
+    // SAFETY: the declared offset leads backward within the same allocation.
+    unsafe { this.cast::<u8>().sub(offset).cast() }
+}
 
 /// Metadata and pointer conversion implemented by every COM ABI interface type.
 ///
@@ -115,6 +134,9 @@ unsafe impl Sync for IUnknownVTable {}
 ///   Every COM pointer argument/return is checked against its expected full
 ///   identity before invoking any interface-specific method. The common prefix
 ///   publishes this actual interface identity in immutable static storage.
+/// - Every header is embedded in its owning allocation. The common vtable's
+///   object_offset identifies that physical header, including inherited calls;
+///   it is not the offset of an independently queried base projection.
 /// - `Self::Threading` is the minimum implementation guarantee. Shared
 ///   contracts require thread-safe calls, ownership, and destruction; a
 ///   pointer may retain a stronger guarantee or explicitly weaken it.

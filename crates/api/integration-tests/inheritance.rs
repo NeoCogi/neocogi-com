@@ -139,3 +139,43 @@ fn inherited_vtable_is_a_physical_prefix_and_signs_the_base() {
 
 #[path = "fixtures/diamond.rs"]
 mod diamond;
+
+/// Each physical header must lead back to the same concrete allocation, including
+/// inherited calls whose static method type differs from the actual projection.
+#[test]
+fn single_pointer_headers_recover_one_owner_from_distinct_offsets() {
+    use neocogi_com::{ComAbiObject, __nc_object_from_interface};
+    assert_eq!(core::mem::size_of::<IUnknown>(), core::mem::size_of::<usize>());
+    assert_eq!(core::mem::size_of::<IToggleAbi>(), core::mem::size_of::<usize>());
+    assert_eq!(core::mem::size_of::<ComPtr<IToggleAbi>>(), core::mem::size_of::<usize>());
+    assert_eq!(core::mem::size_of::<ComRef<'_, IToggleAbi>>(), core::mem::size_of::<usize>());
+    let owner = Toggle::from_value(Toggle { value: 41, drops: Rc::new(Cell::new(0)) });
+    let toggle = owner.query::<IToggleAbi>().unwrap();
+    let button = owner.query::<IButtonAbi>().unwrap();
+    let widget = owner.query::<contract::IWidgetAbi>().unwrap();
+    let audit = owner.query::<IAuditAbi>().unwrap();
+    let projections = [
+        owner.as_mut_ptr(),
+        toggle.as_mut_ptr().cast(),
+        button.as_mut_ptr().cast(),
+        widget.as_mut_ptr().cast(),
+        audit.as_mut_ptr().cast(),
+    ];
+    // SAFETY: canonical IUnknown is interfaces[0] in this known generated storage.
+    let allocation = unsafe { owner.as_mut_ptr().cast::<u8>().sub(core::mem::offset_of!(ToggleComObject, interfaces)) };
+    for (header, layout) in projections.into_iter().zip(Toggle::ABI_HEADERS) {
+        // SAFETY: all acquired references retain the same live allocation, and
+        // each vtable is the immutable table installed by the generated constructor.
+        unsafe {
+            let prefix = &*(*header).vtable;
+            assert_eq!(prefix.object_offset, header.cast::<u8>().offset_from(allocation) as usize);
+            assert_eq!(prefix.object_offset, layout.object_offset);
+            assert_eq!(*prefix.interface_id, layout.identity);
+            assert_eq!(__nc_object_from_interface(header), allocation.cast());
+        }
+    }
+    // The same base slot executes through three different physical headers.
+    assert_eq!(toggle.value(), Ok(41));
+    assert_eq!(button.value(), Ok(41));
+    assert_eq!(widget.value(), Ok(41));
+}
