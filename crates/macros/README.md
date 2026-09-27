@@ -100,6 +100,10 @@ Supported methods return `Result<T, NcStatus>`:
 tagged payload layouts. `com_int_enum!` defines a transparent integer newtype
 that preserves unknown values. `ComDeserialize` and `ComSerialize` derive typed
 local value decoding/encoding, separate from runtime object activation.
+Record labels emitted by `ComSerialize` are unqualified declaration-name
+literals; named enum payload records use their enclosing enum's name. They do
+not identify types globally. The binary encoder ignores these labels and writes
+fields positionally; generating them requires no `core::any` lookup.
 
 `com_interface` also accepts the generator-owned `threading = local|shared`
 and `factory` role. The same expansion owns required sibling projections and

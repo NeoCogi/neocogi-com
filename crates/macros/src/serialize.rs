@@ -9,6 +9,9 @@ use crate::util::validate_no_generics;
 pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     validate_no_generics(&input.generics, "ComSerialize derives")?;
     let name = &input.ident;
+    // Record labels come from the declaration, just like field and variant
+    // labels. Named enum payloads retain the enclosing enum's record label.
+    let record_name = LitStr::new(name.to_string().trim_start_matches("r#"), name.span());
     let nc: syn::Path = syn::parse_quote!(::neocogi_com);
     let options = crate::deserialize::parse_options(&input.attrs)?;
     let body = match &input.data {
@@ -26,7 +29,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
                     quote! { &self.#member }
                 })
                 .collect::<Vec<_>>();
-            fields(&data.fields, &values, options.sequence, &nc)
+            fields(&data.fields, &values, &record_name, options.sequence, &nc)
         }
         Data::Enum(data) => {
             if options.sequence || options.default {
@@ -61,7 +64,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
                         let field = &values[0];
                         quote! { #nc::ComSerialize::com_serialize(#field, serializer)?; }
                     }
-                    _ => fields(&variant.fields, &values, false, &nc),
+                    _ => fields(&variant.fields, &values, &record_name, false, &nc),
                 };
                 arms.push(quote! { #pattern => {
                     serializer.begin_variant(stringify!(#name), #index, #label)?;
@@ -85,7 +88,8 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
 }
 
 /// Emits record or tuple members through their statically known serializers.
-fn fields(fields: &Fields, values: &[TokenStream], sequence: bool, nc: &syn::Path) -> TokenStream {
+/// Named records use the enclosing declaration's unqualified literal label.
+fn fields(fields: &Fields, values: &[TokenStream], record_name: &LitStr, sequence: bool, nc: &syn::Path) -> TokenStream {
     let len = values.len();
     match fields {
         Fields::Unit => quote! { serializer.serialize_unit()?; },
@@ -95,7 +99,7 @@ fn fields(fields: &Fields, values: &[TokenStream], sequence: bool, nc: &syn::Pat
                 .iter()
                 .map(|field| field.ident.as_ref().unwrap().to_string().trim_start_matches("r#").to_owned());
             quote! {
-                serializer.begin_record(core::any::type_name::<Self>(), #len)?;
+                serializer.begin_record(#record_name, #len)?;
                 #(serializer.field(#names)?; #nc::ComSerialize::com_serialize(#values, serializer)?;)*
                 serializer.end_record()?;
             }
