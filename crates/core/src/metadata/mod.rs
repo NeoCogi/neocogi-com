@@ -8,6 +8,7 @@
 mod contract;
 mod descriptor;
 mod inheritance;
+mod projection;
 #[cfg(feature = "alloc")]
 mod signature;
 mod text;
@@ -15,6 +16,7 @@ mod text;
 pub use contract::*;
 pub use descriptor::*;
 pub use inheritance::*;
+pub use projection::*;
 #[cfg(feature = "alloc")]
 pub use signature::{format_abi_signature, format_method_signature};
 pub use text::*;
