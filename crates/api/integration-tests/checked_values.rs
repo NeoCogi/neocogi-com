@@ -109,3 +109,43 @@ fn valid_calls_acquire_output_buffers_and_nested_return_values() {
     assert!(values[0].flags.enabled);
     assert_eq!(check.input(NcCopyFromBufferOffset::new(0, &values)).unwrap(), 1);
 }
+
+#[com_struct(assigned_signature = b"00000000000000000000000000000085")]
+#[derive(Debug, PartialEq)]
+/// Numeric render-style records need no validation or allocation when borrowed.
+pub struct Coordinates {
+    /// Every floating-point bit pattern is a valid initialized Rust value.
+    pub x: f32,
+    /// The second field has the same application and wire offset.
+    pub y: f32,
+}
+
+/// Identity proof retains zero-copy behavior without admitting restricted fields.
+#[test]
+fn unrestricted_buffers_borrow_in_place_and_restricted_buffers_are_separate() {
+    let values = [Coordinates { x: 1.0, y: 2.0 }];
+    let encoded = EncodedInput::new(NcCopyFromBufferOffset::new(7, &values)).unwrap();
+    assert_eq!(encoded.as_ptr().cast::<Coordinates>(), values.as_ptr());
+    assert_eq!(encoded.offset(), 7);
+    let decoded = unsafe { DecodedInput::<Coordinates>::from_raw(encoded.as_ptr(), encoded.len()) }.unwrap();
+    assert_eq!(decoded.as_slice().as_ptr(), values.as_ptr());
+    let restricted = [Settings { flags: Flags { enabled: true } }];
+    let encoded = EncodedInput::new(NcCopyFromBufferOffset::new(0, &restricted)).unwrap();
+    assert_ne!(encoded.as_ptr().cast::<Settings>(), restricted.as_ptr());
+    let decoded = unsafe { DecodedInput::<Settings>::from_raw(encoded.as_ptr(), encoded.len()) }.unwrap();
+    assert_ne!(decoded.as_slice().as_ptr(), restricted.as_ptr());
+}
+
+/// Writable direct buffers preserve the exclusive borrow and need no temporary copy.
+#[test]
+fn writable_identity_buffers_retain_the_original_allocation() {
+    let mut values = [1u32, 2, 3];
+    let pointer = values.as_mut_ptr();
+    let mut encoded = EncodedOutput::new(NcCopyToBufferOffset::new(9, &mut values)).unwrap();
+    assert_eq!(encoded.as_mut_ptr(), pointer);
+    let mut decoded = unsafe { DecodedOutput::<u32>::from_raw(encoded.as_mut_ptr(), encoded.len()) }.unwrap();
+    decoded.as_mut_slice()[1] = 8;
+    decoded.finish().unwrap();
+    encoded.finish().unwrap();
+    assert_eq!(values, [1, 8, 3]);
+}

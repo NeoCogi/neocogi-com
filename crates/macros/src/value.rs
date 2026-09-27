@@ -153,6 +153,23 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
     } else {
         quote! { #(#decode)* }
     };
+    let borrow_wire = if !is_enum && inline {
+        let fields = cases.iter().flat_map(|case| case.fields.iter()).map(|field| &field.ty);
+        let offsets = cases.iter().flat_map(|case| case.fields.iter().enumerate()).map(|(index, field)| {
+            let application = field.ident.as_ref().map(|name| quote! { #name }).unwrap_or_else(|| {
+                let index = syn::Index::from(index);
+                quote! { #index }
+            });
+            let raw = field.ident.clone().unwrap_or_else(|| format_ident!("field_{index}"));
+            quote! { core::mem::offset_of!(Self, #application) == core::mem::offset_of!(Self::Wire, #raw) }
+        });
+        quote! { const BORROW_WIRE: bool = true #(&& <#fields as #nc::ComValue>::BORROW_WIRE)*
+        && core::mem::size_of::<Self>() == core::mem::size_of::<Self::Wire>()
+        && core::mem::align_of::<Self>() == core::mem::align_of::<Self::Wire>()
+        #(&& #offsets)*; }
+    } else {
+        quote! {}
+    };
     let encode_source = if inline {
         quote! { *self }
     } else {
@@ -173,6 +190,7 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
         // SAFETY: only raw field representations cross COM; recursive conversion
         // validates tags and values before constructing application data.
         unsafe impl #nc::ComValue for #name {
+            #borrow_wire
             type Wire = #wire_name;
             type Storage = #storage_type;
             /// Retains the storage required by every recursively converted child.

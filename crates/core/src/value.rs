@@ -75,6 +75,10 @@ impl Default for ValueBudget {
 /// pointer live while the application value is borrowed. Decoding validates raw
 /// tags/fields before constructing Rust values and acquires all retained data.
 pub unsafe trait ComValue: Sized + 'static {
+    /// True only when Self and Wire have identical layout and all initialized
+    /// bit patterns require no content validation, ownership, or conversion.
+    /// The unsafe implementor must prove this for every field recursively.
+    const BORROW_WIRE: bool = false;
     /// Call-scoped raw representation, recursively composed of wire fields.
     type Wire: Copy;
     /// Concrete producer-owned backing storage for converted indirect fields.
@@ -161,6 +165,7 @@ macro_rules! scalar_values {
         // SAFETY: these primitive wire values have no restricted bit patterns,
         // borrowed fields, or ownership obligations.
         unsafe impl ComValue for $ty {
+            const BORROW_WIRE: bool = true;
             type Wire = Self;
             type Storage = ();
             fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self, ()), NcStatus> {
@@ -174,7 +179,7 @@ macro_rules! scalar_values {
         unsafe impl ComInlineValue for $ty {}
     )*};
 }
-scalar_values!((), u8, u16, u32, u64, usize, i8, i16, i32, i64, isize, f32, f64, crate::NcGuid, crate::NcStatus);
+scalar_values!(u8, u16, u32, u64, usize, i8, i16, i32, i64, isize, f32, f64, crate::NcGuid, crate::NcStatus);
 
 // SAFETY: boolean wire storage is an unrestricted byte, checked before conversion.
 unsafe impl ComValue for bool {
@@ -293,10 +298,9 @@ impl<W: Copy> Clone for ValueSlice<W> {
         *self
     }
 }
-#[cfg(feature = "alloc")]
 impl<W: Copy> ValueSlice<W> {
     /// Checks numeric shape; memory readability remains the raw caller's obligation.
-    unsafe fn elements<'a>(&self) -> Result<&'a [W], NcStatus> {
+    pub(crate) unsafe fn elements<'a>(&self) -> Result<&'a [W], NcStatus> {
         let len = usize::try_from(self.len).map_err(|_| NC_E_OUT_OF_RANGE)?;
         if len == 0 {
             return Ok(&[]);
@@ -461,3 +465,20 @@ pub unsafe fn decode_value_buffer<T: ComInlineValue>(pointer: *const T::Wire, le
     }
     Ok(result)
 }
+
+// SAFETY: unit has a concrete byte representation; only its sole value is accepted.
+unsafe impl ComValue for () {
+    type Wire = u8;
+    type Storage = ();
+    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(u8, ()), NcStatus> {
+        budget.value(|_| Ok((0, ())))
+    }
+    unsafe fn decode_value(wire: u8, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+        budget.value(|_| match wire {
+            0 => Ok(()),
+            _ => Err(NC_E_INVALID_ARG),
+        })
+    }
+}
+// SAFETY: the unit byte is self-contained.
+unsafe impl ComInlineValue for () {}

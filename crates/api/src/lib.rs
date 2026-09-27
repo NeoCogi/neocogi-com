@@ -520,3 +520,6 @@ mod readme_examples {}
 pub use neocogi_com_core::{ComValue, ComValueType, ComInlineValue, NcValueRef, ValueBudget, ValueArray, ValueOption, ValueSlice, encode_inline, decode_inline, MAX_VALUE_BYTES, MAX_VALUE_COUNT, MAX_VALUE_DEPTH};
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{ValueSequenceStorage, encode_value_buffer, decode_value_buffer};
+
+#[doc(hidden)]
+pub use neocogi_com_core::{EncodedInput, EncodedOutput, DecodedInput, DecodedOutput};

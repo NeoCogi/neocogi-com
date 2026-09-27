@@ -81,9 +81,16 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
     });
 
     let value_codec = crate::value::expand(
-        struct_ident, &input.vis,
-        &[crate::value::ValueCase { variant: None, tag: quote! { 0 }, fields: input.fields.clone() }],
-        quote! { #nc::NcAbiSignature::from_static(&#signature_bytes_ident) }, true, &nc,
+        struct_ident,
+        &input.vis,
+        &[crate::value::ValueCase {
+            variant: None,
+            tag: quote! { 0 },
+            fields: input.fields.clone(),
+        }],
+        quote! { #nc::NcAbiSignature::from_static(&#signature_bytes_ident) },
+        true,
+        &nc,
     );
     Ok(quote! {
         #input
@@ -191,7 +198,7 @@ fn com_struct_field_layouts(fields: &Fields) -> Vec<(u32, Member, &syn::Type)> {
 }
 
 /// Returns the `Clone`/`Copy` derives not already present on the source struct.
-fn missing_copy_derives(attrs: &[Attribute]) -> Vec<Ident> {
+pub(crate) fn missing_copy_derives(attrs: &[Attribute]) -> Vec<Ident> {
     let mut missing = Vec::new();
     if !has_derive(attrs, "Clone") {
         missing.push(format_ident!("Clone"));

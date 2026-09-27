@@ -9,6 +9,8 @@ use std::{cell::Cell, ffi::c_void, rc::Rc};
 pub trait ICounter {
     /// Returns the number of AddRef calls observed so far.
     fn additions(&self) -> Result<u32, NcStatus>;
+    /// Returns an owned reference alongside deliberately malformed foreign output.
+    fn malformed_output(&self, output: neocogi_com::NcCopyToBufferOffset<'_, bool>) -> Result<ComPtr<IDerivedCounterAbi>, NcStatus>;
 }
 
 #[com_interface(auto_guid = "nc.tests.borrowed.DerivedCounter:v1", assigned_signature = b"00000000000000000000000000000002")]
@@ -78,6 +80,20 @@ unsafe extern "C" fn additions(this: *mut ICounterAbi, out: *mut u32) -> NcStatu
     NC_OK
 }
 
+/// Simulates a foreign implementation that transfers ownership but returns an
+/// invalid boolean byte. The wrapper must release the transfer when decoding fails.
+unsafe extern "C" fn malformed_output(this: *mut ICounterAbi, _offset: u64, len: u64, output: *mut u8, out: *mut *mut IDerivedCounterAbi) -> NcStatus {
+    assert_eq!(len, 1);
+    // SAFETY: test calls supply one initialized writable byte and an output slot.
+    // AddRef transfers a real reference even though the separate byte is malformed.
+    unsafe {
+        add_ref(this.cast());
+        *output = 2;
+        *out = this.cast();
+    }
+    NC_OK
+}
+
 /// Immutable table whose prefix describes this exact projected interface.
 static VTABLE: IDerivedCounterVTable = IDerivedCounterVTable {
     base: ICounterVTable {
@@ -88,6 +104,7 @@ static VTABLE: IDerivedCounterVTable = IDerivedCounterVTable {
             release,
         },
         additions,
+        malformed_output,
     },
 };
 
@@ -111,12 +128,24 @@ fn borrowed_generated_calls_perform_no_lifecycle_operations() {
     assert_eq!(borrowed.additions(), Ok(0));
     assert_eq!(owner.additions(), Ok(0));
     assert_eq!(counts.releases.get(), 0);
-    let retained = borrowed.add_ref();
-    assert_eq!(borrowed.additions(), Ok(1));
-    drop(retained);
+    // A failed acquisition must preserve the safe bool and release the returned
+    // reference immediately. The original caller still owns the object afterward.
+    let mut destination = [false];
+    assert_eq!(
+        borrowed
+            .malformed_output(neocogi_com::NcCopyToBufferOffset::new(0, &mut destination))
+            .unwrap_err(),
+        neocogi_com::NC_E_INVALID_ARG
+    );
+    assert_eq!(destination, [false]);
+    assert_eq!(counts.additions.get(), 1);
     assert_eq!(counts.releases.get(), 1);
-    drop(owner);
+    let retained = borrowed.add_ref();
+    assert_eq!(borrowed.additions(), Ok(2));
+    drop(retained);
     assert_eq!(counts.releases.get(), 2);
+    drop(owner);
+    assert_eq!(counts.releases.get(), 3);
 }
 
 #[test]

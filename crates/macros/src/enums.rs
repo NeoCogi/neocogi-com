@@ -19,6 +19,12 @@ use crate::util::{abi_signature_static_tokens, checked_u32_len, push_error, runt
 pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<proc_macro2::TokenStream> {
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
     validate_com_enum(&input)?;
+    // Copied declarations provide the same application Copy contract as records.
+    // This also lets their checked codecs participate in copied method positions.
+    let derives = crate::structs::missing_copy_derives(&input.attrs);
+    if !derives.is_empty() {
+        input.attrs.push(syn::parse_quote!(#[derive(#(#derives),*)]));
+    }
     let enum_ident = &input.ident;
     checked_u32_len(input.variants.len(), enum_ident.span(), "COM enum variant count")?;
     for variant in &input.variants {
@@ -385,11 +391,22 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
         }
     });
 
-    let value_cases = variants.iter().map(|(variant, fields, tag)| crate::value::ValueCase {
-        variant: Some(variant.clone()), fields: fields.clone(), tag: quote! { #tag },
-    }).collect::<Vec<_>>();
-    let value_codec = crate::value::expand(enum_ident, vis, &value_cases,
-        quote! { #nc::NcAbiSignature::from_static(&#signature_bytes_ident) }, true, &nc);
+    let value_cases = variants
+        .iter()
+        .map(|(variant, fields, tag)| crate::value::ValueCase {
+            variant: Some(variant.clone()),
+            fields: fields.clone(),
+            tag: quote! { #tag },
+        })
+        .collect::<Vec<_>>();
+    let value_codec = crate::value::expand(
+        enum_ident,
+        vis,
+        &value_cases,
+        quote! { #nc::NcAbiSignature::from_static(&#signature_bytes_ident) },
+        true,
+        &nc,
+    );
     Ok(quote! {
         #input
         #value_codec

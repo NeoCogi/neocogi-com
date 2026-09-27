@@ -36,6 +36,7 @@ mod encode;
 mod factory_plugin;
 mod guid;
 mod value;
+mod value_buffer;
 mod metadata;
 mod object;
 pub mod persistence;
@@ -100,3 +101,5 @@ pub use factory_plugin::{
     NC_FACTORY_PLUGIN_ABI_VERSION, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NcActivatePluginFactory, NcFactoryPluginDescription,
     NcGetFactoryPluginDescription, activate_factory_implementation, return_factory_plugin_description, validate_factory_plugin_description,
 };
+
+pub use value_buffer::{EncodedInput, EncodedOutput, DecodedInput, DecodedOutput};
