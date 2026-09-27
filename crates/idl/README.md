@@ -17,8 +17,10 @@ The single `neocogi-idl` package separates responsibilities into Rust modules:
   and imported contracts. [examples/com-plugin](../../../examples/com-plugin)
   demonstrates their dynamic and monolithic use.
 
-Ordinary interfaces support type parameters. Closed uses are specialized into
-concrete vtables and deterministic COM identities before ABI resolution. `class`
+Structs, enums, and ordinary interfaces support type parameters. One expansion
+pass substitutes closed uses into concrete declarations with deterministic
+identities before ABI resolution. Fields, recursive layouts, and method slots
+then follow exactly the same rules as nongeneric declarations. `class`
 marks a concrete object contract, `interface` a reusable capability, and `factory`
 a construction root. Records and enums share recursive checked conversion;
 there is no separate message declaration category.

@@ -316,7 +316,7 @@ fn parse_bit_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Re
     if flags.is_empty() {
         return Err(syn::Error::new(name.span(), "IDL bit enums must contain at least one flag"));
     }
-    Ok(declaration(name, metadata, DeclarationKind::BitEnum(BitEnum { repr, flags })))
+    Ok(declaration(name, Vec::new(), metadata, DeclarationKind::BitEnum(BitEnum { repr, flags })))
 }
 
 /// Parses one copied record declaration.
@@ -325,6 +325,7 @@ fn parse_struct(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Resu
     input.parse::<Token![struct]>()?;
     let name = input.parse::<Ident>()?;
     require_upper_camel_case(&name, "struct")?;
+    let parameters = parse_type_parameters(input)?;
     let body;
     braced!(body in input);
     let mut fields = Vec::new();
@@ -341,6 +342,7 @@ fn parse_struct(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Resu
     }
     Ok(declaration(
         name,
+        parameters,
         metadata.clone(),
         DeclarationKind::Struct(Struct {
             fields,
@@ -357,6 +359,7 @@ fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result
     input.parse::<Token![enum]>()?;
     let name = input.parse::<Ident>()?;
     require_upper_camel_case(&name, "enum")?;
+    let parameters = parse_type_parameters(input)?;
     let repr = parse_optional_enum_repr(input)?;
     let body;
     braced!(body in input);
@@ -374,6 +377,7 @@ fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result
     }
     Ok(declaration(
         name,
+        parameters,
         metadata.clone(),
         DeclarationKind::Enum(Enum {
             repr,
@@ -397,31 +401,27 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>, role: Int
     if !parameters.is_empty() && role != InterfaceRole::Ordinary {
         return Err(syn::Error::new(
             name.span(),
-            "only interfaces may declare type parameters; classes and factories must be concrete",
+            "classes and factories must be concrete; only structs, enums, and interfaces may declare type parameters",
         ));
     }
     let bases = parse_bases(input)?;
     let callables = parse_callables(input)?;
     Ok(declaration(
         name,
+        parameters,
         metadata,
-        DeclarationKind::Interface(Interface {
-            parameters,
-            bases,
-            callables,
-            role,
-            threading,
-        }),
+        DeclarationKind::Interface(Interface { bases, callables, role, threading }),
     ))
 }
 
 /// Combines common metadata with one declaration-specific payload.
-fn declaration(name: Ident, metadata: Attributes, kind: DeclarationKind) -> Declaration {
+fn declaration(name: Ident, parameters: Vec<String>, metadata: Attributes, kind: DeclarationKind) -> Declaration {
     Declaration {
         span: SourceSpan::from_parser(name.span()),
         docs: metadata.docs,
         name: name.to_string(),
         id: metadata.id,
+        parameters,
         specialization: None,
         kind,
     }
@@ -632,7 +632,7 @@ fn lower_path_type(path: &syn::Path) -> syn::Result<AbiType> {
     Ok(AbiType::Named(named_path(path)?))
 }
 
-/// Parses named interface arguments without accepting lifetime, const, or associated-type syntax.
+/// Parses named type arguments without accepting lifetime, const, or associated-type syntax.
 fn named_path(path: &syn::Path) -> syn::Result<NamedType> {
     if path.leading_colon.is_some() {
         return Err(syn::Error::new_spanned(path, "IDL paths are module-qualified without a leading ::"));
@@ -647,7 +647,7 @@ fn named_path(path: &syn::Path) -> syn::Result<NamedType> {
                 for value in &values.args {
                     match value {
                         GenericArgument::Type(value) => arguments.push(lower_type(value)?),
-                        _ => return Err(syn::Error::new_spanned(value, "interface arguments must be types")),
+                        _ => return Err(syn::Error::new_spanned(value, "generic arguments must be types")),
                     }
                 }
             }
@@ -675,8 +675,11 @@ fn parse_type_parameters(input: ParseStream<'_>) -> syn::Result<Vec<String>> {
         let parameter = input.parse::<Ident>()?;
         require_upper_camel_case(&parameter, "type parameter")?;
         let name = parameter.to_string();
+        if crate::resolve::is_reserved_name(&name) {
+            return Err(syn::Error::new_spanned(parameter, "a type parameter cannot shadow an IDL built-in"));
+        }
         if parameters.contains(&name) {
-            return Err(syn::Error::new_spanned(parameter, "duplicate interface type parameter"));
+            return Err(syn::Error::new_spanned(parameter, "duplicate type parameter"));
         }
         parameters.push(name);
         if !input.peek(Token![,]) {

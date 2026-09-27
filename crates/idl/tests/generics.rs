@@ -190,3 +190,180 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+/// Value templates use the same substitution and layout rules as interface templates.
+#[test]
+fn generic_values_reject_invalid_closed_layout_and_ownership() {
+    for body in [
+        "#[version(1)] struct Boxed<T> { value: T } #[version(1)] struct Bad { value: Boxed<IToken> }",
+        "#[version(1)] struct Handle<I> { value: ComPtr<I> } #[version(1)] struct Bad { value: Handle<u32> }",
+        "#[version(1)] struct Loop<T> { child: Option<Loop<T>> } #[version(1)] struct Bad { value: Loop<u32> }",
+        "#[version(1)] struct Boxed<T> { value: T } #[version(1)] struct Bad { value: Boxed }",
+        "#[version(1)] enum Choice<T> { Value(T) } #[version(1)] struct Bad { value: Choice<u32, bool> }",
+        "#[version(1)] struct Grow<T> { children: &[Grow<Option<T>>] } #[version(1)] struct Bad { value: Grow<u32> }",
+        "#[version(1)] struct Marker<T> { value: u32 } #[version(1)] struct Bad { value: Marker<ComPtr<u32>> }",
+        "#[version(1)] struct Boxed<T> { value: T } #[version(1)] interface IBad { fn get(&self) -> Result<Boxed<String>>; }",
+    ] {
+        let source = module("proof/bad.ncidl", &format!("#[version(1)] interface IToken {{}} {body}"));
+        assert!(resolve_modules(vec![source]).is_err(), "must reject {body}");
+    }
+    for source in [
+        "#[version(1)] struct Invalid<String> { value: String }",
+        "#[version(1)] factory Factory<T> {}",
+        "#[version(1)] struct Boxed<T, T> { value: T }",
+    ] {
+        assert!(parse_module(Path::new("proof/bad.ncidl"), source).is_err());
+    }
+}
+
+/// Exercises copied and recursive owned specializations through real generated Rust.
+#[test]
+fn generic_values_compile_cross_module_calls_and_event_adapters() {
+    use std::{fs, process::Command};
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let template_source = r#"
+        #[version(1)] struct Pair<T> { first: T, second: T }
+        #[version(1)] struct Node<T> { value: T, children: &[Node<T>] }
+        #[version(1)] enum Change<T>: u8 { Set(T), Clear }
+        #[version(1)] struct Handle<I> { object: ComPtr<I> }
+        #[version(1)] interface IExchange<T> { fn roundtrip(&self, value: T) -> Result<T>; }
+    "#;
+    let consumer_source = r#"
+        extern proof.templates; extern neocogi.com.events;
+        use proof.templates::{Pair, Node, Change, Handle, IExchange};
+        use neocogi.com.events::IEventStream;
+        #[version(1)] class Exchange: IExchange<Pair<bool>> + IEventStream<Change<Node<String>>> {}
+        #[version(1)] interface IData { fn inspect(&self, owner: &Handle<IUnknown>) -> Result<()>; }
+    "#;
+    // Resolve independently: accidental dependence on the other consumer's
+    // generated declarations cannot make this ABI compatibility proof pass.
+    let make_graph = |name: &str| {
+        let events = fs::read_to_string(root.join("crates/com/api/idl/neocogi/com/events/events.ncidl")).unwrap();
+        resolve_modules(vec![
+            module("proof/templates.ncidl", template_source),
+            module("neocogi/com/events.ncidl", &events),
+            module(&format!("proof/{name}.ncidl"), consumer_source),
+        ])
+        .unwrap()
+    };
+    let producer = make_graph("producer");
+    let consumer = make_graph("consumer");
+    assert_eq!(instances(&producer, "proof.producer"), instances(&consumer, "proof.consumer"));
+    assert_eq!(
+        producer.values, consumer.values,
+        "recursive metadata uses canonical identities, not consumer paths"
+    );
+    let owner = producer.module("proof.producer").unwrap();
+    let instance = |template: &str| {
+        owner
+            .source
+            .declarations
+            .iter()
+            .find(|declaration| {
+                declaration
+                    .specialization
+                    .as_ref()
+                    .is_some_and(|source| source.template.segments.last().unwrap() == template)
+            })
+            .unwrap()
+            .name
+            .clone()
+    };
+    let pair = instance("Pair");
+    let node = instance("Node");
+    let change = instance("Change");
+    let exchange = instance("IExchange");
+    let project = tempfile::tempdir().unwrap();
+    fs::create_dir(project.path().join("src")).unwrap();
+    fs::write(
+        project.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname='generic-values-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            root.join("crates/com/api")
+        ),
+    )
+    .unwrap();
+    for (name, graph) in [("producer", &producer), ("consumer", &consumer)] {
+        fs::write(
+            project.path().join(format!("src/{name}.rs")),
+            neocogi_idl::generate_rust(graph, &format!("proof.{name}")).unwrap(),
+        )
+        .unwrap();
+    }
+    fs::write(
+        project.path().join("src/lib.rs"),
+        format!(
+            r#"
+        pub mod producer;
+        pub mod consumer;
+        #[neocogi_com::com_object(producer::{exchange})]
+        /// A real COM implementation uses its own generated Pair specialization.
+        struct Exchange;
+        impl producer::{exchange} for Exchange {{
+            /// Returning the acquired value exercises both generated wire directions.
+            fn roundtrip(&self, value: producer::{pair}) -> Result<producer::{pair}, neocogi_com::NcStatus> {{ Ok(value) }}
+        }}
+        #[test]
+        fn independently_generated_values_share_wire_contract() {{
+            let object = Exchange::from_value(Exchange);
+            let peer = object.query::<consumer::{exchange}Abi>().unwrap();
+            let result = peer.roundtrip(consumer::{pair} {{ first: true, second: false }}).unwrap();
+            assert!(result.first);
+            assert!(!result.second);
+        }}
+        #[test]
+        fn recursive_value_and_generic_event_receiver_acquire_snapshots() {{
+            use neocogi_com::events::MessageSinkInterface;
+            let node = producer::{node} {{ value: "parent".into(), children: vec![producer::{node} {{ value: "child".into(), children: vec![] }}] }};
+            let value = producer::{change}::Set(node);
+            let copied = neocogi_com::NcValueRef::new(&value).unwrap().to_owned().unwrap();
+            let producer::{change}::Set(node) = copied else {{ panic!("selected alternative changed") }};
+            assert_eq!(node.children[0].value, "child");
+            let receiver = producer::ExchangeSinkAbi::receiver(|event| {{
+                let producer::{change}::Set(node) = event else {{ panic!("wrong event") }};
+                assert_eq!(node.value, "parent");
+                Ok(())
+            }}).unwrap();
+            producer::ExchangeSinkAbi::post(receiver.as_com_ref(), &value).unwrap();
+            let descriptor = producer::ExchangeAbi::IDL_INTERFACE;
+            let stream = descriptor.stream.unwrap();
+            assert!(descriptor.values.iter().any(|value| value.qualified_name == stream.message.qualified_name));
+            assert!(descriptor.values.iter().any(|value| value.qualified_name == producer::{node}::IDL_TYPE.qualified_name));
+            assert_eq!(producer::{node}::IDL_TYPE.qualified_name, consumer::{node}::IDL_TYPE.qualified_name);
+        }}
+    "#
+        ),
+    )
+    .unwrap();
+    let output = Command::new("cargo")
+        .args(["test", "--offline", "--manifest-path"])
+        .arg(project.path().join("Cargo.toml"))
+        .env("CARGO_TARGET_DIR", root.join("target/message-proof"))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// Field order changes the closed value ABI without changing its nominal identity.
+#[test]
+fn value_template_layout_is_part_of_specialized_signatures() {
+    let graph = |fields: &str| {
+        resolve_modules(vec![
+            module("proof/templates.ncidl", &format!("#[version(1)] struct Pair<T> {{ {fields} }}")),
+            module(
+                "proof/consumer.ncidl",
+                "extern proof.templates; use proof.templates::Pair; #[version(1)] struct Payload { pair: Pair<bool> }",
+            ),
+        ])
+        .unwrap()
+    };
+    let first = instances(&graph("first: T, second: u32"), "proof.consumer");
+    let changed = instances(&graph("second: u32, first: T"), "proof.consumer");
+    assert_eq!(first[0].1, changed[0].1);
+    assert_ne!(first[0].2, changed[0].2);
+}

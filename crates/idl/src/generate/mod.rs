@@ -95,7 +95,13 @@ fn generate_module(graph: &Generation<'_>, module_name: &str) -> Result<crate::G
         .source
         .declarations
         .iter()
-        .filter_map(|declaration| graph.graph.values.definitions.get(&module.source.name.qualify(&declaration.name)))
+        .filter_map(|declaration| {
+            graph
+                .graph
+                .values
+                .definitions
+                .get(&module.declaration(&declaration.name).expect("resolved declaration").qualified_name)
+        })
         .flat_map(|definition| &definition.fields)
         .any(needs_value_allocation)
         .then(|| quote! { extern crate alloc; });
@@ -198,9 +204,10 @@ fn generate_design_metadata(graph: &Generation<'_>, module: &ResolvedModule) -> 
 /// Materializes a resolved definition as data, without requiring a Rust dependency
 /// on the package of a transitively referenced value.
 fn design_definition(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration) -> Result<TokenStream, GenerateError> {
-    let qualified_name = Literal::string(&module.source.name.qualify(&declaration.name));
+    let identity = module.declaration(&declaration.name).expect("resolved declaration");
+    let qualified_name = Literal::string(&identity.qualified_name);
     let rust_type = Literal::string(&public_rust_path(graph, module, &declaration.name)?);
-    let definition = &graph.graph.values.definitions[&module.source.name.qualify(&declaration.name)];
+    let definition = &graph.graph.values.definitions[&identity.qualified_name];
     let mut resolved_fields = definition.fields.iter();
     let shape = match &declaration.kind {
         DeclarationKind::Struct(record) => {
@@ -367,10 +374,11 @@ fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, dec
     names
         .iter()
         .map(|name| {
-            let (owner, declaration) = name.rsplit_once('.').expect("canonical value name");
-            let owner = graph.graph.module(owner).expect("resolved module exists");
-            let declaration = owner.source.declaration(declaration).expect("reachable definition exists");
-            design_definition(graph, owner, declaration)
+            let value = graph
+                .graph
+                .resolve_canonical(&module.source.name.to_string(), name)
+                .expect("reachable definition exists");
+            design_definition(graph, value.module, value.declaration)
         })
         .collect()
 }

@@ -44,7 +44,9 @@ pub struct Declaration {
     pub name: String,
     /// Version and optional explicit UUID parsed from attributes.
     pub id: DeclarationId,
-    /// Canonical origin of an instantiated interface template, when applicable.
+    /// Ordered parameters of a struct, enum, or interface template; empty after specialization.
+    pub parameters: Vec<String>,
+    /// Canonical origin of an instantiated declaration template, when applicable.
     pub specialization: Option<Specialization>,
     /// Declaration-specific ABI contents.
     pub kind: DeclarationKind,
@@ -185,8 +187,6 @@ pub enum VariantFields {
 /// are sibling projections guaranteed by QueryInterface on the same object.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Interface {
-    /// Type parameters of a reusable interface template; empty after specialization.
-    pub parameters: Vec<String>,
     /// Base followed by required sibling interfaces, in declared query order.
     pub bases: Vec<NamedType>,
     /// Ordinary methods in normative vtable order.
@@ -277,7 +277,7 @@ pub struct NamedType {
     pub span: SourceSpan,
     /// Path segments in source order without rewriting.
     pub segments: Vec<String>,
-    /// Arguments to an interface template, resolved before ordinary ABI validation.
+    /// Arguments to a declaration template, resolved before ordinary ABI validation.
     pub arguments: Vec<AbiType>,
 }
 
@@ -340,7 +340,7 @@ pub enum AbiType {
     ),
 }
 
-/// Origin of a closed interface; generated Rust names never determine its COM identity.
+/// Origin of a closed declaration; generated Rust names never determine its COM identity.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Specialization {
     /// Fully qualified template declaration with no arguments.

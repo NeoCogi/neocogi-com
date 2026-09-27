@@ -1,6 +1,6 @@
-//! Closed interface specialization before ordinary COM ABI validation.
+//! Closed declaration specialization before ordinary COM ABI validation.
 //!
-//! Templates are substituted into concrete interfaces in the using module. Their
+//! Templates are substituted into concrete values and interfaces in the using module. Their
 //! identities depend on the template and argument identities, never on the using
 //! module or a Rust crate path. Ordinary resolution then validates the resulting
 //! methods, inheritance, borrowed values, and threading exactly once.
@@ -17,7 +17,7 @@ const MAX_DEPTH: usize = 64;
 /// Bounds compiler memory independently of recursion depth.
 const MAX_INSTANTIATIONS: usize = 4096;
 
-/// Expands all used interface templates while preserving their source contracts.
+/// Expands all used struct, enum, and interface templates while preserving their source contracts.
 pub(crate) fn expand(modules: Vec<Module>) -> Result<Vec<Module>, ResolutionError> {
     if !modules.iter().flat_map(|module| &module.declarations).any(|declaration| {
         if is_template(declaration) {
@@ -43,10 +43,10 @@ pub(crate) fn expand(modules: Vec<Module>) -> Result<Vec<Module>, ResolutionErro
         let declarations = std::mem::take(&mut expansion.modules[index].declarations);
         for mut declaration in declarations {
             match &declaration.kind {
-                DeclarationKind::Interface(interface) if !interface.parameters.is_empty() => {
+                _ if is_template(&declaration) => {
                     // Canonicalize free names now so imports and aliases do not
                     // change the template fingerprint or instantiated meaning.
-                    let parameters = interface
+                    let parameters = declaration
                         .parameters
                         .iter()
                         .map(|name| {
@@ -134,13 +134,13 @@ impl Expansion {
         Ok((index, declaration))
     }
 
-    /// Qualifies free names and substitutes parameters without expanding interfaces yet.
+    /// Qualifies free names and substitutes parameters without expanding concrete declarations yet.
     fn normalize_type(&self, owner: usize, ty: &mut AbiType, substitutions: &BTreeMap<String, AbiType>) -> Result<(), ResolutionError> {
         match ty {
             AbiType::Named(name) => {
                 if crate::resolve::builtin_object(name).is_some() || name.segments.as_slice() == ["str"] {
                     if !name.arguments.is_empty() {
-                        return Err(failure(&name.span, "built-in types do not accept interface arguments"));
+                        return Err(failure(&name.span, "built-in types do not accept type arguments"));
                     }
                     return Ok(());
                 }
@@ -154,10 +154,7 @@ impl Expansion {
                     }
                 }
                 let (index, declaration) = self.lookup(owner, name)?;
-                let expected = match &declaration.kind {
-                    DeclarationKind::Interface(interface) => interface.parameters.len(),
-                    _ => 0,
-                };
+                let expected = declaration.parameters.len();
                 if name.arguments.len() != expected {
                     return Err(failure(
                         &name.span,
@@ -234,7 +231,7 @@ impl Expansion {
         }
     }
 
-    /// Materializes a closed interface once in the consumer's module.
+    /// Materializes a closed value or interface once in the consumer's module.
     fn instantiate(&mut self, target: usize, mut name: NamedType, depth: usize) -> Result<NamedType, ResolutionError> {
         let key = name.rust_path();
         if let Some(local) = self.instances.get(&(target, key.clone())) {
@@ -245,7 +242,7 @@ impl Expansion {
             });
         }
         if depth > MAX_DEPTH || self.instances.len() >= MAX_INSTANTIATIONS {
-            return Err(failure(&name.span, "interface specialization exceeds the compiler depth or instance limit"));
+            return Err(failure(&name.span, "type specialization exceeds the compiler depth or instance limit"));
         }
         let module_name = name.segments[..name.segments.len() - 1].join(".");
         let owner = self
@@ -255,12 +252,9 @@ impl Expansion {
             .ok_or_else(|| failure(&name.span, "missing template module"))?;
         let mut declaration = self.originals[owner]
             .declaration(name.segments.last().unwrap())
-            .ok_or_else(|| failure(&name.span, "missing interface template"))?
+            .ok_or_else(|| failure(&name.span, "missing declaration template"))?
             .clone();
-        let DeclarationKind::Interface(interface) = &declaration.kind else {
-            return Err(failure(&name.span, "only interface types accept arguments"));
-        };
-        let substitutions = interface
+        let substitutions = declaration
             .parameters
             .iter()
             .cloned()
@@ -282,8 +276,11 @@ impl Expansion {
             explicit: Some(identity),
         };
         declaration.span = name.span.clone();
-        if let DeclarationKind::Interface(interface) = &mut declaration.kind {
-            interface.parameters.clear();
+        declaration.parameters.clear();
+        // Materialize nested arguments even when the template does not store
+        // them. Adapters and inspection can then resolve the same closed type.
+        for mut argument in declaration.specialization.as_ref().unwrap().arguments.clone() {
+            self.lower_type(target, &mut argument, depth)?;
         }
         self.add_dependency(target, &module_name, &name.span);
         self.lower_declaration(target, &mut declaration, depth)?;
@@ -352,9 +349,9 @@ impl Expansion {
     }
 }
 
-/// Identifies reusable interface declarations before their parameters are substituted.
+/// Identifies reusable declarations before their parameters are substituted.
 fn is_template(declaration: &Declaration) -> bool {
-    matches!(&declaration.kind, DeclarationKind::Interface(interface) if !interface.parameters.is_empty())
+    !declaration.parameters.is_empty()
 }
 
 /// Visits each type root once; recursive type structure belongs to the supplied operation.
@@ -423,18 +420,38 @@ pub(crate) fn template_fingerprint(templates: &[Declaration]) -> [u8; 32] {
         parts.push(template.name.clone());
         parts.push(template.id.version.to_string());
         parts.push(format!("{:?}", template.id.explicit));
-        let DeclarationKind::Interface(interface) = &template.kind else {
-            unreachable!("only interfaces can be templates")
-        };
-        parts.push(format!("parameters:{}", interface.parameters.len()));
-        parts.extend(interface.parameters.iter().cloned());
-        parts.push(format!("{:?}:{:?}", interface.role, interface.threading));
-        parts.push(format!("bases:{}", interface.bases.len()));
-        parts.extend(interface.bases.iter().map(NamedType::rust_path));
-        parts.push(format!("methods:{}", interface.callables.len()));
-        for callable in &interface.callables {
-            match callable {
-                Callable::Method(method) => {
+        parts.push(format!("parameters:{}", template.parameters.len()));
+        parts.extend(template.parameters.iter().cloned());
+        match &template.kind {
+            DeclarationKind::Struct(record) => {
+                parts.push(format!(
+                    "struct:{}:{}:{}",
+                    record.deserialize, record.deserialize_default, record.deserialize_sequence
+                ));
+                fingerprint_fields(&record.fields, &mut parts);
+            }
+            DeclarationKind::Enum(enumeration) => {
+                parts.push(format!("enum:{:?}:{}:{:?}", enumeration.repr, enumeration.dense, enumeration.names));
+                parts.push(format!("variants:{}", enumeration.variants.len()));
+                for variant in &enumeration.variants {
+                    parts.push(format!("{}:{:?}", variant.name, variant.discriminant));
+                    match &variant.fields {
+                        VariantFields::Unit => parts.push("unit".into()),
+                        VariantFields::Tuple(fields) => {
+                            parts.push(format!("tuple:{}", fields.len()));
+                            parts.extend(fields.iter().map(AbiType::source_name));
+                        }
+                        VariantFields::Named(fields) => fingerprint_fields(fields, &mut parts),
+                    }
+                }
+            }
+            DeclarationKind::Interface(interface) => {
+                parts.push(format!("interface:{:?}:{:?}", interface.role, interface.threading));
+                parts.push(format!("bases:{}", interface.bases.len()));
+                parts.extend(interface.bases.iter().map(NamedType::rust_path));
+                parts.push(format!("methods:{}", interface.callables.len()));
+                for callable in &interface.callables {
+                    let Callable::Method(method) = callable;
                     parts.push(format!("method:{}:{:?}", method.name, method.receiver));
                     parts.push(format!("parameters:{}", method.parameters.len()));
                     for parameter in &method.parameters {
@@ -443,6 +460,7 @@ pub(crate) fn template_fingerprint(templates: &[Declaration]) -> [u8; 32] {
                     parts.push(format!("return:{}", method.output.source_name()));
                 }
             }
+            DeclarationKind::BitEnum(_) => unreachable!("bit sets do not declare parameters"),
         }
     }
     // Length delimiters preserve boundaries even when diagnostic spellings contain punctuation.
@@ -454,10 +472,16 @@ pub(crate) fn template_fingerprint(templates: &[Declaration]) -> [u8; 32] {
     crate::sha256::digest(&bytes)
 }
 
+/// Records ordered field names and structural types without source locations or prose.
+fn fingerprint_fields(fields: &[crate::Field], parts: &mut Vec<String>) {
+    parts.push(format!("fields:{}", fields.len()));
+    parts.extend(fields.iter().map(|field| format!("{}:{}", field.name, field.ty.source_name())));
+}
+
 /// Reports specialization failures at the author's concrete use site.
 fn failure(span: &SourceSpan, message: impl Into<String>) -> ResolutionError {
     ResolutionError {
-        diagnostics: vec![Diagnostic::new("EIDL060", message).primary(span, "invalid interface specialization")],
+        diagnostics: vec![Diagnostic::new("EIDL060", message).primary(span, "invalid type specialization")],
     }
 }
 
@@ -512,7 +536,7 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &AbiType) -> Result<[u8; 3
                 .templates
                 .iter()
                 .find(|template| &template.name == local)
-                .ok_or_else(|| failure(&name.span, "interface template is absent"))?;
+                .ok_or_else(|| failure(&name.span, "declaration template is absent"))?;
             let id = template
                 .id
                 .explicit

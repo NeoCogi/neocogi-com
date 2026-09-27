@@ -38,7 +38,7 @@ pub struct Module {
     pub imports: Vec<Import>,
     /// ABI declarations in canonical top-level name order.
     pub declarations: Vec<Declaration>,
-    /// Generic interface definitions retained for canonical ABI fingerprints.
+    /// Generic value and interface definitions retained for canonical ABI fingerprints.
     pub templates: Vec<Declaration>,
 }
 

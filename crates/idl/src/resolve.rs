@@ -113,6 +113,23 @@ impl ResolvedModules {
         self.modules.iter().find(|module| module.source.name.to_string() == name)
     }
 
+    /// Selects a local projection of a canonical identity, falling back to its owner.
+    /// Closed generic values share identity across consumers but have distinct
+    /// generated Rust paths; metadata must use the path available to its caller.
+    pub(crate) fn resolve_canonical<'a>(&'a self, owner: &str, canonical: &str) -> Option<ResolvedDeclaration<'a>> {
+        let preferred = self.module(owner)?;
+        std::iter::once(preferred)
+            .chain(self.modules.iter().filter(|module| module.source.name.to_string() != owner))
+            .find_map(|module| {
+                let index = module.declarations.iter().position(|identity| identity.qualified_name == canonical)?;
+                Some(ResolvedDeclaration {
+                    module,
+                    declaration: &module.source.declarations[index],
+                    identity: &module.declarations[index],
+                })
+            })
+    }
+
     /// Resolves one local, imported, or module-qualified declaration path.
     ///
     /// Semantic resolution has already rejected missing and ambiguous paths.
@@ -120,6 +137,24 @@ impl ResolvedModules {
     /// without rebuilding a second name-resolution implementation.
     pub fn resolve_declaration<'a>(&'a self, owner: &str, name: &NamedType) -> Option<ResolvedDeclaration<'a>> {
         let owner = self.module(owner)?;
+        if !name.arguments.is_empty() {
+            // Specialization provenance keeps fully qualified source arguments.
+            // Compare semantic spellings rather than source spans, then select
+            // the using module's concrete Rust projection.
+            let spelling = name.rust_path();
+            let index = owner.source.declarations.iter().position(|declaration| {
+                declaration.specialization.as_ref().is_some_and(|instance| {
+                    let mut applied = instance.template.clone();
+                    applied.arguments = instance.arguments.clone();
+                    applied.rust_path() == spelling
+                })
+            })?;
+            return Some(ResolvedDeclaration {
+                module: owner,
+                declaration: &owner.source.declarations[index],
+                identity: &owner.declarations[index],
+            });
+        }
         let (module_name, declaration_name) = if name.segments.len() == 1 {
             let declaration_name = name.segments.first()?.as_str();
             if owner.source.declaration(declaration_name).is_some() {
@@ -279,6 +314,9 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
     for module in &graph.modules {
         for declaration in &module.source.declarations {
             if let Some(specialization) = &declaration.specialization {
+                for argument in &specialization.arguments {
+                    validate_closed_argument(&graph, module, argument, &declaration.span)?;
+                }
                 if specialization.template.segments.join(".") == "neocogi.com.events.IMessageSink" {
                     match specialization.arguments.as_slice() {
                         [AbiType::Named(name)]
@@ -300,6 +338,45 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
         }
     }
     Ok(graph)
+}
+
+/// Checks constructor well-formedness even for an unused template parameter.
+/// Field and method constraints are checked on substituted declarations, while
+/// a malformed ComPtr is never a meaningful argument regardless of its use.
+fn validate_closed_argument(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType, span: &SourceSpan) -> Result<(), ResolutionError> {
+    match ty {
+        AbiType::ComPtr(value) => {
+            let valid = match value.as_ref() {
+                AbiType::Named(name) => {
+                    builtin_object(name).is_some()
+                        || graph
+                            .resolve_declaration(&module.source.name.to_string(), name)
+                            .is_some_and(|target| matches!(target.declaration.kind, DeclarationKind::Interface(_)))
+                }
+                _ => false,
+            };
+            if !valid {
+                return Err(source_error(
+                    &module.source,
+                    "EIDL060",
+                    span,
+                    "ComPtr argument must name a closed object contract",
+                    "invalid owned-reference target",
+                ));
+            }
+            validate_closed_argument(graph, module, value, span)
+        }
+        AbiType::Named(name) => {
+            for argument in &name.arguments {
+                validate_closed_argument(graph, module, argument, span)?;
+            }
+            Ok(())
+        }
+        AbiType::Borrowed(value) | AbiType::Slice(value) | AbiType::OutputSlice(value) | AbiType::Option(value) | AbiType::Array { element: value, .. } => {
+            validate_closed_argument(graph, module, value, span)
+        }
+        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Ok(()),
+    }
 }
 
 /// Internal graph node with precomputed declaration identities.
@@ -684,7 +761,9 @@ fn validate_generated_names(index: usize, entries: &[ModuleEntry]) -> Result<(),
                 interface_companions(&declaration.name, &mut companions);
             }
             DeclarationKind::Enum(enumeration)
-                if entry.copied_values.contains(&entry.module.name.qualify(&declaration.name))
+                if entry
+                    .copied_values
+                    .contains(&entry.declaration_identities[entry.local_symbols[&declaration.name].declaration].qualified_name)
                     && enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit)) =>
             {
                 companions.push(format!("{}Abi", declaration.name));
@@ -751,23 +830,19 @@ fn visit_layout(
     let owner = &entries[module].module.declarations[declaration];
     let mut source_references = Vec::new();
     collect_layout_references(owner, &mut source_references);
-    let references = match values.definitions.get(&entries[module].module.name.qualify(&owner.name)) {
+    let references = match values.definitions.get(&entries[module].declaration_identities[declaration].qualified_name) {
         Some(definition) => definition
             .inline_references()
             .into_iter()
             .filter_map(|name| {
-                let (owner_name, value_name) = name.rsplit_once('.')?;
-                let target_module = entries.iter().position(|entry| entry.name == owner_name)?;
-                let target = *entries[target_module].local_symbols.get(value_name)?;
-                // Only locations are recovered from syntax. The structural graph
-                // above exclusively decides which named edges determine layout.
-                let span = source_references
-                    .iter()
-                    .find(|reference| {
-                        resolve_named(module, reference, entries).is_ok_and(|symbol| symbol.module == target.module && symbol.declaration == target.declaration)
-                    })
-                    .map_or(&owner.span, |reference| &reference.span);
-                Some((target, span))
+                // Layout edges use canonical identities. Recover the actual
+                // local/imported projection and diagnostic span from its source
+                // reference, including values instantiated in this consumer.
+                source_references.iter().find_map(|reference| {
+                    let target = resolve_named(module, reference, entries).ok()?;
+                    let identity = &entries[target.module].declaration_identities[target.declaration];
+                    (identity.qualified_name == name).then_some((target, &reference.span))
+                })
             })
             .collect::<Vec<_>>(),
         None => source_references
@@ -1136,10 +1211,9 @@ fn copied_type(index: usize, ty: &AbiType, entries: &[ModuleEntry]) -> bool {
     match ty {
         AbiType::Scalar(_) => true,
         AbiType::Named(name) => resolve_named(index, name, entries).is_ok_and(|symbol| {
-            let declaration = &entries[symbol.module].module.declarations[symbol.declaration];
             entries[index]
                 .copied_values
-                .contains(&entries[symbol.module].module.name.qualify(&declaration.name))
+                .contains(&entries[symbol.module].declaration_identities[symbol.declaration].qualified_name)
         }),
         _ => false,
     }
@@ -1164,8 +1238,7 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
                     // edges are never eligible for copied lowering.
                     return Ok(V::Named(name.segments.join(".")));
                 };
-                let declaration = &entries[symbol.module].module.declarations[symbol.declaration];
-                let name = entries[symbol.module].module.name.qualify(&declaration.name);
+                let name = entries[symbol.module].declaration_identities[symbol.declaration].qualified_name.clone();
                 match symbol.kind {
                     SymbolKind::Value => V::Named(name),
                     _ => V::Object(name),
@@ -1179,11 +1252,11 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
     }
     let mut graph = crate::ValueGraph::default();
     for (index, entry) in entries.iter().enumerate() {
-        for declaration in &entry.module.declarations {
+        for (declaration_index, declaration) in entry.module.declarations.iter().enumerate() {
             if matches!(declaration.kind, DeclarationKind::Interface(_)) {
                 continue;
             }
-            let name = entry.module.name.qualify(&declaration.name);
+            let name = entry.declaration_identities[declaration_index].qualified_name.clone();
             let fields = value_fields(declaration)
                 .into_iter()
                 .map(|ty| field(index, ty, entries))
@@ -1734,7 +1807,7 @@ fn symbol_kind(kind: &DeclarationKind) -> SymbolKind {
 }
 
 /// Returns whether an identifier collides with an IDL built-in.
-fn is_reserved_name(name: &str) -> bool {
+pub(crate) fn is_reserved_name(name: &str) -> bool {
     matches!(
         name,
         "bool"
