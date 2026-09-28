@@ -306,15 +306,9 @@ fn validate_qualified_name(value: &str, path: &str) -> Result<(), ArtifactValida
     neocogi_com_core::validate_qualified_name(value).map_err(|error| ArtifactValidationError::new(path, format!("invalid qualified name: {error}")))
 }
 
-/// Bounds diagnostic version text with the native descriptor grammar.
+/// Adds the JSON field location to COM's authoritative descriptor-version error.
 fn validate_version(value: &str, path: &str) -> Result<(), ArtifactValidationError> {
-    if value.is_empty() || value.len() > 128 || !value.bytes().all(|byte| byte.is_ascii_graphic()) {
-        return Err(ArtifactValidationError::new(
-            path,
-            "version must contain 1 through 128 printable non-whitespace ASCII bytes",
-        ));
-    }
-    Ok(())
+    neocogi_com_core::validate_version_text(value).map_err(|error| ArtifactValidationError::new(path, format!("invalid version: {error}")))
 }
 
 /// Converts validated native capabilities without exposing ABI integers in JSON.
@@ -362,6 +356,17 @@ pub(crate) fn sample_artifact() -> InspectionArtifact {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Saved inspection artifacts use the same version policy as native descriptors.
+    #[test]
+    fn version_validation_delegates_to_com_with_field_context() {
+        for version in ["", "1.0 beta", "1.β", &"v".repeat(129)] {
+            let error = validate_version(version, "plugin.version").unwrap_err().to_string();
+            assert!(error.contains("plugin.version"), "{error}");
+            assert!(error.contains(&neocogi_com_core::validate_version_text(version).unwrap_err().to_string()), "{error}");
+        }
+        validate_version(&"v".repeat(128), "plugin.version").unwrap();
+    }
 
     #[test]
     fn sample_artifact_is_valid_and_round_trips() {

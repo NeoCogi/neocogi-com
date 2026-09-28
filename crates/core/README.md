@@ -58,6 +58,32 @@ inside nested ordinary records. Numeric buffers can borrow in place only when
 all fields prove identical layout and unrestricted contents. See the normative
 [recursive value contract](../../../docs/RECURSIVE_VALUE_CONTRACT.md).
 
+## Descriptor text validation
+
+COM owns the shared descriptor grammars, exposed through both `neocogi-com-core`
+and the `neocogi-com` facade. The validators allocate nothing, work without
+`std` or `alloc`, and may run in const contexts. Their concrete error enums
+report lengths or offending byte offsets; consumers add source/manifest context.
+
+- `validate_qualified_name` checks logical descriptor names, including the
+  existing dotted/colon-separated identity syntax. These are not Rust paths.
+- `validate_version_text` checks bounded diagnostic version text.
+- `validate_rust_path` checks advertised Rust module/type locations: 1–1024 ASCII
+  bytes, optional leading `::`, and nonempty `::`-separated identifiers. Raw
+  identifiers such as `api::r#type::Event` are supported. Bare `_`, Rust-2024
+  strict/reserved keywords without `r#`, and `self`, `Self`, `super`, or `crate`
+  even with `r#` are rejected. Weak keywords such as `union` remain valid.
+  Whitespace, comments, Unicode, generic arguments, qualified-self paths,
+  lifetimes and expressions are outside the supported binding-path grammar.
+
+Use the Rust-path validator for both generated metadata and incoming catalogs;
+consumers must not introduce another keyword list. The validator preserves the
+input spelling; compiler consumers can normalize a leading `::` while making
+syntax tokens. It does not resolve dependencies, check visibility or trait
+implementations, or prove that a Rust type has a particular COM identity.
+Rust compilation and the normal COM interface checks retain those responsibilities.
+No Rust parser is linked into runtime users of these validators.
+
 ## Text, bytes, and borrowed storage
 
 These types have different ownership and conversion rules:
