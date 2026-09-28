@@ -46,7 +46,11 @@ All contracts, including events, are compile-time definitions. The build helper
 emits no native artifact, exported getter, runtime module graph, or built-in
 registration hook. Only generated layouts, wrappers, and exact signatures are
 compiled into consumers. Source-part names and documentation do not affect ABI
-fingerprints; ordered members and transitive dependency revisions do.
+fingerprints; ordered members and transitive dependency revisions do. Generic
+parameter references are encoded by declaration position, so consistently
+renaming a binder preserves the contract while changing which parameter is used
+does not. See the [parameter-position contract](../../../docs/IDL_GENERIC_VALUES.md#parameter-positions-and-contract-signatures)
+for examples, regeneration requirements, and cross-module COM regressions.
 
 See [IDL modules](../../../docs/IDL_MODULES.md) for syntax and package setup.
 

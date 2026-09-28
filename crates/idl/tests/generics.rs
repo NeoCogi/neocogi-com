@@ -216,29 +216,39 @@ fn generic_values_reject_invalid_closed_layout_and_ownership() {
     }
 }
 
-/// Exercises copied and recursive owned specializations through real generated Rust.
+/// Independently generated bindings agree after binder renaming and reject changed bindings.
+/// Exercises copied calls and recursive enum events through actual checked COM projections.
 #[test]
-fn generic_values_compile_cross_module_calls_and_event_adapters() {
+fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
     use std::{fs, process::Command};
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
     let template_source = r#"
-        #[version(1)] struct Pair<T> { first: T, second: T }
+        #[version(1)] struct Pair<T, U> { first: T, second: U }
         #[version(1)] struct Node<T> { value: T, children: Vec<Node<T>> }
         #[version(1)] enum Change<T>: u8 { Set(T), Clear }
         #[version(1)] struct Handle<I> { object: ComPtr<I> }
         #[version(1)] interface IExchange<T> { fn roundtrip(&self, value: T) -> Result<T>; }
+    "#;
+    // Each declaration selects its own binder names, including recursive uses.
+    // Only spelling changes; the consumer is compiled from a separate graph.
+    let renamed_template_source = r#"
+        #[version(1)] struct Pair<Left, Right> { first: Left, second: Right }
+        #[version(1)] struct Node<Item> { value: Item, children: Vec<Node<Item>> }
+        #[version(1)] enum Change<Payload>: u8 { Set(Payload), Clear }
+        #[version(1)] struct Handle<Object> { object: ComPtr<Object> }
+        #[version(1)] interface IExchange<Value> { fn roundtrip(&self, value: Value) -> Result<Value>; }
     "#;
     let consumer_source = r#"
         extern proof.templates; extern neocogi.com.events;
         use proof.templates::{Pair, Node, Change, Handle, IExchange};
         use neocogi.com.events::EventBinding;
         #[version(1)] factory ExchangeFactory { fn create(&self, events: &EventBinding<Change<Node<String>>>) -> Result<ComPtr<Exchange>>; }
-        #[version(1)] class Exchange: IExchange<Pair<bool>> {}
+        #[version(1)] class Exchange: IExchange<Pair<bool, bool>> {}
         #[version(1)] interface IData { fn inspect(&self, owner: &Handle<IUnknown>) -> Result<()>; }
     "#;
     // Resolve independently: accidental dependence on the other consumer's
     // generated declarations cannot make this ABI compatibility proof pass.
-    let make_graph = |name: &str| {
+    let make_graph = |name: &str, template_source: &str| {
         let events = fs::read_to_string(root.join("crates/com/api/idl/neocogi/com/events/events.ncidl")).unwrap();
         resolve_modules(vec![
             module("proof/templates.ncidl", template_source),
@@ -247,8 +257,12 @@ fn generic_values_compile_cross_module_calls_and_event_adapters() {
         ])
         .unwrap()
     };
-    let producer = make_graph("producer");
-    let consumer = make_graph("consumer");
+    let producer = make_graph("producer", template_source);
+    let consumer = make_graph("consumer", renamed_template_source);
+    // The concrete fields remain bool/bool, but swapping their binding positions
+    // changes the template contract and must fail actual interface negotiation.
+    let rebound_template_source = renamed_template_source.replace("first: Left, second: Right", "first: Right, second: Left");
+    let rebound = make_graph("rebound", &rebound_template_source);
     assert_eq!(instances(&producer, "proof.producer"), instances(&consumer, "proof.consumer"));
     assert_eq!(
         producer.values, consumer.values,
@@ -284,7 +298,7 @@ fn generic_values_compile_cross_module_calls_and_event_adapters() {
         ),
     )
     .unwrap();
-    for (name, graph) in [("producer", &producer), ("consumer", &consumer)] {
+    for (name, graph) in [("producer", &producer), ("consumer", &consumer), ("rebound", &rebound)] {
         fs::write(
             project.path().join(format!("src/{name}.rs")),
             neocogi_idl::generate_rust(graph, &format!("proof.{name}")).unwrap(),
@@ -297,6 +311,7 @@ fn generic_values_compile_cross_module_calls_and_event_adapters() {
             r#"
         pub mod producer;
         pub mod consumer;
+        pub mod rebound;
         #[neocogi_com::com_object(producer::{exchange})]
         /// A real COM implementation uses its own generated Pair specialization.
         struct Exchange;
@@ -304,6 +319,7 @@ fn generic_values_compile_cross_module_calls_and_event_adapters() {
             /// Returning the acquired value exercises both generated wire directions.
             fn roundtrip(&self, value: producer::{pair}) -> Result<producer::{pair}, neocogi_com::NcStatus> {{ Ok(value) }}
         }}
+        /// Renamed template binders negotiate and round-trip copied boolean fields.
         #[test]
         fn independently_generated_values_share_wire_contract() {{
             let object = Exchange::from_value(Exchange);
@@ -312,6 +328,13 @@ fn generic_values_compile_cross_module_calls_and_event_adapters() {
             assert!(result.first);
             assert!(!result.second);
         }}
+        /// Equal closed layouts do not erase a changed template binding contract.
+        #[test]
+        fn changed_parameter_positions_fail_interface_negotiation() {{
+            let object = Exchange::from_value(Exchange);
+            assert_eq!(object.query::<rebound::{exchange}Abi>().err(), Some(neocogi_com::NC_E_ABI_VERSION));
+        }}
+        /// A renamed peer receives an owned recursive enum through a real COM sink.
         #[test]
         fn recursive_value_and_generic_event_receiver_acquire_snapshots() {{
             use neocogi_com::events::MessageSinkInterface;
@@ -320,12 +343,14 @@ fn generic_values_compile_cross_module_calls_and_event_adapters() {
             let copied = neocogi_com::NcValueRef::new(&value).unwrap().to_owned().unwrap();
             let producer::{change}::Set(node) = copied else {{ panic!("selected alternative changed") }};
             assert_eq!(node.children[0].value, "child");
-            let receiver = producer::ExchangeSinkAbi::receiver(|event| {{
-                let producer::{change}::Set(node) = event else {{ panic!("wrong event") }};
+            let receiver = consumer::ExchangeSinkAbi::receiver(|event| {{
+                let consumer::{change}::Set(node) = event else {{ panic!("wrong event") }};
                 assert_eq!(node.value, "parent");
+                assert_eq!(node.children[0].value, "child");
                 Ok(())
             }}).unwrap();
-            producer::ExchangeSinkAbi::post(receiver.as_com_ref(), &value).unwrap();
+            let producer_view = receiver.query::<producer::ExchangeSinkAbi>().unwrap();
+            producer::ExchangeSinkAbi::post(producer_view.as_com_ref(), &value).unwrap();
             let descriptor = producer::ExchangeAbi::IDL_INTERFACE;
             let stream = descriptor.event_sink.unwrap();
             assert!(descriptor.values.iter().any(|value| value.qualified_name == stream.message.qualified_name));
