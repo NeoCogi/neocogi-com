@@ -14,7 +14,8 @@ fn generic_event_sink_requires_message_arguments() {
         let source = module(
             "example/events.ncidl",
             &format!(
-                "extern neocogi.com.events; use neocogi.com.events::IEventStream; #[version(1)] {declaration} #[version(1)] class Source: IEventStream<Changed> {{}}"
+                "extern neocogi.com.events; use neocogi.com.events::EventBinding; #[version(1)] {declaration} #[version(1)] factory SourceFactory {{ fn create(&self, events: &EventBinding<Changed>) -> Result<ComPtr<Source>>; }}
+        #[version(1)] class Source {{}}"
             ),
         );
         let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));

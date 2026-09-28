@@ -9,10 +9,10 @@ use crate::{
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote;
 
+mod construction;
 mod mapping;
 mod paths;
 mod streams;
-mod construction;
 mod value;
 pub use paths::RustModulePaths;
 
@@ -173,21 +173,6 @@ fn generate_design_metadata(graph: &Generation<'_>, module: &ResolvedModule) -> 
         if let DeclarationKind::Interface(_) = &declaration.kind {
             let abi = rust_ident(&format!("{}Abi", declaration.name))?;
             let rust_abi = Literal::string(&public_rust_path(graph, module, &format!("{}Abi", declaration.name))?);
-            let sources = streams::collect(graph, module, declaration)?;
-            let stream = match sources.as_slice() {
-                [stream] => {
-                    let stream_abi = named_rust_type(graph, module, *stream, true)?;
-                    let specialization = stream.declaration.specialization.as_ref().expect("collected stream is closed");
-                    let [AbiType::Named(message)] = specialization.arguments.as_slice() else {
-                        return Err(GenerateError::new("event stream requires one named message"));
-                    };
-                    let message = resolve(graph, stream.module, message)?;
-                    let message = named_rust_type(graph, module, message, false)?;
-                    quote! { Some(::neocogi_com::design::IdlEventStream { abi: &#stream_abi::INTERFACE_DESCRIPTOR, message: &#message::IDL_TYPE }) }
-                }
-                // General-purpose interfaces can aggregate streams; concrete event sources cannot.
-                _ => quote! { None },
-            };
             let construction = match construction::find(graph, module, declaration)? {
                 Some(binding) => {
                     let sink = named_rust_type(graph, module, binding.sink, true)?;
@@ -199,13 +184,12 @@ fn generate_design_metadata(graph: &Generation<'_>, module: &ResolvedModule) -> 
             let values = interface_value_metadata(graph, module, declaration)?;
             descriptions.push(quote! {
                 impl #abi {
-                    /// Physical COM identity and resolved stream, generated from the complete IDL interface chain.
+                    /// COM product identity, constructor receiver and complete reachable value graph.
                     pub const IDL_INTERFACE: ::neocogi_com::design::IdlInterface = ::neocogi_com::design::IdlInterface {
                         abi: &Self::INTERFACE_DESCRIPTOR,
                         chain: &Self::INTERFACE_CHAIN,
                         rust_abi: #rust_abi,
-                        stream: #stream,
-                        construction: #construction,
+                        event_sink: #construction,
                         values: &[#(#values),*],
                     };
                 }
@@ -276,8 +260,7 @@ fn public_rust_path(graph: &Generation<'_>, module: &ResolvedModule, name: &str)
     parts.push(name.to_owned());
     let result = parts.join("::");
     // The declaration suffix is part of the transported path and its byte limit.
-    neocogi_com_core::validate_rust_path(&result)
-        .map_err(|error| GenerateError::new(format!("invalid public Rust path {result:?}: {error}")))?;
+    neocogi_com_core::validate_rust_path(&result).map_err(|error| GenerateError::new(format!("invalid public Rust path {result:?}: {error}")))?;
     Ok(result)
 }
 
@@ -805,9 +788,9 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
             let element = value_type(graph, module, element)?;
             Ok(quote! { ::neocogi_com::NcCopyToBufferOffset<'_, #element> })
         }
-        AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => {
-            Err(GenerateError::new("unit, owned collections/text, and unborrowed slices are not valid method inputs"))
-        }
+        AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => Err(GenerateError::new(
+            "unit, owned collections/text, and unborrowed slices are not valid method inputs",
+        )),
     }
 }
 

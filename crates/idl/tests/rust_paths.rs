@@ -132,7 +132,7 @@ fn raw_identifier_catalog_paths_compile_in_exported_forms() {
         r#"
         extern neocogi.com.events;
         extern neocogi.ui.core;
-        use neocogi.com.events::IEventStream;
+        use neocogi.com.events::EventBinding;
         use neocogi.ui.core::IWidget;
         /// Nested payload exposes the real generated value type in form dispatch.
         #[version(1)] struct CounterChanged {
@@ -147,7 +147,8 @@ fn raw_identifier_catalog_paths_compile_in_exported_forms() {
             Reset
         }
         /// Concrete projection whose Rust module location uses a raw identifier.
-        #[version(1)] class Counter: IWidget + IEventStream<CounterEvent> {}
+        #[version(1)] factory CounterFactory { fn create(&self, events: &EventBinding<CounterEvent>) -> Result<ComPtr<Counter>>; }
+        #[version(1)] class Counter: IWidget {}
     "#,
     )
     .unwrap();

@@ -372,13 +372,12 @@ mod persistence_codegen;
 #[cfg(test)]
 mod navigation_tests;
 
-/// Implements a concrete IDL class and optionally delegates its single event stream.
+/// Implements ordinary COM allocation for a concrete IDL class.
 ///
-/// `#[com_class(Textbox, event = events)]` generates ordinary COM storage and
-/// forwards the class stream's `attach` method to the named `TextboxEventPort`
-/// field. Initialize that field with `Default::default()`, emit with `post`,
-/// and retire it with `close`. The field remains ordinary exclusively owned
-/// Rust state, visible in every constructor; the macro adds no hidden queue.
+/// `#[com_class(Textbox)]` asserts the generated class contract and supplies its
+/// allocation helpers. Event storage remains an explicit private field initialized
+/// by the factory from its typed constructor argument. The macro generates no
+/// attachment method, hidden queue, or event receiver projection.
 #[proc_macro_attribute]
 pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as class::ClassArgs);

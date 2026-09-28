@@ -231,8 +231,9 @@ fn generic_values_compile_cross_module_calls_and_event_adapters() {
     let consumer_source = r#"
         extern proof.templates; extern neocogi.com.events;
         use proof.templates::{Pair, Node, Change, Handle, IExchange};
-        use neocogi.com.events::IEventStream;
-        #[version(1)] class Exchange: IExchange<Pair<bool>> + IEventStream<Change<Node<String>>> {}
+        use neocogi.com.events::EventBinding;
+        #[version(1)] factory ExchangeFactory { fn create(&self, events: &EventBinding<Change<Node<String>>>) -> Result<ComPtr<Exchange>>; }
+        #[version(1)] class Exchange: IExchange<Pair<bool>> {}
         #[version(1)] interface IData { fn inspect(&self, owner: &Handle<IUnknown>) -> Result<()>; }
     "#;
     // Resolve independently: accidental dependence on the other consumer's
@@ -326,7 +327,7 @@ fn generic_values_compile_cross_module_calls_and_event_adapters() {
             }}).unwrap();
             producer::ExchangeSinkAbi::post(receiver.as_com_ref(), &value).unwrap();
             let descriptor = producer::ExchangeAbi::IDL_INTERFACE;
-            let stream = descriptor.stream.unwrap();
+            let stream = descriptor.event_sink.unwrap();
             assert!(descriptor.values.iter().any(|value| value.qualified_name == stream.message.qualified_name));
             assert!(descriptor.values.iter().any(|value| value.qualified_name == producer::{node}::IDL_TYPE.qualified_name));
             assert_eq!(producer::{node}::IDL_TYPE.qualified_name, consumer::{node}::IDL_TYPE.qualified_name);

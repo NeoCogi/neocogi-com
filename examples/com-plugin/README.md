@@ -6,13 +6,13 @@ crate's `build.rs` generates Rust bindings and source-graph metadata only.
 
 ```rust
 #[version(1)]
-class ExampleObject: IMeasured + IExampleEvents {
+class ExampleObject: IMeasured {
     fn resize(&mut self, extent: Extent) -> Result<()>;
 }
 
 #[version(1)]
 factory ExampleFactory {
-    fn create(&self, extent: Extent) -> Result<ExampleObject>;
+    fn create(&self, extent: Extent, events: &EventBinding<ExtentChanged>) -> Result<ComPtr<ExampleObject>>;
 }
 ```
 
@@ -75,19 +75,19 @@ is not used by this example.
 
 ## Persistence and a typed class stream
 
-The object exposes `IPersistable` and inherits `IEventStream<ExtentChanged>`
-through `IExampleEvents`. The host attaches its typed sink directly with
-`events::bind_source`, saves dimensions, and restores through an explicitly
-registered factory adapter. A restored object is a fresh instance with an
-unbound stream; its original instance cannot be rebound. The adapter reuses
-`ExampleFactory::create` rather than a separate construction mechanism.
+The object exposes `IPersistable`; `ExampleFactory::create` accepts
+`EventBinding<ExtentChanged>`. The host creates a typed COM sink before the
+factory call, saves dimensions, and restores through an explicitly registered
+adapter. That adapter retains live application queue context separately from the
+saved recipe and supplies a fresh receiver during each restoration. Neither
+ordinary nor restored products expose a later event-installation operation.
 
 The same relocation test executes this sequence across a real shared-library
 boundary and in the monolith. The implementation library also checks for Wasm.
 The host's output remains `factory object: 44 x 31`; assertions verify the extra
 snapshot and event behavior before printing it.
 
-An allocation probe measures one typed attachment and scalar event delivery,
+An allocation probe measures one typed receiver allocation and scalar event delivery,
 including standard-channel storage:
 
 ```sh

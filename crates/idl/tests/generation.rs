@@ -16,8 +16,9 @@ fn imported_messages_use_closed_generic_streams() {
         r#"
         extern example.messages;
         use example.messages::Changed;
-        extern neocogi.com.events; use neocogi.com.events::IEventStream;
-        #[version(1)] class ISource: IEventStream<Changed> {}
+        extern neocogi.com.events; use neocogi.com.events::EventBinding;
+        #[version(1)] factory ISourceFactory { fn create(&self, events: &EventBinding<Changed>) -> Result<ComPtr<ISource>>; }
+        #[version(1)] class ISource {}
     "#,
     );
     let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));
@@ -121,7 +122,10 @@ fn generates_rust_bindings_for_a_module_graph() {
     assert!(!generated.contains("NcAbiSignaturePart"));
     assert!(!generated.contains("__encode"));
     assert!(!generated.contains("std::any::Any"));
-    assert!(!generated.contains("constructor"));
+    // Event helpers require an EventBinding parameter; ordinary factory methods
+    // must not synthesize a receiver or an event-source implementation.
+    assert!(!generated.contains("impl ::neocogi_com::events::EventSource"));
+    assert!(!generated.contains("pub type ButtonEventBinding"));
 }
 
 /// Confirms docs and whitespace remain outside generated ABI constants.
@@ -234,8 +238,9 @@ fn generated_interface_exposes_its_idl_event_and_nested_message_shape() {
             Changed(Changed),
             Submitted,
         }
-        extern neocogi.com.events; use neocogi.com.events::IEventStream;
-        #[version(1)] class Widget: IEventStream<WidgetEvent> {}
+        extern neocogi.com.events; use neocogi.com.events::EventBinding;
+        #[version(1)] factory WidgetFactory { fn create(&self, events: &EventBinding<WidgetEvent>) -> Result<ComPtr<Widget>>; }
+        #[version(1)] class Widget {}
     "#,
     );
     let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));

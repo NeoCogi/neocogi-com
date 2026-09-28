@@ -7,15 +7,13 @@ use neocogi_com::{ComPtr, NcStatus, Runtime, com_factory, com_class, factory_plu
 use neocogi_idl_example_contracts::{ExampleFactory, ExampleFactoryAbi, ExampleObject, ExampleObjectAbi, Extent, IMeasured};
 
 /// Private mutable implementation of the constructor-free IDL class.
-#[com_class(neocogi_idl_example_contracts::ExampleObject, event = events)]
+#[com_class(neocogi_idl_example_contracts::ExampleObject)]
 struct ExampleObjectImplementation {
     /// Current dimensions returned by both callable projections.
     extent: Extent,
-    /// The sole stream shared by the concrete class and inherited event capability.
+    /// The constructor supplies the sole receiver, retained as private producer state.
     events: neocogi_idl_example_contracts::ExampleObjectEventPort,
 }
-
-impl neocogi_idl_example_contracts::IExampleEvents for ExampleObjectImplementation {}
 
 impl IMeasured for ExampleObjectImplementation {
     /// Returns a copy of the object's current dimensions.
@@ -41,8 +39,16 @@ struct ExampleFactoryImplementation;
 
 impl ExampleFactory for ExampleFactoryImplementation {
     /// Creates one object directly without a runtime class registry lookup.
-    fn create(&self, extent: Extent) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
-        ExampleObjectImplementation::from_value(ExampleObjectImplementation { extent, events: Default::default() }).query()
+    fn create(
+        &self,
+        extent: Extent,
+        events: neocogi_com::NcValueRef<'_, neocogi_idl_example_contracts::ExampleObjectEventBinding>,
+    ) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
+        ExampleObjectImplementation::from_value(ExampleObjectImplementation {
+            extent,
+            events: neocogi_com::events::EventPort::with_sink(events.to_owned()?.into_sink()),
+        })
+        .query()
     }
 }
 
@@ -65,7 +71,12 @@ fn generated_contract_factory_activates_without_a_class_table() {
     let factory = runtime
         .activate_plugin_factory::<ExampleFactoryAbi>(plugin_id)
         .expect("typed root factory activation failed");
-    let mut object = factory.create(Extent { width: 20, height: 10 }).expect("factory object creation failed");
+    let mut object = factory
+        .create(
+            Extent { width: 20, height: 10 },
+            neocogi_com::NcValueRef::new(&neocogi_idl_example_contracts::ExampleObjectEventBinding::Unobserved).unwrap(),
+        )
+        .expect("factory object creation failed");
     assert_eq!(object.extent().expect("extent query failed"), Extent { width: 20, height: 10 });
     object.resize(Extent { width: 44, height: 31 }).expect("exclusive resize failed");
     assert_eq!(object.extent().expect("updated extent query failed"), Extent { width: 44, height: 31 });
@@ -96,7 +107,12 @@ fn dynamic_factory_plugin_uses_compiled_contracts() {
     let factory = runtime
         .activate_plugin_factory::<ExampleFactoryAbi>(plugin_id)
         .expect("dynamic root factory activation failed");
-    let object = factory.create(Extent { width: 7, height: 9 }).expect("dynamic factory method failed");
+    let object = factory
+        .create(
+            Extent { width: 7, height: 9 },
+            neocogi_com::NcValueRef::new(&neocogi_idl_example_contracts::ExampleObjectEventBinding::Unobserved).unwrap(),
+        )
+        .expect("dynamic factory method failed");
     assert_eq!(object.extent().expect("dynamic object method failed"), Extent { width: 7, height: 9 });
 }
 

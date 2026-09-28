@@ -9,6 +9,7 @@ struct Counter {
     /// Typed receiver retained until explicit or final closure.
     events: contract::CounterEventPort,
 }
+impl contract::Base for Counter {}
 impl contract::Counter for Counter {
     /// Acquires the call-scoped event before its storage expires.
     fn emit(&mut self, value: NcValueRef<'_, contract::Event>) -> Result<(), NcStatus> {
@@ -53,7 +54,7 @@ enum Message {
 #[test]
 fn factory_mapping_ownership_and_metadata() {
     let description = contract::CounterAbi::IDL_INTERFACE;
-    let receiver = description.construction.expect("constructor metadata");
+    let receiver = description.event_sink.expect("constructor metadata");
     assert_eq!(receiver.abi.interface_id, contract::CounterSinkAbi::INTERFACE_DESCRIPTOR.interface_id);
     assert!(
         !description.chain.iter().any(|abi| abi.interface_id == receiver.abi.interface_id),
@@ -117,4 +118,18 @@ fn factory_mapping_ownership_and_metadata() {
     unobserved.close().unwrap();
     unobserved.close().unwrap();
     assert_eq!(unobserved.emit(NcValueRef::new(&contract::Event::Submitted).unwrap()), Err(NC_E_CLOSED));
+}
+
+/// A valid pointer to an invalid binding tag is rejected through the real factory thunk.
+#[test]
+fn malformed_constructor_binding_never_publishes_a_product() {
+    let factory = Factory::from_value(Factory).query::<contract::FactoryAbi>().unwrap();
+    let value = contract::CounterEventBinding::Unobserved;
+    let guard = NcValueRef::new(&value).unwrap();
+    // SAFETY: the copied raw record stays initialized and alive for this synchronous call.
+    let mut raw = unsafe { guard.as_ptr().read() };
+    raw.tag = 99;
+    // SAFETY: raw is live aligned storage; from_raw/decoding must validate its tag.
+    let borrowed = unsafe { NcValueRef::from_raw(&raw) }.unwrap();
+    assert_eq!(factory.create(false, borrowed).unwrap_err(), NC_E_INVALID_TAG);
 }

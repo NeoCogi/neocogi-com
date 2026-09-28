@@ -25,19 +25,6 @@ marks a concrete object contract, `interface` a reusable capability, and `factor
 a construction root. Records and enums share recursive checked conversion;
 there is no separate message declaration category.
 
-The shared `IMessageSink<T>` and `IEventStream<E>` templates express event delivery
-without special IDL syntax. A class such as `Textbox: IWidget + IEventStream<TextboxEvent>`
-has one complete stream; its event enum contains Changed and Submitted. A class
-cannot accumulate different event stream types through its parents. Generated
-metadata resolves that inherited stream against the complete COM projection chain.
-
-`#[com_class(Contract, event = events)]` delegates attachment to an explicitly
-initialized `ContractEventPort`. The behavioral parent attaches one sink after
-factory creation and before publication. Later attachment is rejected, and
-closure is terminal. Generated adapters acquire each event and map it into the
-parent's application queue; private message and model types stay in Rust.
-See [the class stream guide](../../../docs/CLASS_EVENT_STREAMS.md).
-
 Construction-bound delivery uses the ordinary library enum
 `neocogi.com.events.EventBinding<E>` as a borrowed constructor argument. Its
 `Observed(ComPtr<IMessageSink<E>>)` case supplies the one typed receiver;
@@ -46,12 +33,14 @@ before returning its product. There is no Rust sender or closure in the ABI.
 
 For methods returning `ComPtr<Product>` in the product's contract module, the
 backend derives `ProductEventBinding`, `ProductSinkAbi`, and `ProductEventPort`
-helpers from that argument and publishes `IDL_INTERFACE.construction`. That
+helpers from that argument and publishes `IDL_INTERFACE.event_sink`. That
 metadata describes the **receiver**, not a projection implemented by Product.
 Its event root and complete reachable value graph remain available to COM
 catalogs. Multiple event arguments or constructor disagreement about the same
 product's event type are rejected. Keeping the association in the declaring
 module prevents downstream imports from changing its published metadata.
+`com_class(Contract)` supplies ordinary class allocation, with no event field
+annotation or later attachment method. See [the architecture guide](../../../docs/CLASS_EVENT_STREAMS.md).
 
 All contracts, including events, are compile-time definitions. The build helper
 emits no native artifact, exported getter, runtime module graph, or built-in

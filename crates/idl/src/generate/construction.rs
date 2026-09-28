@@ -155,21 +155,20 @@ pub(super) fn aliases(graph: &Generation<'_>, module: &ResolvedModule, declarati
     let last = provider.segments.last_mut().expect("named sink path is nonempty");
     last.ident = rust_ident(&format!("{}VtblFor", last.ident))?;
     let port = rust_ident(&format!("{}EventPort", declaration.name))?;
-    // During consumer migration old stream declarations still supply their own
-    // receiver aliases. The permanent constructor-value alias never collides.
-    let receiver = if streams::collect(graph, module, declaration)?.is_empty() {
-        quote! {
-            /// Exact receiver accepted when this product is constructed.
-            pub type #sink_alias = #sink;
-            /// Typed receiver implementation contract owned by the application.
-            pub use #sink_trait as #trait_alias;
-            /// Vtable provider for local implementations using the readable sink alias.
-            pub use #provider as #provider_alias;
-            /// Private producer storage initialized with its constructor's final sink.
-            pub type #port = ::neocogi_com::events::EventPort<#sink>;
+    let abi = rust_ident(&format!("{}Abi", declaration.name))?;
+    let receiver = quote! {
+        /// Exact receiver accepted when this product is constructed.
+        pub type #sink_alias = #sink;
+        /// Typed receiver implementation contract owned by the application.
+        pub use #sink_trait as #trait_alias;
+        /// Vtable provider for local implementations using the readable sink alias.
+        pub use #provider as #provider_alias;
+        /// Private producer storage initialized with its constructor's final sink.
+        pub type #port = ::neocogi_com::events::EventPort<#sink>;
+        impl ::neocogi_com::events::EventSource for #abi {
+            /// Constructor-selected receiver; this adds no interface to the producer.
+            type Sink = #sink;
         }
-    } else {
-        quote! {}
     };
     Ok(quote! {
         /// Permanent observed/unobserved choice supplied to this product's constructor.

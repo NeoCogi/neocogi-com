@@ -7,7 +7,7 @@ interface IMeasured {
 
 /// Public object shape constructed only by `ExampleFactory`.
 #[version(1)]
-class ExampleObject: IMeasured + IExampleEvents {
+class ExampleObject: IMeasured {
     /// Replaces the dimensions using an exclusive implementation borrow.
     fn resize(&mut self, extent: Extent) -> Result<()>;
 }
@@ -16,7 +16,7 @@ class ExampleObject: IMeasured + IExampleEvents {
 #[version(1)]
 factory ExampleFactory {
     /// Creates one initialized example object.
-    fn create(&self, extent: Extent) -> Result<ComPtr<ExampleObject>>;
+    fn create(&self, extent: Extent, events: &EventBinding<ExtentChanged>) -> Result<ComPtr<ExampleObject>>;
 }
 
 /// Opaque composition exposes only its mountable root, never internal controls.

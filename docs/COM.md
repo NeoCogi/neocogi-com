@@ -32,13 +32,13 @@ boundaries, and [ABI v10](docs/abi-v10.md) for the binary model.
 ## IDL
 
 The COM-owned [IDL compiler](idl) generates concrete checked ABIs for copied
-values, messages, and closed generic interfaces. A concrete class can require
-`IEventStream<Event>` and own one `EventPort` with a lifetime consumer.
-[`neocogi_com::events`](api/EVENTS.md) attaches a typed sink that acquires each
-event, maps it to an application message, and posts the parent's standard queue.
-Second attachment is rejected. `com_class` supplies delegation; application
-behavior runs later under ordinary mutable access. No event syntax or named
-output relay remains.
+values, messages, and closed generic interfaces. A concrete class's factory can
+accept `EventBinding<Event>` and initialize one private `EventPort` with that
+final receiver. [`neocogi_com::events`](api/EVENTS.md) creates the typed sink that
+acquires each event, maps it to an application message, and posts the parent's
+standard queue. A constructed object exposes no receiver-installation method;
+`com_class` generates its ordinary COM implementation. Application behavior runs
+later under ordinary mutable access. No event syntax or named output relay remains.
 
 Contracts use `struct`, `enum`, `bitenum`, `interface`, `class`, and `factory`. All declarations
 and members are public by definition:

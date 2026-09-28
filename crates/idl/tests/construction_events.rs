@@ -30,7 +30,8 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
         extern neocogi.com.events; use neocogi.com.events::EventBinding;
         #[version(1)] struct Changed { text: String, enabled: bool }
         #[version(1)] enum Event { Changed(Changed), Submitted }
-        #[version(1)] class Counter {
+        #[version(1)] interface Base {}
+        #[version(1)] class Counter: Base {
             fn emit(&mut self, value: &Event) -> Result<()>;
             fn close(&mut self) -> Result<()>;
         }
@@ -62,6 +63,36 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
         String::from_utf8_lossy(&result.stdout),
         String::from_utf8_lossy(&result.stderr)
     );
+
+    // An independently compiled caller cannot reopen either the public product
+    // or its private producer helper. Runtime replacement rejection alone would
+    // leave the unwanted attachment protocol available to future consumers.
+    fs::write(
+        project.path().join("src/lib.rs"),
+        r#"
+            pub mod contract;
+            use contract::*;
+            use neocogi_com::ComPtr;
+            pub fn cannot_attach(
+                mut product: ComPtr<CounterAbi>,
+                mut port: CounterEventPort,
+                sink: ComPtr<CounterSinkAbi>,
+            ) {
+                product.attach(sink.as_com_ref());
+                port.attach(sink.as_com_ref());
+            }
+        "#,
+    )
+    .unwrap();
+    let result = Command::new("cargo")
+        .args(["check", "--offline", "--manifest-path"])
+        .arg(project.path().join("Cargo.toml"))
+        .env("CARGO_TARGET_DIR", root().join("target/message-proof"))
+        .output()
+        .unwrap();
+    let diagnostics = String::from_utf8_lossy(&result.stderr);
+    assert!(!result.status.success(), "late attachment unexpectedly compiled");
+    assert_eq!(diagnostics.matches("no method named `attach`").count(), 2, "{diagnostics}");
 }
 
 /// Two receiver arguments would weaken the one-port contract; two constructors

@@ -80,15 +80,6 @@ pub struct IdlType {
     pub shape: IdlShape,
 }
 
-/// One resolved typed stream, including its inherited COM projection.
-#[derive(Clone, Copy)]
-pub struct IdlEventStream {
-    /// Concrete closed-generic interface; must occur in the class's COM chain.
-    pub abi: &'static NcInterfaceDescriptor,
-    /// Complete event value carried by the stream's single receiver.
-    pub message: &'static IdlType,
-}
-
 /// Typed receiver required by a constructor, independent of producer projections.
 /// The sink is an application-owned object passed into construction. It is not
 /// an interface implemented by the resulting widget, and must not be searched
@@ -111,10 +102,8 @@ pub struct IdlInterface {
     /// Public Rust path of the generated concrete projection.
     /// Uses the same [`crate::validate_rust_path`] contract as value bindings.
     pub rust_abi: &'static str,
-    /// Sole resolved stream, including one inherited through an interface.
-    pub stream: Option<IdlEventStream>,
     /// Final event receiver policy accepted by constructors of this projection.
-    pub construction: Option<IdlEventSink>,
+    pub event_sink: Option<IdlEventSink>,
     /// Finite definitions reachable from this interface chain and event value.
     pub values: &'static [IdlType],
 }

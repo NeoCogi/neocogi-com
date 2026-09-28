@@ -6,7 +6,9 @@ use std::{
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 use neocogi_com::{ComPtr, Runtime, guid_from_qualified_name};
-use neocogi_com::events::bind_source;
+use neocogi_com::events::mapped_sink;
+use neocogi_com::NcValueRef;
+use neocogi_idl_example_contracts::{ExampleObjectEventBinding, ExampleObjectSinkAbi};
 use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentChanged};
 
 /// Gates counting around the measured setup or synchronous delivery only.
@@ -89,9 +91,11 @@ fn main() {
     let factory = runtime
         .activate_plugin_factory::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .unwrap();
-    let mut object = factory.create(Extent { width: 0, height: 0 }).unwrap();
     let (sender, messages) = std::sync::mpsc::channel();
-    let binding = count(|| bind_source(object.as_com_ref(), sender, |value: ExtentChanged| value.width).unwrap());
+    let mut sink = None;
+    let binding = count(|| sink = Some(mapped_sink::<ExampleObjectSinkAbi, _>(sender, |value: ExtentChanged| value.width).unwrap()));
+    let events = ExampleObjectEventBinding::Observed(sink.unwrap());
+    let mut object = factory.create(Extent { width: 0, height: 0 }, NcValueRef::new(&events).unwrap()).unwrap();
     let delivery = count(|| deliver(&mut object, &messages));
     println!("one typed COM receiver binding: {binding} allocations");
     println!("10,000 scalar events including channel storage: {delivery} allocations");

@@ -4,7 +4,7 @@
 //! the receiving queue and supplies an adapter that maps E into its own message.
 //! A stream never retains the parent's Rust model or allows receiver replacement.
 
-use crate::{ComInterface, ComValue, ComPtr, ComRef, NcStatus, ThreadLocal, NC_E_ALREADY_BOUND, NC_E_CLOSED};
+use crate::{ComInterface, ComValue, ComPtr, ComRef, NcStatus, ThreadLocal, NC_E_CLOSED};
 
 /// Operations supplied by a closed IDL `IMessageSink<T>` specialization.
 pub trait MessageSinkInterface: ComInterface<Threading = ThreadLocal> + Sized + 'static {
@@ -16,32 +16,25 @@ pub trait MessageSinkInterface: ComInterface<Threading = ThreadLocal> + Sized + 
     fn receiver<F: FnMut(Self::Message) -> Result<(), NcStatus> + 'static>(consume: F) -> Result<ComPtr<Self>, NcStatus>;
 }
 
-/// Operations supplied by a closed IDL `IEventStream<E>` specialization.
-pub trait EventStreamInterface: ComInterface<Threading = ThreadLocal> + Sized + 'static {
-    /// Exact sink required by this stream's event type and ABI revision.
-    type Sink: MessageSinkInterface;
-    /// Attempts the one lifetime attachment, preserving an existing consumer on failure.
-    fn attach(source: ComRef<'_, Self>, consumer: ComRef<'_, Self::Sink>) -> Result<(), NcStatus>;
-}
-
-/// A concrete class or interface whose resolved projection set has exactly one stream.
+/// A constructed producer whose factory accepts exactly one typed event receiver.
+/// This is generated Rust binding metadata, not another COM projection or a
+/// capability to install a receiver after construction.
 pub trait EventSource: ComInterface<Threading = ThreadLocal> + Sized + 'static {
-    /// The complete typed stream, including a stream inherited through another interface.
-    type Stream: EventStreamInterface;
+    /// Exact constructor receiver associated with the producer's complete event enum.
+    type Sink: MessageSinkInterface;
 }
 
-/// Captured event type of one concrete source, without an additional wrapper enum.
-pub type EventOf<C> = <<<C as EventSource>::Stream as EventStreamInterface>::Sink as MessageSinkInterface>::Message;
+/// Captured event type of a concrete producer, without an additional wrapper enum.
+pub type EventOf<C> = <<C as EventSource>::Sink as MessageSinkInterface>::Message;
+
+/// Exact typed receiver used when constructing a concrete producer.
+pub type SinkOf<C> = <C as EventSource>::Sink;
 
 /// Irreversible stream lifetime; COM reference clones never create another slot.
 enum Phase<S: MessageSinkInterface> {
-    /// The behavioral parent has not completed construction-time wiring yet.
-    Unbound,
-    /// Construction deliberately selected no consumer; attachment stays forbidden.
-    Unobserved,
-    /// One parent-owned receiver consumes every event variant.
-    Bound(ComPtr<S>),
-    /// Logical teardown permanently rejects future attachment and emission.
+    /// Construction selected its final receiver; None permanently suppresses delivery.
+    Open(Option<ComPtr<S>>),
+    /// Logical teardown permanently rejects emission; no installation operation exists.
     Closed,
 }
 
@@ -52,51 +45,35 @@ pub struct EventPort<S: MessageSinkInterface> {
 }
 
 impl<S: MessageSinkInterface> Default for EventPort<S> {
-    /// Creates an unbound stream for factory initialization before publication.
+    /// Creates a permanently unobserved producer without a receiver allocation.
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl<S: MessageSinkInterface> EventPort<S> {
-    /// Creates an unbound stream without allocating a queue or receiver.
+    /// Creates a permanently unobserved producer; no later installation operation exists.
     pub const fn new() -> Self {
-        Self { phase: Phase::Unbound }
+        Self { phase: Phase::Open(None) }
     }
 
     /// Constructs the final delivery policy before the producer is published.
     /// A missing sink is permanently unobserved, never an available attach slot.
     pub fn with_sink(sink: Option<ComPtr<S>>) -> Self {
-        let phase = match sink {
-            Some(sink) => Phase::Bound(sink),
-            None => Phase::Unobserved,
-        };
-        Self { phase }
-    }
-
-    /// Attaches once. Failure leaves the original consumer and queued messages intact.
-    pub fn attach(&mut self, consumer: ComRef<'_, S>) -> Result<(), NcStatus> {
-        match self.phase {
-            Phase::Unbound => {
-                self.phase = Phase::Bound(consumer.add_ref());
-                Ok(())
-            }
-            Phase::Bound(_) => Err(NC_E_ALREADY_BOUND),
-            Phase::Unobserved | Phase::Closed => Err(NC_E_CLOSED),
-        }
+        Self { phase: Phase::Open(sink) }
     }
 
     /// Reports whether snapshots need to be constructed for a live consumer.
     pub fn is_bound(&self) -> bool {
-        matches!(self.phase, Phase::Bound(_))
+        matches!(self.phase, Phase::Open(Some(_)))
     }
 
     /// Posts a call-scoped snapshot. Unobserved previews intentionally discard events.
     /// Receiver decoding owns all variable data before the producer can release it.
     pub fn post(&mut self, event: &S::Message) -> Result<(), NcStatus> {
         match &mut self.phase {
-            Phase::Unbound | Phase::Unobserved => Ok(()),
-            Phase::Bound(receiver) => S::post(receiver.as_com_ref(), event),
+            Phase::Open(None) => Ok(()),
+            Phase::Open(Some(receiver)) => S::post(receiver.as_com_ref(), event),
             Phase::Closed => Err(NC_E_CLOSED),
         }
     }
@@ -105,47 +82,6 @@ impl<S: MessageSinkInterface> EventPort<S> {
     pub fn close(&mut self) {
         self.phase = Phase::Closed;
     }
-}
-
-/// Maps a concrete stream into the behavioral parent's owned application queue.
-/// Mapping captures data immediately; application behavior runs when its inbox drains.
-#[cfg(feature = "std")]
-pub fn bind_stream<S: EventStreamInterface, M: 'static>(
-    stream: ComRef<'_, S>,
-    sender: std::sync::mpsc::Sender<M>,
-    mut map: impl FnMut(<S::Sink as MessageSinkInterface>::Message) -> M + 'static,
-) -> Result<(), NcStatus> {
-    let sink = S::Sink::receiver(move |event| {
-        // Parent retirement disconnects its inbox. The widget must not turn an
-        // already committed user edit into a failure merely because it closed.
-        let _ = sender.send(map(event));
-        Ok(())
-    })?;
-    S::attach(stream, sink.as_com_ref())
-}
-
-/// Queries a concrete object's sole stream and wires it to the behavioral parent.
-/// The source and receiver are negotiated once during form construction.
-#[cfg(feature = "std")]
-pub fn bind_source<C: EventSource, M: 'static>(
-    source: ComRef<'_, C>,
-    sender: std::sync::mpsc::Sender<M>,
-    map: impl FnMut(EventOf<C>) -> M + 'static,
-) -> Result<(), NcStatus> {
-    let stream = source.add_ref().query::<C::Stream>()?;
-    bind_stream(stream.as_com_ref(), sender, map)
-}
-
-/// Exact receiver interface associated with a concrete event source.
-pub type SinkOf<C> = <<C as EventSource>::Stream as EventStreamInterface>::Sink;
-
-/// Attaches a caller-owned typed sink after factory creation, before publication.
-/// Querying the stream checks the same generic ABI used by independent plugins.
-pub fn attach_source<C: EventSource, S: MessageSinkInterface<Message = EventOf<C>>>(source: ComRef<'_, C>, sink: ComRef<'_, S>) -> Result<(), NcStatus> {
-    let stream = source.add_ref().query::<C::Stream>()?;
-    // Independently generated Rust projections share COM identity, not Rust nominal type.
-    let sink = sink.add_ref().query::<SinkOf<C>>()?;
-    C::Stream::attach(stream.as_com_ref(), sink.as_com_ref())
 }
 
 /// Maps typed events into an application-local queue before producer creation.

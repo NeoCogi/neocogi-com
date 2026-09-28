@@ -7,7 +7,7 @@ use neocogi_idl::{parse_module, resolve_modules};
 #[test]
 fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
     let source = r#"
-        extern neocogi.com.events; use neocogi.com.events::IEventStream;
+        extern neocogi.com.events; use neocogi.com.events::EventBinding;
         #[version(1)] interface IToken { fn value(&self) -> Result<u32>; }
         #[version(1)] struct NumberChanged { value: f32, checked: bool }
         #[version(1)] struct TextChanged { text: String, cursor: u64 }
@@ -25,7 +25,8 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
             fn shapes(&mut self, value: &Shapes) -> Result<()>;
             fn batch(&mut self, value: &NestedBatch) -> Result<()>;
         }
-        #[version(1)] class IProducer: IEventStream<Completion> { fn emit(&mut self) -> Result<()>; }
+        #[version(1)] factory IProducerFactory { fn create(&self, events: &EventBinding<Completion>) -> Result<ComPtr<IProducer>>; }
+        #[version(1)] class IProducer { fn emit(&mut self) -> Result<()>; }
         #[version(1)] interface IMessageInput { fn accept(&mut self, value: &Completion) -> Result<()>; }
         #[version(1)] enum EditorEvent {
             /// Captured edit, before any completion from the same input.
@@ -33,7 +34,8 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
             /// Captured completion through the same stream identity.
             Completed,
         }
-        #[version(1)] class Editor: IEventStream<EditorEvent> {
+        #[version(1)] factory EditorFactory { fn create(&self, events: &EventBinding<EditorEvent>) -> Result<ComPtr<Editor>>; }
+        #[version(1)] class Editor {
             fn emit(&mut self) -> Result<()>;
         }
         #[version(1)] factory Editors { fn create(&self) -> Result<ComPtr<Editor>>; }

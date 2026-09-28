@@ -29,7 +29,7 @@ impl IDesignWidgetCatalog for Catalog {
     }
 
     /// Source generation must never construct a widget or require a running UI.
-    fn create_widget(&self, _: u32, _: ComRef<'_, IWidgetHostAbi>, _: NcCopyFromBufferOffset<'_, u8>) -> Result<ComPtr<IWidgetAbi>, NcStatus> {
+    fn create_widget(&self, _: u32, _: ComRef<'_, IWidgetHostAbi>, _: NcCopyFromBufferOffset<'_, u8>, _: neocogi_com::NcValueRef<'_, neocogi_ui_document::contracts::WidgetEventBinding>) -> Result<ComPtr<IWidgetAbi>, NcStatus> {
         panic!("catalog inspection must not construct widgets")
     }
 }

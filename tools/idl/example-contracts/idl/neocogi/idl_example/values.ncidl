@@ -1,4 +1,4 @@
-use neocogi.com.events::IEventStream;
+use neocogi.com.events::EventBinding;
 extern neocogi.com.events;
 /// Copied dimensions used by the example object surface.
 #[version(1)]
@@ -17,7 +17,3 @@ struct ExtentChanged {
     /// Committed height.
     height: u32,
 }
-
-/// Optional output capability of the example object.
-#[version(1)]
-interface IExampleEvents: IEventStream<ExtentChanged> {}

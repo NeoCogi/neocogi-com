@@ -1,5 +1,7 @@
+extern neocogi.com.events;
+use neocogi.com.events::EventBinding;
 extern neocogi.idl_example;
-use neocogi.idl_example::{ExampleObject, Extent, IMeasured};
+use neocogi.idl_example::{ExampleObject, Extent, ExtentChanged, IMeasured};
 
 /// Input copied into the dependency module's object factory.
 #[version(1)]
@@ -12,5 +14,5 @@ struct ConsumerOptions {
 #[version(1)]
 factory ConsumerFactory: IMeasured {
     /// Creates an object declared by the exact linked dependency revision.
-    fn create(&self, options: ConsumerOptions) -> Result<ComPtr<ExampleObject>>;
+    fn create(&self, options: ConsumerOptions, events: &EventBinding<ExtentChanged>) -> Result<ComPtr<ExampleObject>>;
 }

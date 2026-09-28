@@ -55,47 +55,60 @@ mod message_tests {
         fn emit(&mut self) -> Result<(), NcStatus> {
             self.completed.post(&Completion::Cancelled)
         }
-
-    }
-    impl IProducerStream for Producer {
-        /// Only the first consumer receives the event emitted during attachment.
-        fn attach(&mut self, destination: neocogi_com::ComRef<'_, IProducerSinkAbi>) -> Result<(), NcStatus> {
-            self.completed.attach(destination)?;
-            self.completed.post(&Completion::Cancelled)
-        }
     }
 
-    /// Mapping replaces destinations; setup and producer destruction cannot retract queued facts.
+    /// Constructor-owned delivery acquires values before the call ends; destruction cannot retract them.
     #[test]
-    fn generated_output_installs_a_direct_receiver() {
-        let producer: ComPtr<IProducerAbi> = Producer::from_value(Producer { completed: Default::default() }).query().unwrap();
+    fn generated_output_owns_a_direct_receiver() {
         let (first_tx, first) = std::sync::mpsc::channel();
-        neocogi_com::events::bind_source(producer.as_com_ref(), first_tx.clone(), |_| 1).unwrap();
-        let (second_tx, second) = std::sync::mpsc::channel();
-        assert_eq!(neocogi_com::events::bind_source(producer.as_com_ref(), second_tx.clone(), |_| 2), Err(neocogi_com::NC_E_ALREADY_BOUND));
+        let sink = neocogi_com::events::mapped_sink::<IProducerSinkAbi, _>(first_tx, |_| 1).unwrap();
+        let mut producer: ComPtr<IProducerAbi> = Producer::from_value(Producer {
+            completed: neocogi_com::events::EventPort::with_sink(Some(sink)),
+        })
+        .query()
+        .unwrap();
+        producer.emit().unwrap();
         drop(producer);
         assert_eq!(first.try_recv().ok(), Some(1));
-        assert!(second.try_recv().is_err());
     }
-
 
     #[com_object(IValidate)]
     /// Validation must complete before recording delivery.
-    struct Validate { accepted: usize }
+    struct Validate {
+        accepted: usize,
+    }
     impl IValidate for Validate {
-        fn tree(&mut self, value: NcValueRef<'_, Tree>) -> Result<(), NcStatus> { value.to_owned()?; self.accepted += 1; Ok(()) }
-        fn shapes(&mut self, value: NcValueRef<'_, Shapes>) -> Result<(), NcStatus> { value.to_owned()?; self.accepted += 1; Ok(()) }
-        fn batch(&mut self, value: NcValueRef<'_, NestedBatch>) -> Result<(), NcStatus> { value.to_owned()?; self.accepted += 1; Ok(()) }
+        fn tree(&mut self, value: NcValueRef<'_, Tree>) -> Result<(), NcStatus> {
+            value.to_owned()?;
+            self.accepted += 1;
+            Ok(())
+        }
+        fn shapes(&mut self, value: NcValueRef<'_, Shapes>) -> Result<(), NcStatus> {
+            value.to_owned()?;
+            self.accepted += 1;
+            Ok(())
+        }
+        fn batch(&mut self, value: NcValueRef<'_, NestedBatch>) -> Result<(), NcStatus> {
+            value.to_owned()?;
+            self.accepted += 1;
+            Ok(())
+        }
     }
 
     /// Generated recursive sequences own typed backing at every depth.
     #[test]
     fn recursive_tree_and_optional_array_fields_round_trip() {
-        let tree = Tree { enabled: true, children: vec![Tree { enabled: false, children: vec![] }] };
+        let tree = Tree {
+            enabled: true,
+            children: vec![Tree { enabled: false, children: vec![] }],
+        };
         let decoded = NcValueRef::new(&tree).unwrap().to_owned().unwrap();
         drop(tree);
         assert!(!decoded.children[0].enabled);
-        let shapes = Shapes { optional: OptionalNumber::Some(NumberChanged { value: 1.0, checked: true }).into(), flags: [false, true, false] };
+        let shapes = Shapes {
+            optional: OptionalNumber::Some(NumberChanged { value: 1.0, checked: true }).into(),
+            flags: [false, true, false],
+        };
         let decoded = NcValueRef::new(&shapes).unwrap().to_owned().unwrap();
         assert!(matches!(OptionalNumber::try_from(decoded.optional).unwrap(), OptionalNumber::Some(value) if value.checked));
         assert_eq!(decoded.flags, [false, true, false]);
@@ -106,18 +119,29 @@ mod message_tests {
     fn recursive_aggregate_sequences_reject_invalid_boolean_and_optional_tags() {
         let local = Validate::into_local(Validate { accepted: 0 });
         let mut receiver = local.query::<IValidateAbi>().unwrap();
-        let source = NestedBatch { values: vec![NumberChanged { value: 1.0, checked: true }] };
+        let source = NestedBatch {
+            values: vec![NumberChanged { value: 1.0, checked: true }],
+        };
         let guard = NcValueRef::new(&source).unwrap();
         let mut element = source.values[0].encode_value(&mut neocogi_com::ValueBudget::default()).unwrap().0;
         element.checked = 2;
         let mut wire = unsafe { guard.as_ptr().read() };
         wire.values.pointer = &element;
-        assert_eq!(receiver.batch(unsafe { NcValueRef::from_raw(&wire) }.unwrap()), Err(neocogi_com::NC_E_INVALID_ARG));
-        let shapes = Shapes { optional: OptionalNumber::None.into(), flags: [true; 3] };
+        assert_eq!(
+            receiver.batch(unsafe { NcValueRef::from_raw(&wire) }.unwrap()),
+            Err(neocogi_com::NC_E_INVALID_ARG)
+        );
+        let shapes = Shapes {
+            optional: OptionalNumber::None.into(),
+            flags: [true; 3],
+        };
         let guard = NcValueRef::new(&shapes).unwrap();
         let mut wire = unsafe { guard.as_ptr().read() };
         wire.optional.tag = 3;
-        assert_eq!(receiver.shapes(unsafe { NcValueRef::from_raw(&wire) }.unwrap()), Err(neocogi_com::NC_E_INVALID_TAG));
+        assert_eq!(
+            receiver.shapes(unsafe { NcValueRef::from_raw(&wire) }.unwrap()),
+            Err(neocogi_com::NC_E_INVALID_TAG)
+        );
         assert_eq!(local.try_borrow().unwrap().accepted, 0);
     }
 
@@ -131,30 +155,54 @@ mod message_tests {
         let mut raw = unsafe { guard.as_ptr().read() };
         raw.children.len = 1;
         raw.children.pointer = &raw;
-        assert_eq!(receiver.tree(unsafe { NcValueRef::from_raw(&raw) }.unwrap()), Err(neocogi_com::NC_E_OUT_OF_RANGE));
+        assert_eq!(
+            receiver.tree(unsafe { NcValueRef::from_raw(&raw) }.unwrap()),
+            Err(neocogi_com::NC_E_OUT_OF_RANGE)
+        );
         assert_eq!(local.try_borrow().unwrap().accepted, 0);
-        let text = TextChanged { text: "x".repeat(neocogi_com::MAX_VALUE_BYTES + 1), cursor: 0 };
+        let text = TextChanged {
+            text: "x".repeat(neocogi_com::MAX_VALUE_BYTES + 1),
+            cursor: 0,
+        };
         assert!(matches!(NcValueRef::new(&text), Err(neocogi_com::NC_E_OUT_OF_RANGE)));
-        let pair = TextPair { left: "a".repeat(8), right: "b".repeat(8) };
-        assert!(matches!(pair.encode_value(&mut neocogi_com::ValueBudget::new(15, 100, 64)), Err(neocogi_com::NC_E_OUT_OF_RANGE)));
+        let pair = TextPair {
+            left: "a".repeat(8),
+            right: "b".repeat(8),
+        };
+        assert!(matches!(
+            pair.encode_value(&mut neocogi_com::ValueBudget::new(15, 100, 64)),
+            Err(neocogi_com::NC_E_OUT_OF_RANGE)
+        ));
     }
 
     /// Strings acquire owned storage and reject malformed UTF-8 before acquisition.
     #[test]
     fn nested_string_validation_and_owned_enum_capability_survive_the_call() {
-        let source = TextEnvelope { changed: TextChanged { text: "hello".into(), cursor: 2 } };
+        let source = TextEnvelope {
+            changed: TextChanged { text: "hello".into(), cursor: 2 },
+        };
         let guard = NcValueRef::new(&source).unwrap();
         let mut raw = unsafe { guard.as_ptr().read() };
         let invalid = [0xffu8];
-        raw.changed.text.pointer = invalid.as_ptr(); raw.changed.text.len = 1;
-        assert!(matches!(unsafe { NcValueRef::<TextEnvelope>::from_raw(&raw) }.unwrap().to_owned(), Err(neocogi_com::NC_E_INVALID_ARG)));
+        raw.changed.text.pointer = invalid.as_ptr();
+        raw.changed.text.len = 1;
+        assert!(matches!(
+            unsafe { NcValueRef::<TextEnvelope>::from_raw(&raw) }.unwrap().to_owned(),
+            Err(neocogi_com::NC_E_INVALID_ARG)
+        ));
         let decoded = guard.to_owned().unwrap();
-        drop(guard); drop(source);
+        drop(guard);
+        drop(source);
         assert_eq!(decoded.changed.text, "hello");
-        let source = Completion::Accepted { token: Token::from_value(Token).query().unwrap() };
+        let source = Completion::Accepted {
+            token: Token::from_value(Token).query().unwrap(),
+        };
         let decoded = NcValueRef::new(&source).unwrap().to_owned().unwrap();
         drop(source);
-        match decoded { Completion::Accepted { token } => assert_eq!(token.value(), Ok(42)), Completion::Cancelled => panic!("wrong tag") }
+        match decoded {
+            Completion::Accepted { token } => assert_eq!(token.value(), Ok(42)),
+            Completion::Cancelled => panic!("wrong tag"),
+        }
     }
     /// Inspection exposes a finite named graph for actual recursively generated values.
     #[test]
@@ -168,5 +216,4 @@ mod message_tests {
         assert_eq!(fields[1].ty, IdlValueType::Sequence(&IdlValueType::Named("example.messages.Tree")));
         assert!(values.iter().any(|value| value.qualified_name == "example.messages.NumberChanged"));
     }
-
 }

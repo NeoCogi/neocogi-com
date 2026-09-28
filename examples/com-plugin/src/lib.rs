@@ -1,18 +1,14 @@
 //! One plugin implementation built as either a shared library or a linked Rust library.
 
 use neocogi_com::{
-    binary, ComDeserialize, ComSerialize, ComPtr, ComRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, com_factory,
-    com_object,
+    binary, ComDeserialize, ComSerialize, ComPtr, NcValueRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE,
+    com_factory, com_object,
 };
-use neocogi_idl_example_contracts::{ExtentChanged, IExampleEvents, ExampleObjectEventPort, ExampleObjectSinkAbi, ExampleObjectStream};
+use neocogi_idl_example_contracts::{ExtentChanged, ExampleObjectEventPort, ExampleObjectEventBinding};
 use neocogi_idl_example_contracts::{ExampleFactory, ExampleObject, ExampleObjectAbi, Extent, IMeasured};
 
 /// Private mutable object constructed only through `ExampleFactory`.
-#[com_object(interfaces(
-    neocogi_idl_example_contracts::ExampleObject,
-    neocogi_idl_example_contracts::IExampleEvents,
-    neocogi_com::persistence::IPersistable
-))]
+#[com_object(interfaces(neocogi_idl_example_contracts::ExampleObject, neocogi_com::persistence::IPersistable))]
 struct DynamicExampleObject {
     /// Dimensions owned entirely by this COM object allocation.
     extent: Extent,
@@ -44,8 +40,12 @@ struct DynamicExampleFactory;
 
 impl ExampleFactory for DynamicExampleFactory {
     /// Constructs one typed object without consulting a runtime class table.
-    fn create(&self, extent: Extent) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
-        DynamicExampleObject::from_value(DynamicExampleObject { extent, changed: Default::default() }).query()
+    fn create(&self, extent: Extent, events: NcValueRef<'_, ExampleObjectEventBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
+        DynamicExampleObject::from_value(DynamicExampleObject {
+            extent,
+            changed: neocogi_com::events::EventPort::with_sink(events.to_owned()?.into_sink()),
+        })
+        .query()
     }
 }
 
@@ -71,13 +71,6 @@ pub struct ExtentState {
     pub height: u32,
 }
 
-impl IExampleEvents for DynamicExampleObject {}
-impl ExampleObjectStream for DynamicExampleObject {
-    /// A second attachment is rejected without changing the receiver.
-    fn attach(&mut self, receiver: ComRef<'_, ExampleObjectSinkAbi>) -> Result<(), NcStatus> {
-        self.changed.attach(receiver)
-    }
-}
 impl neocogi_com::persistence::IPersistable for DynamicExampleObject {
     /// Returns a recipe identity independent from ABI revisions.
     fn type_id(&self) -> Result<NcGuid, NcStatus> {

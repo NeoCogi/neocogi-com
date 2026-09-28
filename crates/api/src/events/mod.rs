@@ -11,14 +11,9 @@
 mod contracts;
 pub use contracts::*;
 
-#[cfg(feature = "std")]
-mod mapping;
-#[cfg(feature = "std")]
-pub use mapping::bind;
-
 #[cfg(feature = "alloc")]
 mod stream;
 #[cfg(feature = "alloc")]
-pub use stream::{attach_source, SinkOf, EventOf, EventPort, EventSource, EventStreamInterface, MessageSinkInterface};
+pub use stream::{SinkOf, EventOf, EventPort, EventSource, MessageSinkInterface};
 #[cfg(feature = "std")]
-pub use stream::{bind_source, bind_stream, mapped_sink};
+pub use stream::mapped_sink;
