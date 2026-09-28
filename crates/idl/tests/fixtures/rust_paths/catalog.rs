@@ -58,7 +58,6 @@ fn main() {
         let mut registry = CustomWidgetRegistry::new();
         register(&mut registry, &manifest).unwrap();
         let mut document = Document::new("paths");
-        document.inputs.clear();
         document.outputs.clear();
         document.root = Node::new("counter", registry.default_spec("example.counter").unwrap());
         std::fs::write(destination.join(file), document.rust_bindings_with(&registry).unwrap()).unwrap();
