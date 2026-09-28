@@ -423,6 +423,12 @@ fn visit_named(name: &mut NamedType, visit: &mut impl FnMut(&mut AbiType) -> Res
 }
 
 /// Fingerprints template semantics separately from any particular set of instances.
+///
+/// Parameter names are lexical binders, not contract data: every reference is
+/// encoded by its zero-based position in this declaration. Source declarations
+/// remain unchanged for diagnostics and substitution. Fields, variants, and
+/// qualified free types keep their names; only bound type-parameter spelling is
+/// ignored. The enclosing module remains the unit of revision compatibility.
 pub(crate) fn template_fingerprint(templates: &[Declaration]) -> [u8; 32] {
     let mut parts = Vec::<String>::new();
     for template in templates {
@@ -431,11 +437,10 @@ pub(crate) fn template_fingerprint(templates: &[Declaration]) -> [u8; 32] {
         parts.push(template.id.version.to_string());
         parts.push(format!("{:?}", template.id.explicit));
         parts.push(format!("parameters:{}", template.parameters.len()));
-        parts.extend(template.parameters.iter().cloned());
         match &template.kind {
             DeclarationKind::Struct(record) => {
                 parts.push(format!("struct:{:?}", record.deserialize));
-                fingerprint_fields(&record.fields, &mut parts);
+                fingerprint_fields(&record.fields, &template.parameters, &mut parts);
             }
             DeclarationKind::Enum(enumeration) => {
                 parts.push(format!(
@@ -449,32 +454,39 @@ pub(crate) fn template_fingerprint(templates: &[Declaration]) -> [u8; 32] {
                         VariantFields::Unit => parts.push("unit".into()),
                         VariantFields::Tuple(fields) => {
                             parts.push(format!("tuple:{}", fields.len()));
-                            parts.extend(fields.iter().map(AbiType::source_name));
+                            for field in fields {
+                                fingerprint_type(field, &template.parameters, &mut parts);
+                            }
                         }
-                        VariantFields::Named(fields) => fingerprint_fields(fields, &mut parts),
+                        VariantFields::Named(fields) => fingerprint_fields(fields, &template.parameters, &mut parts),
                     }
                 }
             }
             DeclarationKind::Interface(interface) => {
                 parts.push(format!("interface:{:?}:{:?}", interface.role, interface.threading));
                 parts.push(format!("bases:{}", interface.bases.len()));
-                parts.extend(interface.bases.iter().map(NamedType::rust_path));
+                for base in &interface.bases {
+                    fingerprint_named_type(base, &template.parameters, &mut parts);
+                }
                 parts.push(format!("methods:{}", interface.callables.len()));
                 for callable in &interface.callables {
                     let Callable::Method(method) = callable;
                     parts.push(format!("method:{}:{:?}", method.name, method.receiver));
                     parts.push(format!("parameters:{}", method.parameters.len()));
                     for parameter in &method.parameters {
-                        parts.push(format!("{}:{}", parameter.name, parameter.ty.source_name()));
+                        parts.push(parameter.name.clone());
+                        fingerprint_type(&parameter.ty, &template.parameters, &mut parts);
                     }
-                    parts.push(format!("return:{}", method.output.source_name()));
+                    fingerprint_type(&method.output, &template.parameters, &mut parts);
                 }
             }
             DeclarationKind::BitEnum(_) => unreachable!("bit sets do not declare parameters"),
         }
     }
-    // Length delimiters preserve boundaries even when diagnostic spellings contain punctuation.
-    let mut bytes = Vec::new();
+    // This domain versions the positional type grammar independently of the
+    // enclosing module encoding. Each token is length-framed; a free named type
+    // cannot collide with a parameter ordinal or a collection constructor.
+    let mut bytes = Vec::from(b"neocogi-idl:templates:v2\0".as_slice());
     for part in parts {
         bytes.extend_from_slice(&(part.len() as u64).to_be_bytes());
         bytes.extend_from_slice(part.as_bytes());
@@ -482,10 +494,78 @@ pub(crate) fn template_fingerprint(templates: &[Declaration]) -> [u8; 32] {
     crate::sha256::digest(&bytes)
 }
 
-/// Records ordered field names and structural types without source locations or prose.
-fn fingerprint_fields(fields: &[crate::Field], parts: &mut Vec<String>) {
+/// Records ordered field names and types in the enclosing template's parameter scope.
+fn fingerprint_fields(fields: &[crate::Field], parameters: &[String], parts: &mut Vec<String>) {
     parts.push(format!("fields:{}", fields.len()));
-    parts.extend(fields.iter().map(|field| format!("{}:{}", field.name, field.ty.source_name())));
+    for field in fields {
+        parts.push(field.name.clone());
+        fingerprint_type(&field.ty, parameters, parts);
+    }
+}
+
+/// Encodes a type expression without using source spelling for parameter references.
+///
+/// Constructor tags and recursive operands preserve ownership, array lengths,
+/// and argument order. Parameter scope is borrowed from the containing template,
+/// including through nested generic arguments; no replacement identifiers are
+/// written into the parsed model. Every new ABI type must select an encoding in
+/// this exhaustive match instead of silently falling back to diagnostic text.
+fn fingerprint_type(ty: &AbiType, parameters: &[String], parts: &mut Vec<String>) {
+    let (constructor, element) = match ty {
+        AbiType::Unit => {
+            parts.push("unit".into());
+            return;
+        }
+        AbiType::Scalar(name) => {
+            parts.push("scalar".into());
+            parts.push(name.clone());
+            return;
+        }
+        AbiType::String => {
+            parts.push("string".into());
+            return;
+        }
+        AbiType::Named(name) => {
+            fingerprint_named_type(name, parameters, parts);
+            return;
+        }
+        AbiType::Array { element, len } => {
+            parts.push("array".into());
+            parts.push(len.to_string());
+            fingerprint_type(element, parameters, parts);
+            return;
+        }
+        AbiType::ComPtr(element) => ("com_ptr", element),
+        AbiType::Borrowed(element) => ("borrow", element),
+        AbiType::Vector(element) => ("vector", element),
+        AbiType::UnsizedSlice(element) => ("unsized_slice", element),
+        AbiType::Slice(element) => ("slice", element),
+        AbiType::OutputSlice(element) => ("output_slice", element),
+    };
+    parts.push(constructor.into());
+    fingerprint_type(element, parameters, parts);
+}
+
+/// Distinguishes a bound parameter from a resolved free name before encoding arguments.
+///
+/// Normalization has already qualified free declarations and rejected arguments
+/// on parameters. Only an unqualified name can bind to this template's scope:
+/// `library::T` remains a free type even inside a template declaring `T`.
+fn fingerprint_named_type(name: &NamedType, parameters: &[String], parts: &mut Vec<String>) {
+    if let [local] = name.segments.as_slice() {
+        if let Some(position) = parameters.iter().position(|parameter| parameter == local) {
+            parts.push("parameter".into());
+            parts.push(position.to_string());
+            return;
+        }
+    }
+    parts.push("named".into());
+    parts.push(name.segments.len().to_string());
+    parts.extend(name.segments.iter().cloned());
+    parts.push(name.arguments.len().to_string());
+    for argument in &name.arguments {
+        fingerprint_type(argument, parameters, parts);
+    }
 }
 
 /// Reports specialization failures at the author's concrete use site.
