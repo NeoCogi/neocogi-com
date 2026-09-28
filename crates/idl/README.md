@@ -164,6 +164,19 @@ or ABI fingerprints. Conflicting owners and malformed paths fail generation.
 The pure `generate::generate_rust_with_paths` API accepts a validated
 `RustModulePaths` mapping for callers outside Cargo; it requires no global state.
 
+COM owns the [binding-path grammar](../core/README.md#descriptor-text-validation)
+through `validate_rust_path`. IDL calls it for explicit/conventional module paths
+and complete published type paths; `syn` then builds the compiler's syntax tree.
+Catalog producers and readers call the same COM validator. Paths have a 1024-byte
+maximum and use ASCII identifiers, optional leading `::`, and legal `r#` escapes.
+For example, `.rust_path("custom_contracts::r#type")` supports a handwritten
+`pub mod r#type` containing generated declarations. Unescaped reserved keywords,
+relative anchors, generic arguments, whitespace and Unicode are rejected at the
+publication boundary. This is an explicit binding metadata subset of Rust 2024.
+Application compilation still resolves dependencies, visibility and actual types;
+syntax validation does not prove that a named type implements its advertised COM
+contract. Logical dotted IDL names keep their separate grammar and identity.
+
 Signed `i8`, `i16`, and `i32` enum representations can use negative
 discriminants. The resolver checks their range and duplicate values before
 generation; generated unit and payload enums retain the signed tag.

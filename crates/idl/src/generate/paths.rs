@@ -21,24 +21,15 @@ impl RustModulePaths {
     /// Accepts paths such as `neocogi_com::events` and rejects relative keywords,
     /// generic arguments, and conflicting registrations. An identical repeated
     /// registration is harmless when dependency graphs share one contract owner.
+    /// COM's `validate_rust_path` defines the shared grammar and byte limit; valid
+    /// raw identifiers and an optional leading `::` use that same policy.
     pub fn insert(&mut self, module: &str, rust_path: &str) -> Result<(), GenerateError> {
-        neocogi_com_core::validate_qualified_name(module)
-            .map_err(|error| GenerateError::new(format!("invalid IDL module {module:?}: {error}")))?;
-        let mut path: syn::Path = syn::parse_str(rust_path)
-            .map_err(|error| GenerateError::new(format!("invalid Rust contract path {rust_path:?}: {error}")))?;
-        for segment in &path.segments {
-            match &segment.arguments {
-                syn::PathArguments::None => {}
-                _ => return Err(GenerateError::new("Rust contract paths cannot have generic arguments")),
-            }
-            if matches!(segment.ident.to_string().as_str(), "crate" | "self" | "super" | "Self") {
-                return Err(GenerateError::new("Rust contract paths must start at an external crate root"));
-            }
-        }
-        // Normalize optional leading punctuation so equivalent registrations agree.
-        path.leading_colon = Some(Default::default());
+        neocogi_com_core::validate_qualified_name(module).map_err(|error| GenerateError::new(format!("invalid IDL module {module:?}: {error}")))?;
+        let path = parse_rust_path(rust_path)?;
         match self.modules.entry(module.to_owned()) {
-            Entry::Vacant(entry) => { entry.insert(path); }
+            Entry::Vacant(entry) => {
+                entry.insert(path);
+            }
             Entry::Occupied(entry) if entry.get() == &path => {}
             Entry::Occupied(_) => return Err(GenerateError::new(format!("conflicting Rust locations for IDL module {module:?}"))),
         }
@@ -49,8 +40,18 @@ impl RustModulePaths {
     pub(super) fn path(&self, module: &str) -> Result<syn::Path, GenerateError> {
         match self.modules.get(module) {
             Some(path) => Ok(path.clone()),
-            None => syn::parse_str(&format!("::{}_contracts", module.replace('.', "_")))
-                .map_err(|error| GenerateError::new(format!("invalid conventional Rust contract location: {error}"))),
+            None => parse_rust_path(&format!("::{}_contracts", module.replace('.', "_"))),
         }
     }
+}
+
+/// Applies COM's binding-path contract before constructing the backend's syntax tree.
+/// `syn` is a token-construction dependency here, not a separate metadata policy.
+fn parse_rust_path(value: &str) -> Result<syn::Path, GenerateError> {
+    neocogi_com_core::validate_rust_path(value).map_err(|error| GenerateError::new(format!("invalid Rust contract path {value:?}: {error}")))?;
+    let mut path: syn::Path =
+        syn::parse_str(value).map_err(|error| GenerateError::new(format!("cannot parse validated Rust contract path {value:?}: {error}")))?;
+    // Equivalent optional-root spellings must not conflict during registration.
+    path.leading_colon = Some(Default::default());
+    Ok(path)
 }

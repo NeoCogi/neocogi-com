@@ -260,7 +260,11 @@ fn public_rust_path(graph: &Generation<'_>, module: &ResolvedModule, name: &str)
     let path = graph.paths.path(&module.source.name.to_string())?;
     let mut parts = path.segments.iter().map(|segment| segment.ident.to_string()).collect::<Vec<_>>();
     parts.push(name.to_owned());
-    Ok(parts.join("::"))
+    let result = parts.join("::");
+    // The declaration suffix is part of the transported path and its byte limit.
+    neocogi_com_core::validate_rust_path(&result)
+        .map_err(|error| GenerateError::new(format!("invalid public Rust path {result:?}: {error}")))?;
+    Ok(result)
 }
 
 /// Emits the already-resolved structural field, never reparsing a type string.

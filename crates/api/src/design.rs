@@ -73,6 +73,8 @@ pub struct IdlType {
     /// Exact logical module and declaration name.
     pub qualified_name: &'static str,
     /// Public Rust path generated for application handler signatures.
+    /// Publishers and catalog readers apply [`crate::validate_rust_path`]; this
+    /// spelling is separate from the logical identity and application type resolution.
     pub rust_type: &'static str,
     /// Complete source-level struct, enum, or bit-enum shape.
     pub shape: IdlShape,
@@ -95,6 +97,7 @@ pub struct IdlInterface {
     /// This projection and required base/sibling descriptors in query order.
     pub chain: &'static [&'static NcInterfaceDescriptor],
     /// Public Rust path of the generated concrete projection.
+    /// Uses the same [`crate::validate_rust_path`] contract as value bindings.
     pub rust_abi: &'static str,
     /// Sole resolved stream, including one inherited through an interface.
     pub stream: Option<IdlEventStream>,

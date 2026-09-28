@@ -3,6 +3,18 @@
 All notable changes to the experimental component ABI are documented here.
 Semantic-version compatibility begins only after an explicitly ratified ABI.
 
+## Shared binding-path validation
+
+COM core owns the bounded, allocation-free Rust-2024 binding-path grammar and
+exports it through the facade. IDL publication and COM widget catalog admission
+share that validator; raw identifiers and optional leading `::` are supported,
+while unescaped reserved words and unsupported syntax fail with field context.
+`neocogi-inspect` also delegates version validation to the existing COM checker.
+No new crate, runtime syntax-parser dependency, ABI or catalog schema is added.
+Regression coverage compiles IDL published under `r#type`, copies its descriptor
+through real catalog COM calls, compiles exported forms in a downstream crate,
+and dispatches the typed event. See the [descriptor text contract](core/README.md#descriptor-text-validation).
+
 ## Object/table handles (core ABI 10)
 
 COM references now carry the allocation address and selected interface table.
@@ -47,7 +59,7 @@ prefixes and full explicit inspection remain supported.
 - Transport complete structured value definitions, named recursion, and enum tags
   through COM designer catalog schema 4. Keep one stream/one lifetime consumer
   and explicit application handlers; values no longer manufacture receivers.
-  See [the recursive value contract](../../../docs/RECURSIVE_VALUE_CONTRACT.md) for the supported positions and validation evidence.
+  See [the recursive value contract](../../docs/RECURSIVE_VALUE_CONTRACT.md) for the supported positions and validation evidence.
 
 - Enforce the same byte, element, value, and depth policy when encoding and
   decoding binary persistence values. Count scalar and container values through
