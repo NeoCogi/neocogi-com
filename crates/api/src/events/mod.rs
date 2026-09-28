@@ -21,4 +21,4 @@ mod stream;
 #[cfg(feature = "alloc")]
 pub use stream::{attach_source, SinkOf, EventOf, EventPort, EventSource, EventStreamInterface, MessageSinkInterface};
 #[cfg(feature = "std")]
-pub use stream::{bind_source, bind_stream};
+pub use stream::{bind_source, bind_stream, mapped_sink};

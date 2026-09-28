@@ -38,6 +38,21 @@ closure is terminal. Generated adapters acquire each event and map it into the
 parent's application queue; private message and model types stay in Rust.
 See [the class stream guide](../../../docs/CLASS_EVENT_STREAMS.md).
 
+Construction-bound delivery uses the ordinary library enum
+`neocogi.com.events.EventBinding<E>` as a borrowed constructor argument. Its
+`Observed(ComPtr<IMessageSink<E>>)` case supplies the one typed receiver;
+`Unobserved` chooses permanent non-delivery. The factory retains the receiver
+before returning its product. There is no Rust sender or closure in the ABI.
+
+For methods returning `ComPtr<Product>` in the product's contract module, the
+backend derives `ProductEventBinding`, `ProductSinkAbi`, and `ProductEventPort`
+helpers from that argument and publishes `IDL_INTERFACE.construction`. That
+metadata describes the **receiver**, not a projection implemented by Product.
+Its event root and complete reachable value graph remain available to COM
+catalogs. Multiple event arguments or constructor disagreement about the same
+product's event type are rejected. Keeping the association in the declaring
+module prevents downstream imports from changing its published metadata.
+
 All contracts, including events, are compile-time definitions. The build helper
 emits no native artifact, exported getter, runtime module graph, or built-in
 registration hook. Only generated layouts, wrappers, and exact signatures are

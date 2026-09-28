@@ -89,6 +89,18 @@ pub struct IdlEventStream {
     pub message: &'static IdlType,
 }
 
+/// Typed receiver required by a constructor, independent of producer projections.
+/// The sink is an application-owned object passed into construction. It is not
+/// an interface implemented by the resulting widget, and must not be searched
+/// for in that widget's QueryInterface chain.
+#[derive(Clone, Copy)]
+pub struct IdlEventSink {
+    /// Exact closed IMessageSink<E> identity and checked ABI signature.
+    pub abi: &'static NcInterfaceDescriptor,
+    /// Complete event value; nested definitions are carried by the value graph.
+    pub message: &'static IdlType,
+}
+
 /// A COM class/interface and its complete transitive authoring contract.
 #[derive(Clone, Copy)]
 pub struct IdlInterface {
@@ -101,6 +113,8 @@ pub struct IdlInterface {
     pub rust_abi: &'static str,
     /// Sole resolved stream, including one inherited through an interface.
     pub stream: Option<IdlEventStream>,
+    /// Final event receiver policy accepted by constructors of this projection.
+    pub construction: Option<IdlEventSink>,
     /// Finite definitions reachable from this interface chain and event value.
     pub values: &'static [IdlType],
 }

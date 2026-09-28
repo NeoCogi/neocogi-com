@@ -12,6 +12,7 @@ use quote::quote;
 mod mapping;
 mod paths;
 mod streams;
+mod construction;
 mod value;
 pub use paths::RustModulePaths;
 
@@ -110,7 +111,11 @@ fn generate_module(graph: &Generation<'_>, module_name: &str) -> Result<crate::G
         .declarations
         .iter()
         .enumerate()
-        .map(|(index, declaration)| generate_declaration(graph, module, declaration, index))
+        .map(|(index, declaration)| {
+            let mut source = generate_declaration(graph, module, declaration, index)?;
+            source.push_str(&format_rust(construction::value_helpers(graph, module, declaration)?)?);
+            Ok(source)
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let module_id = guid_literal(module.module_id);
     let fingerprint = module.abi_fingerprint.iter().copied();
@@ -183,6 +188,14 @@ fn generate_design_metadata(graph: &Generation<'_>, module: &ResolvedModule) -> 
                 // General-purpose interfaces can aggregate streams; concrete event sources cannot.
                 _ => quote! { None },
             };
+            let construction = match construction::find(graph, module, declaration)? {
+                Some(binding) => {
+                    let sink = named_rust_type(graph, module, binding.sink, true)?;
+                    let event = named_rust_type(graph, module, binding.event, false)?;
+                    quote! { Some(::neocogi_com::design::IdlEventSink { abi: &#sink::INTERFACE_DESCRIPTOR, message: &#event::IDL_TYPE }) }
+                }
+                None => quote! { None },
+            };
             let values = interface_value_metadata(graph, module, declaration)?;
             descriptions.push(quote! {
                 impl #abi {
@@ -192,6 +205,7 @@ fn generate_design_metadata(graph: &Generation<'_>, module: &ResolvedModule) -> 
                         chain: &Self::INTERFACE_CHAIN,
                         rust_abi: #rust_abi,
                         stream: #stream,
+                        construction: #construction,
                         values: &[#(#values),*],
                     };
                 }
@@ -372,6 +386,9 @@ fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, dec
     }
     let mut names = BTreeSet::new();
     interface(graph, module, declaration, &mut BTreeSet::new(), &mut names)?;
+    if let Some(binding) = construction::find(graph, module, declaration)? {
+        data(&binding.event.identity.qualified_name, graph, &mut names);
+    }
     names
         .iter()
         .map(|name| {
@@ -579,6 +596,7 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
             let threading = threading_ident(interface.threading);
             let factory = matches!(interface.role, InterfaceRole::Factory).then(|| quote! { factory, });
             let stream_support = streams::generate(graph, module, declaration)?;
+            let construction_support = construction::aliases(graph, module, declaration)?;
             let class_abi = rust_ident(&format!("{}Abi", declaration.name))?;
             let class_marker = (interface.role == InterfaceRole::Class).then(|| {
                 quote! {
@@ -598,6 +616,7 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
                 pub trait #name #bases { #(#methods)* }
                 #class_marker
                 #stream_support
+                #construction_support
             })
         }
     }

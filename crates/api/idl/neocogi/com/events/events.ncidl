@@ -11,3 +11,15 @@ interface IEventStream<E> {
     /// Installs the sole consumer. A second attachment fails without replacing it.
     fn attach(&mut self, consumer: &IMessageSink<E>) -> Result<()>;
 }
+
+#[version(1)]
+/// Complete event-delivery choice supplied to a producer's constructor.
+/// Unobserved is permanent for that instance; Observed retains exactly one
+/// typed destination until logical closure or final producer destruction.
+/// This is an ordinary generic enum, not special widget syntax.
+enum EventBinding<E> {
+    /// Construct without delivery; no later consumer installation is permitted.
+    Unobserved,
+    /// Retain the behavioral parent's typed receiver before publishing the object.
+    Observed(ComPtr<IMessageSink<E>>),
+}

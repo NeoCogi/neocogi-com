@@ -281,3 +281,20 @@ The `macros` feature also exposes built-in event contracts through
 receiver allocation needs `alloc`, and channel adapters additionally require `std`. Persistent UI
 controllers and scheduling belong to the UI facade and core contracts. Event IDL compilation
 is an optional build dependency of this feature and runs on the build machine.
+
+### Construction-bound event receivers
+
+`events::mapped_sink::<Sink, Message>(sender, map)` creates one typed COM receiver
+whose application-local implementation owns the queue sender and mapping closure.
+Pass that receiver in the IDL `EventBinding<E>` constructor argument. The factory
+acquires the checked value and initializes `EventPort::with_sink` with its owned
+receiver before publishing the producer. `None` means permanently unobserved,
+not an empty slot available for later attachment. Closing the port releases its
+receiver reference and is idempotent; messages already posted belong to the
+application queue and are not retracted.
+
+A failed constructor must release every reference it acquired. A successful
+constructor retains the sink until logical closure or final destruction.
+Neither the application message nor the closure's captured Rust state crosses
+COM; only `IMessageSink<E>` calls do. The generated construction descriptor names
+that sink's exact interface identity and the complete event value graph.

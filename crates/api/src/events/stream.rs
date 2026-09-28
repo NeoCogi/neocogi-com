@@ -37,6 +37,8 @@ pub type EventOf<C> = <<<C as EventSource>::Stream as EventStreamInterface>::Sin
 enum Phase<S: MessageSinkInterface> {
     /// The behavioral parent has not completed construction-time wiring yet.
     Unbound,
+    /// Construction deliberately selected no consumer; attachment stays forbidden.
+    Unobserved,
     /// One parent-owned receiver consumes every event variant.
     Bound(ComPtr<S>),
     /// Logical teardown permanently rejects future attachment and emission.
@@ -62,6 +64,16 @@ impl<S: MessageSinkInterface> EventPort<S> {
         Self { phase: Phase::Unbound }
     }
 
+    /// Constructs the final delivery policy before the producer is published.
+    /// A missing sink is permanently unobserved, never an available attach slot.
+    pub fn with_sink(sink: Option<ComPtr<S>>) -> Self {
+        let phase = match sink {
+            Some(sink) => Phase::Bound(sink),
+            None => Phase::Unobserved,
+        };
+        Self { phase }
+    }
+
     /// Attaches once. Failure leaves the original consumer and queued messages intact.
     pub fn attach(&mut self, consumer: ComRef<'_, S>) -> Result<(), NcStatus> {
         match self.phase {
@@ -70,7 +82,7 @@ impl<S: MessageSinkInterface> EventPort<S> {
                 Ok(())
             }
             Phase::Bound(_) => Err(NC_E_ALREADY_BOUND),
-            Phase::Closed => Err(NC_E_CLOSED),
+            Phase::Unobserved | Phase::Closed => Err(NC_E_CLOSED),
         }
     }
 
@@ -83,7 +95,7 @@ impl<S: MessageSinkInterface> EventPort<S> {
     /// Receiver decoding owns all variable data before the producer can release it.
     pub fn post(&mut self, event: &S::Message) -> Result<(), NcStatus> {
         match &mut self.phase {
-            Phase::Unbound => Ok(()),
+            Phase::Unbound | Phase::Unobserved => Ok(()),
             Phase::Bound(receiver) => S::post(receiver.as_com_ref(), event),
             Phase::Closed => Err(NC_E_CLOSED),
         }
@@ -134,4 +146,20 @@ pub fn attach_source<C: EventSource, S: MessageSinkInterface<Message = EventOf<C
     // Independently generated Rust projections share COM identity, not Rust nominal type.
     let sink = sink.add_ref().query::<SinkOf<C>>()?;
     C::Stream::attach(stream.as_com_ref(), sink.as_com_ref())
+}
+
+/// Maps typed events into an application-local queue before producer creation.
+/// The resulting COM object owns the sender and closure; neither Rust value nor
+/// the application message type crosses the factory ABI. Failed construction
+/// drops ordinary COM references and releases captures through their owner.
+#[cfg(feature = "std")]
+pub fn mapped_sink<S: MessageSinkInterface, M: 'static>(
+    sender: std::sync::mpsc::Sender<M>,
+    mut map: impl FnMut(S::Message) -> M + 'static,
+) -> Result<ComPtr<S>, NcStatus> {
+    S::receiver(move |event| {
+        // A disconnected application inbox does not undo a committed UI edit.
+        let _ = sender.send(map(event));
+        Ok(())
+    })
 }
