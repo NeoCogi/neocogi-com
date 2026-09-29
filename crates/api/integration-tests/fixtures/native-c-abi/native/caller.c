@@ -457,3 +457,34 @@ int nc_c_exercise_weak(IUnknown owned, const NcInterfaceId *requested, NcStatus 
     release(weak.control);
     return result;
 }
+
+/* Independent wire declaration: native Rust enum size/layout is never observed. */
+typedef struct {
+    int64_t tag; /* Sparse signed source discriminants occupy the common raw tag. */
+    union {
+        struct { uint8_t enabled; } flag; /* Valid bool bytes are exactly 0 and 1. */
+        struct { uint8_t empty; } empty; /* Ignored for the unit alternative. */
+    } payload;
+} NativeChoiceWire;
+
+/* Real generated Rust thunk, using the same C calling convention as plugin slots. */
+typedef int32_t (*NativeChoiceEcho)(void *, NativeChoiceWire, NativeChoiceWire *);
+
+/* Malformed data stays in unrestricted C storage until the thunk rejects it. */
+int32_t nc_c_exercise_choice(void *object, NativeChoiceEcho echo, int32_t invalid_tag, int32_t invalid_bool) {
+    NativeChoiceWire input = {0}, output = {0};
+    input.tag = 20;
+    input.payload.empty.empty = 255; /* Inactive bytes must not be validated/read. */
+    if (echo(object, input, &output) != 0 || output.tag != 20) return 0;
+    input.tag = -7;
+    for (uint8_t enabled = 0; enabled < 2; ++enabled) {
+        input.payload.flag.enabled = enabled;
+        if (echo(object, input, &output) != 0 || output.tag != -7 ||
+            output.payload.flag.enabled != enabled) return 0;
+    }
+    input.payload.flag.enabled = 2;
+    if (echo(object, input, &output) != invalid_bool) return 0;
+    input.tag = 999;
+    if (echo(object, input, &output) != invalid_tag) return 0;
+    return 1;
+}

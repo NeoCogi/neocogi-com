@@ -84,7 +84,8 @@ fn keyword_shaped_payload_variants_round_trip_without_identifier_collisions() {
         KeywordPayload::Crate(9),
         KeywordPayload::_EMPTY(10),
     ] {
-        let abi = KeywordPayloadAbi::from(value);
-        assert_eq!(KeywordPayload::try_from(abi), Ok(value));
+        let wire = neocogi_com::encode_inline(&value).unwrap();
+        // SAFETY: checked inline encoding supplies valid self-contained storage.
+        assert_eq!(unsafe { neocogi_com::decode_inline::<KeywordPayload>(wire) }, Ok(value));
     }
 }

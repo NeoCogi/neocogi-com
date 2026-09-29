@@ -431,14 +431,12 @@
 //! assert!(NodeType::from_raw(42).is_unknown());
 //! ```
 //!
-//! Tagged payload enum values can use `com_enum`. The Rust enum remains
-//! available for local code, while the macro generates an opaque `NameAbi` with
-//! an explicit `repr(C)` tag + payload-union binary layout. Payload fields must
-//! implement [`AbiPlainValue`]. Safe code constructs known values with `From`,
-//! inspects `tag()`, and decodes with `TryFrom`; arbitrary raw tag/payload pairing
-//! is an unsafe FFI operation. Prefer explicit scalar handles instead of owning
-//! Rust containers or borrowed raw pointers when carrying references to external
-//! objects:
+//! Tagged payload enums use the native Rust enum in fields and generated calls.
+//! `com_enum` supplies a separate [`ComValue::Wire`] containing an integer tag and
+//! recursively lowered fields. Generated thunks validate the tag and active fields
+//! before constructing the native enum; Rust enum layout never crosses COM.
+//! Copied fields must implement [`AbiPlainValue`] and [`ComInlineValue`]. Owned
+//! fields such as strings use `com_value` and borrowed [`NcValueRef`] parameters.
 //!
 //! ```
 //! mod contract {
@@ -456,15 +454,15 @@
 //!     }
 //! }
 //!
-//! use contract::{Mutation, MutationAbi, MutationTag};
+//! use contract::Mutation;
+//! use neocogi_com::ComValue;
 //!
-//! let abi = MutationAbi::from(Mutation::TextChanged { node: 7, len: 12 });
-//! assert_eq!(abi.tag(), MutationTag::TextChanged);
-//! assert_eq!(abi.tag().raw(), 30);
-//! assert_eq!(
-//!     Mutation::try_from(abi).unwrap(),
-//!     Mutation::TextChanged { node: 7, len: 12 },
-//! );
+//! let value = Mutation::TextChanged { node: 7, len: 12 };
+//! let (wire, _storage) = value.encode_value(&mut Default::default()).unwrap();
+//! assert_eq!(wire.tag, 30);
+//! // SAFETY: the encoder produced initialized, self-contained wire storage.
+//! let decoded = unsafe { Mutation::decode_value(wire, &mut Default::default()) }.unwrap();
+//! assert_eq!(decoded, value);
 //! ```
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -503,7 +501,7 @@ pub use macros::{ComDeserialize, ComSerialize, com_enum, com_class, com_factory,
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{format_abi_signature, format_method_signature};
 pub use neocogi_com_core::{
-    __NcTaggedEnumAbiStorage, __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClientInterface, ComDeserialize,
+    __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClientInterface, ComDeserialize,
     ComSerialize, ComSerializer, ComDeserializer, ComEnum, ComFactoryBootstrap, ComFactoryInterface, ComClassInterface, ComFactoryImplementation, ComInterface,
     ComPtr, ComRaw, ComRecord, ComRecordAccess, ComRef, ComSequence, ComSequenceAccess, ComStruct, ComVariantAccess, NcClientPointer, IID_INC_BYTES,
     IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown,

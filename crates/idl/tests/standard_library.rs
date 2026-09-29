@@ -76,20 +76,17 @@ fn optional_copied_values_and_borrowed_owned_values_cross_com() {
         unreachable!()
     };
     let mut generated = String::from(r#"include!(concat!(env!("OUT_DIR"), "/proof_options.include.rs"));"#);
-    for (field, alias, copied) in [
-        (&names.fields[0], "MaybeCount", true),
-        (&names.fields[1], "MaybeText", false),
-        (&names.fields[2], "MaybeToken", false),
-        (&names.fields[3], "MaybeFlag", true),
+    for (field, alias) in [
+        (&names.fields[0], "MaybeCount"),
+        (&names.fields[1], "MaybeText"),
+        (&names.fields[2], "MaybeToken"),
+        (&names.fields[3], "MaybeFlag"),
     ] {
         let AbiType::Named(name) = &field.ty else { unreachable!() };
         generated += &format!(
             "\n/// Test-facing name for a resolved ordinary enum.\npub use {} as {alias};\n",
             name.rust_path()
         );
-        if copied {
-            generated += &format!("pub use {}Abi as {alias}Abi;\n", name.rust_path());
-        }
     }
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();

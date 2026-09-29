@@ -47,8 +47,9 @@ pub fn exercise_explicit_override_path() -> Result<u16, NcStatus> {
 }
 
 pub fn exercise_enum_override_path() -> Result<(), NcStatus> {
-    let abi = OverrideEventAbi::from(OverrideEvent::Ready(7));
-    let value = OverrideEvent::try_from(abi)?;
+    let wire = renamed_nc::encode_inline(&OverrideEvent::Ready(7))?;
+    // SAFETY: valid inline storage emitted by the matching codec.
+    let value: OverrideEvent = unsafe { renamed_nc::decode_inline(wire) }?;
 
     if value == OverrideEvent::Ready(7) { Ok(()) } else { Err(NC_E_INVALID_TAG) }
 }

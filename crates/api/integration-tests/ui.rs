@@ -19,13 +19,14 @@ fn ui_errors_are_stable() {
     t.compile_fail("integration-tests/ui/local_guard_thread_affinity.rs");
     t.compile_fail("integration-tests/ui/enum_comptr_payload.rs");
     t.compile_fail("integration-tests/ui/enum_duplicate_tag.rs");
+    t.compile_fail("integration-tests/ui/enum_computed_duplicate_tag.rs");
+    t.compile_fail("integration-tests/ui/enum_tag_range.rs");
     t.compile_fail("integration-tests/ui/enum_generic.rs");
     if !rustc_is_nightly() {
         t.compile_fail("integration-tests/ui/enum_invalid_tag.rs");
     }
-    t.compile_fail("integration-tests/ui/enum_abi_fields_are_opaque.rs");
     t.compile_fail("integration-tests/ui/enum_pointer_payload.rs");
-    t.compile_fail("integration-tests/ui/enum_case_folded_variant.rs");
+    t.pass("integration-tests/ui/enum_case_folded_variant.rs");
     t.compile_fail("integration-tests/ui/enum_string_payload.rs");
     t.compile_fail("integration-tests/ui/enum_where_clause.rs");
     t.pass("integration-tests/ui/enum_public_documentation.rs");

@@ -2,8 +2,8 @@
 //!
 //! This module distinguishes ordinary by-value ABI types, durable plain values,
 //! and macro-generated structs whose compiled layout remains available as typed
-//! metadata. It also owns the opaque tag/payload storage used by generated COM
-//! enums so safe wrappers can enforce discriminant and payload validity.
+//! metadata. Native enums use these identities with the same checked field
+//! codecs as records; their compiler-specific application layout stays local.
 
 use crate::guid::NcGuid;
 use crate::metadata::{NcAbiStructLayout, NcAbiType};
@@ -70,57 +70,6 @@ pub unsafe trait ComStruct: Copy + 'static {
 
     /// Physical application layout; do not use it to address recursive wire fields.
     const ABI_STRUCT_LAYOUT: NcAbiStructLayout;
-}
-
-/// Opaque storage used by macro-generated tagged ABI values.
-///
-/// The fields intentionally remain private to `neocogi-com-core`. Generated wrappers
-/// expose validity-preserving safe constructors and use the unsafe constructor
-/// only after establishing the tag/payload relationship.
-#[doc(hidden)]
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct __NcTaggedEnumAbiStorage<Tag, Payload> {
-    tag: Tag,
-    payload: Payload,
-}
-
-impl<Tag, Payload> __NcTaggedEnumAbiStorage<Tag, Payload> {
-    /// Byte offset of the tag in this C-compatible storage pair.
-    pub const TAG_OFFSET: usize = core::mem::offset_of!(Self, tag);
-
-    /// Byte offset of the payload in this C-compatible storage pair.
-    pub const PAYLOAD_OFFSET: usize = core::mem::offset_of!(Self, payload);
-
-    /// Creates storage from a raw tag and payload.
-    ///
-    /// # Safety
-    ///
-    /// The caller must guarantee the logical relationship required by the
-    /// generated wrapper. If the tag selects a typed union member, that member
-    /// must be active, every byte subsequently read must be initialized, and
-    /// every selected field must contain a valid Rust value.
-    pub const unsafe fn from_raw_parts_unchecked(tag: Tag, payload: Payload) -> Self {
-        Self { tag, payload }
-    }
-
-    /// Returns the tag without inspecting the payload.
-    pub const fn tag(&self) -> Tag
-    where
-        Tag: Copy,
-    {
-        self.tag
-    }
-
-    /// Borrows the payload without interpreting it.
-    pub const fn payload(&self) -> &Payload {
-        &self.payload
-    }
-
-    /// Consumes the storage and returns both raw parts.
-    pub fn into_raw_parts(self) -> (Tag, Payload) {
-        (self.tag, self.payload)
-    }
 }
 
 #[doc(hidden)]

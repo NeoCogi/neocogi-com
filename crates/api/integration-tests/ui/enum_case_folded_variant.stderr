@@ -1,5 +1,0 @@
-error: COM enum payload variants `Foo` and `FOO` both generate union field `__nc_foo` after ASCII case folding
- --> integration-tests/ui/enum_case_folded_variant.rs:6:5
-  |
-6 |     FOO(u16),
-  |     ^^^

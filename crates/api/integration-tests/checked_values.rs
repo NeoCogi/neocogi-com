@@ -28,13 +28,24 @@ pub enum Action {
     /// Requires no initialized payload.
     Idle,
 }
+#[com_struct(assigned_signature = b"00000000000000000000000000000087")]
+#[derive(Debug, PartialEq)]
+/// Copied records and fixed arrays store native enums, not public tag/union wrappers.
+pub struct ActionSet {
+    /// Alternatives of unequal payload size still lower each active value.
+    pub actions: [Action; 2],
+}
 #[com_interface(auto_guid = "nc.tests.values.Check:v1", assigned_signature = b"00000000000000000000000000000084")]
 /// Real copied, enum, and buffer slots for adversarial raw callers.
 pub trait ICheck {
     /// Returns the input after the thunk validates it.
     fn settings(&self, value: Settings) -> Result<Settings, NcStatus>;
-    /// The enum's application wrapper never appears in a raw slot.
-    fn action(&self, value: ActionAbi) -> Result<ActionAbi, NcStatus>;
+    /// The native enum lowers to a checked wire record in the raw slot.
+    fn action(&self, value: Action) -> Result<Action, NcStatus>;
+    /// A copied record may recursively contain native enums in fixed arrays.
+    fn action_set(&self, value: ActionSet) -> Result<ActionSet, NcStatus>;
+    /// Enum buffers use the same checked input and output conversion.
+    fn actions(&self, value: NcCopyToBufferOffset<'_, Action>) -> Result<(), NcStatus>;
     /// Nested restricted fields are checked before reconstructing a typed slice.
     fn input(&self, value: NcCopyFromBufferOffset<'_, Settings>) -> Result<u32, NcStatus>;
     /// Writable buffer elements use the same bidirectional conversion.
@@ -47,8 +58,20 @@ impl ICheck for Check {
     fn settings(&self, value: Settings) -> Result<Settings, NcStatus> {
         Ok(value)
     }
-    fn action(&self, value: ActionAbi) -> Result<ActionAbi, NcStatus> {
+    fn action(&self, value: Action) -> Result<Action, NcStatus> {
         Ok(value)
+    }
+    fn action_set(&self, value: ActionSet) -> Result<ActionSet, NcStatus> {
+        Ok(value)
+    }
+    fn actions(&self, mut value: NcCopyToBufferOffset<'_, Action>) -> Result<(), NcStatus> {
+        for action in value.as_mut_slice() {
+            *action = match *action {
+                Action::Idle => Action::Configure(Settings { flags: Flags { enabled: true } }),
+                Action::Configure(_) => Action::Idle,
+            };
+        }
+        Ok(())
     }
     fn input(&self, value: NcCopyFromBufferOffset<'_, Settings>) -> Result<u32, NcStatus> {
         Ok(value.len() as u32)
@@ -110,6 +133,46 @@ fn valid_calls_acquire_output_buffers_and_nested_return_values() {
     check.output(NcCopyToBufferOffset::new(0, &mut values)).unwrap();
     assert!(values[0].flags.enabled);
     assert_eq!(check.input(NcCopyFromBufferOffset::new(0, &values)).unwrap(), 1);
+}
+
+/// Native enums round-trip directly, nested in copied records, and through writable buffers.
+#[test]
+fn native_enums_cross_copied_nested_array_and_buffer_slots() {
+    let check = Check::from_value(Check).query::<ICheckAbi>().unwrap();
+    let configured = Action::Configure(Settings { flags: Flags { enabled: true } });
+    for action in [Action::Idle, configured] {
+        assert_eq!(check.action(action).unwrap(), action);
+    }
+    let set = ActionSet { actions: [Action::Idle, configured] };
+    assert_eq!(check.action_set(set).unwrap(), set);
+    let mut actions = set.actions;
+    check.actions(NcCopyToBufferOffset::new(0, &mut actions)).unwrap();
+    assert_eq!(actions, [configured, Action::Idle]);
+    // Metadata retains the same nominal identity while raw and native storage
+    // remain separate even if a particular compiler happens to size them equally.
+    assert!(matches!(Action::ABI_TYPE, NcAbiType::Aggregate(signature) if signature == Action::VALUE_SIGNATURE));
+    assert!(!Action::BORROW_WIRE);
+    assert!(!ActionSet::BORROW_WIRE);
+}
+
+/// A later malformed enum element must not publish an earlier valid element's mutation.
+#[test]
+fn enum_buffer_validation_is_atomic_before_native_dispatch() {
+    let check = Check::from_value(Check).query::<ICheckAbi>().unwrap();
+    let raw = check.as_raw();
+    for (tag, enabled, expected) in [(99, 1, NC_E_INVALID_TAG), (4, 3, NC_E_INVALID_ARG)] {
+        let mut wire = [
+            encode_inline(&Action::Idle).unwrap(),
+            encode_inline(&Action::Configure(Settings { flags: Flags { enabled: true } })).unwrap(),
+        ];
+        wire[1].tag = tag;
+        wire[1].payload.case_0.field_0.flags.enabled = enabled;
+        // SAFETY: both records are initialized wire storage, with a bad raw tag
+        // or boolean byte. The callee must reject before materializing native enums.
+        assert_eq!(unsafe { ((*raw.vtable).actions)(raw.object, 0, 2, wire.as_mut_ptr()) }, expected);
+        assert_eq!(wire[0].tag, 8);
+        assert_eq!(wire[1].tag, tag);
+    }
 }
 
 #[com_struct(assigned_signature = b"00000000000000000000000000000085")]

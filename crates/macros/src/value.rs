@@ -20,9 +20,9 @@ pub(crate) struct ValueCase {
 
 /// Generates a complete checked codec without altering the application type.
 pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase], signature: TokenStream, inline: bool, nc: &syn::Path) -> TokenStream {
-    let wire_name = format_ident!("__{name}ValueWire");
-    let union_name = format_ident!("__{name}ValuePayload");
-    let storage_name = format_ident!("__{name}ValueStorage");
+    let wire_name = format_ident!("__{name}ValueWire", span = name.span());
+    let union_name = format_ident!("__{name}ValuePayload", span = name.span());
+    let storage_name = format_ident!("__{name}ValueStorage", span = name.span());
     let is_enum = cases.first().is_some_and(|case| case.variant.is_some());
     let mut wires = Vec::new();
     let mut members = Vec::new();
@@ -35,7 +35,7 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
     let mut maximum_costs = Vec::new();
     for (index, case) in cases.iter().enumerate() {
         let case_wire = if is_enum {
-            format_ident!("__{name}ValueCase{index}")
+            format_ident!("__{name}ValueCase{index}", span = name.span())
         } else {
             wire_name.clone()
         };

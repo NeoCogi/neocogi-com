@@ -331,19 +331,12 @@ pub fn com_struct(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// compile-tested construction, conversion, and tag-pinning examples live in
 /// the primary `neocogi-com` crate-level documentation.
 ///
-/// The macro generates `MutationAbi`, `MutationTag`, `MutationPayload`, and one
-/// payload struct per data-carrying variant. `MutationAbi` has a `#[repr(C)]`
-/// tag + union binary shape, but its fields are opaque so safe Rust cannot pair
-/// a known tag with the wrong or uninitialized union member. Convert known
-/// variants with `MutationAbi::from(value)` and `Mutation::try_from(abi)`. Use
-/// `MutationAbi::tag()` to inspect the tag and `from_unknown_tag` to construct an
-/// unknown value that converts to `NC_E_INVALID_TAG`.
-///
-/// Low-level FFI adapters can use `unsafe from_raw_parts_unchecked`. For a known
-/// tag, the caller must provide the corresponding initialized union member and
-/// every selected field must contain a valid Rust value. `TryFrom` safely relies
-/// on that construction invariant; it rejects unknown tags but is not a parser
-/// for arbitrary or uninitialized bytes.
+/// The native enum is the only application representation. `ComValue` supplies
+/// a separate explicit wire record with an integer tag and recursively lowered
+/// active payload. Generated COM calls use that wire, never the native enum's
+/// Rust layout. Decoding rejects unknown tags before reading any payload and
+/// validates restricted fields (including booleans) before constructing values.
+/// No `NameAbi`, public tag type, or tag/union conversion API is generated.
 ///
 /// Tags default to one-based source order. Use `#[com_tag(value)]` on a variant
 /// to pin an explicit ABI value, for example `#[com_tag(10)]`.
@@ -353,8 +346,8 @@ pub fn com_struct(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Variant payload fields must implement `neocogi_com::AbiPlainValue`. Owning Rust values
 /// such as `String`, `Vec<T>`, and `neocogi_com::ComPtr<T>` are rejected because the
-/// generated ABI representation has no drop or release hook. Prefer explicit
-/// scalar handles for references to external objects. Raw pointers are rejected
+/// copied value must be self-contained. Use `com_value` with `NcValueRef` for
+/// owned payloads, including typed object capabilities. Raw pointers are rejected
 /// in payloads because they carry lifetime, nullability, and ownership rules not
 /// represented by a durable tagged value.
 ///

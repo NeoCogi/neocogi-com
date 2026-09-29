@@ -53,7 +53,6 @@ fn generated_interface_and_enum_names_keep_their_authored_identifier_spans() {
             }
             syn::Item::Enum(mut item) if item.ident == "Track" => {
                 let expected = item.ident.span();
-                let variant = item.variants.iter().find(|variant| variant.ident == "Fixed").unwrap().ident.span();
                 let index = item
                     .attrs
                     .iter()
@@ -61,10 +60,9 @@ fn generated_interface_and_enum_names_keep_their_authored_identifier_spans() {
                     .unwrap();
                 let args = item.attrs.remove(index).parse_args().unwrap();
                 let expanded = crate::enums::expand_com_enum(args, item).unwrap();
-                for name in ["TrackAbi", "TrackTag", "TrackPayload"] {
+                for name in ["Track", "__TrackValueWire", "__TrackValuePayload"] {
                     assert_origin(expanded.clone(), name, expected);
                 }
-                assert_origin(expanded, "TrackFixedPayload", variant);
                 verified += 1;
             }
             _ => {}

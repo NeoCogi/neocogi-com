@@ -12,6 +12,11 @@ fn ordinary_enum_decoders_compile_and_reconstruct_every_payload_shape() {
         #[version(1)] #[deserialize] enum Tree { Leaf(u32), Nodes(Vec<Tree>) }
         #[version(1)] #[deserialize(if_supported)] enum Maybe<T> { None, Some(T) }
         #[version(1)] #[deserialize] struct Number { value: Maybe<u32> }
+        // These former public companions are now ordinary authored names.
+        #[version(1)] struct PacketAbi { value: Packet }
+        #[version(1)] struct PacketTag { value: u32 }
+        #[version(1)] struct PacketPayload { value: u32 }
+        #[version(1)] struct PacketFlagPayload { value: u32 }
         #[version(1)] interface IToken {}
         #[version(1)] struct Live { value: Maybe<ComPtr<IToken>> }
     "#;

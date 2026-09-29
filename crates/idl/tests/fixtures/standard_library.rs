@@ -22,7 +22,7 @@ mod tests {
     }
     impl IValues for Values {
         /// Copied results use the same checked enum wire as copied arguments.
-        fn number(&mut self, value: MaybeCountAbi) -> Result<MaybeCountAbi, NcStatus> { Ok(value) }
+        fn number(&mut self, value: MaybeCount) -> Result<MaybeCount, NcStatus> { Ok(value) }
         /// Acquires text only from the selected payload, with ordinary value budgets.
         fn text(&mut self, value: NcValueRef<'_, MaybeText>) -> Result<(), NcStatus> {
             match value.to_owned()? { MaybeText::None => {}, MaybeText::Some(text) => self.text.push(text) }
@@ -36,7 +36,7 @@ mod tests {
             }
         }
         /// Input buffer elements have already passed the copied enum decoder.
-        fn flags(&mut self, values: NcCopyFromBufferOffset<'_, MaybeFlagAbi>) -> Result<u32, NcStatus> { Ok(values.len() as u32) }
+        fn flags(&mut self, values: NcCopyFromBufferOffset<'_, MaybeFlag>) -> Result<u32, NcStatus> { Ok(values.len() as u32) }
     }
 
     /// Both absence and presence survive copied results, owned snapshots, and typed COM storage.
@@ -45,7 +45,7 @@ mod tests {
         let local = Values::into_local(Values { tokens: vec![], text: vec![] });
         let mut interface: ComPtr<IValuesAbi> = local.query().unwrap();
         for input in [MaybeCount::None, MaybeCount::Some(7)] {
-            assert_eq!(MaybeCount::try_from(interface.number(input.into()).unwrap()).unwrap(), input);
+            assert_eq!(interface.number(input).unwrap(), input);
         }
         let text = MaybeText::Some("retained".into());
         interface.text(NcValueRef::new(&text).unwrap()).unwrap();
@@ -54,7 +54,7 @@ mod tests {
         assert_eq!(interface.capability(NcValueRef::new(&token).unwrap()).unwrap(), 42);
         drop(token);
         assert_eq!(interface.capability(NcValueRef::new(&MaybeToken::None).unwrap()).unwrap(), 0);
-        let flags = [MaybeFlag::None.into(), MaybeFlag::Some(true).into()];
+        let flags = [MaybeFlag::None, MaybeFlag::Some(true)];
         assert_eq!(interface.flags(NcCopyFromBufferOffset::new(0, &flags)).unwrap(), 2);
         assert_eq!(local.try_borrow().unwrap().tokens[0].value().unwrap(), 42);
         assert_eq!(local.try_borrow().unwrap().text, ["retained"]);

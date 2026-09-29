@@ -1,0 +1,8 @@
+error: literal out of range for `u8`
+ --> integration-tests/ui/enum_tag_range.rs:6:15
+  |
+6 |     #[com_tag(256)]
+  |               ^^^
+  |
+  = note: the literal `256` does not fit into the type `u8` whose range is `0..=255`
+  = note: `#[deny(overflowing_literals)]` on by default

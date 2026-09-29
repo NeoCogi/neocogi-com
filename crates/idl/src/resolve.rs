@@ -812,21 +812,6 @@ fn validate_generated_names(index: usize, entries: &[ModuleEntry]) -> Result<(),
             DeclarationKind::Interface(_) => {
                 interface_companions(&declaration.name, &mut companions);
             }
-            DeclarationKind::Enum(enumeration)
-                if entry
-                    .copied_values
-                    .contains(&entry.declaration_identities[entry.local_symbols[&declaration.name].declaration].qualified_name)
-                    && enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit)) =>
-            {
-                companions.push(format!("{}Abi", declaration.name));
-                companions.push(format!("{}Tag", declaration.name));
-                companions.push(format!("{}Payload", declaration.name));
-                for variant in &enumeration.variants {
-                    if !matches!(variant.fields, VariantFields::Unit) {
-                        companions.push(format!("{}{}Payload", declaration.name, variant.name));
-                    }
-                }
-            }
             DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) => {}
         }
         for name in companions {

@@ -189,14 +189,13 @@ Signed `i8`, `i16`, and `i32` enum representations can use negative
 discriminants. The resolver checks their range and duplicate values before
 generation; generated unit and payload enums retain the signed tag.
 
-The resolver reserves every visible Rust companion emitted by generated
-interfaces and payload enums before code generation. This includes interface
-ABI, vtable, client, and provider types; and
-payload enum tag, union, and variant records. Local declarations or explicit
-imports that collide with these names receive source-located IDL diagnostics
-instead of duplicate-item errors from generated Rust. Copyable message enums
-also emit the tagged-enum companions; owned message wire helpers start with
-`__` and cannot collide with the IDL's UpperCamel declarations.
+The resolver reserves interface ABI, vtable, client, and provider companion
+names before code generation. Collisions receive source-located diagnostics.
+Payload enums use their native Rust type in copied fields, methods and buffers.
+They do not emit public `FooAbi`, `FooTag`, `FooPayload` or per-variant application
+records; those names remain available to authored declarations. Their actual
+checked `ComValue::Wire` helpers start with `__` and cannot collide with IDL's
+UpperCamel declarations. Rust enum layout never crosses COM.
 
 Records and enums can request `#[deserialize]`, validated recursively before
 Rust generation. `#[deserialize(if_supported)]` makes that capability conditional

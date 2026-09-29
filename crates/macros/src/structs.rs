@@ -120,8 +120,9 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
         unsafe impl #nc::AbiType for #struct_ident {
             const ABI_TYPE: #nc::NcAbiType = #nc::__nc_abi_com_struct_type::<Self>();
         }
-        // SAFETY: The struct is a fixed-layout aggregate of plain ABI values
-        // with no drop glue or release protocol.
+        // SAFETY: Fields have copied-value identities and no release protocol.
+        // The generated ComInlineValue codec handles their foreign layout;
+        // nested native enums must never be reinterpreted as wire storage.
         unsafe impl #nc::AbiPlainValue for #struct_ident {}
 
         #deserialize_impl

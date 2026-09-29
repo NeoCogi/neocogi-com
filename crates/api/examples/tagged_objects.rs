@@ -89,19 +89,11 @@ fn main() -> Result<(), NcStatus> {
     let button = Element::create_element(2, ElementKind::BUTTON);
     let document = Document::create_document(root.clone());
 
-    let element_selection = Selection::Element { id: button.id()?, kind: button.kind()? };
-    let element_abi = SelectionAbi::from(element_selection);
-    println!("element selection ABI tag = {}", element_abi.tag().raw());
-    describe(Selection::try_from(element_abi)?)?;
-
-    let document_selection = Selection::Document { root_id: document.root_id()? };
-    let document_abi = SelectionAbi::from(document_selection);
-    println!("document selection ABI tag = {}", document_abi.tag().raw());
-    describe(Selection::try_from(document_abi)?)?;
-
-    let empty_abi = SelectionAbi::from(Selection::Empty);
-    println!("empty selection ABI tag = {}", empty_abi.tag().raw());
-    describe(Selection::try_from(empty_abi)?)?;
+    // Generated COM APIs now accept these native values directly. Their
+    // checked wire codec is internal to the call boundary.
+    describe(Selection::Element { id: button.id()?, kind: button.kind()? })?;
+    describe(Selection::Document { root_id: document.root_id()? })?;
+    describe(Selection::Empty)?;
 
     Ok(())
 }

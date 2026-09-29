@@ -518,8 +518,7 @@ fn rejects_recursive_and_weakened_required_interfaces() {
     }
 }
 
-/// Every visible macro companion must be reserved, including interface and
-/// payload-variant types; message-only private wire names cannot collide.
+/// Interface companions remain reserved; native value enums emit no public companions.
 #[test]
 fn reserves_all_visible_macro_companions() {
     for suffix in ["Abi", "VTable", "VtblFor", "Client"] {
@@ -527,12 +526,6 @@ fn reserves_all_visible_macro_companions() {
         let source = format!("#[version(1)] interface IFoo {{}} #[version(1)] struct {name} {{ value: u32 }}");
         let error = resolve_modules(vec![module("example/interfaces.ncidl", &source)]).unwrap_err().to_string();
         assert!(error.contains("error[EIDL021]") && error.contains(&name), "{error}");
-    }
-
-    for name in ["ChoiceAbi", "ChoiceTag", "ChoicePayload", "ChoiceSelectedPayload"] {
-        let source = format!("#[version(1)] enum Choice: u8 {{ Selected(u32), Empty }} #[version(1)] struct {name} {{ value: u32 }}");
-        let error = resolve_modules(vec![module("example/enums.ncidl", &source)]).unwrap_err().to_string();
-        assert!(error.contains("error[EIDL021]") && error.contains(name), "{error}");
     }
 
     for suffix in ["Abi", "VTable", "VtblFor", "Client"] {
@@ -548,13 +541,17 @@ fn reserves_all_visible_macro_companions() {
         assert!(error.contains("error[EIDL021]") && error.contains(&name), "{error}");
     }
 
-    for variants in ["Selected(u32)"] {
+    // Copied and owned enums both leave the obsolete public companion names
+    // available to authored values; only internal checked wire helpers remain.
+    for payload in ["u32", "String"] {
         let source = format!(
-            "#[version(1)] enum Choice {{ {variants} }}
-#[version(1)] struct ChoiceAbi {{ value: u32 }}"
+            "#[version(1)] enum Choice {{ Selected({payload}) }}
+             #[version(1)] struct ChoiceAbi {{ value: u32 }}
+             #[version(1)] struct ChoiceTag {{ value: u32 }}
+             #[version(1)] struct ChoicePayload {{ value: u32 }}
+             #[version(1)] struct ChoiceSelectedPayload {{ value: u32 }}"
         );
-        let error = resolve_modules(vec![module("example/messages.ncidl", &source)]).unwrap_err().to_string();
-        assert!(error.contains("error[EIDL021]") && error.contains("ChoiceAbi"), "{error}");
+        resolve_modules(vec![module("example/values.ncidl", &source)]).unwrap();
     }
 
     // An owned message does not invoke `com_enum`; its private wire helpers

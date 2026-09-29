@@ -737,8 +737,7 @@ fn value_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> 
         AbiType::Named(name) => {
             let resolved = resolve(graph, module, name)?;
             match resolved.declaration.kind {
-                DeclarationKind::Struct(_) | DeclarationKind::BitEnum(_) => named_rust_type(graph, module, resolved, false),
-                DeclarationKind::Enum(_) => named_rust_type(graph, module, resolved, true),
+                DeclarationKind::Struct(_) | DeclarationKind::BitEnum(_) | DeclarationKind::Enum(_) => named_rust_type(graph, module, resolved, false),
                 _ => Err(GenerateError::new(format!("{} is not a copied value declaration", name.rust_path()))),
             }
         }
@@ -844,10 +843,11 @@ fn resolve<'a>(graph: &Generation<'a>, module: &ResolvedModule, name: &NamedType
         .ok_or_else(|| GenerateError::new(format!("resolved module {} lost type mapping for {}", module.source.name, name.rust_path())))
 }
 
-/// Selects a local/imported Rust type and optionally its generated ABI suffix.
+/// Selects a native value type or an interface marker from local/imported bindings.
+/// Only interfaces use the Abi suffix; copied values always use their native type.
 fn named_rust_type(graph: &Generation<'_>, module: &ResolvedModule, resolved: ResolvedDeclaration<'_>, abi_suffix: bool) -> Result<TokenStream, GenerateError> {
     let mut name = resolved.declaration.name.clone();
-    if abi_suffix && declaration_has_abi_wrapper(resolved.declaration) {
+    if abi_suffix && matches!(resolved.declaration.kind, DeclarationKind::Interface(_)) {
         name.push_str("Abi");
     }
     let name = rust_ident(&name)?;
@@ -856,15 +856,6 @@ fn named_rust_type(graph: &Generation<'_>, module: &ResolvedModule, resolved: Re
     } else {
         let crate_ident = graph.paths.path(&resolved.module.source.name.to_string())?;
         Ok(quote! { #crate_ident::#name })
-    }
-}
-
-/// Returns whether a generated declaration exposes a separate ABI wrapper type.
-fn declaration_has_abi_wrapper(declaration: &Declaration) -> bool {
-    match &declaration.kind {
-        DeclarationKind::Struct(_) | DeclarationKind::BitEnum(_) => false,
-        DeclarationKind::Enum(enumeration) => enum_has_payload(enumeration),
-        DeclarationKind::Interface(_) => true,
     }
 }
 

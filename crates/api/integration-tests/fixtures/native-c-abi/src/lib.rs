@@ -86,6 +86,33 @@ impl INativeCalculator for NativeCalculator {
     }
 }
 
+#[neocogi_com::com_enum(tag = i32, assigned_signature = b"00000000000000000000000000000043")]
+#[derive(Debug, PartialEq)]
+/// Native enum whose sparse signed tags and restricted bool cross the C boundary.
+pub enum NativeChoice {
+    #[com_tag(-7)]
+    /// A bool is represented as an unrestricted byte until checked decoding.
+    Flag(bool),
+    #[com_tag(20)]
+    /// No payload storage is inspected for this variant.
+    Empty,
+}
+
+#[com_interface(auto_guid = "nc.tests.native_c_abi.Choice:v1", assigned_signature = b"00000000000000000000000000000044")]
+/// Independent C code calls this generated slot using only the explicit wire layout.
+pub trait INativeChoice {
+    /// Returns the checked native value unchanged through the generated output codec.
+    fn echo(&self, value: NativeChoice) -> Result<NativeChoice, NcStatus>;
+}
+#[com_object(interfaces(INativeChoice))]
+/// Stateless native implementation reached only after foreign input validation.
+struct Choice;
+impl INativeChoice for Choice {
+    fn echo(&self, value: NativeChoice) -> Result<NativeChoice, NcStatus> {
+        Ok(value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,6 +178,28 @@ mod tests {
             upgrade: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcWeakControl, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
         ) -> i32;
 
+    }
+
+    unsafe extern "C" {
+        /// Exercises the generated slot using C-owned raw tag and payload records.
+        fn nc_c_exercise_choice(
+            object: *mut core::ffi::c_void,
+            echo: unsafe extern "C" fn(*mut core::ffi::c_void, <NativeChoice as neocogi_com::ComValue>::Wire, *mut <NativeChoice as neocogi_com::ComValue>::Wire) -> NcStatus,
+            invalid_tag: NcStatus,
+            invalid_bool: NcStatus,
+        ) -> i32;
+    }
+
+    /// C sees a fixed wire record even though the Rust provider uses a native enum.
+    #[test]
+    fn native_c_validates_copied_enum_tags_and_boolean_payloads() {
+        let choice = Choice::from_value(Choice).query::<INativeChoiceAbi>().unwrap();
+        let raw = choice.as_raw();
+        // SAFETY: the owned object/table outlive the C call; C provides initialized
+        // wire inputs and writable outputs and never retains either pointer.
+        assert_eq!(unsafe {
+            nc_c_exercise_choice(raw.object, (*raw.vtable).echo, neocogi_com::NC_E_INVALID_TAG, neocogi_com::NC_E_INVALID_ARG)
+        }, 1);
     }
 
     /// Plain C retains/releases the weak token and promotes the exact generated contract.

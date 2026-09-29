@@ -1,4 +1,4 @@
-use neocogi_com::{ComPtr, IUnknown, NcStatus, com_object, com_enum, com_int_enum, com_interface};
+use neocogi_com::{ComValue, ComPtr, IUnknown, NcStatus, com_object, com_enum, com_int_enum, com_interface};
 
 com_int_enum! {
     /// Stable node kinds used by this example's COM ABI.
@@ -104,9 +104,11 @@ fn main() -> Result<(), NcStatus> {
     println!("future node kind {} is known? {}", future_kind.raw(), future_kind.is_known());
 
     let mutation = TreeMutation::AttributeChanged { element: 42, name_id: 7 };
-    let mutation_abi = TreeMutationAbi::from(mutation);
-    println!("mutation ABI tag = {}", mutation_abi.tag().raw());
-    println!("mutation round trip = {:?}", TreeMutation::try_from(mutation_abi));
+    let (wire, _storage) = mutation.encode_value(&mut Default::default())?;
+    println!("mutation wire tag = {}", wire.tag);
+    // SAFETY: the checked encoder supplied this self-contained raw value.
+    let decoded = unsafe { TreeMutation::decode_value(wire, &mut Default::default()) }?;
+    println!("mutation round trip = {decoded:?}");
 
     let _ = NodeKind::DOCUMENT;
     Ok(())

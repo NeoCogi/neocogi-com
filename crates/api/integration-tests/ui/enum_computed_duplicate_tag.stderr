@@ -1,0 +1,16 @@
+error[E0080]: evaluation panicked: duplicate #[com_enum] tag value
+ --> integration-tests/ui/enum_computed_duplicate_tag.rs:8:1
+  |
+8 | #[com_enum(tag = i64, assigned_signature = b"77777777777777777777777777777777")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `_` failed here
+
+warning: unreachable pattern
+  --> integration-tests/ui/enum_computed_duplicate_tag.rs:12:15
+   |
+10 |     #[com_tag(TAG)]
+   |               --- matches all the relevant values
+11 |     First(u32),
+12 |     #[com_tag(ALIAS)]
+   |               ^^^^^ no value can reach this
+   |
+   = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
