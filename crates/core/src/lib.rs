@@ -48,6 +48,8 @@ mod ptr;
 #[path = "raw.rs"]
 mod raw_handle;
 mod ref_count;
+/// Common allocation header and non-generic strong/weak lifetime operations.
+pub mod lifetime;
 mod weak;
 pub use weak::{WeakComPtr, NcWeakRaw, NcWeakVTable};
 mod value_buffer;
