@@ -116,6 +116,19 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
             None => Ok(None),
         }
     }
+    /// Transfers this token to the universal COM identity without promotion.
+    ///
+    /// Every valid COM object supports IUnknown with the same threading capability.
+    /// This consumes the existing weak owner without cloning it, querying the
+    /// value, or extending its strong lifetime. It is useful for diagnostics and
+    /// heterogeneous identity collections; event payloads retain their own types.
+    pub fn into_unknown(self) -> WeakComPtr<IUnknown, M> {
+        WeakComPtr {
+            raw: self.into_raw(),
+            marker: PhantomData,
+        }
+    }
+
     /// Compares canonical lifetime identities without promoting either object.
     /// Retaining the control blocks prevents address reuse while comparison is possible.
     pub fn same_object<U: ComInterface + ?Sized, N: ThreadingModel>(&self, other: &WeakComPtr<U, N>) -> bool {

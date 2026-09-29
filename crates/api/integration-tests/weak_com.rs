@@ -335,3 +335,25 @@ fn aligned_objects_keep_typed_weak_lifetimes() {
     assert_eq!(drops.load(Ordering::SeqCst), 1);
     assert!(weak.upgrade().unwrap().is_none());
 }
+
+/// Universal identity conversion transfers the weak token without touching a value,
+/// and preserves both live promotion and the expired control identity.
+#[test]
+fn weak_unknown_conversion_preserves_identity_without_retaining_the_value() {
+    let drops = Arc::new(AtomicUsize::new(0));
+    let owner = Value::from_value(Value {
+        drops: drops.clone(),
+        closed: false,
+        origin: None,
+    });
+    let derived = owner.query::<IDerivedAbi>().unwrap().downgrade().unwrap();
+    let identity = derived.clone().into_unknown();
+    assert!(identity.same_object(&derived));
+    let promoted = identity.upgrade().unwrap().unwrap();
+    assert!(promoted.as_com_ref().same_object(owner.as_com_ref()));
+    drop((owner, promoted));
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    let expired = derived.into_unknown();
+    assert!(expired.same_object(&identity));
+    assert!(expired.upgrade().unwrap().is_none());
+}
