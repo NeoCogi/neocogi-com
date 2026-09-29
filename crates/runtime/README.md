@@ -19,10 +19,18 @@ Parameterized construction happens through typed factory methods. Different
 unconnected contract revisions may coexist in the process.
 
 Library loading, getters, factory calls, and debug callbacks run outside the
-catalog write lock. Required live-load failure is diagnosed and fatal; opened
-libraries remain pinned for process lifetime. Inspection validates and borrows
-metadata without registration or activation. It exposes plugin/factory data,
-not a runtime inventory of contract declarations.
+catalog write lock. Every application plugin load is mandatory, including
+loads requested by the designer. Load failure diagnoses and aborts the process;
+there is no recoverable loading facade. The internal loader's `Result` carries
+diagnostics and lets it pin an opened library before the C boundary aborts.
+It is not an application retry policy. The Rust facade also aborts on path
+conversion, raw argument-validation, or loaded-summary errors.
+
+Opened libraries remain pinned for process lifetime. Inspection separately
+validates and borrows metadata without registration or activation and can return
+errors. It exposes plugin/factory data, not a runtime inventory of contract
+declarations. Static registration and later factory calls retain their existing
+status-returning contracts; they are separate operations from live loading.
 
 Runtime ABI v1 has five size-prefixed C tables: operations, plugin enumeration,
 inspection, diagnostics, and caller-scoped persistence. Plugin descriptor ABI v1

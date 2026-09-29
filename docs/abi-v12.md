@@ -367,10 +367,20 @@ plugin atomically and does not invoke bootstrap. Re-registering the same static
 descriptor is idempotent. No contract graph is traversed or registered.
 
 Dynamic loading is for trusted code. Mapping a library may execute platform
-loader initialization before metadata can be validated. Required live-load
-failure is process-fatal after diagnostics; successful and post-open failed
-modules remain pinned so no borrowed code/data pointer can outlive its library.
-Hot unload/reload is outside this ABI.
+loader initialization before metadata can be validated. Every application
+live-load failure is process-fatal after diagnostics, including designer loads.
+`Runtime::load_plugin_library` returns a module only on success; it has no
+recoverable `try_` counterpart. Batch loading uses the same terminal failure rule.
+The internal loader can return errors to finish pinning and diagnostic work;
+the C boundary aborts on native loading/registration failure. Raw argument
+validation can return a status before activation, which the Rust facade also
+consumes fatally. A loaded-summary failure in the facade likewise aborts.
+
+Successful and post-open failed modules remain pinned so no borrowed code/data
+pointer can outlive its library. Inspection without registration or activation
+remains fallible and is not an alternative live-loading policy. Hot unload/reload
+is outside this ABI. This policy preserves the existing C loading operation,
+calling convention, and runtime generation.
 
 ## 8. Runtime ABI v1
 

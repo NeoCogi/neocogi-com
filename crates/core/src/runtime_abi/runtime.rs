@@ -26,7 +26,11 @@ pub struct NcRuntimeApiV1 {
     /// nonempty UTF-8 path without interior NUL bytes.
     ///
     /// The library must export `nc_get_factory_plugin_description_v1`. Class-table
-    /// descriptor exports are not an activation mechanism.
+    /// descriptor exports are not an activation mechanism. After argument
+    /// validation, any native loading, description, dependency, or registration
+    /// failure emits diagnostics and aborts the entire application. There is no
+    /// recoverable activation mode. Raw argument errors return a status before
+    /// activation; application loading wrappers must treat those as fatal too.
     pub load_plugin_library_utf8: unsafe extern "C" fn(path: *const u8, path_len: usize, out_module_id: *mut u64) -> NcStatus,
     /// Activates one registered plugin's root factory after checking its exact
     /// interface identity and requested threading capability.

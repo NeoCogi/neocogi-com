@@ -186,8 +186,16 @@ let button = factory.create_button()?;
 plugin metadata and hard dependencies, and registers the plugin atomically.
 Activation compares the exact factory signature before invoking bootstrap.
 Unconnected contract revisions can coexist; incompatible calls fail with
-`NC_E_ABI_VERSION`. Required live-load failures diagnose and abort. Loaded
-libraries remain mapped until process exit.
+`NC_E_ABI_VERSION`. Every live plugin load is mandatory: path conversion,
+loading, metadata validation, dependency, registration, and loaded-summary
+failures diagnose and abort the entire application. This includes designer
+startup. `load_plugin_library` returns a loaded module only on success;
+there is no recoverable `try_load_plugin_library` operation. Batch loading
+uses the same policy for each library. Loaded libraries remain mapped until
+process exit.
+
+Inspection is a separate operation that can report errors without registering
+or activating a plugin. Its fallible result does not make live loading optional.
 
 For static assemblies, register the descriptor before using the same typed
 activation method:
