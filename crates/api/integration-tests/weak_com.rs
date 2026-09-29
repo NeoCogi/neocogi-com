@@ -248,3 +248,90 @@ fn failed_cyclic_initialization_never_publishes_a_value() {
     assert!(matches!(result, Err(neocogi_com::NC_E_NOINTERFACE)));
     assert!(!called);
 }
+
+/// Promotion transfers exactly one owner; neither negotiation nor failure retains extras.
+#[test]
+fn raw_promotion_balances_success_and_all_rejection_paths() {
+    use neocogi_com::{ComInterface, NcGuid, NcInterfaceId, NC_E_NOINTERFACE, NC_E_POINTER, NC_OK};
+    let drops = Arc::new(AtomicUsize::new(0));
+    let owner = Value::from_value(Value {
+        drops: drops.clone(),
+        closed: false,
+        origin: None,
+    });
+    let weak = owner.downgrade().unwrap();
+    let token = weak.as_raw();
+    let table = owner.as_raw().vtable;
+    let missing = NcInterfaceId::new(NcGuid::from_uuid_bytes([0x42; 16]), IValueAbi::INTERFACE_ID.abi_signature);
+    let mut out = owner.as_raw();
+    // SAFETY: all non-null arguments below are distinct live records for this allocation.
+    unsafe {
+        assert_eq!(((*token.vtable).upgrade)(token.control, &missing, &mut out), NC_E_NOINTERFACE);
+        assert!(!out.is_present());
+        assert_eq!(((*token.vtable).upgrade)(token.control, core::ptr::null(), &mut out), NC_E_POINTER);
+        assert!(!out.is_present());
+        assert_eq!(
+            ((*token.vtable).upgrade)(core::ptr::null_mut(), &IValueAbi::INTERFACE_ID, &mut out),
+            NC_E_POINTER
+        );
+        assert!(!out.is_present());
+        assert_eq!(
+            ((*token.vtable).upgrade)(token.control, &IValueAbi::INTERFACE_ID, core::ptr::null_mut()),
+            NC_E_POINTER
+        );
+        // A balanced diagnostic retain/release proves failed promotion leaked no owner.
+        assert_eq!(((*table).add_ref)(owner.as_raw().object), 2);
+        assert_eq!(((*table).release)(owner.as_raw().object), 1);
+        assert_eq!(((*token.vtable).upgrade)(token.control, &IValueAbi::INTERFACE_ID, &mut out), NC_OK);
+        assert_eq!(((*table).add_ref)(owner.as_raw().object), 3);
+        assert_eq!(((*table).release)(owner.as_raw().object), 2);
+        drop(ComPtr::<IUnknown>::from_raw_owned(out).unwrap());
+        assert_eq!(((*table).add_ref)(owner.as_raw().object), 2);
+        assert_eq!(((*table).release)(owner.as_raw().object), 1);
+    }
+    drop(owner);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    // Expiration takes precedence over negotiation, preserving the original protocol.
+    // SAFETY: the weak control survives value destruction; output is distinct and writable.
+    assert_eq!(unsafe { ((*token.vtable).upgrade)(token.control, &missing, &mut out) }, NC_E_CLOSED);
+    assert!(!out.is_present());
+}
+
+#[com_object(IValue)]
+#[repr(align(128))]
+/// Overaligned payload ensures shared lifetime helpers respect the actual Arc<T> layout.
+struct AlignedValue {
+    /// Domain behavior and destruction observations owned by this allocation.
+    value: Value,
+}
+impl IValue for AlignedValue {
+    /// Forwards a read through the same generated call gate as ordinary storage.
+    fn value(&self) -> Result<u32, NcStatus> {
+        self.value.value()
+    }
+    /// Domain closure remains independent of the allocation's alignment and lifetime.
+    fn close(&mut self) -> Result<(), NcStatus> {
+        self.value.close()
+    }
+}
+
+/// Public Arc operations must handle nondefault alignment without private header arithmetic.
+#[test]
+fn aligned_objects_keep_typed_weak_lifetimes() {
+    let drops = Arc::new(AtomicUsize::new(0));
+    let owner = AlignedValue::from_value(AlignedValue {
+        value: Value {
+            drops: drops.clone(),
+            closed: false,
+            origin: None,
+        },
+    });
+    let weak = owner.query::<IValueAbi>().unwrap().downgrade().unwrap();
+    let promoted = weak.upgrade().unwrap().unwrap();
+    drop(owner);
+    assert_eq!(promoted.value().unwrap(), 42);
+    assert_eq!(drops.load(Ordering::SeqCst), 0);
+    drop(promoted);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    assert!(weak.upgrade().unwrap().is_none());
+}

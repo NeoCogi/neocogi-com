@@ -358,19 +358,9 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
 
             /// Returns the same weak control identity from every interface projection.
             unsafe extern "C" fn downgrade_from_abi_object(object: *mut core::ffi::c_void, out: *mut #nc::NcWeakRaw) -> #nc::NcStatus {
-                if out.is_null() { return #nc::NC_E_POINTER; }
-                // SAFETY: caller supplies one valid, distinct output record.
-                unsafe { *out = #nc::NcWeakRaw::null(); }
-                if object.is_null() { return #nc::NC_E_POINTER; }
-                // SAFETY: borrow the live strong owner without consuming its reference.
-                let owner = core::mem::ManuallyDrop::new(unsafe { #nc::__alloc::sync::Arc::from_raw(object.cast::<#storage_type>()) });
-                let weak = #nc::__alloc::sync::Arc::downgrade(&owner);
-                // SAFETY: transfer one weak reference with allocator-local callbacks.
-                unsafe { *out = #nc::NcWeakRaw {
-                    control: #nc::__alloc::sync::Weak::into_raw(weak).cast_mut().cast(),
-                    vtable: &<#storage_type>::WEAK_VTABLE,
-                }; }
-                #nc::NC_OK
+                // SAFETY: this callback is published only for this exact Arc storage;
+                // the shared helper receives its allocator-local weak table as data.
+                unsafe { #nc::__com_arc_downgrade::<#storage_type>(object, out, &<#storage_type>::WEAK_VTABLE) }
             }
 
         }
@@ -406,18 +396,10 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                 requested: *const #nc::NcInterfaceId,
                 out: *mut #nc::ComRaw<#nc::IUnknown>,
             ) -> #nc::NcStatus {
-                if out.is_null() { return #nc::NC_E_POINTER; }
-                // SAFETY: output is valid and distinct from the weak control allocation.
-                unsafe { *out = #nc::ComRaw::null(); }
-                if control.is_null() || requested.is_null() { return #nc::NC_E_POINTER; }
-                // SAFETY: borrowing does not consume the caller's retained weak reference.
-                let weak = core::mem::ManuallyDrop::new(unsafe { #nc::__alloc::sync::Weak::<Self>::from_raw(control.cast()) });
-                let Some(owner) = weak.upgrade() else { return #nc::NC_E_CLOSED; };
-                // SAFETY: owner holds the initialized value throughout the query; its
-                // successful transfer adds a distinct strong owner before this one drops.
-                unsafe { <#object_type as #nc::ComAbiObject>::query_interface_from_abi_object(
-                    #nc::__alloc::sync::Arc::as_ptr(&owner).cast_mut().cast(), requested, out,
-                ) }
+                // SAFETY: this provider owns the typed Weak token and all matching
+                // projection tables. Promotion transfers its acquired owner directly,
+                // without a second QueryInterface retain and temporary Release.
+                unsafe { #nc::__com_arc_upgrade::<Self>(control, requested, out, &<#object_type>::COM_VTABLES) }
             }
 
             /// Canonical strong root table, separate from the weak lifetime operations.

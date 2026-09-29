@@ -531,7 +531,10 @@ pub use object::{
     __com_query_interfaces, __ComCallGate, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComObject,
     ThreadSafeComObject,
 };
+mod arc_lifetime;
 mod local;
+#[doc(hidden)]
+pub use arc_lifetime::{__com_arc_downgrade, __com_arc_upgrade};
 pub use local::{LocalCom, LocalMut, LocalRef};
 #[doc(hidden)]
 pub use neocogi_com_core::__ComSupportsInterfaceThreading;
