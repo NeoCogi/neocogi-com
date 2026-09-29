@@ -1,8 +1,8 @@
 //! Reference-count primitives and object hooks used by generated COM classes.
 //!
-//! Generated class storage uses private Arc strong/weak lifetime counters and no interface headers.
-//! Object/table handles select each implemented interface. The helpers here implement saturating `AddRef` and
-//! non-underflowing `Release`; the unsafe traits describe how generated thunks
+//! Generated class storage uses the common COM strong/weak control header and no interface headers.
+//! Object/table handles select each implemented interface. Shared lifetime functions
+//! live in COM core; the unsafe traits here describe how generated thunks
 //! access the concrete Rust value from the allocation address, perform
 //! interface negotiation, and destroy storage on the final release. They are
 //! public only as hidden macro support and are not the ordinary end-user API.
@@ -10,7 +10,7 @@
 use core::ffi::c_void;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-use neocogi_com_core::{NC_E_BUSY, NC_E_POINTER, NcInterfaceId, NcStatus, ThreadSafe, ThreadingModel};
+use neocogi_com_core::{NC_E_BUSY, NC_E_POINTER, NcStatus, ThreadSafe, ThreadingModel};
 
 /// Sentinel held while one generated COM method has exclusive object access.
 const EXCLUSIVE_CALL: usize = usize::MAX;
@@ -182,55 +182,14 @@ impl Drop for ExclusiveCall<'_> {
 
 pub use neocogi_com_core::{__com_add_ref_count, __com_release_ref_count};
 
-/// Shared query body used by generated objects regardless of their Rust state.
-/// The small generated adapter supplies its retain operation and static tables;
-/// this function knows no field offsets or concrete implementation types.
-///
-/// A per-type table address prevents identical generated query bodies from being
-/// merged. Passing that address as data preserves one copy of validation, lookup,
-/// retention and output publication, rather than hoping the linker merges them.
-///
-/// # Safety
-/// Object must identify the live allocation owning references. Tables must be
-/// immutable matching projections of that allocation. Non-null requested/out
-/// pointers must be readable/writable for one record and must not alias storage.
-#[doc(hidden)]
-#[inline(never)]
-pub unsafe fn __com_query_interfaces(
-    object: *mut c_void,
-    add_ref: unsafe extern "C" fn(*mut c_void) -> u32,
-    tables: &[*const crate::IUnknownVTable],
-    requested: *const NcInterfaceId,
-    out: *mut crate::ComRaw<crate::IUnknown>,
-) -> NcStatus {
-    if requested.is_null() || out.is_null() {
-        return NC_E_POINTER;
-    }
-    // SAFETY: valid output storage is distinct from this allocation and request.
-    unsafe {
-        *out = crate::ComRaw::null();
-    }
-    // SAFETY: generated tables and the requested identity remain live for this call.
-    match unsafe { crate::__nc_find_interface(tables, &*requested) } {
-        Ok(vtable) => {
-            // SAFETY: the caller retains the source while its provider adds an owner.
-            unsafe { add_ref(object) };
-            // SAFETY: retain transferred one owner with the exact requested table.
-            unsafe {
-                *out = crate::ComRaw { object, vtable };
-            }
-            crate::NC_OK
-        }
-        Err(status) => status,
-    }
-}
-
 /// Implemented by generated COM class storage.
 ///
 /// # Safety
 ///
 /// Implementors must map opaque generated storage pointers back to the exact
-/// allocation and Rust value that produced them. Reference-count operations must
+/// allocation and Rust value that produced them. Every allocation must begin with
+/// `lifetime::NcWeakControl`, whose permanent class descriptor lists its matching
+/// projections and concrete destruction/deallocation callbacks. Shared lifetime operations must
 /// keep the allocation alive until the final `Release`, and `QueryInterface`
 /// must only return tables paired with that same allocation address.
 ///
@@ -254,59 +213,6 @@ pub unsafe trait ComAbiObject: Sized {
     /// matching generated `#[com_object]` implementation. The object allocation
     /// must remain live until the returned lease is dropped.
     unsafe fn borrow_abi_mut<'a>(object: *mut c_void) -> Result<__ComExclusiveLease<'a, Self>, NcStatus>;
-
-    /// Implements `QueryInterface` for generated interface thunks.
-    ///
-    /// # Safety
-    ///
-    /// `object` must be valid generated storage, `interface_id` must point to a
-    /// readable initialized identity, and `out` must point to a distinct slot
-    /// valid for one ComRaw record write. Given those preconditions, `NC_OK` writes
-    /// one present owned interface pair to `*out`; every other returned
-    /// status leaves both fields of `*out` null and transfers no reference. Null or otherwise
-    /// invalid arguments violate this safety contract even when an
-    /// implementation rejects them defensively.
-    unsafe extern "C" fn query_interface_from_abi_object(
-        object: *mut c_void,
-        interface_id: *const NcInterfaceId,
-        out: *mut crate::ComRaw<crate::IUnknown>,
-    ) -> NcStatus;
-
-    /// Increments the reference count for generated object storage.
-    ///
-    /// The returned count is a diagnostic snapshot, not a synchronization
-    /// primitive. Generated owners use Arc's checked lifetime counters.
-    ///
-    /// # Safety
-    ///
-    /// `object` must be valid generated storage or null.
-    unsafe extern "C" fn add_ref_from_abi_object(object: *mut c_void) -> u32;
-
-    /// Decrements the reference count for generated object storage.
-    ///
-    /// # Safety
-    ///
-    /// `object` must be valid generated storage or null. When the returned count
-    /// reaches zero, the implementation destroys the value immediately. Weak
-    /// references may retain empty storage. Final release cannot report fallible
-    /// cleanup errors, defer value destruction, or resurrect the object.
-    unsafe extern "C" fn release_from_abi_object(object: *mut c_void) -> u32;
-
-    /// Creates one allocator-independent weak lifetime token when supported.
-    ///
-    /// # Safety
-    /// `object` must be live matching storage and `out` a distinct writable record.
-    /// Success transfers one weak reference; every error clears the output.
-    unsafe extern "C" fn downgrade_from_abi_object(_object: *mut c_void, out: *mut crate::NcWeakRaw) -> NcStatus {
-        if out.is_null() {
-            return crate::NC_E_POINTER;
-        }
-        // SAFETY: the trait caller provides a valid output record.
-        unsafe {
-            *out = crate::NcWeakRaw::null();
-        }
-        crate::NC_E_NOINTERFACE
-    }
 }
 
 /// Associates a generated COM implementation object with the strongest

@@ -137,12 +137,14 @@ pub trait IShared {
 #[com_object(interfaces(IShared), thread_safe)]
 /// Shared implementation contains only synchronized destruction observations.
 struct SharedValue {
+    /// Ordinary initialized data observed only after successful promotion.
+    published: u32,
     /// Incremented exactly once when the last successful promotion/owner disappears.
     drops: Arc<AtomicUsize>,
 }
 impl IShared for SharedValue {
     fn value(&self) -> Result<u32, NcStatus> {
-        Ok(7)
+        Ok(self.published)
     }
 }
 impl Drop for SharedValue {
@@ -156,7 +158,9 @@ impl Drop for SharedValue {
 fn shared_promotion_races_final_release_without_resurrection() {
     for _ in 0..64 {
         let drops = Arc::new(AtomicUsize::new(0));
-        let owner = SharedValue::from_value(SharedValue { drops: drops.clone() }).query::<ISharedAbi>().unwrap();
+        let owner = SharedValue::from_value(SharedValue { published: 7, drops: drops.clone() })
+            .query::<ISharedAbi>()
+            .unwrap();
         let weak = owner.downgrade().unwrap();
         let barrier = Arc::new(std::sync::Barrier::new(2));
         let peer_weak = weak.clone();
@@ -180,9 +184,13 @@ fn shared_promotion_races_final_release_without_resurrection() {
 
 /// Core smart pointers do not grow when weak lifetime support is added to allocations.
 #[test]
-fn handles_keep_two_word_storage() {
+fn strong_handles_keep_two_words_and_weak_handles_use_one() {
     assert_eq!(std::mem::size_of::<ComPtr<IUnknown>>(), 2 * std::mem::size_of::<usize>());
-    assert_eq!(std::mem::size_of::<WeakComPtr<IUnknown>>(), 2 * std::mem::size_of::<usize>());
+    assert_eq!(std::mem::size_of::<WeakComPtr<IUnknown>>(), std::mem::size_of::<usize>());
+    assert_eq!(std::mem::size_of::<Option<WeakComPtr<IUnknown>>>(), std::mem::size_of::<usize>());
+    assert_eq!(std::mem::size_of::<neocogi_com::NcWeakRaw>(), std::mem::size_of::<usize>());
+    assert_eq!(std::mem::size_of::<neocogi_com::lifetime::NcWeakControl>(), 3 * std::mem::size_of::<usize>());
+    assert_eq!(std::mem::size_of::<neocogi_com::lifetime::NcClassLifetime>(), 4 * std::mem::size_of::<usize>());
 }
 
 /// Providers can decline weak lifetime support without inventing a wrapper lifetime.
@@ -192,17 +200,11 @@ fn handwritten_provider_without_weak_support_returns_an_explicit_error() {
     assert!(matches!(bytes.downgrade(), Err(neocogi_com::NC_E_NOINTERFACE)));
 }
 
-/// Shape rejection never constructs a dropping owner for an empty or partial token.
+/// Shape rejection never constructs a dropping owner for an empty token.
 #[test]
 fn absent_weak_tokens_are_rejected_without_accessing_their_pointers() {
     // SAFETY: absent records transfer no reference and require no readable allocation.
     assert!(unsafe { WeakComPtr::<IUnknown>::from_raw_owned(neocogi_com::NcWeakRaw::null()) }.is_none());
-    let partial = neocogi_com::NcWeakRaw {
-        control: std::ptr::dangling_mut::<u8>().cast(),
-        vtable: std::ptr::null(),
-    };
-    // SAFETY: the incomplete shape transfers nothing and is rejected before dereference.
-    assert!(unsafe { WeakComPtr::<IUnknown>::from_raw_owned(partial) }.is_none());
 }
 
 /// Failed raw promotion clears the output and neither leaks nor transfers a strong owner.
@@ -220,7 +222,7 @@ fn weak_promotion_checks_exact_interface_revision() {
     let wrong = neocogi_com::NcInterfaceId::new(IValueAbi::IID, neocogi_com::NcAbiSignature::from_static(&[0; 32]));
     let mut out = owner.as_raw();
     // SAFETY: a real live weak allocation and distinct valid records exercise a wrong signature.
-    let status = unsafe { ((*raw.vtable).upgrade)(raw.control, &wrong, &mut out) };
+    let status = unsafe { neocogi_com::lifetime::nc_weak_upgrade(raw.control, &wrong, &mut out) };
     assert_eq!(status, neocogi_com::NC_E_ABI_VERSION);
     assert!(!out.is_present());
     drop(owner);
@@ -266,23 +268,23 @@ fn raw_promotion_balances_success_and_all_rejection_paths() {
     let mut out = owner.as_raw();
     // SAFETY: all non-null arguments below are distinct live records for this allocation.
     unsafe {
-        assert_eq!(((*token.vtable).upgrade)(token.control, &missing, &mut out), NC_E_NOINTERFACE);
+        assert_eq!(neocogi_com::lifetime::nc_weak_upgrade(token.control, &missing, &mut out), NC_E_NOINTERFACE);
         assert!(!out.is_present());
-        assert_eq!(((*token.vtable).upgrade)(token.control, core::ptr::null(), &mut out), NC_E_POINTER);
+        assert_eq!(neocogi_com::lifetime::nc_weak_upgrade(token.control, core::ptr::null(), &mut out), NC_E_POINTER);
         assert!(!out.is_present());
         assert_eq!(
-            ((*token.vtable).upgrade)(core::ptr::null_mut(), &IValueAbi::INTERFACE_ID, &mut out),
+            neocogi_com::lifetime::nc_weak_upgrade(core::ptr::null_mut(), &IValueAbi::INTERFACE_ID, &mut out),
             NC_E_POINTER
         );
         assert!(!out.is_present());
         assert_eq!(
-            ((*token.vtable).upgrade)(token.control, &IValueAbi::INTERFACE_ID, core::ptr::null_mut()),
+            neocogi_com::lifetime::nc_weak_upgrade(token.control, &IValueAbi::INTERFACE_ID, core::ptr::null_mut()),
             NC_E_POINTER
         );
         // A balanced diagnostic retain/release proves failed promotion leaked no owner.
         assert_eq!(((*table).add_ref)(owner.as_raw().object), 2);
         assert_eq!(((*table).release)(owner.as_raw().object), 1);
-        assert_eq!(((*token.vtable).upgrade)(token.control, &IValueAbi::INTERFACE_ID, &mut out), NC_OK);
+        assert_eq!(neocogi_com::lifetime::nc_weak_upgrade(token.control, &IValueAbi::INTERFACE_ID, &mut out), NC_OK);
         assert_eq!(((*table).add_ref)(owner.as_raw().object), 3);
         assert_eq!(((*table).release)(owner.as_raw().object), 2);
         drop(ComPtr::<IUnknown>::from_raw_owned(out).unwrap());
@@ -293,13 +295,16 @@ fn raw_promotion_balances_success_and_all_rejection_paths() {
     assert_eq!(drops.load(Ordering::SeqCst), 1);
     // Expiration takes precedence over negotiation, preserving the original protocol.
     // SAFETY: the weak control survives value destruction; output is distinct and writable.
-    assert_eq!(unsafe { ((*token.vtable).upgrade)(token.control, &missing, &mut out) }, NC_E_CLOSED);
+    assert_eq!(
+        unsafe { neocogi_com::lifetime::nc_weak_upgrade(token.control, &missing, &mut out) },
+        NC_E_CLOSED
+    );
     assert!(!out.is_present());
 }
 
 #[com_object(IValue)]
 #[repr(align(128))]
-/// Overaligned payload ensures shared lifetime helpers respect the actual Arc<T> layout.
+/// Overaligned payload ensures shared lifetime helpers respect the concrete allocation layout.
 struct AlignedValue {
     /// Domain behavior and destruction observations owned by this allocation.
     value: Value,
@@ -315,7 +320,7 @@ impl IValue for AlignedValue {
     }
 }
 
-/// Public Arc operations must handle nondefault alignment without private header arithmetic.
+/// Header-first storage must preserve nondefault value alignment through promotion and final freeing.
 #[test]
 fn aligned_objects_keep_typed_weak_lifetimes() {
     let drops = Arc::new(AtomicUsize::new(0));
@@ -356,4 +361,67 @@ fn weak_unknown_conversion_preserves_identity_without_retaining_the_value() {
     let expired = derived.into_unknown();
     assert!(expired.same_object(&identity));
     assert!(expired.upgrade().unwrap().is_none());
+}
+
+/// All generated concrete types publish the actual shared entry points, even in
+/// debug builds: code sharing does not depend on linker folding or generics.
+#[test]
+fn unrelated_classes_publish_the_same_lifetime_functions() {
+    use neocogi_com::lifetime::*;
+    let drops = Arc::new(AtomicUsize::new(0));
+    let make = || Value {
+        drops: drops.clone(),
+        closed: false,
+        origin: None,
+    };
+    let first = Value::from_value(make());
+    let second = AlignedValue::from_value(AlignedValue { value: make() });
+    for raw in [first.as_raw(), second.as_raw(), first.query::<IValueAbi>().unwrap().as_raw().cast()] {
+        // SAFETY: both retained owners keep these immutable projection tables live.
+        let table = unsafe { &*raw.vtable };
+        assert!(std::ptr::fn_addr_eq(
+            table.query_interface,
+            nc_query_interface as unsafe extern "C" fn(_, _, _) -> _
+        ));
+        assert!(std::ptr::fn_addr_eq(table.add_ref, nc_strong_retain as unsafe extern "C" fn(_) -> _));
+        assert!(std::ptr::fn_addr_eq(table.release, nc_strong_release as unsafe extern "C" fn(_) -> _));
+        assert!(std::ptr::fn_addr_eq(table.downgrade.unwrap(), nc_downgrade as unsafe extern "C" fn(_, _) -> _));
+    }
+    drop((first, second));
+    assert_eq!(drops.load(Ordering::SeqCst), 2);
+}
+
+/// A weak owner can cross threads before publication, but must not expose the
+/// uninitialized payload. Promotion's Acquire observes the constructor's writes.
+#[test]
+fn concurrent_cyclic_origin_observes_only_published_value() {
+    let drops = Arc::new(AtomicUsize::new(0));
+    let (ready, started) = std::sync::mpsc::channel();
+    let mut peer = None;
+    let owner = SharedValue::from_value_cyclic::<ISharedAbi>(|origin| {
+        peer = Some(std::thread::spawn(move || {
+            assert!(origin.upgrade().unwrap().is_none());
+            ready.send(()).unwrap();
+            let limit = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            loop {
+                match origin.upgrade().unwrap() {
+                    Some(value) => return value.value().unwrap(),
+                    None => {
+                        assert!(std::time::Instant::now() < limit, "constructor failed to publish");
+                        std::thread::yield_now();
+                    }
+                }
+            }
+        }));
+        started.recv().unwrap();
+        SharedValue {
+            published: 0x12345678,
+            drops: drops.clone(),
+        }
+    })
+    .unwrap();
+    assert_eq!(peer.unwrap().join().unwrap(), 0x12345678);
+    assert_eq!(drops.load(Ordering::SeqCst), 0);
+    drop(owner);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
 }

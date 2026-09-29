@@ -1,5 +1,7 @@
 # neocogi-com core ABI v11
 
+Historical specification: current code implements [core ABI v12](abi-v12.md).
+
 This document specifies the current experimental Rust-to-Rust component ABI.
 The authoritative layouts are the public `#[repr(C)]` definitions in
 `neocogi-com-core`; this guide explains how those layouts compose.

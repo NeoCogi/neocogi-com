@@ -76,14 +76,20 @@ impl Drop for Lifetime {
     }
 }
 
-/// Interface count adds no payload storage; Arc owns the strong/weak header separately.
+/// Interface count adds no payload storage; the common control header and call gate have fixed size.
 #[test]
 fn repeated_diamond_adds_no_per_object_interface_storage() {
     assert_eq!(ITopAbi::INTERFACE_CHAIN.len(), 15);
     assert_eq!(Diamond::<()>::COM_INTERFACE_COUNT, 16); // Includes canonical IUnknown.
-    assert_eq!(core::mem::offset_of!(DiamondComObject<()>, value), core::mem::size_of::<usize>());
+    assert_eq!(
+        core::mem::offset_of!(DiamondComObject<()>, value),
+        core::mem::size_of::<neocogi_com::lifetime::NcWeakControl>() + core::mem::size_of::<usize>()
+    );
     // A second state specialization must use exactly the same contract set.
-    assert_eq!(core::mem::offset_of!(DiamondComObject<Lifetime>, value), core::mem::size_of::<usize>());
+    assert_eq!(
+        core::mem::offset_of!(DiamondComObject<Lifetime>, value),
+        core::mem::size_of::<neocogi_com::lifetime::NcWeakControl>() + core::mem::size_of::<usize>()
+    );
     let object = Diamond::from_value(Diamond { value: 7, _lifetime: () });
     let top = object.query::<ITopAbi>().unwrap();
     assert_eq!(top.value(), Ok(7)); // Calls the inherited physical vtable prefix.
@@ -248,7 +254,10 @@ fn unknown_only_generic_owner_has_no_interface_storage() {
     assert_eq!(UnknownOnly::<u32>::COM_INTERFACE_COUNT, 1);
     assert_eq!(owner.try_borrow().unwrap().value, 42);
     assert!(matches!(unknown.query::<IA0Abi>(), Err(NC_E_NOINTERFACE)));
-    assert_eq!(core::mem::offset_of!(UnknownOnlyComObject<u32>, value), core::mem::size_of::<usize>());
+    assert_eq!(
+        core::mem::offset_of!(UnknownOnlyComObject<u32>, value),
+        core::mem::size_of::<neocogi_com::lifetime::NcWeakControl>() + core::mem::size_of::<usize>()
+    );
 }
 
 #[com_object(interfaces(IA0, IB0, IA1))]
@@ -281,7 +290,10 @@ fn explicit_roots_reuse_their_inherited_contracts() {
     assert_eq!(child.query::<IA0Abi>().unwrap().as_raw(), root.as_raw());
     assert_eq!(child.value(), Ok(7));
     assert_eq!(OverlappingRoots::COM_INTERFACE_COUNT, 4);
-    assert_eq!(core::mem::offset_of!(OverlappingRootsComObject, value), core::mem::size_of::<usize>());
+    assert_eq!(
+        core::mem::offset_of!(OverlappingRootsComObject, value),
+        core::mem::size_of::<neocogi_com::lifetime::NcWeakControl>() + core::mem::size_of::<usize>()
+    );
 }
 
 /// Forces extra padding before concrete state; interface count must not affect

@@ -31,10 +31,10 @@ where
         IObjectChildrenVTable {
             unknown: ::neocogi_com::IUnknownVTable {
                 interface_id: identity,
-                query_interface: <T as ::neocogi_com::ComAbiObject>::query_interface_from_abi_object,
-                add_ref: <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object,
-                release: <T as ::neocogi_com::ComAbiObject>::release_from_abi_object,
-                downgrade: None,
+                query_interface: ::neocogi_com::lifetime::nc_query_interface,
+                add_ref: ::neocogi_com::lifetime::nc_strong_retain,
+                release: ::neocogi_com::lifetime::nc_strong_release,
+                downgrade: Some(::neocogi_com::lifetime::nc_downgrade),
             },
             count: Self::count_thunk,
             get: Self::get_thunk,
@@ -148,10 +148,10 @@ where
         IPersistableVTable {
             unknown: ::neocogi_com::IUnknownVTable {
                 interface_id: identity,
-                query_interface: <T as ::neocogi_com::ComAbiObject>::query_interface_from_abi_object,
-                add_ref: <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object,
-                release: <T as ::neocogi_com::ComAbiObject>::release_from_abi_object,
-                downgrade: None,
+                query_interface: ::neocogi_com::lifetime::nc_query_interface,
+                add_ref: ::neocogi_com::lifetime::nc_strong_retain,
+                release: ::neocogi_com::lifetime::nc_strong_release,
+                downgrade: Some(::neocogi_com::lifetime::nc_downgrade),
             },
             type_id: Self::type_id_thunk,
             schema_version: Self::schema_version_thunk,
@@ -381,10 +381,10 @@ where
         IPersistenceFactoryVTable {
             unknown: ::neocogi_com::IUnknownVTable {
                 interface_id: identity,
-                query_interface: <T as ::neocogi_com::ComAbiObject>::query_interface_from_abi_object,
-                add_ref: <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object,
-                release: <T as ::neocogi_com::ComAbiObject>::release_from_abi_object,
-                downgrade: None,
+                query_interface: ::neocogi_com::lifetime::nc_query_interface,
+                add_ref: ::neocogi_com::lifetime::nc_strong_retain,
+                release: ::neocogi_com::lifetime::nc_strong_release,
+                downgrade: Some(::neocogi_com::lifetime::nc_downgrade),
             },
             validate: Self::validate_thunk,
             restore: Self::restore_thunk,

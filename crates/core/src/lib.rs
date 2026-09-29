@@ -17,7 +17,7 @@
 //! format-specific adapter; it does not reinterpret descriptor metadata, write
 //! through ABI field offsets, or perform runtime class-registry lookup.
 //!
-//! Core ABI v11 is currently an experimental pre-alpha draft. The core ABI version
+//! Core ABI v12 is currently an experimental pre-alpha draft. The core ABI version
 //! identifies its current binary generation, not a ratified compatibility
 //! baseline. Cross-release compatibility begins only at an explicitly named
 //! future ratification milestone.
@@ -51,7 +51,7 @@ mod ref_count;
 /// Common allocation header and non-generic strong/weak lifetime operations.
 pub mod lifetime;
 mod weak;
-pub use weak::{WeakComPtr, NcWeakRaw, NcWeakVTable};
+pub use weak::{WeakComPtr, NcWeakRaw};
 mod value_buffer;
 #[doc(hidden)]
 pub use ref_count::{__com_add_ref_count, __com_release_ref_count};

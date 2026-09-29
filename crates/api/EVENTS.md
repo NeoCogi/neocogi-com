@@ -85,7 +85,7 @@ queue before constructing their widget.
 The `macros` feature exposes these ordinary generic library contracts. COM object
 allocation requires `alloc`; the examples using standard channels also need `std`. Neither introduces
 a COM process runtime or event loop. Contracts and consumers must be rebuilt
-together for core ABI v11.
+together for core ABI v12.
 
 See [the architecture and state diagrams](../../../docs/CLASS_EVENT_STREAMS.md),
 [IDL syntax](../../../docs/IDL_MODULES.md), and

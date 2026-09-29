@@ -175,10 +175,13 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
         /// One owned allocation for this exact implementation and all of its concrete interface projections.
         #[repr(C)]
         struct #storage_ident #impl_generics #where_clause {
+            /// Common lifetime header at offset zero; shared operations never
+            /// need to recover the concrete Rust payload to manage ownership.
+            control: #nc::lifetime::NcWeakControl,
             /// Generated borrow authority shared by every interface projection.
             call_gate: #nc::__ComCallGate,
             /// Owned Rust state; no reference into a caller's stack escapes through the COM pointer.
-            value: core::cell::UnsafeCell<#object_type>,
+            value: core::cell::UnsafeCell<core::mem::MaybeUninit<#object_type>>,
         }
 
         impl #impl_generics #object_type #where_clause {
@@ -216,20 +219,21 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
             #object_vis fn from_value(value: Self) -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
                 // Construction initializes only ownership, borrow authority and state.
                 // Interface tables are static and add no per-object fields.
-                let object = #nc::__alloc::sync::Arc::new(#storage_ident {
+                let object = #nc::__alloc::boxed::Box::new(#storage_ident {
+                    control: #nc::lifetime::NcWeakControl::new(&<#storage_type>::CLASS_LIFETIME),
                     call_gate: #nc::__ComCallGate::new(),
-                    value: core::cell::UnsafeCell::new(value),
+                    value: core::cell::UnsafeCell::new(core::mem::MaybeUninit::new(value)),
                 });
 
                 // Publish the allocation paired with its canonical root table.
                 // The pair needs neither embedded headers nor owner recovery.
-                let raw = #nc::__alloc::sync::Arc::into_raw(object).cast_mut();
-                // SAFETY: Arc::into_raw transfers a strong reference into COM ownership and
+                let raw = #nc::__alloc::boxed::Box::into_raw(object);
+                // SAFETY: Box::into_raw transfers the initial strong reference into COM ownership and
                 // remains live until the final generated `Release`.
                 let unknown = #nc::ComRaw { object: raw.cast(), vtable: &<#storage_type>::UNKNOWN_VTABLE };
                 unsafe {
                     // SAFETY: `unknown` is non-null and owns the initial
-                    // strong reference created by Arc::new.
+                    // strong reference initialized in the common header.
                     #nc::ComPtr::<#nc::IUnknown, #pointer_threading_model>::from_raw_owned(unknown)
                         .expect("new COM object produced a null pointer")
                 }
@@ -244,21 +248,31 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
             ) -> Result<#nc::ComPtr<#nc::IUnknown, #pointer_threading_model>, #nc::NcStatus> {
                 // SAFETY: the generated table set and I's identity are immutable.
                 unsafe { #nc::__nc_find_interface(&Self::COM_VTABLES, &I::INTERFACE_ID) }?;
-                let object = #nc::__alloc::sync::Arc::new_cyclic(|weak: &#nc::__alloc::sync::Weak<#storage_type>| {
-                    let raw = #nc::NcWeakRaw {
-                        control: #nc::__alloc::sync::Weak::into_raw(weak.clone()).cast_mut().cast(),
-                        vtable: &<#storage_type>::WEAK_VTABLE,
-                    };
-                    // SAFETY: the retained weak token uses this allocation's own
-                    // callbacks; interface and threading are checked above.
-                    let origin = unsafe { #nc::WeakComPtr::from_raw_owned(raw) }.expect("new weak token is present");
-                    #storage_ident { call_gate: #nc::__ComCallGate::new(), value: core::cell::UnsafeCell::new(build(origin)) }
-                });
-                let raw = #nc::ComRaw {
-                    object: #nc::__alloc::sync::Arc::into_raw(object).cast_mut().cast(),
-                    vtable: &<#storage_type>::UNKNOWN_VTABLE,
-                };
-                // SAFETY: Arc::into_raw transfers the published initial strong owner.
+                let storage = #nc::__alloc::boxed::Box::into_raw(#nc::__alloc::boxed::Box::new(#storage_ident {
+                    control: #nc::lifetime::NcWeakControl::unpublished(&<#storage_type>::CLASS_LIFETIME),
+                    call_gate: #nc::__ComCallGate::new(),
+                    value: core::cell::UnsafeCell::new(core::mem::MaybeUninit::uninit()),
+                }));
+                // The provisional weak owner is the rollback guard. A panic in
+                // build releases it; escaped clones retain only uninitialized
+                // storage, which the deallocator frees without dropping Self.
+                let token = #nc::NcWeakRaw { control: storage.cast() };
+                // SAFETY: the exact requested projection was checked above;
+                // this new allocation transfers its provisional weak owner.
+                let provisional = unsafe { #nc::WeakComPtr::<I, #pointer_threading_model>::from_raw_owned(token) }
+                    .expect("new weak control is present");
+                let value = build(provisional.clone());
+                // SAFETY: no strong owner exists yet. Initialize before the
+                // release publication observed by concurrent weak promotion.
+                unsafe {
+                    (*(*storage).value.get()).write(value);
+                    (*storage).control.publish();
+                }
+                // Publication converts the provisional owner into the implicit
+                // weak reference released only after final value destruction.
+                let _ = provisional.into_raw();
+                let raw = #nc::ComRaw { object: storage.cast(), vtable: &<#storage_type>::UNKNOWN_VTABLE };
+                // SAFETY: publication created exactly one initialized strong owner.
                 Ok(unsafe { #nc::ComPtr::from_raw_owned(raw) }.expect("new COM object is present"))
             }
 
@@ -292,7 +306,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                 let storage = unsafe { &*storage };
                 // SAFETY: The value and gate are fields of the same live
                 // storage allocation and every generated call uses this gate.
-                unsafe { #nc::__ComSharedLease::acquire(&storage.call_gate, storage.value.get()) }
+                unsafe { #nc::__ComSharedLease::acquire(&storage.call_gate, storage.value.get().cast::<Self>()) }
             }
 
             // The generated gate grants exactly one mutable call only while no
@@ -309,68 +323,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                 let storage = unsafe { &*storage };
                 // SAFETY: The value and gate are fields of the same live
                 // storage allocation and every generated call uses this gate.
-                unsafe { #nc::__ComExclusiveLease::acquire(&storage.call_gate, storage.value.get()) }
-            }
-
-            // Central QueryInterface implementation for the object. All
-            // interface vtables point directly here, without adapter thunks.
-            unsafe extern "C" fn query_interface_from_abi_object(
-                object: *mut core::ffi::c_void,
-                interface_id: *const #nc::NcInterfaceId,
-                out: *mut #nc::ComRaw<#nc::IUnknown>,
-            ) -> #nc::NcStatus {
-                if object.is_null() { return #nc::NC_E_POINTER; }
-                // SAFETY: this adapter knows the concrete storage layout. The
-                // shared query body receives its retain callback explicitly and never
-                // recovers fields from the opaque allocation address.
-                unsafe {
-                    #nc::__com_query_interfaces(
-                        object,
-                        Self::add_ref_from_abi_object,
-                        &Self::COM_VTABLES,
-                        interface_id,
-                        out,
-                    )
-                }
-            }
-
-            /// Retains one strong owner; the returned count is a diagnostic snapshot.
-            unsafe extern "C" fn add_ref_from_abi_object(object: *mut core::ffi::c_void) -> u32 {
-                if object.is_null() { return 0; }
-                let storage = object.cast::<#storage_type>();
-                // SAFETY: caller retains a live Arc-backed object through this call.
-                unsafe { #nc::__alloc::sync::Arc::increment_strong_count(storage); }
-                // SAFETY: inspect the counter without consuming the caller's owner.
-                let owner = core::mem::ManuallyDrop::new(unsafe { #nc::__alloc::sync::Arc::from_raw(storage) });
-                #nc::__alloc::sync::Arc::strong_count(&owner).min(u32::MAX as usize) as u32
-            }
-
-            /// Consumes one strong owner, dropping the value at the final release.
-            /// Weak tokens may retain the allocation shell, never the value/resources.
-            unsafe extern "C" fn release_from_abi_object(object: *mut core::ffi::c_void) -> u32 {
-                if object.is_null() { return 0; }
-                // SAFETY: the caller transfers exactly one Arc-backed strong owner.
-                let owner = unsafe { #nc::__alloc::sync::Arc::from_raw(object.cast::<#storage_type>()) };
-                let remaining = #nc::__alloc::sync::Arc::strong_count(&owner).saturating_sub(1).min(u32::MAX as usize) as u32;
-                drop(owner);
-                remaining
-            }
-
-            /// Returns the same weak control identity from every interface projection.
-            unsafe extern "C" fn downgrade_from_abi_object(object: *mut core::ffi::c_void, out: *mut #nc::NcWeakRaw) -> #nc::NcStatus {
-                if out.is_null() { return #nc::NC_E_POINTER; }
-                // SAFETY: caller supplies one valid, distinct output record.
-                unsafe { *out = #nc::NcWeakRaw::null(); }
-                if object.is_null() { return #nc::NC_E_POINTER; }
-                // SAFETY: borrow the live strong owner without consuming its reference.
-                let owner = core::mem::ManuallyDrop::new(unsafe { #nc::__alloc::sync::Arc::from_raw(object.cast::<#storage_type>()) });
-                let weak = #nc::__alloc::sync::Arc::downgrade(&owner);
-                // SAFETY: transfer one weak reference with allocator-local callbacks.
-                unsafe { *out = #nc::NcWeakRaw {
-                    control: #nc::__alloc::sync::Weak::into_raw(weak).cast_mut().cast(),
-                    vtable: &<#storage_type>::WEAK_VTABLE,
-                }; }
-                #nc::NC_OK
+                unsafe { #nc::__ComExclusiveLease::acquire(&storage.call_gate, storage.value.get().cast::<Self>()) }
             }
 
         }
@@ -381,55 +334,37 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
         #unit_factory_bootstrap
 
         impl #impl_generics #storage_type #where_clause {
-            /// Canonical root table. Every other table embeds the same lifecycle
-            /// functions but advertises its own exact interface identity.
-            const WEAK_VTABLE: #nc::NcWeakVTable = #nc::NcWeakVTable {
-                retain: Self::retain_weak,
-                release: Self::release_weak,
-                upgrade: Self::upgrade_weak,
+            /// One immutable class descriptor, independent of object instances.
+            /// Counting/promotion functions are shared; only payload destruction,
+            /// allocator release and this class's projections vary.
+            const CLASS_LIFETIME: #nc::lifetime::NcClassLifetime = #nc::lifetime::NcClassLifetime {
+                destroy_value: Self::destroy_value,
+                deallocate: Self::deallocate,
+                interfaces: <#object_type>::COM_VTABLES.as_ptr(),
+                interface_count: <#object_type>::COM_VTABLES.len(),
             };
-
-            /// Clones only the weak control owner, including after value destruction.
-            unsafe extern "C" fn retain_weak(control: *mut core::ffi::c_void) {
-                // SAFETY: the weak protocol keeps the Arc control allocation alive.
-                let weak = core::mem::ManuallyDrop::new(unsafe { #nc::__alloc::sync::Weak::<Self>::from_raw(control.cast()) });
-                let _ = #nc::__alloc::sync::Weak::into_raw(#nc::__alloc::sync::Weak::clone(&weak));
+            /// Destroys initialized Self once while the implicit weak owner retains storage.
+            unsafe extern "C" fn destroy_value(control: *mut #nc::lifetime::NcWeakControl) {
+                let storage = control.cast::<Self>();
+                // SAFETY: only final strong release calls this, after publication
+                // and after all strong-owned calls finish. MaybeUninit suppresses
+                // a second payload drop when the allocation is eventually freed.
+                unsafe { (*(*storage).value.get()).assume_init_drop(); }
             }
-            /// Releases one weak owner through the same provider that allocated it.
-            unsafe extern "C" fn release_weak(control: *mut core::ffi::c_void) {
-                // SAFETY: consumes exactly the transferred weak reference.
-                unsafe { drop(#nc::__alloc::sync::Weak::<Self>::from_raw(control.cast())); }
-            }
-            /// Promotes before querying, so no value/table access races final destruction.
-            /// Reuse the already shared QueryInterface lookup. A generic out-of-line
-            /// helper with direct transfer was specialized again under fat LTO and
-            /// increased min-size output; public Arc ownership keeps this path typed.
-            unsafe extern "C" fn upgrade_weak(
-                control: *mut core::ffi::c_void,
-                requested: *const #nc::NcInterfaceId,
-                out: *mut #nc::ComRaw<#nc::IUnknown>,
-            ) -> #nc::NcStatus {
-                if out.is_null() { return #nc::NC_E_POINTER; }
-                // SAFETY: output is valid and distinct from the weak control allocation.
-                unsafe { *out = #nc::ComRaw::null(); }
-                if control.is_null() || requested.is_null() { return #nc::NC_E_POINTER; }
-                // SAFETY: borrowing does not consume the caller's retained weak reference.
-                let weak = core::mem::ManuallyDrop::new(unsafe { #nc::__alloc::sync::Weak::<Self>::from_raw(control.cast()) });
-                let Some(owner) = weak.upgrade() else { return #nc::NC_E_CLOSED; };
-                // SAFETY: owner holds the initialized value throughout the query; its
-                // successful transfer adds a distinct strong owner before this one drops.
-                unsafe { <#object_type as #nc::ComAbiObject>::query_interface_from_abi_object(
-                    #nc::__alloc::sync::Arc::as_ptr(&owner).cast_mut().cast(), requested, out,
-                ) }
+            /// Frees the exact provider allocation, including its concrete alignment.
+            /// The value is either already destroyed or was never initialized.
+            unsafe extern "C" fn deallocate(control: *mut #nc::lifetime::NcWeakControl) {
+                // SAFETY: the final weak owner transfers the allocation once.
+                unsafe { drop(#nc::__alloc::boxed::Box::from_raw(control.cast::<Self>())); }
             }
 
             /// Canonical strong root table, separate from the weak lifetime operations.
             const UNKNOWN_VTABLE: #nc::IUnknownVTable = #nc::IUnknownVTable {
                 interface_id: &#nc::IUnknown::INTERFACE_ID,
-                query_interface: <#object_type as #nc::ComAbiObject>::query_interface_from_abi_object,
-                add_ref: <#object_type as #nc::ComAbiObject>::add_ref_from_abi_object,
-                release: <#object_type as #nc::ComAbiObject>::release_from_abi_object,
-                downgrade: Some(<#object_type as #nc::ComAbiObject>::downgrade_from_abi_object),
+                query_interface: #nc::lifetime::nc_query_interface,
+                add_ref: #nc::lifetime::nc_strong_retain,
+                release: #nc::lifetime::nc_strong_release,
+                downgrade: Some(#nc::lifetime::nc_downgrade),
             };
 
         }

@@ -178,9 +178,12 @@ fn interface_pairs_share_one_object_without_embedded_headers() {
     assert_eq!(toggle.value(), Ok(41));
     assert_eq!(button.value(), Ok(41));
     assert_eq!(widget.value(), Ok(41));
-    // The payload contains only the call gate before Rust state. Arc keeps its
-    // strong/weak counters in a private allocation header, outside this payload.
-    assert_eq!(core::mem::offset_of!(ToggleComObject, value), word);
+    // The common lifetime header and one call gate precede Rust state;
+    // adding interface projections contributes no per-object fields.
+    assert_eq!(
+        core::mem::offset_of!(ToggleComObject, value),
+        core::mem::size_of::<neocogi_com::lifetime::NcWeakControl>() + word
+    );
 }
 
 /// Exercises nullable raw pairs through real generated argument lowering.

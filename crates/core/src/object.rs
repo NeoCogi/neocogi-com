@@ -19,12 +19,13 @@ pub const IID_IUNKNOWN: NcGuid = NcGuid::from_fields(0x0000_0000, 0x0000, 0x0000
 /// Reserved normative qualified name for [`IUnknown`].
 pub const IUNKNOWN_QUALIFIED_NAME: &str = "IUnknown";
 
-/// Precomputed SHA-256 signature for the built-in [`IUnknown`] contract.
+/// SHA-256 of `neocogi-com:core-abi:v12\0` followed by the preceding v11 digest.
+/// Precomputed signature for the built-in [`IUnknown`] contract.
 ///
 /// Built-ins have no IDL build script, so this checked-in constant plays the
 /// same role as the byte string emitted by `neocogi` for ordinary contracts.
 static IUNKNOWN_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [
-    115, 51, 7, 113, 70, 153, 188, 83, 224, 32, 177, 220, 3, 99, 35, 224, 76, 185, 219, 137, 54, 237, 48, 110, 229, 70, 183, 10, 169, 6, 101, 229,
+    134, 43, 147, 32, 179, 72, 138, 26, 116, 35, 235, 168, 178, 109, 164, 252, 230, 251, 136, 39, 129, 49, 176, 117, 6, 52, 42, 171, 28, 53, 45, 14,
 ];
 
 /// Canonical ABI validation contract for [`IUnknown`].
@@ -80,7 +81,8 @@ pub struct IUnknownVTable {
     /// Optional weak-lifetime capability. None reports unsupported weak references.
     /// A live borrowed `this` and a distinct writable output are required. Success
     /// transfers one canonical weak token; failures clear output and transfer none.
-    /// All projections of an object must return the same control identity/table.
+    /// All projections of an object must return the same control identity. A successful token uses the common header
+    /// at the canonical object address, retained through final weak release.
     pub downgrade: Option<unsafe extern "C" fn(this: *mut c_void, out: *mut crate::NcWeakRaw) -> NcStatus>,
 }
 

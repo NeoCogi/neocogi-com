@@ -142,7 +142,14 @@ mod tests {
 
         fn nc_c_validate_abi_layouts(layouts: *const NativeAbiLayouts) -> i32;
         /// Consumes the supplied sole owner and verifies weak expiration in C.
-        fn nc_c_exercise_weak(owned: neocogi_com::ComRaw<IUnknown>, requested: *const NcInterfaceId, closed: NcStatus) -> i32;
+        fn nc_c_exercise_weak(
+            owned: neocogi_com::ComRaw<IUnknown>,
+            requested: *const NcInterfaceId,
+            closed: NcStatus,
+            retain: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcWeakControl),
+            release: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcWeakControl),
+            upgrade: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcWeakControl, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
+        ) -> i32;
 
     }
 
@@ -152,7 +159,16 @@ mod tests {
         let owner = NativeCalculator::from_value(NativeCalculator);
         // SAFETY: C consumes this sole owner and balances every acquired strong/weak reference.
         assert_eq!(
-            unsafe { nc_c_exercise_weak(owner.into_raw(), &INativeCalculatorAbi::INTERFACE_ID, neocogi_com::NC_E_CLOSED) },
+            unsafe {
+                nc_c_exercise_weak(
+                    owner.into_raw(),
+                    &INativeCalculatorAbi::INTERFACE_ID,
+                    neocogi_com::NC_E_CLOSED,
+                    neocogi_com::lifetime::nc_weak_retain,
+                    neocogi_com::lifetime::nc_weak_release,
+                    neocogi_com::lifetime::nc_weak_upgrade,
+                )
+            },
             1
         );
     }

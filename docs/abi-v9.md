@@ -1,6 +1,6 @@
 # neocogi-com core ABI v9
 
-Historical specification: current code implements [core ABI v11](abi-v11.md).
+Historical specification: current code implements [core ABI v12](abi-v12.md).
 Generation 9 used embedded headers and is rejected by generation-10 discovery.
 The authoritative layouts are the public `#[repr(C)]` definitions in
 `neocogi-com-core`; this guide explains how those layouts compose.

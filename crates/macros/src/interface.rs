@@ -129,10 +129,10 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     let mut prefix_value = quote! {
         unknown: #nc::IUnknownVTable {
             interface_id: identity,
-            query_interface: <T as #nc::ComAbiObject>::query_interface_from_abi_object,
-            add_ref: <T as #nc::ComAbiObject>::add_ref_from_abi_object,
-            release: <T as #nc::ComAbiObject>::release_from_abi_object,
-            downgrade: Some(<T as #nc::ComAbiObject>::downgrade_from_abi_object),
+            query_interface: #nc::lifetime::nc_query_interface,
+            add_ref: #nc::lifetime::nc_strong_retain,
+            release: #nc::lifetime::nc_strong_release,
+            downgrade: Some(#nc::lifetime::nc_downgrade),
         },
     };
     let mut client_base = quote! {};

@@ -73,12 +73,13 @@ unsafe impl ComInterface for INcBytesAbi {
     type VTable = INcBytesVTable;
 }
 
-/// Precomputed SHA-256 signature for the built-in byte-sequence contract.
+/// SHA-256 of `neocogi-com:core-abi:v12\0` followed by the preceding v11 digest.
+/// Precomputed signature for the built-in byte-sequence contract.
 ///
 /// This checked-in digest prevents the core crate from hashing during rustc
 /// constant evaluation while retaining an exact identity for the built-in ABI.
 static INC_BYTES_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [
-    232, 93, 45, 206, 56, 97, 65, 126, 22, 102, 188, 72, 155, 225, 110, 194, 192, 0, 36, 19, 229, 213, 55, 252, 99, 57, 140, 250, 60, 32, 19, 212,
+    44, 32, 240, 255, 160, 129, 80, 43, 159, 102, 179, 92, 103, 198, 188, 247, 161, 21, 12, 95, 189, 8, 249, 114, 111, 231, 192, 231, 73, 230, 27, 48,
 ];
 
 impl INcBytesAbi {
@@ -203,12 +204,13 @@ unsafe impl ComInterface for INcStringAbi {
     type VTable = INcStringVTable;
 }
 
-/// Precomputed SHA-256 signature for the built-in UTF-8 string contract.
+/// SHA-256 of `neocogi-com:core-abi:v12\0` followed by the preceding v11 digest.
+/// Precomputed signature for the built-in UTF-8 string contract.
 ///
 /// This checked-in digest prevents the core crate from hashing during rustc
 /// constant evaluation while retaining an exact identity for the built-in ABI.
 static INC_STRING_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [
-    61, 67, 235, 17, 157, 109, 69, 188, 169, 250, 96, 199, 202, 242, 1, 205, 80, 188, 90, 23, 173, 103, 184, 243, 241, 221, 208, 115, 233, 254, 108, 31,
+    186, 113, 176, 150, 236, 67, 149, 23, 38, 95, 155, 75, 78, 26, 224, 37, 15, 239, 177, 171, 126, 235, 57, 142, 160, 157, 150, 189, 120, 242, 173, 163,
 ];
 
 impl INcStringAbi {

@@ -1573,10 +1573,9 @@ fn fingerprint_module(
 fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, [u8; 32])]) -> Result<[u8; 32], ResolutionError> {
     let entry = &entries[index];
     let mut encoder = CanonicalEncoder::new();
-    // Core ABI 11 adds weak downgrade to the common vtable prefix. All
-    // declarations must reject older method offsets, even without explicit
-    // references to a built-in interface in their authored fields.
-    encoder.bytes(b"neocogi-idl:module-abi:v5\0");
+    // Core ABI 12 replaces opaque two-word weak tokens with the common header
+    // protocol. Reject old downgrade output storage and lifetime assumptions.
+    encoder.bytes(b"neocogi-idl:module-abi:v6\0");
     encoder.guid(entry.module_id);
     encoder.bytes(&crate::specialize::template_fingerprint(&entry.module.templates));
 

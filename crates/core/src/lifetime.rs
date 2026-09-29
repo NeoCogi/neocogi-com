@@ -160,6 +160,30 @@ pub unsafe extern "C" fn nc_weak_release(control: *mut NcWeakControl) {
     }
 }
 
+/// Creates one weak owner for a strongly retained header allocation.
+///
+/// # Safety
+/// Non-null object must begin with the common header and remain strongly owned.
+/// Non-null output is a distinct writable record. Failure clears the output.
+#[inline(never)]
+pub unsafe extern "C" fn nc_downgrade(object: *mut c_void, out: *mut crate::NcWeakRaw) -> NcStatus {
+    if out.is_null() {
+        return NC_E_POINTER;
+    }
+    unsafe {
+        *out = crate::NcWeakRaw::null();
+    }
+    if object.is_null() {
+        return NC_E_POINTER;
+    }
+    let control = object.cast::<NcWeakControl>();
+    unsafe {
+        nc_weak_retain(control);
+        *out = crate::NcWeakRaw { control };
+    }
+    NC_OK
+}
+
 /// Resolves an exact projection without altering ownership.
 ///
 /// # Safety

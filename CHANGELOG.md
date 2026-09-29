@@ -1,5 +1,16 @@
 # Changelog
 
+## Shared allocation lifetimes (experimental ABI 12)
+
+Replace generated Arc storage and per-class weak operation tables with one common
+COM control header and non-generic lifetime functions. Weak handles and nullable
+weak handles now occupy one pointer; strong handles remain two. Only value
+destruction, allocator release and interface projections remain class-specific.
+Publish cyclic construction after initialization, preserve rollback for escaped
+weak origins, and transfer promoted ownership without an extra query retain.
+IDL fingerprints and core generation reject the former weak-token contract.
+See [ABI v12](docs/abi-v12.md).
+
 All notable changes to the experimental component ABI are documented here.
 Semantic-version compatibility begins only after an explicitly ratified ABI.
 
@@ -129,7 +140,7 @@ prefixes and full explicit inspection remain supported.
 These entries record superseded designs, not the current API. Native contract
 artifacts, `trait`/`class` IDL declarations, global contract registration, and
 runtime ABI v2 were subsequently removed or replaced. Current binary contracts
-are core v11, factory-plugin v1, and runtime v1; see the [ABI guide](docs/abi-v11.md).
+are core v12, factory-plugin v1, and runtime v1; see the [ABI guide](docs/abi-v12.md).
 
 - Added Rust-like `.ncidl` modules with `struct`, `enum`, `trait`, `class`, and
   `factory` declarations. Every module is an ordinary Cargo crate whose

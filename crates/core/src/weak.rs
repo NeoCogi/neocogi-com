@@ -3,50 +3,29 @@
 //! Weak references retain only lifetime bookkeeping. Promotion owns a strong
 //! reference before exposing any object state, and never resurrects a destroyed
 //! value. Logical domain closure is deliberately independent of this protocol.
-use core::{ffi::c_void, marker::PhantomData};
+use core::{marker::PhantomData, ptr::NonNull};
+use crate::lifetime::{NcWeakControl, nc_weak_retain, nc_weak_release, nc_weak_upgrade};
 use crate::{ComInterface, ComPtr, ComRaw, IUnknown, NcInterfaceId, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_CLOSED, NC_E_NOINTERFACE, NC_E_POINTER};
 
-/// Owned weak lifetime token. Both pointers are null, or both are present.
-/// A successful downgrade transfers one weak reference to the caller.
+/// One nullable pointer to the common COM lifetime header. Success transfers
+/// one weak reference; a null pointer represents absence and owns nothing.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NcWeakRaw {
-    /// Provider-owned control identity, stable until the final weak release.
-    pub control: *mut c_void,
-    /// Immutable lifetime operations owned by the same provider/allocator.
-    pub vtable: *const NcWeakVTable,
+    /// Header at the allocation's canonical object address, retained through
+    /// shared weak operations even after the concrete value is destroyed.
+    pub control: *mut NcWeakControl,
 }
 impl NcWeakRaw {
     /// Empty output initialized before every fallible lifetime operation.
     pub const fn null() -> Self {
-        Self {
-            control: core::ptr::null_mut(),
-            vtable: core::ptr::null(),
-        }
+        Self { control: core::ptr::null_mut() }
     }
-    /// Whether the token has both pointers required by the lifetime protocol.
+    /// Presence proves shape only; foreign validity remains an unsafe obligation.
     pub fn is_present(self) -> bool {
-        !self.control.is_null() && !self.vtable.is_null()
+        !self.control.is_null()
     }
 }
-
-/// C lifetime operations for a weak token; no Rust allocator or Arc layout crosses COM.
-#[repr(C)]
-pub struct NcWeakVTable {
-    /// Retains one weak reference. `control` must be a live borrowed weak token.
-    pub retain: unsafe extern "C" fn(control: *mut c_void),
-    /// Consumes one weak reference; final release may free its control allocation.
-    pub release: unsafe extern "C" fn(control: *mut c_void),
-    /// Atomically promotes a weak token, then negotiates the exact interface.
-    ///
-    /// `control` must remain weak-owned throughout the call. `requested` and
-    /// `out` must be distinct valid records. Success transfers one strong owner;
-    /// every failure clears `out`. `NC_E_CLOSED` means the value was destroyed,
-    /// not that a live domain object has executed its own `close` operation.
-    pub upgrade: unsafe extern "C" fn(control: *mut c_void, requested: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus,
-}
-// SAFETY: The table contains immutable code pointers; it grants no threading capability.
-unsafe impl Sync for NcWeakVTable {}
 
 /// A typed non-owning reference to a COM object's lifetime.
 ///
@@ -70,7 +49,7 @@ unsafe impl Sync for NcWeakVTable {}
 #[repr(transparent)]
 pub struct WeakComPtr<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
     /// Exactly one provider-owned weak reference; safe construction requires presence.
-    raw: NcWeakRaw,
+    control: NonNull<NcWeakControl>,
     /// Keeps the requested interface and threading permissions in the static type.
     marker: PhantomData<(*const T, M)>,
 }
@@ -78,23 +57,20 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     /// Adopts an owned weak token for this exact interface and threading capability.
     ///
     /// # Safety
-    /// A present token must own one weak reference through a valid immutable table.
+    /// A present token must own one weak reference to the common allocation header.
     /// Its provider must support T with capability M and uphold atomic promotion,
     /// unique control identity, allocator-local release, and code lifetime through
-    /// all weak references. Null/partial tokens transfer nothing and are rejected.
+    /// all weak references. Null tokens transfer nothing and are rejected.
     pub unsafe fn from_raw_owned(raw: NcWeakRaw) -> Option<Self> {
-        match raw.is_present() {
-            true => Some(Self { raw, marker: PhantomData }),
-            false => None,
-        }
+        NonNull::new(raw.control).map(|control| Self { control, marker: PhantomData })
     }
     /// Borrows the control identity without extending or transferring its lifetime.
     pub fn as_raw(&self) -> NcWeakRaw {
-        self.raw
+        NcWeakRaw { control: self.control.as_ptr() }
     }
     /// Transfers this handle's one weak reference to an ABI caller.
     pub fn into_raw(self) -> NcWeakRaw {
-        let raw = self.raw;
+        let raw = self.as_raw();
         core::mem::forget(self);
         raw
     }
@@ -102,7 +78,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     /// Destruction returns None; interface/signature/provider errors remain errors.
     pub fn upgrade(&self) -> Result<Option<ComPtr<T, M>>, NcStatus> {
         // SAFETY: self retains the provider token and its original threading mode.
-        let raw = unsafe { upgrade(self.raw, &T::INTERFACE_ID) }?;
+        let raw = unsafe { upgrade(self.as_raw(), &T::INTERFACE_ID) }?;
         match raw {
             Some(raw) => {
                 // SAFETY: the shared helper validated T and transfers one strong owner.
@@ -123,37 +99,39 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     /// value, or extending its strong lifetime. It is useful for diagnostics and
     /// heterogeneous identity collections; event payloads retain their own types.
     pub fn into_unknown(self) -> WeakComPtr<IUnknown, M> {
-        WeakComPtr {
-            raw: self.into_raw(),
-            marker: PhantomData,
-        }
+        let control = self.control;
+        core::mem::forget(self);
+        WeakComPtr { control, marker: PhantomData }
     }
 
     /// Compares canonical lifetime identities without promoting either object.
     /// Retaining the control blocks prevents address reuse while comparison is possible.
     pub fn same_object<U: ComInterface + ?Sized, N: ThreadingModel>(&self, other: &WeakComPtr<U, N>) -> bool {
-        self.raw.control == other.raw.control
+        self.control == other.control
     }
 }
 impl<T: ComInterface + ?Sized, M: ThreadingModel> Clone for WeakComPtr<T, M> {
     /// Retains the same weak control identity, without affecting the strong lifetime.
     fn clone(&self) -> Self {
         // SAFETY: this handle owns a live token while its provider retains another.
-        unsafe { ((*self.raw.vtable).retain)(self.raw.control) };
-        Self { raw: self.raw, marker: PhantomData }
+        unsafe { nc_weak_retain(self.control.as_ptr()) };
+        Self {
+            control: self.control,
+            marker: PhantomData,
+        }
     }
 }
 impl<T: ComInterface + ?Sized, M: ThreadingModel> Drop for WeakComPtr<T, M> {
     /// Releases exactly this weak reference through the allocating provider.
     fn drop(&mut self) {
         // SAFETY: the owned token is consumed once and never accessed afterwards.
-        unsafe { ((*self.raw.vtable).release)(self.raw.control) };
+        unsafe { nc_weak_release(self.control.as_ptr()) };
     }
 }
 impl<T: ComInterface + ?Sized, M: ThreadingModel> core::fmt::Debug for WeakComPtr<T, M> {
     /// Reports identity only; formatting does not promote or access the object value.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_tuple("WeakComPtr").field(&self.raw.control).finish()
+        f.debug_tuple("WeakComPtr").field(&self.control).finish()
     }
 }
 // SAFETY: the original ThreadSafe capability requires concurrent lifetime operations
@@ -170,7 +148,7 @@ unsafe impl<T: ComInterface + ?Sized> Sync for WeakComPtr<T, ThreadSafe> {}
 unsafe fn upgrade(source: NcWeakRaw, expected: &NcInterfaceId) -> Result<Option<ComRaw<IUnknown>>, NcStatus> {
     let mut out = ComRaw::null();
     // SAFETY: caller retains the weak token; both argument records are live and distinct.
-    let status = unsafe { ((*source.vtable).upgrade)(source.control, expected, &mut out) };
+    let status = unsafe { nc_weak_upgrade(source.control, expected, &mut out) };
     match status {
         NC_E_CLOSED => Ok(None),
         status if status.is_err() => Err(status),

@@ -95,7 +95,7 @@
 //! expose an explicit domain method such as `close`, `flush`, or `shutdown` and
 //! require callers to invoke it while they still hold a COM reference.
 //!
-//! Generated objects use private Arc strong/weak counters. Public returned counts
+//! Generated objects use a common COM strong/weak control header. Public returned counts
 //! are diagnostic u32 snapshots, clamped if the private count is wider; they are
 //! not a lifetime protocol. Weak promotion acquires ownership before accessing
 //! state and never resurrects a destroyed value. See [`WeakComPtr`]. Handwritten
@@ -103,7 +103,7 @@
 //!
 //! # Build Compatibility
 //!
-//! core ABI v11 is currently an experimental pre-alpha draft. The generated C-shaped
+//! core ABI v12 is currently an experimental pre-alpha draft. The generated C-shaped
 //! surface is the intended compatibility boundary, but cross-release
 //! compatibility does not begin until an explicitly named future ratification
 //! milestone. Draft golden vectors prevent accidental drift within the current
@@ -494,7 +494,8 @@ mod runtime;
 #[cfg(all(test, feature = "std"))]
 mod tests;
 
-pub use neocogi_com_core::{NcCopyFromBufferOffset, NcCopyToBufferOffset, WeakComPtr, NcWeakRaw, NcWeakVTable};
+pub use neocogi_com_core::lifetime;
+pub use neocogi_com_core::{NcCopyFromBufferOffset, NcCopyToBufferOffset, WeakComPtr, NcWeakRaw};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
@@ -528,7 +529,7 @@ pub use neocogi_com_core::{
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{ComMap, ComMapAccess};
 pub use object::{
-    __com_query_interfaces, __ComCallGate, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComObject,
+    __ComCallGate, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComObject,
     ThreadSafeComObject,
 };
 mod local;

@@ -75,19 +75,14 @@ struct IUnknown {
     const IUnknownVTable *vtable;
 };
 
-typedef struct NcWeakVTable NcWeakVTable;
-typedef struct NcWeakRaw {
-    void *control;
-    const NcWeakVTable *vtable;
-} NcWeakRaw;
-struct NcWeakVTable {
-    void (*retain)(void *control);
-    void (*release)(void *control);
-    NcStatus (*upgrade)(void *control, const NcInterfaceId *requested, IUnknown *out);
-};
+/* Common lifetime entry points receive a one-pointer token. C need not
+ * interpret the atomic header to call the shared functions supplied by Rust. */
+typedef struct NcWeakControl NcWeakControl;
+typedef struct NcWeakRaw { NcWeakControl *control; } NcWeakRaw;
+_Static_assert(sizeof(NcWeakRaw) == sizeof(void *), "weak token must be one pointer");
 
 struct IUnknownVTable {
-    /* Exact selected contract; receivers are direct object addresses in core ABI 11. */
+    /* Exact selected contract; receivers are direct object addresses in core ABI 12. */
     const NcInterfaceId *interface_id;
     NcStatus (*query_interface)(
         void *self,
@@ -442,20 +437,23 @@ release_calculator:
 }
 
 /* Consumes one sole strong owner and checks the full weak protocol from plain C. */
-int nc_c_exercise_weak(IUnknown owned, const NcInterfaceId *requested, NcStatus closed_status) {
+int nc_c_exercise_weak(IUnknown owned, const NcInterfaceId *requested, NcStatus closed_status,
+    void (*retain)(NcWeakControl *), void (*release)(NcWeakControl *),
+    NcStatus (*upgrade)(NcWeakControl *, const NcInterfaceId *, IUnknown *)) {
     NcWeakRaw weak = {0};
     if (!owned.vtable->downgrade || owned.vtable->downgrade(owned.object, &weak) != 0) return 0;
-    weak.vtable->retain(weak.control);
+    if ((void *)weak.control != owned.object) return 0;
+    retain(weak.control);
     IUnknown promoted = {0};
-    if (weak.vtable->upgrade(weak.control, requested, &promoted) != 0) return 0;
+    if (upgrade(weak.control, requested, &promoted) != 0) return 0;
     if (promoted.object != owned.object) return 0;
     promoted.vtable->release(promoted.object);
     owned.vtable->release(owned.object);
     /* Failure must clear even a nonempty output; owned's address is no longer dereferenced. */
     promoted = owned;
-    NcStatus status = weak.vtable->upgrade(weak.control, requested, &promoted);
+    NcStatus status = upgrade(weak.control, requested, &promoted);
     int result = status == closed_status && promoted.object == NULL && promoted.vtable == NULL;
-    weak.vtable->release(weak.control);
-    weak.vtable->release(weak.control);
+    release(weak.control);
+    release(weak.control);
     return result;
 }
