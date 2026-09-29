@@ -92,8 +92,10 @@ boundary and in the monolith. The implementation library also checks for Wasm.
 The host's output remains `factory object: 44 x 31`; assertions verify the extra
 snapshot and event behavior before printing it.
 
-An allocation probe measures one typed receiver allocation and scalar event delivery,
-including standard-channel storage:
+An allocation probe implements `ExampleObjectEventQueue` on a concrete
+`ExtentQueue`, asserts that constructing it allocates once, and checks the typed
+weak origin on each of 10,000 delivered snapshots. It measures receiver
+construction separately from scalar delivery and standard-channel storage:
 
 ```sh
 cargo run -p neocogi-example-com-plugin --example event_allocations --features monolith

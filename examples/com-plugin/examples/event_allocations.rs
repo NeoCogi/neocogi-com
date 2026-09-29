@@ -1,4 +1,4 @@
-//! Single-threaded allocation probe comparing direct and named scalar mappings.
+//! Single-threaded allocation probe for one concrete shared COM event queue.
 //! Run with: cargo run -p neocogi-example-com-plugin --example event_allocations --features monolith
 
 use std::{
@@ -6,7 +6,7 @@ use std::{
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 use neocogi_com::{ComPtr, Runtime, guid_from_qualified_name};
-use neocogi_com::events::mapped_queue;
+use neocogi_com::{ComRef, WeakComPtr, NcStatus};
 use neocogi_com::NcValueRef;
 use neocogi_idl_example_contracts::{ExampleObjectEventBinding, ExampleObjectEventQueueAbi};
 use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentChanged};
@@ -68,14 +68,30 @@ fn count(operation: impl FnOnce()) -> usize {
 }
 
 /// Emits and drains scalar events; assertion formatting only runs on a failure.
-fn deliver(object: &mut ComPtr<ExampleObjectAbi>, messages: &std::sync::mpsc::Receiver<u32>) {
+fn deliver(object: &mut ComPtr<ExampleObjectAbi>, messages: &std::sync::mpsc::Receiver<(WeakComPtr<ExampleObjectAbi>, ExtentChanged)>) {
     for width in 0..10_000 {
         object.resize(Extent { width, height: 1 }).unwrap();
-        assert_eq!(messages.try_recv().unwrap(), width);
+        let (origin, event) = messages.try_recv().unwrap();
+        assert_eq!(event.width, width);
+        assert!(origin.upgrade().unwrap().unwrap().as_com_ref().same_object(object.as_com_ref()));
     }
 }
 
-/// Equal allocation counts expose any allocation accidentally added to named delivery.
+#[neocogi_com::com_object(neocogi_idl_example_contracts::ExampleObjectEventQueue)]
+/// The application's concrete receiver works for every object of the example class.
+struct ExtentQueue {
+    /// Owned payloads and weak origins outlive only the producer's call storage.
+    sender: std::sync::mpsc::Sender<(WeakComPtr<ExampleObjectAbi>, ExtentChanged)>,
+}
+impl neocogi_idl_example_contracts::ExampleObjectEventQueue for ExtentQueue {
+    /// Performs checked payload acquisition without any mapper or callback allocation.
+    fn post(&mut self, origin: ComRef<'_, ExampleObjectAbi>, event: NcValueRef<'_, ExtentChanged>) -> Result<(), NcStatus> {
+        let _ = self.sender.send((origin.downgrade()?, event.to_owned()?));
+        Ok(())
+    }
+}
+
+/// Measures concrete receiver construction and repeated typed ABI delivery separately.
 fn main() {
     // A valid collection count followed by no elements must not reserve 64 MiB
     // for 65,536 records of 1,024 bytes each before detecting truncated input.
@@ -93,7 +109,8 @@ fn main() {
         .unwrap();
     let (sender, messages) = std::sync::mpsc::channel();
     let mut queue = None;
-    let binding = count(|| queue = Some(mapped_queue::<ExampleObjectEventQueueAbi, _>(sender, |_origin, value: ExtentChanged| value.width).unwrap()));
+    let binding = count(|| queue = Some(ExtentQueue::from_value(ExtentQueue { sender }).query::<ExampleObjectEventQueueAbi>().unwrap()));
+    assert_eq!(binding, 1, "one shared receiver allocation");
     let events = ExampleObjectEventBinding::Observed(queue.unwrap());
     let mut object = factory.create(Extent { width: 0, height: 0 }, NcValueRef::new(&events).unwrap()).unwrap();
     let delivery = count(|| deliver(&mut object, &messages));
