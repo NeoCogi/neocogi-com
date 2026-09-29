@@ -541,6 +541,7 @@ static BYTES_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
     query_interface: bytes_query_interface,
     add_ref: bytes_unknown_add_ref,
     release: bytes_unknown_release,
+    downgrade: None,
 };
 
 /// Primary byte-sequence dispatch table for byte objects.
@@ -550,6 +551,7 @@ static BYTES_VTABLE: INcBytesVTable = INcBytesVTable {
         query_interface: bytes_query_interface,
         add_ref: bytes_unknown_add_ref,
         release: bytes_unknown_release,
+        downgrade: None,
     },
     len: bytes_len,
     byte_at: bytes_byte_at,
@@ -562,6 +564,7 @@ static STRING_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
     query_interface: string_query_interface,
     add_ref: string_unknown_add_ref,
     release: string_unknown_release,
+    downgrade: None,
 };
 
 /// Primary UTF-8 string dispatch table for string objects.
@@ -571,6 +574,7 @@ static STRING_VTABLE: INcStringVTable = INcStringVTable {
         query_interface: string_query_interface,
         add_ref: string_unknown_add_ref,
         release: string_unknown_release,
+        downgrade: None,
     },
     byte_len: string_byte_len,
     byte_at: string_byte_at,
@@ -584,6 +588,7 @@ static STRING_BYTES_VTABLE: INcBytesVTable = INcBytesVTable {
         query_interface: string_query_interface,
         add_ref: string_unknown_add_ref,
         release: string_unknown_release,
+        downgrade: None,
     },
     len: string_bytes_len,
     byte_at: string_bytes_byte_at,

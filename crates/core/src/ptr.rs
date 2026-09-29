@@ -309,6 +309,15 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
     pub fn as_raw(&self) -> ComRaw<T> {
         self.raw.as_raw()
     }
+    /// Creates a weak lifetime reference without retaining the object's value.
+    /// Providers without the optional lifetime capability return NC_E_NOINTERFACE.
+    pub fn downgrade(&self) -> Result<crate::WeakComPtr<T, M>, NcStatus> {
+        // SAFETY: self retains/borrows the live source and preserves its capability.
+        let raw = unsafe { crate::weak::downgrade(self.as_raw().cast()) }?;
+        // SAFETY: successful downgrade transfers a token for this exact source.
+        unsafe { crate::WeakComPtr::from_raw_owned(raw) }.ok_or(NC_E_POINTER)
+    }
+
     /// Borrows a typed view without changing the count.
     pub fn as_com_ref(&self) -> ComRef<'_, T, M> {
         ComRef {
@@ -394,6 +403,15 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
     pub fn as_raw(&self) -> ComRaw<T> {
         self.raw.as_raw()
     }
+    /// Creates a weak lifetime reference without retaining the object's value.
+    /// Providers without the optional lifetime capability return NC_E_NOINTERFACE.
+    pub fn downgrade(&self) -> Result<crate::WeakComPtr<T, M>, NcStatus> {
+        // SAFETY: self retains/borrows the live source and preserves its capability.
+        let raw = unsafe { crate::weak::downgrade(self.as_raw().cast()) }?;
+        // SAFETY: successful downgrade transfers a token for this exact source.
+        unsafe { crate::WeakComPtr::from_raw_owned(raw) }.ok_or(NC_E_POINTER)
+    }
+
     /// Acquires an owner that can outlive this borrowed view.
     pub fn add_ref(&self) -> ComPtr<T, M> {
         // SAFETY: the view guarantees a live matching pair throughout AddRef.
@@ -604,6 +622,7 @@ mod tests {
         query_interface: query,
         add_ref: retain,
         release,
+        downgrade: None,
     };
 
     /// Typed and discovered queries reject substitution and release its extra owner.

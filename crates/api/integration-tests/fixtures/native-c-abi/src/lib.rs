@@ -141,6 +141,20 @@ mod tests {
         ) -> NcStatus;
 
         fn nc_c_validate_abi_layouts(layouts: *const NativeAbiLayouts) -> i32;
+        /// Consumes the supplied sole owner and verifies weak expiration in C.
+        fn nc_c_exercise_weak(owned: neocogi_com::ComRaw<IUnknown>, requested: *const NcInterfaceId, closed: NcStatus) -> i32;
+
+    }
+
+    /// Plain C retains/releases the weak token and promotes the exact generated contract.
+    #[test]
+    fn native_c_can_consume_weak_lifetimes() {
+        let owner = NativeCalculator::from_value(NativeCalculator);
+        // SAFETY: C consumes this sole owner and balances every acquired strong/weak reference.
+        assert_eq!(
+            unsafe { nc_c_exercise_weak(owner.into_raw(), &INativeCalculatorAbi::INTERFACE_ID, neocogi_com::NC_E_CLOSED) },
+            1
+        );
     }
 
     fn native_abi_layouts() -> NativeAbiLayouts {

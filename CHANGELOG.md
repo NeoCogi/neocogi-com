@@ -3,6 +3,15 @@
 All notable changes to the experimental component ABI are documented here.
 Semantic-version compatibility begins only after an explicitly ratified ABI.
 
+## Weak lifetime handles (core ABI 11)
+
+Add the optional C-shaped weak downgrade operation to the common object prefix,
+`WeakComPtr<T>` with checked promotion, and generated cyclic initialization for
+weak self origins. Generated objects keep one Arc-backed allocation; final strong
+release destroys the value, while weak references can retain its empty shell.
+The two-word strong handle and exact interface negotiation remain unchanged.
+Old core generations are rejected before dispatch. See [ABI v11](docs/abi-v11.md).
+
 ## Shared binding-path validation
 
 COM core owns the bounded, allocation-free Rust-2024 binding-path grammar and
@@ -120,7 +129,7 @@ prefixes and full explicit inspection remain supported.
 These entries record superseded designs, not the current API. Native contract
 artifacts, `trait`/`class` IDL declarations, global contract registration, and
 runtime ABI v2 were subsequently removed or replaced. Current binary contracts
-are core v10, factory-plugin v1, and runtime v1; see the [ABI guide](docs/abi-v10.md).
+are core v11, factory-plugin v1, and runtime v1; see the [ABI guide](docs/abi-v11.md).
 
 - Added Rust-like `.ncidl` modules with `struct`, `enum`, `trait`, `class`, and
   `factory` declarations. Every module is an ordinary Cargo crate whose

@@ -132,6 +132,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             query_interface: <T as #nc::ComAbiObject>::query_interface_from_abi_object,
             add_ref: <T as #nc::ComAbiObject>::add_ref_from_abi_object,
             release: <T as #nc::ComAbiObject>::release_from_abi_object,
+            downgrade: Some(<T as #nc::ComAbiObject>::downgrade_from_abi_object),
         },
     };
     let mut client_base = quote! {};

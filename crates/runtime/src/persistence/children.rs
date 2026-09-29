@@ -42,6 +42,7 @@ static UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
     query_interface,
     add_ref,
     release,
+    downgrade: None,
 };
 
 /// Immutable list table; both projections share the same lifecycle callbacks.
@@ -51,6 +52,7 @@ static CHILDREN_VTABLE: IObjectChildrenVTable = IObjectChildrenVTable {
         query_interface,
         add_ref,
         release,
+        downgrade: None,
     },
     count,
     get,

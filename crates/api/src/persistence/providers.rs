@@ -14,33 +14,27 @@ where
 {
     /// Distinct provider bindings in the interface's canonical metadata order.
     /// T fixes the thunk implementation; no object headers are stored here.
-    pub const PROJECTIONS: [::neocogi_com::__ComProjection<
-        T,
-    >; IObjectChildrenAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_projection_table(
+    pub const PROJECTIONS: [::neocogi_com::__ComProjection<T>; IObjectChildrenAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_projection_table(
         &IObjectChildrenAbi::INTERFACE_CHAIN,
         unsafe {
             ::neocogi_com::__ComProjection::new(
                 <IObjectChildrenAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
-                &Self::VTABLE as *const IObjectChildrenVTable
-                    as *const ::neocogi_com::IUnknownVTable,
+                &Self::VTABLE as *const IObjectChildrenVTable as *const ::neocogi_com::IUnknownVTable,
             )
         },
         &[],
     );
     /// Table for a standalone projection of this interface.
-    pub const VTABLE: IObjectChildrenVTable = Self::with_identity(
-        &<IObjectChildrenAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
-    );
+    pub const VTABLE: IObjectChildrenVTable = Self::with_identity(&<IObjectChildrenAbi as ::neocogi_com::ComInterface>::INTERFACE_ID);
     /// Builds an inherited prefix advertising the actual outer projection.
-    pub const fn with_identity(
-        identity: &'static ::neocogi_com::NcInterfaceId,
-    ) -> IObjectChildrenVTable {
+    pub const fn with_identity(identity: &'static ::neocogi_com::NcInterfaceId) -> IObjectChildrenVTable {
         IObjectChildrenVTable {
             unknown: ::neocogi_com::IUnknownVTable {
                 interface_id: identity,
                 query_interface: <T as ::neocogi_com::ComAbiObject>::query_interface_from_abi_object,
                 add_ref: <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object,
                 release: <T as ::neocogi_com::ComAbiObject>::release_from_abi_object,
+                downgrade: None,
             },
             count: Self::count_thunk,
             get: Self::get_thunk,
@@ -54,10 +48,7 @@ where
     /// # Safety
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
-    unsafe extern "C" fn count_thunk(
-        this: *mut core::ffi::c_void,
-        __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
-    ) -> ::neocogi_com::NcStatus {
+    unsafe extern "C" fn count_thunk(this: *mut core::ffi::c_void, __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -65,9 +56,7 @@ where
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
-        } {
+        let mut __nc_dispatch_value = match unsafe { <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object) } {
             Ok(value) => value,
             Err(status) => return status,
         };
@@ -112,9 +101,7 @@ where
             Ok(value) => value,
             Err(status) => return status,
         };
-        let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
-        } {
+        let mut __nc_dispatch_value = match unsafe { <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object) } {
             Ok(value) => value,
             Err(status) => return status,
         };
@@ -144,33 +131,27 @@ where
 {
     /// Distinct provider bindings in the interface's canonical metadata order.
     /// T fixes the thunk implementation; no object headers are stored here.
-    pub const PROJECTIONS: [::neocogi_com::__ComProjection<
-        T,
-    >; IPersistableAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_projection_table(
+    pub const PROJECTIONS: [::neocogi_com::__ComProjection<T>; IPersistableAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_projection_table(
         &IPersistableAbi::INTERFACE_CHAIN,
         unsafe {
             ::neocogi_com::__ComProjection::new(
                 <IPersistableAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
-                &Self::VTABLE as *const IPersistableVTable
-                    as *const ::neocogi_com::IUnknownVTable,
+                &Self::VTABLE as *const IPersistableVTable as *const ::neocogi_com::IUnknownVTable,
             )
         },
         &[],
     );
     /// Table for a standalone projection of this interface.
-    pub const VTABLE: IPersistableVTable = Self::with_identity(
-        &<IPersistableAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
-    );
+    pub const VTABLE: IPersistableVTable = Self::with_identity(&<IPersistableAbi as ::neocogi_com::ComInterface>::INTERFACE_ID);
     /// Builds an inherited prefix advertising the actual outer projection.
-    pub const fn with_identity(
-        identity: &'static ::neocogi_com::NcInterfaceId,
-    ) -> IPersistableVTable {
+    pub const fn with_identity(identity: &'static ::neocogi_com::NcInterfaceId) -> IPersistableVTable {
         IPersistableVTable {
             unknown: ::neocogi_com::IUnknownVTable {
                 interface_id: identity,
                 query_interface: <T as ::neocogi_com::ComAbiObject>::query_interface_from_abi_object,
                 add_ref: <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object,
                 release: <T as ::neocogi_com::ComAbiObject>::release_from_abi_object,
+                downgrade: None,
             },
             type_id: Self::type_id_thunk,
             schema_version: Self::schema_version_thunk,
@@ -198,9 +179,7 @@ where
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
-        } {
+        let mut __nc_dispatch_value = match unsafe { <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object) } {
             Ok(value) => value,
             Err(status) => return status,
         };
@@ -229,10 +208,7 @@ where
     /// # Safety
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
-    unsafe extern "C" fn schema_version_thunk(
-        this: *mut core::ffi::c_void,
-        __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
-    ) -> ::neocogi_com::NcStatus {
+    unsafe extern "C" fn schema_version_thunk(this: *mut core::ffi::c_void, __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -240,9 +216,7 @@ where
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
-        } {
+        let mut __nc_dispatch_value = match unsafe { <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object) } {
             Ok(value) => value,
             Err(status) => return status,
         };
@@ -282,9 +256,7 @@ where
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
-        } {
+        let mut __nc_dispatch_value = match unsafe { <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object) } {
             Ok(value) => value,
             Err(status) => return status,
         };
@@ -309,10 +281,7 @@ where
     /// # Safety
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
-    unsafe extern "C" fn child_count_thunk(
-        this: *mut core::ffi::c_void,
-        __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
-    ) -> ::neocogi_com::NcStatus {
+    unsafe extern "C" fn child_count_thunk(this: *mut core::ffi::c_void, __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
@@ -320,9 +289,7 @@ where
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
-        } {
+        let mut __nc_dispatch_value = match unsafe { <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object) } {
             Ok(value) => value,
             Err(status) => return status,
         };
@@ -367,9 +334,7 @@ where
             Ok(value) => value,
             Err(status) => return status,
         };
-        let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
-        } {
+        let mut __nc_dispatch_value = match unsafe { <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object) } {
             Ok(value) => value,
             Err(status) => return status,
         };
@@ -399,33 +364,27 @@ where
 {
     /// Distinct provider bindings in the interface's canonical metadata order.
     /// T fixes the thunk implementation; no object headers are stored here.
-    pub const PROJECTIONS: [::neocogi_com::__ComProjection<
-        T,
-    >; IPersistenceFactoryAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_projection_table(
+    pub const PROJECTIONS: [::neocogi_com::__ComProjection<T>; IPersistenceFactoryAbi::INTERFACE_CHAIN.len()] = ::neocogi_com::__nc_projection_table(
         &IPersistenceFactoryAbi::INTERFACE_CHAIN,
         unsafe {
             ::neocogi_com::__ComProjection::new(
                 <IPersistenceFactoryAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
-                &Self::VTABLE as *const IPersistenceFactoryVTable
-                    as *const ::neocogi_com::IUnknownVTable,
+                &Self::VTABLE as *const IPersistenceFactoryVTable as *const ::neocogi_com::IUnknownVTable,
             )
         },
         &[],
     );
     /// Table for a standalone projection of this interface.
-    pub const VTABLE: IPersistenceFactoryVTable = Self::with_identity(
-        &<IPersistenceFactoryAbi as ::neocogi_com::ComInterface>::INTERFACE_ID,
-    );
+    pub const VTABLE: IPersistenceFactoryVTable = Self::with_identity(&<IPersistenceFactoryAbi as ::neocogi_com::ComInterface>::INTERFACE_ID);
     /// Builds an inherited prefix advertising the actual outer projection.
-    pub const fn with_identity(
-        identity: &'static ::neocogi_com::NcInterfaceId,
-    ) -> IPersistenceFactoryVTable {
+    pub const fn with_identity(identity: &'static ::neocogi_com::NcInterfaceId) -> IPersistenceFactoryVTable {
         IPersistenceFactoryVTable {
             unknown: ::neocogi_com::IUnknownVTable {
                 interface_id: identity,
                 query_interface: <T as ::neocogi_com::ComAbiObject>::query_interface_from_abi_object,
                 add_ref: <T as ::neocogi_com::ComAbiObject>::add_ref_from_abi_object,
                 release: <T as ::neocogi_com::ComAbiObject>::release_from_abi_object,
+                downgrade: None,
             },
             validate: Self::validate_thunk,
             restore: Self::restore_thunk,
@@ -458,34 +417,20 @@ where
             Ok(value) => value,
             Err(status) => return status,
         };
-        let mut __nc_state_values = match unsafe {
-            ::neocogi_com::DecodedInput::<u8>::from_raw(__nc_state_ptr, __nc_state_len)
-        } {
+        let mut __nc_state_values = match unsafe { ::neocogi_com::DecodedInput::<u8>::from_raw(__nc_state_ptr, __nc_state_len) } {
             Ok(values) => values,
             Err(status) => return status,
         };
-        let state = ::neocogi_com::NcCopyFromBufferOffset::new(
-            __nc_state_offset,
-            __nc_state_values.as_slice(),
-        );
-        let child_count = match unsafe {
-            ::neocogi_com::decode_inline::<u32>(child_count)
-        } {
+        let state = ::neocogi_com::NcCopyFromBufferOffset::new(__nc_state_offset, __nc_state_values.as_slice());
+        let child_count = match unsafe { ::neocogi_com::decode_inline::<u32>(child_count) } {
             Ok(value) => value,
             Err(status) => return status,
         };
-        let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
-        } {
+        let mut __nc_dispatch_value = match unsafe { <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object) } {
             Ok(value) => value,
             Err(status) => return status,
         };
-        let result = <T as IPersistenceFactory>::validate(
-            &*__nc_dispatch_value,
-            version,
-            state,
-            child_count,
-        );
+        let result = <T as IPersistenceFactory>::validate(&*__nc_dispatch_value, version, state, child_count);
         drop(__nc_dispatch_value);
         if result.is_ok() {}
         match result {
@@ -521,37 +466,20 @@ where
             Ok(value) => value,
             Err(status) => return status,
         };
-        let mut __nc_state_values = match unsafe {
-            ::neocogi_com::DecodedInput::<u8>::from_raw(__nc_state_ptr, __nc_state_len)
-        } {
+        let mut __nc_state_values = match unsafe { ::neocogi_com::DecodedInput::<u8>::from_raw(__nc_state_ptr, __nc_state_len) } {
             Ok(values) => values,
             Err(status) => return status,
         };
-        let state = ::neocogi_com::NcCopyFromBufferOffset::new(
-            __nc_state_offset,
-            __nc_state_values.as_slice(),
-        );
-        let children = match unsafe {
-            ::neocogi_com::ComRef::<
-                IObjectChildrenAbi,
-                ::neocogi_com::ThreadLocal,
-            >::__nc_from_raw_borrowed_checked(children)
-        } {
+        let state = ::neocogi_com::NcCopyFromBufferOffset::new(__nc_state_offset, __nc_state_values.as_slice());
+        let children = match unsafe { ::neocogi_com::ComRef::<IObjectChildrenAbi, ::neocogi_com::ThreadLocal>::__nc_from_raw_borrowed_checked(children) } {
             Ok(value) => value,
             Err(status) => return status,
         };
-        let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
-        } {
+        let mut __nc_dispatch_value = match unsafe { <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object) } {
             Ok(value) => value,
             Err(status) => return status,
         };
-        let result = <T as IPersistenceFactory>::restore(
-            &*__nc_dispatch_value,
-            version,
-            state,
-            children,
-        );
+        let result = <T as IPersistenceFactory>::restore(&*__nc_dispatch_value, version, state, children);
         drop(__nc_dispatch_value);
         if result.is_ok() {}
         match result {

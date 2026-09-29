@@ -185,6 +185,7 @@ mod tests {
         query_interface,
         add_ref,
         release,
+        downgrade: None,
     };
 
     /// Allocates and transfers one fake root factory reference.

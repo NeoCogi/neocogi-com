@@ -110,3 +110,7 @@ path = "integration-tests/checked_values.rs"
 [[test]]
 name = "projection_metadata"
 path = "integration-tests/projection_metadata.rs"
+
+[[test]]
+name = "weak_com"
+path = "integration-tests/weak_com.rs"

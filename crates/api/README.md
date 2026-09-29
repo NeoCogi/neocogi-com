@@ -8,7 +8,7 @@ support, factory-only plugins, and an optional facade over the linked
 Public cross-library contracts should be authored as Rust-like `.ncidl`
 modules. See [IDL contract modules](../../../docs/IDL_MODULES.md) for their
 source, crate, signature, and tooling model. The
-[core ABI v10 specification](../docs/abi-v10.md) defines the binary boundary.
+[core ABI v11 specification](../docs/abi-v11.md) defines the binary boundary.
 
 ## Local object example
 

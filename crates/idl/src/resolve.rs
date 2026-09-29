@@ -1570,9 +1570,10 @@ fn fingerprint_module(
 fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, [u8; 32])]) -> Result<[u8; 32], ResolutionError> {
     let entry = &entries[index];
     let mut encoder = CanonicalEncoder::new();
-    // Version the canonical encoding for recursive raw value lowering; no
-    // native-layout contract may share a signature with a checked-wire slot.
-    encoder.bytes(b"neocogi-idl:module-abi:v4\0");
+    // Core ABI 11 adds weak downgrade to the common vtable prefix. All
+    // declarations must reject older method offsets, even without explicit
+    // references to a built-in interface in their authored fields.
+    encoder.bytes(b"neocogi-idl:module-abi:v5\0");
     encoder.guid(entry.module_id);
     encoder.bytes(&crate::specialize::template_fingerprint(&entry.module.templates));
 

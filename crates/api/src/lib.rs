@@ -88,22 +88,22 @@
 //! # Object Lifetime
 //!
 //! COM object lifetime is owned by reference counting. When `Release` transitions
-//! the count from one to zero, generated storage is destroyed immediately. Final
+//! the strong count from one to zero, the concrete value is destroyed immediately.
+//! Weak references may retain the empty allocation shell, but never its resources. Final
 //! release is not a fallible cleanup boundary, cannot defer destruction, and must
 //! not resurrect the object. If an object owns resources whose cleanup can fail,
 //! expose an explicit domain method such as `close`, `flush`, or `shutdown` and
 //! require callers to invoke it while they still hold a COM reference.
 //!
-//! Generated reference counts are `u32` values. Debug builds assert if `AddRef`
-//! would overflow or if `Release` observes an already-zero count. Release builds
-//! keep the counter from wrapping: `AddRef` saturates at `u32::MAX`, and
-//! `Release` refuses to underflow. Reaching either edge is still a broken COM
-//! ownership contract; returned counts are diagnostic values, not a protocol for
-//! managing object lifetime.
+//! Generated objects use private Arc strong/weak counters. Public returned counts
+//! are diagnostic u32 snapshots, clamped if the private count is wider; they are
+//! not a lifetime protocol. Weak promotion acquires ownership before accessing
+//! state and never resurrects a destroyed value. See [`WeakComPtr`]. Handwritten
+//! built-in providers use their documented reference-count primitives separately.
 //!
 //! # Build Compatibility
 //!
-//! core ABI v10 is currently an experimental pre-alpha draft. The generated C-shaped
+//! core ABI v11 is currently an experimental pre-alpha draft. The generated C-shaped
 //! surface is the intended compatibility boundary, but cross-release
 //! compatibility does not begin until an explicitly named future ratification
 //! milestone. Draft golden vectors prevent accidental drift within the current
@@ -494,7 +494,7 @@ mod runtime;
 #[cfg(all(test, feature = "std"))]
 mod tests;
 
-pub use neocogi_com_core::{NcCopyFromBufferOffset, NcCopyToBufferOffset};
+pub use neocogi_com_core::{NcCopyFromBufferOffset, NcCopyToBufferOffset, WeakComPtr, NcWeakRaw, NcWeakVTable};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
@@ -527,7 +527,10 @@ pub use neocogi_com_core::{
 };
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{ComMap, ComMapAccess};
-pub use object::{__com_query_interfaces, __ComCallGate, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComObject, ThreadSafeComObject};
+pub use object::{
+    __com_query_interfaces, __ComCallGate, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComObject,
+    ThreadSafeComObject,
+};
 mod local;
 pub use local::{LocalCom, LocalMut, LocalRef};
 #[doc(hidden)]

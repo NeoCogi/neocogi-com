@@ -1,6 +1,6 @@
 //! Reference-count primitives and object hooks used by generated COM classes.
 //!
-//! Generated class storage embeds an atomic strong count and no interface headers.
+//! Generated class storage uses private Arc strong/weak lifetime counters and no interface headers.
 //! Object/table handles select each implemented interface. The helpers here implement saturating `AddRef` and
 //! non-underflowing `Release`; the unsafe traits describe how generated thunks
 //! access the concrete Rust value from the allocation address, perform
@@ -183,7 +183,7 @@ impl Drop for ExclusiveCall<'_> {
 pub use neocogi_com_core::{__com_add_ref_count, __com_release_ref_count};
 
 /// Shared query body used by generated objects regardless of their Rust state.
-/// The small generated adapter supplies its actual counter and static tables;
+/// The small generated adapter supplies its retain operation and static tables;
 /// this function knows no field offsets or concrete implementation types.
 ///
 /// A per-type table address prevents identical generated query bodies from being
@@ -198,7 +198,7 @@ pub use neocogi_com_core::{__com_add_ref_count, __com_release_ref_count};
 #[inline(never)]
 pub unsafe fn __com_query_interfaces(
     object: *mut c_void,
-    references: &core::sync::atomic::AtomicU32,
+    add_ref: unsafe extern "C" fn(*mut c_void) -> u32,
     tables: &[*const crate::IUnknownVTable],
     requested: *const NcInterfaceId,
     out: *mut crate::ComRaw<crate::IUnknown>,
@@ -213,7 +213,8 @@ pub unsafe fn __com_query_interfaces(
     // SAFETY: generated tables and the requested identity remain live for this call.
     match unsafe { crate::__nc_find_interface(tables, &*requested) } {
         Ok(vtable) => {
-            __com_add_ref_count(references);
+            // SAFETY: the caller retains the source while its provider adds an owner.
+            unsafe { add_ref(object) };
             // SAFETY: retain transferred one owner with the exact requested table.
             unsafe {
                 *out = crate::ComRaw { object, vtable };
@@ -273,9 +274,8 @@ pub unsafe trait ComAbiObject: Sized {
 
     /// Increments the reference count for generated object storage.
     ///
-    /// The returned count is diagnostic only. Debug builds assert if the count
-    /// would overflow; release builds saturate at `u32::MAX` instead of
-    /// wrapping.
+    /// The returned count is a diagnostic snapshot, not a synchronization
+    /// primitive. Generated owners use Arc's checked lifetime counters.
     ///
     /// # Safety
     ///
@@ -287,12 +287,26 @@ pub unsafe trait ComAbiObject: Sized {
     /// # Safety
     ///
     /// `object` must be valid generated storage or null. When the returned count
-    /// reaches zero, the implementation must destroy the allocation immediately.
-    /// Final release cannot report fallible cleanup errors, cannot defer
-    /// destruction, and must not resurrect the object. Debug builds assert if
-    /// `Release` observes an already-zero count; release builds refuse to
-    /// underflow.
+    /// reaches zero, the implementation destroys the value immediately. Weak
+    /// references may retain empty storage. Final release cannot report fallible
+    /// cleanup errors, defer value destruction, or resurrect the object.
     unsafe extern "C" fn release_from_abi_object(object: *mut c_void) -> u32;
+
+    /// Creates one allocator-independent weak lifetime token when supported.
+    ///
+    /// # Safety
+    /// `object` must be live matching storage and `out` a distinct writable record.
+    /// Success transfers one weak reference; every error clears the output.
+    unsafe extern "C" fn downgrade_from_abi_object(_object: *mut c_void, out: *mut crate::NcWeakRaw) -> NcStatus {
+        if out.is_null() {
+            return crate::NC_E_POINTER;
+        }
+        // SAFETY: the trait caller provides a valid output record.
+        unsafe {
+            *out = crate::NcWeakRaw::null();
+        }
+        crate::NC_E_NOINTERFACE
+    }
 }
 
 /// Associates a generated COM implementation object with the strongest

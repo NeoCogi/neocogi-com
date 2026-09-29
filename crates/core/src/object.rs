@@ -24,7 +24,7 @@ pub const IUNKNOWN_QUALIFIED_NAME: &str = "IUnknown";
 /// Built-ins have no IDL build script, so this checked-in constant plays the
 /// same role as the byte string emitted by `neocogi` for ordinary contracts.
 static IUNKNOWN_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [
-    0, 26, 125, 27, 153, 74, 143, 106, 94, 128, 109, 209, 111, 235, 46, 62, 237, 132, 84, 36, 240, 76, 210, 0, 33, 186, 162, 232, 218, 82, 142, 198,
+    115, 51, 7, 113, 70, 153, 188, 83, 224, 32, 177, 220, 3, 99, 35, 224, 76, 185, 219, 137, 54, 237, 48, 110, 229, 70, 183, 10, 169, 6, 101, 229,
 ];
 
 /// Canonical ABI validation contract for [`IUnknown`].
@@ -76,6 +76,12 @@ pub struct IUnknownVTable {
     /// `this` must own one live reference. The call consumes that reference and
     /// may destroy the object immediately when the remaining count reaches zero.
     pub release: unsafe extern "C" fn(this: *mut c_void) -> u32,
+
+    /// Optional weak-lifetime capability. None reports unsupported weak references.
+    /// A live borrowed `this` and a distinct writable output are required. Success
+    /// transfers one canonical weak token; failures clear output and transfer none.
+    /// All projections of an object must return the same control identity/table.
+    pub downgrade: Option<unsafe extern "C" fn(this: *mut c_void, out: *mut crate::NcWeakRaw) -> NcStatus>,
 }
 
 // SAFETY: Vtables contain only function pointers and

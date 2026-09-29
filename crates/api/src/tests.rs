@@ -379,6 +379,7 @@ static PROBE_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
     query_interface: probe_string_query_interface,
     add_ref: probe_string_add_ref,
     release: probe_string_release,
+    downgrade: None,
 };
 static PROBE_STRING_VTABLE: INcStringVTable = INcStringVTable {
     unknown: IUnknownVTable {
@@ -386,6 +387,7 @@ static PROBE_STRING_VTABLE: INcStringVTable = INcStringVTable {
         query_interface: probe_string_query_interface,
         add_ref: probe_string_add_ref,
         release: probe_string_release,
+        downgrade: None,
     },
     byte_len: probe_string_len,
     byte_at: probe_string_byte_at,

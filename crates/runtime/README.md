@@ -26,7 +26,7 @@ not a runtime inventory of contract declarations.
 
 Runtime ABI v1 has five size-prefixed C tables: operations, plugin enumeration,
 inspection, diagnostics, and caller-scoped persistence. Plugin descriptor ABI v1
-and core object ABI v10 are independently versioned. Callers must check runtime discovery before
+and core object ABI v11 are independently versioned. Callers must check runtime discovery before
 reading a versioned table. The runtime tracks at most 1,024 live-loaded module
 records and 64 active debug messengers.
 

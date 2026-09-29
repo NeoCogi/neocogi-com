@@ -106,6 +106,7 @@ static VTABLE: IDerivedCounterVTable = IDerivedCounterVTable {
             query_interface: query,
             add_ref,
             release,
+            downgrade: None,
         },
         additions,
         malformed_output,

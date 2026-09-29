@@ -78,7 +78,7 @@ unsafe impl ComInterface for INcBytesAbi {
 /// This checked-in digest prevents the core crate from hashing during rustc
 /// constant evaluation while retaining an exact identity for the built-in ABI.
 static INC_BYTES_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [
-    225, 88, 52, 5, 112, 106, 201, 224, 109, 209, 71, 69, 197, 184, 19, 235, 100, 193, 232, 241, 237, 243, 185, 247, 186, 233, 127, 89, 211, 33, 68, 174,
+    232, 93, 45, 206, 56, 97, 65, 126, 22, 102, 188, 72, 155, 225, 110, 194, 192, 0, 36, 19, 229, 213, 55, 252, 99, 57, 140, 250, 60, 32, 19, 212,
 ];
 
 impl INcBytesAbi {
@@ -208,7 +208,7 @@ unsafe impl ComInterface for INcStringAbi {
 /// This checked-in digest prevents the core crate from hashing during rustc
 /// constant evaluation while retaining an exact identity for the built-in ABI.
 static INC_STRING_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [
-    133, 203, 235, 159, 222, 246, 237, 161, 190, 204, 186, 52, 5, 118, 216, 74, 199, 153, 87, 27, 144, 183, 232, 5, 240, 185, 157, 42, 162, 229, 147, 106,
+    61, 67, 235, 17, 157, 109, 69, 188, 169, 250, 96, 199, 202, 242, 1, 205, 80, 188, 90, 23, 173, 103, 184, 243, 241, 221, 208, 115, 233, 254, 108, 31,
 ];
 
 impl INcStringAbi {

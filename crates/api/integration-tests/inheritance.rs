@@ -178,8 +178,9 @@ fn interface_pairs_share_one_object_without_embedded_headers() {
     assert_eq!(toggle.value(), Ok(41));
     assert_eq!(button.value(), Ok(41));
     assert_eq!(widget.value(), Ok(41));
-    // Only the allocation-wide refcount and borrow gate precede Rust state.
-    assert_eq!(core::mem::offset_of!(ToggleComObject, value), 16);
+    // The payload contains only the call gate before Rust state. Arc keeps its
+    // strong/weak counters in a private allocation header, outside this payload.
+    assert_eq!(core::mem::offset_of!(ToggleComObject, value), word);
 }
 
 /// Exercises nullable raw pairs through real generated argument lowering.
