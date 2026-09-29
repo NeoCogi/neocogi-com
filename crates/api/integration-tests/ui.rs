@@ -38,6 +38,10 @@ fn ui_errors_are_stable() {
     t.compile_fail("integration-tests/ui/interface_copy_to_buffer_missing_element.rs");
     t.compile_fail("integration-tests/ui/interface_copy_to_buffer_static_lifetime.rs");
     t.compile_fail("integration-tests/ui/interface_comref_static_lifetime.rs");
+    t.compile_fail("integration-tests/ui/interface_value_ref_static_lifetime.rs");
+    t.compile_fail("integration-tests/ui/interface_value_ref_named_lifetime.rs");
+    t.compile_fail("integration-tests/ui/interface_value_ref_shape.rs");
+    t.compile_fail("integration-tests/ui/interface_value_ref_escape.rs");
     t.compile_fail("integration-tests/ui/interface_default_method.rs");
     t.compile_fail("integration-tests/ui/interface_explicit_guid_name_mismatch.rs");
     t.compile_fail("integration-tests/ui/interface_empty_qualified_name.rs");

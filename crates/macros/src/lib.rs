@@ -72,7 +72,12 @@
 //! buffer parameters use `neocogi_com::NcCopyFromBufferOffset<'_, T>` or
 //! `neocogi_com::NcCopyToBufferOffset<'_, T>` and lower to offset, length, and raw
 //! buffer pointer slots. These parameters likewise require `'_` so their safe
-//! slices remain call-scoped.
+//! slices remain call-scoped. Borrowed values use `neocogi_com::NcValueRef<'_, T>`
+//! and the same lifetime policy: exactly one anonymous lifetime followed by the
+//! value type. Receivers must call `to_owned()` during the call to retain data.
+//! Even a static application value can need temporary encoded storage, so its
+//! receiver cannot claim a static borrow of the wire. This restricts interface
+//! declarations, not the lifetime of a producer guard created with `NcValueRef::new`.
 //!
 //! The generated ABI function becomes:
 //!

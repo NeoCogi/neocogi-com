@@ -1,0 +1,7 @@
+error: lifetime may not live long enough
+  --> integration-tests/ui/interface_value_ref_escape.rs:27:9
+   |
+26 |     fn retain(&mut self, value: NcValueRef<'_, Message>) -> Result<(), NcStatus> {
+   |                          ----- has type `NcValueRef<'1, Message>`
+27 |         self.saved = Some(value);
+   |         ^^^^^^^^^^ assignment requires that `'1` must outlive `'static`

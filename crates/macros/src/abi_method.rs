@@ -258,25 +258,9 @@ fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
     // Recognize ownership-bearing wrappers before the plain-value fallback.
     // Ordering matters because raw ABI pointer types alone cannot communicate
     // whether an interface or buffer is borrowed, mutable, or transferred.
-    if let Type::Path(path) = &ty {
-        if let Some(segment) = path.path.segments.last().filter(|segment| segment.ident == "NcValueRef") {
-            if let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments {
-                let types = arguments
-                    .args
-                    .iter()
-                    .filter_map(|arg| match arg {
-                        syn::GenericArgument::Type(ty) => Some(ty),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
-                if let [message] = types.as_slice() {
-                    let message = (*message).clone();
-                    let abi_ty = syn::parse_quote! { *const <#message as #nc::ComValue>::Wire };
-                    return Ok((ty, abi_ty, AbiArgKind::BorrowedValue { value_ty: Box::new(message) }));
-                }
-            }
-            return Err(syn::Error::new_spanned(ty, "expected NcValueRef<'_, ConcreteMessage>"));
-        }
+    if let Some(value_ty) = parse_borrowed_element_type(&ty, "NcValueRef", "`NcValueRef` parameters must be `NcValueRef<'_, Value>`")? {
+        let abi_ty = syn::parse_quote! { *const <#value_ty as #nc::ComValue>::Wire };
+        return Ok((ty, abi_ty, AbiArgKind::BorrowedValue { value_ty: Box::new(value_ty) }));
     }
 
     if let Some(com_ref) = parse_com_ref_type(&ty)? {
@@ -292,15 +276,13 @@ fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
         ));
     }
 
-    if let Some(buffer) = parse_copy_from_buffer_offset_type(&ty)? {
-        let element_ty = buffer.element_ty;
+    if let Some(element_ty) = parse_copy_from_buffer_offset_type(&ty)? {
         validate_plain_abi_type(&element_ty, PlainAbiTypeContext::BufferElement)?;
         let abi_ty = syn::parse_quote! { *const <#element_ty as #nc::ComValue>::Wire };
         return Ok((ty, abi_ty, AbiArgKind::CopyFromBufferOffset { element_ty: Box::new(element_ty) }));
     }
 
-    if let Some(buffer) = parse_copy_to_buffer_offset_type(&ty)? {
-        let element_ty = buffer.element_ty;
+    if let Some(element_ty) = parse_copy_to_buffer_offset_type(&ty)? {
         validate_plain_abi_type(&element_ty, PlainAbiTypeContext::BufferElement)?;
         let abi_ty = syn::parse_quote! { *mut <#element_ty as #nc::ComValue>::Wire };
         return Ok((ty, abi_ty, AbiArgKind::CopyToBufferOffset { element_ty: Box::new(element_ty) }));
@@ -379,12 +361,6 @@ struct ComPtrType {
     mode_ty: Option<Type>,
 }
 
-/// Parsed element type of a bounded offset-buffer wrapper.
-struct BufferOffsetType {
-    /// Plain ABI element copied by the generated thunk.
-    element_ty: Type,
-}
-
 /// Parses a call-scoped borrowed interface wrapper when `ty` names `ComRef`.
 fn parse_com_ref_type(ty: &Type) -> Result<Option<ComRefType>> {
     let Some(args) = type_generic_args_named(ty, "ComRef") else {
@@ -416,8 +392,8 @@ fn parse_com_ref_type(ty: &Type) -> Result<Option<ComRefType>> {
 }
 
 /// Parses an immutable source-buffer parameter wrapper.
-fn parse_copy_from_buffer_offset_type(ty: &Type) -> Result<Option<BufferOffsetType>> {
-    parse_buffer_offset_type(
+fn parse_copy_from_buffer_offset_type(ty: &Type) -> Result<Option<Type>> {
+    parse_borrowed_element_type(
         ty,
         "NcCopyFromBufferOffset",
         "`NcCopyFromBufferOffset` parameters must be `NcCopyFromBufferOffset<'_, Element>`",
@@ -425,18 +401,28 @@ fn parse_copy_from_buffer_offset_type(ty: &Type) -> Result<Option<BufferOffsetTy
 }
 
 /// Parses a mutable destination-buffer parameter wrapper.
-fn parse_copy_to_buffer_offset_type(ty: &Type) -> Result<Option<BufferOffsetType>> {
-    parse_buffer_offset_type(
+fn parse_copy_to_buffer_offset_type(ty: &Type) -> Result<Option<Type>> {
+    parse_borrowed_element_type(
         ty,
         "NcCopyToBufferOffset",
         "`NcCopyToBufferOffset` parameters must be `NcCopyToBufferOffset<'_, Element>`",
     )
 }
 
-/// Parses the common lifetime and element arguments of either buffer wrapper.
-fn parse_buffer_offset_type(ty: &Type, expected_ident: &str, shape_error: &str) -> Result<Option<BufferOffsetType>> {
-    let Some(args) = type_generic_args_named(ty, expected_ident) else {
+/// Parses the exact `<'_, T>` shape shared by value and buffer borrows.
+///
+/// Check arguments in their original positions: discarding non-type arguments
+/// would erase the lifetime check and let receivers retain temporary wire storage.
+/// Element capabilities are checked separately by each wrapper's lowering rule.
+fn parse_borrowed_element_type(ty: &Type, expected_ident: &str, shape_error: &str) -> Result<Option<Type>> {
+    let Type::Path(path) = ty else {
         return Ok(None);
+    };
+    let Some(segment) = path.path.segments.last().filter(|segment| segment.ident == expected_ident) else {
+        return Ok(None);
+    };
+    let syn::PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return Err(syn::Error::new_spanned(ty, shape_error));
     };
     let generic_args = args.args.iter().collect::<Vec<_>>();
     if generic_args.len() != 2 {
@@ -446,11 +432,11 @@ fn parse_buffer_offset_type(ty: &Type, expected_ident: &str, shape_error: &str) 
     let element_ty = match generic_args[1] {
         syn::GenericArgument::Type(ty) => ty.clone(),
         arg => {
-            return Err(syn::Error::new_spanned(arg, "buffer element parameter must be a type"));
+            return Err(syn::Error::new_spanned(arg, format!("`{expected_ident}` element parameter must be a type")));
         }
     };
 
-    Ok(Some(BufferOffsetType { element_ty }))
+    Ok(Some(element_ty))
 }
 
 /// Requires `'_` so generated borrows cannot claim a longer source lifetime.
@@ -712,3 +698,6 @@ fn is_nc_status_type(ty: &Type) -> bool {
         _ => false,
     }
 }
+
+#[cfg(test)]
+mod tests;

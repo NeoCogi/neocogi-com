@@ -1,0 +1,5 @@
+error: `NcValueRef` parameters must use `'_` as their call-scoped lifetime; named lifetimes, including `'static`, are not supported
+  --> integration-tests/ui/interface_value_ref_named_lifetime.rs:14:57
+   |
+14 |     fn retain(&mut self, value: neocogi_com::NcValueRef<'borrowed, Message>) -> Result<(), neocogi_com::NcStatus>;
+   |                                                         ^^^^^^^^^
