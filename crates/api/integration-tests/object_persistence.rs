@@ -156,6 +156,44 @@ fn registry() -> (FactoryRegistry, Arc<Counts>) {
     (registry, counts)
 }
 
+/// Generated persistence projections share the root lifetime and keep their
+/// exact interface usable after promotion, without keeping destroyed values alive.
+#[test]
+fn persistence_projections_share_weak_ownership_with_the_root() {
+    let (registry, counts) = registry();
+    let bytes = binary::to_vec(&record("weak persistence", vec![])).unwrap();
+    let root = registry.restore(&bytes).unwrap();
+    let projected = root.query::<IPersistableAbi>().unwrap();
+    let weak_root = root.downgrade().unwrap();
+    let weak_projection = projected.downgrade().unwrap();
+    assert!(weak_root.same_object(&weak_projection));
+
+    // Promotion preserves the requested persistence projection, not just IUnknown.
+    let promoted = weak_projection.upgrade().unwrap().unwrap();
+    assert_eq!(promoted.type_id().unwrap(), KIND);
+    assert_eq!(promoted.schema_version().unwrap(), 1);
+    drop(root);
+    drop(projected);
+    assert_eq!(counts.live.load(Ordering::Relaxed), 1);
+    drop(promoted);
+    assert_eq!(counts.live.load(Ordering::Relaxed), 0);
+    assert!(weak_projection.upgrade().unwrap().is_none());
+    assert!(weak_root.upgrade().unwrap().is_none());
+
+    // Factories use separately generated bindings and must obey the same protocol.
+    let factory_root = Factory::from_value(Factory { counts: counts.clone() });
+    let factory = factory_root.query::<IPersistenceFactoryAbi>().unwrap();
+    let weak_factory = factory.downgrade().unwrap();
+    assert!(weak_factory.same_object(&factory_root.downgrade().unwrap()));
+    let promoted_factory = weak_factory.upgrade().unwrap().unwrap();
+    drop(factory_root);
+    drop(factory);
+    assert_eq!(counts.factories_dropped.load(Ordering::Relaxed), 0);
+    drop(promoted_factory);
+    assert_eq!(counts.factories_dropped.load(Ordering::Relaxed), 1);
+    assert!(weak_factory.upgrade().unwrap().is_none());
+}
+
 /// Both persistence directions use real interface calls and preserve child order.
 #[test]
 fn recursive_objects_round_trip_through_their_factories() {
