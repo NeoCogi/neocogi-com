@@ -279,7 +279,8 @@ impl Runtime {
     /// The path must have a nonempty UTF-8 representation without interior NUL
     /// bytes. This is required live activation: any path conversion, loading,
     /// description, dependency, or registration failure prints/emits its
-    /// diagnostic and aborts the process. Failure never returns.
+    /// diagnostic and aborts the process. Failure never returns. This policy also
+    /// applies to designer startup: loading has no recoverable `try_` alternative.
     /// Live activation calls must not be nested: native loader initialization
     /// and the plugin description entrypoint must not directly or indirectly
     /// call this operation while another activation is in progress.
@@ -297,29 +298,26 @@ impl Runtime {
     /// `path` must identify trusted neocogi-com factory plugin code. The runtime
     /// requires the standard generated factory-description export.
     pub unsafe fn load_plugin_library(&self, path: impl AsRef<Path>) -> LoadedModuleInfo {
-        // SAFETY: the caller accepted the trusted-library requirement.
-        unsafe { self.try_load_plugin_library(path) }.unwrap_or_else(|status| fatal_plugin_load(status))
-    }
-
-    /// Loads a trusted plugin library and returns a recoverable status on failure.
-    ///
-    /// The runtime retains successful modules for the process lifetime. A failed
-    /// load does not register a partial plugin. Use this form in interactive
-    /// tools that must report a bad path or incompatible plugin without aborting.
-    ///
-    /// # Safety
-    ///
-    /// `path` must identify code the caller trusts to execute during loading.
-    pub unsafe fn try_load_plugin_library(&self, path: impl AsRef<Path>) -> Result<LoadedModuleInfo, NcStatus> {
-        let path = path.as_ref().to_str().ok_or(NC_E_INVALID_ARG)?;
+        // Live loading is mandatory for every caller, including interactive tools.
+        // Reject local path conversion before entering the same fatal C operation.
+        let path = path.as_ref();
+        let path = path
+            .to_str()
+            .unwrap_or_else(|| fatal_plugin_load(format_args!("path is not valid UTF-8: {}", path.display())));
         let mut module_id = 0;
         // SAFETY: the UTF-8 path and output slot live through this call; the
-        // caller accepted the trusted-library requirement.
+        // caller accepted the trusted-library requirement. Native load errors
+        // abort in the runtime; raw argument-validation errors return a status.
         let status = unsafe { (self.runtime_api().load_plugin_library_utf8)(path.as_ptr(), path.len(), &mut module_id) };
-        status_to_result(status)?;
-        // The C load returns only an opaque module ID. Inspection supplies an
-        // owned summary without exposing descriptor pointer lifetimes.
-        self.inspection().loaded_module(LoadedModuleId::from_raw(module_id))?.ok_or(NC_E_NOT_FOUND)
+        if status.is_err() {
+            fatal_plugin_load(status);
+        }
+        // A successful load must have a published module record. Failure to
+        // acquire its owned summary is fatal too; no partial result is exposed.
+        self.inspection()
+            .loaded_module(LoadedModuleId::from_raw(module_id))
+            .and_then(|module| module.ok_or(NC_E_NOT_FOUND))
+            .unwrap_or_else(|status| fatal_plugin_load(status))
     }
 
     /// Loads trusted plugin libraries sequentially.

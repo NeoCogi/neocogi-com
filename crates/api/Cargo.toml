@@ -118,3 +118,8 @@ path = "integration-tests/weak_com.rs"
 [[test]]
 name = "borrowed_values"
 path = "integration-tests/borrowed_values.rs"
+
+[[test]]
+name = "plugin_load_failure"
+path = "integration-tests/plugin_load_failure.rs"
+required-features = ["runtime"]
