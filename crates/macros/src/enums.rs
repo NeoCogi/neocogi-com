@@ -8,10 +8,9 @@
 
 use quote::{format_ident, quote};
 use syn::spanned::Spanned;
-use syn::{Attribute, Expr, Fields, Ident, ItemEnum, Lit, LitInt, LitStr, Result, UnOp};
+use syn::{Attribute, Expr, Fields, Ident, ItemEnum, Lit, LitInt, Result, UnOp};
 
 use crate::args::EnumArgs;
-use crate::deserialize::expand_struct as expand_struct_deserialize;
 use crate::plain_data::{PlainAbiTypeContext, validate_plain_abi_fields};
 use crate::util::{abi_signature_static_tokens, checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
 
@@ -92,8 +91,15 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
     let signature_bytes_ident = format_ident!("__nc_{abi_ident}_abi_signature_bytes", span = enum_ident.span());
     let signature_static = abi_signature_static_tokens(&signature_bytes_ident, assigned_signature, &nc);
 
-    let (deserialize_payload_impls, deserialize_impl) = if args.deserialize {
-        let (payloads, decoder) = expand_enum_deserialize(enum_ident, &variants, &nc)?;
+    let deserialize_impl = if args.deserialize {
+        // Persistence describes native variants, independent of the legacy
+        // application wrapper or the separate checked COM wire representation.
+        let data = syn::DataEnum {
+            enum_token: input.enum_token,
+            brace_token: input.brace_token,
+            variants: input.variants.clone(),
+        };
+        let decoder = crate::deserialize::expand_enum(enum_ident, &data, &nc, None)?;
         let wrapper_decoder = quote! {
             impl #nc::ComDeserialize for #abi_ident {
                 /// Builds the C-layout application wrapper only from a decoded enum.
@@ -103,9 +109,9 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
                 }
             }
         };
-        (payloads, quote! { #decoder #wrapper_decoder })
+        quote! { #decoder #wrapper_decoder }
     } else {
-        (Vec::new(), quote! {})
+        quote! {}
     };
 
     let tag_count = variants.len();
@@ -493,8 +499,6 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
 
         #(#payload_structs)*
 
-        #(#deserialize_payload_impls)*
-
         #[repr(C)]
         #[derive(Clone, Copy)]
         #[doc = concat!("ABI payload union for [`", stringify!(#enum_ident), "`].")]
@@ -664,105 +668,6 @@ fn has_derive(attributes: &[Attribute], trait_name: &str) -> bool {
         });
         found
     })
-}
-
-/// Generates typed source decoding for a COM enum and its payload records.
-fn expand_enum_deserialize(
-    enum_ident: &Ident,
-    variants: &[(Ident, Fields, Expr)],
-    nc: &syn::Path,
-) -> Result<(Vec<proc_macro2::TokenStream>, proc_macro2::TokenStream)> {
-    let mut payload_impls = Vec::new();
-    let mut arms = Vec::new();
-    let variant_names = variants
-        .iter()
-        .map(|(variant, _, _)| LitStr::new(&variant.to_string(), variant.span()))
-        .collect::<Vec<_>>();
-
-    for (index, (variant_ident, fields, _)) in variants.iter().enumerate() {
-        let index = index as u32;
-        match fields {
-            Fields::Unit => arms.push(quote! {
-                #index => {
-                    value.unit()?;
-                    Ok(Self::#variant_ident)
-                }
-            }),
-            Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
-                let ty = &fields.unnamed.first().expect("newtype variant has one field").ty;
-                arms.push(quote! {
-                    #index => Ok(Self::#variant_ident(value.newtype::<#ty>()?))
-                });
-            }
-            Fields::Unnamed(fields) => {
-                let payload_ident = variant_payload_ident(enum_ident, variant_ident);
-                let mut named_fields = syn::punctuated::Punctuated::new();
-                for (field_index, field) in fields.unnamed.iter().enumerate() {
-                    let mut field = field.clone();
-                    field.ident = Some(tuple_payload_field(field_index));
-                    named_fields.push(field);
-                }
-                let generated_fields = Fields::Named(syn::FieldsNamed {
-                    brace_token: Default::default(),
-                    named: named_fields,
-                });
-                payload_impls.push(expand_struct_deserialize(&payload_ident, &generated_fields, nc, false, true)?);
-                let payload_fields = fields.unnamed.iter().enumerate().map(|(field_index, _)| {
-                    let field = tuple_payload_field(field_index);
-                    quote! { payload.#field }
-                });
-                let length = fields.unnamed.len();
-                arms.push(quote! {
-                    #index => {
-                        let payload: #payload_ident = value.tuple(#length)?;
-                        Ok(Self::#variant_ident(#(#payload_fields),*))
-                    }
-                });
-            }
-            Fields::Named(fields) => {
-                let payload_ident = variant_payload_ident(enum_ident, variant_ident);
-                let generated_fields = Fields::Named(fields.clone());
-                payload_impls.push(expand_struct_deserialize(&payload_ident, &generated_fields, nc, false, false)?);
-                let payload_fields = fields.named.iter().map(|field| {
-                    let field = field.ident.as_ref().expect("named field has an identifier");
-                    quote! { #field: payload.#field }
-                });
-                arms.push(quote! {
-                    #index => {
-                        let payload: #payload_ident = value.record()?;
-                        Ok(Self::#variant_ident { #(#payload_fields),* })
-                    }
-                });
-            }
-        }
-    }
-
-    let implementation = quote! {
-        impl #nc::ComDeserialize for #enum_ident {
-            fn com_deserialize<'__nc_de, __NcDecoder>(decoder: __NcDecoder) -> Result<Self, __NcDecoder::Error>
-            where
-                __NcDecoder: #nc::ComDeserializer<'__nc_de>,
-            {
-                decoder.deserialize_enum::<Self>()
-            }
-        }
-
-        impl #nc::ComEnum for #enum_ident {
-            const NAME: &'static str = stringify!(#enum_ident);
-            const VARIANTS: &'static [&'static str] = &[#(#variant_names),*];
-
-            fn read_variant<'__nc_de, __NcVariant>(variant: u32, value: __NcVariant) -> Result<Self, __NcVariant::Error>
-            where
-                __NcVariant: #nc::ComVariantAccess<'__nc_de>,
-            {
-                match variant {
-                    #(#arms,)*
-                    _ => Err(value.invalid_variant(variant, Self::VARIANTS)),
-                }
-            }
-        }
-    };
-    Ok((payload_impls, implementation))
 }
 
 /// Rejects generics, empty enums, and unsupported enum-level syntax.

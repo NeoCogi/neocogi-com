@@ -42,7 +42,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
             if data.variants.iter().all(|variant| matches!(variant.fields, Fields::Unit)) {
                 expand_unit_enum(ident, data.variants.iter().map(|variant| &variant.ident), &nc, options.rename_all.as_ref())
             } else {
-                expand_owned_enum(ident, data, &nc, options.rename_all.as_ref())
+                expand_enum(ident, data, &nc, options.rename_all.as_ref())
             }
         }
         Data::Union(data) => Err(syn::Error::new_spanned(
@@ -330,8 +330,11 @@ pub(crate) fn to_snake_case(source: &str) -> String {
     result
 }
 
-/// Generates owned enum construction using private typed payload records.
-pub(crate) fn expand_owned_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path, rename: Option<&LitStr>) -> Result<TokenStream> {
+/// Constructs copied and owned native enums through one persistence protocol.
+/// Variant ordinals follow declaration order, independently of COM wire tags.
+/// Tuple/record helpers exist only inside the decoder and never become public
+/// application representations or participate in a COM calling convention.
+pub(crate) fn expand_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path, rename: Option<&LitStr>) -> Result<TokenStream> {
     let mut helpers = Vec::new();
     let mut names = Vec::new();
     let mut arms = Vec::new();
@@ -356,7 +359,11 @@ pub(crate) fn expand_owned_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path, 
                     .collect::<Vec<_>>();
                 let types = fields.iter().map(|field| &field.ty).collect::<Vec<_>>();
                 let definition: syn::ItemStruct = syn::parse_quote! {
-                    struct #helper { #(#members: #types),* }
+                    /// Private typed fields acquired while decoding this one variant.
+                    struct #helper {
+                        #(/// Acquired field used to construct the selected native variant.
+                        #members: #types),*
+                    }
                 };
                 let sequence = matches!(fields, Fields::Unnamed(_));
                 let decoder = expand_struct(&helper, &definition.fields, nc, false, sequence)?;
@@ -373,14 +380,16 @@ pub(crate) fn expand_owned_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path, 
         arms.push(quote! { #index => { #body } });
     }
     Ok(quote! {
-        #(#helpers)*
         impl #nc::ComDeserialize for #ident {
+            /// Selects a native variant using the shared enum persistence protocol.
             fn com_deserialize<'__de, __D: #nc::ComDeserializer<'__de>>(decoder: __D) -> Result<Self, __D::Error> { decoder.deserialize_enum::<Self>() }
         }
         impl #nc::ComEnum for #ident {
             const NAME: &'static str = stringify!(#ident);
             const VARIANTS: &'static [&'static str] = &[#(#names),*];
+            /// Acquires only the selected payload before constructing its native variant.
             fn read_variant<'__de, __V: #nc::ComVariantAccess<'__de>>(variant: u32, value: __V) -> Result<Self, __V::Error> {
+                #(#helpers)*
                 match variant { #(#arms,)* _ => Err(value.invalid_variant(variant, Self::VARIANTS)) }
             }
         }

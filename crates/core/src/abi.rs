@@ -10,17 +10,21 @@ use crate::metadata::{NcAbiStructLayout, NcAbiType};
 use crate::signature::NcAbiSignature;
 use crate::status::NcStatus;
 
-/// Nominal type metadata for copied application values with a stable C layout.
-/// Generated methods transport [`crate::ComValue::Wire`], not `Self` directly;
-/// this marker alone neither validates foreign contents nor supplies a codec.
+/// Canonical type metadata for copied application values with checked wire codecs.
+///
+/// Generated calls transport [`crate::ComValue::Wire`], never `Self` directly.
+/// A native Rust enum is a valid application value even when its local layout
+/// differs between compilers. [`crate::ComInlineValue`] proves that its separate
+/// wire record is self-contained; this trait only supplies type identity. Call
+/// generation separately requires that codec and its inline-storage proof.
 ///
 /// # Safety
 ///
-/// Implementors must have a stable ABI layout, must not contain Rust references,
-/// raw pointers, or other lifetime-bound data, must not rely on Rust drop glue
-/// across the ABI boundary. Inline arrays are permitted as C-layout fields;
-/// calls transport their repr(C) checked wire wrapper, never a native Rust array
-/// directly in an extern function signature.
+/// `ABI_TYPE` must describe the logical scalar or aggregate identity encoded by
+/// [`crate::ComValue`]. Named aggregate signatures must be assigned by the IDL
+/// compiler, and intrinsic identities must follow their canonical encoding.
+/// This trait does not grant permission to reinterpret `Self` as foreign bytes;
+/// only the codec's explicit wire layout and validation may cross COM.
 pub unsafe trait AbiType: Copy + 'static {
     /// Canonical ABI type identity stored in method and field descriptors.
     const ABI_TYPE: NcAbiType;
@@ -40,13 +44,14 @@ pub unsafe trait AbiType: Copy + 'static {
 /// validity requirements separately before reading the value.
 pub unsafe trait AbiPlainValue: AbiType {}
 
-/// Marker for macro-generated application structs with physical C-layout metadata.
+/// Marker for generated application structs with local physical layout metadata.
 /// This describes `Self`, not the separate [`crate::ComValue::Wire`] transported
-/// by generated methods. Raw field layouts may differ, especially for nested enums.
+/// by generated methods. Nested native enums can have compiler-specific layouts;
+/// these offsets are local inspection data, not a cross-library layout agreement.
 ///
 /// # Safety
 ///
-/// Implementors must describe their actual ABI declaration and layout exactly.
+/// Implementors must describe their actual local declaration and layout exactly.
 /// [`Self::ABI_SIGNATURE`] must be the declaration-scoped fingerprint assigned
 /// by the IDL generator. `size`, `align`, and every field offset in
 /// [`Self::ABI_STRUCT_LAYOUT`] must match the compiled representation of `Self`,
@@ -210,9 +215,9 @@ const fn array_signature(element: NcAbiType, len: usize) -> [u8; 32] {
     crate::__nc_abi_digest(&input)
 }
 
-// SAFETY: A fixed array of plain values has contiguous stable field layout,
-// contains no ownership or call-scoped addresses, and is Copy. Its actual calls
-// use ValueArray<T::Wire, N>, whose decoder checks each element before construction.
+// SAFETY: This identity depends only on element contracts and length. The
+// application array may contain native enums; calls use ValueArray<T::Wire, N>
+// and validate each element instead of exposing local application layout.
 unsafe impl<T: AbiPlainValue, const N: usize> AbiType for [T; N] {
     const ABI_TYPE: NcAbiType = NcAbiType::Aggregate(NcAbiSignature::from_static(&array_signature(T::ABI_TYPE, N)));
 }
