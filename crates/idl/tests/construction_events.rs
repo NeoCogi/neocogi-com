@@ -35,8 +35,12 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
             fn emit(&mut self, value: &Event) -> Result<()>;
             fn close(&mut self) -> Result<()>;
         }
+        #[version(1)] #[threading(shared)] class SharedOrigin {}
+        #[version(1)] factory SharedFactory {
+            fn create(&self, events: &EventBinding<SharedOrigin, Event>) -> Result<ComPtr<SharedOrigin>>;
+        }
         #[version(1)] factory Factory {
-            fn create(&self, reject: bool, events: &EventBinding<Event>) -> Result<ComPtr<Counter>>;
+            fn create(&self, reject: bool, events: &EventBinding<Counter, Event>) -> Result<ComPtr<Counter>>;
         }
     "#;
     let project = tempfile::tempdir().unwrap();
@@ -76,10 +80,10 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
             pub fn cannot_attach(
                 mut product: ComPtr<CounterAbi>,
                 mut port: CounterEventPort,
-                sink: ComPtr<CounterSinkAbi>,
+                queue: ComPtr<CounterEventQueueAbi>,
             ) {
-                product.attach(sink.as_com_ref());
-                port.attach(sink.as_com_ref());
+                product.attach(queue.as_com_ref());
+                port.attach(queue.as_com_ref());
             }
         "#,
     )
@@ -105,11 +109,27 @@ fn constructor_event_contract_rejects_multiple_or_inconsistent_sinks() {
         #[version(1)] enum B { B }
         #[version(1)] class Product {}
     "#;
-    let duplicate =
-        format!("{prefix} #[version(1)] factory Factory {{ fn create(&self, a: &EventBinding<A>, b: &EventBinding<A>) -> Result<ComPtr<Product>>; }}");
+    let duplicate = format!(
+        "{prefix} #[version(1)] factory Factory {{ fn create(&self, a: &EventBinding<Product, A>, b: &EventBinding<Product, A>) -> Result<ComPtr<Product>>; }}"
+    );
     assert!(generate(&duplicate).unwrap_err().to_string().contains("multiple event bindings"));
     let inconsistent = format!(
-        "{prefix} #[version(1)] factory Factory {{ fn first(&self, events: &EventBinding<A>) -> Result<ComPtr<Product>>; fn second(&self, events: &EventBinding<B>) -> Result<ComPtr<Product>>; }}"
+        "{prefix} #[version(1)] factory Factory {{ fn first(&self, events: &EventBinding<Product, A>) -> Result<ComPtr<Product>>; fn second(&self, events: &EventBinding<Product, B>) -> Result<ComPtr<Product>>; }}"
     );
     assert!(generate(&inconsistent).unwrap_err().to_string().contains("disagree on their event type"));
+}
+
+/// A factory cannot claim an unrelated object as its product's event origin.
+#[test]
+fn constructor_rejects_a_different_origin_contract() {
+    let source = r#"
+        extern neocogi.com.events; use neocogi.com.events::EventBinding;
+        #[version(1)] enum Event { Changed }
+        #[version(1)] class Product {}
+        #[version(1)] class Other {}
+        #[version(1)] factory Factory {
+            fn create(&self, events: &EventBinding<Other, Event>) -> Result<ComPtr<Product>>;
+        }
+    "#;
+    assert!(generate(source).unwrap_err().to_string().contains("returned product as event origin"));
 }

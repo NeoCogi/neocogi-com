@@ -1,18 +1,20 @@
 #[version(1)]
-/// A concrete message receiver; application closures and queue types remain local.
-interface IMessageSink<T> {
-    /// Validates and acquires the message before its call-scoped storage expires.
-    fn post(&mut self, message: &T) -> Result<()>;
+/// Application-owned enqueue boundary for one concrete origin and event type.
+/// Post acquires its payload and queues work; behavior runs after the caller's
+/// mutable widget call returns. No handler/model pointer is retained by a widget.
+interface IEventQueue<Object, Event> {
+    /// Borrows the emitting object and snapshot for this synchronous call only.
+    /// A queued origin should be weak unless the application deliberately needs ownership.
+    fn post(&mut self, origin: &Object, event: &Event) -> Result<()>;
 }
 
-#[version(1)]
-/// Complete event-delivery choice supplied to a producer's constructor.
-/// Unobserved is permanent for that instance; Observed retains exactly one
-/// typed destination until logical closure or final producer destruction.
-/// This is an ordinary generic enum, not special widget syntax.
-enum EventBinding<E> {
-    /// Construct without delivery; no later consumer installation is permitted.
+#[version(2)]
+/// Permanent constructor delivery policy. Exactly one queue receives an object's
+/// entire event enum. The application may share the same concrete queue object
+/// among widgets and implement several closed IEventQueue interfaces on it.
+enum EventBinding<Object, Event> {
+    /// Permanently disable delivery for this instance, as in a designer preview.
     Unobserved,
-    /// Retain the behavioral parent's typed receiver before publishing the object.
-    Observed(ComPtr<IMessageSink<E>>),
+    /// Retain the receiving queue until producer closure or final destruction.
+    Observed(ComPtr<IEventQueue<Object, Event>>),
 }

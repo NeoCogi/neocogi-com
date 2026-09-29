@@ -12,8 +12,8 @@ fn templates() -> Module {
     module(
         "test/transport.ncidl",
         r#"
-        #[version(1)] interface ISink<T> { fn post(&mut self, message: &T) -> Result<()>; }
-        #[version(1)] interface IStream<T> { fn attach(&mut self, sink: &ISink<T>) -> Result<()>; }
+        #[version(1)] interface IReceiver<T> { fn post(&mut self, message: &T) -> Result<()>; }
+        #[version(1)] interface IStream<T> { fn attach(&mut self, queue: &IReceiver<T>) -> Result<()>; }
     "#,
     )
 }
@@ -242,18 +242,18 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
         extern proof.templates; extern neocogi.com.events;
         use proof.templates::{Pair, Node, Change, Handle, IExchange};
         use neocogi.com.events::EventBinding;
-        #[version(1)] factory ExchangeFactory { fn create(&self, events: &EventBinding<Change<Node<String>>>) -> Result<ComPtr<Exchange>>; }
+        #[version(1)] factory ExchangeFactory { fn create(&self, events: &EventBinding<Exchange, Change<Node<String>>>) -> Result<ComPtr<Exchange>>; }
         #[version(1)] class Exchange: IExchange<Pair<bool, bool>> {}
         #[version(1)] interface IData { fn inspect(&self, owner: &Handle<IUnknown>) -> Result<()>; }
     "#;
     // Resolve independently: accidental dependence on the other consumer's
     // generated declarations cannot make this ABI compatibility proof pass.
-    let make_graph = |name: &str, template_source: &str| {
+    let make_graph = |_name: &str, template_source: &str| {
         let events = fs::read_to_string(root.join("crates/com/api/idl/neocogi/com/events/events.ncidl")).unwrap();
         resolve_modules(vec![
             module("proof/templates.ncidl", template_source),
             module("neocogi/com/events.ncidl", &events),
-            module(&format!("proof/{name}.ncidl"), consumer_source),
+            module("proof/contract.ncidl", consumer_source),
         ])
         .unwrap()
     };
@@ -263,12 +263,12 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
     // changes the template contract and must fail actual interface negotiation.
     let rebound_template_source = renamed_template_source.replace("first: Left, second: Right", "first: Right, second: Left");
     let rebound = make_graph("rebound", &rebound_template_source);
-    assert_eq!(instances(&producer, "proof.producer"), instances(&consumer, "proof.consumer"));
+    assert_eq!(instances(&producer, "proof.contract"), instances(&consumer, "proof.contract"));
     assert_eq!(
         producer.values, consumer.values,
         "recursive metadata uses canonical identities, not consumer paths"
     );
-    let owner = producer.module("proof.producer").unwrap();
+    let owner = producer.module("proof.contract").unwrap();
     let instance = |template: &str| {
         owner
             .source
@@ -301,7 +301,7 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
     for (name, graph) in [("producer", &producer), ("consumer", &consumer), ("rebound", &rebound)] {
         fs::write(
             project.path().join(format!("src/{name}.rs")),
-            neocogi_idl::generate_rust(graph, &format!("proof.{name}")).unwrap(),
+            neocogi_idl::generate_rust(graph, "proof.contract").unwrap(),
         )
         .unwrap();
     }
@@ -312,9 +312,10 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
         pub mod producer;
         pub mod consumer;
         pub mod rebound;
-        #[neocogi_com::com_object(producer::{exchange})]
+        #[neocogi_com::com_object(producer::Exchange)]
         /// A real COM implementation uses its own generated Pair specialization.
         struct Exchange;
+        impl producer::Exchange for Exchange {{}}
         impl producer::{exchange} for Exchange {{
             /// Returning the acquired value exercises both generated wire directions.
             fn roundtrip(&self, value: producer::{pair}) -> Result<producer::{pair}, neocogi_com::NcStatus> {{ Ok(value) }}
@@ -334,25 +335,25 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
             let object = Exchange::from_value(Exchange);
             assert_eq!(object.query::<rebound::{exchange}Abi>().err(), Some(neocogi_com::NC_E_ABI_VERSION));
         }}
-        /// A renamed peer receives an owned recursive enum through a real COM sink.
+        /// A renamed peer receives an owned recursive enum through a real COM queue.
         #[test]
         fn recursive_value_and_generic_event_receiver_acquire_snapshots() {{
-            use neocogi_com::events::MessageSinkInterface;
+            use neocogi_com::events::EventQueueInterface;
             let node = producer::{node} {{ value: "parent".into(), children: vec![producer::{node} {{ value: "child".into(), children: vec![] }}] }};
             let value = producer::{change}::Set(node);
             let copied = neocogi_com::NcValueRef::new(&value).unwrap().to_owned().unwrap();
             let producer::{change}::Set(node) = copied else {{ panic!("selected alternative changed") }};
             assert_eq!(node.children[0].value, "child");
-            let receiver = consumer::ExchangeSinkAbi::receiver(|event| {{
+            let receiver = consumer::ExchangeEventQueueAbi::receiver(|_origin, event| {{
                 let consumer::{change}::Set(node) = event else {{ panic!("wrong event") }};
                 assert_eq!(node.value, "parent");
                 assert_eq!(node.children[0].value, "child");
                 Ok(())
             }}).unwrap();
-            let producer_view = receiver.query::<producer::ExchangeSinkAbi>().unwrap();
-            producer::ExchangeSinkAbi::post(producer_view.as_com_ref(), &value).unwrap();
+            let producer_view = receiver.query::<producer::ExchangeEventQueueAbi>().unwrap();
+            producer::ExchangeEventQueueAbi::post(producer_view.as_com_ref(), Exchange::from_value(Exchange).query::<producer::ExchangeAbi>().unwrap().as_com_ref(), &value).unwrap();
             let descriptor = producer::ExchangeAbi::IDL_INTERFACE;
-            let stream = descriptor.event_sink.unwrap();
+            let stream = descriptor.event_queue.unwrap();
             assert!(descriptor.values.iter().any(|value| value.qualified_name == stream.message.qualified_name));
             assert!(descriptor.values.iter().any(|value| value.qualified_name == producer::{node}::IDL_TYPE.qualified_name));
             assert_eq!(producer::{node}::IDL_TYPE.qualified_name, consumer::{node}::IDL_TYPE.qualified_name);

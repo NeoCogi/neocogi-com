@@ -44,10 +44,11 @@ impl ExampleFactory for ExampleFactoryImplementation {
         extent: Extent,
         events: neocogi_com::NcValueRef<'_, neocogi_idl_example_contracts::ExampleObjectEventBinding>,
     ) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
-        ExampleObjectImplementation::from_value(ExampleObjectImplementation {
+        let queue = events.to_owned()?.into_queue();
+        ExampleObjectImplementation::from_value_cyclic::<ExampleObjectAbi>(move |origin| ExampleObjectImplementation {
             extent,
-            events: neocogi_com::events::EventPort::with_sink(events.to_owned()?.into_sink()),
-        })
+            events: neocogi_com::events::EventPort::with_queue(queue, origin),
+        })?
         .query()
     }
 }

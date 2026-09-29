@@ -284,17 +284,20 @@ is an optional build dependency of this feature and runs on the build machine.
 
 ### Construction-bound event receivers
 
-`events::mapped_sink::<Sink, Message>(sender, map)` creates one typed COM receiver
+`events::mapped_queue::<Queue, Message>(sender, map)` creates one typed COM receiver
 whose application-local implementation owns the queue sender and mapping closure.
-Pass that receiver in the IDL `EventBinding<E>` constructor argument. The factory
-acquires the checked value and initializes `EventPort::with_sink` with its owned
-receiver before publishing the producer. `None` means permanently unobserved,
+Pass that receiver in the IDL `EventBinding<Object, Event>` constructor argument. The factory
+acquires the checked value and initializes `EventPort::with_queue(queue, origin)`
+with its owned receiver and cyclic-construction weak origin before publication.
+The mapper receives `(WeakComPtr<Object>, Event)`. A concrete application COM
+object may instead implement several queue interfaces and share one sender
+without callback adapters. See [event ownership](../../../docs/CLASS_EVENT_STREAMS.md). `None` means permanently unobserved,
 not an empty slot available for later attachment. Closing the port releases its
 receiver reference and is idempotent; messages already posted belong to the
 application queue and are not retracted.
 
 A failed constructor must release every reference it acquired. A successful
-constructor retains the sink until logical closure or final destruction.
+constructor retains the queue until logical closure or final destruction.
 Neither the application message nor the closure's captured Rust state crosses
-COM; only `IMessageSink<E>` calls do. The generated construction descriptor names
-that sink's exact interface identity and the complete event value graph.
+COM; only `IEventQueue<Object, Event>` calls do. The generated construction descriptor names
+that queue's exact interface identity and the complete event value graph.

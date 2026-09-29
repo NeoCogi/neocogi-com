@@ -9,12 +9,12 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
 
 /// The library stream accepts declared messages, while general IDL remains event-agnostic.
 #[test]
-fn generic_event_sink_requires_message_arguments() {
+fn generic_event_queue_requires_message_arguments() {
     for declaration in ["interface Changed {}"] {
         let source = module(
             "example/events.ncidl",
             &format!(
-                "extern neocogi.com.events; use neocogi.com.events::EventBinding; #[version(1)] {declaration} #[version(1)] factory SourceFactory {{ fn create(&self, events: &EventBinding<Changed>) -> Result<ComPtr<Source>>; }}
+                "extern neocogi.com.events; use neocogi.com.events::EventBinding; #[version(1)] {declaration} #[version(1)] factory SourceFactory {{ fn create(&self, events: &EventBinding<Source, Changed>) -> Result<ComPtr<Source>>; }}
         #[version(1)] class Source {{}}"
             ),
         );

@@ -81,12 +81,12 @@ pub struct IdlType {
 }
 
 /// Typed receiver required by a constructor, independent of producer projections.
-/// The sink is an application-owned object passed into construction. It is not
+/// The queue is an application-owned object passed into construction. It is not
 /// an interface implemented by the resulting widget, and must not be searched
 /// for in that widget's QueryInterface chain.
 #[derive(Clone, Copy)]
-pub struct IdlEventSink {
-    /// Exact closed IMessageSink<E> identity and checked ABI signature.
+pub struct IdlEventQueue {
+    /// Exact closed IEventQueue<Object, Event> identity and checked ABI signature.
     pub abi: &'static NcInterfaceDescriptor,
     /// Complete event value; nested definitions are carried by the value graph.
     pub message: &'static IdlType,
@@ -103,7 +103,7 @@ pub struct IdlInterface {
     /// Uses the same [`crate::validate_rust_path`] contract as value bindings.
     pub rust_abi: &'static str,
     /// Final event receiver policy accepted by constructors of this projection.
-    pub event_sink: Option<IdlEventSink>,
+    pub event_queue: Option<IdlEventQueue>,
     /// Finite definitions reachable from this interface chain and event value.
     pub values: &'static [IdlType],
 }

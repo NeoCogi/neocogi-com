@@ -41,10 +41,11 @@ struct DynamicExampleFactory;
 impl ExampleFactory for DynamicExampleFactory {
     /// Constructs one typed object without consulting a runtime class table.
     fn create(&self, extent: Extent, events: NcValueRef<'_, ExampleObjectEventBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
-        DynamicExampleObject::from_value(DynamicExampleObject {
+        let queue = events.to_owned()?.into_queue();
+        DynamicExampleObject::from_value_cyclic::<ExampleObjectAbi>(move |origin| DynamicExampleObject {
             extent,
-            changed: neocogi_com::events::EventPort::with_sink(events.to_owned()?.into_sink()),
-        })
+            changed: neocogi_com::events::EventPort::with_queue(queue, origin),
+        })?
         .query()
     }
 }

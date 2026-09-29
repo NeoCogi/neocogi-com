@@ -322,19 +322,22 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
                 for argument in &specialization.arguments {
                     validate_closed_argument(&graph, module, argument, &declaration.span)?;
                 }
-                if specialization.template.segments.join(".") == "neocogi.com.events.IMessageSink" {
+                if specialization.template.segments.join(".") == "neocogi.com.events.IEventQueue" {
                     match specialization.arguments.as_slice() {
-                        [AbiType::Named(name)]
+                        [AbiType::Named(origin), AbiType::Named(name)]
                             if graph
-                                .resolve_declaration(&module.source.name.to_string(), name)
-                                .is_some_and(|target| !matches!(target.declaration.kind, DeclarationKind::Interface(_))) => {}
+                                .resolve_declaration(&module.source.name.to_string(), origin)
+                                .is_some_and(|target| matches!(target.declaration.kind, DeclarationKind::Interface(_)))
+                                && graph
+                                    .resolve_declaration(&module.source.name.to_string(), name)
+                                    .is_some_and(|target| !matches!(target.declaration.kind, DeclarationKind::Interface(_))) => {}
                         _ => {
                             return Err(source_error(
                                 &module.source,
                                 "EIDL060",
                                 &declaration.span,
-                                "IMessageSink requires a declared value type",
-                                "object capabilities are fields, not complete sink payload types",
+                                "IEventQueue requires an interface origin and a declared event value",
+                                "the origin is an object capability; the event is an owned data value",
                             ));
                         }
                     }

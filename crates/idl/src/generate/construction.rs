@@ -1,6 +1,6 @@
 //! Construction-bound typed event receivers, derived from ordinary method types.
 //!
-//! EventBinding<E> is a library enum. The backend recognizes its identity to
+//! EventBinding<O, E> is a library enum. The backend recognizes its identity to
 //! publish receiver helpers and metadata; neither the parser nor resolver gains
 //! UI syntax. Constructor association is local to the product's contract module,
 //! so importing another factory cannot change already-published type metadata.
@@ -10,14 +10,16 @@ use super::*;
 /// Canonical library identity of the permanent observed/unobserved choice.
 const BINDING: &str = "neocogi.com.events.EventBinding";
 
-/// One constructor argument and the exact sink/value that its enum owns.
+/// One constructor argument and the exact queue/value that its enum owns.
 #[derive(Clone, Copy)]
 pub(super) struct Binding<'a> {
     /// Closed generic value passed to construction through checked value ABI.
     pub value: ResolvedDeclaration<'a>,
-    /// Concrete IMessageSink<E> specialization retained by the producer.
-    pub sink: ResolvedDeclaration<'a>,
+    /// Concrete IEventQueue<O, E> specialization retained by the producer.
+    pub queue: ResolvedDeclaration<'a>,
     /// Event root whose reachable value graph is published for inspection.
+    pub origin: ResolvedDeclaration<'a>,
+    /// Complete event value acquired by the receiver.
     pub event: ResolvedDeclaration<'a>,
 }
 
@@ -29,9 +31,10 @@ fn binding<'a>(graph: &'a Generation<'_>, value: ResolvedDeclaration<'a>) -> Res
     if specialization.template.segments.join(".") != BINDING {
         return Ok(None);
     }
-    let [AbiType::Named(event)] = specialization.arguments.as_slice() else {
-        return Err(GenerateError::new("EventBinding requires one declared event value"));
+    let [AbiType::Named(origin), AbiType::Named(event)] = specialization.arguments.as_slice() else {
+        return Err(GenerateError::new("EventBinding requires an interface origin and one declared event value"));
     };
+    let origin = resolve(graph, value.module, origin)?;
     let event = resolve(graph, value.module, event)?;
     let DeclarationKind::Enum(enumeration) = &value.declaration.kind else {
         return Err(GenerateError::new("EventBinding must be an enum"));
@@ -43,19 +46,19 @@ fn binding<'a>(graph: &'a Generation<'_>, value: ResolvedDeclaration<'a>) -> Res
         return Err(GenerateError::new("EventBinding variants disagree with their construction contract"));
     }
     let VariantFields::Tuple(fields) = &observed.fields else {
-        return Err(GenerateError::new("EventBinding.Observed must own a typed sink"));
+        return Err(GenerateError::new("EventBinding.Observed must own a typed queue"));
     };
-    let [AbiType::ComPtr(sink)] = fields.as_slice() else {
+    let [AbiType::ComPtr(queue)] = fields.as_slice() else {
         return Err(GenerateError::new("EventBinding.Observed must own one ComPtr"));
     };
-    let AbiType::Named(sink) = sink.as_ref() else {
-        return Err(GenerateError::new("EventBinding sink must name an interface"));
+    let AbiType::Named(queue) = queue.as_ref() else {
+        return Err(GenerateError::new("EventBinding queue must name an interface"));
     };
-    let sink = resolve(graph, value.module, sink)?;
-    let Some(specialization) = &sink.declaration.specialization else {
-        return Err(GenerateError::new("EventBinding sink must specialize IMessageSink"));
+    let queue = resolve(graph, value.module, queue)?;
+    let Some(specialization) = &queue.declaration.specialization else {
+        return Err(GenerateError::new("EventBinding queue must specialize IEventQueue"));
     };
-    if specialization.template.segments.join(".") != "neocogi.com.events.IMessageSink"
+    if specialization.template.segments.join(".") != "neocogi.com.events.IEventQueue"
         || specialization.arguments.iter().map(AbiType::source_name).collect::<Vec<_>>()
             != value
                 .declaration
@@ -67,9 +70,9 @@ fn binding<'a>(graph: &'a Generation<'_>, value: ResolvedDeclaration<'a>) -> Res
                 .map(AbiType::source_name)
                 .collect::<Vec<_>>()
     {
-        return Err(GenerateError::new("EventBinding sink must receive its declared event type"));
+        return Err(GenerateError::new("EventBinding queue must receive its declared event type"));
     }
-    Ok(Some(Binding { value, sink, event }))
+    Ok(Some(Binding { value, queue, origin, event }))
 }
 
 /// Finds the sole event type accepted by constructors returning this projection.
@@ -104,6 +107,12 @@ pub(super) fn find<'a>(graph: &'a Generation<'_>, module: &'a ResolvedModule, pr
                         declaration.name, method.name
                     )));
                 }
+                if candidate.origin.identity.id != product_id {
+                    return Err(GenerateError::new(format!(
+                        "constructor {}::{} must bind its returned product as event origin",
+                        declaration.name, method.name
+                    )));
+                }
                 method_binding = Some(candidate);
             }
             if let Some(candidate) = method_binding {
@@ -124,16 +133,16 @@ pub(super) fn value_helpers(graph: &Generation<'_>, module: &ResolvedModule, dec
         return Ok(quote! {});
     };
     let name = rust_ident(&declaration.name)?;
-    let sink = named_rust_type(graph, module, binding.sink, true)?;
+    let queue = named_rust_type(graph, module, binding.queue, true)?;
     Ok(quote! {
         impl #name {
             /// Retains the final constructor receiver, or chooses permanent non-delivery.
-            pub fn from_sink(sink: Option<::neocogi_com::ComRef<'_, #sink>>) -> Self {
-                match sink { Some(sink) => Self::Observed(sink.add_ref()), None => Self::Unobserved }
+            pub fn from_queue(queue: Option<::neocogi_com::ComRef<'_, #queue>>) -> Self {
+                match queue { Some(queue) => Self::Observed(queue.add_ref()), None => Self::Unobserved }
             }
             /// Transfers the constructor's owned reference into producer-local storage.
-            pub fn into_sink(self) -> Option<::neocogi_com::ComPtr<#sink>> {
-                match self { Self::Observed(sink) => Some(sink), Self::Unobserved => None }
+            pub fn into_queue(self) -> Option<::neocogi_com::ComPtr<#queue>> {
+                match self { Self::Observed(queue) => Some(queue), Self::Unobserved => None }
             }
         }
     })
@@ -145,29 +154,29 @@ pub(super) fn aliases(graph: &Generation<'_>, module: &ResolvedModule, declarati
         return Ok(quote! {});
     };
     let value = named_rust_type(graph, module, binding.value, false)?;
-    let sink = named_rust_type(graph, module, binding.sink, true)?;
-    let sink_trait = named_rust_type(graph, module, binding.sink, false)?;
+    let queue = named_rust_type(graph, module, binding.queue, true)?;
+    let queue_trait = named_rust_type(graph, module, binding.queue, false)?;
     let binding_alias = rust_ident(&format!("{}EventBinding", declaration.name))?;
-    let sink_alias = rust_ident(&format!("{}SinkAbi", declaration.name))?;
-    let trait_alias = rust_ident(&format!("{}Sink", declaration.name))?;
-    let provider_alias = rust_ident(&format!("{}SinkVtblFor", declaration.name))?;
-    let mut provider: syn::Path = syn::parse2(sink_trait.clone()).map_err(|error| GenerateError::new(error.to_string()))?;
-    let last = provider.segments.last_mut().expect("named sink path is nonempty");
+    let queue_alias = rust_ident(&format!("{}EventQueueAbi", declaration.name))?;
+    let trait_alias = rust_ident(&format!("{}EventQueue", declaration.name))?;
+    let provider_alias = rust_ident(&format!("{}EventQueueVtblFor", declaration.name))?;
+    let mut provider: syn::Path = syn::parse2(queue_trait.clone()).map_err(|error| GenerateError::new(error.to_string()))?;
+    let last = provider.segments.last_mut().expect("named queue path is nonempty");
     last.ident = rust_ident(&format!("{}VtblFor", last.ident))?;
     let port = rust_ident(&format!("{}EventPort", declaration.name))?;
     let abi = rust_ident(&format!("{}Abi", declaration.name))?;
     let receiver = quote! {
         /// Exact receiver accepted when this product is constructed.
-        pub type #sink_alias = #sink;
+        pub type #queue_alias = #queue;
         /// Typed receiver implementation contract owned by the application.
-        pub use #sink_trait as #trait_alias;
-        /// Vtable provider for local implementations using the readable sink alias.
+        pub use #queue_trait as #trait_alias;
+        /// Vtable provider for local implementations using the readable queue alias.
         pub use #provider as #provider_alias;
-        /// Private producer storage initialized with its constructor's final sink.
-        pub type #port = ::neocogi_com::events::EventPort<#sink>;
+        /// Private producer storage initialized with its constructor's final queue.
+        pub type #port = ::neocogi_com::events::EventPort<#queue>;
         impl ::neocogi_com::events::EventSource for #abi {
             /// Constructor-selected receiver; this adds no interface to the producer.
-            type Sink = #sink;
+            type Queue = #queue;
         }
     };
     Ok(quote! {

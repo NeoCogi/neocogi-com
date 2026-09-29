@@ -14,6 +14,6 @@ pub use contracts::*;
 #[cfg(feature = "alloc")]
 mod stream;
 #[cfg(feature = "alloc")]
-pub use stream::{SinkOf, EventOf, EventPort, EventSource, MessageSinkInterface};
+pub use stream::{QueueOf, EventOf, EventPort, EventSource, EventQueueInterface};
 #[cfg(feature = "std")]
-pub use stream::mapped_sink;
+pub use stream::mapped_queue;

@@ -175,9 +175,9 @@ fn generate_design_metadata(graph: &Generation<'_>, module: &ResolvedModule) -> 
             let rust_abi = Literal::string(&public_rust_path(graph, module, &format!("{}Abi", declaration.name))?);
             let construction = match construction::find(graph, module, declaration)? {
                 Some(binding) => {
-                    let sink = named_rust_type(graph, module, binding.sink, true)?;
+                    let queue = named_rust_type(graph, module, binding.queue, true)?;
                     let event = named_rust_type(graph, module, binding.event, false)?;
-                    quote! { Some(::neocogi_com::design::IdlEventSink { abi: &#sink::INTERFACE_DESCRIPTOR, message: &#event::IDL_TYPE }) }
+                    quote! { Some(::neocogi_com::design::IdlEventQueue { abi: &#queue::INTERFACE_DESCRIPTOR, message: &#event::IDL_TYPE }) }
                 }
                 None => quote! { None },
             };
@@ -189,7 +189,7 @@ fn generate_design_metadata(graph: &Generation<'_>, module: &ResolvedModule) -> 
                         abi: &Self::INTERFACE_DESCRIPTOR,
                         chain: &Self::INTERFACE_CHAIN,
                         rust_abi: #rust_abi,
-                        event_sink: #construction,
+                        event_queue: #construction,
                         values: &[#(#values),*],
                     };
                 }

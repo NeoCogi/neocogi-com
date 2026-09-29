@@ -2,9 +2,9 @@
 
 use neocogi_com::{binary, Runtime, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, guid_from_qualified_name};
 use neocogi_com::persistence::{FactoryRegistry, snapshot};
-use neocogi_com::events::mapped_sink;
+use neocogi_com::events::mapped_queue;
 use neocogi_com::NcValueRef;
-use neocogi_idl_example_contracts::{ExampleObjectEventBinding, ExampleObjectSinkAbi};
+use neocogi_idl_example_contracts::{ExampleObjectEventBinding, ExampleObjectEventQueueAbi};
 use nc_example_com::{ExtentState, PERSISTENT_KIND};
 use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentChanged};
 
@@ -17,8 +17,8 @@ fn main() {
         .activate_plugin_factory::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .expect("compatible example factory");
     let (sender, messages) = std::sync::mpsc::channel();
-    let sink = mapped_sink::<ExampleObjectSinkAbi, _>(sender.clone(), |event: ExtentChanged| (event.width, event.height)).unwrap();
-    let binding = ExampleObjectEventBinding::from_sink(Some(sink.as_com_ref()));
+    let queue = mapped_queue::<ExampleObjectEventQueueAbi, _>(sender.clone(), |_origin, event: ExtentChanged| (event.width, event.height)).unwrap();
+    let binding = ExampleObjectEventBinding::from_queue(Some(queue.as_com_ref()));
     let mut object = factory
         .create(Extent { width: 20, height: 10 }, NcValueRef::new(&binding).unwrap())
         .expect("typed object construction");
@@ -88,8 +88,8 @@ impl neocogi_com::persistence::IPersistenceFactory for PersistenceAdapter {
         children: ComRef<'_, neocogi_com::persistence::IObjectChildrenAbi>,
     ) -> Result<ComPtr<IUnknown>, NcStatus> {
         let state = decode(version, state, children.count()?)?;
-        let sink = mapped_sink::<ExampleObjectSinkAbi, _>(self.sender.clone(), |event| (event.width, event.height))?;
-        let binding = ExampleObjectEventBinding::from_sink(Some(sink.as_com_ref()));
+        let queue = mapped_queue::<ExampleObjectEventQueueAbi, _>(self.sender.clone(), |_origin, event| (event.width, event.height))?;
+        let binding = ExampleObjectEventBinding::from_queue(Some(queue.as_com_ref()));
         self.factory
             .create(Extent { width: state.width, height: state.height }, NcValueRef::new(&binding)?)?
             .query()

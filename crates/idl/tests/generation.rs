@@ -17,7 +17,7 @@ fn imported_messages_use_closed_generic_streams() {
         extern example.messages;
         use example.messages::Changed;
         extern neocogi.com.events; use neocogi.com.events::EventBinding;
-        #[version(1)] factory ISourceFactory { fn create(&self, events: &EventBinding<Changed>) -> Result<ComPtr<ISource>>; }
+        #[version(1)] factory ISourceFactory { fn create(&self, events: &EventBinding<ISource, Changed>) -> Result<ComPtr<ISource>>; }
         #[version(1)] class ISource {}
     "#,
     );
@@ -27,7 +27,7 @@ fn imported_messages_use_closed_generic_streams() {
     syn::parse_file(&generated).expect("imported message bindings parse");
     assert!(generated.contains("EventSource for ISourceAbi"));
     assert!(generated.contains("example_messages_contracts::Changed"));
-    assert!(generated.contains("IMessageSinkInstance"));
+    assert!(generated.contains("IEventQueueInstance"));
     assert!(!generated.contains("__map_"));
     let baseline = neocogi_idl::generate_rust(&graph, "neocogi.com.events").unwrap();
     assert!(!baseline.contains("EVENT_BINDING_API_VERSION"));
@@ -239,7 +239,7 @@ fn generated_interface_exposes_its_idl_event_and_nested_message_shape() {
             Submitted,
         }
         extern neocogi.com.events; use neocogi.com.events::EventBinding;
-        #[version(1)] factory WidgetFactory { fn create(&self, events: &EventBinding<WidgetEvent>) -> Result<ComPtr<Widget>>; }
+        #[version(1)] factory WidgetFactory { fn create(&self, events: &EventBinding<Widget, WidgetEvent>) -> Result<ComPtr<Widget>>; }
         #[version(1)] class Widget {}
     "#,
     );

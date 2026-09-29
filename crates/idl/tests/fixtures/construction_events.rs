@@ -25,15 +25,15 @@ impl contract::Counter for Counter {
 /// Stateless plugin factory; application messages never enter its contract.
 struct Factory;
 impl contract::Factory for Factory {
-    /// Validates before publication and transfers the decoded sink into the new object.
+    /// Validates before publication and transfers the decoded queue into the new object.
     fn create(&self, reject: bool, events: NcValueRef<'_, contract::CounterEventBinding>) -> Result<ComPtr<contract::CounterAbi>, NcStatus> {
-        let events = events.to_owned()?.into_sink();
+        let events = events.to_owned()?.into_queue();
         if reject {
             return Err(NC_E_INVALID_ARG);
         }
-        Counter::from_value(Counter {
-            events: events::EventPort::with_sink(events),
-        })
+        Counter::from_value_cyclic::<contract::CounterAbi>(move |origin| Counter {
+            events: events::EventPort::with_queue(events, origin),
+        })?
         .query()
     }
 }
@@ -54,8 +54,8 @@ enum Message {
 #[test]
 fn factory_mapping_ownership_and_metadata() {
     let description = contract::CounterAbi::IDL_INTERFACE;
-    let receiver = description.event_sink.expect("constructor metadata");
-    assert_eq!(receiver.abi.interface_id, contract::CounterSinkAbi::INTERFACE_DESCRIPTOR.interface_id);
+    let receiver = description.event_queue.expect("constructor metadata");
+    assert_eq!(receiver.abi.interface_id, contract::CounterEventQueueAbi::INTERFACE_DESCRIPTOR.interface_id);
     assert!(
         !description.chain.iter().any(|abi| abi.interface_id == receiver.abi.interface_id),
         "receiver is not a producer projection"
@@ -72,12 +72,12 @@ fn factory_mapping_ownership_and_metadata() {
         let drops = Rc::new(Cell::new(0));
         let capture = Lifetime(drops.clone());
         let (tx, rx) = mpsc::channel();
-        let sink = events::mapped_sink::<contract::CounterSinkAbi, _>(tx, move |event| {
+        let queue = events::mapped_queue::<contract::CounterEventQueueAbi, _>(tx, move |_origin, event| {
             let _ = &capture;
             Message::Counter(event)
         })
         .unwrap();
-        let binding = contract::CounterEventBinding::Observed(sink);
+        let binding = contract::CounterEventBinding::Observed(queue);
         let mut counter = factory.create(false, NcValueRef::new(&binding).unwrap()).unwrap();
         drop(binding);
         let event = contract::Event::Changed(contract::Changed { text: "call-owned".into(), enabled: true });
@@ -102,12 +102,12 @@ fn factory_mapping_ownership_and_metadata() {
     let drops = Rc::new(Cell::new(0));
     let capture = Lifetime(drops.clone());
     let (tx, _rx) = mpsc::channel();
-    let sink = events::mapped_sink::<contract::CounterSinkAbi, _>(tx, move |_| {
+    let queue = events::mapped_queue::<contract::CounterEventQueueAbi, _>(tx, move |_, _| {
         let _ = &capture;
         ()
     })
     .unwrap();
-    let binding = contract::CounterEventBinding::Observed(sink);
+    let binding = contract::CounterEventBinding::Observed(queue);
     assert_eq!(factory.create(true, NcValueRef::new(&binding).unwrap()).unwrap_err(), NC_E_INVALID_ARG);
     drop(binding);
     assert_eq!(drops.get(), 1, "failed construction cannot retain mapper captures");
@@ -132,4 +132,29 @@ fn malformed_constructor_binding_never_publishes_a_product() {
     // SAFETY: raw is live aligned storage; from_raw/decoding must validate its tag.
     let borrowed = unsafe { NcValueRef::from_raw(&raw) }.unwrap();
     assert_eq!(factory.create(false, borrowed).unwrap_err(), NC_E_INVALID_TAG);
+}
+
+#[com_class(contract::SharedOrigin)]
+/// Thread-safe capability whose local producer context owns its queue separately.
+struct SharedOrigin;
+impl contract::SharedOrigin for SharedOrigin {}
+
+/// A local queue may borrow a shared capability without erasing its threading mode.
+#[test]
+fn shared_origin_keeps_its_threading_capability_through_the_queue() {
+    use neocogi_com::events::EventQueueInterface;
+    let object = SharedOrigin::from_value(SharedOrigin).query::<contract::SharedOriginAbi>().unwrap();
+    let (send, events) = mpsc::channel();
+    let queue = contract::SharedOriginEventQueueAbi::receiver(move |origin, event| {
+        // This static requirement catches an accidentally weakened origin marker.
+        fn shared<T: Send + Sync>(_: &T) {}
+        shared(&origin);
+        send.send((origin, event)).unwrap();
+        Ok(())
+    }).unwrap();
+    contract::SharedOriginEventQueueAbi::post(queue.as_com_ref(), object.as_com_ref(), &contract::Event::Submitted).unwrap();
+    drop(object);
+    let (origin, event) = events.recv().unwrap();
+    assert!(origin.upgrade().unwrap().is_none());
+    assert!(matches!(event, contract::Event::Submitted));
 }

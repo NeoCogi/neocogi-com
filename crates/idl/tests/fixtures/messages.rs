@@ -61,10 +61,10 @@ mod message_tests {
     #[test]
     fn generated_output_owns_a_direct_receiver() {
         let (first_tx, first) = std::sync::mpsc::channel();
-        let sink = neocogi_com::events::mapped_sink::<IProducerSinkAbi, _>(first_tx, |_| 1).unwrap();
-        let mut producer: ComPtr<IProducerAbi> = Producer::from_value(Producer {
-            completed: neocogi_com::events::EventPort::with_sink(Some(sink)),
-        })
+        let queue = neocogi_com::events::mapped_queue::<IProducerEventQueueAbi, _>(first_tx, |_, _| 1).unwrap();
+        let mut producer: ComPtr<IProducerAbi> = Producer::from_value_cyclic::<IProducerAbi>(move |origin| Producer {
+            completed: neocogi_com::events::EventPort::with_queue(Some(queue), origin),
+        }).unwrap()
         .query()
         .unwrap();
         producer.emit().unwrap();

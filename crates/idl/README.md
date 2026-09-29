@@ -26,14 +26,14 @@ a construction root. Records and enums share recursive checked conversion;
 there is no separate message declaration category.
 
 Construction-bound delivery uses the ordinary library enum
-`neocogi.com.events.EventBinding<E>` as a borrowed constructor argument. Its
-`Observed(ComPtr<IMessageSink<E>>)` case supplies the one typed receiver;
+`neocogi.com.events.EventBinding<Object, Event>` as a borrowed constructor argument. Its
+`Observed(ComPtr<IEventQueue<Object, Event>>)` case supplies the one typed receiver;
 `Unobserved` chooses permanent non-delivery. The factory retains the receiver
 before returning its product. There is no Rust sender or closure in the ABI.
 
 For methods returning `ComPtr<Product>` in the product's contract module, the
-backend derives `ProductEventBinding`, `ProductSinkAbi`, and `ProductEventPort`
-helpers from that argument and publishes `IDL_INTERFACE.event_sink`. That
+backend derives `ProductEventBinding`, `ProductEventQueueAbi`, and `ProductEventPort`
+helpers from that argument and publishes `IDL_INTERFACE.event_queue`. That
 metadata describes the **receiver**, not a projection implemented by Product.
 Its event root and complete reachable value graph remain available to COM
 catalogs. Multiple event arguments or constructor disagreement about the same
