@@ -344,12 +344,19 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
             let copied = neocogi_com::NcValueRef::new(&value).unwrap().to_owned().unwrap();
             let producer::{change}::Set(node) = copied else {{ panic!("selected alternative changed") }};
             assert_eq!(node.children[0].value, "child");
-            let receiver = consumer::ExchangeEventQueueAbi::receiver(|_origin, event| {{
-                let consumer::{change}::Set(node) = event else {{ panic!("wrong event") }};
-                assert_eq!(node.value, "parent");
-                assert_eq!(node.children[0].value, "child");
-                Ok(())
-            }}).unwrap();
+            #[neocogi_com::com_object(consumer::ExchangeEventQueue)]
+            /// Consumer-owned concrete queue is compiled against renamed template parameters.
+            struct Queue;
+            impl consumer::ExchangeEventQueue for Queue {{
+                /// Decode through the peer's own generated recursive wire representation.
+                fn post(&mut self, _: neocogi_com::ComRef<'_, consumer::ExchangeAbi>, value: neocogi_com::NcValueRef<'_, consumer::{change}>) -> Result<(), neocogi_com::NcStatus> {{
+                    let consumer::{change}::Set(node) = value.to_owned()? else {{ panic!("wrong event") }};
+                    assert_eq!(node.value, "parent");
+                    assert_eq!(node.children[0].value, "child");
+                    Ok(())
+                }}
+            }}
+            let receiver = Queue::from_value(Queue);
             let producer_view = receiver.query::<producer::ExchangeEventQueueAbi>().unwrap();
             producer::ExchangeEventQueueAbi::post(producer_view.as_com_ref(), Exchange::from_value(Exchange).query::<producer::ExchangeAbi>().unwrap().as_com_ref(), &value).unwrap();
             let descriptor = producer::ExchangeAbi::IDL_INTERFACE;

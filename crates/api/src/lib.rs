@@ -482,7 +482,7 @@ pub extern crate alloc as __alloc;
 mod data;
 /// Generated source-level descriptions used by typed authoring tools.
 pub mod design;
-/// Built-in dispatch/output contracts and optional standard-channel adapters.
+/// Built-in typed queue contracts and construction-bound producer storage.
 #[cfg(feature = "macros")]
 pub mod events;
 mod macros;
@@ -531,8 +531,11 @@ pub use object::{
     __com_query_interfaces, __ComCallGate, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComObject,
     ThreadSafeComObject,
 };
+// Generated object ownership needs allocation; interface-only clients do not.
+#[cfg(feature = "alloc")]
 mod arc_lifetime;
 mod local;
+#[cfg(feature = "alloc")]
 #[doc(hidden)]
 pub use arc_lifetime::{__com_arc_downgrade, __com_arc_upgrade};
 pub use local::{LocalCom, LocalMut, LocalRef};

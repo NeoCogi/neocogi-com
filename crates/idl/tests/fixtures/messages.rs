@@ -57,14 +57,32 @@ mod message_tests {
         }
     }
 
+    #[com_object(IProducerEventQueue)]
+    /// An ordinary application object receives the generated concrete value contract.
+    struct CompletionQueue {
+        /// Owned observations survive producer release.
+        send: std::sync::mpsc::Sender<u32>,
+    }
+    impl IProducerEventQueue for CompletionQueue {
+        /// Even a constant observation must validate and acquire its foreign argument.
+        fn post(&mut self, _: neocogi_com::ComRef<'_, IProducerAbi>, value: NcValueRef<'_, Completion>) -> Result<(), NcStatus> {
+            let _ = value.to_owned()?;
+            let _ = self.send.send(1);
+            Ok(())
+        }
+    }
+
     /// Constructor-owned delivery acquires values before the call ends; destruction cannot retract them.
     #[test]
     fn generated_output_owns_a_direct_receiver() {
         let (first_tx, first) = std::sync::mpsc::channel();
-        let queue = neocogi_com::events::mapped_queue::<IProducerEventQueueAbi, _>(first_tx, |_, _| 1).unwrap();
+        let queue = CompletionQueue::from_value(CompletionQueue { send: first_tx })
+            .query::<IProducerEventQueueAbi>()
+            .unwrap();
         let mut producer: ComPtr<IProducerAbi> = Producer::from_value_cyclic::<IProducerAbi>(move |origin| Producer {
             completed: neocogi_com::events::EventPort::with_queue(Some(queue), origin),
-        }).unwrap()
+        })
+        .unwrap()
         .query()
         .unwrap();
         producer.emit().unwrap();

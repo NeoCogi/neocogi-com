@@ -1,8 +1,7 @@
-//! Concrete COM mappings into standard Rust channels.
-//! Only generated typed receivers cross plugin boundaries.
-//! Mapping is immediate; consumer behavior is deferred to caller-driven dispatch.
-//! The retained UI runtime schedules mounted drivers. This module owns the Rust
-//! adapters; enabling it neither links the COM process runtime nor creates its catalog.
+//! Construction-bound typed COM event queues and producer-local delivery state.
+//! Application COM objects own posting access to their ordinary message channels.
+//! A synchronous post acquires the snapshot; application behavior runs later.
+//! This module neither links the process runtime nor creates a receiver adapter.
 
 #![deny(missing_docs)]
 
@@ -15,5 +14,3 @@ pub use contracts::*;
 mod stream;
 #[cfg(feature = "alloc")]
 pub use stream::{QueueOf, EventOf, EventPort, EventSource, EventQueueInterface};
-#[cfg(feature = "std")]
-pub use stream::mapped_queue;

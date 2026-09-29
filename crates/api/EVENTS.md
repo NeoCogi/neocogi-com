@@ -28,20 +28,30 @@ The latter touches only lifetime bookkeeping and needs no borrow of widget state
 The application later handles its owned messages with ordinary `&mut self`.
 Its model, message type and channel never cross the ABI.
 
-For small applications an optional mapper adapter is available:
+Implement the generated queue trait on the application's own COM object:
 
 ```rust,ignore
-let queue = neocogi_com::events::mapped_queue::<CounterEventQueueAbi, _>(
-    sender, |origin, event| AppMessage::Counter(origin, event),
-)?;
+#[com_object(CounterEventQueue)]
+struct AppQueue { sender: std::sync::mpsc::Sender<AppMessage> }
+impl CounterEventQueue for AppQueue {
+    fn post(&mut self, origin: ComRef<'_, CounterAbi>, event: NcValueRef<'_, CounterEvent>)
+        -> Result<(), NcStatus>
+    {
+        let event = event.to_owned()?;
+        // Apply any additional domain checks required by this event contract here.
+        let _ = self.sender.send(AppMessage::Counter(origin.downgrade()?, event));
+        Ok(())
+    }
+}
+let queue = AppQueue::from_value(AppQueue { sender }).query::<CounterEventQueueAbi>()?;
 let binding = CounterEventBinding::Observed(queue);
 let counter = factory.create(neocogi_com::NcValueRef::new(&binding)?)?;
 ```
 
-The mapper receives `WeakComPtr<CounterAbi>` and an acquired `CounterEvent`.
-`EventQueueInterface::receiver` similarly accepts a typed callback. These helpers
-allocate a receiver; direct application implementations need neither a mapper
-nor a separate receiver object per producer.
+The same queue can serve many producers and implement additional queue traits.
+There is no generated callback receiver or sender/mapper constructor. IDL generates
+concrete queue methods and the producer's static event association, while the
+application owns acquisition, channel capacity and dispatch policy.
 
 The factory decodes the binding and constructs its private `CounterEventPort`
 using `EventPort::with_queue(queue, origin)`. Generated `from_value_cyclic` /
@@ -55,9 +65,9 @@ consumer slot. Implementations own event storage explicitly.
 
 Queue capture must not call back into the emitting widget's active mutable gate.
 Application behavior runs after the emitting call returns. Receiver errors
-propagate without rolling back committed producer state. Callback adapters discard
-translated messages successfully when their standard channel is disconnected;
-a direct queue implementation defines its own capacity and error policy.
+propagate without rolling back committed producer state. The repository's concrete
+application queues discard messages successfully after channel disconnection;
+other implementations define their own capacity and error policy.
 
 Weak references expire at final strong release, independently of logical closure.
 A retained closed widget can still upgrade; domain operations reject it as closed.
@@ -72,8 +82,8 @@ It is not an interface in the producer's inheritance chain. COM catalogs transpo
 this metadata to independent hosts. Custom factories query the advertised typed
 queue before constructing their widget.
 
-The `macros` feature exposes these ordinary generic library contracts. Receiver
-allocation requires `alloc`; channel mapping also needs `std`. Neither introduces
+The `macros` feature exposes these ordinary generic library contracts. COM object
+allocation requires `alloc`; the examples using standard channels also need `std`. Neither introduces
 a COM process runtime or event loop. Contracts and consumers must be rebuilt
 together for core ABI v11.
 

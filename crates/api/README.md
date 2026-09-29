@@ -278,20 +278,19 @@ unify; separately loaded plugins must not enable it.
 
 The `macros` feature also exposes built-in event contracts through
 [`neocogi_com::events`](EVENTS.md). Contracts need no allocation or runtime;
-receiver allocation needs `alloc`, and channel adapters additionally require `std`. Persistent UI
+receiver allocation needs `alloc`, and applications using standard channels need `std`. Persistent UI
 controllers and scheduling belong to the UI facade and core contracts. Event IDL compilation
 is an optional build dependency of this feature and runs on the build machine.
 
 ### Construction-bound event receivers
 
-`events::mapped_queue::<Queue, Message>(sender, map)` creates one typed COM receiver
-whose application-local implementation owns the queue sender and mapping closure.
-Pass that receiver in the IDL `EventBinding<Object, Event>` constructor argument. The factory
-acquires the checked value and initializes `EventPort::with_queue(queue, origin)`
-with its owned receiver and cyclic-construction weak origin before publication.
-The mapper receives `(WeakComPtr<Object>, Event)`. A concrete application COM
-object may instead implement several queue interfaces and share one sender
-without callback adapters. See [event ownership](../../../docs/CLASS_EVENT_STREAMS.md). `None` means permanently unobserved,
+The application implements concrete `*EventQueue` traits on one COM object whose
+fields own posting access to its channel. Share that object's projections between
+producers using the IDL `EventBinding<Object, Event>` constructor argument. The
+factory initializes `EventPort::with_queue(queue, origin)` with the owned receiver
+and cyclic-construction weak origin before publication. IDL generates checked
+methods and type associations; it does not generate application callback adapters.
+See [event ownership](../../../docs/CLASS_EVENT_STREAMS.md). `None` means permanently unobserved,
 not an empty slot available for later attachment. Closing the port releases its
 receiver reference and is idempotent; messages already posted belong to the
 application queue and are not retracted.

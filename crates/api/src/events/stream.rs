@@ -1,8 +1,8 @@
 //! One construction-bound event queue per producer, with a typed weak origin.
 //!
 //! Applications may implement several generated queue interfaces on one concrete
-//! COM object containing their channel sender. `receiver`/`mapped_queue` are
-//! optional local conveniences; factories need only the concrete COM interface.
+//! COM object containing their channel sender. Factories accept that concrete
+//! interface; neither IDL nor COM generates or stores an application mapping closure.
 use crate::{ComInterface, ComPtr, ComRef, ComValue, NcStatus, ThreadLocal, WeakComPtr, NC_E_CLOSED};
 
 /// Rust access to one closed IDL `IEventQueue<Object, Event>` contract.
@@ -18,11 +18,6 @@ pub trait EventQueueInterface: ComInterface<Threading = ThreadLocal> + Sized + '
         origin: ComRef<'_, Self::Object, <Self::Object as ComInterface>::Threading>,
         event: &Self::Event,
     ) -> Result<(), NcStatus>;
-    /// Optional application-local adapter acquiring a weak origin and owned event.
-    /// Its callback must enqueue work, never reenter the emitting widget or its model.
-    fn receiver<F: FnMut(WeakComPtr<Self::Object, <Self::Object as ComInterface>::Threading>, Self::Event) -> Result<(), NcStatus> + 'static>(
-        enqueue: F,
-    ) -> Result<ComPtr<Self>, NcStatus>;
 }
 
 /// Constructor-derived association; no event interface or attach method exists on the producer.
@@ -96,19 +91,4 @@ impl<Q: EventQueueInterface> EventPort<Q> {
     pub fn close(&mut self) {
         self.phase = Phase::Closed;
     }
-}
-
-/// Optional convenience for an application that wants a callback-based queue.
-/// Shared concrete application queue implementations can bypass this helper.
-/// Neither the sender, mapping closure nor application message type crosses COM.
-#[cfg(feature = "std")]
-pub fn mapped_queue<Q: EventQueueInterface, M: 'static>(
-    sender: std::sync::mpsc::Sender<M>,
-    mut map: impl FnMut(WeakComPtr<Q::Object, <Q::Object as ComInterface>::Threading>, Q::Event) -> M + 'static,
-) -> Result<ComPtr<Q>, NcStatus> {
-    Q::receiver(move |origin, event| {
-        // A disconnected inbox does not undo an edit already committed by the UI.
-        let _ = sender.send(map(origin, event));
-        Ok(())
-    })
 }

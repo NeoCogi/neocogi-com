@@ -1,7 +1,7 @@
 //! Independent application/plugin roles communicating only through generated ABI calls.
 pub mod contract;
 use neocogi_com::*;
-use std::{cell::Cell, rc::Rc, sync::mpsc};
+use std::sync::mpsc;
 
 #[com_class(contract::Counter)]
 /// Owns only the final constructor-selected delivery policy.
@@ -37,12 +37,27 @@ impl contract::Factory for Factory {
         .query()
     }
 }
-/// Counts capture release across failed construction, explicit close and final release.
-struct Lifetime(Rc<Cell<usize>>);
+/// Reports receiver destruction without shared mutable fixture storage.
+struct Lifetime(mpsc::Sender<()>);
 impl Drop for Lifetime {
-    /// Runs in the application that owns the mapper's concrete captured value.
+    /// Queue fields are released in the application that owns their concrete value.
     fn drop(&mut self) {
-        self.0.set(self.0.get() + 1);
+        let _ = self.0.send(());
+    }
+}
+#[com_object(contract::CounterEventQueue)]
+/// Concrete application queue owns posting access and destruction instrumentation.
+struct Queue {
+    /// Captured facts outlive call-scoped producer storage.
+    send: mpsc::Sender<Message>,
+    /// The fixture observes release on rejected construction, close and final drop.
+    _lifetime: Lifetime,
+}
+impl contract::CounterEventQueue for Queue {
+    /// Own the value before returning, without retaining the producer.
+    fn post(&mut self, _: ComRef<'_, contract::CounterAbi>, event: NcValueRef<'_, contract::Event>) -> Result<(), NcStatus> {
+        let _ = self.send.send(Message::Counter(event.to_owned()?));
+        Ok(())
     }
 }
 /// Private application message; never appears in the plugin IDL.
@@ -52,7 +67,7 @@ enum Message {
 }
 
 #[test]
-fn factory_mapping_ownership_and_metadata() {
+fn factory_queue_ownership_and_metadata() {
     let description = contract::CounterAbi::IDL_INTERFACE;
     let receiver = description.event_queue.expect("constructor metadata");
     assert_eq!(receiver.abi.interface_id, contract::CounterEventQueueAbi::INTERFACE_DESCRIPTOR.interface_id);
@@ -69,14 +84,12 @@ fn factory_mapping_ownership_and_metadata() {
     );
     let factory = Factory::from_value(Factory).query::<contract::FactoryAbi>().unwrap();
     for explicit in [false, true] {
-        let drops = Rc::new(Cell::new(0));
-        let capture = Lifetime(drops.clone());
+        let (released, drops) = mpsc::channel();
+        let capture = Lifetime(released);
         let (tx, rx) = mpsc::channel();
-        let queue = events::mapped_queue::<contract::CounterEventQueueAbi, _>(tx, move |_origin, event| {
-            let _ = &capture;
-            Message::Counter(event)
-        })
-        .unwrap();
+        let queue = Queue::from_value(Queue { send: tx, _lifetime: capture })
+            .query::<contract::CounterEventQueueAbi>()
+            .unwrap();
         let binding = contract::CounterEventBinding::Observed(queue);
         let mut counter = factory.create(false, NcValueRef::new(&binding).unwrap()).unwrap();
         drop(binding);
@@ -89,28 +102,30 @@ fn factory_mapping_ownership_and_metadata() {
         assert_eq!(value.text, "call-owned");
         assert!(value.enabled);
         drop(counter.clone());
-        assert_eq!(drops.get(), 0);
+        assert!(matches!(drops.try_recv(), Err(mpsc::TryRecvError::Empty)));
         if explicit {
             counter.close().unwrap();
             counter.close().unwrap();
-            assert_eq!(drops.get(), 1);
+            assert!(matches!(drops.try_recv(), Ok(())));
             assert_eq!(counter.emit(NcValueRef::new(&contract::Event::Submitted).unwrap()), Err(NC_E_CLOSED));
         }
         drop(counter);
-        assert_eq!(drops.get(), 1);
+        if !explicit {
+            assert!(matches!(drops.try_recv(), Ok(())));
+        }
+        assert!(matches!(drops.try_recv(), Err(mpsc::TryRecvError::Disconnected)));
     }
-    let drops = Rc::new(Cell::new(0));
-    let capture = Lifetime(drops.clone());
+    let (released, drops) = mpsc::channel();
+    let capture = Lifetime(released);
     let (tx, _rx) = mpsc::channel();
-    let queue = events::mapped_queue::<contract::CounterEventQueueAbi, _>(tx, move |_, _| {
-        let _ = &capture;
-        ()
-    })
-    .unwrap();
+    let queue = Queue::from_value(Queue { send: tx, _lifetime: capture })
+        .query::<contract::CounterEventQueueAbi>()
+        .unwrap();
     let binding = contract::CounterEventBinding::Observed(queue);
     assert_eq!(factory.create(true, NcValueRef::new(&binding).unwrap()).unwrap_err(), NC_E_INVALID_ARG);
     drop(binding);
-    assert_eq!(drops.get(), 1, "failed construction cannot retain mapper captures");
+    assert!(matches!(drops.try_recv(), Ok(())), "failed construction cannot retain the queue");
+    assert!(matches!(drops.try_recv(), Err(mpsc::TryRecvError::Disconnected)));
     let mut unobserved = factory
         .create(false, NcValueRef::new(&contract::CounterEventBinding::Unobserved).unwrap())
         .unwrap();
@@ -145,16 +160,30 @@ fn shared_origin_keeps_its_threading_capability_through_the_queue() {
     use neocogi_com::events::EventQueueInterface;
     let object = SharedOrigin::from_value(SharedOrigin).query::<contract::SharedOriginAbi>().unwrap();
     let (send, events) = mpsc::channel();
-    let queue = contract::SharedOriginEventQueueAbi::receiver(move |origin, event| {
-        // This static requirement catches an accidentally weakened origin marker.
-        fn shared<T: Send + Sync>(_: &T) {}
-        shared(&origin);
-        send.send((origin, event)).unwrap();
-        Ok(())
-    }).unwrap();
+    let queue = SharedQueue::from_value(SharedQueue { send })
+        .query::<contract::SharedOriginEventQueueAbi>()
+        .unwrap();
     contract::SharedOriginEventQueueAbi::post(queue.as_com_ref(), object.as_com_ref(), &contract::Event::Submitted).unwrap();
     drop(object);
     let (origin, event) = events.recv().unwrap();
     assert!(origin.upgrade().unwrap().is_none());
     assert!(matches!(event, contract::Event::Submitted));
+}
+
+#[com_object(contract::SharedOriginEventQueue)]
+/// A local application queue retains the declared thread-safe weak origin type.
+struct SharedQueue {
+    /// The output explicitly preserves the origin's Send + Sync contract.
+    send: mpsc::Sender<(WeakComPtr<contract::SharedOriginAbi, ThreadSafe>, contract::Event)>,
+}
+impl contract::SharedOriginEventQueue for SharedQueue {
+    /// Borrowing a shared origin must not silently weaken it to the local mode.
+    fn post(&mut self, origin: ComRef<'_, contract::SharedOriginAbi, ThreadSafe>, event: NcValueRef<'_, contract::Event>) -> Result<(), NcStatus> {
+        let origin = origin.downgrade()?;
+        /// Compile-time assertion remains independent of runtime delivery.
+        fn shared<T: Send + Sync>(_: &T) {}
+        shared(&origin);
+        let _ = self.send.send((origin, event.to_owned()?));
+        Ok(())
+    }
 }

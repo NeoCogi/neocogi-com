@@ -77,6 +77,7 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
             pub mod contract;
             use contract::*;
             use neocogi_com::ComPtr;
+            use neocogi_com::events::EventQueueInterface;
             pub fn cannot_attach(
                 mut product: ComPtr<CounterAbi>,
                 mut port: CounterEventPort,
@@ -84,6 +85,7 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
             ) {
                 product.attach(queue.as_com_ref());
                 port.attach(queue.as_com_ref());
+                CounterEventQueueAbi::receiver(|_, _| Ok(()));
             }
         "#,
     )
@@ -97,6 +99,7 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
     let diagnostics = String::from_utf8_lossy(&result.stderr);
     assert!(!result.status.success(), "late attachment unexpectedly compiled");
     assert_eq!(diagnostics.matches("no method named `attach`").count(), 2, "{diagnostics}");
+    assert!(diagnostics.contains("named `receiver` found"), "{diagnostics}");
 }
 
 /// Two receiver arguments would weaken the one-port contract; two constructors
