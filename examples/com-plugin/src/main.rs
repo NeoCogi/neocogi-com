@@ -2,7 +2,6 @@
 
 use neocogi_com::{binary, Runtime, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, guid_from_qualified_name};
 use neocogi_com::persistence::{FactoryRegistry, snapshot};
-use neocogi_com::events::mapped_queue;
 use neocogi_com::NcValueRef;
 use neocogi_idl_example_contracts::{ExampleObjectEventBinding, ExampleObjectEventQueueAbi};
 use nc_example_com::{ExtentState, PERSISTENT_KIND};
@@ -17,7 +16,7 @@ fn main() {
         .activate_plugin_factory::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .expect("compatible example factory");
     let (sender, messages) = std::sync::mpsc::channel();
-    let queue = mapped_queue::<ExampleObjectEventQueueAbi, _>(sender.clone(), |_origin, event: ExtentChanged| (event.width, event.height)).unwrap();
+    let queue = AppQueue::from_value(AppQueue { sender }).query::<ExampleObjectEventQueueAbi>().unwrap();
     let binding = ExampleObjectEventBinding::from_queue(Some(queue.as_com_ref()));
     let mut object = factory
         .create(Extent { width: 20, height: 10 }, NcValueRef::new(&binding).unwrap())
@@ -25,19 +24,23 @@ fn main() {
     object.resize(Extent { width: 44, height: 31 }).expect("exclusive object mutation");
     let extent = object.extent().expect("inherited interface call");
     assert_eq!(extent, Extent { width: 44, height: 31 });
-    assert_eq!(messages.try_recv().unwrap(), (44, 31));
+    let changed = messages.try_recv().unwrap();
+    assert!(changed.origin.same_object(&object.downgrade().unwrap()));
+    assert_eq!((changed.event.width, changed.event.height), (44, 31));
     let saved = snapshot(object.query::<IUnknown>().unwrap().as_com_ref()).unwrap();
     let mut registry = FactoryRegistry::new().unwrap();
     registry
         .register(
             PERSISTENT_KIND,
-            PersistenceAdapter::from_value(PersistenceAdapter { factory, sender }).query().unwrap(),
+            PersistenceAdapter::from_value(PersistenceAdapter { factory, queue }).query().unwrap(),
         )
         .unwrap();
     let restored = registry.restore(&saved).unwrap();
     assert_eq!(snapshot(restored.as_com_ref()).unwrap(), saved);
     restored.query::<ExampleObjectAbi>().unwrap().resize(Extent { width: 45, height: 32 }).unwrap();
-    assert_eq!(messages.try_recv().unwrap(), (45, 32));
+    let changed = messages.try_recv().unwrap();
+    assert!(changed.origin.same_object(&restored.downgrade().unwrap()));
+    assert_eq!((changed.event.width, changed.event.height), (45, 32));
     println!("factory object: {} x {}", extent.width, extent.height);
 }
 
@@ -62,8 +65,9 @@ fn register_plugin(runtime: &Runtime) {
 struct PersistenceAdapter {
     /// In shared mode this is a checked factory in the separately loaded plugin.
     factory: ComPtr<ExampleFactoryAbi>,
-    /// Live application destination supplied separately from persisted dimensions.
-    sender: std::sync::mpsc::Sender<(u32, u32)>,
+    /// Same application queue is shared by ordinary and restored objects.
+    /// Live routing state is supplied separately from persisted dimensions.
+    queue: ComPtr<ExampleObjectEventQueueAbi>,
 }
 /// Validates the explicitly supported schema before invoking plugin construction.
 fn decode(version: u32, state: NcCopyFromBufferOffset<'_, u8>, children: u32) -> Result<ExtentState, NcStatus> {
@@ -88,10 +92,35 @@ impl neocogi_com::persistence::IPersistenceFactory for PersistenceAdapter {
         children: ComRef<'_, neocogi_com::persistence::IObjectChildrenAbi>,
     ) -> Result<ComPtr<IUnknown>, NcStatus> {
         let state = decode(version, state, children.count()?)?;
-        let queue = mapped_queue::<ExampleObjectEventQueueAbi, _>(self.sender.clone(), |_origin, event| (event.width, event.height))?;
-        let binding = ExampleObjectEventBinding::from_queue(Some(queue.as_com_ref()));
+        let binding = ExampleObjectEventBinding::from_queue(Some(self.queue.as_com_ref()));
         self.factory
             .create(Extent { width: state.width, height: state.height }, NcValueRef::new(&binding)?)?
             .query()
+    }
+}
+
+/// Application-local fact; neither Rust channel storage nor this wrapper crosses COM.
+struct Change {
+    /// Identifies the emitting plugin object without retaining its resources.
+    origin: neocogi_com::WeakComPtr<ExampleObjectAbi>,
+    /// Complete acquired event survives producer mutation or destruction.
+    event: ExtentChanged,
+}
+
+#[neocogi_com::com_object(neocogi_idl_example_contracts::ExampleObjectEventQueue)]
+/// One concrete receiver can serve every object made by the ordinary or persistence factory.
+struct AppQueue {
+    /// The endpoint captures transport only, never application state or a widget owner.
+    sender: std::sync::mpsc::Sender<Change>,
+}
+impl neocogi_idl_example_contracts::ExampleObjectEventQueue for AppQueue {
+    /// Acquires the borrowed event and weak origin before returning to the plugin.
+    fn post(&mut self, origin: ComRef<'_, ExampleObjectAbi>, event: NcValueRef<'_, ExtentChanged>) -> Result<(), NcStatus> {
+        let message = Change {
+            origin: origin.downgrade()?,
+            event: event.to_owned()?,
+        };
+        let _ = self.sender.send(message);
+        Ok(())
     }
 }

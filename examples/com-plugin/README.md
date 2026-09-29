@@ -12,7 +12,7 @@ class ExampleObject: IMeasured {
 
 #[version(1)]
 factory ExampleFactory {
-    fn create(&self, extent: Extent, events: &EventBinding<ExtentChanged>) -> Result<ComPtr<ExampleObject>>;
+    fn create(&self, extent: Extent, events: &EventBinding<ExampleObject, ExtentChanged>) -> Result<ComPtr<ExampleObject>>;
 }
 ```
 
@@ -76,11 +76,16 @@ is not used by this example.
 ## Persistence and a typed class stream
 
 The object exposes `IPersistable`; `ExampleFactory::create` accepts
-`EventBinding<ExtentChanged>`. The host creates a typed COM sink before the
-factory call, saves dimensions, and restores through an explicitly registered
-adapter. That adapter retains live application queue context separately from the
-saved recipe and supplies a fresh receiver during each restoration. Neither
-ordinary nor restored products expose a later event-installation operation.
+`EventBinding<ExampleObject, ExtentChanged>`. The host implements the concrete
+`ExampleObjectEventQueue` trait on `AppQueue`, which owns its ordinary channel
+sender. One COM queue serves both ordinary and restored objects. `post` copies
+the checked event and acquires a `WeakComPtr<ExampleObjectAbi>` before returning;
+no Rust callback or channel representation crosses COM.
+
+The persistence adapter retains this same queue separately from saved dimensions.
+Restoring supplies the queue during construction, just like the ordinary factory.
+Neither path permits later receiver installation. The host verifies each queued
+origin against the corresponding object; weak origins do not keep objects alive.
 
 The same relocation test executes this sequence across a real shared-library
 boundary and in the monolith. The implementation library also checks for Wasm.

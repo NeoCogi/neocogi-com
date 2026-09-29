@@ -403,6 +403,13 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
     pub fn as_raw(&self) -> ComRaw<T> {
         self.raw.as_raw()
     }
+    /// Compares two live capabilities without querying or borrowing object state.
+    /// The object/table ABI guarantees one canonical object address across all
+    /// projections. Both borrows pin their values, preventing address reuse here.
+    pub fn same_object<U: ComInterface + ?Sized, N: ThreadingModel>(&self, other: ComRef<'_, U, N>) -> bool {
+        self.raw.object == other.raw.object
+    }
+
     /// Creates a weak lifetime reference without retaining the object's value.
     /// Providers without the optional lifetime capability return NC_E_NOINTERFACE.
     pub fn downgrade(&self) -> Result<crate::WeakComPtr<T, M>, NcStatus> {

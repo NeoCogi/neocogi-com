@@ -41,7 +41,9 @@ enum Phase<Q: EventQueueInterface> {
     Unobserved,
     /// The public producer is weak, so storing its own origin cannot create a cycle.
     Observed {
+        /// Public identity fixed before publication; never owns the producer value.
         origin: WeakComPtr<Q::Object, <Q::Object as ComInterface>::Threading>,
+        /// The one strong receiver capability released by terminal closure.
         queue: ComPtr<Q>,
     },
     /// Logical teardown permanently rejects emission and retains no queue or origin.

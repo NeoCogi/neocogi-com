@@ -231,14 +231,15 @@ record; the method's actual raw type is `ComValue::Wire`, which can differ.
 The first required interface is the physical base; later requirements are
 sibling projections. The required projection graph must be acyclic. A factory
 may serve as the runtime's zero-argument construction root. Ordinary generic
-interfaces are specialized before ABI generation. `IMessageSink<E>` crosses COM
-as a concrete post vtable with exact identity and signature. `EventBinding<E>`
-is an ordinary enum passed into construction; its observed case owns that sink.
-The product retains one lifetime receiver before publication, and `EventPort`
-provides terminal closure. No attachment interface is added to the product.
-The receiver acquires the event before mapping it to the behavioral parent's
-queue; later application dispatch uses mutable parent access. Visual widget
-routing is outside this contract.
+interfaces are specialized before ABI generation. `IEventQueue<Object, Event>`
+crosses COM as a concrete `post` vtable with a borrowed origin and checked value.
+`EventBinding<Object, Event>` is an ordinary enum passed into construction; its
+observed case owns that queue. The product retains one lifetime receiver and a
+weak self origin before publication, and `EventPort` provides terminal closure.
+No attachment interface is added to the product. The receiver acquires the event
+and optionally a weak origin before posting its application message. Later
+dispatch uses mutable application state. Visual widget routing is outside this
+contract. See [event queues](../../../docs/CLASS_EVENT_STREAMS.md).
 
 Hand-authored Rust COM contracts can use nullable `Option<ComRef<I>>` inputs,
 identified by `NC_ABI_PASSING_OPTIONAL_COM_REF` (`0x08`). Current IDL does not

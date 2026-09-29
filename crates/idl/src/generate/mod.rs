@@ -176,8 +176,9 @@ fn generate_design_metadata(graph: &Generation<'_>, module: &ResolvedModule) -> 
             let construction = match construction::find(graph, module, declaration)? {
                 Some(binding) => {
                     let queue = named_rust_type(graph, module, binding.queue, true)?;
+                    let rust_trait = Literal::string(&public_rust_path(graph, binding.queue.module, &binding.queue.declaration.name)?);
                     let event = named_rust_type(graph, module, binding.event, false)?;
-                    quote! { Some(::neocogi_com::design::IdlEventQueue { abi: &#queue::INTERFACE_DESCRIPTOR, message: &#event::IDL_TYPE }) }
+                    quote! { Some(::neocogi_com::design::IdlEventQueue { rust_trait: #rust_trait, abi: &#queue::INTERFACE_DESCRIPTOR, message: &#event::IDL_TYPE }) }
                 }
                 None => quote! { None },
             };

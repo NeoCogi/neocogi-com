@@ -86,6 +86,11 @@ pub struct IdlType {
 /// for in that widget's QueryInterface chain.
 #[derive(Clone, Copy)]
 pub struct IdlEventQueue {
+    /// Public implementation trait path for application-owned queue objects.
+    /// This is Rust binding metadata, separate from the logical COM identity.
+    /// Publishers and catalog readers use [`crate::validate_rust_path`] just as
+    /// they do for interface/value paths; consumers never guess this name.
+    pub rust_trait: &'static str,
     /// Exact closed IEventQueue<Object, Event> identity and checked ABI signature.
     pub abi: &'static NcInterfaceDescriptor,
     /// Complete event value; nested definitions are carried by the value graph.

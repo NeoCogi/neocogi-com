@@ -55,6 +55,14 @@ fn weak_tokens_do_not_retain_values_and_all_projections_share_identity() {
     });
     let derived = owner.query::<IDerivedAbi>().unwrap();
     let base = owner.query::<IValueAbi>().unwrap();
+    assert!(derived.as_com_ref().same_object(base.as_com_ref()));
+    let unrelated = Value::from_value(Value {
+        drops: Arc::new(AtomicUsize::new(0)),
+        closed: false,
+        origin: None,
+    });
+    assert!(!derived.as_com_ref().same_object(unrelated.as_com_ref()));
+    drop(unrelated);
     let weak_root = owner.downgrade().unwrap();
     let weak_derived = derived.as_com_ref().downgrade().unwrap();
     let weak_base = base.downgrade().unwrap();
