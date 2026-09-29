@@ -114,3 +114,7 @@ path = "integration-tests/projection_metadata.rs"
 [[test]]
 name = "weak_com"
 path = "integration-tests/weak_com.rs"
+
+[[test]]
+name = "borrowed_values"
+path = "integration-tests/borrowed_values.rs"

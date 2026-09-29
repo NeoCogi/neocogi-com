@@ -178,9 +178,16 @@ pub trait ComValueType: ComValue {
 /// Dropping the original application value cannot invalidate any wire field.
 pub unsafe trait ComInlineValue: ComValue + Copy {}
 
-/// Typed owner of a value's raw record and all temporary producer wire storage.
-/// The application borrow prevents original string/interface backing from being
-/// destroyed before the call, while Storage retains converted sequence elements.
+/// Guard for a value's raw record and its call-scoped backing storage.
+///
+/// A producer created by [`Self::new`] owns temporary wire storage and borrows
+/// original string/interface backing through `'a`. A receiver reconstructed by
+/// [`Self::from_raw`] borrows the producer's backing storage for the call only.
+/// COM parameter declarations must use `NcValueRef<'_, T>`; receivers acquire an
+/// owned `T` with [`Self::to_owned`] before retaining data or posting it to a queue.
+/// Even a static application value can require a temporary array of wire records:
+/// a static source lifetime on a producer guard never grants the receiver a static
+/// borrow of those records. The macro enforces this at the declaration boundary.
 pub struct NcValueRef<'a, T: ComValue> {
     /// Raw record passed only to the synchronous COM call.
     wire: T::Wire,
@@ -212,8 +219,12 @@ impl<'a, T: ComValue> NcValueRef<'a, T> {
     /// Reconstructs a borrowed call guard at a generated COM entry point.
     ///
     /// # Safety
-    /// The pointer and active pointees must satisfy ComValue::decode_value for
-    /// this call. Raw scalar/tag contents may be invalid and will be checked.
+    /// The pointer must be initialized, aligned, and readable for this operation.
+    /// Active pointees must satisfy [`ComValue::decode_value`] for all of `'a`,
+    /// including every nested allocation retained by the producer's wire storage.
+    /// The returned guard does not own that storage; `'a` must not outlive it.
+    /// Generated entry points bound this borrow to the synchronous call.
+    /// Raw scalar/tag contents may be invalid and will be checked by `to_owned`.
     pub unsafe fn from_raw(pointer: *const T::Wire) -> Result<Self, NcStatus> {
         if pointer.is_null() {
             return Err(NC_E_POINTER);

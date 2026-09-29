@@ -255,6 +255,15 @@ Sequence fields own `Vec<T>` in application Rust. Inline cycles, including
 `Option<Self>`, fail IDL resolution; explicit sequence indirection permits finite
 recursive trees. Raw memory validity remains the caller's obligation.
 
+All borrowed Rust COM parameters (`NcValueRef`, `ComRef`, and both offset-buffer
+wrappers) require the anonymous `'_` lifetime. The macro rejects named/static
+lifetimes and malformed wrapper arguments. A permanently retained application
+value does not make its temporary encoded arrays permanent. Receivers must
+acquire owned data during the synchronous call before retaining or queueing it;
+`NcValueRef::to_owned()` performs that acquisition. A producer guard may borrow
+static application data while owning temporary wire storage. The restriction
+is on the receiver's declaration, with no change to raw slots or core ABI version.
+
 One shared conversion budget bounds temporary/acquired storage to 8 MiB, visited
 values to one million, and depth to 64. Allocation is fallible. Converted buffers
 use the same checked codecs; numeric buffers may remain direct borrows only with
