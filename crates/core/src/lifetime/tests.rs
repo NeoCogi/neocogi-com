@@ -177,3 +177,10 @@ fn count_exhaustion_never_wraps_or_changes_the_counter() {
     assert!(std::panic::catch_unwind(|| retain(&count)).is_err());
     assert_eq!(count.load(Ordering::Relaxed), isize::MAX as usize);
 }
+
+/// An absent invocation header must fail before touching any provider storage.
+#[test]
+fn exclusive_call_rejects_an_absent_header() {
+    // SAFETY: null is explicitly accepted as an error input by BoxCall::enter.
+    assert!(matches!(unsafe { super::BoxCall::enter(core::ptr::null_mut()) }, Err(crate::NC_E_POINTER)));
+}

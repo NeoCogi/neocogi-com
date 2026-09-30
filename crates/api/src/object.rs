@@ -95,7 +95,7 @@ impl<'a, T> __ComSharedLease<'a, T, crate::lifetime::BoxCall> {
     /// Admits a call before borrowing an exclusively owned implementation.
     ///
     /// # Safety
-    /// `control`, `gate`, and `value` belong to the same generated allocation.
+    /// `control`, `gate`, and `value` belong to the same exclusive generated allocation.
     /// An owner, weak token, or outer call must retain its storage throughout
     /// acquisition. The admitted call then protects the value until lease drop.
     pub unsafe fn acquire_abi(control: *mut crate::lifetime::NcWeakControl, gate: &'a __ComCallGate, value: *const T) -> Result<Self, NcStatus> {
@@ -159,7 +159,7 @@ impl<'a, T> __ComExclusiveLease<'a, T, crate::lifetime::BoxCall> {
     /// Admits a call before borrowing an exclusively owned implementation.
     ///
     /// # Safety
-    /// `control`, `gate`, and `value` belong to the same generated allocation.
+    /// `control`, `gate`, and `value` belong to the same exclusive generated allocation.
     /// An owner, weak token, or outer call must retain its storage throughout
     /// acquisition. The admitted call then protects the value until lease drop.
     pub unsafe fn acquire_abi(control: *mut crate::lifetime::NcWeakControl, gate: &'a __ComCallGate, value: *mut T) -> Result<Self, NcStatus> {

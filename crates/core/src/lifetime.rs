@@ -5,6 +5,7 @@
 //! immutable interface list depend on the concrete class. No Arc layout is read.
 use core::{
     ffi::c_void,
+    ptr::NonNull,
     sync::atomic::{AtomicUsize, Ordering, fence},
 };
 use crate::{ComRaw, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, NC_E_CLOSED, NC_E_POINTER, NC_E_INVALID_ARG, NC_OK};
@@ -331,23 +332,27 @@ impl NcWeakControl {
 /// their callers already retain them. A concurrent owner drop is nonblocking;
 /// the last admitted call destroys the value through its allocating provider.
 pub struct BoxCall {
-    /// Null for a shared allocation; otherwise owns one active boxed call.
-    control: *mut NcWeakControl,
+    /// Always owns one admitted call. Shared classes use no BoxCall at all;
+    /// encoding presence here removes nullable cleanup branches from ABI thunks.
+    control: NonNull<NcWeakControl>,
 }
 impl BoxCall {
     /// Protects a generated ABI invocation, rejecting expired exclusive objects.
     ///
     /// # Safety
-    /// `control` must be a valid common header retained by an owner, weak token,
-    /// or an enclosing call for the entire acquisition. Shared objects must be
-    /// strongly retained for the returned lease's full lifetime.
+    /// A non-null `control` must be exclusive common storage retained by an
+    /// owner, weak token, or enclosing call throughout acquisition. Generated
+    /// exclusive classes and checked weak-box construction establish this mode;
+    /// passing a shared allocation violates the provider contract. Null is
+    /// reported as `NC_E_POINTER` without accessing storage.
     #[inline(never)]
     pub unsafe fn enter(control: *mut NcWeakControl) -> Result<Self, NcStatus> {
-        let header = unsafe { control.as_ref() }.ok_or(NC_E_POINTER)?;
+        let control = NonNull::new(control).ok_or(NC_E_POINTER)?;
+        let header = unsafe { control.as_ref() };
         let mut state = header.strong.load(Ordering::Acquire);
+        debug_assert!(state & BOXED != 0, "BoxCall requires exclusive storage");
         loop {
             match state {
-                shared if shared & BOXED == 0 => return Ok(Self { control: core::ptr::null_mut() }),
                 expired if expired & BOX_OWNER == 0 => return Err(NC_E_CLOSED),
                 full if full & BOX_CALLS == BOX_CALLS => return Err(crate::NC_E_BUSY),
                 live => match header.strong.compare_exchange_weak(live, live + 1, Ordering::Acquire, Ordering::Relaxed) {
@@ -361,15 +366,14 @@ impl BoxCall {
 impl Drop for BoxCall {
     /// Ends execution only after every reference to the provider value is gone.
     fn drop(&mut self) {
-        if self.control.is_null() { return; }
         // SAFETY: the acquired call keeps initialized value and implicit weak
         // ownership alive, even after the sole ComBox has been dropped.
-        let header = unsafe { &*self.control };
+        let header = unsafe { self.control.as_ref() };
         let previous = header.strong.fetch_sub(1, Ordering::Release);
         debug_assert!(previous & BOX_CALLS != 0);
         if previous == BOXED | 1 {
             fence(Ordering::Acquire);
-            unsafe { destroy_box(self.control) };
+            unsafe { destroy_box(self.control.as_ptr()) };
         }
     }
 }
