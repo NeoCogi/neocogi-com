@@ -3,7 +3,7 @@ mod exclusive_tests {
     use super::*;
     use neocogi_com::{com_object, com_factory, ComBox, WeakComBox, NcStatus};
 
-    #[com_object(IValue)]
+    #[com_object(IValue, ownership = exclusive)]
     /// Concrete payload whose owner travels through generated method signatures.
     struct Value;
     impl IValue for Value {
@@ -21,7 +21,7 @@ mod exclusive_tests {
             Value::into_box(Value).query()
         }
     }
-    #[com_object(IContainer)]
+    #[com_object(IContainer, ownership = exclusive)]
     /// Sole child ownership lives in one ordinary field.
     struct Container {
         child: Option<ComBox<IValueAbi>>,

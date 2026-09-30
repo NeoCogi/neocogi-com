@@ -310,7 +310,14 @@ COM; only `IEventQueue<Object, Event>` calls do. The generated construction desc
 that queue's exact interface identity and the complete event value graph.
 
 
-Exclusive providers can use `into_box` / `into_box_cyclic` to construct a
+Concrete providers select one ownership policy. Shared ownership is the default;
+`#[com_object(..., ownership = exclusive)]` and
+`#[com_class(Contract, ownership = exclusive)]` select exclusive ownership.
+Only that policy's constructors are generated: shared classes have `from_value` /
+`from_value_cyclic` / `into_local`; exclusive classes have `into_box` /
+`into_box_cyclic` / `into_local_box`. Factories always remain shared.
+
+Exclusive providers use `into_box` / `into_box_cyclic` to construct a
 non-clonable `ComBox`. `WeakComBox` caches its interface table and accesses the
 provider through checked call entries, without promoting to a shared owner.
 Factories can return boxes and containers can consume them through generated

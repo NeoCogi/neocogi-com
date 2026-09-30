@@ -1,0 +1,17 @@
+error: expected shared or exclusive ownership
+ --> integration-tests/ui/object_ownership_invalid.rs:3:40
+  |
+3 | #[com_object(interfaces(), ownership = borrowed)]
+  |                                        ^^^^^^^^
+
+error: duplicate ownership = ...
+ --> integration-tests/ui/object_ownership_invalid.rs:6:48
+  |
+6 | #[com_object(interfaces(), ownership = shared, ownership = exclusive)]
+  |                                                ^^^^^^^^^
+
+error: COM factories require shared ownership
+  --> integration-tests/ui/object_ownership_invalid.rs:10:8
+   |
+10 | struct ExclusiveFactory;
+   |        ^^^^^^^^^^^^^^^^

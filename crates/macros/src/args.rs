@@ -15,12 +15,23 @@ use crate::util::path_with_last_ident;
 pub(crate) struct ObjectArgs {
     /// Explicit interface list after deriving ABI and vtable helper paths.
     pub(crate) interfaces: Vec<ObjectInterface>,
+    /// Constructor and call-lifetime policy fixed for every instance of this class.
+    pub(crate) ownership: ObjectOwnership,
     /// Whether generated object storage may be shared across threads.
     pub(crate) thread_safe: bool,
     /// Optional path overriding automatic `neocogi-com` crate discovery.
     pub(crate) runtime_crate: Option<Path>,
     /// Optional generated ABI path for a factory-created interface contract.
     pub(crate) primary_interface: Option<Path>,
+}
+
+/// Provider-side lifetime policy; interface ABI and threading remain independent.
+#[derive(Clone, Copy)]
+pub(crate) enum ObjectOwnership {
+    /// Strong references keep the implementation alive throughout each call.
+    Shared,
+    /// One owner controls retirement; weak calls need temporary admission.
+    Exclusive,
 }
 
 /// Threading spellings accepted by generated interface attributes.
@@ -379,19 +390,21 @@ impl Parse for ObjectArgs {
     /// A bare interface path supplies the primary projection, threading promise,
     /// and required siblings. Its implementation cannot redeclare those facts
     /// with an additional list or threading flag. The explicit-list form is for
-    /// objects exposing several independent projections.
+    /// objects exposing several independent projections. Ownership is independent
+    /// of those interfaces and defaults to shared; widgets opt into exclusive.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let mut interfaces = None;
         let mut thread_safe = false;
         let mut runtime_crate = None;
         let mut primary = None;
+        let mut ownership = None;
 
         while !input.is_empty() {
             let starts_qualified_path = input.peek(Token![::]) || input.peek(Token![crate]) || input.peek(Token![self]) || input.peek(Token![super]);
             let starts_named_path = if input.peek(Ident) {
                 let lookahead = input.fork();
                 let candidate: Ident = lookahead.parse()?;
-                !matches!(candidate.to_string().as_str(), "interfaces" | "thread_safe" | "neocogi_com")
+                !matches!(candidate.to_string().as_str(), "interfaces" | "thread_safe" | "neocogi_com" | "ownership")
             } else {
                 false
             };
@@ -423,6 +436,17 @@ impl Parse for ObjectArgs {
                     return Err(syn::Error::new(keyword.span(), "duplicate thread_safe"));
                 }
                 thread_safe = true;
+            } else if keyword == "ownership" {
+                if ownership.is_some() {
+                    return Err(syn::Error::new(keyword.span(), "duplicate ownership = ..."));
+                }
+                input.parse::<Token![=]>()?;
+                let policy: Ident = input.parse()?;
+                ownership = Some(match policy.to_string().as_str() {
+                    "shared" => ObjectOwnership::Shared,
+                    "exclusive" => ObjectOwnership::Exclusive,
+                    _ => return Err(syn::Error::new(policy.span(), "expected shared or exclusive ownership")),
+                });
             } else if keyword == "neocogi_com" {
                 if runtime_crate.is_some() {
                     return Err(syn::Error::new(keyword.span(), "duplicate neocogi_com = ..."));
@@ -432,7 +456,7 @@ impl Parse for ObjectArgs {
             } else {
                 return Err(syn::Error::new(
                     keyword.span(),
-                    "expected a primary interface path, interfaces(...), thread_safe, or neocogi_com = path",
+                    "expected a primary interface path, interfaces(...), ownership = shared/exclusive, thread_safe, or neocogi_com = path",
                 ));
             }
 
@@ -469,6 +493,7 @@ impl Parse for ObjectArgs {
             thread_safe,
             runtime_crate,
             primary_interface,
+            ownership: ownership.unwrap_or(ObjectOwnership::Shared),
         })
     }
 }

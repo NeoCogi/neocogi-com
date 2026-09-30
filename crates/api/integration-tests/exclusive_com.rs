@@ -18,7 +18,7 @@ trait IValue {
     fn wait_write(&mut self) -> Result<(), NcStatus>;
 }
 
-#[com_object(interfaces(IValue), thread_safe)]
+#[com_object(interfaces(IValue), thread_safe, ownership = exclusive)]
 /// Test object whose observations and rendezvous outlive its exclusive owner.
 struct Value {
     /// Ordinary mutable state needs no RefCell or lock: the ABI gate protects it.
@@ -217,7 +217,7 @@ trait IContainer {
     /// Removes the child permanently; there is no detach or close operation.
     fn remove(&mut self) -> Result<(), NcStatus>;
 }
-#[com_object(IContainer)]
+#[com_object(IContainer, ownership = exclusive)]
 /// Ordinary owned state is sufficient; the ABI gate coordinates access.
 struct Container {
     /// The only strong owner, transferred into this field by insert.

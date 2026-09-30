@@ -1,0 +1,23 @@
+error[E0599]: no associated function or constant named `into_box` found for struct `Service` in the current scope
+  --> integration-tests/ui/object_ownership_constructors.rs:12:22
+   |
+ 5 | struct Service;
+   | -------------- associated function or constant `into_box` not found for this struct
+...
+12 |     let _ = Service::into_box(Service);
+   |                      ^^^^^^^^ associated function or constant not found in `Service`
+   |
+help: there is a method `into` with a similar name, but with different arguments
+  --> $RUST/core/src/convert/mod.rs
+   |
+   |     fn into(self) -> T;
+   |     ^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no associated function or constant named `from_value` found for struct `Widget` in the current scope
+  --> integration-tests/ui/object_ownership_constructors.rs:13:21
+   |
+ 9 | struct Widget;
+   | ------------- associated function or constant `from_value` not found for this struct
+...
+13 |     let _ = Widget::from_value(Widget);
+   |                     ^^^^^^^^^^ associated function or constant not found in `Widget`

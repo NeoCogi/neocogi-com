@@ -1,32 +1,16 @@
 //! Concrete IDL class allocation without event installation or UI policy.
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{
-    ItemStruct, Path,
-    parse::{Parse, ParseStream},
-};
+use syn::ItemStruct;
+use crate::args::ObjectArgs;
 
-/// Exact generated class contract; its ancestry determines COM projections.
-pub(crate) struct ClassArgs {
-    /// Public class trait generated from the ordinary IDL declaration.
-    contract: Path,
-}
-impl Parse for ClassArgs {
-    /// Parses one class path. Constructor receivers are ordinary owned fields.
-    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
-        let contract = Path::parse_mod_style(input)?;
-        if !input.is_empty() {
-            return Err(input.error("expected only the class contract; supply event receivers through construction"));
-        }
-        Ok(Self { contract })
-    }
-}
 /// Builds the ordinary COM allocation and checks its declared class role.
-pub(crate) fn expand(args: ClassArgs, input: ItemStruct) -> syn::Result<TokenStream> {
-    let contract = &args.contract;
-    let mut abi = contract.clone();
-    abi.segments.last_mut().unwrap().ident = quote::format_ident!("{}Abi", contract.segments.last().unwrap().ident);
-    let storage = crate::object::expand_com_object(syn::parse2(quote! { #contract })?, input, false);
+/// Uses the object parser so ownership has one syntax and validation policy.
+pub(crate) fn expand(args: ObjectArgs, input: ItemStruct) -> syn::Result<TokenStream> {
+    let abi = args.primary_interface.clone().ok_or_else(|| {
+        syn::Error::new_spanned(&input.ident, "com_class requires a primary class contract")
+    })?;
+    let storage = crate::object::expand_com_object(args, input, false);
     Ok(quote! {
         #storage
         const _: fn() = || {

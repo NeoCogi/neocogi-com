@@ -2,6 +2,8 @@
 fn ui_errors_are_stable() {
     let t = trybuild::TestCases::new();
     t.pass("integration-tests/ui/class_generic_owned.rs");
+    t.compile_fail("integration-tests/ui/object_ownership_constructors.rs");
+    t.compile_fail("integration-tests/ui/object_ownership_invalid.rs");
     t.compile_fail("integration-tests/ui/object_no_default_constructor.rs");
     t.compile_fail("integration-tests/ui/factory_requires_role.rs");
     t.compile_fail("integration-tests/ui/class_generic_borrowed.rs");

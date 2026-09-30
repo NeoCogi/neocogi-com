@@ -239,6 +239,9 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// The generated allocation owns its reference count, shared borrow guard,
 /// and original Rust value. Queryable projections use static tables, not fields. Construction remains local
 /// to the owning implementation or is exposed through an IDL factory method.
+/// `ownership = shared` (the default) emits `from_value` and local shared helpers.
+/// `ownership = exclusive` emits `into_box` and local exclusive helpers instead.
+/// This provider-local choice never changes an interface's C ABI or threading.
 #[proc_macro_attribute]
 pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as ObjectArgs);
@@ -376,9 +379,11 @@ mod navigation_tests;
 /// allocation helpers. Event storage remains an explicit private field initialized
 /// by the factory from its typed constructor argument. The macro generates no
 /// attachment method, hidden queue, or event receiver projection.
+/// `ownership = exclusive` selects unique owners and weak-call admission; the
+/// default shared policy emits only shared constructors and borrow-only calls.
 #[proc_macro_attribute]
 pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as class::ClassArgs);
+    let args = parse_macro_input!(attr as ObjectArgs);
     let input = parse_macro_input!(item as ItemStruct);
     match class::expand(args, input) {
         Ok(tokens) => tokens.into(),
