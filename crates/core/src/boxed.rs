@@ -57,6 +57,23 @@ pub struct WeakComBox<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal>
     mode: PhantomData<M>,
 }
 
+/// Validates one interface and retains exactly the returned observer token.
+/// Both owner-side and weak-side queries use this path, avoiding a temporary
+/// downgrade/retain/release when an owner needs a different weak projection.
+///
+/// # Safety
+/// `control` is retained common exclusive storage with immutable provider
+/// metadata, and its declared threading capability permits M.
+unsafe fn observe_projection<T: ComInterface, M: ThreadingModel>(
+    control: *mut crate::lifetime::NcWeakControl,
+) -> Result<WeakComBox<T, M>, NcStatus> {
+    let table = unsafe { box_projection(control, &T::INTERFACE_ID) }?;
+    // Validation precedes retention, so failure creates no token to release.
+    unsafe { nc_weak_retain(control) };
+    Ok(unsafe { WeakComBox::from_raw_owned(ComRaw { object: control.cast(), vtable: table.cast() }) }
+        .expect("retained exclusive storage is present"))
+}
+
 impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     /// Adopts the sole owner transferred by an exclusive provider.
     ///
@@ -116,6 +133,13 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
         Ok(unsafe { ComBox::from_raw_owned(ComRaw { object: raw.object, vtable: table.cast() }) }.expect("present owner"))
     }
 
+    /// Observes another validated interface without consuming this owner or
+    /// creating a temporary weak handle for the original projection.
+    pub fn query_weak<U: ComInterface>(&self) -> Result<WeakComBox<U, M>, NcStatus> {
+        // SAFETY: this owner retains the immutable control and its threading mode.
+        unsafe { observe_projection(self.as_raw().object.cast()) }
+    }
+
     /// Creates a non-owning handle with this interface already cached.
     pub fn downgrade(&self) -> WeakComBox<T, M> {
         let raw = self.as_raw();
@@ -158,15 +182,9 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
     /// Changes the cached projection once, without touching or owning the value.
     /// Expired objects still have immutable interface metadata while weak-owned.
     pub fn query<U: ComInterface>(&self) -> Result<WeakComBox<U, M>, NcStatus> {
-        let table = unsafe { box_projection(self.as_raw().object.cast(), &U::INTERFACE_ID) }?;
-        unsafe { nc_weak_retain(self.as_raw().object.cast()) };
-        Ok(unsafe {
-            WeakComBox::from_raw_owned(ComRaw {
-                object: self.as_raw().object,
-                vtable: table.cast(),
-            })
-        }
-        .expect("present token"))
+        // SAFETY: this weak token retains the immutable control and mode even
+        // after owner destruction; observation does not touch the Rust value.
+        unsafe { observe_projection(self.as_raw().object.cast()) }
     }
 
     /// Observes current eligibility only; subsequent calls still acquire their

@@ -78,7 +78,9 @@ fn container_owner_destruction_expires_all_cached_interfaces() {
     let drops = state.drops.clone();
     let mut owner = Value::into_box(state).query::<IValueAbi>().unwrap();
     let mut weak = owner.downgrade();
-    let identity = weak.query::<IUnknown>().unwrap();
+    let identity = owner.query_weak::<IUnknown>().unwrap();
+    // Failed observation must leave the unique owner and existing observers live.
+    assert!(matches!(owner.query_weak::<IContainerAbi>(), Err(neocogi_com::NC_E_NOINTERFACE)));
     assert!(identity.same_object(&weak));
     owner.set(7).unwrap();
     assert_eq!(weak.value(), Ok(7));

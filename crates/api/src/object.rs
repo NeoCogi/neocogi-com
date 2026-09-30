@@ -237,7 +237,11 @@ pub use neocogi_com_core::{__com_add_ref_count, __com_release_ref_count};
 /// `lifetime::NcWeakControl`, whose permanent class descriptor lists its matching
 /// projections and concrete destruction/deallocation callbacks. Shared lifetime operations must
 /// keep the allocation alive until the final `Release`, and `QueryInterface`
-/// must only return tables paired with that same allocation address.
+/// must only return tables paired with that same allocation address. Every
+/// instance of one implementation must use its declared lifetime policy:
+/// shared instances require a strong owner throughout each call; exclusive
+/// instances acquire execution protection before referencing their value and
+/// release it only after the reference and borrow gate have expired.
 ///
 /// Interface thunks receive an opaque object pointer and use this trait to
 /// recover the Rust implementation and delegate IUnknown behavior.

@@ -132,9 +132,9 @@ Given a generated contract crate, implementation code has this shape:
 
 ```rust,ignore
 use my_contracts::{Button, ButtonAbi, UiFactory};
-use neocogi_com::{ComPtr, NcStatus, com_factory, com_object};
+use neocogi_com::{ComBox, NcStatus, com_factory, com_object};
 
-#[com_object(my_contracts::Button)]
+#[com_object(my_contracts::Button, ownership = exclusive)]
 struct ButtonObject {
     label: String,
 }
@@ -147,8 +147,8 @@ impl Button for ButtonObject {
 struct UiFactoryObject;
 
 impl UiFactory for UiFactoryObject {
-    fn create_button(&self) -> Result<ComPtr<ButtonAbi>, NcStatus> {
-        ButtonObject::from_value(ButtonObject { label: String::new() }).query()
+    fn create_button(&self) -> Result<ComBox<ButtonAbi>, NcStatus> {
+        ButtonObject::into_box(ButtonObject { label: String::new() }).query()
     }
 }
 
