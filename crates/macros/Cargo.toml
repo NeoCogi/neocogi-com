@@ -25,3 +25,4 @@ syn.workspace = true
 [dev-dependencies]
 neocogi-idl.workspace = true
 prettyplease.workspace = true
+tempfile.workspace = true

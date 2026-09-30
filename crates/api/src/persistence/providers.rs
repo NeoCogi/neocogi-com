@@ -6,7 +6,7 @@ use super::*;
 /// Statically typed vtable and lifecycle adapters for one provider type.
 pub struct IObjectChildrenVtblFor<T>(
     /// Associates dispatch with T without allocating or owning a value.
-    core::marker::PhantomData<T>,
+    ::core::marker::PhantomData<T>,
 );
 impl<T> IObjectChildrenVtblFor<T>
 where
@@ -41,7 +41,9 @@ where
                 query_interface: ::neocogi_com::lifetime::nc_query_interface,
                 add_ref: ::neocogi_com::lifetime::nc_strong_retain,
                 release: ::neocogi_com::lifetime::nc_strong_release,
-                downgrade: Some(::neocogi_com::lifetime::nc_downgrade),
+                downgrade: ::core::option::Option::Some(
+                    ::neocogi_com::lifetime::nc_downgrade,
+                ),
             },
             count: Self::count_thunk,
             get: Self::get_thunk,
@@ -56,7 +58,7 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn count_thunk(
-        this: *mut core::ffi::c_void,
+        this: *mut ::core::ffi::c_void,
         __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
@@ -69,24 +71,24 @@ where
         let mut __nc_dispatch_value = match unsafe {
             <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
-            Ok(value) => value,
-            Err(status) => return status,
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(status) => return status,
         };
         let result = <T as IObjectChildren>::count(&*__nc_dispatch_value);
-        drop(__nc_dispatch_value);
+        ::core::mem::drop(__nc_dispatch_value);
         if result.is_ok() {}
         match result {
-            Ok(value) => {
+            ::core::result::Result::Ok(value) => {
                 let raw = match ::neocogi_com::encode_inline(&value) {
-                    Ok(raw) => raw,
-                    Err(status) => return status,
+                    ::core::result::Result::Ok(raw) => raw,
+                    ::core::result::Result::Err(status) => return status,
                 };
                 unsafe {
                     *__nc_out = raw;
                 }
                 ::neocogi_com::NC_OK
             }
-            Err(status) => status.normalize_error(),
+            ::core::result::Result::Err(status) => status.normalize_error(),
         }
     }
     /// Validates raw pointers, borrows the concrete provider through its
@@ -98,8 +100,8 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn get_thunk(
-        this: *mut core::ffi::c_void,
-        index: <u32 as ::neocogi_com::ComValue>::Wire,
+        this: *mut ::core::ffi::c_void,
+        __nc_arg_0: <u32 as ::neocogi_com::ComValue>::Wire,
         __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
@@ -109,27 +111,29 @@ where
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let index = match unsafe { ::neocogi_com::decode_inline::<u32>(index) } {
-            Ok(value) => value,
-            Err(status) => return status,
+        let __nc_arg_0 = match unsafe {
+            ::neocogi_com::decode_inline::<u32>(__nc_arg_0)
+        } {
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(status) => return status,
         };
         let mut __nc_dispatch_value = match unsafe {
             <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
-            Ok(value) => value,
-            Err(status) => return status,
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(status) => return status,
         };
-        let result = <T as IObjectChildren>::get(&*__nc_dispatch_value, index);
-        drop(__nc_dispatch_value);
+        let result = <T as IObjectChildren>::get(&*__nc_dispatch_value, __nc_arg_0);
+        ::core::mem::drop(__nc_dispatch_value);
         if result.is_ok() {}
         match result {
-            Ok(value) => {
+            ::core::result::Result::Ok(value) => {
                 unsafe {
                     *__nc_out = value.into_raw();
                 }
                 ::neocogi_com::NC_OK
             }
-            Err(status) => status.normalize_error(),
+            ::core::result::Result::Err(status) => status.normalize_error(),
         }
     }
 }
@@ -137,7 +141,7 @@ where
 /// Statically typed vtable and lifecycle adapters for one provider type.
 pub struct IPersistableVtblFor<T>(
     /// Associates dispatch with T without allocating or owning a value.
-    core::marker::PhantomData<T>,
+    ::core::marker::PhantomData<T>,
 );
 impl<T> IPersistableVtblFor<T>
 where
@@ -172,7 +176,9 @@ where
                 query_interface: ::neocogi_com::lifetime::nc_query_interface,
                 add_ref: ::neocogi_com::lifetime::nc_strong_retain,
                 release: ::neocogi_com::lifetime::nc_strong_release,
-                downgrade: Some(::neocogi_com::lifetime::nc_downgrade),
+                downgrade: ::core::option::Option::Some(
+                    ::neocogi_com::lifetime::nc_downgrade,
+                ),
             },
             type_id: Self::type_id_thunk,
             schema_version: Self::schema_version_thunk,
@@ -190,7 +196,7 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn type_id_thunk(
-        this: *mut core::ffi::c_void,
+        this: *mut ::core::ffi::c_void,
         __nc_out: *mut <::neocogi_com::NcGuid as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
@@ -203,24 +209,24 @@ where
         let mut __nc_dispatch_value = match unsafe {
             <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
-            Ok(value) => value,
-            Err(status) => return status,
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(status) => return status,
         };
         let result = <T as IPersistable>::type_id(&*__nc_dispatch_value);
-        drop(__nc_dispatch_value);
+        ::core::mem::drop(__nc_dispatch_value);
         if result.is_ok() {}
         match result {
-            Ok(value) => {
+            ::core::result::Result::Ok(value) => {
                 let raw = match ::neocogi_com::encode_inline(&value) {
-                    Ok(raw) => raw,
-                    Err(status) => return status,
+                    ::core::result::Result::Ok(raw) => raw,
+                    ::core::result::Result::Err(status) => return status,
                 };
                 unsafe {
                     *__nc_out = raw;
                 }
                 ::neocogi_com::NC_OK
             }
-            Err(status) => status.normalize_error(),
+            ::core::result::Result::Err(status) => status.normalize_error(),
         }
     }
     /// Validates raw pointers, borrows the concrete provider through its
@@ -232,7 +238,7 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn schema_version_thunk(
-        this: *mut core::ffi::c_void,
+        this: *mut ::core::ffi::c_void,
         __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
@@ -245,24 +251,24 @@ where
         let mut __nc_dispatch_value = match unsafe {
             <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
-            Ok(value) => value,
-            Err(status) => return status,
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(status) => return status,
         };
         let result = <T as IPersistable>::schema_version(&*__nc_dispatch_value);
-        drop(__nc_dispatch_value);
+        ::core::mem::drop(__nc_dispatch_value);
         if result.is_ok() {}
         match result {
-            Ok(value) => {
+            ::core::result::Result::Ok(value) => {
                 let raw = match ::neocogi_com::encode_inline(&value) {
-                    Ok(raw) => raw,
-                    Err(status) => return status,
+                    ::core::result::Result::Ok(raw) => raw,
+                    ::core::result::Result::Err(status) => return status,
                 };
                 unsafe {
                     *__nc_out = raw;
                 }
                 ::neocogi_com::NC_OK
             }
-            Err(status) => status.normalize_error(),
+            ::core::result::Result::Err(status) => status.normalize_error(),
         }
     }
     /// Validates raw pointers, borrows the concrete provider through its
@@ -274,7 +280,7 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn save_state_thunk(
-        this: *mut core::ffi::c_void,
+        this: *mut ::core::ffi::c_void,
         __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::INcBytesAbi>,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
@@ -287,20 +293,20 @@ where
         let mut __nc_dispatch_value = match unsafe {
             <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
-            Ok(value) => value,
-            Err(status) => return status,
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(status) => return status,
         };
         let result = <T as IPersistable>::save_state(&*__nc_dispatch_value);
-        drop(__nc_dispatch_value);
+        ::core::mem::drop(__nc_dispatch_value);
         if result.is_ok() {}
         match result {
-            Ok(value) => {
+            ::core::result::Result::Ok(value) => {
                 unsafe {
                     *__nc_out = value.into_raw();
                 }
                 ::neocogi_com::NC_OK
             }
-            Err(status) => status.normalize_error(),
+            ::core::result::Result::Err(status) => status.normalize_error(),
         }
     }
     /// Validates raw pointers, borrows the concrete provider through its
@@ -312,7 +318,7 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn child_count_thunk(
-        this: *mut core::ffi::c_void,
+        this: *mut ::core::ffi::c_void,
         __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
@@ -325,24 +331,24 @@ where
         let mut __nc_dispatch_value = match unsafe {
             <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
-            Ok(value) => value,
-            Err(status) => return status,
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(status) => return status,
         };
         let result = <T as IPersistable>::child_count(&*__nc_dispatch_value);
-        drop(__nc_dispatch_value);
+        ::core::mem::drop(__nc_dispatch_value);
         if result.is_ok() {}
         match result {
-            Ok(value) => {
+            ::core::result::Result::Ok(value) => {
                 let raw = match ::neocogi_com::encode_inline(&value) {
-                    Ok(raw) => raw,
-                    Err(status) => return status,
+                    ::core::result::Result::Ok(raw) => raw,
+                    ::core::result::Result::Err(status) => return status,
                 };
                 unsafe {
                     *__nc_out = raw;
                 }
                 ::neocogi_com::NC_OK
             }
-            Err(status) => status.normalize_error(),
+            ::core::result::Result::Err(status) => status.normalize_error(),
         }
     }
     /// Validates raw pointers, borrows the concrete provider through its
@@ -354,8 +360,8 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn child_thunk(
-        this: *mut core::ffi::c_void,
-        index: <u32 as ::neocogi_com::ComValue>::Wire,
+        this: *mut ::core::ffi::c_void,
+        __nc_arg_0: <u32 as ::neocogi_com::ComValue>::Wire,
         __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
@@ -365,27 +371,29 @@ where
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let index = match unsafe { ::neocogi_com::decode_inline::<u32>(index) } {
-            Ok(value) => value,
-            Err(status) => return status,
+        let __nc_arg_0 = match unsafe {
+            ::neocogi_com::decode_inline::<u32>(__nc_arg_0)
+        } {
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(status) => return status,
         };
         let mut __nc_dispatch_value = match unsafe {
             <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
-            Ok(value) => value,
-            Err(status) => return status,
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(status) => return status,
         };
-        let result = <T as IPersistable>::child(&*__nc_dispatch_value, index);
-        drop(__nc_dispatch_value);
+        let result = <T as IPersistable>::child(&*__nc_dispatch_value, __nc_arg_0);
+        ::core::mem::drop(__nc_dispatch_value);
         if result.is_ok() {}
         match result {
-            Ok(value) => {
+            ::core::result::Result::Ok(value) => {
                 unsafe {
                     *__nc_out = value.into_raw();
                 }
                 ::neocogi_com::NC_OK
             }
-            Err(status) => status.normalize_error(),
+            ::core::result::Result::Err(status) => status.normalize_error(),
         }
     }
 }
@@ -393,7 +401,7 @@ where
 /// Statically typed vtable and lifecycle adapters for one provider type.
 pub struct IPersistenceFactoryVtblFor<T>(
     /// Associates dispatch with T without allocating or owning a value.
-    core::marker::PhantomData<T>,
+    ::core::marker::PhantomData<T>,
 );
 impl<T> IPersistenceFactoryVtblFor<T>
 where
@@ -428,7 +436,9 @@ where
                 query_interface: ::neocogi_com::lifetime::nc_query_interface,
                 add_ref: ::neocogi_com::lifetime::nc_strong_retain,
                 release: ::neocogi_com::lifetime::nc_strong_release,
-                downgrade: Some(::neocogi_com::lifetime::nc_downgrade),
+                downgrade: ::core::option::Option::Some(
+                    ::neocogi_com::lifetime::nc_downgrade,
+                ),
             },
             validate: Self::validate_thunk,
             restore: Self::restore_thunk,
@@ -443,12 +453,12 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn validate_thunk(
-        this: *mut core::ffi::c_void,
-        version: <u32 as ::neocogi_com::ComValue>::Wire,
-        __nc_state_offset: u64,
-        __nc_state_len: u64,
-        __nc_state_ptr: *const <u8 as ::neocogi_com::ComValue>::Wire,
-        child_count: <u32 as ::neocogi_com::ComValue>::Wire,
+        this: *mut ::core::ffi::c_void,
+        __nc_arg_0: <u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_1_offset: u64,
+        __nc_arg_1_len: u64,
+        __nc_arg_1_ptr: *const <u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_2: <u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() {
             return ::neocogi_com::NC_E_POINTER;
@@ -457,43 +467,45 @@ where
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let version = match unsafe { ::neocogi_com::decode_inline::<u32>(version) } {
-            Ok(value) => value,
-            Err(status) => return status,
-        };
-        let mut __nc_state_values = match unsafe {
-            ::neocogi_com::DecodedInput::<u8>::from_raw(__nc_state_ptr, __nc_state_len)
+        let __nc_arg_0 = match unsafe {
+            ::neocogi_com::decode_inline::<u32>(__nc_arg_0)
         } {
-            Ok(values) => values,
-            Err(status) => return status,
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(status) => return status,
         };
-        let state = ::neocogi_com::NcCopyFromBufferOffset::new(
-            __nc_state_offset,
-            __nc_state_values.as_slice(),
+        let mut __nc_arg_1_values = match unsafe {
+            ::neocogi_com::DecodedInput::<u8>::from_raw(__nc_arg_1_ptr, __nc_arg_1_len)
+        } {
+            ::core::result::Result::Ok(values) => values,
+            ::core::result::Result::Err(status) => return status,
+        };
+        let __nc_arg_1 = ::neocogi_com::NcCopyFromBufferOffset::new(
+            __nc_arg_1_offset,
+            __nc_arg_1_values.as_slice(),
         );
-        let child_count = match unsafe {
-            ::neocogi_com::decode_inline::<u32>(child_count)
+        let __nc_arg_2 = match unsafe {
+            ::neocogi_com::decode_inline::<u32>(__nc_arg_2)
         } {
-            Ok(value) => value,
-            Err(status) => return status,
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(status) => return status,
         };
         let mut __nc_dispatch_value = match unsafe {
             <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
-            Ok(value) => value,
-            Err(status) => return status,
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(status) => return status,
         };
         let result = <T as IPersistenceFactory>::validate(
             &*__nc_dispatch_value,
-            version,
-            state,
-            child_count,
+            __nc_arg_0,
+            __nc_arg_1,
+            __nc_arg_2,
         );
-        drop(__nc_dispatch_value);
+        ::core::mem::drop(__nc_dispatch_value);
         if result.is_ok() {}
         match result {
-            Ok(()) => ::neocogi_com::NC_OK,
-            Err(status) => status.normalize_error(),
+            ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
+            ::core::result::Result::Err(status) => status.normalize_error(),
         }
     }
     /// Validates raw pointers, borrows the concrete provider through its
@@ -505,12 +517,12 @@ where
     /// The interface belongs to T's live generated storage. Non-null ABI
     /// arguments must satisfy their method's readable/writable contracts.
     unsafe extern "C" fn restore_thunk(
-        this: *mut core::ffi::c_void,
-        version: <u32 as ::neocogi_com::ComValue>::Wire,
-        __nc_state_offset: u64,
-        __nc_state_len: u64,
-        __nc_state_ptr: *const <u8 as ::neocogi_com::ComValue>::Wire,
-        children: ::neocogi_com::ComRaw<IObjectChildrenAbi>,
+        this: *mut ::core::ffi::c_void,
+        __nc_arg_0: <u32 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_1_offset: u64,
+        __nc_arg_1_len: u64,
+        __nc_arg_1_ptr: *const <u8 as ::neocogi_com::ComValue>::Wire,
+        __nc_arg_2: ::neocogi_com::ComRaw<IObjectChildrenAbi>,
         __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::IUnknown>,
     ) -> ::neocogi_com::NcStatus {
         if this.is_null() || __nc_out.is_null() {
@@ -520,51 +532,53 @@ where
         if __nc_dispatch_object.is_null() {
             return ::neocogi_com::NC_E_POINTER;
         }
-        let version = match unsafe { ::neocogi_com::decode_inline::<u32>(version) } {
-            Ok(value) => value,
-            Err(status) => return status,
-        };
-        let mut __nc_state_values = match unsafe {
-            ::neocogi_com::DecodedInput::<u8>::from_raw(__nc_state_ptr, __nc_state_len)
+        let __nc_arg_0 = match unsafe {
+            ::neocogi_com::decode_inline::<u32>(__nc_arg_0)
         } {
-            Ok(values) => values,
-            Err(status) => return status,
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(status) => return status,
         };
-        let state = ::neocogi_com::NcCopyFromBufferOffset::new(
-            __nc_state_offset,
-            __nc_state_values.as_slice(),
+        let mut __nc_arg_1_values = match unsafe {
+            ::neocogi_com::DecodedInput::<u8>::from_raw(__nc_arg_1_ptr, __nc_arg_1_len)
+        } {
+            ::core::result::Result::Ok(values) => values,
+            ::core::result::Result::Err(status) => return status,
+        };
+        let __nc_arg_1 = ::neocogi_com::NcCopyFromBufferOffset::new(
+            __nc_arg_1_offset,
+            __nc_arg_1_values.as_slice(),
         );
-        let children = match unsafe {
+        let __nc_arg_2 = match unsafe {
             ::neocogi_com::ComRef::<
                 IObjectChildrenAbi,
                 ::neocogi_com::ThreadLocal,
-            >::__nc_from_raw_borrowed_checked(children)
+            >::__nc_from_raw_borrowed_checked(__nc_arg_2)
         } {
-            Ok(value) => value,
-            Err(status) => return status,
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(status) => return status,
         };
         let mut __nc_dispatch_value = match unsafe {
             <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
-            Ok(value) => value,
-            Err(status) => return status,
+            ::core::result::Result::Ok(value) => value,
+            ::core::result::Result::Err(status) => return status,
         };
         let result = <T as IPersistenceFactory>::restore(
             &*__nc_dispatch_value,
-            version,
-            state,
-            children,
+            __nc_arg_0,
+            __nc_arg_1,
+            __nc_arg_2,
         );
-        drop(__nc_dispatch_value);
+        ::core::mem::drop(__nc_dispatch_value);
         if result.is_ok() {}
         match result {
-            Ok(value) => {
+            ::core::result::Result::Ok(value) => {
                 unsafe {
                     *__nc_out = value.into_raw();
                 }
                 ::neocogi_com::NC_OK
             }
-            Err(status) => status.normalize_error(),
+            ::core::result::Result::Err(status) => status.normalize_error(),
         }
     }
 }

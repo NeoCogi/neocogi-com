@@ -34,6 +34,10 @@ pub(crate) enum AbiReceiver {
 pub(crate) struct AbiArg {
     /// Source-level parameter identifier.
     pub(crate) ident: Ident,
+    /// Positional local used only by generated clients, vtable slots and thunks.
+    /// Separate from `ident` so source names never enter implementation scopes,
+    /// including when expanded tokens are printed and reparsed without hygiene.
+    pub(crate) binding: Ident,
     /// Rust type appearing in the safe trait method.
     pub(crate) rust_ty: Type,
     /// Raw type appearing in the generated C vtable slot.

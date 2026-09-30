@@ -402,3 +402,6 @@ pub fn com_value(attr: TokenStream, item: TokenStream) -> TokenStream {
         Err(error) => error.to_compile_error().into(),
     }
 }
+
+#[cfg(test)]
+mod identifier_hygiene_tests;

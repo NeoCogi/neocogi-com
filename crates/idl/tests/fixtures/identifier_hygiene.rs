@@ -133,4 +133,159 @@ mod tests {
         };
         assert!(NcValueRef::new(&value).unwrap().to_owned().unwrap().value.enabled);
     }
+    #[com_object(IArguments)]
+    /// Exercises output completion after the generated status/result locals exist.
+    struct Arguments;
+    impl IArguments for Arguments {
+        fn buffers(
+            &self,
+            mut status: NcCopyToBufferOffset<'_, Record>,
+            mut result: NcCopyToBufferOffset<'_, Record>,
+            this: NcCopyFromBufferOffset<'_, Record>,
+            object: u32,
+        ) -> Result<u32, NcStatus> {
+            check(this.as_slice()[0]);
+            assert_eq!((status.offset(), result.offset(), this.offset()), (3, 5, 7));
+            status.as_mut_slice()[0] = this.as_slice()[0];
+            result.as_mut_slice()[0] = this.as_slice()[0];
+            Ok(object)
+        }
+        fn scalars(&self, this: u32, object: u32, result: u32, status: u32) -> Result<u32, NcStatus> {
+            Ok(this + 10 * object + 100 * result + 1000 * status)
+        }
+    }
+
+    #[test]
+    fn positional_arguments_keep_outputs_and_metadata() {
+        let object = Arguments::from_value(Arguments).query::<IArgumentsAbi>().unwrap();
+        assert_eq!(object.scalars(1, 2, 3, 4).unwrap(), 4321);
+        let mut status = [record()];
+        let mut result = [record()];
+        status[0].raw_0 = 0;
+        result[0].raw_0 = 0;
+        assert_eq!(
+            object
+                .buffers(
+                    NcCopyToBufferOffset::new(3, &mut status),
+                    NcCopyToBufferOffset::new(5, &mut result),
+                    NcCopyFromBufferOffset::new(7, &[record()]),
+                    89
+                )
+                .unwrap(),
+            89
+        );
+        check(status[0]);
+        check(result[0]);
+        // SAFETY: generated descriptors and names are immutable static storage.
+        let text = unsafe { format_method_signature(&IArgumentsAbi::METHOD_DESCRIPTORS[1]) }.unwrap();
+        assert_eq!(
+            text,
+            "scalars(this: value<u32>, object: value<u32>, result: value<u32>, status: value<u32>) -> out<u32> status"
+        );
+    }
+}
+
+#[cfg(test)]
+mod private_arguments {
+    use neocogi_com::*;
+
+    #[com_interface(auto_guid = "nc.tests.hygiene.Parameters:v1", assigned_signature = b"00000000000000000000000000000902")]
+    /// Parameters deliberately use both old and new generator-private spellings.
+    trait IParameters {
+        /// Buffer helper roles cannot be captured by later source parameters.
+        fn buffers(
+            &self,
+            data: NcCopyFromBufferOffset<'_, bool>,
+            __nc_data_values: u32,
+            __nc_data_offset: u32,
+            __nc_data_len: u32,
+            __nc_data_ptr: u32,
+            __nc_arg_0: u32,
+            __nc_arg_0_values: u32,
+            __nc_arg_0_offset: u32,
+            __nc_arg_0_len: u32,
+            __nc_arg_0_ptr: u32,
+        ) -> Result<u32, NcStatus>;
+        /// A failed owner transfer must restore the exact original object.
+        fn owner(&self, status: ComBox<ITokenAbi>, result: bool) -> Result<u32, (NcStatus, ComBox<ITokenAbi>)>;
+    }
+    #[com_interface(auto_guid = "nc.tests.hygiene.Token:v1", assigned_signature = b"00000000000000000000000000000903")]
+    /// Observes a transferred owner's continued lifetime.
+    trait IToken {
+        fn value(&self) -> Result<u32, NcStatus>;
+    }
+    #[com_object(interfaces(IToken), ownership = exclusive)]
+    /// Single owner returned on rejection and destroyed on successful consumption.
+    struct Token;
+    impl IToken for Token {
+        fn value(&self) -> Result<u32, NcStatus> {
+            Ok(73)
+        }
+    }
+    #[com_object(IParameters)]
+    /// Stateless provider so capture cannot be hidden by application bookkeeping.
+    struct Parameters;
+    impl IParameters for Parameters {
+        fn buffers(
+            &self,
+            data: NcCopyFromBufferOffset<'_, bool>,
+            __nc_data_values: u32,
+            __nc_data_offset: u32,
+            __nc_data_len: u32,
+            __nc_data_ptr: u32,
+            __nc_arg_0: u32,
+            __nc_arg_0_values: u32,
+            __nc_arg_0_offset: u32,
+            __nc_arg_0_len: u32,
+            __nc_arg_0_ptr: u32,
+        ) -> Result<u32, NcStatus> {
+            assert_eq!(data.offset(), 9);
+            assert_eq!(data.as_slice(), &[true, false]);
+            assert_eq!((__nc_data_values, __nc_data_offset, __nc_data_len, __nc_data_ptr), (1, 2, 3, 4));
+            assert_eq!(
+                (__nc_arg_0, __nc_arg_0_values, __nc_arg_0_offset, __nc_arg_0_len, __nc_arg_0_ptr),
+                (5, 6, 7, 8, 9)
+            );
+            Ok(73)
+        }
+        fn owner(&self, status: ComBox<ITokenAbi>, result: bool) -> Result<u32, (NcStatus, ComBox<ITokenAbi>)> {
+            match result {
+                true => Ok(status.value().unwrap()),
+                false => Err((NC_E_INVALID_ARG, status)),
+            }
+        }
+    }
+    #[test]
+    fn buffer_helpers_and_owning_rejection_are_independent_of_parameter_names() {
+        let provider = Parameters::from_value(Parameters).query::<IParametersAbi>().unwrap();
+        assert_eq!(
+            provider.buffers(NcCopyFromBufferOffset::new(9, &[true, false]), 1, 2, 3, 4, 5, 6, 7, 8, 9),
+            Ok(73)
+        );
+        let token = Token::into_box(Token).query::<ITokenAbi>().unwrap();
+        let weak = token.downgrade();
+        let (error, token) = provider.owner(token, false).unwrap_err();
+        assert_eq!(error, NC_E_INVALID_ARG);
+        assert!(weak.same_object(&token.downgrade()));
+        assert_eq!(weak.value(), Ok(73));
+        assert_eq!(provider.owner(token, true).unwrap(), 73);
+        assert_eq!(weak.value(), Err(NC_E_CLOSED));
+    }
+}
+
+/// User item names must not capture generated core support types or variants.
+#[cfg(test)]
+#[allow(dead_code)]
+mod support_shadow {
+    pub type Result = u32;
+    pub type Option = bool;
+    pub struct Some;
+    pub struct None;
+    pub struct Ok;
+    pub struct Err;
+
+    #[neocogi_com::com_interface(auto_guid = "nc.tests.hygiene.Shadow:v1", assigned_signature = b"00000000000000000000000000000904")]
+    pub trait IShadow {
+        fn echo(&self, value: Result, other: Option) -> ::core::result::Result<u32, neocogi_com::NcStatus>;
+    }
 }

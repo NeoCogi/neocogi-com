@@ -54,7 +54,7 @@ pub struct IObjectChildrenVTable {
         "`."
     )]
     pub count: unsafe extern "C" fn(
-        this: *mut core::ffi::c_void,
+        this: *mut ::core::ffi::c_void,
         __nc_out: *mut <u32 as crate::ComValue>::Wire,
     ) -> crate::NcStatus,
     #[doc = concat!(
@@ -76,8 +76,8 @@ pub struct IObjectChildrenVTable {
         "` object/table pair transferred to the caller."
     )]
     pub get: unsafe extern "C" fn(
-        this: *mut core::ffi::c_void,
-        index: <u32 as crate::ComValue>::Wire,
+        this: *mut ::core::ffi::c_void,
+        __nc_arg_0: <u32 as crate::ComValue>::Wire,
         __nc_out: *mut crate::ComRaw<crate::IUnknown>,
     ) -> crate::NcStatus,
 }
@@ -125,8 +125,8 @@ impl<M: crate::ThreadingModel> IObjectChildrenClient<M> {
     #[doc = concat!(
         "On success, returns `", stringify!(u32), "` from the ABI out slot."
     )]
-    pub fn count(&self) -> Result<u32, crate::NcStatus> {
-        let mut __nc_out = core::mem::MaybeUninit::<
+    pub fn count(&self) -> ::core::result::Result<u32, crate::NcStatus> {
+        let mut __nc_out = ::core::mem::MaybeUninit::<
             <u32 as crate::ComValue>::Wire,
         >::uninit();
         let this = self.__nc_pointer.as_raw();
@@ -134,10 +134,10 @@ impl<M: crate::ThreadingModel> IObjectChildrenClient<M> {
             ((*this.vtable).count)(this.object, __nc_out.as_mut_ptr())
         };
         if status.is_err() {
-            return Err(status);
+            return ::core::result::Result::Err(status);
         }
         let result = (unsafe { crate::decode_inline::<u32>(__nc_out.assume_init()) })?;
-        Ok(result)
+        ::core::result::Result::Ok(result)
     }
     /// Returns an owned reference; indices must be less than count.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:7:8`.
@@ -159,25 +159,25 @@ impl<M: crate::ThreadingModel> IObjectChildrenClient<M> {
     )]
     pub fn get(
         &self,
-        index: u32,
-    ) -> Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
-        let index = crate::encode_inline(&index)?;
-        let mut __nc_out = core::mem::MaybeUninit::<
+        __nc_arg_0: u32,
+    ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
+        let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
+        let mut __nc_out = ::core::mem::MaybeUninit::<
             crate::ComRaw<crate::IUnknown>,
         >::uninit();
         let this = self.__nc_pointer.as_raw();
         let status = unsafe {
-            ((*this.vtable).get)(this.object, index, __nc_out.as_mut_ptr())
+            ((*this.vtable).get)(this.object, __nc_arg_0, __nc_out.as_mut_ptr())
         };
         if status.is_err() {
-            return Err(status);
+            return ::core::result::Result::Err(status);
         }
         let result = (unsafe {
             <crate::ComPtr<
                 crate::IUnknown,
             >>::__nc_from_raw_owned_checked(__nc_out.assume_init())
         })?;
-        Ok(result)
+        ::core::result::Result::Ok(result)
     }
 }
 impl IObjectChildrenAbi {
@@ -297,7 +297,7 @@ pub struct IPersistableVTable {
         ::Wire), "`."
     )]
     pub type_id: unsafe extern "C" fn(
-        this: *mut core::ffi::c_void,
+        this: *mut ::core::ffi::c_void,
         __nc_out: *mut <crate::NcGuid as crate::ComValue>::Wire,
     ) -> crate::NcStatus,
     #[doc = concat!(
@@ -315,7 +315,7 @@ pub struct IPersistableVTable {
         "`."
     )]
     pub schema_version: unsafe extern "C" fn(
-        this: *mut core::ffi::c_void,
+        this: *mut ::core::ffi::c_void,
         __nc_out: *mut <u32 as crate::ComValue>::Wire,
     ) -> crate::NcStatus,
     #[doc = concat!(
@@ -333,7 +333,7 @@ pub struct IPersistableVTable {
         "` object/table pair transferred to the caller."
     )]
     pub save_state: unsafe extern "C" fn(
-        this: *mut core::ffi::c_void,
+        this: *mut ::core::ffi::c_void,
         __nc_out: *mut crate::ComRaw<crate::INcBytesAbi>,
     ) -> crate::NcStatus,
     #[doc = concat!(
@@ -351,7 +351,7 @@ pub struct IPersistableVTable {
         "`."
     )]
     pub child_count: unsafe extern "C" fn(
-        this: *mut core::ffi::c_void,
+        this: *mut ::core::ffi::c_void,
         __nc_out: *mut <u32 as crate::ComValue>::Wire,
     ) -> crate::NcStatus,
     #[doc = concat!(
@@ -373,8 +373,8 @@ pub struct IPersistableVTable {
         "` object/table pair transferred to the caller."
     )]
     pub child: unsafe extern "C" fn(
-        this: *mut core::ffi::c_void,
-        index: <u32 as crate::ComValue>::Wire,
+        this: *mut ::core::ffi::c_void,
+        __nc_arg_0: <u32 as crate::ComValue>::Wire,
         __nc_out: *mut crate::ComRaw<crate::IUnknown>,
     ) -> crate::NcStatus,
 }
@@ -420,8 +420,8 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
     #[doc = concat!(
         "On success, returns `", stringify!(crate ::NcGuid), "` from the ABI out slot."
     )]
-    pub fn type_id(&self) -> Result<crate::NcGuid, crate::NcStatus> {
-        let mut __nc_out = core::mem::MaybeUninit::<
+    pub fn type_id(&self) -> ::core::result::Result<crate::NcGuid, crate::NcStatus> {
+        let mut __nc_out = ::core::mem::MaybeUninit::<
             <crate::NcGuid as crate::ComValue>::Wire,
         >::uninit();
         let this = self.__nc_pointer.as_raw();
@@ -429,12 +429,12 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
             ((*this.vtable).type_id)(this.object, __nc_out.as_mut_ptr())
         };
         if status.is_err() {
-            return Err(status);
+            return ::core::result::Result::Err(status);
         }
         let result = (unsafe {
             crate::decode_inline::<crate::NcGuid>(__nc_out.assume_init())
         })?;
-        Ok(result)
+        ::core::result::Result::Ok(result)
     }
     /// Identifies the persistent initialization schema, independently of COM ABI.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8`.
@@ -449,8 +449,8 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
     #[doc = concat!(
         "On success, returns `", stringify!(u32), "` from the ABI out slot."
     )]
-    pub fn schema_version(&self) -> Result<u32, crate::NcStatus> {
-        let mut __nc_out = core::mem::MaybeUninit::<
+    pub fn schema_version(&self) -> ::core::result::Result<u32, crate::NcStatus> {
+        let mut __nc_out = ::core::mem::MaybeUninit::<
             <u32 as crate::ComValue>::Wire,
         >::uninit();
         let this = self.__nc_pointer.as_raw();
@@ -458,10 +458,10 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
             ((*this.vtable).schema_version)(this.object, __nc_out.as_mut_ptr())
         };
         if status.is_err() {
-            return Err(status);
+            return ::core::result::Result::Err(status);
         }
         let result = (unsafe { crate::decode_inline::<u32>(__nc_out.assume_init()) })?;
-        Ok(result)
+        ::core::result::Result::Ok(result)
     }
     /// Exports initialization data only: no receivers, runtime pointers or caches.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8`.
@@ -480,8 +480,8 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
     )]
     pub fn save_state(
         &self,
-    ) -> Result<crate::ComPtr<crate::INcBytesAbi>, crate::NcStatus> {
-        let mut __nc_out = core::mem::MaybeUninit::<
+    ) -> ::core::result::Result<crate::ComPtr<crate::INcBytesAbi>, crate::NcStatus> {
+        let mut __nc_out = ::core::mem::MaybeUninit::<
             crate::ComRaw<crate::INcBytesAbi>,
         >::uninit();
         let this = self.__nc_pointer.as_raw();
@@ -489,14 +489,14 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
             ((*this.vtable).save_state)(this.object, __nc_out.as_mut_ptr())
         };
         if status.is_err() {
-            return Err(status);
+            return ::core::result::Result::Err(status);
         }
         let result = (unsafe {
             <crate::ComPtr<
                 crate::INcBytesAbi,
             >>::__nc_from_raw_owned_checked(__nc_out.assume_init())
         })?;
-        Ok(result)
+        ::core::result::Result::Ok(result)
     }
     /// Returns the number of owned persistent children; parent links are excluded.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8`.
@@ -511,8 +511,8 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
     #[doc = concat!(
         "On success, returns `", stringify!(u32), "` from the ABI out slot."
     )]
-    pub fn child_count(&self) -> Result<u32, crate::NcStatus> {
-        let mut __nc_out = core::mem::MaybeUninit::<
+    pub fn child_count(&self) -> ::core::result::Result<u32, crate::NcStatus> {
+        let mut __nc_out = ::core::mem::MaybeUninit::<
             <u32 as crate::ComValue>::Wire,
         >::uninit();
         let this = self.__nc_pointer.as_raw();
@@ -520,10 +520,10 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
             ((*this.vtable).child_count)(this.object, __nc_out.as_mut_ptr())
         };
         if status.is_err() {
-            return Err(status);
+            return ::core::result::Result::Err(status);
         }
         let result = (unsafe { crate::decode_inline::<u32>(__nc_out.assume_init()) })?;
-        Ok(result)
+        ::core::result::Result::Ok(result)
     }
     /// Returns one child in the order described by the parent's initialization.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:22:8`.
@@ -545,25 +545,25 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
     )]
     pub fn child(
         &self,
-        index: u32,
-    ) -> Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
-        let index = crate::encode_inline(&index)?;
-        let mut __nc_out = core::mem::MaybeUninit::<
+        __nc_arg_0: u32,
+    ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
+        let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
+        let mut __nc_out = ::core::mem::MaybeUninit::<
             crate::ComRaw<crate::IUnknown>,
         >::uninit();
         let this = self.__nc_pointer.as_raw();
         let status = unsafe {
-            ((*this.vtable).child)(this.object, index, __nc_out.as_mut_ptr())
+            ((*this.vtable).child)(this.object, __nc_arg_0, __nc_out.as_mut_ptr())
         };
         if status.is_err() {
-            return Err(status);
+            return ::core::result::Result::Err(status);
         }
         let result = (unsafe {
             <crate::ComPtr<
                 crate::IUnknown,
             >>::__nc_from_raw_owned_checked(__nc_out.assume_init())
         })?;
-        Ok(result)
+        ::core::result::Result::Ok(result)
     }
 }
 impl IPersistableAbi {
@@ -744,12 +744,12 @@ pub struct IPersistenceFactoryVTable {
     )]
     ///On success, no output value is written.
     pub validate: unsafe extern "C" fn(
-        this: *mut core::ffi::c_void,
-        version: <u32 as crate::ComValue>::Wire,
-        __nc_state_offset: u64,
-        __nc_state_len: u64,
-        __nc_state_ptr: *const <u8 as crate::ComValue>::Wire,
-        child_count: <u32 as crate::ComValue>::Wire,
+        this: *mut ::core::ffi::c_void,
+        __nc_arg_0: <u32 as crate::ComValue>::Wire,
+        __nc_arg_1_offset: u64,
+        __nc_arg_1_len: u64,
+        __nc_arg_1_ptr: *const <u8 as crate::ComValue>::Wire,
+        __nc_arg_2: <u32 as crate::ComValue>::Wire,
     ) -> crate::NcStatus,
     #[doc = concat!(
         "Raw COM ABI vtable slot for [`", stringify!(IPersistenceFactory), "::",
@@ -780,12 +780,12 @@ pub struct IPersistenceFactoryVTable {
         "` object/table pair transferred to the caller."
     )]
     pub restore: unsafe extern "C" fn(
-        this: *mut core::ffi::c_void,
-        version: <u32 as crate::ComValue>::Wire,
-        __nc_state_offset: u64,
-        __nc_state_len: u64,
-        __nc_state_ptr: *const <u8 as crate::ComValue>::Wire,
-        children: crate::ComRaw<IObjectChildrenAbi>,
+        this: *mut ::core::ffi::c_void,
+        __nc_arg_0: <u32 as crate::ComValue>::Wire,
+        __nc_arg_1_offset: u64,
+        __nc_arg_1_len: u64,
+        __nc_arg_1_ptr: *const <u8 as crate::ComValue>::Wire,
+        __nc_arg_2: crate::ComRaw<IObjectChildrenAbi>,
         __nc_out: *mut crate::ComRaw<crate::IUnknown>,
     ) -> crate::NcStatus,
 }
@@ -844,30 +844,30 @@ impl<M: crate::ThreadingModel> IPersistenceFactoryClient<M> {
     ///On success, returns `()`.
     pub fn validate(
         &self,
-        version: u32,
-        state: crate::NcCopyFromBufferOffset<'_, u8>,
-        child_count: u32,
-    ) -> Result<(), crate::NcStatus> {
-        let version = crate::encode_inline(&version)?;
-        let state = crate::EncodedInput::new(state)?;
-        let child_count = crate::encode_inline(&child_count)?;
+        __nc_arg_0: u32,
+        __nc_arg_1: crate::NcCopyFromBufferOffset<'_, u8>,
+        __nc_arg_2: u32,
+    ) -> ::core::result::Result<(), crate::NcStatus> {
+        let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
+        let __nc_arg_1 = crate::EncodedInput::new(__nc_arg_1)?;
+        let __nc_arg_2 = crate::encode_inline(&__nc_arg_2)?;
         let this = self.__nc_pointer.as_raw();
         let status = unsafe {
             ((*this.vtable)
                 .validate)(
                 this.object,
-                version,
-                state.offset(),
-                state.len(),
-                state.as_ptr(),
-                child_count,
+                __nc_arg_0,
+                __nc_arg_1.offset(),
+                __nc_arg_1.len(),
+                __nc_arg_1.as_ptr(),
+                __nc_arg_2,
             )
         };
         if status.is_err() {
-            return Err(status);
+            return ::core::result::Result::Err(status);
         }
         let result = ();
-        Ok(result)
+        ::core::result::Result::Ok(result)
     }
     /// Returns a fully initialized object; every child is already constructed.
     /// Failure must release resources acquired by this call and publish no root.
@@ -899,13 +899,13 @@ impl<M: crate::ThreadingModel> IPersistenceFactoryClient<M> {
     )]
     pub fn restore(
         &self,
-        version: u32,
-        state: crate::NcCopyFromBufferOffset<'_, u8>,
-        children: crate::ComRef<'_, IObjectChildrenAbi>,
-    ) -> Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
-        let version = crate::encode_inline(&version)?;
-        let state = crate::EncodedInput::new(state)?;
-        let mut __nc_out = core::mem::MaybeUninit::<
+        __nc_arg_0: u32,
+        __nc_arg_1: crate::NcCopyFromBufferOffset<'_, u8>,
+        __nc_arg_2: crate::ComRef<'_, IObjectChildrenAbi>,
+    ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
+        let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
+        let __nc_arg_1 = crate::EncodedInput::new(__nc_arg_1)?;
+        let mut __nc_out = ::core::mem::MaybeUninit::<
             crate::ComRaw<crate::IUnknown>,
         >::uninit();
         let this = self.__nc_pointer.as_raw();
@@ -913,23 +913,23 @@ impl<M: crate::ThreadingModel> IPersistenceFactoryClient<M> {
             ((*this.vtable)
                 .restore)(
                 this.object,
-                version,
-                state.offset(),
-                state.len(),
-                state.as_ptr(),
-                children.as_raw(),
+                __nc_arg_0,
+                __nc_arg_1.offset(),
+                __nc_arg_1.len(),
+                __nc_arg_1.as_ptr(),
+                __nc_arg_2.as_raw(),
                 __nc_out.as_mut_ptr(),
             )
         };
         if status.is_err() {
-            return Err(status);
+            return ::core::result::Result::Err(status);
         }
         let result = (unsafe {
             <crate::ComPtr<
                 crate::IUnknown,
             >>::__nc_from_raw_owned_checked(__nc_out.assume_init())
         })?;
-        Ok(result)
+        ::core::result::Result::Ok(result)
     }
 }
 impl IPersistenceFactoryAbi {

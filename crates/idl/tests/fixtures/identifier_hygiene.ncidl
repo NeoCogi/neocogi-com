@@ -15,3 +15,8 @@
     fn choice(&self, value: Choice) -> Result<Choice>;
     fn owned(&self, value: &Owned) -> Result<u32>;
 }
+/// Formerly reserved locals are ordinary authored argument names.
+#[version(1)] interface IArguments {
+    fn buffers(&self, status: &mut [Record], result: &mut [Record], this: &[Record], object: u32) -> Result<u32>;
+    fn scalars(&self, this: u32, object: u32, result: u32, status: u32) -> Result<u32>;
+}

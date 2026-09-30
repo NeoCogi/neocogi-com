@@ -11,7 +11,7 @@ use syn::{ItemTrait, Result, TypeParamBound, TraitBoundModifier, PathArguments};
 use crate::abi_method::{parse_abi_trait_item, raw_vtable_method_docs, safe_method_docs, validate_interface_trait};
 use crate::args::{InterfaceArgs, InterfaceThreading};
 use crate::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind};
-use crate::util::{abi_signature_static_tokens, checked_u32_len, collect_syn_results, interface_guid, push_error, runtime_crate_path};
+use crate::util::{abi_signature_static_tokens, checked_u32_len, collect_syn_results, interface_guid, private_ident, push_error, runtime_crate_path};
 
 /// Expands one validated interface trait into its complete Rust and C ABI surface.
 pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Result<proc_macro2::TokenStream> {
@@ -132,7 +132,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             query_interface: #nc::lifetime::nc_query_interface,
             add_ref: #nc::lifetime::nc_strong_retain,
             release: #nc::lifetime::nc_strong_release,
-            downgrade: Some(#nc::lifetime::nc_downgrade),
+            downgrade: ::core::option::Option::Some(#nc::lifetime::nc_downgrade),
         },
     };
     let mut client_base = quote! {};
@@ -148,22 +148,22 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         };
         prefix_value = quote! { base: #base_vtable_for::<T>::with_identity(identity), };
         client_base = quote! {
-            impl<M: #nc::ThreadingModel> core::ops::Deref for #client_ident<M> {
+            impl<M: #nc::ThreadingModel> ::core::ops::Deref for #client_ident<M> {
                 type Target = #base_client<M>;
                 fn deref(&self) -> &Self::Target {
                     // SAFETY: Both generated views are transparent pointer words.
                     // The inherited table is a physical prefix of the derived table.
                     // This lends methods only; ownership and checked base projection
                     // still require QueryInterface on the same object with the actual derived table.
-                    unsafe { &*core::ptr::from_ref(self).cast::<Self::Target>() }
+                    unsafe { &*::core::ptr::from_ref(self).cast::<Self::Target>() }
                 }
             }
 
-            impl<M: #nc::ThreadingModel> core::ops::DerefMut for #client_ident<M> {
+            impl<M: #nc::ThreadingModel> ::core::ops::DerefMut for #client_ident<M> {
                 fn deref_mut(&mut self) -> &mut Self::Target {
                     // SAFETY: Both views are transparent pointer words and the
                     // mutable borrow remains tied to this derived client view.
-                    unsafe { &mut *core::ptr::from_mut(self).cast::<Self::Target>() }
+                    unsafe { &mut *::core::ptr::from_mut(self).cast::<Self::Target>() }
                 }
             }
         };
@@ -226,7 +226,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         quote! {
             #(#docs)*
             pub #method_ident: unsafe extern "C" fn(
-                this: *mut core::ffi::c_void,
+                this: *mut ::core::ffi::c_void,
                 #(#abi_args,)*
                 #out_param
             ) -> #nc::NcStatus,
@@ -242,50 +242,50 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     let thunks = methods.iter().map(|method| {
         let method_ident = &method.ident;
         let thunk_ident = format_ident!("{method_ident}_thunk", span = method_ident.span());
-        // Mixed-site names cannot collide with source parameters that happen
-        // to use the same spelling after buffer lowering.
-        let object_ident = syn::Ident::new("__nc_dispatch_object", proc_macro2::Span::mixed_site());
-        let value_ident = syn::Ident::new("__nc_dispatch_value", proc_macro2::Span::mixed_site());
+        // Argument bindings are positional and distinct from dispatch helpers.
+        // Mixed-site spans additionally isolate ordinary macro expansion.
+        let object_ident = private_ident("__nc_dispatch_object");
+        let value_ident = private_ident("__nc_dispatch_value");
         let params = method.args.iter().flat_map(|arg| raw_vtable_arg_params(arg));
         let arg_conversions = method.args.iter().filter_map(|arg| match &arg.kind {
             AbiArgKind::ComBox { interface_ty, mode_ty } => {
-                let ident = &arg.ident;
+                let ident = &arg.binding;
                 let mode = mode_ty.as_ref().map(|ty| quote! { #ty }).unwrap_or_else(|| quote! { #nc::ThreadLocal });
                 Some(quote! {
                     // Validate without adopting: any later input or receiver
                     // rejection must leave the original owner in the caller slot.
-                    if let Err(status) = unsafe { #nc::ComBox::<#interface_ty, #mode>::__nc_validate_raw_input(#ident) } {
+                    if let ::core::result::Result::Err(status) = unsafe { #nc::ComBox::<#interface_ty, #mode>::__nc_validate_raw_input(#ident) } {
                         return status;
                     }
                 })
             },
             AbiArgKind::BorrowedValue { value_ty } => {
-                let ident = &arg.ident;
+                let ident = &arg.binding;
                 Some(quote! {
                     // SAFETY: the caller supplies this concrete value's raw C record
                     // and keeps its selected borrowed fields live for the call.
                     let #ident = match unsafe { #nc::NcValueRef::<#value_ty>::from_raw(#ident) } {
-                        Ok(value) => value,
-                        Err(status) => return status,
+                        ::core::result::Result::Ok(value) => value,
+                        ::core::result::Result::Err(status) => return status,
                     };
                 })
             }
             AbiArgKind::Plain => {
-                let ident = &arg.ident;
+                let ident = &arg.binding;
                 let ty = &arg.rust_ty;
                 Some(quote! {
                     // SAFETY: copied wire storage is initialized; restricted fields are validated here.
                     let #ident = match unsafe { #nc::decode_inline::<#ty>(#ident) } {
-                        Ok(value) => value, Err(status) => return status,
+                        ::core::result::Result::Ok(value) => value, ::core::result::Result::Err(status) => return status,
                     };
                 })
             }
             AbiArgKind::CopyFromBufferOffset { element_ty } | AbiArgKind::CopyToBufferOffset { element_ty } => {
-                let ident = &arg.ident;
+                let ident = &arg.binding;
                 let offset = buffer_offset_ident(ident);
                 let len = buffer_len_ident(ident);
                 let ptr = buffer_ptr_ident(ident);
-                let values = format_ident!("__nc_{}_values", ident);
+                let values = buffer_values_ident(ident);
                 let (decoder, wrapper) = match &arg.kind {
                     AbiArgKind::CopyFromBufferOffset { .. } => (
                         quote! { #nc::DecodedInput },
@@ -300,13 +300,13 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     // SAFETY: initialized raw elements are checked before any application slice exists;
                     // direct borrowing additionally requires the codec's identity-conversion proof.
                     let mut #values = match unsafe { #decoder::<#element_ty>::from_raw(#ptr, #len) } {
-                        Ok(values) => values, Err(status) => return status,
+                        ::core::result::Result::Ok(values) => values, ::core::result::Result::Err(status) => return status,
                     };
                     let #ident = #wrapper;
                 })
             }
             AbiArgKind::ComRef { interface_ty, mode_ty, optional } => {
-                let ident = &arg.ident;
+                let ident = &arg.binding;
                 let interface_ty = interface_ty.as_ref();
                 let mode_ty = mode_ty
                     .as_ref()
@@ -324,15 +324,15 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                         // responsibility for the duration of the call.
                         #nc::ComRef::<#interface_ty, #mode_ty>::__nc_from_raw_borrowed_checked(#ident)
                     } {
-                        Ok(value) => value,
-                        Err(status) => return status,
+                        ::core::result::Result::Ok(value) => value,
+                        ::core::result::Result::Err(status) => return status,
                     }
                 };
                 Some(match optional {
                     true => quote! {
                         // Absence needs no validation; present capabilities use
                         // exactly the same identity checks as required inputs.
-                        let #ident = if #ident.is_null() { None } else { Some(#checked) };
+                        let #ident = if #ident.is_null() { ::core::option::Option::None } else { ::core::option::Option::Some(#checked) };
                     },
                     false => quote! { let #ident = #checked; },
                 })
@@ -340,30 +340,30 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         });
         let owners = method.args.iter().filter(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. })).collect::<Vec<_>>();
         let has_owners = !owners.is_empty();
-        // Save slots before shadowing their source names with ordinary owners.
+        // Save slots before replacing raw argument bindings with ordinary owners.
         // Adoption happens only after all validation and receiver admission.
         let owner_adoptions = owners.iter().map(|arg| {
-            let ident = &arg.ident;
+            let ident = &arg.binding;
             let ty = &arg.rust_ty;
             let slot = owner_slot_ident(ident);
             quote! {
                 let #slot = #ident;
                 let #ident = unsafe {
-                    <#ty>::from_raw_owned(core::mem::replace(&mut *#slot, #nc::ComRaw::null()))
+                    <#ty>::from_raw_owned(::core::mem::replace(&mut *#slot, #nc::ComRaw::null()))
                 }.expect("validated unique COM owner");
             }
         });
         let error_arm = match has_owners {
-            false => quote! { Err(status) => status.normalize_error(), },
+            false => quote! { ::core::result::Result::Err(status) => status.normalize_error(), },
             true => {
-                let names = owners.iter().map(|arg| &arg.ident);
+                let names = owners.iter().map(|arg| &arg.binding);
                 let restores = owners.iter().map(|arg| {
-                    let ident = &arg.ident;
+                    let ident = &arg.binding;
                     let slot = owner_slot_ident(ident);
                     quote! { unsafe { *#slot = #ident.into_raw(); } }
                 });
                 quote! {
-                    Err((status, #(#names),*)) => {
+                    ::core::result::Result::Err((status, #(#names),*)) => {
                         // No receiver borrow survives while returned owners are
                         // handed back. Every forwarding provider must propagate
                         // this error tuple without destroying or replacing inputs.
@@ -384,10 +384,10 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             let AbiArgKind::CopyToBufferOffset { .. } = &arg.kind else {
                 return None;
             };
-            let values = format_ident!("__nc_{}_values", arg.ident);
-            Some(quote! { if let Err(status) = #values.finish() { #output_error; } })
+            let values = buffer_values_ident(&arg.binding);
+            Some(quote! { if let ::core::result::Result::Err(status) = #values.finish() { #output_error; } })
         });
-        let arg_names = method.args.iter().map(|arg| &arg.ident).collect::<Vec<_>>();
+        let arg_names = method.args.iter().map(|arg| &arg.binding).collect::<Vec<_>>();
         let out_param = match &method.ok.kind {
             AbiReturnKind::Void => quote! {},
             AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => {
@@ -409,19 +409,19 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         };
         let success_arm = match &method.ok.kind {
             AbiReturnKind::Void => quote! {
-                Ok(()) => #nc::NC_OK,
+                ::core::result::Result::Ok(()) => #nc::NC_OK,
             },
             AbiReturnKind::Plain => quote! {
-                Ok(value) => {
+                ::core::result::Result::Ok(value) => {
                     // SAFETY: Non-void thunks checked `__nc_out` for null before the
                     // Rust method was called.
-                    let raw = match #nc::encode_inline(&value) { Ok(raw) => raw, Err(status) => { #output_error } };
+                    let raw = match #nc::encode_inline(&value) { ::core::result::Result::Ok(raw) => raw, ::core::result::Result::Err(status) => { #output_error } };
                     unsafe { *__nc_out = raw; }
                     #nc::NC_OK
                 }
             },
             AbiReturnKind::ComPtr { .. } => quote! {
-                Ok(value) => {
+                ::core::result::Result::Ok(value) => {
                     // SAFETY: Non-void thunks checked `__nc_out` for null.
                     // `into_raw` transfers the returned owned COM reference to
                     // the caller.
@@ -456,7 +456,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             /// The interface belongs to T's live generated storage. Non-null ABI
             /// arguments must satisfy their method's readable/writable contracts.
             unsafe extern "C" fn #thunk_ident(
-                this: *mut core::ffi::c_void,
+                this: *mut ::core::ffi::c_void,
                 #(#params,)*
                 #out_param
             ) -> #nc::NcStatus {
@@ -473,14 +473,14 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 // `ComAbiObject` validates the requested Rust borrow
                 // against every call active on the same allocation.
                 let mut #value_ident = match unsafe { #borrow } {
-                    Ok(value) => value,
-                    Err(status) => return status,
+                    ::core::result::Result::Ok(value) => value,
+                    ::core::result::Result::Err(status) => return status,
                 };
                 #(#owner_adoptions)*
                 let result = #invoke;
                 // Release the object-wide borrow before lowering an owned
                 // result into the caller's output slot.
-                drop(#value_ident);
+                ::core::mem::drop(#value_ident);
                 if result.is_ok() { #(#buffer_writeback)* }
                 match result {
                     #success_arm
@@ -603,7 +603,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         /// Statically typed vtable and lifecycle adapters for one provider type.
         #vis struct #vtable_for_ident<T>(
             /// Associates dispatch with T without allocating or owning a value.
-            core::marker::PhantomData<T>
+            ::core::marker::PhantomData<T>
         );
 
         impl<T> #vtable_for_ident<T>
@@ -667,71 +667,89 @@ pub(crate) fn validate_callable_methods(input: &ItemTrait, methods: &[AbiMethod]
 fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::TokenStream {
     let method_ident = &method.ident;
     let args = method.args.iter().map(|arg| {
-        let ident = &arg.ident;
+        let ident = &arg.binding;
         let ty = &arg.rust_ty;
         quote! { #ident: #ty }
     });
-    let owners = method.args.iter().filter(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. })).collect::<Vec<_>>();
+    let owners = method
+        .args
+        .iter()
+        .filter(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. }))
+        .collect::<Vec<_>>();
     let has_owners = !owners.is_empty();
     let error_type = match has_owners {
         false => quote! { #nc::NcStatus },
         true => {
             let types = owners.iter().map(|arg| &arg.rust_ty);
             quote! { (#nc::NcStatus, #(#types),*) }
-        },
+        }
     };
-    let owner_setup = owners.iter().map(|arg| {
-        let ident = &arg.ident;
-        let slot = owner_slot_ident(ident);
-        quote! {
-            // The wire slot carries the token during the call. This dormant
-            // wrapper is recovered only on rejection, never dropped on success.
-            let #ident = core::mem::ManuallyDrop::new(#ident);
-            let mut #slot = #ident.as_raw();
-        }
-    }).collect::<Vec<_>>();
-    let owner_checks = owners.iter().map(|arg| {
-        let ident = &arg.ident;
-        let slot = owner_slot_ident(ident);
-        quote! {
-            match status.is_ok() {
-                true => assert!(#slot.is_null(), "successful COM call did not consume its owner"),
-                false => assert!(#slot.object == #ident.as_raw().object && #slot.vtable == #ident.as_raw().vtable,
-                    "rejected COM call did not return its original owner"),
+    let owner_setup = owners
+        .iter()
+        .map(|arg| {
+            let ident = &arg.binding;
+            let slot = owner_slot_ident(ident);
+            quote! {
+                // The wire slot carries the token during the call. This dormant
+                // wrapper is recovered only on rejection, never dropped on success.
+                let #ident = ::core::mem::ManuallyDrop::new(#ident);
+                let mut #slot = #ident.as_raw();
             }
-        }
-    }).collect::<Vec<_>>();
+        })
+        .collect::<Vec<_>>();
+    let owner_checks = owners
+        .iter()
+        .map(|arg| {
+            let ident = &arg.binding;
+            let slot = owner_slot_ident(ident);
+            quote! {
+                match status.is_ok() {
+                    true => assert!(#slot.is_null(), "successful COM call did not consume its owner"),
+                    false => assert!(#slot.object == #ident.as_raw().object && #slot.vtable == #ident.as_raw().vtable,
+                        "rejected COM call did not return its original owner"),
+                }
+            }
+        })
+        .collect::<Vec<_>>();
     let arg_preparations = method.args.iter().filter_map(|arg| safe_arg_preparation(nc, arg)).collect::<Vec<_>>();
     let preparation = match has_owners {
         false => quote! { #(#arg_preparations)* },
         true => {
-            let prepared = method.args.iter().filter(|arg| matches!(arg.kind,
-                AbiArgKind::Plain | AbiArgKind::CopyFromBufferOffset { .. } | AbiArgKind::CopyToBufferOffset { .. }))
-                .map(|arg| &arg.ident).collect::<Vec<_>>();
-            let owner_names = owners.iter().map(|arg| &arg.ident);
+            let prepared = method
+                .args
+                .iter()
+                .filter(|arg| {
+                    matches!(
+                        arg.kind,
+                        AbiArgKind::Plain | AbiArgKind::CopyFromBufferOffset { .. } | AbiArgKind::CopyToBufferOffset { .. }
+                    )
+                })
+                .map(|arg| &arg.binding)
+                .collect::<Vec<_>>();
+            let owner_names = owners.iter().map(|arg| &arg.binding);
             quote! {
                 // Keep ordinary Rust owners during fallible encoding, including
                 // unwinding. Only the actual non-unwinding ABI call lends tokens.
                 let (#(mut #prepared,)*) = match (|| {
                     #(#arg_preparations)*
-                    Ok::<_, #nc::NcStatus>((#(#prepared,)*))
+                    ::core::result::Result::Ok::<_, #nc::NcStatus>((#(#prepared,)*))
                 })() {
-                    Ok(prepared) => prepared,
-                    Err(status) => return Err((status, #(#owner_names),*)),
+                    ::core::result::Result::Ok(prepared) => prepared,
+                    ::core::result::Result::Err(status) => return ::core::result::Result::Err((status, #(#owner_names),*)),
                 };
                 #(#owner_setup)*
             }
-        },
+        }
     };
     let rejection = match has_owners {
         false => quote! { status },
         true => {
             let recover = owners.iter().map(|arg| {
-                let ident = &arg.ident;
-                quote! { core::mem::ManuallyDrop::into_inner(#ident) }
+                let ident = &arg.binding;
+                quote! { ::core::mem::ManuallyDrop::into_inner(#ident) }
             });
             quote! { (status, #(#recover),*) }
-        },
+        }
     };
     // Malformed output after a successful ownership commit is a provider
     // violation: the caller no longer has input owners to return as an error.
@@ -747,7 +765,7 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
             let AbiArgKind::CopyToBufferOffset { .. } = &arg.kind else {
                 return None;
             };
-            let ident = &arg.ident;
+            let ident = &arg.binding;
             Some(quote! { #ident.finish() #acquire; })
         })
         .collect::<Vec<_>>();
@@ -769,11 +787,11 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
                 AbiReturnKind::Void => unreachable!(),
             };
             (
-                quote! { let mut __nc_out = core::mem::MaybeUninit::<#abi_ret>::uninit(); },
+                quote! { let mut __nc_out = ::core::mem::MaybeUninit::<#abi_ret>::uninit(); },
                 quote! { __nc_out.as_mut_ptr(), },
                 decode,
             )
-        },
+        }
     };
     let body = quote! {
         #preparation
@@ -786,19 +804,18 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
             ((*this.vtable).#method_ident)(this.object, #(#arg_names,)* #output_argument)
         };
         #(#owner_checks)*
-        if status.is_err() { return Err(#rejection); }
+        if status.is_err() { return ::core::result::Result::Err(#rejection); }
         // ABI success promises initialized output. Acquire owned results before
         // validating mutable buffers so a buffer error cannot leak that result.
         let result = #success;
         #(#buffer_acquisition)*
-        Ok(result)
+        ::core::result::Result::Ok(result)
     };
     quote! {
-        fn #method_ident (#receiver, #(#args),*) -> Result<#rust_ret, #error_type> {
+        fn #method_ident (#receiver, #(#args),*) -> ::core::result::Result<#rust_ret, #error_type> {
             #body
         }
     }
-
 }
 
 /// Emits the safe Rust receiver corresponding to one validated COM method.
@@ -859,7 +876,7 @@ fn arg_passing_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_ma
         AbiArgKind::ComBox { mode_ty, .. } => {
             let mode = threading_mode_expr(nc, mode_ty.as_deref());
             quote! { #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::ComBoxIn { mode: #mode }) }
-        },
+        }
         AbiArgKind::BorrowedValue { .. } => quote! {
             #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::BorrowedValue)
         },
@@ -979,7 +996,7 @@ fn method_return_const_ident(index: usize) -> syn::Ident {
 
 /// Expands one logical argument into its raw vtable parameter list.
 fn raw_vtable_arg_params(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenStream> {
-    let ident = &arg.ident;
+    let ident = &arg.binding;
     match &arg.kind {
         AbiArgKind::Plain | AbiArgKind::BorrowedValue { .. } | AbiArgKind::ComRef { .. } | AbiArgKind::ComBox { .. } => {
             let ty = &arg.abi_ty;
@@ -1011,15 +1028,15 @@ fn safe_arg_preparation(nc: &syn::Path, arg: &crate::model::AbiArg) -> Option<pr
     match &arg.kind {
         AbiArgKind::ComBox { .. } => None,
         AbiArgKind::Plain => {
-            let ident = &arg.ident;
+            let ident = &arg.binding;
             Some(quote! { let #ident = #nc::encode_inline(&#ident)?; })
         }
         AbiArgKind::CopyToBufferOffset { .. } => {
-            let ident = &arg.ident;
+            let ident = &arg.binding;
             Some(quote! { let mut #ident = #nc::EncodedOutput::new(#ident)?; })
         }
         AbiArgKind::CopyFromBufferOffset { .. } => {
-            let ident = &arg.ident;
+            let ident = &arg.binding;
             Some(quote! { let #ident = #nc::EncodedInput::new(#ident)?; })
         }
         AbiArgKind::BorrowedValue { .. } | AbiArgKind::ComRef { .. } => None,
@@ -1028,9 +1045,12 @@ fn safe_arg_preparation(nc: &syn::Path, arg: &crate::model::AbiArg) -> Option<pr
 
 /// Emits the raw values passed for one source-level safe argument.
 fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenStream> {
-    let ident = &arg.ident;
+    let ident = &arg.binding;
     match &arg.kind {
-        AbiArgKind::ComBox { .. } => { let slot = owner_slot_ident(ident); vec![quote! { &mut #slot }] },
+        AbiArgKind::ComBox { .. } => {
+            let slot = owner_slot_ident(ident);
+            vec![quote! { &mut #slot }]
+        }
         AbiArgKind::BorrowedValue { .. } => vec![quote! { #ident.as_ptr() }],
         AbiArgKind::Plain => vec![quote! { #ident }],
         AbiArgKind::ComRef { optional: true, .. } => vec![quote! { #ident.map_or(::core::default::Default::default(), |value| value.as_raw()) }],
@@ -1042,25 +1062,32 @@ fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
 
 /// Names private owner wire slots hygienically so user arguments cannot alias them.
 fn owner_slot_ident(ident: &syn::Ident) -> syn::Ident {
-    format_ident!("__nc_owner_slot_{ident}", span = proc_macro2::Span::mixed_site())
+    private_ident(&format!("{ident}_owner_slot"))
 }
 
 /// Builds the generated offset parameter name for a bounded buffer.
 fn buffer_offset_ident(ident: &syn::Ident) -> syn::Ident {
-    format_ident!("__nc_{ident}_offset", span = ident.span())
+    private_ident(&format!("{ident}_offset"))
 }
 
 /// Builds the generated length parameter name for a bounded buffer.
 fn buffer_len_ident(ident: &syn::Ident) -> syn::Ident {
-    format_ident!("__nc_{ident}_len", span = ident.span())
+    private_ident(&format!("{ident}_len"))
 }
 
 /// Builds the generated data-pointer parameter name for a bounded buffer.
 fn buffer_ptr_ident(ident: &syn::Ident) -> syn::Ident {
-    format_ident!("__nc_{ident}_ptr", span = ident.span())
+    private_ident(&format!("{ident}_ptr"))
 }
 
-/// Rejects source names that collide after helper and raw-parameter generation.
+/// Names the decoded backing retained until provider buffer writeback completes.
+fn buffer_values_ident(ident: &syn::Ident) -> syn::Ident {
+    private_ident(&format!("{ident}_values"))
+}
+
+/// Rejects public method conflicts with actual generated lifecycle operations.
+/// Private locals impose no source-parameter restrictions: positional bindings
+/// are disjoint from helper roles, even after printing and reparsing the output.
 fn validate_generated_method_identifiers(methods: &[AbiMethod], errors: &mut Option<syn::Error>) {
     for method in methods {
         let method_name = method.ident.to_string();
@@ -1073,65 +1100,6 @@ fn validate_generated_method_identifiers(methods: &[AbiMethod], errors: &mut Opt
                 ),
             );
         }
-
-        let has_out = !matches!(&method.ok.kind, AbiReturnKind::Void);
-        let mut raw_names: Vec<(String, &syn::Ident, bool)> = Vec::new();
-
-        for arg in &method.args {
-            let arg_name = arg.ident.to_string();
-            let fixed_collision = match arg_name.as_str() {
-                "this" => Some("the generated client receiver pointer"),
-                "object" if matches!(&arg.kind, AbiArgKind::Plain | AbiArgKind::BorrowedValue { .. } | AbiArgKind::ComRef { .. }) => {
-                    Some("the generated ABI owning-storage pointer local")
-                }
-                "__nc_value" => Some("the generated Rust implementation pointer local"),
-                "__nc_out" if has_out => Some("the generated non-void output slot"),
-                _ => None,
-            };
-            if let Some(generated) = fixed_collision {
-                push_error(
-                    errors,
-                    syn::Error::new(arg.ident.span(), format!("COM method parameter `{arg_name}` conflicts with {generated}")),
-                );
-            }
-
-            for (raw_name, derived) in raw_parameter_names(arg) {
-                if let Some((_, previous_ident, previous_derived)) = raw_names.iter().find(|(previous_name, _, _)| previous_name == &raw_name) {
-                    let current_origin = if derived {
-                        format!("buffer parameter `{}` generates", arg.ident)
-                    } else {
-                        format!("source parameter `{}` uses", arg.ident)
-                    };
-                    let previous_origin = if *previous_derived {
-                        format!("buffer parameter `{previous_ident}`")
-                    } else {
-                        format!("source parameter `{previous_ident}`")
-                    };
-                    push_error(
-                        errors,
-                        syn::Error::new(
-                            arg.ident.span(),
-                            format!("{current_origin} raw ABI parameter `{raw_name}`, which conflicts with {previous_origin}"),
-                        ),
-                    );
-                } else {
-                    raw_names.push((raw_name, &arg.ident, derived));
-                }
-            }
-        }
-    }
-}
-
-/// Returns generated raw parameter names and whether they are reserved helpers.
-fn raw_parameter_names(arg: &crate::model::AbiArg) -> Vec<(String, bool)> {
-    let ident = &arg.ident;
-    match &arg.kind {
-        AbiArgKind::Plain | AbiArgKind::BorrowedValue { .. } | AbiArgKind::ComRef { .. } | AbiArgKind::ComBox { .. } => vec![(ident.to_string(), false)],
-        AbiArgKind::CopyFromBufferOffset { .. } | AbiArgKind::CopyToBufferOffset { .. } => vec![
-            (buffer_offset_ident(ident).to_string(), true),
-            (buffer_len_ident(ident).to_string(), true),
-            (buffer_ptr_ident(ident).to_string(), true),
-        ],
     }
 }
 

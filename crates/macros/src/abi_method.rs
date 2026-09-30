@@ -143,13 +143,14 @@ fn parse_abi_args(method: &TraitItemFn, nc: &syn::Path) -> Result<Vec<AbiArg>> {
 
     // The receiver was validated separately; only logical ABI parameters are
     // represented in descriptor metadata and generated vtable arguments.
-    for arg in method.sig.inputs.iter().skip(1) {
+    for (position, arg) in method.sig.inputs.iter().skip(1).enumerate() {
         match arg {
             FnArg::Typed(typed) => match typed.pat.as_ref() {
                 Pat::Ident(pat) if pat.by_ref.is_none() && pat.mutability.is_none() && pat.subpat.is_none() => {
                     match lower_abi_arg(typed.ty.as_ref().clone(), nc) {
                         Ok((rust_ty, abi_ty, kind)) => args.push(AbiArg {
                             ident: pat.ident.clone(),
+                            binding: crate::util::private_ident(&format!("__nc_arg_{position}")),
                             rust_ty,
                             abi_ty,
                             kind,
