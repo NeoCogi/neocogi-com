@@ -40,6 +40,7 @@ pub use neocogi_com_macros::{ComDeserialize, ComSerialize, com_enum, com_class, 
 /// pub struct NodeType(pub u16);
 /// ```
 #[macro_export]
+// Support paths inside exported expansions must not resolve to application types.
 macro_rules! com_int_enum {
     (
         $(#[$type_meta:meta])*
@@ -87,14 +88,14 @@ macro_rules! com_int_enum {
             }
         }
 
-        impl From<$repr> for $name {
+        impl ::core::convert::From<$repr> for $name {
             /// Wraps a raw ABI value without rejecting unknown values.
             fn from(value: $repr) -> Self {
                 Self::from_raw(value)
             }
         }
 
-        impl From<$name> for $repr {
+        impl ::core::convert::From<$name> for $repr {
             /// Extracts the enum-like value's raw integer representation.
             fn from(value: $name) -> Self {
                 value.raw()
@@ -119,25 +120,25 @@ macro_rules! com_int_enum {
 
         // SAFETY: the raw integer is validated before accepting a declared value.
         unsafe impl $crate::ComValue for $name {
-            const FIXED_COST: Option<$crate::ValueCost> = <$repr as $crate::ComValue>::FIXED_COST;
+            const FIXED_COST: ::core::option::Option<$crate::ValueCost> = <$repr as $crate::ComValue>::FIXED_COST;
             type Wire = $repr;
             type Storage = ();
             /// Accounts for the scalar before validating its authored domain.
-            fn encode_value(&self, budget: &mut $crate::ValueBudget) -> Result<($repr, ()), $crate::NcStatus> {
+            fn encode_value(&self, budget: &mut $crate::ValueBudget) -> ::core::result::Result<($repr, ()), $crate::NcStatus> {
                 budget.value(|_| unsafe { Self::encode_prechecked(self) })
             }
             /// Accounts for the scalar before accepting any raw integer.
-            unsafe fn decode_value(wire: $repr, budget: &mut $crate::ValueBudget) -> Result<Self, $crate::NcStatus> {
+            unsafe fn decode_value(wire: $repr, budget: &mut $crate::ValueBudget) -> ::core::result::Result<Self, $crate::NcStatus> {
                 budget.value(|_| unsafe { Self::decode_prechecked(wire) })
             }
             /// Preserves domain checks inside a prepaid fixed aggregate.
-            unsafe fn encode_prechecked(&self) -> Result<($repr, ()), $crate::NcStatus> {
-                match self.is_known() { true => Ok((self.raw(), ())), false => Err($crate::NC_E_INVALID_TAG) }
+            unsafe fn encode_prechecked(&self) -> ::core::result::Result<($repr, ()), $crate::NcStatus> {
+                match self.is_known() { true => ::core::result::Result::Ok((self.raw(), ())), false => ::core::result::Result::Err($crate::NC_E_INVALID_TAG) }
             }
             /// Rejects unknown tags/bits even when accounting was prepaid.
-            unsafe fn decode_prechecked(wire: $repr) -> Result<Self, $crate::NcStatus> {
+            unsafe fn decode_prechecked(wire: $repr) -> ::core::result::Result<Self, $crate::NcStatus> {
                 let value = Self::from_raw(wire);
-                match value.is_known() { true => Ok(value), false => Err($crate::NC_E_INVALID_TAG) }
+                match value.is_known() { true => ::core::result::Result::Ok(value), false => ::core::result::Result::Err($crate::NC_E_INVALID_TAG) }
             }
         }
         // SAFETY: a validated integer is self-contained and carries no pointers.
@@ -234,21 +235,21 @@ macro_rules! com_bit_enum {
             }
         }
 
-        impl From<$repr> for $name {
+        impl ::core::convert::From<$repr> for $name {
             /// Wraps raw ABI storage while preserving unknown bits for validation.
             fn from(value: $repr) -> Self {
                 Self::from_raw(value)
             }
         }
 
-        impl From<$name> for $repr {
+        impl ::core::convert::From<$name> for $repr {
             /// Extracts the complete raw ABI bit pattern.
             fn from(value: $name) -> Self {
                 value.raw()
             }
         }
 
-        impl core::ops::BitOr for $name {
+        impl ::core::ops::BitOr for $name {
             type Output = Self;
 
             /// Produces the union of two typed bit sets.
@@ -257,14 +258,14 @@ macro_rules! com_bit_enum {
             }
         }
 
-        impl core::ops::BitOrAssign for $name {
+        impl ::core::ops::BitOrAssign for $name {
             /// Adds every bit in the right-hand set.
             fn bitor_assign(&mut self, rhs: Self) {
                 self.0 |= rhs.0;
             }
         }
 
-        impl core::ops::BitAnd for $name {
+        impl ::core::ops::BitAnd for $name {
             type Output = Self;
 
             /// Produces the intersection of two typed bit sets.
@@ -273,14 +274,14 @@ macro_rules! com_bit_enum {
             }
         }
 
-        impl core::ops::BitAndAssign for $name {
+        impl ::core::ops::BitAndAssign for $name {
             /// Retains only bits present in the right-hand set.
             fn bitand_assign(&mut self, rhs: Self) {
                 self.0 &= rhs.0;
             }
         }
 
-        impl core::ops::BitXor for $name {
+        impl ::core::ops::BitXor for $name {
             type Output = Self;
 
             /// Produces the symmetric difference of two typed bit sets.
@@ -289,7 +290,7 @@ macro_rules! com_bit_enum {
             }
         }
 
-        impl core::ops::BitXorAssign for $name {
+        impl ::core::ops::BitXorAssign for $name {
             /// Toggles every bit present in the right-hand set.
             fn bitxor_assign(&mut self, rhs: Self) {
                 self.0 ^= rhs.0;
@@ -314,25 +315,25 @@ macro_rules! com_bit_enum {
 
         // SAFETY: the raw integer is validated before accepting a declared value.
         unsafe impl $crate::ComValue for $name {
-            const FIXED_COST: Option<$crate::ValueCost> = <$repr as $crate::ComValue>::FIXED_COST;
+            const FIXED_COST: ::core::option::Option<$crate::ValueCost> = <$repr as $crate::ComValue>::FIXED_COST;
             type Wire = $repr;
             type Storage = ();
             /// Accounts for the scalar before validating its authored domain.
-            fn encode_value(&self, budget: &mut $crate::ValueBudget) -> Result<($repr, ()), $crate::NcStatus> {
+            fn encode_value(&self, budget: &mut $crate::ValueBudget) -> ::core::result::Result<($repr, ()), $crate::NcStatus> {
                 budget.value(|_| unsafe { Self::encode_prechecked(self) })
             }
             /// Accounts for the scalar before accepting any raw integer.
-            unsafe fn decode_value(wire: $repr, budget: &mut $crate::ValueBudget) -> Result<Self, $crate::NcStatus> {
+            unsafe fn decode_value(wire: $repr, budget: &mut $crate::ValueBudget) -> ::core::result::Result<Self, $crate::NcStatus> {
                 budget.value(|_| unsafe { Self::decode_prechecked(wire) })
             }
             /// Preserves domain checks inside a prepaid fixed aggregate.
-            unsafe fn encode_prechecked(&self) -> Result<($repr, ()), $crate::NcStatus> {
-                match self.is_valid() { true => Ok((self.raw(), ())), false => Err($crate::NC_E_INVALID_TAG) }
+            unsafe fn encode_prechecked(&self) -> ::core::result::Result<($repr, ()), $crate::NcStatus> {
+                match self.is_valid() { true => ::core::result::Result::Ok((self.raw(), ())), false => ::core::result::Result::Err($crate::NC_E_INVALID_TAG) }
             }
             /// Rejects unknown tags/bits even when accounting was prepaid.
-            unsafe fn decode_prechecked(wire: $repr) -> Result<Self, $crate::NcStatus> {
+            unsafe fn decode_prechecked(wire: $repr) -> ::core::result::Result<Self, $crate::NcStatus> {
                 let value = Self::from_raw(wire);
-                match value.is_valid() { true => Ok(value), false => Err($crate::NC_E_INVALID_TAG) }
+                match value.is_valid() { true => ::core::result::Result::Ok(value), false => ::core::result::Result::Err($crate::NC_E_INVALID_TAG) }
             }
         }
         // SAFETY: a validated integer is self-contained and carries no pointers.
@@ -345,7 +346,7 @@ macro_rules! com_bit_enum {
             /// Decodes raw storage while retaining unknown bits for boundary validation.
             fn com_deserialize<'__nc_de, __NcDecoder>(
                 decoder: __NcDecoder,
-            ) -> core::result::Result<Self, __NcDecoder::Error>
+            ) -> ::core::result::Result<Self, __NcDecoder::Error>
             where
                 __NcDecoder: $crate::ComDeserializer<'__nc_de>,
             {

@@ -28,7 +28,12 @@ fn generate(source: &str) -> Result<String, neocogi_idl::GenerateError> {
 fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
     let source = r#"
         extern neocogi.com.events; use neocogi.com.events::EventBinding;
-        #[version(1)] struct Changed { text: String, enabled: bool }
+        // These local declarations must not capture support names in generated
+        // event binding conversions, method results, or catalog metadata.
+        #[version(1)] struct Option { marker: u32 }
+        #[version(1)] struct Some { marker: u32 }
+        #[version(1)] struct None { marker: u32 }
+        #[version(1)] struct Changed { text: String, enabled: bool, raw_0: u8, budget: u32 }
         #[version(1)] enum Event { Changed(Changed), Submitted }
         #[version(1)] interface Base {}
         #[version(1)] class Counter: Base {

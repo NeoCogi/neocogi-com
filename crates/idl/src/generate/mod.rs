@@ -86,6 +86,8 @@ struct Generation<'a> {
 }
 
 /// Emits one module after validating backend mappings against its semantic graph.
+/// Generated support paths are absolute: local IDL declarations such as Option,
+/// Some and None must remain application names, never capture Rust scaffolding.
 fn generate_module(graph: &Generation<'_>, module_name: &str) -> Result<crate::GeneratedRust, GenerateError> {
     let module = graph
         .graph
@@ -178,9 +180,9 @@ fn generate_design_metadata(graph: &Generation<'_>, module: &ResolvedModule) -> 
                     let queue = named_rust_type(graph, module, binding.queue, true)?;
                     let rust_trait = Literal::string(&public_rust_path(graph, binding.queue.module, &binding.queue.declaration.name)?);
                     let event = named_rust_type(graph, module, binding.event, false)?;
-                    quote! { Some(::neocogi_com::design::IdlEventQueue { rust_trait: #rust_trait, abi: &#queue::INTERFACE_DESCRIPTOR, message: &#event::IDL_TYPE }) }
+                    quote! { ::core::option::Option::Some(::neocogi_com::design::IdlEventQueue { rust_trait: #rust_trait, abi: &#queue::INTERFACE_DESCRIPTOR, message: &#event::IDL_TYPE }) }
                 }
-                None => quote! { None },
+                None => quote! { ::core::option::Option::None },
             };
             let values = interface_value_metadata(graph, module, declaration)?;
             descriptions.push(quote! {
@@ -469,9 +471,9 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
                             pub const NAMES: [&'static str; Self::COUNT] = [#(#names),*];
 
                             /// Returns the canonical name, or `None` for an unknown ABI value.
-                            pub const fn canonical_name(self) -> Option<&'static str> {
+                            pub const fn canonical_name(self) -> ::core::option::Option<&'static str> {
                                 let ordinal = self.raw() as usize;
-                                if ordinal < Self::COUNT { Some(Self::NAMES[ordinal]) } else { None }
+                                if ordinal < Self::COUNT { ::core::option::Option::Some(Self::NAMES[ordinal]) } else { ::core::option::Option::None }
                             }
                         }
                     }
@@ -732,7 +734,7 @@ fn callable_methods(graph: &Generation<'_>, module: &ResolvedModule, values: &[C
                         false => quote! { (::neocogi_com::NcStatus, #(#owners),*) },
                     };
                     quote! {
-                        #docs fn #name(#receiver, #(#parameters),*) -> Result<#output, #error>;
+                        #docs fn #name(#receiver, #(#parameters),*) -> ::core::result::Result<#output, #error>;
                     }
                 }
             })

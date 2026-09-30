@@ -20,10 +20,7 @@ fn printed_bindings_preserve_authored_values_and_arguments() {
     .unwrap();
     for (module, source) in [
         ("values", include_str!("../../idl/tests/fixtures/identifier_hygiene.ncidl")),
-        (
-            "shadow",
-            "#[version(1)] struct Option { enabled: bool } #[version(1)] struct Envelope { value: Option }",
-        ),
+        ("shadow", include_str!("../../idl/tests/fixtures/identifier_shadow.ncidl")),
     ] {
         let graph = neocogi_idl::resolve_modules(vec![neocogi_idl::parse_module(Path::new(&format!("proof/{module}.ncidl")), source).unwrap()]).unwrap();
         let generated = neocogi_idl::generate_rust(&graph, &format!("proof.{module}")).unwrap();

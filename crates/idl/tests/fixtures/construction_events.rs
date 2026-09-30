@@ -93,7 +93,7 @@ fn factory_queue_ownership_and_metadata() {
         let binding = contract::CounterEventBinding::Observed(queue);
         let mut counter = factory.create(false, NcValueRef::new(&binding).unwrap()).unwrap();
         drop(binding);
-        let event = contract::Event::Changed(contract::Changed { text: "call-owned".into(), enabled: true });
+        let event = contract::Event::Changed(contract::Changed { text: "call-owned".into(), enabled: true, raw_0: 73, budget: 109 });
         counter.emit(NcValueRef::new(&event).unwrap()).unwrap();
         drop(event);
         let Message::Counter(contract::Event::Changed(value)) = rx.recv().unwrap() else {
@@ -101,6 +101,7 @@ fn factory_queue_ownership_and_metadata() {
         };
         assert_eq!(value.text, "call-owned");
         assert!(value.enabled);
+        assert_eq!((value.raw_0, value.budget), (73, 109));
         drop(counter.clone());
         assert!(matches!(drops.try_recv(), Err(mpsc::TryRecvError::Empty)));
         if explicit {

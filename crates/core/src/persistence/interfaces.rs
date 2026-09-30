@@ -21,10 +21,13 @@ pub const MODULE_NAME: &str = "neocogi.com.persistence";
 pub trait IObjectChildren {
     /// Returns the number of fully initialized child objects.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:5:8`.
-    fn count(&self) -> Result<u32, crate::NcStatus>;
+    fn count(&self) -> ::core::result::Result<u32, crate::NcStatus>;
     /// Returns an owned reference; indices must be less than count.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:7:8`.
-    fn get(&self, index: u32) -> Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus>;
+    fn get(
+        &self,
+        index: u32,
+    ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus>;
 }
 /// Exact signature bytes assigned by the IDL compiler.
 #[allow(non_upper_case_globals)]
@@ -252,22 +255,24 @@ impl IObjectChildrenAbi {
 pub trait IPersistable {
     /// Identifies the registered construction recipe, not this object instance.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8`.
-    fn type_id(&self) -> Result<crate::NcGuid, crate::NcStatus>;
+    fn type_id(&self) -> ::core::result::Result<crate::NcGuid, crate::NcStatus>;
     /// Identifies the persistent initialization schema, independently of COM ABI.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8`.
-    fn schema_version(&self) -> Result<u32, crate::NcStatus>;
+    fn schema_version(&self) -> ::core::result::Result<u32, crate::NcStatus>;
     /// Exports initialization data only: no receivers, runtime pointers or caches.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8`.
-    fn save_state(&self) -> Result<crate::ComPtr<crate::INcBytesAbi>, crate::NcStatus>;
+    fn save_state(
+        &self,
+    ) -> ::core::result::Result<crate::ComPtr<crate::INcBytesAbi>, crate::NcStatus>;
     /// Returns the number of owned persistent children; parent links are excluded.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8`.
-    fn child_count(&self) -> Result<u32, crate::NcStatus>;
+    fn child_count(&self) -> ::core::result::Result<u32, crate::NcStatus>;
     /// Returns one child in the order described by the parent's initialization.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:22:8`.
     fn child(
         &self,
         index: u32,
-    ) -> Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus>;
+    ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus>;
 }
 /// Exact signature bytes assigned by the IDL compiler.
 #[allow(non_upper_case_globals)]
@@ -695,7 +700,7 @@ pub trait IPersistenceFactory {
         version: u32,
         state: crate::NcCopyFromBufferOffset<'_, u8>,
         child_count: u32,
-    ) -> Result<(), crate::NcStatus>;
+    ) -> ::core::result::Result<(), crate::NcStatus>;
     /// Returns a fully initialized object; every child is already constructed.
     /// Failure must release resources acquired by this call and publish no root.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:32:8`.
@@ -704,7 +709,7 @@ pub trait IPersistenceFactory {
         version: u32,
         state: crate::NcCopyFromBufferOffset<'_, u8>,
         children: crate::ComRef<'_, IObjectChildrenAbi>,
-    ) -> Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus>;
+    ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus>;
 }
 /// Exact signature bytes assigned by the IDL compiler.
 #[allow(non_upper_case_globals)]

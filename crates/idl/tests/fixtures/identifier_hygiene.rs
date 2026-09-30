@@ -126,12 +126,28 @@ mod tests {
         assert_eq!((value.__nc_field_0, value.__nc_wire_field_0, value.__nc_storage_field_0), (71, 72, 73));
     }
 
+    #[com_object(super::shadow::IShadow)]
+    /// A local Option remains an application type in the provider signature.
+    struct Shadow;
+    impl super::shadow::IShadow for Shadow {
+        fn echo(&self, value: u32, other: super::shadow::Option) -> Result<u32, NcStatus> {
+            assert!(other.enabled);
+            Ok(value)
+        }
+    }
+
     #[test]
     fn authored_option_is_not_a_generated_support_type() {
         let value = super::shadow::Envelope {
             value: super::shadow::Option { enabled: true },
         };
         assert!(NcValueRef::new(&value).unwrap().to_owned().unwrap().value.enabled);
+        let shadow = Shadow::from_value(Shadow).query::<super::shadow::IShadowAbi>().unwrap();
+        assert_eq!(shadow.echo(73, value.value), Ok(73));
+        let flags = super::shadow::Flags::ENABLED | super::shadow::Flags::VISIBLE;
+        assert_eq!(NcValueRef::new(&flags).unwrap().to_owned().unwrap(), flags);
+        assert_eq!(super::shadow::State::Ready.canonical_name(), Some("ready"));
+        assert_eq!(super::shadow::State::from_raw(255).canonical_name(), None);
     }
     #[com_object(IArguments)]
     /// Exercises output completion after the generated status/result locals exist.

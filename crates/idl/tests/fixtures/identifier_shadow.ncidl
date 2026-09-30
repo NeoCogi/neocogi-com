@@ -1,0 +1,11 @@
+/// Legal local types must not resolve as the generator's support language.
+#[version(1)] struct Option { enabled: bool }
+#[version(1)] struct Some { value: u32 }
+#[version(1)] struct None { value: u32 }
+#[version(1)] struct Envelope { value: Option }
+#[version(1)] #[dense] #[names(snake_case)] enum State: u8 { Idle = 0, Ready = 1 }
+#[version(1)] interface IShadow {
+    fn echo(&self, value: u32, other: Option) -> Result<u32>;
+}
+/// Flags use the second exported copied-value macro, with the same support rule.
+#[version(1)] bitenum Flags: u8 { ENABLED = 1, VISIBLE = 2 }

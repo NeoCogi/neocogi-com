@@ -17,10 +17,7 @@ fn authored_names_preserve_values_across_generated_com() {
     .unwrap();
     for (module, source) in [
         ("values", include_str!("fixtures/identifier_hygiene.ncidl")),
-        (
-            "shadow",
-            "#[version(1)] struct Option { enabled: bool } #[version(1)] struct Envelope { value: Option }",
-        ),
+        ("shadow", include_str!("fixtures/identifier_shadow.ncidl")),
     ] {
         let graph = neocogi_idl::resolve_modules(vec![neocogi_idl::parse_module(Path::new(&format!("proof/{module}.ncidl")), source).unwrap()]).unwrap();
         let generated = neocogi_idl::generate_rust(&graph, &format!("proof.{module}")).unwrap();

@@ -127,6 +127,7 @@ pub(super) fn find<'a>(graph: &'a Generation<'_>, module: &'a ResolvedModule, pr
 }
 
 /// Adds ergonomic owned conversion to each closed EventBinding specialization.
+/// Core's Option is qualified so shadowable IDL names cannot alter helper types.
 pub(super) fn value_helpers(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration) -> Result<TokenStream, GenerateError> {
     let identity = module.declaration(&declaration.name).expect("resolved declaration");
     let Some(binding) = binding(graph, ResolvedDeclaration { module, declaration, identity })? else {
@@ -137,12 +138,12 @@ pub(super) fn value_helpers(graph: &Generation<'_>, module: &ResolvedModule, dec
     Ok(quote! {
         impl #name {
             /// Retains the final constructor receiver, or chooses permanent non-delivery.
-            pub fn from_queue(queue: Option<::neocogi_com::ComRef<'_, #queue>>) -> Self {
-                match queue { Some(queue) => Self::Observed(queue.add_ref()), None => Self::Unobserved }
+            pub fn from_queue(queue: ::core::option::Option<::neocogi_com::ComRef<'_, #queue>>) -> Self {
+                match queue { ::core::option::Option::Some(queue) => Self::Observed(queue.add_ref()), ::core::option::Option::None => Self::Unobserved }
             }
             /// Transfers the constructor's owned reference into producer-local storage.
-            pub fn into_queue(self) -> Option<::neocogi_com::ComPtr<#queue>> {
-                match self { Self::Observed(queue) => Some(queue), Self::Unobserved => None }
+            pub fn into_queue(self) -> ::core::option::Option<::neocogi_com::ComPtr<#queue>> {
+                match self { Self::Observed(queue) => ::core::option::Option::Some(queue), Self::Unobserved => ::core::option::Option::None }
             }
         }
     })
