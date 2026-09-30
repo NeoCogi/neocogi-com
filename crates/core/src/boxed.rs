@@ -169,6 +169,23 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
         .expect("present token"))
     }
 
+    /// Observes current eligibility only; subsequent calls still acquire their
+    /// own execution lease because another thread may remove the owner meanwhile.
+    pub fn is_alive(&self) -> bool { self.borrow().is_ok() }
+
+    /// Checks discovered catalog metadata without acquiring a shared owner.
+    pub fn supports_interface_bytes(&self, iid: crate::NcGuid, signature: &[u8; 32]) -> Result<(), NcStatus> {
+        let expected = crate::NcInterfaceId::new(iid, crate::NcAbiSignature::from_borrowed(signature));
+        // SAFETY: this weak token retains the immutable class table even after
+        // the value expires; projection validates the complete interface digest.
+        unsafe { box_projection(self.as_raw().object.cast(), &expected) }.map(|_| ())
+    }
+
+    /// Erases only the selected interface while preserving stable object identity.
+    pub fn into_unknown(self) -> WeakComBox<crate::IUnknown, M> {
+        self.query().expect("every boxed COM object declares IUnknown")
+    }
+
     /// Acquires bounded execution access for passing a live borrowed ABI argument.
     /// The returned guard has no ownership conversion and must not escape its
     /// lexical use. Ordinary generated method calls need no extra guard here.

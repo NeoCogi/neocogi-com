@@ -118,3 +118,72 @@ impl<T: ComObject> Clone for LocalCom<T> {
         }
     }
 }
+
+/// Concrete local access to one exclusively owned COM allocation.
+/// Construction proves the implementation type; no foreign downcast exists.
+/// Querying returns weak projections, and `into_interface` transfers the owner.
+pub struct LocalBox<T: ComObject> {
+    /// The sole owner; moving it into a container ends local owning access.
+    owner: crate::ComBox<IUnknown, T::Threading>,
+    /// Preserves the concrete allocation proof and Rust thread constraints.
+    implementation: PhantomData<T>,
+}
+/// Concrete weak access used while assembling composites and by local tests.
+/// Expiration and shared/exclusive borrowing use the same generated ABI gate.
+pub struct WeakLocalBox<T: ComObject> {
+    /// Retains control storage only, never the implementation's resources.
+    observer: crate::WeakComBox<IUnknown, T::Threading>,
+    /// Construction, rather than interface negotiation, certifies this layout.
+    implementation: PhantomData<T>,
+}
+impl<T: ComObject> LocalBox<T> {
+    /// Adopts the exclusive allocation generated for this exact implementation.
+    ///
+    /// # Safety
+    /// The owner must come from T's generated storage, not another implementation
+    /// of a compatible interface. The threading promise must also belong to T.
+    #[doc(hidden)]
+    pub unsafe fn __from_owned(owner: crate::ComBox<IUnknown, T::Threading>) -> Self {
+        Self { owner, implementation: PhantomData }
+    }
+    /// Creates a concrete observer before ownership moves into a container.
+    pub fn downgrade(&self) -> WeakLocalBox<T> {
+        WeakLocalBox { observer: self.owner.downgrade(), implementation: PhantomData }
+    }
+    /// Selects a cached non-owning interface without duplicating the unique owner.
+    pub fn query<I: ComInterface>(&self) -> Result<crate::WeakComBox<I, T::Threading>, NcStatus> { self.owner.downgrade().query() }
+    /// Transfers the unique allocation into a container-facing interface.
+    pub fn into_interface<I: ComInterface>(self) -> Result<crate::ComBox<I, T::Threading>, NcStatus> { self.owner.query() }
+    /// Observes concrete state under the provider's reader gate.
+    pub fn try_borrow(&self) -> Result<__ComSharedLease<'_, T>, NcStatus> {
+        // SAFETY: the generated constructor proves T and its storage layout.
+        // The owner retains storage; the generated lease acquires the call gate.
+        unsafe { T::borrow_abi_ref(self.owner.as_raw().object) }
+    }
+    /// Mutates concrete state without RefCell or an erased payload.
+    pub fn try_borrow_mut(&mut self) -> Result<__ComExclusiveLease<'_, T>, NcStatus> {
+        // SAFETY: construction proves T; the generated exclusive gate prevents
+        // overlap with interface callers as well as concrete local observers.
+        unsafe { T::borrow_abi_mut(self.owner.as_raw().object) }
+    }
+}
+impl<T: ComObject> WeakLocalBox<T> {
+    /// Selects a cached interface while retaining only the existing control block.
+    pub fn query<I: ComInterface>(&self) -> Result<crate::WeakComBox<I, T::Threading>, NcStatus> { self.observer.query() }
+    /// Acquires value lifetime and the reader gate before returning concrete state.
+    pub fn try_borrow(&self) -> Result<__ComSharedLease<'_, T>, NcStatus> {
+        // SAFETY: this observer retains storage and the constructor proof of T.
+        // Generated entry acquires lifetime before dereferencing the value.
+        unsafe { T::borrow_abi_ref(self.observer.as_raw().object) }
+    }
+    /// Acquires value lifetime and exclusive access; expiration fails before access.
+    pub fn try_borrow_mut(&mut self) -> Result<__ComExclusiveLease<'_, T>, NcStatus> {
+        // SAFETY: the generated entry checks lifetime and exclusive access before
+        // constructing &mut T; an expired observer never accesses destroyed data.
+        unsafe { T::borrow_abi_mut(self.observer.as_raw().object) }
+    }
+}
+impl<T: ComObject> Clone for WeakLocalBox<T> {
+    /// Copies the concrete observer proof without creating another owner.
+    fn clone(&self) -> Self { Self { observer: self.observer.clone(), implementation: PhantomData } }
+}

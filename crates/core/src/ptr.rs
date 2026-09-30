@@ -419,6 +419,16 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
         unsafe { crate::WeakComPtr::from_raw_owned(raw) }.ok_or(NC_E_POINTER)
     }
 
+    /// Captures a cached weak observer of an exclusively owned argument.
+    /// Shared objects reject this operation; lifetime policies never silently convert.
+    pub fn downgrade_box(&self) -> Result<crate::WeakComBox<T, M>, NcStatus> {
+        let raw = self.as_raw();
+        // SAFETY: the borrow keeps the common header and exact interface live.
+        let table = unsafe { crate::lifetime::box_projection(raw.object.cast(), &T::INTERFACE_ID) }?;
+        unsafe { crate::lifetime::nc_weak_retain(raw.object.cast()) };
+        Ok(unsafe { crate::WeakComBox::from_raw_owned(ComRaw { object: raw.object, vtable: table.cast() }) }.expect("present borrowed interface"))
+    }
+
     /// Acquires an owner that can outlive this borrowed view.
     pub fn add_ref(&self) -> ComPtr<T, M> {
         self.try_add_ref().expect("interface does not permit shared ownership")

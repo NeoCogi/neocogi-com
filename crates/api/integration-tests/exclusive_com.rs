@@ -286,3 +286,31 @@ fn raw_transfer_rejection_preserves_the_input_slot() {
     assert_eq!(weak.value(), Err(NC_E_CLOSED));
     assert_eq!(container.remove(), Ok(()));
 }
+
+/// Concrete initialization uses the same borrow gate and cannot keep a moved owner alive.
+#[test]
+fn local_box_observers_follow_owner_transfer_and_gate_conflicts() {
+    let state = value();
+    let drops = state.drops.clone();
+    let mut local = Value::into_local_box(state);
+    local.try_borrow_mut().unwrap().value = 17;
+    let mut observer = local.downgrade();
+    let mut interface = local.query::<IValueAbi>().unwrap();
+    {
+        let read = observer.try_borrow().unwrap();
+        assert_eq!(read.value, 17);
+        assert_eq!(interface.set(18), Err(NC_E_BUSY));
+    }
+    let owner = local.into_interface::<IValueAbi>().unwrap();
+    observer.try_borrow_mut().unwrap().value = 19;
+    assert_eq!(interface.value(), Ok(19));
+    assert!(interface.is_alive());
+    let borrowed = owner.as_com_ref().downgrade_box().unwrap();
+    assert!(borrowed.same_object(&interface));
+    drop(owner);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    assert!(!interface.is_alive());
+    assert!(matches!(observer.try_borrow(), Err(NC_E_CLOSED)));
+    assert!(matches!(observer.try_borrow_mut(), Err(NC_E_CLOSED)));
+    assert_eq!(borrowed.value(), Err(NC_E_CLOSED));
+}

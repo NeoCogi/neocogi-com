@@ -252,6 +252,19 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                 unsafe { #nc::ComBox::from_raw_owned(raw) }.expect("new exclusive object is present")
             }
 
+            /// Keeps concrete local construction access until the owner moves into its container.
+            #object_vis fn into_local_box(value: Self) -> #nc::LocalBox<Self> {
+                // SAFETY: into_box constructs exactly Self's generated allocation.
+                unsafe { #nc::LocalBox::__from_owned(Self::into_box(value)) }
+            }
+            /// Initializes exclusive local storage with an unpublished weak origin.
+            #object_vis fn into_local_box_cyclic<I: #nc::ComInterface>(
+                build: impl FnOnce(#nc::WeakComBox<I, #pointer_threading_model>) -> Self,
+            ) -> Result<#nc::LocalBox<Self>, #nc::NcStatus> {
+                // SAFETY: the generated constructor transfers exactly Self's exclusive storage.
+                Ok(unsafe { #nc::LocalBox::__from_owned(Self::into_box_cyclic::<I>(build)?) })
+            }
+
             /// Initializes a weak origin without publishing or sharing ownership.
             /// Failed initialization releases storage without dropping an absent value.
             #object_vis fn into_box_cyclic<I: #nc::ComInterface>(
