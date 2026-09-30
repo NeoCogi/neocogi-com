@@ -788,7 +788,17 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
             let element = value_type(graph, module, element)?;
             Ok(quote! { ::neocogi_com::NcCopyToBufferOffset<'_, #element> })
         }
-        AbiType::ComBox(value) => box_reference_type(graph, module, value, false),
+        AbiType::ComBox(value) => {
+            // Providers validate through a borrowed transfer slot before taking
+            // ownership. Client methods still accept ComBox directly.
+            let owned = box_reference_type(graph, module, value, false)?;
+            let mut ty: syn::TypePath = syn::parse2(owned).map_err(|error| GenerateError::new(error.to_string()))?;
+            let segment = ty.path.segments.last_mut().expect("generated owner wrapper");
+            segment.ident = syn::Ident::new("ComBoxInput", segment.ident.span());
+            let syn::PathArguments::AngleBracketed(arguments) = &mut segment.arguments else { unreachable!() };
+            arguments.args.insert(0, syn::parse_quote! { '_ });
+            Ok(quote! { #ty })
+        },
         AbiType::WeakComBox(_) | AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => Err(GenerateError::new(
             "unit, owned collections/text, and unborrowed slices are not valid method inputs",
         )),

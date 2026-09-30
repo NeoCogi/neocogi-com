@@ -1,0 +1,13 @@
+error: lifetime may not live long enough
+ --> integration-tests/ui/weak_box_borrow_escape.rs:9:41
+  |
+9 |     let escaped = weak.with_mut(|value| &mut value.value).unwrap();
+  |                                  ------ ^^^^^^^^^^^^^^^^ returning this value requires that `'1` must outlive `'2`
+  |                                  |    |
+  |                                  |    return type of closure is &'2 mut u32
+  |                                  has type `&'1 mut Model`
+  |
+help: dereference the return value
+  |
+9 |     let escaped = weak.with_mut(|value| *&mut value.value).unwrap();
+  |                                         +

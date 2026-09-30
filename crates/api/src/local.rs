@@ -29,7 +29,7 @@ pub struct LocalCom<T: ComObject> {
 /// Shared local access carrying both the borrow lifetime and COM threading mode.
 pub struct LocalRef<'a, T: ComObject> {
     /// Holds the same reader lease used by generated interface thunks.
-    lease: __ComSharedLease<'a, T, T::CallLifetime>,
+    lease: __ComSharedLease<'a, T, T::SharedGuard<'a>>,
     /// Prevents even a scoped thread from bypassing a thread-local owner's mode.
     owner: PhantomData<&'a LocalCom<T>>,
 }
@@ -45,7 +45,7 @@ impl<T: ComObject> core::ops::Deref for LocalRef<'_, T> {
 /// Exclusive local access carrying both the borrow lifetime and COM threading mode.
 pub struct LocalMut<'a, T: ComObject> {
     /// Holds the same writer lease used by generated interface thunks.
-    lease: __ComExclusiveLease<'a, T, T::CallLifetime>,
+    lease: __ComExclusiveLease<'a, T, T::ExclusiveGuard<'a>>,
     /// Retains the owner's lifetime and conservative thread-affinity constraints.
     owner: PhantomData<&'a LocalCom<T>>,
 }
@@ -155,13 +155,13 @@ impl<T: ComObject> LocalBox<T> {
     /// Transfers the unique allocation into a container-facing interface.
     pub fn into_interface<I: ComInterface>(self) -> Result<crate::ComBox<I, T::Threading>, NcStatus> { self.owner.query() }
     /// Observes concrete state under the provider's reader gate.
-    pub fn try_borrow(&self) -> Result<__ComSharedLease<'_, T, T::CallLifetime>, NcStatus> {
+    pub fn try_borrow(&self) -> Result<__ComSharedLease<'_, T, T::SharedGuard<'_>>, NcStatus> {
         // SAFETY: the generated constructor proves T and its storage layout.
         // The owner retains storage; the generated lease acquires the call gate.
         unsafe { T::borrow_abi_ref(self.owner.as_raw().object) }
     }
     /// Mutates concrete state without RefCell or an erased payload.
-    pub fn try_borrow_mut(&mut self) -> Result<__ComExclusiveLease<'_, T, T::CallLifetime>, NcStatus> {
+    pub fn try_borrow_mut(&mut self) -> Result<__ComExclusiveLease<'_, T, T::ExclusiveGuard<'_>>, NcStatus> {
         // SAFETY: construction proves T; the generated exclusive gate prevents
         // overlap with interface callers as well as concrete local observers.
         unsafe { T::borrow_abi_mut(self.owner.as_raw().object) }
@@ -170,17 +170,21 @@ impl<T: ComObject> LocalBox<T> {
 impl<T: ComObject> WeakLocalBox<T> {
     /// Selects a cached interface while retaining only the existing control block.
     pub fn query<I: ComInterface>(&self) -> Result<crate::WeakComBox<I, T::Threading>, NcStatus> { self.observer.query() }
-    /// Acquires value lifetime and the reader gate before returning concrete state.
-    pub fn try_borrow(&self) -> Result<__ComSharedLease<'_, T, T::CallLifetime>, NcStatus> {
-        // SAFETY: this observer retains storage and the constructor proof of T.
-        // Generated entry acquires lifetime before dereferencing the value.
-        unsafe { T::borrow_abi_ref(self.observer.as_raw().object) }
+    /// Observes provider-local state within one non-escaping borrow. The closure
+    /// must not destroy this object's owner or wait for its destruction.
+    pub fn with<R>(&self, read: impl FnOnce(&T) -> R) -> Result<R, NcStatus> {
+        // SAFETY: construction certifies T; the observer retains storage and
+        // generated entry admits access before constructing any reference.
+        let value = unsafe { T::borrow_abi_ref(self.observer.as_raw().object) }?;
+        Ok(read(&value))
     }
-    /// Acquires value lifetime and exclusive access; expiration fails before access.
-    pub fn try_borrow_mut(&mut self) -> Result<__ComExclusiveLease<'_, T, T::CallLifetime>, NcStatus> {
-        // SAFETY: the generated entry checks lifetime and exclusive access before
-        // constructing &mut T; an expired observer never accesses destroyed data.
-        unsafe { T::borrow_abi_mut(self.observer.as_raw().object) }
+    /// Mutates provider-local state without exporting a guard or implementation
+    /// reference. Owner removal must occur after this closure returns.
+    pub fn with_mut<R>(&mut self, edit: impl FnOnce(&mut T) -> R) -> Result<R, NcStatus> {
+        // SAFETY: the generated exclusive borrow validates both lifetime and
+        // aliasing; its guard is private and ends before this method returns.
+        let mut value = unsafe { T::borrow_abi_mut(self.observer.as_raw().object) }?;
+        Ok(edit(&mut value))
     }
 }
 impl<T: ComObject> Clone for WeakLocalBox<T> {

@@ -18,6 +18,7 @@ fn ui_errors_are_stable() {
     t.compile_fail("integration-tests/ui/class_thread_safe_requires_send_sync.rs");
     t.compile_fail("integration-tests/ui/comptr_thread_local_send.rs");
     t.compile_fail("integration-tests/ui/local_guard_owner_lifetime.rs");
+    t.compile_fail("integration-tests/ui/weak_box_borrow_escape.rs");
     t.compile_fail("integration-tests/ui/local_guard_thread_affinity.rs");
     t.compile_fail("integration-tests/ui/enum_comptr_payload.rs");
     t.compile_fail("integration-tests/ui/enum_duplicate_tag.rs");

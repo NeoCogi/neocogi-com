@@ -40,9 +40,11 @@ unsafe impl Sync for NcClassLifetime {}
 /// releases its provisional weak owner without ever invoking destroy_value.
 #[repr(C)]
 pub struct NcWeakControl {
-    /// Number of strong owners. Publication and promotion use release/acquire;
-    /// zero after final release is terminal. Counts never wrap.
-    strong: AtomicUsize,
+    /// Shared allocations count strong owners. Exclusive allocations pack their
+    /// ownership bit and reader/writer access into this same word, so checked
+    /// entry and destruction cannot race through separate lifetime/borrow gates.
+    /// Publication and promotion use release/acquire; counters never wrap.
+    state: AtomicUsize,
     /// Explicit weak owners plus the provisional/implicit construction owner.
     weak: AtomicUsize,
     /// Provider-owned class metadata, stable through the final weak release.
@@ -53,7 +55,7 @@ impl NcWeakControl {
     /// The caller must initialize the complete concrete value before publishing it.
     pub const fn new(class: &'static NcClassLifetime) -> Self {
         Self {
-            strong: AtomicUsize::new(1),
+            state: AtomicUsize::new(1),
             weak: AtomicUsize::new(1),
             class,
         }
@@ -61,7 +63,7 @@ impl NcWeakControl {
     /// Starts an unpublished allocation with one provisional weak owner and no value owner.
     pub const fn unpublished(class: &'static NcClassLifetime) -> Self {
         Self {
-            strong: AtomicUsize::new(0),
+            state: AtomicUsize::new(0),
             weak: AtomicUsize::new(1),
             class,
         }
@@ -73,8 +75,8 @@ impl NcWeakControl {
     /// value and before publishing any strong reference. The constructor owns the
     /// provisional weak reference and must transfer it, without releasing it.
     pub unsafe fn publish(&self) {
-        debug_assert_eq!(self.strong.load(Ordering::Relaxed), 0);
-        self.strong.store(1, Ordering::Release);
+        debug_assert_eq!(self.state.load(Ordering::Relaxed), 0);
+        self.state.store(1, Ordering::Release);
     }
 }
 
@@ -104,8 +106,8 @@ pub unsafe extern "C" fn nc_strong_retain(object: *mut c_void) -> u32 {
     };
     // Exclusive objects never manufacture a second owner, including through
     // borrowed COM arguments or foreign AddRef calls.
-    if control.strong.load(Ordering::Relaxed) & BOXED != 0 { return 0; }
-    retain(&control.strong).min(u32::MAX as usize) as u32
+    if control.state.load(Ordering::Relaxed) & BOXED != 0 { return 0; }
+    retain(&control.state).min(u32::MAX as usize) as u32
 }
 
 /// Releases a strong owner, destroying the value before releasing its implicit weak owner.
@@ -117,12 +119,12 @@ pub unsafe extern "C" fn nc_strong_retain(object: *mut c_void) -> u32 {
 pub unsafe extern "C" fn nc_strong_release(object: *mut c_void) -> u32 {
     let pointer = object.cast::<NcWeakControl>();
     let Some(control) = (unsafe { pointer.as_ref() }) else { return 0 };
-    if control.strong.load(Ordering::Relaxed) & BOXED != 0 {
+    if control.state.load(Ordering::Relaxed) & BOXED != 0 {
         // SAFETY: the caller transfers the allocation's sole owner.
         unsafe { nc_box_release(pointer) };
         return 0;
     }
-    let previous = control.strong.fetch_sub(1, Ordering::Release);
+    let previous = control.state.fetch_sub(1, Ordering::Release);
     assert!(previous > 0, "COM strong release without an owner");
     match previous {
         1 => {
@@ -186,7 +188,7 @@ pub unsafe extern "C" fn nc_downgrade(object: *mut c_void, out: *mut crate::NcWe
         return NC_E_POINTER;
     }
     let control = object.cast::<NcWeakControl>();
-    if unsafe { (*control).strong.load(Ordering::Acquire) } & BOXED != 0 {
+    if unsafe { (*control).state.load(Ordering::Acquire) } & BOXED != 0 {
         return NC_E_INVALID_ARG;
     }
     unsafe {
@@ -224,7 +226,7 @@ pub unsafe extern "C" fn nc_query_interface(object: *mut c_void, requested: *con
         return NC_E_POINTER;
     }
     let control = unsafe { &*object.cast::<NcWeakControl>() };
-    if control.strong.load(Ordering::Acquire) & BOXED != 0 {
+    if control.state.load(Ordering::Acquire) & BOXED != 0 {
         return NC_E_INVALID_ARG;
     }
     match unsafe { projection(control, &*requested) } {
@@ -257,7 +259,7 @@ pub unsafe extern "C" fn nc_weak_upgrade(control: *mut NcWeakControl, requested:
         return NC_E_POINTER;
     }
     let header = unsafe { &*control };
-    let mut current = header.strong.load(Ordering::Relaxed);
+    let mut current = header.state.load(Ordering::Relaxed);
     loop {
         match current {
             0 => return NC_E_CLOSED,
@@ -266,7 +268,7 @@ pub unsafe extern "C" fn nc_weak_upgrade(control: *mut NcWeakControl, requested:
                 assert!(count < isize::MAX as usize, "COM strong promotion counter exhausted");
                 // Acquire pairs with initial publication. A concurrent final
                 // release wins by setting zero or loses to this acquired owner.
-                match header.strong.compare_exchange_weak(count, count + 1, Ordering::Acquire, Ordering::Relaxed) {
+                match header.state.compare_exchange_weak(count, count + 1, Ordering::Acquire, Ordering::Relaxed) {
                     Ok(_) => break,
                     Err(observed) => current = observed,
                 }
@@ -295,23 +297,26 @@ pub unsafe extern "C" fn nc_weak_upgrade(control: *mut NcWeakControl, requested:
 /// The tag is permanent, including after destruction, so weak observers cannot
 /// accidentally interpret an expired box as an unpublished shared allocation.
 const BOXED: usize = 1 << (usize::BITS - 1);
-/// The sole owner exists while this bit is set. Lower bits count active calls,
-/// not owners; releasing the owner prevents all subsequent call acquisitions.
+/// The sole owner exists while this bit is set. Clearing it rejects new borrows.
 const BOX_OWNER: usize = BOXED >> 1;
-/// Maximum number of concurrently admitted calls, leaving ownership bits intact.
-const BOX_CALLS: usize = BOX_OWNER - 1;
+/// Exclusive mutable access; it cannot coexist with any reader.
+const BOX_WRITER: usize = BOX_OWNER >> 1;
+/// Reader count occupies the remaining bits and must not overflow into the writer bit.
+const BOX_READERS: usize = BOX_WRITER - 1;
+/// Either borrow keeps Drop waiting after owner presence has already been cleared.
+const BOX_BORROWS: usize = BOX_WRITER | BOX_READERS;
 
 impl NcWeakControl {
     /// Constructs an exclusive owner with the same stable C header as shared COM.
     /// Publication must happen only after the provider has initialized its value.
     pub const fn boxed(class: &'static NcClassLifetime) -> Self {
-        Self { strong: AtomicUsize::new(BOXED | BOX_OWNER), weak: AtomicUsize::new(1), class }
+        Self { state: AtomicUsize::new(BOXED | BOX_OWNER), weak: AtomicUsize::new(1), class }
     }
 
     /// Constructs unpublished exclusive storage for weak self-initialization.
     /// Its provisional weak reference must be released if initialization fails.
     pub const fn boxed_unpublished(class: &'static NcClassLifetime) -> Self {
-        Self { strong: AtomicUsize::new(BOXED), weak: AtomicUsize::new(1), class }
+        Self { state: AtomicUsize::new(BOXED), weak: AtomicUsize::new(1), class }
     }
 
     /// Publishes the only exclusive owner after complete value initialization.
@@ -319,88 +324,128 @@ impl NcWeakControl {
     /// # Safety
     /// Called exactly once on unpublished boxed storage by its constructor.
     pub unsafe fn publish_box(&self) {
-        debug_assert_eq!(self.strong.load(Ordering::Relaxed), BOXED);
-        self.strong.store(BOXED | BOX_OWNER, Ordering::Release);
+        debug_assert_eq!(self.state.load(Ordering::Relaxed), BOXED);
+        self.state.store(BOXED | BOX_OWNER, Ordering::Release);
     }
 }
 
-/// Active execution protection for an exclusively owned object.
-///
-/// This lease cannot be cloned or converted to ownership. Generated ABI thunks
-/// acquire it before constructing Rust references and release it after their
-/// borrow gate. Shared allocations need no additional lifetime lease because
-/// their callers already retain them. A concurrent owner drop is nonblocking;
-/// the last admitted call destroys the value through its allocating provider.
-pub struct BoxCall {
-    /// Always owns one admitted call. Shared classes use no BoxCall at all;
-    /// encoding presence here removes nullable cleanup branches from ABI thunks.
+/// One shared implementation borrow, acquired atomically with the lifetime check.
+/// Only generated provider entry points create these guards. Their destruction
+/// releases access; it never destroys the implementation or takes ownership.
+pub struct BoxRead {
+    /// Retained header whose reader count includes this guard.
     control: NonNull<NcWeakControl>,
 }
-impl BoxCall {
-    /// Protects a generated ABI invocation, rejecting expired exclusive objects.
+
+/// One exclusive implementation borrow, using the same state as readers and Drop.
+pub struct BoxWrite {
+    /// Retained header whose writer bit belongs to this guard.
+    control: NonNull<NcWeakControl>,
+}
+
+/// Atomically admits one reader or the unique writer before any T reference exists.
+///
+/// # Safety
+/// The caller retains exclusive-class allocation storage throughout acquisition
+/// and through the returned borrow. Null is rejected without accessing storage.
+#[inline(never)]
+unsafe fn borrow_box(control: *mut NcWeakControl, writer: bool) -> Result<NonNull<NcWeakControl>, NcStatus> {
+    let control = NonNull::new(control).ok_or(NC_E_POINTER)?;
+    let header = unsafe { control.as_ref() };
+    let mut state = header.state.load(Ordering::Acquire);
+    loop {
+        let next = match state {
+            invalid if invalid & BOXED == 0 => return Err(NC_E_INVALID_ARG),
+            expired if expired & BOX_OWNER == 0 => return Err(NC_E_CLOSED),
+            busy if busy & BOX_WRITER != 0 => return Err(crate::NC_E_BUSY),
+            busy if writer && busy & BOX_READERS != 0 => return Err(crate::NC_E_BUSY),
+            full if !writer && full & BOX_READERS == BOX_READERS => return Err(crate::NC_E_BUSY),
+            live if writer => live | BOX_WRITER,
+            live => live + 1,
+        };
+        match header.state.compare_exchange_weak(state, next, Ordering::Acquire, Ordering::Relaxed) {
+            Ok(_) => return Ok(control),
+            Err(observed) => state = observed,
+        }
+    }
+}
+impl BoxRead {
+    /// Acquires shared access, rejecting destruction and conflicting mutable calls.
     ///
     /// # Safety
-    /// A non-null `control` must be exclusive common storage retained by an
-    /// owner, weak token, or enclosing call throughout acquisition. Generated
-    /// exclusive classes and checked weak-box construction establish this mode;
-    /// passing a shared allocation violates the provider contract. Null is
-    /// reported as `NC_E_POINTER` without accessing storage.
-    #[inline(never)]
+    /// `control` obeys the retained exclusive storage contract of `borrow_box`.
     pub unsafe fn enter(control: *mut NcWeakControl) -> Result<Self, NcStatus> {
-        let control = NonNull::new(control).ok_or(NC_E_POINTER)?;
-        let header = unsafe { control.as_ref() };
-        let mut state = header.strong.load(Ordering::Acquire);
-        debug_assert!(state & BOXED != 0, "BoxCall requires exclusive storage");
-        loop {
-            match state {
-                expired if expired & BOX_OWNER == 0 => return Err(NC_E_CLOSED),
-                full if full & BOX_CALLS == BOX_CALLS => return Err(crate::NC_E_BUSY),
-                live => match header.strong.compare_exchange_weak(live, live + 1, Ordering::Acquire, Ordering::Relaxed) {
-                    Ok(_) => return Ok(Self { control }),
-                    Err(observed) => state = observed,
-                },
-            }
-        }
+        Ok(Self { control: unsafe { borrow_box(control, false) }? })
     }
 }
-impl Drop for BoxCall {
-    /// Ends execution only after every reference to the provider value is gone.
+impl BoxWrite {
+    /// Acquires mutable access only when the live object has no active borrowers.
+    ///
+    /// # Safety
+    /// `control` obeys the retained exclusive storage contract of `borrow_box`.
+    pub unsafe fn enter(control: *mut NcWeakControl) -> Result<Self, NcStatus> {
+        Ok(Self { control: unsafe { borrow_box(control, true) }? })
+    }
+}
+impl Drop for BoxRead {
+    /// Publishes completion to the waiting owner without clearing its terminal bit.
     fn drop(&mut self) {
-        // SAFETY: the acquired call keeps initialized value and implicit weak
-        // ownership alive, even after the sole ComBox has been dropped.
-        let header = unsafe { self.control.as_ref() };
-        let previous = header.strong.fetch_sub(1, Ordering::Release);
-        debug_assert!(previous & BOX_CALLS != 0);
-        if previous == BOXED | 1 {
-            fence(Ordering::Acquire);
-            unsafe { destroy_box(self.control.as_ptr()) };
-        }
+        // SAFETY: admission protects T; the caller retains header storage. Nothing
+        // accesses T after this release, which may unblock its owning destructor.
+        let previous = unsafe { self.control.as_ref() }.state.fetch_sub(1, Ordering::Release);
+        debug_assert!(previous & BOX_READERS != 0 && previous & BOX_WRITER == 0);
+    }
+}
+impl Drop for BoxWrite {
+    /// Releases only mutable access, preserving a concurrent owner's stop transition.
+    fn drop(&mut self) {
+        // A store of zero would resurrect or erase ownership state. Clear exactly
+        // the writer bit and publish all implementation writes before destruction.
+        let previous = unsafe { self.control.as_ref() }.state.fetch_and(!BOX_WRITER, Ordering::Release);
+        debug_assert!(previous & BOX_WRITER != 0 && previous & BOX_READERS == 0);
     }
 }
 
-/// Drops an initialized exclusive value before relinquishing its implicit weak.
-///
-/// # Safety
-/// The caller won the unique transition to owner-absent and zero active calls.
-unsafe fn destroy_box(control: *mut NcWeakControl) {
-    unsafe {
-        ((*(*control).class).destroy_value)(control);
-        nc_weak_release(control);
+impl NcWeakControl {
+    /// Observes whether an exclusive owner still accepts calls. This is a snapshot,
+    /// not a borrow: provider entry must independently acquire checked access.
+    pub fn box_is_alive(&self) -> bool {
+        self.state.load(Ordering::Acquire) & (BOXED | BOX_OWNER) == BOXED | BOX_OWNER
+    }
+
+    /// Observes an idle exclusive implementation without calling provider code.
+    /// Thread-local tree removal uses this before committing a fallible edit to
+    /// reject recursive destruction. Concurrent owners still synchronize in Drop.
+    pub fn box_is_idle(&self) -> bool {
+        self.state.load(Ordering::Acquire) == BOXED | BOX_OWNER
     }
 }
 
-/// Releases the sole exclusive owner without waiting for active methods.
+/// Releases the unique owner and destroys its value before returning.
+///
+/// New calls fail as soon as ownership is cleared. Calls already executing on
+/// other threads finish before destruction. The implicit weak keeps storage alive
+/// through T's destructor, including destruction of weak-to-self fields.
 ///
 /// # Safety
-/// Transfers the only owner of initialized exclusive storage. It must never be
-/// called twice; weak references and active calls carry no permission to do so.
+/// Transfers the sole owner exactly once. The caller must not be executing a
+/// method/borrow of this object, or hold a resource required by an active call:
+/// waiting on such a call would deadlock. UI self-removal uses queued requests.
+#[inline(never)]
 pub unsafe extern "C" fn nc_box_release(control: *mut NcWeakControl) {
     let Some(header) = (unsafe { control.as_ref() }) else { return };
-    let previous = header.strong.fetch_and(!BOX_OWNER, Ordering::Release);
+    let previous = header.state.fetch_and(!BOX_OWNER, Ordering::AcqRel);
     assert!(previous & (BOXED | BOX_OWNER) == BOXED | BOX_OWNER, "exclusive owner released twice");
-    if previous == BOXED | BOX_OWNER {
-        fence(Ordering::Acquire);
-        unsafe { destroy_box(control) };
+    // Destruction belongs only to this owner. Borrow release never runs a
+    // destructor, so returning from Drop proves the entire owned value is gone.
+    while header.state.load(Ordering::Acquire) & BOX_BORROWS != 0 {
+        core::hint::spin_loop();
+        #[cfg(feature = "std")]
+        std::thread::yield_now();
+    }
+    unsafe {
+        ((*header.class).destroy_value)(control);
+        nc_weak_release(control);
     }
 }
 
@@ -411,7 +456,7 @@ pub unsafe extern "C" fn nc_box_release(control: *mut NcWeakControl) {
 /// The common header and requested contract are readable and retained for this call.
 pub unsafe fn box_projection(control: *mut NcWeakControl, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
     let header = unsafe { control.as_ref() }.ok_or(NC_E_POINTER)?;
-    if header.strong.load(Ordering::Acquire) & BOXED == 0 { return Err(NC_E_INVALID_ARG); }
+    if header.state.load(Ordering::Acquire) & BOXED == 0 { return Err(NC_E_INVALID_ARG); }
     unsafe { projection(header, requested) }
 }
 

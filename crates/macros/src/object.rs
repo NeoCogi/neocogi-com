@@ -171,9 +171,9 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
     });
 
     // Lifetime policy is a property of the provider class, not an interface.
-    // Emit only legal constructors and select a zero-sized shared-call guard.
+    // Emit only legal constructors and select one class-specific borrowing policy.
     // Neither the associated Rust guard nor its layout crosses the C ABI.
-    let (constructors, call_lifetime, acquire_shared, acquire_exclusive) = match args.ownership {
+    let (constructors, shared_guard, exclusive_guard, gate_field, acquire_shared, acquire_exclusive) = match args.ownership {
         ObjectOwnership::Shared => (
             quote! {
                 /// Owns this exact implementation and permits checked local access
@@ -255,7 +255,9 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                 }
 
             },
-            quote! { () },
+            quote! { #nc::__ComSharedCall<'a> },
+            quote! { #nc::__ComExclusiveCall<'a> },
+            quote! { call_gate: #nc::__ComCallGate, },
             quote! { #nc::__ComSharedLease::acquire(&storage.call_gate, storage.value.get().cast::<Self>()) },
             quote! { #nc::__ComExclusiveLease::acquire(&storage.call_gate, storage.value.get().cast::<Self>()) },
         ),
@@ -266,7 +268,6 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                 #object_vis fn into_box(value: Self) -> #nc::ComBox<#nc::IUnknown, #pointer_threading_model> {
                     let storage = #nc::__alloc::boxed::Box::into_raw(#nc::__alloc::boxed::Box::new(#storage_ident {
                         control: #nc::lifetime::NcWeakControl::boxed(&<#storage_type>::CLASS_LIFETIME),
-                        call_gate: #nc::__ComCallGate::new(),
                         value: core::cell::UnsafeCell::new(core::mem::MaybeUninit::new(value)),
                     }));
                     let raw = #nc::ComRaw { object: storage.cast(), vtable: &<#storage_type>::UNKNOWN_VTABLE };
@@ -295,7 +296,6 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                     let table = unsafe { #nc::__nc_find_interface(&Self::COM_VTABLES, &I::INTERFACE_ID) }?;
                     let storage = #nc::__alloc::boxed::Box::into_raw(#nc::__alloc::boxed::Box::new(#storage_ident {
                         control: #nc::lifetime::NcWeakControl::boxed_unpublished(&<#storage_type>::CLASS_LIFETIME),
-                        call_gate: #nc::__ComCallGate::new(),
                         value: core::cell::UnsafeCell::new(core::mem::MaybeUninit::uninit()),
                     }));
                     let raw = #nc::ComRaw::<I> { object: storage.cast(), vtable: table.cast() };
@@ -313,9 +313,11 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                 }
 
             },
-            quote! { #nc::lifetime::BoxCall },
-            quote! { #nc::__ComSharedLease::acquire_abi(object.cast(), &storage.call_gate, storage.value.get().cast::<Self>()) },
-            quote! { #nc::__ComExclusiveLease::acquire_abi(object.cast(), &storage.call_gate, storage.value.get().cast::<Self>()) },
+            quote! { #nc::lifetime::BoxRead },
+            quote! { #nc::lifetime::BoxWrite },
+            quote! {},
+            quote! { #nc::__ComSharedLease::acquire_box(object.cast(), storage.value.get().cast::<Self>()) },
+            quote! { #nc::__ComExclusiveLease::acquire_box(object.cast(), storage.value.get().cast::<Self>()) },
         ),
     };
 
@@ -330,8 +332,9 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
             /// Common lifetime header at offset zero; shared operations never
             /// need to recover the concrete Rust payload to manage ownership.
             control: #nc::lifetime::NcWeakControl,
-            /// Generated borrow authority shared by every interface projection.
-            call_gate: #nc::__ComCallGate,
+            // Shared ownership needs a separate gate because its header counts
+            // owners. Exclusive storage uses only the header's combined state.
+            #gate_field
             /// Owned Rust state; no reference into a caller's stack escapes through the COM pointer.
             value: core::cell::UnsafeCell<core::mem::MaybeUninit<#object_type>>,
         }
@@ -369,12 +372,13 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
         // layout above. Every paired vtable accepts this allocation directly.
         unsafe impl #impl_generics #nc::ComAbiObject for #object_type #where_clause {
             /// Concrete provider policy; no dynamic ownership branch on shared calls.
-            type CallLifetime = #call_lifetime;
+            type SharedGuard<'a> = #shared_guard;
+            type ExclusiveGuard<'a> = #exclusive_guard;
             // The generated gate permits concurrent observers but rejects a
             // shared call while a mutable call owns the implementation.
             unsafe fn borrow_abi_ref<'a>(
                 object: *mut core::ffi::c_void,
-            ) -> Result<#nc::__ComSharedLease<'a, Self, Self::CallLifetime>, #nc::NcStatus> {
+            ) -> Result<#nc::__ComSharedLease<'a, Self, Self::SharedGuard<'a>>, #nc::NcStatus> {
                 if object.is_null() {
                     return Err(#nc::NC_E_POINTER);
                 }
@@ -391,7 +395,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
             // shared or mutable call is active on any interface projection.
             unsafe fn borrow_abi_mut<'a>(
                 object: *mut core::ffi::c_void,
-            ) -> Result<#nc::__ComExclusiveLease<'a, Self, Self::CallLifetime>, #nc::NcStatus> {
+            ) -> Result<#nc::__ComExclusiveLease<'a, Self, Self::ExclusiveGuard<'a>>, #nc::NcStatus> {
                 if object.is_null() {
                     return Err(#nc::NC_E_POINTER);
                 }

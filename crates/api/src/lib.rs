@@ -103,7 +103,7 @@
 //!
 //! # Build Compatibility
 //!
-//! core ABI v12 is currently an experimental pre-alpha draft. The generated C-shaped
+//! Core ABI v14 is currently an experimental pre-alpha draft. The generated C-shaped
 //! surface is the intended compatibility boundary, but cross-release
 //! compatibility does not begin until an explicitly named future ratification
 //! milestone. Draft golden vectors prevent accidental drift within the current
@@ -493,7 +493,7 @@ mod runtime;
 mod tests;
 
 pub use neocogi_com_core::lifetime;
-pub use neocogi_com_core::{ComBox, WeakComBox, BoxBorrow, ComBoxInput};
+pub use neocogi_com_core::{ComBox, WeakComBox, ComBoxInput};
 pub use neocogi_com_core::{NcCopyFromBufferOffset, NcCopyToBufferOffset, WeakComPtr, NcWeakRaw};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
@@ -528,7 +528,7 @@ pub use neocogi_com_core::{
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{ComMap, ComMapAccess};
 pub use object::{
-    __ComCallGate, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComObject,
+    __ComCallGate, __ComSharedCall, __ComExclusiveCall, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComObject,
     ThreadSafeComObject,
 };
 mod local;

@@ -17,7 +17,7 @@
 //! format-specific adapter; it does not reinterpret descriptor metadata, write
 //! through ABI field offsets, or perform runtime class-registry lookup.
 //!
-//! Core ABI v12 is currently an experimental pre-alpha draft. The core ABI version
+//! Core ABI v14 is currently an experimental pre-alpha draft. The core ABI version
 //! identifies its current binary generation, not a ratified compatibility
 //! baseline. Cross-release compatibility begins only at an explicitly named
 //! future ratification milestone.
@@ -46,7 +46,7 @@ mod object;
 pub mod persistence;
 mod ptr;
 mod boxed;
-pub use boxed::{ComBox, WeakComBox, BoxBorrow, ComBoxInput};
+pub use boxed::{ComBox, WeakComBox, ComBoxInput};
 #[path = "raw.rs"]
 mod raw_handle;
 mod ref_count;

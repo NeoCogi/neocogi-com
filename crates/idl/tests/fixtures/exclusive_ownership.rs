@@ -28,8 +28,8 @@ mod exclusive_tests {
     }
     impl IContainer for Container {
         /// Replaces ownership without exposing a detached previous child.
-        fn insert(&mut self, child: ComBox<IValueAbi>) -> Result<(), NcStatus> {
-            self.child = Some(child);
+        fn insert(&mut self, child: neocogi_com::ComBoxInput<'_, IValueAbi>) -> Result<(), NcStatus> {
+            self.child = Some(child.take()?);
             Ok(())
         }
         /// Gives callers weak access without an independent owner.

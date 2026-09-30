@@ -11,9 +11,9 @@ use crate::signature::NcAbiSignature;
 
 /// Current experimental draft core ABI version.
 ///
-/// This identifies the current binary generation; it does not mean core ABI v13 has
+/// This identifies the current binary generation; it does not mean core ABI v14 has
 /// reached its ratification milestone.
-pub const NC_COM_CORE_ABI_VERSION: u32 = 13;
+pub const NC_COM_CORE_ABI_VERSION: u32 = 14;
 
 /// Stable identity for one COM interface ABI contract.
 ///

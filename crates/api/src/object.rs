@@ -16,7 +16,7 @@ use neocogi_com_core::{NC_E_BUSY, NC_E_POINTER, NcStatus, ThreadSafe, ThreadingM
 const EXCLUSIVE_CALL: usize = usize::MAX;
 
 #[doc(hidden)]
-/// Per-object borrow gate used by generated interface thunks.
+/// Borrow gate for shared COM classes; exclusive classes use their common header.
 ///
 /// Shared calls may overlap. A mutable call succeeds only while no other call
 /// is active, which prevents cloned COM pointers or foreign reentry from
@@ -33,24 +33,24 @@ impl __ComCallGate {
     }
 
     /// Acquires one reader slot without blocking or permitting counter overflow.
-    fn try_shared(&self) -> Result<SharedCall<'_>, NcStatus> {
+    fn try_shared(&self) -> Result<__ComSharedCall<'_>, NcStatus> {
         let mut current = self.state.load(Ordering::Acquire);
         loop {
             if current == EXCLUSIVE_CALL || current == EXCLUSIVE_CALL - 1 {
                 return Err(NC_E_BUSY);
             }
             match self.state.compare_exchange_weak(current, current + 1, Ordering::Acquire, Ordering::Relaxed) {
-                Ok(_) => return Ok(SharedCall { gate: self }),
+                Ok(_) => return Ok(__ComSharedCall { gate: self }),
                 Err(observed) => current = observed,
             }
         }
     }
 
     /// Acquires the unique writer sentinel without waiting on active readers.
-    fn try_exclusive(&self) -> Result<ExclusiveCall<'_>, NcStatus> {
+    fn try_exclusive(&self) -> Result<__ComExclusiveCall<'_>, NcStatus> {
         self.state
             .compare_exchange(0, EXCLUSIVE_CALL, Ordering::Acquire, Ordering::Relaxed)
-            .map(|_| ExclusiveCall { gate: self })
+            .map(|_| __ComExclusiveCall { gate: self })
             .map_err(|_| NC_E_BUSY)
     }
 }
@@ -61,14 +61,11 @@ impl __ComCallGate {
 /// Generated thunks keep this lease alive for exactly one Rust method call. Keeping
 /// the value reference and gate guard in one type prevents macro expansions from
 /// releasing the gate while the reference is still usable.
-pub struct __ComSharedLease<'a, T, L = ()> {
+pub struct __ComSharedLease<'a, T, G = __ComSharedCall<'a>> {
     /// Concrete implementation protected by the shared gate acquisition.
     value: &'a T,
     /// Reader slot whose destructor releases the shared gate acquisition.
-    _call: SharedCall<'a>,
-    /// Class-selected protection: zero-sized for shared ownership, one call
-    /// token for exclusive ownership. Drops after the borrow gate and value.
-    _lifetime: L,
+    _call: G,
 }
 
 impl<'a, T> __ComSharedLease<'a, T> {
@@ -87,31 +84,27 @@ impl<'a, T> __ComSharedLease<'a, T> {
         // SAFETY: The caller guarantees a live initialized value protected by
         // this exact gate, and the acquired reader slot excludes mutable calls.
         let value = unsafe { &*value };
-        Ok(Self { value, _call: call, _lifetime: () })
+        Ok(Self { value, _call: call })
     }
 }
 
-impl<'a, T> __ComSharedLease<'a, T, crate::lifetime::BoxCall> {
-    /// Admits a call before borrowing an exclusively owned implementation.
+impl<'a, T> __ComSharedLease<'a, T, crate::lifetime::BoxRead> {
+    /// Acquires lifetime and Rust borrowing in one atomic header transition.
     ///
     /// # Safety
-    /// `control`, `gate`, and `value` belong to the same exclusive generated allocation.
-    /// An owner, weak token, or outer call must retain its storage throughout
-    /// acquisition. The admitted call then protects the value until lease drop.
-    pub unsafe fn acquire_abi(control: *mut crate::lifetime::NcWeakControl, gate: &'a __ComCallGate, value: *const T) -> Result<Self, NcStatus> {
-        let lifetime = unsafe { crate::lifetime::BoxCall::enter(control) }?;
-        if value.is_null() {
-            return Err(NC_E_POINTER);
-        }
-        let call = gate.try_shared()?;
-        // SAFETY: admission keeps the value initialized; this allocation's
-        // borrow gate enforces Rust aliasing before creating the reference.
+    /// `control` and `value` belong to this retained exclusive allocation; all
+    /// implementation access participates in its common borrowing protocol.
+    pub unsafe fn acquire_box(control: *mut crate::lifetime::NcWeakControl, value: *const T) -> Result<Self, NcStatus> {
+        if value.is_null() { return Err(NC_E_POINTER); }
+        let call = unsafe { crate::lifetime::BoxRead::enter(control) }?;
+        // SAFETY: one successful transition both excludes conflicting accesses
+        // and prevents owner destruction until this lease releases its borrow.
         let value = unsafe { &*value };
-        Ok(Self { value, _call: call, _lifetime: lifetime })
+        Ok(Self { value, _call: call })
     }
 }
 
-impl<T, L> core::ops::Deref for __ComSharedLease<'_, T, L> {
+impl<T, G> core::ops::Deref for __ComSharedLease<'_, T, G> {
     type Target = T;
 
     /// Borrows the implementation for no longer than the active shared lease.
@@ -125,14 +118,11 @@ impl<T, L> core::ops::Deref for __ComSharedLease<'_, T, L> {
 ///
 /// Generated thunks use this lease instead of a closure-shaped borrow API, so one
 /// borrow implementation is emitted per concrete class rather than per ABI method.
-pub struct __ComExclusiveLease<'a, T, L = ()> {
+pub struct __ComExclusiveLease<'a, T, G = __ComExclusiveCall<'a>> {
     /// Concrete implementation protected by the exclusive gate acquisition.
     value: &'a mut T,
     /// Writer slot whose destructor restores the gate to its idle state.
-    _call: ExclusiveCall<'a>,
-    /// Class-selected protection: zero-sized for shared ownership, one call
-    /// token for exclusive ownership. Drops after the borrow gate and value.
-    _lifetime: L,
+    _call: G,
 }
 
 impl<'a, T> __ComExclusiveLease<'a, T> {
@@ -151,31 +141,27 @@ impl<'a, T> __ComExclusiveLease<'a, T> {
         // SAFETY: The caller guarantees a live initialized value protected by
         // this exact gate, and the acquired writer slot excludes every other call.
         let value = unsafe { &mut *value };
-        Ok(Self { value, _call: call, _lifetime: () })
+        Ok(Self { value, _call: call })
     }
 }
 
-impl<'a, T> __ComExclusiveLease<'a, T, crate::lifetime::BoxCall> {
-    /// Admits a call before borrowing an exclusively owned implementation.
+impl<'a, T> __ComExclusiveLease<'a, T, crate::lifetime::BoxWrite> {
+    /// Acquires lifetime and Rust borrowing in one atomic header transition.
     ///
     /// # Safety
-    /// `control`, `gate`, and `value` belong to the same exclusive generated allocation.
-    /// An owner, weak token, or outer call must retain its storage throughout
-    /// acquisition. The admitted call then protects the value until lease drop.
-    pub unsafe fn acquire_abi(control: *mut crate::lifetime::NcWeakControl, gate: &'a __ComCallGate, value: *mut T) -> Result<Self, NcStatus> {
-        let lifetime = unsafe { crate::lifetime::BoxCall::enter(control) }?;
-        if value.is_null() {
-            return Err(NC_E_POINTER);
-        }
-        let call = gate.try_exclusive()?;
-        // SAFETY: admission keeps the value initialized; this allocation's
-        // borrow gate enforces Rust aliasing before creating the reference.
+    /// `control` and `value` belong to this retained exclusive allocation; all
+    /// implementation access participates in its common borrowing protocol.
+    pub unsafe fn acquire_box(control: *mut crate::lifetime::NcWeakControl, value: *mut T) -> Result<Self, NcStatus> {
+        if value.is_null() { return Err(NC_E_POINTER); }
+        let call = unsafe { crate::lifetime::BoxWrite::enter(control) }?;
+        // SAFETY: one successful transition both excludes conflicting accesses
+        // and prevents owner destruction until this lease releases its borrow.
         let value = unsafe { &mut *value };
-        Ok(Self { value, _call: call, _lifetime: lifetime })
+        Ok(Self { value, _call: call })
     }
 }
 
-impl<T, L> core::ops::Deref for __ComExclusiveLease<'_, T, L> {
+impl<T, G> core::ops::Deref for __ComExclusiveLease<'_, T, G> {
     type Target = T;
 
     /// Borrows the implementation for no longer than the active exclusive lease.
@@ -184,7 +170,7 @@ impl<T, L> core::ops::Deref for __ComExclusiveLease<'_, T, L> {
     }
 }
 
-impl<T, L> core::ops::DerefMut for __ComExclusiveLease<'_, T, L> {
+impl<T, G> core::ops::DerefMut for __ComExclusiveLease<'_, T, G> {
     /// Mutably borrows the implementation while the lease owns the writer slot.
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.value
@@ -199,12 +185,12 @@ impl Default for __ComCallGate {
 }
 
 /// Active shared-call lease that restores its reader slot on every return path.
-struct SharedCall<'a> {
+pub struct __ComSharedCall<'a> {
     /// Gate whose reader count this lease owns.
     gate: &'a __ComCallGate,
 }
 
-impl Drop for SharedCall<'_> {
+impl Drop for __ComSharedCall<'_> {
     /// Releases exactly one reader slot after the delegated Rust call ends.
     fn drop(&mut self) {
         let previous = self.gate.state.fetch_sub(1, Ordering::Release);
@@ -213,12 +199,12 @@ impl Drop for SharedCall<'_> {
 }
 
 /// Active mutable-call lease that restores the idle state on every return path.
-struct ExclusiveCall<'a> {
+pub struct __ComExclusiveCall<'a> {
     /// Gate whose exclusive sentinel this lease owns.
     gate: &'a __ComCallGate,
 }
 
-impl Drop for ExclusiveCall<'_> {
+impl Drop for __ComExclusiveCall<'_> {
     /// Releases the exclusive sentinel after the delegated Rust call ends.
     fn drop(&mut self) {
         let previous = self.gate.state.swap(0, Ordering::Release);
@@ -240,15 +226,17 @@ pub use neocogi_com_core::{__com_add_ref_count, __com_release_ref_count};
 /// must only return tables paired with that same allocation address. Every
 /// instance of one implementation must use its declared lifetime policy:
 /// shared instances require a strong owner throughout each call; exclusive
-/// instances acquire execution protection before referencing their value and
-/// release it only after the reference and borrow gate have expired.
+/// instances acquire their reader/writer bit in the lifetime header before
+/// referencing the value and release it only after references are no longer used.
 ///
 /// Interface thunks receive an opaque object pointer and use this trait to
 /// recover the Rust implementation and delegate IUnknown behavior.
 pub unsafe trait ComAbiObject: Sized {
-    /// Provider-local call protection selected by the concrete class, never a
-    /// wire type: `()` for shared owners, `BoxCall` for exclusive owners.
-    type CallLifetime;
+    /// Shared borrowing policy: the shared class gate or exclusive header reader.
+    /// This provider-local guard never crosses the C ABI.
+    type SharedGuard<'a>;
+    /// Mutable borrowing policy: the shared class gate or exclusive header writer.
+    type ExclusiveGuard<'a>;
 
     /// Acquires shared access to the Rust value in generated storage.
     ///
@@ -259,7 +247,7 @@ pub unsafe trait ComAbiObject: Sized {
     /// must remain live until the returned lease is dropped. A shared class
     /// requires a retained strong owner; an exclusive class admits a call before
     /// accessing its value and rejects calls after owner removal.
-    unsafe fn borrow_abi_ref<'a>(object: *mut c_void) -> Result<__ComSharedLease<'a, Self, Self::CallLifetime>, NcStatus>;
+    unsafe fn borrow_abi_ref<'a>(object: *mut c_void) -> Result<__ComSharedLease<'a, Self, Self::SharedGuard<'a>>, NcStatus>;
 
     /// Acquires exclusive access to the Rust value in generated storage.
     ///
@@ -270,7 +258,7 @@ pub unsafe trait ComAbiObject: Sized {
     /// must remain live until the returned lease is dropped. A shared class
     /// requires a retained strong owner; an exclusive class admits a call before
     /// accessing its value and rejects calls after owner removal.
-    unsafe fn borrow_abi_mut<'a>(object: *mut c_void) -> Result<__ComExclusiveLease<'a, Self, Self::CallLifetime>, NcStatus>;
+    unsafe fn borrow_abi_mut<'a>(object: *mut c_void) -> Result<__ComExclusiveLease<'a, Self, Self::ExclusiveGuard<'a>>, NcStatus>;
 }
 
 /// Associates a generated COM implementation object with the strongest
@@ -328,46 +316,46 @@ mod tests {
     #[test]
     fn call_leases_store_only_the_selected_lifetime_policy() {
         use core::mem::size_of;
-        use crate::lifetime::BoxCall;
+        use crate::lifetime::{BoxRead, BoxWrite};
         assert_eq!(size_of::<__ComSharedLease<'_, u32>>(), 2 * size_of::<usize>());
         assert_eq!(size_of::<__ComExclusiveLease<'_, u32>>(), 2 * size_of::<usize>());
-        assert_eq!(size_of::<__ComSharedLease<'_, u32, BoxCall>>(), 3 * size_of::<usize>());
-        assert_eq!(size_of::<__ComExclusiveLease<'_, u32, BoxCall>>(), 3 * size_of::<usize>());
+        assert_eq!(size_of::<__ComSharedLease<'_, u32, BoxRead>>(), 2 * size_of::<usize>());
+        assert_eq!(size_of::<__ComExclusiveLease<'_, u32, BoxWrite>>(), 2 * size_of::<usize>());
     }
 
     /// Confirms shared calls compose while an exclusive call requires an idle object.
     #[test]
     fn call_gate_enforces_rust_borrowing_across_reentry() {
         let gate = __ComCallGate::new();
-        let mut value = 7;
+        let value = core::cell::UnsafeCell::new(7);
 
         // SAFETY: `value` remains live and every test access participates in
         // this local gate for the complete lifetime of each returned lease.
-        let shared = unsafe { __ComSharedLease::acquire(&gate, core::ptr::from_ref(&value)) }.unwrap();
+        let shared = unsafe { __ComSharedLease::acquire(&gate, value.get().cast_const()) }.unwrap();
         // SAFETY: A second shared lease observes the same live immutable value.
-        let nested_shared = unsafe { __ComSharedLease::acquire(&gate, core::ptr::from_ref(&value)) }.unwrap();
+        let nested_shared = unsafe { __ComSharedLease::acquire(&gate, value.get().cast_const()) }.unwrap();
         assert_eq!(*nested_shared, 7);
         // SAFETY: The pointer is valid, but the active reader leases must reject
         // this exclusive acquisition before exposing a mutable reference.
         assert!(matches!(
-            unsafe { __ComExclusiveLease::acquire(&gate, core::ptr::from_mut(&mut value)) },
+            unsafe { __ComExclusiveLease::acquire(&gate, value.get()) },
             Err(NC_E_BUSY)
         ));
         drop(nested_shared);
         drop(shared);
 
         // SAFETY: No lease remains and `value` is still owned by this scope.
-        let mut exclusive = unsafe { __ComExclusiveLease::acquire(&gate, core::ptr::from_mut(&mut value)) }.unwrap();
+        let mut exclusive = unsafe { __ComExclusiveLease::acquire(&gate, value.get()) }.unwrap();
         *exclusive = 9;
         // SAFETY: The pointer is valid, but the writer lease must reject another reader.
         assert!(matches!(
-            unsafe { __ComSharedLease::acquire(&gate, core::ptr::from_ref(&value)) },
+            unsafe { __ComSharedLease::acquire(&gate, value.get().cast_const()) },
             Err(NC_E_BUSY)
         ));
         drop(exclusive);
 
         // SAFETY: Dropping the writer restored the idle state and the value remains live.
-        let shared = unsafe { __ComSharedLease::acquire(&gate, core::ptr::from_ref(&value)) }.unwrap();
+        let shared = unsafe { __ComSharedLease::acquire(&gate, value.get().cast_const()) }.unwrap();
         assert_eq!(*shared, 9);
     }
 }

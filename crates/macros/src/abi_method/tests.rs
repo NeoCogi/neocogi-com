@@ -40,7 +40,7 @@ fn anonymous_lifetimes_keep_each_wrappers_lowering() {
 /// Named lifetimes cannot promise that the receiver's borrow outlives the ABI call.
 #[test]
 fn all_borrowed_wrappers_reject_static_and_named_lifetimes() {
-    for wrapper in ["NcValueRef", "ComRef", "NcCopyFromBufferOffset", "NcCopyToBufferOffset"] {
+    for wrapper in ["NcValueRef", "ComRef", "ComBoxInput", "NcCopyFromBufferOffset", "NcCopyToBufferOffset"] {
         for lifetime in ["'static", "'borrowed"] {
             for prefix in ["", "neocogi_com::"] {
                 rejects(&format!("{prefix}{wrapper}<{lifetime}, u32>"), "must use `'_`");
@@ -81,4 +81,13 @@ fn interface_borrow_options_do_not_bypass_lifetime_validation() {
     rejects("ComRef<'_, IObjectAbi, ThreadLocal, Extra>", "parameters must be");
     rejects("ComRef<'_, 3>", "interface parameter must be a type");
     rejects("ComRef<'_, IObjectAbi, 3>", "threading mode parameter must be a type");
+}
+
+/// Transfer slots share the same anonymous-lifetime policy as every other borrow.
+#[test]
+fn transfer_inputs_are_scoped_and_keep_their_threading_mode() {
+    assert!(matches!(lower("ComBoxInput<'_, IObjectAbi>"), Ok(AbiArgKind::ComBox { .. })));
+    assert!(matches!(lower("ComBoxInput<'_, IObjectAbi, ThreadSafe>"), Ok(AbiArgKind::ComBox { mode_ty: Some(_), .. })));
+    rejects("ComBoxInput<IObjectAbi>", "parameters must be");
+    rejects("ComBoxInput<'_, IObjectAbi, ThreadSafe, Extra>", "parameters must be");
 }

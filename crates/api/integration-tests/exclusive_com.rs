@@ -90,7 +90,7 @@ fn container_owner_destruction_expires_all_cached_interfaces() {
     assert_eq!(drops.load(Ordering::SeqCst), 1);
     assert_eq!(weak.value(), Err(NC_E_CLOSED));
     assert_eq!(weak.set(10), Err(NC_E_CLOSED));
-    assert!(matches!(weak.borrow(), Err(NC_E_CLOSED)));
+    assert_eq!(weak.as_com_ref().value(), Err(NC_E_CLOSED));
     assert!(identity.same_object(&weak.clone()));
     drop((weak, identity));
     assert_eq!(drops.load(Ordering::SeqCst), 1);
@@ -116,26 +116,56 @@ fn borrowed_arguments_and_raw_queries_cannot_create_shared_owners() {
     assert_eq!(owner.value(), Ok(42));
 }
 
-/// Owner removal is nonblocking and rejects new calls while an earlier reader finishes.
+/// Drop stops new calls, waits for an admitted reader/writer, and destroys the
+/// value on the dropping thread before returning. No timing-based sleep is needed.
 #[test]
-fn thread_safe_owner_drop_waits_only_for_admitted_execution() {
+fn thread_safe_owner_drop_waits_for_admitted_readers_and_writers() {
+    for writer in [false, true] {
+        let state = value();
+        let drops = state.drops.clone();
+        let entered = state.entered.clone();
+        let finish = state.finish.clone();
+        let owner = Value::into_box(state).query::<IValueAbi>().unwrap();
+        let weak = owner.downgrade();
+        let mut peer = weak.clone();
+        let worker = std::thread::spawn(move || match writer {
+            true => peer.wait_write().map(|()| 43),
+            false => peer.wait_read(),
+        });
+        entered.wait();
+        assert_eq!(weak.value(), if writer { Err(NC_E_BUSY) } else { Ok(42) });
+        let (finished, received) = std::sync::mpsc::channel();
+        let dropping = std::thread::spawn(move || { drop(owner); finished.send(()).unwrap(); });
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while weak.is_alive() {
+            assert!(std::time::Instant::now() < deadline, "owner did not start destruction");
+            std::thread::yield_now();
+        }
+        assert_eq!(weak.value(), Err(NC_E_CLOSED));
+        assert_eq!(drops.load(Ordering::SeqCst), 0);
+        assert!(received.try_recv().is_err(), "Drop must wait for the active method");
+        finish.wait();
+        assert_eq!(worker.join().unwrap(), Ok(if writer { 43 } else { 42 }));
+        received.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+        dropping.join().unwrap();
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+        assert_eq!(weak.value(), Err(NC_E_CLOSED));
+    }
+}
+
+/// An ABI argument view retains bookkeeping, not the implementation. Keeping
+/// one across Drop cannot reproduce the old BoxBorrow execution pin.
+#[test]
+fn weak_interface_views_do_not_delay_synchronous_destruction() {
     let state = value();
     let drops = state.drops.clone();
-    let entered = state.entered.clone();
-    let finish = state.finish.clone();
     let owner = Value::into_box(state).query::<IValueAbi>().unwrap();
     let weak = owner.downgrade();
-    let peer = weak.clone();
-    let worker = std::thread::spawn(move || peer.wait_read());
-    entered.wait();
-    assert_eq!(weak.value(), Ok(42), "readers can overlap");
+    let view = weak.as_com_ref();
+    assert_eq!(view.value(), Ok(42));
     drop(owner);
-    assert_eq!(drops.load(Ordering::SeqCst), 0);
-    assert_eq!(weak.value(), Err(NC_E_CLOSED));
-    finish.wait();
-    assert_eq!(worker.join().unwrap(), Ok(42));
     assert_eq!(drops.load(Ordering::SeqCst), 1);
-    assert_eq!(weak.value(), Err(NC_E_CLOSED));
+    assert_eq!(view.value(), Err(NC_E_CLOSED));
 }
 
 /// The cached fast path preserves the exclusive method gate across threads.
@@ -213,7 +243,7 @@ fn owners_and_cached_weak_handles_are_two_words() {
 /// A real ABI container transfers the only owner and exposes only weak child access.
 trait IContainer {
     /// Consumes its input on both success and failure, without cloning ownership.
-    fn insert(&mut self, child: ComBox<IValueAbi, neocogi_com::ThreadSafe>, reject: bool) -> Result<(), NcStatus>;
+    fn insert(&mut self, child: neocogi_com::ComBoxInput<'_, IValueAbi, neocogi_com::ThreadSafe>, reject: bool) -> Result<(), NcStatus>;
     /// Returns an observer while the container remains the sole owner.
     fn child(&self) -> Result<WeakComBox<IValueAbi, neocogi_com::ThreadSafe>, NcStatus>;
     /// Removes the child permanently; there is no detach or close operation.
@@ -226,12 +256,12 @@ struct Container {
     child: Option<ComBox<IValueAbi, neocogi_com::ThreadSafe>>,
 }
 impl IContainer for Container {
-    /// Validation failure destroys the consumed input through normal Drop.
-    fn insert(&mut self, child: ComBox<IValueAbi, neocogi_com::ThreadSafe>, reject: bool) -> Result<(), NcStatus> {
+    /// Validation failure leaves the input for caller-side Drop after this call.
+    fn insert(&mut self, child: neocogi_com::ComBoxInput<'_, IValueAbi, neocogi_com::ThreadSafe>, reject: bool) -> Result<(), NcStatus> {
         if reject {
             return Err(NC_E_INVALID_ARG);
         }
-        self.child = Some(child);
+        self.child = Some(child.take()?);
         Ok(())
     }
     /// Cached weak output crosses the same C ABI without a shared owner.
@@ -298,13 +328,12 @@ fn local_box_observers_follow_owner_transfer_and_gate_conflicts() {
     local.try_borrow_mut().unwrap().value = 17;
     let mut observer = local.downgrade();
     let mut interface = local.query::<IValueAbi>().unwrap();
-    {
-        let read = observer.try_borrow().unwrap();
+    observer.with(|read| {
         assert_eq!(read.value, 17);
         assert_eq!(interface.set(18), Err(NC_E_BUSY));
-    }
+    }).unwrap();
     let owner = local.into_interface::<IValueAbi>().unwrap();
-    observer.try_borrow_mut().unwrap().value = 19;
+    observer.with_mut(|value| value.value = 19).unwrap();
     assert_eq!(interface.value(), Ok(19));
     assert!(interface.is_alive());
     let borrowed = owner.as_com_ref().downgrade_box().unwrap();
@@ -312,7 +341,7 @@ fn local_box_observers_follow_owner_transfer_and_gate_conflicts() {
     drop(owner);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
     assert!(!interface.is_alive());
-    assert!(matches!(observer.try_borrow(), Err(NC_E_CLOSED)));
-    assert!(matches!(observer.try_borrow_mut(), Err(NC_E_CLOSED)));
+    assert_eq!(observer.with(|_| ()), Err(NC_E_CLOSED));
+    assert_eq!(observer.with_mut(|_| ()), Err(NC_E_CLOSED));
     assert_eq!(borrowed.value(), Err(NC_E_CLOSED));
 }

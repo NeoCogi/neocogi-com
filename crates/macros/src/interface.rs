@@ -254,7 +254,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 Some(quote! {
                     // SAFETY: caller retains a writable transfer slot; ownership
                     // changes only after exact interface and boxed-mode checks.
-                    let #ident = match unsafe { #nc::ComBox::<#interface_ty, #mode>::take_input(#ident) } {
+                    let #ident = match unsafe { #nc::ComBoxInput::<#interface_ty, #mode>::from_raw_input(#ident) } {
                         Ok(owner) => owner, Err(status) => return status,
                     };
                 })
@@ -625,9 +625,18 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
     let method_ident = &method.ident;
     let args = method.args.iter().map(|arg| {
         let ident = &arg.ident;
-        let ty = &arg.rust_ty;
-        quote! { #ident: #ty }
+        match &arg.kind {
+            AbiArgKind::ComBox { interface_ty, mode_ty } => {
+                let mode = mode_ty.as_ref().map(|ty| quote! { #ty }).unwrap_or_else(|| quote! { #nc::ThreadLocal });
+                quote! { #ident: impl Into<#nc::ComBoxInput<'__nc_transfer, #interface_ty, #mode>> }
+            }
+            _ => { let ty = &arg.rust_ty; quote! { #ident: #ty } }
+        }
     });
+    // Only consuming methods need this call-scoped forwarding lifetime. The
+    // generated client accepts an owner directly or a provider's borrowed slot.
+    let transfer_lifetime = method.args.iter().any(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. }))
+        .then(|| quote! { <'__nc_transfer> });
     let arg_preparations = method.args.iter().filter_map(|arg| safe_arg_preparation(nc, arg));
     let arg_names = method.args.iter().flat_map(safe_vtable_call_args).collect::<Vec<_>>();
     let buffer_acquisition = method
@@ -647,7 +656,7 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
         AbiReturnKind::Void => quote! {
             // Forwards the canonical safe client call to the raw status-only
             // vtable slot.
-            fn #method_ident(#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
+            fn #method_ident #transfer_lifetime (#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
                 #(#arg_preparations)*
                 let this = self.__nc_pointer.as_raw();
                 // SAFETY: The client view borrows a live interface reference.
@@ -687,7 +696,7 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
             };
             quote! {
                 // Uses a local output slot that is read only after ABI success.
-                fn #method_ident(#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
+                fn #method_ident #transfer_lifetime (#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
                     #(#arg_preparations)*
                     let mut __nc_out = core::mem::MaybeUninit::<#abi_ret>::uninit();
                     let this = self.__nc_pointer.as_raw();
@@ -927,7 +936,7 @@ fn safe_arg_preparation(nc: &syn::Path, arg: &crate::model::AbiArg) -> Option<pr
     match &arg.kind {
         AbiArgKind::ComBox { .. } => {
             let ident = &arg.ident;
-            Some(quote! { let mut #ident = #nc::ComBoxInput::new(#ident); })
+            Some(quote! { let mut #ident = #ident.into(); })
         },
         AbiArgKind::Plain => {
             let ident = &arg.ident;

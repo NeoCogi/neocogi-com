@@ -1,5 +1,7 @@
 # COM core ABI v13: exclusive owners and checked weak calls
 
+Historical specification, superseded by [ABI v14](abi-v14.md).
+
 Version 13 adds an exclusive lifetime policy to the common provider allocation.
 It retains the object/table handle layout and the three-word lifetime header.
 Plugins must agree on core ABI version, platform C ABI, pointer width, and

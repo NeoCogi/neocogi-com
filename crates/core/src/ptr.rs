@@ -200,8 +200,11 @@ unsafe impl<T: ComInterface + ?Sized> Sync for ComPtr<T, ThreadSafe> {}
 
 /// Borrowed typed object/table pair; copying it neither retains nor releases.
 ///
-/// The lifetime ties synchronous calls to a live owner. Call add_ref to retain
-/// it beyond the borrow. The representation tradeoff is documented on ComPtr.
+/// The lifetime ties synchronous calls to retained interface storage. For shared
+/// objects the lender keeps the value alive too; for exclusive objects every
+/// provider entry checks expiration and acquires its own implementation borrow.
+/// A weak lender does not prevent destruction. `try_add_ref` is shared-only;
+/// `downgrade_box` captures an exclusive weak identity. See ComPtr for the layout.
 ///
 /// ```compile_fail
 /// use neocogi_com_core::{ComPtr, ComRef, IUnknown};
@@ -391,7 +394,10 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
     /// Wraps a borrowed pair without retaining it.
     ///
     /// # Safety
-    /// Present pairs must implement T, remain live for 'a, and satisfy M.
+    /// Present pairs must implement T and retain their header, allocation and
+    /// provider code for 'a while satisfying M. Shared objects require a live
+    /// strong owner; exclusive providers must check their header before every
+    /// implementation access, including calls on expired weak-backed views.
     pub unsafe fn from_raw_borrowed(raw: ComRaw<T>) -> Option<Self> {
         Some(Self {
             raw: LiveInterface::new(raw)?,

@@ -234,7 +234,7 @@ fn parse_result_ok_type(method: &TraitItemFn) -> Result<Type> {
 
 /// Selects the raw parameter type and ownership rule for one Rust argument.
 fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
-    if let Some(owner) = parse_owned_interface_type(&ty, "ComBox")? {
+    if let Some(owner) = parse_borrowed_interface_type(&ty, "ComBoxInput")? {
         let interface = &owner.interface_ty;
         let abi = syn::parse_quote! { *mut #nc::ComRaw<#interface> };
         return Ok((ty, abi, AbiArgKind::ComBox { interface_ty: Box::new(owner.interface_ty), mode_ty: owner.mode_ty.map(Box::new) }));
@@ -364,27 +364,32 @@ struct ComPtrType {
 
 /// Parses a call-scoped borrowed interface wrapper when `ty` names `ComRef`.
 fn parse_com_ref_type(ty: &Type) -> Result<Option<ComRefType>> {
-    let Some(args) = type_generic_args_named(ty, "ComRef") else {
+    parse_borrowed_interface_type(ty, "ComRef")
+}
+
+/// One call-scoped lifetime policy for borrowed interfaces and ownership slots.
+fn parse_borrowed_interface_type(ty: &Type, wrapper: &str) -> Result<Option<ComRefType>> {
+    let Some(args) = type_generic_args_named(ty, wrapper) else {
         return Ok(None);
     };
     let generic_args = args.args.iter().collect::<Vec<_>>();
     if !(generic_args.len() == 2 || generic_args.len() == 3) {
         return Err(syn::Error::new_spanned(
             args,
-            "`ComRef` parameters must be `ComRef<'_, InterfaceAbi>` or `ComRef<'_, InterfaceAbi, ThreadingMode>`",
+            format!("`{wrapper}` parameters must be `{wrapper}<'_, InterfaceAbi>` or `{wrapper}<'_, InterfaceAbi, ThreadingMode>`"),
         ));
     }
-    require_call_scoped_lifetime(generic_args[0], "ComRef")?;
+    require_call_scoped_lifetime(generic_args[0], wrapper)?;
     let interface_ty = match generic_args[1] {
         syn::GenericArgument::Type(ty) => ty.clone(),
         arg => {
-            return Err(syn::Error::new_spanned(arg, "`ComRef` interface parameter must be a type"));
+            return Err(syn::Error::new_spanned(arg, format!("`{wrapper}` interface parameter must be a type")));
         }
     };
     let mode_ty = match generic_args.get(2) {
         Some(syn::GenericArgument::Type(ty)) => Some((*ty).clone()),
         Some(arg) => {
-            return Err(syn::Error::new_spanned(arg, "`ComRef` threading mode parameter must be a type"));
+            return Err(syn::Error::new_spanned(arg, format!("`{wrapper}` threading mode parameter must be a type")));
         }
         None => None,
     };

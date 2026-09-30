@@ -181,6 +181,56 @@ fn count_exhaustion_never_wraps_or_changes_the_counter() {
 /// An absent invocation header must fail before touching any provider storage.
 #[test]
 fn exclusive_call_rejects_an_absent_header() {
-    // SAFETY: null is explicitly accepted as an error input by BoxCall::enter.
-    assert!(matches!(unsafe { super::BoxCall::enter(core::ptr::null_mut()) }, Err(crate::NC_E_POINTER)));
+    // SAFETY: null is explicitly accepted as an error input by BoxRead::enter.
+    assert!(matches!(unsafe { super::BoxRead::enter(core::ptr::null_mut()) }, Err(crate::NC_E_POINTER)));
+}
+
+/// The owner keeps allocation storage alive through weak-to-self destruction;
+/// the last external weak releases storage without running T's destructor again.
+#[test]
+fn exclusive_destruction_is_immediate_and_storage_release_is_separate() {
+    let (control, observed) = allocation(true);
+    // SAFETY: this allocation has not escaped or been borrowed. Select exclusive
+    // ownership before publication and install one properly retained weak field.
+    unsafe {
+        (*control).state.store(BOXED | BOX_OWNER, Ordering::Relaxed);
+        nc_weak_retain(control);
+        (*control.cast::<Allocation>()).value.assume_init_mut().self_weak = Some(control);
+        nc_weak_retain(control);
+        nc_box_release(control);
+        assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
+        assert_eq!(observed.freed.load(Ordering::SeqCst), 0);
+        assert!(matches!(BoxRead::enter(control), Err(NC_E_CLOSED)));
+        assert!(matches!(BoxWrite::enter(control), Err(NC_E_CLOSED)));
+        nc_weak_release(control);
+    }
+    assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
+    assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
+}
+
+/// A full reader count must reject admission without wrapping into the writer bit.
+#[test]
+fn exclusive_reader_overflow_and_writer_conflicts_preserve_header_state() {
+    let header = NcWeakControl::boxed(&CLASS);
+    let raw = core::ptr::from_ref(&header).cast_mut();
+    header.state.store(BOXED | BOX_OWNER | BOX_READERS, Ordering::Relaxed);
+    // SAFETY: both attempts reject before granting access; the test header is
+    // retained and no provider destruction is attempted for this stack fixture.
+    unsafe {
+        assert!(matches!(BoxRead::enter(raw), Err(crate::NC_E_BUSY)));
+        assert!(matches!(BoxWrite::enter(raw), Err(crate::NC_E_BUSY)));
+    }
+    assert_eq!(header.state.load(Ordering::Relaxed), BOXED | BOX_OWNER | BOX_READERS);
+    header.state.store(BOXED | BOX_OWNER, Ordering::Relaxed);
+    let read1 = unsafe { BoxRead::enter(raw) }.unwrap();
+    let read2 = unsafe { BoxRead::enter(raw) }.unwrap();
+    assert!(matches!(unsafe { BoxWrite::enter(raw) }, Err(crate::NC_E_BUSY)));
+    drop(read1);
+    assert!(!header.box_is_idle());
+    drop(read2);
+    assert!(header.box_is_idle());
+    let write = unsafe { BoxWrite::enter(raw) }.unwrap();
+    assert!(matches!(unsafe { BoxRead::enter(raw) }, Err(crate::NC_E_BUSY)));
+    drop(write);
+    assert!(header.box_is_idle());
 }
