@@ -157,7 +157,11 @@ impl<T: ComObject> LocalBox<T> {
         WeakLocalBox { observer: self.owner.downgrade(), implementation: PhantomData }
     }
     /// Selects a cached non-owning interface without duplicating the unique owner.
-    pub fn query<I: ComInterface>(&self) -> Result<crate::WeakComBox<I, T::Threading>, NcStatus> { self.owner.downgrade().query() }
+    pub fn query<I: ComInterface>(&self) -> Result<crate::WeakComBox<I, T::Threading>, NcStatus> {
+        // The owner already keeps metadata live. Retain only the requested
+        // projection, without creating and releasing an intermediate observer.
+        self.owner.query_weak()
+    }
     /// Transfers the unique allocation, returning the unchanged local owner if
     /// the requested interface is absent. Rejection never destroys its value.
     pub fn into_interface<I: ComInterface>(self) -> Result<crate::ComBox<I, T::Threading>, (NcStatus, Self)> {

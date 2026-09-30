@@ -109,6 +109,13 @@ compiled component. Private builders that create fresh, unpublished candidates
 may explicitly discard a returned owner when abandoning their own construction;
 that is a caller decision, never automatic error conversion in COM.
 
+A construction-only helper can select `IWidget` once and keep that projection
+through insertion and disposal. Restoring the original concrete interface just
+before Drop is unnecessary. A consuming `ComBox::query` of the same exact
+interface reuses its already-validated table; matching includes the ABI signature,
+not just the GUID. Different revisions and interfaces still take checked lookup.
+This changes neither the wire protocol nor ownership/borrow state.
+
 ## Construction access
 
 `LocalBox` borrows are tied to its unique owner, so Rust prevents moving that owner

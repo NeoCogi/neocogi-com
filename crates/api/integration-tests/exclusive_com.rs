@@ -414,3 +414,43 @@ fn rejected_owner_query_returns_the_same_live_owner() {
     drop(owner);
     assert_eq!(weak.value(), Err(NC_E_CLOSED));
 }
+
+/// An identity projection moves the sole token without changing its table or
+/// adding ownership; destruction still expires every external weak projection.
+#[test]
+fn owner_identity_projection_preserves_cached_table_and_destroys_once() {
+    let state = value();
+    let drops = state.drops.clone();
+    let owner = Value::into_box(state).query::<IValueAbi>().unwrap();
+    let weak = owner.downgrade();
+    let original = owner.as_raw();
+    let mut owner = owner.query::<IValueAbi>().unwrap();
+    assert_eq!(owner.as_raw(), original);
+    owner.set(57).unwrap();
+    assert_eq!(weak.value(), Ok(57));
+    assert_eq!(drops.load(Ordering::SeqCst), 0);
+    drop(owner);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    assert_eq!(weak.value(), Err(NC_E_CLOSED));
+    drop(weak);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+}
+
+#[com_interface(auto_guid = "nc.tests.exclusive.Value:v1", threading = shared, assigned_signature = b"00000000000000000000000000000902")]
+/// Same nominal interface with a different ABI revision must not reuse a cached table.
+trait IValueOtherRevision {
+    /// This declaration is intentionally incompatible with the published Value contract.
+    fn value(&self) -> Result<u64, NcStatus>;
+}
+
+/// Comparing only GUIDs would incorrectly allow this revision to bypass lookup.
+#[test]
+fn owner_projection_checks_the_complete_revision_before_reusing_a_table() {
+    let owner = Value::into_box(value()).query::<IValueAbi>().unwrap();
+    let original = owner.as_raw();
+    assert_eq!(IValueAbi::IID, IValueOtherRevisionAbi::IID);
+    let (status, owner) = owner.query::<IValueOtherRevisionAbi>().unwrap_err();
+    assert_eq!(status, neocogi_com::NC_E_ABI_VERSION);
+    assert_eq!(owner.as_raw(), original);
+    assert_eq!(owner.value(), Ok(42));
+}

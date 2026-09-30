@@ -154,13 +154,32 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     /// Failure returns the unchanged owner. Interface selection is not authority
     /// to destroy an object that the caller may still need (including an ancestor
     /// of an active receiver); the caller decides whether to retry or drop it.
+    /// Selecting the same exact interface reuses this owner's validated table.
     pub fn query<U: ComInterface>(self) -> Result<ComBox<U, M>, (NcStatus, Self)> {
-        let table = match unsafe { box_projection(self.as_raw().object.cast(), &U::INTERFACE_ID) } {
-            Ok(table) => table,
-            Err(status) => return Err((status, self)),
+        // This owner already proves its exact interface contract. Resolve the
+        // identity comparison during compilation: relying on LTO to fold ordinary
+        // PartialEq kept per-type comparisons in size-optimized provider code.
+        // A different revision must still take checked discovery, even for the
+        // same IID. Both identities come from static unsafe ComInterface proofs.
+        let identical = const {
+            let left = T::INTERFACE_ID;
+            let right = U::INTERFACE_ID;
+            left.iid.data1 == right.iid.data1
+                && left.iid.data2 == right.iid.data2
+                && left.iid.data3 == right.iid.data3
+                && u64::from_ne_bytes(left.iid.data4) == u64::from_ne_bytes(right.iid.data4)
+                && left.abi_signature.__const_eq(right.abi_signature)
+        };
+        let table = match identical {
+            true => self.as_raw().vtable.cast(),
+            false => match unsafe { box_projection(self.as_raw().object.cast(), &U::INTERFACE_ID) } {
+                Ok(table) => table,
+                Err(status) => return Err((status, self)),
+            },
         };
         let raw = self.into_raw();
-        // SAFETY: lookup validated U and the unchanged allocation transfers its owner.
+        // SAFETY: exact identity or checked lookup establishes U. The unchanged
+        // allocation transfers its sole owner; no retention or borrowing is added.
         Ok(unsafe { ComBox::from_raw_owned(ComRaw { object: raw.object, vtable: table.cast() }) }.expect("present owner"))
     }
 
