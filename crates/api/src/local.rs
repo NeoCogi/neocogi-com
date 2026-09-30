@@ -136,6 +136,12 @@ pub struct WeakLocalBox<T: ComObject> {
     /// Construction, rather than interface negotiation, certifies this layout.
     implementation: PhantomData<T>,
 }
+impl<T: ComObject> core::fmt::Debug for LocalBox<T> {
+    /// Reports the owner identity without inspecting or borrowing concrete state.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("LocalBox").field(&self.owner).finish()
+    }
+}
 impl<T: ComObject> LocalBox<T> {
     /// Adopts the exclusive allocation generated for this exact implementation.
     ///
@@ -152,8 +158,11 @@ impl<T: ComObject> LocalBox<T> {
     }
     /// Selects a cached non-owning interface without duplicating the unique owner.
     pub fn query<I: ComInterface>(&self) -> Result<crate::WeakComBox<I, T::Threading>, NcStatus> { self.owner.downgrade().query() }
-    /// Transfers the unique allocation into a container-facing interface.
-    pub fn into_interface<I: ComInterface>(self) -> Result<crate::ComBox<I, T::Threading>, NcStatus> { self.owner.query() }
+    /// Transfers the unique allocation, returning the unchanged local owner if
+    /// the requested interface is absent. Rejection never destroys its value.
+    pub fn into_interface<I: ComInterface>(self) -> Result<crate::ComBox<I, T::Threading>, (NcStatus, Self)> {
+        self.owner.query().map_err(|(status, owner)| (status, Self { owner, implementation: PhantomData }))
+    }
     /// Observes concrete state under the provider's reader gate.
     pub fn try_borrow(&self) -> Result<__ComSharedLease<'_, T, T::SharedGuard<'_>>, NcStatus> {
         // SAFETY: the generated constructor proves T and its storage layout.

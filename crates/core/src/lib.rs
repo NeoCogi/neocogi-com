@@ -46,7 +46,7 @@ mod object;
 pub mod persistence;
 mod ptr;
 mod boxed;
-pub use boxed::{ComBox, WeakComBox, ComBoxInput};
+pub use boxed::{ComBox, WeakComBox};
 #[path = "raw.rs"]
 mod raw_handle;
 mod ref_count;

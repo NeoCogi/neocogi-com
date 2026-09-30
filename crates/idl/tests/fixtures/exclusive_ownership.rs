@@ -18,7 +18,7 @@ mod exclusive_tests {
     impl Factory for Creator {
         /// Selects the result projection by consuming the freshly allocated owner.
         fn create(&self) -> Result<ComBox<IValueAbi>, NcStatus> {
-            Value::into_box(Value).query()
+            Value::into_box(Value).query().map_err(|(status, _unpublished)| status)
         }
     }
     #[com_object(IContainer, ownership = exclusive)]
@@ -28,8 +28,8 @@ mod exclusive_tests {
     }
     impl IContainer for Container {
         /// Replaces ownership without exposing a detached previous child.
-        fn insert(&mut self, child: neocogi_com::ComBoxInput<'_, IValueAbi>) -> Result<(), NcStatus> {
-            self.child = Some(child.take()?);
+        fn insert(&mut self, child: neocogi_com::ComBox<IValueAbi>) -> Result<(), (NcStatus, neocogi_com::ComBox<IValueAbi>)> {
+            self.child = Some(child);
             Ok(())
         }
         /// Gives callers weak access without an independent owner.

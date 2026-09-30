@@ -1,5 +1,7 @@
 # COM core ABI v14: synchronous exclusive destruction
 
+Historical specification, superseded by [ABI v15](abi-v15.md).
+
 Version 14 keeps the object/table handle and three-word common header, but
 changes exclusive borrowing and owner destruction. Version 13 providers must be
 rejected before activation: their separate admission counter and borrow gate

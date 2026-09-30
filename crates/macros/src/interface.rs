@@ -252,11 +252,11 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 let ident = &arg.ident;
                 let mode = mode_ty.as_ref().map(|ty| quote! { #ty }).unwrap_or_else(|| quote! { #nc::ThreadLocal });
                 Some(quote! {
-                    // SAFETY: caller retains a writable transfer slot; ownership
-                    // changes only after exact interface and boxed-mode checks.
-                    let #ident = match unsafe { #nc::ComBoxInput::<#interface_ty, #mode>::from_raw_input(#ident) } {
-                        Ok(owner) => owner, Err(status) => return status,
-                    };
+                    // Validate without adopting: any later input or receiver
+                    // rejection must leave the original owner in the caller slot.
+                    if let Err(status) = unsafe { #nc::ComBox::<#interface_ty, #mode>::__nc_validate_raw_input(#ident) } {
+                        return status;
+                    }
                 })
             },
             AbiArgKind::BorrowedValue { value_ty } => {
@@ -338,12 +338,54 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 })
             }
         });
+        let owners = method.args.iter().filter(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. })).collect::<Vec<_>>();
+        let has_owners = !owners.is_empty();
+        // Save slots before shadowing their source names with ordinary owners.
+        // Adoption happens only after all validation and receiver admission.
+        let owner_adoptions = owners.iter().map(|arg| {
+            let ident = &arg.ident;
+            let ty = &arg.rust_ty;
+            let slot = owner_slot_ident(ident);
+            quote! {
+                let #slot = #ident;
+                let #ident = unsafe {
+                    <#ty>::from_raw_owned(core::mem::replace(&mut *#slot, #nc::ComRaw::null()))
+                }.expect("validated unique COM owner");
+            }
+        });
+        let error_arm = match has_owners {
+            false => quote! { Err(status) => status.normalize_error(), },
+            true => {
+                let names = owners.iter().map(|arg| &arg.ident);
+                let restores = owners.iter().map(|arg| {
+                    let ident = &arg.ident;
+                    let slot = owner_slot_ident(ident);
+                    quote! { unsafe { *#slot = #ident.into_raw(); } }
+                });
+                quote! {
+                    Err((status, #(#names),*)) => {
+                        // No receiver borrow survives while returned owners are
+                        // handed back. Every forwarding provider must propagate
+                        // this error tuple without destroying or replacing inputs.
+                        #(#restores)*
+                        status.normalize_error()
+                    },
+                }
+            },
+        };
+        // A successful owning method has committed. It cannot subsequently
+        // report rejection without returning those owners. Malformed successful
+        // output is a provider contract violation, never a recoverable rejection.
+        let output_error = match has_owners {
+            true => quote! { panic!("invalid output after COM ownership commit: {:?}", status) },
+            false => quote! { return status },
+        };
         let buffer_writeback = method.args.iter().filter_map(|arg| {
             let AbiArgKind::CopyToBufferOffset { .. } = &arg.kind else {
                 return None;
             };
             let values = format_ident!("__nc_{}_values", arg.ident);
-            Some(quote! { if let Err(status) = #values.finish() { return status; } })
+            Some(quote! { if let Err(status) = #values.finish() { #output_error; } })
         });
         let arg_names = method.args.iter().map(|arg| &arg.ident).collect::<Vec<_>>();
         let out_param = match &method.ok.kind {
@@ -373,7 +415,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 Ok(value) => {
                     // SAFETY: Non-void thunks checked `__nc_out` for null before the
                     // Rust method was called.
-                    let raw = match #nc::encode_inline(&value) { Ok(raw) => raw, Err(status) => return status };
+                    let raw = match #nc::encode_inline(&value) { Ok(raw) => raw, Err(status) => { #output_error } };
                     unsafe { *__nc_out = raw; }
                     #nc::NC_OK
                 }
@@ -434,6 +476,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     Ok(value) => value,
                     Err(status) => return status,
                 };
+                #(#owner_adoptions)*
                 let result = #invoke;
                 // Release the object-wide borrow before lowering an owned
                 // result into the caller's output slot.
@@ -444,7 +487,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     // Rust `Result::Err` must map to a negative ABI status.
                     // Normalizing here prevents an invalid `Err(success)` from
                     // making a safe caller read an unwritten out slot.
-                    Err(status) => status.normalize_error(),
+                    #error_arm
                 }
             }
         }
@@ -625,19 +668,77 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
     let method_ident = &method.ident;
     let args = method.args.iter().map(|arg| {
         let ident = &arg.ident;
-        match &arg.kind {
-            AbiArgKind::ComBox { interface_ty, mode_ty } => {
-                let mode = mode_ty.as_ref().map(|ty| quote! { #ty }).unwrap_or_else(|| quote! { #nc::ThreadLocal });
-                quote! { #ident: impl Into<#nc::ComBoxInput<'__nc_transfer, #interface_ty, #mode>> }
-            }
-            _ => { let ty = &arg.rust_ty; quote! { #ident: #ty } }
-        }
+        let ty = &arg.rust_ty;
+        quote! { #ident: #ty }
     });
-    // Only consuming methods need this call-scoped forwarding lifetime. The
-    // generated client accepts an owner directly or a provider's borrowed slot.
-    let transfer_lifetime = method.args.iter().any(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. }))
-        .then(|| quote! { <'__nc_transfer> });
-    let arg_preparations = method.args.iter().filter_map(|arg| safe_arg_preparation(nc, arg));
+    let owners = method.args.iter().filter(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. })).collect::<Vec<_>>();
+    let has_owners = !owners.is_empty();
+    let error_type = match has_owners {
+        false => quote! { #nc::NcStatus },
+        true => {
+            let types = owners.iter().map(|arg| &arg.rust_ty);
+            quote! { (#nc::NcStatus, #(#types),*) }
+        },
+    };
+    let owner_setup = owners.iter().map(|arg| {
+        let ident = &arg.ident;
+        let slot = owner_slot_ident(ident);
+        quote! {
+            // The wire slot carries the token during the call. This dormant
+            // wrapper is recovered only on rejection, never dropped on success.
+            let #ident = core::mem::ManuallyDrop::new(#ident);
+            let mut #slot = #ident.as_raw();
+        }
+    }).collect::<Vec<_>>();
+    let owner_checks = owners.iter().map(|arg| {
+        let ident = &arg.ident;
+        let slot = owner_slot_ident(ident);
+        quote! {
+            match status.is_ok() {
+                true => assert!(#slot.is_null(), "successful COM call did not consume its owner"),
+                false => assert!(#slot.object == #ident.as_raw().object && #slot.vtable == #ident.as_raw().vtable,
+                    "rejected COM call did not return its original owner"),
+            }
+        }
+    }).collect::<Vec<_>>();
+    let arg_preparations = method.args.iter().filter_map(|arg| safe_arg_preparation(nc, arg)).collect::<Vec<_>>();
+    let preparation = match has_owners {
+        false => quote! { #(#arg_preparations)* },
+        true => {
+            let prepared = method.args.iter().filter(|arg| matches!(arg.kind,
+                AbiArgKind::Plain | AbiArgKind::CopyFromBufferOffset { .. } | AbiArgKind::CopyToBufferOffset { .. }))
+                .map(|arg| &arg.ident).collect::<Vec<_>>();
+            let owner_names = owners.iter().map(|arg| &arg.ident);
+            quote! {
+                // Keep ordinary Rust owners during fallible encoding, including
+                // unwinding. Only the actual non-unwinding ABI call lends tokens.
+                let (#(mut #prepared,)*) = match (|| {
+                    #(#arg_preparations)*
+                    Ok::<_, #nc::NcStatus>((#(#prepared,)*))
+                })() {
+                    Ok(prepared) => prepared,
+                    Err(status) => return Err((status, #(#owner_names),*)),
+                };
+                #(#owner_setup)*
+            }
+        },
+    };
+    let rejection = match has_owners {
+        false => quote! { status },
+        true => {
+            let recover = owners.iter().map(|arg| {
+                let ident = &arg.ident;
+                quote! { core::mem::ManuallyDrop::into_inner(#ident) }
+            });
+            quote! { (status, #(#recover),*) }
+        },
+    };
+    // Malformed output after a successful ownership commit is a provider
+    // violation: the caller no longer has input owners to return as an error.
+    let acquire = match has_owners {
+        false => quote! { ? },
+        true => quote! { .expect("invalid output after COM ownership commit") },
+    };
     let arg_names = method.args.iter().flat_map(safe_vtable_call_args).collect::<Vec<_>>();
     let buffer_acquisition = method
         .args
@@ -647,83 +748,57 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
                 return None;
             };
             let ident = &arg.ident;
-            Some(quote! { #ident.finish()?; })
+            Some(quote! { #ident.finish() #acquire; })
         })
         .collect::<Vec<_>>();
     let rust_ret = &method.ok.rust_ty;
     let receiver = safe_receiver(method.receiver);
-    match &method.ok.kind {
-        AbiReturnKind::Void => quote! {
-            // Forwards the canonical safe client call to the raw status-only
-            // vtable slot.
-            fn #method_ident #transfer_lifetime (#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
-                #(#arg_preparations)*
-                let this = self.__nc_pointer.as_raw();
-                // SAFETY: The client view borrows a live interface reference.
-                // The raw vtable method receives pointers valid for this call
-                // and returns only an `NcStatus`.
-                let status = unsafe {
-                    ((*this.vtable).#method_ident)(
-                        this.object,
-                        #(#arg_names,)*
-                    )
-                };
-                if status.is_ok() {
-                    #(#buffer_acquisition)*
-                    Ok(())
-                } else {
-                    Err(status)
-                }
-            }
-        },
-        AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => {
+    // Output shape is the only return-specific part of a client call. Keep one
+    // admission, ownership handshake and error path for every method shape.
+    let (output_storage, output_argument, success) = match &method.ok.kind {
+        AbiReturnKind::Void => (quote! {}, quote! {}, quote! { () }),
+        kind => {
             let abi_ret = &method.ok.abi_ty;
-            let success_return = match &method.ok.kind {
+            let decode = match kind {
                 AbiReturnKind::Plain => quote! {
-                    // SAFETY: The raw method returned success, which is the
-                    // ABI contract that it initialized the out slot.
-                    unsafe { #nc::decode_inline::<#rust_ret>(__nc_out.assume_init()) }
+                    (unsafe { #nc::decode_inline::<#rust_ret>(__nc_out.assume_init()) }) #acquire
                 },
                 AbiReturnKind::ComPtr { .. } => quote! {
-                    // SAFETY: The raw method returned success, which is the
-                    // ABI contract that it initialized the out slot.
-                    let __nc_out = unsafe { __nc_out.assume_init() };
-                    // SAFETY: Successful COM pointer returns transfer one
-                    // owned reference to the caller.
-                    unsafe { <#rust_ret>::__nc_from_raw_owned_checked(__nc_out) }
+                    (unsafe { <#rust_ret>::__nc_from_raw_owned_checked(__nc_out.assume_init()) }) #acquire
                 },
                 AbiReturnKind::Void => unreachable!(),
             };
-            quote! {
-                // Uses a local output slot that is read only after ABI success.
-                fn #method_ident #transfer_lifetime (#receiver, #(#args),*) -> Result<#rust_ret, #nc::NcStatus> {
-                    #(#arg_preparations)*
-                    let mut __nc_out = core::mem::MaybeUninit::<#abi_ret>::uninit();
-                    let this = self.__nc_pointer.as_raw();
-                    // SAFETY: The client view borrows a live interface reference.
-                    // The out pointer targets local storage that remains valid
-                    // until the call returns.
-                    let status = unsafe {
-                        ((*this.vtable).#method_ident)(
-                            this.object,
-                            #(#arg_names,)*
-                            __nc_out.as_mut_ptr(),
-                        )
-                    };
-                    if status.is_ok() {
-                        // Acquire owned returns before buffer validation can fail,
-                        // so error unwinding releases any transferred COM reference.
-                        let result: Result<#rust_ret, #nc::NcStatus> = (|| { #success_return })();
-                        let result = result?;
-                        #(#buffer_acquisition)*
-                        Ok(result)
-                    } else {
-                        Err(status)
-                    }
-                }
-            }
+            (
+                quote! { let mut __nc_out = core::mem::MaybeUninit::<#abi_ret>::uninit(); },
+                quote! { __nc_out.as_mut_ptr(), },
+                decode,
+            )
+        },
+    };
+    let body = quote! {
+        #preparation
+        #output_storage
+        let this = self.__nc_pointer.as_raw();
+        // SAFETY: this view borrows retained interface storage. Prepared input
+        // buffers, owner slots and optional output storage remain live for the
+        // synchronous call. The provider validates its own object admission.
+        let status = unsafe {
+            ((*this.vtable).#method_ident)(this.object, #(#arg_names,)* #output_argument)
+        };
+        #(#owner_checks)*
+        if status.is_err() { return Err(#rejection); }
+        // ABI success promises initialized output. Acquire owned results before
+        // validating mutable buffers so a buffer error cannot leak that result.
+        let result = #success;
+        #(#buffer_acquisition)*
+        Ok(result)
+    };
+    quote! {
+        fn #method_ident (#receiver, #(#args),*) -> Result<#rust_ret, #error_type> {
+            #body
         }
     }
+
 }
 
 /// Emits the safe Rust receiver corresponding to one validated COM method.
@@ -934,10 +1009,7 @@ fn raw_vtable_arg_params(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
 /// Emits pre-call pointer/bounds extraction required by a safe wrapper argument.
 fn safe_arg_preparation(nc: &syn::Path, arg: &crate::model::AbiArg) -> Option<proc_macro2::TokenStream> {
     match &arg.kind {
-        AbiArgKind::ComBox { .. } => {
-            let ident = &arg.ident;
-            Some(quote! { let mut #ident = #ident.into(); })
-        },
+        AbiArgKind::ComBox { .. } => None,
         AbiArgKind::Plain => {
             let ident = &arg.ident;
             Some(quote! { let #ident = #nc::encode_inline(&#ident)?; })
@@ -958,7 +1030,7 @@ fn safe_arg_preparation(nc: &syn::Path, arg: &crate::model::AbiArg) -> Option<pr
 fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.ident;
     match &arg.kind {
-        AbiArgKind::ComBox { .. } => vec![quote! { #ident.as_mut_ptr() }],
+        AbiArgKind::ComBox { .. } => { let slot = owner_slot_ident(ident); vec![quote! { &mut #slot }] },
         AbiArgKind::BorrowedValue { .. } => vec![quote! { #ident.as_ptr() }],
         AbiArgKind::Plain => vec![quote! { #ident }],
         AbiArgKind::ComRef { optional: true, .. } => vec![quote! { #ident.map_or(::core::default::Default::default(), |value| value.as_raw()) }],
@@ -966,6 +1038,11 @@ fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
         AbiArgKind::CopyFromBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.len() }, quote! { #ident.as_ptr() }],
         AbiArgKind::CopyToBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.len() }, quote! { #ident.as_mut_ptr() }],
     }
+}
+
+/// Names private owner wire slots hygienically so user arguments cannot alias them.
+fn owner_slot_ident(ident: &syn::Ident) -> syn::Ident {
+    format_ident!("__nc_owner_slot_{ident}", span = proc_macro2::Span::mixed_site())
 }
 
 /// Builds the generated offset parameter name for a bounded buffer.

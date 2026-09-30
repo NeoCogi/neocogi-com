@@ -242,8 +242,8 @@ fn owners_and_cached_weak_handles_are_two_words() {
 #[com_interface(auto_guid = "nc.tests.exclusive.Container:v1", assigned_signature = b"00000000000000000000000000000902")]
 /// A real ABI container transfers the only owner and exposes only weak child access.
 trait IContainer {
-    /// Consumes its input on both success and failure, without cloning ownership.
-    fn insert(&mut self, child: neocogi_com::ComBoxInput<'_, IValueAbi, neocogi_com::ThreadSafe>, reject: bool) -> Result<(), NcStatus>;
+    /// Consumes its input on success and returns the same owner on failure.
+    fn insert(&mut self, child: neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>, reject: bool) -> Result<(), (NcStatus, neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>)>;
     /// Returns an observer while the container remains the sole owner.
     fn child(&self) -> Result<WeakComBox<IValueAbi, neocogi_com::ThreadSafe>, NcStatus>;
     /// Removes the child permanently; there is no detach or close operation.
@@ -257,11 +257,11 @@ struct Container {
 }
 impl IContainer for Container {
     /// Validation failure leaves the input for caller-side Drop after this call.
-    fn insert(&mut self, child: neocogi_com::ComBoxInput<'_, IValueAbi, neocogi_com::ThreadSafe>, reject: bool) -> Result<(), NcStatus> {
+    fn insert(&mut self, child: neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>, reject: bool) -> Result<(), (NcStatus, neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>)> {
         if reject {
-            return Err(NC_E_INVALID_ARG);
+            return Err((NC_E_INVALID_ARG, child));
         }
-        self.child = Some(child.take()?);
+        self.child = Some(child);
         Ok(())
     }
     /// Cached weak output crosses the same C ABI without a shared owner.
@@ -288,14 +288,21 @@ fn abi_container_transfer_and_removal_preserve_exclusive_ownership() {
     assert_eq!(weak.value(), Err(NC_E_CLOSED));
     let child = Value::into_box(value()).query::<IValueAbi>().unwrap();
     let rejected = child.downgrade();
-    assert_eq!(container.insert(child, true), Err(NC_E_INVALID_ARG));
+    let (status, child) = container.insert(child, true).unwrap_err();
+    assert_eq!(status, NC_E_INVALID_ARG);
+    assert_eq!(rejected.value(), Ok(42), "rejection returns a live owner");
+    container.insert(child, false).unwrap();
+    container.remove().unwrap();
     assert_eq!(rejected.value(), Err(NC_E_CLOSED));
     let child = Value::into_box(value()).query::<IValueAbi>().unwrap();
     let expired_call = child.downgrade();
     let mut expired_container = container.downgrade();
     drop(container);
-    assert_eq!(expired_container.insert(child, false), Err(NC_E_CLOSED));
-    assert_eq!(expired_call.value(), Err(NC_E_CLOSED), "expired receiver cannot leak a consumed child");
+    let (status, child) = expired_container.insert(child, false).unwrap_err();
+    assert_eq!(status, NC_E_CLOSED);
+    assert_eq!(expired_call.value(), Ok(42), "expired receiver returns an untouched input");
+    drop(child);
+    assert_eq!(expired_call.value(), Err(NC_E_CLOSED));
 }
 
 /// Raw malformed inputs fail before transfer and leave the caller's owner balanced.
@@ -311,8 +318,9 @@ fn raw_transfer_rejection_preserves_the_input_slot() {
     // Bool 2 is deliberately rejected by the checked codec, not read as Rust bool.
     unsafe {
         assert_eq!(((*target.vtable).insert)(target.object, &mut slot, 2), NC_E_INVALID_ARG);
-        // The thunk may have taken the owner before the later bool failed. The
-        // handshake makes either order explicit and never leaves two owners.
+        assert_eq!(slot.object, raw.object);
+        assert_eq!(slot.vtable, raw.vtable);
+        assert_eq!(weak.value(), Ok(42), "malformed later argument cannot consume input");
         drop(ComBox::<IValueAbi, neocogi_com::ThreadSafe>::from_raw_owned(slot));
     }
     assert_eq!(weak.value(), Err(NC_E_CLOSED));
@@ -344,4 +352,65 @@ fn local_box_observers_follow_owner_transfer_and_gate_conflicts() {
     assert_eq!(observer.with(|_| ()), Err(NC_E_CLOSED));
     assert_eq!(observer.with_mut(|_| ()), Err(NC_E_CLOSED));
     assert_eq!(borrowed.value(), Err(NC_E_CLOSED));
+}
+
+#[com_interface(auto_guid = "nc.tests.exclusive.Pair:v1", assigned_signature = b"00000000000000000000000000000903")]
+/// Two ownership inputs prove the ABI commits or returns the complete set.
+trait IPair {
+    /// A false choice deliberately returns a malformed nonnegative error status;
+    /// normalization must preserve both owners while reporting INVALID_ARG.
+    fn offer(&mut self, left: ComBox<IValueAbi, neocogi_com::ThreadSafe>, right: ComBox<IValueAbi, neocogi_com::ThreadSafe>, accept: bool)
+        -> Result<u32, (NcStatus, ComBox<IValueAbi, neocogi_com::ThreadSafe>, ComBox<IValueAbi, neocogi_com::ThreadSafe>)>;
+}
+#[com_object(IPair, ownership = exclusive)]
+/// Ordinary fields own accepted values; dispatch admission belongs to COM.
+struct Pair {
+    /// Both inputs commit together, or neither is retained.
+    values: Option<[ComBox<IValueAbi, neocogi_com::ThreadSafe>; 2]>,
+}
+impl IPair for Pair {
+    /// Match expresses the whole rejection/commit decision without transfer flags.
+    fn offer(&mut self, left: ComBox<IValueAbi, neocogi_com::ThreadSafe>, right: ComBox<IValueAbi, neocogi_com::ThreadSafe>, accept: bool)
+        -> Result<u32, (NcStatus, ComBox<IValueAbi, neocogi_com::ThreadSafe>, ComBox<IValueAbi, neocogi_com::ThreadSafe>)> {
+        match accept {
+            false => Err((neocogi_com::NC_OK, left, right)),
+            true => { self.values = Some([left, right]); Ok(2) },
+        }
+    }
+}
+
+/// Both rejection and receiver admission failure return both live original owners;
+/// a later successful call transfers them and writes its ordinary scalar output.
+#[test]
+fn multiple_owner_inputs_survive_rejection_busy_admission_and_retry() {
+    let mut local = Pair::into_local_box(Pair { values: None });
+    let mut pair = local.query::<IPairAbi>().unwrap();
+    let left = Value::into_box(value()).query::<IValueAbi>().unwrap();
+    let right = Value::into_box(value()).query::<IValueAbi>().unwrap();
+    let observed = [left.downgrade(), right.downgrade()];
+    let (status, left, right) = pair.offer(left, right, false).unwrap_err();
+    assert_eq!(status, NC_E_INVALID_ARG);
+    assert_eq!(left.as_raw().object, observed[0].as_raw().object);
+    assert_eq!(right.as_raw().object, observed[1].as_raw().object);
+    let guard = local.try_borrow_mut().unwrap();
+    let (status, left, right) = pair.offer(left, right, true).unwrap_err();
+    assert_eq!(status, NC_E_BUSY);
+    assert!(observed.iter().all(|weak| weak.value() == Ok(42)));
+    drop(guard);
+    assert_eq!(pair.offer(left, right, true).unwrap(), 2);
+    drop(local);
+    assert!(observed.iter().all(|weak| weak.value() == Err(NC_E_CLOSED)));
+}
+
+/// Failed consuming interface selection also returns the original allocation,
+/// so a convenience wrapper cannot accidentally discard a rejected ancestor.
+#[test]
+fn rejected_owner_query_returns_the_same_live_owner() {
+    let owner = Value::into_box(value()).query::<IValueAbi>().unwrap();
+    let weak = owner.downgrade();
+    let (status, owner) = owner.query::<IContainerAbi>().unwrap_err();
+    assert_eq!(status, neocogi_com::NC_E_NOINTERFACE);
+    assert_eq!(owner.value(), Ok(42));
+    drop(owner);
+    assert_eq!(weak.value(), Err(NC_E_CLOSED));
 }

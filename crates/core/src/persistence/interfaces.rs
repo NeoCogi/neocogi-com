@@ -133,15 +133,11 @@ impl<M: crate::ThreadingModel> IObjectChildrenClient<M> {
         let status = unsafe {
             ((*this.vtable).count)(this.object, __nc_out.as_mut_ptr())
         };
-        if status.is_ok() {
-            let result: Result<u32, crate::NcStatus> = (|| {
-                unsafe { crate::decode_inline::<u32>(__nc_out.assume_init()) }
-            })();
-            let result = result?;
-            Ok(result)
-        } else {
-            Err(status)
+        if status.is_err() {
+            return Err(status);
         }
+        let result = (unsafe { crate::decode_inline::<u32>(__nc_out.assume_init()) })?;
+        Ok(result)
     }
     /// Returns an owned reference; indices must be less than count.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:7:8`.
@@ -173,20 +169,15 @@ impl<M: crate::ThreadingModel> IObjectChildrenClient<M> {
         let status = unsafe {
             ((*this.vtable).get)(this.object, index, __nc_out.as_mut_ptr())
         };
-        if status.is_ok() {
-            let result: Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> = (|| {
-                let __nc_out = unsafe { __nc_out.assume_init() };
-                unsafe {
-                    <crate::ComPtr<
-                        crate::IUnknown,
-                    >>::__nc_from_raw_owned_checked(__nc_out)
-                }
-            })();
-            let result = result?;
-            Ok(result)
-        } else {
-            Err(status)
+        if status.is_err() {
+            return Err(status);
         }
+        let result = (unsafe {
+            <crate::ComPtr<
+                crate::IUnknown,
+            >>::__nc_from_raw_owned_checked(__nc_out.assume_init())
+        })?;
+        Ok(result)
     }
 }
 impl IObjectChildrenAbi {
@@ -437,15 +428,13 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
         let status = unsafe {
             ((*this.vtable).type_id)(this.object, __nc_out.as_mut_ptr())
         };
-        if status.is_ok() {
-            let result: Result<crate::NcGuid, crate::NcStatus> = (|| {
-                unsafe { crate::decode_inline::<crate::NcGuid>(__nc_out.assume_init()) }
-            })();
-            let result = result?;
-            Ok(result)
-        } else {
-            Err(status)
+        if status.is_err() {
+            return Err(status);
         }
+        let result = (unsafe {
+            crate::decode_inline::<crate::NcGuid>(__nc_out.assume_init())
+        })?;
+        Ok(result)
     }
     /// Identifies the persistent initialization schema, independently of COM ABI.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8`.
@@ -468,15 +457,11 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
         let status = unsafe {
             ((*this.vtable).schema_version)(this.object, __nc_out.as_mut_ptr())
         };
-        if status.is_ok() {
-            let result: Result<u32, crate::NcStatus> = (|| {
-                unsafe { crate::decode_inline::<u32>(__nc_out.assume_init()) }
-            })();
-            let result = result?;
-            Ok(result)
-        } else {
-            Err(status)
+        if status.is_err() {
+            return Err(status);
         }
+        let result = (unsafe { crate::decode_inline::<u32>(__nc_out.assume_init()) })?;
+        Ok(result)
     }
     /// Exports initialization data only: no receivers, runtime pointers or caches.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8`.
@@ -503,20 +488,15 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
         let status = unsafe {
             ((*this.vtable).save_state)(this.object, __nc_out.as_mut_ptr())
         };
-        if status.is_ok() {
-            let result: Result<crate::ComPtr<crate::INcBytesAbi>, crate::NcStatus> = (|| {
-                let __nc_out = unsafe { __nc_out.assume_init() };
-                unsafe {
-                    <crate::ComPtr<
-                        crate::INcBytesAbi,
-                    >>::__nc_from_raw_owned_checked(__nc_out)
-                }
-            })();
-            let result = result?;
-            Ok(result)
-        } else {
-            Err(status)
+        if status.is_err() {
+            return Err(status);
         }
+        let result = (unsafe {
+            <crate::ComPtr<
+                crate::INcBytesAbi,
+            >>::__nc_from_raw_owned_checked(__nc_out.assume_init())
+        })?;
+        Ok(result)
     }
     /// Returns the number of owned persistent children; parent links are excluded.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8`.
@@ -539,15 +519,11 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
         let status = unsafe {
             ((*this.vtable).child_count)(this.object, __nc_out.as_mut_ptr())
         };
-        if status.is_ok() {
-            let result: Result<u32, crate::NcStatus> = (|| {
-                unsafe { crate::decode_inline::<u32>(__nc_out.assume_init()) }
-            })();
-            let result = result?;
-            Ok(result)
-        } else {
-            Err(status)
+        if status.is_err() {
+            return Err(status);
         }
+        let result = (unsafe { crate::decode_inline::<u32>(__nc_out.assume_init()) })?;
+        Ok(result)
     }
     /// Returns one child in the order described by the parent's initialization.
     /// IDL source: `neocogi/com/persistence/objects.ncidl:22:8`.
@@ -579,20 +555,15 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
         let status = unsafe {
             ((*this.vtable).child)(this.object, index, __nc_out.as_mut_ptr())
         };
-        if status.is_ok() {
-            let result: Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> = (|| {
-                let __nc_out = unsafe { __nc_out.assume_init() };
-                unsafe {
-                    <crate::ComPtr<
-                        crate::IUnknown,
-                    >>::__nc_from_raw_owned_checked(__nc_out)
-                }
-            })();
-            let result = result?;
-            Ok(result)
-        } else {
-            Err(status)
+        if status.is_err() {
+            return Err(status);
         }
+        let result = (unsafe {
+            <crate::ComPtr<
+                crate::IUnknown,
+            >>::__nc_from_raw_owned_checked(__nc_out.assume_init())
+        })?;
+        Ok(result)
     }
 }
 impl IPersistableAbi {
@@ -892,7 +863,11 @@ impl<M: crate::ThreadingModel> IPersistenceFactoryClient<M> {
                 child_count,
             )
         };
-        if status.is_ok() { Ok(()) } else { Err(status) }
+        if status.is_err() {
+            return Err(status);
+        }
+        let result = ();
+        Ok(result)
     }
     /// Returns a fully initialized object; every child is already constructed.
     /// Failure must release resources acquired by this call and publish no root.
@@ -946,20 +921,15 @@ impl<M: crate::ThreadingModel> IPersistenceFactoryClient<M> {
                 __nc_out.as_mut_ptr(),
             )
         };
-        if status.is_ok() {
-            let result: Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> = (|| {
-                let __nc_out = unsafe { __nc_out.assume_init() };
-                unsafe {
-                    <crate::ComPtr<
-                        crate::IUnknown,
-                    >>::__nc_from_raw_owned_checked(__nc_out)
-                }
-            })();
-            let result = result?;
-            Ok(result)
-        } else {
-            Err(status)
+        if status.is_err() {
+            return Err(status);
         }
+        let result = (unsafe {
+            <crate::ComPtr<
+                crate::IUnknown,
+            >>::__nc_from_raw_owned_checked(__nc_out.assume_init())
+        })?;
+        Ok(result)
     }
 }
 impl IPersistenceFactoryAbi {

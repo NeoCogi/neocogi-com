@@ -28,7 +28,7 @@ fn parse_abi_method(method: &TraitItemFn, nc: &syn::Path) -> Result<AbiMethod> {
             Vec::new()
         }
     };
-    let ok = match parse_result_ok_type(method).and_then(|ty| lower_abi_return(ty, nc)) {
+    let ok = match parse_result_ok_type(method, &args).and_then(|ty| lower_abi_return(ty, nc)) {
         Ok(ok) => ok,
         Err(err) => {
             push_error(&mut errors, err);
@@ -169,8 +169,8 @@ fn parse_abi_args(method: &TraitItemFn, nc: &syn::Path) -> Result<Vec<AbiArg>> {
     if let Some(errors) = errors { Err(errors) } else { Ok(args) }
 }
 
-/// Extracts `T` from the required `Result<T, NcStatus>` return shape.
-fn parse_result_ok_type(method: &TraitItemFn) -> Result<Type> {
+/// Validates the status/returned-owner error contract and extracts the success type.
+fn parse_result_ok_type(method: &TraitItemFn, inputs: &[AbiArg]) -> Result<Type> {
     // `Result<T, NcStatus>` lowers to an ABI status plus either an out pointer
     // for non-void success values or no out pointer for `Result<(), NcStatus>`.
     // Validate the complete shape before generation so unsupported signatures
@@ -225,8 +225,17 @@ fn parse_result_ok_type(method: &TraitItemFn) -> Result<Type> {
             return Err(syn::Error::new_spanned(arg, "COM method error type must be `neocogi_com::NcStatus`"));
         }
     };
-    if !is_nc_status_type(err) {
-        return Err(syn::Error::new_spanned(err, "COM method error type must be `neocogi_com::NcStatus`"));
+    // Rejecting an owning input must return it, in parameter order. The Rust
+    // error tuple never crosses the ABI; generated code restores the raw slots.
+    let owners = inputs.iter().filter(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. })).collect::<Vec<_>>();
+    match (owners.is_empty(), err) {
+        (true, ty) if is_nc_status_type(ty) => {},
+        (false, Type::Tuple(tuple)) if tuple.elems.len() == owners.len() + 1
+            && is_nc_status_type(&tuple.elems[0])
+            && owners.iter().zip(tuple.elems.iter().skip(1)).all(|(owner, ty)| owner.rust_ty == *ty) => {},
+        (true, _) => return Err(syn::Error::new_spanned(err, "COM method error type must be `neocogi_com::NcStatus`")),
+        (false, _) => return Err(syn::Error::new_spanned(err,
+            "owning COM inputs require `(NcStatus, owner1, owner2, ...)` errors with the original ComBox types in parameter order")),
     }
 
     Ok(ok)
@@ -234,7 +243,7 @@ fn parse_result_ok_type(method: &TraitItemFn) -> Result<Type> {
 
 /// Selects the raw parameter type and ownership rule for one Rust argument.
 fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
-    if let Some(owner) = parse_borrowed_interface_type(&ty, "ComBoxInput")? {
+    if let Some(owner) = parse_owned_interface_type(&ty, "ComBox")? {
         let interface = &owner.interface_ty;
         let abi = syn::parse_quote! { *mut #nc::ComRaw<#interface> };
         return Ok((ty, abi, AbiArgKind::ComBox { interface_ty: Box::new(owner.interface_ty), mode_ty: owner.mode_ty.map(Box::new) }));
@@ -470,19 +479,19 @@ fn parse_owned_interface_type(ty: &Type, name: &str) -> Result<Option<ComPtrType
     if !(generic_args.len() == 1 || generic_args.len() == 2) {
         return Err(syn::Error::new_spanned(
             args,
-            "`ComPtr` parameters must be `ComPtr<InterfaceAbi>` or `ComPtr<InterfaceAbi, ThreadingMode>`",
+            format!("`{name}` parameters must be `{name}<InterfaceAbi>` or `{name}<InterfaceAbi, ThreadingMode>`"),
         ));
     }
     let interface_ty = match generic_args[0] {
         syn::GenericArgument::Type(ty) => ty.clone(),
         arg => {
-            return Err(syn::Error::new_spanned(arg, "`ComPtr` interface parameter must be a type"));
+            return Err(syn::Error::new_spanned(arg, format!("`{name}` interface parameter must be a type")));
         }
     };
     let mode_ty = match generic_args.get(1) {
         Some(syn::GenericArgument::Type(ty)) => Some((*ty).clone()),
         Some(arg) => {
-            return Err(syn::Error::new_spanned(arg, "`ComPtr` threading mode parameter must be a type"));
+            return Err(syn::Error::new_spanned(arg, format!("`{name}` threading mode parameter must be a type")));
         }
         None => None,
     };
@@ -557,7 +566,7 @@ fn raw_vtable_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.ident;
     match &arg.kind {
         AbiArgKind::ComBox { .. } => vec![quote! {
-            #[doc = concat!("- `", stringify!(#ident), "` transfers one exclusive owner. The raw caller supplies a writable owner slot; the receiver clears it when taking ownership. The caller releases an unconsumed slot on every return path.")]
+            #[doc = concat!("- `", stringify!(#ident), "` transfers one exclusive owner. Success clears the writable owner slot. Every error restores the original owner unchanged; the caller decides whether to retry or destroy it. Providers must finish all fallible preparation before committing ownership.")]
         }],
         AbiArgKind::BorrowedValue { .. } => vec![quote! {
             #[doc = concat!("- `", stringify!(#ident), "` borrows its exact generated message representation; the receiver acquires owned fields before retaining data.")]
@@ -647,7 +656,7 @@ fn safe_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.ident;
     match &arg.kind {
         AbiArgKind::ComBox { .. } => vec![quote! {
-            #[doc = concat!("- `", stringify!(#ident), "` transfers one exclusive owner. The raw caller supplies a writable owner slot; the receiver clears it when taking ownership. The caller releases an unconsumed slot on every return path.")]
+            #[doc = concat!("- `", stringify!(#ident), "` transfers one exclusive owner. Success clears the writable owner slot. Every error restores the original owner unchanged; the caller decides whether to retry or destroy it. Providers must finish all fallible preparation before committing ownership.")]
         }],
         AbiArgKind::BorrowedValue { .. } => vec![quote! {
             #[doc = concat!("- `", stringify!(#ident), "` borrows its exact generated message representation; the receiver acquires owned fields before retaining data.")]

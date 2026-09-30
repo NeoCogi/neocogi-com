@@ -44,8 +44,9 @@ pub(crate) struct AbiArg {
 
 /// Ownership/passing rule selected for a method parameter.
 pub(crate) enum AbiArgKind {
-    /// Unique owner offered through a mutable slot; the receiver clears it when
-    /// taking ownership, so all pre-dispatch rejection paths remain leak-free.
+    /// Unique owner passed through a writable C slot. Success consumes it;
+    /// every rejection restores the original owner, including provider errors.
+    /// The Rust signature exposes ComBox and an ownership-bearing error tuple.
     ComBox {
         /// Exact generated interface transferred into the receiving object.
         interface_ty: Box<Type>,

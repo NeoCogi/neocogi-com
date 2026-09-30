@@ -493,7 +493,7 @@ mod runtime;
 mod tests;
 
 pub use neocogi_com_core::lifetime;
-pub use neocogi_com_core::{ComBox, WeakComBox, ComBoxInput};
+pub use neocogi_com_core::{ComBox, WeakComBox};
 pub use neocogi_com_core::{NcCopyFromBufferOffset, NcCopyToBufferOffset, WeakComPtr, NcWeakRaw};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};

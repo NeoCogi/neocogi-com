@@ -76,6 +76,22 @@ unsafe fn observe_projection<T: ComInterface, M: ThreadingModel>(
 }
 
 impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
+    /// Checks an incoming owner slot without acquiring or destroying its token.
+    /// Generated thunks validate every argument and the receiver before adopting
+    /// owners. A rejected call therefore leaves all caller slots unchanged.
+    ///
+    /// # Safety
+    /// `slot` is writable, properly aligned call-scoped storage containing the
+    /// sole live owner, with the provider's threading guarantee M. Its object
+    /// and table must satisfy the common COM header's readable-storage contract.
+    #[doc(hidden)]
+    pub unsafe fn __nc_validate_raw_input(slot: *mut ComRaw<T>) -> Result<(), NcStatus> {
+        let raw = unsafe { slot.as_ref() }.ok_or(NC_E_POINTER)?;
+        unsafe { crate::raw::validate_interface(*raw) }?;
+        unsafe { box_projection(raw.object.cast(), &T::INTERFACE_ID) }?;
+        Ok(())
+    }
+
     /// Adopts the sole owner transferred by an exclusive provider.
     ///
     /// # Safety
@@ -135,9 +151,14 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     }
 
     /// Selects an interface by moving, rather than duplicating, the sole owner.
-    /// Failure drops the consumed owner, matching other consuming conversions.
-    pub fn query<U: ComInterface>(self) -> Result<ComBox<U, M>, NcStatus> {
-        let table = unsafe { box_projection(self.as_raw().object.cast(), &U::INTERFACE_ID) }?;
+    /// Failure returns the unchanged owner. Interface selection is not authority
+    /// to destroy an object that the caller may still need (including an ancestor
+    /// of an active receiver); the caller decides whether to retry or drop it.
+    pub fn query<U: ComInterface>(self) -> Result<ComBox<U, M>, (NcStatus, Self)> {
+        let table = match unsafe { box_projection(self.as_raw().object.cast(), &U::INTERFACE_ID) } {
+            Ok(table) => table,
+            Err(status) => return Err((status, self)),
+        };
         let raw = self.into_raw();
         // SAFETY: lookup validated U and the unchanged allocation transfers its owner.
         Ok(unsafe { ComBox::from_raw_owned(ComRaw { object: raw.object, vtable: table.cast() }) }.expect("present owner"))
@@ -284,89 +305,6 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> core::fmt::Debug for WeakComBo
     /// Prints stable identity even when the owning container has disappeared.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_tuple("WeakComBox").field(&self.as_raw().object).finish()
-    }
-}
-
-/// One unique owner offered for transfer through a synchronous ABI call.
-///
-/// The client owns its slot until the receiver explicitly calls `take` after
-/// validation. Forwarding reborrows that same slot; rejection returns to the
-/// original client, which destroys the unaccepted value after provider calls
-/// have returned. This prevents a rejected ancestor from destroying a receiver
-/// inside its own method. No Rust enum layout crosses COM: only a pointer to
-/// the existing C-shaped object/table slot is passed.
-pub struct ComBoxInput<'a, T: ComInterface, M: ThreadingModel = ThreadLocal> {
-    /// Local owner or exclusive borrow of the original caller's transfer slot.
-    source: BoxInputSource<'a, T>,
-    /// Retains the original owner's thread-affinity restrictions.
-    mode: PhantomData<M>,
-}
-
-/// Local transfer position, never a wire representation or second owning token.
-enum BoxInputSource<'a, T: ComInterface> {
-    /// Client-created slot, destroyed here if the receiver leaves it unconsumed.
-    Owned(ComRaw<T>),
-    /// Provider-side borrow; the original client still owns any unconsumed value.
-    Borrowed(&'a mut ComRaw<T>),
-}
-impl<'a, T: ComInterface, M: ThreadingModel> ComBoxInput<'a, T, M> {
-    /// Offers an owner without publishing any additional ownership reference.
-    pub fn new(owner: ComBox<T, M>) -> Self {
-        Self { source: BoxInputSource::Owned(owner.into_raw()), mode: PhantomData }
-    }
-
-    /// Validates the wire slot without taking the owner's value.
-    ///
-    /// # Safety
-    /// `slot` is exclusively borrowed for 'a and contains a retained owner with
-    /// exact T identity, matching allocation protocol and threading promise M.
-    #[doc(hidden)]
-    pub unsafe fn from_raw_input(slot: *mut ComRaw<T>) -> Result<Self, NcStatus> {
-        let slot = unsafe { slot.as_mut() }.ok_or(NC_E_POINTER)?;
-        unsafe { crate::raw::validate_interface(*slot) }?;
-        unsafe { box_projection(slot.object.cast(), &T::INTERFACE_ID) }?;
-        Ok(Self { source: BoxInputSource::Borrowed(slot), mode: PhantomData })
-    }
-
-    /// Reads the sole slot without changing ownership or extending its lifetime.
-    fn raw(&self) -> ComRaw<T> {
-        match &self.source { BoxInputSource::Owned(raw) => *raw, BoxInputSource::Borrowed(raw) => **raw }
-    }
-
-    /// Lends a typed interface for validation before committing ownership.
-    pub fn as_com_ref(&self) -> ComRef<'_, T, M> {
-        // SAFETY: the unique input slot retains its owner until take; its lender
-        // cannot concurrently move the owner while this input borrow is active.
-        unsafe { ComRef::from_raw_borrowed(self.raw()) }.expect("unconsumed input owner")
-    }
-
-    /// Lends the same writable C slot to a nested ABI call. No intermediate
-    /// provider becomes an owner merely because it forwards the argument.
-    pub fn as_mut_ptr(&mut self) -> *mut ComRaw<T> {
-        match &mut self.source { BoxInputSource::Owned(raw) => raw, BoxInputSource::Borrowed(raw) => *raw }
-    }
-
-    /// Commits ownership exactly once after all rejection checks have succeeded.
-    /// Consuming self makes a second take impossible through safe Rust.
-    pub fn take(mut self) -> Result<ComBox<T, M>, NcStatus> {
-        let raw = unsafe { core::mem::replace(&mut *self.as_mut_ptr(), ComRaw::null()) };
-        // SAFETY: this slot transferred its sole token, or was already consumed
-        // by a forwarded call; the latter is reported as an absent input.
-        unsafe { ComBox::from_raw_owned(raw) }.ok_or(NC_E_POINTER)
-    }
-}
-impl<'a, T: ComInterface, M: ThreadingModel> From<ComBox<T, M>> for ComBoxInput<'a, T, M> {
-    /// Lets generated clients accept an ordinary owner or forward an existing input.
-    fn from(owner: ComBox<T, M>) -> Self { Self::new(owner) }
-}
-impl<T: ComInterface, M: ThreadingModel> Drop for ComBoxInput<'_, T, M> {
-    /// Only the original client destroys rejected input, after the receiver returns.
-    fn drop(&mut self) {
-        if let BoxInputSource::Owned(raw) = &mut self.source {
-            let raw = core::mem::replace(raw, ComRaw::null());
-            // SAFETY: a present client slot owns exactly one remaining token.
-            drop(unsafe { ComBox::<T, M>::from_raw_owned(raw) });
-        }
     }
 }
 

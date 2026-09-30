@@ -721,8 +721,18 @@ fn callable_methods(graph: &Generation<'_>, module: &ResolvedModule, values: &[C
                         })
                         .collect::<Result<Vec<_>, GenerateError>>()?;
                     let output = output_type(graph, module, &method.output)?;
+                    // Owning arguments are transactional: failure returns the
+                    // original owners in declaration order, through ordinary Rust
+                    // values. Only the status and restored C slots cross COM.
+                    let owners = method.parameters.iter().filter(|parameter| matches!(parameter.ty, AbiType::ComBox(_)))
+                        .map(|parameter| parameter_type(graph, module, &parameter.ty))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let error = match owners.is_empty() {
+                        true => quote! { ::neocogi_com::NcStatus },
+                        false => quote! { (::neocogi_com::NcStatus, #(#owners),*) },
+                    };
                     quote! {
-                        #docs fn #name(#receiver, #(#parameters),*) -> Result<#output, ::neocogi_com::NcStatus>;
+                        #docs fn #name(#receiver, #(#parameters),*) -> Result<#output, #error>;
                     }
                 }
             })
@@ -788,17 +798,7 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
             let element = value_type(graph, module, element)?;
             Ok(quote! { ::neocogi_com::NcCopyToBufferOffset<'_, #element> })
         }
-        AbiType::ComBox(value) => {
-            // Providers validate through a borrowed transfer slot before taking
-            // ownership. Client methods still accept ComBox directly.
-            let owned = box_reference_type(graph, module, value, false)?;
-            let mut ty: syn::TypePath = syn::parse2(owned).map_err(|error| GenerateError::new(error.to_string()))?;
-            let segment = ty.path.segments.last_mut().expect("generated owner wrapper");
-            segment.ident = syn::Ident::new("ComBoxInput", segment.ident.span());
-            let syn::PathArguments::AngleBracketed(arguments) = &mut segment.arguments else { unreachable!() };
-            arguments.args.insert(0, syn::parse_quote! { '_ });
-            Ok(quote! { #ty })
-        },
+        AbiType::ComBox(value) => box_reference_type(graph, module, value, false),
         AbiType::WeakComBox(_) | AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => Err(GenerateError::new(
             "unit, owned collections/text, and unborrowed slices are not valid method inputs",
         )),

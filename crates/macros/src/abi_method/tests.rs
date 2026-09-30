@@ -40,7 +40,7 @@ fn anonymous_lifetimes_keep_each_wrappers_lowering() {
 /// Named lifetimes cannot promise that the receiver's borrow outlives the ABI call.
 #[test]
 fn all_borrowed_wrappers_reject_static_and_named_lifetimes() {
-    for wrapper in ["NcValueRef", "ComRef", "ComBoxInput", "NcCopyFromBufferOffset", "NcCopyToBufferOffset"] {
+    for wrapper in ["NcValueRef", "ComRef", "NcCopyFromBufferOffset", "NcCopyToBufferOffset"] {
         for lifetime in ["'static", "'borrowed"] {
             for prefix in ["", "neocogi_com::"] {
                 rejects(&format!("{prefix}{wrapper}<{lifetime}, u32>"), "must use `'_`");
@@ -83,11 +83,30 @@ fn interface_borrow_options_do_not_bypass_lifetime_validation() {
     rejects("ComRef<'_, IObjectAbi, 3>", "threading mode parameter must be a type");
 }
 
-/// Transfer slots share the same anonymous-lifetime policy as every other borrow.
+/// Owning inputs carry their interface and threading mode without a borrowed wrapper.
 #[test]
-fn transfer_inputs_are_scoped_and_keep_their_threading_mode() {
-    assert!(matches!(lower("ComBoxInput<'_, IObjectAbi>"), Ok(AbiArgKind::ComBox { .. })));
-    assert!(matches!(lower("ComBoxInput<'_, IObjectAbi, ThreadSafe>"), Ok(AbiArgKind::ComBox { mode_ty: Some(_), .. })));
-    rejects("ComBoxInput<IObjectAbi>", "parameters must be");
-    rejects("ComBoxInput<'_, IObjectAbi, ThreadSafe, Extra>", "parameters must be");
+fn owning_inputs_keep_their_threading_mode() {
+    assert!(matches!(lower("ComBox<IObjectAbi>"), Ok(AbiArgKind::ComBox { .. })));
+    assert!(matches!(lower("ComBox<IObjectAbi, ThreadSafe>"), Ok(AbiArgKind::ComBox { mode_ty: Some(_), .. })));
+
+}
+
+/// Rejection is an ownership operation, not just a status: require every input
+/// in its declared order, including mode and concrete interface arguments.
+#[test]
+fn owning_methods_require_complete_ordered_error_tuples() {
+    let nc = syn::parse_quote!(::neocogi_com);
+    for signature in [
+        "fn put(&mut self, item: ComBox<IObjectAbi>) -> Result<(), NcStatus>;",
+        "fn put(&mut self, a: ComBox<IA>, b: ComBox<IB>) -> Result<(), (NcStatus, ComBox<IB>, ComBox<IA>)>;",
+        "fn put(&mut self, a: ComBox<IA, ThreadSafe>) -> Result<(), (NcStatus, ComBox<IA>)>;",
+    ] {
+        let method = syn::parse_str::<syn::TraitItemFn>(signature).unwrap();
+        let error = super::parse_abi_method(&method, &nc).err().expect("incomplete owner return must fail");
+        assert!(error.to_string().contains("original ComBox types"), "{error}");
+    }
+    let method = syn::parse_str::<syn::TraitItemFn>(
+        "fn put(&mut self, a: ComBox<IA>, b: ComBox<IB, ThreadSafe>) -> Result<u32, (NcStatus, ComBox<IA>, ComBox<IB, ThreadSafe>)>;"
+    ).unwrap();
+    assert!(super::parse_abi_method(&method, &nc).is_ok());
 }
