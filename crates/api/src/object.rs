@@ -66,9 +66,23 @@ pub struct __ComSharedLease<'a, T> {
     value: &'a T,
     /// Reader slot whose destructor releases the shared gate acquisition.
     _call: SharedCall<'a>,
+    /// Execution protection outlives the gate and all references to the value.
+    _lifetime: Option<crate::lifetime::BoxCall>,
 }
 
 impl<'a, T> __ComSharedLease<'a, T> {
+    /// Acquires lifetime protection before the implementation borrow gate.
+    ///
+    /// # Safety
+    /// `control`, `gate`, and `value` belong to the same generated allocation.
+    /// The header must be retained by an owner, weak token, or outer call.
+    pub unsafe fn acquire_abi(control: *mut crate::lifetime::NcWeakControl, gate: &'a __ComCallGate, value: *const T) -> Result<Self, NcStatus> {
+        let lifetime = unsafe { crate::lifetime::BoxCall::enter(control) }?;
+        let mut lease = unsafe { Self::acquire(gate, value) }?;
+        lease._lifetime = Some(lifetime);
+        Ok(lease)
+    }
+
     /// Acquires shared access to `value` through `gate`.
     ///
     /// # Safety
@@ -84,7 +98,7 @@ impl<'a, T> __ComSharedLease<'a, T> {
         // SAFETY: The caller guarantees a live initialized value protected by
         // this exact gate, and the acquired reader slot excludes mutable calls.
         let value = unsafe { &*value };
-        Ok(Self { value, _call: call })
+        Ok(Self { value, _call: call, _lifetime: None })
     }
 }
 
@@ -107,9 +121,23 @@ pub struct __ComExclusiveLease<'a, T> {
     value: &'a mut T,
     /// Writer slot whose destructor restores the gate to its idle state.
     _call: ExclusiveCall<'a>,
+    /// Execution protection outlives the gate and all references to the value.
+    _lifetime: Option<crate::lifetime::BoxCall>,
 }
 
 impl<'a, T> __ComExclusiveLease<'a, T> {
+    /// Acquires lifetime protection before the implementation borrow gate.
+    ///
+    /// # Safety
+    /// `control`, `gate`, and `value` belong to the same generated allocation.
+    /// The header must be retained by an owner, weak token, or outer call.
+    pub unsafe fn acquire_abi(control: *mut crate::lifetime::NcWeakControl, gate: &'a __ComCallGate, value: *mut T) -> Result<Self, NcStatus> {
+        let lifetime = unsafe { crate::lifetime::BoxCall::enter(control) }?;
+        let mut lease = unsafe { Self::acquire(gate, value) }?;
+        lease._lifetime = Some(lifetime);
+        Ok(lease)
+    }
+
     /// Acquires exclusive access to `value` through `gate`.
     ///
     /// # Safety
@@ -125,7 +153,7 @@ impl<'a, T> __ComExclusiveLease<'a, T> {
         // SAFETY: The caller guarantees a live initialized value protected by
         // this exact gate, and the acquired writer slot excludes every other call.
         let value = unsafe { &mut *value };
-        Ok(Self { value, _call: call })
+        Ok(Self { value, _call: call, _lifetime: None })
     }
 }
 

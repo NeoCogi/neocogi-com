@@ -45,6 +45,8 @@ mod metadata;
 mod object;
 pub mod persistence;
 mod ptr;
+mod boxed;
+pub use boxed::{ComBox, WeakComBox, BoxBorrow};
 #[path = "raw.rs"]
 mod raw_handle;
 mod ref_count;

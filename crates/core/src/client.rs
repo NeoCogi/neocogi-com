@@ -30,7 +30,9 @@ pub unsafe trait ComClientInterface: ComInterface + Sized {
 /// Pointer storage for generated, non-owning method views.
 ///
 /// This type has no public constructor, Clone, Copy, or ownership conversion.
-/// Only a reference tied to a live ComPtr/ComRef is exposed. Its raw pair may
+/// A view is tied to a live owner/borrow or a retained exclusive weak token.
+/// Exclusive providers must acquire lifetime protection at every ABI entry before
+/// accessing their value; expiration returns NC_E_CLOSED. Its raw pair may
 /// address an inherited prefix whose actual projected identity remains derived;
 /// such a pointer must not be adopted as a base COM reference by a cast.
 #[repr(transparent)]

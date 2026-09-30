@@ -19,13 +19,12 @@ pub const IID_IUNKNOWN: NcGuid = NcGuid::from_fields(0x0000_0000, 0x0000, 0x0000
 /// Reserved normative qualified name for [`IUnknown`].
 pub const IUNKNOWN_QUALIFIED_NAME: &str = "IUnknown";
 
-/// SHA-256 of `neocogi-com:core-abi:v12\0` followed by the preceding v11 digest.
+/// SHA-256 of `neocogi-com:core-abi:v13\0` followed by the preceding v12 digest.
 /// Precomputed signature for the built-in [`IUnknown`] contract.
 ///
 /// Built-ins have no IDL build script, so this checked-in constant plays the
 /// same role as the byte string emitted by `neocogi` for ordinary contracts.
-static IUNKNOWN_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [
-    134, 43, 147, 32, 179, 72, 138, 26, 116, 35, 235, 168, 178, 109, 164, 252, 230, 251, 136, 39, 129, 49, 176, 117, 6, 52, 42, 171, 28, 53, 45, 14,
+static IUNKNOWN_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [181, 50, 219, 153, 62, 84, 255, 28, 31, 250, 148, 143, 113, 131, 100, 26, 106, 80, 251, 161, 61, 196, 32, 29, 213, 33, 142, 40, 248, 57, 135, 207,
 ];
 
 /// Canonical ABI validation contract for [`IUnknown`].
@@ -61,13 +60,14 @@ pub struct IUnknownVTable {
     /// defensively.
     pub query_interface: unsafe extern "C" fn(this: *mut c_void, interface_id: *const NcInterfaceId, out: *mut crate::ComRaw<IUnknown>) -> NcStatus,
 
-    /// Increments the object's reference count and returns the new count.
+    /// Retains shared ownership and returns the new count. Exclusive objects
+    /// return zero without acquiring ownership; callers must check rejection.
     ///
     /// # Safety
     ///
     /// `this` must be the live allocation address paired with this table. The caller only needs a
     /// borrowed reference for the duration of the call; success creates one new
-    /// owned reference.
+    /// owned reference only when the returned count is nonzero.
     pub add_ref: unsafe extern "C" fn(this: *mut c_void) -> u32,
 
     /// Decrements the object's reference count and returns the remaining count.

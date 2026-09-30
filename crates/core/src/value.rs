@@ -596,7 +596,7 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
         budget.value(|_| {
             // SAFETY: raw callers provide a live common lifecycle pair; this operation
             // checks identity before acquiring a separately owned reference.
-            Ok(unsafe { crate::ComRef::<T, M>::__nc_from_raw_borrowed_checked(wire) }?.add_ref())
+            unsafe { crate::ComRef::<T, M>::__nc_from_raw_borrowed_checked(wire) }?.try_add_ref()
         })
     }
 }

@@ -114,7 +114,7 @@ mod sealed {
 /// NonNull preserves the two-word niche for Option<ComPtr>, unlike storing the
 /// nullable C record directly. Its repr(C) fields match ComRaw for borrowed clients.
 #[repr(C)]
-struct LiveInterface<T: ComInterface + ?Sized> {
+pub(crate) struct LiveInterface<T: ComInterface + ?Sized> {
     /// Allocation retained or borrowed by the enclosing safe handle.
     object: core::ptr::NonNull<core::ffi::c_void>,
     /// Matching immutable selected method table.
@@ -129,14 +129,14 @@ impl<T: ComInterface + ?Sized> Clone for LiveInterface<T> {
 }
 impl<T: ComInterface + ?Sized> LiveInterface<T> {
     /// Checks both pointers without reading foreign storage or proving identity.
-    fn new(raw: ComRaw<T>) -> Option<Self> {
+    pub(crate) fn new(raw: ComRaw<T>) -> Option<Self> {
         Some(Self {
             object: core::ptr::NonNull::new(raw.object)?,
             vtable: core::ptr::NonNull::new(raw.vtable.cast_mut())?,
         })
     }
     /// Borrows a C record without transferring a reference.
-    fn as_raw(self) -> ComRaw<T> {
+    pub(crate) fn as_raw(self) -> ComRaw<T> {
         ComRaw {
             object: self.object.as_ptr(),
             vtable: self.vtable.as_ptr(),
@@ -301,7 +301,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
             return None;
         }
         // SAFETY: the caller supplies T's live borrowed pair.
-        unsafe { raw::add_ref(raw) };
+        if unsafe { raw::add_ref(raw) } == 0 { return None; }
         // SAFETY: the preceding AddRef transferred one new owner.
         unsafe { Self::from_raw_owned(raw) }
     }
@@ -421,13 +421,15 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
 
     /// Acquires an owner that can outlive this borrowed view.
     pub fn add_ref(&self) -> ComPtr<T, M> {
-        // SAFETY: the view guarantees a live matching pair throughout AddRef.
-        unsafe { raw::add_ref(self.as_raw()) };
-        ComPtr {
-            raw: self.raw,
-            _interface: PhantomData,
-            _mode: PhantomData,
-        }
+        self.try_add_ref().expect("interface does not permit shared ownership")
+    }
+
+    /// Acquires shared ownership only when the provider permits it. Exclusive
+    /// objects return NC_E_INVALID_ARG instead of manufacturing another owner.
+    pub fn try_add_ref(&self) -> Result<ComPtr<T, M>, NcStatus> {
+        // SAFETY: the borrow keeps the matching pair live through AddRef.
+        if unsafe { raw::add_ref(self.as_raw()) } == 0 { return Err(crate::NC_E_INVALID_ARG); }
+        Ok(ComPtr { raw: self.raw, _interface: PhantomData, _mode: PhantomData })
     }
 }
 impl<'a, T: ComInterface + ?Sized> ComRef<'a, T, ThreadSafe> {

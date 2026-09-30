@@ -239,6 +239,44 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                 }
             }
 
+            /// Wraps a value in one non-clonable owner. Queries transfer or borrow
+            /// this owner; AddRef and shared ownership conversion are rejected.
+            #object_vis fn into_box(value: Self) -> #nc::ComBox<#nc::IUnknown, #pointer_threading_model> {
+                let storage = #nc::__alloc::boxed::Box::into_raw(#nc::__alloc::boxed::Box::new(#storage_ident {
+                    control: #nc::lifetime::NcWeakControl::boxed(&<#storage_type>::CLASS_LIFETIME),
+                    call_gate: #nc::__ComCallGate::new(),
+                    value: core::cell::UnsafeCell::new(core::mem::MaybeUninit::new(value)),
+                }));
+                let raw = #nc::ComRaw { object: storage.cast(), vtable: &<#storage_type>::UNKNOWN_VTABLE };
+                // SAFETY: this exact provider initializes and transfers one exclusive owner.
+                unsafe { #nc::ComBox::from_raw_owned(raw) }.expect("new exclusive object is present")
+            }
+
+            /// Initializes a weak origin without publishing or sharing ownership.
+            /// Failed initialization releases storage without dropping an absent value.
+            #object_vis fn into_box_cyclic<I: #nc::ComInterface>(
+                build: impl FnOnce(#nc::WeakComBox<I, #pointer_threading_model>) -> Self,
+            ) -> Result<#nc::ComBox<#nc::IUnknown, #pointer_threading_model>, #nc::NcStatus> {
+                let table = unsafe { #nc::__nc_find_interface(&Self::COM_VTABLES, &I::INTERFACE_ID) }?;
+                let storage = #nc::__alloc::boxed::Box::into_raw(#nc::__alloc::boxed::Box::new(#storage_ident {
+                    control: #nc::lifetime::NcWeakControl::boxed_unpublished(&<#storage_type>::CLASS_LIFETIME),
+                    call_gate: #nc::__ComCallGate::new(),
+                    value: core::cell::UnsafeCell::new(core::mem::MaybeUninit::uninit()),
+                }));
+                let raw = #nc::ComRaw::<I> { object: storage.cast(), vtable: table.cast() };
+                // SAFETY: the provisional weak owns unpublished storage with a validated table.
+                let provisional = unsafe { #nc::WeakComBox::from_raw_owned(raw) }.expect("present control");
+                let value = build(provisional.clone());
+                unsafe {
+                    (*(*storage).value.get()).write(value);
+                    (*storage).control.publish_box();
+                }
+                let _ = provisional.into_raw();
+                let raw = #nc::ComRaw { object: storage.cast(), vtable: &<#storage_type>::UNKNOWN_VTABLE };
+                // SAFETY: publication transferred the provisional weak to the initialized owner.
+                Ok(unsafe { #nc::ComBox::from_raw_owned(raw) }.expect("present owner"))
+            }
+
             /// Initializes a weak self-origin before publishing the object.
             /// Promotion inside `build` returns None: construction has not yet
             /// published a strong value. The chosen interface is checked against
@@ -306,7 +344,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                 let storage = unsafe { &*storage };
                 // SAFETY: The value and gate are fields of the same live
                 // storage allocation and every generated call uses this gate.
-                unsafe { #nc::__ComSharedLease::acquire(&storage.call_gate, storage.value.get().cast::<Self>()) }
+                unsafe { #nc::__ComSharedLease::acquire_abi(object.cast(), &storage.call_gate, storage.value.get().cast::<Self>()) }
             }
 
             // The generated gate grants exactly one mutable call only while no
@@ -323,7 +361,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                 let storage = unsafe { &*storage };
                 // SAFETY: The value and gate are fields of the same live
                 // storage allocation and every generated call uses this gate.
-                unsafe { #nc::__ComExclusiveLease::acquire(&storage.call_gate, storage.value.get().cast::<Self>()) }
+                unsafe { #nc::__ComExclusiveLease::acquire_abi(object.cast(), &storage.call_gate, storage.value.get().cast::<Self>()) }
             }
 
         }
