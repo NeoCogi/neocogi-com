@@ -56,8 +56,9 @@ ancestor; waiting would deadlock. Nor may the dropping thread hold resources
 needed for an admitted call to finish. These are ordinary blocking synchronization
 constraints, not permission to defer destruction. Thread-local UI removal checks
 the existing subtree borrow state before committing and returns Busy on recursive
-removal. `IWindow::request_close` lets widget behavior request removal after its
-call returns. Explicit ThreadSafe objects additionally require Send + Sync
+removal. Widget behavior posts ordinary typed close intent to its parent, whose
+handler decides removal after the child returns; no COM lifecycle queue is involved.
+Explicit ThreadSafe objects additionally require Send + Sync
 implementations and permit destruction on the dropping thread.
 
 ## Consuming arguments
