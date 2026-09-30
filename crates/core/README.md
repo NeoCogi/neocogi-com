@@ -21,7 +21,7 @@ Plugin descriptor ABI v1 publishes plugin identity/version, hard dependencies,
 full root-factory IID/signature, threading, and one zero-argument bootstrap.
 Its getter is `nc_get_factory_plugin_description_v1`. Runtime discovery is v1,
 with operation, plugin-registry, inspection, debug, and persistence tables. See the
-[ABI specification](../docs/abi-v12.md) for layouts and ownership rules.
+[ABI specification](../docs/abi-v13.md) for layouts and ownership rules.
 
 ## Interface safety
 
@@ -176,3 +176,11 @@ even though its bytes may themselves encode provider initialization. A separate
 opaque-blob type would require an explicit schema/codec operation; the current
 codec does not implicitly convert byte vectors to blobs. A byte ceiling therefore
 does not promise that every smaller document fits the other limits.
+
+
+Exclusive providers can use `into_box` / `into_box_cyclic` to construct a
+non-clonable `ComBox`. `WeakComBox` caches its interface table and accesses the
+provider through checked call entries, without promoting to a shared owner.
+Factories can return boxes and containers can consume them through generated
+ABI methods. Ordinary shared services continue using `ComPtr`. See
+[the ownership rationale](../../../docs/EXCLUSIVE_WIDGET_OWNERSHIP.md).

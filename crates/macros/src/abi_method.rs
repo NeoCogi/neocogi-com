@@ -9,7 +9,7 @@
 use quote::quote;
 use syn::{Attribute, FnArg, Ident, ItemTrait, Pat, Result, ReturnType, TraitItem, TraitItemFn, Type};
 
-use crate::model::{AbiArg, AbiArgKind, AbiMethod, AbiReceiver, AbiReturn, AbiReturnKind};
+use crate::model::{AbiArg, AbiArgKind, AbiMethod, AbiReceiver, AbiReturn, AbiReturnKind, InterfaceOwnership};
 use crate::plain_data::{PlainAbiTypeContext, validate_plain_abi_type};
 use crate::util::push_error;
 
@@ -234,6 +234,11 @@ fn parse_result_ok_type(method: &TraitItemFn) -> Result<Type> {
 
 /// Selects the raw parameter type and ownership rule for one Rust argument.
 fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
+    if let Some(owner) = parse_owned_interface_type(&ty, "ComBox")? {
+        let interface = &owner.interface_ty;
+        let abi = syn::parse_quote! { *mut #nc::ComRaw<#interface> };
+        return Ok((ty, abi, AbiArgKind::ComBox { interface_ty: Box::new(owner.interface_ty), mode_ty: owner.mode_ty.map(Box::new) }));
+    }
     // Optional borrowed interfaces use null for absence. Other optional values
     // still require their own value layout and must not fall through this rule.
     if let Some(args) = type_generic_args_named(&ty, "Option") {
@@ -312,16 +317,12 @@ fn lower_abi_return(ty: Type, nc: &syn::Path) -> Result<AbiReturn> {
         });
     }
 
-    if let Some(com_ptr) = parse_com_ptr_type(&ty)? {
-        let abi_ty = raw_interface_pointer_ty(&com_ptr.interface_ty, nc);
-        return Ok(AbiReturn {
-            rust_ty: ty,
-            abi_ty,
-            kind: AbiReturnKind::ComPtr {
-                interface_ty: Box::new(com_ptr.interface_ty),
-                mode_ty: com_ptr.mode_ty.map(Box::new),
-            },
-        });
+    for (name, ownership) in [("ComPtr", InterfaceOwnership::Shared), ("ComBox", InterfaceOwnership::Exclusive), ("WeakComBox", InterfaceOwnership::Weak)] {
+        if let Some(owner) = parse_owned_interface_type(&ty, name)? {
+            let abi_ty = raw_interface_pointer_ty(&owner.interface_ty, nc);
+            return Ok(AbiReturn { rust_ty: ty, abi_ty,
+                kind: AbiReturnKind::ComPtr { ownership, interface_ty: Box::new(owner.interface_ty), mode_ty: owner.mode_ty.map(Box::new) } });
+        }
     }
 
     if parse_com_ref_type(&ty)?.is_some() {
@@ -452,7 +453,12 @@ fn require_call_scoped_lifetime(arg: &syn::GenericArgument, wrapper: &str) -> Re
 
 /// Parses an owned interface wrapper when `ty` names `ComPtr`.
 fn parse_com_ptr_type(ty: &Type) -> Result<Option<ComPtrType>> {
-    let Some(args) = type_generic_args_named(ty, "ComPtr") else {
+    parse_owned_interface_type(ty, "ComPtr")
+}
+
+/// Parses the identical interface/threading arguments of ownership wrappers.
+fn parse_owned_interface_type(ty: &Type, name: &str) -> Result<Option<ComPtrType>> {
+    let Some(args) = type_generic_args_named(ty, name) else {
         return Ok(None);
     };
     let generic_args = args.args.iter().collect::<Vec<_>>();
@@ -545,6 +551,9 @@ pub(crate) fn raw_vtable_method_docs(trait_ident: &Ident, method: &AbiMethod) ->
 fn raw_vtable_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.ident;
     match &arg.kind {
+        AbiArgKind::ComBox { .. } => vec![quote! {
+            #[doc = concat!("- `", stringify!(#ident), "` transfers one exclusive owner. The raw caller supplies a writable owner slot; the receiver clears it when taking ownership. The caller releases an unconsumed slot on every return path.")]
+        }],
         AbiArgKind::BorrowedValue { .. } => vec![quote! {
             #[doc = concat!("- `", stringify!(#ident), "` borrows its exact generated message representation; the receiver acquires owned fields before retaining data.")]
         }],
@@ -632,6 +641,9 @@ pub(crate) fn safe_method_docs(trait_ident: &Ident, method: &AbiMethod) -> Vec<p
 fn safe_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.ident;
     match &arg.kind {
+        AbiArgKind::ComBox { .. } => vec![quote! {
+            #[doc = concat!("- `", stringify!(#ident), "` transfers one exclusive owner. The raw caller supplies a writable owner slot; the receiver clears it when taking ownership. The caller releases an unconsumed slot on every return path.")]
+        }],
         AbiArgKind::BorrowedValue { .. } => vec![quote! {
             #[doc = concat!("- `", stringify!(#ident), "` borrows its exact generated message representation; the receiver acquires owned fields before retaining data.")]
         }],

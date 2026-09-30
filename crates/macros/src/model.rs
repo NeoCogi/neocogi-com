@@ -44,6 +44,14 @@ pub(crate) struct AbiArg {
 
 /// Ownership/passing rule selected for a method parameter.
 pub(crate) enum AbiArgKind {
+    /// Unique owner offered through a mutable slot; the receiver clears it when
+    /// taking ownership, so all pre-dispatch rejection paths remain leak-free.
+    ComBox {
+        /// Exact generated interface transferred into the receiving object.
+        interface_ty: Box<Type>,
+        /// Provider threading guarantee preserved by the transferred owner.
+        mode_ty: Option<Box<Type>>,
+    },
     /// Concrete generated message borrowed through its own C record.
     BorrowedValue { value_ty: Box<Type> },
     /// ABI-safe scalar or aggregate passed directly by value.
@@ -81,9 +89,22 @@ pub(crate) enum AbiReturnKind {
     Plain,
     /// Owned interface reference transferred through an output pointer.
     ComPtr {
+        /// Distinguishes shared owners, unique owners, and weak control tokens.
+        ownership: InterfaceOwnership,
         /// Generated ABI interface type transferred to the caller.
         interface_ty: Box<Type>,
         /// Optional explicit `ThreadLocal` or `ThreadSafe` marker.
         mode_ty: Option<Box<Type>>,
     },
+}
+
+/// Lifetime token transferred by an object-valued method result.
+#[derive(Clone, Copy)]
+pub(crate) enum InterfaceOwnership {
+    /// Another shared owner whose lifetime ends with Release.
+    Shared,
+    /// The one exclusive owner; queries cannot duplicate this token.
+    Exclusive,
+    /// A cached observer that retains storage but never the concrete value.
+    Weak,
 }

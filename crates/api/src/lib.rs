@@ -493,7 +493,7 @@ mod runtime;
 mod tests;
 
 pub use neocogi_com_core::lifetime;
-pub use neocogi_com_core::{ComBox, WeakComBox, BoxBorrow};
+pub use neocogi_com_core::{ComBox, WeakComBox, BoxBorrow, ComBoxInput};
 pub use neocogi_com_core::{NcCopyFromBufferOffset, NcCopyToBufferOffset, WeakComPtr, NcWeakRaw};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
@@ -506,7 +506,7 @@ pub use neocogi_com_core::{
     ComSerialize, ComSerializer, ComDeserializer, ComEnum, ComFactoryBootstrap, ComFactoryInterface, ComClassInterface, ComFactoryImplementation, ComInterface,
     ComPtr, ComRaw, ComRecord, ComRecordAccess, ComRef, ComSequence, ComSequenceAccess, ComStruct, ComVariantAccess, NcClientPointer, IID_INC_BYTES,
     IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown,
-    IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET,
+    IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_BOX_IN, NC_ABI_PASSING_COM_BOX_OUT, NC_ABI_PASSING_WEAK_COM_BOX_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET,
     NC_ABI_PASSING_OUT, NC_ABI_PASSING_BORROWED_VALUE, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
     NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8,
     NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8,

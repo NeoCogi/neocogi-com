@@ -79,10 +79,15 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     /// cannot prove that foreign code obeys ownership or call-access obligations.
     #[doc(hidden)]
     pub unsafe fn __nc_from_raw_owned_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
-        let owner = unsafe { Self::from_raw_owned(raw) }.ok_or(NC_E_POINTER)?;
-        unsafe { crate::raw::validate_interface(raw) }?;
-        unsafe { box_projection(raw.object.cast(), &T::INTERFACE_ID) }?;
-        Ok(owner)
+        // The common release slot can balance either lifetime policy when a
+        // foreign result has a mismatched interface or ownership mode.
+        let checked = unsafe { crate::raw::validate_interface(raw) }
+            .and_then(|()| unsafe { box_projection(raw.object.cast(), &T::INTERFACE_ID) }.map(|_| ()));
+        if let Err(error) = checked {
+            unsafe { crate::raw::release(raw) };
+            return Err(error);
+        }
+        unsafe { Self::from_raw_owned(raw) }.ok_or(NC_E_POINTER)
     }
 
     /// Transfers ownership without destruction; the recipient must adopt it once.
@@ -252,5 +257,62 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> core::fmt::Debug for WeakComBo
     /// Prints stable identity even when the owning container has disappeared.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_tuple("WeakComBox").field(&self.as_raw().object).finish()
+    }
+}
+
+/// Caller-side guard for a consuming exclusive-owner ABI argument.
+/// A writable slot prevents ownership leaks when a receiver rejects this call
+/// before decoding its arguments. Taking the owner clears the slot; dropping an
+/// unconsumed slot destroys the rejected input, matching a by-value Rust argument.
+pub struct ComBoxInput<T: ComInterface, M: ThreadingModel = ThreadLocal> {
+    /// Present while the caller owns the input; null after receiver adoption.
+    raw: ComRaw<T>,
+    /// The transferred owner keeps its original thread-affinity restrictions.
+    mode: PhantomData<M>,
+}
+impl<T: ComInterface, M: ThreadingModel> ComBoxInput<T, M> {
+    /// Moves the argument into a slot owned until a receiver explicitly takes it.
+    pub fn new(owner: ComBox<T, M>) -> Self {
+        Self { raw: owner.into_raw(), mode: PhantomData }
+    }
+    /// Lends the exclusive writable slot for one synchronous ABI invocation.
+    pub fn as_mut_ptr(&mut self) -> *mut ComRaw<T> {
+        &mut self.raw
+    }
+}
+impl<T: ComInterface, M: ThreadingModel> Drop for ComBoxInput<T, M> {
+    /// Releases an input rejected before transfer; consumed slots own nothing.
+    fn drop(&mut self) {
+        // SAFETY: only a matching take_input may replace this owned slot with null.
+        drop(unsafe { ComBox::<T, M>::from_raw_owned(self.raw) });
+    }
+}
+impl<T: ComInterface, M: ThreadingModel> ComBox<T, M> {
+    /// Takes a raw input only after validating its interface and ownership policy.
+    ///
+    /// # Safety
+    /// `slot` is a distinct writable caller-owned record whose present contents
+    /// transfer one exclusive owner. Failure preserves that owner in the slot.
+    pub unsafe fn take_input(slot: *mut ComRaw<T>) -> Result<Self, NcStatus> {
+        let slot = unsafe { slot.as_mut() }.ok_or(NC_E_POINTER)?;
+        unsafe { crate::raw::validate_interface(*slot) }?;
+        unsafe { box_projection(slot.object.cast(), &T::INTERFACE_ID) }?;
+        let raw = core::mem::replace(slot, ComRaw::null());
+        // SAFETY: the caller's slot is now empty and this result owns the token.
+        Ok(unsafe { Self::from_raw_owned(raw) }.expect("validated owner"))
+    }
+}
+impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
+    /// Adopts a weak output after exact cached-interface validation.
+    ///
+    /// # Safety
+    /// The returned pair transfers one weak reference to exclusive common storage,
+    /// including when the value has expired. The provider establishes threading M.
+    #[doc(hidden)]
+    pub unsafe fn __nc_from_raw_owned_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
+        let weak = unsafe { Self::from_raw_owned(raw) }.ok_or(NC_E_POINTER)?;
+        unsafe { crate::raw::validate_interface(raw) }?;
+        unsafe { box_projection(raw.object.cast(), &T::INTERFACE_ID) }?;
+        Ok(weak)
     }
 }

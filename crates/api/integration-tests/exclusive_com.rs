@@ -206,3 +206,83 @@ fn owners_and_cached_weak_handles_are_two_words() {
     assert_eq!(size_of::<WeakComBox<IUnknown>>(), 2 * size_of::<usize>());
     assert_eq!(size_of::<Option<ComBox<IUnknown>>>(), 2 * size_of::<usize>());
 }
+
+#[com_interface(auto_guid = "nc.tests.exclusive.Container:v1", assigned_signature = b"00000000000000000000000000000902")]
+/// A real ABI container transfers the only owner and exposes only weak child access.
+trait IContainer {
+    /// Consumes its input on both success and failure, without cloning ownership.
+    fn insert(&mut self, child: ComBox<IValueAbi, neocogi_com::ThreadSafe>, reject: bool) -> Result<(), NcStatus>;
+    /// Returns an observer while the container remains the sole owner.
+    fn child(&self) -> Result<WeakComBox<IValueAbi, neocogi_com::ThreadSafe>, NcStatus>;
+    /// Removes the child permanently; there is no detach or close operation.
+    fn remove(&mut self) -> Result<(), NcStatus>;
+}
+#[com_object(IContainer)]
+/// Ordinary owned state is sufficient; the ABI gate coordinates access.
+struct Container {
+    /// The only strong owner, transferred into this field by insert.
+    child: Option<ComBox<IValueAbi, neocogi_com::ThreadSafe>>,
+}
+impl IContainer for Container {
+    /// Validation failure destroys the consumed input through normal Drop.
+    fn insert(&mut self, child: ComBox<IValueAbi, neocogi_com::ThreadSafe>, reject: bool) -> Result<(), NcStatus> {
+        if reject {
+            return Err(NC_E_INVALID_ARG);
+        }
+        self.child = Some(child);
+        Ok(())
+    }
+    /// Cached weak output crosses the same C ABI without a shared owner.
+    fn child(&self) -> Result<WeakComBox<IValueAbi, neocogi_com::ThreadSafe>, NcStatus> {
+        self.child.as_ref().map(ComBox::downgrade).ok_or(NC_E_CLOSED)
+    }
+    /// Releasing the owner expires every external weak projection.
+    fn remove(&mut self) -> Result<(), NcStatus> {
+        self.child = None;
+        Ok(())
+    }
+}
+
+/// Tests consuming inputs and weak outputs through the generated C method table.
+#[test]
+fn abi_container_transfer_and_removal_preserve_exclusive_ownership() {
+    let mut container = Container::into_box(Container { child: None }).query::<IContainerAbi>().unwrap();
+    let child = Value::into_box(value()).query::<IValueAbi>().unwrap();
+    let weak = child.downgrade();
+    container.insert(child, false).unwrap();
+    assert_eq!(weak.value(), Ok(42));
+    assert!(container.child().unwrap().same_object(&weak));
+    container.remove().unwrap();
+    assert_eq!(weak.value(), Err(NC_E_CLOSED));
+    let child = Value::into_box(value()).query::<IValueAbi>().unwrap();
+    let rejected = child.downgrade();
+    assert_eq!(container.insert(child, true), Err(NC_E_INVALID_ARG));
+    assert_eq!(rejected.value(), Err(NC_E_CLOSED));
+    let child = Value::into_box(value()).query::<IValueAbi>().unwrap();
+    let expired_call = child.downgrade();
+    let mut expired_container = container.downgrade();
+    drop(container);
+    assert_eq!(expired_container.insert(child, false), Err(NC_E_CLOSED));
+    assert_eq!(expired_call.value(), Err(NC_E_CLOSED), "expired receiver cannot leak a consumed child");
+}
+
+/// Raw malformed inputs fail before transfer and leave the caller's owner balanced.
+#[test]
+fn raw_transfer_rejection_preserves_the_input_slot() {
+    let mut container = Container::into_box(Container { child: None }).query::<IContainerAbi>().unwrap();
+    let child = Value::into_box(value()).query::<IValueAbi>().unwrap();
+    let weak = child.downgrade();
+    let raw = child.into_raw();
+    let mut slot = raw;
+    let target = container.as_raw();
+    // SAFETY: both objects, the writable slot, and raw bool storage are valid.
+    // Bool 2 is deliberately rejected by the checked codec, not read as Rust bool.
+    unsafe {
+        assert_eq!(((*target.vtable).insert)(target.object, &mut slot, 2), NC_E_INVALID_ARG);
+        // The thunk may have taken the owner before the later bool failed. The
+        // handshake makes either order explicit and never leaves two owners.
+        drop(ComBox::<IValueAbi, neocogi_com::ThreadSafe>::from_raw_owned(slot));
+    }
+    assert_eq!(weak.value(), Err(NC_E_CLOSED));
+    assert_eq!(container.remove(), Ok(()));
+}

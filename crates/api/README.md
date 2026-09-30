@@ -8,7 +8,7 @@ support, factory-only plugins, and an optional facade over the linked
 Public cross-library contracts should be authored as Rust-like `.ncidl`
 modules. See [IDL contract modules](../../../docs/IDL_MODULES.md) for their
 source, crate, signature, and tooling model. The
-[core ABI v12 specification](../docs/abi-v12.md) defines the binary boundary.
+[core ABI v13 specification](../docs/abi-v13.md) defines the binary boundary.
 
 ## Local object example
 
@@ -308,3 +308,11 @@ constructor retains the queue until logical closure or final destruction.
 Neither the application message nor the closure's captured Rust state crosses
 COM; only `IEventQueue<Object, Event>` calls do. The generated construction descriptor names
 that queue's exact interface identity and the complete event value graph.
+
+
+Exclusive providers can use `into_box` / `into_box_cyclic` to construct a
+non-clonable `ComBox`. `WeakComBox` caches its interface table and accesses the
+provider through checked call entries, without promoting to a shared owner.
+Factories can return boxes and containers can consume them through generated
+ABI methods. Ordinary shared services continue using `ComPtr`. See
+[the ownership rationale](../../../docs/EXCLUSIVE_WIDGET_OWNERSHIP.md).

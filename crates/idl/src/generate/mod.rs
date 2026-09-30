@@ -326,7 +326,7 @@ fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, dec
                     data(&value.identity.qualified_name, graph, names);
                 }
             }
-            AbiType::ComPtr(value)
+            AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
             | AbiType::Borrowed(value)
             | AbiType::Vector(value)
             | AbiType::UnsizedSlice(value)
@@ -788,7 +788,8 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
             let element = value_type(graph, module, element)?;
             Ok(quote! { ::neocogi_com::NcCopyToBufferOffset<'_, #element> })
         }
-        AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => Err(GenerateError::new(
+        AbiType::ComBox(value) => box_reference_type(graph, module, value, false),
+        AbiType::WeakComBox(_) | AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => Err(GenerateError::new(
             "unit, owned collections/text, and unborrowed slices are not valid method inputs",
         )),
     }
@@ -798,6 +799,8 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
 fn output_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
     match ty {
         AbiType::Unit => Ok(quote! { () }),
+        AbiType::ComBox(value) => box_reference_type(graph, module, value, false),
+        AbiType::WeakComBox(value) => box_reference_type(graph, module, value, true),
         AbiType::ComPtr(value) => match value.as_ref() {
             AbiType::Named(name) => object_reference_type(graph, module, name, true),
             _ => Err(GenerateError::new("resolved ComPtr target is not a contract")),
@@ -937,4 +940,15 @@ fn origin_docs(lines: &[String], span: &crate::SourceSpan) -> TokenStream {
     let documentation = docs(lines);
     let origin = Literal::string(&format!(" {}", mapping::origin_label(span)));
     quote! { #documentation #[doc = #origin] }
+}
+
+/// Emits an ownership-explicit object wrapper from the same resolved interface
+/// and threading policy as shared references. The wrapper itself selects lifetime.
+fn box_reference_type(graph: &Generation<'_>, module: &ResolvedModule, target: &AbiType, weak: bool) -> Result<TokenStream, GenerateError> {
+    let AbiType::Named(name) = target else { return Err(GenerateError::new("box target is not a contract")); };
+    let shared = object_reference_type(graph, module, name, true)?;
+    let mut ty: syn::TypePath = syn::parse2(shared).map_err(|error| GenerateError::new(error.to_string()))?;
+    let segment = ty.path.segments.last_mut().expect("generated object wrapper");
+    segment.ident = syn::Ident::new(if weak { "WeakComBox" } else { "ComBox" }, segment.ident.span());
+    Ok(quote! { #ty })
 }

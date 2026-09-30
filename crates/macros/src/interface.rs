@@ -248,6 +248,17 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         let value_ident = syn::Ident::new("__nc_dispatch_value", proc_macro2::Span::mixed_site());
         let params = method.args.iter().flat_map(|arg| raw_vtable_arg_params(arg));
         let arg_conversions = method.args.iter().filter_map(|arg| match &arg.kind {
+            AbiArgKind::ComBox { interface_ty, mode_ty } => {
+                let ident = &arg.ident;
+                let mode = mode_ty.as_ref().map(|ty| quote! { #ty }).unwrap_or_else(|| quote! { #nc::ThreadLocal });
+                Some(quote! {
+                    // SAFETY: caller retains a writable transfer slot; ownership
+                    // changes only after exact interface and boxed-mode checks.
+                    let #ident = match unsafe { #nc::ComBox::<#interface_ty, #mode>::take_input(#ident) } {
+                        Ok(owner) => owner, Err(status) => return status,
+                    };
+                })
+            },
             AbiArgKind::BorrowedValue { value_ty } => {
                 let ident = &arg.ident;
                 Some(quote! {
@@ -761,6 +772,10 @@ fn method_return_descriptor(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::
 /// Maps an argument kind to its C-shaped passing descriptor.
 fn arg_passing_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_macro2::TokenStream {
     match &arg.kind {
+        AbiArgKind::ComBox { mode_ty, .. } => {
+            let mode = threading_mode_expr(nc, mode_ty.as_deref());
+            quote! { #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::ComBoxIn { mode: #mode }) }
+        },
         AbiArgKind::BorrowedValue { .. } => quote! {
             #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::BorrowedValue)
         },
@@ -809,7 +824,7 @@ fn arg_type_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_macro
                 #nc::NcAbiTypeDescriptor::from_abi_type(#nc::__nc_abi_plain_type::<#element_ty>())
             }
         }
-        AbiArgKind::ComRef { interface_ty, .. } => {
+        AbiArgKind::ComRef { interface_ty, .. } | AbiArgKind::ComBox { interface_ty, .. } => {
             let interface_ty = interface_ty.as_ref();
             quote! {
                 #nc::NcAbiTypeDescriptor::from_interface(
@@ -829,10 +844,15 @@ fn return_passing_descriptor(nc: &syn::Path, method: &AbiMethod) -> proc_macro2:
         AbiReturnKind::Plain => quote! {
             #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::Out)
         },
-        AbiReturnKind::ComPtr { mode_ty, .. } => {
+        AbiReturnKind::ComPtr { mode_ty, ownership, .. } => {
             let mode = threading_mode_expr(nc, mode_ty.as_deref());
+            let passing = match ownership {
+                crate::model::InterfaceOwnership::Shared => quote! { ComPtrOut },
+                crate::model::InterfaceOwnership::Exclusive => quote! { ComBoxOut },
+                crate::model::InterfaceOwnership::Weak => quote! { WeakComBoxOut },
+            };
             quote! {
-                #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::ComPtrOut {
+                #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::#passing {
                     mode: #mode,
                 })
             }
@@ -877,7 +897,7 @@ fn method_return_const_ident(index: usize) -> syn::Ident {
 fn raw_vtable_arg_params(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.ident;
     match &arg.kind {
-        AbiArgKind::Plain | AbiArgKind::BorrowedValue { .. } | AbiArgKind::ComRef { .. } => {
+        AbiArgKind::Plain | AbiArgKind::BorrowedValue { .. } | AbiArgKind::ComRef { .. } | AbiArgKind::ComBox { .. } => {
             let ty = &arg.abi_ty;
             vec![quote! { #ident: #ty }]
         }
@@ -905,6 +925,10 @@ fn raw_vtable_arg_params(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
 /// Emits pre-call pointer/bounds extraction required by a safe wrapper argument.
 fn safe_arg_preparation(nc: &syn::Path, arg: &crate::model::AbiArg) -> Option<proc_macro2::TokenStream> {
     match &arg.kind {
+        AbiArgKind::ComBox { .. } => {
+            let ident = &arg.ident;
+            Some(quote! { let mut #ident = #nc::ComBoxInput::new(#ident); })
+        },
         AbiArgKind::Plain => {
             let ident = &arg.ident;
             Some(quote! { let #ident = #nc::encode_inline(&#ident)?; })
@@ -925,6 +949,7 @@ fn safe_arg_preparation(nc: &syn::Path, arg: &crate::model::AbiArg) -> Option<pr
 fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.ident;
     match &arg.kind {
+        AbiArgKind::ComBox { .. } => vec![quote! { #ident.as_mut_ptr() }],
         AbiArgKind::BorrowedValue { .. } => vec![quote! { #ident.as_ptr() }],
         AbiArgKind::Plain => vec![quote! { #ident }],
         AbiArgKind::ComRef { optional: true, .. } => vec![quote! { #ident.map_or(::core::default::Default::default(), |value| value.as_raw()) }],
@@ -1015,7 +1040,7 @@ fn validate_generated_method_identifiers(methods: &[AbiMethod], errors: &mut Opt
 fn raw_parameter_names(arg: &crate::model::AbiArg) -> Vec<(String, bool)> {
     let ident = &arg.ident;
     match &arg.kind {
-        AbiArgKind::Plain | AbiArgKind::BorrowedValue { .. } | AbiArgKind::ComRef { .. } => vec![(ident.to_string(), false)],
+        AbiArgKind::Plain | AbiArgKind::BorrowedValue { .. } | AbiArgKind::ComRef { .. } | AbiArgKind::ComBox { .. } => vec![(ident.to_string(), false)],
         AbiArgKind::CopyFromBufferOffset { .. } | AbiArgKind::CopyToBufferOffset { .. } => vec![
             (buffer_offset_ident(ident).to_string(), true),
             (buffer_len_ident(ident).to_string(), true),

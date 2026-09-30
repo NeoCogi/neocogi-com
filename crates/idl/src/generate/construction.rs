@@ -86,7 +86,7 @@ pub(super) fn find<'a>(graph: &'a Generation<'_>, module: &'a ResolvedModule, pr
         let DeclarationKind::Interface(interface) = &declaration.kind else { continue };
         for callable in &interface.callables {
             let Callable::Method(method) = callable;
-            let AbiType::ComPtr(output) = &method.output else { continue };
+            let (AbiType::ComPtr(output) | AbiType::ComBox(output)) = &method.output else { continue };
             let AbiType::Named(output) = output.as_ref() else { continue };
             if builtin_object_type(output).is_some() || resolve(graph, module, output)?.identity.id != product_id {
                 continue;

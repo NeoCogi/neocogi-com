@@ -115,6 +115,15 @@ pub enum NcAbiType {
 /// How a method argument or return value crosses the ABI boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NcAbiPassing {
+    /// Exclusive owner offered in a writable slot, cleared by the receiver on transfer.
+    ComBoxIn { /// Threading capability preserved by ownership transfer.
+        mode: NcAbiThreadingMode },
+    /// The single exclusive owner returned through an out slot.
+    ComBoxOut { /// Threading capability preserved by ownership transfer.
+        mode: NcAbiThreadingMode },
+    /// Cached weak token returned through an out slot; owns no initialized value.
+    WeakComBoxOut { /// Threading capability preserved by the observer.
+        mode: NcAbiThreadingMode },
     /// Null or a borrowed COM interface valid for the current call.
     OptionalComRef {
         /// Threading capability of a present borrowed pointer.
@@ -260,6 +269,12 @@ pub const NC_ABI_PASSING_COM_PTR_OUT: u32 = 0x06;
 pub const NC_ABI_PASSING_BORROWED_VALUE: u32 = 0x07;
 /// Nullable borrowed interface input; distinct from a required capability.
 pub const NC_ABI_PASSING_OPTIONAL_COM_REF: u32 = 0x08;
+/// Exclusive owner input transferred through a cleared writable slot.
+pub const NC_ABI_PASSING_COM_BOX_IN: u32 = 0x09;
+/// Exclusive owner output transferred through an out slot.
+pub const NC_ABI_PASSING_COM_BOX_OUT: u32 = 0x0a;
+/// Cached weak exclusive token returned without value ownership.
+pub const NC_ABI_PASSING_WEAK_COM_BOX_OUT: u32 = 0x0b;
 
 /// C-stable threading value requiring calls and final release on one thread.
 pub const NC_ABI_THREADING_THREAD_LOCAL: u32 = 0x00;
@@ -354,6 +369,9 @@ impl NcAbiPassingDescriptor {
     /// Builds a C-stable descriptor from a canonical ABI passing mode.
     pub const fn from_abi_passing(passing: NcAbiPassing) -> Self {
         match passing {
+            NcAbiPassing::ComBoxIn { mode } => Self { tag: NC_ABI_PASSING_COM_BOX_IN, threading: threading_descriptor(mode) },
+            NcAbiPassing::ComBoxOut { mode } => Self { tag: NC_ABI_PASSING_COM_BOX_OUT, threading: threading_descriptor(mode) },
+            NcAbiPassing::WeakComBoxOut { mode } => Self { tag: NC_ABI_PASSING_WEAK_COM_BOX_OUT, threading: threading_descriptor(mode) },
             NcAbiPassing::OptionalComRef { mode } => Self {
                 tag: NC_ABI_PASSING_OPTIONAL_COM_REF,
                 threading: threading_descriptor(mode),

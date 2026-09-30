@@ -337,6 +337,11 @@ pub enum AbiType {
     /// An owned COM reference to a closed interface, class, or factory contract.
     /// Ownership is explicit; the referenced implementation is never stored inline.
     ComPtr(Box<AbiType>),
+    /// One exclusive owner transferred by a factory or into a container.
+    /// It cannot be copied into an ordinary struct or enum field.
+    ComBox(Box<AbiType>),
+    /// A cached weak interface token returned without retaining the value.
+    WeakComBox(Box<AbiType>),
     /// A value borrowed only for the duration of one ABI call.
     Borrowed(
         /// Borrowed referent type.
@@ -389,6 +394,8 @@ impl AbiType {
             Self::String => "String".into(),
             Self::Named(name) => name.rust_path(),
             Self::ComPtr(value) => format!("ComPtr<{}>", value.source_name()),
+            Self::ComBox(value) => format!("ComBox<{}>", value.source_name()),
+            Self::WeakComBox(value) => format!("WeakComBox<{}>", value.source_name()),
             Self::Borrowed(value) => format!("&{}", value.source_name()),
             Self::Vector(value) => format!("Vec<{}>", value.source_name()),
             Self::UnsizedSlice(value) => format!("[{}]", value.source_name()),

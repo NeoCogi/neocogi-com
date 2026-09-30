@@ -341,6 +341,7 @@ impl BoxCall {
     /// `control` must be a valid common header retained by an owner, weak token,
     /// or an enclosing call for the entire acquisition. Shared objects must be
     /// strongly retained for the returned lease's full lifetime.
+    #[inline(never)]
     pub unsafe fn enter(control: *mut NcWeakControl) -> Result<Self, NcStatus> {
         let header = unsafe { control.as_ref() }.ok_or(NC_E_POINTER)?;
         let mut state = header.strong.load(Ordering::Acquire);

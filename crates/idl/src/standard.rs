@@ -91,7 +91,7 @@ fn references(ty: &AbiType, name: &str, shadowed: bool, prelude: &mut Option<Sou
                 references(argument, name, shadowed, prelude, dependency);
             }
         }
-        AbiType::ComPtr(value)
+        AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
         | AbiType::Borrowed(value)
         | AbiType::Vector(value)
         | AbiType::UnsizedSlice(value)

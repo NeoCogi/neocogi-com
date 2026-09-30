@@ -353,7 +353,7 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
 /// a malformed ComPtr is never a meaningful argument regardless of its use.
 fn validate_closed_argument(graph: &ResolvedModules, module: &ResolvedModule, ty: &AbiType, span: &SourceSpan) -> Result<(), ResolutionError> {
     match ty {
-        AbiType::ComPtr(value) => {
+        AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => {
             let valid = match value.as_ref() {
                 AbiType::Named(name) => {
                     builtin_object(name).is_some()
@@ -981,7 +981,7 @@ fn collect_type_references<'a>(ty: &'a AbiType, output: &mut Vec<&'a NamedType>)
     match ty {
         AbiType::Named(name) => output.push(name),
         AbiType::Array { element, .. } => collect_type_references(element, output),
-        AbiType::ComPtr(_)
+        AbiType::ComPtr(_) | AbiType::ComBox(_) | AbiType::WeakComBox(_)
         | AbiType::Borrowed(_)
         | AbiType::Vector(_)
         | AbiType::UnsizedSlice(_)
@@ -1209,9 +1209,14 @@ fn value_fields(declaration: &Declaration) -> Vec<&AbiType> {
 
 /// Validates recursive field syntax independently from method ownership positions.
 fn validate_field_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+    if matches!(ty, AbiType::ComBox(_) | AbiType::WeakComBox(_)) {
+        return Err(source_error(&entries[index].module, "EIDL060", span,
+            format!("{context}: exclusive/weak box handles are method transfers, not copied fields"),
+            "use an explicit owning object contract instead of a repeatable value codec"));
+    }
     match ty {
         AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Ok(()),
-        AbiType::ComPtr(value) => validate_object_target(index, value, entries, context, span),
+        AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => validate_object_target(index, value, entries, context, span),
         AbiType::Named(name) => {
             if builtin_object(name).is_some() {
                 return Err(source_error(
@@ -1284,7 +1289,7 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
     fn field(index: usize, ty: &AbiType, entries: &[ModuleEntry]) -> Result<crate::ValueType, ResolutionError> {
         use crate::ValueType as V;
         Ok(match ty {
-            AbiType::ComPtr(value) => match field(index, value, entries)? {
+            AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => match field(index, value, entries)? {
                 V::Object(name) => V::Object(name),
                 other => other,
             },
@@ -1367,6 +1372,9 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
         }
     }
     match ty {
+        AbiType::ComBox(value) => validate_object_target(index, value, entries, context, span),
+        AbiType::WeakComBox(_) => Err(source_error(&entries[index].module, "EIDL061", span,
+            format!("{context}: weak box inputs must use a live interface borrow"), "unsupported ownership transfer")),
         AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => Err(source_error(
             &entries[index].module,
             "EIDL061",
@@ -1418,7 +1426,7 @@ fn validate_output_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], con
     let span = type_span(ty).unwrap_or(span);
     match ty {
         AbiType::Unit | AbiType::Scalar(_) => Ok(()),
-        AbiType::ComPtr(value) => validate_object_target(index, value, entries, context, span),
+        AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => validate_object_target(index, value, entries, context, span),
         AbiType::Named(_) | AbiType::Array { .. } => validate_value_type(index, ty, entries, context, span),
         AbiType::String => Err(source_error(
             &entries[index].module,
@@ -1734,6 +1742,10 @@ fn encode_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], encoder: &mu
             encoder.u32(*len);
             encode_type(index, element, entries, encoder)?;
         }
+        AbiType::ComBox(target) | AbiType::WeakComBox(target) => {
+            encoder.tag(match ty { AbiType::ComBox(_) => 12, AbiType::WeakComBox(_) => 13, _ => unreachable!() });
+            encode_type(index, target, entries, encoder)?;
+        }
         AbiType::ComPtr(target) => {
             encoder.tag(9);
             encode_type(index, target, entries, encoder)?;
@@ -1886,7 +1898,7 @@ pub(crate) fn is_reserved_name(name: &str) -> bool {
             | "IUnknown"
             | "INcBytes"
             | "INcString"
-            | "ComPtr"
+            | "ComPtr" | "ComBox" | "WeakComBox"
             | "Vec"
             | "Slice"
             | "Array"
@@ -1905,7 +1917,7 @@ fn u32_len(value: usize, module: &str, field: &str) -> Result<u32, ResolutionErr
 fn type_span(ty: &AbiType) -> Option<&SourceSpan> {
     match ty {
         AbiType::Named(name) => Some(&name.span),
-        AbiType::ComPtr(value)
+        AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
         | AbiType::Borrowed(value)
         | AbiType::Vector(value)
         | AbiType::UnsizedSlice(value)
