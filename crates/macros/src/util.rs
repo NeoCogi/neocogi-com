@@ -10,6 +10,15 @@ use syn::{Generics, Ident, LitByteStr, LitStr, Path, Result, Visibility};
 
 use crate::args::InterfaceGuid;
 
+/// Creates a private local binding with macro-definition hygiene.
+///
+/// Authored members and types keep their original tokens. Callers must also use
+/// separate positional bindings rather than source names: checked-in generated
+/// Rust is printed and reparsed, which cannot retain a token's syntax context.
+pub(crate) fn private_ident(name: &str) -> Ident {
+    Ident::new(name, proc_macro2::Span::mixed_site())
+}
+
 /// Emits exact static storage for a generator-computed ABI signature.
 ///
 /// This helper deliberately accepts bytes rather than logical ABI records.

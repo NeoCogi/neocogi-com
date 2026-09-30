@@ -1,0 +1,17 @@
+/// Restricted first field forces checked conversion instead of a layout shortcut.
+#[version(1)] struct Record {
+    first: bool, raw_0: u8, budget: u32, storage: u32, wire: u32, result: u32
+}
+/// Named, positional, and unit alternatives exercise both dispatch paths.
+#[version(1)] enum Choice {
+    Named { first: bool, raw_0: u8, budget: u32 },
+    Tuple(Record), Empty
+}
+/// Owned fields take the dynamic-budget traversal and retain indirect storage.
+#[version(1)] struct Owned { first: bool, raw_0: u8, budget: String, storage: Vec<Record> }
+#[version(1)] enum OwnedChoice { Named { first: bool, raw_0: u8, budget: String }, Empty }
+#[version(1)] interface IValues {
+    fn record(&self, value: Record) -> Result<Record>;
+    fn choice(&self, value: Choice) -> Result<Choice>;
+    fn owned(&self, value: &Owned) -> Result<u32>;
+}

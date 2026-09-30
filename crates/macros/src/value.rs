@@ -8,6 +8,8 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Fields, Ident, Visibility};
 
+use crate::util::private_ident;
+
 /// A record or enum alternative with its declared tag and ordered field shape.
 pub(crate) struct ValueCase {
     /// None identifies a record; Some names an enum alternative.
@@ -23,6 +25,12 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
     let wire_name = format_ident!("__{name}ValueWire", span = name.span());
     let union_name = format_ident!("__{name}ValuePayload", span = name.span());
     let storage_name = format_ident!("__{name}ValueStorage", span = name.span());
+    // These are implementation locals, never authored field bindings. Positional
+    // renaming remains correct when generated tokens are serialized as Rust text.
+    let budget = private_ident("__nc_budget");
+    let wire_input = private_ident("__nc_wire");
+    let raw_record = private_ident("__nc_raw_record");
+    let cost = private_ident("__nc_cost");
     let is_enum = cases.first().is_some_and(|case| case.variant.is_some());
     let mut wires = Vec::new();
     let mut members = Vec::new();
@@ -44,6 +52,7 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
         let mut raw_fields = Vec::new();
         let mut stored_fields = Vec::new();
         let mut bindings = Vec::new();
+        let mut field_members = Vec::new();
         let mut encoding = Vec::new();
         let mut decoding = Vec::new();
         let mut encoding_fixed = Vec::new();
@@ -51,14 +60,17 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
         let mut raw_values = Vec::new();
         let mut stored_values = Vec::new();
         for (position, field) in case.fields.iter().enumerate() {
-            let binding = field.ident.clone().unwrap_or_else(|| format_ident!("field_{position}"));
-            let raw = format_ident!("raw_{position}");
-            let stored = format_ident!("storage_{position}");
+            // Preserve the public member, but never introduce it as a local.
+            // Prefixes alone cannot prevent an author from choosing the same name.
+            let member = field.ident.clone().unwrap_or_else(|| format_ident!("field_{position}"));
+            let binding = private_ident(&format!("__nc_field_{position}"));
+            let raw = private_ident(&format!("__nc_wire_field_{position}"));
+            let stored = private_ident(&format!("__nc_storage_field_{position}"));
             let ty = &field.ty;
             raw_fields.push(quote! { /// Recursively checked raw field; never an application reference.
-            pub #binding: <#ty as #nc::ComValue>::Wire });
+            pub #member: <#ty as #nc::ComValue>::Wire });
             stored_fields.push(quote! { /// Retains this field's converted indirect storage through the call.
-            #binding: <#ty as #nc::ComValue>::Storage });
+            #member: <#ty as #nc::ComValue>::Storage });
             // A local copy allows packed application fields to be borrowed safely.
             let field_value = if inline {
                 quote! { &#binding }
@@ -68,17 +80,17 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
             encoding.push(quote! {
                 let (#raw, #stored) = match <#ty as #nc::ComValue>::FIXED_COST {
                     // SAFETY: this alternative's aggregate preflight includes every fixed child.
-                    Some(_) => unsafe { <#ty as #nc::ComValue>::encode_prechecked(#field_value) },
-                    None => <#ty as #nc::ComValue>::encode_value(#field_value, budget),
+                    ::core::option::Option::Some(_) => unsafe { <#ty as #nc::ComValue>::encode_prechecked(#field_value) },
+                    ::core::option::Option::None => <#ty as #nc::ComValue>::encode_value(#field_value, #budget),
                 }?;
             });
             decoding.push(quote! {
                 match <#ty as #nc::ComValue>::FIXED_COST {
                     // SAFETY: the selected raw field is live and its cost was included
                     // in the enclosing preflight. Content validation still happens here.
-                    Some(_) => unsafe { <#ty as #nc::ComValue>::decode_prechecked(raw.#binding) },
+                    ::core::option::Option::Some(_) => unsafe { <#ty as #nc::ComValue>::decode_prechecked(#raw_record.#member) },
                     // SAFETY: this field's active backing remains live for conversion.
-                    None => unsafe { <#ty as #nc::ComValue>::decode_value(raw.#binding, budget) },
+                    ::core::option::Option::None => unsafe { <#ty as #nc::ComValue>::decode_value(#raw_record.#member, #budget) },
                 }?
             });
             encoding_fixed.push(quote! {
@@ -88,10 +100,11 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
             decoding_fixed.push(quote! {
                 // SAFETY: the selected field is initialized, its resource requirements were checked,
                 // and this converter still validates every restricted raw value.
-                unsafe { <#ty as #nc::ComValue>::decode_prechecked(raw.#binding) }?
+                unsafe { <#ty as #nc::ComValue>::decode_prechecked(#raw_record.#member) }?
             });
-            raw_values.push(quote! { #binding: #raw });
-            stored_values.push(quote! { #binding: #stored });
+            raw_values.push(quote! { #member: #raw });
+            stored_values.push(quote! { #member: #stored });
+            field_members.push(member);
             bindings.push(binding);
         }
         let constructor = match &case.variant {
@@ -101,14 +114,14 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
         let (pattern, decoded) = match &case.fields {
             Fields::Unit => (constructor.clone(), constructor.clone()),
             Fields::Named(_) => (
-                quote! { #constructor { #(#bindings),* } },
-                quote! { #constructor { #(#bindings: #decoding),* } },
+                quote! { #constructor { #(#field_members: #bindings),* } },
+                quote! { #constructor { #(#field_members: #decoding),* } },
             ),
             Fields::Unnamed(_) => (quote! { #constructor(#(#bindings),*) }, quote! { #constructor(#(#decoding),*) }),
         };
         let decoded_fixed = match &case.fields {
             Fields::Unit => constructor,
-            Fields::Named(_) => quote! { #constructor { #(#bindings: #decoding_fixed),* } },
+            Fields::Named(_) => quote! { #constructor { #(#field_members: #decoding_fixed),* } },
             Fields::Unnamed(_) => quote! { #constructor(#(#decoding_fixed),*) },
         };
         let field_types: Vec<_> = case.fields.iter().map(|field| &field.ty).collect();
@@ -133,7 +146,7 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
         #case_storage { #(#stored_fields),* } });
         let tag = &case.tag;
         let raw_value = quote! { #case_wire { #(#raw_values),* } };
-        let wire = if is_enum {
+        let constructed_wire = if is_enum {
             quote! { #wire_name { tag: #tag, payload: #union_name { #member: #raw_value } } }
         } else {
             raw_value
@@ -144,29 +157,29 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
             quote! { #storage_name::#case_storage { #(#stored_values),* } }
         };
         encode.push(quote! { #pattern => {
-            const COST: Option<#nc::ValueCost> = #known_cost;
-            budget.aggregate(COST.ok_or(#nc::NC_E_OUT_OF_RANGE)?, |budget| {
-                #(#encoding)* Ok((#wire, #stored))
+            const COST: ::core::option::Option<#nc::ValueCost> = #known_cost;
+            #budget.aggregate(COST.ok_or(#nc::NC_E_OUT_OF_RANGE)?, |#budget| {
+                #(#encoding)* ::core::result::Result::Ok((#constructed_wire, #stored))
             })
         } });
-        encode_prechecked.push(quote! { #pattern => { #(#encoding_fixed)* Ok((#wire, #stored)) } });
+        encode_prechecked.push(quote! { #pattern => { #(#encoding_fixed)* ::core::result::Result::Ok((#constructed_wire, #stored)) } });
         let read = (!bindings.is_empty()).then(|| {
             if is_enum {
                 quote! { // SAFETY: this match arm validated the tag before selecting a payload.
-                let raw = unsafe { wire.payload.#member }; }
+                let #raw_record = unsafe { #wire_input.payload.#member }; }
             } else {
-                quote! { let raw = wire; }
+                quote! { let #raw_record = #wire_input; }
             }
         });
         decode_prechecked.push(if is_enum {
-            quote! { #tag => { #read Ok(#decoded_fixed) } }
+            quote! { #tag => { #read ::core::result::Result::Ok(#decoded_fixed) } }
         } else {
-            quote! { #read Ok(#decoded_fixed) }
+            quote! { #read ::core::result::Result::Ok(#decoded_fixed) }
         });
         let decode_case = quote! {
-            const COST: Option<#nc::ValueCost> = #known_cost;
-            budget.aggregate(COST.ok_or(#nc::NC_E_OUT_OF_RANGE)?, |budget| {
-                #read Ok(#decoded)
+            const COST: ::core::option::Option<#nc::ValueCost> = #known_cost;
+            #budget.aggregate(COST.ok_or(#nc::NC_E_OUT_OF_RANGE)?, |#budget| {
+                #read ::core::result::Result::Ok(#decoded)
             })
         };
         decode.push(if is_enum {
@@ -203,16 +216,16 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
         }
     });
     let decode_body = if is_enum {
-        quote! { match wire.tag {
+        quote! { match #wire_input.tag {
             #(#decode),*,
             // An unknown tag still consumes the enum root before being rejected.
-            _ => budget.value(|_| Err(#nc::NC_E_INVALID_TAG)),
+            _ => #budget.value(|_| ::core::result::Result::Err(#nc::NC_E_INVALID_TAG)),
         } }
     } else {
         quote! { #(#decode)* }
     };
     let decode_prechecked_body = if is_enum {
-        quote! { match wire.tag { #(#decode_prechecked),*, _ => Err(#nc::NC_E_INVALID_TAG) } }
+        quote! { match #wire_input.tag { #(#decode_prechecked),*, _ => ::core::result::Result::Err(#nc::NC_E_INVALID_TAG) } }
     } else {
         quote! { #(#decode_prechecked)* }
     };
@@ -234,11 +247,11 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
                 quote! { #index }
             });
             let raw = field.ident.clone().unwrap_or_else(|| format_ident!("field_{index}"));
-            quote! { core::mem::offset_of!(Self, #application) == core::mem::offset_of!(Self::Wire, #raw) }
+            quote! { ::core::mem::offset_of!(Self, #application) == ::core::mem::offset_of!(Self::Wire, #raw) }
         });
         quote! { const BORROW_WIRE: bool = true #(&& <#fields as #nc::ComValue>::BORROW_WIRE)*
-        && core::mem::size_of::<Self>() == core::mem::size_of::<Self::Wire>()
-        && core::mem::align_of::<Self>() == core::mem::align_of::<Self::Wire>()
+        && ::core::mem::size_of::<Self>() == ::core::mem::size_of::<Self::Wire>()
+        && ::core::mem::align_of::<Self>() == ::core::mem::align_of::<Self::Wire>()
         #(&& #offsets)*; }
     } else {
         quote! {}
@@ -248,8 +261,8 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
             if Self::BORROW_WIRE {
                 // SAFETY: BORROW_WIRE proves identical field offsets/size/alignment,
                 // unrestricted initialized bits, and no ownership or conversion work.
-                let wire = unsafe { core::ptr::from_ref(self).cast::<Self::Wire>().read() };
-                return Ok((wire, ()));
+                let #wire_input = unsafe { ::core::ptr::from_ref(self).cast::<Self::Wire>().read() };
+                return ::core::result::Result::Ok((#wire_input, ()));
             }
         }
     });
@@ -258,7 +271,7 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
             if Self::BORROW_WIRE {
                 // SAFETY: the recursive proof excludes bools/tags and equates every
                 // active field layout. Padding stays padding in the copied value.
-                return Ok(unsafe { core::ptr::from_ref(&wire).cast::<Self>().read() });
+                return ::core::result::Result::Ok(unsafe { ::core::ptr::from_ref(&#wire_input).cast::<Self>().read() });
             }
         }
     });
@@ -283,45 +296,45 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
         // validates tags and values before constructing application data.
         unsafe impl #nc::ComValue for #name {
             #borrow_wire
-            const FIXED_COST: Option<#nc::ValueCost> = #fixed_cost;
-            const MAX_COST: Option<#nc::ValueCost> = #maximum_cost;
+            const FIXED_COST: ::core::option::Option<#nc::ValueCost> = #fixed_cost;
+            const MAX_COST: ::core::option::Option<#nc::ValueCost> = #maximum_cost;
             type Wire = #wire_name;
             type Storage = #storage_type;
             /// Retains the storage required by every recursively converted child.
             /// Keep the budgeted traversal shared; isolated small copies use prechecked conversion.
             #[inline(never)]
-            fn encode_value(&self, budget: &mut #nc::ValueBudget) -> Result<(Self::Wire, Self::Storage), #nc::NcStatus> {
+            fn encode_value(&self, #budget: &mut #nc::ValueBudget) -> ::core::result::Result<(Self::Wire, Self::Storage), #nc::NcStatus> {
                 match Self::FIXED_COST {
-                    Some(cost) => {
-                        budget.fixed(cost)?;
+                    ::core::option::Option::Some(#cost) => {
+                        #budget.fixed(#cost)?;
                         // SAFETY: this exact allocation-free subtree has been charged.
                         unsafe { Self::encode_prechecked(self) }
                     }
-                    None => match #encode_source { #(#encode),* },
+                    ::core::option::Option::None => match #encode_source { #(#encode),* },
                 }
             }
             /// Selects the valid alternative before decoding any application field.
             /// A shared traversal avoids duplicating its budget handling into every buffer adapter.
             #[inline(never)]
-            unsafe fn decode_value(wire: Self::Wire, budget: &mut #nc::ValueBudget) -> Result<Self, #nc::NcStatus> {
+            unsafe fn decode_value(#wire_input: Self::Wire, #budget: &mut #nc::ValueBudget) -> ::core::result::Result<Self, #nc::NcStatus> {
                 match Self::FIXED_COST {
-                    Some(cost) => {
-                        budget.fixed(cost)?;
+                    ::core::option::Option::Some(#cost) => {
+                        #budget.fixed(#cost)?;
                         // SAFETY: raw backing satisfies this codec and cost was charged.
-                        unsafe { Self::decode_prechecked(wire) }
+                        unsafe { Self::decode_prechecked(#wire_input) }
                     }
-                    None => { #decode_body },
+                    ::core::option::Option::None => { #decode_body },
                 }
             }
             /// Converts fields through their same validators after the resource preflight.
             #[inline]
-            unsafe fn encode_prechecked(&self) -> Result<(Self::Wire, Self::Storage), #nc::NcStatus> {
+            unsafe fn encode_prechecked(&self) -> ::core::result::Result<(Self::Wire, Self::Storage), #nc::NcStatus> {
                 #direct_encode
                 match #encode_source { #(#encode_prechecked),* }
             }
             /// Checks tags and every field after the whole conversion was proved to fit.
             #[inline]
-            unsafe fn decode_prechecked(wire: Self::Wire) -> Result<Self, #nc::NcStatus> {
+            unsafe fn decode_prechecked(#wire_input: Self::Wire) -> ::core::result::Result<Self, #nc::NcStatus> {
                 #direct_decode
                 #decode_prechecked_body
             }

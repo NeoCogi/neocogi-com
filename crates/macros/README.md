@@ -111,3 +111,7 @@ trait or `OBJECT_*` constants are emitted.
 Canonical typed ABI signatures are always represented by SHA-256 digests.
 Interface identity is the generated IID plus that signature; human-readable
 names are diagnostic metadata.
+
+Generated value codecs keep authored members separate from positional private
+bindings and qualify their support types. See [generated identifier hygiene](../../../docs/COM_GENERATED_IDENTIFIER_HYGIENE.md)
+for the contract, the corruption it prevents, and executable regression coverage.
