@@ -147,7 +147,7 @@ fn raw_identifier_catalog_paths_compile_in_exported_forms() {
             Reset
         }
         /// Concrete projection whose Rust module location uses a raw identifier.
-        #[version(1)] factory CounterFactory { fn create(&self, events: &EventBinding<Counter, CounterEvent>) -> Result<ComPtr<Counter>>; }
+        #[version(1)] factory CounterFactory { fn create(&self, events: &EventBinding<Counter, CounterEvent>) -> Result<ComBox<Counter>>; }
         #[version(1)] class Counter: IWidget {}
     "#,
     )

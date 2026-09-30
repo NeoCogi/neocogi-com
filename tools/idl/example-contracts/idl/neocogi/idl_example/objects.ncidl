@@ -23,7 +23,7 @@ factory ExampleFactory {
 #[version(1)]
 interface ICompositionRoot {
     /// Returns the root capability for a host-specific mount operation.
-    fn root(&self) -> Result<ComPtr<IUnknown>>;
+    fn take_root(&mut self) -> Result<ComBox<IUnknown>>;
     /// Resolves one authored child for a checked concrete class query.
-    fn widget(&self, name: &[u8]) -> Result<ComPtr<IUnknown>>;
+    fn widget(&self, name: &[u8]) -> Result<WeakComBox<IUnknown>>;
 }
