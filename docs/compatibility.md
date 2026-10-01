@@ -31,7 +31,8 @@ compiler flag is interchangeable:
 Unspecified panic/LTO settings are unwind/off. Randomization uses seed 107.
 `cross-version` executes the two mixed-compiler rows; `build-flags` adds
 `stable-release`. `linked` also discovers and runs current C-layout, checked-value,
-recursive-interface, exclusive/shared lifetime and persistence regressions against
+recursive-interface, prepared consuming-output completion, exclusive/shared
+lifetime and persistence regressions against
 its explicitly built shared runtime. Their names and nonempty execution are
 checked; merely installing nightly or finding a successfully compiled binary is
 never a passing compatibility case.
@@ -85,11 +86,12 @@ matrix or old arbitrary Cargo-argument forwarding to keep in sync.
 `test-safety.sh` selects `--suite safety`. It requires nightly with `miri` and
 `rust-src` installed. It discovers and interprets the complete COM core, runtime,
 and facade library tests, plus current `local_com`, `borrowed_values`,
-`checked_values`, `exclusive_com` and `weak_com` targets, with two explicit native-only
-exceptions: `buffer_count_includes_each_nested_record` and
-`buffers_count_selected_variants_without_charging_larger_alternatives`. These
-million-value budget stress cases run in linked, ASan and TSan suites; Miri runs
-the remaining 13 checked-value tests, including malformed boolean/enum storage.
+`checked_values`, `output_completion`, `exclusive_com` and `weak_com` targets.
+Four explicit large-buffer stress cases remain native-only: the two checked-value
+budget traversals and the output-completion maximum-variant/provider-publication
+stress tests. Their exact names live in the driver. They run in linked, ASan and
+TSan suites; Miri runs the remaining 13 checked-value tests and 13 output-completion
+tests, including allocation injection, preserved owners, and malformed outputs.
 Facade tests select the static runtime because Miri interprets pure Rust and
 cannot load native plugins.
 That is a different check from executing the real shared-library boundary.
@@ -171,3 +173,15 @@ their respective CI execution; their presence in a workflow is not a passing
 result. The large budget tests omitted only from Miri passed in the linked and
 both sanitizer runs. No runtime ABI change or historical contract-DSO restoration
 was needed to resolve the verification gap.
+
+## Output completion coverage added on 2026-10-01
+
+The prepared-output fix (`d586d06f`, `1ca86a32`) adds `output_completion` to
+linked/sanitizer targets and the Miri target list. Fresh linked execution passed
+72 tests, including its 15 new regressions, and the relocated host/plugin check.
+A focused Miri run passed its 13 small regressions; two large-buffer cases ran
+natively. The driver unit suite passed all 9 tests. Full safety, sanitizer, and
+mixed-compiler suites were not rerun for this addition. The prior dated matrix
+above remains historical evidence, not a fresh result for these new tests.
+See the [completion contract and validation record](../../../docs/COM_OUTPUT_COMPLETION.md)
+for allocation injection, output bounds, owner preservation, and consumer checks.

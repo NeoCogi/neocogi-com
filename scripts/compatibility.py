@@ -55,6 +55,7 @@ LINKED_TESTS = {
     "factory_plugin_runtime": "generated_contract_factory_activates_without_a_class_table",
     "object_persistence": "registry_ownership_is_local_and_releases_retained_factories",
     "checked_values": "invalid_nested_bool_fails_copied_and_buffer_thunks",
+    "output_completion": "generated_calls::generated_commit_completes_with_all_further_allocation_denied",
     "exclusive_com": "container_owner_destruction_expires_all_cached_interfaces",
     "weak_com": "weak_tokens_do_not_retain_values_and_all_projections_share_identity",
     "recursive_interfaces": "full_pointer_checks_reject_incompatible_arguments_and_release_owned_returns",
@@ -200,12 +201,17 @@ def safety() -> dict:
         ("borrowed_values", "owned_message_outlives_producer_guard_and_source"),
         # Name required targets explicitly: reordering the native table must
         # not silently substitute a different Miri workload after a migration.
-        *((name, LINKED_TESTS[name]) for name in ("checked_values", "exclusive_com", "weak_com")),
+        *((name, LINKED_TESTS[name]) for name in ("checked_values", "output_completion", "exclusive_com", "weak_com")),
     ))
-    # These two tests traverse hundreds of thousands of values at the public
-    # budget boundary. They run in linked/ASan/TSan suites; Miri instead covers
-    # the same element codecs and malformed fields with the small checked cases.
-    native_budget_tests = ("buffer_count_includes_each_nested_record", "buffers_count_selected_variants_without_charging_larger_alternatives")
+    # These tests traverse hundreds of thousands of values at the public budget
+    # boundary. They run in linked/ASan/TSan suites; Miri covers allocation faults,
+    # ownership completion, and malformed fields using the small checked cases.
+    native_budget_tests = (
+        "buffer_count_includes_each_nested_record",
+        "buffers_count_selected_variants_without_charging_larger_alternatives",
+        "maximum_variant_cost_is_admitted_before_dispatch_on_both_sides",
+        "provider_validates_all_converted_outputs_before_publishing_any",
+    )
     harness = [argument for name in native_budget_tests for argument in ("--skip", name)]
     with tempfile.TemporaryDirectory(prefix="neocogi-com-miri-") as directory:
         for args, sentinel in targets:
