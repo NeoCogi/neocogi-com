@@ -61,7 +61,7 @@ pub(super) fn aliases(graph: &Generation<'_>, module: &ResolvedModule, declarati
                     pub use #provider as #name;
                 },
                 Helper::Port(_) => quote! {
-                    /// Private producer storage initialized with its constructor's final queue.
+                    /// Shared-service producer storage using WeakComPtr; exclusive widgets keep their queue and WeakComBox directly.
                     pub type #name = ::neocogi_com::events::EventPort<#queue>;
                 },
             })

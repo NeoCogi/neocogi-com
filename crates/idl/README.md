@@ -31,14 +31,22 @@ Construction-bound delivery uses the ordinary library enum
 `Unobserved` chooses permanent non-delivery. The factory retains the receiver
 before returning its product. There is no Rust sender or closure in the ABI.
 
-For methods returning `ComPtr<Product>` in the product's contract module, the
-backend derives `ProductEventBinding`, `ProductEventQueueAbi`, and `ProductEventPort`
-helpers from that argument and publishes `IDL_INTERFACE.event_queue`. That
-metadata describes the **receiver**, not a projection implemented by Product.
-Its event root and complete reachable value graph remain available to COM
-catalogs. Multiple event arguments or constructor disagreement about the same
-product's event type are rejected. Keeping the association in the declaring
-module prevents downstream imports from changing its published metadata.
+For methods returning `ComPtr<Product>`, `ComBox<Product>` or `WeakComBox<Product>`
+in the product's contract module, resolution records one constructor association.
+Its public helper inventory contains `ProductEventBinding`, `ProductEventQueueAbi`,
+`ProductEventQueue` and `ProductEventQueueVtblFor`. It additionally contains
+`ProductEventPort` only when an associated constructor returns `ComPtr<Product>`:
+that helper stores `WeakComPtr` and does not serve exclusive widgets. Validation
+reserves exactly these names against declarations, imports and other helpers;
+Rust generation consumes the same inventory.
+
+The resolved association also supplies `IDL_INTERFACE.event_queue`, its event
+root and complete reachable value graph. That metadata describes the **receiver**,
+not a projection implemented by Product. Multiple event arguments or constructor
+disagreement about the same product's event type fail resolution. Keeping the
+association in the declaring module prevents downstream imports from changing
+its published metadata. See the [constructor naming contract](../../../docs/IDL_CONSTRUCTOR_NAMES.md)
+for collision diagnostics, conditional names, generic products and regression coverage.
 `com_class(Contract)` supplies ordinary class allocation, with no event field
 annotation or later attachment method. See [the architecture guide](../../../docs/CLASS_EVENT_STREAMS.md).
 

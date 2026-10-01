@@ -35,7 +35,7 @@ pub(crate) enum Helper {
     Queue(String),
     /// Re-export required when COM macros implement the readable queue trait.
     QueueProvider(String),
-    /// Producer-local helper using a shared weak origin.
+    /// Shared-service helper; emitted only when an associated constructor returns ComPtr.
     Port(String),
 }
 impl Helper {
@@ -127,32 +127,30 @@ pub(super) fn resolve(graph: &ResolvedModules) -> Result<Vec<Construction>, Reso
                             .secondary(&method.span, "constructor returns this product"),
                         ));
                     }
-                    match plans[index].products.get(product_name) {
-                        Some(previous) if previous.binding.event.id != candidate.event.id => {
-                            return Err(failure(
-                                graph,
-                                Diagnostic::new("EIDL065", format!("constructors of {product_name} disagree on their event type",))
-                                    .primary(&method.span, "conflicting constructor")
-                                    .secondary(&previous.source, "previous constructor selects a different event"),
-                            ));
-                        }
-                        Some(_) => {}
-                        None => {
-                            plans[index].products.insert(
-                                product_name.clone(),
-                                Constructor {
-                                    binding: candidate,
-                                    source: method.span.clone(),
-                                    helpers: vec![
-                                        Helper::Binding(format!("{product_name}EventBinding")),
-                                        Helper::QueueAbi(format!("{product_name}EventQueueAbi")),
-                                        Helper::Queue(format!("{product_name}EventQueue")),
-                                        Helper::QueueProvider(format!("{product_name}EventQueueVtblFor")),
-                                        Helper::Port(format!("{product_name}EventPort")),
-                                    ],
-                                },
-                            );
-                        }
+                    let plan = plans[index].products.entry(product_name.clone()).or_insert_with(|| Constructor {
+                        binding: candidate,
+                        source: method.span.clone(),
+                        helpers: vec![
+                            Helper::Binding(format!("{product_name}EventBinding")),
+                            Helper::QueueAbi(format!("{product_name}EventQueueAbi")),
+                            Helper::Queue(format!("{product_name}EventQueue")),
+                            Helper::QueueProvider(format!("{product_name}EventQueueVtblFor")),
+                        ],
+                    });
+                    if plan.binding.event.id != candidate.event.id {
+                        return Err(failure(
+                            graph,
+                            Diagnostic::new("EIDL065", format!("constructors of {product_name} disagree on their event type"))
+                                .primary(&method.span, "conflicting constructor")
+                                .secondary(&plan.source, "previous constructor selects a different event"),
+                        ));
+                    }
+                    // EventPort stores WeakComPtr, so it is useful only for a
+                    // shared-owner construction path. Exclusive products retain
+                    // their queue and WeakComBox directly. A later shared factory
+                    // can add this helper once, independent of declaration order.
+                    if matches!(method.output, AbiType::ComPtr(_)) && !plan.helpers.iter().any(|helper| matches!(helper, Helper::Port(_))) {
+                        plan.helpers.push(Helper::Port(format!("{product_name}EventPort")));
                     }
                 }
             }

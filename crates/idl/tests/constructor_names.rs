@@ -239,3 +239,151 @@ fn rejects_malformed_binding_contract_before_generation() {
         assert!(error.to_string().contains("proof/names.ncidl"), "{error}");
     }
 }
+
+/// Exclusive and weak-exclusive constructor results must not reserve an unusable
+/// shared-weak port alias; all four queue/binding names still require protection.
+#[test]
+fn exclusive_constructors_reserve_only_the_helpers_they_emit() {
+    for ownership in ["ComBox", "WeakComBox"] {
+        let source = PRODUCT.replace("ComPtr<Counter>", &format!("{ownership}<Counter>"));
+        for suffix in &SUFFIXES[..4] {
+            let name = format!("Counter{suffix}");
+            for (source, dependencies) in [
+                (format!("{source} #[version(1)] struct {name} {{ value: u32 }}"), vec![]),
+                (
+                    format!("{source} extern proof.models; use proof.models::{name};"),
+                    vec![module("proof/models.ncidl", &format!("#[version(1)] struct {name} {{ value: u32 }}"))],
+                ),
+            ] {
+                assert!(
+                    resolve(&source, dependencies)
+                        .unwrap_err()
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.code == "EIDL021" && d.message.contains(&name))
+                );
+            }
+        }
+        let generated = generate_rust(&resolve(&source, []).unwrap(), "proof.names").unwrap();
+        assert!(!generated.contains("CounterEventPort"));
+        assert!(generated.contains("impl ::neocogi_com::events::EventSource for CounterAbi"));
+        for (source, dependencies) in [
+            (format!("{source} #[version(1)] struct CounterEventPort {{ value: u32 }}"), vec![]),
+            (
+                format!("{source} extern proof.models; use proof.models::CounterEventPort;"),
+                vec![module("proof/models.ncidl", "#[version(1)] struct CounterEventPort { value: u32 }")],
+            ),
+        ] {
+            assert!(generate_rust(&resolve(&source, dependencies).unwrap(), "proof.names").is_ok());
+        }
+    }
+}
+
+/// A shared path still needs the port even when a consistent exclusive factory
+/// is visited first. Conversely, a factory without an event binding cannot add it.
+#[test]
+fn mixed_constructors_preserve_one_shared_port_regardless_of_order() {
+    for order in [false, true] {
+        let exclusive = PRODUCT.replace("ComPtr<Counter>", "ComBox<Counter>");
+        let other = r#"#[version(1)] factory AnotherFactory {
+            fn create(&self, events: &EventBinding<Counter, Event>) -> Result<ComPtr<Counter>>;
+        }"#;
+        let source = match order {
+            false => format!("{exclusive} {other}"),
+            true => format!("{exclusive} {other}").replace("AnotherFactory", "ZFactory"),
+        };
+        let graph = resolve(&source, []).unwrap();
+        let generated = generate_rust(&graph, "proof.names").unwrap();
+        assert_eq!(generated.matches("pub type CounterEventPort =").count(), 1);
+        assert!(resolve(&format!("{source} #[version(1)] struct CounterEventPort {{ value: u32 }}"), []).is_err());
+    }
+    let source = format!(
+        "{} #[version(1)] factory SharedFactory {{ fn create(&self) -> Result<ComPtr<Counter>>; }}",
+        PRODUCT.replace("ComPtr<Counter>", "ComBox<Counter>")
+    );
+    let generated = generate_rust(&resolve(&source, []).unwrap(), "proof.names").unwrap();
+    assert!(!generated.contains("CounterEventPort"));
+}
+
+/// Compile accepted names and the actual queue trait aliases, then execute an
+/// exclusive factory/event round trip and inspect closed-generic event metadata.
+#[test]
+fn accepted_helper_names_compile_and_exclusive_events_cross_the_abi() {
+    use std::{fs, process::Command};
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let project = tempfile::tempdir().unwrap();
+    fs::create_dir(project.path().join("src")).unwrap();
+    fs::write(
+        project.path().join("Cargo.toml"),
+        format!(
+            "[package]\nname='constructor-names-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            root.join("crates/com/api"),
+        ),
+    )
+    .unwrap();
+    for (name, ownership) in [("exclusive", "ComBox"), ("weak_only", "WeakComBox")] {
+        let source = format!(
+            "{} #[version(1)] struct CounterEventPort {{ value: u32 }}",
+            PRODUCT
+                .replace("ComPtr<Counter>", &format!("{ownership}<Counter>"))
+                .replace("class Counter {}", "class Counter { fn emit(&mut self, value: &Event) -> Result<()>; }")
+        );
+        fs::write(
+            project.path().join(format!("src/{name}.rs")),
+            generate_rust(&resolve(&source, []).unwrap(), "proof.names").unwrap(),
+        )
+        .unwrap();
+    }
+    let mut plain = String::from("#[version(1)] class Counter {} #[version(1)] factory Factory { fn create(&self) -> Result<ComBox<Counter>>; }");
+    for suffix in SUFFIXES {
+        plain.push_str(&format!("#[version(1)] struct Counter{suffix} {{ value: u32 }}"));
+    }
+    fs::write(
+        project.path().join("src/plain.rs"),
+        generate_rust(&resolve(&plain, []).unwrap(), "proof.names").unwrap(),
+    )
+    .unwrap();
+    let generic = resolve(
+        r#"
+        extern neocogi.com.events; use neocogi.com.events::EventBinding;
+        #[version(1)] struct Event<T> { value: T }
+        #[version(1)] interface Counter<T> { fn read(&self) -> Result<T>; }
+        #[version(1)] factory Factory {
+            fn create(&self, events: &EventBinding<Counter<u32>, Event<u32>>) -> Result<ComPtr<Counter<u32>>>;
+        }
+    "#,
+        [],
+    )
+    .unwrap();
+    let product = generic
+        .module("proof.names")
+        .unwrap()
+        .source
+        .declarations
+        .iter()
+        .find(|declaration| {
+            declaration
+                .specialization
+                .as_ref()
+                .is_some_and(|instance| instance.template.segments.last().unwrap() == "Counter")
+        })
+        .unwrap();
+    fs::write(project.path().join("src/generic.rs"), generate_rust(&generic, "proof.names").unwrap()).unwrap();
+    fs::write(
+        project.path().join("src/lib.rs"),
+        include_str!("fixtures/constructor_names.rs").replace("GENERIC_PRODUCT", &product.name),
+    )
+    .unwrap();
+    let result = Command::new("cargo")
+        .args(["test", "--offline", "--manifest-path"])
+        .arg(project.path().join("Cargo.toml"))
+        .env("CARGO_TARGET_DIR", root.join("target/message-proof"))
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
+}
