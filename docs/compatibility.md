@@ -74,6 +74,63 @@ targets. They are not falsely described as coverage provided by the small
 cross-compiler example alone. The monolith remains a separate integration test
 because it must work without any native NeoCogi libraries.
 
+## Entry points, safety checks and CI
+
+The shell entry points `test-cross-version.sh`, `test-build-flags.sh`, and
+`test-linked-runtime.sh` select the corresponding driver suite. The linked
+PowerShell entry point selects the same suite and propagates its exit code.
+They accept driver arguments such as `--report`; there is no independent shell
+matrix or old arbitrary Cargo-argument forwarding to keep in sync.
+
+`test-safety.sh` selects `--suite safety`. It requires nightly with `miri` and
+`rust-src` installed. It discovers and interprets the complete COM core, runtime,
+and facade library tests, plus current `local_com`, `borrowed_values`,
+`checked_values`, `exclusive_com` and `weak_com` targets, with two explicit native-only
+exceptions: `buffer_count_includes_each_nested_record` and
+`buffers_count_selected_variants_without_charging_larger_alternatives`. These
+million-value budget stress cases run in linked, ASan and TSan suites; Miri runs
+the remaining 13 checked-value tests, including malformed boolean/enum storage.
+Facade tests select the static runtime because Miri interprets pure Rust and
+cannot load native plugins.
+That is a different check from executing the real shared-library boundary.
+
+`test-sanitizers.sh` selects `--suite sanitizers`, executing address and then
+thread instrumentation and failing on either error. The `address` and `thread`
+suites also run individually. These require nightly `rust-src` and
+`x86_64-unknown-linux-gnu`. Each rebuilds the standard library, runtime, host,
+plugin and test harnesses under the same sanitizer. Instrumented executables
+export sanitizer hooks before linker section collection: a later-loaded plugin
+may need a hook that the host itself never called. Without that export,
+ThreadSanitizer tests could pass before plugin activation failed on an undefined
+`__tsan_atomic64_exchange`. The six Rust targets from `linked` and the three
+library suites execute against the instrumented runtime;
+the relocated example then executes without its build targets. Native-C layout
+checks remain in `linked`, since this driver does not instrument the C compiler.
+Leak reporting is disabled for sanitizer execution because successful plugin
+libraries and process runtime registrations intentionally remain pinned. Address
+and data-race checks remain enabled. Miri receives no suppression flags.
+
+```sh
+rustup toolchain install nightly --component miri --component rust-src
+crates/com/scripts/test-safety.sh --report /tmp/com-miri.json
+python3 crates/com/scripts/compatibility.py --suite address --report /tmp/com-asan.json
+python3 crates/com/scripts/compatibility.py --suite thread --report /tmp/com-tsan.json
+```
+
+Missing components, unsupported sanitizer targets, discovery mismatches and
+instrumentation errors fail the invocation; they are never silently skipped.
+The combined sanitizer report records both cases and is successful only after
+both complete. Temporary targets are deleted even when verification fails;
+passing native roles also run explicit `cargo clean` after copying. Miri's task
+owns its private temporary target, not the user's shared interpreter sysroot
+cache; cleanup leaves that shared compiler cache intact.
+
+[CI](../../../.github/workflows/rust.yml) keeps ordinary static/unit/IDL tests
+separate from the independent-build matrix. Linux executes the three mixed-build
+rows; Linux, macOS and Windows each execute the linked row. Separate Linux jobs
+run Miri and both sanitizers. A platform job is not evidence until it actually
+runs successfully; local Linux validation does not imply macOS/Windows execution.
+
 ## Why the old entry points failed
 
 `8fed79b2` made the runtime an rlib to avoid an unused duplicate shared-library

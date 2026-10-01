@@ -51,24 +51,30 @@ CASES = (
     Case("stable-release", Build("stable", "release", "abort", "fat"), Build("stable", "release", "unwind", "thin"), Build("stable", "release", "abort", "fat")),
 )
 # Keep semantic sentinels next to their actual target, not stale names in several scripts.
-LINKED_TESTS = (
-    ("factory_plugin_runtime", "generated_contract_factory_activates_without_a_class_table"),
-    ("object_persistence", "registry_ownership_is_local_and_releases_retained_factories"),
-    ("checked_values", "invalid_nested_bool_fails_copied_and_buffer_thunks"),
-    ("exclusive_com", "container_owner_destruction_expires_all_cached_interfaces"),
-    ("weak_com", "weak_tokens_do_not_retain_values_and_all_projections_share_identity"),
-    ("recursive_interfaces", "full_pointer_checks_reject_incompatible_arguments_and_release_owned_returns"),
-)
+LINKED_TESTS = {
+    "factory_plugin_runtime": "generated_contract_factory_activates_without_a_class_table",
+    "object_persistence": "registry_ownership_is_local_and_releases_retained_factories",
+    "checked_values": "invalid_nested_bool_fails_copied_and_buffer_thunks",
+    "exclusive_com": "container_owner_destruction_expires_all_cached_interfaces",
+    "weak_com": "weak_tokens_do_not_retain_values_and_all_projections_share_identity",
+    "recursive_interfaces": "full_pointer_checks_reject_incompatible_arguments_and_release_owned_returns",
+}
 
 
 def run(arguments: list[str], *, env: dict[str, str], cwd: Path = ROOT) -> str:
     """Run one explicit argument vector, retaining diagnostics and requiring success."""
     print("+", subprocess.list2cmdline([str(arg) for arg in arguments]), flush=True)
-    result = subprocess.run(arguments, cwd=cwd, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    print(result.stdout, end="", flush=True)
-    if result.returncode:
-        raise RuntimeError(f"command exited {result.returncode}: {arguments[0]}")
-    return result.stdout
+    # Stream expensive compiler/Miri work into CI logs while retaining the same
+    # output for discovery and execution checks after the process has exited.
+    lines = []
+    with subprocess.Popen(arguments, cwd=cwd, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:
+        for line in process.stdout:
+            print(line, end="", flush=True)
+            lines.append(line)
+        status = process.wait()
+    if status:
+        raise RuntimeError(f"command exited {status}: {arguments[0]}")
+    return "".join(lines)
 
 
 def clean_environment() -> dict[str, str]:
@@ -82,6 +88,8 @@ def clean_environment() -> dict[str, str]:
         if key.startswith(("CARGO_PROFILE_", "CARGO_TARGET_", "RUSTUP_TOOLCHAIN")) or key in {
             "CARGO", "RUSTC", "RUSTC_WRAPPER", "RUSTC_WORKSPACE_WRAPPER", "RUSTFLAGS",
             "CARGO_ENCODED_RUSTFLAGS", "RUSTDOCFLAGS", "CARGO_BUILD_TARGET", "CARGO_BUILD_RUSTFLAGS",
+            "CARGO_BUILD_RUSTC", "CARGO_BUILD_RUSTC_WRAPPER", "CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER",
+            "MIRIFLAGS", "MIRI_SYSROOT", "ASAN_OPTIONS", "LSAN_OPTIONS", "TSAN_OPTIONS",
             "NC_COM_RUNTIME_LINK_DIR", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH",
         }:
             env.pop(key)
@@ -118,7 +126,7 @@ def require_execution(output: str) -> None:
         raise RuntimeError("no successful nonempty test execution")
 
 
-def cargo(build: Build, target: Path, arguments: list[str], env: dict[str, str], native_target: str, sanitizer: str | None = None) -> str:
+def cargo(build: Build, target: Path, arguments: list[str], env: dict[str, str], native_target: str, sanitizer: str | None = None, harness: tuple[str, ...] = ()) -> str:
     """Apply one build policy to the final artifact and all its Rust dependencies."""
     flags = ["-Zrandomize-layout", "-Zlayout-seed=107"] if build.randomize else []
     extra = ["--target", native_target]
@@ -128,6 +136,11 @@ def cargo(build: Build, target: Path, arguments: list[str], env: dict[str, str],
         if native_target != "x86_64-unknown-linux-gnu":
             raise RuntimeError("sanitizer execution currently supports x86_64-unknown-linux-gnu")
         flags += [f"-Zsanitizer={sanitizer}"]
+        if arguments[0] in ("build", "test"):
+            # The sanitizer runtime lives in the executable. A later dlopen may
+            # need hooks unused by the host itself; export them before section
+            # collection rather than discovering missing symbols at activation.
+            flags += ["-Clink-arg=-Wl,--export-dynamic"]
         extra += ["-Zbuild-std"]
     policy = {
         **env,
@@ -138,23 +151,71 @@ def cargo(build: Build, target: Path, arguments: list[str], env: dict[str, str],
         f"CARGO_PROFILE_{build.profile.upper()}_CODEGEN_UNITS": "1" if build.lto != "off" else "16",
     }
     return run(["rustup", "run", build.toolchain, "cargo", *arguments,
-                "--locked", "--target-dir", str(target), "--profile", build.profile, *extra], env=policy)
+                "--locked", "--target-dir", str(target), "--profile", build.profile, *extra,
+                *(["--", *harness] if harness else [])], env=policy)
 
 
-def linked_tests(build: Build, target: Path, env: dict[str, str]) -> None:
-    """Run current ABI/value/lifetime/persistence tests against the staged shared runtime."""
-    for target_name, sentinel in LINKED_TESTS:
+def linked_tests(build: Build, target: Path, env: dict[str, str], native_target: str, sanitizer: str | None) -> None:
+    """Run ABI/value/lifetime/persistence checks with the same instrumentation as the runtime."""
+    for target_name, sentinel in LINKED_TESTS.items():
         args = ["test", "-p", "neocogi-com", "--features", "runtime", "--test", target_name]
-        # Cargo flags must precede the test executable's arguments.
-        command = ["rustup", "run", build.toolchain, "cargo", *args, "--locked", "--target-dir", str(target)]
-        require_tests(run([*command, "--", "--list"], env=env), sentinel)
-        require_execution(run(command, env=env))
-    # Execute the C fixture directly so its target is owned and cleaned by this
-    # driver, rather than a nested test writing into a persistent workspace path.
-    manifest = ROOT / "crates/com/api/integration-tests/fixtures/native-c-abi/Cargo.toml"
-    command = ["rustup", "run", build.toolchain, "cargo", "test", "--manifest-path", str(manifest), "--locked", "--target-dir", str(target)]
-    require_tests(run([*command, "--", "--list"], env=env))
-    require_execution(run(command, env=env))
+        require_tests(cargo(build, target, args, env, native_target, sanitizer, ("--list",)), sentinel)
+        require_execution(cargo(build, target, args, env, native_target, sanitizer))
+    if sanitizer:
+        # Preserve pure library coverage without the retired multi-plugin examples.
+        for package in ("neocogi-com-core", "neocogi-com-runtime", "neocogi-com"):
+            args = ["test", "-p", package, "--lib"]
+            match package:
+                case "neocogi-com-core": args += ["--features", "std"]
+                case "neocogi-com": args += ["--features", "runtime"]
+            require_tests(cargo(build, target, args, env, native_target, sanitizer, ("--list",)))
+            require_execution(cargo(build, target, args, env, native_target, sanitizer))
+    else:
+        # Execute the C fixture directly so its target is owned and cleaned here.
+        # It checks native C layout; it does not instrument the C compiler itself.
+        manifest = ROOT / "crates/com/api/integration-tests/fixtures/native-c-abi/Cargo.toml"
+        args = ["test", "--manifest-path", str(manifest)]
+        require_tests(cargo(build, target, args, env, native_target, harness=("--list",)))
+        require_execution(cargo(build, target, args, env, native_target))
+
+
+def safety() -> dict:
+    """Interpret current pure Rust targets with Miri; native loading stays in other suites.
+
+    Static runtime selection is deliberate: Miri cannot execute arbitrary dlopen
+    calls. No Miri safety diagnostic is suppressed and no deleted plugin fixture is
+    reconstructed. Exact sentinels and executed counts are checked just as for
+    native tests, and temporary build outputs are removed on success or failure.
+    """
+    env = clean_environment()
+    version = run(["rustup", "run", "nightly", "rustc", "-vV"], env=env)
+    run(["rustup", "run", "nightly", "cargo", "miri", "--version"], env=env)
+    targets = [
+        (["-p", "neocogi-com-core", "--lib", "--features", "std"], "abi::array_tests::array_signature_matches_known_sha256_and_distinguishes_shapes"),
+        (["-p", "neocogi-com-runtime", "--lib"], "loader::plan::tests::orders_dependencies_before_dependents_deterministically"),
+        (["-p", "neocogi-com", "--lib", "--features", "static-runtime"], "runtime::tests::table_rejects_a_short_allocation_before_forming_a_full_reference"),
+    ]
+    targets.extend((["-p", "neocogi-com", "--features", "static-runtime", "--test", name], sentinel) for name, sentinel in (
+        ("local_com", "local_and_foreign_calls_share_one_gate_and_one_model"),
+        ("borrowed_values", "owned_message_outlives_producer_guard_and_source"),
+        # Name required targets explicitly: reordering the native table must
+        # not silently substitute a different Miri workload after a migration.
+        *((name, LINKED_TESTS[name]) for name in ("checked_values", "exclusive_com", "weak_com")),
+    ))
+    # These two tests traverse hundreds of thousands of values at the public
+    # budget boundary. They run in linked/ASan/TSan suites; Miri instead covers
+    # the same element codecs and malformed fields with the small checked cases.
+    native_budget_tests = ("buffer_count_includes_each_nested_record", "buffers_count_selected_variants_without_charging_larger_alternatives")
+    harness = [argument for name in native_budget_tests for argument in ("--skip", name)]
+    with tempfile.TemporaryDirectory(prefix="neocogi-com-miri-") as directory:
+        for args, sentinel in targets:
+            command = ["rustup", "run", "nightly", "cargo", "miri", "test", *args, "--locked", "--target-dir", directory, "--", *harness]
+            require_tests(run([*command, "--list"], env=env), sentinel)
+            require_execution(run(command, env=env))
+        # Miri owns a private cache layout below this directory, not a normal
+        # Cargo target root. Drop exactly our temporary directory; cargo miri
+        # clean would additionally remove the user's shared Miri sysroot cache.
+    return {"suite": "safety", "compiler": version, "status": "passed", "targets": len(targets)}
 
 
 def execute(case: Case, *, linked: bool = False, sanitizer: str | None = None) -> dict:
@@ -199,8 +260,8 @@ def execute(case: Case, *, linked: bool = False, sanitizer: str | None = None) -
             # Plugin mappings and the process-global runtime intentionally remain pinned.
             runtime_env["ASAN_OPTIONS"] = "detect_leaks=0"
             runtime_env["LSAN_OPTIONS"] = "detect_leaks=0"
-        if linked:
-            linked_tests(case.host, work / "tests", {**runtime_env, "NC_COM_RUNTIME_LINK_DIR": str(link)})
+        if linked or sanitizer:
+            linked_tests(case.host, work / "tests", {**runtime_env, "NC_COM_RUNTIME_LINK_DIR": str(link)}, next(iter(triples)), sanitizer)
             run(["rustup", "run", case.host.toolchain, "cargo", "clean", "--target-dir", str(work / "tests")], env=env)
         shutil.rmtree(link)
         expected = {executable, library("nc_com"), library("nc_example_com")}
@@ -215,14 +276,17 @@ def execute(case: Case, *, linked: bool = False, sanitizer: str | None = None) -
 def main() -> None:
     """Select only maintained cases and emit a report only after every requested case passes."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", choices=("cross-version", "build-flags", "linked", "address", "thread"), default="cross-version")
+    parser.add_argument("--suite", choices=("cross-version", "build-flags", "linked", "safety", "address", "thread", "sanitizers"), default="cross-version")
     parser.add_argument("--report", type=Path, help="write exact compiler/build evidence outside temporary targets")
     args = parser.parse_args()
     match args.suite:
+        case "safety": selected = ()
         case "linked": selected = CASES[:1]
         case "cross-version": selected = CASES[1:3]
         case "build-flags": selected = CASES[1:]
-        case "address" | "thread": selected = (Case(args.suite, Build("nightly"), Build("nightly"), Build("nightly")),)
+        case "address" | "thread" | "sanitizers":
+            names = ("address", "thread") if args.suite == "sanitizers" else (args.suite,)
+            selected = tuple(Case(name, Build("nightly"), Build("nightly"), Build("nightly")) for name in names)
     results = []
     def report(status: str, error: str | None = None) -> None:
         """Overwrite old evidence before starting; interrupted/failed work must not look green."""
@@ -231,8 +295,10 @@ def main() -> None:
             args.report.write_text(json.dumps({"suite": args.suite, "status": status, "cases": results, "error": error}, indent=2) + "\n")
     report("running")
     try:
+        if args.suite == "safety":
+            results.append(safety())
         for case in selected:
-            results.append(execute(case, linked=args.suite == "linked", sanitizer=args.suite if args.suite in ("address", "thread") else None))
+            results.append(execute(case, linked=args.suite == "linked", sanitizer=case.name if case.name in ("address", "thread") else None))
             report("running")
     except Exception as error:
         report("failed", str(error))

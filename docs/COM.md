@@ -226,6 +226,15 @@ from object activation; arbitrary private object memory is never serialized.
 fields expose checked widget interfaces, and typed receivers post application
 messages without an intermediate component relay.
 
+## Executed compatibility checks
+
+The [compatibility matrix](docs/compatibility.md) defines independent runtime,
+host and plugin builds, mixed compiler/profile policies, relocated execution,
+and the separate Miri/sanitizer checks. One standard-library Python driver owns
+these checks; shell, PowerShell and CI entry points delegate to it. An ordinary
+`cargo build -p neocogi-com-runtime` produces an rlib, not the runtime DSO needed
+by a dynamically linked host.
+
 ## Checking the documentation
 
 Run these commands from the workspace root:
