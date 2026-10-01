@@ -19,20 +19,65 @@ pub struct ObjectRecord {
     pub children: Vec<ObjectRecord>,
 }
 
+impl ObjectRecord {
+    /// Measures a leaf persistence envelope before allocating its state bytes.
+    /// UUID/revision contents have fixed widths, so zero placeholders give the
+    /// exact shape for any recipe. State remains a sequence of byte values; it
+    /// consumes the same element/value budgets as an actual Vec<u8>. This helper
+    /// covers only records with no persistent children, not arbitrary trees.
+    pub fn encoded_leaf_len(state_bytes: usize, limits: binary::Limits) -> Result<usize, binary::Error> {
+        binary::encoded_len_with_limits(&LeafSize { state_bytes }, limits)
+    }
+
+    /// Encodes the single authoritative field order for owned records and leaf
+    /// measurement. Abstracting only state serialization avoids a second envelope
+    /// schema or hardcoded framing/value overhead in document admission checks.
+    fn serialize_fields<S: ComSerializer, T: ComSerialize + ?Sized>(
+        serializer: &mut S, type_id: &[u8; 16], schema_version: u32, state: &T, children: &[Self],
+    ) -> Result<(), S::Error> {
+        serializer.begin_record(Self::NAME, Self::FIELDS.len())?;
+        serializer.field("type_id")?;
+        type_id.com_serialize(serializer)?;
+        serializer.field("schema_version")?;
+        schema_version.com_serialize(serializer)?;
+        serializer.field("state")?;
+        state.com_serialize(serializer)?;
+        serializer.field("children")?;
+        children.com_serialize(serializer)?;
+        serializer.end_record()
+    }
+}
+
 impl ComSerialize for ObjectRecord {
     /// Preserves the named schema and exact field order used before relocation.
     fn com_serialize<S: ComSerializer>(&self, serializer: &mut S) -> Result<(), S::Error> {
-        // Keep this order stable: binary documents encode record fields in order.
-        serializer.begin_record(Self::NAME, Self::FIELDS.len())?;
-        serializer.field("type_id")?;
-        self.type_id.com_serialize(serializer)?;
-        serializer.field("schema_version")?;
-        self.schema_version.com_serialize(serializer)?;
-        serializer.field("state")?;
-        self.state.com_serialize(serializer)?;
-        serializer.field("children")?;
-        self.children.com_serialize(serializer)?;
-        serializer.end_record()
+        Self::serialize_fields(serializer, &self.type_id, self.schema_version, &self.state, &self.children)
+    }
+}
+
+/// Counting-only leaf record; no placeholder byte allocation accompanies its length.
+struct LeafSize {
+    /// Number of state bytes which will become individual sequence values.
+    state_bytes: usize,
+}
+impl ComSerialize for LeafSize {
+    /// Uses the same envelope fields as a real owned record with empty children.
+    fn com_serialize<S: ComSerializer>(&self, serializer: &mut S) -> Result<(), S::Error> {
+        ObjectRecord::serialize_fields(serializer, &[0; 16], 0, &ByteCount(self.state_bytes), &[])
+    }
+}
+
+/// A virtual sequence used only for measurement; byte contents cannot affect NCB size.
+struct ByteCount(usize);
+impl ComSerialize for ByteCount {
+    /// Collection admission happens before visiting any elements, exactly as for
+    /// Vec<u8>. Each zero still consumes one scalar value: this is not a blob.
+    fn com_serialize<S: ComSerializer>(&self, serializer: &mut S) -> Result<(), S::Error> {
+        serializer.begin_sequence(self.0)?;
+        for _ in 0..self.0 {
+            serializer.serialize_u8(0)?;
+        }
+        serializer.end_sequence()
     }
 }
 

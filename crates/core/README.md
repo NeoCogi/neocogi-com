@@ -170,6 +170,19 @@ tuple/record cases contain a sequence/record value and its fields. Text costs on
 value and its bytes consume `bytes`; string lengths, enum tags, and presence tags
 are framing, not extra values or depth levels.
 
+`binary::encoded_len_with_limits` runs the same encoder without an output buffer.
+It returns the complete encoded length or the same budget error and offset as
+ordinary encoding. This supports admission before cloning large typed inputs;
+there is no separate approximate size formula. User-written serialization code
+can still allocate internally. Materialized output reserves fallibly and checks
+its byte ceiling before requesting additional capacity.
+
+`ObjectRecord::encoded_leaf_len` checks the exact envelope for a known state-byte
+length and no persistent children. It shares the ordinary record field serializer
+and counts a virtual byte sequence, without allocating placeholder state. UUID and
+revision contents do not change their widths. Use it together with measurement of
+the actual inner value; it does not validate that value or cover child records.
+
 `Vec<u8>` always remains a collection: each byte consumes a value and an element
 of that collection. In particular, `ObjectRecord.state` receives this accounting
 even though its bytes may themselves encode provider initialization. A separate

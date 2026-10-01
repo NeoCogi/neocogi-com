@@ -1,5 +1,8 @@
 //! Persistent values are portable, deterministic, and reject malformed inputs.
 
+#[path = "support/allocation_probe.rs"]
+mod allocation_probe;
+
 use neocogi_com::{
     binary::{self, Limits},
     ComDeserialize, ComSerialize,
@@ -176,6 +179,7 @@ fn assert_accounting<T: ComSerialize + ComDeserialize + std::fmt::Debug + Partia
         depth,
         values,
     };
+    assert_eq!(binary::encoded_len_with_limits(value, exact).unwrap(), encoded.len());
     assert_eq!(binary::to_vec_with_limits(value, exact).unwrap(), encoded);
     assert_eq!(&binary::from_slice_with_limits::<T>(&encoded, exact).unwrap(), value);
 
@@ -190,7 +194,9 @@ fn assert_accounting<T: ComSerialize + ComDeserialize + std::fmt::Debug + Partia
         insufficient.push(Limits { elements: exact.elements - 1, ..exact });
     }
     for limits in insufficient {
-        assert!(binary::to_vec_with_limits(value, limits).is_err(), "writer accepted {value:?} under {limits:?}");
+        let written = binary::to_vec_with_limits(value, limits).unwrap_err();
+        assert_eq!(binary::encoded_len_with_limits(value, limits).unwrap_err(), written,
+            "measurement diverged from writer for {value:?} under {limits:?}");
         assert!(
             binary::from_slice_with_limits::<T>(&encoded, limits).is_err(),
             "reader accepted {value:?} under {limits:?}"
@@ -274,4 +280,51 @@ fn oversized_persistence_state_is_rejected_by_both_directions() {
     assert_eq!(encoded.len(), 1_048_616);
     assert!(binary::from_slice_with_limits::<ObjectRecord>(&encoded, limits).is_err());
     assert_eq!(binary::from_slice_with_limits::<ObjectRecord>(&encoded, permissive).unwrap(), record);
+}
+
+/// Real records and virtual leaf envelopes must agree at every independent budget
+/// boundary, including zero bytes, UUID elements and the final empty child vector.
+#[test]
+fn measured_leaf_envelopes_match_real_encoding_and_decoding() {
+    use neocogi_com::persistence::ObjectRecord;
+    for state_bytes in [0, 1, 15, 16, 17, 64] {
+        let record = ObjectRecord { type_id: [0xab; 16], schema_version: u32::MAX, state: vec![0xff; state_bytes], children: vec![] };
+        let encoded = binary::to_vec(&record).unwrap();
+        let exact = Limits { bytes: encoded.len(), elements: state_bytes.max(16), depth: 3, values: state_bytes + 21 };
+        assert_eq!(ObjectRecord::encoded_leaf_len(state_bytes, exact).unwrap(), encoded.len());
+        assert_accounting(&record, exact.values, exact.depth, exact.elements);
+        for limits in [
+            Limits { bytes: exact.bytes - 1, ..exact },
+            Limits { elements: exact.elements - 1, ..exact },
+            Limits { depth: 2, ..exact },
+            Limits { values: exact.values - 1, ..exact },
+            Limits { bytes: 0, ..exact },
+        ] {
+            assert_eq!(ObjectRecord::encoded_leaf_len(state_bytes, limits).unwrap_err(),
+                binary::to_vec_with_limits(&record, limits).unwrap_err());
+            assert!(binary::from_slice_with_limits::<ObjectRecord>(&encoded, limits).is_err());
+        }
+    }
+}
+
+/// Admission visits borrowed payloads without allocating their encoded copies;
+/// actual encoding reports reservation failure instead of aborting the process.
+#[test]
+fn measurement_needs_no_output_allocation_and_encoding_failure_is_recoverable() {
+    use allocation_probe::Probe;
+    let text = "x".repeat(2 * 1024 * 1024);
+    let probe = Probe::start(Some(0));
+    let measured = binary::encoded_len_with_limits(&text, Limits::default());
+    let envelope = neocogi_com::persistence::ObjectRecord::encoded_leaf_len(text.len(), Limits::default());
+    let report = probe.finish();
+    assert_eq!(measured.unwrap(), text.len() + 8);
+    assert!(envelope.is_err());
+    assert_eq!(report.attempts, 0);
+    assert_eq!(report.denied, 0);
+
+    let probe = Probe::start(Some(0));
+    let failed = binary::to_vec(&text);
+    let report = probe.finish();
+    assert_eq!(failed.unwrap_err().message, "output allocation failed");
+    assert_eq!(report.denied, 1);
 }

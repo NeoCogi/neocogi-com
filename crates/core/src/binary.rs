@@ -71,16 +71,28 @@ pub fn to_vec<T: ComSerialize + ?Sized>(value: &T) -> Result<Vec<u8>, Error> {
 }
 /// Serializes one complete typed value under an explicit resource policy.
 pub fn to_vec_with_limits<T: ComSerialize + ?Sized>(value: &T, limits: Limits) -> Result<Vec<u8>, Error> {
-    let mut writer = Writer {
-        bytes: Vec::new(),
-        budget: Budget::new(limits),
-    };
+    let mut bytes = Vec::new();
+    encode(value, limits, Some(&mut bytes))?;
+    Ok(bytes)
+}
+/// Measures a complete encoding under exactly the writer/reader resource policy.
+/// No output buffer is allocated: the ordinary serializer visits the same values,
+/// framing and limits. Errors have the same offsets as materialized encoding.
+/// A user-written ComSerialize implementation can still allocate internally; this
+/// API only guarantees that the codec itself does not store the encoded payload.
+pub fn encoded_len_with_limits<T: ComSerialize + ?Sized>(value: &T, limits: Limits) -> Result<usize, Error> {
+    encode(value, limits, None)
+}
+/// Runs one authoritative encoder with either owned output storage or counting only.
+/// Measurement is an admission check, not a cached proof for a later mutable value.
+fn encode<T: ComSerialize + ?Sized>(value: &T, limits: Limits, output: Option<&mut Vec<u8>>) -> Result<usize, Error> {
+    let mut writer = Writer { output, offset: 0, budget: Budget::new(limits) };
     writer.write(MAGIC)?;
     value.com_serialize(&mut writer)?;
     if writer.budget.depth != 0 {
         return Err(writer.error("unclosed serialized container"));
     }
-    Ok(writer.bytes)
+    Ok(writer.offset)
 }
 /// Decodes one complete value; trailing data and unknown format versions fail.
 pub fn from_slice<T: ComDeserialize>(bytes: &[u8]) -> Result<T, Error> {
@@ -163,33 +175,50 @@ impl Budget {
     }
 }
 
-/// One output buffer and its structural budget, owned through exclusive access.
-struct Writer {
-    /// Bytes already emitted, including format framing.
-    bytes: Vec<u8>,
+/// One encoding traversal; optional storage never changes its resource accounting.
+struct Writer<'a> {
+    /// Some borrows output exclusively; None validates/counts without materializing bytes.
+    output: Option<&'a mut Vec<u8>>,
+    /// Encoded bytes accepted so far, including framing, in either output mode.
+    offset: usize,
     /// Shared definition of logical values, nesting, and collection bounds.
     budget: Budget,
 }
-impl Writer {
+impl Writer<'_> {
     /// Associates a static diagnostic with the current output position.
     fn error(&self, message: &'static str) -> Error {
-        Error { offset: self.bytes.len(), message }
+        Error { offset: self.offset, message }
     }
     /// Checks the complete append before touching the buffer.
     fn write(&mut self, bytes: &[u8]) -> Result<(), Error> {
-        if bytes.len() > self.budget.limits.bytes.saturating_sub(self.bytes.len()) {
+        if bytes.len() > self.budget.limits.bytes.saturating_sub(self.offset) {
             return Err(self.error("document byte limit"));
         }
-        self.bytes.extend_from_slice(bytes);
+        match &mut self.output {
+            Some(output) => {
+                // Grow geometrically but never request capacity above this call's
+                // byte ceiling. Reservation failure is a normal encoding error.
+                let required = self.offset + bytes.len();
+                if required > output.capacity() {
+                    let capacity = required.max(output.capacity().saturating_mul(2)).min(self.budget.limits.bytes);
+                    output.try_reserve_exact(capacity - output.len()).map_err(|_| Error {
+                        offset: self.offset, message: "output allocation failed",
+                    })?;
+                }
+                output.extend_from_slice(bytes);
+            }
+            None => {}
+        }
+        self.offset += bytes.len();
         Ok(())
     }
     /// Opens a schema value; callers must close it after all its children.
     fn enter(&mut self) -> Result<(), Error> {
-        self.budget.enter(self.bytes.len())
+        self.budget.enter(self.offset)
     }
     /// Ends a previously opened schema value, including an empty container.
     fn leave(&mut self) -> Result<(), Error> {
-        self.budget.leave(self.bytes.len())
+        self.budget.leave(self.offset)
     }
     /// Runs a leaf or option value within one budget scope.
     /// Any error aborts serialization; the caller discards the incomplete output
@@ -206,12 +235,12 @@ impl Writer {
     }
     /// Writes a count as framing after the shared collection preflight succeeds.
     fn count(&mut self, len: usize, values_per_entry: usize) -> Result<(), Error> {
-        self.budget.collection(len, values_per_entry, self.bytes.len())?;
+        self.budget.collection(len, values_per_entry, self.offset)?;
         let count = u32::try_from(len).map_err(|_| self.error("length exceeds u32"))?;
         self.write(&count.to_le_bytes())
     }
 }
-impl ComSerializer for Writer {
+impl ComSerializer for Writer<'_> {
     type Error = Error;
     /// Unit has no payload bytes.
     fn serialize_unit(&mut self) -> Result<(), Error> {
