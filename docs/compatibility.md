@@ -145,3 +145,29 @@ The current driver retains the valid architecture and replaces duplicate dynamic
 fixture builders. Ordinary generated factory registration still has its own
 integration test. Neither the old component fixtures nor native contract
 libraries need to be restored to repair this verification boundary.
+
+## Validation recorded on 2026-09-30
+
+The implementation is in `338e2963` (canonical driver/fixture) and `e69f2ecc`
+(script/CI/safety migration), on branch `fix/com-independent-build-checks`.
+Fresh native execution used `x86_64-unknown-linux-gnu`, stable
+`rustc 1.98.1 (48a229cea 2026-09-01)` and nightly
+`rustc 1.101.0-nightly (c1070d693 2026-09-28)`.
+
+| Check | Executed result |
+| --- | --- |
+| `build-flags` | All three rows passed, including stable/nightly in both directions and the mixed stable release row |
+| `test-linked-runtime.sh` | 57 tests passed, including 3 native-C tests; relocated host/plugin execution passed |
+| `test-safety.sh` | 154 Miri tests passed; task-owned target cleanup completed |
+| `address` | 161 tests passed; relocated host/plugin execution passed |
+| `thread` | 161 tests passed; relocated host/plugin execution passed after exporting sanitizer hooks |
+| Repaired static COM/core/macros/runtime/inspector CI command | 267 tests/doctests passed, including generated compile cases |
+| Example `build_modes` | Relocated monolith passed without native NeoCogi libraries |
+| Driver regressions | 9 passed, including partial sanitizer results and a failed process printing a success marker |
+| Entry-point/doc checks | Bash syntax, workflow YAML parsing and COM Markdown links passed |
+
+These are Linux results. The macOS/Windows matrix and PowerShell wrapper require
+their respective CI execution; their presence in a workflow is not a passing
+result. The large budget tests omitted only from Miri passed in the linked and
+both sanitizer runs. No runtime ABI change or historical contract-DSO restoration
+was needed to resolve the verification gap.
