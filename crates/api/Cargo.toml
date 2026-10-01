@@ -127,3 +127,7 @@ required-features = ["runtime"]
 [[test]]
 name = "exclusive_com"
 path = "integration-tests/exclusive_com.rs"
+
+[[test]]
+name = "output_completion"
+path = "integration-tests/output_completion.rs"

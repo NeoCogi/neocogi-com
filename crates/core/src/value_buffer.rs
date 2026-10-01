@@ -68,15 +68,26 @@ impl<'a, T: ComInlineValue> EncodedInput<'a, T> {
     }
 }
 
+/// Prepared converted output storage shared by the two sides of a call.
+/// One vector initially holds input elements and the other reserves completion
+/// capacity. Conversion fills the reserved vector; publication never allocates.
+#[cfg(feature = "alloc")]
+struct ConvertedOutput<T: ComInlineValue> {
+    /// Validated native elements, separate from caller destinations until publication.
+    values: Vec<T>,
+    /// Initialized wire elements, separate from provider destinations until publication.
+    wires: Vec<T::Wire>,
+}
+
 /// Exclusive writable argument; retains the destination until checked acquisition.
 pub struct EncodedOutput<'a, T: ComInlineValue> {
     /// Logical destination offset understood by the receiving method.
     offset: u64,
     /// Original application destination, never aliased by another safe guard.
     target: &'a mut [T],
-    /// Absent for wire-identical storage; present for restricted raw fields.
+    /// Direct buffers need no scratch; converted buffers reserve both directions.
     #[cfg(feature = "alloc")]
-    wires: Option<Vec<T::Wire>>,
+    converted: Option<ConvertedOutput<T>>,
 }
 impl<'a, T: ComInlineValue> EncodedOutput<'a, T> {
     /// Prepares initialized in/out storage while preserving the exclusive borrow.
@@ -84,9 +95,12 @@ impl<'a, T: ComInlineValue> EncodedOutput<'a, T> {
         let offset = value.offset();
         let target = value.into_mut_slice();
         #[cfg(feature = "alloc")]
-        let wires = match T::BORROW_WIRE {
+        let converted = match T::BORROW_WIRE {
             true => None,
-            false => Some(crate::encode_value_buffer(target)?),
+            false => Some(ConvertedOutput {
+                wires: crate::encode_value_buffer(target)?,
+                values: crate::value::reserve_value_buffer(target.len())?,
+            }),
         };
         #[cfg(not(feature = "alloc"))]
         if !T::BORROW_WIRE {
@@ -96,7 +110,7 @@ impl<'a, T: ComInlineValue> EncodedOutput<'a, T> {
             offset,
             target,
             #[cfg(feature = "alloc")]
-            wires,
+            converted,
         })
     }
     /// Preserves the logical destination offset.
@@ -114,20 +128,40 @@ impl<'a, T: ComInlineValue> EncodedOutput<'a, T> {
     /// Obtains a raw pointer through this guard's exclusive destination borrow.
     pub fn as_mut_ptr(&mut self) -> *mut T::Wire {
         #[cfg(feature = "alloc")]
-        if let Some(wires) = &mut self.wires {
-            return wires.as_mut_ptr();
+        if let Some(converted) = &mut self.converted {
+            return converted.wires.as_mut_ptr();
         }
         self.target.as_mut_ptr().cast()
     }
-    /// Validates converted output before replacing any application element.
-    pub fn finish(self) -> Result<(), NcStatus> {
+    /// Validates and converts output into reserved scratch without changing the
+    /// application's destination. Generated calls convert every output first,
+    /// then publish them together so a later invalid buffer cannot partially
+    /// update an earlier converted destination. Direct buffers already alias it.
+    pub fn convert_output(&mut self) -> Result<(), NcStatus> {
         #[cfg(feature = "alloc")]
-        if let Some(wires) = self.wires {
-            // SAFETY: a successful raw call leaves initialized elements. Their
-            // restricted contents are checked before any destination is changed.
-            let values = unsafe { crate::decode_value_buffer::<T>(wires.as_ptr(), wires.len() as u64) }?;
-            self.target.copy_from_slice(&values);
+        if let Some(converted) = &mut self.converted {
+            // SAFETY: successful raw calls leave initialized wire elements;
+            // their restricted contents are checked before any T is published.
+            unsafe { crate::value::decode_value_buffer_into::<T>(converted.wires.as_ptr(), converted.wires.len() as u64, &mut converted.values) }?;
         }
+        Ok(())
+    }
+    /// Publishes completely converted elements without allocating or decoding.
+    ///
+    /// # Panics
+    /// Nonempty converted output must have passed convert_output first. A failed
+    /// conversion leaves fewer elements than the destination and cannot publish.
+    pub fn publish(self) {
+        #[cfg(feature = "alloc")]
+        if let Some(converted) = self.converted {
+            self.target.copy_from_slice(&converted.values);
+        }
+    }
+    /// Converts and publishes one buffer using storage prepared before dispatch.
+    /// Multi-buffer generated calls separate these phases across all outputs.
+    pub fn finish(mut self) -> Result<(), NcStatus> {
+        self.convert_output()?;
+        self.publish();
         Ok(())
     }
 }
@@ -187,9 +221,9 @@ pub struct DecodedOutput<'a, T: ComInlineValue> {
 enum OutputValues<'a, T: ComInlineValue> {
     /// The codec proves every raw element can be borrowed as an application value.
     Direct(&'a mut [T]),
-    /// Restricted elements remain separate until successful conversion back.
+    /// Native values and reserved wire scratch remain private until publication.
     #[cfg(feature = "alloc")]
-    Converted(Vec<T>),
+    Converted(ConvertedOutput<T>),
 }
 impl<'a, T: ComInlineValue> DecodedOutput<'a, T> {
     /// Acquires an exclusive application buffer after checking active raw contents.
@@ -211,7 +245,11 @@ impl<'a, T: ComInlineValue> DecodedOutput<'a, T> {
             false => {
                 #[cfg(feature = "alloc")]
                 {
-                    OutputValues::Converted(unsafe { crate::decode_value_buffer::<T>(pointer, len) }?)
+                    // Decode the incoming values before reserving output scratch.
+                    // Both fallible allocations precede the implementation call.
+                    let values = unsafe { crate::decode_value_buffer::<T>(pointer, len) }?;
+                    let wires = crate::value::reserve_value_buffer(values.len())?;
+                    OutputValues::Converted(ConvertedOutput { values, wires })
                 }
                 #[cfg(not(feature = "alloc"))]
                 {
@@ -230,22 +268,41 @@ impl<'a, T: ComInlineValue> DecodedOutput<'a, T> {
         match &mut self.storage {
             OutputValues::Direct(values) => values,
             #[cfg(feature = "alloc")]
-            OutputValues::Converted(values) => values,
+            OutputValues::Converted(converted) => &mut converted.values,
         }
     }
-    /// Converts all restricted elements before copying any successful output back.
-    pub fn finish(self) -> Result<(), NcStatus> {
+    /// Converts into reserved wire scratch without publishing any raw output.
+    /// Direct buffers retain their existing in-place behavior. Converted buffers
+    /// can be validated as a group before any of their destinations are written.
+    pub fn convert_output(&mut self) -> Result<(), NcStatus> {
         #[cfg(feature = "alloc")]
-        if let OutputValues::Converted(values) = self.storage {
-            let wires = crate::encode_value_buffer(&values)?;
-            if !wires.is_empty() {
+        if let OutputValues::Converted(converted) = &mut self.storage {
+            crate::value::encode_value_buffer_into(&converted.values, &mut converted.wires)?;
+        }
+        Ok(())
+    }
+    /// Publishes a completely converted wire buffer without further resource work.
+    ///
+    /// # Panics
+    /// Nonempty converted storage must have passed convert_output first. Length
+    /// equality prevents an incomplete conversion from publishing a partial buffer.
+    pub fn publish(self) {
+        #[cfg(feature = "alloc")]
+        if let OutputValues::Converted(converted) = self.storage {
+            assert_eq!(converted.wires.len(), converted.values.len(), "output wire was not completely converted");
+            if !converted.wires.is_empty() {
                 // SAFETY: construction retains the caller's exclusive raw region
-                // with this exact length; the separately allocated source cannot overlap.
+                // at this length; separately allocated scratch cannot overlap it.
                 unsafe {
-                    core::ptr::copy_nonoverlapping(wires.as_ptr(), self.pointer, wires.len());
+                    core::ptr::copy_nonoverlapping(converted.wires.as_ptr(), self.pointer, converted.wires.len());
                 }
             }
         }
+    }
+    /// Converts and publishes one prepared buffer; group callers split the phases.
+    pub fn finish(mut self) -> Result<(), NcStatus> {
+        self.convert_output()?;
+        self.publish();
         Ok(())
     }
 }

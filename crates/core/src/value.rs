@@ -72,8 +72,10 @@ impl ValueBudget {
         self.depth += 1;
         result
     }
-    /// Prepays all fixed elements before their backing allocation or raw reads.
-    /// Dynamic codecs return false and retain their ordinary recursive accounting.
+    /// Prepays fixed elements or an affordable allocation-free upper bound.
+    /// Exact costs reject impossible buffers before allocation. A maximum that
+    /// does not fit falls back to actual variant accounting; it never rejects
+    /// an ordinary buffer merely because a more expensive variant exists.
     #[cfg(feature = "alloc")]
     fn fixed_elements<T: ComValue>(&mut self, len: usize) -> Result<bool, NcStatus> {
         match T::FIXED_COST {
@@ -81,7 +83,13 @@ impl ValueBudget {
                 self.fixed(cost.elements(len).ok_or(NC_E_OUT_OF_RANGE)?)?;
                 Ok(true)
             }
-            None => Ok(false),
+            None => match T::MAX_COST.and_then(|cost| cost.elements(len)) {
+                Some(cost) if cost.values <= self.values && cost.depth <= self.depth => {
+                    self.fixed(cost)?;
+                    Ok(true)
+                }
+                _ => Ok(false),
+            },
         }
     }
     /// Charges an allocation/copy before touching producer-controlled storage.
@@ -139,8 +147,9 @@ pub unsafe trait ComValue: Sized + 'static {
     /// This is macro infrastructure, not an alternative unchecked wire format.
     ///
     /// # Safety
-    /// Either FIXED_COST was charged to the shared conversion budget, or MAX_COST
-    /// fits the entire budget of an isolated conversion with no subsequent work.
+    /// Either FIXED_COST or MAX_COST was charged to the shared conversion
+    /// budget, or MAX_COST fits the entire budget of an isolated conversion
+    /// with no subsequent work. Charging a maximum prepays any selected variant.
     /// Every active child must have a finite allocation-free MAX_COST. Content
     /// validation remains required even though budget bookkeeping is omitted.
     #[doc(hidden)]
@@ -635,25 +644,82 @@ pub unsafe fn decode_inline<T: ComInlineValue>(wire: T::Wire) -> Result<T, NcSta
     }
 }
 
-/// Encodes an initialized buffer into raw elements without assuming Rust layout.
+/// Reserves bounded element storage without initializing any application values.
+/// Call guards use this before dispatch, so completion never asks the allocator
+/// for space. The byte limit applies to the actual native/wire element layout.
 #[cfg(feature = "alloc")]
-pub fn encode_value_buffer<T: ComInlineValue>(values: &[T]) -> Result<Vec<T::Wire>, NcStatus> {
-    let mut budget = ValueBudget::default();
-    budget.sequence::<T::Wire>(values.len())?;
-    let prechecked = budget.fixed_elements::<T>(values.len())?;
+pub(crate) fn reserve_value_buffer<T>(len: usize) -> Result<Vec<T>, NcStatus> {
+    ValueBudget::default().sequence::<T>(len)?;
     let mut result = Vec::new();
-    result.try_reserve_exact(values.len()).map_err(|_| NC_E_OUT_OF_MEMORY)?;
+    result.try_reserve_exact(len).map_err(|_| NC_E_OUT_OF_MEMORY)?;
+    Ok(result)
+}
+
+/// Computes the shared conversion policy before allocation or raw element reads.
+/// `Element` supplies recursive costs; `Stored` determines this direction's bytes.
+#[cfg(feature = "alloc")]
+fn buffer_budget<Element: ComInlineValue, Stored>(len: usize) -> Result<(ValueBudget, bool), NcStatus> {
+    let mut budget = ValueBudget::default();
+    budget.sequence::<Stored>(len)?;
+    let prechecked = budget.fixed_elements::<Element>(len)?;
+    Ok((budget, prechecked))
+}
+
+/// Encodes into capacity already owned by the caller, using the shared codec loop.
+/// Capacity is an internal preparation invariant; no reserve occurs in this loop.
+#[cfg(feature = "alloc")]
+fn encode_buffer_elements<T: ComInlineValue>(values: &[T], result: &mut Vec<T::Wire>, mut budget: ValueBudget, prechecked: bool) -> Result<(), NcStatus> {
+    assert!(result.capacity() >= values.len(), "output wire capacity was not prepared");
+    result.clear();
     for value in values {
         result.push(
             match prechecked {
-                // SAFETY: the complete buffer fits the isolated logical count/depth budget.
+                // SAFETY: the complete fixed/maximum cost was prepaid for every element.
                 true => unsafe { value.encode_prechecked() },
                 false => value.encode_value(&mut budget),
             }?
             .0,
         );
     }
+    Ok(())
+}
+
+/// Decodes into reserved native storage without publishing partially checked data.
+/// The caller keeps the complete wire slice readable throughout this conversion.
+#[cfg(feature = "alloc")]
+unsafe fn decode_buffer_elements<T: ComInlineValue>(
+    elements: &[T::Wire],
+    result: &mut Vec<T>,
+    mut budget: ValueBudget,
+    prechecked: bool,
+) -> Result<(), NcStatus> {
+    assert!(result.capacity() >= elements.len(), "output value capacity was not prepared");
+    result.clear();
+    for element in elements {
+        result.push(match prechecked {
+            // SAFETY: initialized wire elements and their prepaid recursive costs
+            // satisfy the codec contract; restricted bits still require validation.
+            true => unsafe { T::decode_prechecked(*element) },
+            false => unsafe { T::decode_value(*element, &mut budget) },
+        }?);
+    }
+    Ok(())
+}
+
+/// Encodes an initialized buffer into raw elements without assuming Rust layout.
+#[cfg(feature = "alloc")]
+pub fn encode_value_buffer<T: ComInlineValue>(values: &[T]) -> Result<Vec<T::Wire>, NcStatus> {
+    let (budget, prechecked) = buffer_budget::<T, T::Wire>(values.len())?;
+    let mut result = reserve_value_buffer(values.len())?;
+    encode_buffer_elements(values, &mut result, budget, prechecked)?;
     Ok(result)
+}
+
+/// Reuses a prepared wire buffer; only codec validation/accounting can fail.
+#[cfg(feature = "alloc")]
+pub(crate) fn encode_value_buffer_into<T: ComInlineValue>(values: &[T], result: &mut Vec<T::Wire>) -> Result<(), NcStatus> {
+    let (budget, prechecked) = buffer_budget::<T, T::Wire>(values.len())?;
+    encode_buffer_elements(values, result, budget, prechecked)
 }
 
 /// Validates every raw element before exposing an application buffer.
@@ -662,22 +728,28 @@ pub fn encode_value_buffer<T: ComInlineValue>(values: &[T]) -> Result<Vec<T::Wir
 /// The pointer addresses len initialized raw elements, live for this call.
 #[cfg(feature = "alloc")]
 pub unsafe fn decode_value_buffer<T: ComInlineValue>(pointer: *const T::Wire, len: u64) -> Result<Vec<T>, NcStatus> {
-    let mut budget = ValueBudget::default();
     let count = usize::try_from(len).map_err(|_| NC_E_OUT_OF_RANGE)?;
-    budget.sequence::<T>(count)?;
-    let prechecked = budget.fixed_elements::<T>(count)?;
-    let descriptor = ValueSlice { pointer, len };
-    let elements = unsafe { descriptor.elements() }?;
-    let mut result = Vec::new();
-    result.try_reserve_exact(count).map_err(|_| NC_E_OUT_OF_MEMORY)?;
-    for element in elements {
-        result.push(match prechecked {
-            // SAFETY: raw elements are initialized and the entire buffer bound fits.
-            true => unsafe { T::decode_prechecked(*element) },
-            false => unsafe { T::decode_value(*element, &mut budget) },
-        }?);
-    }
+    let (budget, prechecked) = buffer_budget::<T, T>(count)?;
+    // SAFETY: the raw producer supplies live initialized storage for this call.
+    let elements = unsafe { ValueSlice { pointer, len }.elements() }?;
+    let mut result = reserve_value_buffer(count)?;
+    // SAFETY: the validated slice borrows the same live raw elements.
+    unsafe { decode_buffer_elements(elements, &mut result, budget, prechecked) }?;
     Ok(result)
+}
+
+/// Reuses native scratch so acquiring output cannot allocate a replacement vector.
+///
+/// # Safety
+/// The wire elements must satisfy the same live-storage contract as decode_value_buffer.
+#[cfg(feature = "alloc")]
+pub(crate) unsafe fn decode_value_buffer_into<T: ComInlineValue>(pointer: *const T::Wire, len: u64, result: &mut Vec<T>) -> Result<(), NcStatus> {
+    let count = usize::try_from(len).map_err(|_| NC_E_OUT_OF_RANGE)?;
+    let (budget, prechecked) = buffer_budget::<T, T>(count)?;
+    // SAFETY: the raw producer supplies live initialized storage for this call.
+    let elements = unsafe { ValueSlice { pointer, len }.elements() }?;
+    // SAFETY: decoding checks restricted contents before constructing any T.
+    unsafe { decode_buffer_elements(elements, result, budget, prechecked) }
 }
 
 // SAFETY: unit has a concrete byte representation; only its sole value is accepted.
