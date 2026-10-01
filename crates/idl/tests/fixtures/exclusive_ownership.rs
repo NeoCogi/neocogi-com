@@ -34,7 +34,7 @@ mod exclusive_tests {
         }
         /// Gives callers weak access without an independent owner.
         fn child(&self) -> Result<WeakComBox<IValueAbi>, NcStatus> {
-            self.child.as_ref().map(ComBox::downgrade).ok_or(neocogi_com::NC_E_CLOSED)
+            self.child.as_ref().map(ComBox::downgrade).ok_or(neocogi_com::NC_E_NOT_FOUND)
         }
         /// Ordinary destruction replaces fallible domain closure.
         fn remove(&mut self) -> Result<(), NcStatus> {
@@ -53,7 +53,7 @@ mod exclusive_tests {
         assert!(parent.child().unwrap().same_object(&weak));
         assert_eq!(weak.value(), Ok(42));
         parent.remove().unwrap();
-        assert_eq!(weak.value(), Err(neocogi_com::NC_E_CLOSED));
+        assert_eq!(weak.value(), Err(neocogi_com::NC_E_DROPPED));
         for (descriptor, expected) in [
             (&FactoryAbi::METHOD_DESCRIPTORS[0], "com_box_out"),
             (&IContainerAbi::METHOD_DESCRIPTORS[0], "com_box_in"),

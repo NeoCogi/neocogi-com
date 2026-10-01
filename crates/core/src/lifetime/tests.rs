@@ -102,7 +102,7 @@ fn final_strong_drops_value_before_final_weak_frees_storage() {
         assert_eq!(observations.destroyed.load(Ordering::SeqCst), 1);
         assert_eq!(observations.freed.load(Ordering::SeqCst), 0);
         let mut out = ComRaw::null();
-        assert_eq!(nc_weak_upgrade(control, &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_E_CLOSED);
+        assert_eq!(nc_weak_upgrade(control, &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_E_DROPPED);
         assert!(!out.is_present());
         nc_weak_retain(control); // Expired weak references can still be cloned.
         nc_weak_release(control);
@@ -128,7 +128,7 @@ fn checked_projection_balances_all_ownership_paths() {
         assert_eq!(nc_query_interface(control.cast(), &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_OK);
         assert_eq!(nc_strong_release(out.object), 1);
         assert_eq!(nc_strong_release(control.cast()), 0);
-        assert_eq!(nc_weak_upgrade(control, &wrong, &mut out), NC_E_CLOSED);
+        assert_eq!(nc_weak_upgrade(control, &wrong, &mut out), NC_E_DROPPED);
         nc_weak_release(control);
     }
     assert_eq!(observations.destroyed.load(Ordering::SeqCst), 1);
@@ -143,7 +143,7 @@ fn abandoned_construction_frees_without_dropping_uninitialized_value() {
         nc_weak_retain(control);
         nc_weak_release(control); // Constructor rollback transfers no strong owner.
         let mut out = ComRaw::null();
-        assert_eq!(nc_weak_upgrade(control, &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_E_CLOSED);
+        assert_eq!(nc_weak_upgrade(control, &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_E_DROPPED);
         nc_weak_release(control);
     }
     assert_eq!(observations.destroyed.load(Ordering::SeqCst), 0);
@@ -156,7 +156,7 @@ fn publication_converts_constructor_weak_into_implicit_owner() {
     let (control, observations) = allocation(false);
     unsafe {
         let mut out = ComRaw::null();
-        assert_eq!(nc_weak_upgrade(control, &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_E_CLOSED);
+        assert_eq!(nc_weak_upgrade(control, &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_E_DROPPED);
         (*control.cast::<Allocation>()).value.write(Value {
             observations: observations.clone(),
             self_weak: None,
@@ -200,8 +200,8 @@ fn exclusive_destruction_is_immediate_and_storage_release_is_separate() {
         nc_box_release(control);
         assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
         assert_eq!(observed.freed.load(Ordering::SeqCst), 0);
-        assert!(matches!(BoxRead::enter(control), Err(NC_E_CLOSED)));
-        assert!(matches!(BoxWrite::enter(control), Err(NC_E_CLOSED)));
+        assert!(matches!(BoxRead::enter(control), Err(NC_E_DROPPED)));
+        assert!(matches!(BoxWrite::enter(control), Err(NC_E_DROPPED)));
         nc_weak_release(control);
     }
     assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);

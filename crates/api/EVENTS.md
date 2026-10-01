@@ -60,7 +60,7 @@ it cannot upgrade until initialization succeeds. `Unobserved` permanently
 suppresses delivery and allocates no dummy queue.
 `EventPort::post` promotes its weak origin for the synchronous queue call;
 `close` releases its queue and origin idempotently. Posting after close returns
-`NC_E_CLOSED`. There is no attach, replace, detach, subscription list or second
+`NC_E_DROPPED`. There is no attach, replace, detach, subscription list or second
 consumer slot. Implementations own event storage explicitly.
 
 Queue capture must not call back into the emitting widget's active mutable gate.

@@ -3,7 +3,7 @@
 //! Applications may implement several generated queue interfaces on one concrete
 //! COM object containing their channel sender. Factories accept that concrete
 //! interface; neither IDL nor COM generates or stores an application mapping closure.
-use crate::{ComInterface, ComPtr, ComRef, ComValue, NcStatus, ThreadLocal, WeakComPtr, NC_E_CLOSED};
+use crate::{ComInterface, ComPtr, ComRef, ComValue, NcStatus, ThreadLocal, WeakComPtr, NC_E_CLOSED, NC_E_DROPPED};
 
 /// Rust access to one closed IDL `IEventQueue<Object, Event>` contract.
 /// Implementing the generated COM trait directly avoids callback adapters entirely.
@@ -81,7 +81,7 @@ impl<Q: EventQueueInterface> EventPort<Q> {
         match &mut self.phase {
             Phase::Unobserved => Ok(()),
             Phase::Observed { origin, queue } => {
-                let origin = origin.upgrade()?.ok_or(NC_E_CLOSED)?;
+                let origin = origin.upgrade()?.ok_or(NC_E_DROPPED)?;
                 Q::post(queue.as_com_ref(), origin.as_com_ref(), event)
             }
             Phase::Closed => Err(NC_E_CLOSED),

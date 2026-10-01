@@ -61,6 +61,7 @@ impl NcStatus {
                 | NC_E_BUSY
                 | NC_E_ALREADY_BOUND
                 | NC_E_CLOSED
+                | NC_E_DROPPED
         )
     }
 
@@ -81,6 +82,7 @@ impl NcStatus {
             NC_E_BUSY => "NC_E_BUSY",
             NC_E_ALREADY_BOUND => "NC_E_ALREADY_BOUND",
             NC_E_CLOSED => "NC_E_CLOSED",
+            NC_E_DROPPED => "NC_E_DROPPED",
             _ => "NC_STATUS_UNKNOWN",
         }
     }
@@ -139,8 +141,16 @@ pub const NC_E_BUSY: NcStatus = NcStatus::from_code(-11);
 /// A single-consumer capability already has its lifetime destination.
 pub const NC_E_ALREADY_BOUND: NcStatus = NcStatus::from_code(-12);
 
-/// A logically retired capability cannot accept further operations.
+/// A service, session or channel has closed and rejects this operation.
+/// The COM object representing that capability may still exist.
 pub const NC_E_CLOSED: NcStatus = NcStatus::from_code(-13);
+
+/// The target has no published live owner; new access or promotion is rejected.
+/// Usually ownership ended through Drop. A cyclic-construction weak reference
+/// also has no callable owner until publication; it reports the same status.
+/// Weak bookkeeping may remain allocated. Concurrent calls admitted before Drop
+/// may still be finishing while the dropping thread waits for destruction.
+pub const NC_E_DROPPED: NcStatus = NcStatus::from_code(-14);
 
 #[cfg(test)]
 mod tests {
@@ -163,6 +173,16 @@ mod tests {
         assert_eq!(NC_E_LOAD_FAILED.code(), -9);
         assert_eq!(NC_E_OUT_OF_MEMORY.code(), -10);
         assert_eq!(NC_E_BUSY.code(), -11);
+        // These codes express distinct contracts across independently built COM callers.
+        for (status, code, name) in [
+            (super::NC_E_CLOSED, -13, "NC_E_CLOSED"),
+            (super::NC_E_DROPPED, -14, "NC_E_DROPPED"),
+        ] {
+            assert_eq!(status.code(), code);
+            assert_eq!(status.name(), name);
+            assert!(status.is_known());
+            assert_eq!(status.normalize_error(), status);
+        }
     }
 
     #[test]

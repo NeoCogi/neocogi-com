@@ -285,7 +285,7 @@ mod private_arguments {
         assert!(weak.same_object(&token.downgrade()));
         assert_eq!(weak.value(), Ok(73));
         assert_eq!(provider.owner(token, true).unwrap(), 73);
-        assert_eq!(weak.value(), Err(NC_E_CLOSED));
+        assert_eq!(weak.value(), Err(NC_E_DROPPED));
     }
 }
 

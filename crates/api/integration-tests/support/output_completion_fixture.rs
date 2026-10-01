@@ -152,7 +152,7 @@ fn generated_commit_completes_with_all_further_allocation_denied() {
     assert_eq!(weak.value(), Ok(42));
     drop(receiver);
     assert_eq!(drops.load(SeqCst), 2);
-    assert_eq!(weak.value(), Err(NC_E_CLOSED));
+    assert_eq!(weak.value(), Err(NC_E_DROPPED));
 }
 
 #[test]

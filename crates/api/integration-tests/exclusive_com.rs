@@ -1,5 +1,5 @@
 //! Exclusive ownership through real generated ABI calls, including destruction races.
-use neocogi_com::{com_interface, com_object, ComInterface, ComBox, WeakComBox, IUnknown, NcStatus, NC_E_BUSY, NC_E_CLOSED, NC_E_INVALID_ARG};
+use neocogi_com::{com_interface, com_object, ComInterface, ComBox, WeakComBox, IUnknown, NcStatus, NC_E_BUSY, NC_E_DROPPED, NC_E_INVALID_ARG};
 use std::sync::{
     Arc, Barrier,
     atomic::{AtomicUsize, Ordering},
@@ -88,9 +88,9 @@ fn container_owner_destruction_expires_all_cached_interfaces() {
     assert_eq!(owner.value(), Ok(9));
     drop(owner);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
-    assert_eq!(weak.value(), Err(NC_E_CLOSED));
-    assert_eq!(weak.set(10), Err(NC_E_CLOSED));
-    assert_eq!(weak.as_com_ref().value(), Err(NC_E_CLOSED));
+    assert_eq!(weak.value(), Err(NC_E_DROPPED));
+    assert_eq!(weak.set(10), Err(NC_E_DROPPED));
+    assert_eq!(weak.as_com_ref().value(), Err(NC_E_DROPPED));
     assert!(identity.same_object(&weak.clone()));
     drop((weak, identity));
     assert_eq!(drops.load(Ordering::SeqCst), 1);
@@ -141,7 +141,7 @@ fn thread_safe_owner_drop_waits_for_admitted_readers_and_writers() {
             assert!(std::time::Instant::now() < deadline, "owner did not start destruction");
             std::thread::yield_now();
         }
-        assert_eq!(weak.value(), Err(NC_E_CLOSED));
+        assert_eq!(weak.value(), Err(NC_E_DROPPED));
         assert_eq!(drops.load(Ordering::SeqCst), 0);
         assert!(received.try_recv().is_err(), "Drop must wait for the active method");
         finish.wait();
@@ -149,7 +149,7 @@ fn thread_safe_owner_drop_waits_for_admitted_readers_and_writers() {
         received.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
         dropping.join().unwrap();
         assert_eq!(drops.load(Ordering::SeqCst), 1);
-        assert_eq!(weak.value(), Err(NC_E_CLOSED));
+        assert_eq!(weak.value(), Err(NC_E_DROPPED));
     }
 }
 
@@ -165,7 +165,7 @@ fn weak_interface_views_do_not_delay_synchronous_destruction() {
     assert_eq!(view.value(), Ok(42));
     drop(owner);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
-    assert_eq!(view.value(), Err(NC_E_CLOSED));
+    assert_eq!(view.value(), Err(NC_E_DROPPED));
 }
 
 /// The cached fast path preserves the exclusive method gate across threads.
@@ -190,7 +190,7 @@ fn concurrent_mutable_access_reports_busy_without_waiting() {
 #[test]
 fn cyclic_construction_and_failure_never_expose_uninitialized_values() {
     let owner = Value::into_box_cyclic::<IValueAbi>(|weak| {
-        assert_eq!(weak.value(), Err(NC_E_CLOSED));
+        assert_eq!(weak.value(), Err(NC_E_DROPPED));
         value()
     })
     .unwrap();
@@ -203,7 +203,7 @@ fn cyclic_construction_and_failure_never_expose_uninitialized_values() {
         });
     }));
     assert!(failed.is_err());
-    assert_eq!(escaped.unwrap().value(), Err(NC_E_CLOSED));
+    assert_eq!(escaped.unwrap().value(), Err(NC_E_DROPPED));
 }
 
 /// Racing callers either finish under protection or observe terminal expiration.
@@ -219,7 +219,7 @@ fn repeated_cross_thread_calls_cannot_resurrect_removed_owners() {
             for _ in 0..100 {
                 match peer.value() {
                     Ok(value) => assert_eq!(value, 42),
-                    Err(NC_E_CLOSED) => return,
+                    Err(NC_E_DROPPED) => return,
                     result => panic!("unexpected read result: {result:?}"),
                 }
             }
@@ -227,7 +227,7 @@ fn repeated_cross_thread_calls_cannot_resurrect_removed_owners() {
         drop(owner);
         worker.join().unwrap();
         assert_eq!(drops.load(Ordering::SeqCst), 1);
-        assert_eq!(weak.value(), Err(NC_E_CLOSED));
+        assert_eq!(weak.value(), Err(NC_E_DROPPED));
     }
 }
 
@@ -266,7 +266,7 @@ impl IContainer for Container {
     }
     /// Cached weak output crosses the same C ABI without a shared owner.
     fn child(&self) -> Result<WeakComBox<IValueAbi, neocogi_com::ThreadSafe>, NcStatus> {
-        self.child.as_ref().map(ComBox::downgrade).ok_or(NC_E_CLOSED)
+        self.child.as_ref().map(ComBox::downgrade).ok_or(neocogi_com::NC_E_NOT_FOUND)
     }
     /// Releasing the owner expires every external weak projection.
     fn remove(&mut self) -> Result<(), NcStatus> {
@@ -285,7 +285,7 @@ fn abi_container_transfer_and_removal_preserve_exclusive_ownership() {
     assert_eq!(weak.value(), Ok(42));
     assert!(container.child().unwrap().same_object(&weak));
     container.remove().unwrap();
-    assert_eq!(weak.value(), Err(NC_E_CLOSED));
+    assert_eq!(weak.value(), Err(NC_E_DROPPED));
     let child = Value::into_box(value()).query::<IValueAbi>().unwrap();
     let rejected = child.downgrade();
     let (status, child) = container.insert(child, true).unwrap_err();
@@ -293,16 +293,16 @@ fn abi_container_transfer_and_removal_preserve_exclusive_ownership() {
     assert_eq!(rejected.value(), Ok(42), "rejection returns a live owner");
     container.insert(child, false).unwrap();
     container.remove().unwrap();
-    assert_eq!(rejected.value(), Err(NC_E_CLOSED));
+    assert_eq!(rejected.value(), Err(NC_E_DROPPED));
     let child = Value::into_box(value()).query::<IValueAbi>().unwrap();
     let expired_call = child.downgrade();
     let mut expired_container = container.downgrade();
     drop(container);
     let (status, child) = expired_container.insert(child, false).unwrap_err();
-    assert_eq!(status, NC_E_CLOSED);
+    assert_eq!(status, NC_E_DROPPED);
     assert_eq!(expired_call.value(), Ok(42), "expired receiver returns an untouched input");
     drop(child);
-    assert_eq!(expired_call.value(), Err(NC_E_CLOSED));
+    assert_eq!(expired_call.value(), Err(NC_E_DROPPED));
 }
 
 /// Raw malformed inputs fail before transfer and leave the caller's owner balanced.
@@ -323,7 +323,7 @@ fn raw_transfer_rejection_preserves_the_input_slot() {
         assert_eq!(weak.value(), Ok(42), "malformed later argument cannot consume input");
         drop(ComBox::<IValueAbi, neocogi_com::ThreadSafe>::from_raw_owned(slot));
     }
-    assert_eq!(weak.value(), Err(NC_E_CLOSED));
+    assert_eq!(weak.value(), Err(NC_E_DROPPED));
     assert_eq!(container.remove(), Ok(()));
 }
 
@@ -349,9 +349,9 @@ fn local_box_observers_follow_owner_transfer_and_gate_conflicts() {
     drop(owner);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
     assert!(!interface.is_alive());
-    assert_eq!(observer.with(|_| ()), Err(NC_E_CLOSED));
-    assert_eq!(observer.with_mut(|_| ()), Err(NC_E_CLOSED));
-    assert_eq!(borrowed.value(), Err(NC_E_CLOSED));
+    assert_eq!(observer.with(|_| ()), Err(NC_E_DROPPED));
+    assert_eq!(observer.with_mut(|_| ()), Err(NC_E_DROPPED));
+    assert_eq!(borrowed.value(), Err(NC_E_DROPPED));
 }
 
 #[com_interface(auto_guid = "nc.tests.exclusive.Pair:v1", assigned_signature = b"00000000000000000000000000000903")]
@@ -399,7 +399,7 @@ fn multiple_owner_inputs_survive_rejection_busy_admission_and_retry() {
     drop(guard);
     assert_eq!(pair.offer(left, right, true).unwrap(), 2);
     drop(local);
-    assert!(observed.iter().all(|weak| weak.value() == Err(NC_E_CLOSED)));
+    assert!(observed.iter().all(|weak| weak.value() == Err(NC_E_DROPPED)));
 }
 
 /// Failed consuming interface selection also returns the original allocation,
@@ -412,7 +412,7 @@ fn rejected_owner_query_returns_the_same_live_owner() {
     assert_eq!(status, neocogi_com::NC_E_NOINTERFACE);
     assert_eq!(owner.value(), Ok(42));
     drop(owner);
-    assert_eq!(weak.value(), Err(NC_E_CLOSED));
+    assert_eq!(weak.value(), Err(NC_E_DROPPED));
 }
 
 /// An identity projection moves the sole token without changing its table or
@@ -431,7 +431,7 @@ fn owner_identity_projection_preserves_cached_table_and_destroys_once() {
     assert_eq!(drops.load(Ordering::SeqCst), 0);
     drop(owner);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
-    assert_eq!(weak.value(), Err(NC_E_CLOSED));
+    assert_eq!(weak.value(), Err(NC_E_DROPPED));
     drop(weak);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
 }

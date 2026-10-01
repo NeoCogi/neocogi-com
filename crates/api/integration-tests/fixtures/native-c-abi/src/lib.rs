@@ -212,7 +212,7 @@ mod tests {
                 nc_c_exercise_weak(
                     owner.into_raw(),
                     &INativeCalculatorAbi::INTERFACE_ID,
-                    neocogi_com::NC_E_CLOSED,
+                    neocogi_com::NC_E_DROPPED,
                     neocogi_com::lifetime::nc_weak_retain,
                     neocogi_com::lifetime::nc_weak_release,
                     neocogi_com::lifetime::nc_weak_upgrade,

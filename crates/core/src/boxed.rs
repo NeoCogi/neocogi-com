@@ -42,7 +42,7 @@ pub struct ComBox<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
 /// Two pointers avoid interface lookup during ordinary method dispatch: the
 /// retained control address is also the canonical object address, and the table
 /// was validated when this handle was created. Every provider method must check
-/// lifetime before reading the value. Expired handles return `NC_E_CLOSED`.
+/// lifetime before reading the value. Expired handles return `NC_E_DROPPED`.
 /// Clone/drop affect only weak bookkeeping; they never prolong widget resources.
 ///
 /// ```compile_fail

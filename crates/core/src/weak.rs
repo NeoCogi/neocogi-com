@@ -5,7 +5,7 @@
 //! value. Logical domain closure is deliberately independent of this protocol.
 use core::{marker::PhantomData, ptr::NonNull};
 use crate::lifetime::{NcWeakControl, nc_weak_retain, nc_weak_release, nc_weak_upgrade};
-use crate::{ComInterface, ComPtr, ComRaw, IUnknown, NcInterfaceId, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_CLOSED, NC_E_NOINTERFACE, NC_E_POINTER};
+use crate::{ComInterface, ComPtr, ComRaw, IUnknown, NcInterfaceId, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_DROPPED, NC_E_NOINTERFACE, NC_E_POINTER};
 
 /// One nullable pointer to the common COM lifetime header. Success transfers
 /// one weak reference; a null pointer represents absence and owns nothing.
@@ -150,7 +150,7 @@ unsafe fn upgrade(source: NcWeakRaw, expected: &NcInterfaceId) -> Result<Option<
     // SAFETY: caller retains the weak token; both argument records are live and distinct.
     let status = unsafe { nc_weak_upgrade(source.control, expected, &mut out) };
     match status {
-        NC_E_CLOSED => Ok(None),
+        NC_E_DROPPED => Ok(None),
         status if status.is_err() => Err(status),
         _ => {
             // SAFETY: successful provider calls transfer a readable common strong pair.

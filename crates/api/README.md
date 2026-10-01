@@ -323,3 +323,10 @@ provider through checked call entries, without promoting to a shared owner.
 Factories can return boxes and containers can consume them through generated
 ABI methods. Ordinary shared services continue using `ComPtr`. See
 [the ownership rationale](../../../docs/EXCLUSIVE_WIDGET_OWNERSHIP.md).
+
+## Lifetime failure categories
+
+`NC_E_DROPPED` reports lost object ownership. `NC_E_CLOSED` reports a closed
+service or channel whose COM object can still exist. A method can propagate
+either from a dependency, so neither status identifies receiver lifetime. See the
+[precise lifetime error contract](../../../docs/COM_LIFETIME_ERRORS.md).

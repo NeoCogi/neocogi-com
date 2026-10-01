@@ -8,7 +8,7 @@ use core::{
     ptr::NonNull,
     sync::atomic::{AtomicUsize, Ordering, fence},
 };
-use crate::{ComRaw, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, NC_E_CLOSED, NC_E_POINTER, NC_E_INVALID_ARG, NC_OK};
+use crate::{ComRaw, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, NC_E_DROPPED, NC_E_POINTER, NC_E_INVALID_ARG, NC_OK};
 
 /// Concrete-class facts used by the common lifetime operations.
 ///
@@ -262,7 +262,7 @@ pub unsafe extern "C" fn nc_weak_upgrade(control: *mut NcWeakControl, requested:
     let mut current = header.state.load(Ordering::Relaxed);
     loop {
         match current {
-            0 => return NC_E_CLOSED,
+            0 => return NC_E_DROPPED,
             count if count & BOXED != 0 => return NC_E_INVALID_ARG,
             count => {
                 assert!(count < isize::MAX as usize, "COM strong promotion counter exhausted");
@@ -356,7 +356,7 @@ unsafe fn borrow_box(control: *mut NcWeakControl, writer: bool) -> Result<NonNul
     loop {
         let next = match state {
             invalid if invalid & BOXED == 0 => return Err(NC_E_INVALID_ARG),
-            expired if expired & BOX_OWNER == 0 => return Err(NC_E_CLOSED),
+            expired if expired & BOX_OWNER == 0 => return Err(NC_E_DROPPED),
             busy if busy & BOX_WRITER != 0 => return Err(crate::NC_E_BUSY),
             busy if writer && busy & BOX_READERS != 0 => return Err(crate::NC_E_BUSY),
             full if !writer && full & BOX_READERS == BOX_READERS => return Err(crate::NC_E_BUSY),

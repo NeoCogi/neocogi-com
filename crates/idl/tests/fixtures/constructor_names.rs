@@ -64,7 +64,7 @@ fn exclusive_construction_posts_and_preserves_metadata() {
     let (mut origin, event) = received.recv().unwrap();
     assert!(matches!(event, exclusive::Event::Changed));
     drop(owner);
-    assert_eq!(origin.emit(NcValueRef::new(&exclusive::Event::Changed).unwrap()), Err(NC_E_CLOSED));
+    assert_eq!(origin.emit(NcValueRef::new(&exclusive::Event::Changed).unwrap()), Err(neocogi_com::NC_E_DROPPED));
     assert!(matches!(received.try_recv(), Err(mpsc::TryRecvError::Disconnected)));
     let description = exclusive::CounterAbi::IDL_INTERFACE;
     let receiver = description.event_queue.unwrap();

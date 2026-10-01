@@ -26,7 +26,7 @@ a two-word provider-local lease: a value reference and one selected guard.
 A reader atomically checks owner presence, excludes the writer and increments the
 reader count. A writer atomically checks owner presence and zero borrowers before
 setting its bit. Conflicts and reader-count exhaustion return `NC_E_BUSY`;
-expired or unpublished objects return `NC_E_CLOSED`. These checks precede creation
+expired or unpublished objects return `NC_E_DROPPED`. These checks precede creation
 of any Rust reference. Acquire admission pairs with release of prior borrows and
 constructor publication. Reader release subtracts one; writer release clears only
 its bit, preserving concurrent owner removal. No borrower destroys the value.

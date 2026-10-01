@@ -1,5 +1,5 @@
 //! Weak COM lifetime is allocation-wide, independent of logical closure or queued payloads.
-use neocogi_com::{com_interface, com_object, ComPtr, IUnknown, NcStatus, WeakComPtr, NC_E_CLOSED};
+use neocogi_com::{com_interface, com_object, ComPtr, IUnknown, NcStatus, WeakComPtr, NC_E_CLOSED, NC_E_DROPPED};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -297,7 +297,7 @@ fn raw_promotion_balances_success_and_all_rejection_paths() {
     // SAFETY: the weak control survives value destruction; output is distinct and writable.
     assert_eq!(
         unsafe { neocogi_com::lifetime::nc_weak_upgrade(token.control, &missing, &mut out) },
-        NC_E_CLOSED
+        NC_E_DROPPED
     );
     assert!(!out.is_present());
 }
