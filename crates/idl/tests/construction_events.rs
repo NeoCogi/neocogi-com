@@ -12,14 +12,17 @@ fn root() -> PathBuf {
 }
 
 /// Resolves one independent consumer against the exact shipped library templates.
-fn generate(source: &str) -> Result<String, neocogi_idl::GenerateError> {
+fn resolve(source: &str) -> Result<neocogi_idl::ResolvedModules, neocogi_idl::ResolutionError> {
     let templates = fs::read_to_string(root().join("crates/com/api/idl/neocogi/com/events/events.ncidl")).unwrap();
-    let graph = resolve_modules(vec![
+    resolve_modules(vec![
         parse_module(Path::new("neocogi/com/events.ncidl"), &templates).unwrap(),
         parse_module(Path::new("proof/construction.ncidl"), source).unwrap(),
     ])
-    .unwrap();
-    generate_rust(&graph, "proof.construction")
+}
+
+/// Emits only after constructor contracts and their public names have resolved.
+fn generate(source: &str) -> Result<String, neocogi_idl::GenerateError> {
+    generate_rust(&resolve(source).unwrap(), "proof.construction")
 }
 
 /// Compiles generated values, methods and receiver metadata, then exercises
@@ -120,11 +123,11 @@ fn constructor_event_contract_rejects_multiple_or_inconsistent_sinks() {
     let duplicate = format!(
         "{prefix} #[version(1)] factory Factory {{ fn create(&self, a: &EventBinding<Product, A>, b: &EventBinding<Product, A>) -> Result<ComPtr<Product>>; }}"
     );
-    assert!(generate(&duplicate).unwrap_err().to_string().contains("multiple event bindings"));
+    assert!(resolve(&duplicate).unwrap_err().to_string().contains("multiple event bindings"));
     let inconsistent = format!(
         "{prefix} #[version(1)] factory Factory {{ fn first(&self, events: &EventBinding<Product, A>) -> Result<ComPtr<Product>>; fn second(&self, events: &EventBinding<Product, B>) -> Result<ComPtr<Product>>; }}"
     );
-    assert!(generate(&inconsistent).unwrap_err().to_string().contains("disagree on their event type"));
+    assert!(resolve(&inconsistent).unwrap_err().to_string().contains("disagree on their event type"));
 }
 
 /// A factory cannot claim an unrelated object as its product's event origin.
@@ -139,5 +142,5 @@ fn constructor_rejects_a_different_origin_contract() {
             fn create(&self, events: &EventBinding<Other, Event>) -> Result<ComPtr<Product>>;
         }
     "#;
-    assert!(generate(source).unwrap_err().to_string().contains("returned product as event origin"));
+    assert!(resolve(source).unwrap_err().to_string().contains("returned product as event origin"));
 }

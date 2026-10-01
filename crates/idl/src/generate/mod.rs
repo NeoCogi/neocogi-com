@@ -175,11 +175,13 @@ fn generate_design_metadata(graph: &Generation<'_>, module: &ResolvedModule) -> 
         if let DeclarationKind::Interface(_) = &declaration.kind {
             let abi = rust_ident(&format!("{}Abi", declaration.name))?;
             let rust_abi = Literal::string(&public_rust_path(graph, module, &format!("{}Abi", declaration.name))?);
-            let construction = match construction::find(graph, module, declaration)? {
-                Some(binding) => {
-                    let queue = named_rust_type(graph, module, binding.queue, true)?;
-                    let rust_trait = Literal::string(&public_rust_path(graph, binding.queue.module, &binding.queue.declaration.name)?);
-                    let event = named_rust_type(graph, module, binding.event, false)?;
+            let construction = match module.construction.products.get(&declaration.name) {
+                Some(plan) => {
+                    let binding = plan.binding;
+                    let queue_declaration = binding.queue.get(graph.graph);
+                    let queue = named_rust_type(graph, module, queue_declaration, true)?;
+                    let rust_trait = Literal::string(&public_rust_path(graph, queue_declaration.module, &queue_declaration.declaration.name)?);
+                    let event = named_rust_type(graph, module, binding.event.get(graph.graph), false)?;
                     quote! { ::core::option::Option::Some(::neocogi_com::design::IdlEventQueue { rust_trait: #rust_trait, abi: &#queue::INTERFACE_DESCRIPTOR, message: &#event::IDL_TYPE }) }
                 }
                 None => quote! { ::core::option::Option::None },
@@ -372,8 +374,8 @@ fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, dec
     }
     let mut names = BTreeSet::new();
     interface(graph, module, declaration, &mut BTreeSet::new(), &mut names)?;
-    if let Some(binding) = construction::find(graph, module, declaration)? {
-        data(&binding.event.identity.qualified_name, graph, &mut names);
+    if let Some(plan) = module.construction.products.get(&declaration.name) {
+        data(&plan.binding.event.get(graph.graph).identity.qualified_name, graph, &mut names);
     }
     names
         .iter()

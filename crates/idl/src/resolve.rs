@@ -1,5 +1,7 @@
 //! Cross-module name resolution, ABI validation, and canonical identities.
 
+pub(crate) mod construction;
+
 use std::{
     collections::{BTreeSet, HashMap},
     fmt,
@@ -56,6 +58,8 @@ pub struct ResolvedModule {
     pub dependencies: Vec<ResolvedDependency>,
     /// Declaration identities in canonical top-level name order.
     pub declarations: Vec<DeclarationIdentity>,
+    /// Validated constructor associations and the public helpers they actually emit.
+    pub(crate) construction: construction::Construction,
 }
 
 impl ResolvedModule {
@@ -128,6 +132,22 @@ impl ResolvedModules {
                     identity: &module.declarations[index],
                 })
             })
+    }
+
+    /// Captures a resolved projection as a stable index into this immutable graph.
+    /// Reuses ordinary and generic name resolution rather than rebuilding lookup
+    /// for the constructor adapter. Source ordering is frozen before this phase.
+    fn resolve_symbol(&self, owner: &ResolvedModule, name: &NamedType) -> Option<Symbol> {
+        let resolved = self.resolve_declaration(&owner.source.name.to_string(), name)?;
+        let module = self.modules.iter().position(|module| module.source.name == resolved.module.source.name)?;
+        let declaration = resolved.module.source.declarations.iter().position(|declaration| declaration.name == resolved.declaration.name)?;
+        Some(Symbol {
+            module, declaration, id: resolved.identity.id,
+            kind: match resolved.declaration.kind {
+                DeclarationKind::Interface(_) => SymbolKind::Interface,
+                _ => SymbolKind::Value,
+            },
+        })
     }
 
     /// Resolves one local, imported, or module-qualified declaration path.
@@ -299,6 +319,7 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
                 abi_fingerprint: module_fingerprint,
                 dependencies,
                 declarations,
+                construction: construction::Construction::default(),
             }
         })
         .collect();
@@ -344,6 +365,22 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
                 }
             }
         }
+    }
+    let plans = construction::resolve(&graph)?;
+    for (module, plan) in graph.modules.iter_mut().zip(plans) {
+        module.construction = plan;
+    }
+    // Constructor association has now decided every emitted helper. Validate
+    // authored, imported, standard, and constructor-derived names together.
+    let mut diagnostics = Vec::new();
+    for module in &graph.modules {
+        collect_diagnostics(&mut diagnostics, validate_generated_names(module));
+    }
+    if !diagnostics.is_empty() {
+        let sources = graph.modules.iter().flat_map(|module| module.source.sources.iter().cloned()).collect::<Vec<_>>();
+        return Err(ResolutionError {
+            diagnostics: diagnostics.into_iter().map(|diagnostic| diagnostic.with_sources(&sources)).collect(),
+        });
     }
     Ok(graph)
 }
@@ -411,8 +448,8 @@ struct ModuleEntry {
 }
 
 /// Resolved declaration reference used during validation and encoding.
-#[derive(Clone, Copy)]
-struct Symbol {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Symbol {
     /// Index of the module that owns this declaration.
     module: usize,
     /// Index of the declaration inside its owning module.
@@ -423,8 +460,21 @@ struct Symbol {
     kind: SymbolKind,
 }
 
+impl Symbol {
+    /// Borrows the exact local projection retained by semantic resolution.
+    /// Only the resolver creates these keys; modules cannot be reordered later.
+    pub(crate) fn get(self, graph: &ResolvedModules) -> ResolvedDeclaration<'_> {
+        let module = &graph.modules[self.module];
+        ResolvedDeclaration {
+            module,
+            declaration: &module.source.declarations[self.declaration],
+            identity: &module.declarations[self.declaration],
+        }
+    }
+}
+
 /// Coarse declaration categories used by the type validator.
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum SymbolKind {
     /// A copied struct or enum value.
     Value,
@@ -663,7 +713,6 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
 fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueGraph) -> Result<(), ResolutionError> {
     let entry = &entries[index];
     let mut diagnostics = Vec::new();
-    collect_diagnostics(&mut diagnostics, validate_generated_names(index, entries));
     for declaration in &entry.module.declarations {
         match &declaration.kind {
             DeclarationKind::Struct(record) => {
@@ -789,15 +838,15 @@ fn interface_companions(name: &str, companions: &mut Vec<String>) {
 /// but an interface or tagged enum also emits Rust types that share this module's
 /// namespace. Reject collisions at the source location rather than leaving a
 /// duplicate-item compiler error in an unrelated generated file.
-fn validate_generated_names(index: usize, entries: &[ModuleEntry]) -> Result<(), ResolutionError> {
-    let entry = &entries[index];
+fn validate_generated_names(module: &ResolvedModule) -> Result<(), ResolutionError> {
+    let source = &module.source;
     let mut occupied = HashMap::<String, (SourceSpan, String)>::new();
-    for declaration in &entry.module.declarations {
+    for declaration in &source.declarations {
         occupied
             .entry(declaration.name.clone())
             .or_insert_with(|| (declaration.span.clone(), format!("declaration {}", declaration.name)));
     }
-    for import in &entry.module.imports {
+    for import in &source.imports {
         for name in &import.names {
             occupied
                 .entry(name.clone())
@@ -806,7 +855,7 @@ fn validate_generated_names(index: usize, entries: &[ModuleEntry]) -> Result<(),
     }
 
     let mut diagnostics = Vec::new();
-    for declaration in &entry.module.declarations {
+    for declaration in &source.declarations {
         let mut companions = Vec::new();
         match &declaration.kind {
             DeclarationKind::Interface(_) => {
@@ -814,19 +863,26 @@ fn validate_generated_names(index: usize, entries: &[ModuleEntry]) -> Result<(),
             }
             DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) => {}
         }
-        for name in companions {
-            if let Some((previous_span, previous_name)) = occupied.get(&name) {
-                diagnostics.push(
-                    Diagnostic::new(
+        let constructor = module.construction.products.get(&declaration.name);
+        let companions = companions.iter().map(|name| (name.as_str(), &declaration.span, false));
+        let helpers = constructor.into_iter().flat_map(|plan| {
+            plan.helpers.iter().map(|helper| (helper.name(), &plan.source, true))
+        });
+        for (name, origin, from_constructor) in companions.chain(helpers) {
+            if let Some((previous_span, previous_name)) = occupied.get(name) {
+                let diagnostic = Diagnostic::new(
                         "EIDL021",
                         format!("generated Rust name {name:?} from {} conflicts with {previous_name}", declaration.name),
                     )
-                    .with_sources(&entry.module.sources)
-                    .primary(&declaration.span, "this declaration generates the conflicting name")
-                    .secondary(previous_span, "name is already present here"),
-                );
+                    .with_sources(&source.sources)
+                    .primary(origin, "this declaration generates the conflicting name")
+                    .secondary(previous_span, "name is already present here");
+                diagnostics.push(match from_constructor {
+                    true => diagnostic.secondary(&declaration.span, "constructor helpers belong to this product"),
+                    false => diagnostic,
+                });
             } else {
-                occupied.insert(name, (declaration.span.clone(), format!("generated companion of {}", declaration.name)));
+                occupied.insert(name.to_owned(), (origin.clone(), format!("generated companion of {}", declaration.name)));
             }
         }
     }
