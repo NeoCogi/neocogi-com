@@ -64,10 +64,12 @@ same immutable descriptor directly and uses the same checked factory API. No
 native export is emitted by the plugin in this mode. Rust monoliths consume an
 `rlib`; they do not need an additional C `staticlib` archive or wrapper project.
 
-Both hosts print `factory object: 44 x 31`. The
-[build-modes integration test](tests/build_modes.rs) builds both with plain
-Cargo, relocates them, and runs the construction/mutation sequence without any
-contract artifacts or inherited library-search paths.
+Both hosts print `factory object: 44 x 31` only after all behavioral assertions.
+The [compatibility driver](../../crates/com/scripts/compatibility.py) independently
+builds the shared runtime, host and plugin with explicitly selected compilers and
+flags, removes their build outputs, and executes the relocated three-file deployment.
+The [build-modes integration test](tests/build_modes.rs) separately checks the
+self-contained monolith. See the [matrix contract](../../crates/com/docs/compatibility.md).
 
 `--release` can be added to each build command; use `target/release` for the
 link and loader directories. `cargo-neocogi` is optional deployment tooling and
@@ -87,10 +89,11 @@ Restoring supplies the queue during construction, just like the ordinary factory
 Neither path permits later receiver installation. The host verifies each queued
 origin against the corresponding object; weak origins do not keep objects alive.
 
-The same relocation test executes this sequence across a real shared-library
-boundary and in the monolith. The implementation library also checks for Wasm.
+The compatibility driver executes this sequence across a real shared-library
+boundary; the build-modes test covers the monolith. The implementation library also checks for Wasm.
 The host's output remains `factory object: 44 x 31`; assertions verify the extra
-snapshot and event behavior before printing it.
+snapshot and event behavior, successful weak promotion while live, and expired
+weak references after final release before printing it.
 
 An allocation probe implements `ExampleObjectEventQueue` on a concrete
 `ExtentQueue`, asserts that constructing it allocates once, and checks the typed

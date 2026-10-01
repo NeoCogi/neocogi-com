@@ -27,6 +27,11 @@ fn main() {
     let changed = messages.try_recv().unwrap();
     assert!(changed.origin.same_object(&object.downgrade().unwrap()));
     assert_eq!((changed.event.width, changed.event.height), (44, 31));
+    // A promotion crosses from the host's weak protocol into plugin-owned storage.
+    let weak = object.downgrade().unwrap();
+    let promoted = weak.upgrade().unwrap().expect("live plugin object");
+    assert_eq!(promoted.extent().unwrap(), extent);
+    drop(promoted);
     let saved = snapshot(object.query::<IUnknown>().unwrap().as_com_ref()).unwrap();
     let mut registry = FactoryRegistry::new().unwrap();
     registry
@@ -41,6 +46,12 @@ fn main() {
     let changed = messages.try_recv().unwrap();
     assert!(changed.origin.same_object(&restored.downgrade().unwrap()));
     assert_eq!((changed.event.width, changed.event.height), (45, 32));
+    // No queued origin or persistent recipe is allowed to keep either object alive.
+    // These assertions execute in release/abort builds too, unlike debug_assert.
+    drop(object);
+    assert!(weak.upgrade().unwrap().is_none(), "final release must destroy the plugin value");
+    drop(restored);
+    assert!(changed.origin.upgrade().unwrap().is_none(), "queued weak origin must expire");
     println!("factory object: {} x {}", extent.width, extent.height);
 }
 

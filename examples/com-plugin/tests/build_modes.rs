@@ -1,4 +1,4 @@
-//! Plain Cargo builds must work after relocation, without contract libraries.
+//! A relocated monolith must run without any native NeoCogi library.
 
 use std::{
     path::{Path, PathBuf},
@@ -28,61 +28,14 @@ fn cargo(workspace: &Path, target: &Path, arguments: &[&str]) -> Command {
     command
 }
 
-/// Computes the platform spelling of a shared-library artifact.
-fn library(name: &str) -> String {
-    format!("{}{name}{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX)
-}
-
-/// Uses one plugin source to prove dynamic activation and a self-contained monolith.
+/// Dynamic cross-builds live in the compatibility driver; this checks the static mode.
 #[test]
-fn ordinary_cargo_builds_both_linkage_modes_without_contract_artifacts() {
+fn ordinary_cargo_builds_a_relocatable_monolith() {
     let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
-    let target = workspace.join("target/plain-cargo-com-fixture");
-    let dynamic_stage = tempfile::tempdir().unwrap();
+    let builds = tempfile::tempdir().unwrap();
+    let target = builds.path();
     let monolith_stage = tempfile::tempdir().unwrap();
     let executable = format!("neocogi-example-com{}", std::env::consts::EXE_SUFFIX);
-
-    // Plugin compilation has no dependency on a prebuilt runtime or an external
-    // driver. The crate-type override affects only this final library target.
-    run(&mut cargo(
-        &workspace,
-        &target,
-        &[
-            "rustc",
-            "-p",
-            "neocogi-example-com-plugin",
-            "--lib",
-            "--crate-type",
-            "cdylib",
-            "--features",
-            "dynamic-plugin",
-        ],
-    ));
-    let plugin = library("nc_example_com");
-    std::fs::copy(target.join("debug").join(&plugin), dynamic_stage.path().join(&plugin)).unwrap();
-    run(&mut cargo(
-        &workspace,
-        &target,
-        &["rustc", "-p", "neocogi-com-runtime", "--lib", "--crate-type", "cdylib"],
-    ));
-    let runtime = library("nc_com");
-    std::fs::copy(target.join("debug").join(&runtime), dynamic_stage.path().join(runtime)).unwrap();
-    run(cargo(
-        &workspace,
-        &target,
-        &["build", "-p", "neocogi-example-com-plugin", "--bin", "neocogi-example-com", "--features", "host"],
-    )
-    .env("NC_COM_RUNTIME_LINK_DIR", target.join("debug")));
-    std::fs::copy(target.join("debug").join(&executable), dynamic_stage.path().join(&executable)).unwrap();
-
-    // Only these three files ship. Restrict the loader path to the relocated
-    // stage so stale workspace libraries cannot accidentally satisfy a link.
-    let dynamic = run(Command::new(dynamic_stage.path().join(&executable))
-        .arg(dynamic_stage.path().join(plugin))
-        .env("LD_LIBRARY_PATH", dynamic_stage.path())
-        .env("DYLD_LIBRARY_PATH", dynamic_stage.path()));
-    assert_eq!(String::from_utf8(dynamic.stdout).unwrap().trim(), "factory object: 44 x 31");
-    assert_eq!(std::fs::read_dir(dynamic_stage.path()).unwrap().count(), 3);
 
     // Cargo statically links the plugin's rlib and the runtime into one host.
     // No native plugin export or runtime search directory is required.
