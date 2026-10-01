@@ -1,0 +1,13 @@
+/// Checked nested array carried through a changing enum alternative.
+#[version(1)] struct Details { flags: [bool; 2] }
+/// Current and possible output variants have different traversal costs.
+#[version(1)] enum Choice { Idle, Filled(Details) }
+/// Exclusive input whose original identity must survive rejection.
+#[version(1)] interface IItem { fn value(&self) -> Result<u32>; }
+/// Consuming methods need output resource admission as well as input validation.
+#[version(1)] interface IComplete {
+    fn complete(&mut self, first: ComBox<IItem>, second: ComBox<IItem>,
+        choices: &mut [Choice], flags: &mut [bool], reject: bool, deny_after_entry: bool) -> Result<Choice>;
+    fn direct(&mut self, first: ComBox<IItem>, values: &mut [u64]) -> Result<u32>;
+    fn excessive(&mut self, first: ComBox<IItem>) -> Result<[[bool; 0]; 1000000]>;
+}

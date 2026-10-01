@@ -556,7 +556,7 @@ mod readme_examples {}
 
 // Recursive value transport is independent of whether a value is used as a message.
 pub use neocogi_com_core::{
-    ComValue, ComValueType, ComInlineValue, NcValueRef, ValueBudget, ValueCost, ValueArray, ValueOption, ValueSlice, encode_inline, decode_inline,
+    ComValue, ComValueType, ComInlineValue, NcValueRef, ValueBudget, ValueCost, ValueArray, ValueOption, ValueSlice, encode_inline, decode_inline, check_inline_output, check_buffer_output,
     MAX_VALUE_BYTES, MAX_VALUE_COUNT, MAX_VALUE_DEPTH,
 };
 #[cfg(feature = "alloc")]

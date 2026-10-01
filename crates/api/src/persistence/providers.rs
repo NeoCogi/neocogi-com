@@ -76,7 +76,6 @@ where
         };
         let result = <T as IObjectChildren>::count(&*__nc_dispatch_value);
         ::core::mem::drop(__nc_dispatch_value);
-        if result.is_ok() {}
         match result {
             ::core::result::Result::Ok(value) => {
                 let raw = match ::neocogi_com::encode_inline(&value) {
@@ -125,7 +124,6 @@ where
         };
         let result = <T as IObjectChildren>::get(&*__nc_dispatch_value, __nc_arg_0);
         ::core::mem::drop(__nc_dispatch_value);
-        if result.is_ok() {}
         match result {
             ::core::result::Result::Ok(value) => {
                 unsafe {
@@ -214,7 +212,6 @@ where
         };
         let result = <T as IPersistable>::type_id(&*__nc_dispatch_value);
         ::core::mem::drop(__nc_dispatch_value);
-        if result.is_ok() {}
         match result {
             ::core::result::Result::Ok(value) => {
                 let raw = match ::neocogi_com::encode_inline(&value) {
@@ -256,7 +253,6 @@ where
         };
         let result = <T as IPersistable>::schema_version(&*__nc_dispatch_value);
         ::core::mem::drop(__nc_dispatch_value);
-        if result.is_ok() {}
         match result {
             ::core::result::Result::Ok(value) => {
                 let raw = match ::neocogi_com::encode_inline(&value) {
@@ -298,7 +294,6 @@ where
         };
         let result = <T as IPersistable>::save_state(&*__nc_dispatch_value);
         ::core::mem::drop(__nc_dispatch_value);
-        if result.is_ok() {}
         match result {
             ::core::result::Result::Ok(value) => {
                 unsafe {
@@ -336,7 +331,6 @@ where
         };
         let result = <T as IPersistable>::child_count(&*__nc_dispatch_value);
         ::core::mem::drop(__nc_dispatch_value);
-        if result.is_ok() {}
         match result {
             ::core::result::Result::Ok(value) => {
                 let raw = match ::neocogi_com::encode_inline(&value) {
@@ -385,7 +379,6 @@ where
         };
         let result = <T as IPersistable>::child(&*__nc_dispatch_value, __nc_arg_0);
         ::core::mem::drop(__nc_dispatch_value);
-        if result.is_ok() {}
         match result {
             ::core::result::Result::Ok(value) => {
                 unsafe {
@@ -502,7 +495,6 @@ where
             __nc_arg_2,
         );
         ::core::mem::drop(__nc_dispatch_value);
-        if result.is_ok() {}
         match result {
             ::core::result::Result::Ok(()) => ::neocogi_com::NC_OK,
             ::core::result::Result::Err(status) => status.normalize_error(),
@@ -570,7 +562,6 @@ where
             __nc_arg_2,
         );
         ::core::mem::drop(__nc_dispatch_value);
-        if result.is_ok() {}
         match result {
             ::core::result::Result::Ok(value) => {
                 unsafe {

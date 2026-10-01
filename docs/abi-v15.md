@@ -97,6 +97,18 @@ violation (a panic inside an extern-C provider aborts). Non-owning methods retai
 ordinary checked-output status errors. This is not an exception allowing a provider
 to lose an owner on an ordinary application or resource error.
 
+Generated adapters also finish their own resource preparation before adoption.
+Converted writable buffers reserve input and completion vectors on each side.
+For consuming calls, copied results and converted output elements must provide
+an allocation-free `ComValue::MAX_COST`; both sides admit the maximum output
+count/depth and buffer bytes before invocation. Unavailable maxima reject the
+Rust declaration; unaffordable known maxima return `NC_E_OUT_OF_RANGE` with the
+original owners. Completion reuses reserved storage and validates all converted
+outputs before publishing any. Direct buffers retain in-place semantics, and
+non-consuming calls retain actual-output budget checks. See
+[prepared output completion](../../../docs/COM_OUTPUT_COMPLETION.md) for examples,
+error ordering, limits, and allocator-injection regressions.
+
 The caller decides whether to retry or destroy returned inputs. In particular,
 rejecting ancestor A offered to descendant B returns A through every forwarding
 call before application code can drop it. This requires no deferred-destruction

@@ -133,9 +133,12 @@ pub unsafe trait ComValue: Sized + 'static {
     /// Upper bound for allocation-free shapes, including differing enum alternatives.
     ///
     /// A fresh inline conversion can omit bookkeeping when every possible shape
-    /// fits its complete budget. A bound that does not fit is never a rejection:
-    /// conversion falls back to exact accounting for the actual value instead.
+    /// fits its complete budget. Ordinary conversion falls back to exact accounting when the bound does
+    /// not fit. Consuming methods instead require an affordable maximum output
+    /// before accepting owners, so no valid output can exhaust the budget later.
     /// Both prechecked converters must work for every active shape covered here.
+    /// With that bound prepaid, valid native values cannot fail resource admission;
+    /// decoding still rejects invalid raw contents. Neither converter may allocate.
     const MAX_COST: Option<ValueCost> = Self::FIXED_COST;
     /// Call-scoped raw representation, recursively composed of wire fields.
     type Wire: Copy;
@@ -186,6 +189,35 @@ pub trait ComValueType: ComValue {
 /// The wire is self-contained and can be returned through a copied ABI out slot.
 /// Dropping the original application value cannot invalidate any wire field.
 pub unsafe trait ComInlineValue: ComValue + Copy {}
+
+/// Admits every possible copied result before a consuming method accepts owners.
+/// Generated declarations require MAX_COST; runtime admission additionally checks
+/// that the complete bound fits the ordinary conversion limits. This does not
+/// inspect the input value or relax boolean/tag validation during completion.
+#[doc(hidden)]
+pub fn check_inline_output<T: ComInlineValue>() -> Result<(), NcStatus> {
+    ValueBudget::default().fixed(T::MAX_COST.ok_or(NC_E_OUT_OF_RANGE)?)
+}
+
+/// Admits either a direct writable buffer or every converted output at this length.
+/// Each direction retains its existing byte/count/depth limit. Native and wire
+/// sizes may differ, including across independently compiled implementations;
+/// both sides check their local representation before transferring ownership.
+#[doc(hidden)]
+pub fn check_buffer_output<T: ComInlineValue>(len: u64) -> Result<(), NcStatus> {
+    match T::BORROW_WIRE {
+        // Identity buffers have no conversion or allocation at completion.
+        true => Ok(()),
+        false => {
+            let count = usize::try_from(len).map_err(|_| NC_E_OUT_OF_RANGE)?;
+            let cost = T::MAX_COST.and_then(|cost| cost.elements(count)).ok_or(NC_E_OUT_OF_RANGE)?;
+            let mut budget = ValueBudget::default();
+            budget.sequence::<T>(count)?;
+            ValueBudget::default().sequence::<T::Wire>(count)?;
+            budget.fixed(cost)
+        }
+    }
+}
 
 /// Guard for a value's raw record and its call-scoped backing storage.
 ///

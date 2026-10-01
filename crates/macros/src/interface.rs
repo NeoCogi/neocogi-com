@@ -340,6 +340,13 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         });
         let owners = method.args.iter().filter(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. })).collect::<Vec<_>>();
         let has_owners = !owners.is_empty();
+        let output_checks = consuming_output_checks(&nc, method, |arg| {
+            let len = buffer_len_ident(&arg.binding);
+            quote! { #len }
+        });
+        let output_preflight = output_checks.iter().map(|check| quote! {
+            if let ::core::result::Result::Err(status) = #check { return status; }
+        });
         // Save slots before replacing raw argument bindings with ordinary owners.
         // Adoption happens only after all validation and receiver admission.
         let owner_adoptions = owners.iter().map(|arg| {
@@ -380,13 +387,18 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             true => quote! { panic!("invalid output after COM ownership commit: {:?}", status) },
             false => quote! { return status },
         };
-        let buffer_writeback = method.args.iter().filter_map(|arg| {
+        let buffer_conversion = method.args.iter().filter_map(|arg| {
             let AbiArgKind::CopyToBufferOffset { .. } = &arg.kind else {
                 return None;
             };
             let values = buffer_values_ident(&arg.binding);
-            Some(quote! { if let ::core::result::Result::Err(status) = #values.finish() { #output_error; } })
-        });
+            Some(quote! { if let ::core::result::Result::Err(status) = #values.convert_output() { #output_error; } })
+        }).collect::<Vec<_>>();
+        let buffer_publication = method.args.iter().filter_map(|arg| {
+            let AbiArgKind::CopyToBufferOffset { .. } = &arg.kind else { return None; };
+            let values = buffer_values_ident(&arg.binding);
+            Some(quote! { #values.publish(); })
+        }).collect::<Vec<_>>();
         let arg_names = method.args.iter().map(|arg| &arg.binding).collect::<Vec<_>>();
         let out_param = match &method.ok.kind {
             AbiReturnKind::Void => quote! {},
@@ -409,13 +421,19 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         };
         let success_arm = match &method.ok.kind {
             AbiReturnKind::Void => quote! {
-                ::core::result::Result::Ok(()) => #nc::NC_OK,
+                ::core::result::Result::Ok(()) => {
+                    #(#buffer_conversion)*
+                    #(#buffer_publication)*
+                    #nc::NC_OK
+                },
             },
             AbiReturnKind::Plain => quote! {
                 ::core::result::Result::Ok(value) => {
                     // SAFETY: Non-void thunks checked `__nc_out` for null before the
                     // Rust method was called.
                     let raw = match #nc::encode_inline(&value) { ::core::result::Result::Ok(raw) => raw, ::core::result::Result::Err(status) => { #output_error } };
+                    #(#buffer_conversion)*
+                    #(#buffer_publication)*
                     unsafe { *__nc_out = raw; }
                     #nc::NC_OK
                 }
@@ -425,6 +443,8 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     // SAFETY: Non-void thunks checked `__nc_out` for null.
                     // `into_raw` transfers the returned owned COM reference to
                     // the caller.
+                    #(#buffer_conversion)*
+                    #(#buffer_publication)*
                     unsafe { *__nc_out = value.into_raw(); }
                     #nc::NC_OK
                 }
@@ -468,6 +488,8 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 if #object_ident.is_null() {
                     return #nc::NC_E_POINTER;
                 }
+                // All possible outputs must fit before any owning input is adopted.
+                #(#output_preflight)*
                 #(#arg_conversions)*
                 // SAFETY: The object pointer is paired with this generated table.
                 // `ComAbiObject` validates the requested Rust borrow
@@ -481,7 +503,6 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 // Release the object-wide borrow before lowering an owned
                 // result into the caller's output slot.
                 ::core::mem::drop(#value_ident);
-                if result.is_ok() { #(#buffer_writeback)* }
                 match result {
                     #success_arm
                     // Rust `Result::Err` must map to a negative ABI status.
@@ -512,8 +533,38 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         quote! { #(#user_docs)* #(#generated_docs)* pub #body }
     });
 
+    let output_contracts = methods.iter().flat_map(|method| {
+        if !method.args.iter().any(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. })) {
+            return Vec::new();
+        }
+        let mut proofs = Vec::new();
+        if matches!(method.ok.kind, AbiReturnKind::Plain) {
+            let ty = &method.ok.rust_ty;
+            proofs.push(quote! {
+                assert!(<#ty as #nc::ComValue>::MAX_COST.is_some(),
+                    "consuming COM copied output requires an allocation-free MAX_COST");
+            });
+        }
+        for arg in &method.args {
+            if let AbiArgKind::CopyToBufferOffset { element_ty } = &arg.kind {
+                proofs.push(quote! {
+                    assert!(<#element_ty as #nc::ComValue>::BORROW_WIRE || <#element_ty as #nc::ComValue>::MAX_COST.is_some(),
+                        "consuming COM converted buffer output requires an allocation-free MAX_COST");
+                });
+            }
+        }
+        proofs
+    }).collect::<Vec<_>>();
+    let output_contracts = match output_contracts.is_empty() {
+        true => quote! {},
+        false => quote! { const _: () = { #(#output_contracts)* }; },
+    };
     let abi = quote! {
         #input
+
+        // Even unused declarations must prove allocation-free converted completion.
+        // IDL and handwritten interfaces share this codec-level requirement.
+        #output_contracts
 
         #signature_static
 
@@ -712,6 +763,10 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
         })
         .collect::<Vec<_>>();
     let arg_preparations = method.args.iter().filter_map(|arg| safe_arg_preparation(nc, arg)).collect::<Vec<_>>();
+    let output_checks = consuming_output_checks(nc, method, |arg| {
+        let ident = &arg.binding;
+        quote! { #ident.__nc_len_u64()? }
+    });
     let preparation = match has_owners {
         false => quote! { #(#arg_preparations)* },
         true => {
@@ -731,6 +786,7 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
                 // Keep ordinary Rust owners during fallible encoding, including
                 // unwinding. Only the actual non-unwinding ABI call lends tokens.
                 let (#(mut #prepared,)*) = match (|| {
+                    #(#output_checks?;)*
                     #(#arg_preparations)*
                     ::core::result::Result::Ok::<_, #nc::NcStatus>((#(#prepared,)*))
                 })() {
@@ -766,9 +822,14 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
                 return None;
             };
             let ident = &arg.binding;
-            Some(quote! { #ident.finish() #acquire; })
+            Some(quote! { #ident.convert_output() #acquire; })
         })
         .collect::<Vec<_>>();
+    let buffer_publication = method.args.iter().filter_map(|arg| {
+        let AbiArgKind::CopyToBufferOffset { .. } = &arg.kind else { return None; };
+        let ident = &arg.binding;
+        Some(quote! { #ident.publish(); })
+    });
     let rust_ret = &method.ok.rust_ty;
     let receiver = safe_receiver(method.receiver);
     // Output shape is the only return-specific part of a client call. Keep one
@@ -809,6 +870,8 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
         // validating mutable buffers so a buffer error cannot leak that result.
         let result = #success;
         #(#buffer_acquisition)*
+        // Publish only after all converted outputs, including the result, validated.
+        #(#buffer_publication)*
         ::core::result::Result::Ok(result)
     };
     quote! {
@@ -816,6 +879,31 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
             #body
         }
     }
+}
+
+/// Builds pre-acceptance resource checks from the shared output codecs.
+/// The caller supplies wrapper lengths; the provider supplies raw ABI lengths.
+/// Non-consuming methods keep actual-output accounting and require no maximum.
+fn consuming_output_checks(
+    nc: &syn::Path,
+    method: &AbiMethod,
+    buffer_len: impl Fn(&crate::model::AbiArg) -> proc_macro2::TokenStream,
+) -> Vec<proc_macro2::TokenStream> {
+    if !method.args.iter().any(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. })) {
+        return Vec::new();
+    }
+    let mut checks = Vec::new();
+    if matches!(method.ok.kind, AbiReturnKind::Plain) {
+        let ty = &method.ok.rust_ty;
+        checks.push(quote! { #nc::check_inline_output::<#ty>() });
+    }
+    for arg in &method.args {
+        if let AbiArgKind::CopyToBufferOffset { element_ty } = &arg.kind {
+            let len = buffer_len(arg);
+            checks.push(quote! { #nc::check_buffer_output::<#element_ty>(#len) });
+        }
+    }
+    checks
 }
 
 /// Emits the safe Rust receiver corresponding to one validated COM method.

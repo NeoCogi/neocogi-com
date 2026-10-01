@@ -35,6 +35,7 @@ fn ui_errors_are_stable() {
     t.pass("integration-tests/ui/enum_public_documentation.rs");
     t.compile_fail("integration-tests/ui/format_method_signature_requires_unsafe.rs");
     t.compile_fail("integration-tests/ui/interface_async_method.rs");
+    t.compile_fail("integration-tests/ui/interface_consuming_unbounded_output.rs");
     t.compile_fail("integration-tests/ui/interface_copy_from_buffer_bad_element.rs");
     t.compile_fail("integration-tests/ui/interface_copy_from_buffer_missing_lifetime.rs");
     t.compile_fail("integration-tests/ui/interface_copy_from_buffer_static_lifetime.rs");

@@ -122,7 +122,6 @@ impl ValueCost {
 
     /// Scales a fixed element cost without adding a container root or depth level.
     /// Buffer conversion has no aggregate root; owned sequences charge theirs separately.
-    #[cfg(feature = "alloc")]
     pub(crate) fn elements(self, len: usize) -> Option<Self> {
         Some(Self {
             values: self.values.checked_mul(len)?,

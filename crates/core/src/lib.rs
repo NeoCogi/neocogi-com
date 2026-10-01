@@ -68,7 +68,7 @@ extern crate std;
 
 pub use abi::{__nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComStruct};
 pub use value::{
-    encode_inline, decode_inline, ComValue, ComValueType, ComInlineValue, NcValueRef, ValueBudget, ValueArray, ValueOption, ValueSlice, MAX_VALUE_BYTES,
+    encode_inline, decode_inline, check_inline_output, check_buffer_output, ComValue, ComValueType, ComInlineValue, NcValueRef, ValueBudget, ValueArray, ValueOption, ValueSlice, MAX_VALUE_BYTES,
     MAX_VALUE_COUNT, MAX_VALUE_DEPTH,
 };
 #[cfg(feature = "alloc")]
