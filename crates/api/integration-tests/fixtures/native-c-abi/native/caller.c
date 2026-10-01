@@ -437,7 +437,7 @@ release_calculator:
 }
 
 /* Consumes one sole strong owner and checks the full weak protocol from plain C. */
-int nc_c_exercise_weak(IUnknown owned, const NcInterfaceId *requested, NcStatus closed_status,
+int nc_c_exercise_weak(IUnknown owned, const NcInterfaceId *requested, NcStatus dropped_status,
     void (*retain)(NcWeakControl *), void (*release)(NcWeakControl *),
     NcStatus (*upgrade)(NcWeakControl *, const NcInterfaceId *, IUnknown *)) {
     NcWeakRaw weak = {0};
@@ -452,7 +452,7 @@ int nc_c_exercise_weak(IUnknown owned, const NcInterfaceId *requested, NcStatus 
     /* Failure must clear even a nonempty output; owned's address is no longer dereferenced. */
     promoted = owned;
     NcStatus status = upgrade(weak.control, requested, &promoted);
-    int result = status == closed_status && promoted.object == NULL && promoted.vtable == NULL;
+    int result = status == dropped_status && promoted.object == NULL && promoted.vtable == NULL;
     release(weak.control);
     release(weak.control);
     return result;

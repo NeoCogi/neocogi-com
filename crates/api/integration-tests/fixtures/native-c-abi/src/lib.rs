@@ -172,7 +172,7 @@ mod tests {
         fn nc_c_exercise_weak(
             owned: neocogi_com::ComRaw<IUnknown>,
             requested: *const NcInterfaceId,
-            closed: NcStatus,
+            dropped: NcStatus,
             retain: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcWeakControl),
             release: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcWeakControl),
             upgrade: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcWeakControl, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
