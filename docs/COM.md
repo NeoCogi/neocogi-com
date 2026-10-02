@@ -43,7 +43,8 @@ later under ordinary mutable access. No event syntax or named output relay remai
 Contracts use `struct`, `enum`, `bitenum`, `interface`, `class`, and `factory`. All declarations
 and members are public by definition:
 
-```rust
+<!-- checked-example: idl -->
+```ncidl
 #[version(1)]
 struct Extent {
     width: u32,
@@ -62,7 +63,7 @@ interface ExampleObject: IMeasured {
 
 #[version(1)]
 factory ExampleFactory {
-    fn create(&self, extent: Extent) -> Result<ExampleObject>;
+    fn create(&self, extent: Extent) -> Result<ComPtr<ExampleObject>>;
 }
 ```
 
@@ -82,29 +83,39 @@ regenerates bindings after an IDL edit; no separate native artifact is built.
 `#[com_object(contract::Interface)]` associates private Rust storage with one
 interface contract. `#[com_factory(contract::Factory)]` does the same for a factory:
 
+<!-- checked-example: implementation -->
 ```rust,ignore
+use neocogi_com::{ComPtr, NcStatus, com_factory, com_object};
+use example_contracts::*;
+
+/// Private state; shared COM ownership protects its allocation.
 #[com_object(example_contracts::ExampleObject)]
 struct ExampleObjectImpl {
+    /// Current dimensions read through IMeasured.
     extent: Extent,
 }
 
 impl IMeasured for ExampleObjectImpl {
+    /// Copies the current dimensions through the declared value codec.
     fn extent(&self) -> Result<Extent, NcStatus> {
         Ok(self.extent)
     }
 }
 
 impl ExampleObject for ExampleObjectImpl {
+    /// Changes plain fields under the generated exclusive method borrow.
     fn resize(&mut self, extent: Extent) -> Result<(), NcStatus> {
         self.extent = extent;
         Ok(())
     }
 }
 
+/// Stateless root with the generated zero-argument bootstrap.
 #[com_factory(example_contracts::ExampleFactory)]
 struct ExampleFactoryImpl;
 
 impl ExampleFactory for ExampleFactoryImpl {
+    /// Publishes one explicitly owned interface with initialized private state.
     fn create(&self, extent: Extent) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
         ExampleObjectImpl::from_value(ExampleObjectImpl { extent }).query()
     }
@@ -121,6 +132,7 @@ Use `&mut self` for mutation and keep ordinary state in plain fields.
 
 ## Publishing a plugin
 
+<!-- checked-example: plugin -->
 ```rust,ignore
 neocogi_com::factory_plugin! {
     name = "example.component",
@@ -140,14 +152,43 @@ zero-argument construction; ordinary objects use `from_value`.
 
 ## Host activation
 
+For a monolith, enable `neocogi-com/static-runtime` and register the linked
+provider before requesting its exact factory. The following complete function
+uses the declarations and implementation above:
+
+<!-- checked-example: static-host -->
 ```rust,ignore
-let runtime = neocogi_com::Runtime::global();
-let loaded = unsafe { runtime.load_plugin_library(path) };
-let factory = runtime.activate_plugin_factory::<ExampleFactoryAbi>(
-    loaded.plugin_id(),
-)?;
-let object = factory.create(Extent { width: 10, height: 20 })?;
+/// Executes bootstrap, construction, inherited reads and a mutable COM call.
+fn static_example() -> Result<(), NcStatus> {
+    let runtime = neocogi_com::Runtime::global();
+    // SAFETY: linked plugin code and macro-generated static metadata remain
+    // available for the process lifetime, including every returned COM handle.
+    unsafe { runtime.register_factory_plugin_description(factory_plugin_description()) }?;
+    let factory = runtime.activate_plugin_factory::<ExampleFactoryAbi>(
+        neocogi_com::guid_from_qualified_name("example.component"),
+    )?;
+    let mut object = factory.create(Extent { width: 10, height: 20 })?;
+    assert_eq!(object.extent()?, Extent { width: 10, height: 20 });
+    object.resize(Extent { width: 44, height: 31 })?;
+    assert_eq!(object.extent()?, Extent { width: 44, height: 31 });
+    Ok(())
+}
 ```
+
+These four marked blocks are extracted verbatim by the IDL documentation test:
+IDL resolution and Rust generation feed compilation of the provider, plugin
+export, bootstrap and actual calls. The `ignore` fence here avoids pretending
+that one Rust block can run without its preceding generated contract.
+
+```sh
+cargo test -p neocogi-idl --test documentation
+```
+
+Dynamic hosts use `runtime.load_plugin_library(path)` for an application-selected
+trusted library, then call `activate_plugin_factory` with its plugin ID. Loading
+is unsafe because the library contains native code. The
+[plain-Cargo example](../../examples/com-plugin/README.md) covers full shared
+and monolithic builds rather than leaving that deployment setup implicit.
 
 Loading validates the factory descriptor and hard dependencies before one
 atomic registration. Plugin dependencies must already be registered; the

@@ -1,0 +1,76 @@
+//! Compile the actual public guide blocks, including their bootstrap and COM calls.
+
+use std::{fs, path::Path, process::Command};
+
+/// Extracts one explicitly marked Markdown example, rejecting missing or duplicate blocks.
+/// Labels keep prose movement independent of tests without duplicating authored code.
+fn example<'a>(document: &'a str, label: &str) -> &'a str {
+    let marker = format!("<!-- checked-example: {label} -->");
+    assert_eq!(document.matches(&marker).count(), 1, "one {label} example must remain documented");
+    let after = document.split_once(&marker).unwrap().1.trim_start();
+    assert!(after.starts_with("```"), "{label} marker must immediately precede its code block");
+    let (_, body) = after.split_once('\n').unwrap();
+    body.split_once("\n```").expect("example has a closing fence").0
+}
+
+/// The guides' ownership spelling, generated bindings and plugin bootstrap must work together.
+#[test]
+fn readme_factory_contract_and_bootstrap_execute_as_documented() {
+    let document = include_str!("../../README.md");
+    let source = neocogi_idl::parse_module(Path::new("example/contracts.ncidl"), example(document, "idl")).unwrap();
+    let graph = neocogi_idl::resolve_modules(vec![source]).unwrap();
+    let generated = neocogi_idl::generate_rust(&graph, "example.contracts").unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let project = tempfile::tempdir().unwrap();
+    fs::create_dir(project.path().join("src")).unwrap();
+    fs::write(project.path().join("Cargo.toml"), format!(
+        "[package]\nname='documented-com-bootstrap'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[features]\ndynamic-plugin=[]\n[dependencies]\nneocogi-com={{path={:?},features=['static-runtime']}}\n",
+        root.join("crates/com/api"),
+    )).unwrap();
+    // The guide's generated contract crate is represented by a module here;
+    // every authored line below comes directly from its marked public block.
+    let mut implementation = format!("mod example_contracts {{\n{generated}\n}}\n");
+    let language = include_str!("../../../../docs/IDL_MODULES.md");
+    for (label, module) in [("generic-stream", "stream"), ("generic-values", "values")] {
+        let source = neocogi_idl::parse_module(Path::new(&format!("example/{module}.ncidl")), example(language, label)).unwrap();
+        let graph = neocogi_idl::resolve_modules(vec![source]).unwrap();
+        let generated = neocogi_idl::generate_rust(&graph, &format!("example.{module}")).unwrap();
+        implementation.push_str(&format!("mod {module} {{\n{generated}\n}}\n"));
+    }
+    // The cross-module language example uses explicit Rust locations, just as
+    // a Cargo build does. No generated paths or declarations are rewritten.
+    let sources = [("language-render", "render"), ("language-widgets", "widgets")]
+        .into_iter()
+        .map(|(label, module)| neocogi_idl::parse_module(Path::new(&format!("example/{module}.ncidl")), example(language, label)).unwrap())
+        .collect();
+    let graph = neocogi_idl::resolve_modules(sources).unwrap();
+    let mut paths = neocogi_idl::generate::RustModulePaths::default();
+    paths.insert("example.render", "documentation_samples::render").unwrap();
+    implementation.push_str("extern crate self as documentation_samples;\n");
+    for module in ["render", "widgets"] {
+        let generated = neocogi_idl::generate::generate_rust_with_paths(&graph, &format!("example.{module}"), &paths).unwrap();
+        implementation.push_str(&format!("mod {module} {{\n{generated}\n}}\n"));
+    }
+    for label in ["implementation", "plugin", "static-host"] {
+        implementation.push_str(example(document, label));
+        implementation.push('\n');
+    }
+    implementation.push_str("#[test] fn documented_bootstrap() { static_example().unwrap(); }\n");
+    fs::write(project.path().join("src/lib.rs"), implementation).unwrap();
+    let output = Command::new("cargo")
+        .args(["test", "--offline", "--features", "dynamic-plugin", "--manifest-path"])
+        .arg(project.path().join("Cargo.toml"))
+        .env("CARGO_TARGET_DIR", root.join("target/documentation-proof"))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("test documented_bootstrap ... ok"),
+        "bootstrap must execute, not just compile"
+    );
+}
