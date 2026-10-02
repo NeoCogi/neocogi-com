@@ -210,11 +210,9 @@ fn design_definition(graph: &Generation<'_>, module: &ResolvedModule, declaratio
     let identity = module.declaration(&declaration.name).expect("resolved declaration");
     let qualified_name = Literal::string(&identity.qualified_name);
     let rust_type = Literal::string(&public_rust_path(graph, module, &declaration.name)?);
-    let definition = &graph.graph.values.definitions[&identity.qualified_name];
-    let mut resolved_fields = definition.fields.iter();
     let shape = match &declaration.kind {
         DeclarationKind::Struct(record) => {
-            let fields = design_fields(&record.fields, &mut resolved_fields)?;
+            let fields = design_fields(graph, module, &record.fields)?;
             quote! { ::neocogi_com::design::IdlShape::Struct(&[#(#fields),*]) }
         }
         DeclarationKind::Enum(enumeration) => {
@@ -226,13 +224,13 @@ fn design_definition(graph: &Generation<'_>, module: &ResolvedModule, declaratio
                 let variant_name = Literal::string(&variant.name);
                 let fields = match &variant.fields {
                     VariantFields::Unit => Vec::new(),
-                    VariantFields::Named(fields) => design_fields(fields, &mut resolved_fields)?,
+                    VariantFields::Named(fields) => design_fields(graph, module, fields)?,
                     VariantFields::Tuple(types) => types
                         .iter()
                         .enumerate()
-                        .map(|(index, _ty)| {
+                        .map(|(index, ty)| {
                             let field = Literal::string(&index.to_string());
-                            let ty = design_value_type(resolved_fields.next().expect("resolved field order matches source"));
+                            let ty = design_field_type(graph, module, ty)?;
                             Ok(quote! { ::neocogi_com::design::IdlField { name: #field, ty: #ty } })
                         })
                         .collect::<Result<Vec<_>, GenerateError>>()?,
@@ -269,34 +267,50 @@ fn public_rust_path(graph: &Generation<'_>, module: &ResolvedModule, name: &str)
     Ok(result)
 }
 
-/// Emits the already-resolved structural field, never reparsing a type string.
-fn design_value_type(ty: &crate::ValueType) -> TokenStream {
-    use crate::ValueType as V;
-    let expression = match ty {
-        V::Unit => quote! { Unit },
-        V::Text => quote! { Text },
-        V::Scalar(name) => quote! { Scalar(#name) },
-        V::Named(name) => quote! { Named(#name) },
-        V::Object(name) => quote! { Object(#name) },
-        V::Sequence(value) => {
-            let value = design_value_type(value);
-            quote! { Sequence(&#value) }
+/// Emits the resolved design type directly from an authored field type.
+fn design_field_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
+    match ty {
+        AbiType::Unit => Ok(quote! { ::neocogi_com::design::IdlValueType::Unit }),
+        AbiType::String => Ok(quote! { ::neocogi_com::design::IdlValueType::Text }),
+        AbiType::Scalar(name) => {
+            let name = Literal::string(name);
+            Ok(quote! { ::neocogi_com::design::IdlValueType::Scalar(#name) })
         }
-        V::Array(value, len) => {
-            let value = design_value_type(value);
-            quote! { Array(&#value, #len) }
+        AbiType::Named(name) if builtin_object_type(name).is_some() => {
+            let name = Literal::string(&name.segments.join("."));
+            Ok(quote! { ::neocogi_com::design::IdlValueType::Object(#name) })
         }
-    };
-    quote! { ::neocogi_com::design::IdlValueType::#expression }
+        AbiType::Named(name) => {
+            let resolved = resolve(graph, module, name)?;
+            let qualified = Literal::string(&resolved.identity.qualified_name);
+            Ok(match resolved.declaration.kind {
+                DeclarationKind::Interface(_) => quote! { ::neocogi_com::design::IdlValueType::Object(#qualified) },
+                _ => quote! { ::neocogi_com::design::IdlValueType::Named(#qualified) },
+            })
+        }
+        AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => {
+            design_field_type(graph, module, value)
+        }
+        AbiType::Vector(value) => {
+            let value = design_field_type(graph, module, value)?;
+            Ok(quote! { ::neocogi_com::design::IdlValueType::Sequence(&#value) })
+        }
+        AbiType::Array { element, len } => {
+            let element = design_field_type(graph, module, element)?;
+            let len = Literal::u32_unsuffixed(*len);
+            Ok(quote! { ::neocogi_com::design::IdlValueType::Array(&#element, #len) })
+        }
+        _ => Ok(quote! { ::neocogi_com::design::IdlValueType::Unit }),
+    }
 }
 
-/// Pairs authored names with their canonical resolved structural types.
-fn design_fields(fields: &[crate::Field], resolved: &mut std::slice::Iter<'_, crate::ValueType>) -> Result<Vec<TokenStream>, GenerateError> {
+/// Pairs authored field names with their canonical resolved structural types.
+fn design_fields(graph: &Generation<'_>, module: &ResolvedModule, fields: &[crate::Field]) -> Result<Vec<TokenStream>, GenerateError> {
     fields
         .iter()
         .map(|field| {
             let name = Literal::string(&field.name);
-            let ty = design_value_type(resolved.next().expect("resolved field order matches source"));
+            let ty = design_field_type(graph, module, &field.ty)?;
             Ok(quote! { ::neocogi_com::design::IdlField { name: #name, ty: #ty } })
         })
         .collect()

@@ -256,3 +256,49 @@ fn generated_interface_exposes_its_idl_event_and_nested_message_shape() {
     assert!(generated.contains(r#"name: "Changed""#));
     assert!(generated.contains(r#"name: "Submitted""#));
 }
+
+/// Metadata generation resolves field and variant shapes directly without a zipper.
+#[test]
+fn direct_design_shape_resolution_preserves_variant_grouping_and_tags() {
+    let source = module(
+        "example/shapes.ncidl",
+        r#"
+        #[version(1)] struct Point { x: i32, y: i32 }
+        #[version(1)] enum Action: u8 {
+            Move { point: Point, speed: f32 },
+            Say(String),
+            Pause,
+        }
+        extern neocogi.com.events; use neocogi.com.events::EventBinding;
+        #[version(1)] factory ShapeFactory { fn create(&self, events: &EventBinding<Actor, Action>) -> Result<ComPtr<Actor>>; }
+        #[version(1)] class Actor {}
+    "#,
+    );
+    let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));
+    let graph = resolve_modules(vec![source, transport]).unwrap();
+    let generated = neocogi_idl::generate_rust(&graph, "example.shapes").unwrap();
+    syn::parse_file(&generated).unwrap();
+
+    // Verify Point struct shape and fields
+    assert!(generated.contains(r#"qualified_name: "example.shapes.Point""#));
+    assert!(generated.contains(r#"name: "x""#));
+    assert!(generated.contains(r#"name: "y""#));
+
+    // Verify Action enum shape with tags 0, 1, 2 and distinct field groups
+    assert!(generated.contains(r#"qualified_name: "example.shapes.Action""#));
+    assert!(generated.contains(r#"name: "Move""#));
+    assert!(generated.contains(r#"tag: 0i64"#));
+    assert!(generated.contains(r#"name: "point""#));
+    assert!(generated.contains(r#""example.shapes.Point""#));
+    assert!(generated.contains(r#"name: "speed""#));
+    assert!(generated.contains(r#"Scalar("f32")"#));
+
+    assert!(generated.contains(r#"name: "Say""#));
+    assert!(generated.contains(r#"tag: 1i64"#));
+    assert!(generated.contains(r#"name: "0""#));
+    assert!(generated.contains(r#"IdlValueType::Text"#));
+
+    assert!(generated.contains(r#"name: "Pause""#));
+    assert!(generated.contains(r#"tag: 2i64"#));
+}
+
