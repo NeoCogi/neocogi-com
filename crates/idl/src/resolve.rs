@@ -254,14 +254,6 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
     let mut entries = build_entries(modules)?;
     connect_externals_and_imports(&mut entries)?;
     let values = resolve_value_graph(&entries)?;
-    for entry in &mut entries {
-        entry.copied_values = values
-            .definitions
-            .values()
-            .filter(|value| value.copied)
-            .map(|value| value.name.clone())
-            .collect();
-    }
     let mut diagnostics = Vec::new();
     for index in 0..entries.len() {
         if let Err(error) = validate_module(index, &entries, &values) {
@@ -438,8 +430,6 @@ fn validate_closed_argument(graph: &ResolvedModules, module: &ResolvedModule, ty
 
 /// Internal graph node with precomputed declaration identities.
 struct ModuleEntry {
-    /// Cached copied-use-site facts from the authoritative resolved value graph.
-    copied_values: std::collections::BTreeSet<String>,
     /// Parsed source owned by this graph node.
     module: Module,
     /// Cached dotted name used for lookup and diagnostics.
@@ -604,7 +594,6 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
             });
         }
         entries.push(ModuleEntry {
-            copied_values: Default::default(),
             module,
             name,
             module_id,
@@ -803,7 +792,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
             DeclarationKind::BitEnum(bit_enum) => collect_diagnostics(&mut diagnostics, validate_bit_enum(entry, declaration, bit_enum)),
             DeclarationKind::Interface(interface) => {
                 collect_diagnostics(&mut diagnostics, validate_interface_bases(index, interface, entries, &declaration.name));
-                collect_diagnostics(&mut diagnostics, validate_methods(index, &interface.methods, entries, &declaration.name));
+                collect_diagnostics(&mut diagnostics, validate_methods(index, &interface.methods, entries, values, &declaration.name));
             }
         }
     }
@@ -1220,7 +1209,7 @@ fn validate_interface_bases(index: usize, interface: &crate::Interface, entries:
 }
 
 /// Validates ordinary signatures and generated output getters in vtable order.
-fn validate_methods(index: usize, methods: &[Method], entries: &[ModuleEntry], owner: &str) -> Result<(), ResolutionError> {
+fn validate_methods(index: usize, methods: &[Method], entries: &[ModuleEntry], values: &crate::ValueGraph, owner: &str) -> Result<(), ResolutionError> {
     let mut diagnostics = Vec::new();
     for method in methods {
         for parameter in &method.parameters {
@@ -1230,6 +1219,7 @@ fn validate_methods(index: usize, methods: &[Method], entries: &[ModuleEntry], o
                     index,
                     &parameter.ty,
                     entries,
+                    values,
                     &format!("{owner}::{} parameter {}", method.name, parameter.name),
                     &parameter.span,
                 ),
@@ -1237,7 +1227,7 @@ fn validate_methods(index: usize, methods: &[Method], entries: &[ModuleEntry], o
         }
         collect_diagnostics(
             &mut diagnostics,
-            validate_output_type(index, &method.output, entries, &format!("{owner}::{} result", method.name), &method.span),
+            validate_output_type(index, &method.output, entries, values, &format!("{owner}::{} result", method.name), &method.span),
         );
     }
     if diagnostics.is_empty() {
@@ -1328,14 +1318,13 @@ fn validate_object_target(index: usize, ty: &AbiType, entries: &[ModuleEntry], c
 
 /// Reads copied use-site eligibility from the resolved structural graph.
 /// Layout validation separately reports inline cycles with source spans.
-fn copied_type(index: usize, ty: &AbiType, entries: &[ModuleEntry]) -> bool {
+fn copied_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &crate::ValueGraph) -> bool {
     match ty {
         AbiType::Scalar(_) => true,
-        AbiType::Array { element, .. } => copied_type(index, element, entries),
+        AbiType::Array { element, .. } => copied_type(index, element, entries, values),
         AbiType::Named(name) => resolve_named(index, name, entries).is_ok_and(|symbol| {
-            entries[index]
-                .copied_values
-                .contains(&entries[symbol.module].declaration_identities[symbol.declaration].qualified_name)
+            let qualified = &entries[symbol.module].declaration_identities[symbol.declaration].qualified_name;
+            values.definitions.get(qualified).is_some_and(|value| value.copied)
         }),
         _ => false,
     }
@@ -1398,9 +1387,9 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
 }
 
 /// Requires an implemented self-contained copied lowering at this method position.
-fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     validate_field_type(index, ty, entries, context, span)?;
-    if copied_type(index, ty, entries) {
+    if copied_type(index, ty, entries, values) {
         Ok(())
     } else {
         Err(source_error(
@@ -1414,7 +1403,7 @@ fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], cont
 }
 
 /// Validates an input without allowing implicit COM ownership transfer.
-fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     let span = type_span(ty).unwrap_or(span);
     if let AbiType::Borrowed(referent) = ty {
         if let AbiType::Named(name) = referent.as_ref() {
@@ -1436,7 +1425,7 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
         )),
         AbiType::Scalar(_) => Ok(()),
         AbiType::Named(name) => match resolve_named_or_str(index, name, entries)? {
-            ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => validate_value_type(index, ty, entries, context, span),
+            ResolvedName::Symbol(symbol) if symbol.kind == SymbolKind::Value => validate_value_type(index, ty, entries, values, context, span),
             ResolvedName::Symbol(symbol) => Err(kind_mismatch_error(
                 index,
                 symbol,
@@ -1468,18 +1457,18 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
                 "unsupported borrow",
             )),
         },
-        AbiType::Slice(element) | AbiType::OutputSlice(element) => validate_value_type(index, element, entries, context, span),
-        AbiType::Array { .. } => validate_value_type(index, ty, entries, context, span),
+        AbiType::Slice(element) | AbiType::OutputSlice(element) => validate_value_type(index, element, entries, values, context, span),
+        AbiType::Array { .. } => validate_value_type(index, ty, entries, values, context, span),
     }
 }
 
 /// Validates an output where bare COM names mean owned references.
-fn validate_output_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+fn validate_output_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     let span = type_span(ty).unwrap_or(span);
     match ty {
         AbiType::Unit | AbiType::Scalar(_) => Ok(()),
         AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => validate_object_target(index, value, entries, context, span),
-        AbiType::Named(_) | AbiType::Array { .. } => validate_value_type(index, ty, entries, context, span),
+        AbiType::Named(_) | AbiType::Array { .. } => validate_value_type(index, ty, entries, values, context, span),
         AbiType::String => Err(source_error(
             &entries[index].module,
             "EIDL062",
