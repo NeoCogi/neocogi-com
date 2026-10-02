@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use neocogi_idl::{AbiType, Callable, DeclarationKind, EnumNames, EnumRepr, ModuleSource, Receiver, Threading, VariantFields, parse_module, parse_module_parts};
+use neocogi_idl::{AbiType, DeclarationKind, EnumNames, EnumRepr, ModuleSource, Receiver, Threading, VariantFields, parse_module, parse_module_parts};
 
 /// Exercises every initial declaration kind and ownership spelling together.
 #[test]
@@ -115,16 +115,16 @@ fn parses_a_complete_contract_module() {
         panic!("Button should be a class");
     };
     assert_eq!(button.bases[0].rust_path(), "IWidget");
-    let Callable::Method(method) = &button.callables[0];
+    let method = &button.methods[0];
     assert_eq!(method.receiver, Receiver::Mutable);
 
     let DeclarationKind::Interface(factory) = &module.declaration("UiFactory").unwrap().kind else {
         panic!("UiFactory should be a factory");
     };
     assert_eq!(factory.threading, Threading::Shared);
-    let Callable::Method(first) = &factory.callables[0];
-    let Callable::Method(second) = &factory.callables[1];
-    let Callable::Method(third) = &factory.callables[2];
+    let first = &factory.methods[0];
+    let second = &factory.methods[1];
+    let third = &factory.methods[2];
     assert!(matches!(first.parameters[0].ty, AbiType::Borrowed(_)));
     assert!(matches!(second.parameters[0].ty, AbiType::Slice(_)));
     assert!(matches!(third.parameters[0].ty, AbiType::OutputSlice(_)));
@@ -147,7 +147,7 @@ fn parses_message_stream_as_an_ordinary_class_base() {
         panic!("class")
     };
     assert_eq!(editor.bases[0].arguments.len(), 1);
-    assert_eq!(editor.callables.len(), 1);
+    assert_eq!(editor.methods.len(), 1);
     for legacy in [
         "#[version(1)] interface Old { changed: Changed; }",
         "#[version(1)] #[observer] interface Old {}",

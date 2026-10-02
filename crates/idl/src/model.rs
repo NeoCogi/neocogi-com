@@ -210,7 +210,7 @@ pub struct Interface {
     /// Base followed by required sibling interfaces, in declared query order.
     pub bases: Vec<NamedType>,
     /// Ordinary methods in normative vtable order.
-    pub callables: Vec<Callable>,
+    pub methods: Vec<Method>,
     /// Construction or delivery policy layered over the common interface ABI.
     pub role: InterfaceRole,
     /// Minimum threading capability promised by every implementation.
@@ -254,21 +254,6 @@ pub struct Method {
     pub output: AbiType,
 }
 
-/// One ordered callable declaration on a source interface.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Callable {
-    /// An ordinary author-declared COM method.
-    Method(Method),
-}
-
-impl Callable {
-    /// Returns the original declaration span for diagnostics.
-    pub fn span(&self) -> &SourceSpan {
-        match self {
-            Self::Method(method) => &method.span,
-        }
-    }
-}
 
 /// Receiver capability for one COM method.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -1,6 +1,6 @@
 //! Intrinsic spellings share identities while ownership remains explicit.
 use std::path::Path;
-use neocogi_idl::{AbiType, Callable, DeclarationKind, parse_module, resolve_modules};
+use neocogi_idl::{AbiType, DeclarationKind, parse_module, resolve_modules};
 
 /// Resolves one isolated source under a fixed logical identity for ABI comparisons.
 fn graph(source: &str) -> neocogi_idl::ResolvedModules {
@@ -34,7 +34,7 @@ fn generic_slice_referents_normalize_after_substitution() {
     let DeclarationKind::Interface(interface) = &instance.kind else {
         panic!("interface instance expected")
     };
-    let Callable::Method(method) = &interface.callables[0];
+    let method = &interface.methods[0];
     assert_eq!(method.parameters[0].ty, AbiType::Slice(Box::new(AbiType::Scalar("u32".into()))));
     neocogi_idl::generate_rust(&resolved, "proof.intrinsics").unwrap();
 }

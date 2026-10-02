@@ -81,7 +81,7 @@ pub(super) fn resolve(graph: &ResolvedModules) -> Result<Vec<Construction>, Reso
     for (index, module) in graph.modules.iter().enumerate() {
         for declaration in &module.source.declarations {
             let DeclarationKind::Interface(interface) = &declaration.kind else { continue };
-            for Callable::Method(method) in &interface.callables {
+            for method in &interface.methods {
                 let (AbiType::ComPtr(output) | AbiType::ComBox(output) | AbiType::WeakComBox(output)) = &method.output else {
                     continue;
                 };

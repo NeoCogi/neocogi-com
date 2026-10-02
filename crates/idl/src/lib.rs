@@ -19,7 +19,7 @@ mod standard;
 pub use standard::is_bundled_module;
 
 pub use model::{
-    PersistencePolicy, AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Field, Import,
+    PersistencePolicy, AbiType, BitEnum, BitFlag, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Field, Import,
     Interface, InterfaceRole, Method, NamedType, Parameter, Receiver, Struct, Threading, VariantFields, Specialization,
 };
 pub use diagnostic::{Diagnostic, DiagnosticLabel, LabelStyle, SourceFile, SourcePosition, SourceSpan};

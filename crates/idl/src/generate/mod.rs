@@ -3,7 +3,7 @@
 use std::fmt;
 
 use crate::{
-    AbiType, Callable, Declaration, DeclarationKind, EnumNames, EnumRepr, InterfaceRole, NamedType, Receiver, ResolvedDeclaration, ResolvedModule,
+    AbiType, Declaration, DeclarationKind, EnumNames, EnumRepr, InterfaceRole, Method, NamedType, Receiver, ResolvedDeclaration, ResolvedModule,
     ResolvedModules, Threading, VariantFields,
 };
 use proc_macro2::{Ident, Literal, Span, TokenStream};
@@ -359,8 +359,7 @@ fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, dec
                 root(argument, graph, module, names)?;
             }
         }
-        for callable in &value.callables {
-            let Callable::Method(method) = callable;
+        for method in &value.methods {
             for parameter in &method.parameters {
                 root(&parameter.ty, graph, module, names)?;
             }
@@ -582,7 +581,7 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
         }
         DeclarationKind::Interface(interface) => {
             let bases = bases(graph, module, &interface.bases)?;
-            let methods = callable_methods(graph, module, &interface.callables)?;
+            let methods = interface_methods(graph, module, &interface.methods)?;
             let threading = threading_ident(interface.threading);
             let factory = matches!(interface.role, InterfaceRole::Factory).then(|| quote! { factory, });
             let stream_support = streams::generate(graph, module, declaration)?;
@@ -705,42 +704,38 @@ fn bases(graph: &Generation<'_>, module: &ResolvedModule, values: &[NamedType]) 
 }
 
 /// Emits ordinary methods in their normative vtable order.
-fn callable_methods(graph: &Generation<'_>, module: &ResolvedModule, values: &[Callable]) -> Result<Vec<TokenStream>, GenerateError> {
+fn interface_methods(graph: &Generation<'_>, module: &ResolvedModule, values: &[Method]) -> Result<Vec<TokenStream>, GenerateError> {
     values
         .iter()
-        .map(|callable| {
-            Ok(match callable {
-                Callable::Method(method) => {
-                    let docs = origin_docs(&method.docs, &method.span);
-                    let name = rust_ident(&method.name)?;
-                    let receiver = match method.receiver {
-                        Receiver::Shared => quote! { &self },
-                        Receiver::Mutable => quote! { &mut self },
-                    };
-                    let parameters = method
-                        .parameters
-                        .iter()
-                        .map(|parameter| {
-                            let name = rust_ident(&parameter.name)?;
-                            let ty = parameter_type(graph, module, &parameter.ty)?;
-                            Ok(quote! { #name: #ty })
-                        })
-                        .collect::<Result<Vec<_>, GenerateError>>()?;
-                    let output = output_type(graph, module, &method.output)?;
-                    // Owning arguments are transactional: failure returns the
-                    // original owners in declaration order, through ordinary Rust
-                    // values. Only the status and restored C slots cross COM.
-                    let owners = method.parameters.iter().filter(|parameter| matches!(parameter.ty, AbiType::ComBox(_)))
-                        .map(|parameter| parameter_type(graph, module, &parameter.ty))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    let error = match owners.is_empty() {
-                        true => quote! { ::neocogi_com::NcStatus },
-                        false => quote! { (::neocogi_com::NcStatus, #(#owners),*) },
-                    };
-                    quote! {
-                        #docs fn #name(#receiver, #(#parameters),*) -> ::core::result::Result<#output, #error>;
-                    }
-                }
+        .map(|method| {
+            let docs = origin_docs(&method.docs, &method.span);
+            let name = rust_ident(&method.name)?;
+            let receiver = match method.receiver {
+                Receiver::Shared => quote! { &self },
+                Receiver::Mutable => quote! { &mut self },
+            };
+            let parameters = method
+                .parameters
+                .iter()
+                .map(|parameter| {
+                    let name = rust_ident(&parameter.name)?;
+                    let ty = parameter_type(graph, module, &parameter.ty)?;
+                    Ok(quote! { #name: #ty })
+                })
+                .collect::<Result<Vec<_>, GenerateError>>()?;
+            let output = output_type(graph, module, &method.output)?;
+            // Owning arguments are transactional: failure returns the
+            // original owners in declaration order, through ordinary Rust
+            // values. Only the status and restored C slots cross COM.
+            let owners = method.parameters.iter().filter(|parameter| matches!(parameter.ty, AbiType::ComBox(_)))
+                .map(|parameter| parameter_type(graph, module, &parameter.ty))
+                .collect::<Result<Vec<_>, _>>()?;
+            let error = match owners.is_empty() {
+                true => quote! { ::neocogi_com::NcStatus },
+                false => quote! { (::neocogi_com::NcStatus, #(#owners),*) },
+            };
+            Ok(quote! {
+                #docs fn #name(#receiver, #(#parameters),*) -> ::core::result::Result<#output, #error>;
             })
         })
         .collect()

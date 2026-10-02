@@ -8,7 +8,7 @@
 use std::collections::{BTreeMap, HashMap};
 use neocogi_com_core::{NcGuid, guid_from_name, guid_from_qualified_name};
 use crate::{
-    AbiType, Callable, Declaration, DeclarationKind, DeclarationId, Diagnostic, ExternalModule, Module, NamedType, ResolutionError, SourceSpan, Specialization,
+    AbiType, Declaration, DeclarationKind, DeclarationId, Diagnostic, ExternalModule, Module, NamedType, ResolutionError, SourceSpan, Specialization,
     VariantFields,
 };
 
@@ -396,15 +396,11 @@ pub(crate) fn visit_types(declaration: &mut Declaration, visit: &mut impl FnMut(
             for base in &mut interface.bases {
                 visit_named(base, visit)?;
             }
-            for callable in &mut interface.callables {
-                match callable {
-                    Callable::Method(method) => {
-                        for parameter in &mut method.parameters {
-                            visit(&mut parameter.ty)?;
-                        }
-                        visit(&mut method.output)?;
-                    }
+            for method in &mut interface.methods {
+                for parameter in &mut method.parameters {
+                    visit(&mut parameter.ty)?;
                 }
+                visit(&mut method.output)?;
             }
         }
     }

@@ -18,7 +18,7 @@ use syn::{
 };
 
 use crate::{
-    PersistencePolicy, AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant,
+    PersistencePolicy, AbiType, BitEnum, BitFlag, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant,
     ExternalModule, Field, Import, Interface, InterfaceRole, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile,
     SourceSpan, Struct, Threading, VariantFields,
 };
@@ -403,12 +403,12 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>, role: Int
         ));
     }
     let bases = parse_bases(input)?;
-    let callables = parse_callables(input)?;
+    let methods = parse_methods(input)?;
     Ok(declaration(
         name,
         parameters,
         metadata,
-        DeclarationKind::Interface(Interface { bases, callables, role, threading }),
+        DeclarationKind::Interface(Interface { bases, methods, role, threading }),
     ))
 }
 
@@ -441,27 +441,23 @@ fn parse_bases(input: ParseStream<'_>) -> syn::Result<Vec<NamedType>> {
         .collect()
 }
 
-/// Parses ordered methods and ports, reserving both accessor and connection names.
-fn parse_callables(input: ParseStream<'_>) -> syn::Result<Vec<Callable>> {
+/// Parses ordered methods, reserving method names.
+fn parse_methods(input: ParseStream<'_>) -> syn::Result<Vec<Method>> {
     let body;
     braced!(body in input);
-    let mut callables = Vec::new();
+    let mut methods = Vec::new();
     let mut names = HashMap::new();
     while !body.is_empty() {
         let attributes = Attribute::parse_outer(&body)?;
         let mut source = body.parse::<TraitItemFn>()?;
         source.attrs.splice(0..0, attributes);
         let method = lower_method(source)?;
-        let reserved = [method.name.clone()];
-        let callable = Callable::Method(method);
-        for name in reserved {
-            if let Some(previous) = names.insert(name.clone(), callable.span().clone()) {
-                return Err(duplicate_error("EIDL016", "method or port", &name, callable.span(), &previous));
-            }
+        if let Some(previous) = names.insert(method.name.clone(), method.span.clone()) {
+            return Err(duplicate_error("EIDL016", "method or port", &method.name, &method.span, &previous));
         }
-        callables.push(callable);
+        methods.push(method);
     }
-    Ok(callables)
+    Ok(methods)
 }
 
 /// Validates and lowers one Syn trait method into the language-neutral model.
@@ -909,7 +905,7 @@ fn attach_declaration_source(declaration: &mut Declaration, source: &SourceFile)
             }
         }
         DeclarationKind::Interface(interface) => {
-            attach_callable_source(&mut interface.bases, &mut interface.callables, source);
+            attach_interface_source(&mut interface.bases, &mut interface.methods, source);
         }
     }
 }
@@ -921,14 +917,12 @@ fn attach_field_source(field: &mut Field, source: &SourceFile) {
 }
 
 /// Attaches a source file to bases, methods, parameters, and result types.
-fn attach_callable_source(bases: &mut [NamedType], callables: &mut [Callable], source: &SourceFile) {
+fn attach_interface_source(bases: &mut [NamedType], methods: &mut [Method], source: &SourceFile) {
     for base in bases {
         base.span.attach(source);
     }
-    for callable in callables {
-        match callable {
-            Callable::Method(method) => attach_method_source(method, source),
-        }
+    for method in methods {
+        attach_method_source(method, source);
     }
 }
 

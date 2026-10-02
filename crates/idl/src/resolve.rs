@@ -10,7 +10,7 @@ use std::{
 use neocogi_com_core::{NcGuid, guid_from_name, guid_from_qualified_name};
 
 use crate::{
-    AbiType, BitEnum, Callable, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, InterfaceRole, Module, NamedType, SourceFile, SourceSpan, Threading,
+    AbiType, BitEnum, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, InterfaceRole, Method, Module, NamedType, SourceFile, SourceSpan, Threading,
     VariantFields, sha256::digest,
 };
 
@@ -803,7 +803,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
             DeclarationKind::BitEnum(bit_enum) => collect_diagnostics(&mut diagnostics, validate_bit_enum(entry, declaration, bit_enum)),
             DeclarationKind::Interface(interface) => {
                 collect_diagnostics(&mut diagnostics, validate_interface_bases(index, interface, entries, &declaration.name));
-                collect_diagnostics(&mut diagnostics, validate_callables(index, &interface.callables, entries, &declaration.name));
+                collect_diagnostics(&mut diagnostics, validate_methods(index, &interface.methods, entries, &declaration.name));
             }
         }
     }
@@ -1220,29 +1220,25 @@ fn validate_interface_bases(index: usize, interface: &crate::Interface, entries:
 }
 
 /// Validates ordinary signatures and generated output getters in vtable order.
-fn validate_callables(index: usize, callables: &[Callable], entries: &[ModuleEntry], owner: &str) -> Result<(), ResolutionError> {
+fn validate_methods(index: usize, methods: &[Method], entries: &[ModuleEntry], owner: &str) -> Result<(), ResolutionError> {
     let mut diagnostics = Vec::new();
-    for callable in callables {
-        match callable {
-            Callable::Method(method) => {
-                for parameter in &method.parameters {
-                    collect_diagnostics(
-                        &mut diagnostics,
-                        validate_parameter_type(
-                            index,
-                            &parameter.ty,
-                            entries,
-                            &format!("{owner}::{} parameter {}", method.name, parameter.name),
-                            &parameter.span,
-                        ),
-                    );
-                }
-                collect_diagnostics(
-                    &mut diagnostics,
-                    validate_output_type(index, &method.output, entries, &format!("{owner}::{} result", method.name), &method.span),
-                );
-            }
+    for method in methods {
+        for parameter in &method.parameters {
+            collect_diagnostics(
+                &mut diagnostics,
+                validate_parameter_type(
+                    index,
+                    &parameter.ty,
+                    entries,
+                    &format!("{owner}::{} parameter {}", method.name, parameter.name),
+                    &parameter.span,
+                ),
+            );
         }
+        collect_diagnostics(
+            &mut diagnostics,
+            validate_output_type(index, &method.output, entries, &format!("{owner}::{} result", method.name), &method.span),
+        );
     }
     if diagnostics.is_empty() {
         Ok(())
@@ -1750,17 +1746,17 @@ fn encode_declaration(
                 InterfaceRole::Factory => 1,
                 InterfaceRole::Class => 2,
             });
-            encode_callable(scope, &interface.bases, &interface.callables, interface.threading, entries, encoder)?;
+            encode_methods(scope, &interface.bases, &interface.methods, interface.threading, entries, encoder)?;
         }
     }
     Ok(())
 }
 
 /// Encodes bases, threading, and ordered methods for callable types.
-fn encode_callable(
+fn encode_methods(
     scope: EncodingScope<'_>,
     bases: &[NamedType],
-    callables: &[Callable],
+    methods: &[Method],
     threading: Threading,
     entries: &[ModuleEntry],
     encoder: &mut CanonicalEncoder,
@@ -1773,14 +1769,9 @@ fn encode_callable(
     for base in bases {
         encode_named(scope, base, entries, encoder)?;
     }
-    encoder.u32(u32_len(callables.len(), &entries[scope.module].name, "method count")?);
-    for callable in callables {
-        let method = match callable {
-            Callable::Method(method) => {
-                encoder.tag(0);
-                method
-            }
-        };
+    encoder.u32(u32_len(methods.len(), &entries[scope.module].name, "method count")?);
+    for method in methods {
+        encoder.tag(0);
         encoder.text(&method.name, &entries[scope.module].name)?;
         encoder.tag(match method.receiver {
             crate::Receiver::Shared => 0,

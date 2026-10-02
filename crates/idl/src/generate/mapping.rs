@@ -102,8 +102,8 @@ pub(super) fn map_declaration(source: &str, offset: usize, declaration: &Declara
             }
         }
         DeclarationKind::Interface(interface) => {
-            for callable in &interface.callables {
-                add(callable.span());
+            for method in &interface.methods {
+                add(&method.span);
             }
         }
     }
