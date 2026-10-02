@@ -1641,11 +1641,17 @@ fn fingerprint_module(
 fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, [u8; 32])]) -> Result<[u8; 32], ResolutionError> {
     let entry = &entries[index];
     let mut encoder = CanonicalEncoder::new();
-    // Core ABI 12 replaces opaque two-word weak tokens with the common header
-    // protocol. Reject old downgrade output storage and lifetime assumptions.
-    encoder.bytes(b"neocogi-idl:module-abi:v6\0");
+    // Version 7 unifies authored template/concrete policy, enum assignment
+    // presence and positional type binding. All consumers must regenerate.
+    encoder.bytes(b"neocogi-idl:module-abi:v7\0");
     encoder.guid(entry.module_id);
-    encoder.bytes(&crate::specialize::template_fingerprint(&entry.module.templates));
+    // Templates and concrete declarations use exactly the same grammar. Bound
+    // parameters require a scope, not a second serializer or diagnostic strings.
+    encoder.u32(u32_len(entry.module.templates.len(), &entry.name, "template count")?);
+    for template in &entry.module.templates {
+        let id = template.id.explicit.unwrap_or_else(|| derive_declaration_id(&entry.module.name.qualify(&template.name), template.id.version));
+        encode_declaration(index, template, id, entries, &mut encoder)?;
+    }
 
     encoder.u32(u32_len(dependencies.len(), &entry.name, "dependency count")?);
     for (dependency, fingerprint) in dependencies {
@@ -1664,6 +1670,26 @@ fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, 
     Ok(digest(&encoder.bytes))
 }
 
+/// Lexical context shared by concrete declarations and open template encoding.
+#[derive(Clone, Copy)]
+struct EncodingScope<'a> {
+    /// Index of the declaration's defining module for free-name resolution.
+    module: usize,
+    /// Authored binders; only their count and reference positions enter the bytes.
+    parameters: &'a [String],
+}
+
+/// Encodes authored persistence policy uniformly; diagnostic formatting is never ABI grammar.
+fn encode_persistence(policy: crate::DeserializePolicy, encoder: &mut CanonicalEncoder) {
+    encoder.tag(match policy {
+        crate::DeserializePolicy::None => 0,
+        crate::DeserializePolicy::Required => 1,
+        crate::DeserializePolicy::Default => 2,
+        crate::DeserializePolicy::Sequence => 3,
+        crate::DeserializePolicy::IfSupported => 4,
+    });
+}
+
 /// Encodes one declaration without documentation or source formatting.
 fn encode_declaration(
     index: usize,
@@ -1672,25 +1698,35 @@ fn encode_declaration(
     entries: &[ModuleEntry],
     encoder: &mut CanonicalEncoder,
 ) -> Result<(), ResolutionError> {
+    let scope = EncodingScope { module: index, parameters: &declaration.parameters };
+    encoder.u32(u32_len(scope.parameters.len(), &entries[index].name, "type parameter count")?);
     encoder.text(&declaration.name, &entries[index].name)?;
     encoder.u32(declaration.id.version);
     encoder.guid(id);
     match &declaration.kind {
         DeclarationKind::Struct(record) => {
             encoder.tag(1);
+            encode_persistence(record.deserialize, encoder);
             encoder.u32(u32_len(record.fields.len(), &entries[index].name, "field count")?);
             for field in &record.fields {
                 encoder.text(&field.name, &entries[index].name)?;
-                encode_type(index, &field.ty, entries, encoder)?;
+                encode_type(scope, &field.ty, entries, encoder)?;
             }
         }
         DeclarationKind::Enum(enumeration) => {
             encoder.tag(2);
             encoder.tag(enum_repr_tag(enumeration.repr));
+            encoder.tag(u8::from(enumeration.has_payload()));
+            encode_persistence(enumeration.deserialize, encoder);
+            encoder.tag(u8::from(enumeration.dense));
+            encoder.tag(match enumeration.names { None => 0, Some(crate::EnumNames::SnakeCase) => 1 });
             encoder.u32(u32_len(enumeration.variants.len(), &entries[index].name, "variant count")?);
             let mut previous = -1i64;
             for variant in &enumeration.variants {
                 encoder.text(&variant.name, &entries[index].name)?;
+                // Presence is authored contract data even when the effective
+                // integer matches an implicit assignment. Sum tags are always implicit.
+                encoder.tag(u8::from(variant.discriminant.is_some()));
                 let discriminant = variant.discriminant.unwrap_or(previous + 1);
                 encoder.i64(discriminant);
                 previous = discriminant;
@@ -1700,7 +1736,7 @@ fn encode_declaration(
                         encoder.tag(1);
                         encoder.u32(u32_len(fields.len(), &entries[index].name, "tuple field count")?);
                         for field in fields {
-                            encode_type(index, field, entries, encoder)?;
+                            encode_type(scope, field, entries, encoder)?;
                         }
                     }
                     VariantFields::Named(fields) => {
@@ -1708,7 +1744,7 @@ fn encode_declaration(
                         encoder.u32(u32_len(fields.len(), &entries[index].name, "named field count")?);
                         for field in fields {
                             encoder.text(&field.name, &entries[index].name)?;
-                            encode_type(index, &field.ty, entries, encoder)?;
+                            encode_type(scope, &field.ty, entries, encoder)?;
                         }
                     }
                 }
@@ -1734,7 +1770,7 @@ fn encode_declaration(
                 InterfaceRole::Factory => 1,
                 InterfaceRole::Class => 2,
             });
-            encode_callable(index, &interface.bases, &interface.callables, interface.threading, entries, encoder)?;
+            encode_callable(scope, &interface.bases, &interface.callables, interface.threading, entries, encoder)?;
         }
     }
     Ok(())
@@ -1742,7 +1778,7 @@ fn encode_declaration(
 
 /// Encodes bases, threading, and ordered methods for callable types.
 fn encode_callable(
-    index: usize,
+    scope: EncodingScope<'_>,
     bases: &[NamedType],
     callables: &[Callable],
     threading: Threading,
@@ -1753,11 +1789,11 @@ fn encode_callable(
         Threading::Local => 0,
         Threading::Shared => 1,
     });
-    encoder.u32(u32_len(bases.len(), &entries[index].name, "base count")?);
+    encoder.u32(u32_len(bases.len(), &entries[scope.module].name, "base count")?);
     for base in bases {
-        encode_named(index, base, entries, encoder)?;
+        encode_named(scope, base, entries, encoder)?;
     }
-    encoder.u32(u32_len(callables.len(), &entries[index].name, "method count")?);
+    encoder.u32(u32_len(callables.len(), &entries[scope.module].name, "method count")?);
     for callable in callables {
         let method = match callable {
             Callable::Method(method) => {
@@ -1765,31 +1801,38 @@ fn encode_callable(
                 method
             }
         };
-        encoder.text(&method.name, &entries[index].name)?;
+        encoder.text(&method.name, &entries[scope.module].name)?;
         encoder.tag(match method.receiver {
             crate::Receiver::Shared => 0,
             crate::Receiver::Mutable => 1,
         });
-        encoder.u32(u32_len(method.parameters.len(), &entries[index].name, "parameter count")?);
+        encoder.u32(u32_len(method.parameters.len(), &entries[scope.module].name, "parameter count")?);
         for parameter in &method.parameters {
-            encoder.text(&parameter.name, &entries[index].name)?;
-            encode_type(index, &parameter.ty, entries, encoder)?;
+            encoder.text(&parameter.name, &entries[scope.module].name)?;
+            encode_type(scope, &parameter.ty, entries, encoder)?;
         }
-        encode_type(index, &method.output, entries, encoder)?;
+        encode_type(scope, &method.output, entries, encoder)?;
     }
     Ok(())
 }
 
 /// Encodes one recursively structured ABI type.
-fn encode_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], encoder: &mut CanonicalEncoder) -> Result<(), ResolutionError> {
+fn encode_type(scope: EncodingScope<'_>, ty: &AbiType, entries: &[ModuleEntry], encoder: &mut CanonicalEncoder) -> Result<(), ResolutionError> {
     match ty {
         AbiType::Unit => encoder.tag(0),
         AbiType::Scalar(name) => {
             encoder.tag(1);
-            encoder.text(name, &entries[index].name)?;
+            encoder.text(name, &entries[scope.module].name)?;
         }
         AbiType::String => encoder.tag(2),
         AbiType::Named(name) => {
+            if let [local] = name.segments.as_slice() {
+                if let Some(position) = scope.parameters.iter().position(|parameter| parameter == local) {
+                    encoder.tag(14);
+                    encoder.u32(u32_len(position, &entries[scope.module].name, "parameter position")?);
+                    return Ok(());
+                }
+            }
             encoder.tag(3);
             if name.segments.as_slice() == ["str"] {
                 encoder.tag(0);
@@ -1801,51 +1844,70 @@ fn encode_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], encoder: &mu
                 encoder.bytes(unsafe { identity.abi_signature.as_bytes().expect("static core signature") });
             } else {
                 encoder.tag(1);
-                encode_named(index, name, entries, encoder)?;
+                encode_named(scope, name, entries, encoder)?;
             }
         }
         AbiType::Borrowed(referent) => {
             encoder.tag(4);
-            encode_type(index, referent, entries, encoder)?;
+            encode_type(scope, referent, entries, encoder)?;
         }
         AbiType::Slice(element) => {
             encoder.tag(5);
-            encode_type(index, element, entries, encoder)?;
+            encode_type(scope, element, entries, encoder)?;
         }
         AbiType::Array { element, len } => {
             encoder.tag(6);
             encoder.u32(*len);
-            encode_type(index, element, entries, encoder)?;
+            encode_type(scope, element, entries, encoder)?;
         }
         AbiType::ComBox(target) | AbiType::WeakComBox(target) => {
             encoder.tag(match ty { AbiType::ComBox(_) => 12, AbiType::WeakComBox(_) => 13, _ => unreachable!() });
-            encode_type(index, target, entries, encoder)?;
+            encode_type(scope, target, entries, encoder)?;
         }
         AbiType::ComPtr(target) => {
             encoder.tag(9);
-            encode_type(index, target, entries, encoder)?;
+            encode_type(scope, target, entries, encoder)?;
         }
         AbiType::Vector(element) => {
             encoder.tag(10);
-            encode_type(index, element, entries, encoder)?;
+            encode_type(scope, element, entries, encoder)?;
         }
         AbiType::UnsizedSlice(element) => {
             encoder.tag(11);
-            encode_type(index, element, entries, encoder)?;
+            encode_type(scope, element, entries, encoder)?;
         }
         AbiType::OutputSlice(element) => {
             encoder.tag(8);
-            encode_type(index, element, entries, encoder)?;
+            encode_type(scope, element, entries, encoder)?;
         }
     }
     Ok(())
 }
 
 /// Encodes owning module and declaration IDs for a named reference.
-fn encode_named(index: usize, name: &NamedType, entries: &[ModuleEntry], encoder: &mut CanonicalEncoder) -> Result<(), ResolutionError> {
-    let symbol = resolve_named(index, name, entries)?;
-    encoder.guid(entries[symbol.module].module_id);
-    encoder.guid(symbol.id);
+fn encode_named(scope: EncodingScope<'_>, name: &NamedType, entries: &[ModuleEntry], encoder: &mut CanonicalEncoder) -> Result<(), ResolutionError> {
+    let (module, id) = if scope.parameters.is_empty() {
+        let symbol = resolve_named(scope.module, name, entries)?;
+        (symbol.module, symbol.id)
+    } else {
+        // Specialization qualifies every free template name. It can refer to
+        // another template that has no concrete symbol-table entry of its own.
+        let owner = name.segments[..name.segments.len() - 1].join(".");
+        let local = name.segments.last().expect("normalized named type");
+        let module = entries.iter().position(|entry| entry.name == owner)
+            .ok_or_else(|| error(Some(&entries[scope.module].name), format!("unresolved template module {owner}")))?;
+        let declaration = entries[module].module.declarations.iter().chain(&entries[module].module.templates)
+            .find(|declaration| &declaration.name == local)
+            .ok_or_else(|| error(Some(&owner), format!("unresolved template declaration {local}")))?;
+        let id = declaration.id.explicit.unwrap_or_else(|| derive_declaration_id(&entries[module].module.name.qualify(local), declaration.id.version));
+        (module, id)
+    };
+    encoder.guid(entries[module].module_id);
+    encoder.guid(id);
+    encoder.u32(u32_len(name.arguments.len(), &entries[scope.module].name, "type argument count")?);
+    for argument in &name.arguments {
+        encode_type(scope, argument, entries, encoder)?;
+    }
     Ok(())
 }
 
