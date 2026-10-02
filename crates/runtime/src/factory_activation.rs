@@ -236,7 +236,7 @@ mod tests {
         assert_eq!(FACTORY_DROPS.load(Ordering::SeqCst), 1);
     }
 
-    /// A nominal IID match cannot enter bootstrap with incompatible ABI bytes.
+    /// A nominal IID match cannot enter bootstrap with absent or different bytes.
     #[test]
     fn signature_mismatch_is_rejected_before_bootstrap() {
         let _fixture = FIXTURE_LOCK.lock().unwrap();
@@ -247,16 +247,24 @@ mod tests {
             description: &DESCRIPTION,
             dependency_ids: Vec::new(),
         });
-        let mismatched = NcInterfaceId::new(FACTORY_ID, NcAbiSignature::from_static(&[8; 32]));
-        let resolved = resolve_factory(&registry, DESCRIPTION.plugin_id, mismatched, NC_ABI_THREADING_THREAD_LOCAL);
-        let mut out = neocogi_com_core::ComRaw {
-            object: core::ptr::dangling_mut(),
-            vtable: &VTABLE,
+        /// The fixture's exact digest is [7; 32]; differ only at its final byte.
+        static DIFFERENT_LAST_BYTE: [u8; 32] = {
+            let mut bytes = [7; 32];
+            bytes[31] = 8;
+            bytes
         };
-        // SAFETY: The output slot is writable; rejection must clear it without invoking code.
-        assert_eq!(unsafe { activate_factory(resolved, mismatched, &mut out) }, NC_E_ABI_VERSION);
-        assert!(out.is_null());
-        assert_eq!(FACTORY_ACTIVATIONS.load(Ordering::SeqCst), 0);
+        for signature in [NcAbiSignature::EMPTY, NcAbiSignature::from_static(&DIFFERENT_LAST_BYTE)] {
+            let mismatched = NcInterfaceId::new(FACTORY_ID, signature);
+            let resolved = resolve_factory(&registry, DESCRIPTION.plugin_id, mismatched, NC_ABI_THREADING_THREAD_LOCAL);
+            let mut out = neocogi_com_core::ComRaw {
+                object: core::ptr::dangling_mut(),
+                vtable: &VTABLE,
+            };
+            // SAFETY: The output slot is writable; rejection must clear it without invoking code.
+            assert_eq!(unsafe { activate_factory(resolved, mismatched, &mut out) }, NC_E_ABI_VERSION);
+            assert!(out.is_null());
+            assert_eq!(FACTORY_ACTIVATIONS.load(Ordering::SeqCst), 0);
+        }
     }
 
     /// Confirms an IID match with another signature is rejected and released.

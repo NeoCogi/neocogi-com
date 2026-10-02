@@ -202,3 +202,43 @@ Validation covers actual generated calls, reader/writer exclusion, concurrent Dr
 expired borrowed views, cyclic construction rollback, consuming-input rejection,
 and UI tree destruction. These tests establish exercised behavior; they are not a
 formal verification of arbitrary foreign providers or application deadlock freedom.
+
+## Verification
+
+The migration was checked on native x86_64 Linux with fresh COM facade/core/
+macros/runtime tests, the complete IDL suite, UI design/document tests,
+`neocogi-inspect` unit and standalone-plugin tests, and `cargo check --workspace`.
+The core also passes with no default features. Regression coverage includes:
+
+- Compile-fail construction from empty and 17-byte arrays; absence versus a
+  present all-zero digest; one-word storage and containing-record offsets.
+- Equal bytes at separate addresses compare and hash equally; changing each of
+  the 32 bytes rejects equality, including the last byte.
+- An independently compiled native C caller copies a generated digest into its
+  own stack array, successfully queries the Rust object, and releases the acquired
+  owner. Every single-byte mutation and an absent digest reject the query and
+  clear both output words. The borrowed stack identity never escapes the call.
+- Factory activation rejects absent/different signatures before the bootstrap
+  counter changes; rejected outputs are cleared. Previous generations are rejected
+  using a record consisting solely of the two version words.
+- Actual plugin inspection still reports the exact generated factory digest.
+
+The independent-build driver also executed both `cross-version` cases using
+stable Rust 1.98.1 (`48a229cea`) and nightly 1.101.0 (`c1070d693`):
+
+| Host and runtime | Plugin | Result |
+| --- | --- | --- |
+| Stable dev, unwind, no LTO | Nightly release, abort, fat LTO, randomized private layout | Passed |
+| Nightly runtime dev; host release, abort, thin LTO, randomized private layout | Stable dev, unwind, no LTO | Passed |
+
+Each artifact was built independently, copied into a relocated directory and
+executed after cleaning its build directory. The host exercised factory calls,
+event identity, persistence and release; this is execution evidence rather than
+successful compilation alone. The driver invocation was
+`python3 crates/com/scripts/compatibility.py --suite cross-version --report /tmp/fixed-signature-compatibility.json`.
+
+Local limitations: Rust 1.85 compilation is blocked by two pre-existing
+`unsigned_is_multiple_of` uses in `core/src/value.rs`, not by this signature API.
+The attempted 32-bit C compilation lacks system libc headers; 32-bit constants
+were updated but have not been executed here. No whole-bundle size or query-speed
+benchmark was performed.

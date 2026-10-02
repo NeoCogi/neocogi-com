@@ -146,6 +146,43 @@ struct INativeCalculatorVTable {
     );
 };
 
+/* Borrow the caller's owner and prove QueryInterface compares all digest bytes,
+ * independently of their address. No stack identity/digest may escape this call. */
+int32_t nc_c_exercise_signature(
+    IUnknown object,
+    const NcInterfaceId *expected,
+    NcStatus mismatch
+) {
+    /* Distinct initialized C storage exercises the nullable pointer-to-array ABI. */
+    uint8_t digest[32];
+    memcpy(digest, *expected->abi_signature.digest, sizeof(digest));
+    NcInterfaceId requested = *expected;
+    requested.abi_signature.digest = (const uint8_t (*)[32])&digest;
+    IUnknown acquired = {0};
+    if (object.vtable->query_interface(object.object, &requested, &acquired) != 0)
+        return 0;
+    if (!acquired.object || !acquired.vtable)
+        return 0;
+    /* Successful negotiation owns one reference even with caller-local bytes. */
+    if (acquired.vtable->release(acquired.object) != 1)
+        return 0;
+
+    for (size_t index = 0; index < sizeof(digest); ++index) {
+        digest[index] ^= 1;
+        acquired = object; /* Borrowed sentinel: rejection must clear both words. */
+        NcStatus status = object.vtable->query_interface(object.object, &requested, &acquired);
+        if (status != mismatch || acquired.object || acquired.vtable)
+            return 0;
+        digest[index] ^= 1;
+    }
+
+    /* Null is an absent digest, not permission to bypass exact negotiation. */
+    requested.abi_signature.digest = NULL;
+    acquired = object;
+    NcStatus status = object.vtable->query_interface(object.object, &requested, &acquired);
+    return status == mismatch && !acquired.object && !acquired.vtable;
+}
+
 typedef struct NativeCResults {
     int32_t sum;
     int32_t made_value;

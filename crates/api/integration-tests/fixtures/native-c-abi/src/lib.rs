@@ -158,6 +158,13 @@ mod tests {
     }
 
     unsafe extern "C" {
+        /// Borrows one owner and checks C-local digest copies, every byte and absence.
+        fn nc_c_exercise_signature(
+            object: neocogi_com::ComRaw<IUnknown>,
+            expected: *const NcInterfaceId,
+            mismatch: NcStatus,
+        ) -> i32;
+
         fn nc_c_exercise_calculator(
             unknown: neocogi_com::ComRaw<IUnknown>,
             calculator_interface_id: *const NcInterfaceId,
@@ -176,6 +183,17 @@ mod tests {
             upgrade: unsafe extern "C" fn(*mut neocogi_com::lifetime::NcWeakControl, *const NcInterfaceId, *mut neocogi_com::ComRaw<IUnknown>) -> NcStatus,
         ) -> i32;
 
+    }
+
+    /// An independent C caller can negotiate using its own fixed-width digest.
+    #[test]
+    fn native_c_checks_signature_contents_and_absence() {
+        let owner = NativeCalculator::from_value(NativeCalculator);
+        // SAFETY: The sole owner and static identity remain live; C balances
+        // its successful query and never retains the borrowed stack digest.
+        assert_eq!(unsafe {
+            nc_c_exercise_signature(owner.as_raw(), &INativeCalculatorAbi::INTERFACE_ID, neocogi_com::NC_E_ABI_VERSION)
+        }, 1);
     }
 
     unsafe extern "C" {

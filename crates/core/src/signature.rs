@@ -132,6 +132,39 @@ impl Hash for NcAbiSignature {
 mod tests {
     use super::*;
 
+    /// Hashes the complete logical view, using no provider-address information.
+    fn content_hash(signature: NcAbiSignature) -> u64 {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        signature.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    /// Separate caller storage must negotiate like equal provider-local statics.
+    #[test]
+    fn independent_storage_compares_and_hashes_by_contents() {
+        let left = [0x5a; 32];
+        let right = [0x5a; 32];
+        assert_ne!(left.as_ptr(), right.as_ptr());
+        let left = NcAbiSignature::from_borrowed(&left);
+        let right = NcAbiSignature::from_borrowed(&right);
+        assert_eq!(left, right);
+        assert_eq!(content_hash(left), content_hash(right));
+        assert!(left.__const_eq(right));
+    }
+
+    /// No byte, including the final byte, is omitted from exact comparison.
+    #[test]
+    fn every_digest_byte_participates_in_equality() {
+        let expected = NcAbiSignature::from_static(&[0x5a; 32]);
+        for index in 0..32 {
+            let mut bytes = [0x5a; 32];
+            bytes[index] ^= 1;
+            let changed = NcAbiSignature::from_borrowed(&bytes);
+            assert_ne!(expected, changed, "byte {index}");
+            assert!(!expected.__const_eq(changed));
+        }
+    }
+
     /// Absence differs from every present digest, including all-zero bytes.
     #[test]
     fn absence_and_zero_digest_are_distinct() {
@@ -139,6 +172,7 @@ mod tests {
         assert!(NcAbiSignature::EMPTY.is_empty());
         assert!(!zero.is_empty());
         assert_ne!(NcAbiSignature::EMPTY, zero);
+        assert_ne!(content_hash(NcAbiSignature::EMPTY), content_hash(zero));
         assert_eq!(NcAbiSignature::EMPTY, NcAbiSignature::EMPTY);
         // SAFETY: Both views are absent or refer to immutable static arrays.
         unsafe {
