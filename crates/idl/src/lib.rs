@@ -19,7 +19,7 @@ mod standard;
 pub use standard::is_bundled_module;
 
 pub use model::{
-    DeserializePolicy, AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Field, Import,
+    PersistencePolicy, AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Enum, EnumNames, EnumRepr, EnumVariant, ExternalModule, Field, Import,
     Interface, InterfaceRole, Method, NamedType, Parameter, Receiver, Struct, Threading, VariantFields, Specialization,
 };
 pub use diagnostic::{Diagnostic, DiagnosticLabel, LabelStyle, SourceFile, SourcePosition, SourceSpan};
@@ -65,4 +65,4 @@ pub mod source_map;
 pub use source_map::{GeneratedRust, RustSourceMap, SourceMapKind, SourceMapOrigin, SourceMapPosition, SourceMapRange, SourceMapping};
 
 mod values;
-pub use values::{Deserialization, ValueDefinition, ValueGraph, ValueType};
+pub use values::{Persistence, ValueDefinition, ValueGraph, ValueType};

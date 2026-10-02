@@ -12,7 +12,7 @@ fn parses_a_complete_contract_module() {
             use neocogi.render::{ITexture, TextureFactory};
 
             /// Copied widget construction state.
-            #[deserialize(default)]
+            #[persistence(default)]
             #[version(1)]
             struct WidgetOptions {
                 enabled: bool,
@@ -75,7 +75,7 @@ fn parses_a_complete_contract_module() {
     let DeclarationKind::Struct(options) = &module.declaration("WidgetOptions").unwrap().kind else {
         panic!("WidgetOptions should be a struct");
     };
-    assert_eq!(options.deserialize, neocogi_idl::DeserializePolicy::Default);
+    assert_eq!(options.persistence, neocogi_idl::PersistencePolicy::Default);
     assert_eq!(
         options.fields[1].ty,
         AbiType::Array {

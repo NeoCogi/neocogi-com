@@ -87,31 +87,21 @@ pub struct BitFlag {
     pub value: u64,
 }
 
-/// Format-neutral decoder generation requested on a record or enum.
-/// Transport remains available independently of this persistence operation.
+/// Persistent record shape; ordinary values acquire both codecs automatically.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum DeserializePolicy {
-    /// No generated decoder is requested.
+pub enum PersistencePolicy {
+    /// Named fields are all required; codec availability follows the complete value graph.
     #[default]
-    None,
-    /// Every active field must provide decoding; otherwise resolution fails.
-    Required,
-    /// A named record starts from the host-authored Default implementation.
+    Automatic,
+    /// Named-record decoding starts from a host-authored Default implementation.
     Default,
-    /// A record accepts a positional sequence in declaration order.
+    /// Both codecs process fields as a positional sequence in declaration order.
     Sequence,
-    /// Generate decoding only when all reachable field decoders exist.
-    /// Useful for generic library values that also carry live COM capabilities.
-    IfSupported,
 }
-impl DeserializePolicy {
-    /// Whether capability resolution should attempt this decoder.
-    pub fn requested(self) -> bool {
-        !matches!(self, Self::None)
-    }
-    /// Whether a missing field operation is a source error at this declaration.
+impl PersistencePolicy {
+    /// An explicitly selected format requires codecs for every reachable field.
     pub fn required(self) -> bool {
-        matches!(self, Self::Required | Self::Default | Self::Sequence)
+        !matches!(self, Self::Automatic)
     }
 }
 
@@ -120,8 +110,8 @@ impl DeserializePolicy {
 pub struct Struct {
     /// Named fields in normative ABI order.
     pub fields: Vec<Field>,
-    /// Explicit format-neutral construction policy, separate from wire transport.
-    pub deserialize: DeserializePolicy,
+    /// Symmetric persistent format policy, separate from live COM transport.
+    pub persistence: PersistencePolicy,
 }
 
 /// One named field in a struct or named enum payload.
@@ -157,8 +147,6 @@ pub enum EnumRepr {
 /// An ABI enum declaration.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Enum {
-    /// Enum construction policy; default/sequence record modes are not valid here.
-    pub deserialize: DeserializePolicy,
     /// Fixed discriminant representation selected by the suffix or default.
     pub repr: EnumRepr,
     /// Whether unit variants form the exact zero-based contiguous range.

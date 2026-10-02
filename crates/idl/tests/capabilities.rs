@@ -7,43 +7,11 @@ use neocogi_idl::{parse_module, resolve_modules};
 fn unsupported_deserialization_reports_the_missing_field_operation() {
     let prefix = "#[version(1)] interface IToken {} ";
     for (source, reason) in [
-        (
-            "#[version(1)] #[deserialize] struct Snapshot { token: ComPtr<IToken> }",
-            "object reconstruction contract",
-        ),
-        (
-            "#[version(1)] #[deserialize] struct Snapshot { tokens: Vec<Option<ComPtr<IToken>>> }",
-            "object reconstruction contract",
-        ),
-        (
-            "#[version(1)] #[deserialize] struct Snapshot { tokens: [ComPtr<IToken>; 2] }",
-            "object reconstruction contract",
-        ),
-        (
-            "#[version(1)] #[deserialize] struct Data<T> { value: T } #[version(1)] struct Snapshot { data: Data<ComPtr<IToken>> }",
-            "object reconstruction contract",
-        ),
-        (
-            "#[version(1)] #[deserialize] struct Node<T> { children: Vec<Node<T>>, value: T } #[version(1)] struct Snapshot { data: Node<ComPtr<IToken>> }",
-            "object reconstruction contract",
-        ),
-        (
-            "#[version(1)] struct Child { count: u32 } #[version(1)] #[deserialize] struct Snapshot { child: Option<Child> }",
-            "does not declare a generated decoder",
-        ),
-        ("#[version(1)] #[deserialize] struct Snapshot { id: Guid }", "Guid has no format-neutral"),
-        (
-            "#[version(1)] #[deserialize] struct Snapshot { status: Status }",
-            "Status has no format-neutral",
-        ),
-        (
-            "#[version(1)] enum Mode { First, Second } #[version(1)] #[deserialize] struct Snapshot { mode: Mode }",
-            "referenced records/enums",
-        ),
-        (
-            "#[version(1)] bitenum Flags: u8 { A = 1 } #[version(1)] #[deserialize] struct Snapshot { flags: Flags }",
-            "referenced records/enums",
-        ),
+        ("#[version(1)] #[persistence(sequence)] struct Snapshot { token: ComPtr<IToken> }", "object reconstruction contract"),
+        ("#[version(1)] #[persistence(sequence)] struct Snapshot { tokens: Vec<Option<ComPtr<IToken>>> }", "object reconstruction contract"),
+        ("#[version(1)] #[persistence(sequence)] struct Snapshot { tokens: [ComPtr<IToken>; 2] }", "object reconstruction contract"),
+        ("#[version(1)] #[persistence(sequence)] struct Data<T> { value: T } #[version(1)] struct Snapshot { data: Data<ComPtr<IToken>> }", "object reconstruction contract"),
+        ("#[version(1)] #[persistence(sequence)] struct Node<T> { children: Vec<Node<T>>, value: T } #[version(1)] struct Snapshot { data: Node<ComPtr<IToken>> }", "object reconstruction contract"),
     ] {
         let module = parse_module(Path::new("proof/operations.ncidl"), &format!("{prefix}{source}")).unwrap();
         let error = resolve_modules(vec![module]).expect_err("requested decoder must be rejected");
@@ -61,13 +29,13 @@ fn transport_and_local_deserialization_are_separate_capabilities() {
         #[version(1)] interface IToken {}
         #[version(1)] struct Snapshot { token: ComPtr<IToken> }
         #[version(1)] interface IInput { fn accept(&mut self, value: &Snapshot) -> Result<()>; }
-        #[version(1)] #[deserialize] struct Unused<T> { value: T }
+        #[version(1)]  struct Unused<T> { value: T }
     "#;
     let module = parse_module(Path::new("proof/operations.ncidl"), source).unwrap();
     let graph = resolve_modules(vec![module]).unwrap();
     let snapshot = &graph.values.definitions["proof.operations.Snapshot"];
     assert!(!snapshot.copied);
-    assert_eq!(snapshot.deserialization, neocogi_idl::Deserialization::NotRequested);
+    assert_eq!(snapshot.persistence, neocogi_idl::Persistence::Unsupported);
     neocogi_idl::generate_rust(&graph, "proof.operations").unwrap();
 }
 
@@ -75,13 +43,13 @@ fn transport_and_local_deserialization_are_separate_capabilities() {
 #[test]
 fn accepted_generic_deserializers_compile_and_reconstruct_values() {
     let source = r#"
-        #[version(1)] #[deserialize] struct Node<T> { value: T, children: Vec<Node<T>> }
-        #[version(1)] #[deserialize] struct Flags { enabled: bool }
-        #[version(1)] #[deserialize(sequence)] struct Pair<T> { first: T, second: T }
-        #[version(1)] #[deserialize] struct Snapshot {
+        #[version(1)]  struct Node<T> { value: T, children: Vec<Node<T>> }
+        #[version(1)]  struct Flags { enabled: bool }
+        #[version(1)] #[persistence(sequence)] struct Pair<T> { first: T, second: T }
+        #[version(1)]  struct Snapshot {
             root: Node<String>, optional: Option<Flags>, mask: [bool; 3], pair: Pair<u32>, units: Vec<()>,
         }
-        #[version(1)] #[deserialize(default)] struct Config { enabled: bool }
+        #[version(1)] #[persistence(default)] struct Config { enabled: bool }
     "#;
     let module = parse_module(Path::new("proof/operations.ncidl"), source).unwrap();
     let graph = resolve_modules(vec![module]).unwrap();
@@ -90,7 +58,7 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
             .values
             .definitions
             .values()
-            .all(|value| value.deserialization == neocogi_idl::Deserialization::Supported)
+            .all(|value| value.persistence == neocogi_idl::Persistence::Supported)
     );
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
@@ -182,7 +150,7 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
 /// A generic policy failure identifies both the template field and its closed use.
 #[test]
 fn imported_decoder_failure_preserves_both_source_locations() {
-    let template = parse_module(Path::new("proof/template.ncidl"), "#[version(1)] #[deserialize] struct Data<T> { value: T }").unwrap();
+    let template = parse_module(Path::new("proof/template.ncidl"), "#[version(1)] #[persistence(sequence)] struct Data<T> { value: T }").unwrap();
     let consumer = parse_module(
         Path::new("proof/consumer.ncidl"),
         "extern proof.template; use proof.template::Data; #[version(1)] struct Snapshot { data: Data<ComPtr<IUnknown>> }",

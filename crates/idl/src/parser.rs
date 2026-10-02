@@ -18,7 +18,7 @@ use syn::{
 };
 
 use crate::{
-    DeserializePolicy, AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant,
+    PersistencePolicy, AbiType, BitEnum, BitFlag, Callable, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant,
     ExternalModule, Field, Import, Interface, InterfaceRole, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile,
     SourceSpan, Struct, Threading, VariantFields,
 };
@@ -346,7 +346,7 @@ fn parse_struct(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Resu
         metadata.clone(),
         DeclarationKind::Struct(Struct {
             fields,
-            deserialize: metadata.deserialize,
+            persistence: metadata.persistence,
         }),
     ))
 }
@@ -378,7 +378,6 @@ fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result
         parameters,
         metadata.clone(),
         DeclarationKind::Enum(Enum {
-            deserialize: metadata.deserialize,
             repr,
             dense: metadata.dense,
             names: metadata.enum_names,
@@ -1034,7 +1033,7 @@ struct Attributes {
     /// Interface threading capability.
     threading: Option<Threading>,
     /// Typed construction policy selected independently of live transport.
-    deserialize: DeserializePolicy,
+    persistence: PersistencePolicy,
     /// Whether an enum is a zero-based contiguous unit-value domain.
     dense: bool,
     /// Optional canonical naming policy for dense enum values.
@@ -1046,7 +1045,7 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
     let mut docs = Vec::new();
     let mut id = None;
     let mut threading = None;
-    let mut deserialize = DeserializePolicy::None;
+    let mut persistence = PersistencePolicy::Automatic;
     let mut dense = false;
     let mut enum_names = None;
 
@@ -1076,14 +1075,11 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
                 return Err(syn::Error::new_spanned(attribute, "duplicate threading capability"));
             }
             threading = Some(parse_threading(&attribute)?);
-        } else if attribute.path().is_ident("deserialize") && matches!(context, AttributeContext::Plain | AttributeContext::Enum) {
-            if deserialize.requested() {
-                return Err(syn::Error::new_spanned(attribute, "duplicate deserialize policy"));
+        } else if attribute.path().is_ident("persistence") && matches!(context, AttributeContext::Plain) {
+            if persistence.required() {
+                return Err(syn::Error::new_spanned(attribute, "duplicate persistence policy"));
             }
-            deserialize = parse_deserialize(&attribute)?;
-            if matches!(context, AttributeContext::Enum) && matches!(deserialize, DeserializePolicy::Default | DeserializePolicy::Sequence) {
-                return Err(syn::Error::new_spanned(attribute, "default and sequence decoder policies require a struct"));
-            }
+            persistence = parse_persistence(&attribute)?;
         } else if attribute.path().is_ident("dense") && matches!(context, AttributeContext::Enum) {
             if dense {
                 return Err(syn::Error::new_spanned(attribute, "duplicate dense enum policy"));
@@ -1111,26 +1107,19 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
         docs,
         id,
         threading,
-        deserialize,
+        persistence,
         dense,
         enum_names,
     })
 }
 
 /// Parses one mutually exclusive construction policy without ambiguous boolean states.
-fn parse_deserialize(attribute: &Attribute) -> syn::Result<DeserializePolicy> {
-    if matches!(&attribute.meta, syn::Meta::Path(_)) {
-        return Ok(DeserializePolicy::Required);
-    }
+fn parse_persistence(attribute: &Attribute) -> syn::Result<PersistencePolicy> {
     let policy = attribute.parse_args::<Ident>()?;
     match policy.to_string().as_str() {
-        "default" => Ok(DeserializePolicy::Default),
-        "sequence" => Ok(DeserializePolicy::Sequence),
-        "if_supported" => Ok(DeserializePolicy::IfSupported),
-        _ => Err(syn::Error::new_spanned(
-            policy,
-            "expected one default, sequence, or if_supported decoder policy",
-        )),
+        "default" => Ok(PersistencePolicy::Default),
+        "sequence" => Ok(PersistencePolicy::Sequence),
+        _ => Err(syn::Error::new_spanned(policy, "expected default or sequence; ordinary value persistence is automatic")),
     }
 }
 

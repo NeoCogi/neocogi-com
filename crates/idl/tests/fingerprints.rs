@@ -29,7 +29,7 @@ fn integer_assignment_presence_is_contract_data_for_templates_and_concrete_enums
 #[test]
 fn declaration_policies_are_encoded_uniformly() {
     for parameters in ["", "<T>"] {
-        for attribute in ["#[deserialize]", "#[deserialize(default)]", "#[deserialize(sequence)]"] {
+        for attribute in ["#[persistence(default)]", "#[persistence(sequence)]"] {
             let ordinary = format!("#[version(1)] struct Data{parameters} {{ value: u32 }}");
             let changed = format!("{attribute} {ordinary}");
             assert_ne!(fingerprint(&ordinary), fingerprint(&changed));
@@ -60,4 +60,11 @@ fn template_free_names_use_resolved_identity() {
     let before = "#[version(1)] struct Item { value: u32 } #[version(1)] struct Data<T> { item: Item, value: T }";
     let after = "#[version(1)] struct Item { value: u32 } #[version(1)] struct Data<Value> { item: proof::fingerprints::Item, value: Value }";
     assert_eq!(fingerprint(before), fingerprint(after));
+}
+
+/// Pins the public grammar across refactors, including positional generic payloads.
+#[test]
+fn canonical_module_encoding_has_stable_golden_digest() {
+    let source = "#[version(2)] enum State: u8 { Empty = 0, Ready = 7 } #[version(1)] enum Data<T> { Empty, Value(T) } #[version(1)] struct Snapshot { state: State, value: Data<bool> }";
+    assert_eq!(fingerprint(source), [73, 66, 36, 139, 148, 152, 201, 118, 214, 1, 56, 76, 78, 106, 240, 171, 144, 56, 163, 24, 21, 92, 19, 16, 167, 209, 254, 147, 17, 38, 34, 12]);
 }

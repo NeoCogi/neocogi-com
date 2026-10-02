@@ -432,7 +432,7 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
     let qualified_name = Literal::string(&identity.qualified_name);
     match &declaration.kind {
         DeclarationKind::Struct(record) => {
-            let deserialize = value::decoder_arguments(graph, declaration, identity);
+            let (deserialize, serialize) = value::persistence_attributes(graph, declaration, identity);
             let com_struct = quote! { #[::neocogi_com::com_struct(assigned_signature = #assigned_signature #deserialize)] };
             let fields = record
                 .fields
@@ -446,6 +446,7 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
                 .collect::<Result<Vec<_>, GenerateError>>()?;
             format_rust(quote! {
                 #com_struct
+                #serialize
                 #[derive(Debug, PartialEq)]
                 #declaration_docs
                 pub struct #name { #(#fields)* }
@@ -541,17 +542,18 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
                 })
                 .collect::<Result<Vec<_>, GenerateError>>()?;
             if has_payload {
-                let deserialize = value::decoder_arguments(graph, declaration, identity);
+                let (deserialize, serialize) = value::persistence_attributes(graph, declaration, identity);
                 format_rust(quote! {
                     #[::neocogi_com::com_enum(tag = #repr, assigned_signature = #assigned_signature #deserialize)]
+                    #serialize
                     #[derive(Clone, Copy, Debug, PartialEq)]
                     #declaration_docs
                     pub enum #name { #(#variants)* }
                 })
             } else {
                 let mut source = format_macro_enum("com_int_enum", "enum", declaration_docs, &name, &repr, &variants)?;
-                if graph.graph.values.definitions[&identity.qualified_name].deserialization == crate::Deserialization::Supported {
-                    source.push_str(&format_rust(value::unit_enum_decoder(&name, &enumeration.variants))?);
+                if graph.graph.values.definitions[&identity.qualified_name].persistence == crate::Persistence::Supported {
+                    source.push_str(&format_rust(value::integer_persistence(&name, &repr))?);
                 }
                 source.push_str(&format_rust(quote! {
                     #dense_members

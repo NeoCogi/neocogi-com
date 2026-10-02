@@ -23,6 +23,20 @@ pub trait ComDeserialize: Sized {
         D: ComDeserializer<'de>;
 }
 
+impl ComDeserialize for crate::NcStatus {
+    /// Reconstructs every raw signed code without treating success as a decoding error.
+    fn com_deserialize<'de, D: ComDeserializer<'de>>(decoder: D) -> Result<Self, D::Error> {
+        i32::com_deserialize(decoder).map(Self::from_code)
+    }
+}
+
+impl ComDeserialize for crate::NcGuid {
+    /// Requires exactly sixteen canonical UUID bytes before constructing the value.
+    fn com_deserialize<'de, D: ComDeserializer<'de>>(decoder: D) -> Result<Self, D::Error> {
+        <[u8; 16]>::com_deserialize(decoder).map(Self::from_uuid_bytes)
+    }
+}
+
 /// Supplies primitive values and structural inputs to [`ComDeserialize`].
 ///
 /// A format adapter implements this trait once. The adapter remains responsible

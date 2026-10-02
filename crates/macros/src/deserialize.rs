@@ -2,7 +2,8 @@
 //!
 //! The generated code constructs concrete Rust values field by field. It does
 //! not inspect ABI offsets, query an object registry, or create an erased value
-//! graph. COM attribute macros call the helpers in this module directly; the
+//! graph. Generated support types and constructors use absolute core paths so
+//! authored declarations such as `Option` cannot capture them. COM attribute macros call the helpers in this module directly; the
 //! derive entry point exists for ordinary local types that are not ABI values.
 
 use proc_macro2::TokenStream;
@@ -107,14 +108,14 @@ pub(crate) fn expand_unit_enum<'a>(ident: &Ident, variants: impl Iterator<Item =
         quote! {
             #index => {
                 value.unit()?;
-                Ok(Self::#variant)
+                ::core::result::Result::Ok(Self::#variant)
             }
         }
     });
 
     Ok(quote! {
         impl #nc::ComDeserialize for #ident {
-            fn com_deserialize<'__nc_de, __NcDecoder>(decoder: __NcDecoder) -> Result<Self, __NcDecoder::Error>
+            fn com_deserialize<'__nc_de, __NcDecoder>(decoder: __NcDecoder) -> ::core::result::Result<Self, __NcDecoder::Error>
             where
                 __NcDecoder: #nc::ComDeserializer<'__nc_de>,
             {
@@ -126,13 +127,13 @@ pub(crate) fn expand_unit_enum<'a>(ident: &Ident, variants: impl Iterator<Item =
             const NAME: &'static str = stringify!(#ident);
             const VARIANTS: &'static [&'static str] = &[#(#names),*];
 
-            fn read_variant<'__nc_de, __NcVariant>(variant: u32, value: __NcVariant) -> Result<Self, __NcVariant::Error>
+            fn read_variant<'__nc_de, __NcVariant>(variant: u32, value: __NcVariant) -> ::core::result::Result<Self, __NcVariant::Error>
             where
                 __NcVariant: #nc::ComVariantAccess<'__nc_de>,
             {
                 match variant {
                     #(#arms,)*
-                    _ => Err(value.invalid_variant(variant, Self::VARIANTS)),
+                    _ => ::core::result::Result::Err(value.invalid_variant(variant, Self::VARIANTS)),
                 }
             }
         }
@@ -163,7 +164,7 @@ fn expand_named_record(ident: &Ident, fields: &syn::punctuated::Punctuated<syn::
                 quote! {
                     #index => {
                         if #seen {
-                            return Err(record.duplicate_field(#name));
+                            return ::core::result::Result::Err(record.duplicate_field(#name));
                         }
                         #seen = true;
                         value.#member = record.next_value::<#ty>()?;
@@ -173,9 +174,9 @@ fn expand_named_record(ident: &Ident, fields: &syn::punctuated::Punctuated<syn::
                 quote! {
                     #index => {
                         if #seen.is_some() {
-                            return Err(record.duplicate_field(#name));
+                            return ::core::result::Result::Err(record.duplicate_field(#name));
                         }
-                        #seen = Some(record.next_value::<#ty>()?);
+                        #seen = ::core::option::Option::Some(record.next_value::<#ty>()?);
                     }
                 }
             }
@@ -187,14 +188,14 @@ fn expand_named_record(ident: &Ident, fields: &syn::punctuated::Punctuated<syn::
         }
     } else {
         quote! {
-            #(let mut #seen: Option<#types> = None;)*
+            #(let mut #seen: ::core::option::Option<#types> = ::core::option::Option::None;)*
         }
     };
     let construct = if default {
-        quote! { Ok(value) }
+        quote! { ::core::result::Result::Ok(value) }
     } else {
         quote! {
-            Ok(Self {
+            ::core::result::Result::Ok(Self {
                 #(#members: #seen.ok_or_else(|| record.missing_field(#names))?,)*
             })
         }
@@ -202,7 +203,7 @@ fn expand_named_record(ident: &Ident, fields: &syn::punctuated::Punctuated<syn::
 
     Ok(quote! {
         impl #nc::ComDeserialize for #ident {
-            fn com_deserialize<'__nc_de, __NcDecoder>(decoder: __NcDecoder) -> Result<Self, __NcDecoder::Error>
+            fn com_deserialize<'__nc_de, __NcDecoder>(decoder: __NcDecoder) -> ::core::result::Result<Self, __NcDecoder::Error>
             where
                 __NcDecoder: #nc::ComDeserializer<'__nc_de>,
             {
@@ -214,15 +215,15 @@ fn expand_named_record(ident: &Ident, fields: &syn::punctuated::Punctuated<syn::
             const NAME: &'static str = stringify!(#ident);
             const FIELDS: &'static [&'static str] = &[#(#names),*];
 
-            fn read_record<'__nc_de, __NcRecord>(record: &mut __NcRecord) -> Result<Self, __NcRecord::Error>
+            fn read_record<'__nc_de, __NcRecord>(record: &mut __NcRecord) -> ::core::result::Result<Self, __NcRecord::Error>
             where
                 __NcRecord: #nc::ComRecordAccess<'__nc_de>,
             {
                 #initializers
-                while let Some(field) = record.next_field(Self::FIELDS)? {
+                while let ::core::option::Option::Some(field) = record.next_field(Self::FIELDS)? {
                     match field {
                         #(#arms,)*
-                        _ => return Err(record.invalid_field_index(field)),
+                        _ => return ::core::result::Result::Err(record.invalid_field_index(field)),
                     }
                 }
                 #construct
@@ -253,7 +254,7 @@ fn expand_positional_struct<'a>(ident: &Ident, fields: impl Iterator<Item = (Ide
 
     Ok(quote! {
         impl #nc::ComDeserialize for #ident {
-            fn com_deserialize<'__nc_de, __NcDecoder>(decoder: __NcDecoder) -> Result<Self, __NcDecoder::Error>
+            fn com_deserialize<'__nc_de, __NcDecoder>(decoder: __NcDecoder) -> ::core::result::Result<Self, __NcDecoder::Error>
             where
                 __NcDecoder: #nc::ComDeserializer<'__nc_de>,
             {
@@ -262,13 +263,13 @@ fn expand_positional_struct<'a>(ident: &Ident, fields: impl Iterator<Item = (Ide
         }
 
         impl #nc::ComSequence for #ident {
-            fn read_sequence<'__nc_de, __NcSequence>(sequence: &mut __NcSequence) -> Result<Self, __NcSequence::Error>
+            fn read_sequence<'__nc_de, __NcSequence>(sequence: &mut __NcSequence) -> ::core::result::Result<Self, __NcSequence::Error>
             where
                 __NcSequence: #nc::ComSequenceAccess<'__nc_de>,
             {
                 #(#bindings)*
                 sequence.finish(#length)?;
-                Ok(#construct)
+                ::core::result::Result::Ok(#construct)
             }
         }
     })
@@ -348,8 +349,8 @@ pub(crate) fn expand_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path, rename
         };
         names.push(label);
         let body = match &variant.fields {
-            Fields::Unit => quote! { value.unit()?; Ok(Self::#variant_name) },
-            Fields::Unnamed(fields) if fields.unnamed.len() == 1 => quote! { Ok(Self::#variant_name(value.newtype()?)) },
+            Fields::Unit => quote! { value.unit()?; ::core::result::Result::Ok(Self::#variant_name) },
+            Fields::Unnamed(fields) if fields.unnamed.len() == 1 => quote! { ::core::result::Result::Ok(Self::#variant_name(value.newtype()?)) },
             fields => {
                 let helper = format_ident!("__Nc{}{}Decode", ident, variant_name);
                 let members = fields
@@ -369,10 +370,10 @@ pub(crate) fn expand_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path, rename
                 let decoder = expand_struct(&helper, &definition.fields, nc, false, sequence)?;
                 helpers.push(quote! { #definition #decoder });
                 match fields {
-                    Fields::Named(_) => quote! { let payload: #helper = value.record()?; Ok(Self::#variant_name { #(#members: payload.#members),* }) },
+                    Fields::Named(_) => quote! { let payload: #helper = value.record()?; ::core::result::Result::Ok(Self::#variant_name { #(#members: payload.#members),* }) },
                     _ => {
                         let len = members.len();
-                        quote! { let payload: #helper = value.tuple(#len)?; Ok(Self::#variant_name(#(payload.#members),*)) }
+                        quote! { let payload: #helper = value.tuple(#len)?; ::core::result::Result::Ok(Self::#variant_name(#(payload.#members),*)) }
                     }
                 }
             }
@@ -382,15 +383,15 @@ pub(crate) fn expand_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path, rename
     Ok(quote! {
         impl #nc::ComDeserialize for #ident {
             /// Selects a native variant using the shared enum persistence protocol.
-            fn com_deserialize<'__de, __D: #nc::ComDeserializer<'__de>>(decoder: __D) -> Result<Self, __D::Error> { decoder.deserialize_enum::<Self>() }
+            fn com_deserialize<'__de, __D: #nc::ComDeserializer<'__de>>(decoder: __D) -> ::core::result::Result<Self, __D::Error> { decoder.deserialize_enum::<Self>() }
         }
         impl #nc::ComEnum for #ident {
             const NAME: &'static str = stringify!(#ident);
             const VARIANTS: &'static [&'static str] = &[#(#names),*];
             /// Acquires only the selected payload before constructing its native variant.
-            fn read_variant<'__de, __V: #nc::ComVariantAccess<'__de>>(variant: u32, value: __V) -> Result<Self, __V::Error> {
+            fn read_variant<'__de, __V: #nc::ComVariantAccess<'__de>>(variant: u32, value: __V) -> ::core::result::Result<Self, __V::Error> {
                 #(#helpers)*
-                match variant { #(#arms,)* _ => Err(value.invalid_variant(variant, Self::VARIANTS)) }
+                match variant { #(#arms,)* _ => ::core::result::Result::Err(value.invalid_variant(variant, Self::VARIANTS)) }
             }
         }
     })

@@ -725,11 +725,11 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
     for declaration in &entry.module.declarations {
         match &declaration.kind {
             DeclarationKind::Struct(record) => {
-                if record.deserialize.required() {
+                if record.persistence.required() {
                     let symbol = entry.local_symbols[&declaration.name];
                     let value = &values.definitions[&entry.declaration_identities[symbol.declaration].qualified_name];
                     for (field, ty) in record.fields.iter().zip(&value.fields) {
-                        if let Some(reason) = values.deserialization_failure(ty) {
+                        if let Some(reason) = values.persistence_failure(ty) {
                             let authored = match &declaration.specialization {
                                 Some(instance) => {
                                     let mut name = instance.template.clone();
@@ -766,20 +766,6 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
                 }
             }
             DeclarationKind::Enum(enumeration) => {
-                if enumeration.deserialize.required() {
-                    let symbol = entry.local_symbols[&declaration.name];
-                    let value = &values.definitions[&entry.declaration_identities[symbol.declaration].qualified_name];
-                    for ty in &value.fields {
-                        if let Some(reason) = values.deserialization_failure(ty) {
-                            diagnostics.push(
-                                Diagnostic::new("EIDL064", format!("enum {} cannot implement requested deserialization", declaration.name))
-                                    .with_sources(&entry.module.sources)
-                                    .primary(&declaration.span, "enum payload has no supported decoder")
-                                    .note(reason),
-                            );
-                        }
-                    }
-                }
                 for variant in &enumeration.variants {
                     match &variant.fields {
                         VariantFields::Unit => {}
@@ -1400,18 +1386,13 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
                 .into_iter()
                 .map(|ty| field(index, ty, entries))
                 .collect::<Result<Vec<_>, _>>()?;
-            let deserialization = match &declaration.kind {
-                DeclarationKind::Struct(record) if record.deserialize.requested() => crate::Deserialization::Supported,
-                DeclarationKind::Enum(enumeration) if enumeration.deserialize.requested() => crate::Deserialization::Supported,
-                _ => crate::Deserialization::NotRequested,
-            };
             graph.definitions.insert(
                 name.clone(),
                 crate::ValueDefinition {
                     name,
                     fields,
                     copied: true,
-                    deserialization,
+                    persistence: crate::Persistence::Supported,
                 },
             );
         }
@@ -1641,9 +1622,10 @@ fn fingerprint_module(
 fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, [u8; 32])]) -> Result<[u8; 32], ResolutionError> {
     let entry = &entries[index];
     let mut encoder = CanonicalEncoder::new();
-    // Version 7 unifies authored template/concrete policy, enum assignment
+    // Version 8 adds automatic symmetric persistence to the shared contract grammar;
+    // the preceding revision unified template/concrete policy, enum assignment
     // presence and positional type binding. All consumers must regenerate.
-    encoder.bytes(b"neocogi-idl:module-abi:v7\0");
+    encoder.bytes(b"neocogi-idl:module-abi:v8\0");
     encoder.guid(entry.module_id);
     // Templates and concrete declarations use exactly the same grammar. Bound
     // parameters require a scope, not a second serializer or diagnostic strings.
@@ -1680,13 +1662,11 @@ struct EncodingScope<'a> {
 }
 
 /// Encodes authored persistence policy uniformly; diagnostic formatting is never ABI grammar.
-fn encode_persistence(policy: crate::DeserializePolicy, encoder: &mut CanonicalEncoder) {
+fn encode_persistence(policy: crate::PersistencePolicy, encoder: &mut CanonicalEncoder) {
     encoder.tag(match policy {
-        crate::DeserializePolicy::None => 0,
-        crate::DeserializePolicy::Required => 1,
-        crate::DeserializePolicy::Default => 2,
-        crate::DeserializePolicy::Sequence => 3,
-        crate::DeserializePolicy::IfSupported => 4,
+        crate::PersistencePolicy::Automatic => 0,
+        crate::PersistencePolicy::Default => 1,
+        crate::PersistencePolicy::Sequence => 2,
     });
 }
 
@@ -1706,7 +1686,7 @@ fn encode_declaration(
     match &declaration.kind {
         DeclarationKind::Struct(record) => {
             encoder.tag(1);
-            encode_persistence(record.deserialize, encoder);
+            encode_persistence(record.persistence, encoder);
             encoder.u32(u32_len(record.fields.len(), &entries[index].name, "field count")?);
             for field in &record.fields {
                 encoder.text(&field.name, &entries[index].name)?;
@@ -1717,7 +1697,6 @@ fn encode_declaration(
             encoder.tag(2);
             encoder.tag(enum_repr_tag(enumeration.repr));
             encoder.tag(u8::from(enumeration.has_payload()));
-            encode_persistence(enumeration.deserialize, encoder);
             encoder.tag(u8::from(enumeration.dense));
             encoder.tag(match enumeration.names { None => 0, Some(crate::EnumNames::SnakeCase) => 1 });
             encoder.u32(u32_len(enumeration.variants.len(), &entries[index].name, "variant count")?);

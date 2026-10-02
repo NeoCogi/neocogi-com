@@ -195,7 +195,9 @@ contract. Logical dotted IDL names keep their separate grammar and identity.
 
 Signed `i8`, `i16`, and `i32` enum representations can use negative
 discriminants. The resolver checks their range and duplicate values before
-generation; generated unit and payload enums retain the signed tag.
+generation. Only wholly fieldless enums may assign values; payload enums use
+zero-based declaration-order tags and reject assignments on every variant,
+including unit cases and unused generic templates.
 
 The resolver reserves interface ABI, vtable, client, and provider companion
 names before code generation. Collisions receive source-located diagnostics.
@@ -205,11 +207,15 @@ records; those names remain available to authored declarations. Their actual
 checked `ComValue::Wire` helpers start with `__` and cannot collide with IDL's
 UpperCamel declarations. Rust enum layout never crosses COM.
 
-Records and enums can request `#[deserialize]`, validated recursively before
-Rust generation. `#[deserialize(if_supported)]` makes that capability conditional
-for library values; it does not weaken an enclosing required decoder. Enum
-payloads use the ordinary named variant protocol, including owned and recursive
-payloads. Record-only `default` and `sequence` policies remain explicit.
+Records, enums and bit sets acquire symmetric persistence automatically when
+all reachable fields support it. Live COM references remain transportable but
+cannot recreate their implementation objects from saved values, so containing
+types have neither persistence trait. Payload enums use the ordinary variant
+protocol; fieldless enums and bit sets preserve their raw scalar values.
+Record-only `#[persistence(default)]` and `#[persistence(sequence)]` select explicit
+format behavior. The old decoder opt-ins are removed. Both generic and concrete
+contracts share canonical module encoding v8, including authored assignments,
+versions, format policies and positional generic binders.
 
 `Option<T>` comes from the bundled [ordinary IDL enum](stdlib/neocogi/lang.ncidl).
 It follows lexical lookup and normal specialization; copied payloads permit

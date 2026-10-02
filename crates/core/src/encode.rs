@@ -83,6 +83,20 @@ impl ComSerialize for () {
     }
 }
 
+impl ComSerialize for crate::NcStatus {
+    /// Persists the exact signed code, including application extension codes.
+    fn com_serialize<S: ComSerializer>(&self, serializer: &mut S) -> Result<(), S::Error> {
+        serializer.serialize_i32(self.code())
+    }
+}
+
+impl ComSerialize for crate::NcGuid {
+    /// Persists the canonical UUID byte sequence, never the platform's struct layout.
+    fn com_serialize<S: ComSerializer>(&self, serializer: &mut S) -> Result<(), S::Error> {
+        self.to_uuid_bytes().com_serialize(serializer)
+    }
+}
+
 /// Generates scalar forwarding without a dynamically typed value wrapper.
 macro_rules! primitive_serialize {
     ($($ty:ty => $method:ident),* $(,)?) => { $(

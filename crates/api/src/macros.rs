@@ -339,6 +339,13 @@ macro_rules! com_bit_enum {
         // SAFETY: a validated integer is self-contained and carries no pointers.
         unsafe impl $crate::ComInlineValue for $name {}
 
+        impl $crate::ComSerialize for $name {
+            /// Persists every raw bit pattern using the declared integer width.
+            fn com_serialize<S: $crate::ComSerializer>(&self, serializer: &mut S) -> ::core::result::Result<(), S::Error> {
+                $crate::ComSerialize::com_serialize(&self.raw(), serializer)
+            }
+        }
+
         impl $crate::ComDeserialize for $name
         where
             $repr: $crate::ComDeserialize,

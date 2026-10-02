@@ -79,9 +79,9 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     Ok(quote! {
         impl #nc::ComSerialize for #name {
             /// Emits the declared persistent members without native memory layout.
-            fn com_serialize<__S: #nc::ComSerializer>(&self, serializer: &mut __S) -> Result<(), __S::Error> {
+            fn com_serialize<__S: #nc::ComSerializer>(&self, serializer: &mut __S) -> ::core::result::Result<(), __S::Error> {
                 #body
-                Ok(())
+                ::core::result::Result::Ok(())
             }
         }
     })

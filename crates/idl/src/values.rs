@@ -23,15 +23,13 @@ pub enum ValueType {
     /// Inline fixed-size aggregate.
     Array(Box<ValueType>, u32),
 }
-/// Availability of the IDL-requested format-neutral record/enum decoder.
+/// Symmetric persistence availability inferred from every reachable value field.
 /// This is separate from transporting a value that already exists in memory.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Deserialization {
-    /// The declaration does not request a generated decoder.
-    NotRequested,
-    /// The requested decoder and every field decoder are available.
+pub enum Persistence {
+    /// Both codecs exist for the entire value, including recursively reachable fields.
     Supported,
-    /// The declaration requests decoding but at least one field lacks support.
+    /// A reachable live capability has no object reconstruction contract.
     Unsupported,
 }
 
@@ -44,8 +42,8 @@ pub struct ValueDefinition {
     pub fields: Vec<ValueType>,
     /// Whether this backend provides a self-contained copied method lowering.
     pub copied: bool,
-    /// Requested local decoding capability after recursive field validation.
-    pub deserialization: Deserialization,
+    /// Inferred availability of both persistence directions.
+    pub persistence: Persistence,
 }
 /// Canonical resolved definitions, including definitions reached through imports.
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
@@ -55,7 +53,7 @@ pub struct ValueGraph {
 }
 impl ValueGraph {
     /// Removes unsupported operations monotonically until all named edges agree.
-    /// Requested recursive sequence decoders begin provisionally supported;
+    /// Recursive sequence codecs begin provisionally supported;
     /// missing leaf operations propagate through every cycle before validation.
     pub(crate) fn resolve_capabilities(&mut self) {
         loop {
@@ -64,65 +62,62 @@ impl ValueGraph {
                 .values()
                 .filter_map(|value| {
                     let copied = value.copied && value.fields.iter().all(|ty| self.is_copied(ty));
-                    let deserialization = match value.deserialization {
-                        Deserialization::Supported if !value.fields.iter().all(|ty| self.can_deserialize(ty)) => Deserialization::Unsupported,
+                    let persistence = match value.persistence {
+                        Persistence::Supported if !value.fields.iter().all(|ty| self.can_persist(ty)) => Persistence::Unsupported,
                         state => state,
                     };
-                    (copied != value.copied || deserialization != value.deserialization).then(|| (value.name.clone(), copied, deserialization))
+                    (copied != value.copied || persistence != value.persistence).then(|| (value.name.clone(), copied, persistence))
                 })
                 .collect::<Vec<_>>();
             if rejected.is_empty() {
                 break;
             }
-            for (name, copied, deserialization) in rejected {
+            for (name, copied, persistence) in rejected {
                 let value = self.definitions.get_mut(&name).expect("collected definition exists");
                 value.copied = copied;
-                value.deserialization = deserialization;
+                value.persistence = persistence;
             }
         }
     }
 
     /// Checks format-neutral construction, independently of the COM wire codec.
-    /// Guid and Status have wire codecs but no declared serialization format.
-    pub fn can_deserialize(&self, ty: &ValueType) -> bool {
+    /// Guid and Status use explicit scalar/array recipes, never native-memory copies.
+    pub fn can_persist(&self, ty: &ValueType) -> bool {
         match ty {
             ValueType::Unit | ValueType::Text => true,
             ValueType::Scalar(name) => matches!(
                 name.as_str(),
-                "bool" | "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64" | "f32" | "f64"
+                "bool" | "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64" | "f32" | "f64" | "Guid" | "Status"
             ),
             ValueType::Named(name) => self
                 .definitions
                 .get(name)
-                .is_some_and(|value| value.deserialization == Deserialization::Supported),
+                .is_some_and(|value| value.persistence == Persistence::Supported),
             ValueType::Object(_) => false,
-            ValueType::Sequence(value) | ValueType::Array(value, _) => self.can_deserialize(value),
+            ValueType::Sequence(value) | ValueType::Array(value, _) => self.can_persist(value),
         }
     }
 
-    /// Finds an actual unsupported leaf or missing declaration policy for diagnostics.
+    /// Finds an unsupported reachable leaf for a source-located format-policy diagnostic.
     /// A visited set prevents recursive records from hiding a later failing sibling.
-    pub(crate) fn deserialization_failure(&self, ty: &ValueType) -> Option<String> {
+    pub(crate) fn persistence_failure(&self, ty: &ValueType) -> Option<String> {
         /// Walks unsupported dependencies only; revisited edges do not consume the sibling search.
         fn visit(graph: &ValueGraph, ty: &ValueType, visited: &mut BTreeSet<String>) -> Option<String> {
-            if graph.can_deserialize(ty) {
+            if graph.can_persist(ty) {
                 return None;
             }
             match ty {
                 ValueType::Object(name) => Some(format!(
-                    "ComPtr<{name}> transports an existing object; deserialization requires an explicit object reconstruction contract"
+                    "ComPtr<{name}> transports an existing object; persistence requires an explicit object reconstruction contract"
                 )),
                 ValueType::Scalar(name) => Some(format!("{name} has no format-neutral ComDeserialize implementation")),
                 ValueType::Named(name) => {
                     let Some(value) = graph.definitions.get(name) else {
                         return Some(format!("{name} has no resolved value definition"));
                     };
-                    match value.deserialization {
-                        Deserialization::NotRequested => Some(format!(
-                            "{name} does not declare a generated decoder; referenced records/enums must also request #[deserialize] (bit-set decoders are not exposed by IDL)"
-                        )),
-                        Deserialization::Unsupported if visited.insert(name.clone()) => value.fields.iter().find_map(|field| visit(graph, field, visited)),
-                        Deserialization::Unsupported | Deserialization::Supported => None,
+                    match value.persistence {
+                        Persistence::Unsupported if visited.insert(name.clone()) => value.fields.iter().find_map(|field| visit(graph, field, visited)),
+                        Persistence::Unsupported | Persistence::Supported => None,
                     }
                 }
                 ValueType::Sequence(value) | ValueType::Array(value, _) => visit(graph, value, visited),

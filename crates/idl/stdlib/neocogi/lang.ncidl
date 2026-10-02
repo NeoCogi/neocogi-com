@@ -1,9 +1,8 @@
 /// An ordinary tagged optional value. T follows the same ownership and layout
 /// rules as any other enum payload; absence does not provide layout indirection.
-/// Conditional persistence keeps live COM capabilities transportable without
+/// Inferred persistence keeps live COM capabilities transportable without
 /// pretending that a decoder can recreate their implementation objects.
-#[version(2)]
-#[deserialize(if_supported)]
+#[version(3)]
 enum Option<T> {
     /// No payload is active and no payload storage may be inspected.
     None,

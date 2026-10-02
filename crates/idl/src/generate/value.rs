@@ -61,9 +61,10 @@ pub(super) fn generate_owned(
         }
         _ => return Err(GenerateError::new("owned values require a record or enum")),
     };
-    let deserialize = decoder_arguments(graph, declaration, identity);
+    let (deserialize, serialize) = persistence_attributes(graph, declaration, identity);
     format_rust(quote! {
         #[::neocogi_com::com_value(assigned_signature = #signature #deserialize)]
+        #serialize
         #[derive(Clone, Debug)]
         #docs #data
     })
@@ -93,50 +94,39 @@ pub(super) fn owned_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &A
     })
 }
 
-/// Emits macro construction options only after the value graph proves support.
-/// Conditional library decoders disappear when a closed argument is not decodable;
-/// required policies have already produced an IDL diagnostic in that situation.
-pub(super) fn decoder_arguments(graph: &Generation<'_>, declaration: &Declaration, identity: &crate::DeclarationIdentity) -> TokenStream {
-    if graph.graph.values.definitions[&identity.qualified_name].deserialization != crate::Deserialization::Supported {
-        return quote! {};
+/// Generates both directions only when the complete graph proves persistence.
+/// Explicit record policies have already been checked against unsupported leaves.
+pub(super) fn persistence_attributes(graph: &Generation<'_>, declaration: &Declaration, identity: &crate::DeclarationIdentity) -> (TokenStream, TokenStream) {
+    if graph.graph.values.definitions[&identity.qualified_name].persistence != crate::Persistence::Supported {
+        return (quote! {}, quote! {});
     }
     let policy = match &declaration.kind {
-        DeclarationKind::Struct(record) => record.deserialize,
-        DeclarationKind::Enum(enumeration) => enumeration.deserialize,
-        _ => return quote! {},
+        DeclarationKind::Struct(record) => record.persistence,
+        _ => crate::PersistencePolicy::Automatic,
     };
-    match policy {
-        crate::DeserializePolicy::None => quote! {},
-        crate::DeserializePolicy::Required | crate::DeserializePolicy::IfSupported => quote! { , deserialize },
-        crate::DeserializePolicy::Default => quote! { , deserialize, default },
-        crate::DeserializePolicy::Sequence => quote! { , deserialize, sequence },
-    }
+    let (decoder, format) = match policy {
+        crate::PersistencePolicy::Automatic => (quote! { , deserialize }, quote! {}),
+        crate::PersistencePolicy::Default => (quote! { , deserialize, default }, quote! {}),
+        crate::PersistencePolicy::Sequence => (quote! { , deserialize, sequence }, quote! { #[com_deserialize(sequence)] }),
+    };
+    (decoder, quote! { #[derive(::neocogi_com::ComSerialize)] #format })
 }
 
-/// Unit enums use integer wrappers for their application API, but persistence
-/// uses the same named enum/variant protocol as payload enums, never raw integers.
-pub(super) fn unit_enum_decoder(name: &Ident, variants: &[crate::EnumVariant]) -> TokenStream {
-    let labels = variants.iter().map(|variant| &variant.name).collect::<Vec<_>>();
-    let arms = variants.iter().enumerate().map(|(index, variant)| {
-        let index = index as u32;
-        let variant = rust_ident(&variant.name).expect("resolved Rust variant name");
-        quote! { #index => { value.unit()?; Ok(Self::#variant) } }
-    });
+/// Integer enums and bit sets persist their declared scalar, preserving unknown
+/// values exactly as their transparent COM application representation does.
+/// Payload enums instead use the generated ordinal-and-payload variant protocol.
+pub(super) fn integer_persistence(name: &Ident, repr: &TokenStream) -> TokenStream {
     quote! {
-        impl ::neocogi_com::ComDeserialize for #name {
-            /// Constructs one declared variant through the format's enum protocol.
-            fn com_deserialize<'__de, D: ::neocogi_com::ComDeserializer<'__de>>(decoder: D) -> Result<Self, D::Error> {
-                decoder.deserialize_enum::<Self>()
+        impl ::neocogi_com::ComSerialize for #name {
+            /// Writes the declared integer width without native memory or padding.
+            fn com_serialize<S: ::neocogi_com::ComSerializer>(&self, serializer: &mut S) -> ::core::result::Result<(), S::Error> {
+                ::neocogi_com::ComSerialize::com_serialize(&self.raw(), serializer)
             }
         }
-        impl ::neocogi_com::ComEnum for #name {
-            /// Logical persistence name; the wire discriminants remain separate.
-            const NAME: &'static str = stringify!(#name);
-            /// Persistence indices address declaration order, including sparse wire tags.
-            const VARIANTS: &'static [&'static str] = &[#(#labels),*];
-            /// Validates the variant and requires a unit payload before construction.
-            fn read_variant<'__de, V: ::neocogi_com::ComVariantAccess<'__de>>(variant: u32, value: V) -> Result<Self, V::Error> {
-                match variant { #(#arms,)* _ => Err(value.invalid_variant(variant, Self::VARIANTS)) }
+        impl ::neocogi_com::ComDeserialize for #name {
+            /// Restores raw values; semantic validity remains the operation's responsibility.
+            fn com_deserialize<'__de, D: ::neocogi_com::ComDeserializer<'__de>>(decoder: D) -> ::core::result::Result<Self, D::Error> {
+                <#repr as ::neocogi_com::ComDeserialize>::com_deserialize(decoder).map(Self::from_raw)
             }
         }
     }
