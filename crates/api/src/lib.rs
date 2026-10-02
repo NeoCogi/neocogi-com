@@ -100,6 +100,10 @@
 //! not a lifetime protocol. Weak promotion acquires ownership before accessing
 //! state and never resurrects a destroyed value. See [`WeakComPtr`]. Handwritten
 //! built-in providers use their documented reference-count primitives separately.
+//! Both implementations record every returned strong owner or terminate at their
+//! non-unwinding C entrypoint on counter exhaustion. Clamping a diagnostic return
+//! value never permits saturation of the actual ownership count. This invariant
+//! also applies to optimized builds with debug assertions disabled.
 //!
 //! # Build Compatibility
 //!

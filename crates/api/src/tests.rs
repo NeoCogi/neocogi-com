@@ -60,17 +60,52 @@ fn release_ref_count_decrements() {
     assert_eq!(ref_count.load(Ordering::Relaxed), 1);
 }
 
+/// Every profile must refuse another owner when the exact private count is full.
 #[test]
-fn add_ref_count_does_not_wrap_at_u32_max() {
+fn add_ref_count_rejects_exhaustion_without_changing_the_counter() {
     let ref_count = AtomicU32::new(u32::MAX);
     let result = catch_unwind(AssertUnwindSafe(|| __com_add_ref_count(&ref_count)));
 
-    if cfg!(debug_assertions) {
-        assert!(result.is_err());
-    } else {
-        assert_eq!(result.unwrap(), u32::MAX);
-    }
+    assert!(result.is_err(), "retain returned without counting a new owner");
     assert_eq!(ref_count.load(Ordering::Relaxed), u32::MAX);
+}
+
+/// A successfully recorded boundary owner remains releasable; MAX is not immortal.
+#[test]
+fn add_ref_count_accepts_the_last_owner_and_balances_its_release() {
+    let ref_count = AtomicU32::new(u32::MAX - 1);
+
+    assert_eq!(__com_add_ref_count(&ref_count), u32::MAX);
+    assert_eq!(__com_release_ref_count(&ref_count), Some(u32::MAX - 1));
+    assert_eq!(ref_count.load(Ordering::Relaxed), u32::MAX - 1);
+}
+
+/// A zero counter cannot be retained, even in builds without debug assertions.
+#[test]
+fn add_ref_count_rejects_zero_without_resurrection() {
+    let ref_count = AtomicU32::new(0);
+    assert!(catch_unwind(AssertUnwindSafe(|| __com_add_ref_count(&ref_count))).is_err());
+    assert_eq!(ref_count.load(Ordering::Relaxed), 0);
+}
+
+/// Competing retains must check the newly observed count after a failed exchange.
+#[test]
+fn add_ref_count_contenders_cannot_both_claim_the_last_available_owner() {
+    let ref_count = AtomicU32::new(u32::MAX - 1);
+    let start = std::sync::Barrier::new(2);
+    let outcomes = std::thread::scope(|scope| {
+        let retain = || {
+            start.wait();
+            catch_unwind(AssertUnwindSafe(|| __com_add_ref_count(&ref_count)))
+        };
+        let first = scope.spawn(retain);
+        let second = scope.spawn(retain);
+        [first.join().unwrap(), second.join().unwrap()]
+    });
+
+    assert_eq!(outcomes.iter().filter(|result| result.is_ok()).count(), 1);
+    assert_eq!(ref_count.load(Ordering::Relaxed), u32::MAX);
+    assert_eq!(__com_release_ref_count(&ref_count), Some(u32::MAX - 1));
 }
 
 #[test]

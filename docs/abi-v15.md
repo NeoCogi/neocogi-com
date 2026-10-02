@@ -33,6 +33,22 @@ its bit, preserving concurrent owner removal. No borrower destroys the value.
 
 ## Drop and weak storage
 
+Every successful shared retain records exactly one additional owner. This applies
+to generated objects and to strong-only bytes, strings and persistence child
+lists. An exhausted counter terminates the process through the non-unwinding
+`extern "C"` entrypoint before returning an owner, in every build profile.
+`Clone`/`AddRef` have no recoverable exhaustion status. A zero private count also
+cannot be retained or resurrected; raw callers must keep valid storage owned
+throughout the operation.
+
+Generated shared counters use the common pointer-width header; strong-only
+providers keep their existing `AtomicU32` and have no weak-control allocation.
+The last available count is usable and may later be decremented normally.
+Saturating the **actual** counter while accepting more owners would undercount
+later releases and permit premature destruction. A capped diagnostic `u32`
+return is allowed only when the wider private counter still records the retain.
+This policy does not change any handle, method table or core ABI version.
+
 Owner Drop clears owner presence with an acquire/release operation, rejecting all
 new calls. It waits for existing readers/writers using acquire observations, invokes
 the provider's destructor exactly once, and releases its implicit weak storage
