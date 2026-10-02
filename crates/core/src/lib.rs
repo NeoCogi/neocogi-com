@@ -107,7 +107,7 @@ pub use runtime_abi::{
     NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1, NC_COM_RUNTIME_ABI_VERSION,
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_LOADED_MODULES, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO,
     NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV1, NcDebugCallbackV1,
-    NcDebugMessageV1, NcDebugMessengerCreateInfoV1, NcInspectFactoryPluginDescriptionCallbackV1, NcInspectionApiV1, NcModuleInfoV1, NcPluginInfoV1,
+    NcDebugMessageV1, NcDebugMessengerCreateInfoV1, NcInspectFactoryPluginDescriptionCallbackV1, NcInspectionApiV1, NcModuleInfoV1, NcPluginFactoryInfoV1, NcPluginInfoV1,
     NcPluginRegistryV1, NcRuntimeApiV1, NcUtf8View,
 };
 pub use status::{

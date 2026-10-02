@@ -10,7 +10,7 @@
 use core::ffi::c_void;
 
 use super::NcUtf8View;
-use crate::{NcFactoryPluginDescription, NcGuid, NcStatus};
+use crate::{NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcStatus};
 
 /// Callback that receives one validated factory description during inspection.
 ///
@@ -30,6 +30,18 @@ pub struct NcPluginInfoV1 {
     pub qualified_name: NcUtf8View,
     /// Plugin version text.
     pub version: NcUtf8View,
+}
+
+/// Factory metadata inspection record for one registered plugin.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NcPluginFactoryInfoV1 {
+    /// Stable plugin identity.
+    pub plugin_id: NcGuid,
+    /// Exact root factory interface identity.
+    pub root_factory: NcInterfaceId,
+    /// Threading capability declared by the root factory.
+    pub root_factory_threading: u32,
 }
 
 /// Inspection record for one retained loaded module.
@@ -77,17 +89,26 @@ pub struct NcInspectionApiV1 {
         callback: Option<NcInspectFactoryPluginDescriptionCallbackV1>,
         user_data: *mut c_void,
     ) -> NcStatus,
+    /// Writes factory metadata for one registered plugin.
+    pub plugin_factory_info: unsafe extern "C" fn(plugin_id: NcGuid, out: *mut NcPluginFactoryInfoV1) -> NcStatus,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::NcInspectionApiV1;
+    use super::{NcInspectionApiV1, NcPluginFactoryInfoV1};
 
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn inspection_api_v1_exposes_descriptor_inspection() {
-        assert_eq!(core::mem::size_of::<NcInspectionApiV1>(), 48);
+        assert_eq!(core::mem::size_of::<NcInspectionApiV1>(), 56);
         assert_eq!(core::mem::align_of::<NcInspectionApiV1>(), 8);
         assert_eq!(core::mem::offset_of!(NcInspectionApiV1, inspect_plugin_library_utf8), 40);
+        assert_eq!(core::mem::offset_of!(NcInspectionApiV1, plugin_factory_info), 48);
+
+        assert_eq!(core::mem::size_of::<NcPluginFactoryInfoV1>(), 48);
+        assert_eq!(core::mem::align_of::<NcPluginFactoryInfoV1>(), 8);
+        assert_eq!(core::mem::offset_of!(NcPluginFactoryInfoV1, plugin_id), 0);
+        assert_eq!(core::mem::offset_of!(NcPluginFactoryInfoV1, root_factory), 16);
+        assert_eq!(core::mem::offset_of!(NcPluginFactoryInfoV1, root_factory_threading), 40);
     }
 }

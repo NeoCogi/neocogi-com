@@ -10,7 +10,8 @@
 use core::{ffi::c_void, ptr};
 
 use neocogi_com_core::{
-    NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectFactoryPluginDescriptionCallbackV1, NcModuleInfoV1, NcPluginInfoV1, NcStatus,
+    NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectFactoryPluginDescriptionCallbackV1, NcModuleInfoV1, NcPluginFactoryInfoV1,
+    NcPluginInfoV1, NcStatus,
 };
 
 use crate::inspection as runtime_inspection;
@@ -58,6 +59,21 @@ pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPlugi
     let runtime = RuntimeState::global();
     let catalog = runtime.read_catalog();
     let Some(info) = runtime_inspection::factory_plugin_info(&catalog.factory_plugin_registry, plugin_id) else {
+        return NC_E_NOT_FOUND;
+    };
+    // SAFETY: `out` is valid for one write by the caller's contract.
+    unsafe { ptr::write(out, info) };
+    NC_OK
+}
+
+/// Writes factory metadata for one registered plugin.
+pub(super) unsafe extern "C" fn plugin_factory_info(plugin_id: NcGuid, out: *mut NcPluginFactoryInfoV1) -> NcStatus {
+    if out.is_null() {
+        return NC_E_POINTER;
+    }
+    let runtime = RuntimeState::global();
+    let catalog = runtime.read_catalog();
+    let Some(info) = runtime_inspection::factory_plugin_factory_info(&catalog.factory_plugin_registry, plugin_id) else {
         return NC_E_NOT_FOUND;
     };
     // SAFETY: `out` is valid for one write by the caller's contract.

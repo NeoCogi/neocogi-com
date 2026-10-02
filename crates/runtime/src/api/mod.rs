@@ -23,7 +23,7 @@ mod runtime;
 mod persistence;
 use persistence::PERSISTENCE_API_V1;
 
-use inspection::{inspect_plugin_library_utf8, module_info, plugin_dependency_count, plugin_dependency_ids, plugin_info};
+use inspection::{inspect_plugin_library_utf8, module_info, plugin_dependency_count, plugin_dependency_ids, plugin_factory_info, plugin_info};
 use plugin_registry::{loaded_module_count, loaded_module_ids, plugin_count, plugin_ids};
 use runtime::{activate_factory_plugin, load_plugin_library_utf8, register_factory_plugin_description};
 
@@ -56,6 +56,7 @@ pub(super) static INSPECTION_API_V1: NcInspectionApiV1 = NcInspectionApiV1 {
     plugin_dependency_count,
     plugin_dependency_ids,
     inspect_plugin_library_utf8,
+    plugin_factory_info,
 };
 
 /// Immutable debug-messenger table returned by the exported v1 getter.
@@ -245,5 +246,20 @@ mod tests {
         assert_eq!(observed.load(Ordering::SeqCst), NC_E_POINTER.code());
 
         unsafe { (debug.destroy_messenger)(handle) };
+    }
+
+    #[test]
+    fn factory_plugin_inspection_validates_pointer_and_unknown_id() {
+        use neocogi_com_core::{NcGuid, NcPluginFactoryInfoV1};
+        let inspection = unsafe { &*nc_com_get_inspection_api_v1() };
+        assert_eq!(
+            unsafe { (inspection.plugin_factory_info)(NcGuid::nil(), ptr::null_mut()) },
+            NC_E_POINTER
+        );
+        let mut info = core::mem::MaybeUninit::<NcPluginFactoryInfoV1>::uninit();
+        assert_eq!(
+            unsafe { (inspection.plugin_factory_info)(NcGuid::nil(), info.as_mut_ptr()) },
+            NC_E_NOT_FOUND
+        );
     }
 }

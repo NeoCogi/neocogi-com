@@ -10,7 +10,7 @@
 //! into append-only loaded-module records. The C callback copies each record
 //! while the referenced runtime storage remains live.
 
-use neocogi_com_core::{NcGuid, NcModuleInfoV1, NcPluginInfoV1, NcStaticUtf8, NcUtf8View};
+use neocogi_com_core::{NcGuid, NcModuleInfoV1, NcPluginFactoryInfoV1, NcPluginInfoV1, NcStaticUtf8, NcUtf8View};
 
 use crate::loader::LoadedModuleId;
 use crate::factory_plugin_registry::FactoryPluginRegistry;
@@ -26,6 +26,19 @@ pub(crate) fn factory_plugin_info(registry: &FactoryPluginRegistry, plugin_id: N
         plugin_id: registered.plugin_id,
         qualified_name: static_utf8_view(plugin.qualified_name),
         version: static_utf8_view(plugin.plugin_version),
+    })
+}
+
+/// Projects one registered factory-only description into the factory summary.
+pub(crate) fn factory_plugin_factory_info(registry: &FactoryPluginRegistry, plugin_id: NcGuid) -> Option<NcPluginFactoryInfoV1> {
+    let registered = registry.plugin(plugin_id)?;
+    // SAFETY: Registered pointers target validated immutable descriptions kept
+    // live by static ownership or a retained dynamic module.
+    let plugin = unsafe { &*registered.description };
+    Some(NcPluginFactoryInfoV1 {
+        plugin_id: registered.plugin_id,
+        root_factory: plugin.root_factory,
+        root_factory_threading: plugin.root_factory_threading,
     })
 }
 
