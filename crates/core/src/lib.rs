@@ -17,7 +17,7 @@
 //! format-specific adapter; it does not reinterpret descriptor metadata, write
 //! through ABI field offsets, or perform runtime class-registry lookup.
 //!
-//! Core ABI v14 is currently an experimental pre-alpha draft. The core ABI version
+//! [`NC_COM_CORE_ABI_VERSION`] selects the experimental pre-alpha core draft. This version
 //! identifies its current binary generation, not a ratified compatibility
 //! baseline. Cross-release compatibility begins only at an explicitly named
 //! future ratification milestone.

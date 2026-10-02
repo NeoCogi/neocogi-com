@@ -13,6 +13,21 @@ fn example<'a>(document: &'a str, label: &str) -> &'a str {
     body.split_once("\n```").expect("example has a closing fence").0
 }
 
+/// Advancing the binary contract must also advance the one public specification entrypoint.
+#[test]
+fn current_abi_guide_matches_compiler_version() {
+    let version = neocogi_com_core::NC_COM_CORE_ABI_VERSION;
+    let index = include_str!("../../docs/README.md");
+    let selection = format!("[Core ABI v{version}](abi-v{version}.md)");
+    assert!(index.contains(&selection), "the current guide must select {selection}");
+    let specification = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../docs/abi-v{version}.md"));
+    let document = fs::read_to_string(specification).expect("selected ABI specification must exist");
+    assert!(
+        document.starts_with(&format!("# COM core ABI v{version}:")),
+        "selected specification must describe the current generation"
+    );
+}
+
 /// The guides' ownership spelling, generated bindings and plugin bootstrap must work together.
 #[test]
 fn readme_factory_contract_and_bootstrap_execute_as_documented() {

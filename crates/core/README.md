@@ -3,7 +3,7 @@
 The C-shaped ABI shared by generated contracts, hosts, plugins, and the process
 runtime. Its default configuration is allocation-free; optional `alloc` helpers
 own decoded values and binary documents. Most authors use the `neocogi-com`
-facade. Core object ABI v11 remains experimental.
+facade. The [current object ABI](../docs/README.md) remains experimental.
 
 Core defines statuses, GUIDs, exact signatures, typed metadata, raw object/table pairs
 and vtables, `IUnknown`, `ComPtr`, and `ComRef`. `ComInterface` owns identity and
@@ -21,7 +21,7 @@ Plugin descriptor ABI v1 publishes plugin identity/version, hard dependencies,
 full root-factory IID/signature, threading, and one zero-argument bootstrap.
 Its getter is `nc_get_factory_plugin_description_v1`. Runtime discovery is v1,
 with operation, plugin-registry, inspection, debug, and persistence tables. See the
-[ABI specification](../docs/abi-v13.md) for layouts and ownership rules.
+[ABI specification entrypoint](../docs/README.md) for layouts and ownership rules.
 
 ## Interface safety
 

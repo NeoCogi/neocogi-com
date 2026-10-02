@@ -107,7 +107,7 @@
 //!
 //! # Build Compatibility
 //!
-//! Core ABI v14 is currently an experimental pre-alpha draft. The generated C-shaped
+//! [`NC_COM_CORE_ABI_VERSION`] selects the experimental pre-alpha core draft. The generated C-shaped
 //! surface is the intended compatibility boundary, but cross-release
 //! compatibility does not begin until an explicitly named future ratification
 //! milestone. Draft golden vectors prevent accidental drift within the current

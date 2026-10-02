@@ -1,0 +1,43 @@
+# Current COM contracts
+
+The current binary contract is [Core ABI v15](abi-v15.md). Its generation is
+defined by `NC_COM_CORE_ABI_VERSION` in
+[core metadata](../core/src/metadata/contract.rs). The
+[documentation test](../idl/tests/documentation.rs) checks that this entrypoint
+selects the specification matching that constant. Older `abi-v*.md` files record
+previous drafts and migration history; use the current specification for new code.
+
+The core generation, plugin/runtime discovery versions, and IDL fingerprint
+encoding are separate contracts. Discovery tables currently use v1; IDL's
+canonical module encoding uses v8. Neither number identifies the current object
+ABI. The [IDL language reference](../../../docs/IDL_MODULES.md) owns the fingerprint
+and versioning rules, including generic parameters and enum assignments.
+
+## Authoritative guides
+
+- [COM overview and executed factory example](../README.md): contract authoring,
+  implementations, plugin export and bootstrap.
+- [IDL language and generation](../../../docs/IDL_MODULES.md): accepted syntax,
+  identities, revisions, value shapes and Cargo integration.
+- [Component responsibilities](../../../docs/COM_DESIGN.md): build tools,
+  providers, runtime and application ownership.
+- [Object/table representation](../../../docs/COM_INTERFACE_STORAGE.md): handle
+  layout and the reason diamond inheritance does not require object headers.
+- [Exclusive widget ownership](../../../docs/EXCLUSIVE_WIDGET_OWNERSHIP.md):
+  `ComBox`, weak observations, synchronous Drop and parent-controlled removal.
+- [Lifetime errors](../../../docs/COM_LIFETIME_ERRORS.md): dropped objects versus
+  closed services and error propagation from live receivers.
+- [Prepared output completion](../../../docs/COM_OUTPUT_COMPLETION.md): fallible
+  preparation and the ownership boundary of consuming ABI calls.
+- [Recursive values](../../../docs/RECURSIVE_VALUE_CONTRACT.md): checked wire
+  acquisition, recursion, budgets and metadata.
+- [Event queues](../api/EVENTS.md) and [UI event delivery](../../ui/runtime/docs/EVENTS.md):
+  concrete queue implementations, weak origins and deferred application behavior.
+- [Independent-build compatibility](compatibility.md): executed compiler/flag
+  matrix, sanitizers and platform limits.
+
+Package overviews link here instead of selecting another ABI draft. Changes to a
+contract must update its responsible guide and the examples exercising it. The
+Button walkthrough executes the exact source included in UI rustdoc; the IDL
+documentation test compiles the marked guide blocks and executes the COM bootstrap.
+Compile-only snippets cannot prove an ownership or delivery policy correct.

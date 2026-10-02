@@ -5,7 +5,7 @@ through an explicit C-shaped ABI. Rust-like IDL is the source of public contract
 truth; generated COM interfaces carry calls, and plugins expose one typed root
 factory.
 
-The current core ABI v12 is experimental and may change before ratification.
+The [current COM contract](docs/README.md) is experimental and may change before ratification.
 
 ## Component model
 
@@ -19,24 +19,26 @@ runtime    -> registers plugins, checks factories, retains loaded libraries
 Contract sources are resolved at build time; generated interfaces, vtables,
 metadata, and signatures remain in their consumers. No separate contract `.so`, native description
 archive, getter, runtime inventory, or event-contract seeding is produced.
-`interface` describes callable behavior; `factory` marks construction roots.
-An object is private Rust state. Concrete message data defines its published outputs.
+`interface` describes callable behavior; `class` describes a concrete product's
+projections; `factory` marks construction roots. Implementations own private Rust
+state. Events are ordinary typed values delivered to a constructor-supplied queue.
 
 The [plain-Cargo sample](../../examples/com-plugin/README.md) builds the same
 plugin as a shared library and as an rlib statically linked into a monolith.
 
 See [IDL contract modules](../../docs/IDL_MODULES.md) for authoring and native
 builds, [component design](../../docs/COM_DESIGN.md) for responsibility
-boundaries, and [ABI v11](docs/abi-v12.md) for the binary model.
+boundaries, and [the current ABI specification](docs/README.md) for the binary model.
 
 ## IDL
 
 The COM-owned [IDL compiler](idl) generates concrete checked ABIs for copied
-values, messages, and closed generic interfaces. A concrete class's factory can
-accept `EventBinding<Object, Event>` and initialize one private `EventPort` with that
-final receiver. [`neocogi_com::events`](api/EVENTS.md) creates the typed queue that
-acquires each event, maps it to an application message, and posts the parent's
-standard queue. A constructed object exposes no receiver-installation method;
+values and closed generic interfaces. A concrete class's factory can accept
+`EventBinding<Object, Event>` with its final receiver. The application implements
+the concrete [`IEventQueue` projection](api/EVENTS.md), acquires each event and weak
+origin, maps them to an application message, and posts the parent's standard queue.
+Exclusive widgets store their queue and `WeakComBox` origin directly; shared
+services may use `EventPort`. A constructed object exposes no receiver-installation method;
 `com_class` generates its ordinary COM implementation. Application behavior runs
 later under ordinary mutable access. No event syntax or named output relay remains.
 
@@ -213,8 +215,9 @@ without constructing objects. IDL tools retain build-time source inventories.
   views provide inherited lookup without generating another calling trait.
 - `Result<()>` lowers without an output slot; other successful returns write
   one explicit output slot.
-- Fixed records and enums use generated C layouts.
-- Owned strings, bytes, and other variable-size values cross as COM objects.
+- Copied records and payload enums use generated checked wire layouts.
+- Variable-size values use call-scoped checked views that the receiver acquires;
+  shared byte/string services can also cross as explicit COM owners.
 - Borrowed bulk data uses explicit bounded pointer/count wrappers.
 - Rust trait objects, `String`, `Vec<T>`, arbitrary references, allocator
   ownership, unwinding, and `Any` do not cross the ABI.

@@ -8,7 +8,7 @@ support, factory-only plugins, and an optional facade over the linked
 Public cross-library contracts should be authored as Rust-like `.ncidl`
 modules. See [IDL contract modules](../../../docs/IDL_MODULES.md) for their
 source, crate, signature, and tooling model. The
-[core ABI v15 specification](../docs/abi-v15.md) defines the binary boundary.
+[current core ABI specification](../docs/README.md) defines the binary boundary.
 
 ## Local object example
 
@@ -49,7 +49,7 @@ method lookup. Obtaining an owned base projection still requires checked
 construct. Handwritten helpers such as `INcStringComPtrExt::to_string` remain
 separate because they add bounded copying, allocation, and UTF-8 validation
 rather than duplicate a generated interface method.
-Objects contain state, one reference count, and one shared borrow guard;
+These shared objects contain state, lifetime counters, and one call-borrow guard;
 interfaces add no fields to each allocation. `ComPtr` and `ComRef` carry
 `{object, interface_vtable}` (16 bytes on 64-bit targets), while raw calls use
 `ComRaw<T>`. Query changes the table and preserves the object address. Methods

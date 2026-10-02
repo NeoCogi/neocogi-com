@@ -4,7 +4,10 @@ A producer's behavioral parent supplies its one queue during construction.
 Several event kinds travel in one concrete enum. The application implements the
 queue's concrete COM interface, acquires the event and a weak origin, then posts
 its ordinary application message. No event-installation interface is implemented
-by the published producer.
+by the published producer. The abbreviated contract and implementation below
+describe a **shared service** named Counter. For exclusive UI widgets, use the
+[executed Button walkthrough](../../ui/api/docs/button_events.rs): it stores
+`WeakComBox` and calls `origin.downgrade_box()`.
 
 ```text
 interface IEventQueue<Object, Event> {
@@ -24,7 +27,7 @@ One concrete `AppQueue` may implement several closed queue interfaces and serve
 many producers. Each receives the corresponding projection of the same object.
 A receiver's `post(&mut self, ComRef<CounterAbi>, NcValueRef<CounterEvent>)`
 acquires the event with `to_owned()` and the identity with `origin.downgrade()`.
-The latter touches only lifetime bookkeeping and needs no borrow of widget state.
+The latter touches only shared lifetime bookkeeping and needs no borrow of Counter state.
 The application later handles its owned messages with ordinary `&mut self`.
 Its model, message type and channel never cross the ABI.
 
@@ -60,7 +63,7 @@ it cannot upgrade until initialization succeeds. `Unobserved` permanently
 suppresses delivery and allocates no dummy queue.
 `EventPort::post` promotes its weak origin for the synchronous queue call;
 `close` releases its queue and origin idempotently. Posting after close returns
-`NC_E_DROPPED`. There is no attach, replace, detach, subscription list or second
+`NC_E_CLOSED`. There is no attach, replace, detach, subscription list or second
 consumer slot. Implementations own event storage explicitly.
 
 Queue capture must not call back into the emitting widget's active mutable gate.
@@ -69,8 +72,13 @@ propagate without rolling back committed producer state. The repository's concre
 application queues discard messages successfully after channel disconnection;
 other implementations define their own capacity and error policy.
 
-Weak references expire at final strong release, independently of logical closure.
-A retained closed widget can still upgrade; domain operations reject it as closed.
+For shared services, `WeakComPtr` expires at final strong release, independently
+of a service's own close operation. A retained closed service can still upgrade;
+its domain operations may reject calls as `NC_E_CLOSED`. Exclusive widgets have
+no independent closed state: dropping their `ComBox` destroys the value, and
+`WeakComBox` calls return `NC_E_DROPPED`. An exclusive weak handle cannot upgrade
+to an owner. Using `downgrade()` on a borrowed exclusive origin is an ownership
+error (`NC_E_INVALID_ARG`), even though the method is available on `ComRef`.
 Queued facts survive destruction and remain useful without an origin, for example
 a completed dialog result. Application membership/generation rules decide whether
 to dispatch an old fact; core weak lifetime does not impose a universal discard rule.
@@ -84,8 +92,8 @@ queue before constructing their widget.
 
 The `macros` feature exposes these ordinary generic library contracts. COM object
 allocation requires `alloc`; the examples using standard channels also need `std`. Neither introduces
-a COM process runtime or event loop. Contracts and consumers must be rebuilt
-together for core ABI v12.
+a COM process runtime or event loop. Independently built contracts and consumers
+must agree on the [current core ABI](../docs/README.md) and exact interface signatures.
 
 See [the architecture and state diagrams](../../../docs/CLASS_EVENT_STREAMS.md),
 [IDL syntax](../../../docs/IDL_MODULES.md), and
