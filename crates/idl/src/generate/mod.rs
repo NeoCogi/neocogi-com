@@ -453,7 +453,7 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
         }
         DeclarationKind::Enum(enumeration) => {
             let repr = enum_repr(enumeration.repr);
-            let has_payload = enum_has_payload(enumeration);
+            let has_payload = enumeration.has_payload();
             let value_names = enumeration
                 .variants
                 .iter()
@@ -874,11 +874,6 @@ fn named_rust_type(graph: &Generation<'_>, module: &ResolvedModule, resolved: Re
         let crate_ident = graph.paths.path(&resolved.module.source.name.to_string())?;
         Ok(quote! { #crate_ident::#name })
     }
-}
-
-/// Distinguishes tagged sum types from transparent integer enumerations.
-fn enum_has_payload(enumeration: &crate::Enum) -> bool {
-    enumeration.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit))
 }
 
 /// Generates doc attributes while preserving authored text exactly.

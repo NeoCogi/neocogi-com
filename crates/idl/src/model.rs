@@ -169,6 +169,14 @@ pub struct Enum {
     pub variants: Vec<EnumVariant>,
 }
 
+impl Enum {
+    /// Classifies authored shape before specialization or native Rust layout.
+    /// Even an empty tuple/record payload is a tagged-sum case, never an integer constant.
+    pub fn has_payload(&self) -> bool {
+        self.variants.iter().any(|variant| !matches!(variant.fields, VariantFields::Unit))
+    }
+}
+
 /// Canonical text policy requested for a dense unit enum.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EnumNames {

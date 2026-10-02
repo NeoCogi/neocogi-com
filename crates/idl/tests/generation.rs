@@ -209,19 +209,19 @@ fn multipart_permutations_preserve_bindings_except_provenance() {
     assert!(without_provenance.windows(2).all(|pair| pair[0] == pair[1]));
 }
 
-/// Signed unit and tagged enums must retain negative ABI values during lowering.
+/// Signed integer enums retain negative values; payload tags start at zero.
 #[test]
 fn generates_negative_signed_enum_discriminants() {
     let source = neocogi_idl::parse_module(
         std::path::Path::new("example/signed.ncidl"),
         "#[version(1)] enum State: i8 { Failed = -1, Ready = 0 } \
-         #[version(1)] enum Response: i16 { Rejected = -2, Accepted(i32) }",
+         #[version(1)] enum Response: i16 { Rejected, Accepted(i32) }",
     )
     .unwrap();
     let graph = neocogi_idl::resolve_modules(vec![source]).unwrap();
     let generated = neocogi_idl::generate_rust(&graph, "example.signed").unwrap();
     assert!(generated.contains("Failed = -1"), "{generated}");
-    assert!(generated.contains("com_tag(-2)"), "{generated}");
+    assert!(generated.contains("com_tag(0)"), "{generated}");
 }
 
 /// Generated COM projections retain the message shape needed by designer tools.

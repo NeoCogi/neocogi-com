@@ -7,6 +7,32 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
     parse_module(Path::new(path), source).unwrap()
 }
 
+/// Any payload forbids assignments throughout the enum, including unused templates.
+#[test]
+fn payload_enum_tags_are_compiler_owned_for_every_variant_shape() {
+    for body in ["Empty = 0, Value(T)", "Empty, Value(T) = 1", "Value { data: T } = 3", "Empty = 4, Zero(())", "Zero { value: () } = 0"] {
+        for parameters in ["", "<T>"] {
+            let body = if parameters.is_empty() { body.replace("T", "u32") } else { body.into() };
+            let source = format!("#[version(1)] enum Choice{parameters} {{ {body} }}");
+            let error = resolve_modules(vec![module("example/tags.ncidl", &source)]).unwrap_err().to_string();
+            assert!(error.contains("EIDL073"), "{source}: {error}");
+            assert!(error.contains("declaration order"), "{error}");
+        }
+    }
+}
+
+/// Integer enums still support sparse/signed values; sum classification is independent of payload size.
+#[test]
+fn integer_assignments_and_automatic_payload_tags_remain_supported() {
+    for declaration in [
+        "enum State: i8 { Failed = -7, Ready = 3 }",
+        "enum Choice<T> { Empty, Value(T) }",
+        "enum Choice { Empty, Zero(()), Record { value: () } }",
+    ] {
+        resolve_modules(vec![module("example/tags.ncidl", &format!("#[version(1)] {declaration}"))]).unwrap();
+    }
+}
+
 /// The library stream accepts declared messages, while general IDL remains event-agnostic.
 #[test]
 fn generic_event_queue_requires_message_arguments() {

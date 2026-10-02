@@ -177,7 +177,7 @@ fn parameter_normalization_preserves_member_contract_changes() {
         ("struct Record<T> { first: T, second: u32 }", "struct Record<T> { second: u32, first: T }"),
         ("struct Record<T> { value: T }", "struct Record<T> { renamed: T }"),
         ("struct Record<T> { value: [T; 2] }", "struct Record<T> { value: [T; 3] }"),
-        ("enum Record<T>: u8 { Value(T) = 0 }", "enum Record<T>: u8 { Value(T) = 7 }"),
+        ("enum Record<T>: u8 { Zero = 0 }", "enum Record<T>: u8 { Zero = 7 }"),
         ("enum Record<T>: u8 { Value(T) }", "enum Record<T>: u8 { Renamed(T) }"),
     ] {
         let first = graph(&format!("#[version(1)] {before}"), "");

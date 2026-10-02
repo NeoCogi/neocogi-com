@@ -241,6 +241,15 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
     // unused templates must not hide duplicate identities or ambiguous imports.
     let mut authored = build_entries(modules.clone())?;
     connect_externals_and_imports(&mut authored)?;
+    // Enum shape and tag rules are independent of type arguments. Validate before
+    // specialization so an unused template cannot conceal an invalid contract.
+    for entry in &authored {
+        for declaration in &entry.module.declarations {
+            if let DeclarationKind::Enum(enumeration) = &declaration.kind {
+                validate_enum(entry, declaration, enumeration)?;
+            }
+        }
+    }
     let modules = crate::specialize::expand(modules)?;
     let mut entries = build_entries(modules)?;
     connect_externals_and_imports(&mut entries)?;
@@ -757,7 +766,6 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
                 }
             }
             DeclarationKind::Enum(enumeration) => {
-                collect_diagnostics(&mut diagnostics, validate_enum(entry, declaration, enumeration));
                 if enumeration.deserialize.required() {
                     let symbol = entry.local_symbols[&declaration.name];
                     let value = &values.definitions[&entry.declaration_identities[symbol.declaration].qualified_name];
@@ -1080,6 +1088,17 @@ fn validate_bit_enum(entry: &ModuleEntry, declaration: &Declaration, bit_enum: &
 
 /// Checks enum discriminants against representation range and uniqueness.
 fn validate_enum(entry: &ModuleEntry, declaration: &Declaration, enumeration: &Enum) -> Result<(), ResolutionError> {
+    if enumeration.has_payload() {
+        if let Some(variant) = enumeration.variants.iter().find(|variant| variant.discriminant.is_some()) {
+            return Err(source_error(
+                &entry.module,
+                "EIDL073",
+                &variant.span,
+                format!("payload enum {} cannot assign an explicit value to {}", declaration.name, variant.name),
+                "remove every explicit assignment; payload enum tags follow declaration order",
+            ));
+        }
+    }
     if enumeration.names.is_some() && !enumeration.dense {
         return Err(source_error(
             &entry.module,
