@@ -336,10 +336,35 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
     /// Selects another contract on the same allocation and acquires one reference.
     /// The object address stays unchanged; the selected interface table may differ.
     pub fn query<U: ComInterface>(&self) -> Result<ComPtr<U, M>, NcStatus> {
-        // SAFETY: this owner keeps the matching allocation/table pair alive.
-        let out = unsafe { raw::__nc_query_interface(self.as_raw().erase(), &U::INTERFACE_ID) }?;
-        // SAFETY: the shared query body validates exact identity and transfers one owner.
-        unsafe { ComPtr::<U, M>::from_raw_owned(out.cast()) }.ok_or(NC_E_POINTER)
+        let identical = const {
+            let left = T::INTERFACE_ID;
+            let right = U::INTERFACE_ID;
+            left.iid.data1 == right.iid.data1
+                && left.iid.data2 == right.iid.data2
+                && left.iid.data3 == right.iid.data3
+                && u64::from_ne_bytes(left.iid.data4) == u64::from_ne_bytes(right.iid.data4)
+                && left.abi_signature.__const_eq(right.abi_signature)
+        };
+        if identical {
+            // SAFETY: this owner is live and proves the exact interface contract.
+            // Retaining another reference to the same interface table requires only
+            // AddRef without dynamic C ABI interface discovery.
+            unsafe { raw::add_ref(self.as_raw()) };
+            Ok(ComPtr {
+                raw: LiveInterface::new(ComRaw {
+                    object: self.as_raw().object,
+                    vtable: self.as_raw().vtable.cast(),
+                })
+                .expect("present source interface"),
+                _interface: PhantomData,
+                _mode: PhantomData,
+            })
+        } else {
+            // SAFETY: this owner keeps the matching allocation/table pair alive.
+            let out = unsafe { raw::__nc_query_interface(self.as_raw().erase(), &U::INTERFACE_ID) }?;
+            // SAFETY: the shared query body validates exact identity and transfers one owner.
+            unsafe { ComPtr::<U, M>::from_raw_owned(out.cast()) }.ok_or(NC_E_POINTER)
+        }
     }
 
     /// Checks a discovered contract with a call-scoped borrowed digest.
@@ -616,18 +641,39 @@ mod tests {
         /// Optional substitute allocation simulating a broken QueryInterface.
         destination: *mut c_void,
     }
+    enum IProbe {}
+    unsafe impl ComInterface for IProbe {
+        const INTERFACE_ID: NcInterfaceId = NcInterfaceId::new(
+            crate::NcGuid::from_fields(0x1234_5678, 0x1234, 0x5678, [1, 2, 3, 4, 5, 6, 7, 8]),
+            crate::signature::NcAbiSignature::from_static(&[1u8; 32]),
+        );
+        type Threading = ThreadLocal;
+        type VTable = IUnknownVTable;
+    }
+    static PROBE_TABLE: IUnknownVTable = IUnknownVTable {
+        interface_id: &IProbe::INTERFACE_ID,
+        query_interface: query,
+        add_ref: retain,
+        release,
+        downgrade: None,
+    };
+
     /// Publishes a matching root table, optionally paired with the wrong object.
-    unsafe extern "C" fn query(object: *mut c_void, _: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn query(object: *mut c_void, requested: *const NcInterfaceId, out: *mut ComRaw<IUnknown>) -> NcStatus {
         // SAFETY: tests supply a live Probe and writable output record.
         let source = unsafe { &*object.cast::<Probe>() };
         let destination = match source.destination.is_null() {
             true => object,
             false => source.destination,
         };
+        let vtable = match !requested.is_null() && unsafe { &*requested } == &IProbe::INTERFACE_ID {
+            true => &PROBE_TABLE,
+            false => &TABLE,
+        };
         // SAFETY: destination is another live Probe; AddRef transfers one logical owner.
         unsafe {
             retain(destination);
-            *out = ComRaw { object: destination, vtable: &TABLE };
+            *out = ComRaw { object: destination, vtable };
         }
         NC_OK
     }
@@ -667,9 +713,16 @@ mod tests {
         };
         // SAFETY: source lives through Drop and its table supplies balanced lifecycle calls.
         let owner = unsafe { ComPtr::<IUnknown>::from_raw_owned(raw) }.unwrap();
-        assert_eq!(owner.query::<IUnknown>().unwrap_err(), NC_E_INVALID_ARG);
+        // Querying an identical interface takes the compile-time fast-path and succeeds directly.
+        let same = owner.query::<IUnknown>().expect("identical interface fast-path succeeds");
+        assert_eq!(source.references.load(Ordering::Relaxed), 2);
+        drop(same);
+        assert_eq!(source.references.load(Ordering::Relaxed), 1);
+
+        // Querying a distinct interface goes through dynamic C ABI QueryInterface and rejects substitution.
+        assert_eq!(owner.query::<IProbe>().unwrap_err(), NC_E_INVALID_ARG);
         assert_eq!(destination.references.load(Ordering::Relaxed), 0);
-        assert_eq!(owner.supports_interface_id(&IUnknown::INTERFACE_ID), Err(NC_E_INVALID_ARG));
+        assert_eq!(owner.supports_interface_id(&IProbe::INTERFACE_ID), Err(NC_E_INVALID_ARG));
         assert_eq!(destination.references.load(Ordering::Relaxed), 0);
         drop(owner);
         assert_eq!(source.references.load(Ordering::Relaxed), 0);

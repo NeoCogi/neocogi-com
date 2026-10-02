@@ -241,6 +241,15 @@ pub unsafe extern "C" fn nc_query_interface(object: *mut c_void, requested: *con
     }
 }
 
+/// Canonical strong root table, shared across all standard COM objects using `NcWeakControl`.
+pub static CANONICAL_UNKNOWN_VTABLE: IUnknownVTable = IUnknownVTable {
+    interface_id: &IUnknown::INTERFACE_ID,
+    query_interface: nc_query_interface,
+    add_ref: nc_strong_retain,
+    release: nc_strong_release,
+    downgrade: Some(nc_downgrade),
+};
+
 /// Atomically promotes and transfers the acquired owner without QueryInterface retaining again.
 ///
 /// # Safety

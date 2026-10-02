@@ -200,7 +200,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                     let raw = #nc::__alloc::boxed::Box::into_raw(object);
                     // SAFETY: Box::into_raw transfers the initial strong reference into COM ownership and
                     // remains live until the final generated `Release`.
-                    let unknown = #nc::ComRaw { object: raw.cast(), vtable: &<#storage_type>::UNKNOWN_VTABLE };
+                    let unknown = #nc::ComRaw { object: raw.cast(), vtable: &#nc::lifetime::CANONICAL_UNKNOWN_VTABLE };
                     unsafe {
                         // SAFETY: `unknown` is non-null and owns the initial
                         // strong reference initialized in the common header.
@@ -241,7 +241,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                     // Publication converts the provisional owner into the implicit
                     // weak reference released only after final value destruction.
                     let _ = provisional.into_raw();
-                    let raw = #nc::ComRaw { object: storage.cast(), vtable: &<#storage_type>::UNKNOWN_VTABLE };
+                    let raw = #nc::ComRaw { object: storage.cast(), vtable: &#nc::lifetime::CANONICAL_UNKNOWN_VTABLE };
                     // SAFETY: publication created exactly one initialized strong owner.
                     Ok(unsafe { #nc::ComPtr::from_raw_owned(raw) }.expect("new COM object is present"))
                 }
@@ -270,7 +270,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                         control: #nc::lifetime::NcWeakControl::boxed(&<#storage_type>::CLASS_LIFETIME),
                         value: core::cell::UnsafeCell::new(core::mem::MaybeUninit::new(value)),
                     }));
-                    let raw = #nc::ComRaw { object: storage.cast(), vtable: &<#storage_type>::UNKNOWN_VTABLE };
+                    let raw = #nc::ComRaw { object: storage.cast(), vtable: &#nc::lifetime::CANONICAL_UNKNOWN_VTABLE };
                     // SAFETY: this exact provider initializes and transfers one exclusive owner.
                     unsafe { #nc::ComBox::from_raw_owned(raw) }.expect("new exclusive object is present")
                 }
@@ -307,7 +307,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                         (*storage).control.publish_box();
                     }
                     let _ = provisional.into_raw();
-                    let raw = #nc::ComRaw { object: storage.cast(), vtable: &<#storage_type>::UNKNOWN_VTABLE };
+                    let raw = #nc::ComRaw { object: storage.cast(), vtable: &#nc::lifetime::CANONICAL_UNKNOWN_VTABLE };
                     // SAFETY: publication transferred the provisional weak to the initialized owner.
                     Ok(unsafe { #nc::ComBox::from_raw_owned(raw) }.expect("present owner"))
                 }
@@ -355,7 +355,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                     &contracts,
                     // SAFETY: this allocation's canonical unknown table delegates
                     // lifecycle and queries to the same stored implementation.
-                    unsafe { #nc::__ComProjection::<Self>::new(#nc::IUnknown::INTERFACE_ID, &<#storage_type>::UNKNOWN_VTABLE) },
+                    unsafe { #nc::__ComProjection::<Self>::new(#nc::IUnknown::INTERFACE_ID, &#nc::lifetime::CANONICAL_UNKNOWN_VTABLE) },
                     &[#(#providers,)*],
                 );
                 #nc::__nc_projection_vtables(&projections)
@@ -439,16 +439,6 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
                 // SAFETY: the final weak owner transfers the allocation once.
                 unsafe { drop(#nc::__alloc::boxed::Box::from_raw(control.cast::<Self>())); }
             }
-
-            /// Canonical strong root table, separate from the weak lifetime operations.
-            const UNKNOWN_VTABLE: #nc::IUnknownVTable = #nc::IUnknownVTable {
-                interface_id: &#nc::IUnknown::INTERFACE_ID,
-                query_interface: #nc::lifetime::nc_query_interface,
-                add_ref: #nc::lifetime::nc_strong_retain,
-                release: #nc::lifetime::nc_strong_release,
-                downgrade: Some(#nc::lifetime::nc_downgrade),
-            };
-
         }
     }
 }

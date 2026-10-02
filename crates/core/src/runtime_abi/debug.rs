@@ -46,9 +46,6 @@ pub struct NcDebugMessageV1 {
     pub message: NcUtf8View,
     /// Related plugin ID, or the nil GUID when not applicable.
     pub plugin_id: NcGuid,
-    /// Retained class-correlation ABI slot; current factory-only runtime
-    /// diagnostics leave it nil because there is no class registry.
-    pub class_id: NcGuid,
     /// Related interface ID, or [`NcInterfaceId::NONE`] when not applicable.
     pub interface_id: NcInterfaceId,
     /// Related loaded-module ID, or zero when not applicable.
@@ -62,7 +59,6 @@ impl NcDebugMessageV1 {
             status,
             message,
             plugin_id: NcGuid::nil(),
-            class_id: NcGuid::nil(),
             interface_id: NcInterfaceId::NONE,
             module_id: 0,
         }
