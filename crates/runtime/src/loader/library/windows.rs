@@ -26,20 +26,22 @@ unsafe extern "system" {
     fn LoadLibraryW(lpLibFileName: *const u16) -> Hmodule;
     /// Resolves one NUL-terminated exported symbol name.
     fn GetProcAddress(hModule: Hmodule, lpProcName: *const c_char) -> Farproc;
-    /// Releases one reference to a loaded module handle.
-    fn FreeLibrary(hLibModule: Hmodule) -> i32;
     /// Returns the calling thread's latest Windows error code.
     fn GetLastError() -> u32;
 }
 
-/// Owned non-null Windows module handle.
+/// Non-null Windows module handle pinned for the process lifetime.
+///
+/// COM plugin vtables and static descriptors are embedded in the dynamic module;
+/// dynamic unloading while references or static descriptors exist causes memory
+/// faults. The handle is process-pinned and deliberately not freed on drop.
 pub(in crate::loader) struct DynamicLibrary {
-    /// Handle returned by `LoadLibraryW` and released once on drop.
+    /// Native handle returned by `LoadLibraryW`.
     handle: NonNull<c_void>,
 }
 
 // SAFETY: Windows module handles are process resources. The wrapper performs
-// immutable symbol lookup after loading and closes the handle once.
+// immutable symbol lookup after loading.
 unsafe impl Send for DynamicLibrary {}
 // SAFETY: Symbol lookup does not mutate Rust-visible state in this wrapper.
 unsafe impl Sync for DynamicLibrary {}
@@ -63,16 +65,6 @@ impl DynamicLibrary {
         // SAFETY: `self.handle` is live and `symbol` is NUL-terminated.
         let ptr = unsafe { GetProcAddress(self.handle.as_ptr(), symbol.as_ptr()) };
         if ptr.is_null() { Err(last_error()) } else { Ok(ptr) }
-    }
-}
-
-impl Drop for DynamicLibrary {
-    /// Releases the owned module handle on ordinary Rust drop.
-    fn drop(&mut self) {
-        // SAFETY: `handle` came from `LoadLibraryW` and is released exactly once.
-        unsafe {
-            FreeLibrary(self.handle.as_ptr());
-        }
     }
 }
 

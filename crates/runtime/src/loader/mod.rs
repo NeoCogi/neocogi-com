@@ -96,10 +96,9 @@ impl LoadedModuleInfo {
     }
 }
 
-/// Owned native library handle whose mapping backs registered metadata pointers.
+/// Process-pinned native library handle whose mapping backs registered metadata pointers.
 pub(crate) struct LoadedModule {
-    // Dropping this field invokes the platform unload operation. Successful
-    // modules are moved into PluginRegistry so that cannot happen prematurely.
+    // Native library handle pinned for the process lifetime.
     _library: Option<library::DynamicLibrary>,
 }
 
@@ -159,7 +158,7 @@ impl RuntimeState {
     pub unsafe fn load_plugin_library(&self, path: impl AsRef<Path>) -> Result<LoadedModuleId, PluginLoadError> {
         let path = path.as_ref();
         let mut module = Some(LoadedModule::open(path)?);
-        let activation = (|| {
+        (|| {
             let loaded = module.as_ref().expect("opened module remains owned");
             // SAFETY: The caller selected trusted plugin code. Live activation
             // recognizes only the factory description symbol.
@@ -170,18 +169,7 @@ impl RuntimeState {
             // SAFETY: The module retains description and contract code.
             let batch = unsafe { prepare_loaded_factory_plugin(path, plugin)? };
             register_loaded_factory_plugin(self, path, &mut module, batch)
-        })();
-
-        match activation {
-            Ok(module_id) => Ok(module_id),
-            Err(error) => {
-                // Live activation is process-fatal at its public C boundary.
-                // Pin an opened module before returning the diagnostic to that
-                // boundary so no code is unmapped before it emits and aborts.
-                core::mem::forget(module.take().expect("failed activation owns its module"));
-                Err(error)
-            }
-        }
+        })()
     }
 }
 

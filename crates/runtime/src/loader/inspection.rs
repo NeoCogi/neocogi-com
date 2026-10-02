@@ -5,7 +5,6 @@
 //! registers the plugin nor invokes its bootstrap. IDL module inventories are
 //! build-time information and do not participate in this runtime operation.
 
-use std::mem::ManuallyDrop;
 use std::path::Path;
 use std::string::String;
 use std::vec::Vec;
@@ -93,7 +92,7 @@ pub unsafe fn inspect_plugin_library(path: impl AsRef<Path>) -> Result<PluginIns
 /// `path` must identify trusted plugin code. Every pointer in its descriptor
 /// must obey the immutable metadata lifetime promised by the C entrypoint.
 pub(crate) unsafe fn inspect_factory_plugin_description(path: &Path) -> Result<*const NcFactoryPluginDescription, PluginLoadError> {
-    let module = ManuallyDrop::new(LoadedModule::open(path)?);
+    let module = LoadedModule::open(path)?;
     // SAFETY: The caller trusts the pinned module and its versioned C symbol.
     let get = unsafe { module.get_factory_plugin_description(path)? };
     // SAFETY: The pinned library keeps the returned descriptor alive.

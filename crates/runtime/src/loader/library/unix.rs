@@ -19,23 +19,24 @@ unsafe extern "C" {
     fn dlopen(filename: *const c_char, flags: c_int) -> *mut c_void;
     /// Resolves one symbol address from a live native handle.
     fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
-    /// Releases one reference to a native loader handle.
-    fn dlclose(handle: *mut c_void) -> c_int;
     /// Returns and clears the calling thread's latest loader error.
     fn dlerror() -> *const c_char;
 }
 
 const RTLD_NOW: c_int = 2;
 
-/// Owned non-null Unix dynamic-loader handle.
+/// Non-null Unix dynamic-loader handle pinned for the process lifetime.
+///
+/// COM plugin vtables and static descriptors are embedded in the shared object;
+/// dynamic unloading while references or static descriptors exist causes segmentation
+/// faults. The handle is process-pinned and deliberately not closed on drop.
 pub(in crate::loader) struct DynamicLibrary {
-    /// Handle returned by `dlopen` and closed exactly once on drop.
+    /// Native handle returned by `dlopen`.
     handle: NonNull<c_void>,
 }
 
 // SAFETY: Dynamic loader handles are process resources. The loader APIs used
-// here are thread-safe on supported Unix targets, and access is immutable after
-// opening except for the final `dlclose`.
+// here are thread-safe on supported Unix targets, and access is immutable after opening.
 unsafe impl Send for DynamicLibrary {}
 // SAFETY: Symbol lookup does not mutate Rust-visible state in this wrapper.
 unsafe impl Sync for DynamicLibrary {}
@@ -62,16 +63,6 @@ impl DynamicLibrary {
         // SAFETY: `self.handle` is live and `symbol` is NUL-terminated.
         let ptr = unsafe { dlsym(self.handle.as_ptr(), symbol.as_ptr()) };
         if ptr.is_null() { Err(dl_error()) } else { Ok(ptr) }
-    }
-}
-
-impl Drop for DynamicLibrary {
-    /// Closes the owned native handle once ordinary Rust ownership ends.
-    fn drop(&mut self) {
-        // SAFETY: `handle` came from `dlopen` and is closed exactly once.
-        unsafe {
-            dlclose(self.handle.as_ptr());
-        }
     }
 }
 

@@ -1,12 +1,11 @@
 //! Platform-neutral dynamic-library handle abstraction.
 //!
 //! Conditional modules wrap Unix `dlopen`, Windows `LoadLibraryW`, or a clear
-//! unsupported-platform error behind one `DynamicLibrary` API. The wrapper owns
-//! exactly one native handle and unloads it on drop unless higher loader layers
-//! deliberately pin or retain it.
+//! unsupported-platform error behind one `DynamicLibrary` API. Loaded plugin
+//! handles are pinned for the process lifetime because native COM vtables
+//! and type descriptors remain embedded in their code and data segments.
 //!
-//! Each target implementation owns opening, symbol lookup, and closing. The
-//! activation pipeline only sees this RAII handle and classified open errors.
+//! Each target implementation owns opening and symbol lookup.
 
 use std::string::String;
 
