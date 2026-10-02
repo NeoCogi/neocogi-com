@@ -14,7 +14,10 @@ use std::path::{Path, PathBuf};
 use std::string::String;
 use std::vec::Vec;
 
-use crate::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcFactoryPluginDescription, NcGuid, NcModuleInfoV1, NcPluginInfoV1, NcStatus};
+use crate::{
+    NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcModuleInfoV1, NcPluginFactoryInfoV1,
+    NcPluginInfoV1, NcStatus,
+};
 
 use super::{LoadedModuleId, LoadedModuleInfo, Runtime, read_utf8_view, read_vec, status_to_result};
 
@@ -31,6 +34,21 @@ pub struct PluginInfo {
     pub qualified_name: String,
     /// Plugin version text.
     pub version: String,
+}
+
+/// Factory metadata inspection summary for one registered plugin.
+///
+/// Call [`Inspection::plugin_factory_info`] with a plugin ID obtained from the plugin registry
+/// or a loaded-module record. This lookup works for both dynamically loaded and
+/// statically registered plugins.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PluginFactoryInfo {
+    /// Stable plugin identity.
+    pub plugin_id: NcGuid,
+    /// Exact root factory interface identity.
+    pub root_factory: NcInterfaceId,
+    /// Threading capability declared by the root factory.
+    pub root_factory_threading: u32,
 }
 
 /// Read-only plugin metadata, module provenance, and dependency queries.
@@ -132,6 +150,18 @@ impl<'runtime> Inspection<'runtime> {
         }))
     }
 
+    /// Returns factory metadata for one registered plugin.
+    pub fn plugin_factory_info(self, plugin_id: NcGuid) -> Result<Option<PluginFactoryInfo>, NcStatus> {
+        let Some(info) = self.raw_plugin_factory_info(plugin_id)? else {
+            return Ok(None);
+        };
+        Ok(Some(PluginFactoryInfo {
+            plugin_id: info.plugin_id,
+            root_factory: info.root_factory,
+            root_factory_threading: info.root_factory_threading,
+        }))
+    }
+
     /// Returns retained plugin modules in registry order.
     ///
     /// Each owned summary combines module provenance with the corresponding
@@ -175,12 +205,14 @@ impl<'runtime> Inspection<'runtime> {
         // missing half as NC_E_NOT_FOUND rather than manufacturing partial data.
         let module = self.raw_module_info(module_id)?.ok_or(NC_E_NOT_FOUND)?;
         let plugin = self.plugin_info(module.plugin_id)?.ok_or(NC_E_NOT_FOUND)?;
+        let factory = self.plugin_factory_info(module.plugin_id)?.ok_or(NC_E_NOT_FOUND)?;
         Ok(LoadedModuleInfo {
             module_id,
             path: PathBuf::from(read_utf8_view(module.path)?),
             plugin_id: module.plugin_id,
             qualified_name: plugin.qualified_name,
             plugin_version: plugin.version,
+            root_factory: factory.root_factory,
         })
     }
 
@@ -191,6 +223,19 @@ impl<'runtime> Inspection<'runtime> {
         let mut out = core::mem::MaybeUninit::uninit();
         // SAFETY: `out` is valid for one initialized record on success.
         let status = unsafe { (self.runtime.inspection_api().plugin_info)(plugin_id, out.as_mut_ptr()) };
+        if status == NC_E_NOT_FOUND {
+            return Ok(None);
+        }
+        status_to_result(status)?;
+        // SAFETY: Successful inspection initialized `out`.
+        Ok(Some(unsafe { out.assume_init() }))
+    }
+
+    /// Retrieves one factory inspection record from the raw inspection table.
+    fn raw_plugin_factory_info(self, plugin_id: NcGuid) -> Result<Option<NcPluginFactoryInfoV1>, NcStatus> {
+        let mut out = core::mem::MaybeUninit::uninit();
+        // SAFETY: `out` is valid for one initialized record on success.
+        let status = unsafe { (self.runtime.inspection_api().plugin_factory_info)(plugin_id, out.as_mut_ptr()) };
         if status == NC_E_NOT_FOUND {
             return Ok(None);
         }

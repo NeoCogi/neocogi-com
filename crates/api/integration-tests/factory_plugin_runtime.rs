@@ -96,3 +96,55 @@ fn generated_contract_factory_activates_without_a_class_table() {
         .expect("registered factory plugin missing from inspection");
     assert_eq!(info.qualified_name, "nc.tests.generated_factory_plugin");
 }
+
+/// Verifies registered factory metadata inspection and direct activation on registered
+/// static plugins, without reopening files or requiring caller-supplied root interface IDs.
+#[test]
+fn registered_factory_info_and_direct_activation_work_without_filesystem_path() {
+    use neocogi_com::{ComInterface, NC_E_NOT_FOUND, NcGuid};
+
+    let runtime = Runtime::default();
+    let plugin_id = guid_from_qualified_name("nc.tests.generated_factory_plugin");
+
+    // SAFETY: The static description outlives the process.
+    unsafe { let _ = runtime.register_factory_plugin_description(factory_plugin_description()); }
+
+    // Inspect registered factory info without any filesystem path.
+    let factory_info = runtime
+        .inspection()
+        .plugin_factory_info(plugin_id)
+        .expect("plugin factory inspection failed")
+        .expect("registered factory info missing");
+
+    assert_eq!(factory_info.plugin_id, plugin_id);
+    assert_eq!(factory_info.root_factory, ExampleFactoryAbi::INTERFACE_ID);
+    assert_eq!(factory_info.root_factory_threading, neocogi_com::NC_ABI_THREADING_THREAD_LOCAL);
+
+    // Direct root activation without knowing the interface type in advance.
+    let root = runtime
+        .activate_registered_plugin_root(plugin_id)
+        .expect("direct root activation failed");
+
+    // Query canonical IUnknown and specific factory capability.
+    let factory = root
+        .query::<ExampleFactoryAbi>()
+        .expect("root must query ExampleFactoryAbi");
+    let object = factory
+        .create(
+            Extent { width: 10, height: 10 },
+            neocogi_com::NcValueRef::new(&neocogi_idl_example_contracts::ExampleObjectEventBinding::Unobserved).unwrap(),
+        )
+        .expect("factory object creation failed");
+    assert_eq!(object.extent().expect("extent query failed"), Extent { width: 10, height: 10 });
+
+    // Non-existent plugin returns None / NOT_FOUND
+    let unknown_id = NcGuid::from_fields(0xdeadbeef, 0, 0, [0; 8]);
+    assert_eq!(
+        runtime.inspection().plugin_factory_info(unknown_id).expect("inspection check"),
+        None
+    );
+    assert_eq!(
+        runtime.activate_registered_plugin_root(unknown_id).map(|_| ()),
+        Err(NC_E_NOT_FOUND)
+    );
+}

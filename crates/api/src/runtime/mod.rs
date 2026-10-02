@@ -26,7 +26,7 @@ mod inspection;
 mod plugin_registry;
 
 pub use debug::{Debug, DebugMessenger};
-pub use inspection::{Inspection, PluginInfo};
+pub use inspection::{Inspection, PluginFactoryInfo, PluginInfo};
 pub use plugin_registry::PluginRegistry;
 
 /// Maximum number of elements copied by one Rust runtime-facade enumeration.
@@ -105,6 +105,8 @@ pub struct LoadedModuleInfo {
     qualified_name: String,
     /// Owned copy of the plugin descriptor's version text.
     plugin_version: String,
+    /// Exact root factory interface identity read from the validated descriptor.
+    root_factory: NcInterfaceId,
 }
 
 impl LoadedModuleInfo {
@@ -133,6 +135,11 @@ impl LoadedModuleInfo {
     /// inspection.
     pub fn plugin_version(&self) -> &str {
         &self.plugin_version
+    }
+
+    /// Returns the exact root factory interface identity declared by the plugin.
+    pub fn root_factory(&self) -> NcInterfaceId {
+        self.root_factory
     }
 }
 
@@ -272,6 +279,24 @@ impl Runtime {
         unsafe { crate::raw::release(out) };
         // SAFETY: the common query returned exactly one validated IUnknown owner.
         unsafe { ComPtr::<IUnknown>::from_raw_owned(identity?) }.ok_or(crate::NC_E_POINTER)
+    }
+
+    /// Activates a registered plugin's root factory without requiring the host
+    /// to specify its expected interface identity.
+    ///
+    /// The runtime queries the registered plugin's exact factory interface from
+    /// its retained description, activates it, and returns a canonical [`IUnknown`] handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NC_E_NOT_FOUND`] if `plugin_id` is not registered, or any runtime status
+    /// returned by root factory activation.
+    pub fn activate_registered_plugin_root(&self, plugin_id: NcGuid) -> Result<ComPtr<IUnknown>, NcStatus> {
+        let factory = self
+            .inspection()
+            .plugin_factory_info(plugin_id)?
+            .ok_or(NC_E_NOT_FOUND)?;
+        self.activate_plugin_root(plugin_id, factory.root_factory)
     }
 
     /// Loads a trusted plugin shared library into the process-global runtime.

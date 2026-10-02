@@ -525,7 +525,7 @@ pub use neocogi_com_core::{
     NcDebugCallbackV1, NcDebugMessageV1, NcDebugMessengerCreateInfoV1, NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGuid,
     NcInspectFactoryPluginDescriptionCallbackV1, NcInspectionApiV1, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor,
     NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1, NcMethodReturnDescriptor, NcModuleInfoV1,
-    NcPluginDependencyDescriptor, NcPluginInfoV1, NcPluginRegistryV1, NcQualifiedNameError, NcRuntimeApiV1, NcStaticUtf8, NcStatus, NcUtf8View,
+    NcPluginDependencyDescriptor, NcPluginFactoryInfoV1, NcPluginInfoV1, NcPluginRegistryV1, NcQualifiedNameError, NcRuntimeApiV1, NcStaticUtf8, NcStatus, NcUtf8View,
     NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel,
     activate_factory_implementation, guid_from_qualified_name, raw, return_factory_plugin_description, validate_factory_plugin_description,
     validate_qualified_name, validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
@@ -541,7 +541,7 @@ pub use neocogi_com_core::__ComSupportsInterfaceThreading;
 #[cfg(feature = "runtime")]
 pub use runtime::{
     Debug, DebugMessenger, Inspection, LoadedModuleId, LoadedModuleInfo, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES,
-    NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, PluginInfo, PluginRegistry, Runtime,
+    NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, PluginFactoryInfo, PluginInfo, PluginRegistry, Runtime,
 };
 
 #[doc(hidden)]
