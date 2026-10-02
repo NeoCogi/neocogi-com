@@ -201,7 +201,7 @@ fn factory_plugin_metadata_has_no_repeated_root_contract() {
 fn signature_text(signature: NcAbiSignature) -> String {
     // SAFETY: Macro-generated signatures reference immutable static storage in
     // this test component for the duration of the process.
-    unsafe { format_abi_signature(signature) }.expect("valid generated signature view")
+    unsafe { format_abi_signature(signature) }
 }
 
 #[test]

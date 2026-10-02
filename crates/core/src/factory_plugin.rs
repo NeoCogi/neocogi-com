@@ -7,14 +7,15 @@
 //! constructor frame is present in this ABI.
 
 use crate::{
-    ComFactoryBootstrap, IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode, NcAbiSignature,
+    ComFactoryBootstrap, IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode,
     NcInterfaceId, NcGuid, NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name, validate_version_text,
 };
 
 /// Pre-alpha factory metadata ABI with an exact root interface and no module graph.
 ///
-/// This remains version one during pre-alpha; consumers must use the same
-/// checkout revision rather than infer compatibility from this number alone.
+/// Discovery remains version one; its stable version prefix is read first.
+/// Consumers must also match the core generation, which selects the remaining
+/// record layout, rather than infer compatibility from this number alone.
 pub const NC_FACTORY_PLUGIN_ABI_VERSION: u32 = 1;
 
 /// Exported symbol returning a factory-only plugin description.
@@ -130,17 +131,26 @@ pub type NcGetFactoryPluginDescription = unsafe extern "C" fn(out: *mut *const N
 ///
 /// # Safety
 ///
-/// `plugin` must be null or point to readable metadata whose pointer/count
-/// tables and strings remain readable for this call.
+/// `plugin` must be null or point to an aligned readable two-u32 version prefix.
+/// If those versions are supported, the complete current record, its tables,
+/// strings and any present 32-byte digests must be readable for this call.
 pub unsafe fn validate_factory_plugin_description(plugin: *const NcFactoryPluginDescription) -> NcStatus {
     if plugin.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: Null was rejected and the caller guarantees root readability.
-    let plugin = unsafe { &*plugin };
-    if plugin.description_abi_version != NC_FACTORY_PLUGIN_ABI_VERSION || plugin.core_abi_version != NC_COM_CORE_ABI_VERSION {
+    // Read only the stable version prefix before borrowing the current full
+    // record. Earlier core generations have different signature/record sizes.
+    // SAFETY: The caller guarantees this aligned two-u32 prefix is readable.
+    let (description_version, core_version) = unsafe {
+        (core::ptr::addr_of!((*plugin).description_abi_version).read(),
+         core::ptr::addr_of!((*plugin).core_abi_version).read())
+    };
+    if description_version != NC_FACTORY_PLUGIN_ABI_VERSION || core_version != NC_COM_CORE_ABI_VERSION {
         return NC_E_ABI_VERSION;
     }
+    // SAFETY: Matching versions establish the required full-record layout,
+    // whose storage and reachable pointers are covered by the caller contract.
+    let plugin = unsafe { &*plugin };
     // SAFETY: The caller guarantees both static text views remain readable.
     let Ok(name) = (unsafe { plugin.qualified_name.as_str() }) else {
         return NC_E_INVALID_ARG;
@@ -153,7 +163,7 @@ pub unsafe fn validate_factory_plugin_description(plugin: *const NcFactoryPlugin
         || validate_version_text(version).is_err()
         || plugin.plugin_id != guid_from_qualified_name(name)
         || plugin.root_factory.iid.is_nil()
-        || plugin.root_factory.abi_signature.len() as usize != NcAbiSignature::SHA256_LEN
+        || plugin.root_factory.abi_signature.is_empty()
         || NcAbiThreadingMode::from_raw(plugin.root_factory_threading).is_none()
         || plugin.activate.is_none()
     {
@@ -164,11 +174,6 @@ pub unsafe fn validate_factory_plugin_description(plugin: *const NcFactoryPlugin
         Ok(dependencies) => dependencies,
         Err(status) => return status,
     };
-    // SAFETY: The descriptor contract guarantees readable signature storage.
-    // Validate its pointer before any byte-wise identity comparison can occur.
-    if let Err(status) = unsafe { plugin.root_factory.abi_signature.as_bytes() } {
-        return status;
-    }
     for (index, dependency) in dependencies.iter().enumerate() {
         if dependency.plugin_id.is_nil()
             || dependency.plugin_id == plugin.plugin_id
@@ -224,6 +229,7 @@ unsafe fn description_slice<'a, T>(pointer: *const T, count: u32) -> Result<&'a 
 
 #[cfg(test)]
 mod tests {
+    use crate::NcAbiSignature;
     use core::ptr;
 
     use super::*;
@@ -296,13 +302,16 @@ mod tests {
         assert_eq!(unsafe { validate_factory_plugin_description(&unsigned) }, NC_E_INVALID_ARG);
     }
 
-    /// Header-based generations must be rejected before their call ABI can be used.
+    /// Old layouts are rejected using only their common prefix, without a
+    /// current-size reference, signature read or bootstrap access.
     #[test]
-    fn rejects_previous_embedded_header_generations() {
-        for core_abi_version in [8, 9] {
-            let previous = NcFactoryPluginDescription { core_abi_version, ..VALID_PLUGIN };
-            // SAFETY: the discovery record is readable; activation is never attempted.
-            assert_eq!(unsafe { validate_factory_plugin_description(&previous) }, NC_E_ABI_VERSION);
+    fn rejects_previous_generations_from_the_version_prefix_alone() {
+        assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, description_abi_version), 0);
+        assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, core_abi_version), 4);
+        for versions in [[NC_FACTORY_PLUGIN_ABI_VERSION, 8], [NC_FACTORY_PLUGIN_ABI_VERSION, 15], [NC_FACTORY_PLUGIN_ABI_VERSION + 1, NC_COM_CORE_ABI_VERSION]] {
+            // SAFETY: Only the readable version prefix is promised for an
+            // unsupported generation. No trailing record even exists here.
+            assert_eq!(unsafe { validate_factory_plugin_description(versions.as_ptr().cast()) }, NC_E_ABI_VERSION);
         }
     }
 
@@ -311,21 +320,21 @@ mod tests {
     fn factory_plugin_description_layout_is_c_stable() {
         #[cfg(target_pointer_width = "64")]
         {
-            assert_eq!(core::mem::size_of::<NcFactoryPluginDescription>(), 120);
+            assert_eq!(core::mem::size_of::<NcFactoryPluginDescription>(), 112);
             assert_eq!(core::mem::align_of::<NcFactoryPluginDescription>(), 8);
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, plugin_id), 8);
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, dependencies), 64);
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, root_factory), 72);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, activate), 112);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, activate), 104);
         }
         #[cfg(target_pointer_width = "32")]
         {
-            assert_eq!(core::mem::size_of::<NcFactoryPluginDescription>(), 80);
+            assert_eq!(core::mem::size_of::<NcFactoryPluginDescription>(), 76);
             assert_eq!(core::mem::align_of::<NcFactoryPluginDescription>(), 4);
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, plugin_id), 8);
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, dependencies), 44);
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, root_factory), 48);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, activate), 76);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, activate), 72);
         }
     }
 }

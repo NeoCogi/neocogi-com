@@ -1821,7 +1821,7 @@ fn encode_type(scope: EncodingScope<'_>, ty: &AbiType, entries: &[ModuleEntry], 
                 encoder.tag(2);
                 encoder.guid(identity.iid);
                 // SAFETY: built-in signatures point to immutable core constants.
-                encoder.bytes(unsafe { identity.abi_signature.as_bytes().expect("static core signature") });
+                encoder.bytes(unsafe { identity.abi_signature.as_digest().expect("static core signature") });
             } else {
                 encoder.tag(1);
                 encode_named(scope, name, entries, encoder)?;

@@ -463,7 +463,7 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &AbiType) -> Result<[u8; 3
             if let Some(identity) = crate::resolve::builtin_object(name) {
                 // SAFETY: built-in interface signatures refer to permanent core constants.
                 return Ok(crate::sha256::digest(unsafe {
-                    identity.abi_signature.as_bytes().expect("static core signature")
+                    identity.abi_signature.as_digest().expect("static core signature")
                 }));
             }
             if name.segments.as_slice() == ["str"] {

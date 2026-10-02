@@ -1,5 +1,7 @@
 # COM core ABI v15: returned exclusive inputs
 
+Historical specification, superseded by [ABI v16](abi-v16.md).
+
 Version 15 preserves v14's object/table handles, atomic lifetime header and
 synchronous destruction. It changes the consuming-argument contract: **failure
 returns every original owner; success consumes every owner**. Version 14 plugins

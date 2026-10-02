@@ -92,7 +92,7 @@ These types have different ownership and conversion rules:
 | --- | --- | --- |
 | `NcStaticUtf8` | `unsafe as_str<'a>(self) -> Result<&'a str, NcStatus>` and `unsafe as_bytes<'a>(self) -> Result<&'a [u8], NcStatus>` | Borrows descriptor storage; the caller establishes memory validity and the returned lifetime. `as_str` validates UTF-8. |
 | `NcUtf8View` | Public `data: *const u8`, `len: usize`, and `EMPTY`; no conversion methods | Runtime-owned bytes with an externally specified lifetime. The facade copies inspection text into owned strings. |
-| `NcAbiSignature` | `unsafe as_bytes<'a>(self) -> Result<&'a [u8], NcStatus>` | Binary signature storage, not text. `from_static` accepts an empty sentinel or exactly 32 bytes. |
+| `NcAbiSignature` | `unsafe as_digest<'a>(self) -> Option<&'a [u8; 32]>` | One nullable pointer to a fixed digest. `from_static` requires a static 32-byte array; `EMPTY` explicitly represents absence. |
 | `NcCopyFromBufferOffset<'a, T>` | `as_slice(&self) -> &'a [T]` | Holds an actual Rust slice. The logical offset does not slice or shift its storage. |
 | `NcCopyToBufferOffset<'a, T>` | `as_mut_slice(&mut self) -> &mut [T]` | Holds exclusive caller-provided storage; counts are elements, not necessarily bytes. |
 | `INcStringAbi` / `INcBytesAbi` | Raw length, indexed-byte, and bulk-copy vtable operations | A COM reference retains the provider. Safe allocating conversions live in the facade. |
@@ -224,7 +224,8 @@ each child once. Propagate any error and discard that document operation; these
 cursors do not promise recovery after a partial read or write. Measurement runs
 that same writer without storing bytes.
 
-NCB version 1, Core ABI v15 and canonical IDL encoding v8 are unchanged. The
+NCB version 1 and canonical IDL encoding v8 are unchanged by the persistence
+simplification. Core ABI v16 subsequently replaces signature views only. The
 codec's Rust traits/cursors never cross a plugin boundary; providers exchange
 the existing C-shaped persistence handles and byte buffers. The removed
 `sequence` and `rename_all` policies are rejected rather than silently ignored.

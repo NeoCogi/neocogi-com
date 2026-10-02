@@ -59,15 +59,8 @@ pub unsafe fn inspect_plugin_library(path: impl AsRef<Path>) -> Result<PluginIns
     // SAFETY: Validation established readable metadata in a pinned library.
     let plugin = unsafe { &*plugin };
     // SAFETY: The signature was validated and its storage remains pinned.
-    let signature = unsafe { plugin.root_factory.abi_signature.as_bytes() }
-        .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), "invalid root factory signature"))?;
-    let root_factory_signature = signature.try_into().map_err(|_| {
-        PluginLoadError::new(
-            PluginLoadErrorKind::Metadata,
-            path,
-            Some(NC_E_INVALID_ARG),
-            "root factory signature is not SHA-256",
-        )
+    let root_factory_signature = *unsafe { plugin.root_factory.abi_signature.as_digest() }.ok_or_else(|| {
+        PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(NC_E_INVALID_ARG), "missing root factory signature")
     })?;
     let root_factory_threading = NcAbiThreadingMode::from_raw(plugin.root_factory_threading)
         .ok_or_else(|| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(NC_E_INVALID_ARG), "invalid root factory threading"))?;

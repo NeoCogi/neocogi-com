@@ -33,11 +33,11 @@ use alloc::string::String;
 /// `signature` must be empty or reference readable immutable bytes for this
 /// call. Generated signatures and validated descriptors from pinned components
 /// satisfy that contract.
-pub unsafe fn format_abi_signature(signature: NcAbiSignature) -> Result<String, NcStatus> {
+pub unsafe fn format_abi_signature(signature: NcAbiSignature) -> String {
     let mut out = String::new();
     // SAFETY: The caller establishes the signature view's storage contract.
-    unsafe { write_signature(&mut out, signature)? };
-    Ok(out)
+    unsafe { write_signature(&mut out, signature) };
+    out
 }
 
 /// Renders the diagnostic typed ABI signature for a method descriptor.
@@ -216,7 +216,7 @@ fn write_type(out: &mut String, ty: &NcAbiTypeDescriptor) -> Result<(), NcStatus
             out.push_str("aggregate<");
             // SAFETY: `format_method_signature` requires the complete nested
             // descriptor graph, including signature storage, to remain valid.
-            unsafe { write_signature(out, ty.aggregate_signature)? };
+            unsafe { write_signature(out, ty.aggregate_signature) };
             out.push('>');
         }
         NC_ABI_TYPE_INTERFACE => {
@@ -224,7 +224,7 @@ fn write_type(out: &mut String, ty: &NcAbiTypeDescriptor) -> Result<(), NcStatus
             write!(out, "interface<{}, ", ty.interface.iid).map_err(|_| NC_E_INVALID_ARG)?;
             // SAFETY: The public formatter's graph contract covers this nested
             // interface signature for the duration of the call.
-            unsafe { write_signature(out, ty.interface.abi_signature)? };
+            unsafe { write_signature(out, ty.interface.abi_signature) };
             out.push('>');
         }
         _ => return Err(NC_E_INVALID_ARG),
@@ -270,20 +270,13 @@ fn validate_interface_type(ty: &NcAbiTypeDescriptor) -> Result<(), NcStatus> {
 }
 
 /// Appends one readable representation of a validated ABI signature.
-unsafe fn write_signature(out: &mut String, signature: NcAbiSignature) -> Result<(), NcStatus> {
-    // SAFETY: This private formatter is reached only through
-    // `format_method_signature`, whose caller guarantees the complete
-    // descriptor graph and its component-owned signature views remain valid.
-    let bytes = unsafe { signature.as_bytes()? };
-    // Empty signatures represent absent or base-interface references that have
-    // no associated ABI contract. Preserve that absence as an empty
-    // diagnostic string instead of assigning it a validation algorithm.
-    if bytes.is_empty() {
-        return Ok(());
-    }
-    if bytes.len() != 32 {
-        return Err(NC_E_INVALID_ARG);
-    }
+unsafe fn write_signature(out: &mut String, signature: NcAbiSignature) {
+    // SAFETY: Both public unsafe formatters require their callers to keep
+    // every reachable signature readable and immutable throughout formatting.
+    let Some(bytes) = (unsafe { signature.as_digest() }) else {
+        // Absence has no algorithm label; it is never unchecked compatibility.
+        return;
+    };
     out.push_str("sha-256:");
     /// Lowercase digits used to format binary signature bytes.
     const HEX: &[u8; 16] = b"0123456789abcdef";
@@ -291,5 +284,4 @@ unsafe fn write_signature(out: &mut String, signature: NcAbiSignature) -> Result
         out.push(HEX[(byte >> 4) as usize] as char);
         out.push(HEX[(byte & 0x0f) as usize] as char);
     }
-    Ok(())
 }

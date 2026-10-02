@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn core_abi_identity_is_stable() {
-        assert_eq!(NC_COM_CORE_ABI_VERSION, 15);
+        assert_eq!(NC_COM_CORE_ABI_VERSION, 16);
     }
 
     #[test]
@@ -302,24 +302,24 @@ mod tests {
     fn interface_descriptor_c_layout_includes_qualified_name() {
         #[cfg(target_pointer_width = "64")]
         {
-            assert_eq!(core::mem::size_of::<NcInterfaceDescriptor>(), 96);
+            assert_eq!(core::mem::size_of::<NcInterfaceDescriptor>(), 80);
             assert_eq!(core::mem::align_of::<NcInterfaceDescriptor>(), 8);
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, interface_id), 0);
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, qualified_name), 16);
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, abi_signature), 32);
-            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, method_count), 80);
-            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, methods), 88);
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, method_count), 64);
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, methods), 72);
         }
 
         #[cfg(target_pointer_width = "32")]
         {
-            assert_eq!(core::mem::size_of::<NcInterfaceDescriptor>(), 64);
+            assert_eq!(core::mem::size_of::<NcInterfaceDescriptor>(), 56);
             assert_eq!(core::mem::align_of::<NcInterfaceDescriptor>(), 4);
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, interface_id), 0);
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, qualified_name), 16);
             assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, abi_signature), 24);
-            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, method_count), 56);
-            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, methods), 60);
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, method_count), 48);
+            assert_eq!(core::mem::offset_of!(NcInterfaceDescriptor, methods), 52);
         }
     }
 

@@ -25,9 +25,10 @@ struct NcGuid {
 };
 
 struct NcAbiSignature {
-    const uint8_t *data;
-    uint32_t len;
+    /* Null is absence; otherwise one complete immutable SHA-256 digest. */
+    const uint8_t (*digest)[32];
 };
+_Static_assert(sizeof(NcAbiSignature) == sizeof(void *), "signature view must be one pointer");
 
 struct NcInterfaceId {
     NcGuid iid;
@@ -207,20 +208,20 @@ _Static_assert(offsetof(NcDebugApiV1Prefix, create_messenger) == sizeof(size_t),
     "NcDebugApiV1 prefix changed");
 
 #if UINTPTR_MAX == UINT64_MAX
-_Static_assert(sizeof(NcInterfaceDescriptor) == 96,
+_Static_assert(sizeof(NcInterfaceDescriptor) == 80,
     "64-bit NcInterfaceDescriptor ABI size changed");
-_Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 80,
+_Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 64,
     "64-bit NcInterfaceDescriptor.method_count ABI offset changed");
-_Static_assert(offsetof(NcInterfaceDescriptor, methods) == 88,
+_Static_assert(offsetof(NcInterfaceDescriptor, methods) == 72,
     "64-bit NcInterfaceDescriptor.methods ABI offset changed");
 _Static_assert(offsetof(NcRuntimeApiV1Prefix, register_factory_plugin_description) == 16,
     "64-bit NcRuntimeApiV1 registration prefix changed");
 #elif UINTPTR_MAX == UINT32_MAX
-_Static_assert(sizeof(NcInterfaceDescriptor) == 64,
+_Static_assert(sizeof(NcInterfaceDescriptor) == 56,
     "32-bit NcInterfaceDescriptor ABI size changed");
-_Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 56,
+_Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 48,
     "32-bit NcInterfaceDescriptor.method_count ABI offset changed");
-_Static_assert(offsetof(NcInterfaceDescriptor, methods) == 60,
+_Static_assert(offsetof(NcInterfaceDescriptor, methods) == 52,
     "32-bit NcInterfaceDescriptor.methods ABI offset changed");
 _Static_assert(offsetof(NcRuntimeApiV1Prefix, register_factory_plugin_description) == 8,
     "32-bit NcRuntimeApiV1 registration prefix changed");
