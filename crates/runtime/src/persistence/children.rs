@@ -4,12 +4,15 @@
 //! the list or individual children; their final Release always frees storage in
 //! the runtime that allocated it. No facade object machinery is required here.
 
-use core::{ffi::c_void, ptr, sync::atomic::AtomicU32};
+use core::{ffi::c_void, sync::atomic::AtomicU32};
 use neocogi_com_core::{
     ComInterface, ComPtr, ComRaw, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, __com_add_ref_count, __com_release_ref_count, NC_E_ABI_VERSION,
     NC_E_NOINTERFACE, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK,
     persistence::{IObjectChildrenAbi, IObjectChildrenVTable},
 };
+
+#[cfg(test)]
+mod tests;
 
 /// One allocation owns both interface projections and all constructed children.
 struct Children {
@@ -126,12 +129,15 @@ unsafe extern "C" fn add_ref(this: *mut c_void) -> u32 {
 /// # Safety
 /// Non-null `this` must transfer one owned reference from `create` or AddRef.
 unsafe extern "C" fn release(this: *mut c_void) -> u32 {
+    // Preserve the original owning pointer for deallocation. A pointer derived
+    // from the shared storage view below only carries that borrow's permissions
+    // and cannot be used to reconstruct an owning Box over the whole allocation.
+    let pointer = this.cast::<Children>();
     // SAFETY: The transferred reference keeps storage alive until the decrement.
     let object = match unsafe { storage(this) } {
         Ok(object) => object,
         Err(_) => return 0,
     };
-    let pointer = ptr::from_ref(object).cast_mut();
     match __com_release_ref_count(&object.references) {
         Some(0) => {
             // SAFETY: The last reference owns the original Box allocation;

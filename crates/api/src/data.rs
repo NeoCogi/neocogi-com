@@ -24,6 +24,9 @@ use crate::__alloc::vec::Vec;
 use crate::object::{__com_add_ref_count, __com_release_ref_count};
 use crate::{ComRaw, ComPtr, ComRef, ThreadSafe, ThreadingModel};
 
+#[cfg(all(test, feature = "std"))]
+mod tests;
+
 /// Default maximum allocation performed by an owned COM byte/string conversion.
 ///
 /// [`INcBytesComPtrExt::to_vec`], [`INcBytesComPtrExt::to_i8_vec`],

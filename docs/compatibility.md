@@ -133,6 +133,14 @@ rows; Linux, macOS and Windows each execute the linked row. Separate Linux jobs
 run Miri and both sanitizers. A platform job is not evidence until it actually
 runs successfully; local Linux validation does not imply macOS/Windows execution.
 
+The ordinary COM job also runs facade/runtime library tests in release mode.
+Strong-only retain exhaustion formerly returned uncounted owners only when debug
+assertions were disabled, so debug tests alone cannot prevent its recurrence.
+Both profiles exercise injected counter limits and native subprocess termination
+through byte/string/list `Clone` and `QueryInterface` entrypoints. Miri skips those
+process-abort cases and interprets the ordinary count/final-destruction tests,
+including child-list deallocation through its original owning pointer.
+
 ## Why the old entry points failed
 
 `8fed79b2` made the runtime an rlib to avoid an unused duplicate shared-library
