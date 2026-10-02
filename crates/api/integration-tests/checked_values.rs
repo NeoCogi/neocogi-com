@@ -149,6 +149,9 @@ fn native_enums_cross_copied_nested_array_and_buffer_slots() {
     // Metadata retains the same nominal identity while raw and native storage
     // remain separate even if a particular compiler happens to size them equally.
     assert!(matches!(Action::ABI_TYPE, NcAbiType::Aggregate(signature) if signature == Action::VALUE_SIGNATURE));
+    assert!(matches!(Flags::ABI_TYPE, NcAbiType::Aggregate(signature) if signature == Flags::VALUE_SIGNATURE));
+    assert!(matches!(Settings::ABI_TYPE, NcAbiType::Aggregate(signature) if signature == Settings::VALUE_SIGNATURE));
+    assert!(matches!(ActionSet::ABI_TYPE, NcAbiType::Aggregate(signature) if signature == ActionSet::VALUE_SIGNATURE));
     assert!(!Action::BORROW_WIRE);
     assert!(!ActionSet::BORROW_WIRE);
 }

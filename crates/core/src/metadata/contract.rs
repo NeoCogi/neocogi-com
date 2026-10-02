@@ -1,7 +1,7 @@
 //! Canonical logical types used to describe COM ABI contracts.
 //!
 //! These enums and records are the semantic vocabulary behind runtime metadata:
-//! value types, passing modes, threading promises, aggregate layouts, and interface
+//! value types, passing modes, threading promises, aggregate identities, and interface
 //! identities. Raw numeric constants mirror each stable C representation for
 //! consumers that do not use the Rust enums. ABI signature generation belongs to
 //! the IDL resolver and is intentionally absent from this runtime crate.
@@ -44,28 +44,6 @@ impl NcInterfaceId {
     pub const fn is_none(self) -> bool {
         self.iid.is_nil() && self.abi_signature.is_empty()
     }
-}
-
-/// Physical field layout for an ABI-safe aggregate.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct NcAbiFieldLayout {
-    /// Field order in the source aggregate.
-    pub index: u32,
-    /// Byte offset from the start of the aggregate.
-    pub offset: usize,
-    /// Canonical ABI type of the field.
-    pub ty: NcAbiType,
-}
-
-/// Physical layout for a macro-generated COM struct.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct NcAbiStructLayout {
-    /// `core::mem::size_of::<T>()` for the generated struct.
-    pub size: usize,
-    /// `core::mem::align_of::<T>()` for the generated struct.
-    pub align: usize,
-    /// Ordered physical fields in the generated struct.
-    pub fields: &'static [NcAbiFieldLayout],
 }
 
 /// Canonical ABI type retained in generated method and field metadata.
@@ -295,8 +273,8 @@ pub struct NcAbiTypeDescriptor {
     /// Declaration-scoped aggregate signature when `tag == NC_ABI_TYPE_AGGREGATE`.
     ///
     /// The IDL tool derives this from the exact module revision and declaration
-    /// ID. Compiled size, alignment, offsets, and nested field types remain in
-    /// [`NcAbiStructLayout`] instead of being re-encoded and hashed by rustc.
+    /// ID. Application-memory offsets are not published. The generated concrete
+    /// wire type and checked field codecs establish the actual foreign layout.
     pub aggregate_signature: NcAbiSignature,
     /// Interface identity when `tag == NC_ABI_TYPE_INTERFACE`.
     pub interface: NcInterfaceId,

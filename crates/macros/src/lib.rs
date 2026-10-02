@@ -279,16 +279,17 @@ pub fn factory_plugin(input: TokenStream) -> TokenStream {
 /// Defines a fixed-size ABI-safe record from generated IDL bindings.
 ///
 /// The macro owns the struct representation, derives `Clone, Copy` when those
-/// derives are not already listed, records the physical size/alignment/field
-/// offsets in `neocogi_com::ComStruct`, and implements `neocogi_com::AbiType` and
+/// derives are not already listed, publishes the IDL-assigned nominal identity,
+/// generates checked wire conversion, and implements `neocogi_com::AbiType` and
 /// `neocogi_com::AbiPlainValue` for the struct. By default, it verifies every field
 /// implements `neocogi_com::AbiPlainValue`.
 ///
 /// The IDL generator always supplies `assigned_signature = b"..."`; its 32
 /// bytes are stored directly and never hashed by rustc. Accepted layout forms are `#[com_struct]`, `#[com_struct(packed)]`,
 /// `#[com_struct(packed(N))]`, and `#[com_struct(align(N))]`. Do not also write
-/// a raw `#[repr(...)]` attribute; the macro rejects it so the representation and
-/// generated layout metadata have one source of truth.
+/// a raw `#[repr(...)]` attribute; the macro owns the local representation policy.
+/// Application offsets are not reflection metadata. Direct wire borrowing uses
+/// an independent recursive layout proof in the generated codec.
 ///
 /// `#[com_struct(c_struct)]` accepts external C-layout field types without generated
 /// `AbiType`/`AbiPlainValue` metadata. Every field still requires an explicit
@@ -298,11 +299,10 @@ pub fn factory_plugin(input: TokenStream) -> TokenStream {
 /// error. An incompatible Rust-layout field fails to compile; `Copy` and syntactic
 /// field checks still apply. The author must ensure fields contain no hidden
 /// pointers, references, or ownership duties, which C layout alone cannot prove.
-/// In this mode, every field is represented by size and alignment, with field
-/// order and offsets recorded by the enclosing struct. Field internals and
-/// scalar type identities are not encoded. An incompatible change preserving
-/// this metadata requires a new interface identity. Dependency versions may
-/// differ only while their actual layouts and value semantics remain compatible.
+/// External codec authors must preserve the assigned IDL contract semantics;
+/// a semantic change requires an appropriate contract revision. Independent
+/// compiler versions may use different application layouts because conversion
+/// uses the explicit wire representation.
 /// External fields must implement `ComValue` and `ComInlineValue`, explicitly
 /// defining raw representations and validation. C layout alone never bypasses
 /// checked conversion. Generated method slots use the converted wire type.
@@ -311,11 +311,9 @@ pub fn factory_plugin(input: TokenStream) -> TokenStream {
 /// addresses, and values with ownership or release obligations should be modeled
 /// as COM interfaces instead.
 ///
-/// Add `deserialize` to generate a format-neutral [`ComDeserialize`] constructor.
-/// Named records reject missing fields by default; combine it with `default` to
-/// retain `Default` values for omitted fields, or with `sequence` to decode the
-/// fields positionally. These options affect local source decoding only and do
-/// not change the COM ABI layout.
+/// Add `deserialize` to generate an NCB [`ComDeserialize`] constructor. Fields
+/// decode in declaration order; `default` permits omitted trailing fields. These
+/// options affect persistence, independently of checked live-call wire layouts.
 #[proc_macro_attribute]
 pub fn com_struct(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as StructArgs);

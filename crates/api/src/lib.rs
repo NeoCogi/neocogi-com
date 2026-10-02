@@ -323,8 +323,8 @@
 //! lifetime; failed post-open activation pins the module before aborting.
 //!
 //! Fixed-size plain records can use `com_struct`. The macro owns the Rust
-//! representation, records size/alignment/field offsets in [`ComStruct`], and
-//! implements [`AbiType`] and [`AbiPlainValue`] for the struct. By default, it
+//! representation and checked wire conversion, publishes the IDL-assigned nominal
+//! identity, and implements [`AbiType`] and [`AbiPlainValue`] for the struct. By default, it
 //! verifies that every field implements [`AbiPlainValue`]:
 //!
 //! ```
@@ -342,11 +342,12 @@
 //!
 //! Use `#[com_struct(packed)]`, `#[com_struct(packed(N))]`, or
 //! `#[com_struct(align(N))]` only when that physical layout is part of the
-//! contract. Generated [`ComStruct`] metadata records the compiled size,
-//! alignment, field order, field offsets, and field ABI types. Compatibility
-//! uses the precomputed fingerprint of the IDL module that declared the record.
+//! local representation. Application-memory offsets are not published. Generated
+//! wire records and checked codecs define foreign storage; direct borrowing
+//! requires a separate field-by-field layout proof. Compatibility uses the
+//! precomputed IDL contract fingerprint.
 //!
-//! `#[com_struct(c_struct)]` allows fields without generated COM layout metadata,
+//! `#[com_struct(c_struct)]` allows fields without generated COM nominal metadata,
 //! but every field still needs a checked [`ComValue`] codec and the
 //! [`ComInlineValue`] proof required by copied method slots. For a type owned by
 //! another crate, provide these implementations on a local adapter/newtype:
@@ -503,9 +504,9 @@ pub use macros::{ComDeserialize, ComSerialize, com_enum, com_class, com_factory,
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{format_abi_signature, format_method_signature};
 pub use neocogi_com_core::{
-    __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClientInterface, ComDeserialize,
+    __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClientInterface, ComDeserialize,
     ComSerialize, ComFactoryBootstrap, ComFactoryInterface, ComClassInterface, ComFactoryImplementation, ComInterface,
-    ComPtr, ComRaw, ComRef, ComStruct, NcClientPointer, IID_INC_BYTES,
+    ComPtr, ComRaw, ComRef, NcClientPointer, IID_INC_BYTES,
     IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown,
     IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_BOX_IN, NC_ABI_PASSING_COM_BOX_OUT, NC_ABI_PASSING_WEAK_COM_BOX_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET,
     NC_ABI_PASSING_OUT, NC_ABI_PASSING_BORROWED_VALUE, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
@@ -516,8 +517,8 @@ pub use neocogi_com_core::{
     NC_DEBUG_SEVERITY_INFO, NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION,
     NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN, NC_DESCRIPTOR_VERSION_MAX_LEN, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_ALREADY_BOUND, NC_E_CLOSED, NC_E_DROPPED,
     NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE,
-    NC_E_POINTER, NC_FACTORY_PLUGIN_ABI_VERSION, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiFieldLayout, NcAbiSignature, NcAbiPassing,
-    NcAbiPassingDescriptor, NcAbiReceiver, NcAbiStructLayout, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcActivatePluginFactory, NcDebugApiV1,
+    NC_E_POINTER, NC_FACTORY_PLUGIN_ABI_VERSION, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiSignature, NcAbiPassing,
+    NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcActivatePluginFactory, NcDebugApiV1,
     NcDebugCallbackV1, NcDebugMessageV1, NcDebugMessengerCreateInfoV1, NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGuid,
     NcInspectFactoryPluginDescriptionCallbackV1, NcInspectionApiV1, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor,
     NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1, NcMethodReturnDescriptor, NcModuleInfoV1,

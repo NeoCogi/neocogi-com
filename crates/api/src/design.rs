@@ -1,10 +1,11 @@
 //! Source-level IDL descriptions attached to generated COM interface types.
 //!
-//! These immutable records supplement the physical ABI descriptors used by
-//! `neocogi-inspect`: ABI signatures identify compatibility, while these records
+//! These immutable records supplement explicit method diagnostic descriptors:
+//! ABI signatures identify compatibility, while these records
 //! retain declared event, struct, and enum names needed by authoring tools.
 //! Generated records stay local to their defining binary. A plugin may copy
 //! their values into a versioned COM design catalog for unlinked authoring hosts.
+//! `neocogi-inspect` reads plugin manifests, not this graph or application layouts.
 
 use crate::NcInterfaceDescriptor;
 
