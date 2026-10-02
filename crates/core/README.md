@@ -112,13 +112,19 @@ universal safe `as_str(&self) -> &str` on raw ABI views. See the
 
 ## Experimental persistent values
 
-`ComSerialize` streams explicit initialization records through `ComSerializer`.
+`ComSerialize` streams explicit initialization records through the concrete
+bounded `binary::Writer`. NCB is the supported persistence encoding; there is no
+serializer-adapter trait or runtime format selection.
 The facade derives `ComSerialize` and `ComDeserialize` for owned records and
-enums, including recursive vectors and named/tuple payloads. Both derives honor
-the existing `com_deserialize(sequence)` and `rename_all` policy. This is value
+enums, including recursive vectors and named/tuple payloads. NCB writes fields in
+declaration order and enum ordinals without names. This is value
 serialization; opting a live object into persistence remains its provider's job.
 
-With `alloc`, `binary::to_vec` and `binary::from_slice` use NCB version 1: a
+`binary::to_slice`, `binary::from_slice` and `binary::encoded_len_with_limits`
+work without allocation support for allocation-free values. `alloc` adds owned
+strings/collections and `binary::to_vec`. All output modes use the same writer,
+framing and budgets; a short fixed buffer returns an error and its partially
+written prefix must be discarded. They use NCB version 1: a
 four-byte marker, little-endian scalars, u32 lengths/variant ordinals, and
 declaration-order record fields. usize/isize occupy eight bytes; reads check
 the target range. No native padding, pointers, or ABI signatures are saved.

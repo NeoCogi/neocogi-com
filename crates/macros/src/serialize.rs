@@ -2,16 +2,13 @@
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Data, DeriveInput, Fields, LitStr, Result};
+use syn::{Data, DeriveInput, Fields, Result};
 use crate::util::validate_no_generics;
 
 /// Generates field-by-field writes, never ABI-offset inspection or type erasure.
 pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     validate_no_generics(&input.generics, "ComSerialize derives")?;
     let name = &input.ident;
-    // Record labels come from the declaration, just like field and variant
-    // labels. Named enum payloads retain the enclosing enum's record label.
-    let record_name = LitStr::new(name.to_string().trim_start_matches("r#"), name.span());
     let nc: syn::Path = syn::parse_quote!(::neocogi_com);
     let options = crate::deserialize::parse_options(&input.attrs)?;
     let body = match &input.data {
@@ -29,7 +26,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
                     quote! { &self.#member }
                 })
                 .collect::<Vec<_>>();
-            fields(&data.fields, &values, &record_name, options.sequence, &nc)
+            fields(&data.fields, &values, &nc)
         }
         Data::Enum(data) => {
             if options.sequence || options.default {
@@ -39,12 +36,6 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
             for (index, variant) in data.variants.iter().enumerate() {
                 let index = index as u32;
                 let ident = &variant.ident;
-                let label = match &options.rename_all {
-                    Some(rule) if rule.value() == "snake_case" => crate::deserialize::to_snake_case(&ident.to_string()),
-                    Some(rule) => return Err(syn::Error::new_spanned(rule, "only snake_case is supported")),
-                    None => ident.to_string(),
-                };
-                let label = LitStr::new(&label, ident.span());
                 let bindings = variant.fields.iter().enumerate().map(|(i, _)| format_ident!("__field_{i}")).collect::<Vec<_>>();
                 let pattern = match &variant.fields {
                     Fields::Unit => quote! { Self::#ident },
@@ -64,10 +55,10 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
                         let field = &values[0];
                         quote! { #nc::ComSerialize::com_serialize(#field, serializer)?; }
                     }
-                    _ => fields(&variant.fields, &values, &record_name, false, &nc),
+                    _ => fields(&variant.fields, &values, &nc),
                 };
                 arms.push(quote! { #pattern => {
-                    serializer.begin_variant(stringify!(#name), #index, #label)?;
+                    serializer.begin_variant(#index)?;
                     #payload
                     serializer.end_variant()?;
                 } });
@@ -79,7 +70,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     Ok(quote! {
         impl #nc::ComSerialize for #name {
             /// Emits the declared persistent members without native memory layout.
-            fn com_serialize<__S: #nc::ComSerializer>(&self, serializer: &mut __S) -> ::core::result::Result<(), __S::Error> {
+            fn com_serialize(&self, serializer: &mut #nc::binary::Writer<'_>) -> ::core::result::Result<(), #nc::binary::Error> {
                 #body
                 ::core::result::Result::Ok(())
             }
@@ -87,23 +78,11 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     })
 }
 
-/// Emits record or tuple members through their statically known serializers.
-/// Named records use the enclosing declaration's unqualified literal label.
-fn fields(fields: &Fields, values: &[TokenStream], record_name: &LitStr, sequence: bool, nc: &syn::Path) -> TokenStream {
+/// Emits ordered record or tuple members through the same counted NCB representation.
+fn fields(fields: &Fields, values: &[TokenStream], nc: &syn::Path) -> TokenStream {
     let len = values.len();
     match fields {
         Fields::Unit => quote! { serializer.serialize_unit()?; },
-        Fields::Named(named) if !sequence => {
-            let names = named
-                .named
-                .iter()
-                .map(|field| field.ident.as_ref().unwrap().to_string().trim_start_matches("r#").to_owned());
-            quote! {
-                serializer.begin_record(#record_name, #len)?;
-                #(serializer.field(#names)?; #nc::ComSerialize::com_serialize(#values, serializer)?;)*
-                serializer.end_record()?;
-            }
-        }
         _ => quote! {
             serializer.begin_sequence(#len)?;
             #(#nc::ComSerialize::com_serialize(#values, serializer)?;)*

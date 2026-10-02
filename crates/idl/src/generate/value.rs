@@ -116,7 +116,7 @@ pub(super) fn integer_persistence(name: &Ident, repr: &TokenStream) -> TokenStre
     quote! {
         impl ::neocogi_com::ComSerialize for #name {
             /// Writes the declared integer width without native memory or padding.
-            fn com_serialize<S: ::neocogi_com::ComSerializer>(&self, serializer: &mut S) -> ::core::result::Result<(), S::Error> {
+            fn com_serialize(&self, serializer: &mut ::neocogi_com::binary::Writer<'_>) -> ::core::result::Result<(), ::neocogi_com::binary::Error> {
                 ::neocogi_com::ComSerialize::com_serialize(&self.raw(), serializer)
             }
         }

@@ -1,7 +1,7 @@
 //! Portable initialization values, independent of runtime allocation ownership.
 
 use alloc::vec::Vec;
-use crate::{binary, ComDeserialize, ComDeserializer, ComRecord, ComRecordAccess, ComSerialize, ComSerializer};
+use crate::{binary, ComDeserialize, ComDeserializer, ComRecord, ComRecordAccess, ComSerialize};
 
 /// One owned initialization tree with the original NCB-v1 field ordering.
 ///
@@ -32,25 +32,25 @@ impl ObjectRecord {
     /// Encodes the single authoritative field order for owned records and leaf
     /// measurement. Abstracting only state serialization avoids a second envelope
     /// schema or hardcoded framing/value overhead in document admission checks.
-    fn serialize_fields<S: ComSerializer, T: ComSerialize + ?Sized>(
-        serializer: &mut S, type_id: &[u8; 16], schema_version: u32, state: &T, children: &[Self],
-    ) -> Result<(), S::Error> {
-        serializer.begin_record(Self::NAME, Self::FIELDS.len())?;
-        serializer.field("type_id")?;
+    fn serialize_fields<T: ComSerialize + ?Sized>(
+        serializer: &mut binary::Writer<'_>,
+        type_id: &[u8; 16],
+        schema_version: u32,
+        state: &T,
+        children: &[Self],
+    ) -> Result<(), binary::Error> {
+        serializer.begin_sequence(Self::FIELDS.len())?;
         type_id.com_serialize(serializer)?;
-        serializer.field("schema_version")?;
         schema_version.com_serialize(serializer)?;
-        serializer.field("state")?;
         state.com_serialize(serializer)?;
-        serializer.field("children")?;
         children.com_serialize(serializer)?;
-        serializer.end_record()
+        serializer.end_sequence()
     }
 }
 
 impl ComSerialize for ObjectRecord {
     /// Preserves the named schema and exact field order used before relocation.
-    fn com_serialize<S: ComSerializer>(&self, serializer: &mut S) -> Result<(), S::Error> {
+    fn com_serialize(&self, serializer: &mut binary::Writer<'_>) -> Result<(), binary::Error> {
         Self::serialize_fields(serializer, &self.type_id, self.schema_version, &self.state, &self.children)
     }
 }
@@ -62,7 +62,7 @@ struct LeafSize {
 }
 impl ComSerialize for LeafSize {
     /// Uses the same envelope fields as a real owned record with empty children.
-    fn com_serialize<S: ComSerializer>(&self, serializer: &mut S) -> Result<(), S::Error> {
+    fn com_serialize(&self, serializer: &mut binary::Writer<'_>) -> Result<(), binary::Error> {
         ObjectRecord::serialize_fields(serializer, &[0; 16], 0, &ByteCount(self.state_bytes), &[])
     }
 }
@@ -72,7 +72,7 @@ struct ByteCount(usize);
 impl ComSerialize for ByteCount {
     /// Collection admission happens before visiting any elements, exactly as for
     /// Vec<u8>. Each zero still consumes one scalar value: this is not a blob.
-    fn com_serialize<S: ComSerializer>(&self, serializer: &mut S) -> Result<(), S::Error> {
+    fn com_serialize(&self, serializer: &mut binary::Writer<'_>) -> Result<(), binary::Error> {
         serializer.begin_sequence(self.0)?;
         for _ in 0..self.0 {
             serializer.serialize_u8(0)?;

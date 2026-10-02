@@ -504,7 +504,7 @@ pub use macros::{ComDeserialize, ComSerialize, com_enum, com_class, com_factory,
 pub use neocogi_com_core::{format_abi_signature, format_method_signature};
 pub use neocogi_com_core::{
     __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClientInterface, ComDeserialize,
-    ComSerialize, ComSerializer, ComDeserializer, ComEnum, ComFactoryBootstrap, ComFactoryInterface, ComClassInterface, ComFactoryImplementation, ComInterface,
+    ComSerialize, ComDeserializer, ComEnum, ComFactoryBootstrap, ComFactoryInterface, ComClassInterface, ComFactoryImplementation, ComInterface,
     ComPtr, ComRaw, ComRecord, ComRecordAccess, ComRef, ComSequence, ComSequenceAccess, ComStruct, ComVariantAccess, NcClientPointer, IID_INC_BYTES,
     IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown,
     IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_BOX_IN, NC_ABI_PASSING_COM_BOX_OUT, NC_ABI_PASSING_WEAK_COM_BOX_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET,
@@ -547,7 +547,6 @@ pub use neocogi_com_core::{
     __ComProjection, __nc_interface_chain, __nc_object_interface_count, __nc_projection_table, __nc_projection_vtables, __nc_find_interface,
 };
 
-#[cfg(feature = "alloc")]
 pub use neocogi_com_core::binary;
 
 /// Compile the runnable README examples against this crate's real public API.

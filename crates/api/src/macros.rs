@@ -341,7 +341,7 @@ macro_rules! com_bit_enum {
 
         impl $crate::ComSerialize for $name {
             /// Persists every raw bit pattern using the declared integer width.
-            fn com_serialize<S: $crate::ComSerializer>(&self, serializer: &mut S) -> ::core::result::Result<(), S::Error> {
+            fn com_serialize(&self, serializer: &mut $crate::binary::Writer<'_>) -> ::core::result::Result<(), $crate::binary::Error> {
                 $crate::ComSerialize::com_serialize(&self.raw(), serializer)
             }
         }

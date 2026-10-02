@@ -29,7 +29,6 @@ mod abi;
 mod abi_hash;
 #[doc(hidden)]
 pub use abi_hash::__nc_abi_digest;
-#[cfg(feature = "alloc")]
 pub mod binary;
 mod buffer;
 mod client;
@@ -76,7 +75,7 @@ pub use value::{ValueSequenceStorage, encode_value_buffer, decode_value_buffer};
 pub use buffer::{NcCopyFromBufferOffset, NcCopyToBufferOffset};
 pub use client::{ComClientInterface, NcClientPointer};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
-pub use encode::{ComSerialize, ComSerializer};
+pub use encode::ComSerialize;
 pub use decode::{ComDeserialize, ComDeserializer, ComEnum, ComRecord, ComRecordAccess, ComSequence, ComSequenceAccess, ComVariantAccess};
 #[cfg(feature = "alloc")]
 pub use decode::{ComMap, ComMapAccess};
