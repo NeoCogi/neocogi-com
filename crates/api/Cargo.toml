@@ -131,3 +131,7 @@ path = "integration-tests/exclusive_com.rs"
 [[test]]
 name = "output_completion"
 path = "integration-tests/output_completion.rs"
+
+[[test]]
+name = "output_buffers"
+path = "integration-tests/output_buffers.rs"

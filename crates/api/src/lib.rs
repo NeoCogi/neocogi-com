@@ -563,3 +563,6 @@ pub use neocogi_com_core::{ValueSequenceStorage, encode_value_buffer, decode_val
 
 #[doc(hidden)]
 pub use neocogi_com_core::{EncodedInput, EncodedOutput, DecodedInput, DecodedOutput};
+pub use neocogi_com_core::{NcOutput, NcOutputWriter, PreparedOutput};
+#[cfg(feature = "alloc")]
+pub use neocogi_com_core::NcOutputBuffer;

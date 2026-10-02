@@ -55,6 +55,10 @@ pub mod lifetime;
 mod weak;
 pub use weak::{WeakComPtr, NcWeakRaw};
 mod value_buffer;
+mod output;
+pub use output::{NcOutput, NcOutputWriter, PreparedOutput};
+#[cfg(feature = "alloc")]
+pub use output::NcOutputBuffer;
 #[doc(hidden)]
 pub use ref_count::{__com_add_ref_count, __com_release_ref_count};
 pub mod runtime_abi;
