@@ -347,7 +347,7 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
 }
 
 /// Parses owned declaration policy before sharing the ordinary field converter.
-pub(crate) fn expand_owned(args: crate::args::StructArgs, mut input: syn::DeriveInput) -> syn::Result<TokenStream> {
+pub(crate) fn expand_owned(args: crate::args::StructArgs, input: syn::DeriveInput) -> syn::Result<TokenStream> {
     crate::util::validate_no_generics(&input.generics, "IDL values")?;
     let nc = crate::util::runtime_crate_path(args.runtime_crate.as_ref());
     let signature = args
@@ -367,7 +367,7 @@ pub(crate) fn expand_owned(args: crate::args::StructArgs, mut input: syn::Derive
     } else {
         quote! {}
     };
-    let cases = match &mut input.data {
+    let cases = match &input.data {
         syn::Data::Struct(record) => vec![ValueCase {
             variant: None,
             tag: quote! { 0 },
@@ -375,23 +375,10 @@ pub(crate) fn expand_owned(args: crate::args::StructArgs, mut input: syn::Derive
         }],
         syn::Data::Enum(enumeration) => enumeration
             .variants
-            .iter_mut()
+            .iter()
             .enumerate()
             .map(|(index, variant)| {
-                let explicit = variant
-                    .attrs
-                    .iter()
-                    .find(|attr| attr.path().is_ident("com_tag"))
-                    .map(|attr| attr.parse_args::<syn::Expr>())
-                    .transpose()?;
-                variant.attrs.retain(|attr| !attr.path().is_ident("com_tag"));
-                let tag = match explicit.or_else(|| variant.discriminant.as_ref().map(|(_, value)| value.clone())) {
-                    Some(tag) => quote! { #tag },
-                    None => {
-                        let index = index as i64;
-                        quote! { #index }
-                    }
-                };
+                let tag = ordinal_tag(index, variant)?;
                 Ok(ValueCase {
                     variant: Some(variant.ident.clone()),
                     tag,
@@ -410,4 +397,25 @@ pub(crate) fn expand_owned(args: crate::args::StructArgs, mut input: syn::Derive
         &nc,
     );
     Ok(quote! { #input #codec #deserialize })
+}
+
+/// Assigns one wire/persistence ordinal without a second author-controlled tag path.
+/// Both copied and owning enum macros call this helper; IDL enforces the same
+/// restriction before specialization, and never emits override attributes.
+pub(crate) fn ordinal_tag(index: usize, variant: &syn::Variant) -> syn::Result<TokenStream> {
+    if let Some(attribute) = variant.attrs.iter().find(|attribute| attribute.path().is_ident("com_tag")) {
+        return Err(syn::Error::new_spanned(
+            attribute,
+            "explicit payload tags are not supported; tags follow zero-based declaration order",
+        ));
+    }
+    if let Some((_, value)) = &variant.discriminant {
+        return Err(syn::Error::new_spanned(
+            value,
+            "explicit payload discriminants are not supported; tags follow zero-based declaration order",
+        ));
+    }
+    let ordinal = crate::util::checked_u32_len(index, variant.ident.span(), "enum variant ordinal")?;
+    let ordinal = proc_macro2::Literal::u64_unsuffixed(u64::from(ordinal));
+    Ok(quote! { #ordinal })
 }

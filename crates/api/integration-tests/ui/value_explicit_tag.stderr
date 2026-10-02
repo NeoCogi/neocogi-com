@@ -1,0 +1,5 @@
+error: explicit payload tags are not supported; tags follow zero-based declaration order
+ --> integration-tests/ui/value_explicit_tag.rs:4:5
+  |
+4 |     #[com_tag(1)]
+  |     ^^^^^^^^^^^^^

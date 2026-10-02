@@ -445,11 +445,8 @@
 //!     #[com_enum(tag = u32, assigned_signature = b"00000000000000000000000000000006")]
 //!     #[derive(Debug, PartialEq)]
 //!     pub enum Mutation {
-//!         #[com_tag(10)]
 //!         None,
-//!         #[com_tag(20)]
 //!         ChildAdded(u64),
-//!         #[com_tag(30)]
 //!         TextChanged { node: u64, len: u32 },
 //!     }
 //! }
@@ -459,7 +456,7 @@
 //!
 //! let value = Mutation::TextChanged { node: 7, len: 12 };
 //! let (wire, _storage) = value.encode_value(&mut Default::default()).unwrap();
-//! assert_eq!(wire.tag, 30);
+//! assert_eq!(wire.tag, 2);
 //! // SAFETY: the encoder produced initialized, self-contained wire storage.
 //! let decoded = unsafe { Mutation::decode_value(wire, &mut Default::default()) }.unwrap();
 //! assert_eq!(decoded, value);

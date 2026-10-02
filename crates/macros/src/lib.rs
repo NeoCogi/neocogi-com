@@ -331,7 +331,7 @@ pub fn com_struct(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// The input Rust enum remains available for local Rust code. The IDL generator
 /// supplies both `tag` and the precomputed `assigned_signature`; complete
-/// compile-tested construction, conversion, and tag-pinning examples live in
+/// compile-tested construction, conversion, and ordinal-tag examples live in
 /// the primary `neocogi-com` crate-level documentation.
 ///
 /// The native enum is the only application representation. `ComValue` supplies
@@ -341,11 +341,9 @@ pub fn com_struct(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// validates restricted fields (including booleans) before constructing values.
 /// No `NameAbi`, public tag type, or tag/union conversion API is generated.
 ///
-/// Tags default to one-based source order. Use `#[com_tag(value)]` on a variant
-/// to pin an explicit ABI value, for example `#[com_tag(10)]`.
-///
-/// Caveat: reordering unpinned variants changes their ABI tag. Public ABI
-/// enums should pin every variant with `#[com_tag(...)]`.
+/// Tags are always zero-based declaration ordinals, matching IDL and persistence.
+/// Explicit Rust discriminants and `#[com_tag(...)]` are rejected. Reordering
+/// variants changes the contract and requires a declaration version increment.
 ///
 /// Variant payload fields must implement `neocogi_com::AbiPlainValue`. Owning Rust values
 /// such as `String`, `Vec<T>`, and `neocogi_com::ComPtr<T>` are rejected because the

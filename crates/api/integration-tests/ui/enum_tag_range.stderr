@@ -1,8 +1,5 @@
-error: literal out of range for `u8`
- --> integration-tests/ui/enum_tag_range.rs:6:15
+error[E0080]: evaluation panicked: enum variant ordinals exceed the declared tag representation
+ --> integration-tests/ui/enum_tag_range.rs:1:1
   |
-6 |     #[com_tag(256)]
-  |               ^^^
-  |
-  = note: the literal `256` does not fit into the type `u8` whose range is `0..=255`
-  = note: `#[deny(overflowing_literals)]` on by default
+1 | #[neocogi_com::com_enum(tag = i8, assigned_signature = b"00000000000000000000000000000045")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `_` failed here

@@ -63,11 +63,8 @@ impl IDocument for Document {
 #[com_enum(tag = u32, assigned_signature = b"00000000000000000000000000000034")]
 #[derive(Debug)]
 pub enum Selection {
-    #[com_tag(1)]
     Empty,
-    #[com_tag(2)]
     Element { id: u64, kind: ElementKind },
-    #[com_tag(3)]
     Document { root_id: u64 },
 }
 

@@ -221,7 +221,8 @@ fn generates_negative_signed_enum_discriminants() {
     let graph = neocogi_idl::resolve_modules(vec![source]).unwrap();
     let generated = neocogi_idl::generate_rust(&graph, "example.signed").unwrap();
     assert!(generated.contains("Failed = -1"), "{generated}");
-    assert!(generated.contains("com_tag(0)"), "{generated}");
+    assert!(!generated.contains("com_tag"), "{generated}");
+    assert!(generated.contains("Accepted(i32)"), "{generated}");
 }
 
 /// Generated COM projections retain the message shape needed by designer tools.

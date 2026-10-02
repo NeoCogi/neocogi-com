@@ -26,15 +26,12 @@ pub(super) fn generate_owned(
             quote! { pub struct #name { #(#fields),* } }
         }
         DeclarationKind::Enum(enumeration) => {
-            let mut previous = -1;
             let variants = enumeration
                 .variants
                 .iter()
                 .map(|variant| {
                     let name = rust_ident(&variant.name)?;
                     let docs = origin_docs(&variant.docs, &variant.span);
-                    let tag = variant.discriminant.unwrap_or(previous + 1);
-                    previous = tag;
                     let fields = match &variant.fields {
                         VariantFields::Unit => quote! {},
                         VariantFields::Tuple(fields) => {
@@ -54,7 +51,7 @@ pub(super) fn generate_owned(
                             quote! { { #(#fields),* } }
                         }
                     };
-                    Ok(quote! { #docs #[com_tag(#tag)] #name #fields })
+                    Ok(quote! { #docs #name #fields })
                 })
                 .collect::<Result<Vec<_>, GenerateError>>()?;
             quote! { pub enum #name { #(#variants),* } }

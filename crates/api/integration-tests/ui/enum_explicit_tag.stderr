@@ -1,0 +1,5 @@
+error: explicit payload tags are not supported; tags follow zero-based declaration order
+ --> integration-tests/ui/enum_explicit_tag.rs:3:5
+  |
+3 |     #[com_tag(7)]
+  |     ^^^^^^^^^^^^^

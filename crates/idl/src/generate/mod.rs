@@ -535,7 +535,7 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
                         }
                     };
                     if has_payload {
-                        Ok(quote! { #[com_tag(#tag)] #variant_docs #variant_name #fields, })
+                        Ok(quote! { #variant_docs #variant_name #fields, })
                     } else {
                         Ok(quote! { #variant_docs #variant_name = #tag, })
                     }

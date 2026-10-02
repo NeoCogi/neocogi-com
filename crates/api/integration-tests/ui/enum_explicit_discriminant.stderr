@@ -1,0 +1,5 @@
+error: explicit payload discriminants are not supported; tags follow zero-based declaration order
+ --> integration-tests/ui/enum_explicit_discriminant.rs:3:13
+  |
+3 |     Empty = 0,
+  |             ^

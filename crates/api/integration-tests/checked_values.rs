@@ -21,10 +21,8 @@ pub struct Settings {
 #[derive(Clone, Copy, Debug, PartialEq)]
 /// Enum payload uses the same nested record converter.
 pub enum Action {
-    #[com_tag(4)]
     /// Selects a nested checked payload.
     Configure(Settings),
-    #[com_tag(8)]
     /// Requires no initialized payload.
     Idle,
 }
@@ -106,7 +104,7 @@ fn enum_tag_is_checked_before_payload_and_nested_field_is_checked_afterward() {
     let check = Check::from_value(Check).query::<ICheckAbi>().unwrap();
     let ptr = check.as_raw();
     let bad_field = __ActionValueWire {
-        tag: 4,
+        tag: 0,
         payload: __ActionValuePayload {
             case_0: __ActionValueCase0 {
                 field_0: __SettingsValueWire { flags: __FlagsValueWire { enabled: 3 } },
@@ -160,7 +158,7 @@ fn native_enums_cross_copied_nested_array_and_buffer_slots() {
 fn enum_buffer_validation_is_atomic_before_native_dispatch() {
     let check = Check::from_value(Check).query::<ICheckAbi>().unwrap();
     let raw = check.as_raw();
-    for (tag, enabled, expected) in [(99, 1, NC_E_INVALID_TAG), (4, 3, NC_E_INVALID_ARG)] {
+    for (tag, enabled, expected) in [(99, 1, NC_E_INVALID_TAG), (0, 3, NC_E_INVALID_ARG)] {
         let mut wire = [
             encode_inline(&Action::Idle).unwrap(),
             encode_inline(&Action::Configure(Settings { flags: Flags { enabled: true } })).unwrap(),
@@ -170,7 +168,7 @@ fn enum_buffer_validation_is_atomic_before_native_dispatch() {
         // SAFETY: both records are initialized wire storage, with a bad raw tag
         // or boolean byte. The callee must reject before materializing native enums.
         assert_eq!(unsafe { ((*raw.vtable).actions)(raw.object, 0, 2, wire.as_mut_ptr()) }, expected);
-        assert_eq!(wire[0].tag, 8);
+        assert_eq!(wire[0].tag, 1);
         assert_eq!(wire[1].tag, tag);
     }
 }

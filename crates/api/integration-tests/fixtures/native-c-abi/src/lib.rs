@@ -88,12 +88,10 @@ impl INativeCalculator for NativeCalculator {
 
 #[neocogi_com::com_enum(tag = i32, assigned_signature = b"00000000000000000000000000000043")]
 #[derive(Debug, PartialEq)]
-/// Native enum whose sparse signed tags and restricted bool cross the C boundary.
+/// Native enum whose declaration-order tags and restricted bool cross the C boundary.
 pub enum NativeChoice {
-    #[com_tag(-7)]
     /// A bool is represented as an unrestricted byte until checked decoding.
     Flag(bool),
-    #[com_tag(20)]
     /// No payload storage is inspected for this variant.
     Empty,
 }

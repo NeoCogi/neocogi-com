@@ -21,13 +21,11 @@ fn ui_errors_are_stable() {
     t.compile_fail("integration-tests/ui/weak_box_borrow_escape.rs");
     t.compile_fail("integration-tests/ui/local_guard_thread_affinity.rs");
     t.compile_fail("integration-tests/ui/enum_comptr_payload.rs");
-    t.compile_fail("integration-tests/ui/enum_duplicate_tag.rs");
-    t.compile_fail("integration-tests/ui/enum_computed_duplicate_tag.rs");
+    t.compile_fail("integration-tests/ui/enum_explicit_tag.rs");
+    t.compile_fail("integration-tests/ui/enum_explicit_discriminant.rs");
+    t.compile_fail("integration-tests/ui/value_explicit_tag.rs");
     t.compile_fail("integration-tests/ui/enum_tag_range.rs");
     t.compile_fail("integration-tests/ui/enum_generic.rs");
-    if !rustc_is_nightly() {
-        t.compile_fail("integration-tests/ui/enum_invalid_tag.rs");
-    }
     t.compile_fail("integration-tests/ui/enum_pointer_payload.rs");
     t.pass("integration-tests/ui/enum_case_folded_variant.rs");
     t.compile_fail("integration-tests/ui/enum_string_payload.rs");
