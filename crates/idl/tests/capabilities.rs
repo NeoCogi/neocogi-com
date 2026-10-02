@@ -7,11 +7,26 @@ use neocogi_idl::{parse_module, resolve_modules};
 fn unsupported_deserialization_reports_the_missing_field_operation() {
     let prefix = "#[version(1)] interface IToken {} ";
     for (source, reason) in [
-        ("#[version(1)] #[persistence(sequence)] struct Snapshot { token: ComPtr<IToken> }", "object reconstruction contract"),
-        ("#[version(1)] #[persistence(sequence)] struct Snapshot { tokens: Vec<Option<ComPtr<IToken>>> }", "object reconstruction contract"),
-        ("#[version(1)] #[persistence(sequence)] struct Snapshot { tokens: [ComPtr<IToken>; 2] }", "object reconstruction contract"),
-        ("#[version(1)] #[persistence(sequence)] struct Data<T> { value: T } #[version(1)] struct Snapshot { data: Data<ComPtr<IToken>> }", "object reconstruction contract"),
-        ("#[version(1)] #[persistence(sequence)] struct Node<T> { children: Vec<Node<T>>, value: T } #[version(1)] struct Snapshot { data: Node<ComPtr<IToken>> }", "object reconstruction contract"),
+        (
+            "#[version(1)] #[persistence(default)] struct Snapshot { token: ComPtr<IToken> }",
+            "object reconstruction contract",
+        ),
+        (
+            "#[version(1)] #[persistence(default)] struct Snapshot { tokens: Vec<Option<ComPtr<IToken>>> }",
+            "object reconstruction contract",
+        ),
+        (
+            "#[version(1)] #[persistence(default)] struct Snapshot { tokens: [ComPtr<IToken>; 2] }",
+            "object reconstruction contract",
+        ),
+        (
+            "#[version(1)] #[persistence(default)] struct Data<T> { value: T } #[version(1)] struct Snapshot { data: Data<ComPtr<IToken>> }",
+            "object reconstruction contract",
+        ),
+        (
+            "#[version(1)] #[persistence(default)] struct Node<T> { children: Vec<Node<T>>, value: T } #[version(1)] struct Snapshot { data: Node<ComPtr<IToken>> }",
+            "object reconstruction contract",
+        ),
     ] {
         let module = parse_module(Path::new("proof/operations.ncidl"), &format!("{prefix}{source}")).unwrap();
         let error = resolve_modules(vec![module]).expect_err("requested decoder must be rejected");
@@ -45,7 +60,7 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
     let source = r#"
         #[version(1)]  struct Node<T> { value: T, children: Vec<Node<T>> }
         #[version(1)]  struct Flags { enabled: bool }
-        #[version(1)] #[persistence(sequence)] struct Pair<T> { first: T, second: T }
+        #[version(1)] struct Pair<T> { first: T, second: T }
         #[version(1)]  struct Snapshot {
             root: Node<String>, optional: Option<Flags>, mask: [bool; 3], pair: Pair<u32>, units: Vec<()>,
         }
@@ -150,7 +165,11 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
 /// A generic policy failure identifies both the template field and its closed use.
 #[test]
 fn imported_decoder_failure_preserves_both_source_locations() {
-    let template = parse_module(Path::new("proof/template.ncidl"), "#[version(1)] #[persistence(sequence)] struct Data<T> { value: T }").unwrap();
+    let template = parse_module(
+        Path::new("proof/template.ncidl"),
+        "#[version(1)] #[persistence(default)] struct Data<T> { value: T }",
+    )
+    .unwrap();
     let consumer = parse_module(
         Path::new("proof/consumer.ncidl"),
         "extern proof.template; use proof.template::Data; #[version(1)] struct Snapshot { data: Data<ComPtr<IUnknown>> }",
@@ -161,4 +180,61 @@ fn imported_decoder_failure_preserves_both_source_locations() {
     assert!(diagnostic.contains("consumer.ncidl"), "{diagnostic}");
     assert!(diagnostic.contains("Data<ComPtr<IUnknown>>"), "{diagnostic}");
     assert!(diagnostic.contains("decoder required for this closed specialization"), "{diagnostic}");
+}
+
+/// Generated persistence must not make a scalar-only contract depend on alloc or std.
+#[test]
+fn generated_ncb_values_execute_without_allocation_features() {
+    let source = r#"
+        #[version(1)] struct Point { x: u32, y: u32 }
+        #[version(1)] enum Choice { Empty, Pair(u8, u16), Record { enabled: bool }, Point(Point) }
+    "#;
+    let graph = resolve_modules(vec![parse_module(Path::new("proof/values.ncidl"), source).unwrap()]).unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let project = tempfile::tempdir().unwrap();
+    fs::create_dir(project.path().join("src")).unwrap();
+    fs::write(project.path().join("Cargo.toml"), format!(
+        "[package]\nname='noalloc-ncb-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?},default-features=false,features=['macros']}}\n",
+        root.join("crates/com/api"),
+    )).unwrap();
+    fs::write(
+        project.path().join("src/contract.rs"),
+        neocogi_idl::generate_rust(&graph, "proof.values").unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        project.path().join("src/lib.rs"),
+        r#"
+        #![no_std]
+        pub mod contract;
+        #[test]
+        fn concrete_codecs_use_only_caller_storage() {
+            use contract::{Choice, Point};
+            use neocogi_com::binary;
+            for value in [Choice::Empty, Choice::Pair(7, 9), Choice::Record { enabled: true }, Choice::Point(Point { x: 13, y: 27 })] {
+                let mut bytes = [0; 64];
+                let written = binary::to_slice(&value, &mut bytes).unwrap();
+                assert_eq!(binary::encoded_len_with_limits(&value, binary::Limits::default()).unwrap(), written);
+                let decoded = binary::from_slice::<Choice>(&bytes[..written]).unwrap();
+                let mut second = [0; 64];
+                assert_eq!(binary::to_slice(&decoded, &mut second).unwrap(), written);
+                assert_eq!(&bytes[..written], &second[..written]);
+            }
+        }
+    "#,
+    )
+    .unwrap();
+    let output = Command::new("cargo")
+        .args(["test", "--offline", "--manifest-path"])
+        .arg(project.path().join("Cargo.toml"))
+        .env("CARGO_TARGET_DIR", root.join("target/message-proof"))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("test concrete_codecs_use_only_caller_storage ... ok"));
 }

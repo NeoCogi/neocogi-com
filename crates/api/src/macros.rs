@@ -144,9 +144,8 @@ macro_rules! com_int_enum {
         // SAFETY: a validated integer is self-contained and carries no pointers.
         unsafe impl $crate::ComInlineValue for $name {}
 
-        // Format-neutral construction is emitted by IDL only when requested.
-        // A unit enum uses the ordinary named enum/variant protocol; silently
-        // decoding an arbitrary raw integer here would bypass that policy.
+        // IDL emits the concrete NCB scalar codec for its eligible declarations.
+        // The integer wrapper itself does not select an initialization schema.
     };
 }
 
@@ -351,12 +350,7 @@ macro_rules! com_bit_enum {
             $repr: $crate::ComDeserialize,
         {
             /// Decodes raw storage while retaining unknown bits for boundary validation.
-            fn com_deserialize<'__nc_de, __NcDecoder>(
-                decoder: __NcDecoder,
-            ) -> ::core::result::Result<Self, __NcDecoder::Error>
-            where
-                __NcDecoder: $crate::ComDeserializer<'__nc_de>,
-            {
+            fn com_deserialize(decoder: &mut $crate::binary::Reader<'_>) -> ::core::result::Result<Self, $crate::binary::Error> {
                 <$repr as $crate::ComDeserialize>::com_deserialize(decoder).map(Self::from_raw)
             }
         }

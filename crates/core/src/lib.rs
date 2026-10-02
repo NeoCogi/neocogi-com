@@ -12,10 +12,10 @@
 //! headers from a plugin binary. ABI signatures are fixed views over hashes
 //! already computed by the IDL build tool; this crate does not hash contracts.
 //!
-//! The separate [`ComDeserialize`] protocol supports static source decoding.
-//! Concrete Rust types recursively construct their members through a
-//! format-specific adapter; it does not reinterpret descriptor metadata, write
-//! through ABI field offsets, or perform runtime class-registry lookup.
+//! [`ComDeserialize`] constructs persistent values through the concrete bounded
+//! NCB [`binary::Reader`]. Generated fields follow declaration order, independently
+//! of checked live-call wire layouts. Scalar and fixed-size codecs work without
+//! allocation; owned values and growable output require the `alloc` feature.
 //!
 //! [`NC_COM_CORE_ABI_VERSION`] selects the experimental pre-alpha core draft. This version
 //! identifies its current binary generation, not a ratified compatibility
@@ -76,9 +76,7 @@ pub use buffer::{NcCopyFromBufferOffset, NcCopyToBufferOffset};
 pub use client::{ComClientInterface, NcClientPointer};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
 pub use encode::ComSerialize;
-pub use decode::{ComDeserialize, ComDeserializer, ComEnum, ComRecord, ComRecordAccess, ComSequence, ComSequenceAccess, ComVariantAccess};
-#[cfg(feature = "alloc")]
-pub use decode::{ComMap, ComMapAccess};
+pub use decode::ComDeserialize;
 pub use guid::{NC_COM_GUID_NAMESPACE, NC_GUID_NIL, NcGuid, ParseGuidError, guid_from_name, guid_from_qualified_name};
 pub use signature::NcAbiSignature;
 #[cfg(feature = "alloc")]

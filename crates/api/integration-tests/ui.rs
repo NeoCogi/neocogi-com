@@ -84,6 +84,7 @@ fn ui_errors_are_stable() {
     t.compile_fail("integration-tests/ui/struct_reference_field.rs");
     t.compile_fail("integration-tests/ui/struct_string_field.rs");
     t.compile_fail("integration-tests/ui/struct_vec_field.rs");
+    t.compile_fail("integration-tests/ui/persistence_retired_policies.rs");
 }
 
 fn rustc_is_nightly() -> bool {

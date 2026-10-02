@@ -75,8 +75,6 @@ pub(crate) struct StructArgs {
     pub(crate) deserialize: bool,
     /// Whether omitted named fields retain their `Default` values.
     pub(crate) deserialize_default: bool,
-    /// Whether fields decode from an ordered sequence instead of a named record.
-    pub(crate) deserialize_sequence: bool,
     /// Generator-computed declaration signature required by expansion.
     pub(crate) assigned_signature: Option<LitByteStr>,
 }
@@ -181,7 +179,6 @@ impl Parse for StructArgs {
         let mut c_struct = false;
         let mut deserialize = false;
         let mut deserialize_default = false;
-        let mut deserialize_sequence = false;
         let mut assigned_signature = None;
 
         while !input.is_empty() {
@@ -207,11 +204,6 @@ impl Parse for StructArgs {
                     return Err(syn::Error::new(keyword.span(), "duplicate default"));
                 }
                 deserialize_default = true;
-            } else if keyword == "sequence" {
-                if deserialize_sequence {
-                    return Err(syn::Error::new(keyword.span(), "duplicate sequence"));
-                }
-                deserialize_sequence = true;
             } else if keyword == "packed" {
                 if repr.is_some() {
                     return Err(syn::Error::new(keyword.span(), "duplicate COM struct layout option"));
@@ -246,7 +238,7 @@ impl Parse for StructArgs {
             } else {
                 return Err(syn::Error::new(
                     keyword.span(),
-                    "expected c_struct, deserialize, default, sequence, packed, packed(N), align(N), assigned_signature = b\"32 bytes\", or neocogi_com = path",
+                    "expected c_struct, deserialize, default, packed, packed(N), align(N), assigned_signature = b\"32 bytes\", or neocogi_com = path",
                 ));
             }
 
@@ -256,12 +248,10 @@ impl Parse for StructArgs {
             input.parse::<Token![,]>()?;
         }
 
-        if (deserialize_default || deserialize_sequence) && !deserialize {
-            return Err(syn::Error::new(input.span(), "default and sequence require deserialize"));
+        if deserialize_default && !deserialize {
+            return Err(syn::Error::new(input.span(), "default requires deserialize"));
         }
-        if deserialize_default && deserialize_sequence {
-            return Err(syn::Error::new(input.span(), "default is only supported for named-record decoding"));
-        }
+
 
         Ok(Self {
             runtime_crate,
@@ -269,7 +259,6 @@ impl Parse for StructArgs {
             c_struct,
             deserialize,
             deserialize_default,
-            deserialize_sequence,
             assigned_signature,
         })
     }

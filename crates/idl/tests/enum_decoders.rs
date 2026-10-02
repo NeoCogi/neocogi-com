@@ -21,7 +21,7 @@ fn ordinary_enum_decoders_compile_and_reconstruct_every_payload_shape() {
         #[version(1)] struct Live { value: Maybe<ComPtr<IToken>> }
         #[version(1)] bitenum Flags: u16 { ONE = 1, TWO = 2 }
         #[version(1)] struct Scalars { id: Guid, status: Status, flags: Flags, mode: Mode }
-        #[version(1)] #[persistence(sequence)] struct Position { x: i32, y: i32 }
+        #[version(1)] struct Position { x: i32, y: i32 }
     "#;
     let graph = resolve_modules(vec![parse_module(Path::new("proof/enums.ncidl"), source).unwrap()]).unwrap();
     assert_eq!(
@@ -78,7 +78,7 @@ fn rejects_obsolete_opt_ins_and_inapplicable_format_policies() {
         let source = format!("#[version(1)] {attribute} enum Wrong {{ Value(u32) }}");
         assert!(parse_module(Path::new("proof/enums.ncidl"), &source).is_err());
     }
-    for policy in ["if_supported", "default, sequence", ""] {
+    for policy in ["sequence", "if_supported", "default, sequence", ""] {
         let source = format!("#[version(1)] #[persistence({policy})] struct Wrong {{ value: u32 }}");
         assert!(parse_module(Path::new("proof/enums.ncidl"), &source).is_err());
     }

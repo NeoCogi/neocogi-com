@@ -55,7 +55,7 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
             brace_token: input.brace_token,
             variants: input.variants.clone(),
         };
-        crate::deserialize::expand_enum(name, &data, &nc, None)?
+        crate::deserialize::expand_enum(name, &data, &nc)?
     } else {
         quote! {}
     };

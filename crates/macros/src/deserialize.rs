@@ -1,51 +1,32 @@
-//! Generation of format-neutral, statically typed decoding implementations.
+//! Generates direct, declaration-ordered NCB construction for concrete values.
 //!
-//! The generated code constructs concrete Rust values field by field. It does
-//! not inspect ABI offsets, query an object registry, or create an erased value
-//! graph. Generated support types and constructors use absolute core paths so
-//! authored declarations such as `Option` cannot capture them. COM attribute macros call the helpers in this module directly; the
-//! derive entry point exists for ordinary local types that are not ABI values.
+//! Named records and tuple payloads have the same counted binary representation.
+//! Only named records support omitted trailing fields through an explicit Default
+//! policy. Enums select a declaration ordinal and acquire only its typed payload;
+//! no format-adapter traits, arbitrary field dispatch or helper payload types remain.
 
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
-use syn::spanned::Spanned;
-use syn::{Attribute, Data, DeriveInput, Fields, Ident, LitStr, Path, Result, Type};
+use quote::quote;
+use syn::{Attribute, Data, DeriveInput, Fields, Ident, Path, Result};
 
 use crate::util::{push_error, validate_no_generics};
 
-/// Parsed behavior requested by the `ComDeserialize` derive helper attribute.
+/// The sole decoding policy beyond the declared value shape.
 #[derive(Default)]
 pub(crate) struct DeriveOptions {
-    /// Retain `Default` values for omitted named fields.
+    /// Retains Default values only for an absent suffix of a named record.
     pub(crate) default: bool,
-    /// Decode struct fields positionally from a sequence.
-    pub(crate) sequence: bool,
-    /// Rename enum variants using the supported source naming convention.
-    pub(crate) rename_all: Option<LitStr>,
 }
 
-/// Expands `#[derive(ComDeserialize)]` for an ordinary struct or fieldless enum.
+/// Expands a local value's NCB constructor; live ABI layout is handled separately.
 pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     validate_no_generics(&input.generics, "ComDeserialize derives")?;
     let options = parse_options(&input.attrs)?;
-    let ident = &input.ident;
     let nc: Path = syn::parse_quote!(::neocogi_com);
-
     match &input.data {
-        Data::Struct(data) => expand_struct(ident, &data.fields, &nc, options.default, options.sequence),
-        Data::Enum(data) => {
-            if options.default || options.sequence {
-                return Err(syn::Error::new(
-                    ident.span(),
-                    "default and sequence are only valid when deriving ComDeserialize for a struct",
-                ));
-            }
-            if data.variants.iter().all(|variant| matches!(variant.fields, Fields::Unit)) {
-                expand_unit_enum(ident, data.variants.iter().map(|variant| &variant.ident), &nc, options.rename_all.as_ref())
-            } else {
-                expand_enum(ident, data, &nc, options.rename_all.as_ref())
-            }
-        }
+        Data::Struct(record) => expand_struct(&input.ident, &record.fields, &nc, options.default),
+        Data::Enum(enumeration) if !options.default => expand_enum(&input.ident, enumeration, &nc),
+        Data::Enum(_) => Err(syn::Error::new_spanned(&input.ident, "default requires a named struct")),
         Data::Union(data) => Err(syn::Error::new_spanned(
             data.union_token,
             "ComDeserialize cannot derive safe construction for a union",
@@ -53,229 +34,115 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     }
 }
 
-/// Generates decoding for a COM struct after its layout has been validated.
-pub(crate) fn expand_struct(ident: &Ident, fields: &Fields, nc: &Path, default: bool, sequence: bool) -> Result<TokenStream> {
-    if default && sequence {
-        return Err(syn::Error::new(ident.span(), "default is only supported for named-record decoding"));
+/// Wraps one ordered constructor in the single concrete persistence trait.
+fn implementation(ident: &Ident, nc: &Path, body: TokenStream) -> TokenStream {
+    quote! {
+        impl #nc::ComDeserialize for #ident {
+            /// Acquires this value's declared NCB fields under the shared document budget.
+            fn com_deserialize(__nc_reader: &mut #nc::binary::Reader<'_>) -> ::core::result::Result<Self, #nc::binary::Error> {
+                #body
+            }
+        }
     }
+}
 
+/// Generates construction after COM value-layout validation, when used by an attribute macro.
+pub(crate) fn expand_struct(ident: &Ident, fields: &Fields, nc: &Path, default: bool) -> Result<TokenStream> {
+    let count = fields.len();
+    let body = match fields {
+        Fields::Named(_) if default => {
+            let assignments = fields.iter().map(|field| {
+                let member = field.ident.as_ref().expect("named field");
+                let ty = &field.ty;
+                quote! {
+                    if let ::core::option::Option::Some(__nc_field) = __nc_fields.next::<#ty>()? {
+                        __nc_value.#member = __nc_field;
+                    }
+                }
+            });
+            quote! {
+                __nc_reader.record(#count, |__nc_fields| {
+                    let mut __nc_value = Self::default();
+                    #(#assignments)*
+                    ::core::result::Result::Ok(__nc_value)
+                })
+            }
+        }
+        Fields::Named(_) => {
+            let construct = construction(fields, quote!(Self));
+            quote! { __nc_reader.record(#count, |__nc_fields| ::core::result::Result::Ok(#construct)) }
+        }
+        Fields::Unnamed(_) if !default => {
+            let construct = construction(fields, quote!(Self));
+            quote! { __nc_reader.sequence(|__nc_fields| ::core::result::Result::Ok(#construct)) }
+        }
+        Fields::Unnamed(_) => return Err(syn::Error::new_spanned(ident, "default requires a named struct")),
+        Fields::Unit => return Err(syn::Error::new_spanned(ident, "ComDeserialize requires a named or tuple struct")),
+    };
+    Ok(implementation(ident, nc, body))
+}
+
+/// Builds fields directly in their destination; previously acquired fields drop on failure.
+/// Authored member names occur only as member labels, never generated local bindings.
+fn construction(fields: &Fields, destination: TokenStream) -> TokenStream {
+    let missing = match fields {
+        Fields::Named(_) => "missing field",
+        _ => "invalid sequence length",
+    };
+    let values = fields.iter().map(|field| {
+        let ty = &field.ty;
+        let read = quote! { __nc_fields.next::<#ty>()?.ok_or_else(|| __nc_fields.error(#missing))? };
+        match &field.ident {
+            Some(member) => quote! { #member: #read },
+            None => read,
+        }
+    });
     match fields {
-        Fields::Named(fields) if !sequence => expand_named_record(ident, &fields.named, nc, default),
-        Fields::Named(fields) => expand_positional_struct(
-            ident,
-            fields.named.iter().map(|field| {
-                let member = field.ident.clone().expect("named field has an identifier");
-                (member, &field.ty)
-            }),
-            nc,
-            true,
-        ),
-        Fields::Unnamed(fields) if !default => expand_positional_struct(
-            ident,
-            fields
-                .unnamed
-                .iter()
-                .enumerate()
-                .map(|(index, field)| (Ident::new(&format!("__nc_value_{index}"), field.span()), &field.ty)),
-            nc,
-            false,
-        ),
-        Fields::Unnamed(_) => Err(syn::Error::new(ident.span(), "default requires a named struct")),
-        Fields::Unit => Err(syn::Error::new(ident.span(), "ComDeserialize requires a named or tuple struct")),
+        Fields::Named(_) => quote! { #destination { #(#values),* } },
+        Fields::Unnamed(_) => quote! { #destination(#(#values),*) },
+        Fields::Unit => destination,
     }
 }
 
-/// Generates decoding for a fieldless enum.
-pub(crate) fn expand_unit_enum<'a>(ident: &Ident, variants: impl Iterator<Item = &'a Ident>, nc: &Path, rename_all: Option<&LitStr>) -> Result<TokenStream> {
-    let convention = match rename_all {
-        None => None,
-        Some(value) if value.value() == "snake_case" => Some("snake_case"),
-        Some(value) => {
-            return Err(syn::Error::new(
-                value.span(),
-                "ComDeserialize currently supports only rename_all = \"snake_case\"",
-            ));
-        }
-    };
-    let variants = variants.collect::<Vec<_>>();
-    let names = variants.iter().map(|variant| {
-        let source = variant.to_string();
-        let name = if convention == Some("snake_case") { to_snake_case(&source) } else { source };
-        LitStr::new(&name, variant.span())
-    });
-    let arms = variants.iter().enumerate().map(|(index, variant)| {
+/// Generates one ordinal switch for unit, newtype, tuple and record cases.
+/// Aggregate payloads enter one additional value scope, preserving NCB budgets;
+/// newtypes read one child, and unit variants have no payload value at all.
+pub(crate) fn expand_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path) -> Result<TokenStream> {
+    let count = data.variants.len();
+    let arms = data.variants.iter().enumerate().map(|(index, variant)| {
         let index = index as u32;
-        quote! {
-            #index => {
-                value.unit()?;
-                ::core::result::Result::Ok(Self::#variant)
+        let name = &variant.ident;
+        let count = variant.fields.len();
+        let construct = construction(&variant.fields, quote!(Self::#name));
+        let body = match &variant.fields {
+            Fields::Unit => quote! { ::core::result::Result::Ok(Self::#name) },
+            Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
+                quote! { ::core::result::Result::Ok(Self::#name(__nc_reader.read()?)) }
             }
-        }
+            Fields::Unnamed(_) => quote! {
+                __nc_reader.value(|__nc_reader| __nc_reader.sequence(|__nc_fields| ::core::result::Result::Ok(#construct)))
+            },
+            Fields::Named(_) => quote! {
+                __nc_reader.value(|__nc_reader| __nc_reader.record(#count, |__nc_fields| ::core::result::Result::Ok(#construct)))
+            },
+        };
+        quote! { #index => { #body } }
     });
-
-    Ok(quote! {
-        impl #nc::ComDeserialize for #ident {
-            fn com_deserialize<'__nc_de, __NcDecoder>(decoder: __NcDecoder) -> ::core::result::Result<Self, __NcDecoder::Error>
-            where
-                __NcDecoder: #nc::ComDeserializer<'__nc_de>,
-            {
-                decoder.deserialize_enum::<Self>()
+    Ok(implementation(
+        ident,
+        nc,
+        quote! {
+            match __nc_reader.variant(#count)? {
+                #(#arms,)*
+                _ => ::core::result::Result::Err(__nc_reader.error("unknown enum variant")),
             }
-        }
-
-        impl #nc::ComEnum for #ident {
-            const NAME: &'static str = stringify!(#ident);
-            const VARIANTS: &'static [&'static str] = &[#(#names),*];
-
-            fn read_variant<'__nc_de, __NcVariant>(variant: u32, value: __NcVariant) -> ::core::result::Result<Self, __NcVariant::Error>
-            where
-                __NcVariant: #nc::ComVariantAccess<'__nc_de>,
-            {
-                match variant {
-                    #(#arms,)*
-                    _ => ::core::result::Result::Err(value.invalid_variant(variant, Self::VARIANTS)),
-                }
-            }
-        }
-    })
+        },
+    ))
 }
 
-/// Generates a strict or default-backed named record constructor.
-fn expand_named_record(ident: &Ident, fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>, nc: &Path, default: bool) -> Result<TokenStream> {
-    let members = fields
-        .iter()
-        .map(|field| field.ident.clone().expect("named field has an identifier"))
-        .collect::<Vec<_>>();
-    let types = fields.iter().map(|field| &field.ty).collect::<Vec<_>>();
-    let names = members
-        .iter()
-        .map(|member| LitStr::new(member.to_string().trim_start_matches("r#"), member.span()))
-        .collect::<Vec<_>>();
-    let seen = members.iter().map(|member| format_ident!("__nc_seen_{member}")).collect::<Vec<_>>();
-    let arms = members
-        .iter()
-        .zip(types.iter())
-        .zip(names.iter())
-        .zip(seen.iter())
-        .enumerate()
-        .map(|(index, (((member, ty), name), seen))| {
-            let index = index as u32;
-            if default {
-                quote! {
-                    #index => {
-                        if #seen {
-                            return ::core::result::Result::Err(record.duplicate_field(#name));
-                        }
-                        #seen = true;
-                        value.#member = record.next_value::<#ty>()?;
-                    }
-                }
-            } else {
-                quote! {
-                    #index => {
-                        if #seen.is_some() {
-                            return ::core::result::Result::Err(record.duplicate_field(#name));
-                        }
-                        #seen = ::core::option::Option::Some(record.next_value::<#ty>()?);
-                    }
-                }
-            }
-        });
-    let initializers = if default {
-        quote! {
-            let mut value = Self::default();
-            #(let mut #seen = false;)*
-        }
-    } else {
-        quote! {
-            #(let mut #seen: ::core::option::Option<#types> = ::core::option::Option::None;)*
-        }
-    };
-    let construct = if default {
-        quote! { ::core::result::Result::Ok(value) }
-    } else {
-        quote! {
-            ::core::result::Result::Ok(Self {
-                #(#members: #seen.ok_or_else(|| record.missing_field(#names))?,)*
-            })
-        }
-    };
-
-    Ok(quote! {
-        impl #nc::ComDeserialize for #ident {
-            fn com_deserialize<'__nc_de, __NcDecoder>(decoder: __NcDecoder) -> ::core::result::Result<Self, __NcDecoder::Error>
-            where
-                __NcDecoder: #nc::ComDeserializer<'__nc_de>,
-            {
-                decoder.deserialize_record::<Self>()
-            }
-        }
-
-        impl #nc::ComRecord for #ident {
-            const NAME: &'static str = stringify!(#ident);
-            const FIELDS: &'static [&'static str] = &[#(#names),*];
-
-            fn read_record<'__nc_de, __NcRecord>(record: &mut __NcRecord) -> ::core::result::Result<Self, __NcRecord::Error>
-            where
-                __NcRecord: #nc::ComRecordAccess<'__nc_de>,
-            {
-                #initializers
-                while let ::core::option::Option::Some(field) = record.next_field(Self::FIELDS)? {
-                    match field {
-                        #(#arms,)*
-                        _ => return ::core::result::Result::Err(record.invalid_field_index(field)),
-                    }
-                }
-                #construct
-            }
-        }
-    })
-}
-
-/// Generates positional construction for tuple structs and sequence records.
-fn expand_positional_struct<'a>(ident: &Ident, fields: impl Iterator<Item = (Ident, &'a Type)>, nc: &Path, named: bool) -> Result<TokenStream> {
-    let fields = fields.collect::<Vec<_>>();
-    let length = fields.len();
-    let bindings = fields.iter().enumerate().map(|(index, (_, ty))| {
-        let binding = format_ident!("__nc_element_{index}");
-        quote! {
-            let #binding: #ty = sequence
-                .next_element()?
-                .ok_or_else(|| sequence.invalid_length(#index, #length))?;
-        }
-    });
-    let values = (0..length).map(|index| format_ident!("__nc_element_{index}")).collect::<Vec<_>>();
-    let construct = if named {
-        let members = fields.iter().map(|(member, _)| member);
-        quote! { Self { #(#members: #values),* } }
-    } else {
-        quote! { Self(#(#values),*) }
-    };
-
-    Ok(quote! {
-        impl #nc::ComDeserialize for #ident {
-            fn com_deserialize<'__nc_de, __NcDecoder>(decoder: __NcDecoder) -> ::core::result::Result<Self, __NcDecoder::Error>
-            where
-                __NcDecoder: #nc::ComDeserializer<'__nc_de>,
-            {
-                decoder.deserialize_sequence::<Self>()
-            }
-        }
-
-        impl #nc::ComSequence for #ident {
-            fn read_sequence<'__nc_de, __NcSequence>(sequence: &mut __NcSequence) -> ::core::result::Result<Self, __NcSequence::Error>
-            where
-                __NcSequence: #nc::ComSequenceAccess<'__nc_de>,
-            {
-                #(#bindings)*
-                sequence.finish(#length)?;
-                ::core::result::Result::Ok(#construct)
-            }
-        }
-    })
-}
-
-/// Parses the derive's optional `#[com_deserialize(...)]` behavior.
+/// Parses explicit trailing-default policy and rejects retired format-adapter options.
+/// Names and record/sequence selection do not affect NCB, so accepting them would
+/// falsely promise a second schema mode to callers and the IDL compiler.
 pub(crate) fn parse_options(attrs: &[Attribute]) -> Result<DeriveOptions> {
     let mut options = DeriveOptions::default();
     let mut errors = None;
@@ -287,112 +154,15 @@ pub(crate) fn parse_options(attrs: &[Attribute]) -> Result<DeriveOptions> {
                 }
                 options.default = true;
                 Ok(())
-            } else if meta.path.is_ident("sequence") {
-                if options.sequence {
-                    return Err(meta.error("duplicate sequence"));
-                }
-                options.sequence = true;
-                Ok(())
-            } else if meta.path.is_ident("rename_all") {
-                if options.rename_all.is_some() {
-                    return Err(meta.error("duplicate rename_all"));
-                }
-                options.rename_all = Some(meta.value()?.parse()?);
-                Ok(())
             } else {
-                Err(meta.error("expected default, sequence, or rename_all = \"snake_case\""))
+                Err(meta.error("expected default; NCB fields are always positional and variants use ordinals"))
             }
         }) {
             push_error(&mut errors, error);
         }
     }
-    if options.default && options.sequence {
-        push_error(
-            &mut errors,
-            syn::Error::new(proc_macro2::Span::call_site(), "default and sequence cannot be combined"),
-        );
+    match errors {
+        Some(errors) => Err(errors),
+        None => Ok(options),
     }
-    if let Some(errors) = errors { Err(errors) } else { Ok(options) }
-}
-
-/// Converts a Rust variant identifier to the JSON-style snake-case spelling.
-pub(crate) fn to_snake_case(source: &str) -> String {
-    let mut result = String::with_capacity(source.len());
-    for (index, character) in source.chars().enumerate() {
-        if character.is_uppercase() {
-            if index != 0 {
-                result.push('_');
-            }
-            result.extend(character.to_lowercase());
-        } else {
-            result.push(character);
-        }
-    }
-    result
-}
-
-/// Constructs copied and owned native enums through one persistence protocol.
-/// Variant ordinals follow declaration order, independently of COM wire tags.
-/// Tuple/record helpers exist only inside the decoder and never become public
-/// application representations or participate in a COM calling convention.
-pub(crate) fn expand_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path, rename: Option<&LitStr>) -> Result<TokenStream> {
-    let mut helpers = Vec::new();
-    let mut names = Vec::new();
-    let mut arms = Vec::new();
-    for (index, variant) in data.variants.iter().enumerate() {
-        let index = index as u32;
-        let variant_name = &variant.ident;
-        let label = match rename {
-            Some(rule) if rule.value() == "snake_case" => to_snake_case(&variant_name.to_string()),
-            Some(rule) => return Err(syn::Error::new_spanned(rule, "only snake_case is supported")),
-            None => variant_name.to_string(),
-        };
-        names.push(label);
-        let body = match &variant.fields {
-            Fields::Unit => quote! { value.unit()?; ::core::result::Result::Ok(Self::#variant_name) },
-            Fields::Unnamed(fields) if fields.unnamed.len() == 1 => quote! { ::core::result::Result::Ok(Self::#variant_name(value.newtype()?)) },
-            fields => {
-                let helper = format_ident!("__Nc{}{}Decode", ident, variant_name);
-                let members = fields
-                    .iter()
-                    .enumerate()
-                    .map(|(i, field)| field.ident.clone().unwrap_or_else(|| format_ident!("field_{i}")))
-                    .collect::<Vec<_>>();
-                let types = fields.iter().map(|field| &field.ty).collect::<Vec<_>>();
-                let definition: syn::ItemStruct = syn::parse_quote! {
-                    /// Private typed fields acquired while decoding this one variant.
-                    struct #helper {
-                        #(/// Acquired field used to construct the selected native variant.
-                        #members: #types),*
-                    }
-                };
-                let sequence = matches!(fields, Fields::Unnamed(_));
-                let decoder = expand_struct(&helper, &definition.fields, nc, false, sequence)?;
-                helpers.push(quote! { #definition #decoder });
-                match fields {
-                    Fields::Named(_) => quote! { let payload: #helper = value.record()?; ::core::result::Result::Ok(Self::#variant_name { #(#members: payload.#members),* }) },
-                    _ => {
-                        let len = members.len();
-                        quote! { let payload: #helper = value.tuple(#len)?; ::core::result::Result::Ok(Self::#variant_name(#(payload.#members),*)) }
-                    }
-                }
-            }
-        };
-        arms.push(quote! { #index => { #body } });
-    }
-    Ok(quote! {
-        impl #nc::ComDeserialize for #ident {
-            /// Selects a native variant using the shared enum persistence protocol.
-            fn com_deserialize<'__de, __D: #nc::ComDeserializer<'__de>>(decoder: __D) -> ::core::result::Result<Self, __D::Error> { decoder.deserialize_enum::<Self>() }
-        }
-        impl #nc::ComEnum for #ident {
-            const NAME: &'static str = stringify!(#ident);
-            const VARIANTS: &'static [&'static str] = &[#(#names),*];
-            /// Acquires only the selected payload before constructing its native variant.
-            fn read_variant<'__de, __V: #nc::ComVariantAccess<'__de>>(variant: u32, value: __V) -> ::core::result::Result<Self, __V::Error> {
-                #(#helpers)*
-                match variant { #(#arms,)* _ => ::core::result::Result::Err(value.invalid_variant(variant, Self::VARIANTS)) }
-            }
-        }
-    })
 }

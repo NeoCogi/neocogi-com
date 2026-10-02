@@ -95,11 +95,9 @@ pub enum PersistencePolicy {
     Automatic,
     /// Named-record decoding starts from a host-authored Default implementation.
     Default,
-    /// Both codecs process fields as a positional sequence in declaration order.
-    Sequence,
 }
 impl PersistencePolicy {
-    /// An explicitly selected format requires codecs for every reachable field.
+    /// Explicit trailing defaults require codecs for every reachable field.
     pub fn required(self) -> bool {
         !matches!(self, Self::Automatic)
     }

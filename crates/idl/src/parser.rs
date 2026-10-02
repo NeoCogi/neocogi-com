@@ -1118,8 +1118,7 @@ fn parse_persistence(attribute: &Attribute) -> syn::Result<PersistencePolicy> {
     let policy = attribute.parse_args::<Ident>()?;
     match policy.to_string().as_str() {
         "default" => Ok(PersistencePolicy::Default),
-        "sequence" => Ok(PersistencePolicy::Sequence),
-        _ => Err(syn::Error::new_spanned(policy, "expected default or sequence; ordinary value persistence is automatic")),
+        _ => Err(syn::Error::new_spanned(policy, "expected default; NCB fields are always positional and ordinary value persistence is automatic")),
     }
 }
 

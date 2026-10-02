@@ -504,8 +504,8 @@ pub use macros::{ComDeserialize, ComSerialize, com_enum, com_class, com_factory,
 pub use neocogi_com_core::{format_abi_signature, format_method_signature};
 pub use neocogi_com_core::{
     __nc_abi_com_struct_type, __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClientInterface, ComDeserialize,
-    ComSerialize, ComDeserializer, ComEnum, ComFactoryBootstrap, ComFactoryInterface, ComClassInterface, ComFactoryImplementation, ComInterface,
-    ComPtr, ComRaw, ComRecord, ComRecordAccess, ComRef, ComSequence, ComSequenceAccess, ComStruct, ComVariantAccess, NcClientPointer, IID_INC_BYTES,
+    ComSerialize, ComFactoryBootstrap, ComFactoryInterface, ComClassInterface, ComFactoryImplementation, ComInterface,
+    ComPtr, ComRaw, ComRef, ComStruct, NcClientPointer, IID_INC_BYTES,
     IID_INC_STRING, IID_IUNKNOWN, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown,
     IUnknownVTable, NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_BOX_IN, NC_ABI_PASSING_COM_BOX_OUT, NC_ABI_PASSING_WEAK_COM_BOX_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET,
     NC_ABI_PASSING_OUT, NC_ABI_PASSING_BORROWED_VALUE, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
@@ -526,8 +526,6 @@ pub use neocogi_com_core::{
     activate_factory_implementation, guid_from_qualified_name, raw, return_factory_plugin_description, validate_factory_plugin_description,
     validate_qualified_name, validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
 };
-#[cfg(feature = "alloc")]
-pub use neocogi_com_core::{ComMap, ComMapAccess};
 pub use object::{
     __ComCallGate, __ComSharedCall, __ComExclusiveCall, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComAbiObject, ComObject,
     ThreadSafeComObject,

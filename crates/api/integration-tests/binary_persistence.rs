@@ -159,7 +159,7 @@ struct BudgetRecord {
     second: Vec<()>,
 }
 
-/// A wholly fieldless enum follows a separate derive path from payload enums.
+/// Fieldless and payload enums share one ordinal decoder without synthetic unit payloads.
 #[derive(Debug, PartialEq, ComSerialize, ComDeserialize)]
 enum BudgetChoice {
     /// No payload value follows this discriminant.
@@ -195,8 +195,11 @@ fn assert_accounting<T: ComSerialize + ComDeserialize + std::fmt::Debug + Partia
     }
     for limits in insufficient {
         let written = binary::to_vec_with_limits(value, limits).unwrap_err();
-        assert_eq!(binary::encoded_len_with_limits(value, limits).unwrap_err(), written,
-            "measurement diverged from writer for {value:?} under {limits:?}");
+        assert_eq!(
+            binary::encoded_len_with_limits(value, limits).unwrap_err(),
+            written,
+            "measurement diverged from writer for {value:?} under {limits:?}"
+        );
         assert!(
             binary::from_slice_with_limits::<T>(&encoded, limits).is_err(),
             "reader accepted {value:?} under {limits:?}"
@@ -288,9 +291,19 @@ fn oversized_persistence_state_is_rejected_by_both_directions() {
 fn measured_leaf_envelopes_match_real_encoding_and_decoding() {
     use neocogi_com::persistence::ObjectRecord;
     for state_bytes in [0, 1, 15, 16, 17, 64] {
-        let record = ObjectRecord { type_id: [0xab; 16], schema_version: u32::MAX, state: vec![0xff; state_bytes], children: vec![] };
+        let record = ObjectRecord {
+            type_id: [0xab; 16],
+            schema_version: u32::MAX,
+            state: vec![0xff; state_bytes],
+            children: vec![],
+        };
         let encoded = binary::to_vec(&record).unwrap();
-        let exact = Limits { bytes: encoded.len(), elements: state_bytes.max(16), depth: 3, values: state_bytes + 21 };
+        let exact = Limits {
+            bytes: encoded.len(),
+            elements: state_bytes.max(16),
+            depth: 3,
+            values: state_bytes + 21,
+        };
         assert_eq!(ObjectRecord::encoded_leaf_len(state_bytes, exact).unwrap(), encoded.len());
         assert_accounting(&record, exact.values, exact.depth, exact.elements);
         for limits in [
@@ -300,8 +313,10 @@ fn measured_leaf_envelopes_match_real_encoding_and_decoding() {
             Limits { values: exact.values - 1, ..exact },
             Limits { bytes: 0, ..exact },
         ] {
-            assert_eq!(ObjectRecord::encoded_leaf_len(state_bytes, limits).unwrap_err(),
-                binary::to_vec_with_limits(&record, limits).unwrap_err());
+            assert_eq!(
+                ObjectRecord::encoded_leaf_len(state_bytes, limits).unwrap_err(),
+                binary::to_vec_with_limits(&record, limits).unwrap_err()
+            );
             assert!(binary::from_slice_with_limits::<ObjectRecord>(&encoded, limits).is_err());
         }
     }
@@ -327,4 +342,139 @@ fn measurement_needs_no_output_allocation_and_encoding_failure_is_recoverable() 
     let report = probe.finish();
     assert_eq!(failed.unwrap_err().message, "output allocation failed");
     assert_eq!(report.denied, 1);
+}
+
+/// Ordinary ordered fields must be required unless trailing defaults are explicit.
+#[derive(Debug, PartialEq, ComSerialize, ComDeserialize)]
+struct OrderedState {
+    /// First payload also checks that text remains one value rather than a byte sequence.
+    label: String,
+    /// Restricted scalar must remain checked even after acquiring the preceding field.
+    enabled: bool,
+}
+
+/// Defaults apply only to missing trailing fields, never malformed present fields.
+#[derive(Debug, PartialEq, ComSerialize, ComDeserialize)]
+#[com_deserialize(default)]
+struct DefaultState {
+    /// Retained when the encoded record has no fields.
+    label: String,
+    /// Retained when the encoded record contains only its label.
+    enabled: bool,
+}
+impl Default for DefaultState {
+    /// Uses nonzero defaults so omitted values cannot be confused with fabricated zeros.
+    fn default() -> Self {
+        Self { label: "untitled".into(), enabled: true }
+    }
+}
+
+/// Literal bytes are independent of both generated codecs and their helpers.
+#[test]
+fn positional_records_preserve_golden_bytes_defaults_and_error_offsets() {
+    let full = b"NCB\x01\x02\0\0\0\x04\0\0\0Save\x01";
+    let value = OrderedState { label: "Save".into(), enabled: true };
+    assert_eq!(binary::to_vec(&value).unwrap(), full);
+    assert_eq!(binary::from_slice::<OrderedState>(full).unwrap(), value);
+    let mut fixed = [0; 32];
+    let len = binary::to_slice(&value, &mut fixed).unwrap();
+    assert_eq!(&fixed[..len], full);
+
+    let prefix = b"NCB\x01\x01\0\0\0\x04\0\0\0Save";
+    let error = binary::from_slice::<OrderedState>(prefix).unwrap_err();
+    assert_eq!(error, binary::Error { offset: 16, message: "missing field" });
+    assert_eq!(
+        binary::from_slice::<DefaultState>(prefix).unwrap(),
+        DefaultState { label: "Save".into(), enabled: true }
+    );
+    assert_eq!(binary::from_slice::<DefaultState>(b"NCB\x01\0\0\0\0").unwrap(), DefaultState::default());
+
+    // Encoded field count two promises a bool. Its absence is truncation, not
+    // permission to substitute Default; invalid present data also stays invalid.
+    assert_eq!(
+        binary::from_slice::<DefaultState>(&full[..16]).unwrap_err(),
+        binary::Error { offset: 16, message: "truncated value" }
+    );
+    let mut invalid = *full;
+    invalid[16] = 2;
+    assert_eq!(
+        binary::from_slice::<DefaultState>(&invalid).unwrap_err(),
+        binary::Error { offset: 17, message: "invalid boolean" }
+    );
+    invalid[8] = 5;
+    assert_eq!(
+        binary::from_slice::<OrderedState>(&invalid[..16]).unwrap_err(),
+        binary::Error { offset: 12, message: "truncated value" }
+    );
+    invalid[4] = 3;
+    assert_eq!(
+        binary::from_slice::<DefaultState>(&invalid).unwrap_err(),
+        binary::Error {
+            offset: 8,
+            message: "unknown record fields"
+        }
+    );
+}
+
+/// Counts only values acquired by the partial-construction regression below.
+static ACQUIRED_FIELDS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// A decoded field with observable destruction and no serialized owner pointer.
+#[derive(Debug)]
+struct Acquired;
+impl ComDeserialize for Acquired {
+    /// Reads one byte inside the current value scope before publishing this test resource.
+    fn com_deserialize(reader: &mut binary::Reader<'_>) -> Result<Self, binary::Error> {
+        u8::com_deserialize(reader)?;
+        ACQUIRED_FIELDS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(Self)
+    }
+}
+impl Drop for Acquired {
+    /// Every acquired field must be destroyed on a later field's decoding failure.
+    fn drop(&mut self) {
+        ACQUIRED_FIELDS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// Uses direct named-field construction with a fallible final scalar.
+#[derive(Debug, ComDeserialize)]
+struct PartialRecord {
+    /// Resource acquired before a later failure.
+    _first: Acquired,
+    /// A second resource proves cleanup is not limited to one temporary.
+    _second: Acquired,
+    /// Invalid tags force construction to unwind through ordinary Result propagation.
+    _flag: bool,
+}
+
+/// Both multi-field payload forms must release acquired values without helper structs.
+#[derive(Debug, ComDeserialize)]
+#[allow(dead_code)] // The failure cases never publish a completed enum to inspect.
+enum PartialChoice {
+    /// Positional variant with one acquired resource and a failing scalar.
+    Pair(Acquired, bool),
+    /// Named variant with the same resource ownership but record diagnostics.
+    Record {
+        /// Resource acquired before the invalid tag.
+        _first: Acquired,
+        /// Restricted scalar rejected before constructing the variant.
+        _flag: bool,
+    },
+}
+
+/// Typed locals, arrays and enum constructor arguments must all clean up on error.
+#[test]
+fn partial_ordered_construction_drops_every_acquired_field() {
+    assert_eq!(ACQUIRED_FIELDS.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert!(binary::from_slice::<PartialRecord>(b"NCB\x01\x03\0\0\0\x01\x01\x02").is_err());
+    assert_eq!(ACQUIRED_FIELDS.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert!(binary::from_slice::<[Acquired; 3]>(b"NCB\x01\x03\0\0\0\x01\x01").is_err());
+    assert_eq!(ACQUIRED_FIELDS.load(std::sync::atomic::Ordering::SeqCst), 0);
+    for ordinal in [0u8, 1] {
+        let mut bytes = *b"NCB\x01\0\0\0\0\x02\0\0\0\x01\x02";
+        bytes[4] = ordinal;
+        assert!(binary::from_slice::<PartialChoice>(&bytes).is_err());
+        assert_eq!(ACQUIRED_FIELDS.load(std::sync::atomic::Ordering::SeqCst), 0);
+    }
 }

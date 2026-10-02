@@ -35,7 +35,7 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
 
     let struct_ident = &input.ident;
     let deserialize_impl = if args.deserialize {
-        expand_struct_deserialize(struct_ident, &input.fields, &nc, args.deserialize_default, args.deserialize_sequence)?
+        expand_struct_deserialize(struct_ident, &input.fields, &nc, args.deserialize_default)?
     } else {
         quote! {}
     };

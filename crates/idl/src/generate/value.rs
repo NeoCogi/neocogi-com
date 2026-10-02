@@ -101,12 +101,11 @@ pub(super) fn persistence_attributes(graph: &Generation<'_>, declaration: &Decla
         DeclarationKind::Struct(record) => record.persistence,
         _ => crate::PersistencePolicy::Automatic,
     };
-    let (decoder, format) = match policy {
-        crate::PersistencePolicy::Automatic => (quote! { , deserialize }, quote! {}),
-        crate::PersistencePolicy::Default => (quote! { , deserialize, default }, quote! {}),
-        crate::PersistencePolicy::Sequence => (quote! { , deserialize, sequence }, quote! { #[com_deserialize(sequence)] }),
+    let decoder = match policy {
+        crate::PersistencePolicy::Automatic => quote! { , deserialize },
+        crate::PersistencePolicy::Default => quote! { , deserialize, default },
     };
-    (decoder, quote! { #[derive(::neocogi_com::ComSerialize)] #format })
+    (decoder, quote! { #[derive(::neocogi_com::ComSerialize)] })
 }
 
 /// Integer enums and bit sets persist their declared scalar, preserving unknown
@@ -122,7 +121,7 @@ pub(super) fn integer_persistence(name: &Ident, repr: &TokenStream) -> TokenStre
         }
         impl ::neocogi_com::ComDeserialize for #name {
             /// Restores raw values; semantic validity remains the operation's responsibility.
-            fn com_deserialize<'__de, D: ::neocogi_com::ComDeserializer<'__de>>(decoder: D) -> ::core::result::Result<Self, D::Error> {
+            fn com_deserialize(decoder: &mut ::neocogi_com::binary::Reader<'_>) -> ::core::result::Result<Self, ::neocogi_com::binary::Error> {
                 <#repr as ::neocogi_com::ComDeserialize>::com_deserialize(decoder).map(Self::from_raw)
             }
         }

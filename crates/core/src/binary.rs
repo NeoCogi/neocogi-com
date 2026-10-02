@@ -14,10 +14,7 @@
 
 #[cfg(feature = "alloc")]
 use alloc::{string::String, vec::Vec};
-use crate::{ComDeserialize, ComDeserializer, ComEnum, ComRecord, ComRecordAccess, ComSequence, ComSequenceAccess, ComSerialize, ComVariantAccess};
-
-#[cfg(feature = "alloc")]
-use crate::{ComMap, ComMapAccess};
+use crate::{ComDeserialize, ComSerialize};
 
 /// Wire-format marker, including the independently versioned codec revision.
 const MAGIC: &[u8; 4] = b"NCB\x01";
@@ -128,7 +125,7 @@ pub fn from_slice_with_limits<T: ComDeserialize>(bytes: &[u8], limits: Limits) -
     if reader.take(4)? != MAGIC {
         return Err(reader.error("unsupported binary format"));
     }
-    let value = reader.value()?;
+    let value = reader.read()?;
     if reader.offset != bytes.len() {
         return Err(reader.error("trailing bytes"));
     }
@@ -389,8 +386,13 @@ impl Writer<'_> {
     }
 }
 
-/// Bounded cursor over borrowed input; decoded values acquire their own storage.
-struct Reader<'de> {
+/// Bounded NCB cursor supplied to a typed ComDeserialize implementation.
+///
+/// Read child values with read(), which charges their shared depth/value budget.
+/// Record and sequence scopes consume fields in order; they never supply names or
+/// arbitrary indices. Errors abort decoding and retain the exact failure offset.
+/// Complete documents enter through from_slice or from_slice_with_limits.
+pub struct Reader<'de> {
     /// Entire immutable document.
     bytes: &'de [u8],
     /// Next unread byte.
@@ -400,7 +402,7 @@ struct Reader<'de> {
 }
 impl<'de> Reader<'de> {
     /// Creates a non-allocating diagnostic at the current cursor.
-    fn error(&self, message: &'static str) -> Error {
+    pub fn error(&self, message: &'static str) -> Error {
         Error { offset: self.offset, message }
     }
     /// Checks the range before advancing or allocating owned data.
@@ -410,10 +412,16 @@ impl<'de> Reader<'de> {
         self.offset = end;
         Ok(value)
     }
-    /// Every recursive construction consumes depth and total-value budgets.
-    fn value<T: ComDeserialize>(&mut self) -> Result<T, Error> {
+    /// Reads one typed child and charges its depth and cumulative value exactly once.
+    pub fn read<T: ComDeserialize>(&mut self) -> Result<T, Error> {
+        self.value(T::com_deserialize)
+    }
+    /// Opens one unnamed schema value, used for a tuple/record enum payload.
+    /// This gives aggregate payloads the same budget as ordinary named values
+    /// without generating private helper structs solely to invoke their decoder.
+    pub fn value<T>(&mut self, read: impl FnOnce(&mut Self) -> Result<T, Error>) -> Result<T, Error> {
         self.budget.enter(self.offset)?;
-        let result = T::com_deserialize(&mut *self);
+        let result = read(self);
         self.budget.leave(self.offset)?;
         result
     }
@@ -424,14 +432,13 @@ impl<'de> Reader<'de> {
         Ok(len)
     }
 }
-impl<'de> ComDeserializer<'de> for &mut Reader<'de> {
-    type Error = Error;
+impl Reader<'_> {
     /// Unit consumes no payload bytes.
-    fn deserialize_unit(self) -> Result<(), Error> {
+    pub(crate) fn deserialize_unit(&mut self) -> Result<(), Error> {
         Ok(())
     }
     /// Rejects every boolean tag other than zero or one.
-    fn deserialize_bool(self) -> Result<bool, Error> {
+    pub(crate) fn deserialize_bool(&mut self) -> Result<bool, Error> {
         match self.take(1)?[0] {
             0 => Ok(false),
             1 => Ok(true),
@@ -439,262 +446,151 @@ impl<'de> ComDeserializer<'de> for &mut Reader<'de> {
         }
     }
     /// Reads exactly the declared width without pointer casts.
-    fn deserialize_u8(self) -> Result<u8, Error> {
+    pub(crate) fn deserialize_u8(&mut self) -> Result<u8, Error> {
         Ok(u8::from_le_bytes(self.take(1)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    fn deserialize_u16(self) -> Result<u16, Error> {
+    pub(crate) fn deserialize_u16(&mut self) -> Result<u16, Error> {
         Ok(u16::from_le_bytes(self.take(2)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    fn deserialize_u32(self) -> Result<u32, Error> {
+    pub(crate) fn deserialize_u32(&mut self) -> Result<u32, Error> {
         Ok(u32::from_le_bytes(self.take(4)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    fn deserialize_u64(self) -> Result<u64, Error> {
+    pub(crate) fn deserialize_u64(&mut self) -> Result<u64, Error> {
         Ok(u64::from_le_bytes(self.take(8)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    fn deserialize_i8(self) -> Result<i8, Error> {
+    pub(crate) fn deserialize_i8(&mut self) -> Result<i8, Error> {
         Ok(i8::from_le_bytes(self.take(1)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    fn deserialize_i16(self) -> Result<i16, Error> {
+    pub(crate) fn deserialize_i16(&mut self) -> Result<i16, Error> {
         Ok(i16::from_le_bytes(self.take(2)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    fn deserialize_i32(self) -> Result<i32, Error> {
+    pub(crate) fn deserialize_i32(&mut self) -> Result<i32, Error> {
         Ok(i32::from_le_bytes(self.take(4)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    fn deserialize_i64(self) -> Result<i64, Error> {
+    pub(crate) fn deserialize_i64(&mut self) -> Result<i64, Error> {
         Ok(i64::from_le_bytes(self.take(8)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    fn deserialize_f32(self) -> Result<f32, Error> {
+    pub(crate) fn deserialize_f32(&mut self) -> Result<f32, Error> {
         Ok(f32::from_le_bytes(self.take(4)?.try_into().expect("checked scalar width")))
     }
     /// Reads exactly the declared width without pointer casts.
-    fn deserialize_f64(self) -> Result<f64, Error> {
+    pub(crate) fn deserialize_f64(&mut self) -> Result<f64, Error> {
         Ok(f64::from_le_bytes(self.take(8)?.try_into().expect("checked scalar width")))
     }
     /// A value saved on a wider target must fit the receiving pointer width.
-    fn deserialize_usize(self) -> Result<usize, Error> {
+    pub(crate) fn deserialize_usize(&mut self) -> Result<usize, Error> {
         usize::try_from(self.deserialize_u64()?).map_err(|_| self.error("usize overflow"))
     }
     /// Signed pointer-width values are checked before conversion.
-    fn deserialize_isize(self) -> Result<isize, Error> {
+    pub(crate) fn deserialize_isize(&mut self) -> Result<isize, Error> {
         isize::try_from(self.deserialize_i64()?).map_err(|_| self.error("isize overflow"))
     }
     /// Validates UTF-8 before making the one owned string copy.
     #[cfg(feature = "alloc")]
-    fn deserialize_string(self) -> Result<String, Error> {
+    pub(crate) fn deserialize_string(&mut self) -> Result<String, Error> {
         let len = self.deserialize_u32()? as usize;
         let text = core::str::from_utf8(self.take(len)?).map_err(|_| self.error("invalid UTF-8"))?;
         Ok(text.into())
     }
     /// Uses the same strict tag as booleans.
-    fn deserialize_option<T: ComDeserialize>(self) -> Result<Option<T>, Error> {
+    pub(crate) fn deserialize_option<T: ComDeserialize>(&mut self) -> Result<Option<T>, Error> {
         match self.deserialize_bool()? {
-            true => self.value().map(Some),
+            true => self.read().map(Some),
             false => Ok(None),
         }
     }
-    /// Feeds declaration-order indices to the existing generated record decoder.
-    fn deserialize_record<T: ComRecord>(self) -> Result<T, Error> {
-        let len = self.count(1)?;
-        if len > T::FIELDS.len() {
+    /// Reads a declaration-ordered record; only an omitted suffix may be absent.
+    /// Reject excess fields before entering user construction, and require the
+    /// constructor to consume every field that the document actually contains.
+    pub fn record<T>(&mut self, maximum: usize, read: impl FnOnce(&mut Sequence<'_, '_>) -> Result<T, Error>) -> Result<T, Error> {
+        let remaining = self.count(1)?;
+        if remaining > maximum {
             return Err(self.error("unknown record fields"));
         }
-        let mut access = Record {
-            reader: self,
-            len,
-            index: 0,
-            pending: false,
-        };
-        let value = T::read_record(&mut access)?;
-        if access.index != len || access.pending {
-            return Err(access.reader.error("unconsumed record fields"));
-        }
+        let mut fields = Sequence { reader: self, remaining };
+        let value = read(&mut fields)?;
+        fields.finish("unconsumed record fields")?;
         Ok(value)
     }
-    /// Verifies that the typed reader consumed the entire declared sequence.
-    fn deserialize_sequence<T: ComSequence>(self) -> Result<T, Error> {
+    /// Reads a counted sequence and requires complete consumption of its elements.
+    pub fn sequence<T>(&mut self, read: impl FnOnce(&mut Sequence<'_, '_>) -> Result<T, Error>) -> Result<T, Error> {
         let remaining = self.count(1)?;
-        let mut access = Sequence { reader: self, remaining };
-        let value = T::read_sequence(&mut access)?;
-        access.finish(0)?;
+        let mut elements = Sequence { reader: self, remaining };
+        let value = read(&mut elements)?;
+        elements.finish("unconsumed sequence elements")?;
         Ok(value)
     }
-    /// Unknown variant ordinals fail before reading any payload.
-    fn deserialize_enum<T: ComEnum>(self) -> Result<T, Error> {
+    /// Reads and validates an enum ordinal before acquiring its selected payload.
+    /// The ordinal is framing within the already charged enum value.
+    pub fn variant(&mut self, count: usize) -> Result<u32, Error> {
         let index = self.deserialize_u32()?;
-        if index as usize >= T::VARIANTS.len() {
-            return Err(self.error("unknown enum variant"));
+        match (index as usize) < count {
+            true => Ok(index),
+            false => Err(self.error("unknown enum variant")),
         }
-        T::read_variant(index, self)
     }
-    /// Alternating key/value access is checked explicitly.
+    /// Builds the sole supported owned map directly from bounded key/value pairs.
+    /// Keys and values each consume a value; a pair adds no synthetic tuple level.
     #[cfg(feature = "alloc")]
-    fn deserialize_map<T: ComMap>(self) -> Result<T, Error> {
-        let remaining = self.count(2)?;
-        let mut access = Map { reader: self, remaining, pending: false };
-        let value = T::read_map(&mut access)?;
-        if access.remaining != 0 || access.pending {
-            return Err(access.reader.error("unconsumed map entries"));
+    pub(crate) fn map<K: ComDeserialize + Ord, V: ComDeserialize>(&mut self) -> Result<alloc::collections::BTreeMap<K, V>, Error> {
+        let count = self.count(2)?;
+        let mut values = alloc::collections::BTreeMap::new();
+        for _ in 0..count {
+            let key = self.read()?;
+            let value = self.read()?;
+            if values.insert(key, value).is_some() {
+                return Err(self.error("duplicate map key"));
+            }
         }
-        Ok(value)
+        Ok(values)
     }
 }
 
-/// Named-field decoder state; a value must follow each reported field index.
-struct Record<'a, 'de> {
-    /// Shared cursor borrowed for this record only.
+/// One counted sequence of positional fields or elements, borrowing its parent cursor.
+///
+/// The next value's type comes from the static schema. No field can be revisited,
+/// reordered, or read beyond the encoded count. Parent scope completion checks
+/// that the constructor consumed all values. This is concrete NCB state, not an
+/// extensible input-format protocol.
+pub struct Sequence<'a, 'de> {
+    /// Cursor carrying the document-wide byte/depth/value limits.
     reader: &'a mut Reader<'de>,
-    /// Encoded field count.
-    len: usize,
-    /// Next declaration-order field index.
-    index: usize,
-    /// A field name has been supplied but its value has not been read.
-    pending: bool,
-}
-impl<'de> ComRecordAccess<'de> for Record<'_, 'de> {
-    type Error = Error;
-    /// Returns one declaration-order field at a time.
-    fn next_field(&mut self, _: &'static [&'static str]) -> Result<Option<u32>, Error> {
-        if self.pending {
-            return Err(self.reader.error("record value required"));
-        }
-        match self.index < self.len {
-            true => {
-                let index = self.index;
-                self.index += 1;
-                self.pending = true;
-                Ok(Some(index as u32))
-            }
-            false => Ok(None),
-        }
-    }
-    /// Consumes the pending field through its concrete decoder.
-    fn next_value<T: ComDeserialize>(&mut self) -> Result<T, Error> {
-        if !self.pending {
-            return Err(self.reader.error("record field required"));
-        }
-        self.pending = false;
-        self.reader.value()
-    }
-    /// Binary fields are positional, but custom readers still receive diagnostics.
-    fn duplicate_field(&self, _: &'static str) -> Error {
-        self.reader.error("duplicate field")
-    }
-    /// Missing required fields are rejected by the generated constructor.
-    fn missing_field(&self, _: &'static str) -> Error {
-        self.reader.error("missing field")
-    }
-    /// Reports an invalid custom field index.
-    fn invalid_field_index(&self, _: u32) -> Error {
-        self.reader.error("invalid field index")
-    }
-}
-/// Remaining sequence count prevents under- and over-consumption.
-struct Sequence<'a, 'de> {
-    /// Borrowed document cursor.
-    reader: &'a mut Reader<'de>,
-    /// Elements still unread.
+    /// Encoded values still available in this container.
     remaining: usize,
 }
-impl<'de> ComSequenceAccess<'de> for Sequence<'_, 'de> {
-    type Error = Error;
-    /// Advances only after proving an element remains.
-    fn next_element<T: ComDeserialize>(&mut self) -> Result<Option<T>, Error> {
+impl Sequence<'_, '_> {
+    /// Acquires the next concrete value, or reports a genuinely absent suffix.
+    /// Truncated bytes remain an error and never masquerade as an omitted field.
+    pub fn next<T: ComDeserialize>(&mut self) -> Result<Option<T>, Error> {
         match self.remaining {
             0 => Ok(None),
             _ => {
                 self.remaining -= 1;
-                self.reader.value().map(Some)
+                self.reader.read().map(Some)
             }
         }
     }
-    /// Gives the already validated allocation bound.
-    fn size_hint(&self) -> Option<usize> {
-        Some(self.remaining)
+    /// Returns the exact remaining count, already checked against collection limits.
+    pub fn remaining(&self) -> usize {
+        self.remaining
     }
-    /// Retains the caller's per-collection cap.
-    fn element_limit(&self) -> usize {
-        self.reader.budget.limits.elements
+    /// Associates a schema-specific diagnostic with the current failure position.
+    pub fn error(&self, message: &'static str) -> Error {
+        self.reader.error(message)
     }
-    /// Fixed arrays and custom readers must consume every encoded element.
-    fn finish(&mut self, _: usize) -> Result<(), Error> {
+    /// Rejects unconsumed values before returning a completed container.
+    fn finish(&self, message: &'static str) -> Result<(), Error> {
         match self.remaining {
             0 => Ok(()),
-            _ => Err(self.reader.error("unconsumed sequence elements")),
+            _ => Err(self.error(message)),
         }
-    }
-    /// Reports an array or tuple cardinality mismatch.
-    fn invalid_length(&self, _: usize, _: usize) -> Error {
-        self.reader.error("invalid sequence length")
-    }
-}
-impl<'de> ComVariantAccess<'de> for &mut Reader<'de> {
-    type Error = Error;
-    /// Unit variants have no payload.
-    fn unit(self) -> Result<(), Error> {
-        Ok(())
-    }
-    /// Newtype variants wrap one typed value.
-    fn newtype<T: ComDeserialize>(self) -> Result<T, Error> {
-        self.value()
-    }
-    /// Tuple payloads reuse collection length checks.
-    fn tuple<T: ComSequence>(self, _: usize) -> Result<T, Error> {
-        self.value()
-    }
-    /// Record payloads reuse field checks.
-    fn record<T: ComRecord>(self) -> Result<T, Error> {
-        self.value()
-    }
-    /// Rejects unexpected ordinals from a custom enum implementation.
-    fn invalid_variant(self, _: u32, _: &'static [&'static str]) -> Error {
-        self.error("invalid variant")
-    }
-}
-/// A map must alternate keys and values, including for zero-sized payloads.
-#[cfg(feature = "alloc")]
-struct Map<'a, 'de> {
-    /// Borrowed document cursor.
-    reader: &'a mut Reader<'de>,
-    /// Pairs whose keys have not yet been read.
-    remaining: usize,
-    /// A key is waiting for its corresponding value.
-    pending: bool,
-}
-#[cfg(feature = "alloc")]
-impl<'de> ComMapAccess<'de> for Map<'_, 'de> {
-    type Error = Error;
-    /// Reads the next key while preserving pair boundaries.
-    fn next_key<K: ComDeserialize>(&mut self) -> Result<Option<K>, Error> {
-        if self.pending {
-            return Err(self.reader.error("map value required"));
-        }
-        match self.remaining {
-            0 => Ok(None),
-            _ => {
-                self.remaining -= 1;
-                self.pending = true;
-                self.reader.value().map(Some)
-            }
-        }
-    }
-    /// Reads the pending value, never a value without its key.
-    fn next_value<V: ComDeserialize>(&mut self) -> Result<V, Error> {
-        if !self.pending {
-            return Err(self.reader.error("map key required"));
-        }
-        self.pending = false;
-        self.reader.value()
-    }
-    /// Ordered-map construction rejects duplicate keys instead of overwriting.
-    fn duplicate_key(&self) -> Error {
-        self.reader.error("duplicate map key")
     }
 }

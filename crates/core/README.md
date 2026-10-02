@@ -115,6 +115,11 @@ universal safe `as_str(&self) -> &str` on raw ABI views. See the
 `ComSerialize` streams explicit initialization records through the concrete
 bounded `binary::Writer`. NCB is the supported persistence encoding; there is no
 serializer-adapter trait or runtime format selection.
+`ComDeserialize` takes the concrete `binary::Reader`. Generated constructors read
+each field once in order. `Reader::record` and `Reader::sequence` lend one bounded
+ordered cursor and check complete consumption; no record names, field indices or
+duplicate-field state machine participate. Enum payloads are constructed directly
+under their proper nested value scope, without generated temporary payload types.
 The facade derives `ComSerialize` and `ComDeserialize` for owned records and
 enums, including recursive vectors and named/tuple payloads. NCB writes fields in
 declaration order and enum ordinals without names. This is value

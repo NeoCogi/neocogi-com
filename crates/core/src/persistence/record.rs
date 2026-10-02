@@ -1,7 +1,7 @@
 //! Portable initialization values, independent of runtime allocation ownership.
 
 use alloc::vec::Vec;
-use crate::{binary, ComDeserialize, ComDeserializer, ComRecord, ComRecordAccess, ComSerialize};
+use crate::{binary, ComDeserialize, ComSerialize};
 
 /// One owned initialization tree with the original NCB-v1 field ordering.
 ///
@@ -20,6 +20,8 @@ pub struct ObjectRecord {
 }
 
 impl ObjectRecord {
+    /// Count shared by the ordered encoder, decoder and virtual leaf measurement.
+    const FIELD_COUNT: usize = 4;
     /// Measures a leaf persistence envelope before allocating its state bytes.
     /// UUID/revision contents have fixed widths, so zero placeholders give the
     /// exact shape for any recipe. State remains a sequence of byte values; it
@@ -39,7 +41,7 @@ impl ObjectRecord {
         state: &T,
         children: &[Self],
     ) -> Result<(), binary::Error> {
-        serializer.begin_sequence(Self::FIELDS.len())?;
+        serializer.begin_sequence(Self::FIELD_COUNT)?;
         type_id.com_serialize(serializer)?;
         schema_version.com_serialize(serializer)?;
         state.com_serialize(serializer)?;
@@ -49,7 +51,7 @@ impl ObjectRecord {
 }
 
 impl ComSerialize for ObjectRecord {
-    /// Preserves the named schema and exact field order used before relocation.
+    /// Preserves the positional schema and exact field order used before relocation.
     fn com_serialize(&self, serializer: &mut binary::Writer<'_>) -> Result<(), binary::Error> {
         Self::serialize_fields(serializer, &self.type_id, self.schema_version, &self.state, &self.children)
     }
@@ -82,50 +84,16 @@ impl ComSerialize for ByteCount {
 }
 
 impl ComDeserialize for ObjectRecord {
-    /// Delegates format policy and limits to the selected typed decoder.
-    fn com_deserialize<'de, D: ComDeserializer<'de>>(decoder: D) -> Result<Self, D::Error> {
-        decoder.deserialize_record::<Self>()
-    }
-}
-
-impl ComRecord for ObjectRecord {
-    const NAME: &'static str = "ObjectRecord";
-    const FIELDS: &'static [&'static str] = &["type_id", "schema_version", "state", "children"];
-
-    /// Rejects missing, duplicate and unknown fields without an erased value map.
-    fn read_record<'de, A: ComRecordAccess<'de>>(record: &mut A) -> Result<Self, A::Error> {
-        let mut type_id = None;
-        let mut schema_version = None;
-        let mut state = None;
-        let mut children = None;
-        // Each typed slot is either absent or initialized exactly once. Match
-        // makes that transition explicit and preserves the former derive policy.
-        while let Some(field) = record.next_field(Self::FIELDS)? {
-            match field {
-                0 => read_once(record, &mut type_id, "type_id")?,
-                1 => read_once(record, &mut schema_version, "schema_version")?,
-                2 => read_once(record, &mut state, "state")?,
-                3 => read_once(record, &mut children, "children")?,
-                _ => return Err(record.invalid_field_index(field)),
-            }
-        }
-        Ok(Self {
-            type_id: type_id.ok_or_else(|| record.missing_field("type_id"))?,
-            schema_version: schema_version.ok_or_else(|| record.missing_field("schema_version"))?,
-            state: state.ok_or_else(|| record.missing_field("state"))?,
-            children: children.ok_or_else(|| record.missing_field("children"))?,
+    /// Acquires each required field once, in the same order used by serialize_fields.
+    fn com_deserialize(reader: &mut binary::Reader<'_>) -> Result<Self, binary::Error> {
+        reader.record(Self::FIELD_COUNT, |fields| {
+            Ok(Self {
+                type_id: fields.next()?.ok_or_else(|| fields.error("missing field"))?,
+                schema_version: fields.next()?.ok_or_else(|| fields.error("missing field"))?,
+                state: fields.next()?.ok_or_else(|| fields.error("missing field"))?,
+                children: fields.next()?.ok_or_else(|| fields.error("missing field"))?,
+            })
         })
-    }
-}
-
-/// Initializes a statically typed field once, preserving decoder diagnostics.
-fn read_once<'de, A: ComRecordAccess<'de>, T: ComDeserialize>(record: &mut A, slot: &mut Option<T>, name: &'static str) -> Result<(), A::Error> {
-    match slot {
-        Some(_) => Err(record.duplicate_field(name)),
-        None => {
-            *slot = Some(record.next_value()?);
-            Ok(())
-        }
     }
 }
 

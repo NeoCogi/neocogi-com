@@ -158,11 +158,10 @@ use structs::expand_com_struct;
 
 /// Derives format-neutral, statically typed decoding for a local Rust value.
 ///
-/// Named structs decode as records, tuple structs decode as sequences, and
-/// enums decode by variant name and typed payload. Use
-/// `#[com_deserialize(default)]` on a named struct to retain `Default` values
-/// for omitted fields, `#[com_deserialize(sequence)]` to decode a named struct
-/// positionally, or `#[com_deserialize(rename_all = "snake_case")]` on an enum.
+/// Struct fields decode in declaration order; enums use declaration ordinals
+/// and recursively typed payloads. Use `#[com_deserialize(default)]` on a named
+/// struct to retain `Default` values for an omitted suffix. Truncated field bytes
+/// remain errors. NCB has no alternate named-field or renamed-variant mode.
 /// COM ABI records should normally use `#[com_struct(deserialize)]` instead so
 /// one attribute owns both layout and decoding generation.
 #[proc_macro_derive(ComDeserialize, attributes(com_deserialize))]
@@ -175,7 +174,7 @@ pub fn derive_com_deserialize(item: TokenStream) -> TokenStream {
 }
 
 /// Derives field-by-field serialization for owned initialization records and enums.
-/// Uses the same com_deserialize naming/sequence policy as the matching decoder.
+/// Uses the same counted fields and declaration ordinals as the NCB decoder.
 #[proc_macro_derive(ComSerialize, attributes(com_deserialize))]
 pub fn derive_com_serialize(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);

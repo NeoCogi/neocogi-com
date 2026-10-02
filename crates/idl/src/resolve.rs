@@ -1662,11 +1662,12 @@ struct EncodingScope<'a> {
 }
 
 /// Encodes authored persistence policy uniformly; diagnostic formatting is never ABI grammar.
+/// Surviving policy tags retain their meaning. The retired sequence tag is no
+/// longer emitted; removing that authored policy requires a declaration revision.
 fn encode_persistence(policy: crate::PersistencePolicy, encoder: &mut CanonicalEncoder) {
     encoder.tag(match policy {
         crate::PersistencePolicy::Automatic => 0,
         crate::PersistencePolicy::Default => 1,
-        crate::PersistencePolicy::Sequence => 2,
     });
 }
 

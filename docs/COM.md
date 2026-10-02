@@ -233,12 +233,15 @@ descriptors; it does not serialize or hash contracts. Dynamic and monolithic
 assemblies therefore perform the same exact identity and signature checks
 without a validation-mode build setting.
 
-## Typed source decoding
+## Typed NCB persistence
 
-`ComDeserialize` and `ComDeserializer` provide format-neutral, statically typed
-construction inside one Rust artifact. They do not use `Any`, an erased value
-tree, runtime class lookup, or descriptor-offset mutation, and they are not a
-cross-library marshalling format.
+`ComSerialize` and `ComDeserialize` operate on concrete bounded NCB cursors
+inside one Rust artifact. Struct fields are constructed in declaration order;
+enums select an ordinal and construct only their typed payload. The
+[persistence contract](core/README.md#experimental-persistent-values) specifies
+the format, shared limits, trailing defaults and allocation-free entrypoints.
+Other file formats own their own codecs; they do not implement a COM format-adapter
+protocol. Live COM calls retain their separate checked wire representation.
 
 ## Crates
 

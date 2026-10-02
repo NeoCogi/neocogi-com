@@ -29,7 +29,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
             fields(&data.fields, &values, &nc)
         }
         Data::Enum(data) => {
-            if options.sequence || options.default {
+            if options.default {
                 return Err(syn::Error::new_spanned(name, "record policies cannot apply to an enum"));
             }
             let mut arms = Vec::new();
