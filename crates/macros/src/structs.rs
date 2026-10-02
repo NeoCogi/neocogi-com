@@ -91,7 +91,8 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
             const ABI_TYPE: #nc::NcAbiType =
                 #nc::NcAbiType::Aggregate(#nc::NcAbiSignature::from_static(&#signature_bytes_ident));
         }
-        // SAFETY: Fields have copied-value identities and no release protocol.
+        // SAFETY: Fields are copied and have no release protocol. Ordinary fields
+        // also have nominal identities; external C fields supply checked codecs.
         // The generated ComInlineValue codec handles their foreign layout;
         // nested native enums must never be reinterpreted as wire storage.
         unsafe impl #nc::AbiPlainValue for #struct_ident {}

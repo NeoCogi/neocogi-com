@@ -12,6 +12,11 @@ struct Catalog {
     bytes: Vec<u8>,
 }
 impl IDesignWidgetCatalog for Catalog {
+    /// This test provider offers construction/metadata only, without a settings editor.
+    fn create_editor(&self, _: u32, _: neocogi_com::ComRef<'_, neocogi_ui::UiFactoryAbi>, _: neocogi_com::NcCopyFromBufferOffset<'_, u8>) -> Result<neocogi_com::ComBox<neocogi_ui_document::contracts::IDesignSettingsEditorAbi>, neocogi_com::NcStatus> {
+        Err(neocogi_com::NC_E_NOINTERFACE)
+    }
+
     /// One description is sufficient to exercise registry admission and form export.
     fn widget_count(&self) -> Result<u32, NcStatus> {
         Ok(1)
