@@ -23,12 +23,12 @@ impl IDesignWidgetCatalog for Catalog {
     }
 
     /// Supports the catalog's length-query then bounded-copy protocol.
-    fn describe(&self, index: u32, mut output: NcCopyToBufferOffset<'_, u8>) -> Result<u32, NcStatus> {
+    fn describe(&self, index: u32, mut output: NcOutputWriter<'_, u8>) -> Result<u32, NcStatus> {
         if index != 0 {
             return Err(NC_E_INVALID_ARG);
         }
-        if output.len() >= self.bytes.len() {
-            output.as_mut_slice()[..self.bytes.len()].copy_from_slice(&self.bytes);
+        if output.capacity() >= self.bytes.len() {
+            output.extend_from_slice(&self.bytes)?;
         }
         Ok(self.bytes.len() as u32)
     }

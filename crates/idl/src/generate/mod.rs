@@ -802,7 +802,7 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
         }
         AbiType::OutputSlice(element) => {
             let element = value_type(graph, module, element)?;
-            Ok(quote! { ::neocogi_com::NcCopyToBufferOffset<'_, #element> })
+            Ok(quote! { ::neocogi_com::NcOutputWriter<'_, #element> })
         }
         AbiType::ComBox(value) => box_reference_type(graph, module, value, false),
         AbiType::WeakComBox(_) | AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => Err(GenerateError::new(

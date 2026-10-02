@@ -55,6 +55,7 @@ LINKED_TESTS = {
     "factory_plugin_runtime": "generated_contract_factory_activates_without_a_class_table",
     "object_persistence": "registry_ownership_is_local_and_releases_retained_factories",
     "checked_values": "invalid_nested_bool_fails_copied_and_buffer_thunks",
+    "output_buffers": "raw_output_initializes_only_reported_prefix_and_reuses_capacity",
     "output_completion": "generated_calls::generated_commit_completes_with_all_further_allocation_denied",
     "exclusive_com": "container_owner_destruction_expires_all_cached_interfaces",
     "weak_com": "weak_tokens_do_not_retain_values_and_all_projections_share_identity",
@@ -201,7 +202,7 @@ def safety() -> dict:
         ("borrowed_values", "owned_message_outlives_producer_guard_and_source"),
         # Name required targets explicitly: reordering the native table must
         # not silently substitute a different Miri workload after a migration.
-        *((name, LINKED_TESTS[name]) for name in ("checked_values", "output_completion", "exclusive_com", "weak_com")),
+        *((name, LINKED_TESTS[name]) for name in ("checked_values", "output_buffers", "output_completion", "exclusive_com", "weak_com")),
     ))
     # These tests traverse hundreds of thousands of values at the public budget
     # boundary. They run in linked/ASan/TSan suites; Miri covers allocation faults,

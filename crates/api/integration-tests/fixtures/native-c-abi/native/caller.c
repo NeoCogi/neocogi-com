@@ -137,7 +137,8 @@ struct INativeCalculatorVTable {
         void *self,
         uint64_t offset,
         uint64_t len,
-        uint8_t *output
+        uint8_t *output,
+        uint64_t *written
     );
     NcStatus (*transform)(
         void *self,
@@ -398,13 +399,15 @@ NcStatus nc_c_exercise_calculator(
         goto release_value;
     }
 
+    uint64_t written = UINT64_MAX;
     status = calculator.vtable->fill_buffer(
         calculator.object,
         7,
         sizeof(results->filled_buffer),
-        results->filled_buffer
+        results->filled_buffer,
+        &written
     );
-    if (failed(status)) {
+    if (failed(status) || written != sizeof(results->filled_buffer)) {
         goto release_value;
     }
 
@@ -424,7 +427,8 @@ NcStatus nc_c_exercise_calculator(
         calculator.object,
         0,
         1,
-        0
+        0,
+        &written
     );
     if (results->null_copy_to_status != pointer_status) {
         status = results->null_copy_to_status;
@@ -450,9 +454,10 @@ NcStatus nc_c_exercise_calculator(
         calculator.object,
         0,
         0,
-        0
+        0,
+        &written
     );
-    if (failed(results->zero_copy_to_status)) {
+    if (failed(results->zero_copy_to_status) || written != 0) {
         status = results->zero_copy_to_status;
         goto release_value;
     }
@@ -524,5 +529,32 @@ int32_t nc_c_exercise_choice(void *object, NativeChoiceEcho echo, int32_t invali
     if (echo(object, input, &output) != invalid_bool) return 0;
     input.tag = 999;
     if (echo(object, input, &output) != invalid_tag) return 0;
+    return 1;
+}
+
+/* Generic output uses four arguments, plus the ordinary required-total return. */
+typedef NcStatus (*NativeChoiceOutput)(void *, uint64_t, uint64_t,
+    NativeChoiceWire *, uint64_t *, uint32_t *);
+
+/* These initialized C bytes are intentionally invalid as native Rust bool/enums.
+ * The new thunk must only write them, then publish the explicit initialized prefix. */
+int32_t nc_c_exercise_choice_output(void *object, NativeChoiceOutput output,
+    NcStatus pointer_status) {
+    NativeChoiceWire slots[3];
+    memset(slots, 0x55, sizeof(slots));
+    NativeChoiceWire tail = slots[2];
+    uint64_t written = UINT64_MAX;
+    uint32_t required = UINT32_MAX;
+    if (output(object, 0, 3, slots, &written, &required) != 0 ||
+        required != 2 || written != 2 || slots[0].tag != 0 ||
+        slots[0].payload.flag.enabled != 1 || slots[1].tag != 1 ||
+        memcmp(&slots[2], &tail, sizeof(tail)) != 0) return 0;
+    /* Zero capacity is a valid query; required total is not its written count. */
+    if (output(object, 0, 0, NULL, &written, &required) != 0 ||
+        written != 0 || required != 2) return 0;
+    if (output(object, 0, 1, NULL, &written, &required) != pointer_status)
+        return 0;
+    if (output(object, 0, 0, NULL, NULL, &required) != pointer_status)
+        return 0;
     return 1;
 }

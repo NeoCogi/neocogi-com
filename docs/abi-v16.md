@@ -1,5 +1,8 @@
 # COM core ABI v16: fixed-width signature views
 
+Historical specification, superseded by [ABI v17](abi-v17.md). Generic mutable
+output buffer rules below describe generation 16, not current output-only calls.
+
 Version 16 replaces the signature pointer/count pair with one nullable pointer
 to exactly 32 immutable SHA-256 bytes. Every containing interface/descriptor record
 uses this new layout. Core ABI 15 and earlier are rejected before reading their

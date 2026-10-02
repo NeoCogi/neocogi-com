@@ -1,5 +1,5 @@
-error: `NcCopyToBufferOffset` parameters must be `NcCopyToBufferOffset<'_, Element>`
- --> integration-tests/ui/interface_copy_to_buffer_missing_element.rs:7:50
+error: `NcOutputWriter` parameters must be `NcOutputWriter<'_, Element>`
+ --> integration-tests/ui/interface_copy_to_buffer_missing_element.rs:7:44
   |
-7 |         output: neocogi_com::NcCopyToBufferOffset<'_>,
-  |                                                  ^^^^
+7 |         output: neocogi_com::NcOutputWriter<'_>,
+  |                                            ^^^^

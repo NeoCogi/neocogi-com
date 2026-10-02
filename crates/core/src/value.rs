@@ -199,17 +199,22 @@ pub fn check_inline_output<T: ComInlineValue>() -> Result<(), NcStatus> {
     ValueBudget::default().fixed(T::MAX_COST.ok_or(NC_E_OUT_OF_RANGE)?)
 }
 
-/// Admits either a direct writable buffer or every converted output at this length.
-/// Each direction retains its existing byte/count/depth limit. Native and wire
+/// Admits a fresh output region and every possible converted element at its capacity.
+/// Native and wire storage retain the existing conversion byte/count/depth limits. Native and wire
 /// sizes may differ, including across independently compiled implementations;
 /// both sides check their local representation before transferring ownership.
 #[doc(hidden)]
 pub fn check_buffer_output<T: ComInlineValue>(len: u64) -> Result<(), NcStatus> {
+    // Every output region must be representable before reservation or dispatch,
+    // including identity buffers that need no conversion-resource budget.
+    let count = usize::try_from(len).map_err(|_| NC_E_OUT_OF_RANGE)?;
+    for size in [core::mem::size_of::<T>(), core::mem::size_of::<T::Wire>()] {
+        count.checked_mul(size).filter(|bytes| *bytes <= isize::MAX as usize).ok_or(NC_E_OUT_OF_RANGE)?;
+    }
     match T::BORROW_WIRE {
         // Identity buffers have no conversion or allocation at completion.
         true => Ok(()),
         false => {
-            let count = usize::try_from(len).map_err(|_| NC_E_OUT_OF_RANGE)?;
             let cost = T::MAX_COST.and_then(|cost| cost.elements(count)).ok_or(NC_E_OUT_OF_RANGE)?;
             let mut budget = ValueBudget::default();
             budget.sequence::<T>(count)?;
@@ -747,13 +752,6 @@ pub fn encode_value_buffer<T: ComInlineValue>(values: &[T]) -> Result<Vec<T::Wir
     Ok(result)
 }
 
-/// Reuses a prepared wire buffer; only codec validation/accounting can fail.
-#[cfg(feature = "alloc")]
-pub(crate) fn encode_value_buffer_into<T: ComInlineValue>(values: &[T], result: &mut Vec<T::Wire>) -> Result<(), NcStatus> {
-    let (budget, prechecked) = buffer_budget::<T, T::Wire>(values.len())?;
-    encode_buffer_elements(values, result, budget, prechecked)
-}
-
 /// Validates every raw element before exposing an application buffer.
 ///
 /// # Safety
@@ -768,20 +766,6 @@ pub unsafe fn decode_value_buffer<T: ComInlineValue>(pointer: *const T::Wire, le
     // SAFETY: the validated slice borrows the same live raw elements.
     unsafe { decode_buffer_elements(elements, &mut result, budget, prechecked) }?;
     Ok(result)
-}
-
-/// Reuses native scratch so acquiring output cannot allocate a replacement vector.
-///
-/// # Safety
-/// The wire elements must satisfy the same live-storage contract as decode_value_buffer.
-#[cfg(feature = "alloc")]
-pub(crate) unsafe fn decode_value_buffer_into<T: ComInlineValue>(pointer: *const T::Wire, len: u64, result: &mut Vec<T>) -> Result<(), NcStatus> {
-    let count = usize::try_from(len).map_err(|_| NC_E_OUT_OF_RANGE)?;
-    let (budget, prechecked) = buffer_budget::<T, T>(count)?;
-    // SAFETY: the raw producer supplies live initialized storage for this call.
-    let elements = unsafe { ValueSlice { pointer, len }.elements() }?;
-    // SAFETY: decoding checks restricted contents before constructing any T.
-    unsafe { decode_buffer_elements(elements, result, budget, prechecked) }
 }
 
 // SAFETY: unit has a concrete byte representation; only its sole value is accepted.

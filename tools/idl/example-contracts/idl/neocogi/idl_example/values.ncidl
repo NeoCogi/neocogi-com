@@ -17,3 +17,12 @@ struct ExtentChanged {
     /// Committed height.
     height: u32,
 }
+
+/// Copied payload enum used to verify one-way outputs across independently built plugins.
+#[version(1)]
+enum ExtentReport {
+    /// Current dimensions and a recursively checked boolean.
+    Current { extent: Extent, usable: bool },
+    /// Unit variant leaves inactive payload bytes uninterpreted.
+    Empty,
+}

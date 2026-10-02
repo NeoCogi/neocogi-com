@@ -27,8 +27,8 @@ fn anonymous_lifetimes_keep_each_wrappers_lowering() {
             Ok(AbiArgKind::CopyFromBufferOffset { .. })
         ));
         assert!(matches!(
-            lower(&format!("{prefix}NcCopyToBufferOffset<'_, u32>")),
-            Ok(AbiArgKind::CopyToBufferOffset { .. })
+            lower(&format!("{prefix}NcOutputWriter<'_, u32>")),
+            Ok(AbiArgKind::OutputBuffer { .. })
         ));
         assert!(matches!(
             lower(&format!("{prefix}ComRef<'_, IObjectAbi>")),
@@ -40,7 +40,7 @@ fn anonymous_lifetimes_keep_each_wrappers_lowering() {
 /// Named lifetimes cannot promise that the receiver's borrow outlives the ABI call.
 #[test]
 fn all_borrowed_wrappers_reject_static_and_named_lifetimes() {
-    for wrapper in ["NcValueRef", "ComRef", "NcCopyFromBufferOffset", "NcCopyToBufferOffset"] {
+    for wrapper in ["NcValueRef", "ComRef", "NcCopyFromBufferOffset", "NcOutputWriter"] {
         for lifetime in ["'static", "'borrowed"] {
             for prefix in ["", "neocogi_com::"] {
                 rejects(&format!("{prefix}{wrapper}<{lifetime}, u32>"), "must use `'_`");
@@ -52,7 +52,7 @@ fn all_borrowed_wrappers_reject_static_and_named_lifetimes() {
 /// Missing, reordered, or extra generic arguments must not disappear during parsing.
 #[test]
 fn value_and_buffer_borrows_require_exact_lifetime_and_type_shape() {
-    for wrapper in ["NcValueRef", "NcCopyFromBufferOffset", "NcCopyToBufferOffset"] {
+    for wrapper in ["NcValueRef", "NcCopyFromBufferOffset", "NcOutputWriter"] {
         for arguments in ["", "<u32>", "<'_>", "<'_, u32, u64>", "<'_, u32, 3>", "<'_, 'static, u32>"] {
             rejects(&format!("{wrapper}{arguments}"), "parameters must be");
         }

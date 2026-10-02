@@ -4,7 +4,7 @@ use neocogi_com::com_interface;
 pub trait ICopyToBufferStaticLifetime {
     fn read(
         &self,
-        output: neocogi_com::NcCopyToBufferOffset<'static, u8>,
+        output: neocogi_com::NcOutputWriter<'static, u8>,
     ) -> Result<(), neocogi_com::NcStatus>;
 }
 

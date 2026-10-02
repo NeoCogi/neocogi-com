@@ -42,12 +42,12 @@ pub trait ICheck {
     fn action(&self, value: Action) -> Result<Action, NcStatus>;
     /// A copied record may recursively contain native enums in fixed arrays.
     fn action_set(&self, value: ActionSet) -> Result<ActionSet, NcStatus>;
-    /// Enum buffers use the same checked input and output conversion.
-    fn actions(&self, value: NcCopyToBufferOffset<'_, Action>) -> Result<(), NcStatus>;
+    /// A transformation has a distinct readable input and fresh output destination.
+    fn actions(&self, input: NcCopyFromBufferOffset<'_, Action>, value: NcOutputWriter<'_, Action>) -> Result<(), NcStatus>;
     /// Nested restricted fields are checked before reconstructing a typed slice.
     fn input(&self, value: NcCopyFromBufferOffset<'_, Settings>) -> Result<u32, NcStatus>;
-    /// Writable buffer elements use the same bidirectional conversion.
-    fn output(&self, value: NcCopyToBufferOffset<'_, Settings>) -> Result<(), NcStatus>;
+    /// Output elements are produced without decoding old destination bytes.
+    fn output(&self, value: NcOutputWriter<'_, Settings>) -> Result<(), NcStatus>;
 }
 #[com_object(ICheck)]
 /// Stateless implementation; errors must originate before method dispatch.
@@ -62,21 +62,22 @@ impl ICheck for Check {
     fn action_set(&self, value: ActionSet) -> Result<ActionSet, NcStatus> {
         Ok(value)
     }
-    fn actions(&self, mut value: NcCopyToBufferOffset<'_, Action>) -> Result<(), NcStatus> {
-        for action in value.as_mut_slice() {
-            *action = match *action {
+    fn actions(&self, input: NcCopyFromBufferOffset<'_, Action>, mut value: NcOutputWriter<'_, Action>) -> Result<(), NcStatus> {
+        // Transform only explicit checked inputs, never destination contents.
+        for &action in input.as_slice() {
+            value.push(match action {
                 Action::Idle => Action::Configure(Settings { flags: Flags { enabled: true } }),
                 Action::Configure(_) => Action::Idle,
-            };
+            })?;
         }
         Ok(())
     }
     fn input(&self, value: NcCopyFromBufferOffset<'_, Settings>) -> Result<u32, NcStatus> {
         Ok(value.len() as u32)
     }
-    fn output(&self, mut value: NcCopyToBufferOffset<'_, Settings>) -> Result<(), NcStatus> {
-        for value in value.as_mut_slice() {
-            value.flags.enabled = true;
+    fn output(&self, mut value: NcOutputWriter<'_, Settings>) -> Result<(), NcStatus> {
+        for _ in 0..value.capacity() {
+            value.push(Settings { flags: Flags { enabled: true } })?;
         }
         Ok(())
     }
@@ -94,8 +95,12 @@ fn invalid_nested_bool_fails_copied_and_buffer_thunks() {
         assert_eq!(((*ptr.vtable).settings)(ptr.object, wire, out.as_mut_ptr()), NC_E_INVALID_ARG);
         let mut count = 0;
         assert_eq!(((*ptr.vtable).input)(ptr.object, 0, 1, &wire, &mut count), NC_E_INVALID_ARG);
+        // Old output bytes are not input, even when they contain invalid booleans.
         let mut destination = wire;
-        assert_eq!(((*ptr.vtable).output)(ptr.object, 0, 1, &mut destination), NC_E_INVALID_ARG);
+        let mut written = 99;
+        assert_eq!(((*ptr.vtable).output)(ptr.object, 0, 1, &mut destination, &mut written), NC_OK);
+        assert_eq!(written, 1);
+        assert_eq!(destination.flags.enabled, 1);
     }
 }
 
@@ -127,8 +132,8 @@ fn valid_calls_acquire_output_buffers_and_nested_return_values() {
     let check = Check::from_value(Check).query::<ICheckAbi>().unwrap();
     let settings = Settings { flags: Flags { enabled: false } };
     assert_eq!(check.settings(settings).unwrap(), settings);
-    let mut values = [settings];
-    check.output(NcCopyToBufferOffset::new(0, &mut values)).unwrap();
+    let mut values = NcOutputBuffer::new();
+    check.output(values.output(0, 1)).unwrap();
     assert!(values[0].flags.enabled);
     assert_eq!(check.input(NcCopyFromBufferOffset::new(0, &values)).unwrap(), 1);
 }
@@ -143,9 +148,9 @@ fn native_enums_cross_copied_nested_array_and_buffer_slots() {
     }
     let set = ActionSet { actions: [Action::Idle, configured] };
     assert_eq!(check.action_set(set).unwrap(), set);
-    let mut actions = set.actions;
-    check.actions(NcCopyToBufferOffset::new(0, &mut actions)).unwrap();
-    assert_eq!(actions, [configured, Action::Idle]);
+    let mut actions = NcOutputBuffer::new();
+    check.actions(NcCopyFromBufferOffset::new(0, &set.actions), actions.output(0, 2)).unwrap();
+    assert_eq!(actions.as_slice(), [configured, Action::Idle]);
     // Metadata retains the same nominal identity while raw and native storage
     // remain separate even if a particular compiler happens to size them equally.
     assert!(matches!(Action::ABI_TYPE, NcAbiType::Aggregate(signature) if signature == Action::VALUE_SIGNATURE));
@@ -170,7 +175,13 @@ fn enum_buffer_validation_is_atomic_before_native_dispatch() {
         wire[1].payload.case_0.field_0.flags.enabled = enabled;
         // SAFETY: both records are initialized wire storage, with a bad raw tag
         // or boolean byte. The callee must reject before materializing native enums.
-        assert_eq!(unsafe { ((*raw.vtable).actions)(raw.object, 0, 2, wire.as_mut_ptr()) }, expected);
+        let mut output = [encode_inline(&Action::Idle).unwrap(); 2];
+        let mut written = 99;
+        assert_eq!(unsafe {
+            ((*raw.vtable).actions)(raw.object, 0, 2, wire.as_ptr(), 0, 2, output.as_mut_ptr(), &mut written)
+        }, expected);
+        assert_eq!(output[0].tag, 1);
+        assert_eq!(output[1].tag, 1);
         assert_eq!(wire[0].tag, 1);
         assert_eq!(wire[1].tag, tag);
     }
@@ -202,18 +213,24 @@ fn unrestricted_buffers_borrow_in_place_and_restricted_buffers_are_separate() {
     assert_ne!(decoded.as_slice().as_ptr(), restricted.as_ptr());
 }
 
-/// Writable direct buffers preserve the exclusive borrow and need no temporary copy.
+/// Output identity storage stays allocation-free and exposes only the written prefix.
 #[test]
 fn writable_identity_buffers_retain_the_original_allocation() {
-    let mut values = [1u32, 2, 3];
-    let pointer = values.as_mut_ptr();
-    let mut encoded = EncodedOutput::new(NcCopyToBufferOffset::new(9, &mut values)).unwrap();
-    assert_eq!(encoded.as_mut_ptr(), pointer);
-    let mut decoded = unsafe { DecodedOutput::<u32>::from_raw(encoded.as_mut_ptr(), encoded.len()) }.unwrap();
-    decoded.as_mut_slice()[1] = 8;
-    decoded.finish().unwrap();
-    encoded.finish().unwrap();
-    assert_eq!(values, [1, 8, 3]);
+    let mut slots = [core::mem::MaybeUninit::<u32>::uninit(); 3];
+    let pointer = slots.as_mut_ptr();
+    let mut count = 0;
+    let mut prepared = NcOutput::from_slots(9, &mut slots, &mut count).unwrap().prepare().unwrap();
+    assert_eq!(prepared.as_mut_ptr(), pointer.cast());
+    let mut written = 0;
+    // SAFETY: the prepared output lends the same exclusive, properly sized wire slots.
+    let mut writer = unsafe { NcOutputWriter::<u32>::from_raw(9, prepared.as_mut_ptr(), 3, &mut written) }.unwrap();
+    writer.extend_from_slice(&[1, 8]).unwrap();
+    drop(writer);
+    unsafe { *prepared.written_ptr() = written; prepared.convert_output().unwrap(); }
+    prepared.publish();
+    assert_eq!(count, 2);
+    // SAFETY: only this successfully published prefix was initialized.
+    assert_eq!(unsafe { slots[1].assume_init() }, 8);
 }
 
 /// Fixed-shape optimization must preserve the exact nested count/depth contract.

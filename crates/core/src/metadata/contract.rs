@@ -11,9 +11,9 @@ use crate::signature::NcAbiSignature;
 
 /// Current experimental draft core ABI version.
 ///
-/// This identifies the current binary generation; it does not mean core ABI v16 has
+/// This identifies the current binary generation; it does not mean core ABI v17 has
 /// reached its ratification milestone.
-pub const NC_COM_CORE_ABI_VERSION: u32 = 16;
+pub const NC_COM_CORE_ABI_VERSION: u32 = 17;
 
 /// Stable identity for one COM interface ABI contract.
 ///
@@ -117,8 +117,10 @@ pub enum NcAbiPassing {
     Out,
     /// Caller buffer copied into the callee/object at an explicit offset.
     CopyFromBufferOffset,
-    /// Callee/object bytes copied into a caller buffer from an explicit offset.
+    /// Built-in exact-range byte copy with offset/length/pointer; not generic output.
     CopyToBufferOffset,
+    /// Fresh copied output with offset, capacity, wire pointer and initialized-prefix slot.
+    OutputBuffer,
     /// Borrowed COM interface pointer valid for the current call.
     ComRef {
         /// Threading capability carried by the borrowed pointer.
@@ -253,6 +255,8 @@ pub const NC_ABI_PASSING_COM_BOX_IN: u32 = 0x09;
 pub const NC_ABI_PASSING_COM_BOX_OUT: u32 = 0x0a;
 /// Cached weak exclusive token returned without value ownership.
 pub const NC_ABI_PASSING_WEAK_COM_BOX_OUT: u32 = 0x0b;
+/// One-way copied result capacity with a separate initialized-prefix count.
+pub const NC_ABI_PASSING_OUTPUT_BUFFER: u32 = 0x0c;
 
 /// C-stable threading value requiring calls and final release on one thread.
 pub const NC_ABI_THREADING_THREAD_LOCAL: u32 = 0x00;
@@ -376,6 +380,10 @@ impl NcAbiPassingDescriptor {
             },
             NcAbiPassing::CopyToBufferOffset => Self {
                 tag: NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET,
+                threading: NC_ABI_THREADING_THREAD_LOCAL,
+            },
+            NcAbiPassing::OutputBuffer => Self {
+                tag: NC_ABI_PASSING_OUTPUT_BUFFER,
                 threading: NC_ABI_THREADING_THREAD_LOCAL,
             },
             NcAbiPassing::ComRef { mode } => Self {

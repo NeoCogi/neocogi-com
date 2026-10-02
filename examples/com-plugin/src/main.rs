@@ -5,7 +5,7 @@ use neocogi_com::persistence::{FactoryRegistry, snapshot};
 use neocogi_com::NcValueRef;
 use neocogi_idl_example_contracts::{ExampleObjectEventBinding, ExampleObjectEventQueueAbi};
 use nc_example_com::{ExtentState, PERSISTENT_KIND};
-use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentChanged};
+use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentChanged, ExtentReport};
 
 /// Registers the selected plugin, acquires its checked factory, and mutates one object.
 fn main() {
@@ -24,6 +24,13 @@ fn main() {
     object.resize(Extent { width: 44, height: 31 }).expect("exclusive object mutation");
     let extent = object.extent().expect("inherited interface call");
     assert_eq!(extent, Extent { width: 44, height: 31 });
+    // This assertion runs with independently selected compilers, private-layout
+    // randomization, LTO and panic profiles. Native enum layout never crosses COM.
+    let mut reports = neocogi_com::NcOutputBuffer::new();
+    assert_eq!(object.reports(reports.output(0, 3)).unwrap(), 2);
+    assert_eq!(reports.as_slice(), [ExtentReport::Current { extent, usable: true }, ExtentReport::Empty]);
+    assert_eq!(object.reports(reports.output(0, 0)).unwrap(), 2);
+    assert!(reports.is_empty(), "a size query must not publish an uninitialized tail");
     let changed = messages.try_recv().unwrap();
     assert!(changed.origin.same_object(&object.downgrade().unwrap()));
     assert_eq!((changed.event.width, changed.event.height), (44, 31));

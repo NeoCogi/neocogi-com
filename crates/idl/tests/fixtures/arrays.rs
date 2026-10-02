@@ -2,7 +2,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neocogi_com::{com_object, ComPtr, NcStatus, NcCopyFromBufferOffset, NcCopyToBufferOffset, ValueArray, NC_E_INVALID_ARG};
+    use neocogi_com::{com_object, ComPtr, NcStatus, NcCopyFromBufferOffset, NcOutputWriter, ValueArray, NC_E_INVALID_ARG};
 
     /// Counts accepted input calls, so validation failures cannot hide dispatch.
     #[com_object(IArrays)]
@@ -25,8 +25,8 @@ mod tests {
             Ok(decoded.len() as u32)
         }
         /// Writes owned inline elements through the checked output buffer.
-        fn output(&mut self, mut values: NcCopyToBufferOffset<'_, [bool; 3]>) -> Result<(), NcStatus> {
-            values.as_mut_slice().copy_from_slice(&[[true, false, true]]);
+        fn output(&mut self, mut values: NcOutputWriter<'_, [bool; 3]>) -> Result<(), NcStatus> {
+            values.extend_from_slice(&[[true, false, true]])?;
             Ok(())
         }
     }
@@ -39,9 +39,9 @@ mod tests {
         assert_eq!(arrays.echo([false, true, false]).unwrap(), [false, true, false]);
         assert_eq!(arrays.record(Flags { bits: [[true, false], [false, true]] }).unwrap().bits, [[true, false], [false, true]]);
         assert_eq!(arrays.input(NcCopyFromBufferOffset::new(0, &[[true; 3]])).unwrap(), 1);
-        let mut destination = [[false; 3]];
-        arrays.output(NcCopyToBufferOffset::new(0, &mut destination)).unwrap();
-        assert_eq!(destination, [[true, false, true]]);
+        let mut destination = neocogi_com::NcOutputBuffer::new();
+        arrays.output(destination.output(0, 1)).unwrap();
+        assert_eq!(destination.as_slice(), [[true, false, true]]);
         let raw = arrays.as_raw();
         let bad = ValueArray { elements: [0u8, 2, 1] };
         let mut out = core::mem::MaybeUninit::uninit();

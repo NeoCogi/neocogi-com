@@ -39,8 +39,8 @@ impl IComplete for Receiver {
         &mut self,
         first: ComBox<IItemAbi>,
         second: ComBox<IItemAbi>,
-        mut choices: NcCopyToBufferOffset<'_, Choice>,
-        mut flags: NcCopyToBufferOffset<'_, bool>,
+        mut choices: NcOutputWriter<'_, Choice>,
+        mut flags: NcOutputWriter<'_, bool>,
         reject: bool,
         deny_after_entry: bool,
     ) -> Result<Choice, (NcStatus, ComBox<IItemAbi>, ComBox<IItemAbi>)> {
@@ -48,8 +48,8 @@ impl IComplete for Receiver {
             allocation_probe::deny_remaining();
         }
         self.calls.fetch_add(1, SeqCst);
-        choices.as_mut_slice().fill(Choice::Filled(Details { flags: [true, false] }));
-        flags.as_mut_slice().fill(true);
+        for _ in 0..choices.capacity() { choices.push(Choice::Filled(Details { flags: [true, false] })).unwrap(); }
+        for _ in 0..flags.capacity() { flags.push(true).unwrap(); }
         match reject {
             true => Err((NC_E_INVALID_ARG, first, second)),
             false => {
@@ -59,9 +59,9 @@ impl IComplete for Receiver {
         }
     }
     /// Direct writable integers require neither staging nor output allocation.
-    fn direct(&mut self, first: ComBox<IItemAbi>, mut values: NcCopyToBufferOffset<'_, u64>) -> Result<u32, (NcStatus, ComBox<IItemAbi>)> {
+    fn direct(&mut self, first: ComBox<IItemAbi>, mut values: NcOutputWriter<'_, u64>) -> Result<u32, (NcStatus, ComBox<IItemAbi>)> {
         self.calls.fetch_add(1, SeqCst);
-        values.as_mut_slice().fill(9);
+        for _ in 0..values.capacity() { values.push(9).unwrap(); }
         self.children[0] = Some(first);
         Ok(42)
     }
@@ -93,19 +93,20 @@ fn items() -> ([ComBox<IItemAbi>; 2], Arc<AtomicUsize>) {
 
 #[test]
 fn every_generated_preparation_failure_returns_both_original_owners() {
-    // Four allocations per side: two vectors for each of two converted buffers.
-    for ordinal in 1..=8 {
+    let capacity = 2;
+    // Two client allocations per converted output; providers allocate no scratch.
+    for ordinal in 1..=4 {
         let (mut receiver, calls) = receiver();
         let ([first, second], drops) = items();
         let identities = [first.as_raw().object, second.as_raw().object];
-        let mut choices = [Choice::Idle; 2];
-        let mut flags = [false; 2];
+        let mut choices = NcOutputBuffer::<Choice>::new();
+        let mut flags = NcOutputBuffer::<bool>::new();
         let probe = Probe::start(Some(ordinal));
         let result = receiver.complete(
             first,
             second,
-            NcCopyToBufferOffset::new(0, &mut choices),
-            NcCopyToBufferOffset::new(0, &mut flags),
+            choices.output(0, capacity),
+            flags.output(0, if capacity > 2 { 0 } else { capacity }),
             false,
             false,
         );
@@ -118,8 +119,8 @@ fn every_generated_preparation_failure_returns_both_original_owners() {
         assert_eq!(drops.load(SeqCst), 0);
         assert_eq!(first.value(), Ok(42));
         assert_eq!(second.value(), Ok(42));
-        assert_eq!(choices, [Choice::Idle; 2]);
-        assert_eq!(flags, [false; 2]);
+        assert!(choices.is_empty());
+        assert!(flags.is_empty());
         drop((first, second));
         assert_eq!(drops.load(SeqCst), 2);
     }
@@ -127,26 +128,27 @@ fn every_generated_preparation_failure_returns_both_original_owners() {
 
 #[test]
 fn generated_commit_completes_with_all_further_allocation_denied() {
+    let capacity = 2;
     let (mut receiver, calls) = receiver();
     let ([first, second], drops) = items();
     let weak = first.downgrade();
-    let mut choices = [Choice::Idle; 2];
-    let mut flags = [false; 2];
+    let mut choices = NcOutputBuffer::<Choice>::new();
+    let mut flags = NcOutputBuffer::<bool>::new();
     let probe = Probe::start(None);
     let result = receiver.complete(
         first,
         second,
-        NcCopyToBufferOffset::new(0, &mut choices),
-        NcCopyToBufferOffset::new(0, &mut flags),
+        choices.output(0, capacity),
+        flags.output(0, if capacity > 2 { 0 } else { capacity }),
         false,
         true,
     );
     let report = probe.finish();
     assert_eq!(result.unwrap(), Choice::Filled(Details { flags: [false, true] }));
-    assert_eq!(report.attempts, 8);
+    assert_eq!(report.attempts, 4);
     assert_eq!(report.denied, 0);
-    assert_eq!(choices, [Choice::Filled(Details { flags: [true, false] }); 2]);
-    assert_eq!(flags, [true; 2]);
+    assert_eq!(choices.as_slice(), &[Choice::Filled(Details { flags: [true, false] }); 2]);
+    assert_eq!(flags.as_slice(), &[true; 2]);
     assert_eq!(calls.load(SeqCst), 1);
     assert_eq!(drops.load(SeqCst), 0);
     assert_eq!(weak.value(), Ok(42));
@@ -157,17 +159,18 @@ fn generated_commit_completes_with_all_further_allocation_denied() {
 
 #[test]
 fn implementation_rejection_restores_owners_without_publishing_outputs() {
+    let capacity = 1;
     let (mut receiver, calls) = receiver();
     let ([first, second], drops) = items();
     let identities = [first.as_raw().object, second.as_raw().object];
-    let mut choices = [Choice::Idle];
-    let mut flags = [false];
+    let mut choices = NcOutputBuffer::<Choice>::new();
+    let mut flags = NcOutputBuffer::<bool>::new();
     let probe = Probe::start(None);
     let result = receiver.complete(
         first,
         second,
-        NcCopyToBufferOffset::new(0, &mut choices),
-        NcCopyToBufferOffset::new(0, &mut flags),
+        choices.output(0, capacity),
+        flags.output(0, if capacity > 2 { 0 } else { capacity }),
         true,
         true,
     );
@@ -177,28 +180,29 @@ fn implementation_rejection_restores_owners_without_publishing_outputs() {
     assert_eq!([first.as_raw().object, second.as_raw().object], identities);
     assert_eq!(report.denied, 0);
     assert_eq!(calls.load(SeqCst), 1);
-    assert_eq!(choices, [Choice::Idle]);
-    assert_eq!(flags, [false]);
+    assert!(choices.is_empty());
+    assert!(flags.is_empty());
     drop((first, second));
     assert_eq!(drops.load(SeqCst), 2);
 }
 
 #[test]
 fn maximum_variant_cost_is_admitted_before_dispatch_on_both_sides() {
+    let capacity = MAX_VALUE_COUNT / 5 + 1;
     // Choice::Filled costs five values: enum, record, array, and two bools.
     // The current Idle variant is cheap; the possible output determines admission.
     let count = MAX_VALUE_COUNT / 5 + 1;
     let (mut receiver, calls) = receiver();
     let ([first, second], drops) = items();
     let identities = [first.as_raw().object, second.as_raw().object];
-    let mut choices = vec![Choice::Idle; count];
-    let mut flags = [];
+    let mut choices = NcOutputBuffer::<Choice>::new();
+    let mut flags = NcOutputBuffer::<bool>::new();
     let probe = Probe::start(Some(0));
     let result = receiver.complete(
         first,
         second,
-        NcCopyToBufferOffset::new(0, &mut choices),
-        NcCopyToBufferOffset::new(0, &mut flags),
+        choices.output(0, capacity),
+        flags.output(0, if capacity > 2 { 0 } else { capacity }),
         false,
         false,
     );
@@ -214,6 +218,8 @@ fn maximum_variant_cost_is_admitted_before_dispatch_on_both_sides() {
     let mut second_raw = second.into_raw();
     let raw = receiver.as_raw();
     let mut output = std::mem::MaybeUninit::uninit();
+    let mut choices_written = 0_u64;
+    let mut flags_written = 0_u64;
     let probe = Probe::start(Some(0));
     // SAFETY: owners remain in their unique transfer slots, buffers are initialized
     // and exclusively writable, and output storage has the generated wire type.
@@ -225,9 +231,11 @@ fn maximum_variant_cost_is_admitted_before_dispatch_on_both_sides() {
             0,
             count as u64,
             wires.as_mut_ptr(),
+            &mut choices_written,
             0,
             0,
             std::ptr::null_mut(),
+            &mut flags_written,
             0,
             0,
             output.as_mut_ptr(),
@@ -249,52 +257,31 @@ fn maximum_variant_cost_is_admitted_before_dispatch_on_both_sides() {
 }
 
 #[test]
-fn raw_provider_preparation_failures_never_adopt_an_owner() {
-    for ordinal in 1..=4 {
-        let (receiver, calls) = receiver();
-        let ([first, second], drops) = items();
-        let mut first = first.into_raw();
-        let mut second = second.into_raw();
-        let identities = [first.object, second.object];
-        let mut choice = encode_inline(&Choice::Idle).unwrap();
-        let mut flag = 0_u8;
-        let raw = receiver.as_raw();
-        let mut output = std::mem::MaybeUninit::uninit();
-        let probe = Probe::start(Some(ordinal));
-        // SAFETY: independent live transfer slots, initialized single-element
-        // wires, and distinct output storage satisfy the generated ABI contract.
-        let status = unsafe {
-            ((*raw.vtable).complete)(
-                raw.object,
-                &mut first,
-                &mut second,
-                0,
-                1,
-                &mut choice,
-                0,
-                1,
-                &mut flag,
-                0,
-                0,
-                output.as_mut_ptr(),
-            )
-        };
-        let report = probe.finish();
-        assert_eq!(status, NC_E_OUT_OF_MEMORY);
-        assert_eq!(report.denied, 1);
-        assert_eq!([first.object, second.object], identities);
-        assert_eq!(calls.load(SeqCst), 0);
-        assert_eq!(flag, 0);
-        assert_eq!(unsafe { decode_inline::<Choice>(choice) }.unwrap(), Choice::Idle);
-        // SAFETY: the failed provider left both tokens unconsumed.
-        unsafe {
-            drop((
-                ComBox::<IItemAbi>::from_raw_owned(first).unwrap(),
-                ComBox::<IItemAbi>::from_raw_owned(second).unwrap(),
-            ));
-        }
-        assert_eq!(drops.load(SeqCst), 2);
-    }
+fn raw_provider_count_failure_never_adopts_an_owner() {
+    let (receiver, calls) = receiver();
+    let ([first, second], drops) = items();
+    let mut first = first.into_raw();
+    let mut second = second.into_raw();
+    let identities = [first.object, second.object];
+    let mut choice = std::mem::MaybeUninit::<<Choice as ComValue>::Wire>::uninit();
+    let mut flag = std::mem::MaybeUninit::<u8>::uninit();
+    let mut output = std::mem::MaybeUninit::uninit();
+    let mut flags_written = 0;
+    let raw = receiver.as_raw();
+    let probe = Probe::start(Some(0));
+    // SAFETY: all owners and wire capacity are valid; the absent count pointer
+    // must be rejected before implementation entry or ownership adoption.
+    let status = unsafe { ((*raw.vtable).complete)(raw.object, &mut first, &mut second,
+        0, 1, choice.as_mut_ptr(), std::ptr::null_mut(),
+        0, 1, flag.as_mut_ptr(), &mut flags_written, 0, 0, output.as_mut_ptr()) };
+    let report = probe.finish();
+    assert_eq!(status, NC_E_POINTER);
+    assert_eq!(report.attempts, 0);
+    assert_eq!([first.object, second.object], identities);
+    assert_eq!(calls.load(SeqCst), 0);
+    // SAFETY: rejection kept both original unique tokens in their transfer slots.
+    unsafe { drop((ComBox::<IItemAbi>::from_raw_owned(first).unwrap(), ComBox::<IItemAbi>::from_raw_owned(second).unwrap())); }
+    assert_eq!(drops.load(SeqCst), 2);
 }
 
 #[test]
@@ -336,9 +323,11 @@ unsafe extern "C" fn invalid_committed_output(
     _choices_offset: u64,
     choices_len: u64,
     choices: *mut <Choice as ComValue>::Wire,
+    choices_written: *mut u64,
     _flags_offset: u64,
     flags_len: u64,
     flags: *mut u8,
+    flags_written: *mut u64,
     _reject: u8,
     _deny: u8,
     result: *mut <Choice as ComValue>::Wire,
@@ -352,6 +341,8 @@ unsafe extern "C" fn invalid_committed_output(
         drop(ComBox::<IItemAbi>::from_raw_owned(std::mem::replace(&mut *second, ComRaw::null())).unwrap());
         *choices = encode_inline(&Choice::Filled(Details { flags: [true; 2] })).unwrap();
         *flags = 7;
+        *choices_written = 1;
+        *flags_written = 1;
         *result = encode_inline(&Choice::Idle).unwrap();
     }
     NC_OK
@@ -359,6 +350,7 @@ unsafe extern "C" fn invalid_committed_output(
 
 #[test]
 fn invalid_committed_output_is_a_contract_violation_not_an_owner_rejection() {
+    let capacity = 1;
     let (receiver, _) = receiver();
     let ([first, second], drops) = items();
     let mut raw = receiver.as_raw();
@@ -368,49 +360,52 @@ fn invalid_committed_output_is_a_contract_violation_not_an_owner_rejection() {
     raw.vtable = &table;
     // SAFETY: receiver and substituted table outlive this borrowed test client.
     let mut client = unsafe { ComRef::<ICompleteAbi>::from_raw_borrowed(raw) }.unwrap();
-    let mut choices = [Choice::Idle];
-    let mut flags = [false];
+    let mut choices = NcOutputBuffer::<Choice>::new();
+    let mut flags = NcOutputBuffer::<bool>::new();
     let failure = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         client.complete(
             first,
             second,
-            NcCopyToBufferOffset::new(0, &mut choices),
-            NcCopyToBufferOffset::new(0, &mut flags),
+            choices.output(0, capacity),
+            flags.output(0, if capacity > 2 { 0 } else { capacity }),
             false,
             false,
         )
     }));
     assert!(failure.is_err(), "a consumed owner cannot be reconstructed on invalid successful output");
     assert_eq!(drops.load(SeqCst), 2);
-    assert_eq!(choices, [Choice::Idle]);
-    assert_eq!(flags, [false]);
+    assert!(choices.is_empty());
+    assert!(flags.is_empty());
 }
 
 #[test]
 fn generated_direct_buffers_and_empty_converted_buffers_need_no_allocation() {
+    let capacity = 0;
     let (mut receiver, calls) = receiver();
     let ([first, second], drops) = items();
-    let mut values = [0; 3];
+    let mut values = [std::mem::MaybeUninit::<u64>::uninit(); 3];
+    let mut values_written = 0;
     let probe = Probe::start(Some(0));
-    let result = receiver.direct(first, NcCopyToBufferOffset::new(0, &mut values));
+    let result = receiver.direct(first, NcOutput::from_slots(0, &mut values, &mut values_written).unwrap());
     let report = probe.finish();
     assert_eq!(result.unwrap(), 42);
     assert_eq!(report.attempts, 0);
-    assert_eq!(values, [9; 3]);
+    assert_eq!(values_written, 3);
+    assert_eq!(unsafe { values.map(|value| value.assume_init()) }, [9; 3]);
     assert_eq!(calls.load(SeqCst), 1);
     drop((receiver, second));
     assert_eq!(drops.load(SeqCst), 2);
 
     let (mut receiver, _) = self::receiver();
     let ([first, second], drops) = items();
-    let mut choices = [];
-    let mut flags = [];
+    let mut choices = NcOutputBuffer::<Choice>::new();
+    let mut flags = NcOutputBuffer::<bool>::new();
     let probe = Probe::start(Some(0));
     let result = receiver.complete(
         first,
         second,
-        NcCopyToBufferOffset::new(0, &mut choices),
-        NcCopyToBufferOffset::new(0, &mut flags),
+        choices.output(0, capacity),
+        flags.output(0, if capacity > 2 { 0 } else { capacity }),
         false,
         true,
     );

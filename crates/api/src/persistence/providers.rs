@@ -466,7 +466,7 @@ where
             ::core::result::Result::Ok(value) => value,
             ::core::result::Result::Err(status) => return status,
         };
-        let mut __nc_arg_1_values = match unsafe {
+        let __nc_arg_1_values = match unsafe {
             ::neocogi_com::DecodedInput::<u8>::from_raw(__nc_arg_1_ptr, __nc_arg_1_len)
         } {
             ::core::result::Result::Ok(values) => values,
@@ -530,7 +530,7 @@ where
             ::core::result::Result::Ok(value) => value,
             ::core::result::Result::Err(status) => return status,
         };
-        let mut __nc_arg_1_values = match unsafe {
+        let __nc_arg_1_values = match unsafe {
             ::neocogi_com::DecodedInput::<u8>::from_raw(__nc_arg_1_ptr, __nc_arg_1_len)
         } {
             ::core::result::Result::Ok(values) => values,

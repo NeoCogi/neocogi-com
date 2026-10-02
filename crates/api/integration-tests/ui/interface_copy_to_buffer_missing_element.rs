@@ -4,7 +4,7 @@ use neocogi_com::com_interface;
 pub trait ICopyToBufferMissingElement {
     fn read(
         &self,
-        output: neocogi_com::NcCopyToBufferOffset<'_>,
+        output: neocogi_com::NcOutputWriter<'_>,
     ) -> Result<(), neocogi_com::NcStatus>;
 }
 

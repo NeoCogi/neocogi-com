@@ -155,15 +155,15 @@ mod tests {
     impl IArguments for Arguments {
         fn buffers(
             &self,
-            mut status: NcCopyToBufferOffset<'_, Record>,
-            mut result: NcCopyToBufferOffset<'_, Record>,
+            mut status: NcOutputWriter<'_, Record>,
+            mut result: NcOutputWriter<'_, Record>,
             this: NcCopyFromBufferOffset<'_, Record>,
             object: u32,
         ) -> Result<u32, NcStatus> {
             check(this.as_slice()[0]);
             assert_eq!((status.offset(), result.offset(), this.offset()), (3, 5, 7));
-            status.as_mut_slice()[0] = this.as_slice()[0];
-            result.as_mut_slice()[0] = this.as_slice()[0];
+            status.push(this.as_slice()[0])?;
+            result.push(this.as_slice()[0])?;
             Ok(object)
         }
         fn scalars(&self, this: u32, object: u32, result: u32, status: u32) -> Result<u32, NcStatus> {
@@ -175,15 +175,13 @@ mod tests {
     fn positional_arguments_keep_outputs_and_metadata() {
         let object = Arguments::from_value(Arguments).query::<IArgumentsAbi>().unwrap();
         assert_eq!(object.scalars(1, 2, 3, 4).unwrap(), 4321);
-        let mut status = [record()];
-        let mut result = [record()];
-        status[0].raw_0 = 0;
-        result[0].raw_0 = 0;
+        let mut status = neocogi_com::NcOutputBuffer::new();
+        let mut result = neocogi_com::NcOutputBuffer::new();
         assert_eq!(
             object
                 .buffers(
-                    NcCopyToBufferOffset::new(3, &mut status),
-                    NcCopyToBufferOffset::new(5, &mut result),
+                    status.output(3, 1),
+                    result.output(5, 1),
                     NcCopyFromBufferOffset::new(7, &[record()]),
                     89
                 )

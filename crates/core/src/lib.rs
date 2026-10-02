@@ -77,7 +77,7 @@ pub use value::{
 };
 #[cfg(feature = "alloc")]
 pub use value::{ValueSequenceStorage, encode_value_buffer, decode_value_buffer};
-pub use buffer::{NcCopyFromBufferOffset, NcCopyToBufferOffset};
+pub use buffer::{NcCopyFromBufferOffset};
 pub use client::{ComClientInterface, NcClientPointer};
 pub use data::{IID_INC_BYTES, IID_INC_STRING, INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING};
 pub use encode::ComSerialize;
@@ -87,7 +87,7 @@ pub use signature::NcAbiSignature;
 #[cfg(feature = "alloc")]
 pub use metadata::{format_abi_signature, format_method_signature};
 pub use metadata::{
-    NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_BOX_IN, NC_ABI_PASSING_COM_BOX_OUT, NC_ABI_PASSING_WEAK_COM_BOX_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUT,
+    NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_BOX_IN, NC_ABI_PASSING_COM_BOX_OUT, NC_ABI_PASSING_WEAK_COM_BOX_OUT, NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUTPUT_BUFFER, NC_ABI_PASSING_OUT,
     NC_ABI_PASSING_BORROWED_VALUE, NC_ABI_PASSING_OPTIONAL_COM_REF, NC_ABI_PASSING_VALUE, NC_ABI_PASSING_VOID, NC_ABI_RECEIVER_MUTABLE, NC_ABI_RECEIVER_SHARED,
     NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_ABI_TYPE_AGGREGATE, NC_ABI_TYPE_BOOL, NC_ABI_TYPE_F32, NC_ABI_TYPE_F64, NC_ABI_TYPE_I8,
     NC_ABI_TYPE_I16, NC_ABI_TYPE_I32, NC_ABI_TYPE_I64, NC_ABI_TYPE_INTERFACE, NC_ABI_TYPE_ISIZE, NC_ABI_TYPE_NC_GUID, NC_ABI_TYPE_NC_STATUS, NC_ABI_TYPE_U8,
@@ -122,4 +122,4 @@ pub use factory_plugin::{
     NcGetFactoryPluginDescription, activate_factory_implementation, return_factory_plugin_description, validate_factory_plugin_description,
 };
 
-pub use value_buffer::{EncodedInput, EncodedOutput, DecodedInput, DecodedOutput};
+pub use value_buffer::{EncodedInput, DecodedInput};

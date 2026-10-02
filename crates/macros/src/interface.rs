@@ -280,29 +280,43 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     };
                 })
             }
-            AbiArgKind::CopyFromBufferOffset { element_ty } | AbiArgKind::CopyToBufferOffset { element_ty } => {
+            AbiArgKind::CopyFromBufferOffset { element_ty } => {
                 let ident = &arg.binding;
                 let offset = buffer_offset_ident(ident);
                 let len = buffer_len_ident(ident);
                 let ptr = buffer_ptr_ident(ident);
                 let values = buffer_values_ident(ident);
-                let (decoder, wrapper) = match &arg.kind {
-                    AbiArgKind::CopyFromBufferOffset { .. } => (
-                        quote! { #nc::DecodedInput },
-                        quote! { #nc::NcCopyFromBufferOffset::new(#offset, #values.as_slice()) },
-                    ),
-                    _ => (
-                        quote! { #nc::DecodedOutput },
-                        quote! { #nc::NcCopyToBufferOffset::new(#offset, #values.as_mut_slice()) },
-                    ),
-                };
                 Some(quote! {
-                    // SAFETY: initialized raw elements are checked before any application slice exists;
-                    // direct borrowing additionally requires the codec's identity-conversion proof.
-                    let mut #values = match unsafe { #decoder::<#element_ty>::from_raw(#ptr, #len) } {
-                        ::core::result::Result::Ok(values) => values, ::core::result::Result::Err(status) => return status,
+                    // SAFETY: initialized input is checked before native access;
+                    // identity borrowing additionally requires the codec proof.
+                    let #values = match unsafe { #nc::DecodedInput::<#element_ty>::from_raw(#ptr, #len) } {
+                        ::core::result::Result::Ok(values) => values,
+                        ::core::result::Result::Err(status) => return status,
                     };
-                    let #ident = #wrapper;
+                    let #ident = #nc::NcCopyFromBufferOffset::new(#offset, #values.as_slice());
+                })
+            }
+            AbiArgKind::OutputBuffer { element_ty } => {
+                let ident = &arg.binding;
+                let offset = buffer_offset_ident(ident);
+                let len = buffer_len_ident(ident);
+                let ptr = buffer_ptr_ident(ident);
+                let values = buffer_values_ident(ident);
+                let written = buffer_written_ident(ident);
+                Some(quote! {
+                    if #written.is_null() || #written.align_offset(::core::mem::align_of::<u64>()) != 0 {
+                        return #nc::NC_E_POINTER;
+                    }
+                    // SAFETY: raw caller grants a separate writable count slot;
+                    // rejection never publishes a partially produced prefix.
+                    unsafe { *#written = 0; }
+                    let mut #values = 0_u64;
+                    // SAFETY: raw caller grants exclusive uninitialized wire
+                    // capacity. No old destination field is read or decoded.
+                    let #ident = match unsafe { #nc::NcOutputWriter::<#element_ty>::from_raw(#offset, #ptr, #len, &mut #values) } {
+                        ::core::result::Result::Ok(writer) => writer,
+                        ::core::result::Result::Err(status) => return status,
+                    };
                 })
             }
             AbiArgKind::ComRef { interface_ty, mode_ty, optional } => {
@@ -340,10 +354,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         });
         let owners = method.args.iter().filter(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. })).collect::<Vec<_>>();
         let has_owners = !owners.is_empty();
-        let output_checks = consuming_output_checks(&nc, method, |arg| {
-            let len = buffer_len_ident(&arg.binding);
-            quote! { #len }
-        });
+        let output_checks = consuming_return_checks(&nc, method);
         let output_preflight = output_checks.iter().map(|check| quote! {
             if let ::core::result::Result::Err(status) = #check { return status; }
         });
@@ -387,17 +398,13 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             true => quote! { panic!("invalid output after COM ownership commit: {:?}", status) },
             false => quote! { return status },
         };
-        let buffer_conversion = method.args.iter().filter_map(|arg| {
-            let AbiArgKind::CopyToBufferOffset { .. } = &arg.kind else {
-                return None;
-            };
-            let values = buffer_values_ident(&arg.binding);
-            Some(quote! { if let ::core::result::Result::Err(status) = #values.convert_output() { #output_error; } })
-        }).collect::<Vec<_>>();
+        // Provider writes are already encoded directly into caller capacity.
+        // Publish every prefix only after the return value also encoded successfully.
         let buffer_publication = method.args.iter().filter_map(|arg| {
-            let AbiArgKind::CopyToBufferOffset { .. } = &arg.kind else { return None; };
+            let AbiArgKind::OutputBuffer { .. } = &arg.kind else { return None; };
             let values = buffer_values_ident(&arg.binding);
-            Some(quote! { #values.publish(); })
+            let written = buffer_written_ident(&arg.binding);
+            Some(quote! { unsafe { *#written = #values; } })
         }).collect::<Vec<_>>();
         let arg_names = method.args.iter().map(|arg| &arg.binding).collect::<Vec<_>>();
         let out_param = match &method.ok.kind {
@@ -422,7 +429,6 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         let success_arm = match &method.ok.kind {
             AbiReturnKind::Void => quote! {
                 ::core::result::Result::Ok(()) => {
-                    #(#buffer_conversion)*
                     #(#buffer_publication)*
                     #nc::NC_OK
                 },
@@ -432,7 +438,6 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     // SAFETY: Non-void thunks checked `__nc_out` for null before the
                     // Rust method was called.
                     let raw = match #nc::encode_inline(&value) { ::core::result::Result::Ok(raw) => raw, ::core::result::Result::Err(status) => { #output_error } };
-                    #(#buffer_conversion)*
                     #(#buffer_publication)*
                     unsafe { *__nc_out = raw; }
                     #nc::NC_OK
@@ -443,7 +448,6 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     // SAFETY: Non-void thunks checked `__nc_out` for null.
                     // `into_raw` transfers the returned owned COM reference to
                     // the caller.
-                    #(#buffer_conversion)*
                     #(#buffer_publication)*
                     unsafe { *__nc_out = value.into_raw(); }
                     #nc::NC_OK
@@ -546,7 +550,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             });
         }
         for arg in &method.args {
-            if let AbiArgKind::CopyToBufferOffset { element_ty } = &arg.kind {
+            if let AbiArgKind::OutputBuffer { element_ty } = &arg.kind {
                 proofs.push(quote! {
                     assert!(<#element_ty as #nc::ComValue>::BORROW_WIRE || <#element_ty as #nc::ComValue>::MAX_COST.is_some(),
                         "consuming COM converted buffer output requires an allocation-free MAX_COST");
@@ -719,8 +723,10 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
     let method_ident = &method.ident;
     let args = method.args.iter().map(|arg| {
         let ident = &arg.binding;
-        let ty = &arg.rust_ty;
-        quote! { #ident: #ty }
+        match &arg.kind {
+            AbiArgKind::OutputBuffer { element_ty } => quote! { #ident: #nc::NcOutput<'_, #element_ty> },
+            _ => { let ty = &arg.rust_ty; quote! { #ident: #ty } },
+        }
     });
     let owners = method
         .args
@@ -763,10 +769,7 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
         })
         .collect::<Vec<_>>();
     let arg_preparations = method.args.iter().filter_map(|arg| safe_arg_preparation(nc, arg)).collect::<Vec<_>>();
-    let output_checks = consuming_output_checks(nc, method, |arg| {
-        let ident = &arg.binding;
-        quote! { #ident.__nc_len_u64()? }
-    });
+    let output_checks = consuming_return_checks(nc, method);
     let preparation = match has_owners {
         false => quote! { #(#arg_preparations)* },
         true => {
@@ -776,7 +779,7 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
                 .filter(|arg| {
                     matches!(
                         arg.kind,
-                        AbiArgKind::Plain | AbiArgKind::CopyFromBufferOffset { .. } | AbiArgKind::CopyToBufferOffset { .. }
+                        AbiArgKind::Plain | AbiArgKind::CopyFromBufferOffset { .. } | AbiArgKind::OutputBuffer { .. }
                     )
                 })
                 .map(|arg| &arg.binding)
@@ -818,15 +821,19 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
         .args
         .iter()
         .filter_map(|arg| {
-            let AbiArgKind::CopyToBufferOffset { .. } = &arg.kind else {
+            let AbiArgKind::OutputBuffer { .. } = &arg.kind else {
                 return None;
             };
             let ident = &arg.binding;
-            Some(quote! { #ident.convert_output() #acquire; })
+            Some(quote! {
+                // SAFETY: successful raw providers initialize their reported
+                // prefix; acquisition checks bounds and every restricted field.
+                (unsafe { #ident.convert_output() }) #acquire;
+            })
         })
         .collect::<Vec<_>>();
     let buffer_publication = method.args.iter().filter_map(|arg| {
-        let AbiArgKind::CopyToBufferOffset { .. } = &arg.kind else { return None; };
+        let AbiArgKind::OutputBuffer { .. } = &arg.kind else { return None; };
         let ident = &arg.binding;
         Some(quote! { #ident.publish(); })
     });
@@ -881,29 +888,18 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
     }
 }
 
-/// Builds pre-acceptance resource checks from the shared output codecs.
-/// The caller supplies wrapper lengths; the provider supplies raw ABI lengths.
-/// Non-consuming methods keep actual-output accounting and require no maximum.
-fn consuming_output_checks(
-    nc: &syn::Path,
-    method: &AbiMethod,
-    buffer_len: impl Fn(&crate::model::AbiArg) -> proc_macro2::TokenStream,
-) -> Vec<proc_macro2::TokenStream> {
-    if !method.args.iter().any(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. })) {
-        return Vec::new();
-    }
-    let mut checks = Vec::new();
-    if matches!(method.ok.kind, AbiReturnKind::Plain) {
-        let ty = &method.ok.rust_ty;
-        checks.push(quote! { #nc::check_inline_output::<#ty>() });
-    }
-    for arg in &method.args {
-        if let AbiArgKind::CopyToBufferOffset { element_ty } = &arg.kind {
-            let len = buffer_len(arg);
-            checks.push(quote! { #nc::check_buffer_output::<#element_ty>(#len) });
+/// Admits a consuming copied return before any owner transfer.
+/// Output buffers enforce their own whole-capacity policy during argument
+/// preparation on both sides; repeating it here would add redundant checks.
+/// Ordinary copied returns still use actual-output accounting after dispatch.
+fn consuming_return_checks(nc: &syn::Path, method: &AbiMethod) -> Vec<proc_macro2::TokenStream> {
+    match (method.args.iter().any(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. })), &method.ok.kind) {
+        (true, AbiReturnKind::Plain) => {
+            let ty = &method.ok.rust_ty;
+            vec![quote! { #nc::check_inline_output::<#ty>() }]
         }
+        _ => Vec::new(),
     }
-    checks
 }
 
 /// Emits the safe Rust receiver corresponding to one validated COM method.
@@ -974,8 +970,8 @@ fn arg_passing_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_ma
         AbiArgKind::CopyFromBufferOffset { .. } => quote! {
             #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::CopyFromBufferOffset)
         },
-        AbiArgKind::CopyToBufferOffset { .. } => quote! {
-            #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::CopyToBufferOffset)
+        AbiArgKind::OutputBuffer { .. } => quote! {
+            #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::OutputBuffer)
         },
         AbiArgKind::ComRef { mode_ty, optional, .. } => {
             let mode = threading_mode_expr(nc, mode_ty.as_deref());
@@ -1007,7 +1003,7 @@ fn arg_type_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_macro
                 #nc::NcAbiTypeDescriptor::from_abi_type(#nc::__nc_abi_type::<#ty>())
             }
         }
-        AbiArgKind::CopyFromBufferOffset { element_ty } | AbiArgKind::CopyToBufferOffset { element_ty } => {
+        AbiArgKind::CopyFromBufferOffset { element_ty } | AbiArgKind::OutputBuffer { element_ty } => {
             let element_ty = element_ty.as_ref();
             quote! {
                 #nc::NcAbiTypeDescriptor::from_abi_type(#nc::__nc_abi_plain_type::<#element_ty>())
@@ -1099,14 +1095,15 @@ fn raw_vtable_arg_params(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
                 quote! { #ptr_ident: #ty }
             }]
         }
-        AbiArgKind::CopyToBufferOffset { .. } => {
+        AbiArgKind::OutputBuffer { .. } => {
             let offset_ident = buffer_offset_ident(ident);
             let len_ident = buffer_len_ident(ident);
             let ptr_ident = buffer_ptr_ident(ident);
+            let written_ident = buffer_written_ident(ident);
             vec![quote! { #offset_ident: u64 }, quote! { #len_ident: u64 }, {
                 let ty = &arg.abi_ty;
                 quote! { #ptr_ident: #ty }
-            }]
+            }, quote! { #written_ident: *mut u64 }]
         }
     }
 }
@@ -1119,9 +1116,9 @@ fn safe_arg_preparation(nc: &syn::Path, arg: &crate::model::AbiArg) -> Option<pr
             let ident = &arg.binding;
             Some(quote! { let #ident = #nc::encode_inline(&#ident)?; })
         }
-        AbiArgKind::CopyToBufferOffset { .. } => {
+        AbiArgKind::OutputBuffer { .. } => {
             let ident = &arg.binding;
-            Some(quote! { let mut #ident = #nc::EncodedOutput::new(#ident)?; })
+            Some(quote! { let mut #ident = #ident.prepare()?; })
         }
         AbiArgKind::CopyFromBufferOffset { .. } => {
             let ident = &arg.binding;
@@ -1144,7 +1141,7 @@ fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
         AbiArgKind::ComRef { optional: true, .. } => vec![quote! { #ident.map_or(::core::default::Default::default(), |value| value.as_raw()) }],
         AbiArgKind::ComRef { optional: false, .. } => vec![quote! { #ident.as_raw() }],
         AbiArgKind::CopyFromBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.len() }, quote! { #ident.as_ptr() }],
-        AbiArgKind::CopyToBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.len() }, quote! { #ident.as_mut_ptr() }],
+        AbiArgKind::OutputBuffer { .. } => vec![quote! { #ident.offset() }, quote! { #ident.capacity() }, quote! { #ident.as_mut_ptr() }, quote! { #ident.written_ptr() }],
     }
 }
 
@@ -1205,4 +1202,9 @@ fn generated_path(path: &syn::Path, suffix: &str) -> syn::Path {
     let last = generated.segments.last_mut().expect("trait paths have a final segment");
     last.ident = format_ident!("{}{suffix}", last.ident);
     generated
+}
+
+/// Names the distinct initialized-prefix output slot without capturing authored names.
+fn buffer_written_ident(ident: &syn::Ident) -> syn::Ident {
+    private_ident(&format!("{ident}_written"))
 }

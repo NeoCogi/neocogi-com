@@ -94,7 +94,8 @@ These types have different ownership and conversion rules:
 | `NcUtf8View` | Public `data: *const u8`, `len: usize`, and `EMPTY`; no conversion methods | Runtime-owned bytes with an externally specified lifetime. The facade copies inspection text into owned strings. |
 | `NcAbiSignature` | `unsafe as_digest<'a>(self) -> Option<&'a [u8; 32]>` | One nullable pointer to a fixed digest. `from_static` requires a static 32-byte array; `EMPTY` explicitly represents absence. |
 | `NcCopyFromBufferOffset<'a, T>` | `as_slice(&self) -> &'a [T]` | Holds an actual Rust slice. The logical offset does not slice or shift its storage. |
-| `NcCopyToBufferOffset<'a, T>` | `as_mut_slice(&mut self) -> &mut [T]` | Holds exclusive caller-provided storage; counts are elements, not necessarily bytes. |
+| `NcOutputWriter<'a, T>` | `push`, `extend_from_slice`, `forward` | Provider writes fresh copied wire slots and never reads old contents. |
+| `NcOutputBuffer<T>` / `NcOutput<'a, T>` | `output(offset, capacity)`; published `as_slice()` | Caller owns reusable result storage; only the successful initialized prefix is observable. |
 | `INcStringAbi` / `INcBytesAbi` | Raw length, indexed-byte, and bulk-copy vtable operations | A COM reference retains the provider. Safe allocating conversions live in the facade. |
 
 `NcStaticUtf8` uses a `u32` byte count. An empty view returns an empty slice/text

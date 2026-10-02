@@ -173,6 +173,13 @@ fn write_passing_type(out: &mut String, passing: NcAbiPassingDescriptor, ty: &Nc
             write_type(out, ty)?;
             out.push('>');
         }
+        crate::NC_ABI_PASSING_OUTPUT_BUFFER => {
+            validate_threading_local(passing.threading)?;
+            validate_non_interface_value_type(ty)?;
+            out.push_str("output_buffer<");
+            write_type(out, ty)?;
+            out.push('>');
+        }
         NC_ABI_PASSING_COM_REF | crate::NC_ABI_PASSING_OPTIONAL_COM_REF | crate::NC_ABI_PASSING_COM_BOX_IN => {
             validate_interface_type(ty)?;
             out.push_str(match passing.tag {

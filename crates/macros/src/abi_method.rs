@@ -297,10 +297,10 @@ fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
         return Ok((ty, abi_ty, AbiArgKind::CopyFromBufferOffset { element_ty: Box::new(element_ty) }));
     }
 
-    if let Some(element_ty) = parse_copy_to_buffer_offset_type(&ty)? {
+    if let Some(element_ty) = parse_output_writer_type(&ty)? {
         validate_plain_abi_type(&element_ty, PlainAbiTypeContext::BufferElement)?;
         let abi_ty = syn::parse_quote! { *mut <#element_ty as #nc::ComValue>::Wire };
-        return Ok((ty, abi_ty, AbiArgKind::CopyToBufferOffset { element_ty: Box::new(element_ty) }));
+        return Ok((ty, abi_ty, AbiArgKind::OutputBuffer { element_ty: Box::new(element_ty) }));
     }
 
     if parse_com_ptr_type(&ty)?.is_some() {
@@ -417,11 +417,11 @@ fn parse_copy_from_buffer_offset_type(ty: &Type) -> Result<Option<Type>> {
 }
 
 /// Parses a mutable destination-buffer parameter wrapper.
-fn parse_copy_to_buffer_offset_type(ty: &Type) -> Result<Option<Type>> {
+fn parse_output_writer_type(ty: &Type) -> Result<Option<Type>> {
     parse_borrowed_element_type(
         ty,
-        "NcCopyToBufferOffset",
-        "`NcCopyToBufferOffset` parameters must be `NcCopyToBufferOffset<'_, Element>`",
+        "NcOutputWriter",
+        "`NcOutputWriter` parameters must be `NcOutputWriter<'_, Element>`",
     )
 }
 
@@ -595,10 +595,10 @@ fn raw_vtable_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
                 #[doc = concat!("- `", stringify!(#ident), "` lowers to `offset: u64`, `len: u64`, and a readable `*const ", stringify!(#element_ty), "` buffer.")]
             }]
         }
-        AbiArgKind::CopyToBufferOffset { element_ty } => {
+        AbiArgKind::OutputBuffer { element_ty } => {
             let element_ty = element_ty.as_ref();
             vec![quote! {
-                #[doc = concat!("- `", stringify!(#ident), "` lowers to `offset: u64`, `len: u64`, and a writable `*mut ", stringify!(#element_ty), "` buffer.")]
+                #[doc = concat!("- `", stringify!(#ident), "` lowers to `offset: u64`, `capacity: u64`, writable `*mut <", stringify!(#element_ty), " as ComValue>::Wire`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.")]
             }]
         }
     }
@@ -685,10 +685,10 @@ fn safe_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
                 #[doc = concat!("- `", stringify!(#ident), "` is passed as a safe readable `", stringify!(#element_ty), "` buffer plus offset.")]
             }]
         }
-        AbiArgKind::CopyToBufferOffset { element_ty } => {
+        AbiArgKind::OutputBuffer { element_ty } => {
             let element_ty = element_ty.as_ref();
             vec![quote! {
-                #[doc = concat!("- `", stringify!(#ident), "` is passed as a safe writable `", stringify!(#element_ty), "` buffer plus offset.")]
+                #[doc = concat!("- `", stringify!(#ident), "` takes `NcOutput<", stringify!(#element_ty), ">` from caller-owned output storage. Preparation discards prior results and reserves before dispatch. Only the successfully validated prefix is published; the provider receives `NcOutputWriter` and cannot read old destination values.")]
             }]
         }
     }

@@ -63,8 +63,8 @@ pub(crate) enum AbiArgKind {
     Plain,
     /// Call-scoped source buffer lowered to a const element pointer plus bounds.
     CopyFromBufferOffset { element_ty: Box<Type> },
-    /// Call-scoped destination buffer lowered to a mutable element pointer plus bounds.
-    CopyToBufferOffset { element_ty: Box<Type> },
+    /// Write-only copied output lowered to offset, capacity, wire pointer and prefix-count pointer.
+    OutputBuffer { element_ty: Box<Type> },
     /// Borrowed interface lowered to its raw ABI pointer.
     ComRef {
         /// Whether a null pointer denotes an explicitly absent capability.

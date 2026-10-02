@@ -224,3 +224,14 @@ copied calls, and owned payloads require a borrow of the whole enum. See the
 [generic value guide](../../../docs/IDL_GENERIC_VALUES.md) and
 [compiled example](examples/generic_values.ncidl) for collection constructors,
 borrowed optional COM capabilities, and the remaining explicit limitations.
+
+## Directional method buffers
+
+Readable `&[T]` lowers to `NcCopyFromBufferOffset`; `&mut [T]` and
+`&mut Slice<T>` lower to fresh `NcOutputWriter` provider parameters and
+`NcOutput` client arguments. Output expands to offset, capacity, wire pointer,
+and initialized-prefix count pointer in ABI generation 17. Existing destination
+contents are never input. A transformation needs an explicit readable argument
+and a separate output. Recursive checked wire types remain authoritative; Rust
+containers, enum layout, and persistence serialization do not cross these slots.
+See [the output contract](../../../docs/COM_OUTPUT_BUFFERS.md).

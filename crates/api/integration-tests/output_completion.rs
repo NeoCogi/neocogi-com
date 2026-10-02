@@ -3,92 +3,6 @@
 use neocogi_com::*;
 #[path = "support/allocation_probe.rs"]
 mod allocation_probe;
-use allocation_probe::Probe;
-
-#[test]
-fn converted_guards_allocate_only_during_preparation() {
-    let mut target = [false; 3];
-    let mut caller = EncodedOutput::new(NcCopyToBufferOffset::new(0, &mut target)).unwrap();
-    // SAFETY: caller retains the initialized exclusive wire region until completion.
-    let mut provider = unsafe { DecodedOutput::<bool>::from_raw(caller.as_mut_ptr(), caller.len()) }.unwrap();
-    provider.as_mut_slice().fill(true);
-    let probe = Probe::start(Some(0));
-    let sent = provider.finish();
-    let received = caller.finish();
-    let report = probe.finish();
-    assert_eq!(sent, Ok(()));
-    assert_eq!(received, Ok(()));
-    assert_eq!(report.attempts, 0);
-    assert_eq!(target, [true; 3]);
-}
-
-#[test]
-fn every_guard_allocation_is_fallible_and_leaves_destination_unchanged() {
-    // Two vectors per side: initialized input and reserved completion scratch.
-    for ordinal in 1..=5 {
-        let mut target = [false; 3];
-        let probe = Probe::start(Some(ordinal));
-        let result = (|| -> Result<(), NcStatus> {
-            let mut caller = EncodedOutput::new(NcCopyToBufferOffset::new(0, &mut target))?;
-            // SAFETY: caller owns live initialized storage and grants exclusive access.
-            let _provider = unsafe { DecodedOutput::<bool>::from_raw(caller.as_mut_ptr(), caller.len()) }?;
-            Ok(())
-        })();
-        let report = probe.finish();
-        match ordinal {
-            1..=4 => {
-                assert_eq!(result, Err(NC_E_OUT_OF_MEMORY), "allocation {ordinal}");
-                assert_eq!(report.denied, 1);
-            }
-            _ => {
-                assert_eq!(result, Ok(()));
-                assert_eq!(report.attempts, 4);
-            }
-        }
-        assert_eq!(target, [false; 3]);
-    }
-}
-
-#[test]
-fn malformed_output_does_not_publish_a_valid_prefix() {
-    let mut target = [false; 3];
-    let mut caller = EncodedOutput::new(NcCopyToBufferOffset::new(0, &mut target)).unwrap();
-    // SAFETY: raw u8 wires accept all bit patterns; bool validity is checked later.
-    unsafe { caller.as_mut_ptr().copy_from_nonoverlapping([1, 1, 7].as_ptr(), 3) };
-    let probe = Probe::start(Some(0));
-    let result = caller.finish();
-    let report = probe.finish();
-    assert_eq!(result, Err(NC_E_INVALID_ARG));
-    assert_eq!(report.attempts, 0);
-    assert_eq!(target, [false; 3]);
-}
-
-#[test]
-fn direct_and_empty_buffers_need_no_scratch() {
-    let mut target = [2_u32; 3];
-    let address = target.as_mut_ptr();
-    let probe = Probe::start(Some(0));
-    let result = (|| -> Result<_, NcStatus> {
-        let mut caller = EncodedOutput::new(NcCopyToBufferOffset::new(0, &mut target))?;
-        let direct = caller.as_mut_ptr() == address;
-        // SAFETY: caller owns the original exclusive numeric slice.
-        let mut provider = unsafe { DecodedOutput::<u32>::from_raw(caller.as_mut_ptr(), caller.len()) }?;
-        provider.as_mut_slice().fill(9);
-        provider.finish()?;
-        caller.finish()?;
-        let mut empty = [];
-        let mut caller = EncodedOutput::<bool>::new(NcCopyToBufferOffset::new(0, &mut empty))?;
-        // SAFETY: an empty initialized buffer needs no addressable element.
-        let provider = unsafe { DecodedOutput::<bool>::from_raw(caller.as_mut_ptr(), 0) }?;
-        provider.finish()?;
-        caller.finish()?;
-        Ok(direct)
-    })();
-    let report = probe.finish();
-    assert_eq!(result, Ok(true));
-    assert_eq!(report.attempts, 0);
-    assert_eq!(target, [9; 3]);
-}
 
 #[com_struct(assigned_signature = b"00000000000000000000000000000811")]
 #[derive(Debug, PartialEq)]
@@ -122,13 +36,13 @@ trait IComplete {
         &mut self,
         first: ComBox<IItemAbi>,
         second: ComBox<IItemAbi>,
-        choices: NcCopyToBufferOffset<'_, Choice>,
-        flags: NcCopyToBufferOffset<'_, bool>,
+        choices: NcOutputWriter<'_, Choice>,
+        flags: NcOutputWriter<'_, bool>,
         reject: bool,
         deny_after_entry: bool,
     ) -> Result<Choice, (NcStatus, ComBox<IItemAbi>, ComBox<IItemAbi>)>;
     /// Direct numeric buffers retain their existing allocation-free identity path.
-    fn direct(&mut self, first: ComBox<IItemAbi>, values: NcCopyToBufferOffset<'_, u64>) -> Result<u32, (NcStatus, ComBox<IItemAbi>)>;
+    fn direct(&mut self, first: ComBox<IItemAbi>, values: NcOutputWriter<'_, u64>) -> Result<u32, (NcStatus, ComBox<IItemAbi>)>;
     /// Known but excessive maximum must reject before implementation entry.
     fn excessive(&mut self, first: ComBox<IItemAbi>) -> Result<Excessive, (NcStatus, ComBox<IItemAbi>)>;
 }
@@ -136,26 +50,26 @@ trait IComplete {
 mod generated_calls;
 
 #[com_interface(auto_guid = "nc.tests.completion.Ordinary:v1", assigned_signature = b"00000000000000000000000000000831")]
-/// Ordinary fallible outputs still convert completely before any publication.
+/// Ordinary outputs admit capacity before entry and acquire all results before publication.
 trait IOrdinaryOutputs {
     /// A later converted buffer may exceed the actual-value budget.
-    fn buffers(&mut self, flags: NcCopyToBufferOffset<'_, bool>, choices: NcCopyToBufferOffset<'_, Choice>) -> Result<(), NcStatus>;
+    fn buffers(&mut self, flags: NcOutputWriter<'_, bool>, choices: NcOutputWriter<'_, Choice>) -> Result<(), NcStatus>;
     /// An invalid copied return must not publish earlier converted buffers either.
-    fn result(&mut self, flags: NcCopyToBufferOffset<'_, bool>) -> Result<Excessive, NcStatus>;
+    fn result(&mut self, flags: NcOutputWriter<'_, bool>) -> Result<Excessive, NcStatus>;
 }
 #[com_object(IOrdinaryOutputs)]
 /// Deliberately produces valid native outputs exceeding ordinary conversion limits.
 struct OrdinaryOutputs;
 impl IOrdinaryOutputs for OrdinaryOutputs {
     /// Each current Idle is cheap, but Filled may exceed the combined output count.
-    fn buffers(&mut self, mut flags: NcCopyToBufferOffset<'_, bool>, mut choices: NcCopyToBufferOffset<'_, Choice>) -> Result<(), NcStatus> {
-        flags.as_mut_slice().fill(true);
-        choices.as_mut_slice().fill(Choice::Filled(Details { flags: [true; 2] }));
+    fn buffers(&mut self, mut flags: NcOutputWriter<'_, bool>, mut choices: NcOutputWriter<'_, Choice>) -> Result<(), NcStatus> {
+        for _ in 0..flags.capacity() { flags.push(true)?; }
+        for _ in 0..choices.capacity() { choices.push(Choice::Filled(Details { flags: [true; 2] }))?; }
         Ok(())
     }
     /// Returns zero physical bytes with too many logical array values.
-    fn result(&mut self, mut flags: NcCopyToBufferOffset<'_, bool>) -> Result<Excessive, NcStatus> {
-        flags.as_mut_slice().fill(true);
+    fn result(&mut self, mut flags: NcOutputWriter<'_, bool>) -> Result<Excessive, NcStatus> {
+        for _ in 0..flags.capacity() { flags.push(true)?; }
         Ok([[]; MAX_VALUE_COUNT])
     }
 }
@@ -165,17 +79,19 @@ fn provider_validates_all_converted_outputs_before_publishing_any() {
     let provider = OrdinaryOutputs::from_value(OrdinaryOutputs).query::<IOrdinaryOutputsAbi>().unwrap();
     let raw = provider.as_raw();
     let mut flags = [0_u8];
+    let mut flags_written = 0;
+    let mut choices_written = 0;
     let mut choices = vec![encode_inline(&Choice::Idle).unwrap(); MAX_VALUE_COUNT / 5 + 1];
     // SAFETY: live initialized writable wire buffers and a valid provider object.
-    let status = unsafe { ((*raw.vtable).buffers)(raw.object, 0, 1, flags.as_mut_ptr(), 0, choices.len() as u64, choices.as_mut_ptr()) };
+    let status = unsafe { ((*raw.vtable).buffers)(raw.object, 0, 1, flags.as_mut_ptr(), &mut flags_written, 0, choices.len() as u64, choices.as_mut_ptr(), &mut choices_written) };
     assert_eq!(status, NC_E_OUT_OF_RANGE);
     assert_eq!(flags, [0]);
     assert!(choices.iter().all(|wire| unsafe { decode_inline::<Choice>(*wire) }.unwrap() == Choice::Idle));
     let mut out = std::mem::MaybeUninit::uninit();
     // SAFETY: output storage matches the copied wire, including its zero size.
-    let status = unsafe { ((*raw.vtable).result)(raw.object, 0, 1, flags.as_mut_ptr(), out.as_mut_ptr()) };
+    let status = unsafe { ((*raw.vtable).result)(raw.object, 0, 1, flags.as_mut_ptr(), &mut flags_written, out.as_mut_ptr()) };
     assert_eq!(status, NC_E_OUT_OF_RANGE);
-    assert_eq!(flags, [0]);
+    assert_eq!(flags_written, 0);
 }
 
 /// Simulates a foreign provider violating the boolean output representation.
@@ -185,9 +101,11 @@ unsafe extern "C" fn invalid_later_buffer(
     _flags_offset: u64,
     flags_len: u64,
     flags: *mut u8,
+    flags_written: *mut u64,
     _choices_offset: u64,
     choices_len: u64,
     choices: *mut <Choice as ComValue>::Wire,
+    choices_written: *mut u64,
 ) -> NcStatus {
     assert_eq!((flags_len, choices_len), (1, 1));
     let mut malformed = encode_inline(&Choice::Filled(Details { flags: [true; 2] })).unwrap();
@@ -197,6 +115,8 @@ unsafe extern "C" fn invalid_later_buffer(
     unsafe {
         *flags = 1;
         *choices = malformed;
+        *flags_written = 1;
+        *choices_written = 1;
     }
     NC_OK
 }
@@ -213,12 +133,12 @@ fn caller_validates_later_output_before_publishing_earlier_buffer() {
     // SAFETY: the provider and substituted C-shaped table remain live throughout
     // this scoped borrow. Only the output-writing slot is deliberately malformed.
     let mut client = unsafe { ComRef::<IOrdinaryOutputsAbi>::from_raw_borrowed(raw) }.unwrap();
-    let mut flags = [false];
-    let mut choices = [Choice::Idle];
-    let status = client.buffers(NcCopyToBufferOffset::new(0, &mut flags), NcCopyToBufferOffset::new(0, &mut choices));
+    let mut flags = NcOutputBuffer::<bool>::new();
+    let mut choices = NcOutputBuffer::<Choice>::new();
+    let status = client.buffers(flags.output(0, 1), choices.output(0, 1));
     assert_eq!(status, Err(NC_E_INVALID_TAG));
-    assert_eq!(flags, [false]);
-    assert_eq!(choices, [Choice::Idle]);
+    assert!(flags.is_empty());
+    assert!(choices.is_empty());
 }
 
 #[test]
@@ -226,9 +146,9 @@ fn consuming_output_admission_checks_bytes_count_depth_and_exact_boundaries() {
     // bool is restricted, whereas u64 remains a direct in-place buffer.
     assert_eq!(check_buffer_output::<bool>(MAX_VALUE_COUNT as u64), Ok(()));
     assert_eq!(check_buffer_output::<bool>(MAX_VALUE_COUNT as u64 + 1), Err(NC_E_OUT_OF_RANGE));
-    assert_eq!(check_buffer_output::<u64>(u64::MAX), Ok(()));
-    // Existing raw pointer checks still reject invalid lengths for direct buffers;
-    // output admission alone has no conversion budget to impose on this path.
+    assert_eq!(check_buffer_output::<u64>(u64::MAX), Err(NC_E_OUT_OF_RANGE));
+    // Identity output has no conversion budget, but its region must still fit
+    // pointer arithmetic before allocation or a raw provider call.
     assert_eq!(check_buffer_output::<Choice>((MAX_VALUE_COUNT / 5) as u64), Ok(()));
     assert_eq!(check_buffer_output::<Choice>((MAX_VALUE_COUNT / 5 + 1) as u64), Err(NC_E_OUT_OF_RANGE));
     assert_eq!(check_buffer_output::<Choice>(u64::MAX), Err(NC_E_OUT_OF_RANGE));
@@ -269,4 +189,68 @@ fn consuming_output_admission_checks_bytes_count_depth_and_exact_boundaries() {
     assert_eq!(check_inline_output::<TooDeep>(), Err(NC_E_OUT_OF_RANGE));
     assert_eq!(check_buffer_output::<TooDeep>(1), Err(NC_E_OUT_OF_RANGE));
     assert_eq!(check_buffer_output::<TooDeep>(0), Ok(()));
+}
+
+#[com_interface(auto_guid = "nc.tests.output.OneWay:v1", assigned_signature = b"00000000000000000000000000001504")]
+/// Fresh copied output can be forwarded without borrowing initialized native values.
+trait IOneWay {
+    /// Writes one nested enum regardless of the larger supplied capacity.
+    fn get(&self, reject: bool, output: NcOutputWriter<'_, Choice>) -> Result<u32, NcStatus>;
+}
+#[com_object(IOneWay)]
+/// Source implementation writes a short prefix and can reject after production.
+struct OneWay;
+impl IOneWay for OneWay {
+    /// Failure deliberately leaves raw writes, but no prefix may be published.
+    fn get(&self, reject: bool, mut output: NcOutputWriter<'_, Choice>) -> Result<u32, NcStatus> {
+        output.push(Choice::Filled(Details { flags: [true, false] }))?;
+        match reject {
+            true => Err(NC_E_INVALID_ARG),
+            false => Ok(37), // Required total is independent of initialized prefix.
+        }
+    }
+}
+#[com_object(IOneWay)]
+/// Real COM delegation lends the same raw wire slots and requires no scratch storage.
+struct Forwarded {
+    /// Owning shared handle keeps only the provider alive, not caller storage.
+    source: ComPtr<IOneWayAbi>,
+}
+impl IOneWay for Forwarded {
+    /// The nested generated client validates its prefix before the outer thunk publishes.
+    fn get(&self, reject: bool, output: NcOutputWriter<'_, Choice>) -> Result<u32, NcStatus> {
+        self.source.get(reject, output.forward()?)
+    }
+}
+
+/// Warm direct and delegated getters need no allocation and publish only initialized slots.
+#[test]
+fn generated_forwarding_preserves_short_prefix_and_discards_failed_output() {
+    use allocation_probe::Probe;
+    let source = OneWay::from_value(OneWay).query::<IOneWayAbi>().unwrap();
+    let forwarded = Forwarded::from_value(Forwarded { source }).query::<IOneWayAbi>().unwrap();
+    let mut output = NcOutputBuffer::new();
+    assert_eq!(forwarded.get(false, output.output(0, 4)), Ok(37));
+    assert_eq!(output.as_slice(), [Choice::Filled(Details { flags: [true, false] })]);
+    // The complete nested call uses already reserved capacity on both sides.
+    let probe = Probe::start(Some(0));
+    let result = forwarded.get(false, output.output(0, 4));
+    let rejected = forwarded.get(true, output.output(0, 4));
+    let attempts = probe.finish().attempts;
+    assert_eq!(result, Ok(37));
+    assert_eq!(rejected, Err(NC_E_INVALID_ARG));
+    assert!(output.is_empty());
+    assert_eq!(attempts, 0);
+}
+
+/// A writer that has already produced values cannot relend its destination as fresh output.
+#[test]
+fn forwarding_rejects_an_already_written_prefix() {
+    let mut slots = [core::mem::MaybeUninit::<u32>::uninit(); 2];
+    let mut written = 0;
+    // SAFETY: aligned stack storage and count are distinct, live and exclusive.
+    let mut output = unsafe { NcOutputWriter::<u32>::from_raw(0, slots.as_mut_ptr().cast(), 2, &mut written) }.unwrap();
+    output.push(9).unwrap();
+    assert_eq!(output.forward().err().unwrap(), NC_E_INVALID_ARG);
+    assert_eq!(written, 1);
 }

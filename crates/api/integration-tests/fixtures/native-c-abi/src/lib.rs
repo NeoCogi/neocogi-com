@@ -1,4 +1,4 @@
-use neocogi_com::{ComPtr, ComRef, NcCopyFromBufferOffset, NcCopyToBufferOffset, NcStatus, NC_E_OUT_OF_RANGE, com_object, com_interface, com_struct};
+use neocogi_com::{ComPtr, ComRef, NcCopyFromBufferOffset, NcOutputWriter, NcStatus, NC_E_OUT_OF_RANGE, com_object, com_interface, com_struct};
 
 #[com_struct(assigned_signature = b"00000000000000000000000000000040")]
 #[derive(Debug, Default, PartialEq)]
@@ -20,7 +20,7 @@ pub trait INativeCalculator: INativeValue {
     fn make_value(&self, value: i32) -> Result<ComPtr<INativeValueAbi>, NcStatus>;
     fn read_value(&self, value: ComRef<'_, INativeValueAbi>) -> Result<i32, NcStatus>;
     fn sum_buffer(&self, input: NcCopyFromBufferOffset<'_, u8>) -> Result<u64, NcStatus>;
-    fn fill_buffer(&self, output: NcCopyToBufferOffset<'_, u8>) -> Result<(), NcStatus>;
+    fn fill_buffer(&self, output: NcOutputWriter<'_, u8>) -> Result<(), NcStatus>;
     fn transform(&self, input: NativeAggregate) -> Result<NativeAggregate, NcStatus>;
 }
 
@@ -67,12 +67,12 @@ impl INativeCalculator for NativeCalculator {
         Ok(input.as_slice().iter().fold(input.offset(), |sum, byte| sum.wrapping_add(u64::from(*byte))))
     }
 
-    fn fill_buffer(&self, mut output: NcCopyToBufferOffset<'_, u8>) -> Result<(), NcStatus> {
+    fn fill_buffer(&self, mut output: NcOutputWriter<'_, u8>) -> Result<(), NcStatus> {
         let offset = output.offset();
-        for (index, byte) in output.as_mut_slice().iter_mut().enumerate() {
+        for index in 0..output.capacity() {
             let index = u64::try_from(index).map_err(|_| NC_E_OUT_OF_RANGE)?;
             let value = offset.checked_add(index).ok_or(NC_E_OUT_OF_RANGE)?;
-            *byte = u8::try_from(value).map_err(|_| NC_E_OUT_OF_RANGE)?;
+            output.push(u8::try_from(value).map_err(|_| NC_E_OUT_OF_RANGE)?)?;
         }
         Ok(())
     }
@@ -101,6 +101,8 @@ pub enum NativeChoice {
 pub trait INativeChoice {
     /// Returns the checked native value unchanged through the generated output codec.
     fn echo(&self, value: NativeChoice) -> Result<NativeChoice, NcStatus>;
+    /// Produces two values without reading old output bytes; returns required total.
+    fn output(&self, output: NcOutputWriter<'_, NativeChoice>) -> Result<u32, NcStatus>;
 }
 #[com_object(interfaces(INativeChoice))]
 /// Stateless native implementation reached only after foreign input validation.
@@ -108,6 +110,13 @@ struct Choice;
 impl INativeChoice for Choice {
     fn echo(&self, value: NativeChoice) -> Result<NativeChoice, NcStatus> {
         Ok(value)
+    }
+    /// A short query reports required capacity without initializing any prefix.
+    fn output(&self, mut output: NcOutputWriter<'_, NativeChoice>) -> Result<u32, NcStatus> {
+        if output.capacity() >= 2 {
+            output.extend_from_slice(&[NativeChoice::Flag(true), NativeChoice::Empty])?;
+        }
+        Ok(2)
     }
 }
 
@@ -283,4 +292,24 @@ mod tests {
         assert_eq!(results.aggregate, NativeAggregate { tag: 4, count: 7, value: 14 });
         assert_eq!(unsafe { nc_c_validate_abi_layouts(&native_abi_layouts()) }, 1);
     }
+}
+
+#[cfg(test)]
+unsafe extern "C" {
+    /// C reads the explicit prefix count and verifies inactive tail bytes stay untouched.
+    fn nc_c_exercise_choice_output(
+        object: *mut core::ffi::c_void,
+        output: unsafe extern "C" fn(*mut core::ffi::c_void, u64, u64, *mut __NativeChoiceValueWire, *mut u64, *mut u32) -> NcStatus,
+        pointer_status: NcStatus,
+    ) -> i32;
+}
+
+/// Independently written C storage need not contain valid native enum/bool values on entry.
+#[cfg(test)]
+#[test]
+fn c_output_getter_uses_fresh_wire_storage_and_separate_prefix_count() {
+    let source = Choice::from_value(Choice).query::<INativeChoiceAbi>().unwrap();
+    let raw = source.as_raw();
+    // SAFETY: C invokes the exact raw signature using live, aligned foreign slots.
+    assert_eq!(unsafe { nc_c_exercise_choice_output(raw.object, (*raw.vtable).output, neocogi_com::NC_E_POINTER) }, 1);
 }

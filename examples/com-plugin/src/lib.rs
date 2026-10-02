@@ -5,7 +5,7 @@ use neocogi_com::{
     com_factory, com_object,
 };
 use neocogi_idl_example_contracts::{ExtentChanged, ExampleObjectEventPort, ExampleObjectEventBinding};
-use neocogi_idl_example_contracts::{ExampleFactory, ExampleObject, ExampleObjectAbi, Extent, IMeasured};
+use neocogi_idl_example_contracts::{ExampleFactory, ExampleObject, ExampleObjectAbi, Extent, ExtentReport, IMeasured};
 
 /// Private mutable object constructed only through `ExampleFactory`.
 #[com_object(interfaces(neocogi_idl_example_contracts::ExampleObject, neocogi_com::persistence::IPersistable))]
@@ -20,6 +20,16 @@ impl IMeasured for DynamicExampleObject {
     /// Returns the current dimensions by ABI-safe value copy.
     fn extent(&self) -> Result<Extent, NcStatus> {
         Ok(self.extent)
+    }
+    /// Writes only fresh copied records into caller storage, without provider scratch.
+    fn reports(&self, mut output: neocogi_com::NcOutputWriter<'_, ExtentReport>) -> Result<u32, NcStatus> {
+        if output.capacity() >= 2 {
+            output.extend_from_slice(&[
+                ExtentReport::Current { extent: self.extent, usable: true },
+                ExtentReport::Empty,
+            ])?;
+        }
+        Ok(2)
     }
 }
 

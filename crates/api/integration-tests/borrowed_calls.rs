@@ -10,7 +10,7 @@ pub trait ICounter {
     /// Returns the number of AddRef calls observed so far.
     fn additions(&self) -> Result<u32, NcStatus>;
     /// Returns an owned reference alongside deliberately malformed foreign output.
-    fn malformed_output(&self, output: neocogi_com::NcCopyToBufferOffset<'_, bool>) -> Result<ComPtr<IDerivedCounterAbi>, NcStatus>;
+    fn malformed_output(&self, output: neocogi_com::NcOutputWriter<'_, bool>) -> Result<ComPtr<IDerivedCounterAbi>, NcStatus>;
 }
 
 #[com_interface(auto_guid = "nc.tests.borrowed.DerivedCounter:v1", assigned_signature = b"00000000000000000000000000000002")]
@@ -85,6 +85,7 @@ unsafe extern "C" fn malformed_output(
     _offset: u64,
     len: u64,
     output: *mut u8,
+    written: *mut u64,
     out: *mut neocogi_com::ComRaw<IDerivedCounterAbi>,
 ) -> NcStatus {
     assert_eq!(len, 1);
@@ -93,6 +94,7 @@ unsafe extern "C" fn malformed_output(
     unsafe {
         add_ref(this.cast());
         *output = 2;
+        *written = 1;
         *out = neocogi_com::ComRaw { object: this, vtable: &VTABLE };
     }
     NC_OK
@@ -134,14 +136,14 @@ fn borrowed_generated_calls_perform_no_lifecycle_operations() {
     assert_eq!(counts.releases.get(), 0);
     // A failed acquisition must preserve the safe bool and release the returned
     // reference immediately. The original caller still owns the object afterward.
-    let mut destination = [false];
+    let mut destination = neocogi_com::NcOutputBuffer::<bool>::new();
     assert_eq!(
         borrowed
-            .malformed_output(neocogi_com::NcCopyToBufferOffset::new(0, &mut destination))
+            .malformed_output(destination.output(0, 1))
             .unwrap_err(),
         neocogi_com::NC_E_INVALID_ARG
     );
-    assert_eq!(destination, [false]);
+    assert!(destination.is_empty());
     assert_eq!(counts.additions.get(), 1);
     assert_eq!(counts.releases.get(), 1);
     let retained = borrowed.add_ref();

@@ -39,8 +39,6 @@ impl<'a, T: ComInlineValue> NcOutputWriter<'a, T> {
     pub unsafe fn from_raw(offset: u64, pointer: *mut T::Wire, capacity: u64, written: &'a mut u64) -> Result<Self, NcStatus> {
         crate::check_buffer_output::<T>(capacity)?;
         let count = usize::try_from(capacity).map_err(|_| NC_E_OUT_OF_RANGE)?;
-        let bytes = count.checked_mul(core::mem::size_of::<T::Wire>()).ok_or(NC_E_OUT_OF_RANGE)?;
-        if bytes > isize::MAX as usize { return Err(NC_E_OUT_OF_RANGE); }
         let pointer = match count {
             0 => core::ptr::NonNull::<MaybeUninit<T::Wire>>::dangling().as_ptr(),
             _ if pointer.is_null() || pointer.align_offset(core::mem::align_of::<T::Wire>()) != 0 => return Err(NC_E_POINTER),
@@ -61,6 +59,22 @@ impl<'a, T: ComInlineValue> NcOutputWriter<'a, T> {
     pub fn written(&self) -> usize { *self.written as usize }
     /// Returns the remaining slots available for additional writes.
     pub fn remaining(&self) -> usize { self.capacity() - self.written() }
+    /// Returns true when the getter was supplied no output capacity.
+    pub fn is_empty(&self) -> bool { self.capacity() == 0 }
+
+    /// Lends this untouched destination to another synchronous COM provider.
+    /// Forwarding uses the same raw slots without scratch allocation. The inner
+    /// client validates its reported prefix before updating this thunk's count.
+    /// A partially filled writer cannot be forwarded as a fresh whole output.
+    pub fn forward(self) -> Result<NcOutput<'a, T>, NcStatus> {
+        match *self.written {
+            0 => {
+                let capacity = self.slots.len();
+                Ok(NcOutput { target: OutputTarget::Forward { slots: self.slots, count: self.written }, offset: self.offset, capacity })
+            }
+            _ => Err(crate::NC_E_INVALID_ARG),
+        }
+    }
 
     /// Encodes one native value directly into its next raw destination slot.
     pub fn push(&mut self, value: T) -> Result<(), NcStatus> {
@@ -70,6 +84,8 @@ impl<'a, T: ComInlineValue> NcOutputWriter<'a, T> {
         // still follows the same recursive typed codec as ordinary COM arguments.
         let wire = match T::BORROW_WIRE {
             true => crate::encode_inline(&value)?,
+            // SAFETY: ComInlineValue supplies self-contained Copy storage and
+            // its MAX_COST was prepaid for every slot before implementation entry.
             false => unsafe { value.encode_prechecked() }?.0,
         };
         slot.write(wire);
@@ -122,6 +138,9 @@ impl<T: ComInlineValue> NcOutputBuffer<T> {
     pub fn as_slice(&self) -> &[T] { &self.values }
     /// Returns the number of published native results.
     pub fn len(&self) -> usize { self.values.len() }
+    /// Returns retained native capacity; a call still uses its explicit requested capacity.
+    /// Converted wire storage may have a separately rounded allocation.
+    pub fn capacity(&self) -> usize { self.values.capacity() }
     /// Returns true when there are no published results.
     pub fn is_empty(&self) -> bool { self.values.is_empty() }
     /// Discards published results without releasing reusable capacity.
@@ -140,6 +159,14 @@ impl<T: ComInlineValue> NcOutputBuffer<T> {
 impl<T: ComInlineValue> Default for NcOutputBuffer<T> {
     /// Default buffers have no allocation or published results.
     fn default() -> Self { Self::new() }
+}
+
+#[cfg(feature = "alloc")]
+impl<T: ComInlineValue> core::ops::Deref for NcOutputBuffer<T> {
+    /// Read-only access never exposes raw slots or an incomplete native acquisition.
+    type Target = [T];
+    /// Lends the published slice using ordinary collection operations.
+    fn deref(&self) -> &[T] { self.as_slice() }
 }
 
 /// Exclusive client argument for one output-only getter; no Rust layout crosses COM.
@@ -163,6 +190,13 @@ enum OutputTarget<'a, T: ComInlineValue> {
         slots: &'a mut [MaybeUninit<T>],
         /// Published result length, kept at zero until complete call success.
         count: &'a mut usize,
+    },
+    /// Provider-to-provider lending uses already admitted wire slots and a local count.
+    Forward {
+        /// No old contents are read; the nested call produces a fresh prefix.
+        slots: &'a mut [MaybeUninit<T::Wire>],
+        /// Outer thunk's private count, published only when the inner call completes.
+        count: &'a mut u64,
     },
 }
 
@@ -201,14 +235,11 @@ impl<'a, T: ComInlineValue> NcOutput<'a, T> {
             }
         }
     }
-    /// Converts requested capacity into the fixed-width ABI count.
-    #[doc(hidden)]
-    pub fn __nc_len_u64(&self) -> Result<u64, NcStatus> { u64::try_from(self.capacity).map_err(|_| NC_E_OUT_OF_RANGE) }
     /// Discards old results, admits every possible output, and reserves storage.
     #[doc(hidden)]
     pub fn prepare(mut self) -> Result<PreparedOutput<'a, T>, NcStatus> {
         self.clear_results();
-        crate::check_buffer_output::<T>(self.__nc_len_u64()?)?;
+        crate::check_buffer_output::<T>(u64::try_from(self.capacity).map_err(|_| NC_E_OUT_OF_RANGE)?)?;
         match &mut self.target {
             #[cfg(feature = "alloc")]
             OutputTarget::Buffer(buffer) => {
@@ -218,7 +249,7 @@ impl<'a, T: ComInlineValue> NcOutput<'a, T> {
                     buffer.wires.try_reserve_exact(self.capacity).map_err(|_| crate::NC_E_OUT_OF_MEMORY)?;
                 }
             }
-            OutputTarget::Direct { .. } => {},
+            OutputTarget::Direct { .. } | OutputTarget::Forward { .. } => {},
         }
         Ok(PreparedOutput { output: self, written: 0, publication: Publication::Unacquired })
     }
@@ -228,6 +259,7 @@ impl<'a, T: ComInlineValue> NcOutput<'a, T> {
             #[cfg(feature = "alloc")]
             OutputTarget::Buffer(buffer) => buffer.values.clear(),
             OutputTarget::Direct { count, .. } => **count = 0,
+            OutputTarget::Forward { count, .. } => **count = 0,
         }
     }
 }
@@ -246,6 +278,7 @@ impl<T: ComInlineValue> PreparedOutput<'_, T> {
                 false => buffer.wires.as_mut_ptr().cast(),
             },
             OutputTarget::Direct { slots, .. } => slots.as_mut_ptr().cast(),
+            OutputTarget::Forward { slots, .. } => slots.as_mut_ptr().cast(),
         }
     }
     /// Supplies the independent prefix-count slot to the synchronous raw call.
@@ -284,6 +317,16 @@ impl<T: ComInlineValue> PreparedOutput<'_, T> {
             // Identity-only slots need no conversion. Count publication still
             // waits until every output in the generated call has validated.
             OutputTarget::Direct { .. } => {},
+            OutputTarget::Forward { slots, .. } => {
+                if !T::BORROW_WIRE {
+                    for slot in &slots[..count] {
+                        // SAFETY: successful nested provider initialized active
+                        // fields in the checked prefix. No native storage escapes.
+                        let wire = unsafe { slot.assume_init_read() };
+                        unsafe { T::decode_prechecked(wire) }?;
+                    }
+                }
+            }
         }
         self.publication = Publication::Acquired;
         Ok(())
@@ -297,6 +340,7 @@ impl<T: ComInlineValue> PreparedOutput<'_, T> {
             Publication::Acquired => {
                 match &mut self.output.target {
                     OutputTarget::Direct { count, .. } => **count = self.written as usize,
+                    OutputTarget::Forward { count, .. } => **count = self.written,
                     #[cfg(feature = "alloc")]
                     OutputTarget::Buffer(_) => {},
                 }

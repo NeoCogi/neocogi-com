@@ -17,6 +17,14 @@ impl IMeasured for ExampleObjectImplementation {
     fn extent(&self) -> Result<Extent, NcStatus> {
         Ok(self.extent)
     }
+    /// Emits a fresh checked prefix using the same contract as the independent plugin.
+    fn reports(&self, mut output: neocogi_com::NcOutputWriter<'_, neocogi_idl_example_contracts::ExtentReport>) -> Result<u32, NcStatus> {
+        use neocogi_idl_example_contracts::ExtentReport;
+        if output.capacity() >= 2 {
+            output.extend_from_slice(&[ExtentReport::Current { extent: self.extent, usable: true }, ExtentReport::Empty])?;
+        }
+        Ok(2)
+    }
 }
 
 impl ExampleObject for ExampleObjectImplementation {

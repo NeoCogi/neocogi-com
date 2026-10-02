@@ -44,7 +44,7 @@
 //! across the generated ABI boundary directly. Use `neocogi_com::INcStringAbi` and
 //! `neocogi_com::INcBytesAbi` for common read-only strings and byte buffers. Bounded
 //! call-scoped buffers use `neocogi_com::NcCopyFromBufferOffset` and
-//! `neocogi_com::NcCopyToBufferOffset`. For streaming data, expose bounded methods such as
+//! `neocogi_com::NcOutputWriter`. For streaming data, expose bounded methods such as
 //! `next_chunk(max_len) -> Result<ComPtr<INcBytesAbi>, NcStatus>`; a successful
 //! chunk must contain at most `max_len` bytes, and an empty chunk can represent
 //! end-of-stream.
@@ -70,9 +70,11 @@
 //! the generated trait call. COM interface returns use
 //! `neocogi_com::ComPtr<IFooAbi>` and lower to owned raw interface pointers. Safe
 //! buffer parameters use `neocogi_com::NcCopyFromBufferOffset<'_, T>` or
-//! `neocogi_com::NcCopyToBufferOffset<'_, T>` and lower to offset, length, and raw
-//! buffer pointer slots. These parameters likewise require `'_` so their safe
-//! slices remain call-scoped. Borrowed values use `neocogi_com::NcValueRef<'_, T>`
+//! `neocogi_com::NcOutputWriter<'_, T>`. Readable inputs lower to offset, length,
+//! and raw pointer slots. Output writers lower to offset, capacity, raw wire pointer,
+//! and a separate initialized-prefix count pointer. Generated clients accept
+//! `NcOutput<'_, T>` from reusable `NcOutputBuffer` or identity-only stack storage.
+//! No old output bytes are input. These views require `'_` and remain call-scoped. Borrowed values use `neocogi_com::NcValueRef<'_, T>`
 //! and the same lifetime policy: exactly one anonymous lifetime followed by the
 //! value type. Receivers must call `to_owned()` during the call to retain data.
 //! Even a static application value can need temporary encoded storage, so its

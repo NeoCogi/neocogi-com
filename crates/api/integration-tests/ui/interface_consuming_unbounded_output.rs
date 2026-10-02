@@ -27,12 +27,12 @@ pub trait ICopied {
 }
 #[com_interface(auto_guid = "nc.tests.unbounded.Buffer:v1", assigned_signature = b"00000000000000000000000000000822")]
 pub trait IBuffer {
-    fn take(&self, owner: ComBox<IUnknown>, output: NcCopyToBufferOffset<'_, Unbounded>) -> Result<(), (NcStatus, ComBox<IUnknown>)>;
+    fn take(&self, owner: ComBox<IUnknown>, output: NcOutputWriter<'_, Unbounded>) -> Result<(), (NcStatus, ComBox<IUnknown>)>;
 }
 // Non-consuming methods need no declaration-time maximum; ordinary codec errors
 // remain recoverable. These declarations must not add diagnostics to the fixture.
 #[com_interface(auto_guid = "nc.tests.unbounded.Ordinary:v1", assigned_signature = b"00000000000000000000000000000823")]
 pub trait IOrdinary {
-    fn get(&self, output: NcCopyToBufferOffset<'_, Unbounded>) -> Result<Unbounded, NcStatus>;
+    fn get(&self, output: NcOutputWriter<'_, Unbounded>) -> Result<Unbounded, NcStatus>;
 }
 fn main() {}

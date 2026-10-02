@@ -1,6 +1,6 @@
 # Current COM contracts
 
-The current binary contract is [Core ABI v16](abi-v16.md). Its generation is
+The current binary contract is [Core ABI v17](abi-v17.md). Its generation is
 defined by `NC_COM_CORE_ABI_VERSION` in
 [core metadata](../core/src/metadata/contract.rs). The
 [documentation test](../idl/tests/documentation.rs) checks that this entrypoint

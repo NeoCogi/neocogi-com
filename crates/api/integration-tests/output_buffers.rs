@@ -128,6 +128,9 @@ fn acquired_first_output_is_discarded_when_a_later_output_fails() {
 
 #[test]
 fn count_shape_capacity_and_budget_fail_without_exposing_output() {
+    // Identity outputs still reject unrepresentable regions before trying allocation.
+    let mut numeric = NcOutputBuffer::<u64>::new();
+    assert_eq!(numeric.output(0, usize::MAX).prepare().err().unwrap(), NC_E_OUT_OF_RANGE);
     let mut written = 3;
     // SAFETY: empty storage permits null; nonempty null is rejected before access.
     let empty = unsafe { NcOutputWriter::<bool>::from_raw(0, std::ptr::null_mut(), 0, &mut written) }.unwrap();

@@ -1,8 +1,10 @@
 /// Optional capability implemented by the example class.
-#[version(1)]
+#[version(2)]
 interface IMeasured {
     /// Returns the current copied dimensions.
     fn extent(&self) -> Result<Extent>;
+    /// Returns a short fresh report prefix, with required total separate from written count.
+    fn reports(&self, output: &mut [ExtentReport]) -> Result<u32>;
 }
 
 /// Public object shape constructed only by `ExampleFactory`.

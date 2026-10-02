@@ -110,7 +110,7 @@ fn generates_rust_bindings_for_a_module_graph() {
     assert!(!generated.contains("fn index"));
     assert!(generated.contains("trait UiFactory"));
     assert!(generated.contains("threading = shared"));
-    assert!(generated.contains("NcCopyToBufferOffset"));
+    assert!(generated.contains("NcOutputWriter"));
     assert!(generated_render.contains("pub status: ::neocogi_com::NcStatus"));
     assert!(generated_render.contains("com_struct("));
     assert!(generated_render.contains("deserialize"));
