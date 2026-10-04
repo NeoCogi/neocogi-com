@@ -40,14 +40,18 @@ Structs, enums, and interfaces can declare type parameters. Each use must supply
 <!-- checked-example: generic-stream -->
 ```ncidl
 #[version(1)]
-interface IEventQueue<Object, Event> {
-    fn post(&mut self, origin: &Object, event: &Event) -> Result<()>;
+interface IEvent {}
+#[version(1)]
+enum EventOrigin { Widget(WeakComBox<IUnknown>), Service(WeakComPtr<IUnknown>) }
+#[version(1)]
+interface IEventReceiver {
+    fn post(&mut self, origin: &EventOrigin, event: ComBox<IEvent>) -> Result<()>;
 }
 
 #[version(1)]
 enum EventBinding<Object, Event> {
     Unobserved,
-    Observed(ComPtr<IEventQueue<Object, Event>>),
+    Observed(ComPtr<IEventReceiver>),
 }
 
 #[version(1)]
@@ -65,8 +69,8 @@ A template is a source-level contract, not an open COM vtable. The compiler
 substitutes each closed use into an ordinary concrete declaration, then applies
 the same field ownership, finite-layout, copied-position, inheritance, threading,
 and delivery checks used for declarations without parameters. Thus
-`IEventQueue<TextBox, u32>` is invalid because borrowing a scalar as a message is
-invalid; `IValue<u32>` with scalar-valued `get`/`set` methods is valid. Methods,
+a generic method taking `&T` cannot instantiate T as a scalar; `IValue<u32>`
+with scalar-valued `get`/`set` methods is valid. Methods,
 classes, and factories do not declare generic parameters. Type argument bounds
 are checked at instantiation; Rust trait bounds, lifetimes, const arguments,
 and specialization rules are outside this grammar.
@@ -333,9 +337,9 @@ pointer is live. See [the complete contract](RECURSIVE_VALUE_CONTRACT.md).
 
 For several event kinds, declare one enum and accept `EventBinding<Editor, EditorEvent>`
 in the factory returning the concrete class. Its variants may nest ordinary
-value types. `IEventQueue<Object, Event>` and `EventBinding<Object, Event>` are ordinary library templates;
-closed uses have checked concrete representations and COM identities. The parent
-supplies its typed receiver during construction. A published object has no
+value types. `EventBinding<Object, Event>` is an ordinary library template; its Observed
+case contains the common `IEventReceiver`. The parent supplies that receiver
+during construction. Events transfer as exclusive `ComBox<IEvent>` capabilities. A published object has no
 attachment or replacement operation. See [typed class event streams](#typed-class-event-streams)
 and the [architecture guide](CLASS_EVENT_STREAMS.md).
 
@@ -667,9 +671,9 @@ module graph or impose a process-wide single revision for each module.
 identities also preserve this distinction. Existing spellings keep their encoding.
 
 `neocogi.com.events` is a logical contract module owned by the COM facade. It
-publishes the ordinary `IEventQueue<Object, Event>` and `EventBinding<Object, Event>` templates.
-Each consuming contract module generates its closed projections and typed Rust
-adapters. UI scheduling uses `neocogi.ui.core::IWidgetDispatcher::dispatch_next` and the
+publishes `IEvent`, `EventOrigin`, `IEventReceiver`, and the ordinary
+`EventBinding<Object, Event>` template. Consuming modules generate their binding
+specializations and optional native event associations. UI scheduling uses `neocogi.ui.core::IWidgetDispatcher::dispatch_next` and the
 separate, borrowed `IApplicationDispatcher` for application messages. Neither
 the IDL nor the COM process runtime owns a UI event loop.
 Consumers depend on `neocogi-com` with `macros`; no runtime contract registration
@@ -778,35 +782,21 @@ its typed handler parameters and concrete form fields.
 
 ### Typed class event streams
 
-`IEventQueue<Object, Event>` receives concrete checked values. `EventBinding<Object, Event>` is the
-ordinary enum selecting Unobserved or Observed with an owned queue capability.
-Factories accept that binding before publishing a product; classes expose only
-their commands. No receiver installation method is generated.
+`IEventReceiver` accepts a checked weak `EventOrigin` and transfers an exclusive
+`ComBox<IEvent>`. Concrete event interfaces derive from `IEvent` and expose
+immutable getters. `EventBinding<Object, Event>` selects permanent Unobserved or
+Observed delivery through that common receiver. Its type arguments associate the
+producer with a native payload for optional Rust decoding and authoring metadata.
+Factories accept the binding before publishing a product; no attachment method
+is generated.
 
-```text
-class Textbox: IWidget + ILeafLayout { /* commands */ }
-factory Widgets {
-    fn create_textbox(&self, text: &[u8], events: &EventBinding<Textbox, TextboxEvent>)
-        -> Result<ComBox<Textbox>>;
-}
-```
-
-The resolver records `TextboxEventBinding`, `TextboxEventQueueAbi`, `TextboxEventQueue`
-and `TextboxEventQueueVtblFor` plus the constructor association for Rust `EventSource`
-metadata. This `ComBox` constructor does not generate `TextboxEventPort`.
-Multiple receiver arguments or inconsistent event types fail resolution.
-`IDL_INTERFACE.event_queue` identifies the receiver separately from the product's
-interface chain, and publishes its complete reachable event value graph plus the
-checked public Rust queue trait path. A direct application queue can implement
-several such traits on one object. IDL emits no application callback receiver.
-
-The application implements `TextboxEventQueue::post` on its concrete COM queue,
-acquires the checked payload, validates its domain and enqueues an owned application
-message. Pass that object's projection in Observed. Widget factories retain the
-optional queue and a cached `WeakComBox` origin as ordinary fields, initialized
-by `into_box_cyclic` before publication. The producer posts after committing its
-state. Owner destruction releases those fields, with no widget close method.
-Unobserved construction is permanent.
+The resolver records `ProductEventBinding` and `EventSource::Event`. It emits no
+product-specific receiver interface or queue aliases. `IDL_INTERFACE.event_queue`
+names the common receiver and the native event graph separately from the product's
+interface chain. A host can use `events::channel()` or implement `IEventReceiver`
+once for its own inbox. Messages keep the event as a COM object until handling;
+unsupported derived-interface queries return None, while actual COM errors remain errors.
+See [COM event objects](COM_EVENT_INTERFACES.md).
 
 `*EventPort` is generated only if an associated constructor in the product's module
 returns `ComPtr<Product>`. It is a convenience alias for shared-service producers

@@ -27,14 +27,13 @@ there is no separate message declaration category.
 
 Construction-bound delivery uses the ordinary library enum
 `neocogi.com.events.EventBinding<Object, Event>` as a borrowed constructor argument. Its
-`Observed(ComPtr<IEventQueue<Object, Event>>)` case supplies the one typed receiver;
+`Observed(ComPtr<IEventReceiver>)` case supplies the common receiver;
 `Unobserved` chooses permanent non-delivery. The factory retains the receiver
 before returning its product. There is no Rust sender or closure in the ABI.
 
 For methods returning `ComPtr<Product>`, `ComBox<Product>` or `WeakComBox<Product>`
 in the product's contract module, resolution records one constructor association.
-Its public helper inventory contains `ProductEventBinding`, `ProductEventQueueAbi`,
-`ProductEventQueue` and `ProductEventQueueVtblFor`. It additionally contains
+Its public helper inventory contains `ProductEventBinding`. It additionally contains
 `ProductEventPort` only when an associated constructor returns `ComPtr<Product>`:
 that helper stores `WeakComPtr` and does not serve exclusive widgets. Validation
 reserves exactly these names against declarations, imports and other helpers;

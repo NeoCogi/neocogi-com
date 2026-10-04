@@ -303,22 +303,20 @@ is an optional build dependency of this feature and runs on the build machine.
 
 ### Construction-bound event receivers
 
-The application implements concrete `*EventQueue` traits on one COM object whose
-fields own posting access to its channel. Share that object's projections between
-producers using the IDL `EventBinding<Object, Event>` constructor argument. The
-factory initializes `EventPort::with_queue(queue, origin)` with the owned receiver
-and cyclic-construction weak origin before publication. IDL generates checked
-methods and type associations; it does not generate application callback adapters.
-See [event ownership](../../../docs/contracts/CLASS_EVENT_STREAMS.md). `None` means permanently unobserved,
-not an empty slot available for later attachment. Closing the port releases its
-receiver reference and is idempotent; messages already posted belong to the
-application queue and are not retracted.
+All producers accept the common `IEventReceiver`. `events::channel()` supplies an
+ordinary local inbox; applications needing another envelope or capacity policy
+implement that one interface themselves. `post` transfers a `ComBox<IEvent>` and
+captures a weak widget/service origin. The event remains a COM object until its
+handler queries a derived event interface. A rejected post returns the original
+owner. The standard channel reports `NC_E_CLOSED` when disconnected.
 
-A failed constructor must release every reference it acquired. A successful
-constructor retains the queue until logical closure or final destruction.
-Neither the application message nor the closure's captured Rust state crosses
-COM; only `IEventQueue<Object, Event>` calls do. The generated construction descriptor names
-that queue's exact interface identity and the complete event value graph.
+`EventBinding<Object, Event>` describes constructor policy and an optional native
+payload association. Factories fix the receiver and weak origin before publication.
+`None` means permanently unobserved. Shared-service `EventPort` state can close
+idempotently; widget destruction releases its stored receiver. Already queued
+facts remain owned by the inbox. IDL generates no per-widget queue aliases or
+application callback receivers. See [COM event objects](../../../docs/contracts/COM_EVENT_INTERFACES.md)
+and [event ownership](../../../docs/contracts/CLASS_EVENT_STREAMS.md).
 
 
 Concrete providers select one ownership policy. Shared ownership is the default;

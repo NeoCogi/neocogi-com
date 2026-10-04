@@ -68,15 +68,13 @@ ownership transfer and the limits of concurrent Drop.
 ## Events and UI ownership
 
 A factory receives the complete `EventBinding<Object, Event>` during construction.
-One concrete application queue can implement several closed `IEventQueue` traits.
-Its synchronous `post` acquires the event and weak origin, validates any domain
-rules, and posts an owned application message to an ordinary channel. Application
+All producers share the common `IEventReceiver` interface. Its synchronous `post`
+captures the weak origin and moves a `ComBox<IEvent>` into the inbox. Application
 behavior runs later under mutable access. There are no named-output connections,
 late subscriptions, receiver installation or generated application routing.
 
 For widgets, the owning parent/container holds `ComBox`; callers retain
-`WeakComBox` observations. A queue receives a borrowed origin and calls
-`downgrade_box()`. Removing the owner rejects new calls immediately, waits for
+`WeakComBox` observations. The producer supplies a cached weak origin to its receiver. Removing the owner rejects new calls immediately, waits for
 admitted calls and destroys the widget and owned children before Drop returns.
 There is no independently closed live widget. Close intent is an ordinary event:
 the behavioral parent decides whether to remove its child after the call returns.

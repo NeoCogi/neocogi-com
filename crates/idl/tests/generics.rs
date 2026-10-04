@@ -65,7 +65,7 @@ fn independent_consumers_share_specialization_identity_and_signature() {
     let together = resolve_modules(vec![templates(), messages(), consumer("first", ""), consumer("second", "")]).unwrap();
     assert_eq!(instances(&together, "test.first"), instances(&together, "test.second"));
     for owner in ["test.transport", "test.first", "test.second"] {
-        let rust = neocogi_idl::generate_rust(&together, owner).unwrap();
+        let rust = generate_rust(&together, owner).unwrap();
         syn::parse_file(&rust).expect("closed bindings are ordinary Rust interfaces");
     }
     let object = first.module("test.first").unwrap().source.declaration("Object").unwrap();
@@ -114,7 +114,7 @@ fn generic_interface_accepts_scalar_arguments_in_valid_positions() {
     "#,
     );
     let graph = resolve_modules(vec![source]).unwrap();
-    let rust = neocogi_idl::generate_rust(&graph, "test.scalars").unwrap();
+    let rust = generate_rust(&graph, "test.scalars").unwrap();
     assert!(rust.contains("value: u32"));
 }
 
@@ -144,7 +144,7 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
     for name in ["producer", "consumer"] {
         fs::write(
             project.path().join(format!("src/{name}.rs")),
-            neocogi_idl::generate_rust(&graph, &format!("proof.{name}")).unwrap(),
+            generate_rust(&graph, &format!("proof.{name}")).unwrap(),
         )
         .unwrap();
     }
@@ -227,6 +227,7 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
         #[version(1)] struct Node<T> { value: T, children: Vec<Node<T>> }
         #[version(1)] enum Change<T>: u8 { Set(T), Clear }
         #[version(1)] struct Handle<I> { object: ComPtr<I> }
+        #[version(1)] interface IValueReceiver<T> { fn accept(&mut self, value: &T) -> Result<()>; }
         #[version(1)] interface IExchange<T> { fn roundtrip(&self, value: T) -> Result<T>; }
     "#;
     // Each declaration selects its own binder names, including recursive uses.
@@ -236,14 +237,16 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
         #[version(1)] struct Node<Item> { value: Item, children: Vec<Node<Item>> }
         #[version(1)] enum Change<Payload>: u8 { Set(Payload), Clear }
         #[version(1)] struct Handle<Object> { object: ComPtr<Object> }
+        #[version(1)] interface IValueReceiver<Item> { fn accept(&mut self, value: &Item) -> Result<()>; }
         #[version(1)] interface IExchange<Value> { fn roundtrip(&self, value: Value) -> Result<Value>; }
     "#;
     let consumer_source = r#"
         extern proof.templates; extern neocogi.com.events;
-        use proof.templates::{Pair, Node, Change, Handle, IExchange};
+        use proof.templates::{Pair, Node, Change, Handle, IExchange, IValueReceiver};
         use neocogi.com.events::EventBinding;
         #[version(1)] factory ExchangeFactory { fn create(&self, events: &EventBinding<Exchange, Change<Node<String>>>) -> Result<ComPtr<Exchange>>; }
         #[version(1)] class Exchange: IExchange<Pair<bool, bool>> {}
+        #[version(1)] class Receiver: IValueReceiver<Change<Node<String>>> {}
         #[version(1)] interface IData { fn inspect(&self, owner: &Handle<IUnknown>) -> Result<()>; }
     "#;
     // Resolve independently: accidental dependence on the other consumer's
@@ -288,6 +291,7 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
     let node = instance("Node");
     let change = instance("Change");
     let exchange = instance("IExchange");
+    let receiver = instance("IValueReceiver");
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(
@@ -301,7 +305,7 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
     for (name, graph) in [("producer", &producer), ("consumer", &consumer), ("rebound", &rebound)] {
         fs::write(
             project.path().join(format!("src/{name}.rs")),
-            neocogi_idl::generate_rust(graph, "proof.contract").unwrap(),
+            generate_rust(graph, "proof.contract").unwrap(),
         )
         .unwrap();
     }
@@ -338,18 +342,18 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
         /// A renamed peer receives an owned recursive enum through a real COM queue.
         #[test]
         fn recursive_value_and_generic_event_receiver_acquire_snapshots() {{
-            use neocogi_com::events::EventQueueInterface;
             let node = producer::{node} {{ value: "parent".into(), children: vec![producer::{node} {{ value: "child".into(), children: vec![] }}] }};
             let value = producer::{change}::Set(node);
             let copied = neocogi_com::NcValueRef::new(&value).unwrap().to_owned().unwrap();
             let producer::{change}::Set(node) = copied else {{ panic!("selected alternative changed") }};
             assert_eq!(node.children[0].value, "child");
-            #[neocogi_com::com_object(consumer::ExchangeEventQueue)]
+            #[neocogi_com::com_object(consumer::Receiver)]
             /// Consumer-owned concrete queue is compiled against renamed template parameters.
             struct Queue;
-            impl consumer::ExchangeEventQueue for Queue {{
+            impl consumer::Receiver for Queue {{}}
+            impl consumer::{receiver} for Queue {{
                 /// Decode through the peer's own generated recursive wire representation.
-                fn post(&mut self, _: neocogi_com::ComRef<'_, consumer::ExchangeAbi>, value: neocogi_com::NcValueRef<'_, consumer::{change}>) -> Result<(), neocogi_com::NcStatus> {{
+                fn accept(&mut self, value: neocogi_com::NcValueRef<'_, consumer::{change}>) -> Result<(), neocogi_com::NcStatus> {{
                     let consumer::{change}::Set(node) = value.to_owned()? else {{ panic!("wrong event") }};
                     assert_eq!(node.value, "parent");
                     assert_eq!(node.children[0].value, "child");
@@ -357,8 +361,8 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
                 }}
             }}
             let receiver = Queue::from_value(Queue);
-            let producer_view = receiver.query::<producer::ExchangeEventQueueAbi>().unwrap();
-            producer::ExchangeEventQueueAbi::post(producer_view.as_com_ref(), Exchange::from_value(Exchange).query::<producer::ExchangeAbi>().unwrap().as_com_ref(), &value).unwrap();
+            let producer_view = receiver.query::<producer::{receiver}Abi>().unwrap();
+            producer_view.as_com_ref().accept(neocogi_com::NcValueRef::new(&value).unwrap()).unwrap();
             let descriptor = producer::ExchangeAbi::IDL_INTERFACE;
             let stream = descriptor.event_queue.unwrap();
             assert!(descriptor.values.iter().any(|value| value.qualified_name == stream.message.qualified_name));
@@ -400,4 +404,11 @@ fn value_template_layout_is_part_of_specialized_signatures() {
     let changed = instances(&graph("second: u32, first: T"), "proof.consumer");
     assert_eq!(first[0].1, changed[0].1);
     assert_ne!(first[0].2, changed[0].2);
+}
+
+/// Standalone fixtures consume the shipped common receiver from its owning crate.
+fn generate_rust(graph: &neocogi_idl::ResolvedModules, module: &str) -> Result<String, neocogi_idl::GenerateError> {
+    let mut paths = neocogi_idl::generate::RustModulePaths::default();
+    if graph.module("neocogi.com.events").is_some() { paths.insert("neocogi.com.events", "neocogi_com::events").unwrap(); }
+    neocogi_idl::generate::generate_rust_with_paths(graph, module, &paths)
 }

@@ -7,7 +7,9 @@ use neocogi_idl::{parse_module, resolve_modules};
 #[test]
 fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
     let source = r#"
-        extern neocogi.com.events; use neocogi.com.events::EventBinding;
+        extern neocogi.com.events; use neocogi.com.events::{EventBinding, IEvent};
+        #[version(1)] interface ICancelledEvent: IEvent {}
+        #[version(1)] interface IAcceptedEvent: IEvent { fn token(&self) -> Result<ComPtr<IToken>>; }
         #[version(1)] interface IToken { fn value(&self) -> Result<u32>; }
         #[version(1)] struct NumberChanged { value: f32, checked: bool }
         #[version(1)] struct TextChanged { text: String, cursor: u64 }
@@ -72,7 +74,7 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
                 .is_some_and(|instance| instance.template.segments.last().is_some_and(|name| name == "Option"))
         })
         .unwrap();
-    let generated = neocogi_idl::generate_rust(&graph, "example.messages").unwrap() + &format!("\npub use {} as OptionalNumber;\n", option.name);
+    let generated = generate_rust(&graph, "example.messages").unwrap() + &format!("\npub use {} as OptionalNumber;\n", option.name);
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
@@ -86,11 +88,12 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
     .unwrap();
     // The imported-output module has no local message declaration. Compile it too,
     // so allocation imports and cross-crate receiver paths are checked by rustc.
-    let consumer = neocogi_idl::generate_rust(&graph, "example.consumer").unwrap();
+    let consumer = generate_rust(&graph, "example.consumer").unwrap();
     fs::write(project.path().join("src/consumer.rs"), consumer).unwrap();
     // Compile the same imported output through a nested Rust location. This
     // checks concrete receiver ABI paths as well as ordinary authored imports.
     let mut paths = neocogi_idl::generate::RustModulePaths::default();
+    paths.insert("neocogi.com.events", "neocogi_com::events").unwrap();
     paths.insert("example.messages", "example_messages_contracts::relocated").unwrap();
     let relocated = neocogi_idl::generate::generate_rust_with_paths(&graph, "example.consumer", &paths).unwrap();
     fs::write(project.path().join("src/relocated_consumer.rs"), relocated).unwrap();
@@ -176,7 +179,7 @@ fn nested_records_and_aggregate_sequences_resolve_uniformly() {
     let graph = resolve_modules(vec![parse_module(Path::new("example/values.ncidl"), source).unwrap()]).unwrap();
     assert!(graph.values.definitions["example.values.Inner"].copied);
     assert!(!graph.values.definitions["example.values.Outer"].copied);
-    assert!(neocogi_idl::generate_rust(&graph, "example.values").unwrap().contains("com_value"));
+    assert!(generate_rust(&graph, "example.values").unwrap().contains("com_value"));
 }
 
 /// Inline option recursion is just as infinite as an ordinary recursive field.
@@ -190,4 +193,11 @@ fn optional_cycles_and_removed_message_annotation_are_rejected() {
             .contains("recursive copied-value layout")
     );
     assert!(parse_module(Path::new("example/values.ncidl"), "#[version(1)] #[message] struct Gone { value: bool }").is_err());
+}
+
+/// Standalone fixtures consume the shipped common receiver from its owning crate.
+fn generate_rust(graph: &neocogi_idl::ResolvedModules, module: &str) -> Result<String, neocogi_idl::GenerateError> {
+    let mut paths = neocogi_idl::generate::RustModulePaths::default();
+    if graph.module("neocogi.com.events").is_some() { paths.insert("neocogi.com.events", "neocogi_com::events").unwrap(); }
+    neocogi_idl::generate::generate_rust_with_paths(graph, module, &paths)
 }

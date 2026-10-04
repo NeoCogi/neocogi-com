@@ -32,11 +32,7 @@ pub(super) fn aliases(graph: &Generation<'_>, module: &ResolvedModule, declarati
     };
     let binding = plan.binding;
     let value = named_rust_type(graph, module, binding.value.get(graph.graph), false)?;
-    let queue = named_rust_type(graph, module, binding.queue.get(graph.graph), true)?;
-    let queue_trait = named_rust_type(graph, module, binding.queue.get(graph.graph), false)?;
-    let mut provider: syn::Path = syn::parse2(queue_trait.clone()).map_err(|error| GenerateError::new(error.to_string()))?;
-    let last = provider.segments.last_mut().expect("named queue path is nonempty");
-    last.ident = rust_ident(&format!("{}VtblFor", last.ident))?;
+    let event = named_rust_type(graph, module, binding.event.get(graph.graph), false)?;
     let abi = rust_ident(&format!("{}Abi", declaration.name))?;
     let helpers = plan
         .helpers
@@ -48,21 +44,9 @@ pub(super) fn aliases(graph: &Generation<'_>, module: &ResolvedModule, declarati
                     /// Permanent observed/unobserved choice supplied to this product's constructor.
                     pub type #name = #value;
                 },
-                Helper::QueueAbi(_) => quote! {
-                    /// Exact receiver accepted when this product is constructed.
-                    pub type #name = #queue;
-                },
-                Helper::Queue(_) => quote! {
-                    /// Typed receiver implementation contract owned by the application.
-                    pub use #queue_trait as #name;
-                },
-                Helper::QueueProvider(_) => quote! {
-                    /// Vtable provider for local implementations using the readable queue alias.
-                    pub use #provider as #name;
-                },
                 Helper::Port(_) => quote! {
                     /// Shared-service producer storage using WeakComPtr; exclusive widgets keep their queue and WeakComBox directly.
-                    pub type #name = ::neocogi_com::events::EventPort<#queue>;
+                    pub type #name = ::neocogi_com::events::EventPort<#abi>;
                 },
             })
         })
@@ -70,8 +54,8 @@ pub(super) fn aliases(graph: &Generation<'_>, module: &ResolvedModule, declarati
     Ok(quote! {
         #(#helpers)*
         impl ::neocogi_com::events::EventSource for #abi {
-            /// Constructor-selected receiver; this adds no interface to the producer.
-            type Queue = #queue;
+            /// Optional native payload association; this adds no interface to the producer.
+            type Event = #event;
         }
     })
 }

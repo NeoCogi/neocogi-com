@@ -31,7 +31,7 @@ impl ExampleObject for ExampleObjectImplementation {
     /// Replaces dimensions through the generated exclusive `&mut self` call.
     fn resize(&mut self, extent: Extent) -> Result<(), NcStatus> {
         self.extent = extent;
-        self.events.post(&neocogi_idl_example_contracts::ExtentChanged {
+        self.events.post(neocogi_idl_example_contracts::ExtentChanged {
             width: extent.width,
             height: extent.height,
         })

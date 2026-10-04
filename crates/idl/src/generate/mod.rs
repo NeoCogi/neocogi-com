@@ -12,7 +12,6 @@ use quote::quote;
 mod construction;
 mod mapping;
 mod paths;
-mod streams;
 mod value;
 pub use paths::RustModulePaths;
 
@@ -609,7 +608,6 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
             let methods = interface_methods(graph, module, &interface.methods)?;
             let threading = threading_ident(interface.threading);
             let factory = matches!(interface.role, InterfaceRole::Factory).then(|| quote! { factory, });
-            let stream_support = streams::generate(graph, module, declaration)?;
             let construction_support = construction::aliases(graph, module, declaration)?;
             let class_abi = rust_ident(&format!("{}Abi", declaration.name))?;
             let class_marker = (interface.role == InterfaceRole::Class).then(|| {
@@ -629,7 +627,6 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
                 #declaration_docs
                 pub trait #name #bases { #(#methods)* }
                 #class_marker
-                #stream_support
                 #construction_support
             })
         }

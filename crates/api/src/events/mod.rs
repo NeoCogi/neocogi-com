@@ -1,7 +1,6 @@
-//! Construction-bound typed COM event queues and producer-local delivery state.
-//! Application COM objects own posting access to their ordinary message channels.
-//! A synchronous post acquires the snapshot; application behavior runs later.
-//! This module neither links the process runtime nor creates a receiver adapter.
+//! Common exclusive COM events, weak origins and construction-bound receivers.
+//! Posting moves one event owner; application behavior runs after traversal.
+//! Standard-channel support is optional and independent of the process runtime.
 
 #![deny(missing_docs)]
 
@@ -18,4 +17,9 @@ pub use message::{EventMessage, EventPayload, downcast_event};
 #[cfg(feature = "alloc")]
 mod stream;
 #[cfg(feature = "alloc")]
-pub use stream::{QueueOf, EventOf, EventPort, EventSource, EventQueueInterface};
+pub use stream::{EventOf, EventPort, EventSource};
+
+#[cfg(feature = "std")]
+mod channel;
+#[cfg(feature = "std")]
+pub use channel::channel;

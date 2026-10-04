@@ -1,4 +1,4 @@
-//! Single-threaded allocation probe for one concrete shared COM event queue.
+//! Single-threaded allocation probe for the common receiver and exclusive events.
 //! Run with: cargo run -p neocogi-example-com-plugin --example event_allocations --features monolith
 
 use std::{
@@ -6,10 +6,8 @@ use std::{
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 use neocogi_com::{ComPtr, Runtime, guid_from_qualified_name};
-use neocogi_com::{ComRef, WeakComPtr, NcStatus};
 use neocogi_com::NcValueRef;
-use neocogi_idl_example_contracts::{ExampleObjectEventBinding, ExampleObjectEventQueueAbi};
-use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentChanged};
+use neocogi_idl_example_contracts::{ExampleObjectEventBinding, ExampleFactoryAbi, ExampleObjectAbi, Extent};
 
 /// Gates counting around the measured setup or synchronous delivery only.
 static COUNTING: AtomicBool = AtomicBool::new(false);
@@ -68,26 +66,13 @@ fn count(operation: impl FnOnce()) -> usize {
 }
 
 /// Emits and drains scalar events; assertion formatting only runs on a failure.
-fn deliver(object: &mut ComPtr<ExampleObjectAbi>, messages: &std::sync::mpsc::Receiver<(WeakComPtr<ExampleObjectAbi>, ExtentChanged)>) {
+fn deliver(object: &mut ComPtr<ExampleObjectAbi>, messages: &std::sync::mpsc::Receiver<neocogi_com::events::EventMessage>) {
     for width in 0..10_000 {
         object.resize(Extent { width, height: 1 }).unwrap();
-        let (origin, event) = messages.try_recv().unwrap();
+        let message = messages.try_recv().unwrap();
+        let (origin, event) = message.service::<ExampleObjectAbi>().unwrap().unwrap();
         assert_eq!(event.width, width);
         assert!(origin.upgrade().unwrap().unwrap().as_com_ref().same_object(object.as_com_ref()));
-    }
-}
-
-#[neocogi_com::com_object(neocogi_idl_example_contracts::ExampleObjectEventQueue)]
-/// The application's concrete receiver works for every object of the example class.
-struct ExtentQueue {
-    /// Owned payloads and weak origins outlive only the producer's call storage.
-    sender: std::sync::mpsc::Sender<(WeakComPtr<ExampleObjectAbi>, ExtentChanged)>,
-}
-impl neocogi_idl_example_contracts::ExampleObjectEventQueue for ExtentQueue {
-    /// Performs checked payload acquisition without any mapper or callback allocation.
-    fn post(&mut self, origin: ComRef<'_, ExampleObjectAbi>, event: NcValueRef<'_, ExtentChanged>) -> Result<(), NcStatus> {
-        let _ = self.sender.send((origin.downgrade()?, event.to_owned()?));
-        Ok(())
     }
 }
 
@@ -107,13 +92,12 @@ fn main() {
     let factory = runtime
         .activate_plugin_factory::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .unwrap();
-    let (sender, messages) = std::sync::mpsc::channel();
-    let mut queue = None;
-    let binding = count(|| queue = Some(ExtentQueue::from_value(ExtentQueue { sender }).query::<ExampleObjectEventQueueAbi>().unwrap()));
-    assert_eq!(binding, 1, "one shared receiver allocation");
-    let events = ExampleObjectEventBinding::Observed(queue.unwrap());
+    let mut inbox = None;
+    let binding = count(|| inbox = Some(neocogi_com::events::channel()));
+    let (queue, messages) = inbox.unwrap();
+    let events = ExampleObjectEventBinding::Observed(queue);
     let mut object = factory.create(Extent { width: 0, height: 0 }, NcValueRef::new(&events).unwrap()).unwrap();
     let delivery = count(|| deliver(&mut object, &messages));
-    println!("one typed COM receiver binding: {binding} allocations");
+    println!("common receiver and channel: {binding} allocations");
     println!("10,000 scalar events including channel storage: {delivery} allocations");
 }

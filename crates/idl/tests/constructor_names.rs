@@ -1,13 +1,14 @@
 //! Constructor helper names must be checked where they originate, before Rust emission.
-use neocogi_idl::{LabelStyle, Module, ResolutionError, ResolvedModules, generate_rust, parse_module, parse_module_parts, resolve_modules, ModuleSource};
+use neocogi_idl::{LabelStyle, Module, ResolutionError, ResolvedModules, parse_module, parse_module_parts, resolve_modules, ModuleSource};
 use std::path::Path;
 
 /// Current public helper families of a product with a shared constructor.
-const SUFFIXES: [&str; 5] = ["EventBinding", "EventQueueAbi", "EventQueue", "EventQueueVtblFor", "EventPort"];
+const SUFFIXES: [&str; 2] = ["EventBinding", "EventPort"];
 /// Small ordinary contract used to isolate naming from unrelated codec constraints.
 const PRODUCT: &str = r#"
     extern neocogi.com.events;
-    use neocogi.com.events::EventBinding;
+    use neocogi.com.events::{EventBinding, IEvent};
+    #[version(1)] interface IChangedEvent: IEvent {}
     #[version(1)] enum Event { Changed }
     #[version(1)] class Counter {}
     #[version(1)] factory Factory {
@@ -78,11 +79,9 @@ fn rejects_every_imported_constructor_helper_collision() {
 /// A conflict can involve an ordinary COM companion as well as a source item.
 #[test]
 fn validates_constructor_helpers_against_other_generated_companions() {
-    let error = resolve(&format!("{PRODUCT}\n#[version(1)] interface CounterEventQueue {{}}"), []).unwrap_err();
-    let diagnostics = error.to_string();
-    assert!(diagnostics.contains("CounterEventQueueAbi"), "{diagnostics}");
-    assert!(diagnostics.contains("CounterEventQueueVtblFor"), "{diagnostics}");
-    assert!(diagnostics.contains("generated companion"), "{diagnostics}");
+    // The obsolete queue alias family is no longer reserved by constructors.
+    let graph = resolve(&format!("{PRODUCT}\n#[version(1)] interface CounterEventQueue {{}}"), []).unwrap();
+    assert!(generate_rust(&graph, "proof.names").unwrap().contains("pub trait CounterEventQueue"));
 }
 
 /// Source parts are one semantic namespace and diagnostics must retain both files.
@@ -138,7 +137,7 @@ fn consistent_local_constructors_emit_one_helper_family() {
     );
     let graph = resolve(&source, []).unwrap();
     let generated = generate_rust(&graph, "proof.names").unwrap();
-    for name in ["CounterEventBinding", "CounterEventQueueAbi", "CounterEventPort"] {
+    for name in ["CounterEventBinding", "CounterEventPort"] {
         assert_eq!(generated.matches(&format!("pub type {name} =")).count(), 1);
     }
     assert_eq!(generated.matches("impl ::neocogi_com::events::EventSource for CounterAbi").count(), 1);
@@ -153,8 +152,9 @@ fn imported_product_constructors_do_not_change_the_owning_module() {
     );
     let source = r#"
         extern proof.owner; use proof.owner::Counter;
-        extern neocogi.com.events; use neocogi.com.events::EventBinding;
-        #[version(1)] enum Event { Changed }
+        extern neocogi.com.events; use neocogi.com.events::{EventBinding, IEvent};
+        #[version(1)] interface IChangedEvent: IEvent {}
+    #[version(1)] enum Event { Changed }
         #[version(1)] factory Factory { fn create(&self, events: &EventBinding<Counter, Event>) -> Result<ComPtr<Counter>>; }
         #[version(1)] struct CounterEventQueue { value: u32 }
     "#;
@@ -171,7 +171,7 @@ fn imported_product_constructors_do_not_change_the_owning_module() {
 #[test]
 fn generic_product_helpers_participate_in_name_validation() {
     let source = r#"
-        extern neocogi.com.events; use neocogi.com.events::EventBinding;
+        extern neocogi.com.events; use neocogi.com.events::{EventBinding, IEvent};
         #[version(1)] enum Event<T> { Changed(T) }
         #[version(1)] interface Counter<T> { fn read(&self) -> Result<T>; }
         #[version(1)] factory Factory {
@@ -215,8 +215,8 @@ fn rejects_malformed_binding_contract_before_generation() {
     for altered in [
         original.replace("Unobserved,", "Absent,"),
         original.replace("Unobserved,", "Unobserved(u32),"),
-        original.replace("Observed(ComPtr<IEventQueue<Object, Event>>)", "Observed"),
-        original.replace("Observed(ComPtr<IEventQueue<Object, Event>>)", "Observed(u32)"),
+        original.replace("Observed(ComPtr<IEventReceiver>)", "Observed"),
+        original.replace("Observed(ComPtr<IEventReceiver>)", "Observed(u32)"),
     ] {
         let error = resolve_modules(vec![
             module("neocogi/com/events.ncidl", &altered),
@@ -246,7 +246,7 @@ fn rejects_malformed_binding_contract_before_generation() {
 fn exclusive_constructors_reserve_only_the_helpers_they_emit() {
     for ownership in ["ComBox", "WeakComBox"] {
         let source = PRODUCT.replace("ComPtr<Counter>", &format!("{ownership}<Counter>"));
-        for suffix in &SUFFIXES[..4] {
+        for suffix in &SUFFIXES[..1] {
             let name = format!("Counter{suffix}");
             for (source, dependencies) in [
                 (format!("{source} #[version(1)] struct {name} {{ value: u32 }}"), vec![]),
@@ -335,7 +335,7 @@ fn accepted_helper_names_compile_and_exclusive_events_cross_the_abi() {
         .unwrap();
     }
     let mut plain = String::from("#[version(1)] class Counter {} #[version(1)] factory Factory { fn create(&self) -> Result<ComBox<Counter>>; }");
-    for suffix in SUFFIXES {
+    for suffix in ["EventBinding", "EventQueueAbi", "EventQueue", "EventQueueVtblFor", "EventPort"] {
         plain.push_str(&format!("#[version(1)] struct Counter{suffix} {{ value: u32 }}"));
     }
     fs::write(
@@ -345,7 +345,7 @@ fn accepted_helper_names_compile_and_exclusive_events_cross_the_abi() {
     .unwrap();
     let generic = resolve(
         r#"
-        extern neocogi.com.events; use neocogi.com.events::EventBinding;
+        extern neocogi.com.events; use neocogi.com.events::{EventBinding, IEvent};
         #[version(1)] struct Event<T> { value: T }
         #[version(1)] interface Counter<T> { fn read(&self) -> Result<T>; }
         #[version(1)] factory Factory {
@@ -386,4 +386,11 @@ fn accepted_helper_names_compile_and_exclusive_events_cross_the_abi() {
         String::from_utf8_lossy(&result.stdout),
         String::from_utf8_lossy(&result.stderr)
     );
+}
+
+/// Standalone fixtures consume the shipped common receiver from its owning crate.
+fn generate_rust(graph: &neocogi_idl::ResolvedModules, module: &str) -> Result<String, neocogi_idl::GenerateError> {
+    let mut paths = neocogi_idl::generate::RustModulePaths::default();
+    if graph.module("neocogi.com.events").is_some() { paths.insert("neocogi.com.events", "neocogi_com::events").unwrap(); }
+    neocogi_idl::generate::generate_rust_with_paths(graph, module, &paths)
 }

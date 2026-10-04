@@ -1,5 +1,5 @@
-//! Ordinary generic sink and stream templates shared by producer and consumer binaries.
-//! Concrete specializations are generated in the consuming contract modules;
-//! this module owns no queue, mapping, or application behavior.
+//! Common event/receiver interfaces and generic constructor bindings shared by binaries.
+//! Binding specializations describe native payload associations in contract modules;
+//! the receiver protocol stays the same for every concrete event interface.
 
 include!(concat!(env!("OUT_DIR"), "/neocogi_com_events.include.rs"));

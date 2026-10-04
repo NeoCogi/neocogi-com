@@ -132,7 +132,7 @@ fn raw_identifier_catalog_paths_compile_in_exported_forms() {
         r#"
         extern neocogi.com.events;
         extern neocogi.ui.core;
-        use neocogi.com.events::EventBinding;
+        use neocogi.com.events::{EventBinding, IEvent};
         use neocogi.ui.core::IWidget;
         /// Nested payload exposes the real generated value type in form dispatch.
         #[version(1)] struct CounterChanged {
@@ -146,6 +146,8 @@ fn raw_identifier_catalog_paths_compile_in_exported_forms() {
             /// Restores the application count to zero.
             Reset
         }
+        /// Immutable copied native view exposed through an ordinary event getter.
+        #[version(1)] interface ICounterEvent: IEvent { fn value(&self) -> Result<CounterEvent>; }
         /// Concrete projection whose Rust module location uses a raw identifier.
         #[version(1)] factory CounterFactory { fn create(&self, events: &EventBinding<Counter, CounterEvent>) -> Result<ComBox<Counter>>; }
         #[version(1)] class Counter: IWidget {}
@@ -156,7 +158,23 @@ fn raw_identifier_catalog_paths_compile_in_exported_forms() {
         directory.join("contracts/src/lib.rs"),
         r#"
         /// Real public module named with a Rust keyword, separate from its IDL identity.
-        pub mod r#type { include!(concat!(env!("OUT_DIR"), "/example_paths.include.rs")); }
+        pub mod r#type {
+            include!(concat!(env!("OUT_DIR"), "/example_paths.include.rs"));
+            #[neocogi_com::com_object(interfaces(ICounterEvent), ownership = exclusive)]
+            struct Snapshot(CounterEvent);
+            impl neocogi_com::events::IEvent for Snapshot {}
+            impl ICounterEvent for Snapshot {
+                fn value(&self) -> Result<CounterEvent, neocogi_com::NcStatus> { Ok(self.0) }
+            }
+            impl neocogi_com::events::EventPayload for CounterEvent {
+                fn into_event(self) -> Result<neocogi_com::ComBox<neocogi_com::events::IEventAbi>, neocogi_com::NcStatus> {
+                    Snapshot::into_box(Snapshot(self)).query().map_err(|(status, _)| status)
+                }
+                fn from_event(event: &neocogi_com::ComBox<neocogi_com::events::IEventAbi>) -> Result<Option<Self>, neocogi_com::NcStatus> {
+                    neocogi_com::events::downcast_event::<ICounterEventAbi>(event)?.map(|value| value.value()).transpose()
+                }
+            }
+        }
     "#,
     )
     .unwrap();

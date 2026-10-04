@@ -13,7 +13,7 @@ impl contract::Base for Counter {}
 impl contract::Counter for Counter {
     /// Acquires the call-scoped event before its storage expires.
     fn emit(&mut self, value: NcValueRef<'_, contract::Event>) -> Result<(), NcStatus> {
-        self.events.post(&value.to_owned()?)
+        self.events.post(value.to_owned()?)
     }
     /// Repeated release cannot reconnect this producer.
     fn close(&mut self) -> Result<(), NcStatus> {
@@ -45,32 +45,26 @@ impl Drop for Lifetime {
         let _ = self.0.send(());
     }
 }
-#[com_object(contract::CounterEventQueue)]
+#[com_object(interfaces(neocogi_com::events::IEventReceiver))]
 /// Concrete application queue owns posting access and destruction instrumentation.
 struct Queue {
     /// Captured facts outlive call-scoped producer storage.
-    send: mpsc::Sender<Message>,
+    send: mpsc::Sender<events::EventMessage>,
     /// The fixture observes release on rejected construction, close and final drop.
     _lifetime: Lifetime,
 }
-impl contract::CounterEventQueue for Queue {
-    /// Own the value before returning, without retaining the producer.
-    fn post(&mut self, _: ComRef<'_, contract::CounterAbi>, event: NcValueRef<'_, contract::Event>) -> Result<(), NcStatus> {
-        let _ = self.send.send(Message::Counter(event.to_owned()?));
-        Ok(())
+impl neocogi_com::events::IEventReceiver for Queue {
+    /// Transfer the exclusive event to the inbox; a failed send restores its owner.
+    fn post(&mut self, origin: neocogi_com::NcValueRef<'_, neocogi_com::events::EventOrigin>, event: neocogi_com::ComBox<neocogi_com::events::IEventAbi>) -> Result<(), (neocogi_com::NcStatus, neocogi_com::ComBox<neocogi_com::events::IEventAbi>)> {
+        let message = neocogi_com::events::EventMessage::capture(origin, event)?;
+        self.send.send(message).map_err(|error| (neocogi_com::NC_E_CLOSED, error.0.event))
     }
 }
-/// Private application message; never appears in the plugin IDL.
-enum Message {
-    /// Wraps the whole typed producer event without changing its payload.
-    Counter(contract::Event),
-}
-
 #[test]
 fn factory_queue_ownership_and_metadata() {
     let description = contract::CounterAbi::IDL_INTERFACE;
     let receiver = description.event_queue.expect("constructor metadata");
-    assert_eq!(receiver.abi.interface_id, contract::CounterEventQueueAbi::INTERFACE_DESCRIPTOR.interface_id);
+    assert_eq!(receiver.abi.interface_id, events::IEventReceiverAbi::INTERFACE_DESCRIPTOR.interface_id);
     assert!(
         !description.chain.iter().any(|abi| abi.interface_id == receiver.abi.interface_id),
         "receiver is not a producer projection"
@@ -88,7 +82,7 @@ fn factory_queue_ownership_and_metadata() {
         let capture = Lifetime(released);
         let (tx, rx) = mpsc::channel();
         let queue = Queue::from_value(Queue { send: tx, _lifetime: capture })
-            .query::<contract::CounterEventQueueAbi>()
+            .query::<events::IEventReceiverAbi>()
             .unwrap();
         let binding = contract::CounterEventBinding::Observed(queue);
         let mut counter = factory.create(false, NcValueRef::new(&binding).unwrap()).unwrap();
@@ -96,7 +90,8 @@ fn factory_queue_ownership_and_metadata() {
         let event = contract::Event::Changed(contract::Changed { text: "call-owned".into(), enabled: true, raw_0: 73, budget: 109 });
         counter.emit(NcValueRef::new(&event).unwrap()).unwrap();
         drop(event);
-        let Message::Counter(contract::Event::Changed(value)) = rx.recv().unwrap() else {
+        let message = rx.recv().unwrap();
+        let Some(contract::Event::Changed(value)) = message.payload::<contract::Event>().unwrap() else {
             panic!("wrong event")
         };
         assert_eq!(value.text, "call-owned");
@@ -120,7 +115,7 @@ fn factory_queue_ownership_and_metadata() {
     let capture = Lifetime(released);
     let (tx, _rx) = mpsc::channel();
     let queue = Queue::from_value(Queue { send: tx, _lifetime: capture })
-        .query::<contract::CounterEventQueueAbi>()
+        .query::<events::IEventReceiverAbi>()
         .unwrap();
     let binding = contract::CounterEventBinding::Observed(queue);
     assert_eq!(factory.create(true, NcValueRef::new(&binding).unwrap()).unwrap_err(), NC_E_INVALID_ARG);
@@ -155,36 +150,45 @@ fn malformed_constructor_binding_never_publishes_a_product() {
 struct SharedOrigin;
 impl contract::SharedOrigin for SharedOrigin {}
 
-/// A local queue may borrow a shared capability without erasing its threading mode.
+/// A shared producer may use a thread-local inbox; transport deliberately narrows permissions.
 #[test]
-fn shared_origin_keeps_its_threading_capability_through_the_queue() {
-    use neocogi_com::events::EventQueueInterface;
+fn shared_origin_is_weak_in_the_local_inbox() {
     let object = SharedOrigin::from_value(SharedOrigin).query::<contract::SharedOriginAbi>().unwrap();
-    let (send, events) = mpsc::channel();
-    let queue = SharedQueue::from_value(SharedQueue { send })
-        .query::<contract::SharedOriginEventQueueAbi>()
-        .unwrap();
-    contract::SharedOriginEventQueueAbi::post(queue.as_com_ref(), object.as_com_ref(), &contract::Event::Submitted).unwrap();
+    let (queue, messages) = events::channel();
+    let mut port = contract::SharedOriginEventPort::with_queue(Some(queue), object.downgrade().unwrap());
+    port.post(contract::Event::Submitted).unwrap();
     drop(object);
-    let (origin, event) = events.recv().unwrap();
+    let message = messages.recv().unwrap();
+    let (origin, event) = message.service::<contract::SharedOriginAbi>().unwrap().unwrap();
     assert!(origin.upgrade().unwrap().is_none());
     assert!(matches!(event, contract::Event::Submitted));
 }
 
-#[com_object(contract::SharedOriginEventQueue)]
-/// A local application queue retains the declared thread-safe weak origin type.
-struct SharedQueue {
-    /// The output explicitly preserves the origin's Send + Sync contract.
-    send: mpsc::Sender<(WeakComPtr<contract::SharedOriginAbi, ThreadSafe>, contract::Event)>,
+#[com_object(interfaces(contract::IChangedEvent), ownership = exclusive)]
+/// Owned snapshot has no reference to its producer's mutable storage.
+struct Changed(contract::Changed);
+impl events::IEvent for Changed {}
+impl contract::IChangedEvent for Changed {
+    fn text(&self) -> Result<ComPtr<INcStringAbi>, NcStatus> { Ok(NcString::from_utf8_str(&self.0.text)) }
+    fn enabled(&self) -> Result<bool, NcStatus> { Ok(self.0.enabled) }
+    fn raw_0(&self) -> Result<u8, NcStatus> { Ok(self.0.raw_0) }
+    fn budget(&self) -> Result<u32, NcStatus> { Ok(self.0.budget) }
 }
-impl contract::SharedOriginEventQueue for SharedQueue {
-    /// Borrowing a shared origin must not silently weaken it to the local mode.
-    fn post(&mut self, origin: ComRef<'_, contract::SharedOriginAbi, ThreadSafe>, event: NcValueRef<'_, contract::Event>) -> Result<(), NcStatus> {
-        let origin = origin.downgrade()?;
-        /// Compile-time assertion remains independent of runtime delivery.
-        fn shared<T: Send + Sync>(_: &T) {}
-        shared(&origin);
-        let _ = self.send.send((origin, event.to_owned()?));
-        Ok(())
+#[com_object(interfaces(contract::ISubmittedEvent), ownership = exclusive)]
+struct Submitted;
+impl events::IEvent for Submitted {}
+impl contract::ISubmittedEvent for Submitted {}
+impl events::EventPayload for contract::Event {
+    fn into_event(self) -> Result<ComBox<events::IEventAbi>, NcStatus> {
+        match self {
+            Self::Changed(value) => Changed::into_box(Changed(value)).query().map_err(|(status, _)| status),
+            Self::Submitted => Submitted::into_box(Submitted).query().map_err(|(status, _)| status),
+        }
+    }
+    fn from_event(event: &ComBox<events::IEventAbi>) -> Result<Option<Self>, NcStatus> {
+        if let Some(value) = events::downcast_event::<contract::IChangedEventAbi>(event)? {
+            return Ok(Some(Self::Changed(contract::Changed { text: value.text()?.to_string()?, enabled: value.enabled()?, raw_0: value.raw_0()?, budget: value.budget()? })));
+        }
+        Ok(events::downcast_event::<contract::ISubmittedEventAbi>(event)?.map(|_| Self::Submitted))
     }
 }

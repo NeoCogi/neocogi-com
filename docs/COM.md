@@ -35,7 +35,7 @@ boundaries, and [the current ABI specification](docs/README.md) for the binary m
 The COM-owned [IDL compiler](idl) generates concrete checked ABIs for copied
 values and closed generic interfaces. A concrete class's factory can accept
 `EventBinding<Object, Event>` with its final receiver. The application implements
-the concrete [`IEventQueue` projection](api/EVENTS.md), acquires each event and weak
+the common [`IEventReceiver` projection](api/EVENTS.md), moves each exclusive event and weak
 origin, maps them to an application message, and posts the parent's standard queue.
 Exclusive widgets store their queue and `WeakComBox` origin directly; shared
 services may use `EventPort`. A constructed object exposes no receiver-installation method;

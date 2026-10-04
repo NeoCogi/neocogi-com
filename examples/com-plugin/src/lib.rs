@@ -37,7 +37,7 @@ impl ExampleObject for DynamicExampleObject {
     /// Replaces dimensions through the exclusive generated call gate.
     fn resize(&mut self, extent: Extent) -> Result<(), NcStatus> {
         self.extent = extent;
-        self.changed.post(&ExtentChanged {
+        self.changed.post(ExtentChanged {
             width: extent.width,
             height: extent.height,
         })

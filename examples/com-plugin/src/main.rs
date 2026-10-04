@@ -3,9 +3,9 @@
 use neocogi_com::{binary, Runtime, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, guid_from_qualified_name};
 use neocogi_com::persistence::{FactoryRegistry, snapshot};
 use neocogi_com::NcValueRef;
-use neocogi_idl_example_contracts::{ExampleObjectEventBinding, ExampleObjectEventQueueAbi};
+use neocogi_idl_example_contracts::ExampleObjectEventBinding;
 use nc_example_com::{ExtentState, PERSISTENT_KIND};
-use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentChanged, ExtentReport};
+use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentReport};
 
 /// Registers the selected plugin, acquires its checked factory, and mutates one object.
 fn main() {
@@ -15,8 +15,7 @@ fn main() {
     let factory = runtime
         .activate_plugin_factory::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .expect("compatible example factory");
-    let (sender, messages) = std::sync::mpsc::channel();
-    let queue = AppQueue::from_value(AppQueue { sender }).query::<ExampleObjectEventQueueAbi>().unwrap();
+    let (queue, messages) = neocogi_com::events::channel();
     let binding = ExampleObjectEventBinding::from_queue(Some(queue.as_com_ref()));
     let mut object = factory
         .create(Extent { width: 20, height: 10 }, NcValueRef::new(&binding).unwrap())
@@ -31,9 +30,10 @@ fn main() {
     assert_eq!(reports.as_slice(), [ExtentReport::Current { extent, usable: true }, ExtentReport::Empty]);
     assert_eq!(object.reports(reports.output(0, 0)).unwrap(), 2);
     assert!(reports.is_empty(), "a size query must not publish an uninitialized tail");
-    let changed = messages.try_recv().unwrap();
-    assert!(changed.origin.same_object(&object.downgrade().unwrap()));
-    assert_eq!((changed.event.width, changed.event.height), (44, 31));
+    let message = messages.try_recv().unwrap();
+    let (origin, changed) = message.service::<ExampleObjectAbi>().unwrap().unwrap();
+    assert!(origin.same_object(&object.downgrade().unwrap()));
+    assert_eq!((changed.width, changed.height), (44, 31));
     // A promotion crosses from the host's weak protocol into plugin-owned storage.
     let weak = object.downgrade().unwrap();
     let promoted = weak.upgrade().unwrap().expect("live plugin object");
@@ -50,15 +50,16 @@ fn main() {
     let restored = registry.restore(&saved).unwrap();
     assert_eq!(snapshot(restored.as_com_ref()).unwrap(), saved);
     restored.query::<ExampleObjectAbi>().unwrap().resize(Extent { width: 45, height: 32 }).unwrap();
-    let changed = messages.try_recv().unwrap();
-    assert!(changed.origin.same_object(&restored.downgrade().unwrap()));
-    assert_eq!((changed.event.width, changed.event.height), (45, 32));
+    let message = messages.try_recv().unwrap();
+    let (origin, changed) = message.service::<ExampleObjectAbi>().unwrap().unwrap();
+    assert!(origin.same_object(&restored.downgrade().unwrap()));
+    assert_eq!((changed.width, changed.height), (45, 32));
     // No queued origin or persistent recipe is allowed to keep either object alive.
     // These assertions execute in release/abort builds too, unlike debug_assert.
     drop(object);
     assert!(weak.upgrade().unwrap().is_none(), "final release must destroy the plugin value");
     drop(restored);
-    assert!(changed.origin.upgrade().unwrap().is_none(), "queued weak origin must expire");
+    assert!(origin.upgrade().unwrap().is_none(), "queued weak origin must expire");
     println!("factory object: {} x {}", extent.width, extent.height);
 }
 
@@ -85,7 +86,7 @@ struct PersistenceAdapter {
     factory: ComPtr<ExampleFactoryAbi>,
     /// Same application queue is shared by ordinary and restored objects.
     /// Live routing state is supplied separately from persisted dimensions.
-    queue: ComPtr<ExampleObjectEventQueueAbi>,
+    queue: ComPtr<neocogi_com::events::IEventReceiverAbi>,
 }
 /// Validates the explicitly supported schema before invoking plugin construction.
 fn decode(version: u32, state: NcCopyFromBufferOffset<'_, u8>, children: u32) -> Result<ExtentState, NcStatus> {
@@ -114,31 +115,5 @@ impl neocogi_com::persistence::IPersistenceFactory for PersistenceAdapter {
         self.factory
             .create(Extent { width: state.width, height: state.height }, NcValueRef::new(&binding)?)?
             .query()
-    }
-}
-
-/// Application-local fact; neither Rust channel storage nor this wrapper crosses COM.
-struct Change {
-    /// Identifies the emitting plugin object without retaining its resources.
-    origin: neocogi_com::WeakComPtr<ExampleObjectAbi>,
-    /// Complete acquired event survives producer mutation or destruction.
-    event: ExtentChanged,
-}
-
-#[neocogi_com::com_object(neocogi_idl_example_contracts::ExampleObjectEventQueue)]
-/// One concrete receiver can serve every object made by the ordinary or persistence factory.
-struct AppQueue {
-    /// The endpoint captures transport only, never application state or a widget owner.
-    sender: std::sync::mpsc::Sender<Change>,
-}
-impl neocogi_idl_example_contracts::ExampleObjectEventQueue for AppQueue {
-    /// Acquires the borrowed event and weak origin before returning to the plugin.
-    fn post(&mut self, origin: ComRef<'_, ExampleObjectAbi>, event: NcValueRef<'_, ExtentChanged>) -> Result<(), NcStatus> {
-        let message = Change {
-            origin: origin.downgrade()?,
-            event: event.to_owned()?,
-        };
-        let _ = self.sender.send(message);
-        Ok(())
     }
 }

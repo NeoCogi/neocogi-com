@@ -79,9 +79,8 @@ field comment must name that constraint.
 ## Typed events and application state
 
 A persistent `events::Dispatcher<Processor>` owns ordinary application state and a
-standard `std::sync::mpsc::Receiver<Processor::Message>`. Implement the concrete queue
-traits on one COM object containing the sender, and pass its typed projections
-when constructing observed widgets. Implement `MessageProcessor::handle(&mut self, message)`
+standard `std::sync::mpsc::Receiver<Processor::Message>`. Use `events::channel()` or implement the common `IEventReceiver`, and pass
+the same projection when constructing observed widgets. Implement `MessageProcessor::handle(&mut self, message)`
 with ordinary matching and retain the dispatcher's checked `IApplicationDispatcher`
 projection across frames.
 
@@ -91,13 +90,9 @@ through the existing mutable gate. These names describe message processing and
 ownership without imposing model/view/controller roles.
 
 ```rust
-let (send, messages) = std::sync::mpsc::channel();
-// AppQueue implements ButtonEventQueue and IFileDialogEventQueue, posting AppMessage.
-let queue = AppQueue::from_value(AppQueue { send });
-let buttons = queue.query::<ButtonEventQueueAbi>()?;
-let dialogs = queue.query::<IFileDialogEventQueueAbi>()?;
-let button = ui.widgets().button_with_queue("Open", Some(buttons.as_com_ref()))?;
-let picker = ui.file_dialog_with_queue(window.as_com_ref(), Some(dialogs.as_com_ref()))?;
+let (queue, messages) = neocogi_com::events::channel();
+let button = ui.widgets().button_with_queue("Open", Some(queue.as_com_ref()))?;
+let picker = ui.file_dialog_with_queue(window.as_com_ref(), Some(queue.as_com_ref()))?;
 let app = neocogi_ui::events::Dispatcher::into_local(
     neocogi_ui::events::Dispatcher::new(processor, messages),
 );
@@ -141,8 +136,8 @@ policy; binding does not manufacture an invocation ID absent from the protocol.
 
 Declare cross-COM facts as concrete structs/enums and pass one
 `EventBinding<Object, Event>` into the factory. Multiple event kinds are cases of that
-enum. The behavioral parent creates its typed queue before construction; the
-factory retains the optional typed queue and weak origin as ordinary widget fields.
+enum. The behavioral parent creates its common receiver before construction; the
+factory retains the optional common receiver and weak origin as ordinary widget fields.
 Widgets select `#[com_class(Contract, ownership = exclusive)]` and construct with
 `into_box` or `into_box_cyclic`; shared services retain the default shared policy.
 The macro does not generate event installation methods. There is
@@ -159,34 +154,28 @@ and [IDL syntax](IDL_MODULES.md#concrete-messages-and-streams).
 | `Event::Changed` | Combo | `ChoiceSelection` |
 | `Event::Completed` | FileDialog | `FileDialogCompletion` |
 
-Commit state before calling `self.events.post(&ProducerEvent::Variant(message))?`.
-Queue `post` runs synchronously and should only acquire data and a weak origin;
-UI behavior belongs in the later consumer. Receivers acquire the checked borrowed
-event with `to_owned()` and invoke the event module's `validate` function before
-posting. COM checks wire validity; this domain validation checks restrictions such
-as finite numeric values and text cursor boundaries. The later processor owns
-its ordinary mutable state.
+Commit state before calling `self.events.post(ProducerEvent::Variant(message))?`.
+The producer constructs a validated immutable event and transfers its `ComBox`
+through `IEventReceiver::post`. The queue captures only the weak origin and event
+owner. Application behavior and optional native decoding run later, after the
+emitting call releases its mutable gate. `EventPayload` construction and decoding
+check domain restrictions such as finite numbers and text cursor boundaries.
+Direct COM consumers use the typed immutable getters themselves.
 
 A custom class intended for authored forms has at most one constructor receiver.
-IDL-generated `*Abi::IDL_INTERFACE.event_queue` records that queue's exact identity
-and complete event graph independently of the product's interface chain.
-`IDesignWidgetCatalog` transports those descriptions through COM. The loader
-checks supplied queues before construction and the advertised class after it.
-A plugin's common catalog constructor must also query its exact typed queue before
-allocation. Generated forms expose actual concrete widget projections.
+`IDL_INTERFACE.event_queue` describes the common receiver and optional native
+payload graph independently of the product's interface chain. Catalog registration
+checks the common receiver revision; the loader checks observable keys before
+construction and the advertised class after it. A new custom event derives from
+`IEvent`; it does not require another receiver interface.
 
-Each widget has one lifetime consumer selected during construction.
-Applications can implement concrete `*EventQueue` traits on one shared COM object.
-`*_with_queue` passes a concrete receiver through the COM factory;
-`*_unobserved` chooses permanent non-delivery. There is no later attachment API.
-Windows, popups, menus, built-ins and custom plugins use this same discipline.
-Widget destruction releases its fixed queue and weak origin as ordinary fields.
-Shared window/popup/menu services retain explicit dismissal semantics and can use
-`EventPort::close`; that lifecycle is not part of `IWidget`. Queued facts retain
-their values. Repository queues discard posts on channel disconnection; other
-queue implementations define their own bounded/full policy. Delivery errors follow
-the committed state change and do not roll it back. See the
-[class event stream guide](CLASS_EVENT_STREAMS.md).
+`*_with_queue` passes `IEventReceiver`; `*_unobserved` chooses permanent non-delivery.
+There is no later attachment API. Windows, popups, menus, built-ins and plugins use
+this same discipline. Widget destruction releases its receiver and weak origin.
+Shared window/popup/menu services can use `EventPort::close`. Queued facts survive
+source removal. The standard channel returns `NC_E_CLOSED` with the event owner
+on disconnection; other receivers choose their own capacity/error policy. Delivery
+errors do not roll back committed state. See [COM event objects](COM_EVENT_INTERFACES.md).
 
 Behavioral composites bind their children to queues targeting a private typed
 channel, then own the receiver and model as fields of the concrete widget.
@@ -746,7 +735,7 @@ shape or destination validation leaves the complete declaration usable.
 let menus = ui.menus()?;
 let bar = menus.create("")?;
 let file = bar.submenu("File")?;
-let menu_queue = app_queue.query::<IMenuItemEventQueueAbi>()?;
+let menu_queue = app_queue.query::<neocogi_com::events::IEventReceiverAbi>()?;
 let open = file.item_with_queue("Open", Some(menu_queue.as_com_ref()))?;
 open.set_shortcut_hint("Ctrl+O")?; // Presentation text, not a shortcut binding.
 open.set_mark(MenuMark::Checked { checked: false })?;
@@ -806,7 +795,7 @@ Construct the component with its completion queue, then open it from an ordinary
 application handler:
 
 ```rust
-let completions = app_queue.query::<IFileDialogEventQueueAbi>()?;
+let completions = app_queue.query::<neocogi_com::events::IEventReceiverAbi>()?;
 let mut picker = ui.file_dialog_with_queue(window.as_com_ref(), Some(completions.as_com_ref()))?;
 let mut request = FileDialogRequest::new(native_directory);
 request.title = "Choose a document".to_owned();
@@ -814,7 +803,8 @@ picker.open(&request)?;
 ui.update_with_events(drawable_size, owner.as_com_ref())?;
 ```
 
-The concrete queue receives `file_dialog::Event::Completed`, containing the generated
+The common queue receives an owned `IFileAcceptedEvent` or `IFileCancelledEvent`.
+The handler may decode `file_dialog::Event::Completed`, containing
 `FileDialogCompletion::Accepted { path }` or `Cancelled`. `neocogi_ui::events::completed_file_path` copies the exact
 host-native `PathBuf` when the application needs it; display text is never
 reconstructed as a lookup key.

@@ -53,6 +53,24 @@ impl EventMessage {
     pub fn payload<E: EventPayload>(&self) -> Result<Option<E>, NcStatus> {
         E::from_event(&self.event)
     }
+
+    /// Reads a source-specific native view during handling, keeping this event owned.
+    pub fn widget<C: super::EventSource>(&self) -> Result<Option<(WeakComBox<C>, C::Event)>, NcStatus>
+    where
+        C::Event: EventPayload,
+    {
+        let Some(origin) = self.origin.widget::<C>()? else { return Ok(None) };
+        Ok(self.payload()?.map(|event| (origin, event)))
+    }
+
+    /// Reads a shared-service native view without retaining its source strongly.
+    pub fn service<C: super::EventSource>(&self) -> Result<Option<(WeakComPtr<C>, C::Event)>, NcStatus>
+    where
+        C::Event: EventPayload,
+    {
+        let Some(origin) = self.origin.service::<C>()? else { return Ok(None) };
+        Ok(self.payload()?.map(|event| (origin, event)))
+    }
 }
 impl EventOrigin {
     /// Selects an exclusive widget interface without requiring the widget to survive.

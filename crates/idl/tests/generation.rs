@@ -27,7 +27,7 @@ fn imported_messages_use_closed_generic_streams() {
     syn::parse_file(&generated).expect("imported message bindings parse");
     assert!(generated.contains("EventSource for ISourceAbi"));
     assert!(generated.contains("example_messages_contracts::Changed"));
-    assert!(generated.contains("IEventQueueInstance"));
+    assert!(generated.contains("IEventReceiverAbi"));
     assert!(!generated.contains("__map_"));
     let baseline = neocogi_idl::generate_rust(&graph, "neocogi.com.events").unwrap();
     assert!(!baseline.contains("EVENT_BINDING_API_VERSION"));
@@ -301,4 +301,3 @@ fn direct_design_shape_resolution_preserves_variant_grouping_and_tags() {
     assert!(generated.contains(r#"name: "Pause""#));
     assert!(generated.contains(r#"tag: 2i64"#));
 }
-

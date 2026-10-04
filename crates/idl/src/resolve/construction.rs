@@ -1,6 +1,6 @@
 //! Resolve constructor/library associations once, before validating public names.
 //!
-//! These are ordinary EventBinding/IEventQueue contracts, not parser syntax.
+//! These are ordinary EventBinding/IEventReceiver contracts, not parser syntax.
 //! The product's declaring module owns the association; imported factories cannot
 //! change another module's helpers or metadata. Stored symbols address the frozen
 //! resolved graph, so generation does not rediscover relationships from methods.
@@ -15,7 +15,7 @@ const BINDING: &str = "neocogi.com.events.EventBinding";
 pub(crate) struct Binding {
     /// Closed EventBinding specialization used by generated construction helpers.
     pub value: Symbol,
-    /// Exact IEventQueue specialization owned by the binding's Observed case.
+    /// Common IEventReceiver interface owned by the binding's Observed case.
     pub queue: Symbol,
     /// Public producer projection borrowed during posting.
     pub origin: Symbol,
@@ -29,12 +29,6 @@ pub(crate) struct Binding {
 pub(crate) enum Helper {
     /// Readable alias for the closed construction policy enum.
     Binding(String),
-    /// Readable alias for the concrete queue ABI marker.
-    QueueAbi(String),
-    /// Re-export of the application-implemented queue trait.
-    Queue(String),
-    /// Re-export required when COM macros implement the readable queue trait.
-    QueueProvider(String),
     /// Shared-service helper; emitted only when an associated constructor returns ComPtr.
     Port(String),
 }
@@ -42,7 +36,7 @@ impl Helper {
     /// Borrows the exact identifier that both validation and emission consume.
     pub fn name(&self) -> &str {
         match self {
-            Self::Binding(name) | Self::QueueAbi(name) | Self::Queue(name) | Self::QueueProvider(name) | Self::Port(name) => name,
+            Self::Binding(name) | Self::Port(name) => name,
         }
     }
 }
@@ -132,9 +126,6 @@ pub(super) fn resolve(graph: &ResolvedModules) -> Result<Vec<Construction>, Reso
                         source: method.span.clone(),
                         helpers: vec![
                             Helper::Binding(format!("{product_name}EventBinding")),
-                            Helper::QueueAbi(format!("{product_name}EventQueueAbi")),
-                            Helper::Queue(format!("{product_name}EventQueue")),
-                            Helper::QueueProvider(format!("{product_name}EventQueueVtblFor")),
                         ],
                     });
                     if plan.binding.event.id != candidate.event.id {
@@ -205,18 +196,12 @@ fn binding(graph: &ResolvedModules, module: &ResolvedModule, declaration: &Decla
     let queue = graph
         .resolve_symbol(module, queue)
         .ok_or_else(|| invalid("EventBinding queue must name a declared interface"))?;
-    let queue_declaration = queue.get(graph);
-    let Some(specialization) = &queue_declaration.declaration.specialization else {
-        return Err(invalid("EventBinding queue must specialize IEventQueue"));
-    };
-    let [AbiType::Named(queue_origin), AbiType::Named(queue_event)] = specialization.arguments.as_slice() else {
-        return Err(invalid("EventBinding queue must receive its declared origin and event type"));
-    };
-    if specialization.template.segments.join(".") != "neocogi.com.events.IEventQueue"
-        || graph.resolve_symbol(queue_declaration.module, queue_origin).map(|symbol| symbol.id) != Some(origin.id)
-        || graph.resolve_symbol(queue_declaration.module, queue_event).map(|symbol| symbol.id) != Some(event.id)
-    {
-        return Err(invalid("EventBinding queue must receive its declared origin and event type"));
+    let expected = graph.resolve_symbol(module, &NamedType {
+        segments: vec!["neocogi".into(), "com".into(), "events".into(), "IEventReceiver".into()],
+        arguments: Vec::new(), span: declaration.span.clone(),
+    });
+    if queue.kind != SymbolKind::Interface || expected.map(|symbol| symbol.id) != Some(queue.id) {
+        return Err(invalid("EventBinding.Observed must own the common IEventReceiver"));
     }
     let value = graph
         .resolve_symbol(

@@ -394,7 +394,7 @@ text, or COM references use the borrowed named-value form. Owning aggregate
 returns remain rejected; a fixed array is eligible exactly when its element is.
 
 Records no longer manufacture receiver interfaces, `post_to`, or event traits.
-Declare the delivery interface explicitly, or use `IEventQueue<Object, Event>` through the
+Declare the delivery interface explicitly, or use the common `IEventReceiver` through the
 event library. Widget commands remain ordinary methods on their interfaces.
 The old `ComMessage`/`NcMessage` implementation and per-message generator are
 removed. IDL canonical ABI encoding revision 4 fingerprints the new lowering.

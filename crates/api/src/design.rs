@@ -96,7 +96,7 @@ pub struct IdlEventQueue {
     /// Publishers and catalog readers use [`crate::validate_rust_path`] just as
     /// they do for interface/value paths; consumers never guess this name.
     pub rust_trait: &'static str,
-    /// Exact closed IEventQueue<Object, Event> identity and checked ABI signature.
+    /// Common IEventReceiver identity and checked ABI signature.
     pub abi: &'static NcInterfaceDescriptor,
     /// Complete event value; nested definitions are carried by the value graph.
     pub message: &'static IdlType,

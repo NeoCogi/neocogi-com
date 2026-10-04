@@ -29,3 +29,10 @@ interface ICompositionRoot {
     /// Resolves one authored child for a checked concrete class query.
     fn widget(&self, name: &[u8]) -> Result<WeakComBox<IUnknown>>;
 }
+
+#[version(1)]
+/// Immutable extent snapshot carried by the common event receiver.
+interface IExtentChangedEvent: neocogi::com::events::IEvent {
+    /// Captured dimensions remain readable after producer destruction.
+    fn value(&self) -> Result<ExtentChanged>;
+}

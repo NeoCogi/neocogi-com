@@ -1,93 +1,79 @@
-//! One construction-bound event queue per producer, with a typed weak origin.
-//!
-//! Applications may implement several generated queue interfaces on one concrete
-//! COM object containing their channel sender. Factories accept that concrete
-//! interface; neither IDL nor COM generates or stores an application mapping closure.
-use crate::{ComInterface, ComPtr, ComRef, ComValue, NcStatus, ThreadLocal, WeakComPtr, NC_E_CLOSED, NC_E_DROPPED};
+//! Construction-bound common receivers and shared-service delivery lifetime.
+use super::{EventOrigin, EventPayload, IEventReceiverAbi};
+use crate::{ComInterface, ComPtr, ComValue, NcStatus, NcValueRef, WeakComPtr, NC_E_CLOSED, NC_E_DROPPED};
 
-/// Rust access to one closed IDL `IEventQueue<Object, Event>` contract.
-/// Implementing the generated COM trait directly avoids callback adapters entirely.
-pub trait EventQueueInterface: ComInterface<Threading = ThreadLocal> + Sized + 'static {
-    /// Exact public producer projection borrowed during enqueueing.
-    type Object: ComInterface + Sized + 'static;
-    /// Complete event acquired before its producer's call-scoped storage expires.
-    type Event: ComValue + 'static;
-    /// Calls the receiver with a borrowed origin and checked borrowed payload.
-    fn post(
-        destination: ComRef<'_, Self>,
-        origin: ComRef<'_, Self::Object, <Self::Object as ComInterface>::Threading>,
-        event: &Self::Event,
-    ) -> Result<(), NcStatus>;
-}
-
-/// Constructor-derived association; no event interface or attach method exists on the producer.
+/// Constructor-derived association with an optional native event representation.
+/// The wire transport always transfers a `ComBox<IEventAbi>` to `IEventReceiver`.
 pub trait EventSource: ComInterface + Sized + 'static {
-    /// Exactly one queue contract for this product's complete event enum.
-    type Queue: EventQueueInterface<Object = Self>;
+    /// Complete native payload, useful to compiled handlers and authoring metadata.
+    type Event: ComValue + 'static;
 }
-/// Complete event type of a product's constructor queue.
-pub type EventOf<C> = <<C as EventSource>::Queue as EventQueueInterface>::Event;
-/// Exact receiver accepted by that product's constructors.
-pub type QueueOf<C> = <C as EventSource>::Queue;
+/// Native event representation associated with a producer's constructors.
+pub type EventOf<C> = <C as EventSource>::Event;
 
 /// Delivery changes only from a constructor-selected open policy to terminal closure.
-enum Phase<Q: EventQueueInterface> {
+enum Phase<C: EventSource> {
     /// No receiver exists and one can never be installed later.
     Unobserved,
-    /// The public producer is weak, so storing its own origin cannot create a cycle.
+    /// Neither the typed observer nor the captured origin owns the producer value.
     Observed {
-        /// Public identity fixed before publication; never owns the producer value.
-        origin: WeakComPtr<Q::Object, <Q::Object as ComInterface>::Threading>,
+        /// Typed observer preserves the shared-service liveness check before posting.
+        source: WeakComPtr<C, C::Threading>,
+        /// Cached wire identity avoids a query on every emitted event.
+        origin: EventOrigin,
         /// The one strong receiver capability released by terminal closure.
-        queue: ComPtr<Q>,
+        queue: ComPtr<IEventReceiverAbi>,
     },
     /// Logical teardown permanently rejects emission and retains no queue or origin.
     Closed,
 }
-/// Producer-local storage; mutable operations require exclusive access.
-/// A COM clone cannot create a second consumer or replace the constructor's queue.
-pub struct EventPort<Q: EventQueueInterface> {
+/// Producer-local state for shared services. Widgets store exclusive weak origins.
+pub struct EventPort<C: EventSource> {
     /// Sole delivery and lifecycle authority for this producer stream.
-    phase: Phase<Q>,
+    phase: Phase<C>,
 }
-impl<Q: EventQueueInterface> Default for EventPort<Q> {
-    /// An unobserved producer needs no queue or weak allocation reference.
+impl<C: EventSource> Default for EventPort<C> {
     fn default() -> Self {
         Self::new()
     }
 }
-impl<Q: EventQueueInterface> EventPort<Q> {
+impl<C: EventSource> EventPort<C> {
     /// Permanently disables delivery, including for unpublished designer previews.
     pub const fn new() -> Self {
         Self { phase: Phase::Unobserved }
     }
-    /// Fixes both queue and public origin before publishing the producer.
-    /// Use the COM class's cyclic initializer to acquire the unpublished weak origin.
-    pub fn with_queue(queue: Option<ComPtr<Q>>, origin: WeakComPtr<Q::Object, <Q::Object as ComInterface>::Threading>) -> Self {
+    /// Fixes the common receiver and public origin before publishing the producer.
+    pub fn with_queue(queue: Option<ComPtr<IEventReceiverAbi>>, source: WeakComPtr<C, C::Threading>) -> Self {
         let phase = match queue {
-            Some(queue) => Phase::Observed { origin, queue },
+            Some(queue) => {
+                let origin = EventOrigin::Service(source.clone().into_unknown().into_thread_local());
+                Phase::Observed { source, origin, queue }
+            }
             None => Phase::Unobserved,
         };
         Self { phase }
     }
-    /// Reports whether a live consumer needs a captured snapshot.
+    /// Reports whether a consumer needs a captured snapshot.
     pub fn is_bound(&self) -> bool {
         matches!(self.phase, Phase::Observed { .. })
     }
-    /// Pins the public origin only for the synchronous enqueue call.
-    /// Queues acquire weak origins and owned payloads before returning; handlers
-    /// run later, after the producer's exclusive COM call gate is released.
-    pub fn post(&mut self, event: &Q::Event) -> Result<(), NcStatus> {
+    /// Captures one exclusive event and transfers it to the receiver.
+    /// A failed post drops the restored snapshot; already committed UI state is unchanged.
+    pub fn post(&mut self, event: C::Event) -> Result<(), NcStatus>
+    where
+        C::Event: EventPayload,
+    {
         match &mut self.phase {
             Phase::Unobserved => Ok(()),
-            Phase::Observed { origin, queue } => {
-                let origin = origin.upgrade()?.ok_or(NC_E_DROPPED)?;
-                Q::post(queue.as_com_ref(), origin.as_com_ref(), event)
+            Phase::Observed { source, origin, queue } => {
+                let _pin = source.upgrade()?.ok_or(NC_E_DROPPED)?;
+                let origin = NcValueRef::new(origin)?;
+                queue.post(origin, event.into_event()?).map_err(|(status, _event)| status)
             }
             Phase::Closed => Err(NC_E_CLOSED),
         }
     }
-    /// Drops the queue and weak origin exactly once; subsequent close calls are harmless.
+    /// Drops the receiver and weak origin exactly once; repeated close is harmless.
     pub fn close(&mut self) {
         self.phase = Phase::Closed;
     }

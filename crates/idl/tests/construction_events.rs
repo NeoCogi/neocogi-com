@@ -1,5 +1,5 @@
 //! Real generated factory calls prove that event ownership starts at construction.
-use neocogi_idl::{generate_rust, parse_module, resolve_modules};
+use neocogi_idl::{parse_module, resolve_modules};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -30,7 +30,7 @@ fn generate(source: &str) -> Result<String, neocogi_idl::GenerateError> {
 #[test]
 fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
     let source = r#"
-        extern neocogi.com.events; use neocogi.com.events::EventBinding;
+        extern neocogi.com.events; use neocogi.com.events::{EventBinding, IEvent};
         // These local declarations must not capture support names in generated
         // event binding conversions, method results, or catalog metadata.
         #[version(1)] struct Option { marker: u32 }
@@ -38,6 +38,13 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
         #[version(1)] struct None { marker: u32 }
         #[version(1)] struct Changed { text: String, enabled: bool, raw_0: u8, budget: u32 }
         #[version(1)] enum Event { Changed(Changed), Submitted }
+        #[version(1)] interface IChangedEvent: IEvent {
+            fn text(&self) -> Result<ComPtr<INcString>>;
+            fn enabled(&self) -> Result<bool>;
+            fn raw_0(&self) -> Result<u8>;
+            fn budget(&self) -> Result<u32>;
+        }
+        #[version(1)] interface ISubmittedEvent: IEvent {}
         #[version(1)] interface Base {}
         #[version(1)] class Counter: Base {
             fn emit(&mut self, value: &Event) -> Result<()>;
@@ -85,15 +92,15 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
             pub mod contract;
             use contract::*;
             use neocogi_com::ComPtr;
-            use neocogi_com::events::EventQueueInterface;
+            use neocogi_com::events::IEventReceiverAbi;
             pub fn cannot_attach(
                 mut product: ComPtr<CounterAbi>,
                 mut port: CounterEventPort,
-                queue: ComPtr<CounterEventQueueAbi>,
+                queue: ComPtr<IEventReceiverAbi>,
             ) {
                 product.attach(queue.as_com_ref());
                 port.attach(queue.as_com_ref());
-                CounterEventQueueAbi::receiver(|_, _| Ok(()));
+                IEventReceiverAbi::receiver(|_, _| Ok(()));
             }
         "#,
     )
@@ -115,7 +122,7 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
 #[test]
 fn constructor_event_contract_rejects_multiple_or_inconsistent_sinks() {
     let prefix = r#"
-        extern neocogi.com.events; use neocogi.com.events::EventBinding;
+        extern neocogi.com.events; use neocogi.com.events::{EventBinding, IEvent};
         #[version(1)] enum A { A }
         #[version(1)] enum B { B }
         #[version(1)] class Product {}
@@ -134,7 +141,7 @@ fn constructor_event_contract_rejects_multiple_or_inconsistent_sinks() {
 #[test]
 fn constructor_rejects_a_different_origin_contract() {
     let source = r#"
-        extern neocogi.com.events; use neocogi.com.events::EventBinding;
+        extern neocogi.com.events; use neocogi.com.events::{EventBinding, IEvent};
         #[version(1)] enum Event { Changed }
         #[version(1)] class Product {}
         #[version(1)] class Other {}
@@ -143,4 +150,11 @@ fn constructor_rejects_a_different_origin_contract() {
         }
     "#;
     assert!(resolve(source).unwrap_err().to_string().contains("returned product as event origin"));
+}
+
+/// Standalone fixtures consume the shipped common receiver from its owning crate.
+fn generate_rust(graph: &neocogi_idl::ResolvedModules, module: &str) -> Result<String, neocogi_idl::GenerateError> {
+    let mut paths = neocogi_idl::generate::RustModulePaths::default();
+    if graph.module("neocogi.com.events").is_some() { paths.insert("neocogi.com.events", "neocogi_com::events").unwrap(); }
+    neocogi_idl::generate::generate_rust_with_paths(graph, module, &paths)
 }

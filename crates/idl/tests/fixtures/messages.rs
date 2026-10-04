@@ -53,32 +53,14 @@ mod message_tests {
     impl IProducer for Producer {
         /// Allows tests to deliver after binding has finished.
         fn emit(&mut self) -> Result<(), NcStatus> {
-            self.completed.post(&Completion::Cancelled)
-        }
-    }
-
-    #[com_object(IProducerEventQueue)]
-    /// An ordinary application object receives the generated concrete value contract.
-    struct CompletionQueue {
-        /// Owned observations survive producer release.
-        send: std::sync::mpsc::Sender<u32>,
-    }
-    impl IProducerEventQueue for CompletionQueue {
-        /// Even a constant observation must validate and acquire its foreign argument.
-        fn post(&mut self, _: neocogi_com::ComRef<'_, IProducerAbi>, value: NcValueRef<'_, Completion>) -> Result<(), NcStatus> {
-            let _ = value.to_owned()?;
-            let _ = self.send.send(1);
-            Ok(())
+            self.completed.post(Completion::Cancelled)
         }
     }
 
     /// Constructor-owned delivery acquires values before the call ends; destruction cannot retract them.
     #[test]
     fn generated_output_owns_a_direct_receiver() {
-        let (first_tx, first) = std::sync::mpsc::channel();
-        let queue = CompletionQueue::from_value(CompletionQueue { send: first_tx })
-            .query::<IProducerEventQueueAbi>()
-            .unwrap();
+        let (queue, first) = neocogi_com::events::channel();
         let mut producer: ComPtr<IProducerAbi> = Producer::from_value_cyclic::<IProducerAbi>(move |origin| Producer {
             completed: neocogi_com::events::EventPort::with_queue(Some(queue), origin),
         })
@@ -87,7 +69,9 @@ mod message_tests {
         .unwrap();
         producer.emit().unwrap();
         drop(producer);
-        assert_eq!(first.try_recv().ok(), Some(1));
+        let message = first.try_recv().unwrap();
+        assert!(message.downcast::<ICancelledEventAbi>().unwrap().is_some());
+        assert!(message.origin.service::<IProducerAbi>().unwrap().unwrap().upgrade().unwrap().is_none());
     }
 
     #[com_object(IValidate)]
@@ -233,5 +217,30 @@ mod message_tests {
         assert_eq!(fields[0].ty, IdlValueType::Scalar("bool"));
         assert_eq!(fields[1].ty, IdlValueType::Sequence(&IdlValueType::Named("example.messages.Tree")));
         assert!(values.iter().any(|value| value.qualified_name == "example.messages.NumberChanged"));
+    }
+}
+
+#[neocogi_com::com_object(interfaces(ICancelledEvent), ownership = exclusive)]
+struct CancelledSnapshot;
+impl neocogi_com::events::IEvent for CancelledSnapshot {}
+impl ICancelledEvent for CancelledSnapshot {}
+#[neocogi_com::com_object(interfaces(IAcceptedEvent), ownership = exclusive)]
+struct AcceptedSnapshot(neocogi_com::ComPtr<ITokenAbi>);
+impl neocogi_com::events::IEvent for AcceptedSnapshot {}
+impl IAcceptedEvent for AcceptedSnapshot {
+    fn token(&self) -> Result<neocogi_com::ComPtr<ITokenAbi>, neocogi_com::NcStatus> { Ok(self.0.clone()) }
+}
+impl neocogi_com::events::EventPayload for Completion {
+    fn into_event(self) -> Result<neocogi_com::ComBox<neocogi_com::events::IEventAbi>, neocogi_com::NcStatus> {
+        match self {
+            Self::Cancelled => CancelledSnapshot::into_box(CancelledSnapshot).query().map_err(|(status, _)| status),
+            Self::Accepted { token } => AcceptedSnapshot::into_box(AcceptedSnapshot(token)).query().map_err(|(status, _)| status),
+        }
+    }
+    fn from_event(event: &neocogi_com::ComBox<neocogi_com::events::IEventAbi>) -> Result<Option<Self>, neocogi_com::NcStatus> {
+        if let Some(value) = neocogi_com::events::downcast_event::<IAcceptedEventAbi>(event)? {
+            return Ok(Some(Self::Accepted { token: value.token()? }));
+        }
+        Ok(neocogi_com::events::downcast_event::<ICancelledEventAbi>(event)?.map(|_| Self::Cancelled))
     }
 }
