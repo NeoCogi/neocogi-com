@@ -71,6 +71,17 @@ operation and cannot outlive or escape the threading mode of the local owner.
 Cloning the local handle retains the same allocation. There is no safe downcast
 from an arbitrary foreign interface to a local implementation.
 
+`local.downgrade()?` creates a `WeakLocalCom<Implementation>` without retaining
+the implementation. `weak.upgrade()?` returns `Some(LocalCom<Implementation>)`
+while any local or interface strong owner remains, and `None` after final release.
+Promotion acquires ownership without borrowing the value: a busy object still
+upgrades, but conflicting access through its local guards reports `NC_E_BUSY`.
+Clone and Debug operate on weak bookkeeping only. Threading and concrete Rust
+type restrictions remain those of the original local owner; a foreign weak
+interface cannot be converted into a typed local handle. To pass a weak reference
+through a contract, select an interface with `local.query::<InterfaceAbi>()?`
+and downgrade that interface pointer. The concrete implementation stays local.
+
 ## Strings and byte buffers
 
 With `alloc` (also enabled by the default `std` feature), `NcString` and

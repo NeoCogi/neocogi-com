@@ -535,7 +535,7 @@ pub use object::{
     ThreadSafeComObject,
 };
 mod local;
-pub use local::{LocalBox, WeakLocalBox, LocalCom, LocalMut, LocalRef};
+pub use local::{LocalBox, WeakLocalBox, LocalCom, WeakLocalCom, LocalMut, LocalRef};
 #[doc(hidden)]
 pub use neocogi_com_core::__ComSupportsInterfaceThreading;
 #[cfg(feature = "runtime")]

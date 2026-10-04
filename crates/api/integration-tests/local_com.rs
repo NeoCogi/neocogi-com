@@ -93,3 +93,115 @@ fn local_guard_releases_on_unwind_and_outlives_foreign_handles() {
     drop(local);
     assert_eq!(drops.load(Ordering::Relaxed), 1);
 }
+
+/// Interface owners keep typed weak promotion valid after all local owners leave.
+#[test]
+fn weak_local_lifetime_follows_every_strong_projection() {
+    let drops = Rc::new(AtomicUsize::new(0));
+    let local = Counter::into_local(Counter { value: 11, drops: drops.clone() });
+    let weak = local.downgrade().unwrap();
+    let alias = weak.clone();
+    let foreign = local.query::<ICounterAbi>().unwrap();
+    let weak_interface = foreign.downgrade().unwrap();
+    drop(local);
+    let promoted = alias.upgrade().unwrap().unwrap();
+    assert_eq!(promoted.try_borrow().unwrap().value, 11);
+    assert!(promoted.query::<ICounterAbi>().unwrap().as_com_ref().same_object(foreign.as_com_ref()));
+    drop(foreign);
+    assert_eq!(drops.load(Ordering::Relaxed), 0);
+    promoted.try_borrow_mut().unwrap().value = 12;
+    assert_eq!(weak_interface.upgrade().unwrap().unwrap().value(), Ok(12));
+    drop(promoted);
+    assert_eq!(drops.load(Ordering::Relaxed), 1);
+    assert!(weak.upgrade().unwrap().is_none());
+    assert!(alias.clone().upgrade().unwrap().is_none());
+    assert!(weak_interface.upgrade().unwrap().is_none());
+    assert!(format!("{weak:?}").starts_with("WeakLocalCom("));
+    let replacement = Counter::into_local(Counter { value: 99, drops: drops.clone() });
+    assert!(weak.upgrade().unwrap().is_none(), "a new allocation cannot revive an old observer");
+    drop((replacement, alias, weak));
+    assert_eq!(drops.load(Ordering::Relaxed), 2);
+}
+
+/// Promotion takes ownership, while local and foreign calls keep sharing one gate.
+#[test]
+fn weak_local_promotion_preserves_busy_checks_and_unwind_recovery() {
+    let drops = Rc::new(AtomicUsize::new(0));
+    let local = Counter::into_local(Counter { value: 1, drops: drops.clone() });
+    let weak = local.downgrade().unwrap();
+    let mut foreign = local.query::<ICounterAbi>().unwrap();
+    {
+        let _read = local.try_borrow().unwrap();
+        let promoted = weak.upgrade().unwrap().unwrap();
+        assert_eq!(promoted.try_borrow().unwrap().value, 1);
+        assert!(matches!(promoted.try_borrow_mut(), Err(NC_E_BUSY)));
+        assert_eq!(foreign.set_value(2), Err(NC_E_BUSY));
+    }
+    let failure = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let promoted = weak.upgrade().unwrap().unwrap();
+        let mut write = promoted.try_borrow_mut().unwrap();
+        write.value = 7;
+        let another = promoted.downgrade().unwrap().upgrade().unwrap().unwrap();
+        assert!(matches!(another.try_borrow(), Err(NC_E_BUSY)));
+        assert!(matches!(another.try_borrow_mut(), Err(NC_E_BUSY)));
+        assert_eq!(foreign.value(), Err(NC_E_BUSY));
+        assert_eq!(foreign.set_value(8), Err(NC_E_BUSY));
+        panic!("release promoted owner and guard");
+    }));
+    assert!(failure.is_err());
+    assert_eq!(foreign.value(), Ok(7));
+    weak.upgrade().unwrap().unwrap().try_borrow_mut().unwrap().value = 9;
+    assert_eq!(foreign.value(), Ok(9));
+    drop((local, foreign));
+    assert_eq!(drops.load(Ordering::Relaxed), 1);
+    assert!(weak.upgrade().unwrap().is_none());
+}
+
+#[com_interface(auto_guid = "nc.tests.local.Shared:v1", threading = shared, assigned_signature = b"00000000000000000000000000000062")]
+/// Shared service used to prove that typed weak observers preserve thread capability.
+pub trait IShared {
+    /// Reads ordinary state under the generated shared gate.
+    fn value(&self) -> Result<u32, NcStatus>;
+}
+
+#[com_object(IShared)]
+/// Plain state can be borrowed through a promoted local owner on another thread.
+struct Shared {
+    /// Updated only while the COM gate grants exclusive access.
+    value: u32,
+    /// Observes final release without participating in object ownership.
+    drops: std::sync::Arc<AtomicUsize>,
+}
+impl IShared for Shared {
+    fn value(&self) -> Result<u32, NcStatus> { Ok(self.value) }
+}
+impl Drop for Shared {
+    fn drop(&mut self) { self.drops.fetch_add(1, Ordering::SeqCst); }
+}
+
+/// A successful promotion keeps the concrete value alive through the other owner's release.
+#[test]
+fn shared_weak_local_can_promote_and_become_the_last_owner_on_another_thread() {
+    let drops = std::sync::Arc::new(AtomicUsize::new(0));
+    let local = Shared::into_local(Shared { value: 1, drops: drops.clone() });
+    let weak = local.downgrade().unwrap();
+    fn assert_shared<T: Send + Sync>(_: &T) {}
+    assert_shared(&weak);
+    let (ready, admitted) = std::sync::mpsc::channel();
+    let (release, finish) = std::sync::mpsc::channel();
+    let worker_weak = weak.clone();
+    let worker = std::thread::spawn(move || {
+        let promoted = worker_weak.upgrade().unwrap().unwrap();
+        promoted.try_borrow_mut().unwrap().value = 42;
+        ready.send(()).unwrap();
+        finish.recv().unwrap();
+        assert_eq!(promoted.query::<ISharedAbi>().unwrap().value(), Ok(42));
+    });
+    admitted.recv().unwrap();
+    drop(local);
+    assert_eq!(drops.load(Ordering::SeqCst), 0);
+    release.send(()).unwrap();
+    worker.join().unwrap();
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    assert!(weak.upgrade().unwrap().is_none());
+}

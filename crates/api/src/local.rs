@@ -26,6 +26,21 @@ pub struct LocalCom<T: ComObject> {
     implementation: PhantomData<T>,
 }
 
+/// A non-owning handle to a concrete, construction-proven shared COM implementation.
+///
+/// Created only by [`LocalCom::downgrade`], this retains lifetime bookkeeping,
+/// not `T`. Promotion acquires a strong owner before exposing local access and
+/// returns `None` after final strong release. The promoted owner's usual borrow
+/// guards share the COM call gate; promotion itself does not borrow the value.
+/// Both the original threading capability and `T`'s Rust traits are preserved.
+/// An arbitrary weak interface cannot be converted into this concrete handle.
+pub struct WeakLocalCom<T: ComObject> {
+    /// Canonical weak identity for the exact allocation originally constructed as T.
+    observer: crate::WeakComPtr<IUnknown, T::Threading>,
+    /// Preserves the concrete construction proof and its Send/Sync restrictions.
+    implementation: PhantomData<T>,
+}
+
 /// Shared local access carrying both the borrow lifetime and COM threading mode.
 pub struct LocalRef<'a, T: ComObject> {
     /// Holds the same reader lease used by generated interface thunks.
@@ -87,6 +102,14 @@ impl<T: ComObject> LocalCom<T> {
         self.owner.query()
     }
 
+    /// Retains a typed weak identity without extending the implementation's lifetime.
+    ///
+    /// This uses the same weak protocol as interface pointers and performs no
+    /// value borrow, so it is also valid while a local or COM call is active.
+    pub fn downgrade(&self) -> Result<WeakLocalCom<T>, NcStatus> {
+        Ok(WeakLocalCom { observer: self.owner.downgrade()?, implementation: PhantomData })
+    }
+
     /// Borrows the concrete implementation while excluding mutable COM calls.
     pub fn try_borrow(&self) -> Result<LocalRef<'_, T>, NcStatus> {
         // SAFETY: Construction established this exact T allocation, and the
@@ -116,6 +139,36 @@ impl<T: ComObject> Clone for LocalCom<T> {
             owner: self.owner.clone(),
             implementation: PhantomData,
         }
+    }
+}
+
+impl<T: ComObject> WeakLocalCom<T> {
+    /// Acquires one local strong owner, or returns `None` after final release.
+    ///
+    /// Logical closure and a busy call gate do not prevent promotion. Subsequent
+    /// `try_borrow`/`try_borrow_mut` calls enforce aliasing and report `NC_E_BUSY`.
+    /// Lifetime-provider errors remain errors, as with `WeakComPtr::upgrade`.
+    pub fn upgrade(&self) -> Result<Option<LocalCom<T>>, NcStatus> {
+        Ok(self.observer.upgrade()?.map(|owner| LocalCom {
+            // Downgrade preserved the construction proof; promotion can only
+            // return that exact allocation and has already acquired its owner.
+            owner,
+            implementation: PhantomData,
+        }))
+    }
+}
+
+impl<T: ComObject> Clone for WeakLocalCom<T> {
+    /// Retains the same control block without promoting or inspecting the value.
+    fn clone(&self) -> Self {
+        Self { observer: self.observer.clone(), implementation: PhantomData }
+    }
+}
+
+impl<T: ComObject> core::fmt::Debug for WeakLocalCom<T> {
+    /// Reports weak identity without requiring T: Debug or promoting an expired value.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("WeakLocalCom").field(&self.observer).finish()
     }
 }
 

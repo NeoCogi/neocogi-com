@@ -35,6 +35,10 @@ creating binary also needs typed access to the owned implementation. Its
 release them before calling an interface that enters the same object. Neither
 guard performs a query, allocation, or reference-count operation. A local handle
 cannot be recovered safely from an arbitrary foreign interface.
+The local owner's `downgrade()` returns `WeakLocalCom<Implementation>`; promoting
+it recovers a typed strong local owner while the allocation remains alive. This
+works identically for handwritten contracts and IDL-generated class/factory
+contracts and does not introduce another allocation or borrow gate.
 Ordinary unit objects have no generated zero-argument constructor.
 
 `#[com_object(interfaces(IFoo, IBar))]` remains available for local or built-in
