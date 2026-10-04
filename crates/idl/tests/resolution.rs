@@ -35,7 +35,7 @@ fn integer_assignments_and_automatic_payload_tags_remain_supported() {
 
 /// The library stream accepts declared messages, while general IDL remains event-agnostic.
 #[test]
-fn generic_event_queue_requires_message_arguments() {
+fn common_event_binding_rejects_type_arguments() {
     for declaration in ["interface Changed {}"] {
         let source = module(
             "example/events.ncidl",

@@ -39,29 +39,13 @@ Structs, enums, and interfaces can declare type parameters. Each use must supply
 
 <!-- checked-example: generic-stream -->
 ```ncidl
-#[version(1)]
-interface IEvent {}
-#[version(1)]
-enum EventOrigin { Widget(WeakComBox<IUnknown>), Service(WeakComPtr<IUnknown>) }
-#[version(1)]
-interface IEventReceiver {
-    fn post(&mut self, origin: &EventOrigin, event: ComBox<IEvent>) -> Result<()>;
+#[version(1)] struct Snapshot<T> { value: T }
+#[version(1)] interface IValue<T> {
+    fn get(&self) -> Result<Snapshot<T>>;
 }
-
-#[version(1)]
-enum EventBinding<Object, Event> {
-    Unobserved,
-    Observed(ComPtr<IEventReceiver>),
-}
-
-#[version(1)]
-enum TextBoxEvent { Changed { text: String }, Submitted }
-
-#[version(1)]
-class TextBox {}
-#[version(1)]
-factory TextBoxes {
-    fn create(&self, events: &EventBinding<TextBox, TextBoxEvent>) -> Result<ComBox<TextBox>>;
+#[version(1)] class Counter: IValue<u32> {}
+#[version(1)] factory Counters {
+    fn create(&self) -> Result<ComBox<Counter>>;
 }
 ```
 
@@ -95,7 +79,7 @@ retain their existing contract meaning. Authored binder names and source spans
 remain available for diagnostics; hashing does not rewrite the source model.
 
 Templates and concrete declarations now share the explicit binary declaration
-encoder under `neocogi-idl:module-abi:v8`. The former separate template string
+encoder under `neocogi-idl:module-abi:v9`. The former separate template string
 encoding and its Debug-formatted policy values are removed. Both paths encode
 parameter positions, resolved free identities, member order, authored enum
 assignment presence, and declaration policies. Regenerate bindings and rebuild
@@ -280,16 +264,11 @@ silently rewrites them. The parser enforces the corresponding conventions:
 - Struct fields, named enum payload fields, methods, and parameters use
   `snake_case`.
 
-Public generated names share the declaration/import namespace. After generic
-specialization and type resolution, the resolver records each local product's
-constructor association and the exact helper names to emit. Name validation,
-Rust emission, and event metadata use that same resolved plan; the backend does
-not rescan factories to infer it independently. A collision reports `EIDL021`
-at the constructor and conflicting declaration/import, with the product location
-for context. For example, declaring `CounterEventBinding` beside a constructor
-using `EventBinding<Counter, Event>` is rejected before Rust generation.
-Malformed or inconsistent constructor bindings report `EIDL065` during resolution.
-These are compile-time checks; they add no COM object fields or runtime dispatch.
+Public generated names share the declaration/import namespace. The resolver
+checks interface companions and codec helper names before emission; collisions
+report `EIDL021`. Event declarations generate no per-product helper names.
+`#[events(...)]` is validated separately against immutable event interfaces, with
+invalid contracts reported as `EIDL065`. See [event metadata](IDL_EVENT_METADATA.md).
 
 ### Concrete messages and streams
 
@@ -335,13 +314,13 @@ Conversions share cumulative byte, value-count and depth budgets. Defaults are
 readable initialized active raw storage; validation cannot prove an arbitrary
 pointer is live. See [the complete contract](RECURSIVE_VALUE_CONTRACT.md).
 
-For several event kinds, declare one enum and accept `EventBinding<Editor, EditorEvent>`
-in the factory returning the concrete class. Its variants may nest ordinary
-value types. `EventBinding<Object, Event>` is an ordinary library template; its Observed
-case contains the common `IEventReceiver`. The parent supplies that receiver
-during construction. Events transfer as exclusive `ComBox<IEvent>` capabilities. A published object has no
-attachment or replacement operation. See [typed class event streams](#typed-class-event-streams)
-and the [architecture guide](CLASS_EVENT_STREAMS.md).
+For several event kinds, declare concrete interfaces derived from `IEvent` and
+advertise them using `#[events(...)]`. A factory accepts the common `EventBinding`;
+its Observed case contains `IEventReceiver`. The parent supplies that receiver
+before publication. Events transfer as exclusive `ComBox<IEvent>` capabilities.
+There is no later attachment or replacement operation. See
+[typed class event streams](#typed-class-event-streams) and
+[the ownership guide](CLASS_EVENT_STREAMS.md).
 
 The removed `event: Message;` and `#[observer]` syntax is rejected. There are no
 per-variant receiver setters or named-output relays. Application-private messages,
@@ -658,7 +637,7 @@ An ordinary `cargo build` performs the entire compilation. No external CLI,
 nested Cargo invocation, target rustc invocation, C compiler, or archiver is
 launched by the contract build helper.
 
-Canonical module encoding v8 includes interface roles and the current COM ABI explicitly. The resolver
+Canonical module encoding v9 includes interface roles and the current COM ABI explicitly. The resolver
 includes exact transitive module fingerprints in each declaration
 signature. The plugin descriptor publishes its root factory's full IID and
 signature. Runtime activation compares both before calling bootstrap;
@@ -672,8 +651,7 @@ identities also preserve this distinction. Existing spellings keep their encodin
 
 `neocogi.com.events` is a logical contract module owned by the COM facade. It
 publishes `IEvent`, `EventOrigin`, `IEventReceiver`, and the ordinary
-`EventBinding<Object, Event>` template. Consuming modules generate their binding
-specializations and optional native event associations. UI scheduling uses `neocogi.ui.core::IWidgetDispatcher::dispatch_next` and the
+`EventBinding` enum. Producers advertise concrete event interfaces through `#[events(...)]`. UI scheduling uses `neocogi.ui.core::IWidgetDispatcher::dispatch_next` and the
 separate, borrowed `IApplicationDispatcher` for application messages. Neither
 the IDL nor the COM process runtime owns a UI event loop.
 Consumers depend on `neocogi-com` with `macros`; no runtime contract registration
@@ -741,10 +719,10 @@ and uses the same activation operation against one `static-runtime` instance.
 
 Use `interface` for reusable capabilities, `class` for concrete object contracts, and `factory` for construction.
 Replace callback `port` declarations and observer annotations with ordinary values
-and a factory accepting `EventBinding<Product, Message>`. Widget implementations
+and a factory accepting `EventBinding`. Widget implementations
 use `#[com_class(Contract, ownership = exclusive)]` and ordinary fields for the
 typed queue and cached weak origin. Shared services use the default shared policy
-and may use the generated `EventPort` alias. Replace `ComObjectDescription` uses with `ComInterface`,
+and may use the common Rust `EventPort`. Replace `ComObjectDescription` uses with `ComInterface`,
 `ComFactoryDescription` with `ComFactoryInterface`, and the implementation-side
 `ComClass` marker with `ComObject`. Factory implementation associations use
 `Interface` instead of `Description`. Use interface `IID`, `INTERFACE_ID`, and
@@ -758,8 +736,8 @@ removed runtime contract mechanism.
 
 Each IDL-generated COM interface projection exposes `*Abi::IDL_INTERFACE` beside
 its physical `INTERFACE_DESCRIPTOR`. The former points at the latter, retains
-its required interface chain, and describes its sole resolved event stream and
-concrete message, including a stream inherited through another interface.
+its required interface chain, and describes the declared event interfaces and
+their complete inherited getter results. See [event metadata](IDL_EVENT_METADATA.md).
 Every struct, enum, and bit enum exposes `Type::IDL_TYPE`; postable messages also
 expose `Message::IDL_MESSAGE`. These records include ordered struct fields,
 enum cases and payloads, and named bit flags. A custom-widget designer can inspect these records through
@@ -778,40 +756,31 @@ struct/enum/message and property metadata. `create_widget` constructs a real
 widget through COM; the host verifies its advertised IID and ABI signature.
 The catalog does not transfer Rust references or expose private widget pointers.
 A consuming Rust application still links the generated contract crate to name
-its typed handler parameters and concrete form fields.
+its concrete event getter types and optional form fields.
 
 ### Typed class event streams
 
 `IEventReceiver` accepts a checked weak `EventOrigin` and transfers an exclusive
-`ComBox<IEvent>`. Concrete event interfaces derive from `IEvent` and expose
-immutable getters. `EventBinding<Object, Event>` selects permanent Unobserved or
-Observed delivery through that common receiver. Its type arguments associate the
-producer with a native payload for optional Rust decoding and authoring metadata.
-Factories accept the binding before publishing a product; no attachment method
-is generated.
+`ComBox<IEvent>`. Concrete event interfaces derive from `IEvent` and expose immutable
+getters. The common `EventBinding` selects permanent Unobserved or Observed delivery.
+Factories accept it before publishing a product; no attachment method is generated.
 
-The resolver records `ProductEventBinding` and `EventSource::Event`. It emits no
-product-specific receiver interface or queue aliases. `IDL_INTERFACE.event_queue`
-names the common receiver and the native event graph separately from the product's
-interface chain. A host can use `events::channel()` or implement `IEventReceiver`
-once for its own inbox. Messages keep the event as a COM object until handling;
-unsupported derived-interface queries return None, while actual COM errors remain errors.
-See [COM event objects](COM_EVENT_INTERFACES.md).
+`#[events(...)]` declares emitted interface identities. `IDL_INTERFACE.events`
+contains their real getter metadata, independently of the widget's interface chain.
+Hosts use `events::channel()` or implement `IEventReceiver` once for their inbox.
+Messages keep the exclusive COM owner until handling. Unsupported event queries
+return `None`; actual ABI/provider errors remain errors.
 
-`*EventPort` is generated only if an associated constructor in the product's module
-returns `ComPtr<Product>`. It is a convenience alias for shared-service producers
-using `WeakComPtr`, such as menu/window capabilities with explicit dismissal.
-`ComBox`/`WeakComBox` constructors alone do not reserve or emit that name. See the
-[constructor naming contract](IDL_CONSTRUCTOR_NAMES.md) for the complete inventory.
-It is not the widget lifetime policy. `com_class(Contract, ownership = exclusive)`
-generates widget allocation helpers and weak-call admission, without event-installation
-methods or callback adapters. Shared services keep the default shared class policy
-and do not carry exclusive-owner admission through their ABI thunks.
+`EventPort` is a nongeneric shared-service convenience with explicit terminal
+closure. Exclusive widgets store their common receiver and cached weak origin.
+`com_class(Contract, ownership = exclusive)` generates allocation and weak-call
+admission, without event installation or callback adapters. See
+[COM event objects](COM_EVENT_INTERFACES.md).
 
 The queue acquires facts synchronously; application handlers run later with
 `&mut self` after traversal releases its borrows. No parent state pointer or Rust
-closure crosses COM. Catalogs transport the constructor receiver contract, and
-custom factories query its exact queue before allocation. See
+closure crosses COM. Catalogs transport declared event interfaces and getter metadata; custom factories
+receive the common constructor binding. See
 [the detailed ownership, state and teardown rules](CLASS_EVENT_STREAMS.md).
 
 

@@ -37,7 +37,6 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
         #[version(1)] struct Some { marker: u32 }
         #[version(1)] struct None { marker: u32 }
         #[version(1)] struct Changed { text: String, enabled: bool, raw_0: u8, budget: u32 }
-        #[version(1)] enum Event { Changed(Changed), Submitted }
         #[version(1)] interface IChangedEvent: IEvent {
             fn text(&self) -> Result<ComPtr<INcString>>;
             fn enabled(&self) -> Result<bool>;
@@ -46,16 +45,17 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
         }
         #[version(1)] interface ISubmittedEvent: IEvent {}
         #[version(1)] interface Base {}
-        #[version(1)] class Counter: Base {
-            fn emit(&mut self, value: &Event) -> Result<()>;
+        #[version(1)] #[events(IChangedEvent, ISubmittedEvent)] class Counter: Base {
+            fn emit(&mut self, value: &Changed) -> Result<()>;
+            fn submit(&mut self) -> Result<()>;
             fn close(&mut self) -> Result<()>;
         }
         #[version(1)] #[threading(shared)] class SharedOrigin {}
         #[version(1)] factory SharedFactory {
-            fn create(&self, events: &EventBinding<SharedOrigin, Event>) -> Result<ComPtr<SharedOrigin>>;
+            fn create(&self, events: &EventBinding) -> Result<ComPtr<SharedOrigin>>;
         }
         #[version(1)] factory Factory {
-            fn create(&self, reject: bool, events: &EventBinding<Counter, Event>) -> Result<ComPtr<Counter>>;
+            fn create(&self, reject: bool, events: &EventBinding) -> Result<ComPtr<Counter>>;
         }
     "#;
     let project = tempfile::tempdir().unwrap();
@@ -95,7 +95,7 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
             use neocogi_com::events::IEventReceiverAbi;
             pub fn cannot_attach(
                 mut product: ComPtr<CounterAbi>,
-                mut port: CounterEventPort,
+                mut port: neocogi_com::events::EventPort,
                 queue: ComPtr<IEventReceiverAbi>,
             ) {
                 product.attach(queue.as_com_ref());
@@ -115,41 +115,6 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
     assert!(!result.status.success(), "late attachment unexpectedly compiled");
     assert_eq!(diagnostics.matches("no method named `attach`").count(), 2, "{diagnostics}");
     assert!(diagnostics.contains("named `receiver` found"), "{diagnostics}");
-}
-
-/// Two receiver arguments would weaken the one-port contract; two constructors
-/// disagreeing about a product's event type would make generated forms ambiguous.
-#[test]
-fn constructor_event_contract_rejects_multiple_or_inconsistent_sinks() {
-    let prefix = r#"
-        extern neocogi.com.events; use neocogi.com.events::{EventBinding, IEvent};
-        #[version(1)] enum A { A }
-        #[version(1)] enum B { B }
-        #[version(1)] class Product {}
-    "#;
-    let duplicate = format!(
-        "{prefix} #[version(1)] factory Factory {{ fn create(&self, a: &EventBinding<Product, A>, b: &EventBinding<Product, A>) -> Result<ComPtr<Product>>; }}"
-    );
-    assert!(resolve(&duplicate).unwrap_err().to_string().contains("multiple event bindings"));
-    let inconsistent = format!(
-        "{prefix} #[version(1)] factory Factory {{ fn first(&self, events: &EventBinding<Product, A>) -> Result<ComPtr<Product>>; fn second(&self, events: &EventBinding<Product, B>) -> Result<ComPtr<Product>>; }}"
-    );
-    assert!(resolve(&inconsistent).unwrap_err().to_string().contains("disagree on their event type"));
-}
-
-/// A factory cannot claim an unrelated object as its product's event origin.
-#[test]
-fn constructor_rejects_a_different_origin_contract() {
-    let source = r#"
-        extern neocogi.com.events; use neocogi.com.events::{EventBinding, IEvent};
-        #[version(1)] enum Event { Changed }
-        #[version(1)] class Product {}
-        #[version(1)] class Other {}
-        #[version(1)] factory Factory {
-            fn create(&self, events: &EventBinding<Other, Event>) -> Result<ComPtr<Product>>;
-        }
-    "#;
-    assert!(resolve(source).unwrap_err().to_string().contains("returned product as event origin"));
 }
 
 /// Standalone fixtures consume the shipped common receiver from its owning crate.

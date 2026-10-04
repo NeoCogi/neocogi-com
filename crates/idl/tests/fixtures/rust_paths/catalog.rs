@@ -34,7 +34,7 @@ impl IDesignWidgetCatalog for Catalog {
     }
 
     /// Source generation must never construct a widget or require a running UI.
-    fn create_widget(&self, _: u32, _: ComRef<'_, IWidgetHostAbi>, _: NcCopyFromBufferOffset<'_, u8>, _: neocogi_com::NcValueRef<'_, neocogi_ui_document::contracts::WidgetEventBinding>) -> Result<neocogi_com::ComBox<IWidgetAbi>, NcStatus> {
+    fn create_widget(&self, _: u32, _: ComRef<'_, IWidgetHostAbi>, _: NcCopyFromBufferOffset<'_, u8>, _: neocogi_com::NcValueRef<'_, neocogi_com::events::EventBinding>) -> Result<neocogi_com::ComBox<IWidgetAbi>, NcStatus> {
         panic!("catalog inspection must not construct widgets")
     }
 }
@@ -52,7 +52,7 @@ fn main() {
     let destination = std::path::PathBuf::from(std::env::args_os().nth(1).unwrap());
     let mut manifest = DesignWidgetManifest::from_idl("example.counter", vec![], &CounterAbi::IDL_INTERFACE).unwrap();
     assert_eq!(manifest.interface.rust_abi, "path_contracts::r#type::CounterAbi");
-    assert_eq!(manifest.interface.event_value().unwrap().rust_type, "path_contracts::r#type::CounterEvent");
+    assert_eq!(manifest.interface.events[0].qualified_name, "example.paths.ICounterEvent");
     for file in ["plain.rs", "absolute.rs"] {
         if file == "absolute.rs" {
             manifest.interface.rust_abi.insert_str(0, "::");

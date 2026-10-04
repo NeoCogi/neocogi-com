@@ -1,4 +1,4 @@
-//! The generated source is compiled as a downstream application, not its producer.
+//! Compiles optional form fields using both spellings of the relocated contract path.
 #[allow(dead_code)]
 mod absolute;
 #[allow(dead_code)]
@@ -7,40 +7,15 @@ mod plain;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use path_contracts::r#type::{CounterChanged, CounterEvent};
+    use path_contracts::r#type::{CounterAbi, CounterChanged, CounterEvent, ICounterEventAbi};
 
-    /// Application behavior owns its mutable state independently of COM metadata.
-    #[derive(Default)]
-    struct Handler {
-        /// Last count observed through the generated required event handler.
-        count: u32,
-    }
-    impl plain::Handlers for Handler {
-        /// The compiler checks that generated binding metadata names the actual event.
-        fn on_counter_0(&mut self, event: CounterEvent) -> Result<(), neocogi_com::NcStatus> {
-            self.count = match event {
-                CounterEvent::Changed(value) => value.value,
-                CounterEvent::Reset => 0,
-            };
-            Ok(())
-        }
-    }
-    impl absolute::Handlers for Handler {
-        /// Optional leading `::` must preserve exactly the same application type.
-        fn on_counter_0(&mut self, event: CounterEvent) -> Result<(), neocogi_com::NcStatus> {
-            plain::Handlers::on_counter_0(self, event)
-        }
-    }
-
-    /// Compiled form events retain the concrete generated payload and mutable dispatch.
+    /// Both field projections resolve to the same real ABI type across Cargo packages.
     #[test]
-    fn raw_and_absolute_bindings_dispatch_the_same_generated_type() {
-        let mut handler = Handler::default();
-        plain::Event::Widget0(CounterEvent::Changed(CounterChanged { value: 42 }))
-            .dispatch(&mut handler)
-            .unwrap();
-        assert_eq!(handler.count, 42);
-        absolute::Event::Widget0(CounterEvent::Reset).dispatch(&mut handler).unwrap();
-        assert_eq!(handler.count, 0);
+    fn raw_and_absolute_bindings_share_types_and_getter_values() {
+        let _: fn(&plain::Form) -> &neocogi_ui::Widget<CounterAbi> = |form| &form.widget_counter_0;
+        let _: fn(&absolute::Form) -> &neocogi_ui::Widget<CounterAbi> = |form| &form.widget_counter_0;
+        let snapshot = path_contracts::r#type::changed(CounterEvent::Changed(CounterChanged { value: 42 })).unwrap();
+        let event = neocogi_com::events::downcast_event::<ICounterEventAbi>(&snapshot).unwrap().unwrap();
+        assert!(matches!(event.value().unwrap(), CounterEvent::Changed(value) if value.value == 42));
     }
 }

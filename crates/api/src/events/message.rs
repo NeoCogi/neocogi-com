@@ -2,21 +2,6 @@
 use super::{EventOrigin, IEventAbi};
 use crate::{ComBox, ComInterface, NcStatus, NcValueRef, WeakComBox, WeakComPtr, NC_E_NOINTERFACE};
 
-/// Optional native convenience for constructing and reading concrete event snapshots.
-/// Transport remains an exclusive `IEvent` capability; hosts may call its typed
-/// interfaces directly without decoding any Rust payload or application enum.
-pub trait EventPayload: Sized {
-    /// Validates semantic invariants independently of a particular receiver.
-    fn validate(&self) -> Result<(), NcStatus> {
-        Ok(())
-    }
-    /// Moves this captured value into one immutable, exclusively owned COM event.
-    fn into_event(self) -> Result<ComBox<IEventAbi>, NcStatus>;
-    /// Reads a supported event interface, returning None for a different event kind.
-    /// A foreign event's returned data must pass the same domain validation.
-    fn from_event(event: &ComBox<IEventAbi>) -> Result<Option<Self>, NcStatus>;
-}
-
 /// Queries an event without moving its owner; unsupported interfaces are ordinary absence.
 pub fn downcast_event<T: ComInterface>(event: &ComBox<IEventAbi>) -> Result<Option<WeakComBox<T>>, NcStatus> {
     optional(event.query_weak())
@@ -48,30 +33,8 @@ impl EventMessage {
     pub fn downcast<T: ComInterface>(&self) -> Result<Option<WeakComBox<T>>, NcStatus> {
         downcast_event(&self.event)
     }
-
-    /// Reads a native convenience value while this message continues owning the event.
-    pub fn payload<E: EventPayload>(&self) -> Result<Option<E>, NcStatus> {
-        E::from_event(&self.event)
-    }
-
-    /// Reads a source-specific native view during handling, keeping this event owned.
-    pub fn widget<C: super::EventSource>(&self) -> Result<Option<(WeakComBox<C>, C::Event)>, NcStatus>
-    where
-        C::Event: EventPayload,
-    {
-        let Some(origin) = self.origin.widget::<C>()? else { return Ok(None) };
-        Ok(self.payload()?.map(|event| (origin, event)))
-    }
-
-    /// Reads a shared-service native view without retaining its source strongly.
-    pub fn service<C: super::EventSource>(&self) -> Result<Option<(WeakComPtr<C>, C::Event)>, NcStatus>
-    where
-        C::Event: EventPayload,
-    {
-        let Some(origin) = self.origin.service::<C>()? else { return Ok(None) };
-        Ok(self.payload()?.map(|event| (origin, event)))
-    }
 }
+
 impl EventOrigin {
     /// Selects an exclusive widget interface without requiring the widget to survive.
     pub fn widget<T: ComInterface>(&self) -> Result<Option<WeakComBox<T>>, NcStatus> {

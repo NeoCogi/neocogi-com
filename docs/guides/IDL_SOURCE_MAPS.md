@@ -80,7 +80,7 @@ methods, functions, fields, variants and helpers.
 | Integer enum or bit flag macro body | Its declaration and each variant/flag |
 | Interface/class method and generated forwarding methods | The authored method identifier |
 | Closed generic interface methods | The method in the generic template |
-| `TextboxEvent::Changed` | The message enum's `Changed` variant |
+| `ITextChangedEvent::text` | The event interface getter declaration |
 | Message wire record and codec helpers | The originating message declaration |
 | Message case helper and borrowed named fields | The originating variant and field |
 | Imported re-export | The local IDL `use` statement |

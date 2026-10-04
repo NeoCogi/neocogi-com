@@ -85,21 +85,15 @@ pub struct IdlType {
     pub shape: IdlShape,
 }
 
-/// Typed receiver required by a constructor, independent of producer projections.
-/// The queue is an application-owned object passed into construction. It is not
-/// an interface implemented by the resulting widget, and must not be searched
-/// for in that widget's QueryInterface chain.
+/// One concrete immutable event interface advertised by a producer's IDL declaration.
 #[derive(Clone, Copy)]
-pub struct IdlEventQueue {
-    /// Public implementation trait path for application-owned queue objects.
-    /// This is Rust binding metadata, separate from the logical COM identity.
-    /// Publishers and catalog readers use [`crate::validate_rust_path`] just as
-    /// they do for interface/value paths; consumers never guess this name.
-    pub rust_trait: &'static str,
-    /// Common IEventReceiver identity and checked ABI signature.
+pub struct IdlEvent {
+    /// Canonical logical interface name, independent of Rust binding paths.
+    pub qualified_name: &'static str,
+    /// Exact event IID and checked ABI revision, negotiated on the event object.
     pub abi: &'static NcInterfaceDescriptor,
-    /// Complete event value; nested definitions are carried by the value graph.
-    pub message: &'static IdlType,
+    /// Immutable zero-argument getters, including inherited event getters.
+    pub fields: &'static [IdlField],
 }
 
 /// A COM class/interface and its complete transitive authoring contract.
@@ -112,8 +106,8 @@ pub struct IdlInterface {
     /// Public Rust path of the generated concrete projection.
     /// Uses the same [`crate::validate_rust_path`] contract as value bindings.
     pub rust_abi: &'static str,
-    /// Final event receiver policy accepted by constructors of this projection.
-    pub event_queue: Option<IdlEventQueue>,
-    /// Finite definitions reachable from this interface chain and event value.
+    /// Immutable interfaces this source can emit; the receiver is always IEventReceiver.
+    pub events: &'static [IdlEvent],
+    /// Finite definitions reachable from this interface chain and event getters.
     pub values: &'static [IdlType],
 }

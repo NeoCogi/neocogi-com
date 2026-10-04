@@ -21,10 +21,9 @@ interface IEventReceiver {
     fn post(&mut self, origin: &EventOrigin, event: ComBox<IEvent>) -> Result<()>;
 }
 
-#[version(3)]
-/// Constructor delivery policy. Type arguments describe the producer and its
-/// optional native payload; every observed instance uses the common receiver.
-enum EventBinding<Object, Event> {
+#[version(4)]
+/// Constructor delivery policy shared by every observable widget and service.
+enum EventBinding {
     /// Permanently disable delivery for this instance, as in a designer preview.
     Unobserved,
     /// Retain the common receiver until producer closure or final destruction.

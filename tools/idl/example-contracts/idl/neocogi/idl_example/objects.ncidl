@@ -8,17 +8,18 @@ interface IMeasured {
 }
 
 /// Public object shape constructed only by `ExampleFactory`.
-#[version(1)]
+#[version(2)]
+#[events(IExtentChangedEvent)]
 class ExampleObject: IMeasured {
     /// Replaces the dimensions using an exclusive implementation borrow.
     fn resize(&mut self, extent: Extent) -> Result<()>;
 }
 
 /// Typed construction surface for the example object.
-#[version(1)]
+#[version(2)]
 factory ExampleFactory {
     /// Creates one initialized example object.
-    fn create(&self, extent: Extent, events: &EventBinding<ExampleObject, ExtentChanged>) -> Result<ComPtr<ExampleObject>>;
+    fn create(&self, extent: Extent, events: &EventBinding) -> Result<ComPtr<ExampleObject>>;
 }
 
 /// Opaque composition exposes only its mountable root, never internal controls.
@@ -30,9 +31,9 @@ interface ICompositionRoot {
     fn widget(&self, name: &[u8]) -> Result<WeakComBox<IUnknown>>;
 }
 
-#[version(1)]
+#[version(2)]
 /// Immutable extent snapshot carried by the common event receiver.
 interface IExtentChangedEvent: neocogi::com::events::IEvent {
     /// Captured dimensions remain readable after producer destruction.
-    fn value(&self) -> Result<ExtentChanged>;
+    fn extent(&self) -> Result<Extent>;
 }

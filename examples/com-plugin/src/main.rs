@@ -3,7 +3,7 @@
 use neocogi_com::{binary, Runtime, ComPtr, ComRef, IUnknown, NcCopyFromBufferOffset, NcStatus, NC_E_ABI_VERSION, NC_E_INVALID_ARG, guid_from_qualified_name};
 use neocogi_com::persistence::{FactoryRegistry, snapshot};
 use neocogi_com::NcValueRef;
-use neocogi_idl_example_contracts::ExampleObjectEventBinding;
+
 use nc_example_com::{ExtentState, PERSISTENT_KIND};
 use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentReport};
 
@@ -16,7 +16,7 @@ fn main() {
         .activate_plugin_factory::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .expect("compatible example factory");
     let (queue, messages) = neocogi_com::events::channel();
-    let binding = ExampleObjectEventBinding::from_queue(Some(queue.as_com_ref()));
+    let binding = neocogi_com::events::EventBinding::from_queue(Some(queue.as_com_ref()));
     let mut object = factory
         .create(Extent { width: 20, height: 10 }, NcValueRef::new(&binding).unwrap())
         .expect("typed object construction");
@@ -31,7 +31,8 @@ fn main() {
     assert_eq!(object.reports(reports.output(0, 0)).unwrap(), 2);
     assert!(reports.is_empty(), "a size query must not publish an uninitialized tail");
     let message = messages.try_recv().unwrap();
-    let (origin, changed) = message.service::<ExampleObjectAbi>().unwrap().unwrap();
+    let origin = message.origin.service::<ExampleObjectAbi>().unwrap().unwrap();
+    let changed = message.downcast::<neocogi_idl_example_contracts::IExtentChangedEventAbi>().unwrap().unwrap().extent().unwrap();
     assert!(origin.same_object(&object.downgrade().unwrap()));
     assert_eq!((changed.width, changed.height), (44, 31));
     // A promotion crosses from the host's weak protocol into plugin-owned storage.
@@ -51,7 +52,8 @@ fn main() {
     assert_eq!(snapshot(restored.as_com_ref()).unwrap(), saved);
     restored.query::<ExampleObjectAbi>().unwrap().resize(Extent { width: 45, height: 32 }).unwrap();
     let message = messages.try_recv().unwrap();
-    let (origin, changed) = message.service::<ExampleObjectAbi>().unwrap().unwrap();
+    let origin = message.origin.service::<ExampleObjectAbi>().unwrap().unwrap();
+    let changed = message.downcast::<neocogi_idl_example_contracts::IExtentChangedEventAbi>().unwrap().unwrap().extent().unwrap();
     assert!(origin.same_object(&restored.downgrade().unwrap()));
     assert_eq!((changed.width, changed.height), (45, 32));
     // No queued origin or persistent recipe is allowed to keep either object alive.
@@ -111,7 +113,7 @@ impl neocogi_com::persistence::IPersistenceFactory for PersistenceAdapter {
         children: ComRef<'_, neocogi_com::persistence::IObjectChildrenAbi>,
     ) -> Result<ComPtr<IUnknown>, NcStatus> {
         let state = decode(version, state, children.count()?)?;
-        let binding = ExampleObjectEventBinding::from_queue(Some(self.queue.as_com_ref()));
+        let binding = neocogi_com::events::EventBinding::from_queue(Some(self.queue.as_com_ref()));
         self.factory
             .create(Extent { width: state.width, height: state.height }, NcValueRef::new(&binding)?)?
             .query()

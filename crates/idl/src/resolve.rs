@@ -1,7 +1,7 @@
 //! Cross-module name resolution, ABI validation, and canonical identities.
 
-pub(crate) mod construction;
 
+mod events;
 use std::{
     collections::{BTreeSet, HashMap},
     fmt,
@@ -58,8 +58,6 @@ pub struct ResolvedModule {
     pub dependencies: Vec<ResolvedDependency>,
     /// Declaration identities in canonical top-level name order.
     pub declarations: Vec<DeclarationIdentity>,
-    /// Validated constructor associations and the public helpers they actually emit.
-    pub(crate) construction: construction::Construction,
 }
 
 impl ResolvedModule {
@@ -132,22 +130,6 @@ impl ResolvedModules {
                     identity: &module.declarations[index],
                 })
             })
-    }
-
-    /// Captures a resolved projection as a stable index into this immutable graph.
-    /// Reuses ordinary and generic name resolution rather than rebuilding lookup
-    /// for the constructor adapter. Source ordering is frozen before this phase.
-    fn resolve_symbol(&self, owner: &ResolvedModule, name: &NamedType) -> Option<Symbol> {
-        let resolved = self.resolve_declaration(&owner.source.name.to_string(), name)?;
-        let module = self.modules.iter().position(|module| module.source.name == resolved.module.source.name)?;
-        let declaration = resolved.module.source.declarations.iter().position(|declaration| declaration.name == resolved.declaration.name)?;
-        Some(Symbol {
-            module, declaration, id: resolved.identity.id,
-            kind: match resolved.declaration.kind {
-                DeclarationKind::Interface(_) => SymbolKind::Interface,
-                _ => SymbolKind::Value,
-            },
-        })
     }
 
     /// Resolves one local, imported, or module-qualified declaration path.
@@ -320,7 +302,6 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
                 abi_fingerprint: module_fingerprint,
                 dependencies,
                 declarations,
-                construction: construction::Construction::default(),
             }
         })
         .collect();
@@ -347,12 +328,7 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
             }
         }
     }
-    let plans = construction::resolve(&graph)?;
-    for (module, plan) in graph.modules.iter_mut().zip(plans) {
-        module.construction = plan;
-    }
-    // Constructor association has now decided every emitted helper. Validate
-    // authored, imported, standard, and constructor-derived names together.
+    // Validate authored and generated interface companion names together.
     let mut diagnostics = Vec::new();
     for module in &graph.modules {
         collect_diagnostics(&mut diagnostics, validate_generated_names(module));
@@ -437,19 +413,6 @@ pub(crate) struct Symbol {
     id: NcGuid,
     /// Declaration category relevant to ABI position rules.
     kind: SymbolKind,
-}
-
-impl Symbol {
-    /// Borrows the exact local projection retained by semantic resolution.
-    /// Only the resolver creates these keys; modules cannot be reordered later.
-    pub(crate) fn get(self, graph: &ResolvedModules) -> ResolvedDeclaration<'_> {
-        let module = &graph.modules[self.module];
-        ResolvedDeclaration {
-            module,
-            declaration: &module.source.declarations[self.declaration],
-            identity: &module.declarations[self.declaration],
-        }
-    }
 }
 
 /// Coarse declaration categories used by the type validator.
@@ -772,6 +735,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
             DeclarationKind::BitEnum(bit_enum) => collect_diagnostics(&mut diagnostics, validate_bit_enum(entry, declaration, bit_enum)),
             DeclarationKind::Interface(interface) => {
                 collect_diagnostics(&mut diagnostics, validate_interface_bases(index, interface, entries, &declaration.name));
+                collect_diagnostics(&mut diagnostics, events::validate(index, interface, entries, &declaration.name));
                 collect_diagnostics(&mut diagnostics, validate_methods(index, &interface.methods, entries, values, &declaration.name));
             }
         }
@@ -826,13 +790,9 @@ fn validate_generated_names(module: &ResolvedModule) -> Result<(), ResolutionErr
             }
             DeclarationKind::Struct(_) | DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) => {}
         }
-        let constructor = module.construction.products.get(&declaration.name);
-        let companions = companions.iter().map(|name| (name.as_str(), &declaration.span, false));
-        let helpers = constructor.into_iter().flat_map(|plan| {
-            plan.helpers.iter().map(|helper| (helper.name(), &plan.source, true))
-        });
-        for (name, origin, from_constructor) in companions.chain(helpers) {
-            if let Some((previous_span, previous_name)) = occupied.get(name) {
+        for name in &companions {
+            let origin = &declaration.span;
+            if let Some((previous_span, previous_name)) = occupied.get(name.as_str()) {
                 let diagnostic = Diagnostic::new(
                         "EIDL021",
                         format!("generated Rust name {name:?} from {} conflicts with {previous_name}", declaration.name),
@@ -840,10 +800,7 @@ fn validate_generated_names(module: &ResolvedModule) -> Result<(), ResolutionErr
                     .with_sources(&source.sources)
                     .primary(origin, "this declaration generates the conflicting name")
                     .secondary(previous_span, "name is already present here");
-                diagnostics.push(match from_constructor {
-                    true => diagnostic.secondary(&declaration.span, "constructor helpers belong to this product"),
-                    false => diagnostic,
-                });
+                diagnostics.push(diagnostic);
             } else {
                 occupied.insert(name.to_owned(), (origin.clone(), format!("generated companion of {}", declaration.name)));
             }
@@ -1595,10 +1552,9 @@ fn fingerprint_module(
 fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, [u8; 32])]) -> Result<[u8; 32], ResolutionError> {
     let entry = &entries[index];
     let mut encoder = CanonicalEncoder::new();
-    // Version 8 adds automatic symmetric persistence to the shared contract grammar;
-    // the preceding revision unified template/concrete policy, enum assignment
-    // presence and positional type binding. All consumers must regenerate.
-    encoder.bytes(b"neocogi-idl:module-abi:v8\0");
+    // Version 9 records advertised event interfaces as semantic dependencies.
+    // This extends the canonical declaration grammar; every consumer regenerates.
+    encoder.bytes(b"neocogi-idl:module-abi:v9\0");
     encoder.guid(entry.module_id);
     // Templates and concrete declarations use exactly the same grammar. Bound
     // parameters require a scope, not a second serializer or diagnostic strings.
@@ -1724,6 +1680,9 @@ fn encode_declaration(
                 InterfaceRole::Class => 2,
             });
             encode_methods(scope, &interface.bases, &interface.methods, interface.threading, entries, encoder)?;
+            // Emitted interfaces are semantic dependencies, independent of vtable ancestry.
+            encoder.u32(u32_len(interface.events.len(), &entries[index].name, "event count")?);
+            for event in &interface.events { encode_named(scope, event, entries, encoder)?; }
         }
     }
     Ok(())

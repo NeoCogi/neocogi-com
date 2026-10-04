@@ -244,7 +244,7 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
         extern proof.templates; extern neocogi.com.events;
         use proof.templates::{Pair, Node, Change, Handle, IExchange, IValueReceiver};
         use neocogi.com.events::EventBinding;
-        #[version(1)] factory ExchangeFactory { fn create(&self, events: &EventBinding<Exchange, Change<Node<String>>>) -> Result<ComPtr<Exchange>>; }
+        #[version(1)] factory ExchangeFactory { fn create(&self, events: &EventBinding) -> Result<ComPtr<Exchange>>; }
         #[version(1)] class Exchange: IExchange<Pair<bool, bool>> {}
         #[version(1)] class Receiver: IValueReceiver<Change<Node<String>>> {}
         #[version(1)] interface IData { fn inspect(&self, owner: &Handle<IUnknown>) -> Result<()>; }
@@ -363,9 +363,7 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
             let receiver = Queue::from_value(Queue);
             let producer_view = receiver.query::<producer::{receiver}Abi>().unwrap();
             producer_view.as_com_ref().accept(neocogi_com::NcValueRef::new(&value).unwrap()).unwrap();
-            let descriptor = producer::ExchangeAbi::IDL_INTERFACE;
-            let stream = descriptor.event_queue.unwrap();
-            assert!(descriptor.values.iter().any(|value| value.qualified_name == stream.message.qualified_name));
+            let descriptor = producer::ReceiverAbi::IDL_INTERFACE;
             assert!(descriptor.values.iter().any(|value| value.qualified_name == producer::{node}::IDL_TYPE.qualified_name));
             assert_eq!(producer::{node}::IDL_TYPE.qualified_name, consumer::{node}::IDL_TYPE.qualified_name);
         }}

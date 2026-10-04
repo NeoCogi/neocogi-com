@@ -314,9 +314,9 @@ expanding recursive definitions. Inspection transports a finite graph of those
 definitions through COM.
 
 This value contract does not change the event model. A concrete event source has
-one typed event stream and one lifetime consumer. Its behavioral parent maps
-received values to its application queue. Application dispatch later handles the
-message with mutable access to the parent. Routing between widgets remains an
+one common receiver and one lifetime consumer. Its receiver moves the exclusive
+COM event and weak origin into an inbox. Application dispatch reads the event
+getters later with mutable access to the parent. Routing between widgets remains an
 application concern.
 
 ## Method and buffer positions

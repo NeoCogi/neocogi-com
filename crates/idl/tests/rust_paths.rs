@@ -149,8 +149,8 @@ fn raw_identifier_catalog_paths_compile_in_exported_forms() {
         /// Immutable copied native view exposed through an ordinary event getter.
         #[version(1)] interface ICounterEvent: IEvent { fn value(&self) -> Result<CounterEvent>; }
         /// Concrete projection whose Rust module location uses a raw identifier.
-        #[version(1)] factory CounterFactory { fn create(&self, events: &EventBinding<Counter, CounterEvent>) -> Result<ComBox<Counter>>; }
-        #[version(1)] class Counter: IWidget {}
+        #[version(1)] factory CounterFactory { fn create(&self, events: &EventBinding) -> Result<ComBox<Counter>>; }
+        #[version(1)] #[events(ICounterEvent)] class Counter: IWidget {}
     "#,
     )
     .unwrap();
@@ -166,13 +166,9 @@ fn raw_identifier_catalog_paths_compile_in_exported_forms() {
             impl ICounterEvent for Snapshot {
                 fn value(&self) -> Result<CounterEvent, neocogi_com::NcStatus> { Ok(self.0) }
             }
-            impl neocogi_com::events::EventPayload for CounterEvent {
-                fn into_event(self) -> Result<neocogi_com::ComBox<neocogi_com::events::IEventAbi>, neocogi_com::NcStatus> {
-                    Snapshot::into_box(Snapshot(self)).query().map_err(|(status, _)| status)
-                }
-                fn from_event(event: &neocogi_com::ComBox<neocogi_com::events::IEventAbi>) -> Result<Option<Self>, neocogi_com::NcStatus> {
-                    neocogi_com::events::downcast_event::<ICounterEventAbi>(event)?.map(|value| value.value()).transpose()
-                }
+            /// Creates the immutable event directly; form generation has no event adapters.
+            pub fn changed(value: CounterEvent) -> Result<neocogi_com::ComBox<neocogi_com::events::IEventAbi>, neocogi_com::NcStatus> {
+                Snapshot::into_box(Snapshot(value)).query().map_err(|(status, _)| status)
             }
         }
     "#,

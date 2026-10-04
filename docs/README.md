@@ -9,7 +9,7 @@ previous drafts and migration history; use the current specification for new cod
 
 The core generation, plugin/runtime discovery versions, and IDL fingerprint
 encoding are separate contracts. Discovery tables currently use v1; IDL's
-canonical module encoding uses v8. Neither number identifies the current object
+canonical module encoding uses v9. Neither number identifies the current object
 ABI. The [IDL language reference](../../../docs/contracts/IDL_MODULES.md) owns the fingerprint
 and versioning rules, including generic parameters and enum assignments.
 

@@ -9,7 +9,7 @@ struct ExampleObjectImplementation {
     /// Current dimensions returned by both callable projections.
     extent: Extent,
     /// The constructor supplies the sole receiver, retained as private producer state.
-    events: neocogi_idl_example_contracts::ExampleObjectEventPort,
+    events: neocogi_com::events::EventPort,
 }
 
 impl IMeasured for ExampleObjectImplementation {
@@ -31,10 +31,7 @@ impl ExampleObject for ExampleObjectImplementation {
     /// Replaces dimensions through the generated exclusive `&mut self` call.
     fn resize(&mut self, extent: Extent) -> Result<(), NcStatus> {
         self.extent = extent;
-        self.events.post(neocogi_idl_example_contracts::ExtentChanged {
-            width: extent.width,
-            height: extent.height,
-        })
+        self.events.post(neocogi_idl_example_contracts::events::extent_changed(extent)?)
     }
 }
 
@@ -47,7 +44,7 @@ impl ExampleFactory for ExampleFactoryImplementation {
     fn create(
         &self,
         extent: Extent,
-        events: neocogi_com::NcValueRef<'_, neocogi_idl_example_contracts::ExampleObjectEventBinding>,
+        events: neocogi_com::NcValueRef<'_, neocogi_com::events::EventBinding>,
     ) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
         let queue = events.to_owned()?.into_queue();
         ExampleObjectImplementation::from_value_cyclic::<ExampleObjectAbi>(move |origin| ExampleObjectImplementation {
@@ -80,7 +77,7 @@ fn generated_contract_factory_activates_without_a_class_table() {
     let mut object = factory
         .create(
             Extent { width: 20, height: 10 },
-            neocogi_com::NcValueRef::new(&neocogi_idl_example_contracts::ExampleObjectEventBinding::Unobserved).unwrap(),
+            neocogi_com::NcValueRef::new(&neocogi_com::events::EventBinding::Unobserved).unwrap(),
         )
         .expect("factory object creation failed");
     assert_eq!(object.extent().expect("extent query failed"), Extent { width: 20, height: 10 });
@@ -132,7 +129,7 @@ fn registered_factory_info_and_direct_activation_work_without_filesystem_path() 
     let object = factory
         .create(
             Extent { width: 10, height: 10 },
-            neocogi_com::NcValueRef::new(&neocogi_idl_example_contracts::ExampleObjectEventBinding::Unobserved).unwrap(),
+            neocogi_com::NcValueRef::new(&neocogi_com::events::EventBinding::Unobserved).unwrap(),
         )
         .expect("factory object creation failed");
     assert_eq!(object.extent().expect("extent query failed"), Extent { width: 10, height: 10 });

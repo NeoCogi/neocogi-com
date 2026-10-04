@@ -1,79 +1,68 @@
-//! Construction-bound common receivers and shared-service delivery lifetime.
-use super::{EventOrigin, EventPayload, IEventReceiverAbi};
-use crate::{ComInterface, ComPtr, ComValue, NcStatus, NcValueRef, WeakComPtr, NC_E_CLOSED, NC_E_DROPPED};
+//! Construction-bound shared-service delivery with explicit terminal closure.
+use super::{EventOrigin, IEventAbi, IEventReceiverAbi};
+use crate::{ComBox, ComInterface, ComPtr, NcStatus, NcValueRef, WeakComPtr, NC_E_CLOSED, NC_E_DROPPED};
 
-/// Constructor-derived association with an optional native event representation.
-/// The wire transport always transfers a `ComBox<IEventAbi>` to `IEventReceiver`.
-pub trait EventSource: ComInterface + Sized + 'static {
-    /// Complete native payload, useful to compiled handlers and authoring metadata.
-    type Event: ComValue + 'static;
-}
-/// Native event representation associated with a producer's constructors.
-pub type EventOf<C> = <C as EventSource>::Event;
-
-/// Delivery changes only from a constructor-selected open policy to terminal closure.
-enum Phase<C: EventSource> {
+/// Delivery changes only from its constructor-selected policy to terminal closure.
+enum Phase {
     /// No receiver exists and one can never be installed later.
     Unobserved,
-    /// Neither the typed observer nor the captured origin owns the producer value.
+    /// The weak origin owns no producer value; delivery temporarily pins shared lifetime.
     Observed {
-        /// Typed observer preserves the shared-service liveness check before posting.
-        source: WeakComPtr<C, C::Threading>,
-        /// Cached wire identity avoids a query on every emitted event.
+        /// Canonical identity captured once, without duplicate typed weak storage.
         origin: EventOrigin,
-        /// The one strong receiver capability released by terminal closure.
+        /// The strong receiver capability released by terminal closure.
         queue: ComPtr<IEventReceiverAbi>,
     },
-    /// Logical teardown permanently rejects emission and retains no queue or origin.
+    /// Logical teardown permanently rejects emission and retains no receiver or source.
     Closed,
 }
-/// Producer-local state for shared services. Widgets store exclusive weak origins.
-pub struct EventPort<C: EventSource> {
-    /// Sole delivery and lifecycle authority for this producer stream.
-    phase: Phase<C>,
+/// Producer-owned delivery state for a shared service, independent of event type.
+pub struct EventPort {
+    /// Sole authority for this producer's immutable delivery policy and closure.
+    phase: Phase,
 }
-impl<C: EventSource> Default for EventPort<C> {
+impl Default for EventPort {
     fn default() -> Self {
         Self::new()
     }
 }
-impl<C: EventSource> EventPort<C> {
-    /// Permanently disables delivery, including for unpublished designer previews.
+impl EventPort {
+    /// Selects permanent non-delivery; closed ports remain distinguishable.
     pub const fn new() -> Self {
         Self { phase: Phase::Unobserved }
     }
-    /// Fixes the common receiver and public origin before publishing the producer.
-    pub fn with_queue(queue: Option<ComPtr<IEventReceiverAbi>>, source: WeakComPtr<C, C::Threading>) -> Self {
-        let phase = match queue {
-            Some(queue) => {
-                let origin = EventOrigin::Service(source.clone().into_unknown().into_thread_local());
-                Phase::Observed { source, origin, queue }
-            }
-            None => Phase::Unobserved,
-        };
-        Self { phase }
+    /// Fixes the common receiver and weak public identity before publication.
+    pub fn with_queue<C: ComInterface>(queue: Option<ComPtr<IEventReceiverAbi>>, source: WeakComPtr<C, C::Threading>) -> Self {
+        Self {
+            phase: match queue {
+                Some(queue) => Phase::Observed {
+                    origin: EventOrigin::Service(source.into_unknown().into_thread_local()),
+                    queue,
+                },
+                None => Phase::Unobserved,
+            },
+        }
     }
-    /// Reports whether a consumer needs a captured snapshot.
+    /// Allows a producer to avoid allocating snapshots for unobserved services.
     pub fn is_bound(&self) -> bool {
         matches!(self.phase, Phase::Observed { .. })
     }
-    /// Captures one exclusive event and transfers it to the receiver.
-    /// A failed post drops the restored snapshot; already committed UI state is unchanged.
-    pub fn post(&mut self, event: C::Event) -> Result<(), NcStatus>
-    where
-        C::Event: EventPayload,
-    {
+    /// Transfers the exclusive event; failed delivery destroys the returned snapshot.
+    /// Committed producer state is never rolled back by a delivery error.
+    pub fn post(&mut self, event: ComBox<IEventAbi>) -> Result<(), NcStatus> {
         match &mut self.phase {
             Phase::Unobserved => Ok(()),
-            Phase::Observed { source, origin, queue } => {
+            Phase::Observed { origin, queue } => {
+                let EventOrigin::Service(source) = origin else {
+                    unreachable!("service port origin")
+                };
                 let _pin = source.upgrade()?.ok_or(NC_E_DROPPED)?;
-                let origin = NcValueRef::new(origin)?;
-                queue.post(origin, event.into_event()?).map_err(|(status, _event)| status)
+                queue.post(NcValueRef::new(origin)?, event).map_err(|(status, _event)| status)
             }
             Phase::Closed => Err(NC_E_CLOSED),
         }
     }
-    /// Drops the receiver and weak origin exactly once; repeated close is harmless.
+    /// Releases receiver and weak origin once; closure is terminal and idempotent.
     pub fn close(&mut self) {
         self.phase = Phase::Closed;
     }

@@ -26,28 +26,16 @@ a construction root. Records and enums share recursive checked conversion;
 there is no separate message declaration category.
 
 Construction-bound delivery uses the ordinary library enum
-`neocogi.com.events.EventBinding<Object, Event>` as a borrowed constructor argument. Its
+`neocogi.com.events.EventBinding` as a borrowed constructor argument. Its
 `Observed(ComPtr<IEventReceiver>)` case supplies the common receiver;
 `Unobserved` chooses permanent non-delivery. The factory retains the receiver
 before returning its product. There is no Rust sender or closure in the ABI.
 
-For methods returning `ComPtr<Product>`, `ComBox<Product>` or `WeakComBox<Product>`
-in the product's contract module, resolution records one constructor association.
-Its public helper inventory contains `ProductEventBinding`. It additionally contains
-`ProductEventPort` only when an associated constructor returns `ComPtr<Product>`:
-that helper stores `WeakComPtr` and does not serve exclusive widgets. Validation
-reserves exactly these names against declarations, imports and other helpers;
-Rust generation consumes the same inventory.
-
-The resolved association also supplies `IDL_INTERFACE.event_queue`, its event
-root and complete reachable value graph. That metadata describes the **receiver**,
-not a projection implemented by Product. Multiple event arguments or constructor
-disagreement about the same product's event type fail resolution. Keeping the
-association in the declaring module prevents downstream imports from changing
-its published metadata. See the [constructor naming contract](../../../docs/contracts/IDL_CONSTRUCTOR_NAMES.md)
-for collision diagnostics, conditional names, generic products and regression coverage.
-`com_class(Contract)` supplies ordinary class allocation, with no event field
-annotation or later attachment method. See [the architecture guide](../../../docs/contracts/CLASS_EVENT_STREAMS.md).
+Producers advertise event interfaces explicitly using `#[events(IChanged, ...)]`.
+Resolution verifies immutable getters and `IEvent` ancestry; generation exposes
+`IDL_INTERFACE.events` and its reachable value graph. No constructor-derived helpers
+or native payload associations are emitted. See [event metadata](../../../docs/contracts/IDL_EVENT_METADATA.md).
+`com_class(Contract)` supplies class allocation without later receiver attachment.
 
 All contracts, including events, are compile-time definitions. The build helper
 emits no native artifact, exported getter, runtime module graph, or built-in
@@ -87,9 +75,8 @@ neocogi-idl = "0.0.0"
 
 The version selectors assume published matching packages; inside this checkout
 use the corresponding workspace dependencies or local paths. This minimal
-copied-value/interface setup needs `macros`; modules declaring also
-need the facade's `alloc` feature (or `std`) for their generated receiver objects
-and owned payload decoding. `build.rs` owns generation:
+copied-value/interface setup needs `macros`; modules with owned values also
+need the facade's `alloc` feature (or `std`) for owned value decoding. `build.rs` owns generation:
 
 ```rust,no_run
 /// Generates this contract crate's bindings during its ordinary Cargo build.
@@ -228,7 +215,7 @@ protocol; fieldless enums and bit sets preserve their raw scalar values.
 Record-only `#[persistence(default)]` retains an omitted trailing suffix from a
 host-authored Rust Default. Every NCB record is positional; `persistence(sequence)`
 and the old decoder opt-ins are rejected. Both generic and concrete
-contracts share canonical module encoding v8, including authored assignments,
+contracts share canonical module encoding v9, including authored assignments,
 versions, trailing-default policy and positional generic binders.
 
 `Option<T>` comes from the bundled [ordinary IDL enum](stdlib/neocogi/lang.ncidl).

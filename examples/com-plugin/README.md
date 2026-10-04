@@ -12,7 +12,7 @@ class ExampleObject: IMeasured {
 
 #[version(1)]
 factory ExampleFactory {
-    fn create(&self, extent: Extent, events: &EventBinding<ExampleObject, ExtentChanged>) -> Result<ComPtr<ExampleObject>>;
+    fn create(&self, extent: Extent, events: &EventBinding) -> Result<ComPtr<ExampleObject>>;
 }
 ```
 
@@ -78,11 +78,10 @@ is not used by this example.
 ## Persistence and a typed class stream
 
 The object exposes `IPersistable`; `ExampleFactory::create` accepts
-`EventBinding<ExampleObject, ExtentChanged>`. The host implements the concrete
-`ExampleObjectEventQueue` trait on `AppQueue`, which owns its ordinary channel
-sender. One COM queue serves both ordinary and restored objects. `post` copies
-the checked event and acquires a `WeakComPtr<ExampleObjectAbi>` before returning;
-no Rust callback or channel representation crosses COM.
+`EventBinding`. The host uses `events::channel()` for ordinary and restored objects. `post`
+moves the exclusive event owner and captures a weak service origin. The handler
+queries `IExtentChangedEvent` and reads `extent()` directly; no Rust callback or
+channel representation crosses COM.
 
 The persistence adapter retains this same queue separately from saved dimensions.
 Restoring supplies the queue during construction, just like the ordinary factory.

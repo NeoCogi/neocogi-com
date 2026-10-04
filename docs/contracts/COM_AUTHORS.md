@@ -134,40 +134,32 @@ Separate dialogs can bind their same protocol to different application destinati
 When reusing one dialog across requests, request identity remains application/domain
 policy; binding does not manufacture an invocation ID absent from the protocol.
 
-Declare cross-COM facts as concrete structs/enums and pass one
-`EventBinding<Object, Event>` into the factory. Multiple event kinds are cases of that
-enum. The behavioral parent creates its common receiver before construction; the
-factory retains the optional common receiver and weak origin as ordinary widget fields.
-Widgets select `#[com_class(Contract, ownership = exclusive)]` and construct with
-`into_box` or `into_box_cyclic`; shared services retain the default shared policy.
-The macro does not generate event installation methods. There is
-no later binding operation. See [the complete contract](CLASS_EVENT_STREAMS.md)
-and [IDL syntax](IDL_MODULES.md#concrete-messages-and-streams).
+Declare cross-COM facts as immutable interfaces derived from `IEvent`; pass the
+common `EventBinding` into the factory. The behavioral parent creates its receiver
+before construction. Widgets retain that receiver and their cached weak origin.
+Exclusive widgets use `#[com_class(Contract, ownership = exclusive)]`; shared services
+retain the default ownership policy. No later binding operation exists.
 
-| Complete event enum variant | Producers | Nested message |
+| Event interface | Producers | Captured data |
 | --- | --- | --- |
-| `Event::Activated` | Buttons, list rows | `Activation` |
-| `Event::Changed` | Checkbox | `CheckboxChanged` |
-| `Event::Changed` | Slider, Number | `NumericChanged` |
-| `Event::Changed` | Scrollbar | `ScrollbarChanged` |
-| `Event::Changed`, `Event::Submitted` | Textbox, TextArea | `TextChanged`, `TextSubmitted` |
-| `Event::Changed` | Combo | `ChoiceSelection` |
-| `Event::Completed` | FileDialog | `FileDialogCompletion` |
+| `IActivatedEvent` | Buttons, list rows | Label |
+| `ICheckboxChangedEvent` | Checkbox | Checked state |
+| `INumericChangedEvent` | Slider, Number | Finite value |
+| `IScrollbarChangedEvent` | Scrollbar | Nonnegative offset |
+| `ITextChangedEvent`, `ITextSubmittedEvent` | Textbox, TextArea | Immutable text; changed also carries byte cursor |
+| `IChoiceChangedEvent` | Combo | `ChoiceSelection` |
+| `IFileAcceptedEvent`, `IFileCancelledEvent` | FileDialog | Exact native path or cancellation |
 
-Commit state before calling `self.events.post(ProducerEvent::Variant(message))?`.
-The producer constructs a validated immutable event and transfers its `ComBox`
-through `IEventReceiver::post`. The queue captures only the weak origin and event
-owner. Application behavior and optional native decoding run later, after the
-emitting call releases its mutable gate. `EventPayload` construction and decoding
-check domain restrictions such as finite numbers and text cursor boundaries.
-Direct COM consumers use the typed immutable getters themselves.
+Commit state before constructing and posting the `ComBox` snapshot. Skip allocation
+when unobserved. The receiver captures only the weak origin and event owner;
+application behavior reads getters after the emitting call releases its mutable gate.
+Built-in constructors validate domains. A consumer must check domain restrictions it
+relies on when reading an independently implemented event.
 
-A custom class intended for authored forms has at most one constructor receiver.
-`IDL_INTERFACE.event_queue` describes the common receiver and optional native
-payload graph independently of the product's interface chain. Catalog registration
-checks the common receiver revision; the loader checks observable keys before
-construction and the advertised class after it. A new custom event derives from
-`IEvent`; it does not require another receiver interface.
+`#[events(...)]` advertises the emitted interfaces. `IDL_INTERFACE.events` describes
+their identities and actual getters; catalog registration validates the reachable
+value graph. The loader checks observable keys before construction and the advertised
+class after it. See [event metadata](IDL_EVENT_METADATA.md).
 
 `*_with_queue` passes `IEventReceiver`; `*_unobserved` chooses permanent non-delivery.
 There is no later attachment API. Windows, popups, menus, built-ins and plugins use
@@ -689,16 +681,15 @@ let entries = [
         label: MenuTextRange { first: 10, count: 6 },
     },
 ];
-let combo = ui.combo_menu(window.as_com_ref(), text, &entries,
-    ChoiceSelection::Selected(100), send,
-    |neocogi_ui::combo::Event::Changed(selection)| AppMessage::Selection(selection))?;
+let combo = ui.combo_menu_with_queue(window.as_com_ref(), text, &entries,
+    ChoiceSelection::Selected(100), Some(queue.as_com_ref()))?;
 ```
 
 Every submenu is followed immediately by its declared number of direct children;
 nested descendants follow their owning child branch. Construction and replacement
 atomically reject malformed counts, empty branches, invalid UTF-8 ranges, duplicate
 leaf IDs, nesting beyond 32 branches, or an unknown selected ID. Programmatic edits
-remain silent; `combo::Event::Changed` carries immutable `ChoiceSelection` values
+remain silent; `IChoiceChangedEvent::selection()` returns the captured `ChoiceSelection`
 only after a pointer or keyboard choice commits. Display labels remain independently
 available through `choice_label` and `display_text`; generic application data is
 mapped from the committed stable ID.
@@ -804,10 +795,9 @@ ui.update_with_events(drawable_size, owner.as_com_ref())?;
 ```
 
 The common queue receives an owned `IFileAcceptedEvent` or `IFileCancelledEvent`.
-The handler may decode `file_dialog::Event::Completed`, containing
-`FileDialogCompletion::Accepted { path }` or `Cancelled`. `neocogi_ui::events::completed_file_path` copies the exact
-host-native `PathBuf` when the application needs it; display text is never
-reconstructed as a lookup key.
+The handler queries the accepted interface and calls `neocogi_com::path::decode`
+on its `path()` result when it needs a host-native `PathBuf`. Cancellation is a
+separate marker interface; display text is never reconstructed as a lookup key.
 Acceptance is lexical: application code decides whether the path must exist or
 have a particular type before using it. A selected row retains its exact native
 path while the filename field displays a possibly lossy basename. A real user

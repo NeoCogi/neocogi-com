@@ -4,7 +4,6 @@ use neocogi_com::{
     binary, ComDeserialize, ComSerialize, ComPtr, NcValueRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE,
     com_factory, com_object,
 };
-use neocogi_idl_example_contracts::{ExtentChanged, ExampleObjectEventPort, ExampleObjectEventBinding};
 use neocogi_idl_example_contracts::{ExampleFactory, ExampleObject, ExampleObjectAbi, Extent, ExtentReport, IMeasured};
 
 /// Private mutable object constructed only through `ExampleFactory`.
@@ -13,7 +12,7 @@ struct DynamicExampleObject {
     /// Dimensions owned entirely by this COM object allocation.
     extent: Extent,
     /// Optional concrete destination, excluded from the persistent state.
-    changed: ExampleObjectEventPort,
+    changed: neocogi_com::events::EventPort,
 }
 
 impl IMeasured for DynamicExampleObject {
@@ -37,10 +36,9 @@ impl ExampleObject for DynamicExampleObject {
     /// Replaces dimensions through the exclusive generated call gate.
     fn resize(&mut self, extent: Extent) -> Result<(), NcStatus> {
         self.extent = extent;
-        self.changed.post(ExtentChanged {
-            width: extent.width,
-            height: extent.height,
-        })
+        if self.changed.is_bound() {
+            self.changed.post(neocogi_idl_example_contracts::events::extent_changed(extent)?)
+        } else { Ok(()) }
     }
 }
 
@@ -50,7 +48,7 @@ struct DynamicExampleFactory;
 
 impl ExampleFactory for DynamicExampleFactory {
     /// Constructs one typed object without consulting a runtime class table.
-    fn create(&self, extent: Extent, events: NcValueRef<'_, ExampleObjectEventBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
+    fn create(&self, extent: Extent, events: NcValueRef<'_, neocogi_com::events::EventBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
         let queue = events.to_owned()?.into_queue();
         DynamicExampleObject::from_value_cyclic::<ExampleObjectAbi>(move |origin| DynamicExampleObject {
             extent,

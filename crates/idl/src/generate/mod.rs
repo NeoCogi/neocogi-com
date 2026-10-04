@@ -9,7 +9,7 @@ use crate::{
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote;
 
-mod construction;
+mod events;
 mod mapping;
 mod paths;
 mod value;
@@ -113,9 +113,7 @@ fn generate_module(graph: &Generation<'_>, module_name: &str) -> Result<crate::G
         .iter()
         .enumerate()
         .map(|(index, declaration)| {
-            let mut source = generate_declaration(graph, module, declaration, index)?;
-            source.push_str(&format_rust(construction::value_helpers(graph, module, declaration)?)?);
-            Ok(source)
+            generate_declaration(graph, module, declaration, index)
         })
         .collect::<Result<Vec<_>, _>>()?;
     let module_id = guid_literal(module.module_id);
@@ -174,17 +172,7 @@ fn generate_design_metadata(graph: &Generation<'_>, module: &ResolvedModule) -> 
         if let DeclarationKind::Interface(_) = &declaration.kind {
             let abi = rust_ident(&format!("{}Abi", declaration.name))?;
             let rust_abi = Literal::string(&public_rust_path(graph, module, &format!("{}Abi", declaration.name))?);
-            let construction = match module.construction.products.get(&declaration.name) {
-                Some(plan) => {
-                    let binding = plan.binding;
-                    let queue_declaration = binding.queue.get(graph.graph);
-                    let queue = named_rust_type(graph, module, queue_declaration, true)?;
-                    let rust_trait = Literal::string(&public_rust_path(graph, queue_declaration.module, &queue_declaration.declaration.name)?);
-                    let event = named_rust_type(graph, module, binding.event.get(graph.graph), false)?;
-                    quote! { ::core::option::Option::Some(::neocogi_com::design::IdlEventQueue { rust_trait: #rust_trait, abi: &#queue::INTERFACE_DESCRIPTOR, message: &#event::IDL_TYPE }) }
-                }
-                None => quote! { ::core::option::Option::None },
-            };
+            let events = events::descriptions(graph, module, declaration)?;
             let values = interface_value_metadata(graph, module, declaration)?;
             descriptions.push(quote! {
                 impl #abi {
@@ -193,7 +181,7 @@ fn generate_design_metadata(graph: &Generation<'_>, module: &ResolvedModule) -> 
                         abi: &Self::INTERFACE_DESCRIPTOR,
                         chain: &Self::INTERFACE_CHAIN,
                         rust_abi: #rust_abi,
-                        event_queue: #construction,
+                        events: &[#(#events),*],
                         values: &[#(#values),*],
                     };
                 }
@@ -389,7 +377,7 @@ fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, dec
             }
             root(&method.output, graph, module, names)?;
         }
-        for base in &value.bases {
+        for base in value.bases.iter().chain(&value.events) {
             let base = resolve(graph, module, base)?;
             interface(graph, base.module, base.declaration, visited, names)?;
         }
@@ -397,9 +385,6 @@ fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, dec
     }
     let mut names = BTreeSet::new();
     interface(graph, module, declaration, &mut BTreeSet::new(), &mut names)?;
-    if let Some(plan) = module.construction.products.get(&declaration.name) {
-        data(&plan.binding.event.get(graph.graph).identity.qualified_name, graph, &mut names);
-    }
     names
         .iter()
         .map(|name| {
@@ -608,7 +593,6 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
             let methods = interface_methods(graph, module, &interface.methods)?;
             let threading = threading_ident(interface.threading);
             let factory = matches!(interface.role, InterfaceRole::Factory).then(|| quote! { factory, });
-            let construction_support = construction::aliases(graph, module, declaration)?;
             let class_abi = rust_ident(&format!("{}Abi", declaration.name))?;
             let class_marker = (interface.role == InterfaceRole::Class).then(|| {
                 quote! {
@@ -627,7 +611,6 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
                 #declaration_docs
                 pub trait #name #bases { #(#methods)* }
                 #class_marker
-                #construction_support
             })
         }
     }

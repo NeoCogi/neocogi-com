@@ -7,14 +7,16 @@ use std::sync::mpsc;
 /// Owns only the final constructor-selected delivery policy.
 struct Counter {
     /// Typed receiver retained until explicit or final closure.
-    events: contract::CounterEventPort,
+    events: events::EventPort,
 }
 impl contract::Base for Counter {}
 impl contract::Counter for Counter {
     /// Acquires the call-scoped event before its storage expires.
-    fn emit(&mut self, value: NcValueRef<'_, contract::Event>) -> Result<(), NcStatus> {
-        self.events.post(value.to_owned()?)
+    fn emit(&mut self, value: NcValueRef<'_, contract::Changed>) -> Result<(), NcStatus> {
+        self.events.post(Changed::into_box(Changed(value.to_owned()?)).query().map_err(|(status, _)| status)?)
     }
+    /// Emits a marker event through the same permanent destination.
+    fn submit(&mut self) -> Result<(), NcStatus> { self.events.post(Submitted::into_box(Submitted).query().map_err(|(status, _)| status)?) }
     /// Repeated release cannot reconnect this producer.
     fn close(&mut self) -> Result<(), NcStatus> {
         self.events.close();
@@ -26,7 +28,7 @@ impl contract::Counter for Counter {
 struct Factory;
 impl contract::Factory for Factory {
     /// Validates before publication and transfers the decoded queue into the new object.
-    fn create(&self, reject: bool, events: NcValueRef<'_, contract::CounterEventBinding>) -> Result<ComPtr<contract::CounterAbi>, NcStatus> {
+    fn create(&self, reject: bool, events: NcValueRef<'_, events::EventBinding>) -> Result<ComPtr<contract::CounterAbi>, NcStatus> {
         let events = events.to_owned()?.into_queue();
         if reject {
             return Err(NC_E_INVALID_ARG);
@@ -63,19 +65,11 @@ impl neocogi_com::events::IEventReceiver for Queue {
 #[test]
 fn factory_queue_ownership_and_metadata() {
     let description = contract::CounterAbi::IDL_INTERFACE;
-    let receiver = description.event_queue.expect("constructor metadata");
-    assert_eq!(receiver.abi.interface_id, events::IEventReceiverAbi::INTERFACE_DESCRIPTOR.interface_id);
-    assert!(
-        !description.chain.iter().any(|abi| abi.interface_id == receiver.abi.interface_id),
-        "receiver is not a producer projection"
-    );
-    assert_eq!(receiver.message.qualified_name, contract::Event::IDL_TYPE.qualified_name);
-    assert!(
-        description
-            .values
-            .iter()
-            .any(|value| value.qualified_name == contract::Changed::IDL_TYPE.qualified_name)
-    );
+    assert_eq!(description.events.len(), 2);
+    assert_eq!(description.events[0].abi.interface_id, contract::IChangedEventAbi::INTERFACE_DESCRIPTOR.interface_id);
+    assert_eq!(description.events[0].fields.iter().map(|field| field.name).collect::<Vec<_>>(), ["text", "enabled", "raw_0", "budget"]);
+    assert!(!description.chain.iter().any(|abi| abi.interface_id == events::IEventReceiverAbi::INTERFACE_DESCRIPTOR.interface_id));
+    assert!(description.values.iter().any(|value| value.qualified_name == contract::Changed::IDL_TYPE.qualified_name));
     let factory = Factory::from_value(Factory).query::<contract::FactoryAbi>().unwrap();
     for explicit in [false, true] {
         let (released, drops) = mpsc::channel();
@@ -84,26 +78,24 @@ fn factory_queue_ownership_and_metadata() {
         let queue = Queue::from_value(Queue { send: tx, _lifetime: capture })
             .query::<events::IEventReceiverAbi>()
             .unwrap();
-        let binding = contract::CounterEventBinding::Observed(queue);
+        let binding = events::EventBinding::Observed(queue);
         let mut counter = factory.create(false, NcValueRef::new(&binding).unwrap()).unwrap();
         drop(binding);
-        let event = contract::Event::Changed(contract::Changed { text: "call-owned".into(), enabled: true, raw_0: 73, budget: 109 });
+        let event = contract::Changed { text: "call-owned".into(), enabled: true, raw_0: 73, budget: 109 };
         counter.emit(NcValueRef::new(&event).unwrap()).unwrap();
         drop(event);
         let message = rx.recv().unwrap();
-        let Some(contract::Event::Changed(value)) = message.payload::<contract::Event>().unwrap() else {
-            panic!("wrong event")
-        };
-        assert_eq!(value.text, "call-owned");
-        assert!(value.enabled);
-        assert_eq!((value.raw_0, value.budget), (73, 109));
+        let value = message.downcast::<contract::IChangedEventAbi>().unwrap().unwrap();
+        assert_eq!(value.text().unwrap().to_string().unwrap(), "call-owned");
+        assert!(value.enabled().unwrap());
+        assert_eq!((value.raw_0().unwrap(), value.budget().unwrap()), (73, 109));
         drop(counter.clone());
         assert!(matches!(drops.try_recv(), Err(mpsc::TryRecvError::Empty)));
         if explicit {
             counter.close().unwrap();
             counter.close().unwrap();
             assert!(matches!(drops.try_recv(), Ok(())));
-            assert_eq!(counter.emit(NcValueRef::new(&contract::Event::Submitted).unwrap()), Err(NC_E_CLOSED));
+            assert_eq!(counter.submit(), Err(NC_E_CLOSED));
         }
         drop(counter);
         if !explicit {
@@ -117,25 +109,25 @@ fn factory_queue_ownership_and_metadata() {
     let queue = Queue::from_value(Queue { send: tx, _lifetime: capture })
         .query::<events::IEventReceiverAbi>()
         .unwrap();
-    let binding = contract::CounterEventBinding::Observed(queue);
+    let binding = events::EventBinding::Observed(queue);
     assert_eq!(factory.create(true, NcValueRef::new(&binding).unwrap()).unwrap_err(), NC_E_INVALID_ARG);
     drop(binding);
     assert!(matches!(drops.try_recv(), Ok(())), "failed construction cannot retain the queue");
     assert!(matches!(drops.try_recv(), Err(mpsc::TryRecvError::Disconnected)));
     let mut unobserved = factory
-        .create(false, NcValueRef::new(&contract::CounterEventBinding::Unobserved).unwrap())
+        .create(false, NcValueRef::new(&events::EventBinding::Unobserved).unwrap())
         .unwrap();
-    unobserved.emit(NcValueRef::new(&contract::Event::Submitted).unwrap()).unwrap();
+    unobserved.submit().unwrap();
     unobserved.close().unwrap();
     unobserved.close().unwrap();
-    assert_eq!(unobserved.emit(NcValueRef::new(&contract::Event::Submitted).unwrap()), Err(NC_E_CLOSED));
+    assert_eq!(unobserved.submit(), Err(NC_E_CLOSED));
 }
 
 /// A valid pointer to an invalid binding tag is rejected through the real factory thunk.
 #[test]
 fn malformed_constructor_binding_never_publishes_a_product() {
     let factory = Factory::from_value(Factory).query::<contract::FactoryAbi>().unwrap();
-    let value = contract::CounterEventBinding::Unobserved;
+    let value = events::EventBinding::Unobserved;
     let guard = NcValueRef::new(&value).unwrap();
     // SAFETY: the copied raw record stays initialized and alive for this synchronous call.
     let mut raw = unsafe { guard.as_ptr().read() };
@@ -155,13 +147,13 @@ impl contract::SharedOrigin for SharedOrigin {}
 fn shared_origin_is_weak_in_the_local_inbox() {
     let object = SharedOrigin::from_value(SharedOrigin).query::<contract::SharedOriginAbi>().unwrap();
     let (queue, messages) = events::channel();
-    let mut port = contract::SharedOriginEventPort::with_queue(Some(queue), object.downgrade().unwrap());
-    port.post(contract::Event::Submitted).unwrap();
+    let mut port = events::EventPort::with_queue(Some(queue), object.downgrade().unwrap());
+    port.post(Submitted::into_box(Submitted).query().unwrap()).unwrap();
     drop(object);
     let message = messages.recv().unwrap();
-    let (origin, event) = message.service::<contract::SharedOriginAbi>().unwrap().unwrap();
+    let origin = message.origin.service::<contract::SharedOriginAbi>().unwrap().unwrap();
     assert!(origin.upgrade().unwrap().is_none());
-    assert!(matches!(event, contract::Event::Submitted));
+    assert!(message.downcast::<contract::ISubmittedEventAbi>().unwrap().is_some());
 }
 
 #[com_object(interfaces(contract::IChangedEvent), ownership = exclusive)]
@@ -178,17 +170,3 @@ impl contract::IChangedEvent for Changed {
 struct Submitted;
 impl events::IEvent for Submitted {}
 impl contract::ISubmittedEvent for Submitted {}
-impl events::EventPayload for contract::Event {
-    fn into_event(self) -> Result<ComBox<events::IEventAbi>, NcStatus> {
-        match self {
-            Self::Changed(value) => Changed::into_box(Changed(value)).query().map_err(|(status, _)| status),
-            Self::Submitted => Submitted::into_box(Submitted).query().map_err(|(status, _)| status),
-        }
-    }
-    fn from_event(event: &ComBox<events::IEventAbi>) -> Result<Option<Self>, NcStatus> {
-        if let Some(value) = events::downcast_event::<contract::IChangedEventAbi>(event)? {
-            return Ok(Some(Self::Changed(contract::Changed { text: value.text()?.to_string()?, enabled: value.enabled()?, raw_0: value.raw_0()?, budget: value.budget()? })));
-        }
-        Ok(events::downcast_event::<contract::ISubmittedEventAbi>(event)?.map(|_| Self::Submitted))
-    }
-}

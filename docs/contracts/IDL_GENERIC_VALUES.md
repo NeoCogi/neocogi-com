@@ -170,7 +170,7 @@ positions and uses are unchanged. An ordinary version increment changes the
 template's nominal ID and consequently its closed nominal IDs as well.
 
 Templates and concrete declarations share the canonical binary declaration
-encoder under `neocogi-idl:module-abi:v8`; there is no separate template string
+encoder under `neocogi-idl:module-abi:v9`; there is no separate template string
 serializer or Debug-based policy encoding. Regenerate and rebuild consumers when
 adopting this encoding. Nominal type IDs remain independent of the encoding
 revision. Parameter-only renames preserve the resulting signatures.

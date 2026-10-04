@@ -48,12 +48,12 @@ mod message_tests {
     /// A producer owns its destination directly and implements an ordinary setter.
     struct Producer {
         /// One optional concrete receiver is all the producer-side delivery storage.
-        completed: IProducerEventPort,
+        completed: neocogi_com::events::EventPort,
     }
     impl IProducer for Producer {
         /// Allows tests to deliver after binding has finished.
         fn emit(&mut self) -> Result<(), NcStatus> {
-            self.completed.post(Completion::Cancelled)
+            self.completed.post(CancelledSnapshot::into_box(CancelledSnapshot).query().map_err(|(status, _)| status)?)
         }
     }
 
@@ -218,7 +218,6 @@ mod message_tests {
         assert_eq!(fields[1].ty, IdlValueType::Sequence(&IdlValueType::Named("example.messages.Tree")));
         assert!(values.iter().any(|value| value.qualified_name == "example.messages.NumberChanged"));
     }
-}
 
 #[neocogi_com::com_object(interfaces(ICancelledEvent), ownership = exclusive)]
 struct CancelledSnapshot;
@@ -230,17 +229,13 @@ impl neocogi_com::events::IEvent for AcceptedSnapshot {}
 impl IAcceptedEvent for AcceptedSnapshot {
     fn token(&self) -> Result<neocogi_com::ComPtr<ITokenAbi>, neocogi_com::NcStatus> { Ok(self.0.clone()) }
 }
-impl neocogi_com::events::EventPayload for Completion {
-    fn into_event(self) -> Result<neocogi_com::ComBox<neocogi_com::events::IEventAbi>, neocogi_com::NcStatus> {
-        match self {
-            Self::Cancelled => CancelledSnapshot::into_box(CancelledSnapshot).query().map_err(|(status, _)| status),
-            Self::Accepted { token } => AcceptedSnapshot::into_box(AcceptedSnapshot(token)).query().map_err(|(status, _)| status),
-        }
-    }
-    fn from_event(event: &neocogi_com::ComBox<neocogi_com::events::IEventAbi>) -> Result<Option<Self>, neocogi_com::NcStatus> {
-        if let Some(value) = neocogi_com::events::downcast_event::<IAcceptedEventAbi>(event)? {
-            return Ok(Some(Self::Accepted { token: value.token()? }));
-        }
-        Ok(neocogi_com::events::downcast_event::<ICancelledEventAbi>(event)?.map(|_| Self::Cancelled))
+
+    #[test]
+    fn event_getter_retains_object_capability_after_event_owner_drops() {
+        let token = Token::from_value(Token).query().unwrap();
+        let event: neocogi_com::ComBox<neocogi_com::events::IEventAbi> = AcceptedSnapshot::into_box(AcceptedSnapshot(token)).query().unwrap();
+        let retained = event.query_weak::<IAcceptedEventAbi>().unwrap().token().unwrap();
+        drop(event);
+        assert_eq!(retained.value(), Ok(42));
     }
 }

@@ -310,8 +310,8 @@ captures a weak widget/service origin. The event remains a COM object until its
 handler queries a derived event interface. A rejected post returns the original
 owner. The standard channel reports `NC_E_CLOSED` when disconnected.
 
-`EventBinding<Object, Event>` describes constructor policy and an optional native
-payload association. Factories fix the receiver and weak origin before publication.
+`EventBinding` describes constructor delivery policy. `#[events(...)]` advertises
+the emitted immutable interfaces and their getter metadata. Factories fix the receiver and weak origin before publication.
 `None` means permanently unobserved. Shared-service `EventPort` state can close
 idempotently; widget destruction releases its stored receiver. Already queued
 facts remain owned by the inbox. IDL generates no per-widget queue aliases or

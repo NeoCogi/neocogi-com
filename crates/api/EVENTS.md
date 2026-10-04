@@ -7,7 +7,7 @@ getters. A rejected transfer returns the original exclusive owner.
 
 ```rust,ignore
 let (queue, inbox) = neocogi_com::events::channel();
-let binding = CounterEventBinding::from_queue(Some(queue.as_com_ref()));
+let binding = neocogi_com::events::EventBinding::from_queue(Some(queue.as_com_ref()));
 let counter = factory.create(NcValueRef::new(&binding)?)?;
 // Later, after the producer's call returns:
 let message = inbox.try_recv()?;
@@ -26,10 +26,10 @@ when disconnected. Independent hosts may implement the single receiver interface
 with their own storage and capacity policy. There are no per-widget queue traits,
 application callback adapters, or required per-form generated receivers.
 
-`EventPayload` is an optional native construction/decoding convenience. The inbox
-still carries the exclusive COM event. `EventPort<ProductAbi>` provides explicit
-Unobserved/Observed/Closed delivery state for shared services. Widgets store their
-common receiver and cached `WeakComBox` origin directly.
+Snapshot constructors return a `ComBox<IEventAbi>` directly. Applications query
+typed immutable getters; there is no native output conversion layer. `EventPort`
+provides explicit Unobserved/Observed/Closed delivery state for shared services.
+Widgets store their common receiver and cached `WeakComBox` origin directly.
 
 See the [wire and ownership contract](../../../docs/contracts/COM_EVENT_INTERFACES.md),
 [construction and lifetime rules](../../../docs/contracts/CLASS_EVENT_STREAMS.md),

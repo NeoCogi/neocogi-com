@@ -27,7 +27,7 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
             fn shapes(&mut self, value: &Shapes) -> Result<()>;
             fn batch(&mut self, value: &NestedBatch) -> Result<()>;
         }
-        #[version(1)] factory IProducerFactory { fn create(&self, events: &EventBinding<IProducer, Completion>) -> Result<ComPtr<IProducer>>; }
+        #[version(1)] factory IProducerFactory { fn create(&self, events: &EventBinding) -> Result<ComPtr<IProducer>>; }
         #[version(1)] class IProducer { fn emit(&mut self) -> Result<()>; }
         #[version(1)] interface IMessageInput { fn accept(&mut self, value: &Completion) -> Result<()>; }
         #[version(1)] enum EditorEvent {
@@ -36,7 +36,7 @@ fn concrete_messages_cross_com_and_acquire_consumer_ownership() {
             /// Captured completion through the same stream identity.
             Completed,
         }
-        #[version(1)] factory EditorFactory { fn create(&self, events: &EventBinding<Editor, EditorEvent>) -> Result<ComPtr<Editor>>; }
+        #[version(1)] factory EditorFactory { fn create(&self, events: &EventBinding) -> Result<ComPtr<Editor>>; }
         #[version(1)] class Editor {
             fn emit(&mut self) -> Result<()>;
         }

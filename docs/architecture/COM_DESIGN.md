@@ -67,7 +67,7 @@ ownership transfer and the limits of concurrent Drop.
 
 ## Events and UI ownership
 
-A factory receives the complete `EventBinding<Object, Event>` during construction.
+A factory receives the complete `EventBinding` during construction.
 All producers share the common `IEventReceiver` interface. Its synchronous `post`
 captures the weak origin and moves a `ComBox<IEvent>` into the inbox. Application
 behavior runs later under mutable access. There are no named-output connections,

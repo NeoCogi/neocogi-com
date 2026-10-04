@@ -394,7 +394,7 @@ pub(crate) fn visit_types(declaration: &mut Declaration, visit: &mut impl FnMut(
         }
         DeclarationKind::BitEnum(_) => {}
         DeclarationKind::Interface(interface) => {
-            for base in &mut interface.bases {
+            for base in interface.bases.iter_mut().chain(&mut interface.events) {
                 visit_named(base, visit)?;
             }
             for method in &mut interface.methods {
@@ -408,7 +408,7 @@ pub(crate) fn visit_types(declaration: &mut Declaration, visit: &mut impl FnMut(
     Ok(())
 }
 
-/// Preserves the named-only constraint on interface projections and legacy ports.
+/// Preserves the named-only constraint on interface projections and emitted events.
 fn visit_named(name: &mut NamedType, visit: &mut impl FnMut(&mut AbiType) -> Result<(), ResolutionError>) -> Result<(), ResolutionError> {
     let mut ty = AbiType::Named(name.clone());
     visit(&mut ty)?;
