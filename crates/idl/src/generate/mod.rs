@@ -288,15 +288,18 @@ fn design_field_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiTy
                 _ => quote! { ::neocogi_com::design::IdlValueType::Named(#qualified) },
             })
         }
-        AbiType::WeakComPtr(value) => {
+        AbiType::WeakComPtr(value) | AbiType::WeakComBox(value) => {
             let AbiType::Named(name) = value.as_ref() else { return Err(GenerateError::new("weak target is not a contract")); };
             let qualified = match builtin_object_type(name) {
                 Some(_) => name.segments.join("."),
                 None => resolve(graph, module, name)?.identity.qualified_name.clone(),
             };
-            Ok(quote! { ::neocogi_com::design::IdlValueType::WeakObject(#qualified) })
+            Ok(match ty {
+                AbiType::WeakComPtr(_) => quote! { ::neocogi_com::design::IdlValueType::WeakObject(#qualified) },
+                _ => quote! { ::neocogi_com::design::IdlValueType::WeakBoxObject(#qualified) },
+            })
         }
-        AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => {
+        AbiType::ComPtr(value) | AbiType::ComBox(value) => {
             design_field_type(graph, module, value)
         }
         AbiType::Vector(value) => {

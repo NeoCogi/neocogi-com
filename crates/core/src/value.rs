@@ -670,6 +670,35 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
     }
 }
 
+// SAFETY: the wire borrows exclusive lifetime bookkeeping and an immutable
+// projection. Acquisition validates the ownership kind and exact interface,
+// then retains only the weak header, including after the value has expired.
+unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue for crate::WeakComBox<T, M> {
+    type Wire = crate::ComRaw<T>;
+    type Storage = ();
+    /// The native observer keeps both the header and provider metadata alive.
+    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, ()), NcStatus> {
+        budget.value(|_| Ok((self.as_raw(), ())))
+    }
+    /// Acquires an observer without borrowing, promoting or resurrecting its value.
+    unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+        budget.value(|_| {
+            // SAFETY: the caller lends initialized common header/table storage.
+            // Validate the supplied pair before finding the canonical projection.
+            unsafe { crate::raw::validate_interface(wire) }?;
+            let control = wire.object.cast();
+            // SAFETY: the valid borrowed header survives this call; projection
+            // rejects shared ownership and mismatched interface metadata.
+            let table = unsafe { crate::lifetime::box_projection(control, &T::INTERFACE_ID) }?;
+            // SAFETY: successful validation proves live weak bookkeeping. Only
+            // the canonical provider table is retained, never the caller's table.
+            unsafe { crate::lifetime::nc_weak_retain(control) };
+            Ok(unsafe { Self::from_raw_owned(crate::ComRaw { object: wire.object, vtable: table.cast() }) }
+                .expect("validated exclusive observer is present"))
+        })
+    }
+}
+
 // SAFETY: optional and array wires remain self-contained when their elements do.
 unsafe impl<T: ComInlineValue> ComInlineValue for Option<T> {}
 unsafe impl<T: ComInlineValue, const N: usize> ComInlineValue for [T; N] {}

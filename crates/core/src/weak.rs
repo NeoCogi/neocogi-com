@@ -127,6 +127,23 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
         WeakComPtr { control, marker: PhantomData }
     }
 
+    /// Selects another exact interface without promoting or borrowing the value.
+    /// Expired sources retain their immutable class metadata through this observer.
+    pub fn query<U: ComInterface>(&self) -> Result<WeakComPtr<U, M>, NcStatus> {
+        // SAFETY: this observer retains the common shared header and class tables.
+        unsafe { crate::lifetime::shared_weak_projection(self.control.as_ptr(), &U::INTERFACE_ID) }?;
+        // SAFETY: validation precedes acquisition and this token remains alive.
+        unsafe { nc_weak_retain(self.control.as_ptr()) };
+        Ok(WeakComPtr { control: self.control, marker: PhantomData })
+    }
+
+    /// Restricts cross-thread permission without changing weak ownership or identity.
+    pub fn into_thread_local(self) -> WeakComPtr<T, ThreadLocal> {
+        let control = self.control;
+        core::mem::forget(self);
+        WeakComPtr { control, marker: PhantomData }
+    }
+
     /// Compares canonical lifetime identities without promoting either object.
     /// Retaining the control blocks prevents address reuse while comparison is possible.
     pub fn same_object<U: ComInterface + ?Sized, N: ThreadingModel>(&self, other: &WeakComPtr<U, N>) -> bool {

@@ -1256,9 +1256,9 @@ fn value_fields(declaration: &Declaration) -> Vec<&AbiType> {
 
 /// Validates recursive field syntax independently from method ownership positions.
 fn validate_field_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
-    if matches!(ty, AbiType::ComBox(_) | AbiType::WeakComBox(_)) {
+    if matches!(ty, AbiType::ComBox(_)) {
         return Err(source_error(&entries[index].module, "EIDL060", span,
-            format!("{context}: exclusive/weak box handles are method transfers, not copied fields"),
+            format!("{context}: exclusive owners are method transfers, not repeatable fields"),
             "use an explicit owning object contract instead of a repeatable value codec"));
     }
     match ty {
@@ -1339,7 +1339,11 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
                 V::Object(name) => V::WeakObject(name),
                 other => other,
             },
-            AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => match field(index, value, entries)? {
+            AbiType::WeakComBox(value) => match field(index, value, entries)? {
+                V::Object(name) => V::WeakBoxObject(name),
+                other => other,
+            },
+            AbiType::ComPtr(value) | AbiType::ComBox(value) => match field(index, value, entries)? {
                 V::Object(name) => V::Object(name),
                 other => other,
             },

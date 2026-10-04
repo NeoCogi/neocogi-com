@@ -73,7 +73,7 @@ pub(super) fn owned_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &A
         AbiType::Unit => quote! { () },
         AbiType::Scalar(name) => scalar(name)?,
         AbiType::String => quote! { self::alloc::string::String },
-        AbiType::ComPtr(_) | AbiType::WeakComPtr(_) => owned_object_type(graph, module, ty)?,
+        AbiType::ComPtr(_) | AbiType::WeakComPtr(_) | AbiType::WeakComBox(_) => owned_object_type(graph, module, ty)?,
         AbiType::Named(name) => named_rust_type(graph, module, resolve(graph, module, name)?, false)?,
         AbiType::Vector(value) => {
             let value = owned_type(graph, module, value)?;

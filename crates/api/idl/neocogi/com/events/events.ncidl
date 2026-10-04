@@ -1,4 +1,27 @@
 #[version(1)]
+/// Common immutable event capability. Concrete event interfaces derive from it
+/// and expose their snapshots through ordinary COM methods.
+interface IEvent {}
+
+#[version(1)]
+/// A captured source identity never owns the producer or borrows its mutable state.
+enum EventOrigin {
+    /// Observer of an exclusively owned widget, valid as identity after removal.
+    Widget(WeakComBox<IUnknown>),
+    /// Observer of a shared service, such as a window or menu item.
+    Service(WeakComPtr<IUnknown>),
+}
+
+#[version(1)]
+/// Common enqueue boundary for every concrete event interface.
+/// Posting captures references only; application behavior runs after traversal.
+interface IEventReceiver {
+    /// Transfer the immutable event to the receiver and acquire its weak origin.
+    /// Every error restores the original event owner for retry or destruction.
+    fn post(&mut self, origin: &EventOrigin, event: ComBox<IEvent>) -> Result<()>;
+}
+
+#[version(1)]
 /// Application-owned enqueue boundary for one concrete origin and event type.
 /// Post acquires its payload and queues work; behavior runs after the caller's
 /// mutable widget call returns. No handler/model pointer is retained by a widget.

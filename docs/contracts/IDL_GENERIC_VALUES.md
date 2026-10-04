@@ -12,7 +12,7 @@ all consumers.
 | `ComPtr<I>` | Owned reference to a closed interface/class/factory | Stores a retained capability; does not store the implementation inline |
 | `WeakComPtr<I>` | Shared weak reference to a closed interface/class/factory | Record/enum fields and method results; retains bookkeeping without retaining the value |
 | `ComBox<I>` | Exclusive object owner | Explicit consuming method input/result; not an ordinary record/enum field |
-| `WeakComBox<I>` | Weak observation of an exclusive owner | Method result; not an ordinary record/enum field |
+| `WeakComBox<I>` | Weak observation of an exclusive owner | Method result and recursively borrowed record/enum fields; never persists the widget |
 | `Vec<T>` | Owned collection of values | Record/enum fields; explicitly indirect, including recursive trees |
 | `Slice<T>` or `[T]` | Unsized sequence referent | Cannot be stored in a record; must be borrowed for a call |
 | `&Slice<T>` or `&[T]` | Readable call-scoped buffer | Elements must support recursively checked copied transport |

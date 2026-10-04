@@ -24,6 +24,8 @@ pub enum IdlValueType {
     Object(&'static str),
     /// Canonical interface identity of shared weak bookkeeping, without a value owner.
     WeakObject(&'static str),
+    /// Canonical interface identity of an exclusive weak observer, without an execution lease.
+    WeakBoxObject(&'static str),
     /// Explicitly indirect owned sequence.
     Sequence(&'static IdlValueType),
     /// Inline fixed-size array.

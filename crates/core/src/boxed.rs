@@ -257,6 +257,13 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
         self.query().expect("every boxed COM object declares IUnknown")
     }
 
+    /// Restricts cross-thread permission while preserving this observer's projection.
+    pub fn into_thread_local(self) -> WeakComBox<T, ThreadLocal> {
+        let raw = core::mem::ManuallyDrop::new(self).raw.as_raw();
+        // SAFETY: only the threading permission is restricted; ownership is transferred.
+        unsafe { WeakComBox::from_raw_owned(raw) }.expect("existing observer is present")
+    }
+
     /// Lends interface storage for a synchronous ABI argument, without pinning T.
     /// The recipient's generated methods acquire their own checked borrows and
     /// may return CLOSED. Holding this view cannot delay owner destruction.

@@ -11,6 +11,11 @@ mod contracts;
 pub use contracts::*;
 
 #[cfg(feature = "alloc")]
+mod message;
+#[cfg(feature = "alloc")]
+pub use message::EventMessage;
+
+#[cfg(feature = "alloc")]
 mod stream;
 #[cfg(feature = "alloc")]
 pub use stream::{QueueOf, EventOf, EventPort, EventSource, EventQueueInterface};

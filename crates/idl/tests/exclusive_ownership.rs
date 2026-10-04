@@ -31,7 +31,7 @@ fn invalid_exclusive_positions_fail_in_the_resolver() {
     for body in [
         "#[version(1)] struct Bad { owner: ComBox<IValue> }",
         "#[version(1)] struct Bad { owner: Vec<ComBox<IValue>> }",
-        "#[version(1)] enum Bad { Owner(WeakComBox<IValue>) }",
+        "#[version(1)] enum Bad { Owner(ComBox<IValue>) }",
         "#[version(1)] interface Bad { fn take(&self, owner: ComBox<u32>) -> Result<()>; }",
         "#[version(1)] interface Bad { fn get(&self) -> Result<ComBox<ComBox<IValue>>>; }",
     ] {
