@@ -172,7 +172,7 @@ impl Expansion {
                     self.normalize_type(owner, argument, substitutions)?;
                 }
             }
-            AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
+            AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
             | AbiType::Borrowed(value)
             | AbiType::Vector(value)
             | AbiType::UnsizedSlice(value)
@@ -212,7 +212,7 @@ impl Expansion {
                     }
                 }
             }
-            AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
+            AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
             | AbiType::Borrowed(value)
             | AbiType::Vector(value)
             | AbiType::UnsizedSlice(value)
@@ -332,7 +332,7 @@ impl Expansion {
                     bytes.extend_from_slice(&self.type_identity(argument)?.to_uuid_bytes());
                 }
             }
-            AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
+            AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
             | AbiType::Borrowed(value)
             | AbiType::Vector(value)
             | AbiType::UnsizedSlice(value)
@@ -341,6 +341,7 @@ impl Expansion {
             | AbiType::Array { element: value, .. } => {
                 bytes.extend_from_slice(match ty {
                     AbiType::ComPtr(_) => b"com_ptr",
+                    AbiType::WeakComPtr(_) => b"weak_com_ptr",
                     AbiType::ComBox(_) => b"com_box",
                     AbiType::WeakComBox(_) => b"weak_com_box",
                     AbiType::Borrowed(_) => b"borrow",
@@ -431,7 +432,7 @@ fn failure(span: &SourceSpan, message: impl Into<String>) -> ResolutionError {
 fn has_arguments(ty: &AbiType) -> bool {
     match ty {
         AbiType::Named(name) => !name.arguments.is_empty(),
-        AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
+        AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
         | AbiType::Borrowed(value)
         | AbiType::Vector(value)
         | AbiType::UnsizedSlice(value)
@@ -490,7 +491,7 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &AbiType) -> Result<[u8; 3
                 bytes.extend_from_slice(&type_signature(graph, argument)?);
             }
         }
-        AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
+        AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
         | AbiType::Borrowed(value)
         | AbiType::Vector(value)
         | AbiType::UnsizedSlice(value)
@@ -499,8 +500,9 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &AbiType) -> Result<[u8; 3
         | AbiType::Array { element: value, .. } => {
             bytes.extend_from_slice(match ty {
                 AbiType::ComPtr(_) => b"com_ptr",
-                    AbiType::ComBox(_) => b"com_box",
-                    AbiType::WeakComBox(_) => b"weak_com_box",
+                AbiType::WeakComPtr(_) => b"weak_com_ptr",
+                AbiType::ComBox(_) => b"com_box",
+                AbiType::WeakComBox(_) => b"weak_com_box",
                 AbiType::Borrowed(_) => b"borrow",
                 AbiType::Vector(_) => b"vector",
                 AbiType::UnsizedSlice(_) => b"unsized_slice",

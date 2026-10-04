@@ -647,6 +647,29 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
     }
 }
 
+// SAFETY: the wire borrows one common weak header. Acquisition validates shared
+// ownership and the exact contract, then retains bookkeeping without promoting T.
+unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue for crate::WeakComPtr<T, M> {
+    type Wire = crate::NcWeakRaw;
+    type Storage = ();
+    /// The borrowed native handle keeps header and provider metadata alive.
+    fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, ()), NcStatus> {
+        budget.value(|_| Ok((self.as_raw(), ())))
+    }
+    /// Acquires an independent weak reference, even after concrete destruction.
+    unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
+        budget.value(|_| {
+            // SAFETY: the caller lends valid header/class storage; null, ownership
+            // kind and exact interface identity are checked before acquisition.
+            unsafe { crate::lifetime::shared_weak_projection(wire.control, &T::INTERFACE_ID) }?;
+            // SAFETY: successful validation proves a present retained header.
+            unsafe { crate::lifetime::nc_weak_retain(wire.control) };
+            // SAFETY: this function just acquired the exact validated weak owner.
+            Ok(unsafe { Self::from_raw_owned(wire) }.expect("validated weak token is present"))
+        })
+    }
+}
+
 // SAFETY: optional and array wires remain self-contained when their elements do.
 unsafe impl<T: ComInlineValue> ComInlineValue for Option<T> {}
 unsafe impl<T: ComInlineValue, const N: usize> ComInlineValue for [T; N] {}

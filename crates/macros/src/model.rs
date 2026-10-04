@@ -111,5 +111,7 @@ pub(crate) enum InterfaceOwnership {
     /// The one exclusive owner; queries cannot duplicate this token.
     Exclusive,
     /// A cached observer that retains storage but never the concrete value.
-    Weak,
+    WeakExclusive,
+    /// One shared weak header token; promotion is required before value access.
+    WeakShared,
 }

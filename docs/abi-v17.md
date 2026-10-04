@@ -77,6 +77,35 @@ must take explicit input and separate output. There is no generic compatibility
 adapter retaining initialized input/output semantics. The obsolete wrapper and
 its encoded/decoded output guards have been removed.
 
+## Shared weak result and value transport
+
+`WeakComPtr<I>` results transfer one `NcWeakRaw` through a writable output slot.
+The raw record is the existing single common-header pointer, without a cached
+interface table. `NC_ABI_PASSING_WEAK_COM_PTR_OUT` (`0x0d`) identifies this passing
+mode; the return type descriptor supplies the exact interface identity and the
+passing descriptor preserves the threading capability. It is distinct from the
+two-word exclusive `WeakComBox` output (`0x0b`).
+
+A successful provider transfers one retained weak token. The client rejects null
+tokens, exclusive ownership, missing interfaces and wrong interface revisions,
+releasing a rejected transferred token exactly once. Errors transfer no result.
+Expired and unpublished shared tokens remain valid: checking reads immutable
+class metadata under weak ownership and never promotes or reads the value.
+Raw callers must supply a retained valid header, readable class metadata and
+provider code lifetime; checks cannot make an arbitrary pointer safe.
+
+A weak field in a borrowed value uses the same `NcWeakRaw` as a borrowed token.
+The source handle keeps its header alive throughout encoding and acquisition.
+Decoding validates before retaining an independent weak reference. Partial
+aggregate failure drops already acquired fields. It never creates a strong owner
+and is not a copied inline value or an implicit persistence representation.
+
+This adds a passing category to generation 17 without changing existing layouts
+or signatures. IDL assigns the new ownership spelling a distinct fingerprint tag;
+older metadata readers reject the unfamiliar passing category. `WeakLocalCom<T>`
+is construction-proven Rust access layered on this existing shared lifetime
+protocol; its concrete T and native wrapper do not cross the ABI.
+
 ## Fixed byte-copy primitives
 
 `INcBytes::copy_to` and `INcString::copy_utf8_to` retain their exact-range

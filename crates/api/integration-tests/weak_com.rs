@@ -425,3 +425,92 @@ fn concurrent_cyclic_origin_observes_only_published_value() {
     drop(owner);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
 }
+
+/// A different revision of an existing IID is deliberately never implemented.
+enum WrongRevision {}
+// SAFETY: this marker describes IValue's physical table with a different revision;
+// only rejection tests use it, and no provider publishes that revision.
+unsafe impl neocogi_com::ComInterface for WrongRevision {
+    const INTERFACE_ID: neocogi_com::NcInterfaceId = neocogi_com::NcInterfaceId::new(
+        IValueAbi::IID, neocogi_com::NcAbiSignature::from_static(&[0; 32]),
+    );
+    type VTable = IValueVTable;
+    type Threading = neocogi_com::ThreadLocal;
+}
+
+/// Wire checking validates immutable metadata even when promotion is impossible.
+#[test]
+fn checked_weak_wire_preserves_expiration_and_rejects_wrong_contracts() {
+    use neocogi_com::{ComValue, NcWeakRaw, ValueBudget, NC_E_ABI_VERSION, NC_E_NOINTERFACE, NC_E_POINTER};
+    let drops = Arc::new(AtomicUsize::new(0));
+    let owner = Value::from_value(Value { drops: drops.clone(), closed: false, origin: None });
+    let weak = owner.query::<IValueAbi>().unwrap().downgrade().unwrap();
+    let mut owner = Some(owner);
+    for expired in [false, true] {
+        // SAFETY: each clone transfers one weak owner with valid common metadata.
+        let checked = unsafe { WeakComPtr::<IValueAbi>::__nc_from_raw_owned_checked(weak.clone().into_raw()) }.unwrap();
+        assert!(weak.same_object(&checked));
+        assert_eq!(checked.upgrade().unwrap().is_none(), expired);
+        let (wire, _) = weak.encode_value(&mut ValueBudget::default()).unwrap();
+        // SAFETY: weak retains the borrowed wire's header through decoding.
+        let acquired = unsafe { WeakComPtr::<IValueAbi>::decode_value(wire, &mut ValueBudget::default()) }.unwrap();
+        assert!(weak.same_object(&acquired));
+        // SAFETY: wrong interface/revision tokens still transfer valid weak storage.
+        assert_eq!(unsafe { WeakComPtr::<ISharedAbi>::__nc_from_raw_owned_checked(weak.clone().into_raw()) }.unwrap_err(), NC_E_NOINTERFACE);
+        assert_eq!(unsafe { WeakComPtr::<WrongRevision>::__nc_from_raw_owned_checked(weak.clone().into_raw()) }.unwrap_err(), NC_E_ABI_VERSION);
+        // SAFETY: null is valid malformed wire storage, never a valid pointer.
+        assert_eq!(unsafe { WeakComPtr::<IValueAbi>::__nc_from_raw_owned_checked(NcWeakRaw::null()) }.unwrap_err(), NC_E_POINTER);
+        assert_eq!(unsafe { WeakComPtr::<IValueAbi>::decode_value(NcWeakRaw::null(), &mut ValueBudget::default()) }.unwrap_err(), NC_E_POINTER);
+        drop((checked, acquired));
+        if !expired {
+            drop(owner.take());
+        }
+    }
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+}
+
+/// An exclusive observer's retained header is valid storage but the wrong ownership kind.
+#[test]
+fn checked_shared_weak_wire_rejects_exclusive_control_blocks() {
+    #[com_object(IShared, ownership = exclusive)]
+    struct Exclusive;
+    impl IShared for Exclusive { fn value(&self) -> Result<u32, NcStatus> { Ok(1) } }
+    let owner = Exclusive::into_box(Exclusive);
+    let observer = owner.downgrade();
+    let control = observer.as_raw().object.cast();
+    // SAFETY: observer keeps the valid exclusive header alive; this independent
+    // weak retain is transferred to the rejection path, which must release it.
+    unsafe { neocogi_com::lifetime::nc_weak_retain(control); }
+    assert_eq!(unsafe {
+        WeakComPtr::<IUnknown>::__nc_from_raw_owned_checked(neocogi_com::NcWeakRaw { control })
+    }.unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
+    drop(owner);
+    // The permanent ownership tag also rejects expired exclusive allocations.
+    unsafe { neocogi_com::lifetime::nc_weak_retain(control); }
+    assert_eq!(unsafe {
+        WeakComPtr::<IUnknown>::__nc_from_raw_owned_checked(neocogi_com::NcWeakRaw { control })
+    }.unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
+}
+
+/// Metadata validation does not accidentally publish a cyclic constructor's value.
+#[test]
+fn unpublished_weak_tokens_can_be_checked_and_acquired_without_promotion() {
+    use neocogi_com::{ComValue, ValueBudget};
+    let drops = Arc::new(AtomicUsize::new(0));
+    let mut escaped = None;
+    let owner = Value::from_value_cyclic::<IDerivedAbi>(|origin| {
+        // SAFETY: origin owns the unpublished common header with complete metadata.
+        let checked = unsafe { WeakComPtr::<IDerivedAbi>::__nc_from_raw_owned_checked(origin.clone().into_raw()) }.unwrap();
+        let (wire, _) = checked.encode_value(&mut ValueBudget::default()).unwrap();
+        // SAFETY: checked retains the wire's backing independently of publication.
+        let acquired = unsafe { WeakComPtr::<IDerivedAbi>::decode_value(wire, &mut ValueBudget::default()) }.unwrap();
+        assert!(acquired.upgrade().unwrap().is_none());
+        escaped = Some(acquired);
+        Value { drops: drops.clone(), closed: false, origin: Some(origin) }
+    }).unwrap();
+    let escaped = escaped.unwrap();
+    assert_eq!(escaped.upgrade().unwrap().unwrap().value(), Ok(42));
+    drop(owner);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    assert!(escaped.upgrade().unwrap().is_none());
+}

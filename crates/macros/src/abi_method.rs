@@ -327,9 +327,17 @@ fn lower_abi_return(ty: Type, nc: &syn::Path) -> Result<AbiReturn> {
         });
     }
 
-    for (name, ownership) in [("ComPtr", InterfaceOwnership::Shared), ("ComBox", InterfaceOwnership::Exclusive), ("WeakComBox", InterfaceOwnership::Weak)] {
+    for (name, ownership) in [
+        ("ComPtr", InterfaceOwnership::Shared),
+        ("ComBox", InterfaceOwnership::Exclusive),
+        ("WeakComBox", InterfaceOwnership::WeakExclusive),
+        ("WeakComPtr", InterfaceOwnership::WeakShared),
+    ] {
         if let Some(owner) = parse_owned_interface_type(&ty, name)? {
-            let abi_ty = raw_interface_pointer_ty(&owner.interface_ty, nc);
+            let abi_ty = match ownership {
+                InterfaceOwnership::WeakShared => syn::parse_quote! { #nc::NcWeakRaw },
+                _ => raw_interface_pointer_ty(&owner.interface_ty, nc),
+            };
             return Ok(AbiReturn { rust_ty: ty, abi_ty,
                 kind: AbiReturnKind::ComPtr { ownership, interface_ty: Box::new(owner.interface_ty), mode_ty: owner.mode_ty.map(Box::new) } });
         }

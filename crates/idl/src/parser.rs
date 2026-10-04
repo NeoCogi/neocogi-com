@@ -621,7 +621,7 @@ fn lower_path_type(path: &syn::Path) -> syn::Result<AbiType> {
                 len,
             });
         }
-        if matches!(name.as_str(), "ComPtr" | "ComBox" | "WeakComBox" | "Vec" | "Slice") {
+        if matches!(name.as_str(), "ComPtr" | "WeakComPtr" | "ComBox" | "WeakComBox" | "Vec" | "Slice") {
             let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
                 return Err(syn::Error::new_spanned(segment, format!("IDL `{name}` requires one type argument")));
             };
@@ -633,6 +633,7 @@ fn lower_path_type(path: &syn::Path) -> syn::Result<AbiType> {
             };
             return Ok(match name.as_str() {
                 "ComPtr" => AbiType::ComPtr(Box::new(lower_type(value)?)),
+                "WeakComPtr" => AbiType::WeakComPtr(Box::new(lower_type(value)?)),
                 "ComBox" => AbiType::ComBox(Box::new(lower_type(value)?)),
                 "WeakComBox" => AbiType::WeakComBox(Box::new(lower_type(value)?)),
                 "Vec" => AbiType::Vector(Box::new(lower_type(value)?)),
@@ -945,7 +946,7 @@ fn attach_type_source(ty: &mut AbiType, source: &SourceFile) {
                 attach_type_source(argument, source);
             }
         }
-        AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
+        AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
         | AbiType::Borrowed(value)
         | AbiType::Vector(value)
         | AbiType::UnsizedSlice(value)

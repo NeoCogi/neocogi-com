@@ -1034,7 +1034,8 @@ fn return_passing_descriptor(nc: &syn::Path, method: &AbiMethod) -> proc_macro2:
             let passing = match ownership {
                 crate::model::InterfaceOwnership::Shared => quote! { ComPtrOut },
                 crate::model::InterfaceOwnership::Exclusive => quote! { ComBoxOut },
-                crate::model::InterfaceOwnership::Weak => quote! { WeakComBoxOut },
+                crate::model::InterfaceOwnership::WeakExclusive => quote! { WeakComBoxOut },
+                crate::model::InterfaceOwnership::WeakShared => quote! { WeakComPtrOut },
             };
             quote! {
                 #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::#passing {

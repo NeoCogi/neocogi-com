@@ -82,7 +82,7 @@ pub(super) fn resolve(graph: &ResolvedModules) -> Result<Vec<Construction>, Reso
         for declaration in &module.source.declarations {
             let DeclarationKind::Interface(interface) = &declaration.kind else { continue };
             for method in &interface.methods {
-                let (AbiType::ComPtr(output) | AbiType::ComBox(output) | AbiType::WeakComBox(output)) = &method.output else {
+                let (AbiType::ComPtr(output) | AbiType::WeakComPtr(output) | AbiType::ComBox(output) | AbiType::WeakComBox(output)) = &method.output else {
                     continue;
                 };
                 let AbiType::Named(output) = output.as_ref() else { continue };

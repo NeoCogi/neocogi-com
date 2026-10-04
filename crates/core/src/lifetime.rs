@@ -209,6 +209,24 @@ unsafe fn projection(control: &NcWeakControl, requested: &NcInterfaceId) -> Resu
     unsafe { crate::__nc_find_interface(tables, requested) }
 }
 
+/// Checks a shared weak token's exact interface without promoting its value.
+/// Expired and unpublished tokens retain immutable class metadata and are valid
+/// weak values. The permanent ownership tag rejects exclusive control blocks.
+///
+/// # Safety
+/// A non-null control must be retained by a weak or strong owner with valid class
+/// metadata/code through this call. The requested identity must be readable.
+pub(crate) unsafe fn shared_weak_projection(control: *mut NcWeakControl, requested: &NcInterfaceId) -> Result<(), NcStatus> {
+    let control = core::ptr::NonNull::new(control).ok_or(NC_E_POINTER)?;
+    // SAFETY: the caller retains this header, including after value destruction.
+    let header = unsafe { control.as_ref() };
+    if header.state.load(Ordering::Relaxed) & BOXED != 0 {
+        return Err(NC_E_INVALID_ARG);
+    }
+    // SAFETY: metadata outlives all weak references; no value access is performed.
+    unsafe { projection(header, requested) }.map(|_| ())
+}
+
 /// Queries a live allocation and transfers exactly one new strong reference.
 ///
 /// # Safety

@@ -288,6 +288,14 @@ fn design_field_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiTy
                 _ => quote! { ::neocogi_com::design::IdlValueType::Named(#qualified) },
             })
         }
+        AbiType::WeakComPtr(value) => {
+            let AbiType::Named(name) = value.as_ref() else { return Err(GenerateError::new("weak target is not a contract")); };
+            let qualified = match builtin_object_type(name) {
+                Some(_) => name.segments.join("."),
+                None => resolve(graph, module, name)?.identity.qualified_name.clone(),
+            };
+            Ok(quote! { ::neocogi_com::design::IdlValueType::WeakObject(#qualified) })
+        }
         AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => {
             design_field_type(graph, module, value)
         }
@@ -344,7 +352,7 @@ fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, dec
                     data(&value.identity.qualified_name, graph, names);
                 }
             }
-            AbiType::ComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
+            AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
             | AbiType::Borrowed(value)
             | AbiType::Vector(value)
             | AbiType::UnsizedSlice(value)
@@ -813,8 +821,8 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
             let element = value_type(graph, module, element)?;
             Ok(quote! { ::neocogi_com::NcOutputWriter<'_, #element> })
         }
-        AbiType::ComBox(value) => box_reference_type(graph, module, value, false),
-        AbiType::WeakComBox(_) | AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => Err(GenerateError::new(
+        AbiType::ComBox(_) => owned_object_type(graph, module, ty),
+        AbiType::WeakComBox(_) | AbiType::WeakComPtr(_) | AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => Err(GenerateError::new(
             "unit, owned collections/text, and unborrowed slices are not valid method inputs",
         )),
     }
@@ -824,12 +832,7 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
 fn output_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
     match ty {
         AbiType::Unit => Ok(quote! { () }),
-        AbiType::ComBox(value) => box_reference_type(graph, module, value, false),
-        AbiType::WeakComBox(value) => box_reference_type(graph, module, value, true),
-        AbiType::ComPtr(value) => match value.as_ref() {
-            AbiType::Named(name) => object_reference_type(graph, module, name, true),
-            _ => Err(GenerateError::new("resolved ComPtr target is not a contract")),
-        },
+        AbiType::ComPtr(_) | AbiType::WeakComPtr(_) | AbiType::ComBox(_) | AbiType::WeakComBox(_) => owned_object_type(graph, module, ty),
         _ => value_type(graph, module, ty),
     }
 }
@@ -964,11 +967,18 @@ fn origin_docs(lines: &[String], span: &crate::SourceSpan) -> TokenStream {
 
 /// Emits an ownership-explicit object wrapper from the same resolved interface
 /// and threading policy as shared references. The wrapper itself selects lifetime.
-fn box_reference_type(graph: &Generation<'_>, module: &ResolvedModule, target: &AbiType, weak: bool) -> Result<TokenStream, GenerateError> {
-    let AbiType::Named(name) = target else { return Err(GenerateError::new("box target is not a contract")); };
+fn owned_object_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
+    let (target, wrapper) = match ty {
+        AbiType::ComPtr(target) => (target, "ComPtr"),
+        AbiType::WeakComPtr(target) => (target, "WeakComPtr"),
+        AbiType::ComBox(target) => (target, "ComBox"),
+        AbiType::WeakComBox(target) => (target, "WeakComBox"),
+        _ => return Err(GenerateError::new("resolved type is not an object ownership wrapper")),
+    };
+    let AbiType::Named(name) = target.as_ref() else { return Err(GenerateError::new("object target is not a contract")); };
     let shared = object_reference_type(graph, module, name, true)?;
     let mut ty: syn::TypePath = syn::parse2(shared).map_err(|error| GenerateError::new(error.to_string()))?;
     let segment = ty.path.segments.last_mut().expect("generated object wrapper");
-    segment.ident = syn::Ident::new(if weak { "WeakComBox" } else { "ComBox" }, segment.ident.span());
+    segment.ident = syn::Ident::new(wrapper, segment.ident.span());
     Ok(quote! { #ty })
 }

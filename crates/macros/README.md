@@ -95,6 +95,7 @@ Supported methods return `Result<T, NcStatus>`:
 - a non-void return uses an output pointer written only on success;
 - `ComRef<'_, IFooAbi>` is a borrowed interface parameter;
 - `ComPtr<IFooAbi>` is an owned interface return;
+- `WeakComPtr<IFooAbi>` returns one shared weak header, checked without promotion;
 - bounded copy wrappers lower slices without transferring allocation ownership.
 
 `#[com_struct]` defines fixed C-layout records. `#[com_enum]` defines explicit
@@ -105,6 +106,11 @@ Record labels emitted by `ComSerialize` are unqualified declaration-name
 literals; named enum payload records use their enclosing enum's name. They do
 not identify types globally. The binary encoder ignores these labels and writes
 fields positionally; generating them requires no `core::any` lookup.
+
+`com_value` fields may contain `WeakComPtr<I>` through the recursive borrowed
+value codec. Acquisition checks shared ownership and exact interface identity
+before retaining weak bookkeeping. These fields are neither copied inline values
+nor persistent object reconstruction. Use IDL for their public declarations.
 
 `com_interface` also accepts the generator-owned `threading = local|shared`
 and `factory` role. The same expansion owns required sibling projections and

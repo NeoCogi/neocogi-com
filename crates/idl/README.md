@@ -142,6 +142,20 @@ borrow an object as `&I`; direct `ComPtr<I>` inputs are rejected because the IDL
 does not define ownership transfer for that position. Records containing object
 references may be borrowed as `&Record` and recursively acquired by the receiver.
 
+`WeakComPtr<I>` names shared weak ownership in fields and method results. Its
+target follows the same closed-contract and threading rules as `ComPtr<I>`.
+Fields may nest through arrays, sequences, options and generic values; pass such
+records by reference. Direct weak inputs and copied weak values are rejected.
+Acquisition validates the exact interface and retains only weak bookkeeping,
+including when the implementation has already expired. Weak fields have no
+implicit persistence codec and retain their ownership in design metadata.
+
+`LocalCom<T>::downgrade()` instead creates `WeakLocalCom<T>` for the constructing
+Rust binary. IDL-generated implementations support it through their ordinary
+`into_local` constructor. `T` is a concrete implementation and never an IDL wire
+type: project to an interface and downgrade that pointer when a contract needs
+`WeakComPtr<I>`. Foreign interfaces cannot recover typed local access.
+
 Core capabilities `IUnknown`, `INcBytes`, and `INcString` need no imported module.
 For example, `Result<ComPtr<INcString>>` returns an owned COM string object;
 `String` in a record is owned text data. `Result<String>` is rejected rather than

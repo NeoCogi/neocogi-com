@@ -18,6 +18,8 @@ pub enum ValueType {
     Named(String),
     /// Explicit owned COM capability.
     Object(String),
+    /// Shared weak COM capability; neither transport nor persistence owns its value.
+    WeakObject(String),
     /// Indirect owned collection of recursively converted values.
     Sequence(Box<ValueType>),
     /// Inline fixed-size aggregate.
@@ -93,7 +95,7 @@ impl ValueGraph {
                 .definitions
                 .get(name)
                 .is_some_and(|value| value.persistence == Persistence::Supported),
-            ValueType::Object(_) => false,
+            ValueType::Object(_) | ValueType::WeakObject(_) => false,
             ValueType::Sequence(value) | ValueType::Array(value, _) => self.can_persist(value),
         }
     }
@@ -109,6 +111,9 @@ impl ValueGraph {
             match ty {
                 ValueType::Object(name) => Some(format!(
                     "ComPtr<{name}> transports an existing object; persistence requires an explicit object reconstruction contract"
+                )),
+                ValueType::WeakObject(name) => Some(format!(
+                    "WeakComPtr<{name}> transports lifetime bookkeeping; persistence requires an explicit object reconstruction contract"
                 )),
                 ValueType::Scalar(name) => Some(format!("{name} has no format-neutral ComDeserialize implementation")),
                 ValueType::Named(name) => {
@@ -133,7 +138,7 @@ impl ValueGraph {
             ValueType::Scalar(_) => true,
             ValueType::Array(element, _) => self.is_copied(element),
             ValueType::Named(name) => self.definitions.get(name).is_some_and(|value| value.copied),
-            ValueType::Unit | ValueType::Text | ValueType::Object(_) | ValueType::Sequence(_) => false,
+            ValueType::Unit | ValueType::Text | ValueType::Object(_) | ValueType::WeakObject(_) | ValueType::Sequence(_) => false,
         }
     }
 }

@@ -123,11 +123,12 @@ fn write_return(out: &mut String, returns: &NcMethodReturnDescriptor) -> Result<
             write_type(out, &returns.ty)?;
             out.push('>');
         }
-        NC_ABI_PASSING_COM_PTR_OUT | crate::NC_ABI_PASSING_COM_BOX_OUT | crate::NC_ABI_PASSING_WEAK_COM_BOX_OUT => {
+        NC_ABI_PASSING_COM_PTR_OUT | crate::NC_ABI_PASSING_COM_BOX_OUT | crate::NC_ABI_PASSING_WEAK_COM_BOX_OUT | crate::NC_ABI_PASSING_WEAK_COM_PTR_OUT => {
             validate_interface_type(&returns.ty)?;
             out.push_str(match returns.passing.tag {
                 crate::NC_ABI_PASSING_COM_BOX_OUT => "com_box_out<",
                 crate::NC_ABI_PASSING_WEAK_COM_BOX_OUT => "weak_com_box_out<",
+                crate::NC_ABI_PASSING_WEAK_COM_PTR_OUT => "weak_com_ptr_out<",
                 _ => "com_ptr_out<",
             });
             write_threading(out, returns.passing.threading)?;

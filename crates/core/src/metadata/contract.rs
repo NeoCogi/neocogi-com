@@ -93,6 +93,11 @@ pub enum NcAbiType {
 /// How a method argument or return value crosses the ABI boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NcAbiPassing {
+    /// Shared weak header returned through an out slot; promotion is separate.
+    WeakComPtrOut {
+        /// Threading capability retained after the referenced value expires.
+        mode: NcAbiThreadingMode,
+    },
     /// Exclusive owner offered in a writable slot, cleared by the receiver on transfer.
     ComBoxIn { /// Threading capability preserved by ownership transfer.
         mode: NcAbiThreadingMode },
@@ -255,6 +260,8 @@ pub const NC_ABI_PASSING_COM_BOX_IN: u32 = 0x09;
 pub const NC_ABI_PASSING_COM_BOX_OUT: u32 = 0x0a;
 /// Cached weak exclusive token returned without value ownership.
 pub const NC_ABI_PASSING_WEAK_COM_BOX_OUT: u32 = 0x0b;
+/// One shared weak header token returned through an NcWeakRaw output slot.
+pub const NC_ABI_PASSING_WEAK_COM_PTR_OUT: u32 = 0x0d;
 /// One-way copied result capacity with a separate initialized-prefix count.
 pub const NC_ABI_PASSING_OUTPUT_BUFFER: u32 = 0x0c;
 
@@ -351,6 +358,7 @@ impl NcAbiPassingDescriptor {
     /// Builds a C-stable descriptor from a canonical ABI passing mode.
     pub const fn from_abi_passing(passing: NcAbiPassing) -> Self {
         match passing {
+            NcAbiPassing::WeakComPtrOut { mode } => Self { tag: NC_ABI_PASSING_WEAK_COM_PTR_OUT, threading: threading_descriptor(mode) },
             NcAbiPassing::ComBoxIn { mode } => Self { tag: NC_ABI_PASSING_COM_BOX_IN, threading: threading_descriptor(mode) },
             NcAbiPassing::ComBoxOut { mode } => Self { tag: NC_ABI_PASSING_COM_BOX_OUT, threading: threading_descriptor(mode) },
             NcAbiPassing::WeakComBoxOut { mode } => Self { tag: NC_ABI_PASSING_WEAK_COM_BOX_OUT, threading: threading_descriptor(mode) },

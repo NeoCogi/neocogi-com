@@ -64,6 +64,29 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     pub unsafe fn from_raw_owned(raw: NcWeakRaw) -> Option<Self> {
         NonNull::new(raw.control).map(|control| Self { control, marker: PhantomData })
     }
+
+    /// Adopts a weak output after validating shared ownership and exact interface identity.
+    /// Expired and unpublished values remain transportable; this never promotes them.
+    /// Rejection releases the transferred weak reference exactly once.
+    ///
+    /// # Safety
+    /// A present token transfers one retained common header with valid immutable
+    /// class metadata and provider code. The caller guarantees capability M;
+    /// this checks token presence, ownership kind and T's complete identity.
+    #[doc(hidden)]
+    pub unsafe fn __nc_from_raw_owned_checked(raw: NcWeakRaw) -> Result<Self, NcStatus> {
+        let control = NonNull::new(raw.control).ok_or(NC_E_POINTER)?;
+        // SAFETY: the transferred token retains valid header/class storage even
+        // when it proves the wrong ownership kind or target interface.
+        if let Err(status) = unsafe { crate::lifetime::shared_weak_projection(raw.control, &T::INTERFACE_ID) } {
+            // SAFETY: failure consumes exactly the transferred weak reference;
+            // common weak release works for both shared and exclusive headers.
+            unsafe { nc_weak_release(raw.control) };
+            return Err(status);
+        }
+        // Only validated tokens acquire the typed shared-weak invariant.
+        Ok(Self { control, marker: PhantomData })
+    }
     /// Borrows the control identity without extending or transferring its lifetime.
     pub fn as_raw(&self) -> NcWeakRaw {
         NcWeakRaw { control: self.control.as_ptr() }
