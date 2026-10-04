@@ -56,7 +56,7 @@ call; `to_owned()` recursively checks fields and acquires receiver-owned data.
 Booleans and enum tags are validated before typed values are constructed, even
 inside nested ordinary records. Numeric buffers can borrow in place only when
 all fields prove identical layout and unrestricted contents. See the normative
-[recursive value contract](../../../docs/RECURSIVE_VALUE_CONTRACT.md).
+[recursive value contract](../../../docs/contracts/RECURSIVE_VALUE_CONTRACT.md).
 
 ## Descriptor text validation
 
@@ -234,7 +234,7 @@ NCB uses declaration order and variant ordinals for derived enum payloads. IDL
 scalar integer enums and flags retain their existing raw-integer persistence;
 this change does not replace those integers with ordinals. Removing Color's authored
 sequence policy advances that declaration from version 2 to 3 as required by
-the [IDL version contract](../../../docs/IDL_MODULES.md#contract-changes-and-versions);
+the [IDL version contract](../../../docs/contracts/IDL_MODULES.md#contract-changes-and-versions);
 its field order and NCB bytes stay the same. Rebuild dependent contracts together.
 
 This change does not make runtime persistence services optional. They have real
@@ -317,11 +317,11 @@ non-clonable `ComBox`. `WeakComBox` caches its interface table and accesses the
 provider through checked call entries, without promoting to a shared owner.
 Factories can return boxes and containers can consume them through generated
 ABI methods. Ordinary shared services continue using `ComPtr`. See
-[the ownership rationale](../../../docs/EXCLUSIVE_WIDGET_OWNERSHIP.md).
+[the ownership rationale](../../../docs/contracts/EXCLUSIVE_WIDGET_OWNERSHIP.md).
 
 ## Lifetime failure categories
 
 `NC_E_DROPPED` reports lost object ownership. `NC_E_CLOSED` reports a closed
 service or channel whose COM object can still exist. A method can propagate
 either from a dependency, so neither status identifies receiver lifetime. See the
-[precise lifetime error contract](../../../docs/COM_LIFETIME_ERRORS.md).
+[precise lifetime error contract](../../../docs/contracts/COM_LIFETIME_ERRORS.md).

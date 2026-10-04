@@ -6,7 +6,7 @@ support, factory-only plugins, and an optional facade over the linked
 `libnc_com`.
 
 Public cross-library contracts should be authored as Rust-like `.ncidl`
-modules. See [IDL contract modules](../../../docs/IDL_MODULES.md) for their
+modules. See [IDL contract modules](../../../docs/contracts/IDL_MODULES.md) for their
 source, crate, signature, and tooling model. The
 [current core ABI specification](../docs/README.md) defines the binary boundary.
 
@@ -58,7 +58,7 @@ Shared ancestors occur once in the compiler's contract set; conflicting
 signatures fail compilation. Runtime queries scan static vtable pointers whose
 compact identities are separate from full inspection schemas. Inherited table
 prefixes remain; this change does not deduplicate their function entries.
-See [interface storage](../../../docs/COM_INTERFACE_STORAGE.md) and `ComPtr`
+See [interface storage](../../../docs/contracts/COM_INTERFACE_STORAGE.md) and `ComPtr`
 rustdoc for the architectural rationale, ownership rules, and cost tradeoff.
 
 When the creating binary also needs the concrete implementation, use
@@ -309,7 +309,7 @@ producers using the IDL `EventBinding<Object, Event>` constructor argument. The
 factory initializes `EventPort::with_queue(queue, origin)` with the owned receiver
 and cyclic-construction weak origin before publication. IDL generates checked
 methods and type associations; it does not generate application callback adapters.
-See [event ownership](../../../docs/CLASS_EVENT_STREAMS.md). `None` means permanently unobserved,
+See [event ownership](../../../docs/contracts/CLASS_EVENT_STREAMS.md). `None` means permanently unobserved,
 not an empty slot available for later attachment. Closing the port releases its
 receiver reference and is idempotent; messages already posted belong to the
 application queue and are not retracted.
@@ -333,11 +333,11 @@ non-clonable `ComBox`. `WeakComBox` caches its interface table and accesses the
 provider through checked call entries, without promoting to a shared owner.
 Factories can return boxes and containers can consume them through generated
 ABI methods. Ordinary shared services continue using `ComPtr`. See
-[the ownership rationale](../../../docs/EXCLUSIVE_WIDGET_OWNERSHIP.md).
+[the ownership rationale](../../../docs/contracts/EXCLUSIVE_WIDGET_OWNERSHIP.md).
 
 ## Lifetime failure categories
 
 `NC_E_DROPPED` reports lost object ownership. `NC_E_CLOSED` reports a closed
 service or channel whose COM object can still exist. A method can propagate
 either from a dependency, so neither status identifies receiver lifetime. See the
-[precise lifetime error contract](../../../docs/COM_LIFETIME_ERRORS.md).
+[precise lifetime error contract](../../../docs/contracts/COM_LIFETIME_ERRORS.md).

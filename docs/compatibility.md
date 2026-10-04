@@ -193,5 +193,5 @@ A focused Miri run passed its 13 small regressions; two large-buffer cases ran
 natively. The driver unit suite passed all 9 tests. Full safety, sanitizer, and
 mixed-compiler suites were not rerun for this addition. The prior dated matrix
 above remains historical evidence, not a fresh result for these new tests.
-See the [completion contract and validation record](../../../docs/COM_OUTPUT_COMPLETION.md)
+See the [completion contract and validation record](../../../docs/contracts/COM_OUTPUT_COMPLETION.md)
 for allocation injection, output bounds, owner preservation, and consumer checks.

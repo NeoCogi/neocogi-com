@@ -45,10 +45,10 @@ root and complete reachable value graph. That metadata describes the **receiver*
 not a projection implemented by Product. Multiple event arguments or constructor
 disagreement about the same product's event type fail resolution. Keeping the
 association in the declaring module prevents downstream imports from changing
-its published metadata. See the [constructor naming contract](../../../docs/IDL_CONSTRUCTOR_NAMES.md)
+its published metadata. See the [constructor naming contract](../../../docs/contracts/IDL_CONSTRUCTOR_NAMES.md)
 for collision diagnostics, conditional names, generic products and regression coverage.
 `com_class(Contract)` supplies ordinary class allocation, with no event field
-annotation or later attachment method. See [the architecture guide](../../../docs/CLASS_EVENT_STREAMS.md).
+annotation or later attachment method. See [the architecture guide](../../../docs/contracts/CLASS_EVENT_STREAMS.md).
 
 All contracts, including events, are compile-time definitions. The build helper
 emits no native artifact, exported getter, runtime module graph, or built-in
@@ -57,10 +57,10 @@ compiled into consumers. Source-part names and documentation do not affect ABI
 fingerprints; ordered members and transitive dependency revisions do. Generic
 parameter references are encoded by declaration position, so consistently
 renaming a binder preserves the contract while changing which parameter is used
-does not. See the [parameter-position contract](../../../docs/IDL_GENERIC_VALUES.md#parameter-positions-and-contract-signatures)
+does not. See the [parameter-position contract](../../../docs/contracts/IDL_GENERIC_VALUES.md#parameter-positions-and-contract-signatures)
 for examples, regeneration requirements, and cross-module COM regressions.
 
-See [IDL modules](../../../docs/IDL_MODULES.md) for syntax and package setup.
+See [IDL modules](../../../docs/contracts/IDL_MODULES.md) for syntax and package setup.
 
 ## Contract crate setup
 
@@ -125,7 +125,7 @@ fields, variants, methods and derived helpers to their IDL origins. Generated Ru
 includes readable `IDL source: path:line:column` documentation. For in-memory tools,
 `generate_rust_with_source_map` returns the Rust and map together; explicit Rust
 locations use `generate::generate_rust_with_paths_and_source_map`. These provenance
-artifacts do not affect ABI identity. See [source mapping](../../../docs/IDL_SOURCE_MAPS.md)
+artifacts do not affect ABI identity. See [source mapping](../../../docs/guides/IDL_SOURCE_MAPS.md)
 for schema, coordinates, path resolution and macro-expansion limits.
 
 The resolver gives IDL declarations a UUID derived from their qualified name and
@@ -177,7 +177,7 @@ even inside ordinary copied records, enum payloads, and method buffers.
 Copied method slots and buffer elements accept scalars, finite copied
 records/enums/bit sets, and arrays whose elements are recursively copied. Values containing strings, sequences or object fields must be borrowed through a named record/enum. Unsupported
 copied positions fail during IDL resolution. See the normative
-[recursive value contract](../../../docs/RECURSIVE_VALUE_CONTRACT.md) for limits,
+[recursive value contract](../../../docs/contracts/RECURSIVE_VALUE_CONTRACT.md) for limits,
 ownership, wire memory obligations, and examples.
 
 ## Publishing contracts inside an existing Rust crate
@@ -235,7 +235,7 @@ versions, trailing-default policy and positional generic binders.
 `Option<T>` comes from the bundled [ordinary IDL enum](stdlib/neocogi/lang.ncidl).
 It follows lexical lookup and normal specialization; copied payloads permit
 copied calls, and owned payloads require a borrow of the whole enum. See the
-[generic value guide](../../../docs/IDL_GENERIC_VALUES.md) and
+[generic value guide](../../../docs/contracts/IDL_GENERIC_VALUES.md) and
 [compiled example](examples/generic_values.ncidl) for collection constructors,
 borrowed optional COM capabilities, and the remaining explicit limitations.
 
@@ -248,4 +248,4 @@ and initialized-prefix count pointer in ABI generation 17. Existing destination
 contents are never input. A transformation needs an explicit readable argument
 and a separate output. Recursive checked wire types remain authoritative; Rust
 containers, enum layout, and persistence serialization do not cross these slots.
-See [the output contract](../../../docs/COM_OUTPUT_BUFFERS.md).
+See [the output contract](../../../docs/contracts/COM_OUTPUT_BUFFERS.md).

@@ -26,8 +26,8 @@ state. Events are ordinary typed values delivered to a constructor-supplied queu
 The [plain-Cargo sample](../../examples/com-plugin/README.md) builds the same
 plugin as a shared library and as an rlib statically linked into a monolith.
 
-See [IDL contract modules](../../docs/IDL_MODULES.md) for authoring and native
-builds, [component design](../../docs/COM_DESIGN.md) for responsibility
+See [IDL contract modules](../../docs/contracts/IDL_MODULES.md) for authoring and native
+builds, [component design](../../docs/architecture/COM_DESIGN.md) for responsibility
 boundaries, and [the current ABI specification](docs/README.md) for the binary model.
 
 ## IDL

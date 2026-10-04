@@ -26,7 +26,7 @@ count, and one borrow guard. Static tables implement signature-checked
 `QueryInterface`; handles carry the allocation and selected table, so interfaces
 add no per-object fields. The compiler resolves distinct inherited contracts,
 including diamonds, without retaining full inspection metadata in dispatch.
-See the [storage decision](../../../docs/COM_INTERFACE_STORAGE.md) for the
+See the [storage decision](../../../docs/contracts/COM_INTERFACE_STORAGE.md) for the
 history of the reverted metadata-heavy version and the deliberate handle-size
 tradeoff in the current representation.
 `into_local(initialized_value)` returns a `LocalCom<Implementation>` when the
@@ -123,5 +123,5 @@ Interface identity is the generated IID plus that signature; human-readable
 names are diagnostic metadata.
 
 Generated value codecs and method adapters keep authored members/parameters
-separate from positional private bindings and qualify their support types. See [generated identifier hygiene](../../../docs/COM_GENERATED_IDENTIFIER_HYGIENE.md)
+separate from positional private bindings and qualify their support types. See [generated identifier hygiene](../../../docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md)
 for the contract, the corruption it prevents, and executable regression coverage.

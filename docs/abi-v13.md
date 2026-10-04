@@ -40,4 +40,4 @@ that arbitrary pointers can be validated. Foreign providers use equivalent C
 layout and synchronization and retain code until the final weak token is gone.
 
 The complete UI ownership rationale and migration status are recorded in
-[Exclusive widget ownership](../../../docs/EXCLUSIVE_WIDGET_OWNERSHIP.md).
+[Exclusive widget ownership](../../../docs/contracts/EXCLUSIVE_WIDGET_OWNERSHIP.md).

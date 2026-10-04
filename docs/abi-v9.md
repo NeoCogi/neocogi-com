@@ -122,7 +122,7 @@ use the same checked codecs; numeric buffers may remain direct borrows only with
 an explicit proof of recursively identical layout and unrestricted contents.
 Direct borrows allocate and traverse no elements, so these conversion budgets do
 not cap their length. Operation-specific limits still apply. The complete
-[recursive value contract](../../../docs/RECURSIVE_VALUE_CONTRACT.md) specifies
+[recursive value contract](../../../docs/contracts/RECURSIVE_VALUE_CONTRACT.md) specifies
 supported use sites, budget accounting, raw storage obligations, and failure
 semantics. `ComStruct::ABI_STRUCT_LAYOUT` describes the application C-layout
 record; the method's actual raw type is `ComValue::Wire`, which can differ.

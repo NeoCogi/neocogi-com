@@ -10,26 +10,26 @@ previous drafts and migration history; use the current specification for new cod
 The core generation, plugin/runtime discovery versions, and IDL fingerprint
 encoding are separate contracts. Discovery tables currently use v1; IDL's
 canonical module encoding uses v8. Neither number identifies the current object
-ABI. The [IDL language reference](../../../docs/IDL_MODULES.md) owns the fingerprint
+ABI. The [IDL language reference](../../../docs/contracts/IDL_MODULES.md) owns the fingerprint
 and versioning rules, including generic parameters and enum assignments.
 
 ## Authoritative guides
 
 - [COM overview and executed factory example](../README.md): contract authoring,
   implementations, plugin export and bootstrap.
-- [IDL language and generation](../../../docs/IDL_MODULES.md): accepted syntax,
+- [IDL language and generation](../../../docs/contracts/IDL_MODULES.md): accepted syntax,
   identities, revisions, value shapes and Cargo integration.
-- [Component responsibilities](../../../docs/COM_DESIGN.md): build tools,
+- [Component responsibilities](../../../docs/architecture/COM_DESIGN.md): build tools,
   providers, runtime and application ownership.
-- [Object/table representation](../../../docs/COM_INTERFACE_STORAGE.md): handle
+- [Object/table representation](../../../docs/contracts/COM_INTERFACE_STORAGE.md): handle
   layout and the reason diamond inheritance does not require object headers.
-- [Exclusive widget ownership](../../../docs/EXCLUSIVE_WIDGET_OWNERSHIP.md):
+- [Exclusive widget ownership](../../../docs/contracts/EXCLUSIVE_WIDGET_OWNERSHIP.md):
   `ComBox`, weak observations, synchronous Drop and parent-controlled removal.
-- [Lifetime errors](../../../docs/COM_LIFETIME_ERRORS.md): dropped objects versus
+- [Lifetime errors](../../../docs/contracts/COM_LIFETIME_ERRORS.md): dropped objects versus
   closed services and error propagation from live receivers.
-- [Prepared output completion](../../../docs/COM_OUTPUT_COMPLETION.md): fallible
+- [Prepared output completion](../../../docs/contracts/COM_OUTPUT_COMPLETION.md): fallible
   preparation and the ownership boundary of consuming ABI calls.
-- [Recursive values](../../../docs/RECURSIVE_VALUE_CONTRACT.md): checked wire
+- [Recursive values](../../../docs/contracts/RECURSIVE_VALUE_CONTRACT.md): checked wire
   acquisition, recursion, budgets and metadata.
 - [Local NCB persistence](../core/README.md#why-persistence-is-ncb-only): concrete
   bounded cursors, ordered construction, codec history and independent-plugin checks.

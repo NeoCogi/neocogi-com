@@ -2,7 +2,7 @@
 //!
 //! A module name comes from its normalized source file or directory path below
 //! an explicitly selected IDL root. The parser accepts the deliberately small
-//! Rust-like language documented in `docs/IDL_MODULES.md`; it does not accept
+//! Rust-like language documented in `docs/contracts/IDL_MODULES.md`; it does not accept
 //! arbitrary Rust syntax and never treats Rust's native representation as an
 //! ABI.
 

@@ -45,7 +45,7 @@ fn readme_factory_contract_and_bootstrap_execute_as_documented() {
     // The guide's generated contract crate is represented by a module here;
     // every authored line below comes directly from its marked public block.
     let mut implementation = format!("mod example_contracts {{\n{generated}\n}}\n");
-    let language = include_str!("../../../../docs/IDL_MODULES.md");
+    let language = include_str!("../../../../docs/contracts/IDL_MODULES.md");
     for (label, module) in [("generic-stream", "stream"), ("generic-values", "values")] {
         let source = neocogi_idl::parse_module(Path::new(&format!("example/{module}.ncidl")), example(language, label)).unwrap();
         let graph = neocogi_idl::resolve_modules(vec![source]).unwrap();

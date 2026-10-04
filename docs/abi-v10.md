@@ -81,7 +81,7 @@ Core generation 10 is a breaking change from generation 9's one-pointer handles
 and embedded headers. Runtime/plugin discovery rejects other core generations
 before dispatch. Interface signatures and the separately versioned discovery
 records do not replace this global layout check. See the
-[storage decision](../../../docs/COM_INTERFACE_STORAGE.md) and `ComPtr` rustdoc
+[storage decision](../../../docs/contracts/COM_INTERFACE_STORAGE.md) and `ComPtr` rustdoc
 for why the larger handle is intentional and how its costs must be measured.
 
 The IDL resolver computes the module fingerprint before target Rust compilation. It
@@ -152,7 +152,7 @@ use the same checked codecs; numeric buffers may remain direct borrows only with
 an explicit proof of recursively identical layout and unrestricted contents.
 Direct borrows allocate and traverse no elements, so these conversion budgets do
 not cap their length. Operation-specific limits still apply. The complete
-[recursive value contract](../../../docs/RECURSIVE_VALUE_CONTRACT.md) specifies
+[recursive value contract](../../../docs/contracts/RECURSIVE_VALUE_CONTRACT.md) specifies
 supported use sites, budget accounting, raw storage obligations, and failure
 semantics. `ComStruct::ABI_STRUCT_LAYOUT` describes the application C-layout
 record; the method's actual raw type is `ComValue::Wire`, which can differ.
@@ -173,7 +173,7 @@ Hand-authored Rust COM contracts can use nullable `Option<ComRef<I>>` inputs,
 identified by `NC_ABI_PASSING_OPTIONAL_COM_REF` (`0x08`). Current IDL does not
 emit that shortcut: `&Option<ComPtr<I>>` borrows an ordinary tagged library enum.
 Its active COM payload uses the standard checked object reference codec. See the
-[generic value contract](../../../docs/IDL_GENERIC_VALUES.md).
+[generic value contract](../../../docs/contracts/IDL_GENERIC_VALUES.md).
 
 ## 5. Compile-time modules
 

@@ -44,7 +44,7 @@ reference count and borrow guard. Raw nullable pairs distinguish absence from
 half-null errors. Plugin factories, persistence, native C fixtures and consumers
 use the new representation; older core generations are rejected. The deliberate
 16-byte handle and its memory tradeoff are documented on `ComPtr` and in the
-[storage decision](../../docs/COM_INTERFACE_STORAGE.md). Static inherited method
+[storage decision](../../docs/contracts/COM_INTERFACE_STORAGE.md). Static inherited method
 prefixes and full explicit inspection remain supported.
 
 
@@ -66,7 +66,7 @@ prefixes and full explicit inspection remain supported.
   generic enum, remove special optional lowering, and require borrowing the whole
   enum for owned payloads. Expose enum deserialization and conditional library
   decoder policies. COM designer catalog schema 5 uses named enum definitions
-  for optional fields. See [the generic value contract](../../docs/IDL_GENERIC_VALUES.md) for syntax,
+  for optional fields. See [the generic value contract](../../docs/contracts/IDL_GENERIC_VALUES.md) for syntax,
   ownership, migration rules, and the remaining explicit limits.
 
 - Unify IDL records/enums as recursively checked values and remove `#[message]`.
@@ -79,7 +79,7 @@ prefixes and full explicit inspection remain supported.
 - Transport complete structured value definitions, named recursion, and enum tags
   through COM designer catalog schema 4. Keep one stream/one lifetime consumer
   and explicit application handlers; values no longer manufacture receivers.
-  See [the recursive value contract](../../docs/RECURSIVE_VALUE_CONTRACT.md) for the supported positions and validation evidence.
+  See [the recursive value contract](../../docs/contracts/RECURSIVE_VALUE_CONTRACT.md) for the supported positions and validation evidence.
 
 - Enforce the same byte, element, value, and depth policy when encoding and
   decoding binary persistence values. Count scalar and container values through

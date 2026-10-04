@@ -115,6 +115,6 @@ They have never interpreted old bytes as input, need no enum conversion, and do
 not represent the removed generic mutable-value path. IDL and `com_interface`
 output parameters always use the new four-slot protocol.
 
-See [directional output](../../../docs/COM_OUTPUT_BUFFERS.md),
-[ownership completion](../../../docs/COM_OUTPUT_COMPLETION.md), and
+See [directional output](../../../docs/contracts/COM_OUTPUT_BUFFERS.md),
+[ownership completion](../../../docs/contracts/COM_OUTPUT_COMPLETION.md), and
 measurements for examples and evidence.

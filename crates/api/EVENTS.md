@@ -95,6 +95,6 @@ allocation requires `alloc`; the examples using standard channels also need `std
 a COM process runtime or event loop. Independently built contracts and consumers
 must agree on the [current core ABI](../docs/README.md) and exact interface signatures.
 
-See [the architecture and state diagrams](../../../docs/CLASS_EVENT_STREAMS.md),
-[IDL syntax](../../../docs/IDL_MODULES.md), and
+See [the architecture and state diagrams](../../../docs/contracts/CLASS_EVENT_STREAMS.md),
+[IDL syntax](../../../docs/contracts/IDL_MODULES.md), and
 [UI scheduling](../../ui/runtime/docs/EVENTS.md).

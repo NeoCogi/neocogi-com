@@ -124,7 +124,7 @@ Rust declaration; unaffordable known maxima return `NC_E_OUT_OF_RANGE` with the
 original owners. Completion reuses reserved storage and validates all converted
 outputs before publishing any. Direct buffers retain in-place semantics, and
 non-consuming calls retain actual-output budget checks. See
-[prepared output completion](../../../docs/COM_OUTPUT_COMPLETION.md) for examples,
+[prepared output completion](../../../docs/contracts/COM_OUTPUT_COMPLETION.md) for examples,
 error ordering, limits, and allocator-injection regressions.
 
 The caller decides whether to retry or destroy returned inputs. In particular,
