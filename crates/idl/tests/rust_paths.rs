@@ -134,9 +134,9 @@ fn raw_identifier_catalog_paths_compile_in_exported_forms() {
         extern neocogi.ui.core;
         use neocogi.com.events::{EventBinding, IEvent};
         use neocogi.ui.core::IWidget;
-        /// Nested payload exposes the real generated value type in form dispatch.
+        /// Nested getter value exposes the real generated type across modules.
         #[version(1)] struct CounterChanged {
-            /// Count received by the application's required handler.
+            /// Count read from the immutable event by application code.
             value: u32
         }
         /// One complete typed stream, with nested and unit variants.

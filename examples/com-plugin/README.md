@@ -94,10 +94,11 @@ The host's output remains `factory object: 44 x 31`; assertions verify the extra
 snapshot and event behavior, successful weak promotion while live, and expired
 weak references after final release before printing it.
 
-An allocation probe implements `ExampleObjectEventQueue` on a concrete
-`ExtentQueue`, asserts that constructing it allocates once, and checks the typed
-weak origin on each of 10,000 delivered snapshots. It measures receiver
-construction separately from scalar delivery and standard-channel storage:
+An allocation probe uses `events::channel()` and checks the typed weak origin and
+`IExtentChangedEvent` getter on each of 10,000 delivered snapshots. It also verifies
+that 10,000 unobserved updates skip snapshot allocation. It measures common receiver
+and channel construction separately from exclusive scalar event delivery and
+standard-channel storage:
 
 ```sh
 cargo run -p neocogi-example-com-plugin --example event_allocations --features monolith
