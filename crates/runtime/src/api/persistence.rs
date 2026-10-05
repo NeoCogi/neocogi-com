@@ -50,7 +50,8 @@ unsafe extern "C" fn destroy_context(context: *mut NcPersistenceContext) {
     }
 }
 
-/// Takes an explicit exclusive registry borrow and retains a compatible factory.
+/// Takes an explicit exclusive registry borrow and retains a shared factory.
+/// A live exclusive factory projection is rejected without changing the registry.
 ///
 /// # Safety
 /// Context is exclusively borrowed on its creating thread; factory is a live
@@ -61,7 +62,10 @@ unsafe extern "C" fn register_factory(context: *mut NcPersistenceContext, id: Nc
     }
     // SAFETY: Validate the exact ABI before calling any factory-specific methods.
     let factory = match unsafe { ComRef::<IPersistenceFactoryAbi>::__nc_from_raw_borrowed_checked(factory) } {
-        Ok(factory) => factory.add_ref(),
+        Ok(factory) => match factory.try_add_ref() {
+            Ok(factory) => factory,
+            Err(status) => return status.normalize_error(),
+        },
         Err(status) => return status,
     };
     // SAFETY: The ABI requires exclusive context access for this operation.

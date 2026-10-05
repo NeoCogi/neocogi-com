@@ -67,6 +67,15 @@ only mutating operation, and `restore(&self, ...)` borrows it. Dropping the
 handle destroys its context and releases retained factories in the allocating
 runtime. Independently owned restored objects remain valid afterward.
 
+Snapshot capture currently supports shared ownership trees. It must retain
+canonical identities along the active traversal path; a live exclusive root is
+a valid borrow but cannot grant a shared reference. Both snapshot entry points
+return `NC_E_INVALID_ARG` before persistence getters or byte delivery run, leaving
+the sole owner intact. Exclusive-tree snapshots require a separate observation
+protocol and are not provided by this service. The raw factory registration
+table also rejects a non-shareable borrowed factory before registry mutation;
+the Rust registry facade already requires an owned `ComPtr`.
+
 Snapshot traversal produces the document once. A synchronous byte callback
 copies the completed document into caller-owned storage; failure publishes no
 partial document. The runtime releases its temporary bytes after the callback.

@@ -16,7 +16,7 @@ fn main() {
         .activate_plugin_factory::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .expect("compatible example factory");
     let (queue, messages) = neocogi_com::events::channel();
-    let binding = neocogi_com::events::EventBinding::from_queue(Some(queue.as_com_ref()));
+    let binding = neocogi_com::events::EventBinding::from_queue(Some(queue.as_com_ref())).expect("shared application receiver");
     let mut object = factory
         .create(Extent { width: 20, height: 10 }, NcValueRef::new(&binding).unwrap())
         .expect("typed object construction");
@@ -113,7 +113,7 @@ impl neocogi_com::persistence::IPersistenceFactory for PersistenceAdapter {
         children: ComRef<'_, neocogi_com::persistence::IObjectChildrenAbi>,
     ) -> Result<ComPtr<IUnknown>, NcStatus> {
         let state = decode(version, state, children.count()?)?;
-        let binding = neocogi_com::events::EventBinding::from_queue(Some(self.queue.as_com_ref()));
+        let binding = neocogi_com::events::EventBinding::from_queue(Some(self.queue.as_com_ref()))?;
         self.factory
             .create(Extent { width: state.width, height: state.height }, NcValueRef::new(&binding)?)?
             .query()

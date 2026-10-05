@@ -3,7 +3,9 @@
 use neocogi_com_core::{binary, ComPtr, ComRef, IUnknown, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE};
 use neocogi_com_core::persistence::{IPersistableAbi, Limits, ObjectRecord};
 
-/// Exports only opt-in state, detects ownership cycles, and bounds child traversal.
+/// Exports a shared opt-in tree, detects ownership cycles, and bounds traversal.
+/// A live exclusive root is a valid borrow but cannot be retained along the
+/// capture path; it returns `NC_E_INVALID_ARG` before persistence getters run.
 pub(crate) fn snapshot_with_limits(object: ComRef<'_, IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
     let mut capture = Capture {
         limits,
@@ -35,8 +37,10 @@ impl Capture {
             return Err(NC_E_OUT_OF_RANGE);
         }
         self.remaining -= 1;
-        // Canonical IUnknown identity catches cycles even through different projections.
-        let identity = object.add_ref().query::<IUnknown>()?;
+        // A borrow does not promise shared ownership. Reject non-shareable roots
+        // through the Result before querying any persistence provider methods.
+        // Canonical IUnknown identity catches cycles through different projections.
+        let identity = object.try_add_ref()?.query::<IUnknown>()?;
         if self.active.iter().any(|parent| parent.as_raw() == identity.as_raw()) {
             return Err(NC_E_INVALID_ARG);
         }

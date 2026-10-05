@@ -80,12 +80,15 @@ impl Drop for FactoryRegistry {
     }
 }
 
-/// Captures an opt-in object tree with the default limits.
+/// Captures a shared opt-in object tree with the default limits.
+/// A borrowed exclusive root returns `NC_E_INVALID_ARG`; its sole owner is
+/// preserved. Supporting exclusive trees requires a separate observation protocol.
 pub fn snapshot(object: ComRef<'_, IUnknown>) -> Result<Vec<u8>, NcStatus> {
     snapshot_with_limits(object, Limits::default())
 }
 
-/// Returns caller-owned document bytes after one successful runtime traversal.
+/// Returns caller-owned document bytes after one successful shared-tree traversal.
+/// Non-shareable roots fail before persistence getters or byte delivery run.
 pub fn snapshot_with_limits(object: ComRef<'_, IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
     let api = persistence_api()?;
     let mut destination = SnapshotDestination {

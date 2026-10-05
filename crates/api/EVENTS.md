@@ -7,7 +7,7 @@ getters. A rejected transfer returns the original exclusive owner.
 
 ```rust,ignore
 let (queue, inbox) = neocogi_com::events::channel();
-let binding = neocogi_com::events::EventBinding::from_queue(Some(queue.as_com_ref()));
+let binding = neocogi_com::events::EventBinding::from_queue(Some(queue.as_com_ref()))?;
 let counter = factory.create(NcValueRef::new(&binding)?)?;
 // Later, after the producer's call returns:
 let message = inbox.try_recv()?;

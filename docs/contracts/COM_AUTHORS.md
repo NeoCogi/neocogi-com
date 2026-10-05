@@ -56,8 +56,10 @@ Derived client views dereference through their declared base views for inherited
 method lookup. An owned base projection still requires checked `QueryInterface`;
 method lookup alone never manufactures another COM reference.
 
-`ComRef` borrows a live interface for a call. Shared service borrows can be
-retained with `add_ref()`; exclusive widgets reject shared retention, and callers
+`ComRef` borrows a live interface for a call. A consumer accepting a generic
+borrow must use `try_add_ref()` when retaining shared ownership and propagate
+failure. `add_ref()` requires an already established shared-ownership invariant;
+an exclusive borrow returns `NC_E_INVALID_ARG` from fallible acquisition. Exclusive widgets reject shared retention, and callers
 use `downgrade_box()` for a weak identity instead. A generic `ComRef` therefore
 does not promise a non-retainable Rust borrow. Never create a COM
 implementation containing a stack `&mut Painter`, borrowed child storage, a
