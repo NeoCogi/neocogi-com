@@ -106,6 +106,11 @@ Consumers do not need our `build-min-size` alias or a custom profile definition.
 The preset omits generated `Debug` formatting; shipped demo entry points therefore
 report [`HostError`](../../demos/host/src/lib.rs) through its explicit `Display`
 implementation so runtime failures still include their status or diagnostic text.
+Frame errors identify the rejecting host operation (such as event/layout update,
+IME placement or rendering) and retain the original COM status. Native demo theme
+loading also prints Skin's owned diagnostic before releasing its short-lived
+loader, including the theme and source path. Renderer detail is attached only
+to `UI_E_RENDER`, avoiding unrelated stale backend messages.
 Generated contract bindings compile in the same Cargo target graph as their
 consumers; build scripts do not invoke a separate native compiler for contracts.
 Use `--toolchain nightly-YYYY-MM-DD` to select an installed dated toolchain. Custom
@@ -247,9 +252,11 @@ These tests build plugins independently, stage a companion test executable, and 
 outside the repository. They exercise all four actual themes, image command submission, custom
 geometry/mesh rendering, spacing changes, combo selection, Unicode log
 submission and retained-handle closure. Win 3.11 is additionally selected through
-the real nested menu and event callback. These application tests do not read back
+the real nested menu with keyboard and pointer input, including the production
+host loop and native IME placement. The native fixtures run serially to respect
+SDL's event-pump ownership. These application tests do not read back
 every backend's pixels; actual-window image checks supplement them. Test executables are staged separately under
-`target/com-tests` so they cannot inflate the installed application size. Set
+`target/neocogi-tests` so they cannot inflate the installed application size. Set
 `NEOCOGI_TEST_BUILD_ONLY=1` to stage tests for a separate display-enabled invocation.
 
 The smaller boundary smoke remains available:
