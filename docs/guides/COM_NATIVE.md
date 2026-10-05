@@ -44,6 +44,15 @@ The [tool reference](../../tools/cargo-neocogi/README.md) describes package meta
 standalone `--config` files, per-component features, registry version requirements,
 resource paths, and lockfile behavior.
 
+Named dependency components are selected only from packages reachable by Cargo
+edges from the chosen application's exact package ID, including renamed and
+transitive dependencies under its configured features. A sibling application's
+different version cannot create ambiguity or supply an otherwise missing
+component. Multiple versions actually reachable from the selected app require
+an explicit source. Workspace components and explicit path/version declarations
+remain intentional selection routes. One original metadata resolution supplies
+all component lookups in an operation.
+
 The theme editor stages UI core, built-in nodes, the selected renderer, GFX with
 its authoring builder, one shared COM runtime, and adjacent assets/themes. Its
 `monolith` variant links and registers those same providers directly; `embedded`
