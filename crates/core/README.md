@@ -157,6 +157,13 @@ The canonical IDL is `idl/neocogi/com/persistence/objects.ncidl`. Its built-in
 bindings are checked in because core cannot depend on its own IDL compiler.
 Verify them with `cargo test -p neocogi-com-macros persistence_bindings_match_idl`;
 set `NC_UPDATE_PERSISTENCE_BINDINGS=1` on that command to regenerate both halves.
+Changes to common canonical encoding must refresh these bindings even when the
+persistence IDL and physical layouts are unchanged: their exact signatures include
+the common grammar. Run the freshness test again without the update variable,
+then `cargo test -p neocogi-idl --test persistence_peers`. That regression generates
+the current NCIDL and exercises all three interfaces against checked-in providers
+in both directions through real COM calls. The normal macro and IDL CI suites
+include both checks.
 
 ### Why persistence is NCB-only
 
