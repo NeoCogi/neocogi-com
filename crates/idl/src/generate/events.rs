@@ -1,6 +1,7 @@
 //! Reflects emitted COM interfaces and their actual getter results from the resolved IDL graph.
 use super::*;
-use std::collections::BTreeSet;
+use neocogi_com_core::NcGuid;
+use std::collections::HashSet;
 
 /// Emits event contracts in authored order without native payload associations or helper names.
 pub(super) fn descriptions(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration) -> Result<Vec<TokenStream>, GenerateError> {
@@ -15,7 +16,7 @@ pub(super) fn descriptions(graph: &Generation<'_>, module: &ResolvedModule, decl
             let abi = named_rust_type(graph, module, event, true)?;
             let qualified = Literal::string(&event.identity.qualified_name);
             let mut fields = Vec::new();
-            getters(graph, event.module, event.declaration, &mut BTreeSet::new(), &mut fields)?;
+            getters(graph, event, &mut HashSet::new(), &mut fields)?;
             Ok(quote! { ::neocogi_com::design::IdlEvent {
                 qualified_name: #qualified, abi: &#abi::INTERFACE_DESCRIPTOR, fields: &[#(#fields),*],
             } })
@@ -23,23 +24,23 @@ pub(super) fn descriptions(graph: &Generation<'_>, module: &ResolvedModule, decl
         .collect()
 }
 
-/// Traverses inherited getter declarations once; each result keeps its original module scope.
-fn getters(
-    graph: &Generation<'_>,
-    module: &ResolvedModule,
-    declaration: &Declaration,
-    visited: &mut BTreeSet<String>,
-    fields: &mut Vec<TokenStream>,
-) -> Result<(), GenerateError> {
-    if !visited.insert(module.source.name.qualify(&declaration.name)) {
+/// Visits each canonical ancestor once, retaining its local declaration for type lookup.
+/// Independently closed generic projections share an IID despite different Rust locations.
+/// The resolved graph and generated COM ancestry enforce their compatible contracts.
+fn getters(graph: &Generation<'_>, event: ResolvedDeclaration<'_>, visited: &mut HashSet<NcGuid>, fields: &mut Vec<TokenStream>) -> Result<(), GenerateError> {
+    // Match event validation's semantic identity rather than counting paths or
+    // consumer-local generic declarations. Traversal order still follows bases.
+    if !visited.insert(event.identity.id) {
         return Ok(());
     }
+    let module = event.module;
+    let declaration = event.declaration;
     let DeclarationKind::Interface(interface) = &declaration.kind else {
         unreachable!("validated event interface")
     };
     for base in &interface.bases {
         let base = resolve(graph, module, base)?;
-        getters(graph, base.module, base.declaration, visited, fields)?;
+        getters(graph, base, visited, fields)?;
     }
     for method in &interface.methods {
         let name = Literal::string(&method.name);

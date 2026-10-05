@@ -139,6 +139,19 @@ fn event_getters_cannot_hide_ambiguity_in_multiple_inheritance() {
     assert!(resolve(&source).is_err());
 }
 
+/// Closing one template with different arguments creates distinct getter contracts.
+#[test]
+fn distinct_generic_ancestors_cannot_hide_duplicate_getter_names() {
+    let error = resolve(&format!(r#"{PREFIX}
+        #[version(1)] interface Snapshot<T>: IEvent {{ fn value(&self) -> Result<T>; }}
+        #[version(1)] interface Left: Snapshot<u32> {{}}
+        #[version(1)] interface Right: Snapshot<bool> {{}}
+        #[version(1)] interface Fact: Left + Right {{}}
+        #[version(1)] #[events(Fact)] class Source {{}}
+    "#)).unwrap_err();
+    assert!(error.to_string().contains("ambiguous"), "{error}");
+}
+
 /// Metadata is contract data even when no vtable method or constructor changes.
 #[test]
 fn advertised_interfaces_change_signatures_without_becoming_widget_bases() {
