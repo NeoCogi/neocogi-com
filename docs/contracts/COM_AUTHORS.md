@@ -127,10 +127,17 @@ traversal borrow. Geometry edits still need ordinary notifications; renderer wor
 belongs after the completed update. An error preserves already committed edits;
 the processor decides whether an uncompleted request remains available for retry.
 
-The generated `IApplicationDispatcher` version 2 returns `ApplicationDispatch`:
+The generated `IApplicationDispatcher` version 3 returns `ApplicationDispatch`:
 `MessageHandled`, `PendingChangesApplied`, or `Idle`. Applied pending changes
 request another private-dispatch/layout pass even without a geometry notification.
 This distinction avoids treating a newly posted child message as an idle boundary.
+
+Version 3 also provides `input_boundary(InputBoundary)` for ordered Begin/End
+bookkeeping around one actually consumed input and its settled messages. Keep
+geometry edits and new raw input outside this hook. If commands are decoded
+later, retain markers in their event FIFO and copy each command's input identity
+before consuming subsequent markers. Native polling is not this ownership boundary.
+See the [dispatch contract](WIDGET_EVENT_DISPATCH.md) for failures and budget rules.
 
 Separate dialogs can bind their same protocol to different application destinations.
 When reusing one dialog across requests, request identity remains application/domain

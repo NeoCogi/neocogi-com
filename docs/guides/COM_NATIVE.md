@@ -242,6 +242,14 @@ application's `AppState::frame` returns false. Frame errors propagate to the nat
 entry point. The host closes the UI logically before releasing its capabilities;
 retained widget handles then report `NC_E_DROPPED`.
 
+`AppState::input` observes native polling, which may run ahead of UI routing.
+Use `AppState::input_boundary` for ownership tied to a consumed input: Begin/End
+bracket actual routing and its descendant/application messages outside traversal
+borrows. This hook records bookkeeping only. Retain markers beside owned event
+snapshots when decoding later, as the theme editor does for Undo groups. The host
+continues to use one outer UI update. `IApplicationDispatcher` version 3 adds this
+hook, so rebuild native application and UI providers together.
+
 ```sh
 scripts/test-demo.sh glow
 scripts/test-demo.sh vulkan
