@@ -275,7 +275,9 @@ impl<'a, T: ComValue> NcValueRef<'a, T> {
         if pointer.is_null() {
             return Err(NC_E_POINTER);
         }
-        if !(pointer as usize).is_multiple_of(core::mem::align_of::<T::Wire>()) {
+        // Rust type alignment is a nonzero power of two. The mask preserves the
+        // alignment check without using APIs unavailable on our Rust 1.85 floor.
+        if (pointer as usize) & (core::mem::align_of::<T::Wire>() - 1) != 0 {
             return Err(NC_E_INVALID_ARG);
         }
         // SAFETY: the caller provides initialized, aligned raw wire storage.
@@ -528,7 +530,8 @@ impl<W: Copy> ValueSlice<W> {
         if self.pointer.is_null() {
             return Err(NC_E_POINTER);
         }
-        if !(self.pointer as usize).is_multiple_of(core::mem::align_of::<W>()) {
+        // Keep the same nonzero power-of-two alignment rule on Rust 1.85.
+        if (self.pointer as usize) & (core::mem::align_of::<W>() - 1) != 0 {
             return Err(NC_E_INVALID_ARG);
         }
         if len.checked_mul(core::mem::size_of::<W>()).is_none_or(|bytes| bytes > isize::MAX as usize) {

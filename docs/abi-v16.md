@@ -240,8 +240,9 @@ event identity, persistence and release; this is execution evidence rather than
 successful compilation alone. The driver invocation was
 `python3 crates/com/scripts/compatibility.py --suite cross-version --report /tmp/fixed-signature-compatibility.json`.
 
-Local limitations: Rust 1.85 compilation is blocked by two pre-existing
-`unsigned_is_multiple_of` uses in `core/src/value.rs`, not by this signature API.
+The historical Rust 1.85 alignment blocker is resolved by the
+[F04 repair](../../../docs/validation/REVIEW_F04_F06_FIXES_2026-10-05.md), which
+preserves alignment validation and executes the separate minimum-version suite.
 The attempted 32-bit C compilation lacks system libc headers; 32-bit constants
 were updated but have not been executed here. No whole-bundle size or query-speed
 benchmark was performed.

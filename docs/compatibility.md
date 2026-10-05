@@ -37,7 +37,21 @@ its explicitly built shared runtime. Their names and nonempty execution are
 checked; merely installing nightly or finding a successfully compiled binary is
 never a passing compatibility case.
 
-Stable/nightly are rolling selectors, not an advertised historical MSRV range.
+Stable/nightly are rolling selectors, independent of the COM crates' declared
+Rust 1.85 minimum. The separate `com-msrv` CI job runs the existing floor suite:
+
+```sh
+rustup toolchain install 1.85.0 --profile minimal
+# The workspace lock is untracked; resolve once before the locked suite.
+cargo +1.85.0 generate-lockfile
+bash crates/com/scripts/test-msrv.sh
+```
+
+That suite checks all COM/IDL/inspector targets and features, library tests,
+normative ABI snippets, inspector binary tests, and the facade/core feature
+variants. It verifies compiler support; it does not execute the cross-compiler
+dynamic-loader matrix or promise the same floor for UI/rendering dependencies.
+
 Reports record `rustc -vV` for every selected compiler plus each role's exact
 profile, panic and LTO policy. Reports change to `running` before work begins and
 `failed` on error; an older success cannot remain as the current result. The
