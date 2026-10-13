@@ -3,7 +3,7 @@
 //! A lazily initialized singleton owns one append-only metadata catalog and the
 //! independent debug messenger state. The catalog's single read/write lock lets
 //! ordinary lookups proceed concurrently and publishes static registration or
-//! dynamic activation as one blocking write transaction.
+//! dynamic acquisition as one blocking write transaction.
 
 use std::sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 

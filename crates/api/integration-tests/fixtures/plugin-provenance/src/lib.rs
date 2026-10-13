@@ -7,7 +7,7 @@ use neocogi_com_core::{
 };
 
 /// This test does not construct an object; successful lookup reaches this code.
-unsafe extern "C" fn activate(out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn acquire(out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -27,7 +27,7 @@ static DESCRIPTION: NcFactoryPluginDescription = NcFactoryPluginDescription {
     dependencies: core::ptr::null(),
     root_factory: IUnknown::INTERFACE_ID,
     root_factory_threading: NC_ABI_THREADING_THREAD_LOCAL,
-    activate: Some(activate),
+    acquire: Some(acquire),
 };
 
 /// Supplies the real descriptor discovery ABI used by the native loader.

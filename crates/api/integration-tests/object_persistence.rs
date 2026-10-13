@@ -65,7 +65,12 @@ fn exclusive_snapshot_returns_status_before_getters_and_preserves_owner() {
     let api = unsafe { nc_com_get_persistence_api_v1().as_ref() }.unwrap();
     let mut deliveries = 0usize;
     let status = unsafe {
-        (api.snapshot)(identity.as_raw(), Limits::default().into(), Some(count_delivery), core::ptr::from_mut(&mut deliveries).cast())
+        (api.snapshot)(
+            identity.as_raw(),
+            Limits::default().into(),
+            Some(count_delivery),
+            core::ptr::from_mut(&mut deliveries).cast(),
+        )
     };
     assert_eq!(status, NC_E_INVALID_ARG);
     assert_eq!(deliveries, 0);
@@ -428,7 +433,7 @@ fn binary_limits_agree_across_snapshot_and_factory_restore() {
         let insufficient = Limits { binary, ..exact };
         assert!(snapshot_with_limits(root.as_com_ref(), insufficient).is_err());
         assert!(registry.restore_with_limits(&bytes, insufficient).is_err());
-        // A resource rejection must precede factory activation, preserving the
+        // A resource rejection must precede factory acquisition, preserving the
         // already-live root and preventing construction of a partial copy.
         assert_eq!(counts.created.load(Ordering::Relaxed), created);
         assert_eq!(counts.live.load(Ordering::Relaxed), 1);

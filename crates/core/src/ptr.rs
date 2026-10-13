@@ -36,7 +36,7 @@
 //! auto traits cannot depend on metadata inspected at runtime: a value's `Send`
 //! and `Sync` implementations must be known from its type. Generated factory
 //! bindings bridge the two systems and return a statically marked
-//! `ComPtr<T, M>` only after activation validation.
+//! `ComPtr<T, M>` only after acquisition validation.
 //!
 //! `M` preserves the producer's threading promise across that erasure. Rust can
 //! then decide the auto-trait behavior of the handle at compile time:
@@ -50,7 +50,7 @@
 //!   state, foreign resources, or destruction thread-safe.
 //!
 //! `ThreadSafe` is positive evidence supplied by a generated IDL description,
-//! checked factory activation, or an unsafe raw-pointer boundary. Weakening
+//! checked factory acquisition, or an unsafe raw-pointer boundary. Weakening
 //! it to `ThreadLocal` is safe because that removes permissions. The reverse
 //! conversion would invent evidence that the pointer does not contain, so no
 //! safe upgrade is provided. `ThreadLocal` consequently describes the current
@@ -304,7 +304,9 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
             return None;
         }
         // SAFETY: the caller supplies T's live borrowed pair.
-        if unsafe { raw::add_ref(raw) } == 0 { return None; }
+        if unsafe { raw::add_ref(raw) } == 0 {
+            return None;
+        }
         // SAFETY: the preceding AddRef transferred one new owner.
         unsafe { Self::from_raw_owned(raw) }
     }
@@ -469,8 +471,14 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
     /// objects return NC_E_INVALID_ARG instead of manufacturing another owner.
     pub fn try_add_ref(&self) -> Result<ComPtr<T, M>, NcStatus> {
         // SAFETY: the borrow keeps the matching pair live through AddRef.
-        if unsafe { raw::add_ref(self.as_raw()) } == 0 { return Err(crate::NC_E_INVALID_ARG); }
-        Ok(ComPtr { raw: self.raw, _interface: PhantomData, _mode: PhantomData })
+        if unsafe { raw::add_ref(self.as_raw()) } == 0 {
+            return Err(crate::NC_E_INVALID_ARG);
+        }
+        Ok(ComPtr {
+            raw: self.raw,
+            _interface: PhantomData,
+            _mode: PhantomData,
+        })
     }
 }
 impl<'a, T: ComInterface + ?Sized> ComRef<'a, T, ThreadSafe> {

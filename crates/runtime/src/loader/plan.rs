@@ -15,7 +15,7 @@ use neocogi_com_core::NcGuid;
 use super::PluginInspection;
 
 /// A collection-level error that prevents construction of a complete plugin
-/// activation order.
+/// load order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PluginDependencyPlanError {
     /// Two inspected identities disagree about the GUID/name mapping.
@@ -75,7 +75,7 @@ impl fmt::Display for PluginDependencyPlanError {
 
 impl std::error::Error for PluginDependencyPlanError {}
 
-/// Computes a deterministic dependency-first activation order.
+/// Computes a deterministic dependency-first load order.
 ///
 /// This function never loads plugins. All hard dependencies must be present in
 /// `plugins`; duplicate identities, missing dependencies, and cycles are

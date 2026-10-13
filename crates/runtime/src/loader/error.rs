@@ -1,4 +1,4 @@
-//! Dynamic-library loading and plugin activation errors.
+//! Dynamic-library loading and plugin registration errors.
 //!
 //! Errors preserve the failing trusted path, a stable phase category, an
 //! optional neocogi-com status for metadata/registration failures, and detailed

@@ -1,6 +1,6 @@
 use neocogi_com::{
     ComFactoryImplementation, ComInterface, ComPtr, ComRef, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_OK, NcAbiSignature, NcFactoryPluginDescription,
-    NcStatus, activate_factory_implementation, com_factory, com_interface, com_object, factory_plugin, format_abi_signature, format_method_signature,
+    NcStatus, acquire_factory_implementation, com_factory, com_interface, com_object, factory_plugin, format_abi_signature, format_method_signature,
     guid_from_qualified_name, validate_factory_plugin_description,
 };
 
@@ -174,10 +174,10 @@ fn factory_bootstrap_transfers_the_exact_typed_root() {
 
     let mut unknown = neocogi_com::ComRaw::<IUnknown>::null();
     // SAFETY: The local output slot accepts one erased owned factory pair.
-    assert_eq!(unsafe { activate_factory_implementation::<ValueFactoryObject>(&mut unknown) }, NC_OK);
-    // SAFETY: Successful activation transferred exactly one live reference.
+    assert_eq!(unsafe { acquire_factory_implementation::<ValueFactoryObject>(&mut unknown) }, NC_OK);
+    // SAFETY: Successful acquisition transferred exactly one live reference.
     let factory =
-        unsafe { ComPtr::<ValueFactoryAbi>::__nc_from_raw_owned_checked(unknown.cast()) }.expect("activation did not return the exact declared factory table");
+        unsafe { ComPtr::<ValueFactoryAbi>::__nc_from_raw_owned_checked(unknown.cast()) }.expect("acquisition did not return the exact declared factory table");
     let value = factory.create(41).expect("factory method failed");
     assert_eq!(value.value().expect("value method failed"), 41);
 }

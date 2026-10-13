@@ -91,7 +91,7 @@ fn main() {
     // SAFETY: The immutable descriptor and implementation are linked into this executable.
     unsafe { runtime.register_factory_plugin_description(nc_example_com::factory_plugin_description()) }.unwrap();
     let factory = runtime
-        .activate_plugin_factory::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
+        .acquire_plugin_factory::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .unwrap();
     let unobserved = neocogi_com::events::EventBinding::Unobserved;
     let mut silent = factory.create(Extent { width: 0, height: 0 }, NcValueRef::new(&unobserved).unwrap()).unwrap();

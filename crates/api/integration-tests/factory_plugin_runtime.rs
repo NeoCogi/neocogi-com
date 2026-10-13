@@ -1,4 +1,4 @@
-//! Generated factory registration and activation in shared-runtime or static mode.
+//! Generated factory registration and acquisition in shared-runtime or static mode.
 
 use neocogi_com::{ComPtr, NcStatus, Runtime, com_factory, com_class, factory_plugin, guid_from_qualified_name};
 use neocogi_idl_example_contracts::{ExampleFactory, ExampleFactoryAbi, ExampleObject, ExampleObjectAbi, Extent, IMeasured};
@@ -57,7 +57,7 @@ factory_plugin! {
     factory = ExampleFactoryImplementation,
 }
 
-/// Verifies one facade observes registration and typed activation through the
+/// Verifies one facade observes registration and typed acquisition through the
 /// linked registry, in both shared-runtime and intentional static modes.
 #[test]
 fn generated_contract_factory_activates_without_a_class_table() {
@@ -68,8 +68,8 @@ fn generated_contract_factory_activates_without_a_class_table() {
 
     let plugin_id = guid_from_qualified_name("nc.tests.generated_factory_plugin");
     let factory = runtime
-        .activate_plugin_factory::<ExampleFactoryAbi>(plugin_id)
-        .expect("typed root factory activation failed");
+        .acquire_plugin_factory::<ExampleFactoryAbi>(plugin_id)
+        .expect("typed root factory acquisition failed");
     let mut object = factory
         .create(
             Extent { width: 20, height: 10 },
@@ -91,7 +91,7 @@ fn generated_contract_factory_activates_without_a_class_table() {
     assert_eq!(info.origin, neocogi_com::PluginOrigin::Static);
 }
 
-/// Verifies registered factory metadata inspection and direct activation on registered
+/// Verifies registered factory metadata inspection and direct acquisition on registered
 /// static plugins, without reopening files or requiring caller-supplied root interface IDs.
 #[test]
 fn registered_factory_info_and_direct_activation_work_without_filesystem_path() {
@@ -116,8 +116,8 @@ fn registered_factory_info_and_direct_activation_work_without_filesystem_path() 
     assert_eq!(factory_info.root_factory, ExampleFactoryAbi::INTERFACE_ID);
     assert_eq!(factory_info.root_factory_threading, neocogi_com::NC_ABI_THREADING_THREAD_LOCAL);
 
-    // Direct root activation without knowing the interface type in advance.
-    let root = runtime.activate_registered_plugin_root(plugin_id).expect("direct root activation failed");
+    // Direct root acquisition without knowing the interface type in advance.
+    let root = runtime.acquire_registered_plugin_root(plugin_id).expect("direct root acquisition failed");
 
     // Query canonical IUnknown and specific factory capability.
     let factory = root.query::<ExampleFactoryAbi>().expect("root must query ExampleFactoryAbi");
@@ -132,5 +132,5 @@ fn registered_factory_info_and_direct_activation_work_without_filesystem_path() 
     // Non-existent plugin returns None / NOT_FOUND
     let unknown_id = NcGuid::from_fields(0xdeadbeef, 0, 0, [0; 8]);
     assert_eq!(runtime.inspection().plugin_factory_info(unknown_id).expect("inspection check"), None);
-    assert_eq!(runtime.activate_registered_plugin_root(unknown_id).map(|_| ()), Err(NC_E_NOT_FOUND));
+    assert_eq!(runtime.acquire_registered_plugin_root(unknown_id).map(|_| ()), Err(NC_E_NOT_FOUND));
 }

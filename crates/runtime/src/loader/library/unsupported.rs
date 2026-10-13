@@ -1,7 +1,7 @@
 //! Explicit fallback for targets without an neocogi-com dynamic-loader implementation.
 //!
 //! Both opening and symbol resolution return `UnsupportedPlatform` diagnostics,
-//! allowing offline inspection to fail normally and required live activation to
+//! allowing offline inspection to fail normally and required live loading to
 //! follow its documented fatal boundary.
 
 use core::ffi::c_void;

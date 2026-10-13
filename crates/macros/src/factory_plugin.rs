@@ -150,7 +150,7 @@ pub(crate) fn expand_factory_plugin(args: FactoryPluginArgs) -> proc_macro2::Tok
     let version = &args.version;
 
     quote! {
-        /// Hard plugin dependencies required before this factory can activate.
+        /// Hard plugin dependencies required before this factory can be acquired.
         static NC_COM_FACTORY_PLUGIN_DEPENDENCIES: [#nc::NcPluginDependencyDescriptor; #dependency_len] = [
             #(#dependencies,)*
         ];
@@ -166,7 +166,7 @@ pub(crate) fn expand_factory_plugin(args: FactoryPluginArgs) -> proc_macro2::Tok
             dependencies: NC_COM_FACTORY_PLUGIN_DEPENDENCIES.as_ptr(),
             root_factory: <<#factory as #nc::ComFactoryImplementation>::Interface as #nc::ComInterface>::INTERFACE_ID,
             root_factory_threading: <<<#factory as #nc::ComFactoryImplementation>::Interface as #nc::ComInterface>::Threading as #nc::ThreadingModel>::ABI_THREADING_MODE.as_raw(),
-            activate: Some(#nc::activate_factory_implementation::<#factory>),
+            acquire: Some(#nc::acquire_factory_implementation::<#factory>),
         };
 
         /// Returns the factory-only plugin description for static registration.

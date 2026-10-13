@@ -1,7 +1,7 @@
-//! ABI table for factory-plugin registration, plugin loading, and root activation.
+//! ABI table for factory-plugin registration, plugin loading, and root acquisition.
 //!
 //! Runtime ABI v1 accepts static descriptors and loads trusted plugin libraries,
-//! and activates the one typed root factory exported by each plugin.
+//! and acquires the one typed root factory exported by each plugin.
 //! The table is intentionally separate from read-only registry and inspection
 //! functions so host responsibilities remain explicit.
 //!
@@ -29,16 +29,16 @@ pub struct NcRuntimeApiV1 {
     /// The path is nonempty UTF-8 without interior NUL bytes.
     ///
     /// The library must export `nc_get_factory_plugin_description_v1`. Class-table
-    /// descriptor exports are not an activation mechanism. After argument
+    /// descriptor exports are not an acquisition mechanism. After argument
     /// validation, any native loading, description, dependency, or registration
     /// failure emits diagnostics and aborts the entire application. There is no
-    /// recoverable activation mode. Raw argument errors return a status before
-    /// activation; application loading wrappers must treat those as fatal too.
+    /// recoverable acquisition mode. Raw argument errors return a status before
+    /// acquisition; application loading wrappers must treat those as fatal too.
     pub load_plugin_library_utf8: unsafe extern "C" fn(path: *const u8, path_len: usize, out_plugin_id: *mut NcGuid) -> NcStatus,
-    /// Activates one registered plugin's root factory after checking its exact
+    /// Acquires one registered plugin's root factory after checking its exact
     /// interface identity and requested threading capability.
     /// Success transfers the exact factory object/table pair, erased only in
     /// its raw table type. It does not advertise canonical IUnknown identity.
-    pub activate_factory_plugin:
+    pub acquire_factory_plugin:
         unsafe extern "C" fn(plugin_id: NcGuid, factory_interface: NcInterfaceId, requested_threading: u32, out: *mut crate::ComRaw<IUnknown>) -> NcStatus,
 }

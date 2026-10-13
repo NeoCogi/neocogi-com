@@ -1,4 +1,4 @@
-//! Self-contained plugin descriptions and typed factory activation.
+//! Self-contained plugin descriptions and typed factory acquisition.
 //!
 //! A plugin carries the exact interface identity of its zero-argument factory.
 //! Compatibility is checked when that factory is requested; no runtime module
@@ -7,8 +7,8 @@
 //! constructor frame is present in this ABI.
 
 use crate::{
-    ComFactoryBootstrap, IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode,
-    NcInterfaceId, NcGuid, NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name, validate_version_text,
+    ComFactoryBootstrap, IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode, NcInterfaceId, NcGuid,
+    NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name, validate_version_text,
 };
 
 /// Pre-alpha factory metadata ABI with an exact root interface and no module graph.
@@ -21,7 +21,11 @@ pub const NC_FACTORY_PLUGIN_ABI_VERSION: u32 = 1;
 /// Exported symbol returning a factory-only plugin description.
 pub const NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL: &str = "nc_get_factory_plugin_description_v1";
 
-/// Fixed bootstrap operation that creates one owned root factory object.
+/// Fixed bootstrap operation that transfers one owned root factory reference.
+///
+/// Acquisition may construct a factory or retain an existing instance. Each
+/// successful call transfers one owner; the runtime promises no singleton or
+/// identity reuse between calls. Product construction remains on typed methods.
 ///
 /// # Safety
 ///
@@ -30,7 +34,7 @@ pub const NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL: &str = "nc_get_factory_plugi
 /// Its erased table preserves the declared factory identity, not IUnknown's
 /// identity. Common lifecycle calls are valid; typed IUnknown adoption requires
 /// QueryInterface. Erasure neither casts the object nor acquires a reference.
-pub type NcActivatePluginFactory = unsafe extern "C" fn(out: *mut crate::ComRaw<IUnknown>) -> NcStatus;
+pub type NcAcquirePluginFactory = unsafe extern "C" fn(out: *mut crate::ComRaw<IUnknown>) -> NcStatus;
 
 /// Adapts a safe typed root-factory constructor to the fixed plugin ABI.
 ///
@@ -42,7 +46,7 @@ pub type NcActivatePluginFactory = unsafe extern "C" fn(out: *mut crate::ComRaw<
 ///
 /// `out` must be valid for one ComRaw record write. It is always cleared before the
 /// implementation's fallible bootstrap code runs.
-pub unsafe extern "C" fn activate_factory_implementation<T>(out: *mut crate::ComRaw<IUnknown>) -> NcStatus
+pub unsafe extern "C" fn acquire_factory_implementation<T>(out: *mut crate::ComRaw<IUnknown>) -> NcStatus
 where
     T: ComFactoryBootstrap,
 {
@@ -95,11 +99,11 @@ pub struct NcFactoryPluginDescription {
     /// Threading capability promised by the returned root factory.
     pub root_factory_threading: u32,
     /// Fixed no-argument root factory bootstrap operation.
-    pub activate: Option<NcActivatePluginFactory>,
+    pub acquire: Option<NcAcquirePluginFactory>,
 }
 
 // SAFETY: The description and its tables are immutable static metadata. The
-// activation pointer is code in the library that owns the description.
+// acquisition pointer is code in the library that owns the description.
 unsafe impl Sync for NcFactoryPluginDescription {}
 
 impl NcFactoryPluginDescription {
@@ -126,7 +130,7 @@ pub type NcGetFactoryPluginDescription = unsafe extern "C" fn(out: *mut *const N
 
 /// Validates one complete factory-only plugin description without allocation.
 ///
-/// This pass validates metadata only and never invokes plugin activation. The
+/// This pass validates metadata only and never invokes plugin acquisition. The
 /// caller can therefore inspect or register a plugin without constructing it.
 ///
 /// # Safety
@@ -142,8 +146,10 @@ pub unsafe fn validate_factory_plugin_description(plugin: *const NcFactoryPlugin
     // record. Earlier core generations have different signature/record sizes.
     // SAFETY: The caller guarantees this aligned two-u32 prefix is readable.
     let (description_version, core_version) = unsafe {
-        (core::ptr::addr_of!((*plugin).description_abi_version).read(),
-         core::ptr::addr_of!((*plugin).core_abi_version).read())
+        (
+            core::ptr::addr_of!((*plugin).description_abi_version).read(),
+            core::ptr::addr_of!((*plugin).core_abi_version).read(),
+        )
     };
     if description_version != NC_FACTORY_PLUGIN_ABI_VERSION || core_version != NC_COM_CORE_ABI_VERSION {
         return NC_E_ABI_VERSION;
@@ -165,7 +171,7 @@ pub unsafe fn validate_factory_plugin_description(plugin: *const NcFactoryPlugin
         || plugin.root_factory.iid.is_nil()
         || plugin.root_factory.abi_signature.is_empty()
         || NcAbiThreadingMode::from_raw(plugin.root_factory_threading).is_none()
-        || plugin.activate.is_none()
+        || plugin.acquire.is_none()
     {
         return NC_E_INVALID_ARG;
     }
@@ -235,16 +241,16 @@ mod tests {
     use super::*;
     use crate::NC_ABI_THREADING_THREAD_LOCAL;
 
-    /// Exact factory identity shared by the descriptor and activation tests.
+    /// Exact factory identity shared by the descriptor and acquisition tests.
     const FACTORY_ID: NcInterfaceId = NcInterfaceId::new(NcGuid::from_fields(6, 7, 8, [9; 8]), NcAbiSignature::from_static(&[5; 32]));
 
-    /// Satisfies the fixed factory activation shape for descriptor validation.
-    unsafe extern "C" fn activate_factory(out: *mut crate::ComRaw<IUnknown>) -> NcStatus {
+    /// Satisfies the fixed factory acquisition shape for descriptor validation.
+    unsafe extern "C" fn acquire_factory(out: *mut crate::ComRaw<IUnknown>) -> NcStatus {
         if out.is_null() {
             return NC_E_POINTER;
         }
         // This fixture verifies metadata only, so it reports a predictable
-        // activation failure after honoring the required cleared-output rule.
+        // acquisition failure after honoring the required cleared-output rule.
         // SAFETY: Null was rejected and the ABI contract grants one write.
         unsafe { *out = crate::ComRaw::null() };
         NC_E_INVALID_ARG
@@ -261,7 +267,7 @@ mod tests {
         dependencies: ptr::null(),
         root_factory: FACTORY_ID,
         root_factory_threading: NC_ABI_THREADING_THREAD_LOCAL,
-        activate: Some(activate_factory),
+        acquire: Some(acquire_factory),
     };
 
     /// Confirms valid metadata publishes the exact immutable description.
@@ -308,7 +314,11 @@ mod tests {
     fn rejects_previous_generations_from_the_version_prefix_alone() {
         assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, description_abi_version), 0);
         assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, core_abi_version), 4);
-        for versions in [[NC_FACTORY_PLUGIN_ABI_VERSION, 8], [NC_FACTORY_PLUGIN_ABI_VERSION, 15], [NC_FACTORY_PLUGIN_ABI_VERSION + 1, NC_COM_CORE_ABI_VERSION]] {
+        for versions in [
+            [NC_FACTORY_PLUGIN_ABI_VERSION, 8],
+            [NC_FACTORY_PLUGIN_ABI_VERSION, 15],
+            [NC_FACTORY_PLUGIN_ABI_VERSION + 1, NC_COM_CORE_ABI_VERSION],
+        ] {
             // SAFETY: Only the readable version prefix is promised for an
             // unsupported generation. No trailing record even exists here.
             assert_eq!(unsafe { validate_factory_plugin_description(versions.as_ptr().cast()) }, NC_E_ABI_VERSION);
@@ -325,7 +335,7 @@ mod tests {
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, plugin_id), 8);
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, dependencies), 64);
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, root_factory), 72);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, activate), 104);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, acquire), 104);
         }
         #[cfg(target_pointer_width = "32")]
         {
@@ -334,7 +344,7 @@ mod tests {
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, plugin_id), 8);
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, dependencies), 44);
             assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, root_factory), 48);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, activate), 72);
+            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, acquire), 72);
         }
     }
 }

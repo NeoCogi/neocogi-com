@@ -101,7 +101,7 @@ Supported methods return `Result<T, NcStatus>`:
 `#[com_struct]` defines fixed C-layout records. `#[com_enum]` defines explicit
 tagged payload layouts. `com_int_enum!` defines a transparent integer newtype
 that preserves unknown values. `ComDeserialize` and `ComSerialize` derive typed
-local value decoding/encoding, separate from runtime object activation.
+local value decoding/encoding, separate from runtime object acquisition.
 Record labels emitted by `ComSerialize` are unqualified declaration-name
 literals; named enum payload records use their enclosing enum's name. They do
 not identify types globally. The binary encoder ignores these labels and writes

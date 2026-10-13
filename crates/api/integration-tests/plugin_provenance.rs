@@ -60,7 +60,7 @@ fn native_plugin_origin_is_atomic_idempotent_and_process_pinned() {
     assert_eq!(runtime.inspection().plugin_info(id).unwrap().unwrap(), info);
     // Reaching the distinctive bootstrap result proves dispatch never reopened
     // the missing path and the defining native mapping remains callable.
-    assert_eq!(runtime.activate_registered_plugin_root(id).unwrap_err(), NC_E_CLOSED);
+    assert_eq!(runtime.acquire_registered_plugin_root(id).unwrap_err(), NC_E_CLOSED);
 }
 
 /// Isolates the mandatory-load abort from the parent test runner.

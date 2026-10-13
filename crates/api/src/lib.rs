@@ -16,7 +16,7 @@
 //! or linking modes. The crate borrows the useful cross-platform parts of COM
 //! (`IUnknown`, `QueryInterface`, `AddRef`, `Release`, interface IDs, and
 //! vtables), but it is not Windows COM and does not implement apartments,
-//! registry activation, `HRESULT`, or system COM marshalling.
+//! registry acquisition, `HRESULT`, or system COM marshalling.
 //!
 //! This crate is also not a C SDK generator. The ABI is C-compatible, but the
 //! runtime and generator-facing macros enforce the Rust-side ABI model.
@@ -36,7 +36,7 @@
 //! local implementation details and must not cross the ABI boundary.
 //!
 //! This is not Windows COM. There are no apartments, no Windows registry
-//! activation, no `HRESULT`, no operating-system `IUnknown` contract, and no
+//! acquisition, no `HRESULT`, no operating-system `IUnknown` contract, and no
 //! system marshalling. `neocogi-com` uses a COM-style shape because it is a compact
 //! cross-platform ABI pattern.
 //!
@@ -64,7 +64,7 @@
 //! capability the source for typed pointers and factory metadata. A
 //! thread-safe pointer can be explicitly weakened to a thread-local owner or
 //! borrow without changing the underlying COM reference.
-//! `Runtime::activate_plugin_factory` checks the generated root factory's
+//! `Runtime::acquire_plugin_factory` checks the generated root factory's
 //! identity, signature, and threading capability before returning its typed
 //! pointer. Later construction is expressed by ordinary IDL factory methods.
 //!
@@ -280,7 +280,7 @@
 //! `Runtime::register_factory_plugin_description`; dynamic hosts call
 //! `Runtime::load_plugin_library`, which requires the factory-description
 //! entrypoint. Hosts obtain the typed root with
-//! `Runtime::activate_plugin_factory` and perform later construction through
+//! `Runtime::acquire_plugin_factory` and perform later construction through
 //! ordinary typed factory methods.
 //!
 //! Generated interfaces expose
@@ -298,7 +298,7 @@
 //! Runtime ABI v1 tracks at most [`NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS`] distinct
 //! dynamic providers and permits at most
 //! [`NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS`] simultaneous debug messenger
-//! registrations. Exceeding the dynamic-provider limit is a fatal live-activation error;
+//! registrations. Exceeding the dynamic-provider limit is a fatal live-acquisition error;
 //! debug messenger capacity exhaustion returns [`NC_E_OUT_OF_RANGE`].
 //! Callers then use signature-checked `QueryInterface` to obtain the interface they
 //! need.
@@ -320,7 +320,7 @@
 //! Loading a dynamic library can run platform loader code that mutates
 //! process-global state. `neocogi-com` therefore does not support dynamic plugin
 //! unload or hot reload. Successful modules remain mapped for the process
-//! lifetime; failed post-open activation pins the module before aborting.
+//! lifetime; failed post-open acquisition pins the module before aborting.
 //!
 //! Fixed-size plain records can use `com_struct`. The macro owns the Rust
 //! representation and checked wire conversion, publishes the IDL-assigned nominal
@@ -518,12 +518,12 @@ pub use neocogi_com_core::{
     NC_DESCRIPTOR_VERSION_MAX_LEN, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_ALREADY_BOUND, NC_E_CLOSED, NC_E_DROPPED, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG,
     NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_FACTORY_PLUGIN_ABI_VERSION,
     NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiSignature, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode,
-    NcAbiType, NcAbiTypeDescriptor, NcActivatePluginFactory, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1, NcDebugMessengerCreateInfoV1,
+    NcAbiType, NcAbiTypeDescriptor, NcAcquirePluginFactory, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1, NcDebugMessengerCreateInfoV1,
     NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGuid, NcInspectFactoryPluginDescriptionCallbackV1, NcInspectionApiV1, NcInterfaceDescriptor,
     NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1,
     NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcPluginFactoryInfoV1, NcPluginInfoV1, NcPluginRegistryV1, NcQualifiedNameError, NcRuntimeApiV1,
     NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe,
-    ThreadingModel, activate_factory_implementation, guid_from_qualified_name, raw, return_factory_plugin_description, validate_factory_plugin_description,
+    ThreadingModel, acquire_factory_implementation, guid_from_qualified_name, raw, return_factory_plugin_description, validate_factory_plugin_description,
     validate_qualified_name, validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
 };
 pub use object::{

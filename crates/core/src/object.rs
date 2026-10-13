@@ -24,7 +24,8 @@ pub const IUNKNOWN_QUALIFIED_NAME: &str = "IUnknown";
 ///
 /// Built-ins have no IDL build script, so this checked-in constant plays the
 /// same role as the byte string emitted by `neocogi` for ordinary contracts.
-static IUNKNOWN_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [181, 50, 219, 153, 62, 84, 255, 28, 31, 250, 148, 143, 113, 131, 100, 26, 106, 80, 251, 161, 61, 196, 32, 29, 213, 33, 142, 40, 248, 57, 135, 207,
+static IUNKNOWN_SIGNATURE_BYTES: [u8; NcAbiSignature::SHA256_LEN] = [
+    181, 50, 219, 153, 62, 84, 255, 28, 31, 250, 148, 143, 113, 131, 100, 26, 106, 80, 251, 161, 61, 196, 32, 29, 213, 33, 142, 40, 248, 57, 135, 207,
 ];
 
 /// Canonical ABI validation contract for [`IUnknown`].
@@ -177,7 +178,7 @@ pub unsafe trait ComFactoryImplementation {
 /// `#[com_factory]` implements this trait automatically for unit structs. A
 /// stateful factory can implement it explicitly and initialize private state
 /// without exposing that state or an erased constructor frame through the ABI.
-/// The typed return guarantees that plugin activation cannot accidentally
+/// The typed return guarantees that plugin acquisition cannot accidentally
 /// publish an unrelated COM object as its declared root factory.
 pub trait ComFactoryBootstrap: ComFactoryImplementation + Sized {
     /// Creates one owned instance of the exact associated factory interface.

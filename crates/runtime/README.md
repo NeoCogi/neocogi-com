@@ -1,7 +1,7 @@
 # neocogi-com-runtime
 
 The runtime owns plugin registration, trusted library loading, checked
-root-factory activation, plugin provenance, diagnostics, and the
+root-factory acquisition, plugin provenance, diagnostics, and the
 implementation of caller-owned persistence contexts. It contains
 no contract-module registry, native contract descriptions, or event seeding.
 Applications use `neocogi_com::Runtime`.
@@ -27,7 +27,7 @@ It is not an application retry policy. The Rust facade also aborts on path
 conversion or raw argument-validation errors.
 
 Opened libraries remain pinned for process lifetime. Inspection separately
-validates and borrows metadata without registration or activation and can return
+validates and borrows metadata without registration or acquisition and can return
 errors. It exposes plugin/factory data, not a runtime inventory of contract
 declarations. Static registration and later factory calls retain their existing
 status-returning contracts; they are separate operations from live loading.

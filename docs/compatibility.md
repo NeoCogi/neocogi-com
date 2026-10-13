@@ -119,7 +119,7 @@ suites also run individually. These require nightly `rust-src` and
 plugin and test harnesses under the same sanitizer. Instrumented executables
 export sanitizer hooks before linker section collection: a later-loaded plugin
 may need a hook that the host itself never called. Without that export,
-ThreadSanitizer tests could pass before plugin activation failed on an undefined
+ThreadSanitizer tests could pass before plugin acquisition failed on an undefined
 `__tsan_atomic64_exchange`. The six Rust targets from `linked` and the three
 library suites execute against the instrumented runtime;
 the relocated example then executes without its build targets. Native-C layout

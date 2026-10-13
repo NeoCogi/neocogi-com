@@ -152,7 +152,7 @@ IID/signature, threading, and one bootstrap pointer. Static assemblies call
 `factory_plugin_description()` directly. Only factories receive generated
 zero-argument construction; ordinary objects use `from_value`.
 
-## Host activation
+## Host acquisition
 
 For a monolith, enable `neocogi-com/static-runtime` and register the linked
 provider before requesting its exact factory. The following complete function
@@ -166,7 +166,7 @@ fn static_example() -> Result<(), NcStatus> {
     // SAFETY: linked plugin code and macro-generated static metadata remain
     // available for the process lifetime, including every returned COM handle.
     unsafe { runtime.register_factory_plugin_description(factory_plugin_description()) }?;
-    let factory = runtime.activate_plugin_factory::<ExampleFactoryAbi>(
+    let factory = runtime.acquire_plugin_factory::<ExampleFactoryAbi>(
         neocogi_com::guid_from_qualified_name("example.component"),
     )?;
     let mut object = factory.create(Extent { width: 10, height: 20 })?;
@@ -187,7 +187,7 @@ cargo test -p neocogi-idl --test documentation
 ```
 
 Dynamic hosts use `runtime.load_plugin_library(path)` for an application-selected
-trusted library, then call `activate_plugin_factory` with its plugin ID. Loading
+trusted library, then call `acquire_plugin_factory` with its plugin ID. Loading
 is unsafe because the library contains native code. The
 [plain-Cargo example](../../examples/com-plugin/README.md) covers full shared
 and monolithic builds rather than leaving that deployment setup implicit.
@@ -270,7 +270,7 @@ marketplace. Applications own installation, trust, signatures, and path policy.
 
 [`neocogi_com::persistence`](runtime/PERSISTENCE.md) provides runtime-owned opt-in semantic snapshots and explicit,
 context-bound factory reconstruction. The portable value codec remains separate
-from object activation; arbitrary private object memory is never serialized.
+from object acquisition; arbitrary private object memory is never serialized.
 [`events`](api/EVENTS.md) binds concrete class streams directly. Generated form
 fields expose checked widget interfaces, and typed receivers post application
 messages without an intermediate component relay.

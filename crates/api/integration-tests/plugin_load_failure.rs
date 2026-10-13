@@ -37,7 +37,7 @@ fn assert_load_aborts(case: &str, library: Option<&Path>) {
     // Check SIGABRT specifically: a segmentation fault, Rust test panic, or a
     // missing shared runtime must not masquerade as the intended fatal policy.
     assert_eq!(output.status.signal(), Some(6), "{case} did not abort: {:?}: {stderr}", output.status);
-    assert!(stderr.contains("fatal neocogi-com plugin activation failure:"), "{case}: {stderr}");
+    assert!(stderr.contains("fatal neocogi-com plugin load failure:"), "{case}: {stderr}");
     let detail = match case {
         "missing" => "OpenLibrary",
         "missing_export" => "FindSymbol",

@@ -25,7 +25,7 @@ use persistence::PERSISTENCE_API_V1;
 
 use inspection::{inspect_plugin_library_utf8, plugin_dependency_count, plugin_dependency_ids, plugin_factory_info, plugin_info};
 use plugin_registry::{plugin_count, plugin_ids};
-use runtime::{activate_factory_plugin, load_plugin_library_utf8, register_factory_plugin_description};
+use runtime::{acquire_factory_plugin, load_plugin_library_utf8, register_factory_plugin_description};
 
 /// Immutable runtime-operation table returned by the exported generation-checked getter.
 pub(super) static RUNTIME_API_V1: NcRuntimeApiV1 = NcRuntimeApiV1 {
@@ -34,7 +34,7 @@ pub(super) static RUNTIME_API_V1: NcRuntimeApiV1 = NcRuntimeApiV1 {
 
     register_factory_plugin_description,
     load_plugin_library_utf8,
-    activate_factory_plugin,
+    acquire_factory_plugin,
 };
 
 // These values are immutable for the process lifetime. Getters may therefore

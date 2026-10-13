@@ -27,6 +27,14 @@ dependency loading or application-injected runtime instance.
 
 ## Publication and repeated loading
 
+Factory acquisition is named `acquire`, including the descriptor's `acquire`
+bootstrap and the runtime's `acquire_factory_plugin` operation. A successful
+request transfers one owned COM reference after complete interface/signature
+and threading checks. The provider may construct a fresh factory or return a
+retained existing instance; acquisition does not promise a singleton. Loading
+registers the plugin and pins its code without acquiring its factory. Typed
+factory methods construct the plugin's products after acquisition.
+
 Native open, symbol lookup, descriptor entry and validation run outside the catalog
 lock. Under one write guard, registration requires all hard dependencies to exist,
 checks provider identity and capacity, then publishes descriptor and provenance

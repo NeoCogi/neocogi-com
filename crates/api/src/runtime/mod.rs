@@ -131,7 +131,7 @@ impl Runtime {
     ///
     /// Registration is atomic: no plugin record becomes
     /// visible unless its metadata, provider dependencies, and process identity
-    /// mapping are valid. Factory compatibility is checked during activation.
+    /// mapping are valid. Factory compatibility is checked during acquisition.
     ///
     /// # Safety
     ///
@@ -143,11 +143,11 @@ impl Runtime {
         status_to_result(unsafe { (self.runtime_api().register_factory_plugin_description)(plugin) })
     }
 
-    /// Activates one registered plugin's exact typed root IDL factory.
+    /// Acquires one registered plugin's exact typed root IDL factory.
     ///
     /// The runtime checks the requested factory IID, full ABI signature, and
     /// threading capability before this method constructs a typed owner.
-    pub fn activate_plugin_factory<T>(&self, plugin_id: NcGuid) -> Result<ComPtr<T, <T as ComInterface>::Threading>, NcStatus>
+    pub fn acquire_plugin_factory<T>(&self, plugin_id: NcGuid) -> Result<ComPtr<T, <T as ComInterface>::Threading>, NcStatus>
     where
         T: ComFactoryInterface,
     {
@@ -155,7 +155,7 @@ impl Runtime {
         // SAFETY: The local output slot is writable and the associated IDL
         // threading marker supplies the exact requested runtime capability.
         let status = unsafe {
-            (self.runtime_api().activate_factory_plugin)(
+            (self.runtime_api().acquire_factory_plugin)(
                 plugin_id,
                 T::INTERFACE_ID,
                 <<T as ComInterface>::Threading as ThreadingModel>::ABI_THREADING_MODE.as_raw(),
@@ -163,23 +163,23 @@ impl Runtime {
             )
         };
         status_to_result(status)?;
-        // SAFETY: Successful runtime activation transfers one owned live COM
+        // SAFETY: Successful runtime acquisition transfers one owned live COM
         // reference with the requested threading capability.
         unsafe { ComPtr::<T, <T as ComInterface>::Threading>::__nc_from_raw_owned_checked(out.cast()) }
     }
 
-    /// Activates a registered root by its inspected, exact COM identity.
+    /// Acquires a registered root by its inspected, exact COM identity.
     ///
     /// A generic host does not know the plugin-specific root factory Rust type.
     /// It obtains this identity from the validated plugin description, asks the
     /// runtime to enforce it, then queries a common COM capability on the root.
     /// A thread-local request is compatible with either local or shared roots;
     /// the returned handle remains confined to the calling thread.
-    pub fn activate_plugin_root(&self, plugin_id: NcGuid, root: NcInterfaceId) -> Result<ComPtr<IUnknown>, NcStatus> {
+    pub fn acquire_plugin_root(&self, plugin_id: NcGuid, root: NcInterfaceId) -> Result<ComPtr<IUnknown>, NcStatus> {
         let mut out = crate::ComRaw::<IUnknown>::null();
         // SAFETY: The local slot is writable. The runtime verifies the exact
         // root identity and its threading capability before transferring it.
-        let status = unsafe { (self.runtime_api().activate_factory_plugin)(plugin_id, root, NC_ABI_THREADING_THREAD_LOCAL, &mut out) };
+        let status = unsafe { (self.runtime_api().acquire_factory_plugin)(plugin_id, root, NC_ABI_THREADING_THREAD_LOCAL, &mut out) };
         status_to_result(status)?;
         // The dynamically selected factory has a common lifecycle prefix, but
         // its table identity is not IUnknown. Query canonical IUnknown before
@@ -194,34 +194,34 @@ impl Runtime {
         unsafe { ComPtr::<IUnknown>::from_raw_owned(identity?) }.ok_or(crate::NC_E_POINTER)
     }
 
-    /// Activates a registered plugin's root factory without requiring the host
+    /// Acquires a registered plugin's root factory without requiring the host
     /// to specify its expected interface identity.
     ///
     /// The runtime queries the registered plugin's exact factory interface from
-    /// its retained description, activates it, and returns a canonical [`IUnknown`] handle.
+    /// its retained description, acquires it, and returns a canonical [`IUnknown`] handle.
     ///
     /// # Errors
     ///
     /// Returns [`NC_E_NOT_FOUND`] if `plugin_id` is not registered, or any runtime status
-    /// returned by root factory activation.
-    pub fn activate_registered_plugin_root(&self, plugin_id: NcGuid) -> Result<ComPtr<IUnknown>, NcStatus> {
+    /// returned by root factory acquisition.
+    pub fn acquire_registered_plugin_root(&self, plugin_id: NcGuid) -> Result<ComPtr<IUnknown>, NcStatus> {
         let factory = self.inspection().plugin_factory_info(plugin_id)?.ok_or(NC_E_NOT_FOUND)?;
-        self.activate_plugin_root(plugin_id, factory.root_factory)
+        self.acquire_plugin_root(plugin_id, factory.root_factory)
     }
 
     /// Loads a trusted plugin shared library into the process-global runtime.
     ///
     /// The path must have a nonempty UTF-8 representation without interior NUL
-    /// bytes. This is required live activation: any path conversion, loading,
+    /// bytes. This is required plugin loading: any path conversion, loading,
     /// description, dependency, or registration failure prints/emits its
     /// diagnostic and aborts the process. Failure never returns. This policy also
     /// applies to designer startup: loading has no recoverable `try_` alternative.
-    /// Live activation calls must not be nested: native loader initialization
+    /// Plugin loading calls must not be nested: native loader initialization
     /// and the plugin description entrypoint must not directly or indirectly
-    /// call this operation while another activation is in progress.
+    /// call this operation while another load is in progress.
     /// The runtime retains at most
     /// [`crate::NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS`] distinct dynamic plugins; attempting
-    /// another load is also a fatal activation failure.
+    /// another load is also a fatal loading failure.
     ///
     /// Returns the registered plugin GUID. Inspect it through
     /// [`Inspection::plugin_info`] for identity, release version and provenance.
@@ -291,9 +291,9 @@ impl Runtime {
     }
 }
 
-/// Reports an unrecoverable live-activation failure and aborts the process.
+/// Reports an unrecoverable plugin-loading failure and aborts the process.
 fn fatal_plugin_load(detail: impl fmt::Display) -> ! {
-    eprintln!("fatal neocogi-com plugin activation failure: {detail}");
+    eprintln!("fatal neocogi-com plugin load failure: {detail}");
     std::process::abort()
 }
 

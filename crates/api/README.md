@@ -176,7 +176,7 @@ neocogi_com::export_factory_plugin!();
 `#[com_object(Interface)]` connects private storage to one interface contract.
 `#[com_factory(Factory)]` adds the factory-role proof and typed bootstrap.
 The plugin descriptor stores plugin metadata, full root identity/signature,
-threading, and activation. Ordinary objects require an initialized value;
+threading, and acquisition. Ordinary objects require an initialized value;
 unit factories receive a generated zero-argument bootstrap; stateful roots
 implement `ComFactoryBootstrap` explicitly.
 
@@ -187,7 +187,7 @@ With the `runtime` feature, dynamic hosts use:
 ```rust,ignore
 let runtime = neocogi_com::Runtime::global();
 let plugin_id = unsafe { runtime.load_plugin_library(path) };
-let factory = runtime.activate_plugin_factory::<my_contracts::UiFactoryAbi>(
+let factory = runtime.acquire_plugin_factory::<my_contracts::UiFactoryAbi>(
     plugin_id,
 )?;
 let button = factory.create_button()?;
@@ -209,10 +209,10 @@ first registration and origin; conflicting providers are rejected. See
 [runtime ABI v1](../docs/runtime-abi-v1.md).
 
 Inspection is a separate operation that can report errors without registering
-or activating a plugin. Its fallible result does not make live loading optional.
+or acquiring a plugin factory. Its fallible result does not make live loading optional.
 
 For static assemblies, register the descriptor before using the same typed
-activation method:
+acquisition method:
 
 ```rust,ignore
 // SAFETY: The linked descriptor and all its code/data live for the process lifetime.

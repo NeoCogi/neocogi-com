@@ -1,7 +1,7 @@
 //! Runtime-owned index of registered factory-only plugins.
 //!
 //! A factory plugin stores no runtime construction table: its only executable
-//! entry is the fixed root-factory activation pointer in its immutable
+//! entry is the fixed root-factory acquisition pointer in its immutable
 //! description.
 
 use std::collections::HashMap;

@@ -88,7 +88,7 @@ mod tests {
     use super::*;
 
     /// Metadata-only fixture: registration must never call the bootstrap.
-    unsafe extern "C" fn activate_stub(_out: *mut neocogi_com_core::ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn acquire_stub(_out: *mut neocogi_com_core::ComRaw<IUnknown>) -> NcStatus {
         panic!("registration must not invoke plugin code")
     }
 
@@ -103,7 +103,7 @@ mod tests {
         dependencies: ptr::null(),
         root_factory: NcInterfaceId::new(guid_from_qualified_name("nc.tests.Factory"), NcAbiSignature::from_static(&[5; 32])),
         root_factory_threading: NC_ABI_THREADING_THREAD_LOCAL,
-        activate: Some(activate_stub),
+        acquire: Some(acquire_stub),
     };
 
     /// Publication and repeated registration share the same immutable identity.

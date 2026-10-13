@@ -274,7 +274,7 @@ The encoder and decoder apply the same `binary::Limits` policy. For the built-in
 and derived codec pairs, encoding a valid value successfully produces a document
 that the matching decoder accepts under the same limits. Custom serializer and
 deserializer implementations must describe the same schema and consume all its
-members. Format/schema validation and provider activation remain separate checks.
+members. Format/schema validation and provider acquisition remain separate checks.
 
 - `bytes` bounds the complete encoding, including the NCB marker, lengths, and tags.
 - `elements` bounds immediate sequence elements, record fields, or map pairs in

@@ -4,7 +4,7 @@
 //! u32; pointer-sized integers occupy eight bytes. Records store field counts and
 //! values in declaration order, not ABI offsets. Changing order or types requires
 //! an initialization-schema revision. Each complete document starts with NCB/1.
-//! This codec never activates objects: factories validate decoded initialization.
+//! This codec never acquires objects: factories validate decoded initialization.
 //!
 //! Encoding and decoding share one structural budget. Each scalar or container
 //! is one value; present options and enum payloads contain further values. The

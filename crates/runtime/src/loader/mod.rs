@@ -79,7 +79,7 @@ impl RuntimeState {
     ///
     /// There is intentionally no explicit plugin unload API. Successful loads
     /// are stored in the process-global runtime and remain mapped until process
-    /// exit. A post-open failure pins the module; the public live-activation ABI
+    /// exit. A post-open failure pins the module; the public live-loading ABI
     /// emits the diagnostic and aborts instead of returning to the host.
     ///
     /// # Safety
@@ -87,7 +87,7 @@ impl RuntimeState {
     /// `path` must identify a trusted neocogi-com plugin library. Loading a dynamic
     /// library can run arbitrary platform loader code, and the exported
     /// descriptor symbol is trusted FFI metadata until validation rejects it.
-    /// That code must not directly or indirectly start nested neocogi-com activation.
+    /// That code must not directly or indirectly start nested neocogi-com loading.
     pub unsafe fn load_plugin_library(&self, path: impl AsRef<Path>) -> Result<NcGuid, PluginLoadError> {
         let path = path.as_ref();
         let library = PinnedLibrary::open(path)?;
