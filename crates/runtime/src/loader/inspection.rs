@@ -9,9 +9,9 @@ use std::path::Path;
 use std::string::String;
 use std::vec::Vec;
 
-use neocogi_com_core::{NC_E_INVALID_ARG, NcAbiThreadingMode, NcFactoryPluginDescription, NcGuid, NcStaticUtf8, validate_factory_plugin_description};
+use neocogi_com_core::{NC_E_INVALID_ARG, NcAbiThreadingMode, NcPluginDescriptor, NcGuid, NcStaticUtf8, validate_plugin_descriptor};
 
-use super::{PinnedLibrary, PluginLoadError, PluginLoadErrorKind, factory_plugin_description_from_entrypoint};
+use super::{PinnedLibrary, PluginLoadError, PluginLoadErrorKind, plugin_descriptor_from_entrypoint};
 
 /// Owned metadata extracted without constructing a plugin's root factory.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -54,7 +54,7 @@ pub struct FactoryInspection {
 pub unsafe fn inspect_plugin_library(path: impl AsRef<Path>) -> Result<PluginInspection, PluginLoadError> {
     let path = path.as_ref();
     // SAFETY: The caller trusts the selected library and its fixed C entrypoint.
-    let plugin = unsafe { inspect_factory_plugin_description(path) }?;
+    let plugin = unsafe { inspect_plugin_descriptor(path) }?;
     // SAFETY: Validation established readable metadata in a pinned library.
     let plugin = unsafe { &*plugin };
     // SAFETY: The signature was validated and its storage remains pinned.
@@ -90,20 +90,20 @@ pub unsafe fn inspect_plugin_library(path: impl AsRef<Path>) -> Result<PluginIns
 ///
 /// `path` must identify trusted plugin code. Every pointer in its descriptor
 /// must obey the immutable metadata lifetime promised by the C entrypoint.
-pub(crate) unsafe fn inspect_factory_plugin_description(path: &Path) -> Result<*const NcFactoryPluginDescription, PluginLoadError> {
+pub(crate) unsafe fn inspect_plugin_descriptor(path: &Path) -> Result<*const NcPluginDescriptor, PluginLoadError> {
     let module = PinnedLibrary::open(path)?;
     // SAFETY: The caller trusts the pinned module and its versioned C symbol.
-    let get = unsafe { module.get_factory_plugin_description(path)? };
+    let get = unsafe { module.get_plugin_descriptor(path)? };
     // SAFETY: The pinned library keeps the returned descriptor alive.
-    let plugin = unsafe { factory_plugin_description_from_entrypoint(get, path)? };
+    let plugin = unsafe { plugin_descriptor_from_entrypoint(get, path)? };
     // SAFETY: The entrypoint promises complete immutable metadata storage.
-    let status = unsafe { validate_factory_plugin_description(plugin) };
+    let status = unsafe { validate_plugin_descriptor(plugin) };
     if status.is_err() {
         return Err(PluginLoadError::new(
             PluginLoadErrorKind::Metadata,
             path,
             Some(status),
-            "invalid factory plugin description",
+            "invalid plugin descriptor",
         ));
     }
     Ok(plugin)

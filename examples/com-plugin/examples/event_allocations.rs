@@ -89,7 +89,7 @@ fn main() {
     println!("largest eager allocation for truncated large-record collection: {largest} bytes");
     let runtime = Runtime::global();
     // SAFETY: The immutable descriptor and implementation are linked into this executable.
-    unsafe { runtime.register_factory_plugin_description(nc_example_com::factory_plugin_description()) }.unwrap();
+    unsafe { runtime.register_plugin_descriptor(nc_example_com::plugin_descriptor()) }.unwrap();
     let factory = runtime
         .acquire_plugin_factory::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .unwrap();

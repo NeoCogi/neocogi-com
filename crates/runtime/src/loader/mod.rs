@@ -14,7 +14,7 @@
 use core::ffi::c_void;
 use std::path::Path;
 
-use neocogi_com_core::{NC_E_POINTER, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGuid};
+use neocogi_com_core::{NC_E_POINTER, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid};
 
 use crate::factory_plugin_registry::{PluginOrigin, RegisteredFactoryPlugin};
 use crate::factory_registration::prepare_factory_plugin;
@@ -26,7 +26,7 @@ mod library;
 mod plan;
 
 pub use error::{PluginLoadError, PluginLoadErrorKind};
-pub(crate) use inspection::inspect_factory_plugin_description;
+pub(crate) use inspection::inspect_plugin_descriptor;
 pub use inspection::{FactoryInspection, PluginInspection, inspect_plugin_library};
 pub use plan::{PluginDependencyPlanError, plan_plugin_load_order};
 
@@ -51,20 +51,20 @@ impl PinnedLibrary {
         Self { _library: None }
     }
 
-    /// Resolves and types the required factory plugin description entrypoint.
-    unsafe fn get_factory_plugin_description(&self, path: &Path) -> Result<NcGetFactoryPluginDescription, PluginLoadError> {
+    /// Resolves and types the required plugin descriptor entrypoint.
+    unsafe fn get_plugin_descriptor(&self, path: &Path) -> Result<NcGetPluginDescriptor, PluginLoadError> {
         // SAFETY: The caller selected trusted neocogi-com plugin code and the
-        // returned address is called with the exact public factory ABI type.
+        // returned address is called with the exact public plugin-descriptor ABI type.
         let symbol = unsafe {
             self._library
                 .as_ref()
                 .expect("opened libraries own a native handle")
-                .symbol(NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL.as_bytes())
+                .symbol(NC_GET_PLUGIN_DESCRIPTOR_SYMBOL.as_bytes())
         }
         .map_err(|message| PluginLoadError::new(PluginLoadErrorKind::FindSymbol, path, None, message))?;
 
         // SAFETY: The symbol name uniquely identifies this function signature.
-        Ok(unsafe { core::mem::transmute::<*mut c_void, NcGetFactoryPluginDescription>(symbol) })
+        Ok(unsafe { core::mem::transmute::<*mut c_void, NcGetPluginDescriptor>(symbol) })
     }
 }
 
@@ -93,9 +93,9 @@ impl RuntimeState {
         let library = PinnedLibrary::open(path)?;
         // SAFETY: The caller selects trusted code; the opened library stays
         // process-pinned even when symbol resolution or publication fails.
-        let get = unsafe { library.get_factory_plugin_description(path)? };
+        let get = unsafe { library.get_plugin_descriptor(path)? };
         // SAFETY: The pinned mapping backs the descriptor and its bootstrap.
-        let description = unsafe { factory_plugin_description_from_entrypoint(get, path)? };
+        let description = unsafe { plugin_descriptor_from_entrypoint(get, path)? };
         // SAFETY: The entrypoint promises immutable process-lifetime metadata.
         let mut plugin = unsafe { prepare_loaded_factory_plugin(path, description)? };
         let plugin_id = plugin.plugin_id;
@@ -111,27 +111,24 @@ impl RuntimeState {
                 PluginLoadErrorKind::Registration,
                 path,
                 Some(status),
-                "runtime registration rejected the factory plugin description",
+                "runtime registration rejected the plugin descriptor",
             ));
         }
         Ok(plugin_id)
     }
 }
 
-/// Invokes one resolved factory-only description entrypoint.
-unsafe fn factory_plugin_description_from_entrypoint(
-    get_description: NcGetFactoryPluginDescription,
-    path: &Path,
-) -> Result<*const NcFactoryPluginDescription, PluginLoadError> {
+/// Invokes one resolved plugin descriptor entrypoint.
+unsafe fn plugin_descriptor_from_entrypoint(get_descriptor: NcGetPluginDescriptor, path: &Path) -> Result<*const NcPluginDescriptor, PluginLoadError> {
     let mut plugin = core::ptr::null();
     // SAFETY: The resolved ABI receives one valid output pointer slot.
-    let status = unsafe { get_description(&mut plugin) };
+    let status = unsafe { get_descriptor(&mut plugin) };
     if status.is_err() {
         return Err(PluginLoadError::new(
             PluginLoadErrorKind::Entrypoint,
             path,
             Some(status),
-            "factory plugin description entrypoint returned an error",
+            "plugin descriptor entrypoint returned an error",
         ));
     }
     if plugin.is_null() {
@@ -139,22 +136,16 @@ unsafe fn factory_plugin_description_from_entrypoint(
             PluginLoadErrorKind::Entrypoint,
             path,
             Some(NC_E_POINTER),
-            "factory plugin description entrypoint returned null",
+            "plugin descriptor entrypoint returned null",
         ));
     }
     Ok(plugin)
 }
 
-/// Validates and projects one loaded factory description into owned records.
-unsafe fn prepare_loaded_factory_plugin(path: &Path, plugin: *const NcFactoryPluginDescription) -> Result<RegisteredFactoryPlugin, PluginLoadError> {
+/// Validates and projects one loaded plugin descriptor into owned records.
+unsafe fn prepare_loaded_factory_plugin(path: &Path, plugin: *const NcPluginDescriptor) -> Result<RegisteredFactoryPlugin, PluginLoadError> {
     // SAFETY: The descriptor and its referenced data remain backed by the pinned library during
     // this call and by retained ownership after a successful commit.
-    unsafe { prepare_factory_plugin(plugin) }.map_err(|status| {
-        PluginLoadError::new(
-            PluginLoadErrorKind::Metadata,
-            path,
-            Some(status),
-            "factory plugin description failed load validation",
-        )
-    })
+    unsafe { prepare_factory_plugin(plugin) }
+        .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), "plugin descriptor failed load validation"))
 }

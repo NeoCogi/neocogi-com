@@ -44,7 +44,7 @@ fn native_plugin_origin_is_atomic_idempotent_and_process_pinned() {
     // results/errors synchronously, and permits reentrant metadata reads.
     assert_eq!(
         unsafe {
-            runtime.with_plugin_library_description(&first, |description| {
+            runtime.with_plugin_library_descriptor(&first, |description| {
                 assert!(runtime.plugins()?.is_empty());
                 assert_eq!(runtime.plugin_info(description.plugin_id)?, None);
                 Ok(description.plugin_id)
@@ -54,7 +54,7 @@ fn native_plugin_origin_is_atomic_idempotent_and_process_pinned() {
         id
     );
     assert_eq!(
-        unsafe { runtime.with_plugin_library_description(&first, |_| Err::<(), _>(NC_E_CLOSED)) },
+        unsafe { runtime.with_plugin_library_descriptor(&first, |_| Err::<(), _>(NC_E_CLOSED)) },
         Err(NC_E_CLOSED)
     );
     assert!(runtime.plugins().unwrap().is_empty());

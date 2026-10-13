@@ -260,7 +260,7 @@ mod tests {
             interface_method_count_offset: core::mem::offset_of!(NcInterfaceDescriptor, method_count),
             interface_methods_offset: core::mem::offset_of!(NcInterfaceDescriptor, methods),
             runtime_core_abi_version_offset: core::mem::offset_of!(NcRuntimeApiV1, core_abi_version),
-            runtime_plugin_register_offset: core::mem::offset_of!(NcRuntimeApiV1, register_factory_plugin_description),
+            runtime_plugin_register_offset: core::mem::offset_of!(NcRuntimeApiV1, register_plugin_descriptor),
             runtime_plugin_count_offset: core::mem::offset_of!(NcRuntimeApiV1, plugin_count),
             runtime_plugin_info_offset: core::mem::offset_of!(NcRuntimeApiV1, plugin_info),
             runtime_size: core::mem::size_of::<NcRuntimeApiV1>(),

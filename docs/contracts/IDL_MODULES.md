@@ -700,7 +700,7 @@ neocogi_com::export_factory_plugin!();
 Hard provider requirements can be listed as `dependencies = [PLUGIN_ID]`.
 There is no `contracts` list. Plugin descriptor ABI v1 contains the full factory
 identity, threading capability, bootstrap pointer, plugin metadata, and provider
-IDs. Its native getter is `nc_get_factory_plugin_description_v1`.
+IDs. Its native getter is `nc_get_plugin_descriptor_v1`.
 
 Dynamic loading validates and registers one plugin atomically. Providers must
 already be registered; registration invokes neither factories nor dependency
@@ -750,7 +750,7 @@ Generated IDL records are Rust-side static data inside their defining binary.
 For independent widget plugins, the root factory implements the shared
 `IDesignWidgetCatalog` COM interface. Its `describe` method copies a bounded,
 versioned `DesignWidgetManifest` built from those records across COM. The
-standalone designer first inspects the plugin's validated factory description,
+standalone designer first inspects the plugin's validated plugin descriptor,
 activates its exact root identity, queries the catalog, and reads the owned
 struct/enum/message and property metadata. `create_widget` constructs a real
 widget through COM; the host verifies its advertised IID and ABI signature.

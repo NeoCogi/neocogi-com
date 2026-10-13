@@ -13,9 +13,9 @@ unsafe extern "C" fn acquire(out: *mut ComRaw<IUnknown>) -> NcStatus {
     NC_E_CLOSED
 }
 /// Allocates immutable process-lifetime metadata, mirroring a pinned descriptor.
-fn description(name: &'static str, dependencies: &'static [NcPluginDependencyDescriptor]) -> &'static NcFactoryPluginDescription {
-    Box::leak(Box::new(NcFactoryPluginDescription {
-        description_abi_version: NC_FACTORY_PLUGIN_ABI_VERSION,
+fn description(name: &'static str, dependencies: &'static [NcPluginDependencyDescriptor]) -> &'static NcPluginDescriptor {
+    Box::leak(Box::new(NcPluginDescriptor {
+        description_abi_version: NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
         core_abi_version: NC_COM_CORE_ABI_VERSION,
         plugin_id: guid_from_qualified_name(name),
         qualified_name: NcStaticUtf8::from_static(name),
@@ -51,16 +51,16 @@ fn complete_records_are_coherent_owned_and_stable_across_growth() {
     ]));
     let consumer = description("nc.tests.catalog.consumer", deps);
     // SAFETY: Descriptors and all reachable metadata/code remain immutable and live.
-    assert_eq!(unsafe { runtime.register_factory_plugin_description(consumer) }, Err(NC_E_NOT_FOUND));
+    assert_eq!(unsafe { runtime.register_plugin_descriptor(consumer) }, Err(NC_E_NOT_FOUND));
     unsafe {
-        runtime.register_factory_plugin_description(provider).unwrap();
-        runtime.register_factory_plugin_description(second).unwrap();
+        runtime.register_plugin_descriptor(provider).unwrap();
+        runtime.register_plugin_descriptor(second).unwrap();
     }
     unsafe {
-        runtime.register_factory_plugin_description(consumer).unwrap();
+        runtime.register_plugin_descriptor(consumer).unwrap();
     }
     unsafe {
-        runtime.register_factory_plugin_description(consumer).unwrap();
+        runtime.register_plugin_descriptor(consumer).unwrap();
     }
     assert_eq!(unsafe { (api.plugin_count)() }, 3);
     let mut raw = MaybeUninit::<NcPluginInfoV1>::uninit();
@@ -97,7 +97,7 @@ fn complete_records_are_coherent_owned_and_stable_across_growth() {
     for index in 0..64 {
         let name = Box::leak(format!("nc.tests.catalog.growth{index}").into_boxed_str());
         unsafe {
-            runtime.register_factory_plugin_description(description(name, &[])).unwrap();
+            runtime.register_plugin_descriptor(description(name, &[])).unwrap();
         }
     }
     // These old pointers remain readable after the record vector has reallocated.

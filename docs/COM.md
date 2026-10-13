@@ -146,10 +146,10 @@ neocogi_com::factory_plugin! {
 neocogi_com::export_factory_plugin!();
 ```
 
-The plugin exports `nc_get_factory_plugin_description_v1`. Descriptor ABI v1
+The plugin exports `nc_get_plugin_descriptor_v1`. Descriptor ABI v1
 includes plugin identity/version, hard dependencies, the complete factory
 IID/signature, threading, and one bootstrap pointer. Static assemblies call
-`factory_plugin_description()` directly. Only factories receive generated
+`plugin_descriptor()` directly. Only factories receive generated
 zero-argument construction; ordinary objects use `from_value`.
 
 ## Host acquisition
@@ -165,7 +165,7 @@ fn static_example() -> Result<(), NcStatus> {
     let runtime = neocogi_com::Runtime::global();
     // SAFETY: linked plugin code and macro-generated static metadata remain
     // available for the process lifetime, including every returned COM handle.
-    unsafe { runtime.register_factory_plugin_description(factory_plugin_description()) }?;
+    unsafe { runtime.register_plugin_descriptor(plugin_descriptor()) }?;
     let factory = runtime.acquire_plugin_factory::<ExampleFactoryAbi>(
         neocogi_com::guid_from_qualified_name("example.component"),
     )?;

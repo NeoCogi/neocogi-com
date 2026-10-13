@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use crate::loader::PinnedLibrary;
 
-use neocogi_com_core::{NcFactoryPluginDescription, NcGuid};
+use neocogi_com_core::{NcPluginDescriptor, NcGuid};
 
 /// Append-only records for the factory-only plugin model.
 pub(crate) struct FactoryPluginRegistry {
@@ -74,12 +74,12 @@ impl FactoryPluginRegistry {
     }
 }
 
-/// Runtime projection of one validated factory-only plugin description.
+/// Runtime projection of one validated plugin descriptor.
 pub(crate) struct RegisteredFactoryPlugin {
     /// Stable ID derived from the plugin's normative name.
     pub(crate) plugin_id: NcGuid,
     /// Borrowed immutable description retained by static or pinned library ownership.
-    pub(crate) description: *const NcFactoryPluginDescription,
+    pub(crate) description: *const NcPluginDescriptor,
     /// Immutable copied provider IDs used for validation and borrowed metadata.
     /// Published buffers never change; their allocations survive record movement.
     pub(crate) dependency_ids: Vec<NcGuid>,

@@ -193,7 +193,7 @@ let factory = runtime.acquire_plugin_factory::<my_contracts::UiFactoryAbi>(
 let button = factory.create_button()?;
 ```
 
-`load_plugin_library` requires `nc_get_factory_plugin_description_v1`, validates
+`load_plugin_library` requires `nc_get_plugin_descriptor_v1`, validates
 plugin metadata and hard dependencies, and registers the plugin atomically.
 Acquisition compares the exact factory signature before invoking bootstrap.
 Unconnected contract revisions can coexist; incompatible calls fail with
@@ -219,7 +219,7 @@ acquisition method:
 ```rust,ignore
 // SAFETY: The linked descriptor and all its code/data live for the process lifetime.
 unsafe {
-    runtime.register_factory_plugin_description(factory_plugin_description())?;
+    runtime.register_plugin_descriptor(plugin_descriptor())?;
 }
 ```
 
@@ -229,10 +229,10 @@ producer must honor its threading promise. Plugin dependency IDs affect
 load order but never trigger path discovery or recursive loading.
 
 Offline inspection uses the unsafe
-`runtime.with_plugin_library_description(path, visitor)` method.
+`runtime.with_plugin_library_descriptor(path, visitor)` method.
 The path must identify trusted code, and the visitor must not panic across its
 C callback boundary. It borrows the
-validated `NcFactoryPluginDescription` only for the callback and does not mutate
+validated `NcPluginDescriptor` only for the callback and does not mutate
 the process registry. The inspection JSON schema is factory-native: each plugin
 contains a factory IID/signature/threading record and hard dependencies.
 The [sample plugin](../../../examples/com-plugin/README.md) demonstrates both

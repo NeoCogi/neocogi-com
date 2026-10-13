@@ -6,7 +6,7 @@
 
 use neocogi_com_core::{
     IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcAcquirePluginFactory,
-    NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcStatus, raw,
+    NcPluginDescriptor, NcGuid, NcInterfaceId, NcStatus, raw,
 };
 
 use crate::factory_plugin_registry::FactoryPluginRegistry;
@@ -21,7 +21,7 @@ pub(crate) fn resolve_factory(
     let registered = registry.plugin(plugin_id).ok_or(NC_E_NOT_FOUND)?;
     // SAFETY: The registry retains only validated immutable descriptions whose
     // static or mapped-library owner remains live while registered.
-    let description: &NcFactoryPluginDescription = unsafe { &*registered.description };
+    let description: &NcPluginDescriptor = unsafe { &*registered.description };
     if description.root_factory.iid != factory_interface.iid {
         return Err(NC_E_NOINTERFACE);
     }
@@ -111,7 +111,7 @@ mod tests {
     use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
     use neocogi_com_core::{
-        IUnknownVTable, NC_ABI_THREADING_THREAD_LOCAL, NC_E_ABI_VERSION, NcAbiSignature, NcFactoryPluginDescription, NcStaticUtf8, guid_from_qualified_name,
+        IUnknownVTable, NC_ABI_THREADING_THREAD_LOCAL, NC_E_ABI_VERSION, NcAbiSignature, NcPluginDescriptor, NcStaticUtf8, guid_from_qualified_name,
     };
 
     use super::*;
@@ -202,8 +202,8 @@ mod tests {
     }
 
     /// Minimal validated registry record used only by resolution tests.
-    static DESCRIPTION: NcFactoryPluginDescription = NcFactoryPluginDescription {
-        description_abi_version: neocogi_com_core::NC_FACTORY_PLUGIN_ABI_VERSION,
+    static DESCRIPTION: NcPluginDescriptor = NcPluginDescriptor {
+        description_abi_version: neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
         core_abi_version: neocogi_com_core::NC_COM_CORE_ABI_VERSION,
         plugin_id: guid_from_qualified_name("nc.tests.acquisition"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.acquisition"),

@@ -3,20 +3,20 @@
 
 use core::{ffi::c_void, ptr};
 
-use neocogi_com_core::{NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectFactoryPluginDescriptionCallbackV1, NcPluginInfoV1, NcStatus};
+use neocogi_com_core::{NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectPluginDescriptorCallbackV1, NcPluginInfoV1, NcStatus};
 
 use crate::inspection as runtime_inspection;
-use crate::loader::inspect_factory_plugin_description;
+use crate::loader::inspect_plugin_descriptor;
 use crate::state::RuntimeState;
 
 use super::runtime::load_error_status;
 use super::{copy_to_out, emit_error, path_from_utf8};
 
-/// Opens and validates a trusted plugin, then invokes a synchronous factory-description callback.
+/// Opens and validates a trusted plugin, then invokes a synchronous plugin-descriptor callback.
 pub(super) unsafe extern "C" fn inspect_plugin_library_utf8(
     path: *const u8,
     path_len: usize,
-    callback: Option<NcInspectFactoryPluginDescriptionCallbackV1>,
+    callback: Option<NcInspectPluginDescriptorCallbackV1>,
     user_data: *mut c_void,
 ) -> NcStatus {
     let Some(callback) = callback else {
@@ -28,7 +28,7 @@ pub(super) unsafe extern "C" fn inspect_plugin_library_utf8(
     };
 
     // SAFETY: The ABI caller selected this path as trusted plugin code.
-    let plugin = match unsafe { inspect_factory_plugin_description(path) } {
+    let plugin = match unsafe { inspect_plugin_descriptor(path) } {
         Ok(plugin) => plugin,
         Err(error) => {
             let status = error.status().unwrap_or_else(|| load_error_status(error.kind()));

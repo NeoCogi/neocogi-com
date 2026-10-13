@@ -7,7 +7,7 @@
 /// The runtime supplies an initialized writable pointer slot for the descriptor.
 #[cfg(not(missing_export))]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nc_get_factory_plugin_description_v1(out: *mut *const core::ffi::c_void) -> i32 {
+pub unsafe extern "C" fn nc_get_plugin_descriptor_v1(out: *mut *const core::ffi::c_void) -> i32 {
     // SAFETY: the runtime passes one writable descriptor output slot. Pointer
     // erasure here represents only the C output address, not application data.
     unsafe { out.write(core::ptr::null()) };

@@ -357,7 +357,7 @@ macro_rules! com_bit_enum {
     };
 }
 
-/// Exports a factory-only plugin description from a dynamic-library assembly.
+/// Exports a plugin descriptor from a dynamic-library assembly.
 ///
 /// `factory_plugin!` defines metadata and an ordinary Rust accessor. Dynamic
 /// assemblies invoke this macro once; statically linked assemblies call the
@@ -365,22 +365,22 @@ macro_rules! com_bit_enum {
 #[macro_export]
 macro_rules! export_factory_plugin {
     () => {
-        $crate::export_factory_plugin!(factory_plugin_description);
+        $crate::export_factory_plugin!(plugin_descriptor);
     };
-    ($description:path) => {
-        /// Returns validated factory-only metadata through the dynamic ABI.
+    ($descriptor:path) => {
+        /// Returns validated plugin metadata through the dynamic ABI.
         ///
         /// # Safety
         ///
-        /// `out` must be null or writable for one description pointer. The
+        /// `out` must be null or writable for one descriptor pointer. The
         /// exporting module must remain loaded while that metadata is used.
         #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn nc_get_factory_plugin_description_v1(out: *mut *const $crate::NcFactoryPluginDescription) -> $crate::NcStatus {
+        pub unsafe extern "C" fn nc_get_plugin_descriptor_v1(out: *mut *const $crate::NcPluginDescriptor) -> $crate::NcStatus {
             // SAFETY: The accessor returns immutable static metadata and the
             // caller supplies the raw output slot validated by the helper.
-            unsafe { $crate::return_factory_plugin_description(out, $description()) }
+            unsafe { $crate::return_plugin_descriptor(out, $descriptor()) }
         }
         // Keep symbol shape synchronized with the core ABI declaration.
-        const _: $crate::NcGetFactoryPluginDescription = nc_get_factory_plugin_description_v1;
+        const _: $crate::NcGetPluginDescriptor = nc_get_plugin_descriptor_v1;
     };
 }

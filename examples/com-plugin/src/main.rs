@@ -69,7 +69,7 @@ fn main() {
 #[cfg(feature = "monolith")]
 fn register_plugin(runtime: &Runtime) {
     // SAFETY: Both the descriptor and its code are linked into this process.
-    unsafe { runtime.register_factory_plugin_description(nc_example_com::factory_plugin_description()) }.expect("static plugin registration");
+    unsafe { runtime.register_plugin_descriptor(nc_example_com::plugin_descriptor()) }.expect("static plugin registration");
 }
 
 /// Loads the trusted sample plugin supplied as the executable's first argument.

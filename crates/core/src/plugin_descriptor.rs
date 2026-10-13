@@ -1,4 +1,4 @@
-//! Self-contained plugin descriptions and typed factory acquisition.
+//! Self-contained plugin descriptors and typed factory acquisition.
 //!
 //! A plugin carries the exact interface identity of its zero-argument factory.
 //! Compatibility is checked when that factory is requested; no runtime module
@@ -16,10 +16,10 @@ use crate::{
 /// Discovery remains version one; its stable version prefix is read first.
 /// Consumers must also match the core generation, which selects the remaining
 /// record layout, rather than infer compatibility from this number alone.
-pub const NC_FACTORY_PLUGIN_ABI_VERSION: u32 = 1;
+pub const NC_PLUGIN_DESCRIPTOR_ABI_VERSION: u32 = 1;
 
-/// Exported symbol returning a factory-only plugin description.
-pub const NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL: &str = "nc_get_factory_plugin_description_v1";
+/// Exported symbol returning a plugin descriptor.
+pub const NC_GET_PLUGIN_DESCRIPTOR_SYMBOL: &str = "nc_get_plugin_descriptor_v1";
 
 /// Fixed bootstrap operation that transfers one owned root factory reference.
 ///
@@ -79,7 +79,7 @@ where
 /// Immutable plugin metadata containing dependencies and one exact root factory.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct NcFactoryPluginDescription {
+pub struct NcPluginDescriptor {
     /// Metadata layout generation checked before reading the remaining fields.
     pub description_abi_version: u32,
     /// Core object ABI generation understood by this plugin.
@@ -104,9 +104,9 @@ pub struct NcFactoryPluginDescription {
 
 // SAFETY: The description and its tables are immutable static metadata. The
 // acquisition pointer is code in the library that owns the description.
-unsafe impl Sync for NcFactoryPluginDescription {}
+unsafe impl Sync for NcPluginDescriptor {}
 
-impl NcFactoryPluginDescription {
+impl NcPluginDescriptor {
     /// Borrows hard plugin dependencies after checking pointer/count shape.
     ///
     /// # Safety
@@ -116,19 +116,21 @@ impl NcFactoryPluginDescription {
     pub unsafe fn dependencies<'a>(&self) -> Result<&'a [NcPluginDependencyDescriptor], NcStatus> {
         // SAFETY: The caller supplies the backing lifetime; the helper checks
         // null/count shape before constructing a slice.
-        unsafe { description_slice(self.dependencies, self.dependency_count) }
+        unsafe { descriptor_slice(self.dependencies, self.dependency_count) }
     }
 }
 
-/// Getter exported by one factory-only plugin shared library.
+/// Getter exported by one plugin shared library.
 ///
 /// # Safety
 ///
-/// `out` must be valid for one ComRaw record write. On success it receives immutable
-/// metadata that remains live while the exporting library is mapped.
-pub type NcGetFactoryPluginDescription = unsafe extern "C" fn(out: *mut *const NcFactoryPluginDescription) -> NcStatus;
+/// `out` must be null or aligned and writable for one descriptor pointer. On
+/// success it receives immutable metadata, including all reachable text, tables,
+/// signatures and bootstrap code, valid while the exporting library is mapped.
+/// The getter must not unwind through the C boundary.
+pub type NcGetPluginDescriptor = unsafe extern "C" fn(out: *mut *const NcPluginDescriptor) -> NcStatus;
 
-/// Validates one complete factory-only plugin description without allocation.
+/// Validates one complete plugin descriptor without allocation.
 ///
 /// This pass validates metadata only and never invokes plugin acquisition. The
 /// caller can therefore inspect or register a plugin without constructing it.
@@ -138,20 +140,20 @@ pub type NcGetFactoryPluginDescription = unsafe extern "C" fn(out: *mut *const N
 /// `plugin` must be null or point to an aligned readable two-u32 version prefix.
 /// If those versions are supported, the complete current record, its tables,
 /// strings and any present 32-byte digests must be readable for this call.
-pub unsafe fn validate_factory_plugin_description(plugin: *const NcFactoryPluginDescription) -> NcStatus {
+pub unsafe fn validate_plugin_descriptor(plugin: *const NcPluginDescriptor) -> NcStatus {
     if plugin.is_null() {
         return NC_E_POINTER;
     }
     // Read only the stable version prefix before borrowing the current full
     // record. Earlier core generations have different signature/record sizes.
     // SAFETY: The caller guarantees this aligned two-u32 prefix is readable.
-    let (description_version, core_version) = unsafe {
+    let (descriptor_version, core_version) = unsafe {
         (
             core::ptr::addr_of!((*plugin).description_abi_version).read(),
             core::ptr::addr_of!((*plugin).core_abi_version).read(),
         )
     };
-    if description_version != NC_FACTORY_PLUGIN_ABI_VERSION || core_version != NC_COM_CORE_ABI_VERSION {
+    if descriptor_version != NC_PLUGIN_DESCRIPTOR_ABI_VERSION || core_version != NC_COM_CORE_ABI_VERSION {
         return NC_E_ABI_VERSION;
     }
     // SAFETY: Matching versions establish the required full-record layout,
@@ -191,13 +193,15 @@ pub unsafe fn validate_factory_plugin_description(plugin: *const NcFactoryPlugin
     NC_OK
 }
 
-/// Publishes one validated static factory plugin description through an export.
+/// Publishes one validated static plugin descriptor through an export.
 ///
 /// # Safety
 ///
 /// `out` must be null or writable for one pointer. `plugin` must remain valid
-/// while its exporting library is loaded.
-pub unsafe fn return_factory_plugin_description(out: *mut *const NcFactoryPluginDescription, plugin: &'static NcFactoryPluginDescription) -> NcStatus {
+/// while its exporting library is loaded, including every reachable metadata
+/// pointer and bootstrap function. A static root reference alone does not prove
+/// that those referenced allocations and code remain readable and callable.
+pub unsafe fn return_plugin_descriptor(out: *mut *const NcPluginDescriptor, plugin: &'static NcPluginDescriptor) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -206,7 +210,7 @@ pub unsafe fn return_factory_plugin_description(out: *mut *const NcFactoryPlugin
     unsafe { *out = core::ptr::null() };
     // SAFETY: A shared reference proves the root is readable; macro-generated
     // descriptions point only to immutable static tables.
-    let status = unsafe { validate_factory_plugin_description(plugin) };
+    let status = unsafe { validate_plugin_descriptor(plugin) };
     if status.is_err() {
         return status;
     }
@@ -221,7 +225,7 @@ pub unsafe fn return_factory_plugin_description(out: *mut *const NcFactoryPlugin
 ///
 /// A non-null `pointer` must address `count` initialized readable values that
 /// remain valid for the returned lifetime.
-unsafe fn description_slice<'a, T>(pointer: *const T, count: u32) -> Result<&'a [T], NcStatus> {
+unsafe fn descriptor_slice<'a, T>(pointer: *const T, count: u32) -> Result<&'a [T], NcStatus> {
     if count == 0 {
         return Ok(&[]);
     }
@@ -256,9 +260,9 @@ mod tests {
         NC_E_INVALID_ARG
     }
 
-    /// Complete factory-only plugin fixture with no plugin dependencies.
-    static VALID_PLUGIN: NcFactoryPluginDescription = NcFactoryPluginDescription {
-        description_abi_version: NC_FACTORY_PLUGIN_ABI_VERSION,
+    /// Complete plugin descriptor fixture with no plugin dependencies.
+    static VALID_PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
+        description_abi_version: NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
         core_abi_version: NC_COM_CORE_ABI_VERSION,
         plugin_id: guid_from_qualified_name("nc.tests.factory_plugin"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.factory_plugin"),
@@ -272,79 +276,79 @@ mod tests {
 
     /// Confirms valid metadata publishes the exact immutable description.
     #[test]
-    fn validates_and_returns_factory_plugin_description() {
+    fn validates_and_returns_plugin_descriptor() {
         // SAFETY: The fixture and all referenced metadata are immutable statics.
-        assert_eq!(unsafe { validate_factory_plugin_description(&VALID_PLUGIN) }, NC_OK);
+        assert_eq!(unsafe { validate_plugin_descriptor(&VALID_PLUGIN) }, NC_OK);
         let mut returned = ptr::null();
         // SAFETY: `returned` provides one writable pointer slot.
-        assert_eq!(unsafe { return_factory_plugin_description(&mut returned, &VALID_PLUGIN) }, NC_OK);
+        assert_eq!(unsafe { return_plugin_descriptor(&mut returned, &VALID_PLUGIN) }, NC_OK);
         assert!(ptr::eq(returned, &VALID_PLUGIN));
     }
 
     /// Confirms plugin identity cannot disagree with its normative name.
     #[test]
     fn rejects_a_plugin_id_unrelated_to_its_name() {
-        let invalid = NcFactoryPluginDescription {
+        let invalid = NcPluginDescriptor {
             plugin_id: NcGuid::from_fields(99, 2, 3, [4; 8]),
             ..VALID_PLUGIN
         };
         // SAFETY: The stack root borrows only immutable static child tables.
-        assert_eq!(unsafe { validate_factory_plugin_description(&invalid) }, NC_E_INVALID_ARG);
+        assert_eq!(unsafe { validate_plugin_descriptor(&invalid) }, NC_E_INVALID_ARG);
     }
 
     /// Rejects incompatible descriptor layouts before inspecting root metadata.
     #[test]
     fn rejects_descriptor_version_and_missing_factory_signature() {
-        let incompatible = NcFactoryPluginDescription {
-            description_abi_version: NC_FACTORY_PLUGIN_ABI_VERSION + 1,
+        let incompatible = NcPluginDescriptor {
+            description_abi_version: NC_PLUGIN_DESCRIPTOR_ABI_VERSION + 1,
             ..VALID_PLUGIN
         };
         // SAFETY: Both fixtures have readable roots and immutable child storage.
-        assert_eq!(unsafe { validate_factory_plugin_description(&incompatible) }, NC_E_ABI_VERSION);
-        let unsigned = NcFactoryPluginDescription {
+        assert_eq!(unsafe { validate_plugin_descriptor(&incompatible) }, NC_E_ABI_VERSION);
+        let unsigned = NcPluginDescriptor {
             root_factory: NcInterfaceId::new(FACTORY_ID.iid, NcAbiSignature::EMPTY),
             ..VALID_PLUGIN
         };
-        assert_eq!(unsafe { validate_factory_plugin_description(&unsigned) }, NC_E_INVALID_ARG);
+        assert_eq!(unsafe { validate_plugin_descriptor(&unsigned) }, NC_E_INVALID_ARG);
     }
 
     /// Old layouts are rejected using only their common prefix, without a
     /// current-size reference, signature read or bootstrap access.
     #[test]
     fn rejects_previous_generations_from_the_version_prefix_alone() {
-        assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, description_abi_version), 0);
-        assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, core_abi_version), 4);
+        assert_eq!(core::mem::offset_of!(NcPluginDescriptor, description_abi_version), 0);
+        assert_eq!(core::mem::offset_of!(NcPluginDescriptor, core_abi_version), 4);
         for versions in [
-            [NC_FACTORY_PLUGIN_ABI_VERSION, 8],
-            [NC_FACTORY_PLUGIN_ABI_VERSION, 15],
-            [NC_FACTORY_PLUGIN_ABI_VERSION + 1, NC_COM_CORE_ABI_VERSION],
+            [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 8],
+            [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 15],
+            [NC_PLUGIN_DESCRIPTOR_ABI_VERSION + 1, NC_COM_CORE_ABI_VERSION],
         ] {
             // SAFETY: Only the readable version prefix is promised for an
             // unsupported generation. No trailing record even exists here.
-            assert_eq!(unsafe { validate_factory_plugin_description(versions.as_ptr().cast()) }, NC_E_ABI_VERSION);
+            assert_eq!(unsafe { validate_plugin_descriptor(versions.as_ptr().cast()) }, NC_E_ABI_VERSION);
         }
     }
 
     /// Locks the new descriptor's field order to its documented C ABI layout.
     #[test]
-    fn factory_plugin_description_layout_is_c_stable() {
+    fn plugin_descriptor_layout_is_c_stable() {
         #[cfg(target_pointer_width = "64")]
         {
-            assert_eq!(core::mem::size_of::<NcFactoryPluginDescription>(), 112);
-            assert_eq!(core::mem::align_of::<NcFactoryPluginDescription>(), 8);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, plugin_id), 8);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, dependencies), 64);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, root_factory), 72);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, acquire), 104);
+            assert_eq!(core::mem::size_of::<NcPluginDescriptor>(), 112);
+            assert_eq!(core::mem::align_of::<NcPluginDescriptor>(), 8);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_id), 8);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependencies), 64);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, root_factory), 72);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, acquire), 104);
         }
         #[cfg(target_pointer_width = "32")]
         {
-            assert_eq!(core::mem::size_of::<NcFactoryPluginDescription>(), 76);
-            assert_eq!(core::mem::align_of::<NcFactoryPluginDescription>(), 4);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, plugin_id), 8);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, dependencies), 44);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, root_factory), 48);
-            assert_eq!(core::mem::offset_of!(NcFactoryPluginDescription, acquire), 72);
+            assert_eq!(core::mem::size_of::<NcPluginDescriptor>(), 76);
+            assert_eq!(core::mem::align_of::<NcPluginDescriptor>(), 4);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, plugin_id), 8);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, dependencies), 44);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, root_factory), 48);
+            assert_eq!(core::mem::offset_of!(NcPluginDescriptor, acquire), 72);
         }
     }
 }

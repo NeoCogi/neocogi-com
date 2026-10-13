@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::string::String;
 use std::vec::Vec;
 
-use crate::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcPluginInfoV1, NcStatus};
+use crate::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcPluginDescriptor, NcGuid, NcInterfaceId, NcPluginInfoV1, NcStatus};
 
 use super::{Runtime, read_utf8_view, read_vec, status_to_result};
 
@@ -52,29 +52,29 @@ pub struct FactoryInfo {
 }
 
 /// Stack context that transfers a Rust `FnOnce` result through a C callback.
-struct FactoryDescriptionVisitContext<F, R> {
+struct PluginDescriptorVisitContext<F, R> {
     /// Visitor stored in an option so a repeated callback can be rejected.
     visitor: Option<F>,
     /// Value produced synchronously by the visitor on success.
     result: Option<R>,
 }
 
-/// Adapts the inspection ABI's factory-description visitor to a Rust closure.
-unsafe extern "C" fn visit_factory_plugin_description<F, R>(plugin: *const NcFactoryPluginDescription, user_data: *mut core::ffi::c_void) -> NcStatus
+/// Adapts the inspection ABI's plugin-descriptor visitor to a Rust closure.
+unsafe extern "C" fn visit_plugin_descriptor<F, R>(plugin: *const NcPluginDescriptor, user_data: *mut core::ffi::c_void) -> NcStatus
 where
-    F: FnOnce(&NcFactoryPluginDescription) -> Result<R, NcStatus>,
+    F: FnOnce(&NcPluginDescriptor) -> Result<R, NcStatus>,
 {
     if plugin.is_null() || user_data.is_null() {
         return NC_E_POINTER;
     }
     // SAFETY: `user_data` points to the live stack context supplied by
-    // `with_plugin_library_description`, and the runtime invokes this callback
+    // `with_plugin_library_descriptor`, and the runtime invokes this callback
     // synchronously before that call returns.
-    let context = unsafe { &mut *user_data.cast::<FactoryDescriptionVisitContext<F, R>>() };
+    let context = unsafe { &mut *user_data.cast::<PluginDescriptorVisitContext<F, R>>() };
     let Some(visitor) = context.visitor.take() else {
         return NC_E_INVALID_ARG;
     };
-    // SAFETY: The runtime guarantees a validated factory-description graph for the
+    // SAFETY: The runtime guarantees a validated plugin-descriptor graph for the
     // duration of this callback.
     match visitor(unsafe { &*plugin }) {
         Ok(result) => {
@@ -86,7 +86,7 @@ where
 }
 
 impl Runtime {
-    /// Opens a trusted plugin library and visits its validated factory description.
+    /// Opens a trusted plugin library and visits its validated plugin descriptor.
     ///
     /// This operation does not register the plugin, construct objects, or
     /// follow its declared plugin dependencies. The description and every
@@ -106,19 +106,19 @@ impl Runtime {
     /// `path` must identify trusted code. Opening a dynamic library may execute
     /// arbitrary platform loader code. `visitor` must not panic because Rust
     /// panics cannot unwind through the C callback boundary.
-    pub unsafe fn with_plugin_library_description<R, F>(&self, path: impl AsRef<Path>, visitor: F) -> Result<R, NcStatus>
+    pub unsafe fn with_plugin_library_descriptor<R, F>(&self, path: impl AsRef<Path>, visitor: F) -> Result<R, NcStatus>
     where
-        F: FnOnce(&NcFactoryPluginDescription) -> Result<R, NcStatus>,
+        F: FnOnce(&NcPluginDescriptor) -> Result<R, NcStatus>,
     {
         let path = path.as_ref().to_str().ok_or(NC_E_INVALID_ARG)?;
-        let mut context = FactoryDescriptionVisitContext { visitor: Some(visitor), result: None };
+        let mut context = PluginDescriptorVisitContext { visitor: Some(visitor), result: None };
         // SAFETY: The caller accepted the trusted-library requirement. The
         // stack context stays live for the runtime's synchronous callback.
         let status = unsafe {
             (self.runtime_api().inspect_plugin_library_utf8)(
                 path.as_ptr(),
                 path.len(),
-                Some(visit_factory_plugin_description::<F, R>),
+                Some(visit_plugin_descriptor::<F, R>),
                 core::ptr::from_mut(&mut context).cast(),
             )
         };

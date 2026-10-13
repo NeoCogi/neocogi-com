@@ -7,7 +7,7 @@
 
 use core::ffi::c_void;
 use super::NcUtf8View;
-use crate::{NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcStatus};
+use crate::{NcPluginDescriptor, NcGuid, NcInterfaceId, NcStatus};
 
 /// Maximum number of distinct dynamically registered plugins in runtime ABI v1.
 /// Repeated loads consume no slot. Static registrations and inspection-only
@@ -18,7 +18,7 @@ pub const NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS: usize = 1_024;
 /// `plugin` and reachable pointers are borrowed only during this callback and
 /// must not be retained. `user_data` is passed through unchanged. The callback
 /// must not unwind; its status is returned unchanged by the runtime.
-pub type NcInspectFactoryPluginDescriptionCallbackV1 = unsafe extern "C" fn(plugin: *const NcFactoryPluginDescription, user_data: *mut c_void) -> NcStatus;
+pub type NcInspectPluginDescriptorCallbackV1 = unsafe extern "C" fn(plugin: *const NcPluginDescriptor, user_data: *mut c_void) -> NcStatus;
 
 /// Exact contract of the one root factory, without acquiring a live reference.
 #[repr(C)]

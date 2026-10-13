@@ -64,7 +64,7 @@ fn generated_contract_factory_acquires_without_a_class_table() {
     let runtime = Runtime::default();
     // SAFETY: Macro-generated plugin and linked contract metadata are immutable
     // statics retained by the test executable for the process lifetime.
-    unsafe { runtime.register_factory_plugin_description(factory_plugin_description()) }.expect("factory plugin registration failed");
+    unsafe { runtime.register_plugin_descriptor(plugin_descriptor()) }.expect("factory plugin registration failed");
 
     let plugin_id = guid_from_qualified_name("nc.tests.generated_factory_plugin");
     let factory = runtime
@@ -101,7 +101,7 @@ fn complete_plugin_info_and_direct_acquisition_work_without_filesystem_path() {
 
     // SAFETY: The static description outlives the process.
     unsafe {
-        let _ = runtime.register_factory_plugin_description(factory_plugin_description());
+        let _ = runtime.register_plugin_descriptor(plugin_descriptor());
     }
 
     // Inspect registered factory info without any filesystem path.

@@ -6,8 +6,8 @@
 //! all participants must be rebuilt from the same checkout.
 
 use core::ffi::c_void;
-use crate::{IUnknown, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcStatus};
-use super::{NcInspectFactoryPluginDescriptionCallbackV1, NcPluginInfoV1};
+use crate::{IUnknown, NcPluginDescriptor, NcGuid, NcInterfaceId, NcStatus};
+use super::{NcInspectPluginDescriptorCallbackV1, NcPluginInfoV1};
 
 /// Process-global runtime operations for runtime ABI v1.
 #[repr(C)]
@@ -21,14 +21,14 @@ pub struct NcRuntimeApiV1 {
     /// The entire immutable descriptor graph and bootstrap code must remain live
     /// for the process lifetime. Null returns `NC_E_POINTER`; invalid descriptors,
     /// missing dependencies and conflicting identities return validation statuses.
-    pub register_factory_plugin_description: unsafe extern "C" fn(plugin: *const NcFactoryPluginDescription) -> NcStatus,
+    pub register_plugin_descriptor: unsafe extern "C" fn(plugin: *const NcPluginDescriptor) -> NcStatus,
     /// Loads and registers one trusted factory plugin, returning its stable GUID.
     /// Reopening the same descriptor reuses its registration and first path;
     /// a distinct descriptor claiming that identity is rejected. The output is
     /// cleared to the nil GUID before validation and initialized on success.
     /// The path is nonempty UTF-8 without interior NUL bytes.
     ///
-    /// The library must export `nc_get_factory_plugin_description_v1`. Class-table
+    /// The library must export `nc_get_plugin_descriptor_v1`. Class-table
     /// descriptor exports are not a loading mechanism. After argument
     /// validation, any native loading, description, dependency, or registration
     /// failure emits diagnostics and aborts the entire application. There is no
@@ -69,12 +69,8 @@ pub struct NcRuntimeApiV1 {
     /// Success invokes the callback exactly once without holding a catalog lock,
     /// returning its status unchanged. Once opened, mappings remain pinned even
     /// on subsequent failure. Opening may execute platform loader code.
-    pub inspect_plugin_library_utf8: unsafe extern "C" fn(
-        path: *const u8,
-        path_len: usize,
-        callback: Option<NcInspectFactoryPluginDescriptionCallbackV1>,
-        user_data: *mut c_void,
-    ) -> NcStatus,
+    pub inspect_plugin_library_utf8:
+        unsafe extern "C" fn(path: *const u8, path_len: usize, callback: Option<NcInspectPluginDescriptorCallbackV1>, user_data: *mut c_void) -> NcStatus,
 }
 
 #[cfg(test)]

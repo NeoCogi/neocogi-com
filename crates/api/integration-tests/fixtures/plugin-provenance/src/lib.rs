@@ -2,8 +2,8 @@
 //! distinctive error, proving retained code executes even after the file vanishes.
 
 use neocogi_com_core::{
-    ComRaw, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NC_E_CLOSED, NC_E_POINTER, NC_FACTORY_PLUGIN_ABI_VERSION, NC_OK,
-    NcFactoryPluginDescription, NcStaticUtf8, NcStatus, guid_from_qualified_name,
+    ComRaw, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NC_E_CLOSED, NC_E_POINTER, NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_OK,
+    NcPluginDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name,
 };
 
 /// This test does not construct an object; successful lookup reaches this code.
@@ -17,8 +17,8 @@ unsafe extern "C" fn acquire(out: *mut ComRaw<IUnknown>) -> NcStatus {
 }
 
 /// Process-lifetime immutable provider metadata owned by this mapping.
-static DESCRIPTION: NcFactoryPluginDescription = NcFactoryPluginDescription {
-    description_abi_version: NC_FACTORY_PLUGIN_ABI_VERSION,
+static DESCRIPTION: NcPluginDescriptor = NcPluginDescriptor {
+    description_abi_version: NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
     core_abi_version: NC_COM_CORE_ABI_VERSION,
     plugin_id: guid_from_qualified_name("nc.tests.provenance"),
     qualified_name: NcStaticUtf8::from_static("nc.tests.provenance"),
@@ -35,7 +35,7 @@ static DESCRIPTION: NcFactoryPluginDescription = NcFactoryPluginDescription {
 /// # Safety
 /// `out` must be null or writable for one descriptor pointer.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nc_get_factory_plugin_description_v1(out: *mut *const NcFactoryPluginDescription) -> NcStatus {
+pub unsafe extern "C" fn nc_get_plugin_descriptor_v1(out: *mut *const NcPluginDescriptor) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }

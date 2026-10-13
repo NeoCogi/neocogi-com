@@ -36,8 +36,8 @@ mod client;
 mod data;
 mod decode;
 mod encode;
-mod factory_plugin;
 mod guid;
+mod plugin_descriptor;
 mod value;
 mod value_cost;
 pub use value_cost::ValueCost;
@@ -108,7 +108,7 @@ pub use runtime_abi::{
     NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1, NC_COM_RUNTIME_ABI_VERSION,
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO,
     NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV1, NcDebugCallbackV1,
-    NcDebugMessageV1, NcDebugMessengerCreateInfoV1, NcInspectFactoryPluginDescriptionCallbackV1, NcFactoryInfoV1, NcPluginInfoV1, NcRuntimeApiV1, NcUtf8View,
+    NcDebugMessageV1, NcDebugMessengerCreateInfoV1, NcInspectPluginDescriptorCallbackV1, NcFactoryInfoV1, NcPluginInfoV1, NcRuntimeApiV1, NcUtf8View,
 };
 pub use status::{
     NC_E_ABI_VERSION, NC_E_BUSY, NC_E_ALREADY_BOUND, NC_E_CLOSED, NC_E_DROPPED, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_INVALID_TAG, NC_E_LOAD_FAILED,
@@ -117,9 +117,9 @@ pub use status::{
 
 #[doc(hidden)]
 pub use metadata::{__ComProjection, __nc_interface_chain, __nc_object_interface_count, __nc_projection_table, __nc_projection_vtables};
-pub use factory_plugin::{
-    NC_FACTORY_PLUGIN_ABI_VERSION, NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NcAcquirePluginFactory, NcFactoryPluginDescription, NcGetFactoryPluginDescription,
-    acquire_factory_implementation, return_factory_plugin_description, validate_factory_plugin_description,
+pub use plugin_descriptor::{
+    NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAcquirePluginFactory, NcPluginDescriptor, NcGetPluginDescriptor,
+    acquire_factory_implementation, return_plugin_descriptor, validate_plugin_descriptor,
 };
 
 pub use value_buffer::{EncodedInput, DecodedInput};

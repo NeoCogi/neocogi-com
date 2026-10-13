@@ -19,7 +19,7 @@ reconstruct an IDL graph.
 
 Plugin descriptor ABI v1 publishes plugin identity/version, hard dependencies,
 full root-factory IID/signature, threading, and one zero-argument bootstrap.
-Its getter is `nc_get_factory_plugin_description_v1`. Runtime discovery is v1,
+Its getter is `nc_get_plugin_descriptor_v1`. Runtime discovery is v1,
 with operation, plugin-registry, inspection, debug, and persistence tables. See the
 [ABI specification entrypoint](../docs/README.md) for layouts and ownership rules.
 

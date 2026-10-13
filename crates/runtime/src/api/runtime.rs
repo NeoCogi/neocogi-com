@@ -8,7 +8,7 @@
 
 use neocogi_com_core::{
     IUnknown, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_E_INVALID_ARG, NC_E_LOAD_FAILED, NC_E_POINTER, NC_OK,
-    NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcStatus,
+    NcPluginDescriptor, NcGuid, NcInterfaceId, NcStatus,
 };
 
 use crate::factory_acquisition;
@@ -17,12 +17,12 @@ use crate::state::RuntimeState;
 
 use super::{emit_error, path_from_utf8};
 
-/// Validates and atomically registers one factory-only plugin description.
-pub(super) unsafe extern "C" fn register_factory_plugin_description(plugin: *const NcFactoryPluginDescription) -> NcStatus {
+/// Validates and atomically registers one plugin descriptor.
+pub(super) unsafe extern "C" fn register_plugin_descriptor(plugin: *const NcPluginDescriptor) -> NcStatus {
     let runtime = RuntimeState::global();
     // SAFETY: The caller supplies the plugin and referenced metadata lifetime
     // required by process-wide registration.
-    let status = unsafe { runtime.register_factory_plugin_description(plugin) };
+    let status = unsafe { runtime.register_plugin_descriptor(plugin) };
     if status.is_err() {
         emit_error(NC_DEBUG_TYPE_VALIDATION, status, "factory plugin registration failed");
     }

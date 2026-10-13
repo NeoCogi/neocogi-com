@@ -1,7 +1,7 @@
 use neocogi_com::{
-    ComFactoryImplementation, ComInterface, ComPtr, ComRef, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_OK, NcAbiSignature, NcFactoryPluginDescription,
-    NcStatus, acquire_factory_implementation, com_factory, com_interface, com_object, factory_plugin, format_abi_signature, format_method_signature,
-    guid_from_qualified_name, validate_factory_plugin_description,
+    ComFactoryImplementation, ComInterface, ComPtr, ComRef, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_OK, NcAbiSignature, NcPluginDescriptor, NcStatus,
+    acquire_factory_implementation, com_factory, com_interface, com_object, factory_plugin, format_abi_signature, format_method_signature,
+    guid_from_qualified_name, validate_plugin_descriptor,
 };
 
 mod external_fields {
@@ -185,17 +185,20 @@ fn factory_bootstrap_transfers_the_exact_typed_root() {
 /// Confirms plugin metadata derives root identity and capability from IDL.
 #[test]
 fn factory_plugin_metadata_has_no_repeated_root_contract() {
-    let description = factory_plugin_description();
+    let description = plugin_descriptor();
+    assert_eq!(description.description_abi_version, 1);
     assert_eq!(description.root_factory, ValueFactoryAbi::INTERFACE_ID);
     assert_eq!(description.root_factory_threading, NC_ABI_THREADING_THREAD_LOCAL);
     // SAFETY: The macro-generated root and child tables are immutable statics.
-    assert_eq!(unsafe { validate_factory_plugin_description(description) }, NC_OK);
+    assert_eq!(unsafe { validate_plugin_descriptor(description) }, NC_OK);
 
-    let mut exported = core::ptr::null::<NcFactoryPluginDescription>();
+    let mut exported = core::ptr::null::<NcPluginDescriptor>();
     // SAFETY: `exported` supplies one writable pointer slot to the generated
     // dynamic-library entrypoint.
-    assert_eq!(unsafe { nc_get_factory_plugin_description_v1(&mut exported) }, NC_OK);
+    assert_eq!(unsafe { nc_get_plugin_descriptor_v1(&mut exported) }, NC_OK);
     assert!(core::ptr::eq(exported, description));
+    // The renamed C export preserves the null-output error contract.
+    assert_eq!(unsafe { nc_get_plugin_descriptor_v1(core::ptr::null_mut()) }, neocogi_com::NC_E_POINTER);
 }
 
 fn signature_text(signature: NcAbiSignature) -> String {

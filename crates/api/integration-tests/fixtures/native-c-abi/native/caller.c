@@ -64,7 +64,7 @@ typedef struct NcPluginInfoV1 {
 typedef struct NcRuntimeApiV1 {
     size_t size;
     uint32_t core_abi_version;
-    int32_t (*register_factory_plugin_description)(const void *);
+    int32_t (*register_plugin_descriptor)(const void *);
     void (*load_plugin_library_utf8)(void);
     void (*acquire_factory_plugin)(void);
     NcStatus (*plugin_info)(NcGuid, NcPluginInfoV1 *);
@@ -258,7 +258,7 @@ _Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 64,
     "64-bit NcInterfaceDescriptor.method_count ABI offset changed");
 _Static_assert(offsetof(NcInterfaceDescriptor, methods) == 72,
     "64-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(offsetof(NcRuntimeApiV1, register_factory_plugin_description) == 16,
+_Static_assert(offsetof(NcRuntimeApiV1, register_plugin_descriptor) == 16,
     "64-bit NcRuntimeApiV1 registration prefix changed");
 #elif UINTPTR_MAX == UINT32_MAX
 _Static_assert(sizeof(NcInterfaceDescriptor) == 56,
@@ -267,7 +267,7 @@ _Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 48,
     "32-bit NcInterfaceDescriptor.method_count ABI offset changed");
 _Static_assert(offsetof(NcInterfaceDescriptor, methods) == 52,
     "32-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(offsetof(NcRuntimeApiV1, register_factory_plugin_description) == 8,
+_Static_assert(offsetof(NcRuntimeApiV1, register_plugin_descriptor) == 8,
     "32-bit NcRuntimeApiV1 registration prefix changed");
 #else
 #error "native C ABI fixture supports only 32-bit and 64-bit targets"
@@ -284,7 +284,7 @@ int32_t nc_c_validate_abi_layouts(const NativeAbiLayouts *layouts) {
         layouts->interface_method_count_offset == offsetof(NcInterfaceDescriptor, method_count) &&
         layouts->interface_methods_offset == offsetof(NcInterfaceDescriptor, methods) &&
         layouts->runtime_core_abi_version_offset == offsetof(NcRuntimeApiV1, core_abi_version) &&
-        layouts->runtime_plugin_register_offset == offsetof(NcRuntimeApiV1, register_factory_plugin_description) &&
+        layouts->runtime_plugin_register_offset == offsetof(NcRuntimeApiV1, register_plugin_descriptor) &&
         layouts->runtime_plugin_count_offset == offsetof(NcRuntimeApiV1, plugin_count) &&
         layouts->runtime_plugin_info_offset == offsetof(NcRuntimeApiV1, plugin_info) &&
         layouts->runtime_size == sizeof(NcRuntimeApiV1) &&

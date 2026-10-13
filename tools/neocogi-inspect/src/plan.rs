@@ -90,7 +90,7 @@ mod tests {
     /// Constructs one minimal inspected plugin for plan rendering tests.
     fn plugin() -> PluginInspection {
         PluginInspection {
-            description_abi_version: neocogi_com_core::NC_FACTORY_PLUGIN_ABI_VERSION,
+            description_abi_version: neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
             core_abi_version: 7,
             plugin_id: NcGuid::from_fields(1, 0, 0, [0; 8]),
             qualified_name: "nc.tests.plan".to_string(),

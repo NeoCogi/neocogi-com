@@ -15,7 +15,7 @@ pub use debug::{
     NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1,
     NcDebugMessengerCreateInfoV1,
 };
-pub use plugin::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NcFactoryInfoV1, NcInspectFactoryPluginDescriptionCallbackV1, NcPluginInfoV1};
+pub use plugin::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NcFactoryInfoV1, NcInspectPluginDescriptorCallbackV1, NcPluginInfoV1};
 pub use runtime::NcRuntimeApiV1;
 
 /// Pre-alpha runtime shared-library ABI generation.

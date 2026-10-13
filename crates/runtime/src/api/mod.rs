@@ -23,14 +23,14 @@ mod runtime;
 use persistence::PERSISTENCE_API_V1;
 
 use inspection::{inspect_plugin_library_utf8, plugin_count, plugin_info, plugin_infos};
-use runtime::{acquire_factory_plugin, load_plugin_library_utf8, register_factory_plugin_description};
+use runtime::{acquire_factory_plugin, load_plugin_library_utf8, register_plugin_descriptor};
 
 /// Immutable runtime-operation table returned by the exported generation-checked getter.
 pub(super) static RUNTIME_API_V1: NcRuntimeApiV1 = NcRuntimeApiV1 {
     size: mem::size_of::<NcRuntimeApiV1>(),
     core_abi_version: NC_COM_CORE_ABI_VERSION,
 
-    register_factory_plugin_description,
+    register_plugin_descriptor,
     load_plugin_library_utf8,
     acquire_factory_plugin,
     plugin_info,
@@ -113,9 +113,9 @@ mod tests {
     use super::*;
     use core::ffi::c_void;
     use core::sync::atomic::{AtomicI32, Ordering};
-    use neocogi_com_core::{NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_VALIDATION, NC_E_NOT_FOUND, NcDebugMessengerCreateInfoV1, NcGuid, NcFactoryPluginDescription};
+    use neocogi_com_core::{NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_TYPE_VALIDATION, NC_E_NOT_FOUND, NcDebugMessengerCreateInfoV1, NcGuid, NcPluginDescriptor};
 
-    unsafe extern "C" fn accept_inspected_description(_plugin: *const NcFactoryPluginDescription, _user_data: *mut c_void) -> NcStatus {
+    unsafe extern "C" fn accept_inspected_descriptor(_plugin: *const NcPluginDescriptor, _user_data: *mut c_void) -> NcStatus {
         NC_OK
     }
 
@@ -225,7 +225,7 @@ mod tests {
             NC_E_POINTER
         );
         assert_eq!(
-            unsafe { (RUNTIME_API_V1.inspect_plugin_library_utf8)(ptr::null(), 0, Some(accept_inspected_description), ptr::null_mut(),) },
+            unsafe { (RUNTIME_API_V1.inspect_plugin_library_utf8)(ptr::null(), 0, Some(accept_inspected_descriptor), ptr::null_mut(),) },
             NC_E_INVALID_ARG
         );
     }
@@ -245,7 +245,7 @@ mod tests {
         assert_eq!(unsafe { (debug.create_messenger)(&create_info, &mut handle) }, NC_OK);
 
         let runtime = unsafe { &*nc_com_get_runtime_api_v1() };
-        assert_eq!(unsafe { (runtime.register_factory_plugin_description)(ptr::null()) }, NC_E_POINTER);
+        assert_eq!(unsafe { (runtime.register_plugin_descriptor)(ptr::null()) }, NC_E_POINTER);
         assert_eq!(observed.load(Ordering::SeqCst), NC_E_POINTER.code());
 
         unsafe { (debug.destroy_messenger)(handle) };

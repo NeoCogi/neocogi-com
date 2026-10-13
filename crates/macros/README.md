@@ -73,8 +73,8 @@ neocogi_com::export_factory_plugin!();
 
 `factory_plugin!` creates immutable Rust-accessible metadata. The final dynamic
 library calls `export_factory_plugin!` exactly once to export
-`nc_get_factory_plugin_description_v1`. Static assemblies call
-`factory_plugin_description()` directly. The descriptor contains one fixed
+`nc_get_plugin_descriptor_v1`. Static assemblies call
+`plugin_descriptor()` directly. The descriptor contains one fixed
 bootstrap function pointer for the root factory; there is no per-object
 constructor table or erased argument frame.
 

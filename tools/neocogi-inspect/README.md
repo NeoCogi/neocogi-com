@@ -1,6 +1,6 @@
 # neocogi-inspect
 
-Reads an actual plugin's `nc_get_factory_plugin_description_v1` export without
+Reads an actual plugin's `nc_get_plugin_descriptor_v1` export without
 registering or activating its factory. It copies plugin identity/version, hard
 dependencies, descriptor/core ABI versions, and full factory IID/signature and
 threading capability. There are no contract libraries or module graphs to load.

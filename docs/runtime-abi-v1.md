@@ -78,7 +78,7 @@ Only the version export and three getters remain:
 
 | Runtime operation | Result and purpose |
 | --- | --- |
-| `register_factory_plugin_description` | Validate and atomically register a static descriptor. No factory acquisition. |
+| `register_plugin_descriptor` | Validate and atomically register a static descriptor. No factory acquisition. |
 | `load_plugin_library_utf8` | Open a mandatory trusted plugin library, pin its code and register it; output its GUID. |
 | `acquire_factory_plugin` | Check exact interface/signature/threading, call bootstrap and transfer one owned factory reference. |
 | `plugin_info` | Write one complete borrowed record, or return `NC_E_NOT_FOUND`. |
@@ -199,7 +199,7 @@ unloading, path discovery, recursive dependency loading or injected runtime.
 
 ## Unregistered inspection and errors
 
-`Runtime::with_plugin_library_description(path, visitor)` remains unsafe: the
+`Runtime::with_plugin_library_descriptor(path, visitor)` remains unsafe: the
 path selects trusted native code, and opening can execute platform loader code.
 It validates a descriptor and invokes the visitor synchronously exactly once,
 without registering the plugin, acquiring a factory or following dependencies.

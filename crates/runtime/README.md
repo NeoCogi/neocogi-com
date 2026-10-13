@@ -6,7 +6,7 @@ implementation of caller-owned persistence contexts. It contains
 no contract-module registry, native contract descriptions, or event seeding.
 Applications use `neocogi_com::Runtime`.
 
-A dynamic library exports `nc_get_factory_plugin_description_v1`, lending an
+A dynamic library exports `nc_get_plugin_descriptor_v1`, lending an
 immutable descriptor with plugin metadata, hard dependencies, full root factory
 IID/signature, threading, and bootstrap. Registration validates the metadata and
 publishes one plugin atomically. Dependencies must already be registered;

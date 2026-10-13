@@ -337,7 +337,7 @@ pub(crate) fn sample_artifact() -> InspectionArtifact {
             pointer_width: 64,
             endianness: ArtifactEndianness::Little,
         },
-        description_abi_version: neocogi_com_core::NC_FACTORY_PLUGIN_ABI_VERSION,
+        description_abi_version: neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
         core_abi_version: neocogi_com_core::NC_COM_CORE_ABI_VERSION,
         plugin: ArtifactPlugin {
             id: guid_from_qualified_name(plugin_name).to_string(),

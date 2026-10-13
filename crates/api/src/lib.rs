@@ -271,14 +271,14 @@
 //! successful chunk must contain at most `max_len` bytes, and an empty chunk can
 //! represent end-of-stream.
 //!
-//! New IDL plugins expose [`NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL`] through
-//! [`export_factory_plugin!`]. Their [`NcFactoryPluginDescription`] contains
+//! New IDL plugins expose [`NC_GET_PLUGIN_DESCRIPTOR_SYMBOL`] through
+//! [`export_factory_plugin!`]. Their [`NcPluginDescriptor`] contains
 //! the exact root interface identity/signature and one factory bootstrap,
 //! with no class table or erased argument frame. `factory_plugin!` derives
 //! root identity and threading from the generated IDL factory associated by
 //! `com_factory`. Static hosts call
-//! `Runtime::register_factory_plugin_description`; dynamic hosts call
-//! `Runtime::load_plugin_library`, which requires the factory-description
+//! `Runtime::register_plugin_descriptor`; dynamic hosts call
+//! `Runtime::load_plugin_library`, which requires the plugin-descriptor
 //! entrypoint. Hosts obtain the typed root with
 //! `Runtime::acquire_plugin_factory` and perform later construction through
 //! ordinary typed factory methods.
@@ -517,15 +517,15 @@ pub use neocogi_com_core::{
     NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS, NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_DEBUG_SEVERITY_ALL, NC_DEBUG_SEVERITY_ERROR, NC_DEBUG_SEVERITY_INFO,
     NC_DEBUG_SEVERITY_WARNING, NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_DESCRIPTOR_QUALIFIED_NAME_MAX_LEN,
     NC_DESCRIPTOR_VERSION_MAX_LEN, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_ALREADY_BOUND, NC_E_CLOSED, NC_E_DROPPED, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG,
-    NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_FACTORY_PLUGIN_ABI_VERSION,
-    NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiSignature, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode,
-    NcAbiType, NcAbiTypeDescriptor, NcAcquirePluginFactory, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1, NcDebugMessengerCreateInfoV1,
-    NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGuid, NcInspectFactoryPluginDescriptionCallbackV1, NcInterfaceDescriptor, NcInterfaceId,
+    NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER,
+    NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiSignature, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver,
+    NcAbiThreadingMode, NcAbiType, NcAbiTypeDescriptor, NcAcquirePluginFactory, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1,
+    NcDebugMessengerCreateInfoV1, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid, NcInspectPluginDescriptorCallbackV1, NcInterfaceDescriptor, NcInterfaceId,
     NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1,
     NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcFactoryInfoV1, NcPluginInfoV1, NcQualifiedNameError, NcRuntimeApiV1, NcStaticUtf8, NcStatus,
     NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel,
-    acquire_factory_implementation, guid_from_qualified_name, raw, return_factory_plugin_description, validate_factory_plugin_description,
-    validate_qualified_name, validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
+    acquire_factory_implementation, guid_from_qualified_name, raw, return_plugin_descriptor, validate_plugin_descriptor, validate_qualified_name,
+    validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
 };
 pub use object::{
     __ComCallGate, __ComSharedCall, __ComExclusiveCall, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComAbiObject,

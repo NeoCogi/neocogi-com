@@ -1,4 +1,4 @@
-//! Parsing and expansion of factory-only plugin descriptions.
+//! Parsing and expansion of plugin descriptors.
 //!
 //! The generated metadata carries one exact factory interface signature and one
 //! typed Rust factory implementation. Factory identity and threading are read
@@ -151,27 +151,27 @@ pub(crate) fn expand_factory_plugin(args: FactoryPluginArgs) -> proc_macro2::Tok
 
     quote! {
         /// Hard plugin dependencies required before this factory can be acquired.
-        static NC_COM_FACTORY_PLUGIN_DEPENDENCIES: [#nc::NcPluginDependencyDescriptor; #dependency_len] = [
+        static NC_COM_PLUGIN_DEPENDENCIES: [#nc::NcPluginDependencyDescriptor; #dependency_len] = [
             #(#dependencies,)*
         ];
 
-        /// Immutable factory-only plugin metadata consumed by the shared runtime.
-        static NC_COM_FACTORY_PLUGIN_DESCRIPTION: #nc::NcFactoryPluginDescription = #nc::NcFactoryPluginDescription {
-            description_abi_version: #nc::NC_FACTORY_PLUGIN_ABI_VERSION,
+        /// Immutable plugin metadata consumed by the shared runtime.
+        static NC_COM_PLUGIN_DESCRIPTOR: #nc::NcPluginDescriptor = #nc::NcPluginDescriptor {
+            description_abi_version: #nc::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
             core_abi_version: #nc::NC_COM_CORE_ABI_VERSION,
             plugin_id: #plugin_id,
             qualified_name: #nc::NcStaticUtf8::from_static(#name),
             plugin_version: #nc::NcStaticUtf8::from_static(#version),
             dependency_count: #dependency_count,
-            dependencies: NC_COM_FACTORY_PLUGIN_DEPENDENCIES.as_ptr(),
+            dependencies: NC_COM_PLUGIN_DEPENDENCIES.as_ptr(),
             root_factory: <<#factory as #nc::ComFactoryImplementation>::Interface as #nc::ComInterface>::INTERFACE_ID,
             root_factory_threading: <<<#factory as #nc::ComFactoryImplementation>::Interface as #nc::ComInterface>::Threading as #nc::ThreadingModel>::ABI_THREADING_MODE.as_raw(),
             acquire: Some(#nc::acquire_factory_implementation::<#factory>),
         };
 
-        /// Returns the factory-only plugin description for static registration.
-        pub fn factory_plugin_description() -> &'static #nc::NcFactoryPluginDescription {
-            &NC_COM_FACTORY_PLUGIN_DESCRIPTION
+        /// Returns the plugin descriptor for static registration.
+        pub fn plugin_descriptor() -> &'static #nc::NcPluginDescriptor {
+            &NC_COM_PLUGIN_DESCRIPTOR
         }
     }
 }

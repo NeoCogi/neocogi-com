@@ -1,13 +1,11 @@
-//! Atomic publication of self-contained factory plugin descriptions.
+//! Atomic publication of self-contained plugin descriptors.
 //!
 //! Metadata validation and dependency copying happen before the catalog lock is acquired.
 //! The exclusive phase checks dependencies and plugin identity, then publishes
 //! the plugin record and its lookup index together. Contract compatibility belongs to typed factory
 //! acquisition and interface transfers, so registration never traverses IDL.
 
-use neocogi_com_core::{
-    NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NC_OK, NcFactoryPluginDescription, NcStatus, validate_factory_plugin_description,
-};
+use neocogi_com_core::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NC_OK, NcPluginDescriptor, NcStatus, validate_plugin_descriptor};
 
 use crate::factory_plugin_registry::{FactoryPluginRegistry, PluginOrigin, RegisteredFactoryPlugin};
 use crate::state::RuntimeState;
@@ -19,9 +17,9 @@ use crate::state::RuntimeState;
 /// `plugin` must be null or point to a complete immutable descriptor whose
 /// strings, signature bytes, dependency table, and code remain live for the
 /// process-wide registration lifetime.
-pub(crate) unsafe fn prepare_factory_plugin(plugin: *const NcFactoryPluginDescription) -> Result<RegisteredFactoryPlugin, NcStatus> {
+pub(crate) unsafe fn prepare_factory_plugin(plugin: *const NcPluginDescriptor) -> Result<RegisteredFactoryPlugin, NcStatus> {
     // SAFETY: The caller provides the descriptor and every referenced lifetime.
-    let status = unsafe { validate_factory_plugin_description(plugin) };
+    let status = unsafe { validate_plugin_descriptor(plugin) };
     if status.is_err() {
         return Err(status);
     }
@@ -44,7 +42,7 @@ impl RuntimeState {
     ///
     /// The descriptor and everything it references must remain readable and
     /// callable for the process-wide registry lifetime.
-    pub(crate) unsafe fn register_factory_plugin_description(&self, plugin: *const NcFactoryPluginDescription) -> NcStatus {
+    pub(crate) unsafe fn register_plugin_descriptor(&self, plugin: *const NcPluginDescriptor) -> NcStatus {
         // SAFETY: The caller supplies the immutable metadata and code lifetime.
         let batch = match unsafe { prepare_factory_plugin(plugin) } {
             Ok(batch) => batch,
@@ -82,7 +80,7 @@ impl FactoryPluginRegistry {
 mod tests {
     use core::ptr;
     use neocogi_com_core::{
-        IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NC_FACTORY_PLUGIN_ABI_VERSION, NC_E_NOT_FOUND, NcAbiSignature, NcInterfaceId,
+        IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_E_NOT_FOUND, NcAbiSignature, NcInterfaceId,
         NcPluginDependencyDescriptor, NcStaticUtf8, guid_from_qualified_name,
     };
     use super::*;
@@ -93,8 +91,8 @@ mod tests {
     }
 
     /// Self-contained plugin description with no contract-module dependencies.
-    static PLUGIN: NcFactoryPluginDescription = NcFactoryPluginDescription {
-        description_abi_version: NC_FACTORY_PLUGIN_ABI_VERSION,
+    static PLUGIN: NcPluginDescriptor = NcPluginDescriptor {
+        description_abi_version: NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
         core_abi_version: NC_COM_CORE_ABI_VERSION,
         plugin_id: guid_from_qualified_name("nc.tests.factory_plugin"),
         qualified_name: NcStaticUtf8::from_static("nc.tests.factory_plugin"),
@@ -111,8 +109,8 @@ mod tests {
     fn registration_is_atomic_and_idempotent_without_constructing_a_factory() {
         let runtime = RuntimeState::new();
         // SAFETY: The fixture and its referenced signature are immutable statics.
-        assert_eq!(unsafe { runtime.register_factory_plugin_description(&PLUGIN) }, NC_OK);
-        assert_eq!(unsafe { runtime.register_factory_plugin_description(&PLUGIN) }, NC_OK);
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(&PLUGIN) }, NC_OK);
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(&PLUGIN) }, NC_OK);
         // The first static origin also survives a later dynamic encounter of
         // the same descriptor without reserving any dynamic-provider slot.
         let mut repeat = unsafe { prepare_factory_plugin(&PLUGIN) }.unwrap();
@@ -134,14 +132,14 @@ mod tests {
         static DEPENDENCIES: [NcPluginDependencyDescriptor; 1] = [NcPluginDependencyDescriptor {
             plugin_id: guid_from_qualified_name("nc.tests.missing"),
         }];
-        let plugin = NcFactoryPluginDescription {
+        let plugin = NcPluginDescriptor {
             dependency_count: 1,
             dependencies: DEPENDENCIES.as_ptr(),
             ..PLUGIN
         };
         let runtime = RuntimeState::new();
         // SAFETY: Failed validation retains no pointer to this stack descriptor.
-        assert_eq!(unsafe { runtime.register_factory_plugin_description(&plugin) }, NC_E_NOT_FOUND);
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(&plugin) }, NC_E_NOT_FOUND);
         let catalog = runtime.read_catalog();
         assert!(!catalog.contains_plugin(PLUGIN.plugin_id));
         assert_eq!(catalog.len(), 0);
@@ -151,7 +149,7 @@ mod tests {
     /// a handle-free dynamic owner to isolate catalog accounting from native I/O.
     fn dynamic_fixture(name: String) -> RegisteredFactoryPlugin {
         let name: &'static str = Box::leak(name.into_boxed_str());
-        let description = Box::leak(Box::new(NcFactoryPluginDescription {
+        let description = Box::leak(Box::new(NcPluginDescriptor {
             plugin_id: guid_from_qualified_name(name),
             qualified_name: NcStaticUtf8::from_static(name),
             ..PLUGIN
@@ -186,7 +184,7 @@ mod tests {
         };
         assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(repeat), NC_OK);
         // SAFETY: PLUGIN is immutable static storage.
-        assert_eq!(unsafe { runtime.register_factory_plugin_description(&PLUGIN) }, NC_OK);
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(&PLUGIN) }, NC_OK);
 
         let overflow = dynamic_fixture("nc.tests.capacity.overflow".into());
         let overflow_id = overflow.plugin_id;

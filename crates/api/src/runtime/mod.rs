@@ -12,8 +12,8 @@ use std::vec::Vec;
 
 use crate::{
     ComFactoryInterface, ComInterface, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND,
-    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_ABI_THREADING_THREAD_LOCAL, NcDebugApiV1, NcFactoryPluginDescription, NcGuid, NcInterfaceId,
-    NcRuntimeApiV1, NcStatus, NcUtf8View, ThreadingModel,
+    NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_ABI_THREADING_THREAD_LOCAL, NcDebugApiV1, NcPluginDescriptor, NcGuid, NcRuntimeApiV1, NcStatus,
+    NcUtf8View, ThreadingModel,
 };
 use self::ffi as runtime_sys;
 
@@ -109,10 +109,10 @@ impl Runtime {
     ///
     /// `plugin`, its signature/text/dependency storage, and bootstrap code must
     /// remain loaded for the process-wide registration lifetime.
-    pub unsafe fn register_factory_plugin_description(&self, plugin: &'static NcFactoryPluginDescription) -> Result<(), NcStatus> {
+    pub unsafe fn register_plugin_descriptor(&self, plugin: &'static NcPluginDescriptor) -> Result<(), NcStatus> {
         // SAFETY: The static reference and its referenced metadata satisfy the raw
         // table's process-lifetime registration requirement.
-        status_to_result(unsafe { (self.runtime_api().register_factory_plugin_description)(plugin) })
+        status_to_result(unsafe { (self.runtime_api().register_plugin_descriptor)(plugin) })
     }
 
     /// Acquires one registered plugin's exact typed root IDL factory.
@@ -194,7 +194,7 @@ impl Runtime {
     /// # Safety
     ///
     /// `path` must identify trusted neocogi-com factory plugin code. The runtime
-    /// requires the standard generated factory-description export.
+    /// requires the standard generated plugin-descriptor export.
     pub unsafe fn load_plugin_library(&self, path: impl AsRef<Path>) -> NcGuid {
         // Live loading is mandatory for every caller, including interactive tools.
         // Reject local path conversion before entering the same fatal C operation.
