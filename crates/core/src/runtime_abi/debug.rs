@@ -48,8 +48,6 @@ pub struct NcDebugMessageV1 {
     pub plugin_id: NcGuid,
     /// Related interface ID, or [`NcInterfaceId::NONE`] when not applicable.
     pub interface_id: NcInterfaceId,
-    /// Related loaded-module ID, or zero when not applicable.
-    pub module_id: u64,
 }
 
 impl NcDebugMessageV1 {
@@ -60,7 +58,6 @@ impl NcDebugMessageV1 {
             message,
             plugin_id: NcGuid::nil(),
             interface_id: NcInterfaceId::NONE,
-            module_id: 0,
         }
     }
 
@@ -111,4 +108,18 @@ pub struct NcDebugApiV1 {
     /// Zero and unknown handles are ignored. This function must not be called
     /// from a debug callback.
     pub destroy_messenger: unsafe extern "C" fn(handle: u64),
+}
+
+#[cfg(all(test, target_pointer_width = "64"))]
+mod tests {
+    use super::NcDebugMessageV1;
+
+    /// Diagnostics identify plugins and interfaces with no public module slot.
+    #[test]
+    fn debug_message_v1_contains_only_supported_identity_fields() {
+        assert_eq!(core::mem::size_of::<NcDebugMessageV1>(), 64);
+        assert_eq!(core::mem::offset_of!(NcDebugMessageV1, message), 8);
+        assert_eq!(core::mem::offset_of!(NcDebugMessageV1, plugin_id), 24);
+        assert_eq!(core::mem::offset_of!(NcDebugMessageV1, interface_id), 40);
+    }
 }

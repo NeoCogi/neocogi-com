@@ -112,12 +112,12 @@ impl Runtime {
         unsafe { table(runtime_sys::nc_com_get_debug_api_v1()) }
     }
 
-    /// Returns the registered-plugin and loaded-module catalog.
+    /// Returns the registered-plugin catalog.
     pub fn plugin_registry(&self) -> PluginRegistry<'_> {
         PluginRegistry::new(self)
     }
 
-    /// Returns plugin metadata, module provenance, and dependency inspection operations.
+    /// Returns plugin metadata, library provenance, and dependency inspection operations.
     pub fn inspection(&self) -> Inspection<'_> {
         Inspection::new(self)
     }
@@ -310,7 +310,7 @@ unsafe fn table<T>(table: *const T) -> &'static T {
 
     // Read only the common size prefix through the raw pointer. Creating `&T`
     // before this check would already require the backing allocation to contain
-    // all of `T`, defeating append-only compatibility with an older short table.
+    // all of `T`, even when the table reports insufficient storage.
     // SAFETY: The caller guarantees a non-null, aligned pointer readable for the
     // leading `usize`; null was rejected above.
     let found = unsafe { table.cast::<usize>().read() };
@@ -321,10 +321,9 @@ unsafe fn table<T>(table: *const T) -> &'static T {
     unsafe { &*table }
 }
 
-/// Verifies that an append-only versioned table contains every required field.
+/// Verifies that the runtime table contains every required field.
 fn assert_table_size(found: usize, required: usize) {
-    // V2 tables may grow by appending fields. A larger table is compatible; a
-    // shorter one cannot contain every function pointer this facade calls.
+    // A shorter table cannot contain every function pointer this facade calls.
     assert!(
         found >= required,
         "compatible neocogi-com runtime returned a short API table: required {required} bytes, found {found}"

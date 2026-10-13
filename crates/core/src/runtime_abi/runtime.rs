@@ -7,8 +7,8 @@
 //!
 //! The table contains behavior, not registry storage. Its function pointers are
 //! discovered through `nc_com_get_runtime_api_v1` only after the caller checks
-//! `nc_com_runtime_abi_version`. The leading `size` permits append-only table
-//! growth within runtime ABI v1.
+//! `nc_com_runtime_abi_version`. The leading `size` is checked by consumers;
+//! this pre-release v1 contract changes in place across repository revisions.
 
 use crate::{IUnknown, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcStatus};
 
@@ -26,8 +26,7 @@ pub struct NcRuntimeApiV1 {
     /// Reopening the same descriptor reuses its registration and first path;
     /// a distinct descriptor claiming that identity is rejected. The output is
     /// cleared to the nil GUID before validation and initialized on success.
-    /// Loads the library from a
-    /// nonempty UTF-8 path without interior NUL bytes.
+    /// The path is nonempty UTF-8 without interior NUL bytes.
     ///
     /// The library must export `nc_get_factory_plugin_description_v1`. Class-table
     /// descriptor exports are not an activation mechanism. After argument

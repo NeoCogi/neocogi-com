@@ -15,6 +15,9 @@ static storage, or a dynamic library path with a private process-pinned native
 owner. The descriptor is authoritative for name, version and factory contract.
 The library is provenance, not another public identity. No module IDs, module
 registry, module enumeration or module-to-plugin metadata join exist.
+The runtime locks the plugin catalog directly; there is no separate catalog
+wrapper. Counts and ordered GUID enumeration derive from these records, without
+an ID vector that registration must keep in sync.
 
 Native mappings remain pinned until process exit, including inspection-only opens
 and failures after opening. Repeating a load still opens the native library and
@@ -58,9 +61,10 @@ Check `nc_com_runtime_abi_version() == 1` before obtaining any API table:
   path denotes static origin; a dynamic path is nonempty validated UTF-8 from the
   first registration. Borrowed views remain valid for the runtime's lifetime.
   Factory and dependency inspection retain their existing semantics.
-- The `NcDebugApiV1` and `NcPersistenceApiV1` tables retain their existing
-  contracts and v1 getter names. Persistence contexts stay
-  independent of the global plugin catalog.
+- Diagnostics retain `NcDebugApiV1` and its v1 getter and lifecycle contract;
+  `NcDebugMessageV1` drops its unused loaded-module ID. Messages can identify
+  related plugins and interfaces. `NcPersistenceApiV1` and its v1 getter remain
+  unchanged; persistence contexts stay independent of the global plugin catalog.
 
 `Runtime::load_plugin_library` returns `NcGuid`; batch loading returns `Vec<NcGuid>`.
 `Inspection::plugin_info` copies text into owned `PluginInfo`, whose `PluginOrigin`

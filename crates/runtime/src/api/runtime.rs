@@ -7,8 +7,8 @@
 //! registration and factory activation return ordinary statuses.
 
 use neocogi_com_core::{
-    IUnknown, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_E_INVALID_ARG, NC_E_LOAD_FAILED, NC_E_OUT_OF_RANGE, NC_E_POINTER,
-    NC_OK, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcStatus,
+    IUnknown, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NC_E_INVALID_ARG, NC_E_LOAD_FAILED, NC_E_POINTER, NC_OK,
+    NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcStatus,
 };
 
 use crate::factory_activation;
@@ -73,7 +73,7 @@ pub(super) unsafe extern "C" fn activate_factory_plugin(
     let runtime = RuntimeState::global();
     let activation = {
         let catalog = runtime.read_catalog();
-        factory_activation::resolve_factory(&catalog.factory_plugin_registry, plugin_id, factory_interface, requested_threading)
+        factory_activation::resolve_factory(&catalog, plugin_id, factory_interface, requested_threading)
     };
     // SAFETY: This forwards the caller's output contract after releasing the
     // catalog lock, allowing plugin code to re-enter runtime operations.
@@ -93,16 +93,5 @@ pub(super) fn load_error_status(kind: PluginLoadErrorKind) -> NcStatus {
             NC_E_LOAD_FAILED
         }
         PluginLoadErrorKind::Metadata | PluginLoadErrorKind::Registration => NC_E_INVALID_ARG,
-        PluginLoadErrorKind::ResourceLimit => NC_E_OUT_OF_RANGE,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn dynamic_plugin_capacity_maps_to_out_of_range() {
-        assert_eq!(load_error_status(PluginLoadErrorKind::ResourceLimit), NC_E_OUT_OF_RANGE);
     }
 }

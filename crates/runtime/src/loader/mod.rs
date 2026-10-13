@@ -39,8 +39,8 @@ pub(crate) struct PinnedLibrary {
 impl PinnedLibrary {
     /// Opens one trusted path and classifies platform failures.
     fn open(path: &Path) -> Result<Self, PluginLoadError> {
-        // Live activation and offline inspection decide separately whether the
-        // opened handle is committed or pinned until process termination.
+        // Both live loading and inspection pin every successfully opened mapping;
+        // only live loading additionally publishes a plugin record.
         let library = library::DynamicLibrary::open(path).map_err(|error| PluginLoadError::new(error.kind, path, None, error.message))?;
         Ok(Self { _library: Some(library) })
     }
@@ -147,7 +147,7 @@ unsafe fn factory_plugin_description_from_entrypoint(
 
 /// Validates and projects one loaded factory description into owned records.
 unsafe fn prepare_loaded_factory_plugin(path: &Path, plugin: *const NcFactoryPluginDescription) -> Result<RegisteredFactoryPlugin, PluginLoadError> {
-    // SAFETY: The descriptor and its referenced data remain backed by `module` during
+    // SAFETY: The descriptor and its referenced data remain backed by the pinned library during
     // this call and by retained ownership after a successful commit.
     unsafe { prepare_factory_plugin(plugin) }.map_err(|status| {
         PluginLoadError::new(

@@ -7,8 +7,6 @@
 
 use std::sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use neocogi_com_core::NcGuid;
-
 use crate::debug::DebugState;
 use crate::factory_plugin_registry::FactoryPluginRegistry;
 
@@ -18,15 +16,9 @@ static STATE: OnceLock<RuntimeState> = OnceLock::new();
 /// Process-global owner of all mutable runtime state.
 pub(crate) struct RuntimeState {
     /// Atomically published plugin descriptors, dependencies and provenance.
-    catalog: RwLock<RuntimeCatalog>,
+    catalog: RwLock<FactoryPluginRegistry>,
     /// Owns callback registrations independently of registry locks.
     debug: DebugState,
-}
-
-/// Complete append-only runtime catalog published through one lock.
-pub(crate) struct RuntimeCatalog {
-    /// Factory-only plugin descriptions and activation roots.
-    pub(crate) factory_plugin_registry: FactoryPluginRegistry,
 }
 
 impl RuntimeState {
@@ -43,41 +35,24 @@ impl RuntimeState {
     /// behavior without sharing process-global registrations.
     pub(crate) fn new() -> Self {
         Self {
-            catalog: RwLock::new(RuntimeCatalog {
-                factory_plugin_registry: FactoryPluginRegistry::new(),
-            }),
+            catalog: RwLock::new(FactoryPluginRegistry::new()),
             debug: DebugState::new(),
         }
     }
 
     /// Acquires a coherent read snapshot of the complete runtime catalog.
-    pub(crate) fn read_catalog(&self) -> RwLockReadGuard<'_, RuntimeCatalog> {
+    pub(crate) fn read_catalog(&self) -> RwLockReadGuard<'_, FactoryPluginRegistry> {
         self.catalog.read().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     /// Acquires exclusive publication access to the complete runtime catalog.
-    pub(crate) fn write_catalog(&self) -> RwLockWriteGuard<'_, RuntimeCatalog> {
+    pub(crate) fn write_catalog(&self) -> RwLockWriteGuard<'_, FactoryPluginRegistry> {
         self.catalog.write().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     /// Borrows the debug messenger registry owned by this runtime.
     pub(crate) fn debug(&self) -> &DebugState {
         &self.debug
-    }
-}
-
-impl RuntimeCatalog {
-    /// Returns whether the factory registry owns a plugin identity.
-    pub(crate) fn contains_plugin(&self, plugin_id: NcGuid) -> bool {
-        self.factory_plugin_registry.contains_plugin(plugin_id)
-    }
-
-    /// Requires every hard dependency to be registered first.
-    pub(crate) fn validate_plugin_dependencies(&self, dependency_ids: &[NcGuid]) -> Result<(), neocogi_com_core::NcStatus> {
-        if dependency_ids.iter().any(|dependency_id| !self.contains_plugin(*dependency_id)) {
-            return Err(neocogi_com_core::NC_E_NOT_FOUND);
-        }
-        Ok(())
     }
 }
 
@@ -103,7 +78,7 @@ mod tests {
             let mut catalog = runtime.write_catalog();
             // These null descriptor roots are safe in this lookup-only test:
             // dependency validation reads only the owned IDs in each record.
-            catalog.factory_plugin_registry.insert(RegisteredFactoryPlugin {
+            catalog.insert(RegisteredFactoryPlugin {
                 plugin_id: factory_id,
                 description: core::ptr::null(),
                 dependency_ids: Vec::new(),
@@ -130,7 +105,7 @@ mod tests {
             let release_publication = Arc::clone(&release_publication);
             std::thread::spawn(move || {
                 let mut catalog = runtime.write_catalog();
-                catalog.factory_plugin_registry.insert(RegisteredFactoryPlugin {
+                catalog.insert(RegisteredFactoryPlugin {
                     plugin_id,
                     description: core::ptr::null(),
                     dependency_ids: Vec::new(),
@@ -140,7 +115,7 @@ mod tests {
                     },
                 });
 
-                // Pause after every correlated record has been mutated but
+                // Pause after the complete plugin record has been inserted but
                 // before the one publication guard is released.
                 records_inserted.wait();
                 release_publication.wait();
@@ -153,7 +128,7 @@ mod tests {
         writer.join().unwrap();
 
         let catalog = runtime.read_catalog();
-        let plugin = catalog.factory_plugin_registry.plugin(plugin_id).unwrap();
+        let plugin = catalog.plugin(plugin_id).unwrap();
         assert!(matches!(&plugin.origin, PluginOrigin::Dynamic { path, .. } if path == Path::new("test-plugin")));
     }
 }

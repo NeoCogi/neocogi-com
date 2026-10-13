@@ -9,8 +9,8 @@ use neocogi_com_core::{
     NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NC_OK, NcFactoryPluginDescription, NcStatus, validate_factory_plugin_description,
 };
 
-use crate::factory_plugin_registry::{PluginOrigin, RegisteredFactoryPlugin};
-use crate::state::{RuntimeCatalog, RuntimeState};
+use crate::factory_plugin_registry::{FactoryPluginRegistry, PluginOrigin, RegisteredFactoryPlugin};
+use crate::state::RuntimeState;
 
 /// Validates one descriptor and copies the data needed for atomic publication.
 ///
@@ -54,26 +54,26 @@ impl RuntimeState {
     }
 }
 
-impl RuntimeCatalog {
+impl FactoryPluginRegistry {
     /// Checks every state-dependent rule before publishing any plugin indexes.
     pub(crate) fn commit_factory_plugin_registration(&mut self, plugin: RegisteredFactoryPlugin) -> NcStatus {
         if let Err(status) = self.validate_plugin_dependencies(&plugin.dependency_ids) {
             return status;
         }
-        match self.factory_plugin_registry.plugin(plugin.plugin_id) {
+        match self.plugin(plugin.plugin_id) {
             Some(existing) if existing.description == plugin.description => return NC_OK,
             Some(_) => return NC_E_INVALID_ARG,
             None => {}
         }
         // A repeated descriptor has already returned above: count only new
         // dynamic providers, never load attempts or statically registered plugins.
-        if matches!(plugin.origin, PluginOrigin::Dynamic { .. }) && self.factory_plugin_registry.dynamic_count() >= NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS {
+        if matches!(plugin.origin, PluginOrigin::Dynamic { .. }) && self.dynamic_count() >= NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS {
             return NC_E_OUT_OF_RANGE;
         }
         // Validation derives the ID from the normative name. The existing
         // plugin index therefore detects reused names and IDs together; a
         // second pair of name/ID maps would only duplicate that authority.
-        self.factory_plugin_registry.insert(plugin);
+        self.insert(plugin);
         NC_OK
     }
 }
@@ -113,9 +113,19 @@ mod tests {
         // SAFETY: The fixture and its referenced signature are immutable statics.
         assert_eq!(unsafe { runtime.register_factory_plugin_description(&PLUGIN) }, NC_OK);
         assert_eq!(unsafe { runtime.register_factory_plugin_description(&PLUGIN) }, NC_OK);
+        // The first static origin also survives a later dynamic encounter of
+        // the same descriptor without reserving any dynamic-provider slot.
+        let mut repeat = unsafe { prepare_factory_plugin(&PLUGIN) }.unwrap();
+        repeat.origin = PluginOrigin::Dynamic {
+            path: "later-dynamic-path".into(),
+            _library: crate::loader::PinnedLibrary::test_stub(),
+        };
+        assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(repeat), NC_OK);
         let catalog = runtime.read_catalog();
-        assert!(catalog.factory_plugin_registry.contains_plugin(PLUGIN.plugin_id));
-        assert_eq!(catalog.factory_plugin_registry.with_plugin_ids(|ids| ids.len()), 1);
+        assert!(catalog.contains_plugin(PLUGIN.plugin_id));
+        assert_eq!(catalog.len(), 1);
+        assert_eq!(catalog.dynamic_count(), 0);
+        assert!(matches!(catalog.plugin(PLUGIN.plugin_id).unwrap().origin, PluginOrigin::Static));
     }
 
     /// A missing provider must leave both plugin and name indexes unchanged.
@@ -133,8 +143,8 @@ mod tests {
         // SAFETY: Failed validation retains no pointer to this stack descriptor.
         assert_eq!(unsafe { runtime.register_factory_plugin_description(&plugin) }, NC_E_NOT_FOUND);
         let catalog = runtime.read_catalog();
-        assert!(!catalog.factory_plugin_registry.contains_plugin(PLUGIN.plugin_id));
-        assert!(catalog.factory_plugin_registry.with_plugin_ids(|ids| ids.is_empty()));
+        assert!(!catalog.contains_plugin(PLUGIN.plugin_id));
+        assert_eq!(catalog.len(), 0);
     }
 
     /// Validates a real descriptor with process-lifetime test metadata, then adds
@@ -167,7 +177,7 @@ mod tests {
             assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(plugin), NC_OK);
         }
         let id = guid_from_qualified_name("nc.tests.capacity.provider0");
-        let description = runtime.read_catalog().factory_plugin_registry.plugin(id).unwrap().description;
+        let description = runtime.read_catalog().plugin(id).unwrap().description;
         // SAFETY: The fixture allocated immutable process-lifetime metadata.
         let mut repeat = unsafe { prepare_factory_plugin(description) }.unwrap();
         repeat.origin = PluginOrigin::Dynamic {
@@ -185,9 +195,9 @@ mod tests {
         assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(conflict), NC_E_INVALID_ARG);
 
         let catalog = runtime.read_catalog();
-        assert_eq!(catalog.factory_plugin_registry.dynamic_count(), NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS);
+        assert_eq!(catalog.dynamic_count(), NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS);
         assert!(!catalog.contains_plugin(overflow_id));
-        assert!(matches!(&catalog.factory_plugin_registry.plugin(id).unwrap().origin,
+        assert!(matches!(&catalog.plugin(id).unwrap().origin,
             PluginOrigin::Dynamic { path, .. } if path == std::path::Path::new("nc.tests.capacity.provider0")));
     }
 }

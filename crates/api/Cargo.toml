@@ -125,6 +125,11 @@ path = "integration-tests/plugin_load_failure.rs"
 required-features = ["runtime"]
 
 [[test]]
+name = "plugin_provenance"
+path = "integration-tests/plugin_provenance.rs"
+required-features = ["runtime"]
+
+[[test]]
 name = "exclusive_com"
 path = "integration-tests/exclusive_com.rs"
 

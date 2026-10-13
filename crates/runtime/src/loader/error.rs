@@ -28,8 +28,6 @@ pub enum PluginLoadErrorKind {
     Metadata,
     /// Runtime registration rejected the descriptor.
     Registration,
-    /// The runtime cannot retain another loaded plugin module.
-    ResourceLimit,
     /// Runtime loading is not implemented for this target platform.
     UnsupportedPlatform,
 }
@@ -68,8 +66,8 @@ impl PluginLoadError {
         &self.path
     }
 
-    /// Returns the `NcStatus` associated with descriptor, registration, or
-    /// resource-limit failures.
+    /// Returns the `NcStatus` associated with descriptor or registration failures,
+    /// including the distinct dynamic-provider capacity bound.
     pub fn status(&self) -> Option<NcStatus> {
         self.status
     }

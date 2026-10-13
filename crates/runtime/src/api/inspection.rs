@@ -1,4 +1,4 @@
-//! C callbacks for querying plugin/module metadata and dependencies.
+//! C callbacks for querying plugin metadata and dependencies.
 //!
 //! Record lookups distinguish missing entities with `NC_E_NOT_FOUND`.
 //! Relationship counts instead use zero for either an absent identity or an
@@ -19,7 +19,7 @@ use crate::loader::inspect_factory_plugin_description;
 use crate::state::RuntimeState;
 
 use super::runtime::load_error_status;
-use super::{copy_slice_to_out, emit_error, path_from_utf8};
+use super::{copy_to_out, emit_error, path_from_utf8};
 
 /// Opens and validates a trusted plugin, then invokes a synchronous factory-description callback.
 pub(super) unsafe extern "C" fn inspect_plugin_library_utf8(
@@ -58,7 +58,7 @@ pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPlugi
     }
     let runtime = RuntimeState::global();
     let catalog = runtime.read_catalog();
-    let Some(info) = runtime_inspection::factory_plugin_info(&catalog.factory_plugin_registry, plugin_id) else {
+    let Some(info) = runtime_inspection::factory_plugin_info(&catalog, plugin_id) else {
         return NC_E_NOT_FOUND;
     };
     // SAFETY: `out` is valid for one write by the caller's contract.
@@ -73,7 +73,7 @@ pub(super) unsafe extern "C" fn plugin_factory_info(plugin_id: NcGuid, out: *mut
     }
     let runtime = RuntimeState::global();
     let catalog = runtime.read_catalog();
-    let Some(info) = runtime_inspection::factory_plugin_factory_info(&catalog.factory_plugin_registry, plugin_id) else {
+    let Some(info) = runtime_inspection::factory_plugin_factory_info(&catalog, plugin_id) else {
         return NC_E_NOT_FOUND;
     };
     // SAFETY: `out` is valid for one write by the caller's contract.
@@ -83,17 +83,14 @@ pub(super) unsafe extern "C" fn plugin_factory_info(plugin_id: NcGuid, out: *mut
 
 /// Returns the number of hard dependency IDs declared by a registered plugin.
 pub(super) unsafe extern "C" fn plugin_dependency_count(plugin_id: NcGuid) -> usize {
-    RuntimeState::global()
-        .read_catalog()
-        .factory_plugin_registry
-        .with_plugin_dependency_ids(plugin_id, <[NcGuid]>::len)
+    RuntimeState::global().read_catalog().dependency_ids(plugin_id).len()
 }
 
 /// Copies a plugin's hard dependency IDs using the count/fill contract.
 pub(super) unsafe extern "C" fn plugin_dependency_ids(plugin_id: NcGuid, out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus {
     let runtime = RuntimeState::global();
-    runtime.read_catalog().factory_plugin_registry.with_plugin_dependency_ids(plugin_id, |values| {
-        // SAFETY: The caller provides the output-buffer contract.
-        unsafe { copy_slice_to_out(values, out, capacity, out_len) }
-    })
+    let catalog = runtime.read_catalog();
+    // SAFETY: The caller provides the output-buffer contract. The guard keeps
+    // copied dependency storage live and immutable through the fill.
+    unsafe { copy_to_out(catalog.dependency_ids(plugin_id).iter().copied(), out, capacity, out_len) }
 }

@@ -7,7 +7,7 @@
 //! UTF-8 paths, implement count/fill copies, and route detailed failures through
 //! the process debug messenger registry.
 
-use core::{mem, ptr, slice, str};
+use core::{mem, slice, str};
 use std::path::Path;
 
 use crate::debug;
@@ -82,8 +82,14 @@ unsafe fn path_from_utf8<'a>(path: *const u8, path_len: usize) -> Result<&'a Pat
     Ok(Path::new(path))
 }
 
-/// Implements the no-partial-write count/fill protocol for a borrowed slice.
-unsafe fn copy_slice_to_out<T: Copy>(items: &[T], out: *mut T, capacity: usize, out_len: *mut usize) -> NcStatus {
+/// Fills from an exact-size record projection without a parallel ID collection.
+///
+/// # Safety
+///
+/// The iterator must report its actual length (internal callers use slice
+/// projections). Nonnull outputs must provide writable, nonoverlapping storage
+/// for `capacity` elements and one length respectively.
+unsafe fn copy_to_out<T: Copy>(items: impl ExactSizeIterator<Item = T>, out: *mut T, capacity: usize, out_len: *mut usize) -> NcStatus {
     // Always publish the current required length first. In particular, callers
     // may pass a null/undersized data pointer to learn that length without any
     // partial output being written.
@@ -95,14 +101,17 @@ unsafe fn copy_slice_to_out<T: Copy>(items: &[T], out: *mut T, capacity: usize, 
     if items.len() > capacity {
         return NC_E_INSUFFICIENT_BUFFER;
     }
-    if items.is_empty() {
+    if items.len() == 0 {
         return NC_OK;
     }
     if out.is_null() {
         return NC_E_POINTER;
     }
-    // SAFETY: The capacity check proves `out` has enough caller-owned slots.
-    unsafe { ptr::copy_nonoverlapping(items.as_ptr(), out, items.len()) };
+    for (index, item) in items.enumerate() {
+        // SAFETY: ExactSizeIterator is provided only by internal slice/record
+        // projections; its checked length bounds every caller-owned slot.
+        unsafe { out.add(index).write(item) };
+    }
     NC_OK
 }
 
@@ -116,6 +125,7 @@ fn emit_error(value_type: u32, status: NcStatus, text: &str) {
 
 #[cfg(test)]
 mod tests {
+    use core::ptr;
     use super::exports::{
         nc_com_get_persistence_api_v1, nc_com_get_debug_api_v1, nc_com_get_inspection_api_v1, nc_com_get_plugin_registry_v1, nc_com_get_runtime_api_v1,
         nc_com_runtime_abi_version,
@@ -179,10 +189,34 @@ mod tests {
         let items = [10_u32, 20_u32];
         let mut out = [99_u32];
         let mut out_len = 0;
-        let status = unsafe { copy_slice_to_out(&items, out.as_mut_ptr(), 1, &mut out_len) };
+        let status = unsafe { copy_to_out(items.into_iter(), out.as_mut_ptr(), 1, &mut out_len) };
         assert_eq!(status, NC_E_INSUFFICIENT_BUFFER);
         assert_eq!(out_len, 2);
         assert_eq!(out, [99]);
+    }
+
+    /// Empty enumerations allow a null buffer; nonempty successful fills require
+    /// storage. Invalid length pointers cannot change any output slots.
+    #[test]
+    fn fill_observes_pointer_and_empty_output_boundaries() {
+        let mut len = usize::MAX;
+        assert_eq!(unsafe { copy_to_out(core::iter::empty::<u32>(), ptr::null_mut(), 0, &mut len) }, NC_OK);
+        assert_eq!(len, 0);
+        assert_eq!(
+            unsafe { copy_to_out([10_u32].into_iter(), ptr::null_mut(), 0, &mut len) },
+            NC_E_INSUFFICIENT_BUFFER
+        );
+        assert_eq!(len, 1);
+        assert_eq!(unsafe { copy_to_out([10_u32].into_iter(), ptr::null_mut(), 1, &mut len) }, NC_E_POINTER);
+        let mut out = [99_u32; 3];
+        assert_eq!(
+            unsafe { copy_to_out([10_u32, 20].into_iter(), out.as_mut_ptr(), 3, ptr::null_mut()) },
+            NC_E_POINTER
+        );
+        assert_eq!(out, [99; 3]);
+        assert_eq!(unsafe { copy_to_out([10_u32, 20].into_iter(), out.as_mut_ptr(), 3, &mut len) }, NC_OK);
+        assert_eq!(len, 2);
+        assert_eq!(out, [10, 20, 99]);
     }
 
     #[test]

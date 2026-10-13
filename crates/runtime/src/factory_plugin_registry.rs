@@ -16,8 +16,6 @@ use neocogi_com_core::{NcFactoryPluginDescription, NcGuid};
 pub(crate) struct FactoryPluginRegistry {
     /// Records in successful registration order.
     plugins: Vec<RegisteredFactoryPlugin>,
-    /// Enumeration-only identities in the same registration order.
-    plugin_ids: Vec<NcGuid>,
     /// Plugin identity to ordered-record index.
     plugin_by_id: HashMap<NcGuid, usize>,
 }
@@ -27,7 +25,6 @@ impl FactoryPluginRegistry {
     pub(crate) fn new() -> Self {
         Self {
             plugins: Vec::new(),
-            plugin_ids: Vec::new(),
             plugin_by_id: HashMap::new(),
         }
     }
@@ -50,26 +47,33 @@ impl FactoryPluginRegistry {
         self.plugin_by_id.get(&plugin_id).map(|index| &self.plugins[*index])
     }
 
-    /// Borrows registered IDs for unified plugin enumeration.
-    pub(crate) fn with_plugin_ids<R>(&self, read: impl FnOnce(&[NcGuid]) -> R) -> R {
-        read(&self.plugin_ids)
+    /// Counts registered plugins from the authoritative ordered records.
+    pub(crate) fn len(&self) -> usize {
+        self.plugins.len()
     }
 
-    /// Borrows one plugin's copied hard dependency IDs.
-    pub(crate) fn with_plugin_dependency_ids<R>(&self, plugin_id: NcGuid, read: impl FnOnce(&[NcGuid]) -> R) -> R {
-        let dependencies = self
-            .plugin_by_id
-            .get(&plugin_id)
-            .map(|index| self.plugins[*index].dependency_ids.as_slice())
-            .unwrap_or(&[]);
-        read(dependencies)
+    /// Iterates immutable records in successful registration order.
+    pub(crate) fn plugins(&self) -> impl ExactSizeIterator<Item = &RegisteredFactoryPlugin> {
+        self.plugins.iter()
+    }
+
+    /// Requires every hard dependency to be registered before publication.
+    pub(crate) fn validate_plugin_dependencies(&self, dependency_ids: &[NcGuid]) -> Result<(), neocogi_com_core::NcStatus> {
+        if dependency_ids.iter().any(|id| !self.contains_plugin(*id)) {
+            return Err(neocogi_com_core::NC_E_NOT_FOUND);
+        }
+        Ok(())
+    }
+
+    /// Borrows copied dependency IDs; an absent plugin has no relationships.
+    pub(crate) fn dependency_ids(&self, plugin_id: NcGuid) -> &[NcGuid] {
+        self.plugin(plugin_id).map(|plugin| plugin.dependency_ids.as_slice()).unwrap_or(&[])
     }
 
     /// Appends one prevalidated record to every index.
     pub(crate) fn insert(&mut self, plugin: RegisteredFactoryPlugin) {
         debug_assert!(!self.contains_plugin(plugin.plugin_id));
         let index = self.plugins.len();
-        self.plugin_ids.push(plugin.plugin_id);
         self.plugin_by_id.insert(plugin.plugin_id, index);
         self.plugins.push(plugin);
     }
