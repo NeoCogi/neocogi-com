@@ -22,7 +22,11 @@ pub struct NcRuntimeApiV1 {
     pub core_abi_version: u32,
     /// Validates and atomically registers one plugin and its hard provider IDs.
     pub register_factory_plugin_description: unsafe extern "C" fn(plugin: *const NcFactoryPluginDescription) -> NcStatus,
-    /// Loads and registers one trusted factory plugin shared library from a
+    /// Loads and registers one trusted factory plugin, returning its stable GUID.
+    /// Reopening the same descriptor reuses its registration and first path;
+    /// a distinct descriptor claiming that identity is rejected. The output is
+    /// cleared to the nil GUID before validation and initialized on success.
+    /// Loads the library from a
     /// nonempty UTF-8 path without interior NUL bytes.
     ///
     /// The library must export `nc_get_factory_plugin_description_v1`. Class-table
@@ -31,7 +35,7 @@ pub struct NcRuntimeApiV1 {
     /// failure emits diagnostics and aborts the entire application. There is no
     /// recoverable activation mode. Raw argument errors return a status before
     /// activation; application loading wrappers must treat those as fatal too.
-    pub load_plugin_library_utf8: unsafe extern "C" fn(path: *const u8, path_len: usize, out_module_id: *mut u64) -> NcStatus,
+    pub load_plugin_library_utf8: unsafe extern "C" fn(path: *const u8, path_len: usize, out_plugin_id: *mut NcGuid) -> NcStatus,
     /// Activates one registered plugin's root factory after checking its exact
     /// interface identity and requested threading capability.
     /// Success transfers the exact factory object/table pair, erased only in

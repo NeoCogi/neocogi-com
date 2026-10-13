@@ -8,7 +8,7 @@
 //! The unversioned ABI-generation function is the mandatory discovery point.
 //! A caller must compare it with the generation it understands before invoking
 //! a versioned getter. During pre-alpha both sides must also use the same
-//! checkout revision, because version one does not promise cross-revision compatibility.
+//! checkout revision, because pre-alpha generations do not promise cross-revision compatibility.
 
 use neocogi_com_core::{NC_COM_RUNTIME_ABI_VERSION, NcPersistenceApiV1, NcDebugApiV1, NcInspectionApiV1, NcPluginRegistryV1, NcRuntimeApiV1};
 

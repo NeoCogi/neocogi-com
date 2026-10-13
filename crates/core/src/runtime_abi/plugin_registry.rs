@@ -1,22 +1,19 @@
-//! ABI table for enumerating plugins and retained dynamic modules.
+//! Runtime ABI v1 enumeration of registered plugin GUIDs.
 //!
-//! The table exposes stable plugin IDs and process-local loaded-module IDs using
-//! the shared count/fill convention. It describes catalog existence only;
-//! names, versions, paths, and plugin dependencies are provided by inspection APIs.
-//!
-//! Counts are deliberately infallible snapshots. Fill calls report the current
-//! required length so callers can retry if append-only runtime state grows
-//! between the count and fill operations.
+//! Names, versions, origin paths and dependencies belong to inspection. Counts
+//! are infallible snapshots; fills report the current required length without
+//! partial writes, permitting retry when registration races enumeration.
 
 use crate::{NcGuid, NcStatus};
 
-/// Maximum number of live-loaded module records tracked by runtime ABI v1.
+/// Maximum number of distinct dynamically registered plugins in runtime ABI v1.
 ///
-/// Inspection-only opens do not enter this catalog; their pinned handles are
+/// Repeated provider loads reuse a registration and consume no slot.
+/// Static registration and inspection-only opens do not enter this count; their pinned handles are
 /// outside this limit and remain live until the inspector process exits.
-pub const NC_COM_RUNTIME_MAX_LOADED_MODULES: usize = 1_024;
+pub const NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS: usize = 1_024;
 
-/// Read-only process-global plugin and loaded-module registry for runtime ABI v1.
+/// Read-only process-global plugin registry for runtime ABI v1.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NcPluginRegistryV1 {
@@ -26,9 +23,4 @@ pub struct NcPluginRegistryV1 {
     pub plugin_count: unsafe extern "C" fn() -> usize,
     /// Copies registered plugin IDs to caller-owned storage.
     pub plugin_ids: unsafe extern "C" fn(out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus,
-    /// Returns the number of retained loaded modules, which cannot exceed
-    /// [`NC_COM_RUNTIME_MAX_LOADED_MODULES`].
-    pub loaded_module_count: unsafe extern "C" fn() -> usize,
-    /// Copies retained loaded-module IDs to caller-owned storage.
-    pub loaded_module_ids: unsafe extern "C" fn(out: *mut u64, capacity: usize, out_len: *mut usize) -> NcStatus,
 }

@@ -1,31 +1,26 @@
-//! Safe owned plugin metadata, module provenance, and dependency inspection.
+//! Owned plugin identity, provenance, factory metadata and dependency inspection.
 //!
-//! Raw inspection records contain borrowed UTF-8 pointers. Public methods copy
-//! those views before returning, so callers never inherit a C lifetime or need
-//! to hold a runtime lock. Module records own provenance (module ID, plugin ID,
-//! and path); factory descriptions remain the authoritative source for plugin
-//! names and versions. [`Inspection::loaded_module`] joins both records into an
-//! owned [`LoadedModuleInfo`]. Missing record lookups return `None`;
-//! dependency queries return an empty collection when no dependency exists.
-//! Trusted, unregistered libraries can be opened and validated through a
-//! callback-scoped factory-description visitor.
+//! Raw records borrow immutable descriptor text and catalog-owned library paths.
+//! The facade validates and copies those views before returning, so applications
+//! own their metadata without retaining a catalog lock or native handle. Missing
+//! plugin lookups return `None`; dependency queries return an empty collection
+//! for an absent plugin or a plugin with no dependencies. Unregistered trusted
+//! libraries have a separate synchronous descriptor-inspection operation.
 
 use std::path::{Path, PathBuf};
 use std::string::String;
 use std::vec::Vec;
 
 use crate::{
-    NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcModuleInfoV1, NcPluginFactoryInfoV1,
-    NcPluginInfoV1, NcStatus,
+    NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcFactoryPluginDescription, NcGuid, NcInterfaceId, NcPluginFactoryInfoV1, NcPluginInfoV1, NcStatus,
 };
 
-use super::{LoadedModuleId, LoadedModuleInfo, Runtime, read_utf8_view, read_vec, status_to_result};
+use super::{Runtime, read_utf8_view, read_vec, status_to_result};
 
 /// Owned descriptor metadata for one registered plugin.
 ///
-/// Call [`Inspection::plugin_info`] with a plugin ID obtained from the plugin registry
-/// or a loaded-module record. This lookup also works for statically
-/// registered plugins, which have no module path or [`LoadedModuleId`].
+/// Look up a plugin GUID returned by loading or enumeration. This also works
+/// for static registration; [`PluginOrigin`] explicitly distinguishes its origin.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PluginInfo {
     /// Stable plugin identity.
@@ -34,12 +29,26 @@ pub struct PluginInfo {
     pub qualified_name: String,
     /// Plugin version text.
     pub version: String,
+    /// Static registration or the first successful dynamic library path.
+    pub origin: PluginOrigin,
+}
+
+/// Owned provenance of a registered plugin, independent of native handles.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PluginOrigin {
+    /// Metadata and code are supplied by statically linked process storage.
+    Static,
+    /// Registered from a trusted library; the runtime keeps its mapping pinned.
+    Dynamic {
+        /// First successful caller path, preserved for diagnostics without reopening.
+        path: PathBuf,
+    },
 }
 
 /// Factory metadata inspection summary for one registered plugin.
 ///
 /// Call [`Inspection::plugin_factory_info`] with a plugin ID obtained from the plugin registry
-/// or a loaded-module record. This lookup works for both dynamically loaded and
+/// or library loading. This lookup works for both dynamically loaded and
 /// statically registered plugins.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PluginFactoryInfo {
@@ -51,7 +60,7 @@ pub struct PluginFactoryInfo {
     pub root_factory_threading: u32,
 }
 
-/// Read-only plugin metadata, module provenance, and dependency queries.
+/// Read-only plugin identity, registration provenance and dependency queries.
 #[derive(Clone, Copy, Debug)]
 pub struct Inspection<'runtime> {
     /// Facade used to retrieve and validate the inspection ABI table.
@@ -147,6 +156,13 @@ impl<'runtime> Inspection<'runtime> {
             plugin_id: info.plugin_id,
             qualified_name: read_utf8_view(info.qualified_name)?,
             version: read_utf8_view(info.version)?,
+            origin: if info.library_path.len == 0 {
+                PluginOrigin::Static
+            } else {
+                PluginOrigin::Dynamic {
+                    path: PathBuf::from(read_utf8_view(info.library_path)?),
+                }
+            },
         }))
     }
 
@@ -162,34 +178,6 @@ impl<'runtime> Inspection<'runtime> {
         }))
     }
 
-    /// Returns retained plugin modules in registry order.
-    ///
-    /// Each owned summary combines module provenance with the corresponding
-    /// descriptor-backed plugin name and version.
-    pub fn loaded_modules(self) -> Result<Vec<LoadedModuleInfo>, NcStatus> {
-        // Resolve IDs one at a time through inspection so the returned summaries
-        // are owned and the plugin registry remains only an existence catalog.
-        self.runtime
-            .plugin_registry()
-            .loaded_module_ids()?
-            .into_iter()
-            .map(|module_id| self.loaded_module_required(module_id))
-            .collect()
-    }
-
-    /// Returns one retained plugin module.
-    ///
-    /// Module inspection supplies the path and plugin ID; plugin inspection
-    /// supplies the qualified name and version. The returned summary owns all
-    /// text from both records.
-    pub fn loaded_module(self, module_id: LoadedModuleId) -> Result<Option<LoadedModuleInfo>, NcStatus> {
-        match self.loaded_module_required(module_id) {
-            Ok(module) => Ok(Some(module)),
-            Err(NC_E_NOT_FOUND) => Ok(None),
-            Err(status) => Err(status),
-        }
-    }
-
     /// Returns hard dependency plugin IDs declared by one registered plugin.
     pub fn plugin_dependency_ids(self, plugin_id: NcGuid) -> Result<Vec<NcGuid>, NcStatus> {
         let api = self.runtime.inspection_api();
@@ -197,23 +185,6 @@ impl<'runtime> Inspection<'runtime> {
             || unsafe { (api.plugin_dependency_count)(plugin_id) },
             |out, capacity, out_len| unsafe { (api.plugin_dependency_ids)(plugin_id, out, capacity, out_len) },
         )
-    }
-
-    /// Joins a required raw module record with its plugin descriptor metadata.
-    fn loaded_module_required(self, module_id: LoadedModuleId) -> Result<LoadedModuleInfo, NcStatus> {
-        // A loaded module and its plugin record are committed together. Treat a
-        // missing half as NC_E_NOT_FOUND rather than manufacturing partial data.
-        let module = self.raw_module_info(module_id)?.ok_or(NC_E_NOT_FOUND)?;
-        let plugin = self.plugin_info(module.plugin_id)?.ok_or(NC_E_NOT_FOUND)?;
-        let factory = self.plugin_factory_info(module.plugin_id)?.ok_or(NC_E_NOT_FOUND)?;
-        Ok(LoadedModuleInfo {
-            module_id,
-            path: PathBuf::from(read_utf8_view(module.path)?),
-            plugin_id: module.plugin_id,
-            qualified_name: plugin.qualified_name,
-            plugin_version: plugin.version,
-            root_factory: factory.root_factory,
-        })
     }
 
     /// Retrieves one borrowed-text plugin record from the raw inspection table.
@@ -236,19 +207,6 @@ impl<'runtime> Inspection<'runtime> {
         let mut out = core::mem::MaybeUninit::uninit();
         // SAFETY: `out` is valid for one initialized record on success.
         let status = unsafe { (self.runtime.inspection_api().plugin_factory_info)(plugin_id, out.as_mut_ptr()) };
-        if status == NC_E_NOT_FOUND {
-            return Ok(None);
-        }
-        status_to_result(status)?;
-        // SAFETY: Successful inspection initialized `out`.
-        Ok(Some(unsafe { out.assume_init() }))
-    }
-
-    /// Retrieves one borrowed-text module record from the raw inspection table.
-    fn raw_module_info(self, module_id: LoadedModuleId) -> Result<Option<NcModuleInfoV1>, NcStatus> {
-        let mut out = core::mem::MaybeUninit::uninit();
-        // SAFETY: `out` is valid for one initialized record on success.
-        let status = unsafe { (self.runtime.inspection_api().module_info)(module_id.get(), out.as_mut_ptr()) };
         if status == NC_E_NOT_FOUND {
             return Ok(None);
         }

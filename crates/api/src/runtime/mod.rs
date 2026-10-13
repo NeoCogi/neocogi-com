@@ -7,8 +7,7 @@
 //! plugin dependency inspection, and diagnostics separate from mutation operations.
 
 use std::fmt;
-use std::path::{Path, PathBuf};
-use std::string::String;
+use std::path::Path;
 use std::vec::Vec;
 
 use crate::{
@@ -26,7 +25,7 @@ mod inspection;
 mod plugin_registry;
 
 pub use debug::{Debug, DebugMessenger};
-pub use inspection::{Inspection, PluginFactoryInfo, PluginInfo};
+pub use inspection::{Inspection, PluginFactoryInfo, PluginInfo, PluginOrigin};
 pub use plugin_registry::PluginRegistry;
 
 /// Maximum number of elements copied by one Rust runtime-facade enumeration.
@@ -57,92 +56,6 @@ pub struct Runtime {
     _private: (),
 }
 
-/// Process-local identifier for a plugin library retained by the runtime.
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct LoadedModuleId(u64);
-
-impl LoadedModuleId {
-    /// Wraps a nonzero raw module handle returned by the runtime ABI.
-    const fn from_raw(raw: u64) -> Self {
-        Self(raw)
-    }
-
-    /// Returns the process-local numeric module identifier.
-    pub const fn get(self) -> u64 {
-        self.0
-    }
-}
-
-impl fmt::Display for LoadedModuleId {
-    /// Formats the process-local numeric identifier in decimal form.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-/// Owned summary of a plugin library successfully loaded into the runtime.
-///
-/// The runtime ABI stores module provenance and plugin metadata separately:
-/// module inspection supplies the module ID, path, and plugin ID, while plugin
-/// inspection supplies the descriptor's qualified name and version. This
-/// facade joins those records and copies their text, so the summary holds no
-/// registry lock and borrows no descriptor memory.
-///
-/// Use [`Inspection::loaded_module`] to retrieve the summary again by
-/// [`LoadedModuleId`]. Use [`Inspection::plugin_info`] with [`Self::plugin_id`]
-/// when only plugin metadata is needed, including metadata for plugins that
-/// were registered statically and therefore have no loaded module.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct LoadedModuleInfo {
-    /// Process-local identifier assigned to the retained library.
-    module_id: LoadedModuleId,
-    /// Owned copy of the path reported by runtime module inspection.
-    path: PathBuf,
-    /// Stable plugin identity read from the validated descriptor.
-    plugin_id: NcGuid,
-    /// Owned copy of the plugin's canonical qualified name.
-    qualified_name: String,
-    /// Owned copy of the plugin descriptor's version text.
-    plugin_version: String,
-    /// Exact root factory interface identity read from the validated descriptor.
-    root_factory: NcInterfaceId,
-}
-
-impl LoadedModuleInfo {
-    /// Returns the process-local loaded module identifier.
-    pub fn module_id(&self) -> LoadedModuleId {
-        self.module_id
-    }
-
-    /// Returns the loaded library path reported by module inspection.
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-
-    /// Returns the plugin identifier from the descriptor.
-    pub fn plugin_id(&self) -> NcGuid {
-        self.plugin_id
-    }
-
-    /// Returns the plugin qualified name copied from descriptor-backed plugin
-    /// inspection.
-    pub fn qualified_name(&self) -> &str {
-        &self.qualified_name
-    }
-
-    /// Returns the plugin version text copied from descriptor-backed plugin
-    /// inspection.
-    pub fn plugin_version(&self) -> &str {
-        &self.plugin_version
-    }
-
-    /// Returns the exact root factory interface identity declared by the plugin.
-    pub fn root_factory(&self) -> NcInterfaceId {
-        self.root_factory
-    }
-}
-
 static RUNTIME: Runtime = Runtime { _private: () };
 
 impl Runtime {
@@ -167,7 +80,7 @@ impl Runtime {
     fn runtime_api(&self) -> &'static NcRuntimeApiV1 {
         // Do not cache a table before checking the mandatory generation: a
         // future runtime may expose an incompatible discovery/table contract.
-        self.assert_runtime_v1();
+        self.assert_runtime_abi();
         // SAFETY: The runtime version was checked before calling the v1 getter,
         // whose result follows the static size-prefix table contract.
         let api = unsafe { table(runtime_sys::nc_com_get_runtime_api_v1()) };
@@ -177,7 +90,7 @@ impl Runtime {
 
     /// Returns the linked plugin-registry table.
     fn plugin_registry_api(&self) -> &'static NcPluginRegistryV1 {
-        self.assert_runtime_v1();
+        self.assert_runtime_abi();
         // SAFETY: The runtime version was checked before calling the v1 getter,
         // whose result follows the static size-prefix table contract.
         unsafe { table(runtime_sys::nc_com_get_plugin_registry_v1()) }
@@ -185,7 +98,7 @@ impl Runtime {
 
     /// Returns the linked inspection table.
     fn inspection_api(&self) -> &'static NcInspectionApiV1 {
-        self.assert_runtime_v1();
+        self.assert_runtime_abi();
         // SAFETY: The runtime version was checked before calling the v1 getter,
         // whose result follows the static size-prefix table contract.
         unsafe { table(runtime_sys::nc_com_get_inspection_api_v1()) }
@@ -193,7 +106,7 @@ impl Runtime {
 
     /// Returns the linked debug-messenger table.
     fn debug_api(&self) -> &'static NcDebugApiV1 {
-        self.assert_runtime_v1();
+        self.assert_runtime_abi();
         // SAFETY: The runtime version was checked before calling the v1 getter,
         // whose result follows the static size-prefix table contract.
         unsafe { table(runtime_sys::nc_com_get_debug_api_v1()) }
@@ -292,10 +205,7 @@ impl Runtime {
     /// Returns [`NC_E_NOT_FOUND`] if `plugin_id` is not registered, or any runtime status
     /// returned by root factory activation.
     pub fn activate_registered_plugin_root(&self, plugin_id: NcGuid) -> Result<ComPtr<IUnknown>, NcStatus> {
-        let factory = self
-            .inspection()
-            .plugin_factory_info(plugin_id)?
-            .ok_or(NC_E_NOT_FOUND)?;
+        let factory = self.inspection().plugin_factory_info(plugin_id)?.ok_or(NC_E_NOT_FOUND)?;
         self.activate_plugin_root(plugin_id, factory.root_factory)
     }
 
@@ -310,39 +220,34 @@ impl Runtime {
     /// and the plugin description entrypoint must not directly or indirectly
     /// call this operation while another activation is in progress.
     /// The runtime retains at most
-    /// [`crate::NC_COM_RUNTIME_MAX_LOADED_MODULES`] dynamic modules; attempting
+    /// [`crate::NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS`] distinct dynamic plugins; attempting
     /// another load is also a fatal activation failure.
     ///
-    /// The returned [`LoadedModuleInfo`] is an owned snapshot. Its path comes
-    /// from module inspection; its qualified name and version come from the
-    /// registered plugin description through plugin inspection. Call
-    /// [`Runtime::inspection`] to query the same module or plugin later.
+    /// Returns the registered plugin GUID. Inspect it through
+    /// [`Inspection::plugin_info`] for identity, release version and provenance.
+    /// Repeated loads of the same descriptor reuse its first registration;
+    /// conflicting descriptors abort through the mandatory loading policy.
     ///
     /// # Safety
     ///
     /// `path` must identify trusted neocogi-com factory plugin code. The runtime
     /// requires the standard generated factory-description export.
-    pub unsafe fn load_plugin_library(&self, path: impl AsRef<Path>) -> LoadedModuleInfo {
+    pub unsafe fn load_plugin_library(&self, path: impl AsRef<Path>) -> NcGuid {
         // Live loading is mandatory for every caller, including interactive tools.
         // Reject local path conversion before entering the same fatal C operation.
         let path = path.as_ref();
         let path = path
             .to_str()
             .unwrap_or_else(|| fatal_plugin_load(format_args!("path is not valid UTF-8: {}", path.display())));
-        let mut module_id = 0;
+        let mut plugin_id = NcGuid::nil();
         // SAFETY: the UTF-8 path and output slot live through this call; the
         // caller accepted the trusted-library requirement. Native load errors
         // abort in the runtime; raw argument-validation errors return a status.
-        let status = unsafe { (self.runtime_api().load_plugin_library_utf8)(path.as_ptr(), path.len(), &mut module_id) };
+        let status = unsafe { (self.runtime_api().load_plugin_library_utf8)(path.as_ptr(), path.len(), &mut plugin_id) };
         if status.is_err() {
             fatal_plugin_load(status);
         }
-        // A successful load must have a published module record. Failure to
-        // acquire its owned summary is fatal too; no partial result is exposed.
-        self.inspection()
-            .loaded_module(LoadedModuleId::from_raw(module_id))
-            .and_then(|module| module.ok_or(NC_E_NOT_FOUND))
-            .unwrap_or_else(|status| fatal_plugin_load(status))
+        plugin_id
     }
 
     /// Loads trusted plugin libraries sequentially.
@@ -359,7 +264,7 @@ impl Runtime {
     /// # Safety
     ///
     /// Every path must identify trusted neocogi-com plugin code.
-    pub unsafe fn load_plugin_libraries<I, P>(&self, paths: I) -> Vec<LoadedModuleInfo>
+    pub unsafe fn load_plugin_libraries<I, P>(&self, paths: I) -> Vec<NcGuid>
     where
         I: IntoIterator<Item = P>,
         P: AsRef<Path>,
@@ -374,7 +279,7 @@ impl Runtime {
     }
 
     /// Aborts the operation if the linked library does not implement ABI v1.
-    fn assert_runtime_v1(&self) {
+    fn assert_runtime_abi(&self) {
         // ABI mismatch is a linkage/configuration error, not a recoverable
         // plugin status. Fail before dereferencing any version-specific table.
         let found = self.runtime_abi_version();

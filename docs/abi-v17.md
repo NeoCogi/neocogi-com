@@ -1,5 +1,10 @@
 # COM core ABI v17: one-way copied output
 
+The separately versioned [runtime ABI v1](runtime-abi-v1.md) is current
+for library loading, plugin provenance and catalog enumeration. It supersedes
+the runtime/module sections inherited from older core drafts; the object and
+plugin-descriptor contracts described here are unchanged.
+
 Core generation 17 replaces generic copied writable parameters with output-only
 wire storage and a separately published initialized-prefix count. Versions 16
 and earlier are rejected by bootstrap negotiation. Every output-bearing IDL

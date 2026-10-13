@@ -111,7 +111,7 @@ unsafe impl Sync for IUnknownVTable {}
 ///
 /// - Self is a marker for an exact interface contract. Its VTable has the
 ///   common IUnknownVTable prefix and methods accepting the allocation address.
-/// - Every published ComRaw<Self> pairs that table with its matching live object.
+/// - Every published `ComRaw<Self>` pairs that table with its matching live object.
 ///   Tables and identities remain immutable and live while any reference exists.
 /// - Exact identity checks precede typed argument/result dispatch. Borrowed
 ///   inherited method views may use a physically compatible base table prefix.

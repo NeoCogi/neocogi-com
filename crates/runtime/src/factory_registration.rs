@@ -5,9 +5,11 @@
 //! the plugin record and its lookup index together. Contract compatibility belongs to typed factory
 //! acquisition and interface transfers, so registration never traverses IDL.
 
-use neocogi_com_core::{NC_E_INVALID_ARG, NC_OK, NcFactoryPluginDescription, NcStatus, validate_factory_plugin_description};
+use neocogi_com_core::{
+    NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NC_OK, NcFactoryPluginDescription, NcStatus, validate_factory_plugin_description,
+};
 
-use crate::factory_plugin_registry::RegisteredFactoryPlugin;
+use crate::factory_plugin_registry::{PluginOrigin, RegisteredFactoryPlugin};
 use crate::state::{RuntimeCatalog, RuntimeState};
 
 /// Validates one descriptor and copies the data needed for atomic publication.
@@ -31,6 +33,7 @@ pub(crate) unsafe fn prepare_factory_plugin(plugin: *const NcFactoryPluginDescri
         plugin_id: description.plugin_id,
         description: plugin,
         dependency_ids,
+        origin: PluginOrigin::Static,
     })
 }
 
@@ -61,6 +64,11 @@ impl RuntimeCatalog {
             Some(existing) if existing.description == plugin.description => return NC_OK,
             Some(_) => return NC_E_INVALID_ARG,
             None => {}
+        }
+        // A repeated descriptor has already returned above: count only new
+        // dynamic providers, never load attempts or statically registered plugins.
+        if matches!(plugin.origin, PluginOrigin::Dynamic { .. }) && self.factory_plugin_registry.dynamic_count() >= NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS {
+            return NC_E_OUT_OF_RANGE;
         }
         // Validation derives the ID from the normative name. The existing
         // plugin index therefore detects reused names and IDs together; a
@@ -127,5 +135,59 @@ mod tests {
         let catalog = runtime.read_catalog();
         assert!(!catalog.factory_plugin_registry.contains_plugin(PLUGIN.plugin_id));
         assert!(catalog.factory_plugin_registry.with_plugin_ids(|ids| ids.is_empty()));
+    }
+
+    /// Validates a real descriptor with process-lifetime test metadata, then adds
+    /// a handle-free dynamic owner to isolate catalog accounting from native I/O.
+    fn dynamic_fixture(name: String) -> RegisteredFactoryPlugin {
+        let name: &'static str = Box::leak(name.into_boxed_str());
+        let description = Box::leak(Box::new(NcFactoryPluginDescription {
+            plugin_id: guid_from_qualified_name(name),
+            qualified_name: NcStaticUtf8::from_static(name),
+            ..PLUGIN
+        }));
+        // SAFETY: These test allocations and the inherited static fields remain
+        // immutable and process-live, just like validated native metadata.
+        let mut plugin = unsafe { prepare_factory_plugin(description) }.unwrap();
+        plugin.origin = PluginOrigin::Dynamic {
+            path: std::path::PathBuf::from(name),
+            _library: crate::loader::PinnedLibrary::test_stub(),
+        };
+        plugin
+    }
+
+    /// Capacity bounds distinct dynamic providers. Repeats preserve their first
+    /// origin even at capacity; static providers need no dynamic slot. Identity
+    /// conflicts remain errors and every rejected publication leaves the count fixed.
+    #[test]
+    fn dynamic_capacity_counts_unique_providers_and_preserves_first_origin() {
+        let runtime = RuntimeState::new();
+        for index in 0..NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS {
+            let plugin = dynamic_fixture(format!("nc.tests.capacity.provider{index}"));
+            assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(plugin), NC_OK);
+        }
+        let id = guid_from_qualified_name("nc.tests.capacity.provider0");
+        let description = runtime.read_catalog().factory_plugin_registry.plugin(id).unwrap().description;
+        // SAFETY: The fixture allocated immutable process-lifetime metadata.
+        let mut repeat = unsafe { prepare_factory_plugin(description) }.unwrap();
+        repeat.origin = PluginOrigin::Dynamic {
+            path: "alternate-path".into(),
+            _library: crate::loader::PinnedLibrary::test_stub(),
+        };
+        assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(repeat), NC_OK);
+        // SAFETY: PLUGIN is immutable static storage.
+        assert_eq!(unsafe { runtime.register_factory_plugin_description(&PLUGIN) }, NC_OK);
+
+        let overflow = dynamic_fixture("nc.tests.capacity.overflow".into());
+        let overflow_id = overflow.plugin_id;
+        assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(overflow), NC_E_OUT_OF_RANGE);
+        let conflict = dynamic_fixture("nc.tests.capacity.provider0".into());
+        assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(conflict), NC_E_INVALID_ARG);
+
+        let catalog = runtime.read_catalog();
+        assert_eq!(catalog.factory_plugin_registry.dynamic_count(), NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS);
+        assert!(!catalog.contains_plugin(overflow_id));
+        assert!(matches!(&catalog.factory_plugin_registry.plugin(id).unwrap().origin,
+            PluginOrigin::Dynamic { path, .. } if path == std::path::Path::new("nc.tests.capacity.provider0")));
     }
 }

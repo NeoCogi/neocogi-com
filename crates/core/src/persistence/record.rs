@@ -25,7 +25,7 @@ impl ObjectRecord {
     /// Measures a leaf persistence envelope before allocating its state bytes.
     /// UUID/revision contents have fixed widths, so zero placeholders give the
     /// exact shape for any recipe. State remains a sequence of byte values; it
-    /// consumes the same element/value budgets as an actual Vec<u8>. This helper
+    /// consumes the same element/value budgets as an actual `Vec<u8>`. This helper
     /// covers only records with no persistent children, not arbitrary trees.
     pub fn encoded_leaf_len(state_bytes: usize, limits: binary::Limits) -> Result<usize, binary::Error> {
         binary::encoded_len_with_limits(&LeafSize { state_bytes }, limits)

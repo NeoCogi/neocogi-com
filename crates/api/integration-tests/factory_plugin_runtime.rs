@@ -41,11 +41,7 @@ struct ExampleFactoryImplementation;
 
 impl ExampleFactory for ExampleFactoryImplementation {
     /// Creates one object directly without a runtime class registry lookup.
-    fn create(
-        &self,
-        extent: Extent,
-        events: neocogi_com::NcValueRef<'_, neocogi_com::events::EventBinding>,
-    ) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
+    fn create(&self, extent: Extent, events: neocogi_com::NcValueRef<'_, neocogi_com::events::EventBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
         let queue = events.to_owned()?.into_queue();
         ExampleObjectImplementation::from_value_cyclic::<ExampleObjectAbi>(move |origin| ExampleObjectImplementation {
             extent,
@@ -92,6 +88,7 @@ fn generated_contract_factory_activates_without_a_class_table() {
         .expect("plugin inspection failed")
         .expect("registered factory plugin missing from inspection");
     assert_eq!(info.qualified_name, "nc.tests.generated_factory_plugin");
+    assert_eq!(info.origin, neocogi_com::PluginOrigin::Static);
 }
 
 /// Verifies registered factory metadata inspection and direct activation on registered
@@ -104,7 +101,9 @@ fn registered_factory_info_and_direct_activation_work_without_filesystem_path() 
     let plugin_id = guid_from_qualified_name("nc.tests.generated_factory_plugin");
 
     // SAFETY: The static description outlives the process.
-    unsafe { let _ = runtime.register_factory_plugin_description(factory_plugin_description()); }
+    unsafe {
+        let _ = runtime.register_factory_plugin_description(factory_plugin_description());
+    }
 
     // Inspect registered factory info without any filesystem path.
     let factory_info = runtime
@@ -118,14 +117,10 @@ fn registered_factory_info_and_direct_activation_work_without_filesystem_path() 
     assert_eq!(factory_info.root_factory_threading, neocogi_com::NC_ABI_THREADING_THREAD_LOCAL);
 
     // Direct root activation without knowing the interface type in advance.
-    let root = runtime
-        .activate_registered_plugin_root(plugin_id)
-        .expect("direct root activation failed");
+    let root = runtime.activate_registered_plugin_root(plugin_id).expect("direct root activation failed");
 
     // Query canonical IUnknown and specific factory capability.
-    let factory = root
-        .query::<ExampleFactoryAbi>()
-        .expect("root must query ExampleFactoryAbi");
+    let factory = root.query::<ExampleFactoryAbi>().expect("root must query ExampleFactoryAbi");
     let object = factory
         .create(
             Extent { width: 10, height: 10 },
@@ -136,12 +131,6 @@ fn registered_factory_info_and_direct_activation_work_without_filesystem_path() 
 
     // Non-existent plugin returns None / NOT_FOUND
     let unknown_id = NcGuid::from_fields(0xdeadbeef, 0, 0, [0; 8]);
-    assert_eq!(
-        runtime.inspection().plugin_factory_info(unknown_id).expect("inspection check"),
-        None
-    );
-    assert_eq!(
-        runtime.activate_registered_plugin_root(unknown_id).map(|_| ()),
-        Err(NC_E_NOT_FOUND)
-    );
+    assert_eq!(runtime.inspection().plugin_factory_info(unknown_id).expect("inspection check"), None);
+    assert_eq!(runtime.activate_registered_plugin_root(unknown_id).map(|_| ()), Err(NC_E_NOT_FOUND));
 }

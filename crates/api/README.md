@@ -114,8 +114,8 @@ Metadata is different: `NcStaticUtf8::as_str` is an **unsafe**, fallible borrow
 with a caller-chosen lifetime, and `NcUtf8View` has no conversion methods.
 Neither raw descriptor retains its backing library. See the
 [core conversion table](../core/README.md#text-bytes-and-borrowed-storage).
-Runtime inspection returns owned text: `LoadedModuleInfo::qualified_name()` and
-`plugin_version()` can safely return `&str` because the info value owns its copy.
+Runtime inspection returns owned `PluginInfo` strings and `PluginOrigin` paths.
+These values remain usable independently of subsequent catalog lookups.
 
 ## Boundary rules
 
@@ -186,9 +186,9 @@ With the `runtime` feature, dynamic hosts use:
 
 ```rust,ignore
 let runtime = neocogi_com::Runtime::global();
-let loaded = unsafe { runtime.load_plugin_library(path) };
+let plugin_id = unsafe { runtime.load_plugin_library(path) };
 let factory = runtime.activate_plugin_factory::<my_contracts::UiFactoryAbi>(
-    loaded.plugin_id(),
+    plugin_id,
 )?;
 let button = factory.create_button()?;
 ```
@@ -198,12 +198,15 @@ plugin metadata and hard dependencies, and registers the plugin atomically.
 Activation compares the exact factory signature before invoking bootstrap.
 Unconnected contract revisions can coexist; incompatible calls fail with
 `NC_E_ABI_VERSION`. Every live plugin load is mandatory: path conversion,
-loading, metadata validation, dependency, registration, and loaded-summary
+loading, metadata validation, dependency and registration
 failures diagnose and abort the entire application. This includes designer
-startup. `load_plugin_library` returns a loaded module only on success;
+startup. `load_plugin_library` returns the registered plugin GUID on success;
 there is no recoverable `try_load_plugin_library` operation. Batch loading
 uses the same policy for each library. Loaded libraries remain mapped until
-process exit.
+process exit. `Inspection::plugin_info(plugin_id)` returns the plugin's identity,
+release version and static/dynamic origin. Repeated provider loads reuse the
+first registration and origin; conflicting providers are rejected. See
+[runtime ABI v1](../docs/runtime-abi-v1.md).
 
 Inspection is a separate operation that can report errors without registering
 or activating a plugin. Its fallible result does not make live loading optional.

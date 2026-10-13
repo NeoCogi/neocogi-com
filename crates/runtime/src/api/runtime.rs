@@ -30,14 +30,14 @@ pub(super) unsafe extern "C" fn register_factory_plugin_description(plugin: *con
 }
 
 /// Performs required live activation and aborts after any load/registration failure.
-pub(super) unsafe extern "C" fn load_plugin_library_utf8(path: *const u8, path_len: usize, out_module_id: *mut u64) -> NcStatus {
-    if out_module_id.is_null() {
+pub(super) unsafe extern "C" fn load_plugin_library_utf8(path: *const u8, path_len: usize, out_plugin_id: *mut NcGuid) -> NcStatus {
+    if out_plugin_id.is_null() {
         return NC_E_POINTER;
     }
     // Clearing first guarantees that every failure path leaves no stale handle
     // for a C caller to mistake for a successful load.
-    // SAFETY: `out_module_id` is valid for one write by the caller's contract.
-    unsafe { *out_module_id = 0 };
+    // SAFETY: `out_plugin_id` is valid for one write by the caller's contract.
+    unsafe { *out_plugin_id = NcGuid::nil() };
     let path = match unsafe { path_from_utf8(path, path_len) } {
         Ok(path) => path,
         Err(status) => return status,
@@ -46,9 +46,9 @@ pub(super) unsafe extern "C" fn load_plugin_library_utf8(path: *const u8, path_l
 
     // SAFETY: Loading executes trusted code selected by the caller.
     match unsafe { runtime.load_plugin_library(path) } {
-        Ok(module_id) => {
-            // SAFETY: `out_module_id` was checked above.
-            unsafe { *out_module_id = module_id.get() };
+        Ok(plugin_id) => {
+            // SAFETY: `out_plugin_id` was checked above.
+            unsafe { *out_plugin_id = plugin_id };
             NC_OK
         }
         Err(error) => {
@@ -102,7 +102,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn loaded_module_capacity_maps_to_out_of_range() {
+    fn dynamic_plugin_capacity_maps_to_out_of_range() {
         assert_eq!(load_error_status(PluginLoadErrorKind::ResourceLimit), NC_E_OUT_OF_RANGE);
     }
 }

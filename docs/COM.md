@@ -199,7 +199,9 @@ failure is diagnosed and aborts rather than exposing partial state. Successful
 libraries remain mapped until process exit.
 
 Runtime ABI v1 has operation, plugin-registry, inspection, debug, and
-caller-scoped persistence tables.
+caller-scoped persistence tables. Loading returns the plugin GUID; inspection
+reports its first static/dynamic origin. Separate module identities and module
+queries were removed. See [the runtime contract](docs/runtime-abi-v1.md).
 Activation checks the exact factory signature before bootstrap. Unconnected
 contract revisions can coexist; incompatible pointer transfers are rejected.
 `neocogi-inspect` emits schema 9 with plugin/dependency/root-factory metadata,

@@ -8,7 +8,9 @@ selects the specification matching that constant. Older `abi-v*.md` files record
 previous drafts and migration history; use the current specification for new code.
 
 The core generation, plugin/runtime discovery versions, and IDL fingerprint
-encoding are separate contracts. Discovery tables currently use v1; IDL's
+encoding are separate contracts. [Runtime ABI v1](runtime-abi-v1.md)
+replaces module identities with plugin provenance in place. All runtime tables
+and plugin descriptor discovery remain v1; roles must use the same checkout. IDL's
 canonical module encoding uses v9. Neither number identifies the current object
 ABI. The [IDL language reference](../../../docs/contracts/IDL_MODULES.md) owns the fingerprint
 and versioning rules, including generic parameters and enum assignments.

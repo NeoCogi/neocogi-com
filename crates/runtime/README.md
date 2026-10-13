@@ -1,7 +1,7 @@
 # neocogi-com-runtime
 
 The runtime owns plugin registration, trusted library loading, checked
-root-factory activation, loaded-module provenance, diagnostics, and the
+root-factory activation, plugin provenance, diagnostics, and the
 implementation of caller-owned persistence contexts. It contains
 no contract-module registry, native contract descriptions, or event seeding.
 Applications use `neocogi_com::Runtime`.
@@ -24,7 +24,7 @@ loads requested by the designer. Load failure diagnoses and aborts the process;
 there is no recoverable loading facade. The internal loader's `Result` carries
 diagnostics and lets it pin an opened library before the C boundary aborts.
 It is not an application retry policy. The Rust facade also aborts on path
-conversion, raw argument-validation, or loaded-summary errors.
+conversion or raw argument-validation errors.
 
 Opened libraries remain pinned for process lifetime. Inspection separately
 validates and borrows metadata without registration or activation and can return
@@ -32,11 +32,14 @@ errors. It exposes plugin/factory data, not a runtime inventory of contract
 declarations. Static registration and later factory calls retain their existing
 status-returning contracts; they are separate operations from live loading.
 
-Runtime ABI v1 has five size-prefixed C tables: operations, plugin enumeration,
-inspection, diagnostics, and caller-scoped persistence. Plugin descriptor ABI v1
-and core object ABI v12 are independently versioned. Callers must check runtime discovery before
-reading a versioned table. The runtime tracks at most 1,024 live-loaded module
-records and 64 active debug messengers.
+[Runtime ABI v1](../docs/runtime-abi-v1.md) has five C tables:
+operations, plugin enumeration, inspection, diagnostics and persistence. Loading
+returns a plugin GUID. Plugin inspection reports static origin or the first
+library path; native handles remain private. The same descriptor reuses its
+registration, while conflicting descriptors are rejected. There is no module
+ID, module registry or module-to-plugin join. The limit is 1,024 distinct dynamic
+providers, excluding static registrations and repeats, and 64 active messengers.
+Plugin descriptor ABI v1 and core object ABI v17 remain independently versioned.
 
 The crate defaults to an rlib. Build a standalone shared runtime with:
 
@@ -76,7 +79,7 @@ The public Rust API of `nc_com` also includes `inspect_plugin_library` and
 `plan_plugin_load_order`, used by the build and inspection tools. Inspection
 returns owned metadata without registering or activating a plugin, but it pins
 every successfully opened library for the inspector process lifetime. A
-short-lived process bounds that retention. Inspection does not add module
+short-lived process bounds that retention. Inspection does not add plugin
 catalog records, so its pinned handles are outside the 1,024-record live-load
 ceiling. The planner sorts already-inspected
 descriptions; it does not find paths or load dependencies.

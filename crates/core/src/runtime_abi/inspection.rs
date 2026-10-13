@@ -1,11 +1,10 @@
-//! ABI records and queries for runtime plugin metadata, module provenance, and dependencies.
+//! Runtime ABI v1 records for plugin identity, provenance and dependencies.
 //!
-//! Registry tables answer which identities exist. Inspection complements them
-//! with descriptive records and edges between plugins and modules. Text fields
-//! are borrowed runtime-owned views and must be copied
-//! by callers that need independent storage. The same table also provides a
-//! synchronous, non-registering path that opens trusted plugin code and lends a
-//! fully validated factory description to a caller callback.
+//! Plugin and factory views derive from one descriptor. A nonempty library path
+//! reports the first dynamic registration; an empty path reports static origin.
+//! Borrowed text remains process-live and callers copy it for independent
+//! ownership. Inspection of an unregistered library separately lends its
+//! validated descriptor only for the synchronous callback.
 
 use core::ffi::c_void;
 
@@ -30,6 +29,10 @@ pub struct NcPluginInfoV1 {
     pub qualified_name: NcUtf8View,
     /// Plugin version text.
     pub version: NcUtf8View,
+    /// Library path used for the first successful dynamic registration.
+    /// Static registrations return an empty view. Dynamic paths are nonempty;
+    /// storage is immutable and lives for the process lifetime.
+    pub library_path: NcUtf8View,
 }
 
 /// Factory metadata inspection record for one registered plugin.
@@ -44,19 +47,7 @@ pub struct NcPluginFactoryInfoV1 {
     pub root_factory_threading: u32,
 }
 
-/// Inspection record for one retained loaded module.
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct NcModuleInfoV1 {
-    /// Process-local module ID.
-    pub module_id: u64,
-    /// Plugin supplied by this module.
-    pub plugin_id: NcGuid,
-    /// UTF-8 path used to load this module.
-    pub path: NcUtf8View,
-}
-
-/// Read-only plugin metadata, module provenance, and dependency inspection for runtime ABI v1.
+/// Read-only plugin metadata, provenance and dependencies for runtime ABI v1.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NcInspectionApiV1 {
@@ -64,8 +55,6 @@ pub struct NcInspectionApiV1 {
     pub size: usize,
     /// Writes metadata for one registered plugin.
     pub plugin_info: unsafe extern "C" fn(plugin_id: NcGuid, out: *mut NcPluginInfoV1) -> NcStatus,
-    /// Writes metadata for one retained loaded module.
-    pub module_info: unsafe extern "C" fn(module_id: u64, out: *mut NcModuleInfoV1) -> NcStatus,
     /// Returns the number of hard dependencies declared by one plugin.
     pub plugin_dependency_count: unsafe extern "C" fn(plugin_id: NcGuid) -> usize,
     /// Copies hard dependency plugin IDs declared by one plugin.
@@ -100,10 +89,14 @@ mod tests {
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn inspection_api_v1_exposes_descriptor_inspection() {
-        assert_eq!(core::mem::size_of::<NcInspectionApiV1>(), 56);
+        assert_eq!(core::mem::size_of::<NcInspectionApiV1>(), 48);
         assert_eq!(core::mem::align_of::<NcInspectionApiV1>(), 8);
-        assert_eq!(core::mem::offset_of!(NcInspectionApiV1, inspect_plugin_library_utf8), 40);
-        assert_eq!(core::mem::offset_of!(NcInspectionApiV1, plugin_factory_info), 48);
+        assert_eq!(core::mem::offset_of!(NcInspectionApiV1, inspect_plugin_library_utf8), 32);
+        assert_eq!(core::mem::offset_of!(NcInspectionApiV1, plugin_factory_info), 40);
+
+        // The pre-release v1 contract adds provenance to the identity record, not a second ID.
+        assert_eq!(core::mem::size_of::<super::NcPluginInfoV1>(), 64);
+        assert_eq!(core::mem::offset_of!(super::NcPluginInfoV1, library_path), 48);
 
         assert_eq!(core::mem::size_of::<NcPluginFactoryInfoV1>(), 48);
         assert_eq!(core::mem::align_of::<NcPluginFactoryInfoV1>(), 8);

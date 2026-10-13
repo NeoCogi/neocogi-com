@@ -10,12 +10,12 @@
 use core::{ffi::c_void, ptr};
 
 use neocogi_com_core::{
-    NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectFactoryPluginDescriptionCallbackV1, NcModuleInfoV1, NcPluginFactoryInfoV1,
-    NcPluginInfoV1, NcStatus,
+    NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectFactoryPluginDescriptionCallbackV1, NcPluginFactoryInfoV1, NcPluginInfoV1,
+    NcStatus,
 };
 
 use crate::inspection as runtime_inspection;
-use crate::loader::{LoadedModuleId, inspect_factory_plugin_description};
+use crate::loader::inspect_factory_plugin_description;
 use crate::state::RuntimeState;
 
 use super::runtime::load_error_status;
@@ -74,25 +74,6 @@ pub(super) unsafe extern "C" fn plugin_factory_info(plugin_id: NcGuid, out: *mut
     let runtime = RuntimeState::global();
     let catalog = runtime.read_catalog();
     let Some(info) = runtime_inspection::factory_plugin_factory_info(&catalog.factory_plugin_registry, plugin_id) else {
-        return NC_E_NOT_FOUND;
-    };
-    // SAFETY: `out` is valid for one write by the caller's contract.
-    unsafe { ptr::write(out, info) };
-    NC_OK
-}
-
-/// Writes path and plugin provenance for one retained module ID.
-pub(super) unsafe extern "C" fn module_info(module_id: u64, out: *mut NcModuleInfoV1) -> NcStatus {
-    if out.is_null() {
-        return NC_E_POINTER;
-    }
-    if module_id == 0 {
-        return NC_E_NOT_FOUND;
-    }
-    let module_id = LoadedModuleId::from_raw(module_id);
-    let runtime = RuntimeState::global();
-    let catalog = runtime.read_catalog();
-    let Some(info) = runtime_inspection::module_info(&catalog.module_registry, module_id) else {
         return NC_E_NOT_FOUND;
     };
     // SAFETY: `out` is valid for one write by the caller's contract.

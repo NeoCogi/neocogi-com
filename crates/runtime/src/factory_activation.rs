@@ -225,6 +225,7 @@ mod tests {
             plugin_id: DESCRIPTION.plugin_id,
             description: &DESCRIPTION,
             dependency_ids: Vec::new(),
+            origin: crate::factory_plugin_registry::PluginOrigin::Static,
         });
         let resolved = resolve_factory(&registry, DESCRIPTION.plugin_id, FACTORY_INTERFACE, NC_ABI_THREADING_THREAD_LOCAL);
         let mut out = neocogi_com_core::ComRaw::null();
@@ -246,6 +247,7 @@ mod tests {
             plugin_id: DESCRIPTION.plugin_id,
             description: &DESCRIPTION,
             dependency_ids: Vec::new(),
+            origin: crate::factory_plugin_registry::PluginOrigin::Static,
         });
         /// The fixture's exact digest is [7; 32]; differ only at its final byte.
         static DIFFERENT_LAST_BYTE: [u8; 32] = {

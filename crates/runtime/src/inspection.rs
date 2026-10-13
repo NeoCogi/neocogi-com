@@ -1,20 +1,13 @@
-//! Read-only projections over factory-plugin and module registry state.
+//! Read-only views derived from authoritative plugin records.
 //!
-//! Projection functions translate runtime-owned records into small C ABI views
-//! without allocating or changing registration state. Static descriptor text is
-//! exposed as borrowed UTF-8 slices; plugin dependency IDs preserve their registry
-//! insertion order.
-//!
-//! These helpers build C ABI records without owning a second metadata catalog.
-//! Descriptor text points into immutable plugin metadata; module paths point
-//! into append-only loaded-module records. The C callback copies each record
-//! while the referenced runtime storage remains live.
+//! Descriptor text remains in static or process-pinned native storage. Library
+//! paths belong to append-only plugin origins. These projections allocate no
+//! metadata copies and borrow no temporary storage; the facade copies text for
+//! application ownership. Static provenance is represented by an empty path.
 
-use neocogi_com_core::{NcGuid, NcModuleInfoV1, NcPluginFactoryInfoV1, NcPluginInfoV1, NcStaticUtf8, NcUtf8View};
+use neocogi_com_core::{NcGuid, NcPluginFactoryInfoV1, NcPluginInfoV1, NcStaticUtf8, NcUtf8View};
 
-use crate::loader::LoadedModuleId;
-use crate::factory_plugin_registry::FactoryPluginRegistry;
-use crate::module_registry::ModuleRegistry;
+use crate::factory_plugin_registry::{FactoryPluginRegistry, PluginOrigin};
 
 /// Projects one registered factory-only description into the common summary.
 pub(crate) fn factory_plugin_info(registry: &FactoryPluginRegistry, plugin_id: NcGuid) -> Option<NcPluginInfoV1> {
@@ -26,6 +19,14 @@ pub(crate) fn factory_plugin_info(registry: &FactoryPluginRegistry, plugin_id: N
         plugin_id: registered.plugin_id,
         qualified_name: static_utf8_view(plugin.qualified_name),
         version: static_utf8_view(plugin.plugin_version),
+        library_path: match &registered.origin {
+            PluginOrigin::Static => NcUtf8View::EMPTY,
+            // Live loading validates UTF-8 before publishing this owned path.
+            PluginOrigin::Dynamic { path, .. } => {
+                let path = path.to_str().expect("registered library paths are UTF-8");
+                NcUtf8View { data: path.as_ptr(), len: path.len() }
+            }
+        },
     })
 }
 
@@ -39,16 +40,6 @@ pub(crate) fn factory_plugin_factory_info(registry: &FactoryPluginRegistry, plug
         plugin_id: registered.plugin_id,
         root_factory: plugin.root_factory,
         root_factory_threading: plugin.root_factory_threading,
-    })
-}
-
-/// Projects one retained module record into its path and plugin provenance.
-pub(crate) fn module_info(registry: &ModuleRegistry, module_id: LoadedModuleId) -> Option<NcModuleInfoV1> {
-    let loaded = registry.module(module_id)?;
-    Some(NcModuleInfoV1 {
-        module_id: loaded.module_id.get(),
-        plugin_id: loaded.plugin_id,
-        path: loaded.path,
     })
 }
 

@@ -12,7 +12,7 @@ extern crate nc_com as _;
 
 #[cfg_attr(all(not(test), not(feature = "static-runtime")), link(name = "nc_com"))]
 unsafe extern "C" {
-    /// Returns the runtime ABI v1 caller-scoped persistence table.
+    /// Returns the v1 persistence table of runtime generation 1.
     pub(crate) fn nc_com_get_persistence_api_v1() -> *const NcPersistenceApiV1;
 
     /// Returns the runtime shared-library ABI generation.
@@ -27,6 +27,6 @@ unsafe extern "C" {
     /// Returns the runtime ABI v1 inspection table.
     pub(crate) fn nc_com_get_inspection_api_v1() -> *const NcInspectionApiV1;
 
-    /// Returns the runtime ABI v1 debug-messenger table.
+    /// Returns the v1 debug table of runtime generation 1.
     pub(crate) fn nc_com_get_debug_api_v1() -> *const NcDebugApiV1;
 }

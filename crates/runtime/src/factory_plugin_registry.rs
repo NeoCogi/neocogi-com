@@ -6,6 +6,9 @@
 
 use std::collections::HashMap;
 use std::vec::Vec;
+use std::path::PathBuf;
+
+use crate::loader::PinnedLibrary;
 
 use neocogi_com_core::{NcFactoryPluginDescription, NcGuid};
 
@@ -32,6 +35,14 @@ impl FactoryPluginRegistry {
     /// Returns whether this model already owns a plugin identity.
     pub(crate) fn contains_plugin(&self, plugin_id: NcGuid) -> bool {
         self.plugin_by_id.contains_key(&plugin_id)
+    }
+
+    /// Counts distinct dynamic providers directly from authoritative records.
+    pub(crate) fn dynamic_count(&self) -> usize {
+        self.plugins
+            .iter()
+            .filter(|plugin| matches!(plugin.origin, PluginOrigin::Dynamic { .. }))
+            .count()
     }
 
     /// Looks up one immutable factory-only plugin record.
@@ -68,10 +79,12 @@ impl FactoryPluginRegistry {
 pub(crate) struct RegisteredFactoryPlugin {
     /// Stable ID derived from the plugin's normative name.
     pub(crate) plugin_id: NcGuid,
-    /// Borrowed immutable description retained by static or module ownership.
+    /// Borrowed immutable description retained by static or pinned library ownership.
     pub(crate) description: *const NcFactoryPluginDescription,
     /// Copied hard dependency IDs used for lock-bounded validation.
     pub(crate) dependency_ids: Vec<NcGuid>,
+    /// Provenance and code owner published with this immutable descriptor.
+    pub(crate) origin: PluginOrigin,
 }
 
 // SAFETY: Successful registration retains only pointers to immutable metadata
@@ -79,3 +92,17 @@ pub(crate) struct RegisteredFactoryPlugin {
 unsafe impl Send for RegisteredFactoryPlugin {}
 // SAFETY: No runtime operation mutates through the retained description root.
 unsafe impl Sync for RegisteredFactoryPlugin {}
+
+/// Immutable provenance of a registered plugin; no separate module identity exists.
+pub(crate) enum PluginOrigin {
+    /// Descriptor and code are supplied by process-lifetime static storage.
+    Static,
+    /// The first successful native load owns the path used for diagnostics.
+    /// Both path and pinned mapping remain live while catalog readers borrow them.
+    Dynamic {
+        /// Exact nonempty UTF-8 caller path, copied before publication.
+        path: PathBuf,
+        /// Private native-loader owner; mappings are never unloaded in this runtime.
+        _library: PinnedLibrary,
+    },
+}

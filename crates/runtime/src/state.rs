@@ -11,14 +11,13 @@ use neocogi_com_core::NcGuid;
 
 use crate::debug::DebugState;
 use crate::factory_plugin_registry::FactoryPluginRegistry;
-use crate::module_registry::ModuleRegistry;
 
 /// One lazily constructed catalog per linked runtime image.
 static STATE: OnceLock<RuntimeState> = OnceLock::new();
 
 /// Process-global owner of all mutable runtime state.
 pub(crate) struct RuntimeState {
-    /// Atomically published module, plugin, and identity metadata.
+    /// Atomically published plugin descriptors, dependencies and provenance.
     catalog: RwLock<RuntimeCatalog>,
     /// Owns callback registrations independently of registry locks.
     debug: DebugState,
@@ -28,8 +27,6 @@ pub(crate) struct RuntimeState {
 pub(crate) struct RuntimeCatalog {
     /// Factory-only plugin descriptions and activation roots.
     pub(crate) factory_plugin_registry: FactoryPluginRegistry,
-    /// Native module handles and their process-local provenance.
-    pub(crate) module_registry: ModuleRegistry,
 }
 
 impl RuntimeState {
@@ -48,7 +45,6 @@ impl RuntimeState {
         Self {
             catalog: RwLock::new(RuntimeCatalog {
                 factory_plugin_registry: FactoryPluginRegistry::new(),
-                module_registry: ModuleRegistry::new(),
             }),
             debug: DebugState::new(),
         }
@@ -88,13 +84,13 @@ impl RuntimeCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::sync::{Arc, Barrier};
 
     use neocogi_com_core::{NC_E_NOT_FOUND, NcGuid};
 
-    use crate::factory_plugin_registry::RegisteredFactoryPlugin;
-    use crate::loader::{LoadedModule, LoadedModuleId, LoadedModuleInfo};
+    use crate::factory_plugin_registry::{PluginOrigin, RegisteredFactoryPlugin};
+    use crate::loader::PinnedLibrary;
 
     /// Confirms dependency validation reads the sole factory plugin registry.
     #[test]
@@ -111,6 +107,7 @@ mod tests {
                 plugin_id: factory_id,
                 description: core::ptr::null(),
                 dependency_ids: Vec::new(),
+                origin: PluginOrigin::Static,
             });
         }
 
@@ -133,16 +130,15 @@ mod tests {
             let release_publication = Arc::clone(&release_publication);
             std::thread::spawn(move || {
                 let mut catalog = runtime.write_catalog();
-                let module_id = catalog.module_registry.allocate_loaded_module_id().unwrap();
                 catalog.factory_plugin_registry.insert(RegisteredFactoryPlugin {
                     plugin_id,
                     description: core::ptr::null(),
                     dependency_ids: Vec::new(),
+                    origin: PluginOrigin::Dynamic {
+                        path: PathBuf::from("test-plugin"),
+                        _library: PinnedLibrary::test_stub(),
+                    },
                 });
-                catalog.module_registry.store_loaded_module(
-                    LoadedModule::test_stub(),
-                    LoadedModuleInfo::new(module_id, PathBuf::from("test-plugin"), plugin_id),
-                );
 
                 // Pause after every correlated record has been mutated but
                 // before the one publication guard is released.
@@ -157,9 +153,7 @@ mod tests {
         writer.join().unwrap();
 
         let catalog = runtime.read_catalog();
-        let module_id = LoadedModuleId::from_raw(1);
-        let module = catalog.module_registry.module(module_id).unwrap();
-        assert_eq!(module.plugin_id, plugin_id);
-        assert!(catalog.factory_plugin_registry.contains_plugin(plugin_id));
+        let plugin = catalog.factory_plugin_registry.plugin(plugin_id).unwrap();
+        assert!(matches!(&plugin.origin, PluginOrigin::Dynamic { path, .. } if path == Path::new("test-plugin")));
     }
 }
