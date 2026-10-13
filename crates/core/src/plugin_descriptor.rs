@@ -11,9 +11,9 @@ use crate::{
     NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name, validate_version_text,
 };
 
-/// Pre-alpha factory metadata ABI with an exact root interface and no module graph.
+/// Pre-release plugin descriptor ABI with an exact root factory and dependencies.
 ///
-/// Discovery remains version one; its stable version prefix is read first.
+/// Descriptor discovery remains version one; its stable version prefix is read first.
 /// Consumers must also match the core generation, which selects the remaining
 /// record layout, rather than infer compatibility from this number alone.
 pub const NC_PLUGIN_DESCRIPTOR_ABI_VERSION: u32 = 1;
@@ -76,11 +76,26 @@ where
     NC_OK
 }
 
-/// Immutable plugin metadata containing dependencies and one exact root factory.
+/// Provider-authored registration input containing metadata and one root factory.
+///
+/// The provider publishes its identity, release version, hard plugin dependencies,
+/// exact factory interface/threading contract and acquisition function. The runtime
+/// validates this record without acquiring a factory. Registration retains the
+/// descriptor; it does not take ownership of the provider's storage.
+///
+/// This record and all reachable text, tables, signature bytes and bootstrap code
+/// must remain immutable and live while used. Static registration requires process
+/// lifetime storage; dynamic registration keeps the exporting library pinned.
+/// A copied record copies pointers only and does not retain a library.
+///
+/// [`crate::NcPluginInfoV1`] is the runtime-produced lookup/enumeration output. It
+/// includes registration provenance and omits the bootstrap function. Neither
+/// reading that output nor inspecting this descriptor transfers a COM reference.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NcPluginDescriptor {
-    /// Metadata layout generation checked before reading the remaining fields.
+    /// Descriptor family version; must equal [`NC_PLUGIN_DESCRIPTOR_ABI_VERSION`].
+    /// This and `core_abi_version` form the prefix checked before the full record.
     pub description_abi_version: u32,
     /// Core object ABI generation understood by this plugin.
     pub core_abi_version: u32,
@@ -102,8 +117,9 @@ pub struct NcPluginDescriptor {
     pub acquire: Option<NcAcquirePluginFactory>,
 }
 
-// SAFETY: The description and its tables are immutable static metadata. The
-// acquisition pointer is code in the library that owns the description.
+// SAFETY: Descriptor use requires an immutable reachable metadata graph. The
+// acquisition pointer is code in the library that owns the descriptor; sharing
+// the record does not upgrade the factory's declared threading capability.
 unsafe impl Sync for NcPluginDescriptor {}
 
 impl NcPluginDescriptor {
@@ -111,7 +127,7 @@ impl NcPluginDescriptor {
     ///
     /// # Safety
     ///
-    /// The description and dependency table must remain readable for the
+    /// The descriptor and dependency table must remain readable for the
     /// returned lifetime.
     pub unsafe fn dependencies<'a>(&self) -> Result<&'a [NcPluginDependencyDescriptor], NcStatus> {
         // SAFETY: The caller supplies the backing lifetime; the helper checks
@@ -121,6 +137,11 @@ impl NcPluginDescriptor {
 }
 
 /// Getter exported by one plugin shared library.
+///
+/// The symbol is [`NC_GET_PLUGIN_DESCRIPTOR_SYMBOL`]. Success lends one validated
+/// descriptor; it neither registers the plugin nor acquires a factory. A usable
+/// output slot is cleared before fallible work and remains null on failure.
+/// Null output returns [`NC_E_POINTER`]; validation failures return their status.
 ///
 /// # Safety
 ///
@@ -197,8 +218,8 @@ pub unsafe fn validate_plugin_descriptor(plugin: *const NcPluginDescriptor) -> N
 ///
 /// # Safety
 ///
-/// `out` must be null or writable for one pointer. `plugin` must remain valid
-/// while its exporting library is loaded, including every reachable metadata
+/// `out` must be null or aligned and writable for one pointer. `plugin` must
+/// remain valid while its exporting library is loaded, including every reachable metadata
 /// pointer and bootstrap function. A static root reference alone does not prove
 /// that those referenced allocations and code remain readable and callable.
 pub unsafe fn return_plugin_descriptor(out: *mut *const NcPluginDescriptor, plugin: &'static NcPluginDescriptor) -> NcStatus {
@@ -208,8 +229,8 @@ pub unsafe fn return_plugin_descriptor(out: *mut *const NcPluginDescriptor, plug
     // Clear before validation so a failure never publishes stale metadata.
     // SAFETY: The caller guarantees one writable output slot.
     unsafe { *out = core::ptr::null() };
-    // SAFETY: A shared reference proves the root is readable; macro-generated
-    // descriptions point only to immutable static tables.
+    // SAFETY: The caller guarantees the complete metadata graph remains valid,
+    // not just the root covered by the shared reference.
     let status = unsafe { validate_plugin_descriptor(plugin) };
     if status.is_err() {
         return status;
@@ -219,7 +240,7 @@ pub unsafe fn return_plugin_descriptor(out: *mut *const NcPluginDescriptor, plug
     NC_OK
 }
 
-/// Constructs a slice from one immutable description pointer/count pair.
+/// Constructs a slice from one immutable descriptor pointer/count pair.
 ///
 /// # Safety
 ///

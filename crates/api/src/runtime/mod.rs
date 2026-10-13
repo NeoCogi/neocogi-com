@@ -104,11 +104,24 @@ impl Runtime {
     /// Registration is atomic: no plugin record becomes
     /// visible unless its metadata, provider dependencies, and process identity
     /// mapping are valid. Factory compatibility is checked during acquisition.
+    /// The runtime retains the descriptor and copies dependency GUIDs; it does
+    /// not own the provider's metadata allocation. Inspection through
+    /// [`Self::plugin_info`] returns a separate record with first registration
+    /// provenance.
+    /// Registering the same descriptor again preserves its first origin.
+    ///
+    /// # Errors
+    ///
+    /// Returns metadata/ABI validation failures, [`crate::NC_E_NOT_FOUND`] for a
+    /// missing hard dependency, or [`crate::NC_E_INVALID_ARG`] when a different
+    /// descriptor already claims the plugin identity. No partial record is published.
     ///
     /// # Safety
     ///
     /// `plugin`, its signature/text/dependency storage, and bootstrap code must
-    /// remain loaded for the process-wide registration lifetime.
+    /// remain immutable and loaded for the process lifetime. The outer static
+    /// reference alone does not establish the lifetime of reachable raw pointers.
+    /// The producer must honor the declared factory threading capability.
     pub unsafe fn register_plugin_descriptor(&self, plugin: &'static NcPluginDescriptor) -> Result<(), NcStatus> {
         // SAFETY: The static reference and its referenced metadata satisfy the raw
         // table's process-lifetime registration requirement.

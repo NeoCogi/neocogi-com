@@ -11,7 +11,7 @@ The [current COM contract](docs/README.md) is experimental and may change before
 
 ```text
 IDL module -> generated Rust types + exact transitive signatures
-plugin     -> private implementations + one typed factory descriptor
+plugin     -> private implementations + descriptor for one typed root factory
 host       -> compiles contract types and requests the exact factory
 runtime    -> registers plugins, checks factories, retains loaded libraries
 ```
@@ -149,8 +149,11 @@ neocogi_com::export_factory_plugin!();
 The plugin exports `nc_get_plugin_descriptor_v1`. Descriptor ABI v1
 includes plugin identity/version, hard dependencies, the complete factory
 IID/signature, threading, and one bootstrap pointer. Static assemblies call
-`plugin_descriptor()` directly. Only factories receive generated
-zero-argument construction; ordinary objects use `from_value`.
+`plugin_descriptor()` directly. Both paths borrow the provider-authored
+`NcPluginDescriptor`; neither acquires a factory. The runtime later returns
+`PluginInfo` for inspection, adding registration origin and omitting bootstrap
+code. Only factories receive generated zero-argument construction; ordinary
+objects use `from_value`.
 
 ## Host acquisition
 
@@ -163,12 +166,15 @@ uses the declarations and implementation above:
 /// Executes bootstrap, construction, inherited reads and a mutable COM call.
 fn static_example() -> Result<(), NcStatus> {
     let runtime = neocogi_com::Runtime::global();
+    let descriptor = plugin_descriptor();
     // SAFETY: linked plugin code and macro-generated static metadata remain
     // available for the process lifetime, including every returned COM handle.
-    unsafe { runtime.register_plugin_descriptor(plugin_descriptor()) }?;
-    let factory = runtime.acquire_plugin_factory::<ExampleFactoryAbi>(
-        neocogi_com::guid_from_qualified_name("example.component"),
-    )?;
+    unsafe { runtime.register_plugin_descriptor(descriptor) }?;
+    let info = runtime.plugin_info(descriptor.plugin_id)?
+        .ok_or(neocogi_com::NC_E_NOT_FOUND)?;
+    assert_eq!(info.factory.interface, descriptor.root_factory);
+    assert_eq!(info.origin, neocogi_com::PluginOrigin::Static);
+    let factory = runtime.acquire_plugin_factory::<ExampleFactoryAbi>(info.plugin_id)?;
     let mut object = factory.create(Extent { width: 10, height: 20 })?;
     assert_eq!(object.extent()?, Extent { width: 10, height: 20 });
     object.resize(Extent { width: 44, height: 31 })?;

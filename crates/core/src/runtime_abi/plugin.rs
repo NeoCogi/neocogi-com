@@ -31,6 +31,9 @@ pub struct NcFactoryInfoV1 {
 }
 
 /// Complete borrowed description of one registered plugin.
+/// Produced by runtime lookup/enumeration from a validated
+/// [`NcPluginDescriptor`] and its first registration origin. This output has no
+/// bootstrap function and cannot be used as a registration input.
 /// Contains no factory object or ownership token. Lookup and enumeration copy
 /// this record; its referenced storage survives catalog growth and lock release.
 #[repr(C)]

@@ -362,6 +362,9 @@ macro_rules! com_bit_enum {
 /// `factory_plugin!` defines metadata and an ordinary Rust accessor. Dynamic
 /// assemblies invoke this macro once; statically linked assemblies call the
 /// accessor directly and omit the exported symbol.
+/// The default accessor is `plugin_descriptor()`; an explicit accessor path may
+/// be supplied. The export is `nc_get_plugin_descriptor_v1` and returns a borrowed
+/// [`NcPluginDescriptor`](crate::NcPluginDescriptor), never a factory reference.
 #[macro_export]
 macro_rules! export_factory_plugin {
     () => {
@@ -369,11 +372,14 @@ macro_rules! export_factory_plugin {
     };
     ($descriptor:path) => {
         /// Returns validated plugin metadata through the dynamic ABI.
+        /// Success borrows the descriptor without registration or acquisition;
+        /// a usable output slot remains null on validation failure.
         ///
         /// # Safety
         ///
-        /// `out` must be null or writable for one descriptor pointer. The
-        /// exporting module must remain loaded while that metadata is used.
+        /// `out` must be null or aligned and writable for one descriptor pointer.
+        /// The exporting module and every reachable metadata allocation must
+        /// remain live and immutable while that metadata is used.
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn nc_get_plugin_descriptor_v1(out: *mut *const $crate::NcPluginDescriptor) -> $crate::NcStatus {
             // SAFETY: The accessor returns immutable static metadata and the

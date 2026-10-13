@@ -170,6 +170,9 @@ pub(crate) fn expand_factory_plugin(args: FactoryPluginArgs) -> proc_macro2::Tok
         };
 
         /// Returns the plugin descriptor for static registration.
+        /// This borrows immutable assembly metadata without constructing a factory.
+        /// The descriptor, its tables and bootstrap code remain live while this
+        /// assembly is mapped; dynamic consumers must retain that mapping.
         pub fn plugin_descriptor() -> &'static #nc::NcPluginDescriptor {
             &NC_COM_PLUGIN_DESCRIPTOR
         }

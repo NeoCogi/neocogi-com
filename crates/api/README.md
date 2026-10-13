@@ -180,6 +180,21 @@ threading, and acquisition. Ordinary objects require an initialized value;
 unit factories receive a generated zero-argument bootstrap; stateful roots
 implement `ComFactoryBootstrap` explicitly.
 
+`factory_plugin!` produces `plugin_descriptor() -> &'static NcPluginDescriptor`.
+`export_factory_plugin!()` publishes that accessor through
+`nc_get_plugin_descriptor_v1` for dynamic consumers. The macro names still
+describe the typed factory selected by the declaration; the descriptor itself
+describes the whole plugin.
+
+| Value | Producer and use | Ownership |
+| --- | --- | --- |
+| `NcPluginDescriptor` | Provider input to validation, registration or unregistered inspection. Includes the bootstrap function. | Borrows immutable assembly metadata and code; copying it does not retain the library. |
+| `NcPluginInfoV1` / `PluginInfo` | Runtime output from registered lookup/enumeration. Includes first registration origin. | Raw views live for the process; the facade owns text, paths and GUID copies while retaining the process-lived signature view. |
+| `ComPtr<FactoryAbi>` | Result of typed `acquire_plugin_factory`. Used to call product construction methods. | Owns one COM reference, released when dropped. |
+
+Reading either metadata record does not acquire a factory. Registration retains
+the provider descriptor; it does not convert an inspection copy into a provider.
+
 ## Runtime flow
 
 With the `runtime` feature, dynamic hosts use:

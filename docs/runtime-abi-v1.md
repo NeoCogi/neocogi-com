@@ -1,8 +1,9 @@
 # Runtime ABI v1: plugins, factories and inspection
 
-This is the current runtime contract. It supersedes runtime/module bookkeeping
-and factory activation names in the core drafts. Core object ABI v17 and plugin
-and runtime discovery v1 remain unchanged. The descriptor bootstrap is named
+This is the current runtime contract. It supersedes runtime/module bookkeeping,
+factory activation and factory plugin description names in the core drafts.
+Core object ABI v17 and plugin/runtime discovery v1 remain unchanged. The
+descriptor bootstrap is named
 `acquire`. Pre-release v1 contracts change in place: applications, DLLs and the
 sole shared `nc_com` must be rebuilt from the same checkout. There are no old
 getters, facade wrappers or compatibility aliases.
@@ -21,6 +22,46 @@ sole shared runtime. The internal catalog remains useful, but does not require
 public registry or inspection context objects. Plugin operations use one table;
 diagnostics and persistence retain separate tables because their callback and
 caller-owned context lifecycles are independent of plugin registration.
+
+## Provider descriptor and registered information
+
+`NcPluginDescriptor` is the provider-authored input: plugin identity and release
+version, hard dependency records, the exact root factory interface/threading
+contract, and its bootstrap function. `factory_plugin!` derives the factory
+contract from the generated interface and creates this immutable descriptor.
+The accessor and native export return metadata without registration or acquisition.
+
+| Provider boundary | Current contract |
+| --- | --- |
+| Metadata input | `NcPluginDescriptor`; no separate plugin-kind qualifier. |
+| Generated Rust accessor | `plugin_descriptor()` borrows assembly metadata. |
+| Native getter | `NcGetPluginDescriptor`, exported as `nc_get_plugin_descriptor_v1` by `export_factory_plugin!`. |
+| Validation | `validate_plugin_descriptor` checks metadata without acquiring a factory or checking whether providers are registered. |
+| Static registration | `Runtime::register_plugin_descriptor` validates and publishes the descriptor after requiring registered hard providers. |
+| Unregistered library inspection | `Runtime::with_plugin_library_descriptor` lends the validated descriptor to a synchronous visitor. |
+| Registered inspection output | `NcPluginInfoV1` / owned `PluginInfo`, including first registration origin. |
+| Factory acquisition | `Runtime::acquire_plugin_factory` checks the exact contract and returns one COM owner. |
+
+The descriptor's `description_abi_version` field remains the v1 discovery prefix,
+matching `NC_PLUGIN_DESCRIPTOR_ABI_VERSION`. Its next field is
+`core_abi_version`, currently 17. Both are checked before the remaining layout is
+read. Renaming the type, helpers and getter does not change these values or the
+record layout. The old names are removed from the current pre-release contract;
+earlier core drafts and validation records are historical evidence.
+
+The provider owns the descriptor's storage and code. Static registration requires
+the entire graph to remain immutable for the process lifetime, including referenced
+text, dependency tables and signature bytes. A static root reference alone does
+not prove these raw-pointer lifetimes. Dynamic registration pins the exporting
+library. Descriptor copies own neither those allocations nor a library mapping.
+The native getter clears a usable output slot before validation, leaves it null
+on failure, and returns `NC_E_POINTER` for null output.
+
+`NcPluginInfoV1` is an output projected from a registered catalog record; it has
+provenance but no bootstrap pointer. The facade's `PluginInfo` owns copies of text,
+paths and dependency GUIDs. Neither output can be used to register a provider, and
+neither holds a live factory reference. The catalog below remains the single
+authority that combines the provider's descriptor with runtime registration state.
 
 ## One authoritative record
 

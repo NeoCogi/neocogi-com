@@ -10,10 +10,14 @@ use crate::{NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcPluginDescr
 
 use super::{Runtime, read_utf8_view, read_vec, status_to_result};
 
-/// Owned descriptor metadata for one registered plugin.
+/// Owned inspection metadata for one registered plugin.
 ///
 /// Look up a plugin GUID returned by loading or enumeration. This also works
 /// for static registration; [`PluginOrigin`] explicitly distinguishes its origin.
+/// Text, paths and dependency GUIDs are owned copies; the factory signature view
+/// remains backed by process-lived contract storage. This is a runtime output,
+/// unlike the provider-authored [`NcPluginDescriptor`] registration input.
+/// Reading it does not acquire a factory, and changing it does not alter the catalog.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PluginInfo {
     /// Stable plugin identity.
@@ -89,7 +93,7 @@ impl Runtime {
     /// Opens a trusted plugin library and visits its validated plugin descriptor.
     ///
     /// This operation does not register the plugin, construct objects, or
-    /// follow its declared plugin dependencies. The description and every
+    /// follow its declared plugin dependencies. The descriptor and every
     /// pointer reachable from it are borrowed only for `visitor`; copy any
     /// metadata needed after this method returns. A successfully opened module
     /// remains pinned until process exit, including when later inspection or
@@ -97,7 +101,7 @@ impl Runtime {
     ///
     /// # Errors
     ///
-    /// Returns a loader or description-validation status, or the error returned
+    /// Returns a loader or descriptor-validation status, or the error returned
     /// by `visitor`. A path that cannot be represented as UTF-8 returns
     /// [`NC_E_INVALID_ARG`].
     ///
