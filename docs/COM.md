@@ -198,11 +198,12 @@ runtime never discovers or recursively loads their paths. Required live-load
 failure is diagnosed and aborts rather than exposing partial state. Successful
 libraries remain mapped until process exit.
 
-Runtime ABI v1 has operation, plugin-registry, inspection, debug, and
-caller-scoped persistence tables. Loading returns the plugin GUID; inspection
+Runtime ABI v1 has one complete plugin-operation table, plus debug and
+caller-scoped persistence tables. Lookup and enumeration return the same complete
+plugin description, including its factory contract and dependency GUIDs. Loading returns the plugin GUID; inspection
 reports its first static/dynamic origin. Separate module identities and module
 queries were removed. See [the runtime contract](docs/runtime-abi-v1.md).
-Activation checks the exact factory signature before bootstrap. Unconnected
+Acquisition checks the exact factory signature before bootstrap. Unconnected
 contract revisions can coexist; incompatible pointer transfers are rejected.
 `neocogi-inspect` emits schema 9 with plugin/dependency/root-factory metadata,
 without constructing objects. IDL tools retain build-time source inventories.

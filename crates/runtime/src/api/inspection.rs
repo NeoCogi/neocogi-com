@@ -1,18 +1,9 @@
-//! C callbacks for querying plugin metadata and dependencies.
-//!
-//! Record lookups distinguish missing entities with `NC_E_NOT_FOUND`.
-//! Relationship counts instead use zero for either an absent identity or an
-//! identity with no edges, matching the count/fill protocol documented by ABI
-//! v1. The module also implements recoverable, non-registering inspection of a
-//! trusted plugin library and lends the validated factory description to a synchronous
-//! caller callback without acquiring registry state.
+//! Complete registered-plugin queries and recoverable unregistered inspection.
+//! Callbacks run without holding catalog state; metadata fills use one read guard.
 
 use core::{ffi::c_void, ptr};
 
-use neocogi_com_core::{
-    NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectFactoryPluginDescriptionCallbackV1, NcPluginFactoryInfoV1, NcPluginInfoV1,
-    NcStatus,
-};
+use neocogi_com_core::{NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectFactoryPluginDescriptionCallbackV1, NcPluginInfoV1, NcStatus};
 
 use crate::inspection as runtime_inspection;
 use crate::loader::inspect_factory_plugin_description;
@@ -58,39 +49,24 @@ pub(super) unsafe extern "C" fn plugin_info(plugin_id: NcGuid, out: *mut NcPlugi
     }
     let runtime = RuntimeState::global();
     let catalog = runtime.read_catalog();
-    let Some(info) = runtime_inspection::factory_plugin_info(&catalog, plugin_id) else {
+    let Some(plugin) = catalog.plugin(plugin_id) else {
         return NC_E_NOT_FOUND;
     };
     // SAFETY: `out` is valid for one write by the caller's contract.
-    unsafe { ptr::write(out, info) };
+    unsafe { ptr::write(out, runtime_inspection::plugin_info(plugin)) };
     NC_OK
 }
 
-/// Writes factory metadata for one registered plugin.
-pub(super) unsafe extern "C" fn plugin_factory_info(plugin_id: NcGuid, out: *mut NcPluginFactoryInfoV1) -> NcStatus {
-    if out.is_null() {
-        return NC_E_POINTER;
-    }
-    let runtime = RuntimeState::global();
-    let catalog = runtime.read_catalog();
-    let Some(info) = runtime_inspection::factory_plugin_factory_info(&catalog, plugin_id) else {
-        return NC_E_NOT_FOUND;
-    };
-    // SAFETY: `out` is valid for one write by the caller's contract.
-    unsafe { ptr::write(out, info) };
-    NC_OK
+/// Returns a snapshot count of authoritative plugin records.
+pub(super) unsafe extern "C" fn plugin_count() -> usize {
+    RuntimeState::global().read_catalog().len()
 }
 
-/// Returns the number of hard dependency IDs declared by a registered plugin.
-pub(super) unsafe extern "C" fn plugin_dependency_count(plugin_id: NcGuid) -> usize {
-    RuntimeState::global().read_catalog().dependency_ids(plugin_id).len()
-}
-
-/// Copies a plugin's hard dependency IDs using the count/fill contract.
-pub(super) unsafe extern "C" fn plugin_dependency_ids(plugin_id: NcGuid, out: *mut NcGuid, capacity: usize, out_len: *mut usize) -> NcStatus {
+/// Fills complete records using exactly the lookup projection, without staging IDs.
+pub(super) unsafe extern "C" fn plugin_infos(out: *mut NcPluginInfoV1, capacity: usize, out_len: *mut usize) -> NcStatus {
     let runtime = RuntimeState::global();
     let catalog = runtime.read_catalog();
-    // SAFETY: The caller provides the output-buffer contract. The guard keeps
-    // copied dependency storage live and immutable through the fill.
-    unsafe { copy_to_out(catalog.dependency_ids(plugin_id).iter().copied(), out, capacity, out_len) }
+    // SAFETY: Caller supplies valid nonoverlapping writable outputs. One guard
+    // fixes record count and contents for the entire no-partial-write fill.
+    unsafe { copy_to_out(catalog.plugins().map(runtime_inspection::plugin_info), out, capacity, out_len) }
 }

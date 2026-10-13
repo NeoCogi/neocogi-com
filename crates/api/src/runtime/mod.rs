@@ -3,8 +3,8 @@
 //! `Runtime` is stateless: the linked `libnc_com` owns all process-wide
 //! data. The facade checks the mandatory runtime ABI generation before every
 //! table lookup, validates each table's advertised size, and converts borrowed C
-//! records into owned Rust values. Context views keep registry enumeration,
-//! plugin dependency inspection, and diagnostics separate from mutation operations.
+//! records into owned Rust values. Plugin records combine metadata, factory
+//! contracts and dependencies. Diagnostics retain a separate callback context with their own lifecycle.
 
 use std::fmt;
 use std::path::Path;
@@ -13,7 +13,7 @@ use std::vec::Vec;
 use crate::{
     ComFactoryInterface, ComInterface, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND,
     NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_ABI_THREADING_THREAD_LOCAL, NcDebugApiV1, NcFactoryPluginDescription, NcGuid, NcInterfaceId,
-    NcInspectionApiV1, NcPluginRegistryV1, NcRuntimeApiV1, NcStatus, NcUtf8View, ThreadingModel,
+    NcRuntimeApiV1, NcStatus, NcUtf8View, ThreadingModel,
 };
 use self::ffi as runtime_sys;
 
@@ -21,12 +21,10 @@ use self::ffi as runtime_sys;
 pub(crate) mod ffi;
 
 mod debug;
-mod inspection;
-mod plugin_registry;
+mod plugin;
 
 pub use debug::{Debug, DebugMessenger};
-pub use inspection::{Inspection, PluginFactoryInfo, PluginInfo, PluginOrigin};
-pub use plugin_registry::PluginRegistry;
+pub use plugin::{FactoryInfo, PluginInfo, PluginOrigin};
 
 /// Maximum number of elements copied by one Rust runtime-facade enumeration.
 ///
@@ -88,38 +86,12 @@ impl Runtime {
         api
     }
 
-    /// Returns the linked plugin-registry table.
-    fn plugin_registry_api(&self) -> &'static NcPluginRegistryV1 {
-        self.assert_runtime_abi();
-        // SAFETY: The runtime version was checked before calling the v1 getter,
-        // whose result follows the static size-prefix table contract.
-        unsafe { table(runtime_sys::nc_com_get_plugin_registry_v1()) }
-    }
-
-    /// Returns the linked inspection table.
-    fn inspection_api(&self) -> &'static NcInspectionApiV1 {
-        self.assert_runtime_abi();
-        // SAFETY: The runtime version was checked before calling the v1 getter,
-        // whose result follows the static size-prefix table contract.
-        unsafe { table(runtime_sys::nc_com_get_inspection_api_v1()) }
-    }
-
     /// Returns the linked debug-messenger table.
     fn debug_api(&self) -> &'static NcDebugApiV1 {
         self.assert_runtime_abi();
         // SAFETY: The runtime version was checked before calling the v1 getter,
         // whose result follows the static size-prefix table contract.
         unsafe { table(runtime_sys::nc_com_get_debug_api_v1()) }
-    }
-
-    /// Returns the registered-plugin catalog.
-    pub fn plugin_registry(&self) -> PluginRegistry<'_> {
-        PluginRegistry::new(self)
-    }
-
-    /// Returns plugin metadata, library provenance, and dependency inspection operations.
-    pub fn inspection(&self) -> Inspection<'_> {
-        Inspection::new(self)
     }
 
     /// Returns callback-based runtime diagnostics operations.
@@ -168,14 +140,20 @@ impl Runtime {
         unsafe { ComPtr::<T, <T as ComInterface>::Threading>::__nc_from_raw_owned_checked(out.cast()) }
     }
 
-    /// Acquires a registered root by its inspected, exact COM identity.
+    /// Acquires a registered plugin's root factory without requiring the host
+    /// to specify its expected interface identity.
     ///
-    /// A generic host does not know the plugin-specific root factory Rust type.
-    /// It obtains this identity from the validated plugin description, asks the
-    /// runtime to enforce it, then queries a common COM capability on the root.
-    /// A thread-local request is compatible with either local or shared roots;
-    /// the returned handle remains confined to the calling thread.
-    pub fn acquire_plugin_root(&self, plugin_id: NcGuid, root: NcInterfaceId) -> Result<ComPtr<IUnknown>, NcStatus> {
+    /// The runtime queries the registered plugin's exact factory interface from
+    /// its retained description, acquires it, and returns a canonical [`IUnknown`] handle.
+    /// The owner stays on the calling thread even when the factory supports sharing.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NC_E_NOT_FOUND`] if `plugin_id` is not registered, or any runtime status
+    /// returned by root factory acquisition.
+    pub fn acquire_registered_plugin_root(&self, plugin_id: NcGuid) -> Result<ComPtr<IUnknown>, NcStatus> {
+        let plugin = self.raw_plugin_info(plugin_id)?.ok_or(NC_E_NOT_FOUND)?;
+        let root = plugin.factory.interface;
         let mut out = crate::ComRaw::<IUnknown>::null();
         // SAFETY: The local slot is writable. The runtime verifies the exact
         // root identity and its threading capability before transferring it.
@@ -194,21 +172,6 @@ impl Runtime {
         unsafe { ComPtr::<IUnknown>::from_raw_owned(identity?) }.ok_or(crate::NC_E_POINTER)
     }
 
-    /// Acquires a registered plugin's root factory without requiring the host
-    /// to specify its expected interface identity.
-    ///
-    /// The runtime queries the registered plugin's exact factory interface from
-    /// its retained description, acquires it, and returns a canonical [`IUnknown`] handle.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`NC_E_NOT_FOUND`] if `plugin_id` is not registered, or any runtime status
-    /// returned by root factory acquisition.
-    pub fn acquire_registered_plugin_root(&self, plugin_id: NcGuid) -> Result<ComPtr<IUnknown>, NcStatus> {
-        let factory = self.inspection().plugin_factory_info(plugin_id)?.ok_or(NC_E_NOT_FOUND)?;
-        self.acquire_plugin_root(plugin_id, factory.root_factory)
-    }
-
     /// Loads a trusted plugin shared library into the process-global runtime.
     ///
     /// The path must have a nonempty UTF-8 representation without interior NUL
@@ -224,7 +187,7 @@ impl Runtime {
     /// another load is also a fatal loading failure.
     ///
     /// Returns the registered plugin GUID. Inspect it through
-    /// [`Inspection::plugin_info`] for identity, release version and provenance.
+    /// [`Self::plugin_info`] for identity, release version and provenance.
     /// Repeated loads of the same descriptor reuse its first registration;
     /// conflicting descriptors abort through the mandatory loading policy.
     ///

@@ -123,9 +123,7 @@ impl INativeChoice for Choice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use neocogi_com::{
-        ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV1, NcInspectionApiV1, NcInterfaceDescriptor, NcInterfaceId, NcPluginRegistryV1, NcRuntimeApiV1,
-    };
+    use neocogi_com::{ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV1, NcInterfaceDescriptor, NcInterfaceId, NcRuntimeApiV1, NcPluginInfoV1};
 
     #[repr(C)]
     #[derive(Default)]
@@ -157,8 +155,14 @@ mod tests {
         interface_methods_offset: usize,
         runtime_core_abi_version_offset: usize,
         runtime_plugin_register_offset: usize,
-        plugin_registry_first_function_offset: usize,
-        inspection_first_function_offset: usize,
+        runtime_plugin_count_offset: usize,
+        runtime_plugin_info_offset: usize,
+        runtime_size: usize,
+        runtime_plugin_infos_offset: usize,
+        plugin_info_size: usize,
+        plugin_factory_offset: usize,
+        plugin_dependencies_offset: usize,
+        plugin_dependency_count_offset: usize,
         debug_first_function_offset: usize,
         aggregate_size: usize,
         aggregate_align: usize,
@@ -168,11 +172,7 @@ mod tests {
 
     unsafe extern "C" {
         /// Borrows one owner and checks C-local digest copies, every byte and absence.
-        fn nc_c_exercise_signature(
-            object: neocogi_com::ComRaw<IUnknown>,
-            expected: *const NcInterfaceId,
-            mismatch: NcStatus,
-        ) -> i32;
+        fn nc_c_exercise_signature(object: neocogi_com::ComRaw<IUnknown>, expected: *const NcInterfaceId, mismatch: NcStatus) -> i32;
 
         fn nc_c_exercise_calculator(
             unknown: neocogi_com::ComRaw<IUnknown>,
@@ -200,16 +200,21 @@ mod tests {
         let owner = NativeCalculator::from_value(NativeCalculator);
         // SAFETY: The sole owner and static identity remain live; C balances
         // its successful query and never retains the borrowed stack digest.
-        assert_eq!(unsafe {
-            nc_c_exercise_signature(owner.as_raw(), &INativeCalculatorAbi::INTERFACE_ID, neocogi_com::NC_E_ABI_VERSION)
-        }, 1);
+        assert_eq!(
+            unsafe { nc_c_exercise_signature(owner.as_raw(), &INativeCalculatorAbi::INTERFACE_ID, neocogi_com::NC_E_ABI_VERSION) },
+            1
+        );
     }
 
     unsafe extern "C" {
         /// Exercises the generated slot using C-owned raw tag and payload records.
         fn nc_c_exercise_choice(
             object: *mut core::ffi::c_void,
-            echo: unsafe extern "C" fn(*mut core::ffi::c_void, <NativeChoice as neocogi_com::ComValue>::Wire, *mut <NativeChoice as neocogi_com::ComValue>::Wire) -> NcStatus,
+            echo: unsafe extern "C" fn(
+                *mut core::ffi::c_void,
+                <NativeChoice as neocogi_com::ComValue>::Wire,
+                *mut <NativeChoice as neocogi_com::ComValue>::Wire,
+            ) -> NcStatus,
             invalid_tag: NcStatus,
             invalid_bool: NcStatus,
         ) -> i32;
@@ -222,9 +227,10 @@ mod tests {
         let raw = choice.as_raw();
         // SAFETY: the owned object/table outlive the C call; C provides initialized
         // wire inputs and writable outputs and never retains either pointer.
-        assert_eq!(unsafe {
-            nc_c_exercise_choice(raw.object, (*raw.vtable).echo, neocogi_com::NC_E_INVALID_TAG, neocogi_com::NC_E_INVALID_ARG)
-        }, 1);
+        assert_eq!(
+            unsafe { nc_c_exercise_choice(raw.object, (*raw.vtable).echo, neocogi_com::NC_E_INVALID_TAG, neocogi_com::NC_E_INVALID_ARG) },
+            1
+        );
     }
 
     /// Plain C retains/releases the weak token and promotes the exact generated contract.
@@ -255,8 +261,14 @@ mod tests {
             interface_methods_offset: core::mem::offset_of!(NcInterfaceDescriptor, methods),
             runtime_core_abi_version_offset: core::mem::offset_of!(NcRuntimeApiV1, core_abi_version),
             runtime_plugin_register_offset: core::mem::offset_of!(NcRuntimeApiV1, register_factory_plugin_description),
-            plugin_registry_first_function_offset: core::mem::offset_of!(NcPluginRegistryV1, plugin_count),
-            inspection_first_function_offset: core::mem::offset_of!(NcInspectionApiV1, plugin_info),
+            runtime_plugin_count_offset: core::mem::offset_of!(NcRuntimeApiV1, plugin_count),
+            runtime_plugin_info_offset: core::mem::offset_of!(NcRuntimeApiV1, plugin_info),
+            runtime_size: core::mem::size_of::<NcRuntimeApiV1>(),
+            runtime_plugin_infos_offset: core::mem::offset_of!(NcRuntimeApiV1, plugin_infos),
+            plugin_info_size: core::mem::size_of::<NcPluginInfoV1>(),
+            plugin_factory_offset: core::mem::offset_of!(NcPluginInfoV1, factory),
+            plugin_dependencies_offset: core::mem::offset_of!(NcPluginInfoV1, dependencies),
+            plugin_dependency_count_offset: core::mem::offset_of!(NcPluginInfoV1, dependency_count),
             debug_first_function_offset: core::mem::offset_of!(NcDebugApiV1, create_messenger),
             aggregate_size: core::mem::size_of::<NativeAggregate>(),
             aggregate_align: core::mem::align_of::<NativeAggregate>(),
@@ -311,5 +323,8 @@ fn c_output_getter_uses_fresh_wire_storage_and_separate_prefix_count() {
     let source = Choice::from_value(Choice).query::<INativeChoiceAbi>().unwrap();
     let raw = source.as_raw();
     // SAFETY: C invokes the exact raw signature using live, aligned foreign slots.
-    assert_eq!(unsafe { nc_c_exercise_choice_output(raw.object, (*raw.vtable).output, neocogi_com::NC_E_POINTER) }, 1);
+    assert_eq!(
+        unsafe { nc_c_exercise_choice_output(raw.object, (*raw.vtable).output, neocogi_com::NC_E_POINTER) },
+        1
+    );
 }

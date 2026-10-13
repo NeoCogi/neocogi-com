@@ -12,7 +12,7 @@ IID/signature, threading, and bootstrap. Registration validates the metadata and
 publishes one plugin atomically. Dependencies must already be registered;
 registration never invokes bootstrap or discovers provider paths.
 
-Activation first compares the requested IID, exact transitive signature, and
+Acquisition first compares the requested IID, exact transitive signature, and
 threading capability. A signature mismatch returns `NC_E_ABI_VERSION` before
 calling plugin code. After bootstrap, the returned projection is checked again.
 Parameterized construction happens through typed factory methods. Different
@@ -32,8 +32,9 @@ errors. It exposes plugin/factory data, not a runtime inventory of contract
 declarations. Static registration and later factory calls retain their existing
 status-returning contracts; they are separate operations from live loading.
 
-[Runtime ABI v1](../docs/runtime-abi-v1.md) has five C tables:
-operations, plugin enumeration, inspection, diagnostics and persistence. Loading
+[Runtime ABI v1](../docs/runtime-abi-v1.md) has three C tables:
+complete plugin operations, diagnostics and persistence. Plugin lookup and
+enumeration share one projection containing identity, factory and dependencies. Loading
 returns a plugin GUID. Plugin inspection reports static origin or the first
 library path; native handles remain private. The same descriptor reuses its
 registration, while conflicting descriptors are rejected. There is no module

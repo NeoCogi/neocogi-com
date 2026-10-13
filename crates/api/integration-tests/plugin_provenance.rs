@@ -40,6 +40,24 @@ fn native_plugin_origin_is_atomic_idempotent_and_process_pinned() {
 
     let runtime = Runtime::default();
     let id = guid_from_qualified_name("nc.tests.provenance");
+    // Unregistered inspection borrows a validated descriptor, returns visitor
+    // results/errors synchronously, and permits reentrant metadata reads.
+    assert_eq!(
+        unsafe {
+            runtime.with_plugin_library_description(&first, |description| {
+                assert!(runtime.plugins()?.is_empty());
+                assert_eq!(runtime.plugin_info(description.plugin_id)?, None);
+                Ok(description.plugin_id)
+            })
+        }
+        .unwrap(),
+        id
+    );
+    assert_eq!(
+        unsafe { runtime.with_plugin_library_description(&first, |_| Err::<(), _>(NC_E_CLOSED)) },
+        Err(NC_E_CLOSED)
+    );
+    assert!(runtime.plugins().unwrap().is_empty());
     // SAFETY: This path selects only the independently built trusted fixture.
     assert_eq!(unsafe { runtime.load_plugin_library(&first) }, id);
     assert_eq!(unsafe { runtime.load_plugin_library(&first) }, id);
@@ -51,13 +69,13 @@ fn native_plugin_origin_is_atomic_idempotent_and_process_pinned() {
     let status = unsafe { ((*nc_com_get_runtime_api_v1()).load_plugin_library_utf8)(bytes.as_ptr(), bytes.len(), &mut raw_id) };
     assert_eq!(status, NC_OK);
     assert_eq!(raw_id, id);
-    assert_eq!(runtime.plugin_registry().plugin_ids().unwrap(), [id]);
-    let info = runtime.inspection().plugin_info(id).unwrap().unwrap();
+    let info = runtime.plugin_info(id).unwrap().unwrap();
+    assert_eq!(runtime.plugins().unwrap().as_slice(), core::slice::from_ref(&info));
     assert_eq!(info.qualified_name, "nc.tests.provenance");
     assert_eq!(info.origin, PluginOrigin::Dynamic { path: first.clone() });
 
     std::fs::remove_file(&first).unwrap();
-    assert_eq!(runtime.inspection().plugin_info(id).unwrap().unwrap(), info);
+    assert_eq!(runtime.plugin_info(id).unwrap().unwrap(), info);
     // Reaching the distinctive bootstrap result proves dispatch never reopened
     // the missing path and the defining native mapping remains callable.
     assert_eq!(runtime.acquire_registered_plugin_root(id).unwrap_err(), NC_E_CLOSED);

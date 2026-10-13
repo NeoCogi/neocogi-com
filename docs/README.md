@@ -9,7 +9,9 @@ previous drafts and migration history; use the current specification for new cod
 
 The core generation, plugin/runtime discovery versions, and IDL fingerprint
 encoding are separate contracts. [Runtime ABI v1](runtime-abi-v1.md)
-replaces module identities with plugin provenance in place. All runtime tables
+replaces module identities with plugin provenance and consolidates lookup,
+enumeration and acquisition in one plugin-operation table. This runtime guide
+also supersedes the older factory activation names in the core drafts. All runtime tables
 and plugin descriptor discovery remain v1; roles must use the same checkout. IDL's
 canonical module encoding uses v9. Neither number identifies the current object
 ABI. The [IDL language reference](../../../docs/contracts/IDL_MODULES.md) owns the fingerprint

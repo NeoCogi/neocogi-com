@@ -49,21 +49,29 @@ struct NcInterfaceDescriptor {
     const NcMethodDescriptor *methods;
 };
 
-typedef struct NcRuntimeApiV1Prefix {
+typedef struct NcUtf8View { const uint8_t *data; size_t len; } NcUtf8View;
+typedef struct NcFactoryInfoV1 { NcInterfaceId interface; uint32_t threading; } NcFactoryInfoV1;
+typedef struct NcPluginInfoV1 {
+    NcGuid plugin_id;
+    NcUtf8View qualified_name, version, library_path;
+    NcFactoryInfoV1 factory;
+    const NcGuid *dependencies;
+    size_t dependency_count;
+} NcPluginInfoV1;
+
+/* Complete pre-release v1 layout; the first three callback signatures are
+ * retained as opaque pointers here because this test invokes metadata only. */
+typedef struct NcRuntimeApiV1 {
     size_t size;
     uint32_t core_abi_version;
     int32_t (*register_factory_plugin_description)(const void *);
-} NcRuntimeApiV1Prefix;
-
-typedef struct NcPluginRegistryV1Prefix {
-    size_t size;
+    void (*load_plugin_library_utf8)(void);
+    void (*acquire_factory_plugin)(void);
+    NcStatus (*plugin_info)(NcGuid, NcPluginInfoV1 *);
     size_t (*plugin_count)(void);
-} NcPluginRegistryV1Prefix;
-
-typedef struct NcInspectionApiV1Prefix {
-    size_t size;
-    void (*plugin_info)(void);
-} NcInspectionApiV1Prefix;
+    NcStatus (*plugin_infos)(NcPluginInfoV1 *, size_t, size_t *);
+    void (*inspect_plugin_library_utf8)(void);
+} NcRuntimeApiV1;
 
 typedef struct NcDebugApiV1Prefix {
     size_t size;
@@ -211,8 +219,10 @@ typedef struct NativeAbiLayouts {
     size_t interface_methods_offset;
     size_t runtime_core_abi_version_offset;
     size_t runtime_plugin_register_offset;
-    size_t plugin_registry_first_function_offset;
-    size_t inspection_first_function_offset;
+    size_t runtime_plugin_count_offset;
+    size_t runtime_plugin_info_offset;
+    size_t runtime_size, runtime_plugin_infos_offset;
+    size_t plugin_info_size, plugin_factory_offset, plugin_dependencies_offset, plugin_dependency_count_offset;
     size_t debug_first_function_offset;
     size_t aggregate_size;
     size_t aggregate_align;
@@ -234,14 +244,10 @@ _Static_assert(offsetof(NativeAggregate, value) == 8,
 _Static_assert(sizeof(NativeAggregate) == 16,
     "NativeAggregate ABI size changed");
 
-_Static_assert(offsetof(NcRuntimeApiV1Prefix, size) == 0,
+_Static_assert(offsetof(NcRuntimeApiV1, size) == 0,
     "NcRuntimeApiV1 must begin with size");
-_Static_assert(offsetof(NcRuntimeApiV1Prefix, core_abi_version) == sizeof(size_t),
+_Static_assert(offsetof(NcRuntimeApiV1, core_abi_version) == sizeof(size_t),
     "NcRuntimeApiV1.core_abi_version prefix changed");
-_Static_assert(offsetof(NcPluginRegistryV1Prefix, plugin_count) == sizeof(size_t),
-    "NcPluginRegistryV1 prefix changed");
-_Static_assert(offsetof(NcInspectionApiV1Prefix, plugin_info) == sizeof(size_t),
-    "NcInspectionApiV1 prefix changed");
 _Static_assert(offsetof(NcDebugApiV1Prefix, create_messenger) == sizeof(size_t),
     "NcDebugApiV1 prefix changed");
 
@@ -252,7 +258,7 @@ _Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 64,
     "64-bit NcInterfaceDescriptor.method_count ABI offset changed");
 _Static_assert(offsetof(NcInterfaceDescriptor, methods) == 72,
     "64-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(offsetof(NcRuntimeApiV1Prefix, register_factory_plugin_description) == 16,
+_Static_assert(offsetof(NcRuntimeApiV1, register_factory_plugin_description) == 16,
     "64-bit NcRuntimeApiV1 registration prefix changed");
 #elif UINTPTR_MAX == UINT32_MAX
 _Static_assert(sizeof(NcInterfaceDescriptor) == 56,
@@ -261,7 +267,7 @@ _Static_assert(offsetof(NcInterfaceDescriptor, method_count) == 48,
     "32-bit NcInterfaceDescriptor.method_count ABI offset changed");
 _Static_assert(offsetof(NcInterfaceDescriptor, methods) == 52,
     "32-bit NcInterfaceDescriptor.methods ABI offset changed");
-_Static_assert(offsetof(NcRuntimeApiV1Prefix, register_factory_plugin_description) == 8,
+_Static_assert(offsetof(NcRuntimeApiV1, register_factory_plugin_description) == 8,
     "32-bit NcRuntimeApiV1 registration prefix changed");
 #else
 #error "native C ABI fixture supports only 32-bit and 64-bit targets"
@@ -277,10 +283,16 @@ int32_t nc_c_validate_abi_layouts(const NativeAbiLayouts *layouts) {
         layouts->interface_qualified_name_offset == offsetof(NcInterfaceDescriptor, qualified_name) &&
         layouts->interface_method_count_offset == offsetof(NcInterfaceDescriptor, method_count) &&
         layouts->interface_methods_offset == offsetof(NcInterfaceDescriptor, methods) &&
-        layouts->runtime_core_abi_version_offset == offsetof(NcRuntimeApiV1Prefix, core_abi_version) &&
-        layouts->runtime_plugin_register_offset == offsetof(NcRuntimeApiV1Prefix, register_factory_plugin_description) &&
-        layouts->plugin_registry_first_function_offset == offsetof(NcPluginRegistryV1Prefix, plugin_count) &&
-        layouts->inspection_first_function_offset == offsetof(NcInspectionApiV1Prefix, plugin_info) &&
+        layouts->runtime_core_abi_version_offset == offsetof(NcRuntimeApiV1, core_abi_version) &&
+        layouts->runtime_plugin_register_offset == offsetof(NcRuntimeApiV1, register_factory_plugin_description) &&
+        layouts->runtime_plugin_count_offset == offsetof(NcRuntimeApiV1, plugin_count) &&
+        layouts->runtime_plugin_info_offset == offsetof(NcRuntimeApiV1, plugin_info) &&
+        layouts->runtime_size == sizeof(NcRuntimeApiV1) &&
+        layouts->runtime_plugin_infos_offset == offsetof(NcRuntimeApiV1, plugin_infos) &&
+        layouts->plugin_info_size == sizeof(NcPluginInfoV1) &&
+        layouts->plugin_factory_offset == offsetof(NcPluginInfoV1, factory) &&
+        layouts->plugin_dependencies_offset == offsetof(NcPluginInfoV1, dependencies) &&
+        layouts->plugin_dependency_count_offset == offsetof(NcPluginInfoV1, dependency_count) &&
         layouts->debug_first_function_offset == offsetof(NcDebugApiV1Prefix, create_messenger) &&
         layouts->aggregate_size == sizeof(NativeAggregate) &&
         layouts->aggregate_align == _Alignof(NativeAggregate) &&

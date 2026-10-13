@@ -65,11 +65,6 @@ impl FactoryPluginRegistry {
         Ok(())
     }
 
-    /// Borrows copied dependency IDs; an absent plugin has no relationships.
-    pub(crate) fn dependency_ids(&self, plugin_id: NcGuid) -> &[NcGuid] {
-        self.plugin(plugin_id).map(|plugin| plugin.dependency_ids.as_slice()).unwrap_or(&[])
-    }
-
     /// Appends one prevalidated record to every index.
     pub(crate) fn insert(&mut self, plugin: RegisteredFactoryPlugin) {
         debug_assert!(!self.contains_plugin(plugin.plugin_id));
@@ -85,7 +80,8 @@ pub(crate) struct RegisteredFactoryPlugin {
     pub(crate) plugin_id: NcGuid,
     /// Borrowed immutable description retained by static or pinned library ownership.
     pub(crate) description: *const NcFactoryPluginDescription,
-    /// Copied hard dependency IDs used for lock-bounded validation.
+    /// Immutable copied provider IDs used for validation and borrowed metadata.
+    /// Published buffers never change; their allocations survive record movement.
     pub(crate) dependency_ids: Vec<NcGuid>,
     /// Provenance and code owner published with this immutable descriptor.
     pub(crate) origin: PluginOrigin,
@@ -102,7 +98,8 @@ pub(crate) enum PluginOrigin {
     /// Descriptor and code are supplied by process-lifetime static storage.
     Static,
     /// The first successful native load owns the path used for diagnostics.
-    /// Both path and pinned mapping remain live while catalog readers borrow them.
+    /// Its heap-backed path and pinned mapping remain live for the process,
+    /// including after metadata readers release their catalog guards.
     Dynamic {
         /// Exact nonempty UTF-8 caller path, copied before publication.
         path: PathBuf,

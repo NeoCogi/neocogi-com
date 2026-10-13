@@ -60,7 +60,7 @@ factory_plugin! {
 /// Verifies one facade observes registration and typed acquisition through the
 /// linked registry, in both shared-runtime and intentional static modes.
 #[test]
-fn generated_contract_factory_activates_without_a_class_table() {
+fn generated_contract_factory_acquires_without_a_class_table() {
     let runtime = Runtime::default();
     // SAFETY: Macro-generated plugin and linked contract metadata are immutable
     // statics retained by the test executable for the process lifetime.
@@ -80,10 +80,9 @@ fn generated_contract_factory_activates_without_a_class_table() {
     object.resize(Extent { width: 44, height: 31 }).expect("exclusive resize failed");
     assert_eq!(object.extent().expect("updated extent query failed"), Extent { width: 44, height: 31 });
 
-    let plugins = runtime.plugin_registry().plugin_ids().expect("plugin enumeration failed");
-    assert!(plugins.contains(&plugin_id));
+    let plugins = runtime.plugins().expect("plugin enumeration failed");
+    assert!(plugins.iter().any(|plugin| plugin.plugin_id == plugin_id));
     let info = runtime
-        .inspection()
         .plugin_info(plugin_id)
         .expect("plugin inspection failed")
         .expect("registered factory plugin missing from inspection");
@@ -94,7 +93,7 @@ fn generated_contract_factory_activates_without_a_class_table() {
 /// Verifies registered factory metadata inspection and direct acquisition on registered
 /// static plugins, without reopening files or requiring caller-supplied root interface IDs.
 #[test]
-fn registered_factory_info_and_direct_activation_work_without_filesystem_path() {
+fn complete_plugin_info_and_direct_acquisition_work_without_filesystem_path() {
     use neocogi_com::{ComInterface, NC_E_NOT_FOUND, NcGuid};
 
     let runtime = Runtime::default();
@@ -107,14 +106,13 @@ fn registered_factory_info_and_direct_activation_work_without_filesystem_path() 
 
     // Inspect registered factory info without any filesystem path.
     let factory_info = runtime
-        .inspection()
-        .plugin_factory_info(plugin_id)
+        .plugin_info(plugin_id)
         .expect("plugin factory inspection failed")
         .expect("registered factory info missing");
 
     assert_eq!(factory_info.plugin_id, plugin_id);
-    assert_eq!(factory_info.root_factory, ExampleFactoryAbi::INTERFACE_ID);
-    assert_eq!(factory_info.root_factory_threading, neocogi_com::NC_ABI_THREADING_THREAD_LOCAL);
+    assert_eq!(factory_info.factory.interface, ExampleFactoryAbi::INTERFACE_ID);
+    assert_eq!(factory_info.factory.threading, neocogi_com::NcAbiThreadingMode::ThreadLocal);
 
     // Direct root acquisition without knowing the interface type in advance.
     let root = runtime.acquire_registered_plugin_root(plugin_id).expect("direct root acquisition failed");
@@ -131,6 +129,6 @@ fn registered_factory_info_and_direct_activation_work_without_filesystem_path() 
 
     // Non-existent plugin returns None / NOT_FOUND
     let unknown_id = NcGuid::from_fields(0xdeadbeef, 0, 0, [0; 8]);
-    assert_eq!(runtime.inspection().plugin_factory_info(unknown_id).expect("inspection check"), None);
+    assert_eq!(runtime.plugin_info(unknown_id).expect("inspection check"), None);
     assert_eq!(runtime.acquire_registered_plugin_root(unknown_id).map(|_| ()), Err(NC_E_NOT_FOUND));
 }

@@ -195,7 +195,7 @@ let button = factory.create_button()?;
 
 `load_plugin_library` requires `nc_get_factory_plugin_description_v1`, validates
 plugin metadata and hard dependencies, and registers the plugin atomically.
-Activation compares the exact factory signature before invoking bootstrap.
+Acquisition compares the exact factory signature before invoking bootstrap.
 Unconnected contract revisions can coexist; incompatible calls fail with
 `NC_E_ABI_VERSION`. Every live plugin load is mandatory: path conversion,
 loading, metadata validation, dependency and registration
@@ -203,8 +203,10 @@ failures diagnose and abort the entire application. This includes designer
 startup. `load_plugin_library` returns the registered plugin GUID on success;
 there is no recoverable `try_load_plugin_library` operation. Batch loading
 uses the same policy for each library. Loaded libraries remain mapped until
-process exit. `Inspection::plugin_info(plugin_id)` returns the plugin's identity,
-release version and static/dynamic origin. Repeated provider loads reuse the
+process exit. `Runtime::plugin_info(plugin_id)` returns the plugin's identity,
+release version, static/dynamic origin, single `FactoryInfo` and hard dependency
+GUIDs. `Runtime::plugins()` returns these complete owned records in registration
+order, without separate factory or dependency queries. Repeated provider loads reuse the
 first registration and origin; conflicting providers are rejected. See
 [runtime ABI v1](../docs/runtime-abi-v1.md).
 
@@ -227,7 +229,7 @@ producer must honor its threading promise. Plugin dependency IDs affect
 load order but never trigger path discovery or recursive loading.
 
 Offline inspection uses the unsafe
-`runtime.inspection().with_plugin_library_description(path, visitor)` method.
+`runtime.with_plugin_library_description(path, visitor)` method.
 The path must identify trusted code, and the visitor must not panic across its
 C callback boundary. It borrows the
 validated `NcFactoryPluginDescription` only for the callback and does not mutate

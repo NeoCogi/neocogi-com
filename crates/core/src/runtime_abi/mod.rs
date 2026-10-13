@@ -1,14 +1,12 @@
 //! Versioned ABI tables exposed by the process-global runtime library.
 //!
-//! This module groups runtime mutation, registry enumeration, inspection, and
-//! debug contracts while keeping their `repr(C)` layouts in the allocation-free
+//! This module groups plugin operations, diagnostics and persistence contracts while keeping their `repr(C)` layouts in the allocation-free
 //! core crate. Every table begins with a byte size checked by consumers. This
 //! pre-release v1 contract may change in place; all roles use the same checkout.
 
 mod debug;
-mod inspection;
 mod persistence;
-mod plugin_registry;
+mod plugin;
 mod runtime;
 pub use persistence::{NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1};
 
@@ -17,16 +15,15 @@ pub use debug::{
     NC_DEBUG_TYPE_ALL, NC_DEBUG_TYPE_PLUGIN, NC_DEBUG_TYPE_RUNTIME, NC_DEBUG_TYPE_VALIDATION, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1,
     NcDebugMessengerCreateInfoV1,
 };
-pub use inspection::{NcInspectFactoryPluginDescriptionCallbackV1, NcInspectionApiV1, NcPluginFactoryInfoV1, NcPluginInfoV1};
-pub use plugin_registry::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NcPluginRegistryV1};
+pub use plugin::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NcFactoryInfoV1, NcInspectFactoryPluginDescriptionCallbackV1, NcPluginInfoV1};
 pub use runtime::NcRuntimeApiV1;
 
 /// Pre-alpha runtime shared-library ABI generation.
 ///
 /// Version one identifies this pre-release family, not cross-revision binary
 /// compatibility. Contracts may change in place; all roles must be rebuilt from
-/// the same checkout. Plugin provenance replaces module identities without a
-/// new generation or a compatibility path.
+/// the same checkout. Plugin provenance and the unified operation table replace
+/// earlier runtime layouts without a new generation or a compatibility path.
 pub const NC_COM_RUNTIME_ABI_VERSION: u32 = 1;
 
 /// Borrowed immutable UTF-8 bytes owned by the runtime.

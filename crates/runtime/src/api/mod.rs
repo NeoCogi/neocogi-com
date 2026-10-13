@@ -1,6 +1,6 @@
 //! Assembly of runtime ABI v1 operations and shared C callback utilities.
 //!
-//! Only the version function and five table getters are exported as dynamic
+//! Only the version function and three table getters are exported as dynamic
 //! symbols. Operation callbacks remain private function pointers inside these
 //! immutable tables, keeping the shared-library symbol surface small while
 //! still grouping behavior by responsibility. Common helpers validate borrowed
@@ -13,18 +13,16 @@ use std::path::Path;
 use crate::debug;
 use neocogi_com_core::{
     NC_COM_CORE_ABI_VERSION, NC_DEBUG_SEVERITY_ERROR, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcDebugApiV1, NcDebugMessageV1,
-    NcInspectionApiV1, NcPluginRegistryV1, NcRuntimeApiV1, NcStatus, NcUtf8View,
+    NcRuntimeApiV1, NcStatus, NcUtf8View,
 };
 
 mod exports;
 mod inspection;
 mod persistence;
-mod plugin_registry;
 mod runtime;
 use persistence::PERSISTENCE_API_V1;
 
-use inspection::{inspect_plugin_library_utf8, plugin_dependency_count, plugin_dependency_ids, plugin_factory_info, plugin_info};
-use plugin_registry::{plugin_count, plugin_ids};
+use inspection::{inspect_plugin_library_utf8, plugin_count, plugin_info, plugin_infos};
 use runtime::{acquire_factory_plugin, load_plugin_library_utf8, register_factory_plugin_description};
 
 /// Immutable runtime-operation table returned by the exported generation-checked getter.
@@ -35,25 +33,10 @@ pub(super) static RUNTIME_API_V1: NcRuntimeApiV1 = NcRuntimeApiV1 {
     register_factory_plugin_description,
     load_plugin_library_utf8,
     acquire_factory_plugin,
-};
-
-// These values are immutable for the process lifetime. Getters may therefore
-// return their addresses without allocation, locking, or ownership transfer.
-/// Immutable plugin-registry table returned by the exported generation-checked getter.
-pub(super) static PLUGIN_REGISTRY_V1: NcPluginRegistryV1 = NcPluginRegistryV1 {
-    size: mem::size_of::<NcPluginRegistryV1>(),
-    plugin_count,
-    plugin_ids,
-};
-
-/// Immutable inspection table returned by the exported generation-checked getter.
-pub(super) static INSPECTION_API_V1: NcInspectionApiV1 = NcInspectionApiV1 {
-    size: mem::size_of::<NcInspectionApiV1>(),
     plugin_info,
-    plugin_dependency_count,
-    plugin_dependency_ids,
+    plugin_count,
+    plugin_infos,
     inspect_plugin_library_utf8,
-    plugin_factory_info,
 };
 
 /// Immutable debug-messenger table returned by the exported generation-checked getter.
@@ -126,10 +109,7 @@ fn emit_error(value_type: u32, status: NcStatus, text: &str) {
 #[cfg(test)]
 mod tests {
     use core::ptr;
-    use super::exports::{
-        nc_com_get_persistence_api_v1, nc_com_get_debug_api_v1, nc_com_get_inspection_api_v1, nc_com_get_plugin_registry_v1, nc_com_get_runtime_api_v1,
-        nc_com_runtime_abi_version,
-    };
+    use super::exports::{nc_com_get_persistence_api_v1, nc_com_get_debug_api_v1, nc_com_get_runtime_api_v1, nc_com_runtime_abi_version};
     use super::*;
     use core::ffi::c_void;
     use core::sync::atomic::{AtomicI32, Ordering};
@@ -159,8 +139,6 @@ mod tests {
     #[test]
     fn getters_return_complete_static_tables() {
         let runtime = unsafe { &*nc_com_get_runtime_api_v1() };
-        let plugins = unsafe { &*nc_com_get_plugin_registry_v1() };
-        let inspection = unsafe { &*nc_com_get_inspection_api_v1() };
         let debug = unsafe { &*nc_com_get_debug_api_v1() };
         let persistence = unsafe { &*nc_com_get_persistence_api_v1() };
 
@@ -168,18 +146,16 @@ mod tests {
         assert_eq!(persistence.core_abi_version, NC_COM_CORE_ABI_VERSION);
         assert_eq!(runtime.size, mem::size_of::<NcRuntimeApiV1>());
         assert_eq!(runtime.core_abi_version, NC_COM_CORE_ABI_VERSION);
-        assert_eq!(plugins.size, mem::size_of::<NcPluginRegistryV1>());
-        assert_eq!(inspection.size, mem::size_of::<NcInspectionApiV1>());
         assert_eq!(debug.size, mem::size_of::<NcDebugApiV1>());
     }
 
     #[test]
     fn direct_counts_and_fill_contract_are_separate() {
-        let api = unsafe { &*nc_com_get_plugin_registry_v1() };
+        let api = unsafe { &*nc_com_get_runtime_api_v1() };
         let count = unsafe { (api.plugin_count)() };
         let mut out_len = usize::MAX;
-        let mut values = Vec::<NcGuid>::with_capacity(count);
-        let status = unsafe { (api.plugin_ids)(values.as_mut_ptr(), count, &mut out_len) };
+        let mut values = Vec::<neocogi_com_core::NcPluginInfoV1>::with_capacity(count);
+        let status = unsafe { (api.plugin_infos)(values.as_mut_ptr(), count, &mut out_len) };
         assert_eq!(status, NC_OK);
         assert_eq!(out_len, count);
     }
@@ -220,12 +196,6 @@ mod tests {
     }
 
     #[test]
-    fn missing_inspection_entities_report_not_found() {
-        let mut info = mem::MaybeUninit::<neocogi_com_core::NcPluginInfoV1>::uninit();
-        assert_eq!(unsafe { plugin_info(NcGuid::nil(), info.as_mut_ptr()) }, NC_E_NOT_FOUND);
-    }
-
-    #[test]
     fn load_path_validation_is_platform_independent() {
         assert_eq!(unsafe { path_from_utf8(ptr::null(), 0) }, Err(NC_E_INVALID_ARG));
         assert_eq!(unsafe { path_from_utf8(ptr::null(), 1) }, Err(NC_E_POINTER));
@@ -250,13 +220,12 @@ mod tests {
 
     #[test]
     fn descriptor_inspection_validates_callback_and_path() {
-        let inspection = unsafe { &*nc_com_get_inspection_api_v1() };
         assert_eq!(
-            unsafe { (inspection.inspect_plugin_library_utf8)(ptr::null(), 0, None, ptr::null_mut()) },
+            unsafe { (RUNTIME_API_V1.inspect_plugin_library_utf8)(ptr::null(), 0, None, ptr::null_mut()) },
             NC_E_POINTER
         );
         assert_eq!(
-            unsafe { (inspection.inspect_plugin_library_utf8)(ptr::null(), 0, Some(accept_inspected_description), ptr::null_mut(),) },
+            unsafe { (RUNTIME_API_V1.inspect_plugin_library_utf8)(ptr::null(), 0, Some(accept_inspected_description), ptr::null_mut(),) },
             NC_E_INVALID_ARG
         );
     }
@@ -283,11 +252,9 @@ mod tests {
     }
 
     #[test]
-    fn factory_plugin_inspection_validates_pointer_and_unknown_id() {
-        use neocogi_com_core::{NcGuid, NcPluginFactoryInfoV1};
-        let inspection = unsafe { &*nc_com_get_inspection_api_v1() };
-        assert_eq!(unsafe { (inspection.plugin_factory_info)(NcGuid::nil(), ptr::null_mut()) }, NC_E_POINTER);
-        let mut info = core::mem::MaybeUninit::<NcPluginFactoryInfoV1>::uninit();
-        assert_eq!(unsafe { (inspection.plugin_factory_info)(NcGuid::nil(), info.as_mut_ptr()) }, NC_E_NOT_FOUND);
+    fn complete_plugin_lookup_validates_pointer_and_unknown_id() {
+        assert_eq!(unsafe { plugin_info(NcGuid::nil(), ptr::null_mut()) }, NC_E_POINTER);
+        let mut info = core::mem::MaybeUninit::<neocogi_com_core::NcPluginInfoV1>::uninit();
+        assert_eq!(unsafe { plugin_info(NcGuid::nil(), info.as_mut_ptr()) }, NC_E_NOT_FOUND);
     }
 }

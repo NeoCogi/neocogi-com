@@ -1,6 +1,6 @@
 //! Stable C symbols exported by the runtime shared library.
 //!
-//! Only the runtime ABI generation function and five immutable table getters
+//! Only the runtime ABI generation function and three immutable table getters
 //! are exported by name. All operations remain private Rust functions reached
 //! through those tables, keeping symbol discovery small and version checks
 //! mandatory before callers dereference versioned layouts.
@@ -10,9 +10,9 @@
 //! a versioned getter. During pre-alpha both sides must also use the same
 //! checkout revision, because pre-alpha generations do not promise cross-revision compatibility.
 
-use neocogi_com_core::{NC_COM_RUNTIME_ABI_VERSION, NcPersistenceApiV1, NcDebugApiV1, NcInspectionApiV1, NcPluginRegistryV1, NcRuntimeApiV1};
+use neocogi_com_core::{NC_COM_RUNTIME_ABI_VERSION, NcPersistenceApiV1, NcDebugApiV1, NcRuntimeApiV1};
 
-use super::{PERSISTENCE_API_V1, DEBUG_API_V1, INSPECTION_API_V1, PLUGIN_REGISTRY_V1, RUNTIME_API_V1};
+use super::{PERSISTENCE_API_V1, DEBUG_API_V1, RUNTIME_API_V1};
 
 /// Returns the runtime shared-library ABI generation.
 ///
@@ -26,18 +26,6 @@ pub extern "C" fn nc_com_runtime_abi_version() -> u32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn nc_com_get_runtime_api_v1() -> *const NcRuntimeApiV1 {
     &RUNTIME_API_V1
-}
-
-/// Returns the immutable runtime ABI v1 plugin-registry table.
-#[unsafe(no_mangle)]
-pub extern "C" fn nc_com_get_plugin_registry_v1() -> *const NcPluginRegistryV1 {
-    &PLUGIN_REGISTRY_V1
-}
-
-/// Returns the immutable runtime ABI v1 inspection table.
-#[unsafe(no_mangle)]
-pub extern "C" fn nc_com_get_inspection_api_v1() -> *const NcInspectionApiV1 {
-    &INSPECTION_API_V1
 }
 
 /// Returns the immutable runtime ABI v1 debug-messenger table.

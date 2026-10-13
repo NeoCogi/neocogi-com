@@ -290,15 +290,16 @@
 //! implement [`ComFactoryInterface`]. No separate object description is emitted.
 //! Object construction is an implementation detail or
 //! an ordinary typed factory method.
-//! Library loading returns the stable plugin GUID. `Inspection::plugin_info`
-//! copies its descriptor identity, release version and first registration origin.
+//! Library loading returns the stable plugin GUID. `Runtime::plugin_info`
+//! copies its identity, release version, first registration origin, factory contract
+//! and dependency GUIDs. `Runtime::plugins` enumerates those same complete records.
 //! `PluginOrigin::Static` represents static registration; dynamic provenance owns
 //! the first library path. Native handles and mappings stay private to `nc_com`.
 //! There is no separate module identity or module inspection join.
 //! Runtime ABI v1 tracks at most [`NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS`] distinct
 //! dynamic providers and permits at most
 //! [`NC_COM_RUNTIME_MAX_ACTIVE_DEBUG_MESSENGERS`] simultaneous debug messenger
-//! registrations. Exceeding the dynamic-provider limit is a fatal live-acquisition error;
+//! registrations. Exceeding the dynamic-provider limit is a fatal live-loading error;
 //! debug messenger capacity exhaustion returns [`NC_E_OUT_OF_RANGE`].
 //! Callers then use signature-checked `QueryInterface` to obtain the interface they
 //! need.
@@ -519,11 +520,11 @@ pub use neocogi_com_core::{
     NC_E_INVALID_TAG, NC_E_LOAD_FAILED, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_FACTORY_PLUGIN_ABI_VERSION,
     NC_GET_FACTORY_PLUGIN_DESCRIPTION_SYMBOL, NC_GUID_NIL, NC_OK, NcAbiSignature, NcAbiPassing, NcAbiPassingDescriptor, NcAbiReceiver, NcAbiThreadingMode,
     NcAbiType, NcAbiTypeDescriptor, NcAcquirePluginFactory, NcDebugApiV1, NcDebugCallbackV1, NcDebugMessageV1, NcDebugMessengerCreateInfoV1,
-    NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGuid, NcInspectFactoryPluginDescriptionCallbackV1, NcInspectionApiV1, NcInterfaceDescriptor,
-    NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1,
-    NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcPluginFactoryInfoV1, NcPluginInfoV1, NcPluginRegistryV1, NcQualifiedNameError, NcRuntimeApiV1,
-    NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe,
-    ThreadingModel, acquire_factory_implementation, guid_from_qualified_name, raw, return_factory_plugin_description, validate_factory_plugin_description,
+    NcFactoryPluginDescription, NcGetFactoryPluginDescription, NcGuid, NcInspectFactoryPluginDescriptionCallbackV1, NcInterfaceDescriptor, NcInterfaceId,
+    NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1,
+    NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcFactoryInfoV1, NcPluginInfoV1, NcQualifiedNameError, NcRuntimeApiV1, NcStaticUtf8, NcStatus,
+    NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel,
+    acquire_factory_implementation, guid_from_qualified_name, raw, return_factory_plugin_description, validate_factory_plugin_description,
     validate_qualified_name, validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
 };
 pub use object::{
@@ -536,8 +537,8 @@ pub use local::{LocalBox, WeakLocalBox, LocalCom, WeakLocalCom, LocalMut, LocalR
 pub use neocogi_com_core::__ComSupportsInterfaceThreading;
 #[cfg(feature = "runtime")]
 pub use runtime::{
-    Debug, DebugMessenger, Inspection, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES, NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES,
-    PluginFactoryInfo, PluginInfo, PluginRegistry, PluginOrigin, Runtime,
+    Debug, DebugMessenger, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES, NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, FactoryInfo,
+    PluginInfo, PluginOrigin, Runtime,
 };
 
 #[doc(hidden)]
