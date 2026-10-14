@@ -31,6 +31,26 @@ cargo neocogi run --assembly calculator --variant wgpu
 cargo neocogi run --assembly smoke --variant extension -- --smoke
 ```
 
+Cargo feature flags are additive. The demo and renderer default to `glow`, so
+`cargo run --release -p neocogi-demo-full --features vulkan` requests both Glow and
+Vulkan and is rejected. `--no-default-features` removes that default; select exactly
+one native renderer (`glow`, `vulkan`, or `wgpu`). WebGL requires a Wasm target.
+Invalid selections stop before expanding backend types and factory descriptors,
+so a duplicate `Renderer` alias is not a second configuration problem to solve.
+
+For a direct Cargo run of the full demo, link its implementations and embed its
+assets explicitly. This creates one executable with one static COM runtime:
+
+```sh
+cargo run --release -p neocogi-demo-full --no-default-features --features vulkan,monolith,embed-assets
+```
+
+Replace `vulkan` with `glow` or `wgpu` to select the other native backends.
+Without `monolith`, direct Cargo does not stage the shared runtime, plugin manifest
+or providers; disabling defaults alone cannot create that deployment. Use the
+assembly runner above for shared-library packages. Renderer selection changes
+neither the COM contracts nor the runtime/descriptor discovery ABI v1.
+
 These commands build selected packages rather than the entire workspace, so a
 Glow build does not select the Vulkan/WGPU renderer packages. `--workspace` on
 ordinary Cargo still selects every renderer root, including their mandatory
