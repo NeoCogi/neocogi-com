@@ -1,6 +1,41 @@
 //! Accepted authored names must survive compilation and real COM conversion.
 use std::{fs, path::Path, process::Command};
 
+/// Every callable role rejects handle helpers at authored IDL locations. Include
+/// inherited exposure and a closed generic, not just a simple top-level trait.
+#[test]
+fn public_handle_names_reject_before_rust_generation() {
+    for name in neocogi_com_core::NC_COM_HANDLE_METHOD_NAMES {
+        for source in [
+            format!("#[version(1)] interface ICollision {{ fn {name}(&self) -> Result<u32>; }}"),
+            format!("#[version(1)] factory Collision {{ fn {name}(&self) -> Result<u32>; }}"),
+            format!("#[version(1)] class Collision {{ fn {name}(&self) -> Result<u32>; }}"),
+            format!("#[version(1)] interface IBase {{ fn {name}(&self) -> Result<u32>; }} #[version(1)] interface IDerived: IBase {{}}"),
+            format!("#[version(1)] interface ICollision<T> {{ fn {name}(&self) -> Result<T>; }} #[version(1)] class Closed: ICollision<u32> {{}}"),
+            format!("#[version(1)] interface IUnused<T> {{ fn {name}(&self) -> Result<T>; }}"),
+        ] {
+            let module = neocogi_idl::parse_module(Path::new("proof/collision.ncidl"), &source).unwrap();
+            let error = neocogi_idl::resolve_modules(vec![module]).unwrap_err();
+            assert!(error.diagnostics.iter().any(|diagnostic| diagnostic.code == "EIDL100"), "{source}: {error}");
+            assert!(error.to_string().contains(name), "{source}: {error}");
+        }
+        // Raw Rust method identifiers are not part of the IDL snake_case grammar;
+        // they already reject before resolution. The macro tests cover accepted
+        // Rust raw spelling against the same core lookup identity.
+        let raw = format!("#[version(1)] interface ICollision {{ fn r#{name}(&self) -> Result<u32>; }}");
+        assert!(neocogi_idl::parse_module(Path::new("proof/raw_collision.ncidl"), &raw).is_err());
+    }
+    let source = "#[version(1)] interface ICapability { fn downgrade(&self) -> Result<WeakComPtr<ICapability>>; }";
+    let module = neocogi_idl::parse_module(Path::new("proof/exact_return.ncidl"), source).unwrap();
+    assert!(
+        neocogi_idl::resolve_modules(vec![module])
+            .unwrap_err()
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "EIDL100")
+    );
+}
+
 /// Compiles the actual IDL output, including names that used to capture codec locals.
 #[test]
 fn authored_names_preserve_values_across_generated_com() {

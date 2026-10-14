@@ -402,3 +402,6 @@ pub fn com_value(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[cfg(test)]
 mod identifier_hygiene_tests;
+
+#[cfg(test)]
+mod method_name_tests;

@@ -3,6 +3,80 @@ mod shadow;
 mod values;
 
 #[cfg(test)]
+mod capability_dispatch {
+    //! Ordinary handle syntax must enter each legal generated provider method.
+    use super::values::*;
+    use neocogi_com::*;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    /// Shared provider with externally observable ABI-entry instrumentation.
+    #[com_object(ICapability)]
+    struct Capability {
+        calls: Arc<AtomicUsize>,
+    }
+    /// Exclusive provider uses the same legal callable contract.
+    #[com_object(ICapability, ownership = exclusive)]
+    struct ExclusiveCapability {
+        calls: Arc<AtomicUsize>,
+    }
+
+    /// Equal semantic checks apply to both ownership policies without adapters.
+    macro_rules! implement {
+        ($provider:ty) => {
+            impl ICapability for $provider {
+                fn weak_capability(&self) -> Result<WeakComPtr<ICapabilityAbi>, NcStatus> {
+                    self.calls.fetch_add(1, Ordering::Relaxed);
+                    Err(NC_E_CLOSED)
+                }
+                fn clone_value(&self) -> Result<u32, NcStatus> {
+                    self.calls.fetch_add(1, Ordering::Relaxed);
+                    Ok(42)
+                }
+                fn raw_value(&self) -> Result<u32, NcStatus> {
+                    self.calls.fetch_add(1, Ordering::Relaxed);
+                    Ok(64)
+                }
+                fn helper_names(&self, clone: u32, downgrade: u32, query: u32) -> Result<u32, NcStatus> {
+                    self.calls.fetch_add(1, Ordering::Relaxed);
+                    Ok(clone + downgrade + query)
+                }
+            }
+        };
+    }
+    implement!(Capability);
+    implement!(ExclusiveCapability);
+
+    /// The exact weak-return type retains provider failure; raw/clone-like names
+    /// return distinct sentinels. Private helper-name arguments remain legal.
+    #[test]
+    fn legal_names_dispatch_through_owned_borrowed_and_exclusive_handles() {
+        macro_rules! check {
+            ($receiver:expr) => {{
+                let receiver = $receiver;
+                assert_eq!(receiver.weak_capability().unwrap_err(), NC_E_CLOSED);
+                assert_eq!(receiver.clone_value().unwrap(), 42);
+                assert_eq!(receiver.raw_value().unwrap(), 64);
+                assert_eq!(receiver.helper_names(1, 20, 300).unwrap(), 321);
+            }};
+        }
+        let calls = Arc::new(AtomicUsize::new(0));
+        let shared = Capability::from_value(Capability { calls: calls.clone() }).query::<ICapabilityAbi>().unwrap();
+        check!(&shared);
+        check!(shared.as_com_ref());
+        let exclusive = ExclusiveCapability::into_box(ExclusiveCapability { calls: calls.clone() })
+            .query::<ICapabilityAbi>()
+            .unwrap();
+        check!(&exclusive);
+        let weak = exclusive.downgrade();
+        check!(&weak);
+        assert_eq!(calls.load(Ordering::Relaxed), 16);
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::values::*;
     use neocogi_com::*;
@@ -179,12 +253,7 @@ mod tests {
         let mut result = neocogi_com::NcOutputBuffer::new();
         assert_eq!(
             object
-                .buffers(
-                    status.output(3, 1),
-                    result.output(5, 1),
-                    NcCopyFromBufferOffset::new(7, &[record()]),
-                    89
-                )
+                .buffers(status.output(3, 1), result.output(5, 1), NcCopyFromBufferOffset::new(7, &[record()]), 89)
                 .unwrap(),
             89
         );

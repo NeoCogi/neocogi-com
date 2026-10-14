@@ -1171,18 +1171,18 @@ fn buffer_values_ident(ident: &syn::Ident) -> syn::Ident {
     private_ident(&format!("{ident}_values"))
 }
 
-/// Rejects public method conflicts with actual generated lifecycle operations.
+/// Rejects public method conflicts using the core-owned handle member inventory.
 /// Private locals impose no source-parameter restrictions: positional bindings
 /// are disjoint from helper roles, even after printing and reparsing the output.
 fn validate_generated_method_identifiers(methods: &[AbiMethod], errors: &mut Option<syn::Error>) {
     for method in methods {
         let method_name = method.ident.to_string();
-        if matches!(method_name.as_str(), "query_interface" | "add_ref" | "release") {
+        if neocogi_com_core::is_reserved_com_method(&method_name) {
             push_error(
                 errors,
                 syn::Error::new(
                     method.ident.span(),
-                    format!("COM method `{method_name}` conflicts with the generated IUnknown lifecycle thunk"),
+                    format!("COM method `{method_name}` conflicts with a COM handle operation"),
                 ),
             );
         }

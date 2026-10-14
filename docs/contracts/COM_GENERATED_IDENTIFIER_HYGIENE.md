@@ -71,6 +71,25 @@ adds a distinct count slot without deriving any helper from authored spelling. I
 The parameter-name blacklist and its duplicate raw-name collision scan are gone.
 Public method conflicts with lifecycle operations and physical vtable prefixes
 still require rejection: those are actual API members, not local variables.
+Core owns `NC_COM_HANDLE_METHOD_NAMES` and `is_reserved_com_method`; IDL resolution
+and handwritten interface macros use that one policy. The union includes public
+receiver helpers on `ComPtr`, `ComRef`, `ComBox` and `WeakComBox`, their implemented
+helper traits and native lifecycle operations. Raw identifiers have the same
+identity: `r#downgrade` is rejected just like `downgrade`. Associated functions
+without receivers do not shadow the generated client and are outside this rule.
+
+An accepted `downgrade() -> Result<WeakComPtr<...>>` previously selected the
+handle's lifetime helper before its Deref client, silently bypassing the provider
+with the expected result type. Contracts must instead use a distinct name such
+as `weak_capability`. IDL reports `EIDL100` at the authored method; macro diagnostics
+point at the Rust identifier. Unused templates, inherited projections and closed generics obey the
+same rule. Ordinary parameters named `clone`, `downgrade` or `query` remain legal.
+No second client, extension-trait lowering or runtime dispatch layer is introduced.
+
+A source audit regression parses actual public handle receiver implementations
+and requires their membership in the core inventory, including all configurations.
+Explicit checks cover helper trait defaults such as `Clone::clone_from`. Adding a
+public helper therefore requires reviewing the callable-contract name policy.
 Support paths in interface expansion are qualified through `::core`, while
 application types retain their original syntax. No ABI version change is needed.
 

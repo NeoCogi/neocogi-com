@@ -311,7 +311,7 @@ pub enum AbiType {
         /// Exact built-in scalar spelling.
         String,
     ),
-    /// Owned UTF-8 text data; an owned COM string is explicitly ComPtr<INcString>.
+    /// Owned UTF-8 text data; an owned COM string is explicitly `ComPtr<INcStringAbi>`.
     String,
     /// A declaration referenced by a local, imported, or qualified path.
     Named(NamedType),

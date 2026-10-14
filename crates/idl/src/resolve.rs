@@ -223,12 +223,14 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
     // unused templates must not hide duplicate identities or ambiguous imports.
     let mut authored = build_entries(modules.clone())?;
     connect_externals_and_imports(&mut authored)?;
-    // Enum shape and tag rules are independent of type arguments. Validate before
-    // specialization so an unused template cannot conceal an invalid contract.
+    // Enum shape/tag and public method-name rules are independent of type arguments.
+    // Validate before specialization so unused templates cannot conceal a bad contract.
     for entry in &authored {
         for declaration in &entry.module.declarations {
-            if let DeclarationKind::Enum(enumeration) = &declaration.kind {
-                validate_enum(entry, declaration, enumeration)?;
+            match &declaration.kind {
+                DeclarationKind::Enum(enumeration) => validate_enum(entry, declaration, enumeration)?,
+                DeclarationKind::Interface(interface) => validate_method_names(&entry.module, &interface.methods)?,
+                _ => {}
             }
         }
     }
@@ -1145,9 +1147,21 @@ fn validate_interface_bases(index: usize, interface: &crate::Interface, entries:
     Ok(())
 }
 
+/// Rejects handle lookup conflicts at authored spans, even for unused templates.
+/// Generated/specialized methods reuse the same policy during final validation.
+fn validate_method_names(module: &Module, methods: &[Method]) -> Result<(), ResolutionError> {
+    let diagnostics = methods.iter().filter(|method| neocogi_com_core::is_reserved_com_method(&method.name)).map(|method| {
+        Diagnostic::new("EIDL100", format!("COM method `{}` conflicts with a COM handle operation", method.name))
+            .with_sources(&module.sources)
+            .primary(&method.span, "choose a distinct interface method name")
+    }).collect::<Vec<_>>();
+    if diagnostics.is_empty() { Ok(()) } else { Err(ResolutionError { diagnostics }) }
+}
+
 /// Validates ordinary signatures and generated output getters in vtable order.
 fn validate_methods(index: usize, methods: &[Method], entries: &[ModuleEntry], values: &crate::ValueGraph, owner: &str) -> Result<(), ResolutionError> {
     let mut diagnostics = Vec::new();
+    collect_diagnostics(&mut diagnostics, validate_method_names(&entries[index].module, methods));
     for method in methods {
         for parameter in &method.parameters {
             collect_diagnostics(

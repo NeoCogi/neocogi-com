@@ -36,6 +36,13 @@ lifetimes, inspection and acquisition, and the
 layout, vtable prefix, exact identity, lifetime, and shared lifecycle calls.
 Generated interfaces provide the normal implementation.
 
+Public interface methods must also avoid actual COM handle operations, because
+handle methods precede the generated Deref client in Rust method lookup. Core's
+`NC_COM_HANDLE_METHOD_NAMES` / `is_reserved_com_method` define one allocation-free
+admission policy for IDL and macro validation, including raw identifier spellings.
+This does not restrict private field/parameter names or alter the wire ABI. See
+[identifier hygiene](../../../docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md).
+
 | Handle | Owns a reference | `Send` / `Sync` |
 |---|:---:|:---:|
 | `ComPtr<T, ThreadLocal>` | Yes | No |

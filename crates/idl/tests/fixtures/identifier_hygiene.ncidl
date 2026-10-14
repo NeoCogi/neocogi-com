@@ -20,3 +20,10 @@
     fn buffers(&self, status: &mut [Record], result: &mut [Record], this: &[Record], object: u32) -> Result<u32>;
     fn scalars(&self, this: u32, object: u32, result: u32, status: u32) -> Result<u32>;
 }
+/// Distinct public names reach the provider even beside handle helpers.
+#[version(1)] interface ICapability {
+    fn weak_capability(&self) -> Result<WeakComPtr<ICapability>>;
+    fn clone_value(&self) -> Result<u32>;
+    fn raw_value(&self) -> Result<u32>;
+    fn helper_names(&self, clone: u32, downgrade: u32, query: u32) -> Result<u32>;
+}

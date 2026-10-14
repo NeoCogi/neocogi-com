@@ -44,6 +44,13 @@ A derived client view also dereferences to its base client view for inherited
 method lookup. Obtaining an owned base projection still requires checked
 `QueryInterface`.
 
+Public method names occupied by COM handle operations, such as `clone`, `as_raw`
+and `downgrade`, are rejected by IDL and macro validation. Use a distinct contract
+name such as `clone_value` or `weak_capability`; otherwise Rust would select the
+handle helper before the generated client. The shared
+[identifier policy](../../../docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md)
+does not restrict private parameter names.
+
 `com_object` generates reference-counted storage and signature-checked
 `QueryInterface`. It does not publish the object as something the runtime can
 construct. Handwritten helpers such as `INcStringComPtrExt::to_string` remain

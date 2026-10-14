@@ -33,6 +33,8 @@ pub use abi_hash::__nc_abi_digest;
 pub mod binary;
 mod buffer;
 mod client;
+mod method_names;
+pub use method_names::{NC_COM_HANDLE_METHOD_NAMES, is_reserved_com_method};
 mod data;
 mod decode;
 mod encode;
