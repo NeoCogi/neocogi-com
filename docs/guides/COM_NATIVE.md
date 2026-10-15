@@ -87,26 +87,38 @@ Every dynamic consumer resolves process-wide registration, provenance, dependenc
 checks and pinned code through one `nc_com`. A DLL must never privately link a
 runtime instance. `neocogi-com` is the typed facade; it owns no runtime state.
 
-The native composition and each dynamic plugin declare the same runtime artifact
-as a build dependency. Cargo deduplicates its build and supplies its directory:
+The native composition and each dynamic plugin use one small
+`neocogi-native-runtime-link` integration crate. It declares `nc_com` as a normal
+`artifact = "cdylib"` dependency, with no Rust implementation library attached.
+Cargo therefore builds the deployed runtime using the target's selected profile,
+including its optimization, panic strategy and standard library. Never declare
+this deployed library under `build-dependencies`: Cargo's build-tool profile
+otherwise silently selects unoptimized code and unwinding even in a size build.
 
 ```toml
-[build-dependencies]
-com-library = { package = "neocogi-com-runtime", path = "../../crates/com/runtime", artifact = "cdylib", target = "target" }
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+neocogi-native-runtime-link = { workspace = true, optional = true }
 ```
 
-A plugin gates that dependency with `dynamic-plugin`; static/browser builds leave
-it disabled. The build script only consumes `CARGO_CDYLIB_DIR_COM_LIBRARY` and
-prints a native link search directory. It does not build, locate or copy runtime
-binaries. This linkage belongs at native boundaries because Cargo may unify the
-host's facade `runtime` feature into provider dependencies. Even a provider that
-currently only creates objects must then be able to resolve that shared import.
-Reusable ABI/compiler crates have no artifact dependencies.
+A dynamic provider enables that dependency with `dynamic-plugin` and imports its
+metadata using `use neocogi_native_runtime_link as _;`. This never embeds runtime
+state. Cargo deduplicates the normal runtime artifact across consumers.
 
-On MSVC the facade names Rust's `nc_com.dll.lib` import library
-[verbatim](https://doc.rust-lang.org/reference/items/external-blocks.html#r-items.extern.attributes.link.modifiers.verbatim). Linux
-and macOS use the corresponding ordinary `nc_com` native library name. Cargo
-supplies loader search paths when executing `cargo run` and `cargo test`.
+Normal artifact paths are available while compiling Rust, not to `build.rs`.
+The integration crate converts Cargo's `CARGO_CDYLIB_DIR_COM_LIBRARY` value into
+transitive native linker search metadata. Unix consumers also record that exact
+build-tree directory as an rpath, so the executable and independently loaded DLLs
+resolve the same runtime during direct execution without `LD_LIBRARY_PATH`.
+Eight duplicated runtime-link build scripts are removed. No Cargo subprocess,
+output-directory scan, copy, generated package or dependency resolver is involved.
+
+This native-workspace bridge uses nightly Rust's `link_arg_attribute` in addition
+to Cargo's nightly artifact dependencies. It is isolated from the portable
+COM/IDL SDK and its stable Rust 1.85 consumers. On MSVC it supplies `/LIBPATH` for
+Rust's `nc_com.dll.lib` import library, which the facade names
+[verbatim](https://doc.rust-lang.org/reference/items/external-blocks.html#r-items.extern.attributes.link.modifiers.verbatim).
+Windows still needs a DLL layout or loader environment at execution; Unix rpaths
+do not provide a Windows deployment policy.
 
 The runtime still verifies a requested root's exact IID, transitive signature and
 threading before entering plugin code, then validates the returned owned

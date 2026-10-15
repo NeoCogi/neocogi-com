@@ -43,7 +43,10 @@ providers, excluding static registrations and repeats, and 64 active messengers.
 Plugin descriptor ABI v1 and core object ABI v17 remain independently versioned.
 
 The package owns both `rlib` and `cdylib` targets under the short name `nc_com`.
-A Cargo artifact dependency requests its shared target directly; normal static
+A normal Cargo artifact dependency requests its shared target directly and uses
+the target profile. Declaring a deployed runtime as a build dependency incorrectly
+applies build-tool optimization and panic settings. Native workspace consumers
+use `neocogi-native-runtime-link` for transitive search/rpath metadata; normal static
 consumers link the rlib. `cargo build -p neocogi-com-runtime` may emit both.
 There is no generated wrapper package. Output names are `libnc_com.so` on Linux,
 `libnc_com.dylib` on macOS and `nc_com.dll` on Windows. The
