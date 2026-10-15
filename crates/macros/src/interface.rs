@@ -75,12 +75,6 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         InterfaceThreading::Local => quote! { #nc::ThreadLocal },
         InterfaceThreading::Shared => quote! { #nc::ThreadSafe },
     };
-    let factory_marker = args.factory.then(|| {
-        quote! {
-            // SAFETY: IDL assigned the factory role to this exact callable contract.
-            unsafe impl #nc::ComFactoryInterface for #abi_ident {}
-        }
-    });
     let qualified_name = args.qualified_name;
     let guid = interface_guid(args.guid, &qualified_name, &nc)?;
     let assigned_signature = args.assigned_signature.clone().ok_or_else(|| {
@@ -599,8 +593,6 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
 
         }
 
-        #factory_marker
-
         // The view only lends method lookup. It has no constructor, ownership
         // conversions or Clone/Copy implementation and cannot outlive its lender.
         #[repr(transparent)]
@@ -725,8 +717,7 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
         let ident = &arg.binding;
         match &arg.kind {
             AbiArgKind::OutputBuffer { element_ty } => quote! { #ident: #nc::NcOutput<'_, #element_ty> },
-            _ => { let ty = &arg.rust_ty; quote! { #ident: #ty } },
-        }
+            _ => { let ty = &arg.rust_ty; quote! { #ident: #ty } }}
     });
     let owners = method
         .args
@@ -1104,7 +1095,8 @@ fn raw_vtable_arg_params(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
             vec![quote! { #offset_ident: u64 }, quote! { #len_ident: u64 }, {
                 let ty = &arg.abi_ty;
                 quote! { #ptr_ident: #ty }
-            }, quote! { #written_ident: *mut u64 }]
+            }, quote! { #written_ident: *mut u64 },
+            ]
         }
     }
 }
@@ -1142,7 +1134,8 @@ fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
         AbiArgKind::ComRef { optional: true, .. } => vec![quote! { #ident.map_or(::core::default::Default::default(), |value| value.as_raw()) }],
         AbiArgKind::ComRef { optional: false, .. } => vec![quote! { #ident.as_raw() }],
         AbiArgKind::CopyFromBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.len() }, quote! { #ident.as_ptr() }],
-        AbiArgKind::OutputBuffer { .. } => vec![quote! { #ident.offset() }, quote! { #ident.capacity() }, quote! { #ident.as_mut_ptr() }, quote! { #ident.written_ptr() }],
+        AbiArgKind::OutputBuffer { .. } => vec![quote! { #ident.offset() }, quote! { #ident.capacity() }, quote! { #ident.as_mut_ptr() }, quote! { #ident.written_ptr() },
+        ],
     }
 }
 
@@ -1182,8 +1175,7 @@ fn validate_generated_method_identifiers(methods: &[AbiMethod], errors: &mut Opt
                 errors,
                 syn::Error::new(
                     method.ident.span(),
-                    format!("COM method `{method_name}` conflicts with a COM handle operation"),
-                ),
+                    format!("COM method `{method_name}` conflicts with a COM handle operation")),
             );
         }
     }

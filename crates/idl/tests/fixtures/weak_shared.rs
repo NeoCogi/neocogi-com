@@ -2,9 +2,10 @@
 mod tests {
     use super::*;
     use neocogi_com::*;
-    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+    use std::sync::{Arc, atomic::{AtomicUsize, Ordering},
+    };
 
-    #[com_class(Counter)]
+    #[com_object(Counter)]
     /// Native fields are reachable only through construction-proven local ownership.
     struct CounterObject {
         /// Plain mutable data guarded by the generated COM gate.
@@ -19,7 +20,7 @@ mod tests {
     impl Drop for CounterObject {
         fn drop(&mut self) { self.drops.fetch_add(1, Ordering::SeqCst); }
     }
-    #[com_class(Shared)]
+    #[com_object(Shared)]
     /// Shared interface demonstrates that generated weak results retain thread permission.
     struct SharedObject;
     impl Shared for SharedObject {
@@ -51,7 +52,8 @@ mod tests {
     }
     /// All nested handles name the same allocation with no strong reference.
     fn references(one: &WeakComPtr<CounterAbi>) -> References {
-        References { one: one.clone(), many: vec![one.clone()], fixed: [one.clone(), one.clone()] }
+        References { one: one.clone(), many: vec![one.clone()], fixed: [one.clone(), one.clone()] ,
+        }
     }
     /// Creates an IDL implementation whose concrete and interface observers agree.
     fn counter() -> (LocalCom<CounterObject>, WeakComPtr<CounterAbi>, Arc<AtomicUsize>) {

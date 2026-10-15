@@ -1,8 +1,7 @@
 //! One plugin implementation built as either a shared library or a linked Rust library.
 
 use neocogi_com::{
-    binary, ComDeserialize, ComSerialize, ComPtr, NcValueRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE,
-    com_factory, com_object,
+    binary, ComDeserialize, ComSerialize, ComPtr, NcValueRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, com_object,
 };
 use neocogi_idl_example_contracts::{ExampleFactory, ExampleObject, ExampleObjectAbi, Extent, ExtentReport, IMeasured};
 
@@ -25,8 +24,7 @@ impl IMeasured for DynamicExampleObject {
         if output.capacity() >= 2 {
             output.extend_from_slice(&[
                 ExtentReport::Current { extent: self.extent, usable: true },
-                ExtentReport::Empty,
-            ])?;
+                ExtentReport::Empty])?;
         }
         Ok(2)
     }
@@ -43,7 +41,7 @@ impl ExampleObject for DynamicExampleObject {
 }
 
 /// Stateless root factory exported by this plugin assembly.
-#[com_factory(neocogi_idl_example_contracts::ExampleFactory)]
+#[com_object(neocogi_idl_example_contracts::ExampleFactory)]
 struct DynamicExampleFactory;
 
 impl ExampleFactory for DynamicExampleFactory {
@@ -58,15 +56,12 @@ impl ExampleFactory for DynamicExampleFactory {
     }
 }
 
-neocogi_com::factory_plugin! {
-    name = "nc.examples.factory_plugin_component",
-    version = "0.0.0",
-    factory = DynamicExampleFactory,
-}
+/// Acquires one owned root; object construction remains on its typed methods.
+#[neocogi_com::plugin(name = "nc.examples.factory_plugin_component")]
+fn acquire_root() -> Result<neocogi_com::ComPtr<neocogi_idl_example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+    DynamicExampleFactory::from_value(DynamicExampleFactory).query()}
 
 // Only the final DSO exports this symbol; monoliths call the Rust getter.
-#[cfg(feature = "dynamic-plugin")]
-neocogi_com::export_factory_plugin!();
 
 /// Recipe identity used by the explicitly registered persistence adapter.
 pub const PERSISTENT_KIND: NcGuid = neocogi_com::guid_from_qualified_name("nc.examples.extent-state");

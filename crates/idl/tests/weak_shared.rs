@@ -23,7 +23,8 @@ fn weak_shared_identity_and_capabilities_are_distinct() {
             weak: Handle<WeakComPtr<IValue>>,
             nested: Option<Vec<WeakComPtr<INcString>>>,
         }
-    "#).unwrap();
+    "#,
+    ).unwrap();
     let fields = &g.values.definitions["proof.weak.References"].fields;
     assert_ne!(fields[0], fields[1], "specialization identity retains ownership");
     let value = &g.values.definitions["proof.weak.References"];
@@ -60,11 +61,11 @@ fn invalid_weak_positions_and_targets_are_rejected() {
 #[test]
 fn generated_weak_values_and_results_preserve_lifetime_and_validation() {
     let g = graph(r#"
-        #[version(1)] class Counter {
+        #[version(1)] interface Counter {
             fn value(&self) -> Result<u32>;
             fn set_value(&mut self, value: u32) -> Result<()>;
         }
-        #[version(1)] #[threading(shared)] class Shared { fn value(&self) -> Result<u32>; }
+        #[version(1)] #[threading(shared)] interface Shared { fn value(&self) -> Result<u32>; }
         #[version(1)] struct References {
             one: WeakComPtr<Counter>,
             many: Vec<WeakComPtr<Counter>>,
@@ -77,15 +78,18 @@ fn generated_weak_values_and_results_preserve_lifetime_and_validation() {
             fn shared(&self) -> Result<WeakComPtr<Shared>>;
             fn event(&mut self, value: &WeakEvent) -> Result<()>;
         }
-    "#).unwrap();
+    "#,
+    ).unwrap();
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
         "[package]\nname='weak-shared-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
         root.join("crates/com/api"),
-    )).unwrap();
-    fs::write(project.path().join("src/lib.rs"), generate_rust(&g, "proof.weak").unwrap() + include_str!("fixtures/weak_shared.rs")).unwrap();
+    ),
+    ).unwrap();
+    fs::write(project.path().join("src/lib.rs"), generate_rust(&g, "proof.weak").unwrap() + include_str!("fixtures/weak_shared.rs"),
+    ).unwrap();
     let result = Command::new("cargo").args(["test", "--offline", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
         .env("CARGO_TARGET_DIR", root.join("target/weak-shared-proof"))

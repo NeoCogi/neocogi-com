@@ -21,10 +21,10 @@ const TYPES: &str = r#"/* café 😀 */ #[version(1)] struct Size { width: u32, 
 "#;
 /// Both authored and synthesized interfaces originate in this separate part.
 const WIDGETS: &str = r#"#[version(1)] interface IStream<T> { fn post(&mut self, value: &T) -> Result<()>; }
-#[version(1)] class Textbox: IStream<Changed> {
+#[version(1)] interface Textbox: IStream<Changed> {
     fn resize(&mut self, size: Size) -> Result<()>;
 }
-#[version(1)] factory Widgets {
+#[version(1)] interface Widgets {
     fn textbox(&self) -> Result<ComPtr<Textbox>>;
 }
 "#;

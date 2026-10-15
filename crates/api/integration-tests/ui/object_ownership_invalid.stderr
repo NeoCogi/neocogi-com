@@ -9,9 +9,3 @@ error: duplicate ownership = ...
   |
 6 | #[com_object(interfaces(), ownership = shared, ownership = exclusive)]
   |                                                ^^^^^^^^^
-
-error: COM factories require shared ownership
-  --> integration-tests/ui/object_ownership_invalid.rs:10:8
-   |
-10 | struct ExclusiveFactory;
-   |        ^^^^^^^^^^^^^^^^

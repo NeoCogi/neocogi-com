@@ -56,7 +56,7 @@ fn parses_a_complete_contract_module() {
 
             #[threading(shared)]
             #[version(1)]
-            factory UiFactory {
+            interface UiFactory {
                 fn create_button(&self, label: &str, options: WidgetOptions) -> Result<ComPtr<Button>>;
                 fn upload(&self, bytes: &[u8]) -> Result<ComPtr<ITexture>>;
                 fn read(&self, output: &mut [u8]) -> Result<u32>;
@@ -138,7 +138,7 @@ fn parses_message_stream_as_an_ordinary_class_base() {
         r#"
         #[version(1)] enum Changed { Edited(String), Submitted }
         #[version(1)] interface IStream<T> {}
-        #[version(1)] class Editor: IStream<Changed> { fn revision(&self) -> Result<u64>; }
+        #[version(1)] interface Editor: IStream<Changed> { fn revision(&self) -> Result<u64>; }
     "#,
     )
     .unwrap();
@@ -194,7 +194,7 @@ fn enforces_rust_identifier_conventions() {
         ("#[version(1)] enum flow_direction: u8 { Horizontal = 0 }", "UpperCamelCase"),
         ("#[version(1)] interface widget {}", "UpperCamelCase"),
         ("#[version(1)] interface button {}", "UpperCamelCase"),
-        ("#[version(1)] factory ui_factory {}", "UpperCamelCase"),
+        ("#[version(1)] interface ui_factory {}", "UpperCamelCase"),
         ("#[version(1)] enum Direction: u8 { LEFT_TO_RIGHT = 0 }", "UpperCamelCase"),
         ("#[version(1)] struct Size { Width: u32 }", "snake_case"),
         ("#[version(1)] enum Event { Resize { NewWidth: u32 } }", "snake_case"),
@@ -224,7 +224,7 @@ fn enforces_rust_identifier_conventions() {
 fn rejects_mutable_object_borrows() {
     let error = parse_module(
         Path::new("neocogi/ui.ncidl"),
-        "#[version(1)] interface IWidget {} #[version(1)] factory Factory { fn edit(&self, value: &mut IWidget) -> Result<()>; }",
+        "#[version(1)] interface IWidget {} #[version(1)] interface Factory { fn edit(&self, value: &mut IWidget) -> Result<()>; }",
     )
     .unwrap_err();
     assert!(error.to_string().contains("must use `&mut [T]`"));
@@ -456,4 +456,13 @@ fn rejects_noncanonical_module_part_paths() {
     let error = parse_module_parts(Path::new("neocogi/ui"), &[part]).unwrap_err().to_string();
 
     assert!(error.contains("must be a .ncidl file below module directory"), "{error}");
+}
+
+/// Construction and implementation roles belong to Rust, outside the contract grammar.
+#[test]
+fn rejects_removed_class_and_factory_keywords() {
+    for keyword in ["class", "factory"] {
+        let source = format!("#[version(1)] {keyword} Service {{}}");
+        assert!(parse_module(Path::new("example/contracts.ncidl"), &source).is_err());
+    }
 }

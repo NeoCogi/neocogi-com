@@ -3,7 +3,7 @@
 use std::fmt;
 
 use crate::{
-    AbiType, Declaration, DeclarationKind, EnumNames, EnumRepr, InterfaceRole, Method, NamedType, Receiver, ResolvedDeclaration, ResolvedModule,
+    AbiType, Declaration, DeclarationKind, EnumNames, EnumRepr, Method, NamedType, Receiver, ResolvedDeclaration, ResolvedModule,
     ResolvedModules, Threading, VariantFields,
 };
 use proc_macro2::{Ident, Literal, Span, TokenStream};
@@ -112,9 +112,8 @@ fn generate_module(graph: &Generation<'_>, module_name: &str) -> Result<crate::G
         .declarations
         .iter()
         .enumerate()
-        .map(|(index, declaration)| {
-            generate_declaration(graph, module, declaration, index)
-        })
+        .map(|(index, declaration)| generate_declaration(graph, module, declaration, index)
+        )
         .collect::<Result<Vec<_>, _>>()?;
     let module_id = guid_literal(module.module_id);
     let fingerprint = module.abi_fingerprint.iter().copied();
@@ -286,9 +285,8 @@ fn design_field_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiTy
                 _ => quote! { ::neocogi_com::design::IdlValueType::WeakBoxObject(#qualified) },
             })
         }
-        AbiType::ComPtr(value) | AbiType::ComBox(value) => {
-            design_field_type(graph, module, value)
-        }
+        AbiType::ComPtr(value) | AbiType::ComBox(value) => design_field_type(graph, module, value)
+        ,
         AbiType::Vector(value) => {
             let value = design_field_type(graph, module, value)?;
             Ok(quote! { ::neocogi_com::design::IdlValueType::Sequence(&#value) })
@@ -592,26 +590,16 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
             let bases = bases(graph, module, &interface.bases)?;
             let methods = interface_methods(graph, module, &interface.methods)?;
             let threading = threading_ident(interface.threading);
-            let factory = matches!(interface.role, InterfaceRole::Factory).then(|| quote! { factory, });
-            let class_abi = rust_ident(&format!("{}Abi", declaration.name))?;
-            let class_marker = (interface.role == InterfaceRole::Class).then(|| {
-                quote! {
-                    // SAFETY: this projection was declared by an explicit IDL class contract.
-                    unsafe impl ::neocogi_com::ComClassInterface for #class_abi {}
-                }
-            });
             format_rust(quote! {
                 #[::neocogi_com::com_interface(
                     assigned_guid = #id,
                     name = #qualified_name,
                     threading = #threading,
-                    #factory
                     assigned_signature = #assigned_signature
                 )]
                 #declaration_docs
                 pub trait #name #bases { #(#methods)* }
-                #class_marker
-            })
+                })
         }
     }
 }

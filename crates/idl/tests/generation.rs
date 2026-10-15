@@ -10,15 +10,16 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
 /// Imported messages generate typed access without pulling transport into the baseline ABI crate.
 #[test]
 fn imported_event_getters_use_the_declaring_module() {
-    let message = module("example/messages.ncidl", "extern neocogi.com.events; use neocogi.com.events::IEvent; #[version(1)] struct Changed { value: u32 } #[version(1)] interface IChanged: IEvent { fn value(&self) -> Result<Changed>; }");
+    let message = module("example/messages.ncidl", "extern neocogi.com.events; use neocogi.com.events::IEvent; #[version(1)] struct Changed { value: u32 } #[version(1)] interface IChanged: IEvent { fn value(&self) -> Result<Changed>; }",
+    );
     let source = module(
         "example/source.ncidl",
         r#"
         extern example.messages;
         use example.messages::IChanged;
         extern neocogi.com.events; use neocogi.com.events::EventBinding;
-        #[version(1)] factory ISourceFactory { fn create(&self, events: &EventBinding) -> Result<ComPtr<ISource>>; }
-        #[version(1)] #[events(IChanged)] class ISource {}
+        #[version(1)] interface ISourceFactory { fn create(&self, events: &EventBinding) -> Result<ComPtr<ISource>>; }
+        #[version(1)] #[events(IChanged)] interface ISource {}
     "#,
     );
     let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));
@@ -82,7 +83,7 @@ fn generates_rust_bindings_for_a_module_graph() {
 
         #[threading(shared)]
         #[version(3)]
-        factory UiFactory {
+        interface UiFactory {
             fn create(&self, size: Size, texture: &ITexture) -> Result<ComPtr<Button>>;
             fn read(&self, output: &mut [u8]) -> Result<u32>;
         }
@@ -95,7 +96,7 @@ fn generates_rust_bindings_for_a_module_graph() {
     syn::parse_file(&generated).expect("generated bindings must be valid Rust syntax");
     assert!(generated.lines().count() > 20, "generated bindings must use readable multiline formatting");
     assert!(generated.contains("com_interface"));
-    assert!(generated.contains("factory,"));
+    assert!(!generated.contains("factory,"));
     assert!(generated.contains("com_int_enum"));
     assert!(generated.contains("com_bit_enum"));
     assert!(generated.contains("pub bitenum WindowOptions: u16"));
@@ -240,8 +241,8 @@ fn generated_interface_exposes_its_idl_event_and_nested_message_shape() {
             Submitted,
         }
         extern neocogi.com.events; use neocogi.com.events::EventBinding;
-        #[version(1)] factory WidgetFactory { fn create(&self, events: &EventBinding) -> Result<ComPtr<Widget>>; }
-        #[version(1)] class Widget {}
+        #[version(1)] interface WidgetFactory { fn create(&self, events: &EventBinding) -> Result<ComPtr<Widget>>; }
+        #[version(1)] interface Widget {}
     "#,
     );
     let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));
@@ -270,8 +271,8 @@ fn direct_design_shape_resolution_preserves_variant_grouping_and_tags() {
             Pause,
         }
         extern neocogi.com.events; use neocogi.com.events::EventBinding;
-        #[version(1)] factory ShapeFactory { fn create(&self, events: &EventBinding) -> Result<ComPtr<Actor>>; }
-        #[version(1)] class Actor {}
+        #[version(1)] interface ShapeFactory { fn create(&self, events: &EventBinding) -> Result<ComPtr<Actor>>; }
+        #[version(1)] interface Actor {}
     "#,
     );
     let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));

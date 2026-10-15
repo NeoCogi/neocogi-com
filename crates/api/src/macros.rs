@@ -7,7 +7,7 @@
 //! participating in the `AbiType` and `AbiPlainValue` contracts.
 
 #[cfg(feature = "macros")]
-pub use neocogi_com_macros::{ComDeserialize, ComSerialize, com_enum, com_class, com_factory, com_interface, com_object, com_struct, com_value, factory_plugin};
+pub use neocogi_com_macros::{ComDeserialize, ComSerialize, com_enum, com_object, com_interface, com_struct, com_value, plugin};
 
 /// Defines an ABI-stable enum-like integer newtype.
 ///
@@ -354,39 +354,5 @@ macro_rules! com_bit_enum {
                 <$repr as $crate::ComDeserialize>::com_deserialize(decoder).map(Self::from_raw)
             }
         }
-    };
-}
-
-/// Exports a plugin descriptor from a dynamic-library assembly.
-///
-/// `factory_plugin!` defines metadata and an ordinary Rust accessor. Dynamic
-/// assemblies invoke this macro once; statically linked assemblies call the
-/// accessor directly and omit the exported symbol.
-/// The default accessor is `plugin_descriptor()`; an explicit accessor path may
-/// be supplied. The export is `nc_get_plugin_descriptor_v1` and returns a borrowed
-/// [`NcPluginDescriptor`](crate::NcPluginDescriptor), never a factory reference.
-#[macro_export]
-macro_rules! export_factory_plugin {
-    () => {
-        $crate::export_factory_plugin!(plugin_descriptor);
-    };
-    ($descriptor:path) => {
-        /// Returns validated plugin metadata through the dynamic ABI.
-        /// Success borrows the descriptor without registration or acquisition;
-        /// a usable output slot remains null on validation failure.
-        ///
-        /// # Safety
-        ///
-        /// `out` must be null or aligned and writable for one descriptor pointer.
-        /// The exporting module and every reachable metadata allocation must
-        /// remain live and immutable while that metadata is used.
-        #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn nc_get_plugin_descriptor_v1(out: *mut *const $crate::NcPluginDescriptor) -> $crate::NcStatus {
-            // SAFETY: The accessor returns immutable static metadata and the
-            // caller supplies the raw output slot validated by the helper.
-            unsafe { $crate::return_plugin_descriptor(out, $descriptor()) }
-        }
-        // Keep symbol shape synchronized with the core ABI declaration.
-        const _: $crate::NcGetPluginDescriptor = nc_get_plugin_descriptor_v1;
     };
 }

@@ -10,7 +10,8 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
 /// Any payload forbids assignments throughout the enum, including unused templates.
 #[test]
 fn payload_enum_tags_are_compiler_owned_for_every_variant_shape() {
-    for body in ["Empty = 0, Value(T)", "Empty, Value(T) = 1", "Value { data: T } = 3", "Empty = 4, Zero(())", "Zero { value: () } = 0"] {
+    for body in ["Empty = 0, Value(T)", "Empty, Value(T) = 1", "Value { data: T } = 3", "Empty = 4, Zero(())", "Zero { value: () } = 0",
+    ] {
         for parameters in ["", "<T>"] {
             let body = if parameters.is_empty() { body.replace("T", "u32") } else { body.into() };
             let source = format!("#[version(1)] enum Choice{parameters} {{ {body} }}");
@@ -40,8 +41,8 @@ fn common_event_binding_rejects_type_arguments() {
         let source = module(
             "example/events.ncidl",
             &format!(
-                "extern neocogi.com.events; use neocogi.com.events::EventBinding; #[version(1)] {declaration} #[version(1)] factory SourceFactory {{ fn create(&self, events: &EventBinding<Source, Changed>) -> Result<ComPtr<Source>>; }}
-        #[version(1)] class Source {{}}"
+                "extern neocogi.com.events; use neocogi.com.events::EventBinding; #[version(1)] {declaration} #[version(1)] interface SourceFactory {{ fn create(&self, events: &EventBinding<Source, Changed>) -> Result<ComPtr<Source>>; }}
+        #[version(1)] interface Source {{}}"
             ),
         );
         let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));
@@ -77,7 +78,7 @@ fn resolves_a_contract_dependency_graph() {
             }
 
             #[version(1)]
-            factory UiFactory {
+            interface UiFactory {
                 fn create_button(&self, size: Size) -> Result<ComPtr<Button>>;
             }
         "#,
@@ -173,8 +174,8 @@ fn fingerprints_typed_layout_and_callable_changes() {
         fingerprint("#[version(1)] interface IBase {} #[version(1)] interface IService {}")
     );
     assert_ne!(
-        fingerprint("#[threading(shared)] #[version(1)] factory Service {}"),
-        fingerprint("#[threading(local)] #[version(1)] factory Service {}")
+        fingerprint("#[threading(shared)] #[version(1)] interface Service {}"),
+        fingerprint("#[threading(local)] #[version(1)] interface Service {}")
     );
 }
 
@@ -250,13 +251,13 @@ fn rejects_ambiguous_object_parameter_ownership() {
             interface Button {}
 
             #[version(1)]
-            factory UiFactory {
+            interface UiFactory {
                 fn adopt(&self, button: Button) -> Result<()>;
             }
         "#,
     );
     let error = resolve_modules(vec![source]).unwrap_err();
-    assert!(error.to_string().contains("must borrow interface, class, and factory"));
+    assert!(error.to_string().contains("must borrow interface"));
 }
 
 /// Confirms module imports form an acyclic native dependency graph.
@@ -377,7 +378,7 @@ fn reports_definition_for_mismatched_field_type() {
     let source = parse_module_parts(Path::new("neocogi/ui"), &parts).unwrap();
     let error = resolve_modules(vec![source]).unwrap_err().to_string();
 
-    assert!(error.contains("must borrow interface, class, and factory values"), "{error}");
+    assert!(error.contains("must borrow interface values"), "{error}");
     assert!(error.contains("neocogi/ui/assets.ncidl:1:"), "{error}");
     assert!(error.contains("neocogi/ui/rendering.ncidl:1:25"), "{error}");
     assert!(error.contains("interface values require an explicit borrow"), "{error}");
@@ -513,15 +514,13 @@ fn rejects_invalid_bit_enum_values() {
     assert!(error.to_string().contains("repeats value 1"));
 }
 
-/// Common interfaces preserve construction roles and thread-safety promises in signatures.
+/// Common interfaces preserve thread-safety promises in signatures.
 #[test]
-fn interface_roles_and_threading_are_contract_identity_inputs() {
-    // Keep the nominal name/version equal so only the role/capability differs.
+fn interface_threading_is_a_contract_identity_input() {
+    // Keep the nominal name/version equal so only the threading capability differs.
     let fingerprint = |source: &str| resolve_modules(vec![module("example/contract.ncidl", source)]).unwrap().modules()[0].abi_fingerprint;
     let ordinary = fingerprint("#[version(1)] interface Root {}");
-    let factory = fingerprint("#[version(1)] factory Root {}");
     let shared = fingerprint("#[version(1)] #[threading(shared)] interface Root {}");
-    assert_ne!(ordinary, factory);
     assert_ne!(ordinary, shared);
 }
 
@@ -559,7 +558,7 @@ fn reserves_all_visible_macro_companions() {
         let source = format!(
             r#"
                 #[version(1)] enum EditorEvent {{ Changed }}
-                #[version(1)] class Editor {{ fn post(&mut self, event: &EditorEvent) -> Result<()>; }}
+                #[version(1)] interface Editor {{ fn post(&mut self, event: &EditorEvent) -> Result<()>; }}
                 #[version(1)] struct {name} {{ value: u32 }}
             "#
         );

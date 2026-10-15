@@ -19,9 +19,9 @@ runtime    -> registers plugins, checks factories, retains loaded libraries
 Contract sources are resolved at build time; generated interfaces, vtables,
 metadata, and signatures remain in their consumers. No separate contract `.so`, native description
 archive, getter, runtime inventory, or event-contract seeding is produced.
-`interface` describes callable behavior; `class` describes a concrete product's
-projections; `factory` marks construction roots. Implementations own private Rust
-state. Events are ordinary typed values delivered to a constructor-supplied queue.
+`interface` describes callable behavior and required projections. Implementations
+own private Rust state through `#[com_object]`; `#[plugin]` publishes a typed
+acquisition function. Ordinary methods construct parameterized objects. Events are ordinary typed values delivered to a constructor-supplied queue.
 
 The [plain-Cargo sample](../../examples/com-plugin/README.md) builds the same
 plugin as a shared library and as an rlib statically linked into a monolith.
@@ -39,7 +39,7 @@ the common [`IEventReceiver` projection](api/EVENTS.md), moves each exclusive ev
 origin, maps them to an application message, and posts the parent's standard queue.
 Exclusive widgets store their queue and `WeakComBox` origin directly; shared
 services may use `EventPort`. A constructed object exposes no receiver-installation method;
-`com_class` generates its ordinary COM implementation. Application behavior runs
+`com_object` generates its ordinary COM implementation. Application behavior runs
 later under ordinary mutable access. No event syntax or named output relay remains.
 
 Contracts use `struct`, `enum`, `bitenum`, `interface`, `class`, and `factory`. All declarations
@@ -64,7 +64,7 @@ interface ExampleObject: IMeasured {
 }
 
 #[version(1)]
-factory ExampleFactory {
+interface ExampleFactory {
     fn create(&self, extent: Extent) -> Result<ComPtr<ExampleObject>>;
 }
 ```
@@ -83,11 +83,11 @@ regenerates bindings after an IDL edit; no separate native artifact is built.
 ## Implementing interfaces
 
 `#[com_object(contract::Interface)]` associates private Rust storage with one
-interface contract. `#[com_factory(contract::Factory)]` does the same for a factory:
+interface contract, including an interface whose methods create other objects:
 
 <!-- checked-example: implementation -->
 ```rust,ignore
-use neocogi_com::{ComPtr, NcStatus, com_factory, com_object};
+use neocogi_com::{ComPtr, NcStatus, com_object};
 use example_contracts::*;
 
 /// Private state; shared COM ownership protects its allocation.
@@ -113,7 +113,7 @@ impl ExampleObject for ExampleObjectImpl {
 }
 
 /// Stateless root with the generated zero-argument bootstrap.
-#[com_factory(example_contracts::ExampleFactory)]
+#[com_object(example_contracts::ExampleFactory)]
 struct ExampleFactoryImpl;
 
 impl ExampleFactory for ExampleFactoryImpl {
@@ -136,14 +136,11 @@ Use `&mut self` for mutation and keep ordinary state in plain fields.
 
 <!-- checked-example: plugin -->
 ```rust,ignore
-neocogi_com::factory_plugin! {
-    name = "example.component",
-    version = "1.0.0",
-    factory = ExampleFactoryImpl,
+/// Acquires one initialized provider; returns its exact interface projection.
+#[neocogi_com::plugin(name = "example.component", version = "1.0.0")]
+fn acquire_root() -> Result<neocogi_com::ComPtr<example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+    ExampleFactoryImpl::from_value(ExampleFactoryImpl).query()
 }
-
-#[cfg(feature = "dynamic-plugin")]
-neocogi_com::export_factory_plugin!();
 ```
 
 The plugin exports `nc_get_plugin_descriptor_v1`. Descriptor ABI v1
@@ -152,8 +149,9 @@ IID/signature, threading, and one bootstrap pointer. Static assemblies call
 `plugin_descriptor()` directly. Both paths borrow the provider-authored
 `NcPluginDescriptor`; neither acquires a factory. The runtime later returns
 `PluginInfo` for inspection, adding registration origin and omitting bootstrap
-code. Only factories receive generated zero-argument construction; ordinary
-objects use `from_value`.
+code. Every shared object uses `from_value(initialized_value)`. The zero-argument
+Rust acquisition function owns initialization and transfers one reference. A root
+may be a finished service or an ordinary provider with typed creation methods.
 
 ## Host acquisition
 
@@ -174,7 +172,7 @@ fn static_example() -> Result<(), NcStatus> {
         .ok_or(neocogi_com::NC_E_NOT_FOUND)?;
     assert_eq!(info.factory.interface, descriptor.root_factory);
     assert_eq!(info.origin, neocogi_com::PluginOrigin::Static);
-    let factory = runtime.acquire_plugin_factory::<ExampleFactoryAbi>(info.plugin_id)?;
+    let factory = runtime.acquire_plugin_root::<ExampleFactoryAbi>(info.plugin_id)?;
     let mut object = factory.create(Extent { width: 10, height: 20 })?;
     assert_eq!(object.extent()?, Extent { width: 10, height: 20 });
     object.resize(Extent { width: 44, height: 31 })?;
@@ -193,7 +191,7 @@ cargo test -p neocogi-idl --test documentation
 ```
 
 Dynamic hosts use `runtime.load_plugin_library(path)` for an application-selected
-trusted library, then call `acquire_plugin_factory` with its plugin ID. Loading
+trusted library, then call `acquire_plugin_root` with its plugin ID. Loading
 is unsafe because the library contains native code. The
 [plain-Cargo example](../../examples/com-plugin/README.md) covers full shared
 and monolithic builds rather than leaving that deployment setup implicit.

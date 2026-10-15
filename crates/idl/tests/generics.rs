@@ -1,6 +1,6 @@
 //! Closed generic contracts must agree across independent consuming modules.
 use std::path::Path;
-use neocogi_idl::{DeclarationKind, InterfaceRole, Module, ResolvedModules, parse_module, resolve_modules};
+use neocogi_idl::{DeclarationKind, Module, ResolvedModules, parse_module, resolve_modules};
 
 /// Gives an inline contract its actual logical module identity.
 fn module(path: &str, source: &str) -> Module {
@@ -34,8 +34,8 @@ fn consumer(name: &str, extra: &str) -> Module {
         use test.transport::IStream;
         use test.messages::Event;
         #[version(1)] interface IObject {{ fn value(&self) -> Result<u32>; }}
-        #[version(1)] class Object: IObject + IStream<Event> {{}}
-        #[version(1)] factory Factory {{ fn create(&self) -> Result<ComPtr<Object>>; }}
+        #[version(1)] interface Object: IObject + IStream<Event> {{}}
+        #[version(1)] interface Factory {{ fn create(&self) -> Result<ComPtr<Object>>; }}
         {extra}
     "#
         ),
@@ -69,7 +69,7 @@ fn independent_consumers_share_specialization_identity_and_signature() {
         syn::parse_file(&rust).expect("closed bindings are ordinary Rust interfaces");
     }
     let object = first.module("test.first").unwrap().source.declaration("Object").unwrap();
-    assert!(matches!(&object.kind, DeclarationKind::Interface(interface) if interface.role == InterfaceRole::Class));
+    assert!(matches!(&object.kind, DeclarationKind::Interface(_) ));
 }
 
 /// The full event ABI, including nested field changes, participates in stream negotiation.
@@ -94,13 +94,13 @@ fn rejects_open_and_invalid_specializations() {
                 r#"
             extern test.transport; extern test.messages;
             use test.transport::IStream; use test.messages::Event;
-            #[version(1)] class Invalid: {reference} {{}}
+            #[version(1)] interface Invalid: {reference} {{}}
         "#
             ),
         );
         assert!(resolve_modules(vec![templates(), messages(), source]).is_err(), "{reference} must fail");
     }
-    assert!(parse_module(Path::new("test/invalid.ncidl"), "#[version(1)] class Object<T> {}").is_err());
+    assert!(parse_module(Path::new("test/generic.ncidl"), "#[version(1)] interface Object<T> {}").is_ok());
 }
 
 /// Ordinary ABI-safe values also work; generics are not an event-language feature.
@@ -110,7 +110,7 @@ fn generic_interface_accepts_scalar_arguments_in_valid_positions() {
         "test/scalars.ncidl",
         r#"
         #[version(1)] interface IValue<T> { fn get(&self) -> Result<T>; fn set(&mut self, value: T) -> Result<()>; }
-        #[version(1)] class Counter: IValue<u32> {}
+        #[version(1)] interface Counter: IValue<u32> {}
     "#,
     );
     let graph = resolve_modules(vec![source]).unwrap();
@@ -126,7 +126,7 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
         "proof/contracts.ncidl",
         "#[version(1)] interface IValue<T> { fn get(&self) -> Result<T>; fn set(&mut self, value: T) -> Result<()>; }",
     );
-    let source = "extern proof.contracts; use proof.contracts::IValue; #[version(1)] class Counter: IValue<u32> {}";
+    let source = "extern proof.contracts; use proof.contracts::IValue; #[version(1)] interface Counter: IValue<u32> {}";
     let graph = resolve_modules(vec![template, module("proof/producer.ncidl", source), module("proof/consumer.ncidl", source)]).unwrap();
     let owner = graph.module("proof.producer").unwrap();
     let contract = &owner.source.declarations.iter().find(|source| source.specialization.is_some()).unwrap().name;
@@ -164,9 +164,18 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
             /// Mutates the same state through either independently generated client.
             fn set(&mut self, value: u32) -> Result<(), neocogi_com::NcStatus> {{ self.value = value; Ok(()) }}
         }}
+        #[neocogi_com::plugin(name = "proof.closed.generic")]
+        /// Closed generic projections are ordinary plugin roots.
+        fn acquire_root() -> Result<neocogi_com::ComPtr<producer::{contract}Abi>, neocogi_com::NcStatus> {{
+            Counter::from_value(Counter {{ value: 7 }}).query()
+        }}
         #[test]
         fn calls_peer_specialization() {{
-            let owner = Counter::from_value(Counter {{ value: 7 }});
+            let mut raw = neocogi_com::ComRaw::null();
+            // SAFETY: the generated adapter receives valid raw output storage.
+            assert_eq!(unsafe {{ (plugin_descriptor().acquire.unwrap())(&mut raw) }}, neocogi_com::NC_OK);
+            // SAFETY: the adapter transferred the exact generated specialization.
+            let owner = unsafe {{ neocogi_com::ComPtr::<producer::{contract}Abi>::__nc_from_raw_owned_checked(raw.cast()) }}.unwrap();
             let mut peer = owner.query::<consumer::{contract}Abi>().unwrap();
             assert_eq!(peer.get(), Ok(7));
             peer.set(41).unwrap();
@@ -209,7 +218,6 @@ fn generic_values_reject_invalid_closed_layout_and_ownership() {
     }
     for source in [
         "#[version(1)] struct Invalid<String> { value: String }",
-        "#[version(1)] factory Factory<T> {}",
         "#[version(1)] struct Boxed<T, T> { value: T }",
     ] {
         assert!(parse_module(Path::new("proof/bad.ncidl"), source).is_err());
@@ -244,9 +252,9 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
         extern proof.templates; extern neocogi.com.events;
         use proof.templates::{Pair, Node, Change, Handle, IExchange, IValueReceiver};
         use neocogi.com.events::EventBinding;
-        #[version(1)] factory ExchangeFactory { fn create(&self, events: &EventBinding) -> Result<ComPtr<Exchange>>; }
-        #[version(1)] class Exchange: IExchange<Pair<bool, bool>> {}
-        #[version(1)] class Receiver: IValueReceiver<Change<Node<String>>> {}
+        #[version(1)] interface ExchangeFactory { fn create(&self, events: &EventBinding) -> Result<ComPtr<Exchange>>; }
+        #[version(1)] interface Exchange: IExchange<Pair<bool, bool>> {}
+        #[version(1)] interface Receiver: IValueReceiver<Change<Node<String>>> {}
         #[version(1)] interface IData { fn inspect(&self, owner: &Handle<IUnknown>) -> Result<()>; }
     "#;
     // Resolve independently: accidental dependence on the other consumer's
@@ -305,8 +313,7 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
     for (name, graph) in [("producer", &producer), ("consumer", &consumer), ("rebound", &rebound)] {
         fs::write(
             project.path().join(format!("src/{name}.rs")),
-            generate_rust(graph, "proof.contract").unwrap(),
-        )
+            generate_rust(graph, "proof.contract").unwrap())
         .unwrap();
     }
     fs::write(

@@ -146,7 +146,7 @@ policy; binding does not manufacture an invocation ID absent from the protocol.
 Declare cross-COM facts as immutable interfaces derived from `IEvent`; pass the
 common `EventBinding` into the factory. The behavioral parent creates its receiver
 before construction. Widgets retain that receiver and their cached weak origin.
-Exclusive widgets use `#[com_class(Contract, ownership = exclusive)]`; shared services
+Exclusive widgets use `#[com_object(Contract, ownership = exclusive)]`; shared services
 retain the default ownership policy. No later binding operation exists.
 
 | Event interface | Producers | Captured data |
@@ -168,7 +168,7 @@ relies on when reading an independently implemented event.
 `#[events(...)]` advertises the emitted interfaces. `IDL_INTERFACE.events` describes
 their identities and actual getters; catalog registration validates the reachable
 value graph. The loader checks observable keys before construction and the advertised
-class after it. See [event metadata](IDL_EVENT_METADATA.md).
+interface after it. See [event metadata](IDL_EVENT_METADATA.md).
 
 `*_with_queue` passes `IEventReceiver`; `*_unobserved` chooses permanent non-delivery.
 There is no later attachment API. Windows, popups, menus, built-ins and plugins use
@@ -373,7 +373,7 @@ Programmatic setters do not manufacture user-originated events. Label, font,
 icon, wrapping and numeric-label changes retain a sticky geometry marker.
 
 Button and ListBox expose `set_image(texture, fit_width)` directly on their
-class contracts. The operation
+interface contracts. The operation
 retains an immutable `ITexture`, validates its positive dimensions once and then
 commits the edit. A failed dimension query leaves the previous content intact;
 recursive image editing during that query reports BUSY. Measurement and paint
@@ -584,7 +584,7 @@ receiver reference. A child must not need to upgrade a weak parent handle to
 perform an ordinary edit.
 
 Composition does not reinstate the removed wrapper design. The registered outer
-class still owns its own runtime, topology, and outer behavior directly. Each child
+interface still owns its own runtime, topology, and outer behavior directly. Each child
 is a separately targetable retained role with its own identity. Do not introduce a
 generic core containing the outer class's algorithm, or duplicate a child's state
 on the parent merely to make forwarding convenient.
@@ -725,7 +725,7 @@ the committed stable ID back to their domain values.
 
 Menus retain their compact representation: one surface owns direct row values,
 with no synthetic widget tree per row. The runtime exposes `IMenus` alongside its
-factory and window manager. A root `MenuBuilder` owns one native declaration;
+interface and window manager. A root `MenuBuilder` owns one native declaration;
 child builders address append-only submenus inside it. Keep the root alive until
 mounting. Dropping an unconsumed root expires its child builders and row sources.
 Only root builders can be mounted, in their creating runtime, once. Failed owner,

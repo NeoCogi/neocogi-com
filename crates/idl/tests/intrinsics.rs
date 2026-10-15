@@ -28,7 +28,7 @@ fn array_and_slice_shorthands_have_identical_fingerprints() {
 /// Closing a borrowed generic referent selects the ordinary slice calling convention.
 #[test]
 fn generic_slice_referents_normalize_after_substitution() {
-    let resolved = graph("#[version(1)] interface IInput<T> { fn read(&self, values: &T) -> Result<()>; } #[version(1)] class Reader: IInput<Slice<u32>> {}");
+    let resolved = graph("#[version(1)] interface IInput<T> { fn read(&self, values: &T) -> Result<()>; } #[version(1)] interface Reader: IInput<Slice<u32>> {}");
     let module = &resolved.modules()[0];
     let instance = module.source.declarations.iter().find(|value| value.specialization.is_some()).unwrap();
     let DeclarationKind::Interface(interface) = &instance.kind else {

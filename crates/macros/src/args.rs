@@ -101,8 +101,6 @@ pub(crate) struct InterfaceArgs {
     pub(crate) runtime_crate: Option<Path>,
     /// Minimum capability promised by this callable contract.
     pub(crate) threading: InterfaceThreading,
-    /// Whether this interface may be used as a plugin factory root.
-    pub(crate) factory: bool,
 }
 
 /// Source form used to obtain a stable plugin, object, or interface GUID.
@@ -272,8 +270,6 @@ impl Parse for InterfaceArgs {
         let mut runtime_crate = None;
         let mut assigned_signature = None;
         let mut threading = None;
-        let mut factory = false;
-
         while !input.is_empty() {
             if input.peek(LitStr) {
                 if guid.is_some() {
@@ -323,11 +319,6 @@ impl Parse for InterfaceArgs {
                         "shared" => InterfaceThreading::Shared,
                         _ => return Err(syn::Error::new(value.span(), "threading must be `local` or `shared`")),
                     });
-                } else if keyword == "factory" {
-                    if factory {
-                        return Err(syn::Error::new(keyword.span(), "duplicate factory role"));
-                    }
-                    factory = true;
                 } else if keyword == "assigned_signature" {
                     parse_assigned_signature(input, keyword, &mut assigned_signature)?;
                 } else {
@@ -350,7 +341,6 @@ impl Parse for InterfaceArgs {
             assigned_signature,
             runtime_crate,
             threading: threading.unwrap_or(InterfaceThreading::Local),
-            factory,
         })
     }
 }

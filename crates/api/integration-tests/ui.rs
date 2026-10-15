@@ -5,7 +5,7 @@ fn ui_errors_are_stable() {
     t.compile_fail("integration-tests/ui/object_ownership_constructors.rs");
     t.compile_fail("integration-tests/ui/object_ownership_invalid.rs");
     t.compile_fail("integration-tests/ui/object_no_default_constructor.rs");
-    t.compile_fail("integration-tests/ui/factory_requires_role.rs");
+    t.pass("integration-tests/ui/object_ordinary_interface.rs");
     t.compile_fail("integration-tests/ui/class_generic_borrowed.rs");
     t.compile_fail("integration-tests/ui/class_lifetime.rs");
 

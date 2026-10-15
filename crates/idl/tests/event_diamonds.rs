@@ -50,7 +50,7 @@ fn shared_plain_and_generic_ancestors_publish_getters_once() {
             #[version(1)] interface Fact: Left + Right { fn revision(&self) -> Result<u32>; }
             #[version(1)] interface ScalarFact: ScalarLeft + ScalarRight {}
             #[version(1)] interface PlainFact: PlainLeft + PlainRight { fn revision(&self) -> Result<u32>; }
-            #[version(1)] #[events(ScalarFact, Fact, PlainFact)] class Source {}
+            #[version(1)] #[events(ScalarFact, Fact, PlainFact)] interface Source {}
         "#,
         ),
     ])

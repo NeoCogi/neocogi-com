@@ -19,7 +19,7 @@ use syn::{
 
 use crate::{
     PersistencePolicy, AbiType, BitEnum, BitFlag, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant,
-    ExternalModule, Field, Import, Interface, InterfaceRole, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile,
+    ExternalModule, Field, Import, Interface, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile,
     SourceSpan, Struct, Threading, VariantFields,
 };
 
@@ -27,8 +27,6 @@ mod keyword {
     //! Custom declaration keywords that intentionally are not Rust items.
 
     syn::custom_keyword!(interface);
-    syn::custom_keyword!(factory);
-    syn::custom_keyword!(class);
     syn::custom_keyword!(bitenum);
 }
 
@@ -247,13 +245,9 @@ impl Parse for ModuleSyntax {
             } else if input.peek(keyword::bitenum) {
                 parse_bit_enum(attributes, input)?
             } else if input.peek(keyword::interface) {
-                parse_interface(attributes, input, InterfaceRole::Ordinary)?
-            } else if input.peek(keyword::class) {
-                parse_interface(attributes, input, InterfaceRole::Class)?
-            } else if input.peek(keyword::factory) {
-                parse_interface(attributes, input, InterfaceRole::Factory)?
+                parse_interface(attributes, input)?
             } else {
-                return Err(input.error("expected `extern`, `use`, `struct`, `enum`, `bitenum`, `interface`, `class`, or `factory`"));
+                return Err(input.error("expected `extern`, `use`, `struct`, `enum`, `bitenum`, or `interface`"));
             };
 
             if let Some(previous) = declaration_names.insert(declaration.name.clone(), declaration.span.clone()) {
@@ -387,7 +381,7 @@ fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result
 }
 
 /// Parses one common callable contract and applies its role-specific policy.
-fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>, role: InterfaceRole) -> syn::Result<Declaration> {
+fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Declaration> {
     let metadata = parse_attributes(attributes, AttributeContext::Interface)?;
     let threading = metadata_threading(&metadata);
     let events = metadata.events.clone();
@@ -397,19 +391,13 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>, role: Int
     let name = input.parse::<Ident>()?;
     require_upper_camel_case(&name, "interface")?;
     let parameters = parse_type_parameters(input)?;
-    if !parameters.is_empty() && role != InterfaceRole::Ordinary {
-        return Err(syn::Error::new(
-            name.span(),
-            "classes and factories must be concrete; only structs, enums, and interfaces may declare type parameters",
-        ));
-    }
     let bases = parse_bases(input)?;
     let methods = parse_methods(input)?;
     Ok(declaration(
         name,
         parameters,
         metadata,
-        DeclarationKind::Interface(Interface { bases, events, methods, role, threading }),
+        DeclarationKind::Interface(Interface { bases, events, methods, threading }),
     ))
 }
 
@@ -1128,7 +1116,8 @@ fn parse_persistence(attribute: &Attribute) -> syn::Result<PersistencePolicy> {
     let policy = attribute.parse_args::<Ident>()?;
     match policy.to_string().as_str() {
         "default" => Ok(PersistencePolicy::Default),
-        _ => Err(syn::Error::new_spanned(policy, "expected default; NCB fields are always positional and ordinary value persistence is automatic")),
+        _ => Err(syn::Error::new_spanned(policy, "expected default; NCB fields are always positional and ordinary value persistence is automatic",
+        )),
     }
 }
 

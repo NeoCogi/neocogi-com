@@ -11,7 +11,7 @@ use std::path::Path;
 use std::vec::Vec;
 
 use crate::{
-    ComFactoryInterface, ComInterface, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND,
+    ComInterface, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND,
     NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_ABI_THREADING_THREAD_LOCAL, NcDebugApiV1, NcPluginDescriptor, NcGuid, NcRuntimeApiV1, NcStatus,
     NcUtf8View, ThreadingModel,
 };
@@ -132,9 +132,9 @@ impl Runtime {
     ///
     /// The runtime checks the requested factory IID, full ABI signature, and
     /// threading capability before this method constructs a typed owner.
-    pub fn acquire_plugin_factory<T>(&self, plugin_id: NcGuid) -> Result<ComPtr<T, <T as ComInterface>::Threading>, NcStatus>
+    pub fn acquire_plugin_root<T>(&self, plugin_id: NcGuid) -> Result<ComPtr<T, <T as ComInterface>::Threading>, NcStatus>
     where
-        T: ComFactoryInterface,
+        T: ComInterface,
     {
         let mut out = crate::ComRaw::<IUnknown>::null();
         // SAFETY: The local output slot is writable and the associated IDL

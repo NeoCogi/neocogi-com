@@ -62,9 +62,9 @@ fn template_free_names_use_resolved_identity() {
     assert_eq!(fingerprint(before), fingerprint(after));
 }
 
-/// Pins canonical encoding v9, including positional generic payloads.
+/// Pins canonical encoding v10, including positional generic payloads.
 #[test]
 fn canonical_module_encoding_has_stable_golden_digest() {
     let source = "#[version(2)] enum State: u8 { Empty = 0, Ready = 7 } #[version(1)] enum Data<T> { Empty, Value(T) } #[version(1)] struct Snapshot { state: State, value: Data<bool> }";
-    assert_eq!(fingerprint(source), [118, 241, 65, 101, 217, 147, 131, 143, 84, 255, 6, 38, 180, 45, 164, 57, 214, 63, 214, 152, 76, 184, 248, 167, 20, 90, 227, 80, 22, 113, 16, 95]);
+    assert_eq!(fingerprint(source), [142, 12, 240, 231, 150, 255, 16, 116, 47, 47, 29, 86, 208, 182, 97, 241, 218, 136, 175, 156, 225, 60, 9, 130, 202, 0, 236, 230, 6, 154, 80, 73]);
 }

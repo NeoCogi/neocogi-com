@@ -5,10 +5,11 @@ crate containing generated Rust layouts, typed wrappers, and fixed signatures.
 No contract shared library, native description archive, getter, runtime graph,
 or contract registration step is produced.
 
-`interface` is the common callable model. `factory` marks the only parameterless
-construction roots. Concrete data defines event values; an ordinary queue argument
-selects their receiver during construction. Objects are private implementation values.
-The old `trait` and callback `port` declarations are removed. `class` declares a concrete object contract whose projections are implemented by one COM identity; private state and method bodies remain in Rust. Construction still belongs to an explicit factory.
+`interface` is the only callable contract declaration. It describes public
+methods, threading, required projections and event/design metadata. Rust owns
+concrete storage (`#[com_object]`) and plugin acquisition (`#[plugin]`). Ordinary
+typed interface methods handle parameterized construction. Concrete event values
+and an explicit receiver argument select event delivery during construction.
 
 A suffix such as `interface Button: IWidget + IActions` gives one physical vtable
 prefix (the first entry) and required sibling projections (later entries). All
@@ -43,8 +44,8 @@ Structs, enums, and interfaces can declare type parameters. Each use must supply
 #[version(1)] interface IValue<T> {
     fn get(&self) -> Result<Snapshot<T>>;
 }
-#[version(1)] class Counter: IValue<u32> {}
-#[version(1)] factory Counters {
+#[version(1)] interface Counter: IValue<u32> {}
+#[version(1)] interface Counters {
     fn create(&self) -> Result<ComBox<Counter>>;
 }
 ```
@@ -79,7 +80,7 @@ retain their existing contract meaning. Authored binder names and source spans
 remain available for diagnostics; hashing does not rewrite the source model.
 
 Templates and concrete declarations now share the explicit binary declaration
-encoder under `neocogi-idl:module-abi:v9`. The former separate template string
+encoder under `neocogi-idl:module-abi:v10`. The former separate template string
 encoding and its Debug-formatted policy values are removed. Both paths encode
 parameter positions, resolved free identities, member order, authored enum
 assignment presence, and declaration policies. Regenerate bindings and rebuild
@@ -88,11 +89,11 @@ adapter for the old signatures. Module-wide revision checking is retained.
 Changing implicit enum values to explicit assignments still requires a declaration
 version increment; see [contract changes and versions](#contract-changes-and-versions).
 
-`class` uses the same callable ABI machinery as `interface`, with a distinct
-contract role. Its first required interface provides the physical vtable prefix;
-other required interfaces are sibling projections on the same COM identity.
-Factories return the class projection. No constructor or implementation body is
-embedded in IDL, and a class can describe non-UI objects as well as widgets.
+Interfaces have no implementation-role discriminator in their canonical encoding.
+This is encoding revision 10; regenerate every affected contract and provider,
+including built-in persistence bindings. Runtime discovery remains ABI v1 and
+core layout remains v17. Closed generic interfaces work as object contracts and
+plugin roots; open templates have no callable ABI.
 
 Generic values can nest and recurse through explicit sequences:
 
@@ -182,14 +183,14 @@ interface IWidget {
 }
 
 #[version(1)]
-class Button: IWidget {
+interface Button: IWidget {
     fn label(&self) -> Result<ComPtr<INcString>>;
     fn set_label(&mut self, label: &[u8]) -> Result<()>;
     fn set_image(&mut self, image: &ITexture) -> Result<()>;
 }
 
 #[version(1)]
-factory UiFactory {
+interface UiFactory {
     fn create_button(
         &self,
         label: &[u8],
@@ -203,7 +204,7 @@ interface UiRuntime {
 }
 
 #[version(3)]
-factory UiPluginFactory {
+interface UiPluginFactory {
     fn create_runtime(&self) -> Result<ComPtr<UiRuntime>>;
 }
 ```
@@ -256,7 +257,7 @@ boundaries can reject them without losing the received ABI value.
 IDL identifiers are already their generated Rust API names; generation never
 silently rewrites them. The parser enforces the corresponding conventions:
 
-- `struct`, `enum`, `bitenum`, `interface`, `class`, and `factory` names use
+- `struct`, `enum`, `bitenum`, and `interface` names use
   `UpperCamelCase`.
 - Ordinary enum variants use `UpperCamelCase` just like Rust enum variants.
 - Bit-enum flags use `SCREAMING_SNAKE_CASE` because they are combinable typed
@@ -285,7 +286,7 @@ struct TextChanged {
 }
 
 #[version(1)]
-class Editor {
+interface Editor {
     /// Ordinary application command, independent from its constructor receiver.
     fn set_text(&mut self, text: &[u8]) -> Result<()>;
 }
@@ -565,7 +566,7 @@ include!(concat!(env!("OUT_DIR"), "/neocogi_ui_core.include.rs"));
 ```
 
 The module crate's handwritten `src` must not redeclare a contract `struct`,
-`enum`, `bitenum`, `interface`, or `factory`. Those declarations belong in
+`enum`, `bitenum`, or `interface`. Those declarations belong in
 `.ncidl`.
 
 Generated Rust is syntax-aware formatted source rather than a serialized token
@@ -675,27 +676,31 @@ and implicit persistence of weak references are unsupported. Borrow a named
 record to transfer weak facts. Structural metadata distinguishes `WeakObject`
 from the strong `Object` case; UI design catalog schema 10 carries that distinction.
 
-`#[com_object(Interface)]` implements a reusable interface, and
-`#[com_class(Class)]` implements a concrete class contract. Both use private Rust
-fields. Shared providers use `from_value(initialized_value)`; providers marked
+`#[com_object(Interface)]` implements any closed interface contract using private
+Rust fields. Shared providers use `from_value(initialized_value)`; providers marked
 `ownership = exclusive` use `into_box(initialized_value)` or its cyclic/local
-variants. Only the selected constructor family exists. Ordinary unit objects receive no default
-constructor. `#[com_factory(Factory)]` additionally implements
-`ComFactoryImplementation<Interface = FactoryAbi>`. Unit factories receive
-`ComFactoryBootstrap`; stateful factories implement that safe typed policy
-explicitly. Only factory bootstrap is callable without arguments through the
-runtime; later construction uses typed factory methods.
+variants. Only the selected constructor family exists. Unit objects also require
+explicit initialized values. Open generic IDL interfaces have no callable ABI;
+a generated closed specialization can be used exactly like any other interface.
+
+A plugin is a typed zero-argument acquisition function in its implementation crate:
 
 ```rust,ignore
-neocogi_com::factory_plugin! {
-    name = "example.plugin",
-    version = "1.0.0",
-    factory = RootFactoryImplementation,
+#[neocogi_com::plugin(name = "example.plugin")]
+fn acquire_root() -> Result<neocogi_com::ComPtr<api::IRootAbi>, neocogi_com::NcStatus> {
+    Root::from_value(Root::new()).query()
 }
-
-#[cfg(feature = "dynamic-plugin")]
-neocogi_com::export_factory_plugin!();
 ```
+
+The return must explicitly spell `Result<ComPtr<InterfaceAbi>, NcStatus>` (qualified
+paths are accepted). Rust checks its exact threading and error type. The macro
+reads the generated interface identity and threading rather than inferring ABI
+from method bodies. Version defaults to `CARGO_PKG_VERSION`. It generates a static
+`plugin_descriptor()` accessor and the discovery export under `dynamic-plugin`.
+Successful acquisition transfers one reference, without promising a singleton.
+Initialization errors are normalized and the raw output remains empty on failure.
+Ordinary interface methods own parameterized object construction; there are no
+IDL `class` or `factory` roles, constructor registries or erased argument bags.
 
 Hard provider requirements can be listed as `dependencies = [PLUGIN_ID]`.
 There is no `contracts` list. Plugin descriptor ABI v1 contains the full factory
@@ -704,9 +709,9 @@ IDs. Its native getter is `nc_get_plugin_descriptor_v1`.
 
 Dynamic loading validates and registers one plugin atomically. Providers must
 already be registered; registration invokes neither factories nor dependency
-loaders. Factory activation then checks the requested signature before bootstrap.
+loaders. Root acquisition then checks the requested signature before bootstrap.
 A monolith links plugin rlibs, registers their Rust descriptor getters directly,
-and uses the same activation operation against one `static-runtime` instance.
+and uses the same acquisition operation against one `static-runtime` instance.
 
 ## Tool ownership and migration
 
@@ -717,16 +722,14 @@ and uses the same activation operation against one `static-runtime` instance.
 - `neocogi-inspect` reads plugin/dependency/factory metadata as inspection schema
   9. It compares exact factory signatures and plans provider load order.
 
-Use `interface` for reusable capabilities, `class` for concrete object contracts, and `factory` for construction.
-Replace callback `port` declarations and observer annotations with ordinary values
-and a factory accepting `EventBinding`. Widget implementations
-use `#[com_class(Contract, ownership = exclusive)]` and ordinary fields for the
-typed queue and cached weak origin. Shared services use the default shared policy
-and may use the common Rust `EventPort`. Replace `ComObjectDescription` uses with `ComInterface`,
-`ComFactoryDescription` with `ComFactoryInterface`, and the implementation-side
-`ComClass` marker with `ComObject`. Factory implementation associations use
-`Interface` instead of `Description`. Use interface `IID`, `INTERFACE_ID`, and
-`INTERFACE_DESCRIPTOR` instead of duplicate `OBJECT_*` constants. Low-level
+Use `interface` for public capabilities, required projections and typed object
+construction methods. Remove former `class` and `factory` keywords; their names,
+methods, threading, events and design metadata remain on ordinary interfaces.
+Implement storage with `#[com_object]` and plugin acquisition with `#[plugin]`.
+Exclusive widgets use `ownership = exclusive`; shared services use the default
+shared policy. Keep event receivers in explicit private fields initialized by
+ordinary interface methods. Use interface `IID`, `INTERFACE_ID` and
+`INTERFACE_DESCRIPTOR`. Low-level
 handwritten `ComInterface` implementations must specify `type Threading`.
 Remove contract registration and `MODULE` imports, and rebuild against runtime
 ABI v1 and the versioned plugin descriptor getter. No legacy adapter retains the
@@ -773,7 +776,7 @@ return `None`; actual ABI/provider errors remain errors.
 
 `EventPort` is a nongeneric shared-service convenience with explicit terminal
 closure. Exclusive widgets store their common receiver and cached weak origin.
-`com_class(Contract, ownership = exclusive)` generates allocation and weak-call
+`com_object(Contract, ownership = exclusive)` generates allocation and weak-call
 admission, without event installation or callback adapters. See
 [COM event objects](COM_EVENT_INTERFACES.md).
 
@@ -798,7 +801,7 @@ interface IContainer {
 }
 
 #[version(1)]
-factory Widgets {
+interface Widgets {
     fn button(&self) -> Result<ComBox<Button>>;
 }
 ```

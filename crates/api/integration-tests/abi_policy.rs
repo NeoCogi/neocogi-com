@@ -1,6 +1,6 @@
 use neocogi_com::{
-    ComFactoryImplementation, ComInterface, ComPtr, ComRef, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_OK, NcAbiSignature, NcPluginDescriptor, NcStatus,
-    acquire_factory_implementation, com_factory, com_interface, com_object, factory_plugin, format_abi_signature, format_method_signature,
+    ComInterface, ComPtr, ComRef, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_OK, NcAbiSignature, NcPluginDescriptor, NcStatus,
+    write_plugin_root, com_object, com_interface, format_abi_signature, format_method_signature,
     guid_from_qualified_name, validate_plugin_descriptor,
 };
 
@@ -118,7 +118,6 @@ impl DescribedValue for DescribedValueObject {
 }
 
 #[com_interface(
-    factory,
     assigned_guid = "564e2ee9-f2de-4e30-959f-a82315a64394",
     name = "nc.tests.abi_policy.ValueFactory",
     threading = local,
@@ -130,7 +129,7 @@ pub trait ValueFactory {
     fn create(&self, value: i32) -> Result<ComPtr<DescribedValueAbi>, NcStatus>;
 }
 
-#[com_factory(ValueFactory)]
+#[com_object(ValueFactory)]
 /// Stateless factory implementation used by the constructor-free path.
 struct ValueFactoryObject;
 
@@ -141,13 +140,11 @@ impl ValueFactory for ValueFactoryObject {
     }
 }
 
-factory_plugin! {
-    name = "nc.tests.factory_plugin",
-    version = "1.0.0",
-    factory = ValueFactoryObject,
-}
-
-neocogi_com::export_factory_plugin!();
+/// Acquires one owned root; object construction remains on its typed methods.
+#[neocogi_com::plugin(name = "nc.tests.factory_plugin",
+    version = "1.0.0")]
+fn acquire_root() -> Result<neocogi_com::ComPtr<ValueFactoryAbi>, neocogi_com::NcStatus> {
+    ValueFactoryObject::from_value(ValueFactoryObject).query()}
 
 /// Confirms factories create described objects without runtime construction.
 #[test]
@@ -167,18 +164,13 @@ fn idl_descriptions_separate_shape_from_construction() {
 /// Confirms factory implementation metadata and typed bootstrap agree.
 #[test]
 fn factory_bootstrap_transfers_the_exact_typed_root() {
-    fn assert_description<T: ComFactoryImplementation<Interface = ValueFactoryAbi>>() {}
-    // The generated association lets plugin metadata obtain identity without
-    // repeating a factory ID beside the implementation.
-    assert_description::<ValueFactoryObject>();
-
     let mut unknown = neocogi_com::ComRaw::<IUnknown>::null();
     // SAFETY: The local output slot accepts one erased owned factory pair.
-    assert_eq!(unsafe { acquire_factory_implementation::<ValueFactoryObject>(&mut unknown) }, NC_OK);
+    assert_eq!(unsafe { write_plugin_root(&mut unknown, acquire_root) }, NC_OK);
     // SAFETY: Successful acquisition transferred exactly one live reference.
     let factory =
         unsafe { ComPtr::<ValueFactoryAbi>::__nc_from_raw_owned_checked(unknown.cast()) }.expect("acquisition did not return the exact declared factory table");
-    let value = factory.create(41).expect("factory method failed");
+    let value = factory.create(41).expect("interface method failed");
     assert_eq!(value.value().expect("value method failed"), 41);
 }
 
@@ -195,10 +187,10 @@ fn factory_plugin_metadata_has_no_repeated_root_contract() {
     let mut exported = core::ptr::null::<NcPluginDescriptor>();
     // SAFETY: `exported` supplies one writable pointer slot to the generated
     // dynamic-library entrypoint.
-    assert_eq!(unsafe { nc_get_plugin_descriptor_v1(&mut exported) }, NC_OK);
+    assert_eq!(unsafe { neocogi_com::return_plugin_descriptor(&mut exported, plugin_descriptor()) }, NC_OK);
     assert!(core::ptr::eq(exported, description));
     // The renamed C export preserves the null-output error contract.
-    assert_eq!(unsafe { nc_get_plugin_descriptor_v1(core::ptr::null_mut()) }, neocogi_com::NC_E_POINTER);
+    assert_eq!(unsafe { neocogi_com::return_plugin_descriptor(core::ptr::null_mut(), plugin_descriptor()) }, neocogi_com::NC_E_POINTER);
 }
 
 fn signature_text(signature: NcAbiSignature) -> String {

@@ -64,7 +64,7 @@
 //! capability the source for typed pointers and factory metadata. A
 //! thread-safe pointer can be explicitly weakened to a thread-local owner or
 //! borrow without changing the underlying COM reference.
-//! `Runtime::acquire_plugin_factory` checks the generated root factory's
+//! `Runtime::acquire_plugin_root` checks the generated root factory's
 //! identity, signature, and threading capability before returning its typed
 //! pointer. Later construction is expressed by ordinary IDL factory methods.
 //!
@@ -272,22 +272,21 @@
 //! represent end-of-stream.
 //!
 //! New IDL plugins expose [`NC_GET_PLUGIN_DESCRIPTOR_SYMBOL`] through
-//! [`export_factory_plugin!`]. Their [`NcPluginDescriptor`] contains
+//! [`plugin`]. Their [`NcPluginDescriptor`] contains
 //! the exact root interface identity/signature and one factory bootstrap,
-//! with no class table or erased argument frame. `factory_plugin!` derives
-//! root identity and threading from the generated IDL factory associated by
-//! `com_factory`. Static hosts call
+//! with no class table or erased argument frame. `#[plugin]` derives
+//! root identity and threading from a typed Rust acquisition function. Static hosts call
 //! `Runtime::register_plugin_descriptor`; dynamic hosts call
 //! `Runtime::load_plugin_library`, which requires the plugin-descriptor
 //! entrypoint. Hosts obtain the typed root with
-//! `Runtime::acquire_plugin_factory` and perform later construction through
+//! `Runtime::acquire_plugin_root` and perform later construction through
 //! ordinary typed factory methods.
 //!
 //! Generated interfaces expose
 //! `ABI_SIGNATURE`, typed method descriptors, rendered diagnostic method signature
 //! text, and [`NcInterfaceDescriptor`]
-//! metadata. IDL interfaces and factories share [`ComInterface`]; factories also
-//! implement [`ComFactoryInterface`]. No separate object description is emitted.
+//! metadata. Every closed IDL interface implements [`ComInterface`] and may serve
+//! as a plugin root. No separate object description or construction role is emitted.
 //! Object construction is an implementation detail or
 //! an ordinary typed factory method.
 //! Library loading returns the stable plugin GUID. `Runtime::plugin_info`
@@ -501,12 +500,11 @@ pub use neocogi_com_core::{NcCopyFromBufferOffset, WeakComPtr, NcWeakRaw};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
-pub use macros::{ComDeserialize, ComSerialize, com_enum, com_class, com_factory, com_interface, com_object, com_struct, com_value, factory_plugin};
+pub use macros::{ComDeserialize, ComSerialize, com_enum, com_object, com_interface, com_struct, com_value, plugin};
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{format_abi_signature, format_method_signature};
 pub use neocogi_com_core::{
-    __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClientInterface, ComDeserialize, ComSerialize, ComFactoryBootstrap, ComFactoryInterface,
-    ComClassInterface, ComFactoryImplementation, ComInterface, ComPtr, ComRaw, ComRef, NcClientPointer, IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN,
+    __nc_abi_plain_type, __nc_abi_type, AbiPlainValue, AbiType, ComClientInterface, ComDeserialize, ComSerialize, ComInterface, ComPtr, ComRaw, ComRef, NcClientPointer, IID_INC_BYTES, IID_INC_STRING, IID_IUNKNOWN,
     INcBytesAbi, INcBytesVTable, INcStringAbi, INcStringVTable, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
     NC_ABI_PASSING_COM_PTR_OUT, NC_ABI_PASSING_COM_BOX_IN, NC_ABI_PASSING_COM_BOX_OUT, NC_ABI_PASSING_WEAK_COM_BOX_OUT, NC_ABI_PASSING_WEAK_COM_PTR_OUT,
     NC_ABI_PASSING_COM_REF, NC_ABI_PASSING_COPY_FROM_BUFFER_OFFSET, NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET, NC_ABI_PASSING_OUTPUT_BUFFER, NC_ABI_PASSING_OUT,
@@ -524,7 +522,7 @@ pub use neocogi_com_core::{
     NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1,
     NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcFactoryInfoV1, NcPluginInfoV1, NcQualifiedNameError, NcRuntimeApiV1, NcStaticUtf8, NcStatus,
     NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel,
-    acquire_factory_implementation, guid_from_qualified_name, raw, return_plugin_descriptor, validate_plugin_descriptor, validate_qualified_name,
+    write_plugin_root, guid_from_qualified_name, raw, return_plugin_descriptor, validate_plugin_descriptor, validate_qualified_name,
     validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
 };
 pub use object::{

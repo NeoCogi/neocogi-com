@@ -82,7 +82,7 @@ fn parameter_renames_preserve_interface_signatures() {
     "#;
     let consumer = r#"
         use positions.library::{IBuffer, IInspect, Payload};
-        #[version(1)] class Object: IBuffer<u32> + IInspect<Payload, Slice<u32>> {}
+        #[version(1)] interface Object: IBuffer<u32> + IInspect<Payload, Slice<u32>> {}
     "#;
     assert_same_contract(&graph(before, consumer), &graph(after, consumer));
 }
@@ -147,7 +147,7 @@ fn parameter_positions_remain_significant_with_identical_concrete_arguments() {
         (
             "#[version(1)] interface IValue<A, B> { fn value(&self) -> Result<A>; }",
             "#[version(1)] interface IValue<A, B> { fn value(&self) -> Result<B>; }",
-            "use positions.library::IValue; #[version(1)] class Object: IValue<u32, u32> {}",
+            "use positions.library::IValue; #[version(1)] interface Object: IValue<u32, u32> {}",
         ),
     ] {
         let first = graph(before, consumer);

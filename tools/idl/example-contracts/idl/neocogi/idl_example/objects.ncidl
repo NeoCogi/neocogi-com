@@ -10,14 +10,14 @@ interface IMeasured {
 /// Public object shape constructed only by `ExampleFactory`.
 #[version(2)]
 #[events(IExtentChangedEvent)]
-class ExampleObject: IMeasured {
+interface ExampleObject: IMeasured {
     /// Replaces the dimensions using an exclusive implementation borrow.
     fn resize(&mut self, extent: Extent) -> Result<()>;
 }
 
 /// Typed construction surface for the example object.
 #[version(2)]
-factory ExampleFactory {
+interface ExampleFactory {
     /// Creates one initialized example object.
     fn create(&self, extent: Extent, events: &EventBinding) -> Result<ComPtr<ExampleObject>>;
 }

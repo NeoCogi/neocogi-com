@@ -3,7 +3,7 @@ pub mod contract;
 use neocogi_com::*;
 use std::sync::mpsc;
 
-#[com_class(contract::Counter)]
+#[com_object(contract::Counter)]
 /// Owns only the final constructor-selected delivery policy.
 struct Counter {
     /// Typed receiver retained until explicit or final closure.
@@ -23,7 +23,7 @@ impl contract::Counter for Counter {
         Ok(())
     }
 }
-#[com_factory(contract::Factory)]
+#[com_object(contract::Factory)]
 /// Stateless plugin factory; application messages never enter its contract.
 struct Factory;
 impl contract::Factory for Factory {
@@ -137,7 +137,7 @@ fn malformed_constructor_binding_never_publishes_a_product() {
     assert_eq!(factory.create(false, borrowed).unwrap_err(), NC_E_INVALID_TAG);
 }
 
-#[com_class(contract::SharedOrigin)]
+#[com_object(contract::SharedOrigin)]
 /// Thread-safe capability whose local producer context owns its queue separately.
 struct SharedOrigin;
 impl contract::SharedOrigin for SharedOrigin {}

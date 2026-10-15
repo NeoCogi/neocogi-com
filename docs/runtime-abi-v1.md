@@ -1,7 +1,7 @@
 # Runtime ABI v1: plugins, factories and inspection
 
 This is the current runtime contract. It supersedes runtime/module bookkeeping,
-factory activation and factory plugin description names in the core drafts.
+interface activation and factory plugin description names in the core drafts.
 Core object ABI v17 and plugin/runtime discovery v1 remain unchanged. The
 descriptor bootstrap is named
 `acquire`. Pre-release v1 contracts change in place: applications, DLLs and the
@@ -27,20 +27,23 @@ caller-owned context lifecycles are independent of plugin registration.
 
 `NcPluginDescriptor` is the provider-authored input: plugin identity and release
 version, hard dependency records, the exact root factory interface/threading
-contract, and its bootstrap function. `factory_plugin!` derives the factory
-contract from the generated interface and creates this immutable descriptor.
+contract, and its bootstrap function. `#[plugin]` derives the root
+contract from the typed Rust acquisition return and creates this immutable descriptor.
+The root is any closed ordinary interface: a finished service or a provider with
+typed construction methods. Existing wire field names such as `root_factory`
+describe that root and impose no IDL construction role.
 The accessor and native export return metadata without registration or acquisition.
 
 | Provider boundary | Current contract |
 | --- | --- |
 | Metadata input | `NcPluginDescriptor`; no separate plugin-kind qualifier. |
 | Generated Rust accessor | `plugin_descriptor()` borrows assembly metadata. |
-| Native getter | `NcGetPluginDescriptor`, exported as `nc_get_plugin_descriptor_v1` by `export_factory_plugin!`. |
+| Native getter | `NcGetPluginDescriptor`, exported as `nc_get_plugin_descriptor_v1` by `#[plugin]` under `dynamic-plugin`. |
 | Validation | `validate_plugin_descriptor` checks metadata without acquiring a factory or checking whether providers are registered. |
 | Static registration | `Runtime::register_plugin_descriptor` validates and publishes the descriptor after requiring registered hard providers. |
 | Unregistered library inspection | `Runtime::with_plugin_library_descriptor` lends the validated descriptor to a synchronous visitor. |
 | Registered inspection output | `NcPluginInfoV1` / owned `PluginInfo`, including first registration origin. |
-| Factory acquisition | `Runtime::acquire_plugin_factory` checks the exact contract and returns one COM owner. |
+| Factory acquisition | `Runtime::acquire_plugin_root` checks the exact contract and returns one COM owner. |
 
 The descriptor's `description_abi_version` field remains the v1 discovery prefix,
 matching `NC_PLUGIN_DESCRIPTOR_ABI_VERSION`. Its next field is
@@ -89,7 +92,7 @@ the S4 registry-enumeration simplification recorded in the optimization register
 
 `NcFactoryInfoV1` contains only interface and threading information: the enclosing
 plugin already supplies identity. There is one factory per plugin, so a separate
-factory GUID or enumeration is unnecessary. Neither record contains a live COM
+interface GUID or enumeration is unnecessary. Neither record contains a live COM
 reference. Reading metadata never invokes the factory bootstrap.
 
 All views returned by registered-plugin lookup and enumeration remain readable
@@ -173,7 +176,7 @@ for plugin in runtime.plugins()? {
 }
 
 let info = runtime.plugin_info(plugin_id)?; // Option<PluginInfo>, complete record
-let factory = runtime.acquire_plugin_factory::<my_contracts::UiFactoryAbi>(plugin_id)?;
+let factory = runtime.acquire_plugin_root::<my_contracts::UiFactoryAbi>(plugin_id)?;
 let button = factory.create_button()?;
 ```
 
@@ -187,7 +190,7 @@ typed acquisition; catalog tests exercise these direct methods against C tables.
 A generic host that does not know the factory's Rust type calls
 `acquire_registered_plugin_root(plugin_id)`. The facade reads the registered exact
 interface without allocating owned strings or dependency lists, acquires that
-factory with a thread-local request and queries canonical `IUnknown`. An erased
+interface with a thread-local request and queries canonical `IUnknown`. An erased
 raw factory table has the common lifecycle prefix but is not itself canonical
 `IUnknown`; the query is required before typed adoption. The original bootstrap
 reference is released on every path. The returned handle stays on the caller's

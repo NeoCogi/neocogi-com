@@ -24,7 +24,7 @@ pub(super) unsafe extern "C" fn register_plugin_descriptor(plugin: *const NcPlug
     // required by process-wide registration.
     let status = unsafe { runtime.register_plugin_descriptor(plugin) };
     if status.is_err() {
-        emit_error(NC_DEBUG_TYPE_VALIDATION, status, "factory plugin registration failed");
+        emit_error(NC_DEBUG_TYPE_VALIDATION, status, "interface plugin registration failed");
     }
     status
 }
@@ -79,7 +79,7 @@ pub(super) unsafe extern "C" fn acquire_factory_plugin(
     // catalog lock, allowing plugin code to re-enter runtime operations.
     let status = unsafe { factory_acquisition::acquire_factory(acquisition, factory_interface, out) };
     if status.is_err() {
-        emit_error(NC_DEBUG_TYPE_RUNTIME, status, "factory plugin acquisition failed");
+        emit_error(NC_DEBUG_TYPE_RUNTIME, status, "interface plugin acquisition failed");
     }
     status
 }

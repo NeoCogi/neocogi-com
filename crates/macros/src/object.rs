@@ -7,19 +7,16 @@
 //! preserve the one allocation and its concrete implementation type.
 
 use quote::{format_ident, quote};
-use syn::{Fields, ItemStruct};
+use syn::ItemStruct;
 
 use crate::args::{ObjectArgs, ObjectOwnership};
 use crate::util::{create_visibility, runtime_crate_path};
 
 /// Generates object storage, lifecycle thunks, and local construction helpers.
-pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_factory: bool) -> proc_macro2::TokenStream {
+pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::TokenStream {
     // `FooComObject` is intentionally private generated storage. Users see the
     // original Rust `Foo` plus COM interface pointers; the storage layout is an
     // implementation detail owned by this macro.
-    if require_factory && matches!(args.ownership, ObjectOwnership::Exclusive) {
-        return syn::Error::new_spanned(&input.ident, "COM factories require shared ownership").to_compile_error();
-    }
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
     let object_ident = &input.ident;
     let object_vis = create_visibility(&input.vis);
@@ -73,7 +70,6 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
             type Threading = #declared_threading_model;
         }
     };
-    let is_unit_struct = matches!(input.fields, Fields::Unit);
     // Query order and exported metadata use the same derived-first ancestry.
     // Shared bases are advertised once even when several branches expose them.
     let declared_chains = args
@@ -115,58 +111,6 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
             // bounds for every permitted specialization. Interface behavior must
             // also uphold the documented concurrent-call contract.
             unsafe impl #impl_generics #nc::ThreadSafeComObject for #object_type #where_clause {}
-        }
-    });
-    let factory_assertion = require_factory.then(|| {
-        let interface = args.primary_interface.as_ref().expect("com_factory validates a primary interface");
-        quote! {
-            const _: fn() = || {
-                // This compile-time-only obligation rejects an IDL object passed
-                // accidentally to `com_factory` without adding runtime tags.
-                fn assert_factory<T: #nc::ComFactoryInterface>() {}
-                assert_factory::<#interface>();
-            };
-        }
-    });
-    let factory_implementation = require_factory.then(|| {
-        let interface = args.primary_interface.as_ref().expect("com_factory validates a primary interface");
-        quote! {
-            // SAFETY: `com_factory` generates the storage and complete
-            // interface projection set directly from this IDL interface.
-            unsafe impl #impl_generics #nc::ComFactoryImplementation for #object_type #where_clause {
-                /// Exact IDL factory interface implemented by this Rust type.
-                type Interface = #interface;
-            }
-        }
-    });
-    let unit_factory_bootstrap = (require_factory && is_unit_struct).then(|| {
-        let interface = args.primary_interface.as_ref().expect("com_factory validates a primary interface");
-        quote! {
-            impl #impl_generics #nc::ComFactoryBootstrap for #object_type #where_clause {
-                /// Creates the stateless root and returns its exact typed factory projection.
-                fn create_factory() -> Result<
-                    #nc::ComPtr<
-                        #interface,
-                        <#interface as #nc::ComInterface>::Threading,
-                    >,
-                    #nc::NcStatus,
-                > {
-                    // QueryInterface converts the newly allocated IUnknown
-                    // owner into the exact factory interface.
-                    Self::create().query::<#interface>()
-                }
-            }
-        }
-    });
-    // Every object wraps an explicitly initialized Rust value. Only factories
-    // receive zero-argument construction: typed factory methods own all other
-    // public construction policy.
-    let unit_create = (require_factory && is_unit_struct).then(|| {
-        quote! {
-            #[doc = "Creates a COM object from this unit struct and returns its `IUnknown` interface."]
-            #object_vis fn create() -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
-                Self::from_value(#object_ident)
-            }
         }
     });
 
@@ -363,10 +307,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
 
             #constructors
 
-            #unit_create
-        }
-
-        #factory_assertion
+            }
 
         // SAFETY: This impl is generated together with the private storage
         // layout above. Every paired vtable accepts this allocation directly.
@@ -412,9 +353,6 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct, require_fac
 
         #com_object_impl
         #thread_safe_marker_impl
-        #factory_implementation
-        #unit_factory_bootstrap
-
         impl #impl_generics #storage_type #where_clause {
             /// One immutable class descriptor, independent of object instances.
             /// Counting/promotion functions are shared; only payload destruction,

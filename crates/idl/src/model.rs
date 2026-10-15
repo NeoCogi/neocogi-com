@@ -213,21 +213,8 @@ pub struct Interface {
     pub events: Vec<NamedType>,
     /// Ordinary methods in normative vtable order.
     pub methods: Vec<Method>,
-    /// Construction or delivery policy layered over the common interface ABI.
-    pub role: InterfaceRole,
     /// Minimum threading capability promised by every implementation.
     pub threading: Threading,
-}
-
-/// Semantic restrictions and generated conveniences for one interface.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum InterfaceRole {
-    /// A callable projection acquired from another object or factory.
-    Ordinary,
-    /// A concrete object contract declaring its complete required COM projections.
-    Class,
-    /// A construction/provider interface eligible for plugin bootstrap.
-    Factory,
 }
 
 /// Threading capability promised by an interface.

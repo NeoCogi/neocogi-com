@@ -8,10 +8,10 @@ fn public_handle_names_reject_before_rust_generation() {
     for name in neocogi_com_core::NC_COM_HANDLE_METHOD_NAMES {
         for source in [
             format!("#[version(1)] interface ICollision {{ fn {name}(&self) -> Result<u32>; }}"),
-            format!("#[version(1)] factory Collision {{ fn {name}(&self) -> Result<u32>; }}"),
-            format!("#[version(1)] class Collision {{ fn {name}(&self) -> Result<u32>; }}"),
+            format!("#[version(1)] interface Collision {{ fn {name}(&self) -> Result<u32>; }}"),
+            format!("#[version(1)] interface Collision {{ fn {name}(&self) -> Result<u32>; }}"),
             format!("#[version(1)] interface IBase {{ fn {name}(&self) -> Result<u32>; }} #[version(1)] interface IDerived: IBase {{}}"),
-            format!("#[version(1)] interface ICollision<T> {{ fn {name}(&self) -> Result<T>; }} #[version(1)] class Closed: ICollision<u32> {{}}"),
+            format!("#[version(1)] interface ICollision<T> {{ fn {name}(&self) -> Result<T>; }} #[version(1)] interface Closed: ICollision<u32> {{}}"),
             format!("#[version(1)] interface IUnused<T> {{ fn {name}(&self) -> Result<T>; }}"),
         ] {
             let module = neocogi_idl::parse_module(Path::new("proof/collision.ncidl"), &source).unwrap();

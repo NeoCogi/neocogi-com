@@ -79,7 +79,7 @@ Raw copies do not acquire a reference or extend a borrow.
 Erasing a raw table type to `ComRaw<IUnknown>` preserves the selected table's
 identity. It permits common lifecycle dispatch, but does not prove the pair is
 canonical IUnknown. This matters at plugin bootstrap: it transfers an erased
-factory view, the runtime validates/returns the factory view, and typed factory
+interface view, the runtime validates/returns the factory view, and typed factory
 clients adopt it directly. Clients asking for IUnknown query that exact contract.
 
 Core ABI **generation 10 introduced** this layout and calling convention. Later

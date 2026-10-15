@@ -7,9 +7,9 @@ facade. The [current object ABI](../docs/README.md) remains experimental.
 
 Core defines statuses, GUIDs, exact signatures, typed metadata, raw object/table pairs
 and vtables, `IUnknown`, `ComPtr`, and `ComRef`. `ComInterface` owns identity and
-the minimum threading promise. `ComFactoryInterface` marks interfaces eligible
-for plugin bootstrap; `ComFactoryImplementation` associates private factory
-storage with that interface.
+the minimum threading promise. Any closed interface can be a plugin root. The
+provider's typed Rust acquisition function supplies its exact contract and
+initializes private object state without separate bootstrap or role traits.
 
 A contract crate generates Rust bindings and fixed signatures. It has no native
 module-description library or runtime registry entry. The IDL build helper hashes
@@ -328,7 +328,7 @@ does not promise that every smaller document fits the other limits.
 
 Concrete providers select one ownership policy. Shared ownership is the default;
 `#[com_object(..., ownership = exclusive)]` and
-`#[com_class(Contract, ownership = exclusive)]` select exclusive ownership.
+`#[com_object(Contract, ownership = exclusive)]` select exclusive ownership.
 Only that policy's constructors are generated: shared classes have `from_value` /
 `from_value_cyclic` / `into_local`; exclusive classes have `into_box` /
 `into_box_cyclic` / `into_local_box`. Factories always remain shared.

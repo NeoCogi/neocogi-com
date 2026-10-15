@@ -6,12 +6,12 @@ crate's `build.rs` generates Rust bindings and source-graph metadata only.
 
 ```rust
 #[version(1)]
-class ExampleObject: IMeasured {
+interface ExampleObject: IMeasured {
     fn resize(&mut self, extent: Extent) -> Result<()>;
 }
 
 #[version(1)]
-factory ExampleFactory {
+interface ExampleFactory {
     fn create(&self, extent: Extent, events: &EventBinding) -> Result<ComPtr<ExampleObject>>;
 }
 ```
@@ -20,14 +20,10 @@ factory ExampleFactory {
 `&mut self`, implements the unit factory, and declares the plugin:
 
 ```rust,ignore
-neocogi_com::factory_plugin! {
-    name = "nc.examples.factory_plugin_component",
-    version = "0.0.0",
-    factory = DynamicExampleFactory,
+#[neocogi_com::plugin(name = "nc.examples.factory_plugin_component")]
+fn acquire_root() -> Result<neocogi_com::ComPtr<api::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+    DynamicExampleFactory::from_value(DynamicExampleFactory).query()
 }
-
-#[cfg(feature = "dynamic-plugin")]
-neocogi_com::export_factory_plugin!();
 ```
 
 The Cargo library target defaults to `crate-type = ["rlib"]`. Only the final

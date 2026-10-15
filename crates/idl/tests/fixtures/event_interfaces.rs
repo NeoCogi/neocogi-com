@@ -5,7 +5,7 @@ mod tests {
     use neocogi_com::events::{EventMessage, EventOrigin, IEvent, IEventAbi, IEventReceiver, IEventReceiverAbi};
     use std::{cell::Cell, rc::Rc, sync::mpsc};
 
-    #[com_class(Widget, ownership = exclusive)]
+    #[com_object(Widget, ownership = exclusive)]
     /// Concrete widget lifetime is independent of queued snapshots.
     struct WidgetObject {
         drops: Rc<Cell<u32>>,
@@ -21,7 +21,7 @@ mod tests {
         }
     }
 
-    #[com_class(Service)]
+    #[com_object(Service)]
     /// Shared service can expire while its queued weak identity remains available.
     struct ServiceObject;
     impl Service for ServiceObject {

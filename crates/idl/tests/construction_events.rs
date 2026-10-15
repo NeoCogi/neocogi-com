@@ -45,16 +45,16 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
         }
         #[version(1)] interface ISubmittedEvent: IEvent {}
         #[version(1)] interface Base {}
-        #[version(1)] #[events(IChangedEvent, ISubmittedEvent)] class Counter: Base {
+        #[version(1)] #[events(IChangedEvent, ISubmittedEvent)] interface Counter: Base {
             fn emit(&mut self, value: &Changed) -> Result<()>;
             fn submit(&mut self) -> Result<()>;
             fn close(&mut self) -> Result<()>;
         }
-        #[version(1)] #[threading(shared)] class SharedOrigin {}
-        #[version(1)] factory SharedFactory {
+        #[version(1)] #[threading(shared)] interface SharedOrigin {}
+        #[version(1)] interface SharedFactory {
             fn create(&self, events: &EventBinding) -> Result<ComPtr<SharedOrigin>>;
         }
-        #[version(1)] factory Factory {
+        #[version(1)] interface Factory {
             fn create(&self, reject: bool, events: &EventBinding) -> Result<ComPtr<Counter>>;
         }
     "#;

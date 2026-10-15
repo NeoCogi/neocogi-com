@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod exclusive_tests {
     use super::*;
-    use neocogi_com::{com_object, com_factory, ComBox, WeakComBox, NcStatus};
+    use neocogi_com::{com_object, ComBox, WeakComBox, NcStatus};
 
     #[com_object(IValue, ownership = exclusive)]
     /// Concrete payload whose owner travels through generated method signatures.
@@ -12,7 +12,7 @@ mod exclusive_tests {
             Ok(42)
         }
     }
-    #[com_factory(Factory)]
+    #[com_object(Factory)]
     /// Shared service creates exclusive widget-like values.
     struct Creator;
     impl Factory for Creator {

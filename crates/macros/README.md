@@ -6,7 +6,7 @@ than depend on this implementation crate directly.
 
 Public contracts should normally be written in `.ncidl` files. The generator
 uses the common `com_interface` macro internally; implementation crates use
-`com_object`, `com_factory`, and `factory_plugin`.
+`com_object` and `plugin`.
 
 ## Object implementations
 
@@ -44,7 +44,7 @@ Ordinary unit objects have no generated zero-argument constructor.
 `#[com_object(interfaces(IFoo, IBar))]` remains available for local or built-in
 objects that are not implementations of a single interface contract. All externally
 constructible component objects should instead be returned by a generated
-factory method.
+interface method.
 
 Mutable interface methods receive `&mut self`. Generated access gating rejects
 conflicting and reentrant mutable calls with `NC_E_BUSY`; ordinary state should
@@ -52,31 +52,33 @@ not add `Cell` or `RefCell` merely to emulate mutability behind `&self`.
 
 ## Factory implementations and plugin roots
 
-`#[com_factory(Factory)]` implements one generated IDL factory and proves
-that the Rust type matches that exact factory interface. Unit factories gain
-the default `ComFactoryBootstrap` implementation. Stateful roots implement the
-trait explicitly and return the associated typed `ComPtr`.
+A plugin root is an ordinary interface. `#[com_object(Interface)]` owns the Rust
+implementation's storage and lifetime; the acquisition function owns initialization.
 
 ```rust,ignore
-#[com_factory(my_contracts::UiFactory)]
+#[com_object(my_contracts::UiFactory)]
 struct UiFactoryObject;
 
-neocogi_com::factory_plugin! {
-    name = "example.ui",
-    version = "1.0.0",
-    factory = UiFactoryObject,
+#[neocogi_com::plugin(name = "example.ui")]
+fn acquire_root() -> Result<neocogi_com::ComPtr<my_contracts::UiFactoryAbi>, neocogi_com::NcStatus> {
+    UiFactoryObject::from_value(UiFactoryObject).query()
 }
-
-#[cfg(feature = "dynamic-plugin")]
-neocogi_com::export_factory_plugin!();
 ```
 
-`factory_plugin!` creates immutable Rust-accessible metadata. The final dynamic
-library calls `export_factory_plugin!` exactly once to export
-`nc_get_plugin_descriptor_v1`. Static assemblies call
-`plugin_descriptor()` directly. The descriptor contains one fixed
-bootstrap function pointer for the root factory; there is no per-object
-constructor table or erased argument frame.
+`#[plugin]` requires a safe zero-argument Rust function with an explicit
+`Result<ComPtr<InterfaceAbi>, NcStatus>` return. It derives metadata from that
+interface, defaults version to the Cargo package version, and optionally accepts
+`version = "..."`, `plugin_id(...)`, `dependencies = [ID, ...]` and
+`neocogi_com = facade_path`. The typed return must match the interface's threading.
+Initialization failure leaves the ABI output empty. Success transfers exactly one
+reference; acquiring an existing service and constructing a provider are both valid.
+
+`plugin_descriptor()` lends static metadata without acquiring an object. The
+provider declares a `dynamic-plugin = []` feature to enable the generated
+`nc_get_plugin_descriptor_v1` export in a DLL. Static compositions leave that
+feature disabled and register the accessor directly. Define one root per plugin
+crate. Provider methods perform parameterized construction with ordinary typed
+arguments. No bootstrap traits, object role markers or constructor tables exist.
 
 ## Interface and value lowering
 
@@ -112,11 +114,9 @@ value codec. Acquisition checks shared ownership and exact interface identity
 before retaining weak bookkeeping. These fields are neither copied inline values
 nor persistent object reconstruction. Use IDL for their public declarations.
 
-`com_interface` also accepts the generator-owned `threading = local|shared`
-and `factory` role. The same expansion owns required sibling projections and
-one physical base. `ComInterface` owns identity and threading;
-`ComFactoryInterface` is only a role marker. No duplicate object-description
-trait or `OBJECT_*` constants are emitted.
+`com_interface` accepts the generator-owned `threading = local|shared`.
+The same expansion owns required sibling projections and one physical base.
+`ComInterface` owns identity and threading for every closed interface.
 
 Canonical typed ABI signatures are always represented by SHA-256 digests.
 Interface identity is the generated IID plus that signature; human-readable

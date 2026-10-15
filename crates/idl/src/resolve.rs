@@ -10,7 +10,7 @@ use std::{
 use neocogi_com_core::{NcGuid, guid_from_name, guid_from_qualified_name};
 
 use crate::{
-    AbiType, BitEnum, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, InterfaceRole, Method, Module, NamedType, SourceFile, SourceSpan, Threading,
+    AbiType, BitEnum, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, Method, Module, NamedType, SourceFile, SourceSpan, Threading,
     VariantFields, sha256::digest,
 };
 
@@ -738,7 +738,8 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
             DeclarationKind::Interface(interface) => {
                 collect_diagnostics(&mut diagnostics, validate_interface_bases(index, interface, entries, &declaration.name));
                 collect_diagnostics(&mut diagnostics, events::validate(index, interface, entries, &declaration.name));
-                collect_diagnostics(&mut diagnostics, validate_methods(index, &interface.methods, entries, values, &declaration.name));
+                collect_diagnostics(&mut diagnostics, validate_methods(index, &interface.methods, entries, values, &declaration.name),
+                );
             }
         }
     }
@@ -1178,7 +1179,8 @@ fn validate_methods(index: usize, methods: &[Method], entries: &[ModuleEntry], v
         }
         collect_diagnostics(
             &mut diagnostics,
-            validate_output_type(index, &method.output, entries, values, &format!("{owner}::{} result", method.name), &method.span),
+            validate_output_type(index, &method.output, entries, values, &format!("{owner}::{} result", method.name), &method.span,
+            ),
         );
     }
     if diagnostics.is_empty() {
@@ -1210,11 +1212,13 @@ fn validate_field_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], cont
     if matches!(ty, AbiType::ComBox(_)) {
         return Err(source_error(&entries[index].module, "EIDL060", span,
             format!("{context}: exclusive owners are method transfers, not repeatable fields"),
-            "use an explicit owning object contract instead of a repeatable value codec"));
+            "use an explicit owning object contract instead of a repeatable value codec",
+        ));
     }
     match ty {
         AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Ok(()),
-        AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => validate_object_target(index, value, entries, context, span),
+        AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => {
+            validate_object_target(index, value, entries, context, span)}
         AbiType::Named(name) => {
             if builtin_object(name).is_some() {
                 return Err(source_error(
@@ -1262,7 +1266,7 @@ fn validate_object_target(index: usize, ty: &AbiType, entries: &[ModuleEntry], c
         &entries[index].module,
         "EIDL060",
         span,
-        format!("{context}: COM references require a closed interface, class, or factory contract"),
+        format!("{context}: COM references require a closed interface contract"),
         "invalid owned-reference target",
     ))
 }
@@ -1346,7 +1350,8 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
 }
 
 /// Requires an implemented self-contained copied lowering at this method position.
-fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan,
+) -> Result<(), ResolutionError> {
     validate_field_type(index, ty, entries, context, span)?;
     if copied_type(index, ty, entries, values) {
         Ok(())
@@ -1362,7 +1367,8 @@ fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], valu
 }
 
 /// Validates an input without allowing implicit COM ownership transfer.
-fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan,
+) -> Result<(), ResolutionError> {
     let span = type_span(ty).unwrap_or(span);
     if let AbiType::Borrowed(referent) = ty {
         if let AbiType::Named(name) = referent.as_ref() {
@@ -1374,7 +1380,8 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
     match ty {
         AbiType::ComBox(value) => validate_object_target(index, value, entries, context, span),
         AbiType::WeakComBox(_) => Err(source_error(&entries[index].module, "EIDL061", span,
-            format!("{context}: weak box inputs must use a live interface borrow"), "unsupported ownership transfer")),
+            format!("{context}: weak box inputs must use a live interface borrow"), "unsupported ownership transfer",
+        )),
         AbiType::WeakComPtr(_) | AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => Err(source_error(
             &entries[index].module,
             "EIDL061",
@@ -1390,7 +1397,7 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
                 symbol,
                 entries,
                 span,
-                format!("{context} must borrow interface, class, and factory values with &"),
+                format!("{context} must borrow interface values with &"),
                 format!("{} values require an explicit borrow", symbol.kind.description()),
                 "borrow the object type with `&`",
             )),
@@ -1422,11 +1429,13 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
 }
 
 /// Validates an output where bare COM names mean owned references.
-fn validate_output_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+fn validate_output_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan,
+) -> Result<(), ResolutionError> {
     let span = type_span(ty).unwrap_or(span);
     match ty {
         AbiType::Unit | AbiType::Scalar(_) => Ok(()),
-        AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => validate_object_target(index, value, entries, context, span),
+        AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => {
+            validate_object_target(index, value, entries, context, span)}
         AbiType::Named(_) | AbiType::Array { .. } => validate_value_type(index, ty, entries, values, context, span),
         AbiType::String => Err(source_error(
             &entries[index].module,
@@ -1568,7 +1577,7 @@ fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, 
     let mut encoder = CanonicalEncoder::new();
     // Version 9 records advertised event interfaces as semantic dependencies.
     // This extends the canonical declaration grammar; every consumer regenerates.
-    encoder.bytes(b"neocogi-idl:module-abi:v9\0");
+    encoder.bytes(b"neocogi-idl:module-abi:v10\0");
     encoder.guid(entry.module_id);
     // Templates and concrete declarations use exactly the same grammar. Bound
     // parameters require a scope, not a second serializer or diagnostic strings.
@@ -1622,7 +1631,8 @@ fn encode_declaration(
     entries: &[ModuleEntry],
     encoder: &mut CanonicalEncoder,
 ) -> Result<(), ResolutionError> {
-    let scope = EncodingScope { module: index, parameters: &declaration.parameters };
+    let scope = EncodingScope { module: index, parameters: &declaration.parameters ,
+    };
     encoder.u32(u32_len(scope.parameters.len(), &entries[index].name, "type parameter count")?);
     encoder.text(&declaration.name, &entries[index].name)?;
     encoder.u32(declaration.id.version);
@@ -1642,7 +1652,8 @@ fn encode_declaration(
             encoder.tag(enum_repr_tag(enumeration.repr));
             encoder.tag(u8::from(enumeration.has_payload()));
             encoder.tag(u8::from(enumeration.dense));
-            encoder.tag(match enumeration.names { None => 0, Some(crate::EnumNames::SnakeCase) => 1 });
+            encoder.tag(match enumeration.names { None => 0, Some(crate::EnumNames::SnakeCase) => 1 ,
+            });
             encoder.u32(u32_len(enumeration.variants.len(), &entries[index].name, "variant count")?);
             let mut previous = -1i64;
             for variant in &enumeration.variants {
@@ -1686,13 +1697,6 @@ fn encode_declaration(
         }
         DeclarationKind::Interface(interface) => {
             encoder.tag(3);
-            // Roles affect construction and delivery semantics even when slots
-            // match. Include them alongside threading and required projections.
-            encoder.tag(match interface.role {
-                InterfaceRole::Ordinary => 0,
-                InterfaceRole::Factory => 1,
-                InterfaceRole::Class => 2,
-            });
             encode_methods(scope, &interface.bases, &interface.methods, interface.threading, entries, encoder)?;
             // Emitted interfaces are semantic dependencies, independent of vtable ancestry.
             encoder.u32(u32_len(interface.events.len(), &entries[index].name, "event count")?);
@@ -1782,7 +1786,8 @@ fn encode_type(scope: EncodingScope<'_>, ty: &AbiType, entries: &[ModuleEntry], 
             encode_type(scope, element, entries, encoder)?;
         }
         AbiType::ComBox(target) | AbiType::WeakComBox(target) => {
-            encoder.tag(match ty { AbiType::ComBox(_) => 12, AbiType::WeakComBox(_) => 13, _ => unreachable!() });
+            encoder.tag(match ty { AbiType::ComBox(_) => 12, AbiType::WeakComBox(_) => 13, _ => unreachable!() ,
+            });
             encode_type(scope, target, entries, encoder)?;
         }
         AbiType::ComPtr(target) => {

@@ -21,10 +21,10 @@ fn common_binding_does_not_generate_product_helpers_or_reserve_their_names() {
     let graph = resolve(&format!(
         r#"{PREFIX}
         #[version(1)] interface IChanged: IEvent {{ fn value(&self) -> Result<u32>; }}
-        #[version(1)] #[events(IChanged)] class Counter {{}}
+        #[version(1)] #[events(IChanged)] interface Counter {{}}
         #[version(1)] struct CounterEventBinding {{ value: u32 }}
         #[version(1)] struct CounterEventPort {{ value: u32 }}
-        #[version(1)] factory Factory {{ fn create(&self, events: &EventBinding) -> Result<ComBox<Counter>>; }}
+        #[version(1)] interface Factory {{ fn create(&self, events: &EventBinding) -> Result<ComBox<Counter>>; }}
     "#
     ))
     .unwrap();
@@ -54,7 +54,7 @@ fn advertised_events_need_no_constructor_and_use_imported_getter_scope() {
         module(
             "proof/events.ncidl",
             r#"extern proof.facts; use proof.facts::IChanged;
-            #[version(1)] #[events(IChanged)] class Counter {}
+            #[version(1)] #[events(IChanged)] interface Counter {}
         "#,
         ),
     ])
@@ -68,8 +68,9 @@ fn advertised_events_need_no_constructor_and_use_imported_getter_scope() {
 
 #[test]
 fn emitted_interfaces_must_derive_from_the_common_event_root() {
-    for declaration in ["struct Fact { value: u32 }", "interface Fact {}", "class Fact {}"] {
-        let error = resolve(&format!("{PREFIX} #[version(1)] {declaration} #[version(1)] #[events(Fact)] class Source {{}}")).unwrap_err();
+    for declaration in ["struct Fact { value: u32 }", "interface Fact {}", "interface Fact {}"] {
+        let error = resolve(&format!("{PREFIX} #[version(1)] {declaration} #[version(1)] #[events(Fact)] interface Source {{}}"
+        )).unwrap_err();
         assert!(error.to_string().contains("IEvent"), "{error}");
     }
 }
@@ -82,7 +83,7 @@ fn event_getters_are_immutable_parameterless_and_repeatable() {
         "fn take(&self) -> Result<ComBox<IEvent>>;",
     ] {
         let error = resolve(&format!(
-            "{PREFIX} #[version(1)] interface Fact: IEvent {{ {getter} }} #[version(1)] #[events(Fact)] class Source {{}}"
+            "{PREFIX} #[version(1)] interface Fact: IEvent {{ {getter} }} #[version(1)] #[events(Fact)] interface Source {{}}"
         ))
         .unwrap_err();
         assert!(error.to_string().contains("immutable"), "{error}");
@@ -92,8 +93,8 @@ fn event_getters_are_immutable_parameterless_and_repeatable() {
 #[test]
 fn duplicate_event_identities_and_inherited_getter_names_are_rejected() {
     for source in [
-        "#[version(1)] interface Fact: IEvent {} #[version(1)] #[events(Fact, Fact)] class Source {}",
-        "#[version(1)] interface Base: IEvent { fn value(&self) -> Result<u32>; } #[version(1)] interface Fact: Base { fn value(&self) -> Result<u32>; } #[version(1)] #[events(Fact)] class Source {}",
+        "#[version(1)] interface Fact: IEvent {} #[version(1)] #[events(Fact, Fact)] interface Source {}",
+        "#[version(1)] interface Base: IEvent { fn value(&self) -> Result<u32>; } #[version(1)] interface Fact: Base { fn value(&self) -> Result<u32>; } #[version(1)] #[events(Fact)] interface Source {}",
     ] {
         assert!(resolve(&format!("{PREFIX} {source}")).is_err());
     }
@@ -102,8 +103,8 @@ fn duplicate_event_identities_and_inherited_getter_names_are_rejected() {
 #[test]
 fn event_attribute_is_nonempty_unique_and_interface_only() {
     for source in [
-        "#[version(1)] #[events()] class Source {}",
-        "#[version(1)] #[events(Fact)] #[events(Fact)] class Source {}",
+        "#[version(1)] #[events()] interface Source {}",
+        "#[version(1)] #[events(Fact)] #[events(Fact)] interface Source {}",
         "#[version(1)] #[events(Fact)] struct Source { value: u32 }",
     ] {
         assert!(parse_module(Path::new("proof/events.ncidl"), source).is_err(), "{source}");
@@ -116,7 +117,7 @@ fn generic_events_specialize_and_keep_getter_value_metadata() {
         r#"{PREFIX}
         #[version(1)] struct Value {{ count: u32 }}
         #[version(1)] interface Fact<T>: IEvent {{ fn value(&self) -> Result<T>; }}
-        #[version(1)] #[events(Fact<Value>)] class Source {{}}
+        #[version(1)] #[events(Fact<Value>)] interface Source {{}}
     "#
     ))
     .unwrap();
@@ -133,7 +134,7 @@ fn event_getters_cannot_hide_ambiguity_in_multiple_inheritance() {
         #[version(1)] interface Left: IEvent {{ fn value(&self) -> Result<u32>; }}
         #[version(1)] interface Right: IEvent {{ fn value(&self) -> Result<bool>; }}
         #[version(1)] interface Fact: Left + Right {{}}
-        #[version(1)] #[events(Fact)] class Source {{}}
+        #[version(1)] #[events(Fact)] interface Source {{}}
     "#
     );
     assert!(resolve(&source).is_err());
@@ -147,7 +148,7 @@ fn distinct_generic_ancestors_cannot_hide_duplicate_getter_names() {
         #[version(1)] interface Left: Snapshot<u32> {{}}
         #[version(1)] interface Right: Snapshot<bool> {{}}
         #[version(1)] interface Fact: Left + Right {{}}
-        #[version(1)] #[events(Fact)] class Source {{}}
+        #[version(1)] #[events(Fact)] interface Source {{}}
     "#)).unwrap_err();
     assert!(error.to_string().contains("ambiguous"), "{error}");
 }
@@ -160,7 +161,7 @@ fn advertised_interfaces_change_signatures_without_becoming_widget_bases() {
             r#"{PREFIX}
             #[version(1)] interface First: IEvent {{}}
             #[version(1)] interface Second: IEvent {{}}
-            #[version(1)] {events} class Source {{}}
+            #[version(1)] {events} interface Source {{}}
         "#
         ))
         .unwrap();

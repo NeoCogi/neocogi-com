@@ -7,7 +7,7 @@ of the optional `cargo-neocogi` assembly driver.
 The single `neocogi-idl` package separates responsibilities into Rust modules:
 
 - `model`, `parser`, and `resolve` parse files/module directories, resolves copied values
-  and interfaces, validates roles/threading/required projections, and fingerprints
+  and interfaces, validates threading/required projections, and fingerprints
   the complete source graph.
 - `cargo` discovers sources and exchanges schema-5 source graphs through
   Cargo `links`/`DEP_*`. Build scripts use `neocogi_idl::cargo::Module`.
@@ -35,7 +35,7 @@ Producers advertise event interfaces explicitly using `#[events(IChanged, ...)]`
 Resolution verifies immutable getters and `IEvent` ancestry; generation exposes
 `IDL_INTERFACE.events` and its reachable value graph. No constructor-derived helpers
 or native payload associations are emitted. See [event metadata](../../../docs/contracts/IDL_EVENT_METADATA.md).
-`com_class(Contract)` supplies class allocation without later receiver attachment.
+`com_object(Contract)` supplies class allocation without later receiver attachment.
 
 All contracts, including events, are compile-time definitions. The build helper
 emits no native artifact, exported getter, runtime module graph, or built-in

@@ -12,7 +12,7 @@ fn graph(source: &str) -> Result<neocogi_idl::ResolvedModules, neocogi_idl::Reso
 fn ownership_modes_have_distinct_revision_signatures() {
     let make = |owner: &str| {
         graph(&format!(
-            "#[version(1)] interface IValue {{}} #[version(1)] factory Factory {{ fn create(&self) -> Result<{owner}<IValue>>; }}"
+            "#[version(1)] interface IValue {{}} #[version(1)] interface Factory {{ fn create(&self) -> Result<{owner}<IValue>>; }}"
         ))
         .unwrap()
     };
@@ -51,7 +51,7 @@ fn generated_factories_transfer_one_owner_through_real_abi_calls() {
             fn child(&self) -> Result<WeakComBox<IValue>>;
             fn remove(&mut self) -> Result<()>;
         }
-        #[version(1)] factory Factory { fn create(&self) -> Result<ComBox<IValue>>; }
+        #[version(1)] interface Factory { fn create(&self) -> Result<ComBox<IValue>>; }
     "#,
     )
     .unwrap();

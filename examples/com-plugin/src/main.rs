@@ -13,7 +13,7 @@ fn main() {
     register_plugin(runtime);
     // The runtime verifies the complete transitive contract before bootstrap.
     let factory = runtime
-        .acquire_plugin_factory::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
+        .acquire_plugin_root::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .expect("compatible example factory");
     let (queue, messages) = neocogi_com::events::channel();
     let binding = neocogi_com::events::EventBinding::from_queue(Some(queue.as_com_ref())).expect("shared application receiver");

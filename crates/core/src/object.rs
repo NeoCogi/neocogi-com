@@ -8,7 +8,6 @@ use core::ffi::c_void;
 
 use crate::guid::NcGuid;
 use crate::metadata::{NcInterfaceDescriptor, NcInterfaceId, NcStaticUtf8};
-use crate::ptr::ComPtr;
 use crate::signature::NcAbiSignature;
 use crate::status::NcStatus;
 use crate::{ThreadLocal, ThreadSafe, ThreadingModel};
@@ -140,49 +139,6 @@ pub unsafe trait ComInterface {
 
     /// The C-compatible vtable type for this interface.
     type VTable;
-}
-
-/// An interface eligible to serve as a plugin's zero-argument root.
-/// Typed methods on this interface construct every parameterized object.
-///
-/// # Safety
-///
-/// Implementors must be generated from an IDL `factory` declaration. The
-/// marker certifies construction policy without changing the interface ABI.
-pub unsafe trait ComFactoryInterface: ComInterface {}
-
-/// A concrete object contract whose required projections belong to one COM identity.
-///
-/// # Safety
-/// Implementations must be generated from an explicit IDL `class` declaration.
-/// The marker certifies the class role without altering its callable ABI.
-pub unsafe trait ComClassInterface: ComInterface {}
-
-/// Compile-time connection between a Rust factory implementation and its IDL interface.
-///
-/// `#[com_factory(Factory)]` is the normal and only generated implementation.
-/// Plugin description macros use this association to obtain the root factory ID
-/// and threading capability without asking implementation code to repeat them.
-///
-/// # Safety
-///
-/// `Interface` must be the exact IDL factory whose callable interfaces are
-/// implemented by `Self`'s generated COM storage.
-pub unsafe trait ComFactoryImplementation {
-    /// Constructor-free IDL factory interface implemented by this Rust type.
-    type Interface: ComFactoryInterface;
-}
-
-/// Safe construction policy for a plugin's root factory implementation.
-///
-/// `#[com_factory]` implements this trait automatically for unit structs. A
-/// stateful factory can implement it explicitly and initialize private state
-/// without exposing that state or an erased constructor frame through the ABI.
-/// The typed return guarantees that plugin acquisition cannot accidentally
-/// publish an unrelated COM object as its declared root factory.
-pub trait ComFactoryBootstrap: ComFactoryImplementation + Sized {
-    /// Creates one owned instance of the exact associated factory interface.
-    fn create_factory() -> Result<ComPtr<Self::Interface, <Self::Interface as ComInterface>::Threading>, NcStatus>;
 }
 
 /// Compile-time proof that an implementation satisfies a interface's mode.

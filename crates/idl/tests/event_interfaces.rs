@@ -10,8 +10,8 @@ fn common_receiver_captures_typed_events_without_owning_their_origins() {
     let source = r#"
         extern neocogi.com.events;
         use neocogi.com.events::IEvent;
-        #[version(1)] class Widget { fn value(&self) -> Result<u32>; }
-        #[version(1)] class Service { fn value(&self) -> Result<u32>; }
+        #[version(1)] interface Widget { fn value(&self) -> Result<u32>; }
+        #[version(1)] interface Service { fn value(&self) -> Result<u32>; }
         #[version(1)] interface IChanged: IEvent { fn value(&self) -> Result<u32>; }
         #[version(1)] interface ISubmitted: IEvent { fn text(&self) -> Result<ComPtr<INcString>>; }
         #[version(1)] struct Origins {

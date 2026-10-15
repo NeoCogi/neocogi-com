@@ -149,8 +149,8 @@ fn raw_identifier_catalog_paths_compile_in_exported_forms() {
         /// Immutable copied native view exposed through an ordinary event getter.
         #[version(1)] interface ICounterEvent: IEvent { fn value(&self) -> Result<CounterEvent>; }
         /// Concrete projection whose Rust module location uses a raw identifier.
-        #[version(1)] factory CounterFactory { fn create(&self, events: &EventBinding) -> Result<ComBox<Counter>>; }
-        #[version(1)] #[events(ICounterEvent)] class Counter: IWidget {}
+        #[version(1)] interface CounterFactory { fn create(&self, events: &EventBinding) -> Result<ComBox<Counter>>; }
+        #[version(1)] #[events(ICounterEvent)] interface Counter: IWidget {}
     "#,
     )
     .unwrap();

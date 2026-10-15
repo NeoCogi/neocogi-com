@@ -7,7 +7,7 @@
 //! constructor frame is present in this ABI.
 
 use crate::{
-    ComFactoryBootstrap, IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode, NcInterfaceId, NcGuid,
+    ComInterface, ComPtr, IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode, NcInterfaceId, NcGuid,
     NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name, validate_version_text,
 };
 
@@ -38,24 +38,23 @@ pub type NcAcquirePluginFactory = unsafe extern "C" fn(out: *mut crate::ComRaw<I
 
 /// Adapts a safe typed root-factory constructor to the fixed plugin ABI.
 ///
-/// The generic is monomorphized in the plugin assembly. The interface contract
-/// owns the factory identity and callable surface; this adapter only
-/// transfers the implementation's newly created reference to the runtime.
+/// The plugin macro monomorphizes this helper for its typed acquisition return.
+/// The ordinary interface owns identity and callable methods. This helper clears
+/// output before provider code and transfers exactly one successful reference;
+/// it imposes no singleton or object-construction policy.
 ///
 /// # Safety
 ///
 /// `out` must be valid for one ComRaw record write. It is always cleared before the
 /// implementation's fallible bootstrap code runs.
-pub unsafe extern "C" fn acquire_factory_implementation<T>(out: *mut crate::ComRaw<IUnknown>) -> NcStatus
-where
-    T: ComFactoryBootstrap,
+pub unsafe fn write_plugin_root<T: ComInterface>(out: *mut crate::ComRaw<IUnknown>, acquire: fn() -> Result<ComPtr<T, T::Threading>, NcStatus>) -> NcStatus
 {
     if out.is_null() {
         return NC_E_POINTER;
     }
     // SAFETY: The caller grants one output write and null was rejected above.
     unsafe { *out = crate::ComRaw::null() };
-    let factory = match T::create_factory() {
+    let factory = match acquire() {
         Ok(factory) => factory,
         Err(status) => return status.normalize_error(),
     };

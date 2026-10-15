@@ -13,10 +13,8 @@
 //!   interface or an explicit local `interfaces(...)` list. Objects are
 //!   thread-local by default; add `thread_safe` to generate
 //!   `ComPtr<_, ThreadSafe>` values for local objects.
-//! - [`com_factory`] associates an implementation with one generated IDL
-//!   factory interface.
-//! - [`factory_plugin`] creates immutable plugin metadata for one typed root
-//!   factory; it never generates an object table or erased argument frame.
+//! - [`plugin`] derives plugin metadata and its acquisition adapter from one
+//!   typed Rust function; `dynamic-plugin` enables the DLL discovery export.
 //! - [`com_struct`] marks a fixed-size record as ABI plain data, owns its
 //!   `repr(C)`/packing/alignment choice, and records its physical layout. It
 //!   checks fields through `neocogi_com::AbiPlainValue` by default, or through
@@ -137,14 +135,13 @@ use syn::{DeriveInput, ItemEnum, ItemStruct, ItemTrait, parse_macro_input};
 
 mod abi_method;
 mod args;
-mod class;
 mod deserialize;
 mod enums;
-mod factory_plugin;
 mod interface;
 mod model;
 mod object;
 mod plain_data;
+mod plugin;
 mod serialize;
 mod structs;
 mod util;
@@ -153,7 +150,7 @@ mod value;
 use args::{ObjectArgs, EnumArgs, InterfaceArgs, StructArgs};
 use deserialize::expand_derive as expand_com_deserialize_derive;
 use enums::expand_com_enum;
-use factory_plugin::{FactoryPluginArgs, expand_factory_plugin};
+use plugin::{PluginArgs, expand_plugin};
 use interface::expand_com_interface;
 use object::expand_com_object;
 use structs::expand_com_struct;
@@ -247,35 +244,29 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as ObjectArgs);
     let input = parse_macro_input!(item as ItemStruct);
-    expand_com_object(args, input, false).into()
+    expand_com_object(args, input).into()
 }
 
-/// Defines concrete COM storage for an implementation of an IDL factory.
+/// Describes one plugin using a safe typed acquisition function.
+/// The function takes no arguments and explicitly returns
+/// `Result<ComPtr<InterfaceAbi>, NcStatus>`. Its return interface supplies the
+/// root identity, ABI signature and threading. `name` derives the plugin ID;
+/// optional `version` defaults to the Cargo package version. Explicit
+/// `dependencies = [PLUGIN_ID, ...]` are hard registration dependencies.
 ///
-/// The factory interface owns its public identity, methods, threading, and
-/// required interfaces. This macro owns only private Rust storage and COM
-/// lifetime mechanics; it does not publish a globally callable constructor.
+/// Generates `plugin_descriptor()` for static registration and, under the
+/// provider's `dynamic-plugin` feature, `nc_get_plugin_descriptor_v1` for a DLL.
+/// The provider owns initialized storage; acquisition transfers one owner and
+/// may return a retained instance. No singleton or object-construction policy
+/// is imposed on ordinary interface methods.
 #[proc_macro_attribute]
-pub fn com_factory(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as ObjectArgs);
-    let input = parse_macro_input!(item as ItemStruct);
-    if args.primary_interface.is_none() {
-        return syn::Error::new_spanned(input.ident, "com_factory requires one IDL factory interface path")
-            .to_compile_error()
-            .into();
+pub fn plugin(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as PluginArgs);
+    let input = parse_macro_input!(item as syn::ItemFn);
+    match expand_plugin(args, input) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.to_compile_error().into(),
     }
-    expand_com_object(args, input, true).into()
-}
-
-/// Defines one factory-only plugin from exact IDL modules and a typed root.
-///
-/// The plugin ID is derived from `name` unless `plugin_id(...)` supplies a
-/// checked pin. The root ID and threading capability always come from the IDL
-/// interface associated with `factory`; they cannot be overridden here.
-#[proc_macro]
-pub fn factory_plugin(input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(input as FactoryPluginArgs);
-    expand_factory_plugin(args).into()
 }
 
 /// Defines a fixed-size ABI-safe record from generated IDL bindings.
@@ -369,24 +360,6 @@ mod persistence_codegen;
 
 #[cfg(test)]
 mod navigation_tests;
-
-/// Implements ordinary COM allocation for a concrete IDL class.
-///
-/// `#[com_class(Textbox)]` asserts the generated class contract and supplies its
-/// allocation helpers. Event storage remains an explicit private field initialized
-/// by the factory from its typed constructor argument. The macro generates no
-/// attachment method, hidden queue, or event receiver projection.
-/// `ownership = exclusive` selects unique owners and weak-call admission; the
-/// default shared policy emits only shared constructors and borrow-only calls.
-#[proc_macro_attribute]
-pub fn com_class(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as ObjectArgs);
-    let input = parse_macro_input!(item as ItemStruct);
-    match class::expand(args, input) {
-        Ok(tokens) => tokens.into(),
-        Err(error) => error.to_compile_error().into(),
-    }
-}
 
 /// Generates recursive raw fields and typed backing storage for an owned IDL value.
 /// This uses the same field codec as copied structs and enum payloads.

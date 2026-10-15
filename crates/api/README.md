@@ -2,7 +2,7 @@
 
 `neocogi-com` is the user-facing Rust facade for NeoCogi's explicit C-shaped
 component ABI. It provides typed COM pointers, generated interface/object
-support, factory-only plugins, and an optional facade over the linked
+support, typed plugin roots, and an optional facade over the linked
 `libnc_com`.
 
 Public cross-library contracts should be authored as Rust-like `.ncidl`
@@ -150,7 +150,7 @@ Given a generated contract crate, implementation code has this shape:
 
 ```rust,ignore
 use my_contracts::{Button, ButtonAbi, UiFactory};
-use neocogi_com::{ComBox, NcStatus, com_factory, com_object};
+use neocogi_com::{ComBox, NcStatus, com_object};
 
 #[com_object(my_contracts::Button, ownership = exclusive)]
 struct ButtonObject {
@@ -161,7 +161,7 @@ impl Button for ButtonObject {
     // IDL methods are implemented with ordinary typed Rust signatures.
 }
 
-#[com_factory(my_contracts::UiFactory)]
+#[com_object(my_contracts::UiFactory)]
 struct UiFactoryObject;
 
 impl UiFactory for UiFactoryObject {
@@ -170,34 +170,25 @@ impl UiFactory for UiFactoryObject {
     }
 }
 
-neocogi_com::factory_plugin! {
-    name = "example.ui",
-    version = "1.0.0",
-    factory = UiFactoryObject,
+#[neocogi_com::plugin(name = "my.ui")]
+fn acquire_root() -> Result<neocogi_com::ComPtr<my_contracts::UiFactoryAbi>, neocogi_com::NcStatus> {
+    UiFactoryObject::from_value(UiFactoryObject).query()
 }
-
-#[cfg(feature = "dynamic-plugin")]
-neocogi_com::export_factory_plugin!();
 ```
 
 `#[com_object(Interface)]` connects private storage to one interface contract.
-`#[com_factory(Factory)]` adds the factory-role proof and typed bootstrap.
-The plugin descriptor stores plugin metadata, full root identity/signature,
-threading, and acquisition. Ordinary objects require an initialized value;
-unit factories receive a generated zero-argument bootstrap; stateful roots
-implement `ComFactoryBootstrap` explicitly.
+`#[com_object(Interface)]` supplies storage for any closed interface. The plugin
+acquisition function owns initialization and its return supplies the root identity.
 
-`factory_plugin!` produces `plugin_descriptor() -> &'static NcPluginDescriptor`.
-`export_factory_plugin!()` publishes that accessor through
-`nc_get_plugin_descriptor_v1` for dynamic consumers. The macro names still
-describe the typed factory selected by the declaration; the descriptor itself
-describes the whole plugin.
+`#[plugin]` produces `plugin_descriptor() -> &'static NcPluginDescriptor` and
+exports `nc_get_plugin_descriptor_v1` when the provider's `dynamic-plugin` feature
+is enabled. A root can be any closed interface; no IDL construction role is required.
 
 | Value | Producer and use | Ownership |
 | --- | --- | --- |
 | `NcPluginDescriptor` | Provider input to validation, registration or unregistered inspection. Includes the bootstrap function. | Borrows immutable assembly metadata and code; copying it does not retain the library. |
 | `NcPluginInfoV1` / `PluginInfo` | Runtime output from registered lookup/enumeration. Includes first registration origin. | Raw views live for the process; the facade owns text, paths and GUID copies while retaining the process-lived signature view. |
-| `ComPtr<FactoryAbi>` | Result of typed `acquire_plugin_factory`. Used to call product construction methods. | Owns one COM reference, released when dropped. |
+| `ComPtr<FactoryAbi>` | Result of typed `acquire_plugin_root`. Used to call product construction methods. | Owns one COM reference, released when dropped. |
 
 Reading either metadata record does not acquire a factory. Registration retains
 the provider descriptor; it does not convert an inspection copy into a provider.
@@ -209,7 +200,7 @@ With the `runtime` feature, dynamic hosts use:
 ```rust,ignore
 let runtime = neocogi_com::Runtime::global();
 let plugin_id = unsafe { runtime.load_plugin_library(path) };
-let factory = runtime.acquire_plugin_factory::<my_contracts::UiFactoryAbi>(
+let factory = runtime.acquire_plugin_root::<my_contracts::UiFactoryAbi>(
     plugin_id,
 )?;
 let button = factory.create_button()?;
@@ -348,7 +339,7 @@ and [event ownership](../../../docs/contracts/CLASS_EVENT_STREAMS.md).
 
 Concrete providers select one ownership policy. Shared ownership is the default;
 `#[com_object(..., ownership = exclusive)]` and
-`#[com_class(Contract, ownership = exclusive)]` select exclusive ownership.
+`#[com_object(Contract, ownership = exclusive)]` select exclusive ownership.
 Only that policy's constructors are generated: shared classes have `from_value` /
 `from_value_cyclic` / `into_local`; exclusive classes have `into_box` /
 `into_box_cyclic` / `into_local_box`. Factories always remain shared.

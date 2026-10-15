@@ -12,7 +12,7 @@ struct ConsumerOptions {
 
 /// Factory proving cross-module value, interface, and class references.
 #[version(2)]
-factory ConsumerFactory: IMeasured {
+interface ConsumerFactory: IMeasured {
     /// Creates an object declared by the exact linked dependency revision.
     fn create(&self, options: ConsumerOptions, events: &EventBinding) -> Result<ComPtr<ExampleObject>>;
 }
