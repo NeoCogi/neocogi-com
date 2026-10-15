@@ -19,6 +19,9 @@ pub(crate) fn expand(variable: LitStr) -> syn::Result<proc_macro2::TokenStream> 
     // link-arg passes raw linker arguments, not cc-driver -Wl strings. Keep the
     // rpath option and its value on one block so rustc preserves their order.
     Ok(quote! {
+        // Track this environment value in rustc dep-info as well as reading it
+        // in the proc macro: cached link metadata must follow Cargo path changes.
+        const _: &str = env!(#variable);
         #[cfg(not(target_env = "msvc"))]
         #[link(kind = "link-arg", name = #unix_search)]
         unsafe extern "C" {}

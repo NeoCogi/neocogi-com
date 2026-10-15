@@ -10,8 +10,9 @@ component workspaces, wrapper library packages, assembly variants or `plugins.tx
 The repository pins nightly-2026-09-29 in `rust-toolchain.toml` and enables Cargo
 artifact dependencies in `.cargo/config.toml`. Rustup installs the selected tools.
 Artifact dependencies currently require [nightly Cargo](https://doc.rust-lang.org/cargo/reference/unstable.html#artifact-dependencies). The COM ABI, macros and
-IDL library contain no nightly Rust language features; external stable consumers
-can use them from their own workspaces.
+IDL library retain their stable Rust 1.85 boundary; the isolated native linkage
+crate uses nightly Rust. External stable consumers can use the SDK from their
+own workspaces.
 
 ```sh
 cargo run -p neocogi-demo-full
@@ -177,18 +178,41 @@ compilation and is not supplied by the removed assembly command.
 ## Profiles and output
 
 Use Cargo's ordinary `--release`, `--profile`, `--target` and `--target-dir` options.
-Release fat LTO now runs at each implementation's real cdylib target. A dynamic
-artifact request builds only that requested target type. A normal Rust dependency
-on a package advertising both `rlib` and `cdylib` may also emit an unused shared
+Both release and min-size retain fat LTO, one codegen unit and symbol stripping.
+The min-size profile also selects immediate abort, removes Rust panic locations
+and debug formatting, and disables forced unwind tables for deployed target code.
+Build scripts and procedural macros retain normal host panic/diagnostic settings.
+Cargo's abort-test harness preserves the target panic strategy while isolating
+panic expectations in child processes, including min-size profile tests.
+
+```sh
+cargo run -p neocogi-demo-full --no-default-features --features dynamic,vulkan --profile min-size
+# The same build-tree executable can start directly on Unix:
+./target/min-size/neocogi-demo-full
+```
+
+The workspace enables Cargo's `build-std` for std and its test/procedural-macro
+support, preserves normal backtrace/unwind features, adds `optimize_for_size`, and installs
+`rust-src` through the pinned toolchain. This is necessary because Cargo has no
+profile-specific `build-std` switch: a named profile alone cannot rebuild std.
+Target std is consequently rebuilt for other workspace profiles too, with an
+initial compile/cache cost for each target/profile. Portable SDK consumers outside
+this nightly development workspace keep their normal prebuilt standard library.
+The `cargo build-min-size` alias is only shorthand for `cargo build --profile min-size`;
+there is no separate target, wrapper, output layout or hidden compiler policy.
+
+A dynamic artifact request builds only its requested cdylib target. A normal Rust
+dependency on a package advertising both rlib/cdylib may also emit an unused shared
 library during monolith/browser builds; removing that extra link would require
 separate static/dynamic target packages or another crate-type selection mechanism.
-The migration removes the custom builder rather than hiding that Cargo tradeoff.
 
 Short native target names remain `nc_com`, `nc_ui`, `nc_ui_nodes`, `nc_render`,
-`nc_gfx`, `nc_skin` and optional `nc_ui_extension`. Their actual artifact directories
-are Cargo-owned. Do not reconstruct hashed paths in scripts or cache them across
-builds. The workspace's `cargo build-min-size` alias remains an explicit nightly
-size experiment; it is separate from the normal development workflow.
+`nc_gfx`, `nc_skin` and optional `nc_ui_extension`. The executable is in the usual
+`target/<profile>` directory when no explicit target is selected. Dependency DLLs
+remain in Cargo's artifact directories; they are not copied next to the executable.
+Registration embeds Cargo's exact provider paths and native linkage records the
+shared runtime directory. Do not reconstruct hashes or cache paths across builds.
+An explicit `--target` adds Cargo's normal target-specific output directory.
 
 ## Browser
 
