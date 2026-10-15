@@ -1,4 +1,4 @@
-//! Root-factory lookup and invocation for registered factory-only plugins.
+//! Root-factory lookup and invocation for registered plugins with one typed root.
 //!
 //! Resolution occurs under the catalog read lock, while plugin code runs only
 //! after that guard is released. The runtime validates the returned object's

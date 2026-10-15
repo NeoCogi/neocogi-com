@@ -36,6 +36,13 @@ pub const NC_GET_PLUGIN_DESCRIPTOR_SYMBOL: &str = "nc_get_plugin_descriptor_v1";
 /// QueryInterface. Erasure neither casts the object nor acquires a reference.
 pub type NcAcquirePluginFactory = unsafe extern "C" fn(out: *mut crate::ComRaw<IUnknown>) -> NcStatus;
 
+/// Safe Rust acquisition function for an interface's exact threading model.
+///
+/// This callable stays inside the provider binary. It initializes or retains one
+/// root and transfers its owner to the generated native adapter on success.
+/// It is separate from the fixed C acquisition function pointer above.
+pub type PluginRootAcquire<T> = fn() -> Result<ComPtr<T, <T as ComInterface>::Threading>, NcStatus>;
+
 /// Adapts a safe typed root-factory constructor to the fixed plugin ABI.
 ///
 /// The plugin macro monomorphizes this helper for its typed acquisition return.
@@ -45,9 +52,9 @@ pub type NcAcquirePluginFactory = unsafe extern "C" fn(out: *mut crate::ComRaw<I
 ///
 /// # Safety
 ///
-/// `out` must be valid for one ComRaw record write. It is always cleared before the
-/// implementation's fallible bootstrap code runs.
-pub unsafe fn write_plugin_root<T: ComInterface>(out: *mut crate::ComRaw<IUnknown>, acquire: fn() -> Result<ComPtr<T, T::Threading>, NcStatus>) -> NcStatus
+/// `out` must be null or aligned and writable for one ComRaw record. A usable
+/// slot is cleared before the implementation's fallible acquisition code runs.
+pub unsafe fn write_plugin_root<T: ComInterface>(out: *mut crate::ComRaw<IUnknown>, acquire: PluginRootAcquire<T>) -> NcStatus
 {
     if out.is_null() {
         return NC_E_POINTER;

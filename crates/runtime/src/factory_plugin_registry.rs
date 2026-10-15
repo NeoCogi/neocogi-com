@@ -1,4 +1,4 @@
-//! Runtime-owned index of registered factory-only plugins.
+//! Runtime-owned index of registered plugins with one typed root.
 //!
 //! A factory plugin stores no runtime construction table: its only executable
 //! entry is the fixed root-factory acquisition pointer in its immutable
@@ -12,7 +12,7 @@ use crate::loader::PinnedLibrary;
 
 use neocogi_com_core::{NcPluginDescriptor, NcGuid};
 
-/// Append-only records for the factory-only plugin model.
+/// Append-only records for the single-root plugin model.
 pub(crate) struct FactoryPluginRegistry {
     /// Records in successful registration order.
     plugins: Vec<RegisteredFactoryPlugin>,
@@ -21,7 +21,7 @@ pub(crate) struct FactoryPluginRegistry {
 }
 
 impl FactoryPluginRegistry {
-    /// Creates an empty factory-only registry.
+    /// Creates an empty plugin registry.
     pub(crate) fn new() -> Self {
         Self {
             plugins: Vec::new(),
@@ -42,7 +42,7 @@ impl FactoryPluginRegistry {
             .count()
     }
 
-    /// Looks up one immutable factory-only plugin record.
+    /// Looks up one immutable plugin record.
     pub(crate) fn plugin(&self, plugin_id: NcGuid) -> Option<&RegisteredFactoryPlugin> {
         self.plugin_by_id.get(&plugin_id).map(|index| &self.plugins[*index])
     }

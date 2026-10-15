@@ -3,6 +3,12 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
 
+# Stable package testing excludes the development-only artifact manifests.
+if [[ "${NEOCOGI_LIBRARY_WORKSPACE:-0}" != 1 ]]; then
+  exec python3 crates/com/scripts/library_workspace.py bash crates/com/scripts/test-msrv.sh
+fi
+cargo +1.85.0 generate-lockfile
+
 msrv="1.85.0"
 target_dir="${CARGO_TARGET_DIR:-target/msrv}"
 

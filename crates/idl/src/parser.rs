@@ -380,7 +380,7 @@ fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result
     ))
 }
 
-/// Parses one common callable contract and applies its role-specific policy.
+/// Parses one callable contract with threading, projections and ordinary methods.
 fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Declaration> {
     let metadata = parse_attributes(attributes, AttributeContext::Interface)?;
     let threading = metadata_threading(&metadata);

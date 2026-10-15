@@ -52,7 +52,7 @@ pub enum SourceMapKind {
     Enum,
     /// Generated message payload union.
     Union,
-    /// Interface, class, factory, or generated extension trait.
+    /// Interface or generated extension trait.
     Trait,
     /// Implementation block whose methods may refine the parent origin.
     Implementation,

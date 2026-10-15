@@ -302,7 +302,7 @@ pub enum AbiType {
     String,
     /// A declaration referenced by a local, imported, or qualified path.
     Named(NamedType),
-    /// An owned COM reference to a closed interface, class, or factory contract.
+    /// An owned COM reference to a closed interface contract.
     /// Ownership is explicit; the referenced implementation is never stored inline.
     ComPtr(Box<AbiType>),
     /// A shared weak reference, stored in a value or transferred as a method result.

@@ -42,17 +42,13 @@ ID, module registry or module-to-plugin join. The limit is 1,024 distinct dynami
 providers, excluding static registrations and repeats, and 64 active messengers.
 Plugin descriptor ABI v1 and core object ABI v17 remain independently versioned.
 
-The crate defaults to an rlib. Build a standalone shared runtime with:
-
-```sh
-cargo rustc -p neocogi-com-runtime --lib --crate-type cdylib
-```
-
-The Cargo package is `neocogi-com-runtime`, but its Rust library target is
-`nc_com`. The command emits `libnc_com.so` on Linux, `libnc_com.dylib` on macOS,
-or `nc_com.dll` on Windows. `cargo-neocogi` uses a generated pure-cdylib root
-with that same target name. Plain `cargo build -p neocogi-com-runtime` only
-builds the implementation rlib; it does not assemble a shared deployment.
+The package owns both `rlib` and `cdylib` targets under the short name `nc_com`.
+A Cargo artifact dependency requests its shared target directly; normal static
+consumers link the rlib. `cargo build -p neocogi-com-runtime` may emit both.
+There is no generated wrapper package. Output names are `libnc_com.so` on Linux,
+`libnc_com.dylib` on macOS and `nc_com.dll` on Windows. The
+[native guide](../../../docs/guides/COM_NATIVE.md) explains Cargo artifact paths
+and the distinction between development builds and installation.
 
 A monolithic host enables the facade's `static-runtime` feature and links this
 same implementation once. No generated wrapper project is required. See the

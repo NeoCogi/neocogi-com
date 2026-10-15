@@ -10,7 +10,8 @@ use neocogi_com_core::{NcPersistenceApiV1, NcDebugApiV1, NcRuntimeApiV1};
 #[cfg(feature = "static-runtime")]
 extern crate nc_com as _;
 
-#[cfg_attr(all(not(test), not(feature = "static-runtime")), link(name = "nc_com"))]
+#[cfg_attr(all(not(test), not(feature = "static-runtime"), not(target_env = "msvc")), link(name = "nc_com"))]
+#[cfg_attr(all(not(test), not(feature = "static-runtime"), target_env = "msvc"), link(name = "nc_com.dll.lib", kind = "dylib", modifiers = "+verbatim"))]
 unsafe extern "C" {
     /// Returns the runtime ABI v1 caller-scoped persistence table.
     pub(crate) fn nc_com_get_persistence_api_v1() -> *const NcPersistenceApiV1;

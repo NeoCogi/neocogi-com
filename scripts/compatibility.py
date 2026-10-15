@@ -52,7 +52,7 @@ CASES = (
 )
 # Keep semantic sentinels next to their actual target, not stale names in several scripts.
 LINKED_TESTS = {
-    "factory_plugin_runtime": "generated_contract_factory_activates_without_a_class_table",
+    "factory_plugin_runtime": "generated_contract_factory_acquires_without_a_class_table",
     "object_persistence": "registry_ownership_is_local_and_releases_retained_factories",
     "checked_values": "invalid_nested_bool_fails_copied_and_buffer_thunks",
     "output_buffers": "raw_output_initializes_only_reported_prefix_and_reuses_capacity",
@@ -63,13 +63,13 @@ LINKED_TESTS = {
 }
 
 
-def run(arguments: list[str], *, env: dict[str, str], cwd: Path = ROOT) -> str:
+def run(arguments: list[str], *, env: dict[str, str], cwd: Path | None = None) -> str:
     """Run one explicit argument vector, retaining diagnostics and requiring success."""
     print("+", subprocess.list2cmdline([str(arg) for arg in arguments]), flush=True)
     # Stream expensive compiler/Miri work into CI logs while retaining the same
     # output for discovery and execution checks after the process has exited.
     lines = []
-    with subprocess.Popen(arguments, cwd=cwd, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:
+    with subprocess.Popen(arguments, cwd=ROOT if cwd is None else cwd, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:
         for line in process.stdout:
             print(line, end="", flush=True)
             lines.append(line)
@@ -190,6 +190,8 @@ def safety() -> dict:
     native tests, and temporary build outputs are removed on success or failure.
     """
     env = clean_environment()
+    if not (ROOT / "Cargo.lock").is_file():
+        run(["rustup", "run", "nightly", "cargo", "generate-lockfile"], env=env)
     version = run(["rustup", "run", "nightly", "rustc", "-vV"], env=env)
     run(["rustup", "run", "nightly", "cargo", "miri", "--version"], env=env)
     targets = [
@@ -229,6 +231,10 @@ def execute(case: Case, *, linked: bool = False, sanitizer: str | None = None) -
     """Build, remove build outputs, then execute a three-file relocated deployment."""
     print(json.dumps({"case": asdict(case), "sanitizer": sanitizer}), flush=True)
     env = clean_environment()
+    if not (ROOT / "Cargo.lock").is_file():
+        # The source-only fixture starts with no lock; resolution happens once,
+        # using an explicitly selected compiler, before all locked role builds.
+        run(["rustup", "run", case.runtime.toolchain, "cargo", "generate-lockfile"], env=env)
     versions = {name: run(["rustup", "run", name, "rustc", "-vV"], env=env)
                 for name in sorted({case.runtime.toolchain, case.host.toolchain, case.plugin.toolchain})}
     # Different target ABIs are not interchangeable build flags. Reject the case
@@ -254,11 +260,11 @@ def execute(case: Case, *, linked: bool = False, sanitizer: str | None = None) -
             if role == "runtime":
                 shutil.copy2(stage / filename, link / filename)
                 if os.name == "nt":
-                    # MSVC emits nc_com.dll.lib; #[link(name="nc_com")] needs nc_com.lib.
+                    # The facade imports Rust's MSVC nc_com.dll.lib name verbatim.
                     imports = next((p for p in (output / "nc_com.dll.lib", output / "nc_com.lib", output / "libnc_com.dll.a") if p.is_file()), None)
                     if imports is None:
                         raise RuntimeError("runtime import library was not produced")
-                    shutil.copy2(imports, link / ("nc_com.lib" if imports.suffix == ".lib" else imports.name))
+                    shutil.copy2(imports, link / ("nc_com.dll.lib" if imports.suffix == ".lib" else imports.name))
             # Nothing in subsequent execution may resolve back into build outputs.
             run(["rustup", "run", build.toolchain, "cargo", "clean", "--target-dir", str(target)], env=env)
         runtime_env = {**env, "LD_LIBRARY_PATH": str(stage), "DYLD_LIBRARY_PATH": str(stage),
@@ -315,4 +321,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    from library_workspace import library_workspace
+    # Independent stable/nightly roles use the library source boundary, not the
+    # development workspace's nightly artifact dependency declarations.
+    with library_workspace() as sources:
+        ROOT = sources
+        main()

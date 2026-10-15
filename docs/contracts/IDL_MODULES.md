@@ -638,7 +638,7 @@ An ordinary `cargo build` performs the entire compilation. No external CLI,
 nested Cargo invocation, target rustc invocation, C compiler, or archiver is
 launched by the contract build helper.
 
-Canonical module encoding v9 includes interface roles and the current COM ABI explicitly. The resolver
+Canonical module encoding v10 includes threading, required projections and the current COM ABI explicitly. The resolver
 includes exact transitive module fingerprints in each declaration
 signature. The plugin descriptor publishes its root factory's full IID and
 signature. Runtime activation compares both before calling bootstrap;
@@ -717,7 +717,7 @@ and uses the same acquisition operation against one `static-runtime` instance.
 
 - `neocogi-idl` owns parsing, semantic validation, and canonical fingerprints.
 - `neocogi-idl` owns source discovery, graph exchange, and Rust generation.
-- `cargo-neocogi` optionally manages modules and assembles applications/plugins.
+- `cargo-neocogi` optionally manages modules; Cargo builds applications/plugins.
   Its IDL tools can inspect complete source declarations without shipping them.
 - `neocogi-inspect` reads plugin/dependency/factory metadata as inspection schema
   9. It compares exact factory signatures and plans provider load order.

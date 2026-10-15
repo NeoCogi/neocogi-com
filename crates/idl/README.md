@@ -2,7 +2,7 @@
 
 The compiler owns contract parsing, canonical transitive ABI signatures, and
 Rust binding generation. It runs during ordinary Cargo builds and is independent
-of the optional `cargo-neocogi` assembly driver.
+of the optional `cargo-neocogi` module-authoring tool.
 
 The single `neocogi-idl` package separates responsibilities into Rust modules:
 
@@ -215,7 +215,7 @@ protocol; fieldless enums and bit sets preserve their raw scalar values.
 Record-only `#[persistence(default)]` retains an omitted trailing suffix from a
 host-authored Rust Default. Every NCB record is positional; `persistence(sequence)`
 and the old decoder opt-ins are rejected. Both generic and concrete
-contracts share canonical module encoding v9, including authored assignments,
+contracts share canonical module encoding v10, including authored assignments,
 versions, trailing-default policy and positional generic binders.
 
 `Option<T>` comes from the bundled [ordinary IDL enum](stdlib/neocogi/lang.ncidl).

@@ -14,10 +14,8 @@ categories = ["api-bindings", "development-tools::ffi"]
 
 [lib]
 # Keep direct Cargo builds and packaged shared libraries under the same short name.
-# Rust hosts link this rlib once. A standalone shared runtime uses
-# cargo rustc --lib --crate-type cdylib; the assembly tool may own that root too.
 name = "nc_com"
-crate-type = ["rlib"]
+crate-type = ["rlib", "cdylib"]
 
 [dependencies]
 neocogi-com-core = { workspace = true, default-features = false, features = ["std"] }

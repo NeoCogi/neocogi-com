@@ -522,7 +522,7 @@ pub use neocogi_com_core::{
     NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApiV1, NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1,
     NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcFactoryInfoV1, NcPluginInfoV1, NcQualifiedNameError, NcRuntimeApiV1, NcStaticUtf8, NcStatus,
     NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES, QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel,
-    write_plugin_root, guid_from_qualified_name, raw, return_plugin_descriptor, validate_plugin_descriptor, validate_qualified_name,
+    PluginRootAcquire, write_plugin_root, guid_from_qualified_name, raw, return_plugin_descriptor, validate_plugin_descriptor, validate_qualified_name,
     validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
 };
 pub use object::{

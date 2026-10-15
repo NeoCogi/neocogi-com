@@ -1,10 +1,10 @@
 # NeoCogi component design
 
-A contract describes values and callable interfaces at compile time. A `class`
-declares the projections of a concrete product; its private state and method
-bodies live in Rust. A `factory` is the callable role eligible for the runtime's
-zero-argument bootstrap. A plugin packages implementations and one root factory.
-Events are ordinary typed values passed to an application-supplied queue.
+A contract describes values, callable interfaces and required projections at
+compile time. Rust owns concrete object fields and method bodies through
+`#[com_object]`. `#[plugin]` publishes a typed zero-argument acquisition function;
+its root can be a finished service or an ordinary construction provider. Events
+are ordinary typed values passed to an application-supplied receiver.
 
 ## Responsibilities
 
@@ -14,8 +14,8 @@ Events are ordinary typed values passed to an application-supplied queue.
   -> generated Rust layouts, checked codecs, vtables and fixed signatures
   -> compiled independently into each host/plugin that uses the contract
 
-plugin: private implementations + one factory descriptor
-COM runtime: plugin registry + loaded-library lifetime + checked root activation
+plugin: private implementations + one typed root descriptor
+COM runtime: plugin registry + loaded-library lifetime + checked root acquisition
              + caller-owned persistence contexts
 host: supplies paths/dependency order, calls typed factories, owns application state
 ```
@@ -30,14 +30,16 @@ supplies object helpers, ordinary event contracts and runtime clients; `runtime`
 owns loading, registries and persistence execution; `macros` expands Rust object
 implementations; `idl` owns parsing through Cargo integration. Only the process
 runtime is deployed as the COM shared library (`libnc_com.so` on Linux). Contracts
-and facade helpers compile into their consumers. The optional `cargo-neocogi`
-driver assembles deployments; the [plain-Cargo sample](../../examples/com-plugin/README.md)
-demonstrates both shared and monolithic builds without that driver.
+and facade helpers compile into their consumers. Cargo artifact dependencies build native development compositions directly;
+[the native guide](../guides/COM_NATIVE.md) explains their graph and link ownership.
+`cargo-neocogi` retains module authoring commands. The
+[standalone sample](../../examples/com-plugin/README.md) also demonstrates the raw
+shared-library boundary and monolithic linking.
 
 ## Construction and interface storage
 
-`interface`, `class` and `factory` share the callable ABI machinery, with distinct
-roles. In `class Button: IWidget + IActions`, the first required interface provides
+`interface` is the only callable IDL declaration. In
+`interface Button: IWidget + IActions`, the first required interface provides
 the physical vtable prefix; the others provide queryable sibling projections.
 Requirements are transitive and acyclic. IDL rejects weakening an inherited shared
 threading promise.
@@ -49,13 +51,12 @@ selects another table for the same allocation after exact identity checks. The
 [storage guide](../contracts/COM_INTERFACE_STORAGE.md) explains why the two-word handle replaced
 recursive headers and records the measured tradeoffs of earlier attempts.
 
-`#[com_object(Interface)]` and `#[com_class(Class)]` associate private Rust state
-with its contract. Shared ownership generates `from_value` and `ComPtr` helpers;
+`#[com_object(Interface)]` associates private Rust state with any closed contract. Shared ownership generates `from_value` and `ComPtr` helpers;
 `ownership = exclusive` generates `into_box` and non-clonable `ComBox` helpers.
-A provider emits only its selected constructor family. `#[com_factory(Factory)]`
-also proves bootstrap eligibility. Unit factories get a default bootstrap;
-stateful roots implement that typed policy themselves. Factory methods accept
-ordinary typed constructor arguments and return explicit owners.
+A provider emits only its selected constructor family and explicitly initializes
+its Rust state. `#[plugin]` wraps one typed Rust acquisition function in the fixed
+root ABI; it needs no bootstrap role or implementation trait. Subsequent object
+construction uses ordinary typed methods and explicit returned owners.
 
 Mutation uses `&mut self`. ABI dispatch obtains a checked borrow before creating
 a Rust reference; conflicting or reentrant access returns `NC_E_BUSY`. Shared
@@ -112,10 +113,10 @@ Interface queries and pointer transfers also check their contracts.
 Unconnected revisions can coexist in one process. Plugin dependencies define
 registration order; the host supplies paths. Library loading, getters, bootstrap
 and diagnostics run outside the catalog write lock. Required live-load failures
-are diagnosed and fatal; typed activation mismatches return statuses. Successfully
+are diagnosed and fatal; typed acquisition mismatches return statuses. Successfully
 loaded libraries stay mapped for process lifetime, including retained weak storage.
 
-Dynamic and static assemblies use the same typed activation. Dynamic builds export
+Dynamic and static assemblies use the same typed acquisition. Dynamic builds export
 `nc_get_plugin_descriptor_v1`; monoliths register the same provider's Rust
 descriptor and link the runtime statically. Independent compiler versions and
 build flags are supported when the target C ABI, core generation and exact contract
