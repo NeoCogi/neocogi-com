@@ -187,7 +187,7 @@ impl DebugState {
     }
 
     /// Snapshots matching registrations and invokes them outside the registry lock.
-    fn emit(&self, severity: u32, value_type: u32, message: &NcDebugMessageV1) {
+    pub(crate) fn emit(&self, severity: u32, value_type: u32, message: &NcDebugMessageV1) {
         // Snapshotting reference-counted records keeps them alive after releasing
         // the registry lock. The active/in-flight transition below decides
         // whether each snapshotted callback may still begin.
@@ -228,11 +228,6 @@ pub(crate) unsafe extern "C" fn create_messenger(create_info: *const NcDebugMess
 /// C table adapter that destroys a messenger and waits for callback quiescence.
 pub(crate) unsafe extern "C" fn destroy_messenger(handle: u64) {
     RuntimeState::global().debug().destroy_messenger(handle);
-}
-
-/// Sends a borrowed diagnostic through every matching active messenger.
-pub(crate) fn emit(severity: u32, value_type: u32, message: &NcDebugMessageV1) {
-    RuntimeState::global().debug().emit(severity, value_type, message);
 }
 
 #[cfg(test)]

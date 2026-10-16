@@ -27,7 +27,18 @@ with their own storage and capacity policy. There are no per-widget queue traits
 application callback adapters, or required per-form generated receivers.
 
 Snapshot constructors return a `ComBox<IEventAbi>` directly. Applications query
-typed immutable getters; there is no native output conversion layer. `EventPort`
+typed immutable getters with the existing exclusive-owner query:
+
+```rust,ignore
+let event = snapshots::counter_changed(42)?;
+let changed = event.query_weak::<ICounterChangedEventAbi>()?;
+assert_eq!(changed.value()?, 42);
+```
+
+`query_weak` returns `NC_E_NOINTERFACE` for a missing projection. Use it when the
+event type is required; use `message.downcast` when filtering a captured message
+by type. The latter maps only that one status to `None`. There is no separate
+free `downcast_event` adapter or native output conversion layer. `EventPort`
 provides explicit Unobserved/Observed/Closed delivery state for shared services.
 Widgets store their common receiver and cached `WeakComBox` origin directly.
 

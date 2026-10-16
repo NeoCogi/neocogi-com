@@ -103,7 +103,7 @@ fn emit_error(value_type: u32, status: NcStatus, text: &str) {
     // Debug dispatch is synchronous, so this borrowed text remains valid for
     // every callback and need not be copied into runtime-owned storage.
     let message = NcDebugMessageV1::new(status, NcUtf8View { data: text.as_ptr(), len: text.len() });
-    debug::emit(NC_DEBUG_SEVERITY_ERROR, value_type, &message);
+    crate::state::RuntimeState::global().debug().emit(NC_DEBUG_SEVERITY_ERROR, value_type, &message);
 }
 
 #[cfg(test)]

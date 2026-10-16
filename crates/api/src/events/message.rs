@@ -2,11 +2,6 @@
 use super::{EventOrigin, IEventAbi};
 use crate::{ComBox, ComInterface, NcStatus, NcValueRef, WeakComBox, WeakComPtr, NC_E_NOINTERFACE};
 
-/// Queries an event without moving its owner; unsupported interfaces are ordinary absence.
-pub fn downcast_event<T: ComInterface>(event: &ComBox<IEventAbi>) -> Result<Option<WeakComBox<T>>, NcStatus> {
-    optional(event.query_weak())
-}
-
 /// Captured immutable fact and the producer's non-owning identity.
 /// The event remains readable after origin removal; the consumer decides staleness.
 #[derive(Debug)]
@@ -31,7 +26,7 @@ impl EventMessage {
     /// The projection observes this message's event; it cannot become another owner.
     /// Its methods return Dropped after the event owner is destroyed.
     pub fn downcast<T: ComInterface>(&self) -> Result<Option<WeakComBox<T>>, NcStatus> {
-        downcast_event(&self.event)
+        optional(self.event.query_weak())
     }
 }
 

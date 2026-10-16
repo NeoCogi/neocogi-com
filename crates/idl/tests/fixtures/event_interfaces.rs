@@ -201,6 +201,8 @@ mod tests {
         let event = Changed::into_box(Changed { value: 42, drops: Rc::new(Cell::new(0)) })
             .query::<IEventAbi>()
             .unwrap();
+        assert_eq!(event.query_weak::<WrongRevision>().unwrap_err(), NC_E_ABI_VERSION);
+        assert_eq!(event.query_weak::<ISubmittedAbi>().unwrap_err(), NC_E_NOINTERFACE);
         let service = ServiceObject::into_local(ServiceObject);
         let message = EventMessage {
             origin: EventOrigin::Service(service.query::<ServiceAbi>().unwrap().downgrade().unwrap().into_unknown()),

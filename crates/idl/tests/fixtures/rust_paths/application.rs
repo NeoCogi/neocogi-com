@@ -15,7 +15,7 @@ mod tests {
         let _: fn(&plain::Form) -> &neocogi_ui::Widget<CounterAbi> = |form| &form.widget_counter_0;
         let _: fn(&absolute::Form) -> &neocogi_ui::Widget<CounterAbi> = |form| &form.widget_counter_0;
         let snapshot = path_contracts::r#type::changed(CounterEvent::Changed(CounterChanged { value: 42 })).unwrap();
-        let event = neocogi_com::events::downcast_event::<ICounterEventAbi>(&snapshot).unwrap().unwrap();
+        let event = snapshot.query_weak::<ICounterEventAbi>().unwrap();
         assert!(matches!(event.value().unwrap(), CounterEvent::Changed(value) if value.value == 42));
     }
 }

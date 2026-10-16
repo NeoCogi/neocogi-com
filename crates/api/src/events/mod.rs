@@ -12,7 +12,7 @@ pub use contracts::*;
 #[cfg(feature = "alloc")]
 mod message;
 #[cfg(feature = "alloc")]
-pub use message::{EventMessage, downcast_event};
+pub use message::EventMessage;
 
 #[cfg(feature = "alloc")]
 mod stream;
