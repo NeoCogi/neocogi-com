@@ -338,15 +338,15 @@ mod tests {
         );
     }
 
-    /// Built-in erasure preserves the allocation and table address without reading them.
+    /// Raw casting preserves the allocation and table address without reading them.
     #[test]
-    fn builtin_pair_erasure_is_non_dereferencing() {
+    fn builtin_pair_cast_is_non_dereferencing() {
         let raw = crate::ComRaw::<INcBytesAbi> {
             object: core::ptr::NonNull::<u8>::dangling().as_ptr().cast(),
             vtable: core::ptr::NonNull::<crate::INcBytesVTable>::dangling().as_ptr(),
         };
-        assert_eq!(raw.erase().object, raw.object);
-        assert_eq!(raw.erase().vtable, raw.vtable.cast());
-        assert!(crate::ComRaw::<INcStringAbi>::null().erase().is_null());
+        assert_eq!(raw.cast::<crate::IUnknown>().object, raw.object);
+        assert_eq!(raw.cast::<crate::IUnknown>().vtable, raw.vtable.cast());
+        assert!(crate::ComRaw::<INcStringAbi>::null().cast::<crate::IUnknown>().is_null());
     }
 }

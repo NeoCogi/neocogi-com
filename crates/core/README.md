@@ -43,6 +43,14 @@ admission policy for IDL and macro validation, including raw identifier spelling
 This does not restrict private field/parameter names or alter the wire ABI. See
 [identifier hygiene](../../../docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md).
 
+Use `query::<T>()` when selecting a typed interface, or
+`supports_interface_id(&id)` when inspecting an exact contract without a Rust
+marker. Both preserve the failure status. There is no boolean `ComPtr::is`
+shortcut: it discarded ABI errors and prevented interfaces from naming a method
+`is`. `ComRaw::cast::<T>()` is the single raw reinterpretation operation; it
+does not query, validate, retain, or change either address. Casting to `IUnknown`
+selects the common table prefix without acquiring that interface's own table.
+
 | Handle | Owns a reference | `Send` / `Sync` |
 |---|:---:|:---:|
 | `ComPtr<T, ThreadLocal>` | Yes | No |

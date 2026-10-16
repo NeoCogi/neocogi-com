@@ -26,7 +26,6 @@ pub const NC_COM_HANDLE_METHOD_NAMES: &[&str] = &[
     "downgrade_box",
     "supports_interface_id",
     "supports_interface_bytes",
-    "is",
     "is_idle",
     "is_alive",
     "same_object",

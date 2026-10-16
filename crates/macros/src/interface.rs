@@ -11,7 +11,7 @@ use syn::{ItemTrait, Result, TypeParamBound, TraitBoundModifier, PathArguments};
 use crate::abi_method::{parse_abi_trait_item, raw_vtable_method_docs, safe_method_docs, validate_interface_trait};
 use crate::args::{InterfaceArgs, InterfaceThreading};
 use crate::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind};
-use crate::util::{abi_signature_static_tokens, checked_u32_len, collect_syn_results, interface_guid, private_ident, push_error, runtime_crate_path};
+use crate::util::{abi_signature_static_tokens, checked_u32_len, collect_syn_results, stable_guid, private_ident, push_error, runtime_crate_path};
 
 /// Expands one validated interface trait into its complete Rust and C ABI surface.
 pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Result<proc_macro2::TokenStream> {
@@ -76,7 +76,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         InterfaceThreading::Shared => quote! { #nc::ThreadSafe },
     };
     let qualified_name = args.qualified_name;
-    let guid = interface_guid(args.guid, &qualified_name, &nc)?;
+    let guid = stable_guid(args.guid, &qualified_name, &nc)?;
     let assigned_signature = args.assigned_signature.clone().ok_or_else(|| {
         syn::Error::new(
             trait_ident.span(),

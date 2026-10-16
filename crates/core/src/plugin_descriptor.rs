@@ -69,7 +69,7 @@ pub unsafe fn write_plugin_root<T: ComInterface>(out: *mut crate::ComRaw<IUnknow
     // address. Consuming the typed pointer transfers its existing ownership
     // into the untyped bootstrap slot without AddRef or Release.
     let raw_factory = factory.into_raw();
-    let unknown = raw_factory.erase();
+    let unknown = raw_factory.cast::<crate::IUnknown>();
     if unknown.is_null() {
         // A valid owned ComPtr cannot contain null. Retain a defensive check at
         // this unsafe plugin boundary in case a foreign implementation violates

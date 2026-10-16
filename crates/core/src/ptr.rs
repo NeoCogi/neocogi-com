@@ -363,7 +363,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
             })
         } else {
             // SAFETY: this owner keeps the matching allocation/table pair alive.
-            let out = unsafe { raw::__nc_query_interface(self.as_raw().erase(), &U::INTERFACE_ID) }?;
+            let out = unsafe { raw::__nc_query_interface(self.as_raw().cast::<crate::IUnknown>(), &U::INTERFACE_ID) }?;
             // SAFETY: the shared query body validates exact identity and transfers one owner.
             unsafe { ComPtr::<U, M>::from_raw_owned(out.cast()) }.ok_or(NC_E_POINTER)
         }
@@ -376,15 +376,10 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComPtr<T, M> {
     /// Queries and releases a discovered exact contract without inventing a Rust type.
     pub fn supports_interface_id(&self, expected: &crate::NcInterfaceId) -> Result<(), NcStatus> {
         // SAFETY: this owner retains the source through the common checked query.
-        let out = unsafe { raw::__nc_query_interface(self.as_raw().erase(), expected) }?;
+        let out = unsafe { raw::__nc_query_interface(self.as_raw().cast::<crate::IUnknown>(), expected) }?;
         // SAFETY: the validated query transfers exactly one temporary reference.
         unsafe { raw::release(out) };
         Ok(())
-    }
-
-    /// Reports support for U; query preserves the detailed failure status when needed.
-    pub fn is<U: ComInterface>(&self) -> bool {
-        self.query::<U>().is_ok()
     }
 }
 impl<T: ComInterface + ?Sized> ComPtr<T, ThreadSafe> {
@@ -604,7 +599,7 @@ pub mod raw {
     #[inline(always)]
     pub unsafe fn validate_interface<T: ComInterface + ?Sized>(raw: ComRaw<T>) -> Result<(), crate::NcStatus> {
         // SAFETY: the interface trait certifies the common table prefix.
-        unsafe { __nc_validate_iunknown_interface(raw.erase(), &T::INTERFACE_ID) }
+        unsafe { __nc_validate_iunknown_interface(raw.cast::<crate::IUnknown>(), &T::INTERFACE_ID) }
     }
     /// Retains a present borrowed pair; absent/malformed null shapes return zero.
     ///
@@ -614,7 +609,7 @@ pub mod raw {
         if !raw.is_present() {
             return 0;
         }
-        let raw = raw.erase();
+        let raw = raw.cast::<crate::IUnknown>();
         // SAFETY: caller guarantees the matching live object and table.
         unsafe { ((*raw.vtable).add_ref)(raw.object) }
     }
@@ -626,7 +621,7 @@ pub mod raw {
         if !raw.is_present() {
             return 0;
         }
-        let raw = raw.erase();
+        let raw = raw.cast::<crate::IUnknown>();
         // SAFETY: caller transfers one reference and the table owns destruction.
         unsafe { ((*raw.vtable).release)(raw.object) }
     }

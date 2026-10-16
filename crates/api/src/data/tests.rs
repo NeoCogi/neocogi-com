@@ -19,13 +19,13 @@ fn retain_exhaustion_aborts_in_real_data_entrypoints() {
                     // SAFETY: a fresh, initialized allocation has not escaped.
                     // Inject only its counter, without inventing foreign storage.
                     unsafe { (*raw.object.cast::<BytesObject>()).ref_count.store(u32::MAX, Ordering::Relaxed) };
-                    raw.erase()
+                    raw.cast::<crate::IUnknown>()
                 }
                 "string-clone" | "string-query" => {
                     let raw = StringObject::allocate(String::from("text"));
                     // SAFETY: same exclusive test setup, with the real string layout.
                     unsafe { (*raw.object.cast::<StringObject>()).ref_count.store(u32::MAX, Ordering::Relaxed) };
-                    raw.erase()
+                    raw.cast::<crate::IUnknown>()
                 }
                 _ => unreachable!("closed set of provider cases"),
             };
@@ -44,8 +44,8 @@ fn retain_exhaustion_aborts_in_real_data_entrypoints() {
 #[test]
 fn data_entrypoints_balance_owners_through_final_release() {
     for raw in [
-        BytesObject::allocate(Vec::from(b"bytes")).erase(),
-        StringObject::allocate(String::from("text")).erase(),
+        BytesObject::allocate(Vec::from(b"bytes")).cast::<crate::IUnknown>(),
+        StringObject::allocate(String::from("text")).cast::<crate::IUnknown>(),
     ] {
         // SAFETY: both initialized allocations expose this common lifecycle prefix.
         // Every release below consumes one successful retain/query or initial owner;

@@ -10,7 +10,7 @@ use quote::{format_ident, quote};
 use syn::ItemStruct;
 
 use crate::args::{ObjectArgs, ObjectOwnership};
-use crate::util::{create_visibility, runtime_crate_path};
+use crate::util::runtime_crate_path;
 
 /// Generates object storage, lifecycle thunks, and local construction helpers.
 pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::TokenStream {
@@ -19,7 +19,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
     // implementation detail owned by this macro.
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
     let object_ident = &input.ident;
-    let object_vis = create_visibility(&input.vis);
+    let object_vis = &input.vis;
     let storage_ident = format_ident!("{object_ident}ComObject", span = object_ident.span());
     // Rust implementation generics stay inside the allocating binary, and COM
     // pointers cannot carry the lifetime of borrowed application storage.

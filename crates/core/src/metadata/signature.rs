@@ -66,7 +66,7 @@ pub unsafe fn format_method_signature(method: &NcMethodDescriptor) -> Result<Str
     let method_name = unsafe { method.name.as_str()? };
     // SAFETY: The caller guarantees that the parameter pointer/count pair is
     // readable for this call.
-    let params = unsafe { method_params(method)? };
+    let params = unsafe { method.params()? };
 
     let mut out = String::new();
     out.push_str(method_name);
@@ -88,13 +88,6 @@ pub unsafe fn format_method_signature(method: &NcMethodDescriptor) -> Result<Str
     write_return(&mut out, &method.returns)?;
     out.push_str(" status");
     Ok(out)
-}
-
-/// Borrows the method parameter table after forwarding the caller's graph contract.
-unsafe fn method_params(method: &NcMethodDescriptor) -> Result<&[NcMethodParamDescriptor], NcStatus> {
-    // SAFETY: The caller guarantees that the method's parameter pointer/count
-    // pair is readable for the returned borrow.
-    unsafe { method.params() }
 }
 
 /// Appends one named parameter and its passing/type contract.

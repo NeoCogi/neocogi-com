@@ -1,4 +1,4 @@
-//! Shared name, identity, visibility, and diagnostic helpers for macro expansion.
+//! Shared name, identity, and diagnostic helpers for macro expansion.
 //!
 //! These utilities select the canonical or explicitly supplied runtime path,
 //! validate stable GUID and version literals, enforce ABI count widths, derive
@@ -6,7 +6,7 @@
 //! errors so callers see all actionable problems from one expansion.
 
 use quote::quote;
-use syn::{Generics, Ident, LitByteStr, LitStr, Path, Result, Visibility};
+use syn::{Generics, Ident, LitByteStr, LitStr, Path, Result};
 
 use crate::args::InterfaceGuid;
 
@@ -35,11 +35,6 @@ pub(crate) fn abi_signature_static_tokens(bytes_ident: &Ident, assigned_signatur
 /// Uses an explicit facade path or the canonical public `neocogi-com` crate name.
 pub(crate) fn runtime_crate_path(override_path: Option<&Path>) -> Path {
     override_path.cloned().unwrap_or_else(|| syn::parse_quote!(::neocogi_com))
-}
-
-/// Resolves and validates the stable GUID for an interface declaration.
-pub(crate) fn interface_guid(attr: InterfaceGuid, qualified_name: &syn::LitStr, nc: &Path) -> Result<proc_macro2::TokenStream> {
-    stable_guid(attr, qualified_name, nc)
 }
 
 /// Validates a qualified name and emits its matching explicit, derived, or path GUID.
@@ -170,12 +165,6 @@ pub(crate) fn path_with_last_ident(path: &Path, ident: Ident) -> Path {
     path
 }
 
-/// Propagates the source object visibility to generated construction helpers.
-pub(crate) fn create_visibility(vis: &Visibility) -> Visibility {
-    // Constructors should be visible wherever the Rust object itself is visible.
-    // Interface-generated ABI symbols use the interface trait visibility.
-    vis.clone()
-}
 #[cfg(test)]
 mod tests {
     use super::checked_u32_len;

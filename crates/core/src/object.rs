@@ -202,11 +202,11 @@ mod tests {
         assert!(IUnknown::INTERFACE_DESCRIPTOR.methods.is_null());
     }
 
-    /// Erasure preserves both words without dereferencing a foreign allocation.
+    /// Casting preserves both words without dereferencing a foreign allocation.
     #[test]
     fn unknown_raw_pair_is_two_words_and_absence_is_canonical() {
         assert_eq!(core::mem::size_of::<crate::ComRaw<IUnknown>>(), 2 * core::mem::size_of::<usize>());
-        assert!(crate::ComRaw::<IUnknown>::null().erase().is_null());
+        assert!(crate::ComRaw::<IUnknown>::null().cast::<crate::IUnknown>().is_null());
     }
 }
 

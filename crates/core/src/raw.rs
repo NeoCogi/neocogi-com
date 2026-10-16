@@ -5,7 +5,7 @@
 //! headers are embedded in the object and no pointer arithmetic recovers its owner.
 
 use core::ffi::c_void;
-use crate::{ComInterface, IUnknown};
+use crate::ComInterface;
 
 /// Two-word C ABI capability: one allocation and one interface's dispatch table.
 ///
@@ -56,10 +56,6 @@ impl<T: ComInterface + ?Sized> ComRaw<T> {
             object: self.object,
             vtable: self.vtable.cast(),
         }
-    }
-    /// Selects the common lifecycle prefix without changing either address.
-    pub const fn erase(self) -> ComRaw<IUnknown> {
-        self.cast()
     }
 }
 impl<T: ComInterface + ?Sized> Default for ComRaw<T> {

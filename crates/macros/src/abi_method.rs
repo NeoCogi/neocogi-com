@@ -303,7 +303,7 @@ fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
         return Ok((ty, abi_ty, AbiArgKind::OutputBuffer { element_ty: Box::new(element_ty) }));
     }
 
-    if parse_com_ptr_type(&ty)?.is_some() {
+    if parse_owned_interface_type(&ty, "ComPtr")?.is_some() {
         return Err(syn::Error::new_spanned(
             ty,
             "COM method arguments cannot take `ComPtr`; use `ComRef<'_, InterfaceAbi>` for borrowed interface parameters and call `add_ref()` if the callee must retain the object",
@@ -382,32 +382,27 @@ struct ComPtrType {
 
 /// Parses a call-scoped borrowed interface wrapper when `ty` names `ComRef`.
 fn parse_com_ref_type(ty: &Type) -> Result<Option<ComRefType>> {
-    parse_borrowed_interface_type(ty, "ComRef")
-}
-
-/// One call-scoped lifetime policy for borrowed interfaces and ownership slots.
-fn parse_borrowed_interface_type(ty: &Type, wrapper: &str) -> Result<Option<ComRefType>> {
-    let Some(args) = type_generic_args_named(ty, wrapper) else {
+    let Some(args) = type_generic_args_named(ty, "ComRef") else {
         return Ok(None);
     };
     let generic_args = args.args.iter().collect::<Vec<_>>();
     if !(generic_args.len() == 2 || generic_args.len() == 3) {
         return Err(syn::Error::new_spanned(
             args,
-            format!("`{wrapper}` parameters must be `{wrapper}<'_, InterfaceAbi>` or `{wrapper}<'_, InterfaceAbi, ThreadingMode>`"),
+            "`ComRef` parameters must be `ComRef<'_, InterfaceAbi>` or `ComRef<'_, InterfaceAbi, ThreadingMode>`",
         ));
     }
-    require_call_scoped_lifetime(generic_args[0], wrapper)?;
+    require_call_scoped_lifetime(generic_args[0], "ComRef")?;
     let interface_ty = match generic_args[1] {
         syn::GenericArgument::Type(ty) => ty.clone(),
         arg => {
-            return Err(syn::Error::new_spanned(arg, format!("`{wrapper}` interface parameter must be a type")));
+            return Err(syn::Error::new_spanned(arg, "`ComRef` interface parameter must be a type"));
         }
     };
     let mode_ty = match generic_args.get(2) {
         Some(syn::GenericArgument::Type(ty)) => Some((*ty).clone()),
         Some(arg) => {
-            return Err(syn::Error::new_spanned(arg, format!("`{wrapper}` threading mode parameter must be a type")));
+            return Err(syn::Error::new_spanned(arg, "`ComRef` threading mode parameter must be a type"));
         }
         None => None,
     };
@@ -472,11 +467,6 @@ fn require_call_scoped_lifetime(arg: &syn::GenericArgument, wrapper: &str) -> Re
             format!("`{wrapper}` parameters must use `'_` as their call-scoped lifetime; named lifetimes, including `'static`, are not supported"),
         )),
     }
-}
-
-/// Parses an owned interface wrapper when `ty` names `ComPtr`.
-fn parse_com_ptr_type(ty: &Type) -> Result<Option<ComPtrType>> {
-    parse_owned_interface_type(ty, "ComPtr")
 }
 
 /// Parses the identical interface/threading arguments of ownership wrappers.

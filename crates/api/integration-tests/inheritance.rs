@@ -3,6 +3,36 @@
 use neocogi_com::{com_interface, com_object, ComInterface, ComPtr, ComRef, IUnknown, NcStatus, NC_E_NOINTERFACE};
 use std::{cell::Cell, rc::Rc};
 
+/// Interface verbs belong to the contract, rather than boolean handle probes.
+mod predicate {
+    use super::*;
+
+    #[com_interface(auto_guid = "nc.tests.inheritance.Predicate:v1", assigned_signature = b"00000000000000000000000000000020")]
+    /// A predicate whose method used to collide with `ComPtr::is`.
+    trait IPredicate {
+        /// Exercises ordinary generated dispatch for the verb `is`.
+        fn is(&self) -> Result<bool, NcStatus>;
+    }
+
+    #[com_object(IPredicate)]
+    /// Stateless provider reached through both owning and borrowed clients.
+    struct Predicate;
+
+    impl IPredicate for Predicate {
+        fn is(&self) -> Result<bool, NcStatus> {
+            Ok(true)
+        }
+    }
+
+    /// Compiles the contract and calls its real generated ABI in both views.
+    #[test]
+    fn interface_predicate_is_not_shadowed_by_a_handle_helper() {
+        let owner = Predicate::from_value(Predicate).query::<IPredicateAbi>().unwrap();
+        assert_eq!(owner.is(), Ok(true));
+        assert_eq!(owner.as_com_ref().is(), Ok(true));
+    }
+}
+
 /// A separate module exercises fully qualified base companion paths.
 mod contract {
     use super::*;
@@ -157,10 +187,10 @@ fn interface_pairs_share_one_object_without_embedded_headers() {
     let audit = owner.query::<IAuditAbi>().unwrap();
     let projections = [
         owner.as_raw(),
-        toggle.as_raw().erase(),
-        button.as_raw().erase(),
-        widget.as_raw().erase(),
-        audit.as_raw().erase(),
+        toggle.as_raw().cast::<IUnknown>(),
+        button.as_raw().cast::<IUnknown>(),
+        widget.as_raw().cast::<IUnknown>(),
+        audit.as_raw().cast::<IUnknown>(),
     ];
     let identities = [
         IUnknown::INTERFACE_ID,

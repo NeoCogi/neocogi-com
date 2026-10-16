@@ -77,6 +77,8 @@ receiver helpers on `ComPtr`, `ComRef`, `ComBox` and `WeakComBox`, their impleme
 helper traits and native lifecycle operations. Raw identifiers have the same
 identity: `r#downgrade` is rejected just like `downgrade`. Associated functions
 without receivers do not shadow the generated client and are outside this rule.
+The removed boolean `ComPtr::is` probe is no longer reserved; an interface may
+define `is()`. Capability selection uses `query` with its complete error status.
 
 An accepted `downgrade() -> Result<WeakComPtr<...>>` previously selected the
 handle's lifetime helper before its Deref client, silently bypassing the provider

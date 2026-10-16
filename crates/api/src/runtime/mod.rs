@@ -290,20 +290,16 @@ unsafe fn table<T>(table: *const T) -> &'static T {
     // SAFETY: The caller guarantees a non-null, aligned pointer readable for the
     // leading `usize`; null was rejected above.
     let found = unsafe { table.cast::<usize>().read() };
-    assert_table_size(found, core::mem::size_of::<T>());
-
-    // SAFETY: The size check established that the immutable static allocation
-    // contains the complete known `T` prefix promised by the caller.
-    unsafe { &*table }
-}
-
-/// Verifies that the runtime table contains every required field.
-fn assert_table_size(found: usize, required: usize) {
+    let required = core::mem::size_of::<T>();
     // A shorter table cannot contain every function pointer this facade calls.
     assert!(
         found >= required,
         "compatible neocogi-com runtime returned a short API table: required {required} bytes, found {found}"
     );
+
+    // SAFETY: The size check established that the immutable static allocation
+    // contains the complete known `T` prefix promised by the caller.
+    unsafe { &*table }
 }
 
 /// Converts an ABI status to `Result` while preserving its exact error code.
