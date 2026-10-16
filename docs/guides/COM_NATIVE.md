@@ -188,7 +188,7 @@ Copy these entries together to relocate an application. Do not copy the whole
 Cargo target directory: `lib-imports/`, compiler caches and debug unremapping
 sidecars are compilation inputs, not distribution files. Workspace profiles use
 Cargo's `trim-paths = "all"` so panic/debug/compiler source locations do not
-disclose checkout or Cargo-home paths. **`*.trim-paths.jsonl` sidecars deliberately
+disclose checkout or Cargo-home paths. **`*.trim-paths.json` sidecars deliberately
 contain original paths for local debugging and must stay on the build machine.**
 Compiler path trimming does not sanitize arbitrary application string literals;
 artifact paths therefore never appear in generated runtime code.
@@ -251,6 +251,41 @@ remain in Cargo's artifact directories as compiler inputs, with deployment copie
 in `lib/`. Registration embeds filenames and native linkage uses relative paths.
 Do not reconstruct hashes or cache paths across builds.
 An explicit `--target` adds Cargo's normal target-specific output directory.
+
+## Debugging in VS Code
+
+Open this repository root as the workspace folder and install its recommended
+`rust-lang.rust-analyzer` and `vadimcn.vscode-lldb` extensions. In Run and Debug,
+select **Full demo: Vulkan (shared, debug)** or **Full demo: Glow (shared, debug)**
+and press F5. CodeLLDB invokes the ordinary Cargo build and selects its reported
+binary; no target/cache path is reconstructed. These configurations use `dev`,
+which retains unoptimized code and debug information. Release/min-size remain
+stripped and are unsuitable for source stepping.
+
+The workspace settings also select CodeLLDB for rust-analyzer's Debug action.
+Before launching an application, CodeLLDB imports
+[`scripts/lldb_source_map.py`](../../scripts/lldb_source_map.py). It reads the
+selected executable's adjacent `.trim-paths.json`, the actual version-1 mapping
+format emitted by the pinned Cargo. The file supplies the inverse mappings for
+workspace files, `OUT_DIR` bindings, registry dependencies and rebuilt std; the
+debugger appends those mappings after any explicit source-map rules. This avoids
+hard-coded Cargo prefixes, registry hashes, toolchain names and target directories.
+An untrimmed executable without a sidecar needs no mappings. Unsupported or
+malformed metadata produces a debugger import error.
+
+Set breakpoints directly in provider Rust source before starting. They can remain
+unresolved until the provider DLL loads; CodeLLDB then binds them and supports
+ordinary stepping and local-variable inspection. For example, a breakpoint on
+the call to `create_runtime_from_assets` in `crates/ui/runtime/src/lib.rs` stops
+inside the copied `libnc_ui.so`. Generated COM client/thunk frames should open
+their Rust file under `OUT_DIR`, rather than disassembly.
+
+The mapping file stays on the build machine and is not copied into `lib/`.
+Debug symbols in the copied ELF libraries are preserved. The native acceptance
+test scripts still use their copied test layout; launching an acceptance test's
+compiler-directory binary directly does not supply adjacent resources. Separate
+PDB/dSYM staging and Windows/macOS debugger execution are not covered by the
+Linux validation. See the [VS Code validation record](../validation/VSCODE_SHARED_LIBRARY_DEBUGGING_2026-10-15.md).
 
 ## Browser
 
