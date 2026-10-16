@@ -11,7 +11,7 @@ The repository pins nightly-2026-09-29 in `rust-toolchain.toml` and enables Carg
 artifact dependencies in `.cargo/config.toml`. Rustup installs the selected tools.
 Artifact dependencies currently require [nightly Cargo](https://doc.rust-lang.org/cargo/reference/unstable.html#artifact-dependencies). The COM ABI, macros and
 IDL library retain their stable Rust 1.85 boundary; the isolated native linkage
-crate uses nightly Rust. External stable consumers can use the SDK from their
+and staging crates use nightly Rust. External stable consumers can use the SDK from their
 own workspaces.
 
 ```sh
@@ -63,13 +63,15 @@ ui-library = { package = "neocogi-ui-runtime", path = "../../crates/ui/runtime",
 ```
 
 That dependency has `lib = false`, Cargo's artifact default. It builds a DLL
-without linking the provider's Rust library into the host. The generated path is
-used directly in normal source:
+without linking the provider's Rust library into the host. A compiler-only macro
+copies the selected artifact and emits only its platform filename:
 
 ```rust,ignore
-let path = env!("CARGO_CDYLIB_FILE_UI_LIBRARY_nc_ui");
+let filename = neocogi_native_layout::stage_library!("CARGO_CDYLIB_FILE_UI_LIBRARY_nc_ui");
+let executable = std::env::current_exe()?;
+let path = executable.parent().unwrap().join("lib").join(filename);
 // SAFETY: this is the trusted artifact built from the selected Cargo graph.
-unsafe { neocogi_com::Runtime::global().load_plugin_library(std::path::Path::new(path)); }
+unsafe { neocogi_com::Runtime::global().load_plugin_library(&path); }
 ```
 
 There is no generated startup file. Registration lists actual selected Cargo
@@ -106,20 +108,23 @@ metadata using `use neocogi_native_runtime_link as _;`. This never embeds runtim
 state. Cargo deduplicates the normal runtime artifact across consumers.
 
 Normal artifact paths are available while compiling Rust, not to `build.rs`.
-The integration crate converts Cargo's `CARGO_CDYLIB_DIR_COM_LIBRARY` value into
-transitive native linker search metadata. Unix consumers also record that exact
-build-tree directory as an rpath, so the executable and independently loaded DLLs
-resolve the same runtime during direct execution without `LD_LIBRARY_PATH`.
-Eight duplicated runtime-link build scripts are removed. No Cargo subprocess,
-output-directory scan, copy, generated package or dependency resolver is involved.
+The private `neocogi-native-layout` macro reads those paths during compilation
+and copies the runtime into the application's `lib/`. The linkage crate's small
+build script supplies that directory for linking and Cargo's test loader environment;
+it never declares the runtime as a build dependency. Linux runtime lookup uses
+`$ORIGIN/lib:$ORIGIN`; macOS uses `@loader_path/lib` and `@loader_path`, with
+`@rpath` library identities. These relative paths serve both executables and
+independently loaded plugins. No build-machine directory enters runtime lookup.
 
-This native-workspace bridge uses nightly Rust's `link_arg_attribute` in addition
-to Cargo's nightly artifact dependencies. It is isolated from the portable
-COM/IDL SDK and its stable Rust 1.85 consumers. On MSVC it supplies `/LIBPATH` for
-Rust's `nc_com.dll.lib` import library, which the facade names
+This native-workspace bridge uses nightly Rust's `link_arg_attribute` and tracked
+procedural-macro inputs in addition to Cargo's nightly artifact dependencies.
+It is isolated from the portable COM/IDL SDK and its stable Rust 1.85 consumers.
+On Windows it copies `nc_com.dll` beside the executable for initial imports;
+compile-only import libraries stay in `lib-imports/`. The facade names MSVC's
+`nc_com.dll.lib` import library
 [verbatim](https://doc.rust-lang.org/reference/items/external-blocks.html#r-items.extern.attributes.link.modifiers.verbatim).
-Windows still needs a DLL layout or loader environment at execution; Unix rpaths
-do not provide a Windows deployment policy.
+Platform execution evidence is recorded separately; Linux checks do not establish
+Windows or macOS loader behavior.
 
 The runtime still verifies a requested root's exact IID, transitive signature and
 threading before entering plugin code, then validates the returned owned
@@ -160,20 +165,53 @@ Across DLLs, negotiation uses the matching C ABI contract instead.
 
 ## Resources and installed applications
 
-Cargo demo compositions explicitly enable `neocogi-demo-assets/workspace-assets`.
-Resources resolve from the source checkout recorded at compilation, independently
-of the current working directory. Full-demo photo resources retain their actual
-`demos/full/assets` location. `embed-assets` instead compiles the existing resource
-bundle into the executable. Changing the current theme still uses the original
-application asset base; it does not repeatedly derive from a prior theme.
+Native file-backed resources are copied during compilation into `assets/` and
+`themes/` beside the executable. The full-demo photo is copied to
+`assets/FACEPALM.png`. Runtime resource paths start from `current_exe()`;
+the working directory and source checkout are irrelevant. Relative smoke-test
+`--theme` paths use that same base; explicit absolute user paths remain supported.
+`embed-assets` compiles the existing resource bundle instead and omits resource
+staging. Theme changes retain the original application asset base.
 
-Cargo artifact paths refer to this build tree. These development executables are
-not relocatable installations. No automatic fallback chooses between an installed
-DLL and a build-machine DLL. An installed application must explicitly choose its
-library/resource layout, load trusted paths, and provide loader search policy.
-A monolith with embedded resources avoids NeoCogi DLL/resource deployment; native
-OS dependencies such as SDL remain. Distribution installation is separate from
-compilation and is not supplied by the removed assembly command.
+The resulting layout is:
+
+```text
+target/<profile>/
+  neocogi-demo-full[.exe]
+  nc_com.dll                 # Windows initial import only
+  lib/                       # shared runtime and selected plugin libraries
+  assets/                    # file-backed resources, unless embedded
+  themes/                    # file-backed themes, unless embedded
+```
+
+Copy these entries together to relocate an application. Do not copy the whole
+Cargo target directory: `lib-imports/`, compiler caches and debug unremapping
+sidecars are compilation inputs, not distribution files. Workspace profiles use
+Cargo's `trim-paths = "all"` so panic/debug/compiler source locations do not
+disclose checkout or Cargo-home paths. **`*.trim-paths.jsonl` sidecars deliberately
+contain original paths for local debugging and must stay on the build machine.**
+Compiler path trimming does not sanitize arbitrary application string literals;
+artifact paths therefore never appear in generated runtime code.
+
+Staging reads exactly Cargo-selected artifact paths and literal resource inputs;
+it invokes no Cargo subprocess and constructs no dependency graph. It tracks
+source files, resource directory membership and copied files in compiler dep-info.
+Deleted outputs and cached renderer switches trigger copying again. Identical
+contents retain their timestamps; changed libraries are replaced atomically,
+without truncating a mapped Unix library. An in-use Windows DLL can reject
+replacement: stop the application before rebuilding. Removed optional providers
+or resources may leave unused files in a shared profile directory; registration
+loads only the compiled selection. Use a clean profile for distribution.
+Restoring outputs during macro expansion can require one following compilation
+to settle Cargo's timestamp-based dep-info; subsequent unchanged builds are fresh.
+
+The pinned Cargo version marks each profile output directory with `.cargo-lock`.
+Staging locates that marker among ancestors of Cargo's artifact or `OUT_DIR` path;
+it never reconstructs hashes or infers a second graph. With a separate Cargo
+build directory, set the absolute build-only `NEOCOGI_NATIVE_OUTPUT_DIR` to the
+actual executable directory. Unsupported layouts fail compilation explicitly.
+This private integration is tied to the pinned Cargo layout. Distribution
+installation, signing and platform SDL/Vulkan deployment remain separate tasks.
 
 ## Profiles and output
 
@@ -187,7 +225,7 @@ panic expectations in child processes, including min-size profile tests.
 
 ```sh
 cargo run -p neocogi-demo-full --no-default-features --features dynamic,vulkan --profile min-size
-# The same build-tree executable can start directly on Unix:
+# The executable uses the adjacent lib/ and resource directories:
 ./target/min-size/neocogi-demo-full
 ```
 
@@ -209,9 +247,9 @@ separate static/dynamic target packages or another crate-type selection mechanis
 Short native target names remain `nc_com`, `nc_ui`, `nc_ui_nodes`, `nc_render`,
 `nc_gfx`, `nc_skin` and optional `nc_ui_extension`. The executable is in the usual
 `target/<profile>` directory when no explicit target is selected. Dependency DLLs
-remain in Cargo's artifact directories; they are not copied next to the executable.
-Registration embeds Cargo's exact provider paths and native linkage records the
-shared runtime directory. Do not reconstruct hashes or cache paths across builds.
+remain in Cargo's artifact directories as compiler inputs, with deployment copies
+in `lib/`. Registration embeds filenames and native linkage uses relative paths.
+Do not reconstruct hashes or cache paths across builds.
 An explicit `--target` adds Cargo's normal target-specific output directory.
 
 ## Browser
@@ -232,7 +270,14 @@ it does not build a second native Cargo graph.
 
 `scripts/test-demo.sh`, `scripts/test-extension.sh` and
 `scripts/test-theme-editor.sh` execute normal Cargo builds and application tests.
-They do not stage native assemblies. Cross-compiler and relocation tests for the
-standalone COM sample remain separate from these development-composition checks.
-The [migration record](../validation/CARGO_PLUGIN_SIMPLIFICATION_2026-10-15.md)
+The build itself copies its selected files. `scripts/test-native-layout.py --cache
+--run` checks actual Linux binaries, cached backend switches, deleted outputs and
+a renamed full application directory. The plugin regression also relocates its
+test host and calls a separately built DLL without loader environment overrides.
+Cargo nests unit-test executables in compiler directories. The acceptance scripts
+use `scripts/run-native-test.py` as a Cargo runner to copy an already compiled
+test and its staged inputs into a temporary application directory. This test-only
+runner never builds; production startup always uses adjacent files directly.
+Cross-compiler tests for the standalone COM sample remain separate.
+The [layout validation record](../validation/NATIVE_LAYOUT_PRIVACY_2026-10-15.md)
 records fresh evidence and platform limitations.

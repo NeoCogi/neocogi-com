@@ -6,7 +6,7 @@ publish = false
 description = "Cargo-owned target runtime linkage for native NeoCogi applications and plugins"
 
 [dependencies]
-neocogi-com-macros.workspace = true
+neocogi-native-layout.workspace = true
 # This is deployed target code, never a build-script dependency. Cargo must use
 # the application's optimization, panic strategy and rebuilt standard library.
 com-library = { package = "neocogi-com-runtime", path = "../runtime", artifact = "cdylib" }

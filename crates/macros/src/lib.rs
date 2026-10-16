@@ -139,7 +139,6 @@ mod deserialize;
 mod enums;
 mod interface;
 mod model;
-mod native_link;
 mod object;
 mod plain_data;
 mod plugin;
@@ -155,18 +154,6 @@ use plugin::{PluginArgs, expand_plugin};
 use interface::expand_com_interface;
 use object::expand_com_object;
 use structs::expand_com_struct;
-
-/// Internal native-workspace linkage; the caller enables `link_arg_attribute`.
-///
-/// The string names Cargo's normal cdylib artifact-directory environment value.
-/// This macro emits transitive search/rpath metadata without changing COM ABI or
-/// linking a private runtime implementation into the caller.
-#[doc(hidden)]
-#[proc_macro]
-pub fn __nc_link_runtime_artifact(input: TokenStream) -> TokenStream {
-    let variable = parse_macro_input!(input as syn::LitStr);
-    native_link::expand(variable).unwrap_or_else(syn::Error::into_compile_error).into()
-}
 
 /// Derives format-neutral, statically typed decoding for a local Rust value.
 ///

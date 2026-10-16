@@ -1,18 +1,25 @@
-//! Native link metadata for the one Cargo-owned runtime artifact.
+//! Native linkage for one target-profile runtime staged beside the application.
 //!
-//! Consumers import this crate as `_` at their native boundary. Native linker
-//! arguments propagate through Rust libraries to the final executable or DLL,
-//! unlike `cargo::rustc-link-arg` from a dependency's build script. Cargo builds
-//! the runtime as a normal target artifact with the selected application profile.
-//!
-//! Unix binaries record the exact build-tree runtime directory as an rpath and
-//! can start without Cargo's loader environment. These paths are development
-//! linkage, not a relocatable installation. MSVC receives its native library
-//! search directory; Windows execution still requires an explicit DLL layout.
-//!
-//! This workspace integration uses nightly `link_arg_attribute`; portable COM,
-//! IDL and object macros retain their stable Rust consumer boundary.
+//! Cargo artifact paths are compiler inputs. The staging macro returns only a
+//! filename, while native search metadata is supplied by build.rs. Unix runtime
+//! lookup stays inside the application: app/lib for executables and the same
+//! directory for DLLs. Windows additionally receives nc_com.dll beside the exe.
+//! This private integration uses nightly; portable COM/IDL consumers remain stable.
 #![feature(link_arg_attribute)]
 #![deny(missing_docs)]
 
-neocogi_com_macros::__nc_link_runtime_artifact!("CARGO_CDYLIB_DIR_COM_LIBRARY");
+const _: &str = neocogi_native_layout::stage_library!("CARGO_CDYLIB_FILE_COM_LIBRARY_nc_com");
+
+#[cfg(all(unix, not(target_os = "macos")))]
+#[allow(clippy::duplicated_attributes, reason = "ordered link-arg attributes supply an option and its value")]
+#[link(kind = "link-arg", name = "-rpath")]
+#[link(kind = "link-arg", name = "$ORIGIN/lib:$ORIGIN")]
+unsafe extern "C" {}
+
+#[cfg(target_os = "macos")]
+#[allow(clippy::duplicated_attributes, reason = "ordered link-arg attributes supply each option and its value")]
+#[link(kind = "link-arg", name = "-rpath")]
+#[link(kind = "link-arg", name = "@loader_path/lib")]
+#[link(kind = "link-arg", name = "-rpath")]
+#[link(kind = "link-arg", name = "@loader_path")]
+unsafe extern "C" {}
