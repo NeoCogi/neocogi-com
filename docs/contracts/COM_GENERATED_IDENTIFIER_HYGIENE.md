@@ -99,6 +99,23 @@ Core's persistence ABI and facade provider bindings are regenerated from the sam
 interface expansion. Keeping those printed files synchronized is required; a
 macro-only fix would leave a second, stale implementation in the repository.
 
+## Object constructor generics
+
+Rust implementation type and const parameters retain their authored names.
+Cyclic constructors introduce a separate interface type parameter inside that
+implementation's `impl`; its binder must be absent from the enclosing type/const
+parameter namespace, including raw-identifier spellings, and must not shadow
+the concrete object name used in helper signatures/bodies. The object expander
+selects one fresh binder for all four shared/exclusive cyclic helpers. Mixed-site
+spans and a fixed private prefix alone do not avoid duplicate generic declarations.
+No application name such as `I` is reserved, and no runtime or signature changes.
+
+The `local_com` integration suite constructs generic shared/exclusive objects
+using `I`, raw/private-looking type and const parameters, and a private-looking
+concrete object name,
+including defaults and where clauses. Ordinary and cyclic constructors execute
+real getter/setter ABI calls and verify that weak observations expire normally.
+
 ## IDL source emission and exported enum macros
 
 The rule also applies before procedural expansion. IDL emits absolute support

@@ -205,3 +205,97 @@ fn shared_weak_local_can_promote_and_become_the_last_owner_on_another_thread() {
     assert_eq!(drops.load(Ordering::SeqCst), 1);
     assert!(weak.upgrade().unwrap().is_none());
 }
+
+/// Constructor helpers must not reserve any legal implementation generic name.
+/// The const spelling deliberately resembles a private type binder.
+#[allow(non_upper_case_globals)]
+mod generic_constructor_names {
+    use super::{ICounter, ICounterAbi, ICounterVtblFor, NcStatus};
+    use neocogi_com::{com_object, NC_E_DROPPED};
+    use core::marker::PhantomData;
+
+    #[com_object(interfaces(ICounter))]
+    /// Shared storage collides with the former `I`, two binder candidates and the object name.
+    struct __NcInterface2<I, r#__NcInterface0 = (), const __NcInterface1: u32 = 7>
+    where I: Copy + From<u32> + Into<u32> {
+        /// Concrete application state is independent of the chosen COM interface.
+        value: I,
+        /// Keeps the authored type parameter in the implementation's type.
+        marker: PhantomData<__NcInterface0>,
+    }
+    impl<I, P, const SCALE: u32> ICounter for __NcInterface2<I, P, SCALE>
+    where I: Copy + From<u32> + Into<u32> {
+        fn value(&self) -> Result<u32, NcStatus> { Ok(self.value.into() + SCALE) }
+        fn set_value(&mut self, value: u32) -> Result<(), NcStatus> { self.value = value.into(); Ok(()) }
+    }
+
+    #[com_object(interfaces(ICounter), ownership = exclusive)]
+    /// Exclusive storage exercises both boxed constructors with the same names.
+    struct Exclusive<I, r#__NcInterface0 = (), const __NcInterface1: u32 = 7>
+    where I: Copy + From<u32> + Into<u32> {
+        /// Owned application state, mutated through the existing COM call gate.
+        value: I,
+        /// Preserves the authored type parameter without introducing allocation.
+        marker: PhantomData<__NcInterface0>,
+    }
+    impl<I, P, const SCALE: u32> ICounter for Exclusive<I, P, SCALE>
+    where I: Copy + From<u32> + Into<u32> {
+        fn value(&self) -> Result<u32, NcStatus> { Ok(self.value.into() + SCALE) }
+        fn set_value(&mut self, value: u32) -> Result<(), NcStatus> { self.value = value.into(); Ok(()) }
+    }
+
+    /// Ordinary construction and both shared cyclic entrypoints execute real ABI calls.
+    #[test]
+    fn shared_generic_binders_preserve_calls_and_weak_lifetimes() {
+        type Model = __NcInterface2<u32>;
+        let ordinary = Model::into_local(Model { value: 35, marker: PhantomData });
+        assert_eq!(ordinary.query::<ICounterAbi>().unwrap().value(), Ok(42));
+        assert_eq!(ordinary.try_borrow().unwrap().value, 35);
+        for local_entry in [false, true] {
+            let build = |origin: neocogi_com::WeakComPtr<ICounterAbi>| {
+                assert!(origin.upgrade().unwrap().is_none());
+                Model { value: 35, marker: PhantomData }
+            };
+            let mut pointer = if local_entry {
+                Model::into_local_cyclic::<ICounterAbi>(build).unwrap().query::<ICounterAbi>().unwrap()
+            } else {
+                Model::from_value_cyclic::<ICounterAbi>(build).unwrap().query::<ICounterAbi>().unwrap()
+            };
+            let weak = pointer.downgrade().unwrap();
+            assert_eq!(pointer.value(), Ok(42));
+            pointer.set_value(36).unwrap();
+            assert_eq!(weak.upgrade().unwrap().unwrap().value(), Ok(43));
+            drop(pointer);
+            assert!(weak.upgrade().unwrap().is_none());
+        }
+    }
+
+    /// Both exclusive cyclic entrypoints retain unique ownership and expire observers.
+    #[test]
+    fn exclusive_generic_binders_preserve_calls_and_weak_lifetimes() {
+        type Model = Exclusive<u32>;
+        let ordinary = Model::into_local_box(Model { value: 35, marker: PhantomData });
+        assert_eq!(ordinary.query::<ICounterAbi>().unwrap().value(), Ok(42));
+        for local_entry in [false, true] {
+            let build = |origin: neocogi_com::WeakComBox<ICounterAbi>| {
+                assert_eq!(origin.value(), Err(NC_E_DROPPED));
+                Model { value: 35, marker: PhantomData }
+            };
+            if local_entry {
+                let owner = Model::into_local_box_cyclic::<ICounterAbi>(build).unwrap();
+                let mut weak = owner.query::<ICounterAbi>().unwrap();
+                weak.set_value(36).unwrap();
+                assert_eq!(weak.value(), Ok(43));
+                drop(owner);
+                assert_eq!(weak.value(), Err(NC_E_DROPPED));
+            } else {
+                let mut owner = Model::into_box_cyclic::<ICounterAbi>(build).unwrap().query::<ICounterAbi>().unwrap();
+                let weak = owner.downgrade();
+                owner.set_value(36).unwrap();
+                assert_eq!(weak.value(), Ok(43));
+                drop(owner);
+                assert_eq!(weak.value(), Err(NC_E_DROPPED));
+            }
+        }
+    }
+}

@@ -7,7 +7,7 @@
 //! preserve the one allocation and its concrete implementation type.
 
 use quote::{format_ident, quote};
-use syn::ItemStruct;
+use syn::{ItemStruct, ext::IdentExt};
 
 use crate::args::{ObjectArgs, ObjectOwnership};
 use crate::util::runtime_crate_path;
@@ -31,6 +31,18 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
         )
         .to_compile_error();
     }
+    // A constructor's interface type shares the enclosing impl's type/const
+    // namespace. It must also leave the concrete object name visible in its body.
+    // Pick a free binder rather than reserving an authored spelling;
+    // mixed-site spans alone cannot make duplicate generic parameters legal.
+    let interface_parameter = (0..=input.generics.params.len() + 1)
+        .map(|index| format_ident!("__NcInterface{index}", span = proc_macro2::Span::mixed_site()))
+        .find(|candidate| *candidate != object_ident.unraw() && input.generics.params.iter().all(|parameter| match parameter {
+            syn::GenericParam::Type(parameter) => parameter.ident.unraw() != *candidate,
+            syn::GenericParam::Const(parameter) => parameter.ident.unraw() != *candidate,
+            syn::GenericParam::Lifetime(_) => true,
+        }))
+        .expect("two extra candidates cover the object name and all authored parameters");
     let mut generics = input.generics.clone();
     let (_, input_type_generics, _) = input.generics.split_for_impl();
     if generic {
@@ -157,11 +169,11 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
                 /// Promotion inside `build` returns None: construction has not yet
                 /// published a strong value. The chosen interface is checked against
                 /// this class's static projections before allocation or user code.
-                #object_vis fn from_value_cyclic<I: #nc::ComInterface>(
-                    build: impl FnOnce(#nc::WeakComPtr<I, #pointer_threading_model>) -> Self,
+                #object_vis fn from_value_cyclic<#interface_parameter: #nc::ComInterface>(
+                    build: impl FnOnce(#nc::WeakComPtr<#interface_parameter, #pointer_threading_model>) -> Self,
                 ) -> Result<#nc::ComPtr<#nc::IUnknown, #pointer_threading_model>, #nc::NcStatus> {
-                    // SAFETY: the generated table set and I's identity are immutable.
-                    unsafe { #nc::__nc_find_interface(&Self::COM_VTABLES, &I::INTERFACE_ID) }?;
+                    // SAFETY: the generated table set and requested identity are immutable.
+                    unsafe { #nc::__nc_find_interface(&Self::COM_VTABLES, &#interface_parameter::INTERFACE_ID) }?;
                     let storage = #nc::__alloc::boxed::Box::into_raw(#nc::__alloc::boxed::Box::new(#storage_ident {
                         control: #nc::lifetime::NcWeakControl::unpublished(&<#storage_type>::CLASS_LIFETIME),
                         call_gate: #nc::__ComCallGate::new(),
@@ -173,7 +185,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
                     let token = #nc::NcWeakRaw { control: storage.cast() };
                     // SAFETY: the exact requested projection was checked above;
                     // this new allocation transfers its provisional weak owner.
-                    let provisional = unsafe { #nc::WeakComPtr::<I, #pointer_threading_model>::from_raw_owned(token) }
+                    let provisional = unsafe { #nc::WeakComPtr::<#interface_parameter, #pointer_threading_model>::from_raw_owned(token) }
                         .expect("new weak control is present");
                     let value = build(provisional.clone());
                     // SAFETY: no strong owner exists yet. Initialize before the
@@ -191,11 +203,11 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
                 }
 
                 /// Creates a locally borrowable object with the same unpublished weak initialization.
-                #object_vis fn into_local_cyclic<I: #nc::ComInterface>(
-                    build: impl FnOnce(#nc::WeakComPtr<I, #pointer_threading_model>) -> Self,
+                #object_vis fn into_local_cyclic<#interface_parameter: #nc::ComInterface>(
+                    build: impl FnOnce(#nc::WeakComPtr<#interface_parameter, #pointer_threading_model>) -> Self,
                 ) -> Result<#nc::LocalCom<Self>, #nc::NcStatus> {
                     // SAFETY: the generated constructor allocates exactly Self's storage.
-                    Ok(unsafe { #nc::LocalCom::__from_owned(Self::from_value_cyclic::<I>(build)?) })
+                    Ok(unsafe { #nc::LocalCom::__from_owned(Self::from_value_cyclic::<#interface_parameter>(build)?) })
                 }
 
             },
@@ -225,24 +237,24 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
                     unsafe { #nc::LocalBox::__from_owned(Self::into_box(value)) }
                 }
                 /// Initializes exclusive local storage with an unpublished weak origin.
-                #object_vis fn into_local_box_cyclic<I: #nc::ComInterface>(
-                    build: impl FnOnce(#nc::WeakComBox<I, #pointer_threading_model>) -> Self,
+                #object_vis fn into_local_box_cyclic<#interface_parameter: #nc::ComInterface>(
+                    build: impl FnOnce(#nc::WeakComBox<#interface_parameter, #pointer_threading_model>) -> Self,
                 ) -> Result<#nc::LocalBox<Self>, #nc::NcStatus> {
                     // SAFETY: the generated constructor transfers exactly Self's exclusive storage.
-                    Ok(unsafe { #nc::LocalBox::__from_owned(Self::into_box_cyclic::<I>(build)?) })
+                    Ok(unsafe { #nc::LocalBox::__from_owned(Self::into_box_cyclic::<#interface_parameter>(build)?) })
                 }
 
                 /// Initializes a weak origin without publishing or sharing ownership.
                 /// Failed initialization releases storage without dropping an absent value.
-                #object_vis fn into_box_cyclic<I: #nc::ComInterface>(
-                    build: impl FnOnce(#nc::WeakComBox<I, #pointer_threading_model>) -> Self,
+                #object_vis fn into_box_cyclic<#interface_parameter: #nc::ComInterface>(
+                    build: impl FnOnce(#nc::WeakComBox<#interface_parameter, #pointer_threading_model>) -> Self,
                 ) -> Result<#nc::ComBox<#nc::IUnknown, #pointer_threading_model>, #nc::NcStatus> {
-                    let table = unsafe { #nc::__nc_find_interface(&Self::COM_VTABLES, &I::INTERFACE_ID) }?;
+                    let table = unsafe { #nc::__nc_find_interface(&Self::COM_VTABLES, &#interface_parameter::INTERFACE_ID) }?;
                     let storage = #nc::__alloc::boxed::Box::into_raw(#nc::__alloc::boxed::Box::new(#storage_ident {
                         control: #nc::lifetime::NcWeakControl::boxed_unpublished(&<#storage_type>::CLASS_LIFETIME),
                         value: core::cell::UnsafeCell::new(core::mem::MaybeUninit::uninit()),
                     }));
-                    let raw = #nc::ComRaw::<I> { object: storage.cast(), vtable: table.cast() };
+                    let raw = #nc::ComRaw::<#interface_parameter> { object: storage.cast(), vtable: table.cast() };
                     // SAFETY: the provisional weak owns unpublished storage with a validated table.
                     let provisional = unsafe { #nc::WeakComBox::from_raw_owned(raw) }.expect("present control");
                     let value = build(provisional.clone());
