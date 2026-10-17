@@ -42,8 +42,10 @@ services may use `EventPort`. A constructed object exposes no receiver-installat
 `com_object` generates its ordinary COM implementation. Application behavior runs
 later under ordinary mutable access. No event syntax or named output relay remains.
 
-Contracts use `struct`, `enum`, `bitenum`, `interface`, `class`, and `factory`. All declarations
-and members are public by definition:
+IDL declares public values and interfaces; the [language reference](../../docs/contracts/IDL_MODULES.md)
+owns the accepted syntax. Construction surfaces are ordinary interfaces. Concrete
+classes and plugin acquisition are Rust implementation concerns. All IDL
+declarations and members are public by definition:
 
 <!-- checked-example: idl -->
 ```ncidl
@@ -286,8 +288,10 @@ The [compatibility matrix](docs/compatibility.md) defines independent runtime,
 host and plugin builds, mixed compiler/profile policies, relocated execution,
 and the separate Miri/sanitizer checks. One standard-library Python driver owns
 these checks; shell, PowerShell and CI entry points delegate to it. An ordinary
-`cargo build -p neocogi-com-runtime` produces an rlib, not the runtime DSO needed
-by a dynamically linked host.
+`cargo build -p neocogi-com-runtime` produces both its `rlib` and the platform's
+`libnc_com` shared library. Static hosts use the rlib; dynamic hosts and plugins
+share one runtime DSO. Cargo artifact dependencies report their own output paths;
+a contract crate's generated bindings are not a native library.
 
 ## Checking the documentation
 

@@ -121,10 +121,8 @@ edition = "2024"
 # Demangle by decoding hex pairs after nc_contract_; this is not a .so name.
 links = "nc_contract_70726f6f662e61726368697665"
 [dependencies]
-neocogi-com = "=0.0.0"
-[build-dependencies]
-neocogi-idl = "=0.0.0"
 MANIFEST
+printf 'neocogi-com = "=%s"\n[build-dependencies]\nneocogi-idl = "=%s"\n' "$version" "$version" >> consumer/Cargo.toml
 cat > consumer/build.rs <<'BUILD'
 //! A normal downstream build script; no source-tree layout assumptions.
 fn main() {

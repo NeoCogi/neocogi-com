@@ -2,8 +2,8 @@
 //!
 //! Given already inspected artifacts, the planner validates one-to-one plugin
 //! ID/name mappings, reports missing dependencies, and performs a stable
-//! topological sort. Input order breaks ties so repeated planning produces the
-//! same dependency-first output without filesystem discovery policy.
+//! topological sort. GUID field order breaks ties, so permuting input artifacts
+//! cannot change the dependency-first output or impose filesystem discovery policy.
 
 use core::fmt;
 use std::collections::HashMap;

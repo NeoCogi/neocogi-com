@@ -1421,8 +1421,14 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
     }
 }
 
-/// Validates an output where bare COM names mean owned references.
-fn validate_output_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan,
+/// Validates outputs with explicit object ownership and copied-value semantics.
+fn validate_output_type(
+    index: usize,
+    ty: &AbiType,
+    entries: &[ModuleEntry],
+    values: &crate::ValueGraph,
+    context: &str,
+    span: &SourceSpan,
 ) -> Result<(), ResolutionError> {
     let span = type_span(ty).unwrap_or(span);
     match ty {
@@ -1564,13 +1570,20 @@ fn fingerprint_module(
     Ok(fingerprint)
 }
 
+/// Exact domain prefix for canonical module ABI fingerprint bytes.
+///
+/// This compiler/build-time encoding revision is independent of runtime and
+/// plugin descriptor discovery ABI v1. Documentation checks use this same prefix;
+/// changing source provenance or Cargo name mangling must not change its bytes.
+pub const MODULE_ABI_ENCODING_DOMAIN: &[u8] = b"neocogi-idl:module-abi:v10\0";
+
 /// Encodes one module into canonical bytes and hashes the result.
 fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, [u8; 32])]) -> Result<[u8; 32], ResolutionError> {
     let entry = &entries[index];
     let mut encoder = CanonicalEncoder::new();
-    // Version 9 records advertised event interfaces as semantic dependencies.
-    // This extends the canonical declaration grammar; every consumer regenerates.
-    encoder.bytes(b"neocogi-idl:module-abi:v10\0");
+    // Templates and concrete declarations share this v10 encoding, including
+    // event dependencies and authored policies. Build/debug locations are absent.
+    encoder.bytes(MODULE_ABI_ENCODING_DOMAIN);
     encoder.guid(entry.module_id);
     // Templates and concrete declarations use exactly the same grammar. Bound
     // parameters require a scope, not a second serializer or diagnostic strings.

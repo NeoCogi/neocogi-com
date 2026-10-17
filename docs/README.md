@@ -13,9 +13,10 @@ replaces module identities with plugin provenance and consolidates lookup,
 enumeration and acquisition in one plugin-operation table. This runtime guide
 also supersedes the older factory activation names in the core drafts. All runtime tables
 and plugin descriptor discovery remain v1; roles must use the same checkout. IDL's
-canonical module encoding uses v9. Neither number identifies the current object
-ABI. The [IDL language reference](../../../docs/contracts/IDL_MODULES.md) owns the fingerprint
-and versioning rules, including generic parameters and enum assignments.
+canonical encoding domain and versioning rules belong to the
+[IDL language reference](../../../docs/contracts/IDL_MODULES.md), including generic
+parameters and enum assignments. The compiler exposes its exact domain as
+`neocogi_idl::MODULE_ABI_ENCODING_DOMAIN`; it is not the runtime discovery version.
 
 ## Authoritative guides
 

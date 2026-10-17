@@ -28,6 +28,27 @@ fn current_abi_guide_matches_compiler_version() {
     );
 }
 
+/// Current guidance consumes the actual compiler encoding and Cargo name policy.
+/// The numbers describe separate contracts: runtime/descriptor discovery stays v1.
+#[test]
+fn authoring_guides_match_current_encoding_and_module_mangling() {
+    let domain = std::str::from_utf8(neocogi_idl::MODULE_ABI_ENCODING_DOMAIN).unwrap().trim_end_matches('\0');
+    let language = include_str!("../../../../docs/contracts/IDL_MODULES.md");
+    assert!(
+        language.contains(&format!("`{domain}`")),
+        "owning language reference must name the current encoding"
+    );
+    let setup = include_str!("../README.md");
+    let links = setup.lines().find_map(|line| line.strip_prefix("links = ")).unwrap().trim_matches('"');
+    assert_eq!(links, neocogi_idl::cargo::contract_links_name("example.widgets"));
+    assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 1);
+    assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 1);
+    for keyword in ["class", "factory"] {
+        let invalid = format!("#[version(1)] {keyword} Removed {{}}");
+        assert!(neocogi_idl::parse_module(Path::new("example/removed.ncidl"), &invalid).is_err());
+    }
+}
+
 /// The guides' ownership spelling, generated bindings and plugin bootstrap must work together.
 #[test]
 fn readme_factory_contract_and_bootstrap_execute_as_documented() {

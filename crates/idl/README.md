@@ -9,7 +9,7 @@ The single `neocogi-idl` package separates responsibilities into Rust modules:
 - `model`, `parser`, and `resolve` parse files/module directories, resolves copied values
   and interfaces, validates threading/required projections, and fingerprints
   the complete source graph.
-- `cargo` discovers sources and exchanges schema-5 source graphs through
+- `cargo` discovers sources and exchanges versioned source graphs through
   Cargo `links`/`DEP_*`. Build scripts use `neocogi_idl::cargo::Module`.
 - `generate` emits formatted Rust bindings with fixed declaration signatures.
   Its pure entrypoints perform no Cargo environment access.
@@ -20,9 +20,10 @@ The single `neocogi-idl` package separates responsibilities into Rust modules:
 Structs, enums, and ordinary interfaces support type parameters. One expansion
 pass substitutes closed uses into concrete declarations with deterministic
 identities before ABI resolution. Fields, recursive layouts, and method slots
-then follow exactly the same rules as nongeneric declarations. `class`
-marks a concrete object contract, `interface` a reusable capability, and `factory`
-a construction root. Records and enums share recursive checked conversion;
+then follow exactly the same rules as nongeneric declarations. IDL interfaces
+define public capabilities, including construction methods. Concrete classes and
+plugin acquisition live in Rust implementations. The [language reference](../../../docs/contracts/IDL_MODULES.md)
+owns the grammar. Records and enums share recursive checked conversion;
 there is no separate message declaration category.
 
 Construction-bound delivery uses the ordinary library enum
@@ -124,8 +125,8 @@ the module fingerprint and declaration UUID; runtime calls compare those exact
 identity/signature bytes.
 
 `ComPtr<I>` is a compiler-known ownership constructor whose argument must be a
-closed interface, class, or factory contract. Fields and owned method results
-must use it explicitly; a bare object contract is not a stored value. Inputs
+closed interface contract. Fields and owned method results spell ownership
+explicitly; a bare object contract is not a stored value. Inputs
 borrow an object as `&I`; direct `ComPtr<I>` inputs are rejected because the IDL
 does not define ownership transfer for that position. Records containing object
 references may be borrowed as `&Record` and recursively acquired by the receiver.
@@ -172,7 +173,7 @@ ownership, wire memory obligations, and examples.
 
 A logical IDL module does not have to occupy a dedicated Rust crate. An owner
 can use `Module::directory(...).rust_path("shared_api::contracts").build()` to
-publish an explicit crate-rooted Rust path in its schema-5 Cargo source graph.
+publish an explicit crate-rooted Rust path in its versioned Cargo source graph.
 Dependent generators use that path for imported values, interfaces, and message
 receivers. The owner still declares the logical module's existing `links` value.
 Without an override, the conventional `<module>_contracts` crate name applies.

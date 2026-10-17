@@ -34,7 +34,7 @@ ABI identity remains independent of paths and locations. Run
 `cargo neocogi module generate <module>` to obtain the exact map path. The
 [source mapping guide](../guides/IDL_SOURCE_MAPS.md) defines the format and lookup rules.
 
-## Closed generic values, interfaces, and concrete classes
+## Closed generic values and interfaces
 
 Structs, enums, and interfaces can declare type parameters. Each use must supply all arguments:
 
@@ -55,8 +55,9 @@ substitutes each closed use into an ordinary concrete declaration, then applies
 the same field ownership, finite-layout, copied-position, inheritance, threading,
 and delivery checks used for declarations without parameters. Thus
 a generic method taking `&T` cannot instantiate T as a scalar; `IValue<u32>`
-with scalar-valued `get`/`set` methods is valid. Methods,
-classes, and factories do not declare generic parameters. Type argument bounds
+with scalar-valued `get`/`set` methods is valid. Methods do not declare their
+own type parameters. Concrete classes and plugin acquisition live in Rust,
+while construction interfaces follow the ordinary interface rules. Type argument bounds
 are checked at instantiation; Rust trait bounds, lifetimes, const arguments,
 and specialization rules are outside this grammar.
 
@@ -478,9 +479,9 @@ sequence still changes the fingerprint.
   value types. `Status` preserves a raw `NcStatus`, including extension codes;
   method failures continue to use the implicit error side of `Result<T>`.
 - A bare struct or enum parameter is copied by value.
-- `&Interface` and `&Factory` are borrowed COM references valid only
-  for the call.
-- A bare interface or factory return is one owned COM reference.
+- `&Interface` is a borrowed COM reference valid only for the call.
+- Owned object results require an explicit ownership wrapper such as
+  `ComPtr<Interface>` or `ComBox<Interface>`; a bare interface is not a value.
 - `&str` is a borrowed UTF-8 view; `String` is an owned immutable COM string.
 - `&[T]` is a borrowed contiguous input slice whose element type is ABI-safe.
 - `&mut [T]` is fresh caller-owned output storage filled synchronously by the callee;
@@ -644,8 +645,10 @@ error[EIDL060]: struct Resource field texture must use a copied value type
 
 `Module::build()` writes generated bindings and a versioned source graph to
 `OUT_DIR`, and publishes the graph path through Cargo's `links`/`DEP_*` metadata.
-Graph schema 5 contains sources and logical module ownership; it contains no
-native artifact paths, linkage mode, or builtin/runtime-owned module tags.
+The versioned graph contains semantic source records and logical module
+ownership, plus separate physical roots for source-map navigation. Roots are
+build-only locations and do not enter source equality or ABI fingerprints. The
+graph contains no native artifact paths, linkage mode or runtime ownership tags.
 An ordinary `cargo build` performs the entire compilation. No external CLI,
 nested Cargo invocation, target rustc invocation, C compiler, or archiver is
 launched by the contract build helper.
@@ -653,7 +656,7 @@ launched by the contract build helper.
 Canonical module encoding v10 includes threading, required projections and the current COM ABI explicitly. The resolver
 includes exact transitive module fingerprints in each declaration
 signature. The plugin descriptor publishes its root factory's full IID and
-signature. Runtime activation compares both before calling bootstrap;
+signature. Factory acquisition compares both before calling bootstrap;
 `QueryInterface` and typed pointer transfers continue to check exact identity.
 Different disconnected revisions can coexist. The runtime does not register a
 module graph or impose a process-wide single revision for each module.
@@ -840,3 +843,18 @@ example, enum limits, and real generated-call regressions.
 The provider threading guarantee is preserved for all three owner/observer
 wrappers. See [exclusive widget ownership](EXCLUSIVE_WIDGET_OWNERSHIP.md) and
 [current core ABI](../../crates/com/docs/README.md) for lifetime and concurrency rules.
+
+## Interpreting generated names
+
+| Generated spelling | What it represents | How to interpret it |
+| --- | --- | --- |
+| Cargo `nc_contract_<hex>` | Exact dotted logical IDL module name | Strip the prefix, decode hex pairs, read UTF-8; dots, underscores and case survive. |
+| Local `<module_with_underscores>.rs` and `__nc_idl_<stem>` | Package-local output/module name | Dots become underscores, so this spelling alone is not reversible. The generated entry names the original module explicitly. |
+| `NameInstance<hex>` | Nominal identity of a closed generic IDL type | Decode hex to UUID bytes only. Read the generated closed-type comment for the template and arguments; the UUID cannot recover them. |
+
+Cargo ownership keys are never native library filenames. Specialization UUIDs
+are never ABI signatures. Generated comments keep the original logical module
+or closed type beside these names. Their spelling and build-sidecar schemas do
+not advance runtime or plugin descriptor discovery: both remain v1. See
+[generic name documentation](IDL_GENERIC_VALUES.md#reading-generated-specialization-names)
+and [source-map lookup](../guides/IDL_SOURCE_MAPS.md).
