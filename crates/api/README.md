@@ -139,8 +139,8 @@ These values remain usable independently of subsequent catalog lookups.
   signature. Declaration names/versions are inputs to IDL identity and
   signature generation; plugin release-version text is diagnostic.
 
-Objects are thread-local by default. An IDL interface or factory declared
-thread-safe produces `ComPtr<T, ThreadSafe>` and its implementation must satisfy
+Objects are thread-local by default. An IDL interface declared with
+`#[threading(shared)]` produces `ComPtr<T, ThreadSafe>` and its implementation must satisfy
 `Send + Sync`. A safe pointer may be weakened to thread-local; it cannot be
 upgraded.
 
@@ -166,7 +166,8 @@ struct UiFactoryObject;
 
 impl UiFactory for UiFactoryObject {
     fn create_button(&self) -> Result<ComBox<ButtonAbi>, NcStatus> {
-        ButtonObject::into_box(ButtonObject { label: String::new() }).query()
+        ButtonObject::into_box(ButtonObject { label: String::new() })
+            .query().map_err(|(status, _owner)| status)
     }
 }
 
@@ -176,8 +177,7 @@ fn acquire_root() -> Result<neocogi_com::ComPtr<my_contracts::UiFactoryAbi>, neo
 }
 ```
 
-`#[com_object(Interface)]` connects private storage to one interface contract.
-`#[com_object(Interface)]` supplies storage for any closed interface. The plugin
+`#[com_object(Interface)]` connects private storage to any closed interface contract. The plugin
 acquisition function owns initialization and its return supplies the root identity.
 
 `#[plugin]` produces `plugin_descriptor() -> &'static NcPluginDescriptor` and
@@ -293,10 +293,12 @@ See [persistence semantics and ownership](../runtime/PERSISTENCE.md).
 
 For shared mode, build and deploy `libnc_com.so` on Linux, `libnc_com.dylib` on
 macOS, or `nc_com.dll` with its import library on Windows. Ordinary
-`cargo build -p neocogi-com-runtime` produces an rlib; use
-`cargo rustc -p neocogi-com-runtime --lib --crate-type cdylib` for a standalone
-shared runtime, or use the assembly tool. `NC_COM_RUNTIME_LINK_DIR` supplies
-native linker search paths; deployment must separately satisfy the OS loader.
+`cargo build -p neocogi-com-runtime` produces both the rlib and the platform's
+shared library, as declared by the runtime manifest. The rlib serves
+`static-runtime`; shared deployments use the native library. See the
+[runtime build guide](../runtime/README.md#build-and-link) for the owning commands.
+`NC_COM_RUNTIME_LINK_DIR` supplies native linker search paths; deployment must
+separately satisfy the OS loader. Ordinary Cargo owns compilation.
 
 Shared-mode `runtime` feature unification is intentional: facade instances
 hold no catalog, and their external calls resolve to the staged runtime.

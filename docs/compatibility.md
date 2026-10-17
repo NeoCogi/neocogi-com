@@ -215,7 +215,9 @@ for allocation injection, output bounds, owner preservation, and consumer checks
 Run `bash crates/com/scripts/test-packages.sh` with Rust 1.85 installed. It creates
 real Cargo archives for the five SDK packages and inspector, extracts them into a
 fresh directory, and patches dependencies **only to those extracted archives**.
-Rust 1.85 checks all shipped targets and runs all shipped tests. One temporary shared target
+Rust 1.85 checks all shipped targets and runs shipped executable tests and
+runnable documentation examples. An ordinary runtime build must produce both its
+rlib and platform shared library, matching the public build guide. One temporary shared target
 cache avoids retaining one copy per package and is removed after verification. The gate also builds a fresh consumer
 with `build.rs`, generates an interface and executes its checked COM call. Runtime
 and descriptor discovery are asserted to remain v1. No-default and alloc-only

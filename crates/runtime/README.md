@@ -42,12 +42,14 @@ ID, module registry or module-to-plugin join. The limit is 1,024 distinct dynami
 providers, excluding static registrations and repeats, and 64 active messengers.
 Plugin descriptor ABI v1 and core object ABI v17 remain independently versioned.
 
+## Build and link
+
 The package owns both `rlib` and `cdylib` targets under the short name `nc_com`.
 A normal Cargo artifact dependency requests its shared target directly and uses
 the target profile. Declaring a deployed runtime as a build dependency incorrectly
 applies build-tool optimization and panic settings. Native workspace consumers
 use `neocogi-native-runtime-link` for transitive search/rpath metadata; normal static
-consumers link the rlib. `cargo build -p neocogi-com-runtime` may emit both.
+consumers link the rlib. `cargo build -p neocogi-com-runtime` builds both.
 There is no generated wrapper package. Output names are `libnc_com.so` on Linux,
 `libnc_com.dylib` on macOS and `nc_com.dll` on Windows. The
 [native guide](../../../docs/guides/COM_NATIVE.md) explains Cargo artifact paths
@@ -77,7 +79,7 @@ limits, provider obligations, and reconstruction semantics.
 
 The public Rust API of `nc_com` also includes `inspect_plugin_library` and
 `plan_plugin_load_order`, used by the build and inspection tools. Inspection
-returns owned metadata without registering or activating a plugin, but it pins
+returns owned metadata without registering or acquiring a plugin root, but it pins
 every successfully opened library for the inspector process lifetime. A
 short-lived process bounds that retention. Inspection does not add plugin
 catalog records, so its pinned handles are outside the 1,024-record live-load

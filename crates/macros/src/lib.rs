@@ -3,24 +3,25 @@
 //! This crate turns a Rust trait/struct pair into a small COM-like ABI for
 //! cross-platform Rust component interop:
 //!
-//! - [`com_interface`] keeps the input trait as the Rust implementation
+//! - [`macro@com_interface`] keeps the input trait as the Rust implementation
 //!   contract and generates a C-compatible `*Abi` interface type, `*VTable`,
 //!   one safe `*Client` view lent by both `ComPtr` and `ComRef`, static interface
 //!   ABI metadata, and the `unsafe impl neocogi_com::ComInterface` that certifies their raw invariants.
-//! - [`com_object`] wraps a Rust implementation struct in generated storage containing
-//!   `IUnknown`, static per-interface tables, an atomic reference count,
-//!   and the original Rust value. It derives public projections from an IDL
+//! - [`macro@com_object`] wraps a Rust implementation in one allocation containing
+//!   its concrete value, common strong/weak lifetime state and ownership-specific
+//!   call protection. Interface tables are static and outside that allocation;
+//!   every projection preserves the object address. It derives contracts from an IDL
 //!   interface or an explicit local `interfaces(...)` list. Objects are
 //!   thread-local by default; add `thread_safe` to generate
 //!   `ComPtr<_, ThreadSafe>` values for local objects.
-//! - [`plugin`] derives plugin metadata and its acquisition adapter from one
+//! - [`macro@plugin`] derives plugin metadata and its acquisition adapter from one
 //!   typed Rust function; `dynamic-plugin` enables the DLL discovery export.
-//! - [`com_struct`] marks a fixed-size record as ABI plain data, owns its
+//! - [`macro@com_struct`] marks a fixed-size record as ABI plain data, owns its
 //!   `repr(C)`/packing/alignment choice, and records its physical layout. It
 //!   checks fields through `neocogi_com::AbiPlainValue` by default, or through
 //!   compiler FFI layout checks with the `c_struct` option. Both modes require
 //!   checked `ComValue` conversion and self-contained `ComInlineValue` wires.
-//! - [`com_enum`] keeps a Rust payload enum for ergonomic code and generates an
+//! - [`macro@com_enum`] keeps a Rust payload enum for ergonomic code and generates an
 //!   explicit tag + union ABI representation next to it.
 //!
 //! The macros intentionally generate a portable C representation rather than
@@ -55,18 +56,18 @@
 //! fn method(&self, arg: AbiSafeType) -> Result<AbiSafeReturn, neocogi_com::NcStatus>;
 //! ```
 //!
-//! Plain method arguments and non-void successful return payloads must implement
-//! `neocogi_com::AbiType`; generated code asserts this at compile time before the
-//! values are placed in an `extern "C"` signature. `Result<(), NcStatus>` is
+//! Plain values supply `AbiType` metadata and checked `ComValue` conversion.
+//! Raw slots carry the associated wire representation; application layouts are
+//! local. Copied positions additionally require `ComInlineValue`. `Result<(), NcStatus>` is
 //! the void-success form and lowers to a status-only ABI function with no output
 //! pointer. `Result::Err` must contain a negative status. Generated thunks
 //! preserve negative errors and normalize a non-negative error to
 //! `neocogi_com::NC_E_INVALID_ARG` without writing an output slot. COM interface
 //! arguments use `neocogi_com::ComRef<'_, IFooAbi>` and lower
-//! to borrowed raw interface pointers. The anonymous `'_` lifetime is required;
+//! to borrowed object/table pairs. The anonymous `'_` lifetime is required;
 //! named lifetimes, including `'static`, are rejected so the borrow cannot escape
 //! the generated trait call. COM interface returns use
-//! `neocogi_com::ComPtr<IFooAbi>` and lower to owned raw interface pointers. Safe
+//! `neocogi_com::ComPtr<IFooAbi>` and lower to owned object/table pairs. Safe
 //! buffer parameters use `neocogi_com::NcCopyFromBufferOffset<'_, T>` or
 //! `neocogi_com::NcOutputWriter<'_, T>`. Readable inputs lower to offset, length,
 //! and raw pointer slots. Output writers lower to offset, capacity, raw wire pointer,
@@ -83,13 +84,13 @@
 //!
 //! ```text
 //! unsafe extern "C" fn(
-//!     this: *mut IFooAbi,
-//!     arg: AbiSafeType,
-//!     borrowed: *mut IFooAbi,
+//!     this: *mut core::ffi::c_void,
+//!     arg: ArgumentWire,
+//!     borrowed: neocogi_com::ComRaw<IFooAbi>,
 //!     buffer_offset: u64,
 //!     buffer_len: u64,
 //!     buffer_ptr: *mut u8,
-//!     out: *mut AbiSafeReturn,
+//!     out: *mut ReturnWire,
 //! ) -> neocogi_com::NcStatus
 //! ```
 //!
@@ -97,15 +98,16 @@
 //!
 //! ```text
 //! unsafe extern "C" fn(
-//!     this: *mut IFooAbi,
-//!     arg: AbiSafeType,
+//!     this: *mut core::ffi::c_void,
+//!     arg: ArgumentWire,
 //! ) -> neocogi_com::NcStatus
 //! ```
 //!
 //! Methods named `query_interface`, `add_ref`, or `release` conflict with the
-//! generated `IUnknown` lifecycle thunks and are rejected. Parameter names stay
-//! source-derived; the macro reports a focused error only when one would
-//! duplicate a lowered buffer slot or shadow a generated adapter binding.
+//! generated `IUnknown` lifecycle thunks and are rejected, as are names shadowed
+//! by COM handle methods. Core owns that shared admission policy. Authored
+//! parameter names remain in traits and metadata; conversion bodies use separate
+//! positional bindings so legal names cannot capture generated temporaries.
 //! Other unsupported method shapes likewise fail with span-aware `syn::Error`
 //! diagnostics before any ABI items are generated.
 //!
@@ -155,7 +157,7 @@ use interface::expand_com_interface;
 use object::expand_com_object;
 use structs::expand_com_struct;
 
-/// Derives format-neutral, statically typed decoding for a local Rust value.
+/// Derives statically typed NCB decoding for a local Rust value.
 ///
 /// Struct fields decode in declaration order; enums use declaration ordinals
 /// and recursively typed payloads. Use `#[com_deserialize(default)]` on a named
@@ -342,7 +344,7 @@ pub fn com_struct(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// in payloads because they carry lifetime, nullability, and ownership rules not
 /// represented by a durable tagged value.
 ///
-/// Add `deserialize` to generate a format-neutral constructor for the original
+/// Add `deserialize` to generate a typed NCB constructor for the original
 /// Rust enum. Fieldless, newtype, tuple, and named variants remain statically
 /// typed throughout decoding; this option does not alter the generated ABI.
 #[proc_macro_attribute]

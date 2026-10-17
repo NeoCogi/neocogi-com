@@ -52,8 +52,9 @@
 //!
 //! Interface casts are performed through [`IUnknown`] / `QueryInterface`, not by
 //! pointer casts. `QueryInterface` checks both interface ID and generated ABI
-//! signature before returning a typed pointer. A single object can expose several
-//! interfaces at different addresses inside the same allocation.
+//! signature before returning a typed pointer. Every projection preserves the
+//! canonical object address and selects its own static interface table. See the
+//! object/table contract in [`ComInterface`] and the ownership rules on [`ComPtr`].
 //!
 //! COM reference counts are atomic, and the built-in registry is
 //! thread-safe. User object method calls are not assumed to be thread-safe.
@@ -66,7 +67,7 @@
 //! borrow without changing the underlying COM reference.
 //! `Runtime::acquire_plugin_root` checks the generated root factory's
 //! identity, signature, and threading capability before returning its typed
-//! pointer. Later construction is expressed by ordinary IDL factory methods.
+//! pointer. Later construction uses ordinary methods on an IDL interface.
 //!
 //! | Handle | Owns a COM reference | `Send` | `Sync` | Cross-thread capability |
 //! |---|:---:|:---:|:---:|---|

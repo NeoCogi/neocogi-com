@@ -107,7 +107,28 @@ for package in "${packages[@]}"; do
   cargo +1.85.0 check --manifest-path "$manifest" --all-targets --all-features --offline
   echo "==> [packages] all shipped tests: $package"
   cargo +1.85.0 test --manifest-path "$manifest" --tests --all-features --offline
+  if [[ "$package" != neocogi-inspect ]]; then
+    echo "==> [packages] published documentation examples: $package"
+    cargo +1.85.0 test --manifest-path "$manifest" --doc --all-features --offline
+  fi
 done
+
+# The public runtime build guide promises both ordinary Cargo outputs. Check
+# actual files, rather than a copied manifest description or an explicit override.
+echo "==> [packages] ordinary runtime build emits its declared rlib and shared library"
+cargo +1.85.0 build --manifest-path "$verify_root/neocogi-com-runtime-$version/Cargo.toml" --offline
+python3 - <<'PYRUNTIME'
+import os
+from pathlib import Path
+import platform
+output = Path(os.environ["CARGO_TARGET_DIR"]) / "debug"
+shared = {"Linux": "libnc_com.so", "Darwin": "libnc_com.dylib", "Windows": "nc_com.dll"}[platform.system()]
+for name in ("libnc_com.rlib", shared):
+    artifact = output / name
+    if not artifact.is_file() or artifact.stat().st_size == 0:
+        raise SystemExit(f"ordinary runtime build did not emit {artifact}")
+print("ordinary runtime outputs passed: rlib and shared library")
+PYRUNTIME
 
 # Ordinary downstream usage: generate interfaces at build time, implement one
 # with the published macros, then execute its actual checked C-ABI dispatch.

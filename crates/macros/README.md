@@ -37,8 +37,9 @@ guard performs a query, allocation, or reference-count operation. A local handle
 cannot be recovered safely from an arbitrary foreign interface.
 The local owner's `downgrade()` returns `WeakLocalCom<Implementation>`; promoting
 it recovers a typed strong local owner while the allocation remains alive. This
-works identically for handwritten contracts and IDL-generated class/factory
-contracts and does not introduce another allocation or borrow gate.
+works for handwritten and IDL-generated interface contracts and introduces
+no additional allocation or borrow gate. IDL defines interfaces and values;
+Rust object implementations and plugin acquisition own construction.
 Ordinary unit objects have no generated zero-argument constructor.
 
 `#[com_object(interfaces(IFoo, IBar))]` remains available for local or built-in
@@ -92,7 +93,8 @@ once and requires no interface-specific extension-trait import at call sites.
 
 Supported methods return `Result<T, NcStatus>`:
 
-- plain parameters and returns implement `AbiType`;
+- plain values provide `AbiType` metadata and checked `ComValue` wire conversion;
+- copied positions require `ComInlineValue`; native application layout stays local;
 - `Result<()>` lowers to status only;
 - a non-void return uses an output pointer written only on success;
 - `ComRef<'_, IFooAbi>` is a borrowed interface parameter;
