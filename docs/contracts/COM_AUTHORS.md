@@ -146,7 +146,10 @@ policy; binding does not manufacture an invocation ID absent from the protocol.
 
 Declare cross-COM facts as immutable interfaces derived from `IEvent`; pass the
 common `EventBinding` into the factory. The behavioral parent creates its receiver
-before construction. Widgets retain that receiver and their cached weak origin.
+before construction. Ordinary widgets retain that receiver in `WidgetState` and post
+through their existing host; the runtime supplies the current weak origin. See
+[owner-scoped origins](WIDGET_EVENT_ORIGINS.md) for authority, composite forwarding
+and producers that must also emit outside widget dispatch.
 Exclusive widgets use `#[com_object(Contract, ownership = exclusive)]`; shared services
 retain the default ownership policy. No later binding operation exists.
 
@@ -173,7 +176,7 @@ interface after it. See [event metadata](IDL_EVENT_METADATA.md).
 
 `*_with_queue` passes `IEventReceiver`; `*_unobserved` chooses permanent non-delivery.
 There is no later attachment API. Windows, popups, menus, built-ins and plugins use
-this same discipline. Widget destruction releases its receiver and weak origin.
+this same construction discipline. Widget destruction releases its receiver.
 Shared window/popup/menu services can use `EventPort::close`. Queued facts survive
 source removal. The standard channel returns `NC_E_CLOSED` with the event owner
 on disconnection; other receivers choose their own capacity/error policy. Delivery

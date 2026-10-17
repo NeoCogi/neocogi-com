@@ -75,7 +75,7 @@ behavior runs later under mutable access. There are no named-output connections,
 late subscriptions, receiver installation or generated application routing.
 
 For widgets, the owning parent/container holds `ComBox`; callers retain
-`WeakComBox` observations. The producer supplies a cached weak origin to its receiver. Removing the owner rejects new calls immediately, waits for
+`WeakComBox` observations. The UI runtime scopes the current weak origin during widget update and private dispatch; ordinary widgets retain no self-reference. Removing the owner rejects new calls immediately, waits for
 admitted calls and destroys the widget and owned children before Drop returns.
 There is no independently closed live widget. Close intent is an ordinary event:
 the behavioral parent decides whether to remove its child after the call returns.
