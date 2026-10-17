@@ -550,10 +550,9 @@ fn main() {
 the same compiler semantics and is useful for small modules; it is not a
 different contract format.
 
-The reusable parser/resolver and build integration live in `crates/com/idl`
-and `crates/com/idl`. These COM-owned compiler packages are not private
-modules inside `cargo-neocogi`: contract build scripts must work during an
-ordinary direct Cargo build as well as during an assembled build. The example
+The reusable parser/resolver and build integration live in `neocogi-idl`
+(`crates/com/idl`). This library is independent of the optional `cargo-neocogi`
+authoring command: contract build scripts run through ordinary Cargo. The example
 contract crates under `tools/idl` remain compiler fixtures.
 
 The helper emits precise `cargo::rerun-if-changed` directives. Modifying the
@@ -611,6 +610,32 @@ environment variable, so it neither searches the workspace nor guesses where a
 registry dependency was unpacked. Conflicting sources for one logical module
 fail resolution. The dependency crate remains an ordinary Rust dependency as
 well, giving generated bindings the expected imported ABI types.
+
+A consumer declares Cargo dependencies for its authored `extern` modules. Closing
+an imported template can introduce free types from that template's dependencies;
+those do **not** require additional direct consumer dependencies. Cargo preserves
+which direct provider supplied each source graph, and the generator accesses
+indirect types through that provider's compiler-owned `__nc_dependencies` namespace.
+For example, if consumer depends on bridge and bridge depends on leaf, a closed
+bridge template can contain leaf's `Fixed` without consumer naming the leaf crate.
+The route re-exports the original Rust type; it never creates another declaration.
+This also applies to fully qualified free types without an authored `use`.
+
+Each provider re-exports its complete transitive source-owner set under flat
+`module_<UUIDhex>` aliases. The suffix is the existing logical module UUID, not an
+ABI signature or reversibly encoded source name; generated comments retain the
+dotted module name. Routes remain one provider hop long even across deeper graphs.
+An authored direct dependency takes precedence; otherwise sorted logical extern
+names choose the first provider for a shared ancestor. Conflicting sources or
+owner locations still fail the normal graph merge before generation.
+
+Canonical owner Rust paths remain in inspection metadata. Only Rust type/import
+access and the hidden provider namespace use consumer-specific routes. Neither
+those routes nor filesystem roots affect logical IDs or ABI signatures. Pure
+`generate_rust_with_paths` callers continue supplying accessible owner locations;
+Cargo-specific routes are selected by `Module::build`. Source graph schema 7
+requires providers with this namespace and rejects older sidecars; runtime and
+plugin discovery remain ABI v1, core draft 17 and fingerprint domain v10.
 
 ### Diagnostics
 
@@ -849,6 +874,7 @@ wrappers. See [exclusive widget ownership](EXCLUSIVE_WIDGET_OWNERSHIP.md) and
 | Generated spelling | What it represents | How to interpret it |
 | --- | --- | --- |
 | Cargo `nc_contract_<hex>` | Exact dotted logical IDL module name | Strip the prefix, decode hex pairs, read UTF-8; dots, underscores and case survive. |
+| `__nc_dependencies::module_<UUIDhex>` | Build-generated typed route to a transitive owner | The existing logical module UUID names the alias; generated comments retain the module name. This re-exports its Rust types and does not create a runtime identity. |
 | Local `<module_with_underscores>.rs` and `__nc_idl_<stem>` | Package-local output/module name | Dots become underscores, so this spelling alone is not reversible. The generated entry names the original module explicitly. |
 | `NameInstance<hex>` | Nominal identity of a closed generic IDL type | Decode hex to UUID bytes only. Read the generated closed-type comment for the template and arguments; the UUID cannot recover them. |
 

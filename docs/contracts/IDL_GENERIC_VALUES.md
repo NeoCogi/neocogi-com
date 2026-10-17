@@ -271,3 +271,14 @@ closed IDL type beside the Rust declaration. Use that comment or the generated
 typed IDL metadata to interpret the name. This differs from Cargo `links` names,
 whose hex suffix directly encodes the exact dotted module name and is reversible.
 Neither presentation rule changes runtime/descriptor ABI v1.
+
+## Free types across Cargo dependencies
+
+A template's nongeneric references keep their lexical owner. If a bridge template
+uses `leaf::Fixed`, closing that template in a consumer keeps the original leaf
+Rust type even when the consumer depends only on bridge. Cargo generation selects
+a typed re-export route through the direct provider, including for qualified free
+names without `use`, and does not duplicate the leaf declaration. The
+[Cargo dependency contract](IDL_MODULES.md#module-crates) describes provider
+selection and the generated dependency namespace. Public owner metadata and
+canonical signatures are independent of these consumer access routes.

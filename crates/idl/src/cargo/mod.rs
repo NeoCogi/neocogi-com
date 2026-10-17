@@ -113,13 +113,17 @@ impl Module {
         let mut records = BTreeMap::new();
         records.insert(own_module.name.to_string(), own_record);
         let dependency_modules = own_module.externals.iter().map(|external| external.module.clone()).collect::<BTreeSet<_>>();
-        for dependency in dependency_modules {
+        // Each incoming graph came through one real direct Cargo dependency.
+        // Keep that route while merging source ownership; source reachability
+        // alone does not put every transitive crate in rustc's extern prelude.
+        let mut providers = BTreeMap::new();
+        for dependency in &dependency_modules {
             // Bundled source is injected and fingerprinted by the resolver; it
             // has no separately built Rust crate or Cargo DEP_* exchange file.
-            if crate::is_bundled_module(&dependency) {
+            if crate::is_bundled_module(dependency) {
                 continue;
             }
-            let variable = dependency_graph_variable(&dependency);
+            let variable = dependency_graph_variable(dependency);
             println!("cargo::rerun-if-env-changed={variable}");
             let graph_path = env::var_os(&variable).ok_or_else(|| BuildError::MissingDependency {
                 module: dependency.clone(),
@@ -142,8 +146,11 @@ impl Module {
                     graph.schema
                 )));
             }
-            if !graph.modules.contains_key(&dependency) {
+            if !graph.modules.contains_key(dependency) {
                 return Err(BuildError::Idl(format!("dependency graph for {dependency:?} does not contain that module")));
+            }
+            for name in graph.modules.keys() {
+                providers.entry(name.clone()).or_insert_with(|| dependency.clone());
             }
             merge_records(&mut records, graph.modules)?;
             // Identical contracts can be reached through different checkouts.
@@ -178,6 +185,12 @@ impl Module {
                 paths.insert(name, path).map_err(|source| BuildError::Idl(source.to_string()))?;
             }
         }
+        for (module, provider) in providers {
+            // An explicitly selected owner always wins. Otherwise sorted externs
+            // choose the same first direct provider for diamond-shaped graphs.
+            let provider = if dependency_modules.contains(&module) { &module } else { &provider };
+            paths.route_dependency(&resolved, &module, provider).map_err(|source| BuildError::Idl(source.to_string()))?;
+        }
         let mut bindings =
             generate_rust_with_paths_and_source_map(&resolved, &own_module.name.to_string(), &paths).map_err(|source| BuildError::Idl(source.to_string()))?;
         let stem = own_module.name.segments().join("_");
@@ -197,9 +210,11 @@ impl Module {
         // Its relative path also keeps the pair relocatable within OUT_DIR.
         // Explicit imports retain their original precedence over consumer glob
         // re-exports. In particular, another contract's module metadata must not
-        // make this contract's MODULE_ID or ABI_FINGERPRINT ambiguous.
+        // make this contract's MODULE_ID, ABI_FINGERPRINT or dependency routes
+        // ambiguous.
         let explicit_exports = std::iter::once("MODULE_ID, ABI_FINGERPRINT, MODULE_NAME".to_owned())
             .chain(resolved_module.source.imports.iter().map(|import| import.name.clone()))
+            .chain(paths.dependency_namespace().map(|name| name.to_string()))
             .collect::<Vec<_>>()
             .join(", ");
         let entry = format!(
@@ -346,7 +361,9 @@ impl std::error::Error for BuildError {
 }
 
 /// Schema version for Cargo-to-Cargo IDL source graph exchange.
-const GRAPH_SCHEMA: u32 = 6;
+// Schema 7 requires each provider to expose typed transitive dependency routes.
+// This is build metadata, independent of runtime/descriptor discovery ABI v1.
+const GRAPH_SCHEMA: u32 = 7;
 
 /// Serializable transitive module graph produced by a dependency build.
 #[derive(Deserialize, Serialize)]
