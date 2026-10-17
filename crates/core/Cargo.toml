@@ -16,3 +16,6 @@ categories = ["api-bindings", "development-tools::ffi"]
 default = []
 alloc = []
 std = ["alloc"]
+
+[dev-dependencies]
+syn.workspace = true

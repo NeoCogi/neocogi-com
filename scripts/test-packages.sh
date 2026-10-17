@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
 
-for command in cargo tar cmp mktemp; do
+for command in cargo tar cmp mktemp python3; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "$command is required for package verification" >&2
     exit 1
@@ -41,11 +41,8 @@ for package in "${packages[@]}"; do
   fi
 done
 
-echo "==> [packages] fetch locked registry dependencies"
-cargo fetch --locked
-
 echo "==> [packages] build workspace archives"
-cargo package -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --no-verify --allow-dirty --locked
+cargo package -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --no-verify --allow-dirty --locked --offline
 
 package_dir="${CARGO_TARGET_DIR:-target}/package"
 for package in "${packages[@]}"; do
@@ -82,41 +79,79 @@ for package in "${packages[@]}"; do
   tar -xzf "$package_dir/$package-$version.crate" -C "$verify_root"
 done
 
-verify_package() {
-  local package="$1"
-  shift
-  local manifest="$verify_root/$package-$version/Cargo.toml"
+# Only extracted archives supply SDK dependencies. Cargo and nested consumer
+# tests discover this same patch configuration from the verification directory;
+# no repository sibling or source-only workspace is restored around the archives.
+python3 - "$verify_root" "$version" <<'PYCONFIG'
+import json
+from pathlib import Path
+import sys
+root, version = Path(sys.argv[1]), sys.argv[2]
+packages = ("neocogi-com-core", "neocogi-idl", "neocogi-com-macros",
+            "neocogi-com-runtime", "neocogi-com", "neocogi-inspect")
+(root / ".cargo").mkdir()
+(root / ".cargo/config.toml").write_text("[patch.crates-io]\n" + "".join(
+    f'{name} = {{ path = {json.dumps(str(root / (name + "-" + version)))} }}\n'
+    for name in packages))
+PYCONFIG
 
-  echo
-  echo "==> [packages] verify $package"
-  cargo check \
-    --manifest-path "$manifest" \
-    --all-features \
-    --offline \
-    --target-dir "$verify_root/target/$package" \
-    "$@"
+# Share dependencies within this run, then discard compiled artifacts with the
+# extraction. Reusing an earlier run's binaries can retain its deleted manifest
+# paths in test-only env! expansions even when Cargo reuses their fingerprints.
+export CARGO_TARGET_DIR="$verify_root/target"
+cd "$verify_root"
+
+for package in "${packages[@]}"; do
+  manifest="$verify_root/$package-$version/Cargo.toml"
+  echo "==> [packages] Rust 1.85 library/binary check: $package"
+  cargo +1.85.0 check --manifest-path "$manifest" --all-targets --all-features --offline
+  echo "==> [packages] all shipped tests: $package"
+  cargo +1.85.0 test --manifest-path "$manifest" --tests --all-features --offline
+done
+
+# Ordinary downstream usage: generate interfaces at build time, implement one
+# with the published macros, then execute its actual checked C-ABI dispatch.
+mkdir -p consumer/src consumer/idl/proof
+cat > consumer/Cargo.toml <<'MANIFEST'
+[package]
+name = "archive-consumer"
+version = "0.0.0"
+edition = "2024"
+# Cargo owner encodes the exact IDL module `proof.archive` as UTF-8 hex.
+# Demangle by decoding hex pairs after nc_contract_; this is not a .so name.
+links = "nc_contract_70726f6f662e61726368697665"
+[dependencies]
+neocogi-com = "=0.0.0"
+[build-dependencies]
+neocogi-idl = "=0.0.0"
+MANIFEST
+cat > consumer/build.rs <<'BUILD'
+//! A normal downstream build script; no source-tree layout assumptions.
+fn main() {
+    neocogi_idl::cargo::Module::new("idl", "proof/archive.ncidl").build().unwrap();
 }
+BUILD
+cat > consumer/idl/proof/archive.ncidl <<'IDL'
+/// Minimal construction-independent interface for the extracted SDK proof.
+#[version(1)] interface Counter { fn read(&self) -> Result<u32>; }
+IDL
+cat > consumer/src/main.rs <<'RUST'
+include!(concat!(env!("OUT_DIR"), "/proof_archive.include.rs"));
+use neocogi_com::{com_object, NcStatus};
+#[com_object(Counter)]
+struct Value;
+impl Counter for Value {
+    fn read(&self) -> Result<u32, NcStatus> { Ok(42) }
+}
+fn main() {
+    let counter = Value::from_value(Value).query::<CounterAbi>().unwrap();
+    assert_eq!(counter.read(), Ok(42));
+    assert_eq!(neocogi_com::NC_COM_RUNTIME_ABI_VERSION, 1);
+    assert_eq!(neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 1);
+}
+RUST
+cargo +1.85.0 run --manifest-path consumer/Cargo.toml --offline
+cargo +1.85.0 check --manifest-path "$verify_root/neocogi-com-$version/Cargo.toml" --no-default-features --offline
+cargo +1.85.0 check --manifest-path "$verify_root/neocogi-com-$version/Cargo.toml" --no-default-features --features alloc --offline
 
-# This is the crates.io publication order. Each package may resolve neocogi-com
-# dependencies only from archives verified earlier in this sequence. Workspace
-# integration fixtures require repository-owned sibling sources and are tested
-# separately; archive checks compile the published library/binary targets.
-verify_package neocogi-com-core
-verify_package neocogi-idl \
-  --config "patch.crates-io.neocogi-com-core.path='$verify_root/neocogi-com-core-$version'"
-verify_package neocogi-com-macros \
-  --config "patch.crates-io.neocogi-idl.path='$verify_root/neocogi-idl-$version'" \
-  --config "patch.crates-io.neocogi-com-core.path='$verify_root/neocogi-com-core-$version'"
-verify_package neocogi-com-runtime \
-  --config "patch.crates-io.neocogi-com-core.path='$verify_root/neocogi-com-core-$version'"
-verify_package neocogi-com \
-  --config "patch.crates-io.neocogi-idl.path='$verify_root/neocogi-idl-$version'" \
-  --config "patch.crates-io.neocogi-com-core.path='$verify_root/neocogi-com-core-$version'" \
-  --config "patch.crates-io.neocogi-com-macros.path='$verify_root/neocogi-com-macros-$version'" \
-  --config "patch.crates-io.neocogi-com-runtime.path='$verify_root/neocogi-com-runtime-$version'"
-verify_package neocogi-inspect \
-  --config "patch.crates-io.neocogi-com-core.path='$verify_root/neocogi-com-core-$version'" \
-  --config "patch.crates-io.neocogi-com-runtime.path='$verify_root/neocogi-com-runtime-$version'"
-
-echo
-echo "package archives and publish order passed"
+echo "package archive targets, shipped tests and downstream COM call passed"

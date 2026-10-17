@@ -378,3 +378,6 @@ mod identifier_hygiene_tests;
 
 #[cfg(test)]
 mod method_name_tests;
+
+#[cfg(test)]
+mod test_consumer;

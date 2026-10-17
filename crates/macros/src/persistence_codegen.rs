@@ -14,8 +14,8 @@ use crate::{abi_method::parse_abi_trait_item, args::InterfaceArgs, interface::ex
 /// Checks that the built-in contract retains exactly the original IDL identity.
 #[test]
 fn persistence_bindings_match_idl() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-    let source = std::fs::read_to_string(root.join("core/idl/neocogi/com/persistence/objects.ncidl")).unwrap();
+    let consumer = crate::test_consumer::Consumer::new("persistence-binding-proof");
+    let source = std::fs::read_to_string(consumer.core.join("idl/neocogi/com/persistence/objects.ncidl")).unwrap();
     let module = neocogi_idl::parse_module_parts(
         Path::new("neocogi/com/persistence"),
         &[neocogi_idl::ModuleSource {
@@ -60,8 +60,8 @@ fn persistence_bindings_match_idl() {
     // The ABI half has no facade-owned object support. Resolving its paths to
     // core makes that separation a compiler-checked property, even without alloc.
     let abi = abi.to_string().replace(":: neocogi_com", "crate");
-    check_generated(&root.join("core/src/persistence/interfaces.rs"), &abi);
-    check_generated(&root.join("api/src/persistence/providers.rs"), &format!("use super::*; {}", provider));
+    check_generated(&consumer.core.join("src/persistence/interfaces.rs"), &abi);
+    check_generated(&consumer.facade.join("src/persistence/providers.rs"), &format!("use super::*; {}", provider));
 }
 
 /// Formats one generated half and either verifies it or explicitly refreshes it.

@@ -1,4 +1,5 @@
-//! Subprocess checks shared by strong-only provider tests; never linked in production.
+//! Package-local subprocess checks for strong-only providers; never linked in production.
+//! Kept local so this package can test its own C boundaries after extraction.
 
 use std::os::unix::process::ExitStatusExt;
 use std::process::Command;

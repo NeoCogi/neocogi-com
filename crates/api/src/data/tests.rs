@@ -4,7 +4,7 @@ use super::*;
 use core::sync::atomic::Ordering;
 
 #[cfg(all(unix, not(miri)))]
-#[path = "../../../test-support/retain_abort.rs"]
+#[path = "retain_abort.rs"]
 mod retain_abort;
 
 /// Cloning and interface negotiation must both stop before publishing an uncounted owner.

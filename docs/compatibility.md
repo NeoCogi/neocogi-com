@@ -64,8 +64,8 @@ comes from executing its CI row, not from another platform's successful build.
 
 1. Validate installed compilers and their native target agreement. Remove ambient
    compiler, target, profile and loader-path overrides from the build environment.
-2. Build the runtime explicitly as a `cdylib`. The runtime manifest remains an
-   `rlib` by default, preserving the removal of redundant deployment links.
+2. Build the runtime explicitly as a `cdylib`. Its manifest offers both `rlib`
+   and `cdylib`: static consumers select the former; shared hosts use `libnc_com`.
 3. Build the plugin and host independently, each with its own Cargo target and
    compiler/profile policy. The host links the freshly built runtime.
 4. Require the exact nonempty artifacts. Copy only the executable, runtime and
@@ -209,3 +209,31 @@ mixed-compiler suites were not rerun for this addition. The prior dated matrix
 above remains historical evidence, not a fresh result for these new tests.
 See the [completion contract and validation record](../../../docs/contracts/COM_OUTPUT_COMPLETION.md)
 for allocation injection, output bounds, owner preservation, and consumer checks.
+
+## Published archive validation
+
+Run `bash crates/com/scripts/test-packages.sh` with Rust 1.85 installed. It creates
+real Cargo archives for the five SDK packages and inspector, extracts them into a
+fresh directory, and patches dependencies **only to those extracted archives**.
+Rust 1.85 checks all shipped targets and runs all shipped tests. One temporary shared target
+cache avoids retaining one copy per package and is removed after verification. The gate also builds a fresh consumer
+with `build.rs`, generates an interface and executes its checked COM call. Runtime
+and descriptor discovery are asserted to remain v1. No-default and alloc-only
+facade checks cover the portable feature boundary. CI runs this same gate.
+
+IDL, facade and inspector repository integration suites inspect sibling packages,
+current guide examples or nested native fixture workspaces. Their source files
+stay in checkout CI and are excluded from registry archives, so Cargo does not
+advertise test targets whose inputs are absent. Package-local unit tests remain
+included. Macro printer fixtures belong to the macro archive; the core handle
+source audit belongs to core. The small subprocess helper is deliberately local
+to each owning package rather than requiring a published test-support crate.
+
+The macro package's executable tests create an ordinary matching-version facade
+consumer. Cargo metadata supplies the selected core/facade source locations;
+there is no `../core` or `../api` convention. In a checkout it reuses Cargo's
+workspace package. Archive validation supplies all SDK archives through normal
+patch configuration; after publication the same consumer resolves the published
+version. These checks require that matching SDK and its registry dependencies
+be available offline. They do not introduce a production macro-to-facade dependency
+or a cyclic publication order.
