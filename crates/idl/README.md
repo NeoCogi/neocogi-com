@@ -60,7 +60,9 @@ do not change signatures; member order inside a declaration does.
 name = "example-widgets-contracts"
 version = "0.0.0"
 edition = "2024"
-links = "nc_contract_example_widgets"
+# Exact dotted IDL module `example.widgets`, UTF-8 encoded as hex.
+# Demangle: decode hex pairs after nc_contract_; this is a Cargo owner, not a .so.
+links = "nc_contract_6578616d706c652e77696467657473"
 
 [package.metadata.neocogi-contract]
 module = "example.widgets"

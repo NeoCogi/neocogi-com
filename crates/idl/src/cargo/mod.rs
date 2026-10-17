@@ -99,7 +99,7 @@ impl Module {
 
         let own_module = own_record.sources.parse()?;
         let module_name = own_module.name.to_string();
-        let expected_links = links_name(&module_name);
+        let expected_links = contract_links_name(&module_name);
         let actual_links = env::var("CARGO_MANIFEST_LINKS").map_err(|_| BuildError::MissingEnvironment("CARGO_MANIFEST_LINKS"))?;
         if actual_links != expected_links {
             return Err(BuildError::LinksMismatch {
@@ -197,7 +197,10 @@ impl Module {
             .collect::<Vec<_>>()
             .join(", ");
         let entry = format!(
-            "// Generated module entry. Include this file from the contract's Rust module.\n\
+            "// Generated module entry for IDL module `{module_name}`.\n\
+             // Cargo links `{expected_links}` encodes that exact module name as UTF-8 hex.\n\
+             // Demangle: strip `nc_contract_`, decode hex pairs, then read UTF-8.\n\
+             // The underscore filename below is local to this package, not a global identity.\n\
              #[path = \"{stem}.rs\"]\n\
              mod __nc_idl_{stem};\n\
              // Preserve the contract's public Rust paths at the include site.\n\
@@ -373,14 +376,31 @@ fn required_path(variable: &'static str) -> Result<PathBuf, BuildError> {
     env::var_os(variable).map(PathBuf::from).ok_or(BuildError::MissingEnvironment(variable))
 }
 
-/// Derives the stable Cargo metadata owner for one logical module.
-fn links_name(module: &str) -> String {
-    format!("nc_contract_{}", module.replace('.', "_"))
+/// Mangles the exact dotted IDL module name into its unique Cargo `links` owner.
+///
+/// After `nc_contract_`, each UTF-8 byte becomes two lowercase hexadecimal digits.
+/// Dots, underscores and letter case remain distinct, including after Cargo
+/// uppercases this key for `DEP_*`. To demangle, strip the prefix, decode each
+/// hex pair and read the resulting UTF-8 module name. This is a reversible name
+/// encoding, not a hash, a native library name, a plugin ID or an ABI signature.
+/// Callers validate the logical module name through normal IDL parsing first.
+///
+/// ```
+/// assert_eq!(neocogi_idl::cargo::contract_links_name("a_b.c"), "nc_contract_615f622e63");
+/// assert_eq!(neocogi_idl::cargo::contract_links_name("a.b_c"), "nc_contract_612e625f63");
+/// ```
+pub fn contract_links_name(module: &str) -> String {
+    use std::fmt::Write;
+    let mut name = String::from("nc_contract_");
+    for byte in module.bytes() {
+        write!(&mut name, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    name
 }
 
 /// Derives Cargo's metadata environment variable for one imported module.
 fn dependency_graph_variable(module: &str) -> String {
-    format!("DEP_{}_IDL_GRAPH", links_name(module).to_ascii_uppercase())
+    format!("DEP_{}_IDL_GRAPH", contract_links_name(module).to_ascii_uppercase())
 }
 
 /// Replaces one generated file only when its contents changed.

@@ -113,7 +113,7 @@ fn raw_identifier_catalog_paths_compile_in_exported_forms() {
         root.join("crates/ui/document"),
     );
     fs::write(directory.join("contracts/Cargo.toml"), format!(
-        "[package]\nname='path-contracts'\nversion='0.0.0'\nedition='2024'\nlinks='nc_contract_example_paths'\n{dependencies}neocogi-ui-core-contracts={{path={:?}}}\nserde_json='1'\n[build-dependencies]\nneocogi-idl={{path={:?}}}\n",
+        "[package]\nname='path-contracts'\nversion='0.0.0'\nedition='2024'\nlinks='nc_contract_6578616d706c652e7061746873'\n{dependencies}neocogi-ui-core-contracts={{path={:?}}}\nserde_json='1'\n[build-dependencies]\nneocogi-idl={{path={:?}}}\n",
         root.join("crates/ui/core-contracts"), root.join("crates/com/idl"),
     )).unwrap();
     fs::write(

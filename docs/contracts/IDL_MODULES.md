@@ -591,7 +591,19 @@ fingerprint. Runtime state, JSON document models, caches, concrete factory
 fields, and other implementation-only types live in their respective
 implementation crates.
 
-Every contract package declares `links = "nc_contract_<module>"`. Its build
+Every contract package declares the `links` value returned by
+`neocogi_idl::cargo::contract_links_name(module)`: `nc_contract_` followed by the
+lowercase hexadecimal UTF-8 bytes of the **exact dotted IDL module name**.
+For example, `a_b.c` becomes `nc_contract_615f622e63`, while `a.b_c` becomes
+`nc_contract_612e625f63`. Demangling strips `nc_contract_`, decodes hex pairs,
+and reads UTF-8. This is a reversible Cargo ownership key, not a native library
+filename, plugin identity or ABI fingerprint. Case remains distinct even when
+Cargo uppercases the key in `DEP_<KEY>_IDL_GRAPH`. The module command writes the
+key and a comment naming the original module into the manifest; generated include
+entries explain it too. No old-key aliases are read. Generated underscore file
+stems remain local to each package and do not establish global ownership.
+
+Its build
 script publishes every source part and a machine-readable transitive IDL graph
 through Cargo metadata. A dependent module reads that exact graph from Cargo's `DEP_*`
 environment variable, so it neither searches the workspace nor guesses where a
