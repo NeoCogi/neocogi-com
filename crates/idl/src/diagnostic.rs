@@ -7,6 +7,8 @@ use proc_macro2::Span;
 /// Immutable IDL source retained so diagnostics can render exact snippets.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SourceFile {
+    /// Exact logical module owning this file, independent of its filesystem root.
+    module: String,
     /// Portable path relative to the configured IDL root.
     path: String,
     /// Complete UTF-8 source shared cheaply by every diagnostic label.
@@ -14,12 +16,18 @@ pub struct SourceFile {
 }
 
 impl SourceFile {
-    /// Creates one diagnostic source from its relative path and exact contents.
-    pub fn new(path: &Path, text: &str) -> Self {
+    /// Creates a diagnostic source with its validated owner, relative path and text.
+    pub fn new(module: &crate::ModuleName, path: &Path, text: &str) -> Self {
         Self {
+            module: module.to_string(),
             path: path.to_string_lossy().replace('\\', "/"),
             text: Arc::from(text),
         }
+    }
+
+    /// Returns the exact logical module owning this source file.
+    pub fn module(&self) -> &str {
+        &self.module
     }
 
     /// Returns the normalized source path used in diagnostics.
@@ -50,6 +58,8 @@ pub struct SourcePosition {
 /// Exact source range attached to an IDL syntax-model element.
 #[derive(Clone)]
 pub struct SourceSpan {
+    /// Logical source owner, attached with the part path before semantic resolution.
+    module: String,
     /// Normalized source path, attached after a syntax part is parsed.
     path: String,
     /// Inclusive beginning of the range.
@@ -66,6 +76,7 @@ impl SourceSpan {
         let start = span.start();
         let end = span.end();
         Self {
+            module: String::new(),
             path: String::new(),
             start: SourcePosition {
                 line: start.line,
@@ -78,12 +89,18 @@ impl SourceSpan {
 
     /// Attaches the normalized path of the part that owns this range.
     pub(crate) fn attach(&mut self, source: &SourceFile) {
+        self.module.clone_from(&source.module);
         self.path.clone_from(&source.path);
     }
 
     /// Returns the parser span for composing a multi-label syntax error.
     pub(crate) fn parser_span(&self) -> Span {
         self.raw
+    }
+
+    /// Returns the logical module that authored this range, including template origins.
+    pub fn module(&self) -> &str {
+        &self.module
     }
 
     /// Returns the normalized path of the owning IDL source part.
@@ -107,6 +124,7 @@ impl fmt::Debug for SourceSpan {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("SourceSpan")
+            .field("module", &self.module)
             .field("path", &self.path)
             .field("start", &self.start)
             .field("end", &self.end)
@@ -117,7 +135,7 @@ impl fmt::Debug for SourceSpan {
 impl PartialEq for SourceSpan {
     /// Compares only portable source identity and coordinates.
     fn eq(&self, other: &Self) -> bool {
-        self.path == other.path && self.start == other.start && self.end == other.end
+        self.module == other.module && self.path == other.path && self.start == other.start && self.end == other.end
     }
 }
 
@@ -126,7 +144,7 @@ impl Eq for SourceSpan {}
 impl Ord for SourceSpan {
     /// Orders ranges independently of filesystem discovery order.
     fn cmp(&self, other: &Self) -> Ordering {
-        (&self.path, self.start, self.end).cmp(&(&other.path, other.start, other.end))
+        (&self.module, &self.path, self.start, self.end).cmp(&(&other.module, &other.path, other.start, other.end))
     }
 }
 
@@ -168,8 +186,8 @@ pub struct Diagnostic {
     pub labels: Vec<DiagnosticLabel>,
     /// Explanatory notes and actionable help shown after source annotations.
     pub notes: Vec<String>,
-    /// Source contents indexed by normalized path for deterministic rendering.
-    sources: BTreeMap<String, SourceFile>,
+    /// Source contents indexed by logical owner and path for deterministic rendering.
+    sources: BTreeMap<(String, String), SourceFile>,
 }
 
 impl Diagnostic {
@@ -186,14 +204,14 @@ impl Diagnostic {
 
     /// Adds one source file used by this diagnostic's labels.
     pub(crate) fn with_source(mut self, source: &SourceFile) -> Self {
-        self.sources.insert(source.path.clone(), source.clone());
+        self.sources.insert((source.module.clone(), source.path.clone()), source.clone());
         self
     }
 
     /// Adds all sources from one parsed module.
     pub(crate) fn with_sources(mut self, sources: &[SourceFile]) -> Self {
         for source in sources {
-            self.sources.insert(source.path.clone(), source.clone());
+            self.sources.insert((source.module.clone(), source.path.clone()), source.clone());
         }
         self
     }
@@ -284,7 +302,11 @@ impl fmt::Display for Diagnostic {
         for label in labels {
             let position = label.span.start;
             writeln!(formatter, " --> {}:{}:{}", label.span.path, position.line, position.column)?;
-            if let Some(line) = self.sources.get(&label.span.path).and_then(|source| source.line(position.line)) {
+            if let Some(line) = self
+                .sources
+                .get(&(label.span.module.clone(), label.span.path.clone()))
+                .and_then(|source| source.line(position.line))
+            {
                 let gutter = position.line.to_string().len();
                 writeln!(formatter, "{:gutter$} |", "", gutter = gutter)?;
                 writeln!(formatter, "{} | {line}", position.line)?;

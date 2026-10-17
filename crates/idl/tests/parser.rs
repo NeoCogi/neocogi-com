@@ -68,7 +68,10 @@ fn parses_a_complete_contract_module() {
     assert_eq!(module.name.to_string(), "neocogi.ui");
     assert_eq!(module.externals[0].module, "neocogi.render");
     assert_eq!(module.imports[0].module, "neocogi.render");
-    assert_eq!(module.imports[0].names, ["ITexture", "TextureFactory"]);
+    assert_eq!(
+        module.imports.iter().map(|import| import.name.as_str()).collect::<Vec<_>>(),
+        ["ITexture", "TextureFactory"]
+    );
     assert_eq!(module.declarations.len(), 7);
     assert_eq!(module.declaration("IWidget").unwrap().name, "IWidget");
 

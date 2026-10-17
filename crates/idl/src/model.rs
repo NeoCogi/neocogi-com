@@ -13,15 +13,15 @@ pub struct ExternalModule {
     pub module: String,
 }
 
-/// One explicit import from another logical IDL module.
+/// One imported declaration and its exact authored source origin.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Import {
-    /// Complete import statement used for conflict diagnostics.
+    /// Imported identifier used for diagnostics and generated re-export provenance.
     pub span: SourceSpan,
     /// Dotted name of the module that owns the imported declarations.
     pub module: String,
-    /// Exact declaration names imported from the module.
-    pub names: Vec<String>,
+    /// Exact declaration name imported from the module.
+    pub name: String,
 }
 
 /// Version and optional explicitly assigned identity for one declaration.

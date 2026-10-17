@@ -4,14 +4,46 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use super::BuildError;
+use super::{BuildError, write_changed};
+use std::collections::BTreeMap;
+use crate::{RustSourceMap, ResolvedModules};
 
-/// Resolves both existing roots before computing a relocatable path from the sidecar.
+/// Resolves each original file through its owner, never through the consumer root.
+/// Built-in sources already live in the resolved graph; write their exact text
+/// into OUT_DIR so editor navigation does not depend on the compiler's checkout.
+pub(super) fn resolve_locations(map: &mut RustSourceMap, output: &Path, roots: &BTreeMap<String, PathBuf>, graph: &ResolvedModules) -> Result<(), BuildError> {
+    for file in &mut map.sources {
+        let source = if crate::is_bundled_module(&file.module) {
+            let source = graph
+                .module(&file.module)
+                .and_then(|module| module.source.sources.iter().find(|source| source.path() == file.path))
+                .ok_or_else(|| BuildError::Idl(format!("missing bundled source {}:{}", file.module, file.path)))?;
+            let path = output.join("idl-sources").join(&file.path);
+            let directory = path.parent().expect("bundled source path has a directory");
+            fs::create_dir_all(directory).map_err(|source| BuildError::Io {
+                operation: "create bundled source-map directory",
+                path: directory.to_owned(),
+                source,
+            })?;
+            write_changed(&path, source.text().as_bytes())?;
+            path
+        } else {
+            roots
+                .get(&file.module)
+                .ok_or_else(|| BuildError::Idl(format!("missing source-map root for module {:?}", file.module)))?
+                .join(&file.path)
+        };
+        file.location = Some(relative_location(output, &source)?);
+    }
+    Ok(())
+}
+
+/// Resolves an existing file or directory relative to the generated sidecar directory.
 /// Different filesystem roots (for example Windows drives) require an absolute path.
-pub(super) fn relative_source_root(output: &Path, source: &Path) -> Result<String, BuildError> {
+pub(super) fn relative_location(output: &Path, source: &Path) -> Result<String, BuildError> {
     let canonical = |path: &Path| {
         fs::canonicalize(path).map_err(|source| BuildError::Io {
-            operation: "resolve source-map root",
+            operation: "resolve source-map location",
             path: path.to_owned(),
             source,
         })
@@ -26,7 +58,7 @@ pub(super) fn relative_source_root(output: &Path, source: &Path) -> Result<Strin
             true => text.to_owned(),
             false => text.replace('\\', "/"),
         })
-        .ok_or_else(|| BuildError::Idl("source-map roots must have UTF-8 paths".into()))
+        .ok_or_else(|| BuildError::Idl("source-map locations must have UTF-8 paths".into()))
 }
 
 /// Computes a lexical relative path between already normalized absolute directories.
@@ -62,9 +94,9 @@ mod tests {
         let source = root.path().join("contract source/idl");
         fs::create_dir_all(&output).unwrap();
         fs::create_dir_all(&source).unwrap();
-        let mapped = relative_source_root(&output, &source.join("../idl")).unwrap();
+        let mapped = relative_location(&output, &source.join("../idl")).unwrap();
         assert!(!Path::new(&mapped).is_absolute());
         assert_eq!(output.join(mapped).canonicalize().unwrap(), source.canonicalize().unwrap());
-        assert_eq!(relative_source_root(&source, &source).unwrap(), ".");
+        assert_eq!(relative_location(&source, &source).unwrap(), ".");
     }
 }

@@ -43,7 +43,7 @@ pub(crate) fn attach(mut modules: Vec<Module>) -> Result<Vec<Module>, Resolution
                     .map(|import| import.span.clone())
             });
         for library in &standard.declarations {
-            let shadowed = module.declaration(&library.name).is_some() || module.imports.iter().any(|import| import.names.contains(&library.name));
+            let shadowed = module.declaration(&library.name).is_some() || module.imports.iter().any(|import| import.name == library.name);
             let mut prelude = None;
             for declaration in &module.declarations {
                 let shadowed = shadowed || declaration.parameters.contains(&library.name);
@@ -55,14 +55,11 @@ pub(crate) fn attach(mut modules: Vec<Module>) -> Result<Vec<Module>, Resolution
             }
             if let Some(span) = prelude {
                 dependency.get_or_insert_with(|| span.clone());
-                match module.imports.iter_mut().find(|import| is_bundled_module(&import.module)) {
-                    Some(import) => import.names.push(library.name.clone()),
-                    None => module.imports.push(Import {
-                        span,
-                        module: LANGUAGE_MODULE.into(),
-                        names: vec![library.name.clone()],
-                    }),
-                }
+                module.imports.push(Import {
+                    span,
+                    module: LANGUAGE_MODULE.into(),
+                    name: library.name.clone(),
+                });
             }
         }
         if let Some(span) = dependency {

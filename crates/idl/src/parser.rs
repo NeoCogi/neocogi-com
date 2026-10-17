@@ -1,7 +1,7 @@
 //! Parser for the intentionally small Rust-like NeoCogi IDL grammar.
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt,
     path::{Component, Path},
 };
@@ -114,7 +114,7 @@ fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleS
     let mut imports = Vec::new();
     let mut declarations = BTreeMap::<String, Declaration>::new();
     for part in parts {
-        let source_file = SourceFile::new(part.path, part.text);
+        let source_file = SourceFile::new(&name, part.path, part.text);
         if !source_paths.insert(source_file.path().to_owned()) {
             return Err(ParseError::Source(
                 Diagnostic::new("EIDL003", format!("IDL module contains source path {:?} more than once", source_file.path())).with_source(&source_file),
@@ -166,28 +166,21 @@ fn assemble_module<'a>(name: ModuleName, parts: impl IntoIterator<Item = ModuleS
     })
 }
 
-/// Merges equivalent imports and sorts their modules and names canonically.
+/// Deduplicates exact bindings while retaining each name's first authored origin.
+/// Canonical module/name order is independent of source-part enumeration.
 fn canonical_imports(imports: Vec<Import>) -> Vec<Import> {
-    let mut grouped = BTreeMap::<String, (SourceSpan, BTreeSet<String>)>::new();
+    let mut bindings = BTreeMap::new();
     for import in imports {
-        let entry = grouped.entry(import.module).or_insert_with(|| (import.span, BTreeSet::new()));
-        entry.1.extend(import.names);
+        bindings.entry((import.module.clone(), import.name.clone())).or_insert(import);
     }
-    grouped
-        .into_iter()
-        .map(|(module, (span, names))| Import {
-            span,
-            module,
-            names: names.into_iter().collect(),
-        })
-        .collect()
+    bindings.into_values().collect()
 }
 
 /// Parsed top-level source before its path-derived module name is attached.
 struct ModuleSyntax {
     /// External module dependencies retained for graph construction.
     externals: Vec<ExternalModule>,
-    /// Imports flattened into module/name groups.
+    /// One source-bearing import per declaration name.
     imports: Vec<Import>,
     /// Declarations retained in normative source order.
     declarations: Vec<Declaration>,
@@ -234,7 +227,7 @@ impl Parse for ModuleSyntax {
                 if !attributes.is_empty() {
                     return Err(syn::Error::new_spanned(&attributes[0], "IDL imports do not accept attributes"));
                 }
-                imports.push(parse_import(input)?);
+                imports.extend(parse_import(input)?);
                 continue;
             }
 
@@ -812,8 +805,8 @@ fn parse_signed_integer(expression: &Expr) -> syn::Result<i64> {
 }
 
 /// Parses one dotted module import with one name or a braced name list.
-fn parse_import(input: ParseStream<'_>) -> syn::Result<Import> {
-    let use_token = input.parse::<Token![use]>()?;
+fn parse_import(input: ParseStream<'_>) -> syn::Result<Vec<Import>> {
+    input.parse::<Token![use]>()?;
     let mut module = vec![input.parse::<Ident>()?.to_string()];
     while input.peek(Token![.]) {
         input.parse::<Token![.]>()?;
@@ -846,13 +839,13 @@ fn parse_import(input: ParseStream<'_>) -> syn::Result<Import> {
         if let Some(previous) = unique_names.insert(normalized.clone(), span.clone()) {
             return Err(duplicate_error("EIDL018", "import name", &normalized, &span, &previous));
         }
-        normalized_names.push(normalized);
+        normalized_names.push(Import {
+            span,
+            module: module.join("."),
+            name: normalized,
+        });
     }
-    Ok(Import {
-        span: SourceSpan::from_parser(use_token.span),
-        module: module.join("."),
-        names: normalized_names,
-    })
+    Ok(normalized_names)
 }
 
 /// Produces one syntax error with both duplicate and original declarations.

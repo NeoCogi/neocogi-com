@@ -30,12 +30,26 @@ impl SourceMapRange {
     }
 }
 
+/// One authored file referenced by the generated map, shared by all its ranges.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SourceMapFile {
+    /// Exact logical module that owns this file, including imported templates.
+    pub module: String,
+    /// Normalized source-part path relative to its owner's configured IDL root.
+    pub path: String,
+    /// Authored file relative to the map directory, or absolute across filesystem roots.
+    /// Pure generation leaves this unset. Cargo resolves dependency owners' actual
+    /// roots; bundled IDL is materialized beside the generated files for navigation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+}
+
 /// Authored identifier that caused a Rust definition or helper to be emitted.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SourceMapOrigin {
-    /// Normalized path relative to the map's IDL source root.
-    pub path: String,
-    /// Exact parser range of the originating identifier or import keyword.
+    /// Index into this map's source-file table; never a filesystem guess.
+    pub source: usize,
+    /// Exact parser range of the originating identifier, including import names.
     /// Derived helpers inherit their nearest authored declaration/member origin.
     pub range: SourceMapRange,
 }
@@ -88,16 +102,14 @@ pub struct SourceMapping {
 /// Versioned provenance sidecar emitted beside one generated `.rs` file.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RustSourceMap {
-    /// NeoCogi range-map schema version; currently one.
+    /// NeoCogi build-sidecar schema version; currently two, independent of COM ABI v1.
     pub schema: u32,
     /// Exact logical IDL module being generated.
     pub module: String,
     /// Name of the generated Rust file, relative to the map's directory.
     pub generated_file: String,
-    /// IDL root relative to the map directory, or absolute across filesystem roots.
-    /// Pure in-memory generation leaves this unset for its caller to resolve.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_root: Option<String>,
+    /// Source identities in deterministic first-use order; locations are build-only.
+    pub sources: Vec<SourceMapFile>,
     /// Deterministic ranges in generation order; nested entries refine parent origins.
     pub mappings: Vec<SourceMapping>,
 }

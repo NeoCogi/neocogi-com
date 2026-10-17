@@ -52,18 +52,28 @@ Generated declarations and authored members also carry readable documentation:
 pub trait Textbox /* generated requirements and methods */ {}
 ```
 
-The annotation names the originating IDL identifier. Source paths are relative
-to the contract's IDL root. The sidecar supplies `source_root`, relative to the
-map's directory, so tools resolve an authored file as:
+The annotation names the originating IDL identifier and its owning logical module.
+A source file's normalized `path` is relative to **its owner's** IDL root, which
+may belong to another contract package. Each mapping selects one entry from the
+map's `sources` table. Cargo fills that file's `location`, relative to the map's
+directory, so tools resolve an authored file as:
 
 ```text
-map directory / source_root / mapping.original.path
+file = map.sources[mapping.original.source]
+authored file = map directory / file.location
 ```
 
-Cargo canonicalizes the two directories before computing this relative path.
-If they have different filesystem roots, such as different Windows drives,
-`source_root` is absolute. Pure in-memory generation leaves the root unset;
-the caller supplies its filesystem context.
+Cargo canonicalizes the map directory and the source file before computing the
+relative location. Different filesystem roots, such as different Windows drives,
+require an absolute location. Pure generation leaves locations unset; the caller
+supplies filesystem context using each file's logical owner and path.
+
+Dependency build metadata carries physical source roots separately from semantic
+source records. Different checkouts of identical contracts do not conflict merely
+because their paths differ. Locations never enter ABI fingerprints. Bundled IDL,
+including `neocogi.lang::Option`, is copied from the resolved source into
+`OUT_DIR/idl-sources/`; maps point to that exact copy instead of guessing a file
+under the consumer's IDL root. These files and metadata are private build artifacts.
 
 ## What is mapped
 
@@ -78,12 +88,12 @@ methods, functions, fields, variants and helpers.
 | Copied struct or enum | Its declaration identifier |
 | Named field or enum alternative | Its authored field or variant identifier |
 | Integer enum or bit flag macro body | Its declaration and each variant/flag |
-| Interface/class method and generated forwarding methods | The authored method identifier |
+| Interface method and generated forwarding methods | The authored method identifier |
 | Closed generic interface methods | The method in the generic template |
 | `ITextChangedEvent::text` | The event interface getter declaration |
 | Message wire record and codec helpers | The originating message declaration |
 | Message case helper and borrowed named fields | The originating variant and field |
-| Imported re-export | The local IDL `use` statement |
+| Imported re-export | Its individual local imported identifier, including split source parts |
 
 A generated helper without a distinct authored counterpart inherits its nearest
 known declaration or member. Positional fields inherit their variant origin.
@@ -98,9 +108,10 @@ checked-in persistence bindings.
 
 ## JSON format and lookup
 
-This is NeoCogi's readable range-map schema **1**, not JavaScript Source Map v3.
+This is NeoCogi's readable range-map schema **2** (a build format, independent of runtime/descriptor ABI v1), not JavaScript Source Map v3.
 Each mapping has a `kind`, generated Rust `name`, `generated` range and `original`
-IDL path/range. The ranges use one-based lines and one-based **Unicode scalar**
+source-file index/range. The top-level `sources` array owns module/path/location
+records once for all ranges. The ranges use one-based lines and one-based **Unicode scalar**
 columns, matching the parser. A tab counts as one character. Starts are included;
 ends are excluded. Columns are neither UTF-8 byte offsets nor UTF-16 code units.
 
@@ -115,7 +126,7 @@ An illustrative entry:
     "end": { "line": 30, "column": 19 }
   },
   "original": {
-    "path": "example/widgets/types.ncidl",
+    "source": 0,
     "range": {
       "start": { "line": 3, "column": 15 },
       "end": { "line": 3, "column": 20 }
@@ -124,6 +135,11 @@ An illustrative entry:
 }
 ```
 
+Here `sources[0]` is a single record such as
+`{"module":"example.widgets","path":"example/widgets/types.ncidl","location":"../../contract/idl/example/widgets/types.ncidl"}`.
+Every range in that file reuses the same index. An imported template uses its
+provider module and provider location; it does not inherit the consumer's root.
+
 Tools should use the most specific enclosing range. The compiler exposes that
 operation directly:
 
@@ -131,9 +147,10 @@ operation directly:
 use neocogi_idl::{RustSourceMap, SourceMapPosition};
 # fn example(json: &str) -> Result<(), serde_json::Error> {
 let map: RustSourceMap = serde_json::from_str(json)?;
-assert_eq!(map.schema, 1);
+assert_eq!(map.schema, 2);
 if let Some(entry) = map.lookup(SourceMapPosition { line: 28, column: 10 }) {
-    println!("{}:{}:{}", entry.original.path,
+    let file = &map.sources[entry.original.source];
+    println!("{}:{}:{}", file.path,
         entry.original.range.start.line, entry.original.range.start.column);
 }
 # Ok(())

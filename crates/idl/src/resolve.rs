@@ -162,11 +162,7 @@ impl ResolvedModules {
             if owner.source.declaration(declaration_name).is_some() {
                 (owner.source.name.to_string(), declaration_name)
             } else {
-                let import = owner
-                    .source
-                    .imports
-                    .iter()
-                    .find(|import| import.names.iter().any(|candidate| candidate == declaration_name))?;
+                let import = owner.source.imports.iter().find(|import| import.name == declaration_name)?;
                 (import.module.clone(), declaration_name)
             }
         } else {
@@ -610,41 +606,40 @@ fn connect_externals_and_imports(entries: &mut [ModuleEntry]) -> Result<(), Reso
                     "external dependency is not declared",
                 ));
             }
-            for name in import.names {
-                if let Some(local) = entries[index].local_symbols.get(&name) {
-                    let local_span = &entries[index].module.declarations[local.declaration].span;
-                    return Err(ResolutionError {
-                        diagnostics: vec![
-                            Diagnostic::new("EIDL032", format!("import {name:?} conflicts with a local declaration"))
-                                .with_sources(&entries[index].module.sources)
-                                .primary(&import.span, "conflicting import")
-                                .secondary(local_span, "local declaration is here"),
-                        ],
-                    });
-                }
-                let Some(&symbol) = entries[dependency].local_symbols.get(&name) else {
-                    return Err(source_error(
-                        &entries[index].module,
-                        "EIDL033",
-                        &import.span,
-                        format!("module {:?} does not declare imported name {name:?}", entries[dependency].name),
-                        "name is not exported by this module",
-                    ));
-                };
-                if imported_symbols.insert(name.clone(), symbol).is_some() {
-                    let previous = imported_origins.get(&name).expect("an imported symbol always records its origin");
-                    return Err(ResolutionError {
-                        diagnostics: vec![
-                            Diagnostic::new("EIDL034", format!("imported name {name:?} is ambiguous"))
-                                .with_sources(&entries[index].module.sources)
-                                .primary(&import.span, "second unqualified import")
-                                .secondary(previous, "first unqualified import")
-                                .note("remove one import or use a module-qualified type path"),
-                        ],
-                    });
-                }
-                imported_origins.insert(name, import.span.clone());
+            let name = import.name;
+            if let Some(local) = entries[index].local_symbols.get(&name) {
+                let local_span = &entries[index].module.declarations[local.declaration].span;
+                return Err(ResolutionError {
+                    diagnostics: vec![
+                        Diagnostic::new("EIDL032", format!("import {name:?} conflicts with a local declaration"))
+                            .with_sources(&entries[index].module.sources)
+                            .primary(&import.span, "conflicting import")
+                            .secondary(local_span, "local declaration is here"),
+                    ],
+                });
             }
+            let Some(&symbol) = entries[dependency].local_symbols.get(&name) else {
+                return Err(source_error(
+                    &entries[index].module,
+                    "EIDL033",
+                    &import.span,
+                    format!("module {:?} does not declare imported name {name:?}", entries[dependency].name),
+                    "name is not exported by this module",
+                ));
+            };
+            if imported_symbols.insert(name.clone(), symbol).is_some() {
+                let previous = imported_origins.get(&name).expect("an imported symbol always records its origin");
+                return Err(ResolutionError {
+                    diagnostics: vec![
+                        Diagnostic::new("EIDL034", format!("imported name {name:?} is ambiguous"))
+                            .with_sources(&entries[index].module.sources)
+                            .primary(&import.span, "second unqualified import")
+                            .secondary(previous, "first unqualified import")
+                            .note("remove one import or use a module-qualified type path"),
+                    ],
+                });
+            }
+            imported_origins.insert(name, import.span.clone());
         }
         entries[index].dependencies = dependencies.into_iter().map(|(_, dependency)| dependency).collect();
         entries[index].imported_symbols = imported_symbols;
@@ -777,11 +772,9 @@ fn validate_generated_names(module: &ResolvedModule) -> Result<(), ResolutionErr
             .or_insert_with(|| (declaration.span.clone(), format!("declaration {}", declaration.name)));
     }
     for import in &source.imports {
-        for name in &import.names {
-            occupied
-                .entry(name.clone())
-                .or_insert_with(|| (import.span.clone(), format!("imported name {name}")));
-        }
+        occupied
+            .entry(import.name.clone())
+            .or_insert_with(|| (import.span.clone(), format!("imported name {}", import.name)));
     }
 
     let mut diagnostics = Vec::new();

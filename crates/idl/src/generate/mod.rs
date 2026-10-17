@@ -411,9 +411,9 @@ fn needs_value_allocation(value: &crate::ValueType) -> bool {
 fn generate_imports(graph: &Generation<'_>, module: &ResolvedModule) -> Result<TokenStream, GenerateError> {
     let imports = module.source.imports.iter().map(|import| {
         let crate_ident = graph.paths.path(&import.module)?;
-        let names = import.names.iter().map(|name| rust_ident(name)).collect::<Result<Vec<_>, _>>()?;
+        let name = rust_ident(&import.name)?;
         let origin = origin_docs(&[], &import.span);
-        Ok(quote! { #origin pub use #crate_ident::{#(#names),*}; })
+        Ok(quote! { #origin pub use #crate_ident::#name; })
     });
     let imports = imports.collect::<Result<Vec<_>, GenerateError>>()?;
     Ok(quote! { #(#imports)* })
@@ -421,7 +421,7 @@ fn generate_imports(graph: &Generation<'_>, module: &ResolvedModule) -> Result<T
 
 /// Generates one public declaration from its resolved source-order identity.
 fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration, source_index: usize) -> Result<String, GenerateError> {
-    let declaration_docs = origin_docs(&declaration.docs, &declaration.span);
+    let declaration_docs = declaration_docs(declaration);
     let name = rust_ident(&declaration.name)?;
     let identity = module
         .declarations
@@ -927,6 +927,24 @@ fn builtin_object_type(name: &NamedType) -> Option<TokenStream> {
         [name] if name == "INcString" => Some(quote! { ::neocogi_com::INcStringAbi }),
         _ => None,
     }
+}
+
+/// Documents a concrete declaration and explains generated generic name mangling.
+/// Cargo module-name encoding is reversible; specialization UUIDs are identities,
+/// not an encoding of source text. Keep the closed spelling beside the Rust name.
+fn declaration_docs(declaration: &Declaration) -> TokenStream {
+    let origin = origin_docs(&declaration.docs, &declaration.span);
+    let Some(instance) = &declaration.specialization else { return origin };
+    let mut applied = instance.template.clone();
+    applied.arguments = instance.arguments.clone();
+    let explanation = Literal::string(&format!(
+        " Closed IDL type: `{}`. Rust name `{}` appends `Instance` and the closed type's nominal UUID as hexadecimal digits. \
+         The UUID derives from the template and argument identities; it is not reversibly mangled source text. \
+         Use this closed spelling to interpret the generated name; decoding the UUID cannot recover the type arguments.",
+        applied.rust_path(),
+        declaration.name,
+    ));
+    quote! { #origin #[doc = #explanation] }
 }
 
 /// Adds readable provenance after authored docs, so it survives Rust macro forwarding.

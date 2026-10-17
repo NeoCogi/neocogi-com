@@ -259,3 +259,15 @@ both copied and borrowed ownership, build through Cargo with an explicit standar
 import, and inspect the generated enum graph. The
 [recursive value contract](RECURSIVE_VALUE_CONTRACT.md) defines wire memory
 obligations, resource budgets, and the intrinsic array identity encoding.
+
+## Reading generated specialization names
+
+A generated `NameInstance<hex>` Rust identifier represents one **closed IDL type**,
+including its template and type arguments. The suffix is the closed type's
+nominal UUID in hexadecimal, derived from the template and argument identities.
+It is not a reversible encoding of source text: demangling the hex yields UUID
+bytes, not the argument list. Generated documentation therefore names the full
+closed IDL type beside the Rust declaration. Use that comment or the generated
+typed IDL metadata to interpret the name. This differs from Cargo `links` names,
+whose hex suffix directly encodes the exact dotted module name and is reversible.
+Neither presentation rule changes runtime/descriptor ABI v1.

@@ -75,12 +75,13 @@ pub(crate) fn expand(modules: Vec<Module>) -> Result<Vec<Module>, ResolutionErro
     // already become local declarations, so their source imports are consumed.
     for index in 0..expansion.modules.len() {
         let originals = &expansion.originals;
-        for import in &mut expansion.modules[index].imports {
-            if let Some(owner) = originals.iter().find(|module| module.name.to_string() == import.module) {
-                import.names.retain(|name| !owner.declaration(name).is_some_and(is_template));
-            }
-        }
-        expansion.modules[index].imports.retain(|import| !import.names.is_empty());
+        expansion.modules[index].imports.retain(|import| {
+            !originals
+                .iter()
+                .find(|module| module.name.to_string() == import.module)
+                .and_then(|owner| owner.declaration(&import.name))
+                .is_some_and(is_template)
+        });
         expansion.modules[index].declarations.sort_by(|left, right| left.name.cmp(&right.name));
         expansion.modules[index].templates.sort_by(|left, right| left.name.cmp(&right.name));
         expansion.modules[index].externals.sort_by(|left, right| left.module.cmp(&right.module));
@@ -110,7 +111,7 @@ impl Expansion {
                 module
                     .imports
                     .iter()
-                    .find(|import| import.names.contains(local))
+                    .find(|import| &import.name == local)
                     .map(|import| import.module.clone())
                     .ok_or_else(|| failure(&name.span, format!("unknown type {local}")))?
             }
@@ -269,6 +270,9 @@ impl Expansion {
             .zip(name.arguments.iter().cloned())
             .collect::<BTreeMap<_, _>>();
         let identity = self.type_identity(&AbiType::Named(name.clone()))?;
+        // Mangle the closed nominal type identity, not its display spelling.
+        // The UUID suffix cannot be demangled; generation documents the full
+        // template and argument spelling beside the resulting Rust declaration.
         let suffix = identity.to_uuid_bytes().iter().map(|byte| format!("{byte:02x}")).collect::<String>();
         let local = format!("{}Instance{suffix}", declaration.name);
         if self.originals[target].declaration(&local).is_some() {

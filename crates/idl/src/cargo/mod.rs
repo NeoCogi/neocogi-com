@@ -109,6 +109,7 @@ impl Module {
             });
         }
 
+        let mut source_roots = BTreeMap::from([(module_name.clone(), source_root.clone())]);
         let mut records = BTreeMap::new();
         records.insert(own_module.name.to_string(), own_record);
         let dependency_modules = own_module.externals.iter().map(|external| external.module.clone()).collect::<BTreeSet<_>>();
@@ -145,6 +146,11 @@ impl Module {
                 return Err(BuildError::Idl(format!("dependency graph for {dependency:?} does not contain that module")));
             }
             merge_records(&mut records, graph.modules)?;
+            // Identical contracts can be reached through different checkouts.
+            // Locations guide navigation only and never establish source equality.
+            for (name, root) in graph.source_roots {
+                source_roots.entry(name).or_insert(root);
+            }
         }
 
         let parsed = records
@@ -178,7 +184,7 @@ impl Module {
         let bindings_path = output_dir.join(format!("{stem}.rs"));
         let include_path = output_dir.join(format!("{stem}.include.rs"));
         let source_map_path = output_dir.join(format!("{stem}.rs.map"));
-        bindings.source_map.source_root = Some(source_map::relative_source_root(&output_dir, &source_root)?);
+        source_map::resolve_locations(&mut bindings.source_map, &output_dir, &source_roots, &resolved)?;
         let map_bytes = serde_json::to_vec_pretty(&bindings.source_map).map_err(|source_error| BuildError::Json {
             operation: "encode Rust source map",
             path: source_map_path.clone(),
@@ -193,7 +199,7 @@ impl Module {
         // re-exports. In particular, another contract's module metadata must not
         // make this contract's MODULE_ID or ABI_FINGERPRINT ambiguous.
         let explicit_exports = std::iter::once("MODULE_ID, ABI_FINGERPRINT, MODULE_NAME".to_owned())
-            .chain(resolved_module.source.imports.iter().flat_map(|import| import.names.iter()).cloned())
+            .chain(resolved_module.source.imports.iter().map(|import| import.name.clone()))
             .collect::<Vec<_>>()
             .join(", ");
         let entry = format!(
@@ -209,7 +215,11 @@ impl Module {
         );
         write_changed(&include_path, entry.as_bytes())?;
 
-        let graph = GraphRecord { schema: GRAPH_SCHEMA, modules: records };
+        let graph = GraphRecord {
+            schema: GRAPH_SCHEMA,
+            modules: records,
+            source_roots,
+        };
         let graph_bytes = serde_json::to_vec_pretty(&graph).map_err(|source_error| BuildError::Json {
             operation: "encode IDL graph",
             path: output_dir.clone(),
@@ -336,7 +346,7 @@ impl std::error::Error for BuildError {
 }
 
 /// Schema version for Cargo-to-Cargo IDL source graph exchange.
-const GRAPH_SCHEMA: u32 = 5;
+const GRAPH_SCHEMA: u32 = 6;
 
 /// Serializable transitive module graph produced by a dependency build.
 #[derive(Deserialize, Serialize)]
@@ -345,6 +355,9 @@ struct GraphRecord {
     schema: u32,
     /// Modules keyed by exact dotted logical name.
     modules: BTreeMap<String, GraphModule>,
+    /// Physical source roots for editor navigation only; never compared or hashed
+    /// as semantic module records and never emitted into deployed Rust constants.
+    source_roots: BTreeMap<String, PathBuf>,
 }
 
 /// Source record sufficient to repeat semantic resolution in a dependent crate.

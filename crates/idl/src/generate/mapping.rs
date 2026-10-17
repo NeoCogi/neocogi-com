@@ -17,13 +17,30 @@ use super::GenerateError;
 /// Authored docs precede this generated annotation, so a copied annotation cannot
 /// override the actual origin attached to a definition.
 pub(super) fn origin_label(span: &SourceSpan) -> String {
-    format!("IDL source: `{}:{}:{}`.", span.path(), span.start().line, span.start().column)
+    format!(
+        "IDL source: `{}:{}:{}` (module `{}`).",
+        span.path(),
+        span.start().line,
+        span.start().column,
+        span.module()
+    )
 }
 
 /// Copies stable parser coordinates without retaining process-local parser spans.
-fn original(span: &SourceSpan) -> SourceMapOrigin {
+fn original(span: &SourceSpan, map: &mut RustSourceMap) -> SourceMapOrigin {
+    let source = match map.sources.iter().position(|file| file.module == span.module() && file.path == span.path()) {
+        Some(index) => index,
+        None => {
+            map.sources.push(SourceMapFile {
+                module: span.module().to_owned(),
+                path: span.path().to_owned(),
+                location: None,
+            });
+            map.sources.len() - 1
+        }
+    };
     SourceMapOrigin {
-        path: span.path().to_owned(),
+        source,
         range: SourceMapRange {
             start: SourceMapPosition {
                 line: span.start().line,
@@ -37,13 +54,13 @@ fn original(span: &SourceSpan) -> SourceMapOrigin {
     }
 }
 
-/// Starts a portable map; Cargo later supplies a relative filesystem source root.
+/// Starts a portable map; Cargo later resolves each file using its owning module.
 pub(super) fn new_map(module: &ResolvedModule) -> RustSourceMap {
     RustSourceMap {
-        schema: 1,
+        schema: 2,
         module: module.source.name.to_string(),
         generated_file: format!("{}.rs", module.source.name.segments().join("_")),
-        source_root: None,
+        sources: Vec::new(),
         mappings: Vec::new(),
     }
 }
@@ -54,7 +71,7 @@ pub(super) fn map_header(source: &str, module: &ResolvedModule, map: &mut RustSo
         .source
         .imports
         .iter()
-        .map(|import| (origin_label(&import.span), original(&import.span)))
+        .map(|import| (origin_label(&import.span), original(&import.span, map)))
         .collect();
     map_syntax(source, 0, origins, None, &mut map.mappings)
 }
@@ -62,7 +79,7 @@ pub(super) fn map_header(source: &str, module: &ResolvedModule, map: &mut RustSo
 /// Maps a complete declaration fragment and refines it with nested syntax ranges.
 /// Closed generic specializations retain the source spans of their template declarations.
 pub(super) fn map_declaration(source: &str, offset: usize, declaration: &Declaration, map: &mut RustSourceMap) -> Result<(), GenerateError> {
-    let origin = original(&declaration.span);
+    let origin = original(&declaration.span, map);
     map.mappings.push(SourceMapping {
         kind: SourceMapKind::Declaration,
         name: declaration.name.clone(),
@@ -77,7 +94,7 @@ pub(super) fn map_declaration(source: &str, offset: usize, declaration: &Declara
     });
     let mut origins = BTreeMap::new();
     let mut add = |span: &SourceSpan| {
-        origins.insert(origin_label(span), original(span));
+        origins.insert(origin_label(span), original(span, map));
     };
     add(&declaration.span);
     match &declaration.kind {

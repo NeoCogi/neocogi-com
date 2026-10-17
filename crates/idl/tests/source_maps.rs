@@ -53,7 +53,7 @@ fn formatted_rust_and_derived_helpers_retain_exact_idl_origins() {
     let generated = generate_rust_with_source_map(&graph(false), "example.widgets").unwrap();
     let map = &generated.source_map;
     assert_eq!(map.generated_file, "example_widgets.rs");
-    assert_eq!(map.source_root, None);
+    assert!(map.sources.iter().all(|file| file.location.is_none()));
     for (rust, idl, needle, path, kind) in [
         ("pub struct Size", TYPES, "Size", "types.ncidl", SourceMapKind::Struct),
         ("pub width:", TYPES, "width", "types.ncidl", SourceMapKind::Field),
@@ -65,7 +65,7 @@ fn formatted_rust_and_derived_helpers_retain_exact_idl_origins() {
     ] {
         let entry = map.lookup(position(&generated.source, rust)).unwrap_or_else(|| panic!("unmapped {rust}"));
         assert_eq!(entry.kind, kind, "{rust}");
-        assert_eq!(entry.original.path, format!("example/widgets/{path}"), "{rust}");
+        assert_eq!(map.sources[entry.original.source].path, format!("example/widgets/{path}"), "{rust}");
         assert_eq!(entry.original.range.start, position(idl, needle), "{rust}");
     }
     // Raw wire helpers now come from the shared macro; source navigation maps
@@ -111,6 +111,186 @@ fn imported_bindings_keep_their_local_import_origin() {
     let generated = generate_rust_with_source_map(&graph, "example.consumer").unwrap();
     let imported = generated.source_map.lookup(position(&generated.source, "pub use")).unwrap();
     assert_eq!(imported.kind, SourceMapKind::Import);
-    assert_eq!(imported.original.range.start, position(text, "use example"));
-    assert_eq!(imported.original.path, "example/consumer.ncidl");
+    assert_eq!(imported.original.range.start, position(text, "Value;"));
+    assert_eq!(generated.source_map.sources[imported.original.source].path, "example/consumer.ncidl");
+}
+
+/// Merging imports must preserve the origin of each identifier, including two
+/// bindings to the same dependency authored in different source parts.
+#[test]
+fn split_imports_keep_each_identifier_and_do_not_change_the_abi() {
+    let dependency = neocogi_idl::parse_module(
+        Path::new("example/value.ncidl"),
+        "#[version(1)] struct First { value: u32 } #[version(1)] struct Second { value: u32 }",
+    )
+    .unwrap();
+    let a = "extern example.value; use example.value::First; #[version(1)] struct Pair { first: First, second: Second }";
+    let z = "use example.value::Second;";
+    let parts = [
+        ModuleSource {
+            path: Path::new("example/pair/a.ncidl"),
+            text: a,
+        },
+        ModuleSource {
+            path: Path::new("example/pair/z.ncidl"),
+            text: z,
+        },
+    ];
+    let consumer = parse_module_parts(Path::new("example/pair"), &parts).unwrap();
+    let graph = resolve_modules(vec![dependency.clone(), consumer]).unwrap();
+    let generated = generate_rust_with_source_map(&graph, "example.pair").unwrap();
+    for (name, text, path) in [("First", a, "a.ncidl"), ("Second", z, "z.ncidl")] {
+        let entry = generated
+            .source_map
+            .mappings
+            .iter()
+            .find(|entry| entry.kind == SourceMapKind::Import && entry.name.ends_with(name))
+            .unwrap();
+        let file = &generated.source_map.sources[entry.original.source];
+        assert_eq!(file.module, "example.pair");
+        assert_eq!(file.path, format!("example/pair/{path}"));
+        assert_eq!(entry.original.range.start, position(text, name));
+    }
+    // Grouping both names in one statement changes provenance, not the contract.
+    let grouped = neocogi_idl::parse_module(
+        Path::new("example/pair.ncidl"),
+        "extern example.value; use example.value::{First, Second}; #[version(1)] struct Pair { first: First, second: Second }",
+    )
+    .unwrap();
+    let grouped = resolve_modules(vec![dependency, grouped]).unwrap();
+    assert_eq!(
+        graph.module("example.pair").unwrap().abi_fingerprint,
+        grouped.module("example.pair").unwrap().abi_fingerprint
+    );
+}
+
+/// Physical provider roots survive transitive graph exchange. All mapped files
+/// must exist after an ordinary Cargo build, including methods specialized from
+/// a grandparent template and the bundled Option alternatives.
+#[test]
+fn cargo_maps_resolve_transitive_templates_and_bundled_sources() {
+    use std::{fs, process::Command};
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let project = tempfile::tempdir().unwrap();
+    fs::write(
+        project.path().join("Cargo.toml"),
+        "[workspace]\nresolver='2'\nmembers=['maps-provider','maps-bridge','maps-host']\n",
+    )
+    .unwrap();
+    let first = "extern origin.bridge; use origin.bridge::{Derived, First};\n#[version(1)] interface Counter: Derived<u32> {}\n#[version(1)] struct Item { value: Option<u32> }\n";
+    let second = "use origin.bridge::Second;\n#[version(1)] struct Both { first: First, second: Second }\n";
+    for (package, module, input, source, dependency) in [
+        (
+            "maps-provider",
+            "origin.generic",
+            "origin/generic.ncidl",
+            "#[version(1)] interface Value<T> { fn get(&self) -> Result<T>; }",
+            None,
+        ),
+        (
+            "maps-bridge",
+            "origin.bridge",
+            "origin/bridge.ncidl",
+            "extern origin.generic; use origin.generic::Value; #[version(1)] interface Derived<T>: Value<T> {} #[version(1)] struct First { value: u32 } #[version(1)] struct Second { value: u32 }",
+            Some("maps-provider"),
+        ),
+        ("maps-host", "proof.maps", "proof/maps", first, Some("maps-bridge")),
+    ] {
+        let directory = project.path().join(package);
+        fs::create_dir_all(directory.join("src")).unwrap();
+        let mut manifest = format!(
+            "[package]\nname={package:?}\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n",
+            neocogi_idl::cargo::contract_links_name(module),
+            root.join("crates/com/api")
+        );
+        if let Some(dependency) = dependency {
+            manifest.push_str(&format!("{dependency}={{path='../{dependency}'}}\n"));
+        }
+        manifest.push_str(&format!("[build-dependencies]\nneocogi-idl={{path={:?}}}\n", root.join("crates/com/idl")));
+        fs::write(directory.join("Cargo.toml"), manifest).unwrap();
+        let constructor = if package == "maps-host" { "directory" } else { "new" };
+        fs::write(
+            directory.join("build.rs"),
+            format!(
+                "fn main() {{ neocogi_idl::cargo::Module::{constructor}(\"idl\", {input:?}).rust_path({:?}).build().unwrap(); }}",
+                package.replace('-', "_")
+            ),
+        )
+        .unwrap();
+        fs::write(
+            directory.join("src/lib.rs"),
+            format!("include!(concat!(env!(\"OUT_DIR\"), \"/{}.include.rs\"));", module.replace('.', "_")),
+        )
+        .unwrap();
+        let path = directory.join("idl").join(input);
+        if package == "maps-host" {
+            fs::create_dir_all(&path).unwrap();
+            fs::write(path.join("a.ncidl"), source).unwrap();
+            fs::write(path.join("z.ncidl"), second).unwrap();
+        } else {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, source).unwrap();
+        }
+    }
+    let output = Command::new("cargo")
+        .args(["build", "--offline", "--message-format=json", "-p", "maps-host", "--manifest-path"])
+        .arg(project.path().join("Cargo.toml"))
+        .env("CARGO_TARGET_DIR", root.join("target/source-map-proof"))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let out_dir = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .find(|message| message["reason"] == "build-script-executed" && message["package_id"].as_str().is_some_and(|id| id.contains("/maps-host#")))
+        .unwrap()["out_dir"]
+        .as_str()
+        .map(std::path::PathBuf::from)
+        .unwrap();
+    let map: RustSourceMap = serde_json::from_str(&fs::read_to_string(out_dir.join("proof_maps.rs.map")).unwrap()).unwrap();
+    assert_eq!(map.schema, 2);
+    for file in &map.sources {
+        assert!(out_dir.join(file.location.as_ref().unwrap()).is_file(), "{}:{}", file.module, file.path);
+    }
+    let method = map
+        .mappings
+        .iter()
+        .find(|entry| entry.kind == SourceMapKind::Method && entry.name.ends_with("::get"))
+        .unwrap();
+    let file = &map.sources[method.original.source];
+    assert_eq!(file.module, "origin.generic");
+    assert_eq!(
+        out_dir.join(file.location.as_ref().unwrap()).canonicalize().unwrap(),
+        project.path().join("maps-provider/idl/origin/generic.ncidl").canonicalize().unwrap()
+    );
+    let variant = map
+        .mappings
+        .iter()
+        .find(|entry| entry.kind == SourceMapKind::Variant && entry.name.ends_with("::Some"))
+        .unwrap();
+    let file = &map.sources[variant.original.source];
+    assert_eq!(file.module, "neocogi.lang");
+    assert!(out_dir.join(file.location.as_ref().unwrap()).starts_with(&out_dir));
+    assert!(
+        fs::read_to_string(out_dir.join(file.location.as_ref().unwrap()))
+            .unwrap()
+            .contains("enum Option<T>")
+    );
+    for (name, text, part) in [("First", first, "a.ncidl"), ("Second", second, "z.ncidl")] {
+        let entry = map
+            .mappings
+            .iter()
+            .find(|entry| entry.kind == SourceMapKind::Import && entry.name.ends_with(name))
+            .unwrap();
+        assert_eq!(map.sources[entry.original.source].path, format!("proof/maps/{part}"));
+        assert_eq!(entry.original.range.start, position(text, name));
+    }
+    let rust = fs::read_to_string(out_dir.join("proof_maps.rs")).unwrap();
+    assert!(rust.contains("Closed IDL type: `origin::generic::Value<u32>`"));
+    assert!(rust.contains("not reversibly mangled source text"));
 }
