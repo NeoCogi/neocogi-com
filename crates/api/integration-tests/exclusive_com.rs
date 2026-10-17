@@ -344,14 +344,15 @@ fn local_box_observers_follow_owner_transfer_and_gate_conflicts() {
     observer.with_mut(|value| value.value = 19).unwrap();
     assert_eq!(interface.value(), Ok(19));
     assert!(interface.is_alive());
-    let borrowed = owner.as_com_ref().downgrade_box().unwrap();
-    assert!(borrowed.same_object(&interface));
+    // The exclusive owner establishes the layout needed for a weak observer.
+    let origin = owner.downgrade();
+    assert!(origin.same_object(&interface));
     drop(owner);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
     assert!(!interface.is_alive());
     assert_eq!(observer.with(|_| ()), Err(NC_E_DROPPED));
     assert_eq!(observer.with_mut(|_| ()), Err(NC_E_DROPPED));
-    assert_eq!(borrowed.value(), Err(NC_E_DROPPED));
+    assert_eq!(origin.value(), Err(NC_E_DROPPED));
 }
 
 #[com_interface(auto_guid = "nc.tests.exclusive.Pair:v1", assigned_signature = b"00000000000000000000000000000903")]

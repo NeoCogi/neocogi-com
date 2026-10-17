@@ -78,3 +78,18 @@ fn data_entrypoints_count_the_last_owner() {
         assert_eq!(((*raw.vtable).unknown.release)(raw.object), 0);
     }
 }
+
+/// A generic borrow negotiates optional weak support without assuming provider storage.
+/// Both immutable providers deliberately expose only their private strong counter.
+#[test]
+fn borrowed_data_rejects_unsupported_weak_lifetimes() {
+    let bytes = NcBytes::from_vec(vec![1, 2, 3]);
+    let text = NcString::from_utf8_str("text");
+    for value in [bytes.query::<IUnknown>().unwrap(), text.query::<IUnknown>().unwrap()] {
+        assert_eq!(value.downgrade().unwrap_err(), NC_E_NOINTERFACE);
+        assert_eq!(value.as_com_ref().downgrade().unwrap_err(), NC_E_NOINTERFACE);
+    }
+    // Failed capability acquisition must leave the original values usable.
+    assert_eq!(bytes.to_vec().unwrap(), vec![1, 2, 3]);
+    assert_eq!(text.to_string().unwrap(), "text");
+}

@@ -203,8 +203,9 @@ unsafe impl<T: ComInterface + ?Sized> Sync for ComPtr<T, ThreadSafe> {}
 /// The lifetime ties synchronous calls to retained interface storage. For shared
 /// objects the lender keeps the value alive too; for exclusive objects every
 /// provider entry checks expiration and acquires its own implementation borrow.
-/// A weak lender does not prevent destruction. `try_add_ref` is shared-only;
-/// `downgrade_box` captures an exclusive weak identity. See ComPtr for the layout.
+/// A weak lender does not prevent destruction. `try_add_ref` is shared-only.
+/// Exclusive weak identities come from `ComBox` or an existing `WeakComBox`,
+/// whose types establish the ownership model. See ComPtr for the layout.
 ///
 /// ```compile_fail
 /// use neocogi_com_core::{ComPtr, ComRef, IUnknown};
@@ -445,16 +446,6 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
         let raw = unsafe { crate::weak::downgrade(self.as_raw().cast()) }?;
         // SAFETY: successful downgrade transfers a token for this exact source.
         unsafe { crate::WeakComPtr::from_raw_owned(raw) }.ok_or(NC_E_POINTER)
-    }
-
-    /// Captures a cached weak observer of an exclusively owned argument.
-    /// Shared objects reject this operation; lifetime policies never silently convert.
-    pub fn downgrade_box(&self) -> Result<crate::WeakComBox<T, M>, NcStatus> {
-        let raw = self.as_raw();
-        // SAFETY: the borrow keeps the common header and exact interface live.
-        let table = unsafe { crate::lifetime::box_projection(raw.object.cast(), &T::INTERFACE_ID) }?;
-        unsafe { crate::lifetime::nc_weak_retain(raw.object.cast()) };
-        Ok(unsafe { crate::WeakComBox::from_raw_owned(ComRaw { object: raw.object, vtable: table.cast() }) }.expect("present borrowed interface"))
     }
 
     /// Acquires an owner that can outlive this borrowed view.

@@ -23,7 +23,6 @@ pub const NC_COM_HANDLE_METHOD_NAMES: &[&str] = &[
     "query",
     "query_weak",
     "downgrade",
-    "downgrade_box",
     "supports_interface_id",
     "supports_interface_bytes",
     "is_idle",
