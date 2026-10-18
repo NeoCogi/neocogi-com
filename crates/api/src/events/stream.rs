@@ -17,6 +17,9 @@ enum Phase {
     Closed,
 }
 /// Producer-owned delivery state for a shared service, independent of event type.
+/// Factories can initially allocate an object with an unobserved port, obtain
+/// its weak identity, then replace the port with `with_queue` before exposing
+/// the object. The factory-selected destination remains fixed afterward.
 pub struct EventPort {
     /// Sole authority for this producer's immutable delivery policy and closure.
     phase: Phase,

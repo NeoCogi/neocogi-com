@@ -48,11 +48,15 @@ impl ExampleFactory for DynamicExampleFactory {
     /// Constructs one typed object without consulting a runtime class table.
     fn create(&self, extent: Extent, events: NcValueRef<'_, neocogi_com::events::EventBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
         let queue = events.to_owned()?.into_queue();
-        DynamicExampleObject::from_value_cyclic::<ExampleObjectAbi>(move |origin| DynamicExampleObject {
+        let local = DynamicExampleObject::into_local(DynamicExampleObject {
             extent,
-            changed: neocogi_com::events::EventPort::with_queue(queue, origin),
-        })?
-        .query()
+            changed: neocogi_com::events::EventPort::new(),
+        });
+        // Obtain identity from initialized storage and connect delivery before
+        // returning the first application-facing object capability.
+        let origin = local.query::<ExampleObjectAbi>()?.downgrade()?;
+        local.try_borrow_mut()?.changed = neocogi_com::events::EventPort::with_queue(queue, origin);
+        local.query()
     }
 }
 
