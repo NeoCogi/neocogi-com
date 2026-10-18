@@ -61,12 +61,11 @@ mod message_tests {
     #[test]
     fn generated_output_owns_a_direct_receiver() {
         let (queue, first) = neocogi_com::events::channel();
-        let mut producer: ComPtr<IProducerAbi> = Producer::from_value_cyclic::<IProducerAbi>(move |origin| Producer {
-            completed: neocogi_com::events::EventPort::with_queue(Some(queue), origin),
-        })
-        .unwrap()
-        .query()
-        .unwrap();
+        let local = Producer::into_local(Producer { completed: neocogi_com::events::EventPort::new() });
+        let origin = local.query::<IProducerAbi>().unwrap().downgrade().unwrap();
+        local.try_borrow_mut().unwrap().completed = neocogi_com::events::EventPort::with_queue(Some(queue), origin);
+        let mut producer: ComPtr<IProducerAbi> = local.query().unwrap();
+        drop(local);
         producer.emit().unwrap();
         drop(producer);
         let message = first.try_recv().unwrap();

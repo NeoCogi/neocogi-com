@@ -43,11 +43,13 @@ impl ExampleFactory for ExampleFactoryImplementation {
     /// Creates one object directly without a runtime class registry lookup.
     fn create(&self, extent: Extent, events: neocogi_com::NcValueRef<'_, neocogi_com::events::EventBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
         let queue = events.to_owned()?.into_queue();
-        ExampleObjectImplementation::from_value_cyclic::<ExampleObjectAbi>(move |origin| ExampleObjectImplementation {
+        let local = ExampleObjectImplementation::into_local(ExampleObjectImplementation {
             extent,
-            events: neocogi_com::events::EventPort::with_queue(queue, origin),
-        })?
-        .query()
+            events: neocogi_com::events::EventPort::new(),
+        });
+        let origin = local.query::<ExampleObjectAbi>()?.downgrade()?;
+        local.try_borrow_mut()?.events = neocogi_com::events::EventPort::with_queue(queue, origin);
+        local.query()
     }
 }
 

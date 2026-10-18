@@ -30,14 +30,14 @@ impl Drop for Value {
         self.observations.destroyed.fetch_add(1, Ordering::SeqCst);
     }
 }
-/// Header-first provider storage; MaybeUninit separates value destruction from freeing.
+/// Header-first storage remains valid after value destruction until final weak release.
 #[repr(C)]
 struct Allocation {
     /// Common prefix used without knowing this concrete storage type.
     control: NcWeakControl,
     /// Destroyed once on final strong release; never dropped by Box<Allocation>.
     value: MaybeUninit<Value>,
-    /// Allocation-only observer remains initialized even if construction fails.
+    /// Allocation-only observer remains available after value destruction.
     observations: Arc<Observations>,
 }
 /// Provider-specific destruction knows the exact value layout.
@@ -67,22 +67,12 @@ static CLASS: NcClassLifetime = NcClassLifetime {
     interfaces: [&ROOT as *const IUnknownVTable].as_ptr(),
     interface_count: 1,
 };
-/// Allocates a real provider object, either initialized or permanently unpublished.
-fn allocation(live: bool) -> (*mut NcWeakControl, Arc<Observations>) {
+/// Allocates a fully initialized provider object with one shared owner.
+fn allocation() -> (*mut NcWeakControl, Arc<Observations>) {
     let observations = Arc::new(Observations::default());
-    let (control, value) = match live {
-        true => (
-            NcWeakControl::new(&CLASS),
-            MaybeUninit::new(Value {
-                observations: observations.clone(),
-                self_weak: None,
-            }),
-        ),
-        false => (NcWeakControl::unpublished(&CLASS), MaybeUninit::uninit()),
-    };
     let storage = Box::new(Allocation {
-        control,
-        value,
+        control: NcWeakControl::new(&CLASS),
+        value: MaybeUninit::new(Value { observations: observations.clone(), self_weak: None }),
         observations: observations.clone(),
     });
     (Box::into_raw(storage).cast(), observations)
@@ -91,7 +81,7 @@ fn allocation(live: bool) -> (*mut NcWeakControl, Arc<Observations>) {
 /// Value lifetime ends independently of weak storage, including destructor-owned weak tokens.
 #[test]
 fn final_strong_drops_value_before_final_weak_frees_storage() {
-    let (control, observations) = allocation(true);
+    let (control, observations) = allocation();
     unsafe {
         nc_weak_retain(control);
         (*control.cast::<Allocation>()).value.assume_init_mut().self_weak = Some(control);
@@ -114,7 +104,7 @@ fn final_strong_drops_value_before_final_weak_frees_storage() {
 /// Promotion/query failures do not leak counts, and successes each transfer one owner.
 #[test]
 fn checked_projection_balances_all_ownership_paths() {
-    let (control, observations) = allocation(true);
+    let (control, observations) = allocation();
     let wrong = NcInterfaceId::new(crate::IID_IUNKNOWN, crate::NcAbiSignature::from_static(&[0; 32]));
     unsafe {
         nc_weak_retain(control);
@@ -139,7 +129,7 @@ fn checked_projection_balances_all_ownership_paths() {
 #[test]
 fn checked_weak_transport_balances_tokens_before_and_after_destruction() {
     use crate::{ComValue, NcWeakRaw, ValueBudget, WeakComPtr};
-    let (control, observed) = allocation(true);
+    let (control, observed) = allocation();
     // SAFETY: this fixture owns the initial strong reference and retains one
     // explicit weak owner across both iterations and final value destruction.
     unsafe { nc_weak_retain(control); }
@@ -173,41 +163,6 @@ fn checked_weak_transport_balances_tokens_before_and_after_destruction() {
     assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
 }
 
-/// Escaped weak tokens from abandoned construction can only observe permanent absence.
-#[test]
-fn abandoned_construction_frees_without_dropping_uninitialized_value() {
-    let (control, observations) = allocation(false);
-    unsafe {
-        nc_weak_retain(control);
-        nc_weak_release(control); // Constructor rollback transfers no strong owner.
-        let mut out = ComRaw::null();
-        assert_eq!(nc_weak_upgrade(control, &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_E_DROPPED);
-        nc_weak_release(control);
-    }
-    assert_eq!(observations.destroyed.load(Ordering::SeqCst), 0);
-    assert_eq!(observations.freed.load(Ordering::SeqCst), 1);
-}
-
-/// Publication starts strong lifetime only after the concrete value is initialized.
-#[test]
-fn publication_converts_constructor_weak_into_implicit_owner() {
-    let (control, observations) = allocation(false);
-    unsafe {
-        let mut out = ComRaw::null();
-        assert_eq!(nc_weak_upgrade(control, &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_E_DROPPED);
-        (*control.cast::<Allocation>()).value.write(Value {
-            observations: observations.clone(),
-            self_weak: None,
-        });
-        (*control).publish();
-        assert_eq!(nc_weak_upgrade(control, &crate::IUNKNOWN_INTERFACE_ID, &mut out), NC_OK);
-        assert_eq!(nc_strong_release(out.object), 1);
-        assert_eq!(nc_strong_release(control.cast()), 0);
-    }
-    assert_eq!(observations.destroyed.load(Ordering::SeqCst), 1);
-    assert_eq!(observations.freed.load(Ordering::SeqCst), 1);
-}
-
 /// The arithmetic helper fails before mutation; the external non-unwinding entry aborts.
 #[test]
 fn count_exhaustion_never_wraps_or_changes_the_counter() {
@@ -227,7 +182,7 @@ fn exclusive_call_rejects_an_absent_header() {
 /// the last external weak releases storage without running T's destructor again.
 #[test]
 fn exclusive_destruction_is_immediate_and_storage_release_is_separate() {
-    let (control, observed) = allocation(true);
+    let (control, observed) = allocation();
     // SAFETY: this allocation has not escaped or been borrowed. Select exclusive
     // ownership before publication and install one properly retained weak field.
     unsafe {

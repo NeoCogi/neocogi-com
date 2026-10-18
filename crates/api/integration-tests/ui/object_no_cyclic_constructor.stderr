@@ -1,0 +1,59 @@
+error[E0599]: no associated function or constant named `from_value_cyclic` found for struct `Shared` in the current scope
+  --> integration-tests/ui/object_no_cyclic_constructor.rs:12:21
+   |
+ 5 | struct Shared;
+   | ------------- associated function or constant `from_value_cyclic` not found for this struct
+...
+12 |     let _ = Shared::from_value_cyclic::<IUnknown>(|_| Shared);
+   |                     ^^^^^^^^^^^^^^^^^ associated function or constant not found in `Shared`
+   |
+help: there is an associated function `from_value` with a similar name
+   |
+12 -     let _ = Shared::from_value_cyclic::<IUnknown>(|_| Shared);
+12 +     let _ = Shared::from_value::<IUnknown>(|_| Shared);
+   |
+
+error[E0599]: no associated function or constant named `into_local_cyclic` found for struct `Shared` in the current scope
+  --> integration-tests/ui/object_no_cyclic_constructor.rs:13:21
+   |
+ 5 | struct Shared;
+   | ------------- associated function or constant `into_local_cyclic` not found for this struct
+...
+13 |     let _ = Shared::into_local_cyclic::<IUnknown>(|_| Shared);
+   |                     ^^^^^^^^^^^^^^^^^ associated function or constant not found in `Shared`
+   |
+help: there is an associated function `into_local` with a similar name
+   |
+13 -     let _ = Shared::into_local_cyclic::<IUnknown>(|_| Shared);
+13 +     let _ = Shared::into_local::<IUnknown>(|_| Shared);
+   |
+
+error[E0599]: no associated function or constant named `into_box_cyclic` found for struct `Exclusive` in the current scope
+  --> integration-tests/ui/object_no_cyclic_constructor.rs:14:24
+   |
+ 9 | struct Exclusive;
+   | ---------------- associated function or constant `into_box_cyclic` not found for this struct
+...
+14 |     let _ = Exclusive::into_box_cyclic::<IUnknown>(|_| Exclusive);
+   |                        ^^^^^^^^^^^^^^^ associated function or constant not found in `Exclusive`
+   |
+help: there is an associated function `into_box` with a similar name
+   |
+14 -     let _ = Exclusive::into_box_cyclic::<IUnknown>(|_| Exclusive);
+14 +     let _ = Exclusive::into_box::<IUnknown>(|_| Exclusive);
+   |
+
+error[E0599]: no associated function or constant named `into_local_box_cyclic` found for struct `Exclusive` in the current scope
+  --> integration-tests/ui/object_no_cyclic_constructor.rs:15:24
+   |
+ 9 | struct Exclusive;
+   | ---------------- associated function or constant `into_local_box_cyclic` not found for this struct
+...
+15 |     let _ = Exclusive::into_local_box_cyclic::<IUnknown>(|_| Exclusive);
+   |                        ^^^^^^^^^^^^^^^^^^^^^ associated function or constant not found in `Exclusive`
+   |
+help: there is an associated function `into_local_box` with a similar name
+   |
+15 -     let _ = Exclusive::into_local_box_cyclic::<IUnknown>(|_| Exclusive);
+15 +     let _ = Exclusive::into_local_box::<IUnknown>(|_| Exclusive);
+   |

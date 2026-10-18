@@ -718,8 +718,10 @@ from the strong `Object` case; UI design catalog schema 10 carries that distinct
 
 `#[com_object(Interface)]` implements any closed interface contract using private
 Rust fields. Shared providers use `from_value(initialized_value)`; providers marked
-`ownership = exclusive` use `into_box(initialized_value)` or its cyclic/local
-variants. Only the selected constructor family exists. Unit objects also require
+`ownership = exclusive` use `into_box(initialized_value)`. Typed local access uses
+`into_local(value)` or `into_local_box(value)`, respectively. Only the selected
+ordinary constructor family exists; weak identities can be connected privately
+after allocation and before the factory returns. Unit objects also require
 explicit initialized values. Open generic IDL interfaces have no callable ABI;
 a generated closed specialization can be used exactly like any other interface.
 

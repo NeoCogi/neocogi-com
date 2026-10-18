@@ -7,7 +7,7 @@ another object or service it used.
 
 | Status | Contract | Examples |
 | --- | --- | --- |
-| `NC_E_DROPPED` (`-14`) | No published live owner is available; new access or promotion is rejected. | An exclusive widget's `ComBox` was dropped; a shared weak reference has no strong owner; a required weak runtime dependency cannot upgrade. |
+| `NC_E_DROPPED` (`-14`) | No live owner is available; new access or promotion is rejected. | An exclusive widget's `ComBox` was dropped; a shared weak reference has no strong owner; a required weak runtime dependency cannot upgrade. |
 | `NC_E_CLOSED` (`-13`) | A service, session or channel has closed; its COM capability can still exist. | Explicit runtime shutdown; a dismissed logical window; consumed menu-builder capability; a disconnected transport; explicitly closed shared-producer event port. |
 
 `UI_E_CLOSED` aliases only the second meaning. Widget expiration is enforced by
@@ -17,10 +17,11 @@ shut-down runtime. Empty optional slots are not evidence of dropped ownership.
 
 ## Ownership and concurrency
 
-Weak references supplied during cyclic construction are not callable before
-publication and report the same no-live-owner status. This preserves the existing
-construction boundary without another lifetime state or error category. It is the
-exception to the common case where `NC_E_DROPPED` follows owner destruction.
+Objects are allocated from fully initialized Rust values. Factories obtain weak
+identities afterward and finish any private wiring before exposing a capability.
+There is no cyclic-construction exception: a zero shared owner count or cleared
+exclusive owner bit is terminal, and promotion cannot resurrect the value. See
+[the construction contract](COM_OBJECT_CONSTRUCTION.md).
 
 The common exclusive borrow-admission check returns `NC_E_DROPPED` as soon as
 owner Drop clears the owner bit. Already admitted cross-thread calls can finish

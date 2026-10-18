@@ -33,10 +33,10 @@ impl contract::Factory for Factory {
         if reject {
             return Err(NC_E_INVALID_ARG);
         }
-        Counter::from_value_cyclic::<contract::CounterAbi>(move |origin| Counter {
-            events: events::EventPort::with_queue(events, origin),
-        })?
-        .query()
+        let local = Counter::into_local(Counter { events: events::EventPort::new() });
+        let origin = local.query::<contract::CounterAbi>()?.downgrade()?;
+        local.try_borrow_mut()?.events = events::EventPort::with_queue(events, origin);
+        local.query()
     }
 }
 /// Reports receiver destruction without shared mutable fixture storage.

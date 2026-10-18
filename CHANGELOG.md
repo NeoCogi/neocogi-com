@@ -1,5 +1,23 @@
 # Changelog
 
+## Ordinary object construction (pre-release ABI v1)
+
+Remove generated cyclic constructors and the common header's unpublished-value
+construction/publication methods. Objects always start from initialized Rust
+values. Factories query weak identities afterward and connect event delivery
+privately before returning a capability; direct FileDialog completion and
+service events retain their existing immediate behavior. Window/popup factories
+finish wiring in their exclusive manager transaction; menu records enter their
+declaration fully connected.
+
+Generated storage retains `MaybeUninit<T>` because weak references can keep
+storage allocated after value destruction; there is no uninitialized-value
+construction phase. Shared/exclusive borrowing, interface tables,
+threading promises, descriptor ABI v1, core draft 17 and fingerprint domain 10
+remain unchanged. This supersedes the cyclic construction described in the
+historical ABI 11/12 entries below. See
+[the construction contract](../../docs/contracts/COM_OBJECT_CONSTRUCTION.md).
+
 ## Shared allocation lifetimes (experimental ABI 12)
 
 Replace generated Arc storage and per-class weak operation tables with one common

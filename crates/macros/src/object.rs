@@ -1,13 +1,15 @@
 //! Expansion of Rust structs into reference-counted multi-interface COM objects.
 //!
-//! The generator builds one private allocation containing an atomic reference
-//! lifetime, one shared borrow guard, and the Rust value. Static tables carry interfaces.
+//! Each private allocation owns the common lifetime header, ownership-specific
+//! borrow authority, and a fully initialized Rust value. Static tables carry interfaces.
 //! Metadata, table bindings, and QueryInterface share the same compile-time set.
 //! Generated lifecycle thunks, threading assertions, and construction helpers
 //! preserve the one allocation and its concrete implementation type.
+//! Weak references can retain storage after value destruction, but no constructor
+//! exposes an allocation before initializing that value.
 
 use quote::{format_ident, quote};
-use syn::{ItemStruct, ext::IdentExt};
+use syn::ItemStruct;
 
 use crate::args::{ObjectArgs, ObjectOwnership};
 use crate::util::runtime_crate_path;
@@ -31,18 +33,6 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
         )
         .to_compile_error();
     }
-    // A constructor's interface type shares the enclosing impl's type/const
-    // namespace. It must also leave the concrete object name visible in its body.
-    // Pick a free binder rather than reserving an authored spelling;
-    // mixed-site spans alone cannot make duplicate generic parameters legal.
-    let interface_parameter = (0..=input.generics.params.len() + 1)
-        .map(|index| format_ident!("__NcInterface{index}", span = proc_macro2::Span::mixed_site()))
-        .find(|candidate| *candidate != object_ident.unraw() && input.generics.params.iter().all(|parameter| match parameter {
-            syn::GenericParam::Type(parameter) => parameter.ident.unraw() != *candidate,
-            syn::GenericParam::Const(parameter) => parameter.ident.unraw() != *candidate,
-            syn::GenericParam::Lifetime(_) => true,
-        }))
-        .expect("two extra candidates cover the object name and all authored parameters");
     let mut generics = input.generics.clone();
     let (_, input_type_generics, _) = input.generics.split_for_impl();
     if generic {
@@ -165,51 +155,6 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
                     }
                 }
 
-                /// Initializes a weak self-origin before publishing the object.
-                /// Promotion inside `build` returns None: construction has not yet
-                /// published a strong value. The chosen interface is checked against
-                /// this class's static projections before allocation or user code.
-                #object_vis fn from_value_cyclic<#interface_parameter: #nc::ComInterface>(
-                    build: impl FnOnce(#nc::WeakComPtr<#interface_parameter, #pointer_threading_model>) -> Self,
-                ) -> Result<#nc::ComPtr<#nc::IUnknown, #pointer_threading_model>, #nc::NcStatus> {
-                    // SAFETY: the generated table set and requested identity are immutable.
-                    unsafe { #nc::__nc_find_interface(&Self::COM_VTABLES, &#interface_parameter::INTERFACE_ID) }?;
-                    let storage = #nc::__alloc::boxed::Box::into_raw(#nc::__alloc::boxed::Box::new(#storage_ident {
-                        control: #nc::lifetime::NcWeakControl::unpublished(&<#storage_type>::CLASS_LIFETIME),
-                        call_gate: #nc::__ComCallGate::new(),
-                        value: core::cell::UnsafeCell::new(core::mem::MaybeUninit::uninit()),
-                    }));
-                    // The provisional weak owner is the rollback guard. A panic in
-                    // build releases it; escaped clones retain only uninitialized
-                    // storage, which the deallocator frees without dropping Self.
-                    let token = #nc::NcWeakRaw { control: storage.cast() };
-                    // SAFETY: the exact requested projection was checked above;
-                    // this new allocation transfers its provisional weak owner.
-                    let provisional = unsafe { #nc::WeakComPtr::<#interface_parameter, #pointer_threading_model>::from_raw_owned(token) }
-                        .expect("new weak control is present");
-                    let value = build(provisional.clone());
-                    // SAFETY: no strong owner exists yet. Initialize before the
-                    // release publication observed by concurrent weak promotion.
-                    unsafe {
-                        (*(*storage).value.get()).write(value);
-                        (*storage).control.publish();
-                    }
-                    // Publication converts the provisional owner into the implicit
-                    // weak reference released only after final value destruction.
-                    let _ = provisional.into_raw();
-                    let raw = #nc::ComRaw { object: storage.cast(), vtable: &#nc::lifetime::CANONICAL_UNKNOWN_VTABLE };
-                    // SAFETY: publication created exactly one initialized strong owner.
-                    Ok(unsafe { #nc::ComPtr::from_raw_owned(raw) }.expect("new COM object is present"))
-                }
-
-                /// Creates a locally borrowable object with the same unpublished weak initialization.
-                #object_vis fn into_local_cyclic<#interface_parameter: #nc::ComInterface>(
-                    build: impl FnOnce(#nc::WeakComPtr<#interface_parameter, #pointer_threading_model>) -> Self,
-                ) -> Result<#nc::LocalCom<Self>, #nc::NcStatus> {
-                    // SAFETY: the generated constructor allocates exactly Self's storage.
-                    Ok(unsafe { #nc::LocalCom::__from_owned(Self::from_value_cyclic::<#interface_parameter>(build)?) })
-                }
-
             },
             quote! { #nc::__ComSharedCall<'a> },
             quote! { #nc::__ComExclusiveCall<'a> },
@@ -236,38 +181,6 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
                     // SAFETY: into_box constructs exactly Self's generated allocation.
                     unsafe { #nc::LocalBox::__from_owned(Self::into_box(value)) }
                 }
-                /// Initializes exclusive local storage with an unpublished weak origin.
-                #object_vis fn into_local_box_cyclic<#interface_parameter: #nc::ComInterface>(
-                    build: impl FnOnce(#nc::WeakComBox<#interface_parameter, #pointer_threading_model>) -> Self,
-                ) -> Result<#nc::LocalBox<Self>, #nc::NcStatus> {
-                    // SAFETY: the generated constructor transfers exactly Self's exclusive storage.
-                    Ok(unsafe { #nc::LocalBox::__from_owned(Self::into_box_cyclic::<#interface_parameter>(build)?) })
-                }
-
-                /// Initializes a weak origin without publishing or sharing ownership.
-                /// Failed initialization releases storage without dropping an absent value.
-                #object_vis fn into_box_cyclic<#interface_parameter: #nc::ComInterface>(
-                    build: impl FnOnce(#nc::WeakComBox<#interface_parameter, #pointer_threading_model>) -> Self,
-                ) -> Result<#nc::ComBox<#nc::IUnknown, #pointer_threading_model>, #nc::NcStatus> {
-                    let table = unsafe { #nc::__nc_find_interface(&Self::COM_VTABLES, &#interface_parameter::INTERFACE_ID) }?;
-                    let storage = #nc::__alloc::boxed::Box::into_raw(#nc::__alloc::boxed::Box::new(#storage_ident {
-                        control: #nc::lifetime::NcWeakControl::boxed_unpublished(&<#storage_type>::CLASS_LIFETIME),
-                        value: core::cell::UnsafeCell::new(core::mem::MaybeUninit::uninit()),
-                    }));
-                    let raw = #nc::ComRaw::<#interface_parameter> { object: storage.cast(), vtable: table.cast() };
-                    // SAFETY: the provisional weak owns unpublished storage with a validated table.
-                    let provisional = unsafe { #nc::WeakComBox::from_raw_owned(raw) }.expect("present control");
-                    let value = build(provisional.clone());
-                    unsafe {
-                        (*(*storage).value.get()).write(value);
-                        (*storage).control.publish_box();
-                    }
-                    let _ = provisional.into_raw();
-                    let raw = #nc::ComRaw { object: storage.cast(), vtable: &#nc::lifetime::CANONICAL_UNKNOWN_VTABLE };
-                    // SAFETY: publication transferred the provisional weak to the initialized owner.
-                    Ok(unsafe { #nc::ComBox::from_raw_owned(raw) }.expect("present owner"))
-                }
-
             },
             quote! { #nc::lifetime::BoxRead },
             quote! { #nc::lifetime::BoxWrite },
@@ -291,7 +204,7 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
             // Shared ownership needs a separate gate because its header counts
             // owners. Exclusive storage uses only the header's combined state.
             #gate_field
-            /// Owned Rust state; no reference into a caller's stack escapes through the COM pointer.
+            /// Initialized while owned; after destruction, weak references retain storage without a valid Rust value.
             value: core::cell::UnsafeCell<core::mem::MaybeUninit<#object_type>>,
         }
 
@@ -379,12 +292,12 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
             unsafe extern "C" fn destroy_value(control: *mut #nc::lifetime::NcWeakControl) {
                 let storage = control.cast::<Self>();
                 // SAFETY: only final strong release calls this, after publication
-                // and after all strong-owned calls finish. MaybeUninit suppresses
-                // a second payload drop when the allocation is eventually freed.
+                // and after all strong-owned calls finish. MaybeUninit keeps the
+                // retained storage valid after destruction and prevents a second drop.
                 unsafe { (*(*storage).value.get()).assume_init_drop(); }
             }
             /// Frees the exact provider allocation, including its concrete alignment.
-            /// The value is either already destroyed or was never initialized.
+            /// The fully initialized value was already destroyed by the final owner.
             unsafe extern "C" fn deallocate(control: *mut #nc::lifetime::NcWeakControl) {
                 // SAFETY: the final weak owner transfers the allocation once.
                 unsafe { drop(#nc::__alloc::boxed::Box::from_raw(control.cast::<Self>())); }

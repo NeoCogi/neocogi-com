@@ -186,23 +186,20 @@ fn concurrent_mutable_access_reports_busy_without_waiting() {
     assert_eq!(weak.value(), Ok(43));
 }
 
-/// Publication is the only transition from uninitialized to callable boxed storage.
+/// Rejection after ordinary allocation destroys the fully initialized value;
+/// a weak identity saved during private wiring cannot keep it alive or callable.
 #[test]
-fn cyclic_construction_and_failure_never_expose_uninitialized_values() {
-    let owner = Value::into_box_cyclic::<IValueAbi>(|weak| {
-        assert_eq!(weak.value(), Err(NC_E_DROPPED));
-        value()
-    })
-    .unwrap();
-    assert_eq!(owner.query::<IValueAbi>().unwrap().value(), Ok(42));
+fn failed_factory_after_allocation_expires_its_exclusive_identity() {
+    let state = value();
+    let drops = state.drops.clone();
     let mut escaped = None;
-    let failed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let _ = Value::into_box_cyclic::<IValueAbi>(|weak| {
-            escaped = Some(weak);
-            panic!("constructor rollback");
-        });
-    }));
-    assert!(failed.is_err());
+    let result = (|| -> Result<neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>, NcStatus> {
+        let local = Value::into_local_box(state);
+        escaped = Some(local.query::<IValueAbi>()?);
+        Err(neocogi_com::NC_E_INVALID_ARG)
+    })();
+    assert_eq!(result.unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
     assert_eq!(escaped.unwrap().value(), Err(NC_E_DROPPED));
 }
 

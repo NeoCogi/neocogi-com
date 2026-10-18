@@ -145,9 +145,8 @@ pub const NC_E_ALREADY_BOUND: NcStatus = NcStatus::from_code(-12);
 /// The COM object representing that capability may still exist.
 pub const NC_E_CLOSED: NcStatus = NcStatus::from_code(-13);
 
-/// The target has no published live owner; new access or promotion is rejected.
-/// Usually ownership ended through Drop. A cyclic-construction weak reference
-/// also has no callable owner until publication; it reports the same status.
+/// The target has no live owner; new access or promotion is rejected.
+/// Ownership ended through Drop; weak handles cannot resurrect the value.
 /// Weak bookkeeping may remain allocated. Concurrent calls admitted before Drop
 /// may still be finishing while the dropping thread waits for destruction.
 pub const NC_E_DROPPED: NcStatus = NcStatus::from_code(-14);

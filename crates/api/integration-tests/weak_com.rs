@@ -24,7 +24,7 @@ struct Value {
     drops: Arc<AtomicUsize>,
     /// A closed object can still be successfully promoted while strongly retained.
     closed: bool,
-    /// Optional self origin initialized before the object is published.
+    /// Optional self origin connected after allocation, before the factory returns.
     origin: Option<WeakComPtr<IDerivedAbi>>,
 }
 impl IValue for Value {
@@ -108,19 +108,14 @@ fn logical_close_does_not_expire_a_retained_object() {
     assert!(weak.upgrade().unwrap().is_none());
 }
 
-/// Cyclic initialization provides a weak origin before publication, never a mutable self pointer.
+/// A factory can connect a weak identity through ordinary checked local access;
+/// destroying the initialized value releases that field without a strong cycle.
 #[test]
-fn weak_self_initialization_is_unpublished_and_drops_without_a_cycle() {
+fn weak_self_connection_after_allocation_drops_without_a_cycle() {
     let drops = Arc::new(AtomicUsize::new(0));
-    let local = Value::into_local_cyclic::<IDerivedAbi>(|origin| {
-        assert!(origin.upgrade().unwrap().is_none());
-        Value {
-            drops: drops.clone(),
-            closed: false,
-            origin: Some(origin),
-        }
-    })
-    .unwrap();
+    let local = Value::into_local(Value { drops: drops.clone(), closed: false, origin: None });
+    let origin = local.query::<IDerivedAbi>().unwrap().downgrade().unwrap();
+    local.try_borrow_mut().unwrap().origin = Some(origin);
     let weak = local.try_borrow().unwrap().origin.as_ref().unwrap().clone();
     assert_eq!(weak.upgrade().unwrap().unwrap().value().unwrap(), 42);
     drop(local);
@@ -230,25 +225,22 @@ fn weak_promotion_checks_exact_interface_revision() {
     assert!(weak.upgrade().unwrap().is_none());
 }
 
-/// A failed initializer cannot publish or later revive its escaped weak origin.
+/// A factory rejection after identity connection drops initialized state and
+/// expires any retained bookkeeping, without a construction rollback protocol.
 #[test]
-fn failed_cyclic_initialization_never_publishes_a_value() {
+fn failed_factory_after_connection_drops_the_value_and_expires_its_weak_identity() {
+    let drops = Arc::new(AtomicUsize::new(0));
     let mut escaped = None;
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let _ = Value::from_value_cyclic::<IDerivedAbi>(|origin| {
-            escaped = Some(origin);
-            panic!("construction failed");
-        });
-    }));
-    assert!(result.is_err());
+    let result = (|| -> Result<ComPtr<IValueAbi>, NcStatus> {
+        let local = Value::into_local(Value { drops: drops.clone(), closed: false, origin: None });
+        let origin = local.query::<IDerivedAbi>()?.downgrade()?;
+        local.try_borrow_mut()?.origin = Some(origin.clone());
+        escaped = Some(origin);
+        Err(neocogi_com::NC_E_INVALID_ARG)
+    })();
+    assert_eq!(result.unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
     assert!(escaped.unwrap().upgrade().unwrap().is_none());
-    let mut called = false;
-    let result = Value::from_value_cyclic::<ISharedAbi>(|_| {
-        called = true;
-        panic!("unsupported identity must be rejected before initialization");
-    });
-    assert!(matches!(result, Err(neocogi_com::NC_E_NOINTERFACE)));
-    assert!(!called);
 }
 
 /// Promotion transfers exactly one owner; neither negotiation nor failure retains extras.
@@ -391,38 +383,18 @@ fn unrelated_classes_publish_the_same_lifetime_functions() {
     assert_eq!(drops.load(Ordering::SeqCst), 2);
 }
 
-/// A weak owner can cross threads before publication, but must not expose the
-/// uninitialized payload. Promotion's Acquire observes the constructor's writes.
+/// Passing a weak capability to another thread after factory configuration
+/// observes the complete initialized state without a separate publication API.
 #[test]
-fn concurrent_cyclic_origin_observes_only_published_value() {
+fn weak_identity_sent_after_configuration_observes_the_complete_value() {
     let drops = Arc::new(AtomicUsize::new(0));
-    let (ready, started) = std::sync::mpsc::channel();
-    let mut peer = None;
-    let owner = SharedValue::from_value_cyclic::<ISharedAbi>(|origin| {
-        peer = Some(std::thread::spawn(move || {
-            assert!(origin.upgrade().unwrap().is_none());
-            ready.send(()).unwrap();
-            let limit = std::time::Instant::now() + std::time::Duration::from_secs(5);
-            loop {
-                match origin.upgrade().unwrap() {
-                    Some(value) => return value.value().unwrap(),
-                    None => {
-                        assert!(std::time::Instant::now() < limit, "constructor failed to publish");
-                        std::thread::yield_now();
-                    }
-                }
-            }
-        }));
-        started.recv().unwrap();
-        SharedValue {
-            published: 0x12345678,
-            drops: drops.clone(),
-        }
-    })
-    .unwrap();
-    assert_eq!(peer.unwrap().join().unwrap(), 0x12345678);
+    let local = SharedValue::into_local(SharedValue { published: 0, drops: drops.clone() });
+    local.try_borrow_mut().unwrap().published = 0x12345678;
+    let origin = local.query::<ISharedAbi>().unwrap().downgrade().unwrap();
+    let peer = std::thread::spawn(move || origin.upgrade().unwrap().unwrap().value().unwrap());
+    assert_eq!(peer.join().unwrap(), 0x12345678);
     assert_eq!(drops.load(Ordering::SeqCst), 0);
-    drop(owner);
+    drop(local);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
 }
 
@@ -490,27 +462,4 @@ fn checked_shared_weak_wire_rejects_exclusive_control_blocks() {
     assert_eq!(unsafe {
         WeakComPtr::<IUnknown>::__nc_from_raw_owned_checked(neocogi_com::NcWeakRaw { control })
     }.unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
-}
-
-/// Metadata validation does not accidentally publish a cyclic constructor's value.
-#[test]
-fn unpublished_weak_tokens_can_be_checked_and_acquired_without_promotion() {
-    use neocogi_com::{ComValue, ValueBudget};
-    let drops = Arc::new(AtomicUsize::new(0));
-    let mut escaped = None;
-    let owner = Value::from_value_cyclic::<IDerivedAbi>(|origin| {
-        // SAFETY: origin owns the unpublished common header with complete metadata.
-        let checked = unsafe { WeakComPtr::<IDerivedAbi>::__nc_from_raw_owned_checked(origin.clone().into_raw()) }.unwrap();
-        let (wire, _) = checked.encode_value(&mut ValueBudget::default()).unwrap();
-        // SAFETY: checked retains the wire's backing independently of publication.
-        let acquired = unsafe { WeakComPtr::<IDerivedAbi>::decode_value(wire, &mut ValueBudget::default()) }.unwrap();
-        assert!(acquired.upgrade().unwrap().is_none());
-        escaped = Some(acquired);
-        Value { drops: drops.clone(), closed: false, origin: Some(origin) }
-    }).unwrap();
-    let escaped = escaped.unwrap();
-    assert_eq!(escaped.upgrade().unwrap().unwrap().value(), Ok(42));
-    drop(owner);
-    assert_eq!(drops.load(Ordering::SeqCst), 1);
-    assert!(escaped.upgrade().unwrap().is_none());
 }

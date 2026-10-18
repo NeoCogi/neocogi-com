@@ -94,7 +94,7 @@ two-word exclusive `WeakComBox` output (`0x0b`).
 A successful provider transfers one retained weak token. The client rejects null
 tokens, exclusive ownership, missing interfaces and wrong interface revisions,
 releasing a rejected transferred token exactly once. Errors transfer no result.
-Expired and unpublished shared tokens remain valid: checking reads immutable
+Expired shared tokens remain valid: checking reads immutable
 interface metadata under weak ownership and never promotes or reads the value.
 Raw callers must supply a retained valid header, readable class metadata and
 provider code lifetime; checks cannot make an arbitrary pointer safe.

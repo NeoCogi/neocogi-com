@@ -66,7 +66,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     }
 
     /// Adopts a weak output after validating shared ownership and exact interface identity.
-    /// Expired and unpublished values remain transportable; this never promotes them.
+    /// Expired values remain transportable; this never promotes them.
     /// Rejection releases the transferred weak reference exactly once.
     ///
     /// # Safety

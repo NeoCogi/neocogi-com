@@ -89,6 +89,12 @@ fn ui_errors_are_stable() {
     t.compile_fail("integration-tests/ui/persistence_retired_policies.rs");
 }
 
+/// Construction accepts complete values; none of the former initializer APIs exist.
+#[test]
+fn object_construction_requires_initialized_values() {
+    trybuild::TestCases::new().compile_fail("integration-tests/ui/object_no_cyclic_constructor.rs");
+}
+
 fn rustc_is_nightly() -> bool {
     if std::env::var("RUSTUP_TOOLCHAIN").is_ok_and(|toolchain| toolchain.contains("nightly")) {
         return true;

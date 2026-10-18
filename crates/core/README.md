@@ -337,12 +337,15 @@ does not promise that every smaller document fits the other limits.
 Concrete providers select one ownership policy. Shared ownership is the default;
 `#[com_object(..., ownership = exclusive)]` and
 `#[com_object(Contract, ownership = exclusive)]` select exclusive ownership.
-Only that policy's constructors are generated: shared classes have `from_value` /
-`from_value_cyclic` / `into_local`; exclusive classes have `into_box` /
-`into_box_cyclic` / `into_local_box`. Factories always remain shared.
+Only that policy's ordinary constructors are generated: shared classes have
+`from_value` / `into_local`; exclusive classes have `into_box` / `into_local_box`.
+Every constructor takes a fully initialized Rust value. Factories obtain weak
+identities afterward and finish private event wiring before exposing an object;
+there are no cyclic constructors or unpublished-value promotion states. See
+[the construction contract](../../../docs/contracts/COM_OBJECT_CONSTRUCTION.md).
+Factories always remain shared.
 
-Exclusive providers use `into_box` / `into_box_cyclic` to construct a
-non-clonable `ComBox`. `WeakComBox` caches its interface table and accesses the
+Exclusive providers use `into_box` to construct a non-clonable `ComBox`. `WeakComBox` caches its interface table and accesses the
 provider through checked call entries, without promoting to a shared owner.
 Factories can return boxes and containers can consume them through generated
 ABI methods. Ordinary shared services continue using `ComPtr`. See

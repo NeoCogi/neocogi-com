@@ -22,7 +22,7 @@ pub struct NcClassLifetime {
     /// release of weak fields. Strong promotion has already become impossible.
     pub destroy_value: unsafe extern "C" fn(*mut NcWeakControl),
     /// Frees the storage through its allocating provider, after value destruction
-    /// or abandoned initialization. Must not attempt to destroy the value again.
+    /// has completed. Must not attempt to destroy the value again.
     pub deallocate: unsafe extern "C" fn(*mut NcWeakControl),
     /// Static array of matching class interface tables, including IUnknown.
     pub interfaces: *const *const IUnknownVTable,
@@ -35,17 +35,16 @@ unsafe impl Sync for NcClassLifetime {}
 /// Common C-shaped allocation header; the concrete value follows at its own alignment.
 ///
 /// A live allocation owns one implicit weak reference until destruction completes.
-/// Unpublished construction owns that reference provisionally with strong == 0.
-/// Publication is the only permitted zero-to-one transition; failed construction
-/// releases its provisional weak owner without ever invoking destroy_value.
+/// Objects are fully initialized before any handle escapes construction. Zero
+/// strong owners is terminal: weak promotion can never resurrect the value.
 #[repr(C)]
 pub struct NcWeakControl {
     /// Shared allocations count strong owners. Exclusive allocations pack their
     /// ownership bit and reader/writer access into this same word, so checked
     /// entry and destruction cannot race through separate lifetime/borrow gates.
-    /// Publication and promotion use release/acquire; counters never wrap.
+    /// Promotion and destruction synchronize with acquire/release; counters never wrap.
     state: AtomicUsize,
-    /// Explicit weak owners plus the provisional/implicit construction owner.
+    /// Explicit weak owners plus the implicit owner retained through value destruction.
     weak: AtomicUsize,
     /// Provider-owned class metadata, stable through the final weak release.
     class: *const NcClassLifetime,
@@ -59,24 +58,6 @@ impl NcWeakControl {
             weak: AtomicUsize::new(1),
             class,
         }
-    }
-    /// Starts an unpublished allocation with one provisional weak owner and no value owner.
-    pub const fn unpublished(class: &'static NcClassLifetime) -> Self {
-        Self {
-            state: AtomicUsize::new(0),
-            weak: AtomicUsize::new(1),
-            class,
-        }
-    }
-    /// Publishes initialization and converts the provisional weak owner into the implicit owner.
-    ///
-    /// # Safety
-    /// Called exactly once by the constructor, after initializing the concrete
-    /// value and before publishing any strong reference. The constructor owns the
-    /// provisional weak reference and must transfer it, without releasing it.
-    pub unsafe fn publish(&self) {
-        debug_assert_eq!(self.state.load(Ordering::Relaxed), 0);
-        self.state.store(1, Ordering::Release);
     }
 }
 
@@ -157,7 +138,7 @@ pub unsafe extern "C" fn nc_weak_retain(control: *mut NcWeakControl) {
 ///
 /// # Safety
 /// A non-null control transfers exactly one weak owner. Its value must already
-/// be destroyed or unpublished if this is the final owner. Null is a no-op.
+/// be destroyed if this is the final owner. Null is a no-op.
 #[inline(never)]
 pub unsafe extern "C" fn nc_weak_release(control: *mut NcWeakControl) {
     let Some(header) = (unsafe { control.as_ref() }) else { return };
@@ -210,7 +191,7 @@ unsafe fn projection(control: &NcWeakControl, requested: &NcInterfaceId) -> Resu
 }
 
 /// Checks a shared weak token's exact interface without promoting its value.
-/// Expired and unpublished tokens retain immutable class metadata and are valid
+/// Expired tokens retain immutable class metadata and remain valid
 /// weak values. The permanent ownership tag rejects exclusive control blocks.
 ///
 /// # Safety
@@ -293,7 +274,7 @@ pub unsafe extern "C" fn nc_weak_upgrade(control: *mut NcWeakControl, requested:
             count if count & BOXED != 0 => return NC_E_INVALID_ARG,
             count => {
                 assert!(count < isize::MAX as usize, "COM strong promotion counter exhausted");
-                // Acquire pairs with initial publication. A concurrent final
+                // Acquire pairs with preceding releases. A concurrent final
                 // release wins by setting zero or loses to this acquired owner.
                 match header.state.compare_exchange_weak(count, count + 1, Ordering::Acquire, Ordering::Relaxed) {
                     Ok(_) => break,
@@ -322,7 +303,7 @@ pub unsafe extern "C" fn nc_weak_upgrade(control: *mut NcWeakControl, requested:
 
 /// Distinguishes exclusive allocations from ordinary reference-counted ones.
 /// The tag is permanent, including after destruction, so weak observers cannot
-/// accidentally interpret an expired box as an unpublished shared allocation.
+/// accidentally interpret an expired box as a destroyed shared allocation.
 const BOXED: usize = 1 << (usize::BITS - 1);
 /// The sole owner exists while this bit is set. Clearing it rejects new borrows.
 const BOX_OWNER: usize = BOXED >> 1;
@@ -338,21 +319,6 @@ impl NcWeakControl {
     /// Publication must happen only after the provider has initialized its value.
     pub const fn boxed(class: &'static NcClassLifetime) -> Self {
         Self { state: AtomicUsize::new(BOXED | BOX_OWNER), weak: AtomicUsize::new(1), class }
-    }
-
-    /// Constructs unpublished exclusive storage for weak self-initialization.
-    /// Its provisional weak reference must be released if initialization fails.
-    pub const fn boxed_unpublished(class: &'static NcClassLifetime) -> Self {
-        Self { state: AtomicUsize::new(BOXED), weak: AtomicUsize::new(1), class }
-    }
-
-    /// Publishes the only exclusive owner after complete value initialization.
-    ///
-    /// # Safety
-    /// Called exactly once on unpublished boxed storage by its constructor.
-    pub unsafe fn publish_box(&self) {
-        debug_assert_eq!(self.state.load(Ordering::Relaxed), BOXED);
-        self.state.store(BOXED | BOX_OWNER, Ordering::Release);
     }
 }
 
