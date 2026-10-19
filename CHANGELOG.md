@@ -1,5 +1,14 @@
 # Changelog
 
+## Typed object storage (pre-release)
+
+Consolidate implementation proof in `ComObject` and provider-local typed storage.
+Generated objects retain compact interface bindings, small borrow adapters and
+their selected constructor family. Shared and exclusive borrowing, aligned
+payloads, weak storage lifetime and provider-local freeing keep their existing
+semantics. Threading uses one proof route. The global plugin registry continues
+to live only in the shared COM runtime. No binary-size improvement is inferred.
+
 ## Ordinary object construction (pre-release ABI v1)
 
 Remove generated cyclic constructors and the common header's unpublished-value

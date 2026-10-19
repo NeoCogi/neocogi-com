@@ -293,3 +293,41 @@ mod generic_constructor_names {
         }
     }
 }
+
+/// Storage no longer reserves a synthesized companion name or captures prelude names.
+mod storage_names {
+    use super::*;
+
+    /// This name previously collided with generated private storage.
+    #[allow(dead_code)]
+    struct GenericComObject;
+
+    #[com_object(interfaces(ICounter))]
+    /// Generic state may use an authored name that shadows the Result constructor.
+    struct Generic<Result> {
+        /// Concrete owned state remains local to this provider.
+        value: u32,
+        /// Owned generic data exercises specialization without changing the interface.
+        _state: Result,
+    }
+
+    impl<Result> ICounter for Generic<Result> {
+        fn value(&self) -> ::core::result::Result<u32, NcStatus> {
+            Ok(self.value)
+        }
+        fn set_value(&mut self, value: u32) -> ::core::result::Result<(), NcStatus> {
+            self.value = value;
+            Ok(())
+        }
+    }
+
+    /// Real COM calls share one allocation and the same gate as local generic access.
+    #[test]
+    fn generic_names_and_former_storage_companion_are_ordinary_user_names() {
+        let local = Generic::into_local(Generic { value: 3u32, _state: () });
+        let mut foreign = local.query::<ICounterAbi>().unwrap();
+        foreign.set_value(17).unwrap();
+        assert_eq!(local.try_borrow().unwrap().value, 17);
+        assert_eq!(foreign.value(), Ok(17));
+    }
+}

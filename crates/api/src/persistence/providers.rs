@@ -10,7 +10,7 @@ pub struct IObjectChildrenVtblFor<T>(
 );
 impl<T> IObjectChildrenVtblFor<T>
 where
-    T: IObjectChildren + ::neocogi_com::ComAbiObject,
+    T: IObjectChildren + ::neocogi_com::ComObject,
 {
     /// Distinct provider bindings in the interface's canonical metadata order.
     /// T fixes the thunk implementation; no object headers are stored here.
@@ -69,7 +69,7 @@ where
             return ::neocogi_com::NC_E_POINTER;
         }
         let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
+            <T as ::neocogi_com::ComObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
             ::core::result::Result::Ok(value) => value,
             ::core::result::Result::Err(status) => return status,
@@ -117,7 +117,7 @@ where
             ::core::result::Result::Err(status) => return status,
         };
         let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
+            <T as ::neocogi_com::ComObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
             ::core::result::Result::Ok(value) => value,
             ::core::result::Result::Err(status) => return status,
@@ -143,7 +143,7 @@ pub struct IPersistableVtblFor<T>(
 );
 impl<T> IPersistableVtblFor<T>
 where
-    T: IPersistable + ::neocogi_com::ComAbiObject,
+    T: IPersistable + ::neocogi_com::ComObject,
 {
     /// Distinct provider bindings in the interface's canonical metadata order.
     /// T fixes the thunk implementation; no object headers are stored here.
@@ -205,7 +205,7 @@ where
             return ::neocogi_com::NC_E_POINTER;
         }
         let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
+            <T as ::neocogi_com::ComObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
             ::core::result::Result::Ok(value) => value,
             ::core::result::Result::Err(status) => return status,
@@ -246,7 +246,7 @@ where
             return ::neocogi_com::NC_E_POINTER;
         }
         let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
+            <T as ::neocogi_com::ComObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
             ::core::result::Result::Ok(value) => value,
             ::core::result::Result::Err(status) => return status,
@@ -287,7 +287,7 @@ where
             return ::neocogi_com::NC_E_POINTER;
         }
         let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
+            <T as ::neocogi_com::ComObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
             ::core::result::Result::Ok(value) => value,
             ::core::result::Result::Err(status) => return status,
@@ -324,7 +324,7 @@ where
             return ::neocogi_com::NC_E_POINTER;
         }
         let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
+            <T as ::neocogi_com::ComObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
             ::core::result::Result::Ok(value) => value,
             ::core::result::Result::Err(status) => return status,
@@ -372,7 +372,7 @@ where
             ::core::result::Result::Err(status) => return status,
         };
         let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
+            <T as ::neocogi_com::ComObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
             ::core::result::Result::Ok(value) => value,
             ::core::result::Result::Err(status) => return status,
@@ -398,7 +398,7 @@ pub struct IPersistenceFactoryVtblFor<T>(
 );
 impl<T> IPersistenceFactoryVtblFor<T>
 where
-    T: IPersistenceFactory + ::neocogi_com::ComAbiObject,
+    T: IPersistenceFactory + ::neocogi_com::ComObject,
 {
     /// Distinct provider bindings in the interface's canonical metadata order.
     /// T fixes the thunk implementation; no object headers are stored here.
@@ -483,7 +483,7 @@ where
             ::core::result::Result::Err(status) => return status,
         };
         let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
+            <T as ::neocogi_com::ComObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
             ::core::result::Result::Ok(value) => value,
             ::core::result::Result::Err(status) => return status,
@@ -550,7 +550,7 @@ where
             ::core::result::Result::Err(status) => return status,
         };
         let mut __nc_dispatch_value = match unsafe {
-            <T as ::neocogi_com::ComAbiObject>::borrow_abi_ref(__nc_dispatch_object)
+            <T as ::neocogi_com::ComObject>::borrow_abi_ref(__nc_dispatch_object)
         } {
             ::core::result::Result::Ok(value) => value,
             ::core::result::Result::Err(status) => return status,

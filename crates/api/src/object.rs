@@ -2,15 +2,20 @@
 //!
 //! Generated class storage uses the common COM strong/weak control header and no interface headers.
 //! Object/table handles select each implemented interface. Shared lifetime functions
-//! live in COM core; the unsafe traits here describe how generated thunks
+//! live in COM core; the unsafe implementation contract describes how generated thunks
 //! access the concrete Rust value from the allocation address, perform
 //! interface negotiation, and destroy storage on the final release. They are
 //! public only as hidden macro support and are not the ordinary end-user API.
 
+#[cfg(feature = "alloc")]
+mod storage;
+#[cfg(feature = "alloc")]
+pub use storage::{__ComBoxStorage, __ComSharedStorage, __ComStorage};
+
 use core::ffi::c_void;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-use neocogi_com_core::{NC_E_BUSY, NC_E_POINTER, NcStatus, ThreadSafe, ThreadingModel};
+use neocogi_com_core::{NC_E_BUSY, NC_E_POINTER, NcStatus, ThreadingModel};
 
 /// Sentinel held while one generated COM method has exclusive object access.
 const EXCLUSIVE_CALL: usize = usize::MAX;
@@ -95,7 +100,9 @@ impl<'a, T> __ComSharedLease<'a, T, crate::lifetime::BoxRead> {
     /// `control` and `value` belong to this retained exclusive allocation; all
     /// implementation access participates in its common borrowing protocol.
     pub unsafe fn acquire_box(control: *mut crate::lifetime::NcWeakControl, value: *const T) -> Result<Self, NcStatus> {
-        if value.is_null() { return Err(NC_E_POINTER); }
+        if value.is_null() {
+            return Err(NC_E_POINTER);
+        }
         let call = unsafe { crate::lifetime::BoxRead::enter(control) }?;
         // SAFETY: one successful transition both excludes conflicting accesses
         // and prevents owner destruction until this lease releases its borrow.
@@ -152,7 +159,9 @@ impl<'a, T> __ComExclusiveLease<'a, T, crate::lifetime::BoxWrite> {
     /// `control` and `value` belong to this retained exclusive allocation; all
     /// implementation access participates in its common borrowing protocol.
     pub unsafe fn acquire_box(control: *mut crate::lifetime::NcWeakControl, value: *mut T) -> Result<Self, NcStatus> {
-        if value.is_null() { return Err(NC_E_POINTER); }
+        if value.is_null() {
+            return Err(NC_E_POINTER);
+        }
         let call = unsafe { crate::lifetime::BoxWrite::enter(control) }?;
         // SAFETY: one successful transition both excludes conflicting accesses
         // and prevents owner destruction until this lease releases its borrow.
@@ -230,8 +239,15 @@ pub use neocogi_com_core::{__com_add_ref_count, __com_release_ref_count};
 /// referencing the value and release it only after references are no longer used.
 ///
 /// Interface thunks receive an opaque object pointer and use this trait to
-/// recover the Rust implementation and delegate IUnknown behavior.
-pub unsafe trait ComAbiObject: Sized {
+/// recover the Rust implementation. VTABLES must contain canonical IUnknown and
+/// exactly the immutable, signature-checked tables paired with this storage.
+/// Threading must hold for every projection, call and final destruction.
+pub unsafe trait ComObject: Sized + 'static {
+    /// Strongest threading permission the generated provider can expose.
+    type Threading: ThreadingModel;
+    /// Compact immutable interface tables paired with this concrete storage.
+    /// Includes canonical IUnknown; full inspection schemas are compile-time only.
+    const VTABLES: &'static [*const crate::IUnknownVTable];
     /// Shared borrowing policy: the shared class gate or exclusive header reader.
     /// This provider-local guard never crosses the C ABI.
     type SharedGuard<'a>;
@@ -260,51 +276,6 @@ pub unsafe trait ComAbiObject: Sized {
     /// accessing its value and rejects calls after owner removal.
     unsafe fn borrow_abi_mut<'a>(object: *mut c_void) -> Result<__ComExclusiveLease<'a, Self, Self::ExclusiveGuard<'a>>, NcStatus>;
 }
-
-/// Associates a generated COM implementation object with the strongest
-/// threading capability supported by pointers to its object storage.
-///
-/// Generated pointers and IDL description associations derive their threading
-/// mode from this associated type. A [`ThreadSafe`] object may still be exposed
-/// through a conservative thread-local pointer; the associated type records the
-/// maximum capability the implementation is allowed to produce.
-///
-/// | `Threading` | Generated owner | ABI value | Caller permission |
-/// |---|---|---|---|
-/// | [`crate::ThreadLocal`] | `ComPtr<_, ThreadLocal>` | `THREAD_LOCAL` | Current-thread use only |
-/// | [`ThreadSafe`] | `ComPtr<_, ThreadSafe>` | `THREAD_SAFE` | Cross-thread movement, sharing, calls, and final release |
-///
-/// This associated type cannot by itself control a pointer forever. Once a
-/// object is exposed through one of its interfaces, the concrete implementation
-/// type is erased and several objects with different threading models may
-/// implement that same interface. The `ComPtr` or `ComRef` threading parameter carries
-/// this producer promise into the erased handle type, where Rust can enforce
-/// `Send` and `Sync`. The object associated type and pointer marker are therefore
-/// the producer and consumer halves of one contract, not duplicate state.
-///
-/// # Safety
-///
-/// `Threading` must describe every interface projection backed by this implementation's
-/// generated object storage. Selecting [`ThreadSafe`] promises that all exposed
-/// methods may be called concurrently from arbitrary threads and that final
-/// destruction may occur on any thread. IDL-backed implementations derive this
-/// associated type from their canonical description.
-pub unsafe trait ComObject: ComAbiObject {
-    /// Strongest threading capability supported by this implementation's COM objects.
-    type Threading: ThreadingModel;
-}
-
-/// Marker for generated COM objects whose method implementations are safe to
-/// call concurrently from multiple threads.
-///
-/// # Safety
-///
-/// Implementors must guarantee that every exposed COM interface method may be
-/// called from any thread, including concurrently with calls through cloned
-/// interface pointers. This usually means the object is immutable, internally
-/// synchronized, or otherwise free of thread-affine state. Its [`ComObject`]
-/// implementation must identify [`ThreadSafe`] as the class capability.
-pub unsafe trait ThreadSafeComObject: ComObject<Threading = ThreadSafe> + Send + Sync {}
 
 #[cfg(test)]
 mod tests {
@@ -337,10 +308,7 @@ mod tests {
         assert_eq!(*nested_shared, 7);
         // SAFETY: The pointer is valid, but the active reader leases must reject
         // this exclusive acquisition before exposing a mutable reference.
-        assert!(matches!(
-            unsafe { __ComExclusiveLease::acquire(&gate, value.get()) },
-            Err(NC_E_BUSY)
-        ));
+        assert!(matches!(unsafe { __ComExclusiveLease::acquire(&gate, value.get()) }, Err(NC_E_BUSY)));
         drop(nested_shared);
         drop(shared);
 
@@ -348,10 +316,7 @@ mod tests {
         let mut exclusive = unsafe { __ComExclusiveLease::acquire(&gate, value.get()) }.unwrap();
         *exclusive = 9;
         // SAFETY: The pointer is valid, but the writer lease must reject another reader.
-        assert!(matches!(
-            unsafe { __ComSharedLease::acquire(&gate, value.get().cast_const()) },
-            Err(NC_E_BUSY)
-        ));
+        assert!(matches!(unsafe { __ComSharedLease::acquire(&gate, value.get().cast_const()) }, Err(NC_E_BUSY)));
         drop(exclusive);
 
         // SAFETY: Dropping the writer restored the idle state and the value remains live.

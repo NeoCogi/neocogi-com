@@ -210,8 +210,12 @@ fn interface_pairs_share_one_object_without_embedded_headers() {
     assert_eq!(widget.value(), Ok(41));
     // The common lifetime header and one call gate precede Rust state;
     // adding interface projections contributes no per-object fields.
+    let local = Toggle::into_local(Toggle::default());
+    let root = local.query::<IUnknown>().unwrap();
+    let state = local.try_borrow().unwrap();
+    let value_address = (&*state as *const Toggle) as usize;
     assert_eq!(
-        core::mem::offset_of!(ToggleComObject, value),
+        value_address - root.as_raw().object as usize,
         core::mem::size_of::<neocogi_com::lifetime::NcWeakControl>() + word
     );
 }

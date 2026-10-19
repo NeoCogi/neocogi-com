@@ -1,24 +1,8 @@
-error[E0277]: `Rc<u32>` cannot be shared between threads safely
-  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
-   |
-10 | pub struct NotActuallyThreadSafe {
-   |            ^^^^^^^^^^^^^^^^^^^^^ `Rc<u32>` cannot be shared between threads safely
-   |
-   = help: within `NotActuallyThreadSafe`, the trait `Sync` is not implemented for `Rc<u32>`
-note: required because it appears within the type `NotActuallyThreadSafe`
-  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:11:5
-   |
-10 | pub struct NotActuallyThreadSafe {
-11 |     value: Rc<u32>,
-   |     ^^^^^^^^^^^^^^ required by this field
-note: required by a bound in `ThreadSafeComObject`
-  --> /cargo/deps/neocogi-com-0.0.0/src/object.rs:307:0
-
 error[E0277]: `Rc<u32>` cannot be sent between threads safely
-  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
+  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:9:1
    |
-10 | pub struct NotActuallyThreadSafe {
-   |            ^^^^^^^^^^^^^^^^^^^^^ `Rc<u32>` cannot be sent between threads safely
+ 9 | #[com_object(thread_safe, interfaces(IThreadSafeRequiresSendSync))]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Rc<u32>` cannot be sent between threads safely
    |
    = help: within `NotActuallyThreadSafe`, the trait `Send` is not implemented for `Rc<u32>`
 note: required because it appears within the type `NotActuallyThreadSafe`
@@ -27,45 +11,9 @@ note: required because it appears within the type `NotActuallyThreadSafe`
 10 | pub struct NotActuallyThreadSafe {
 11 |     value: Rc<u32>,
    |     ^^^^^^^^^^^^^^ required by this field
-note: required by a bound in `ThreadSafeComObject`
-  --> /cargo/deps/neocogi-com-0.0.0/src/object.rs:307:0
-
-error[E0277]: `Rc<u32>` cannot be sent between threads safely
-  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
-   |
-10 | pub struct NotActuallyThreadSafe {
-   |            ^^^^^^^^^^^^^^^^^^^^^ `Rc<u32>` cannot be sent between threads safely
-   |
-   = help: within `NotActuallyThreadSafe`, the trait `Send` is not implemented for `Rc<u32>`
-note: required because it appears within the type `NotActuallyThreadSafe`
-  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:11:5
-   |
-10 | pub struct NotActuallyThreadSafe {
-11 |     value: Rc<u32>,
-   |     ^^^^^^^^^^^^^^ required by this field
-note: required by a bound in `assert_thread_safe`
-  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:9:1
-   |
- 9 | #[com_object(thread_safe, interfaces(IThreadSafeRequiresSendSync))]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_thread_safe`
+   = note: required for `NotActuallyThreadSafe` to implement `neocogi_com::__ComSupportsInterfaceThreading<neocogi_com::ThreadSafe>`
    = note: this error originates in the attribute macro `com_object` (in Nightly builds, run with -Z macro-backtrace for more info)
-
-error[E0277]: `Rc<u32>` cannot be shared between threads safely
-  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
+help: add `#![feature(trivial_bounds)]` to the crate attributes to enable
    |
-10 | pub struct NotActuallyThreadSafe {
-   |            ^^^^^^^^^^^^^^^^^^^^^ `Rc<u32>` cannot be shared between threads safely
+ 1 + #![feature(trivial_bounds)]
    |
-   = help: within `NotActuallyThreadSafe`, the trait `Sync` is not implemented for `Rc<u32>`
-note: required because it appears within the type `NotActuallyThreadSafe`
-  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:11:5
-   |
-10 | pub struct NotActuallyThreadSafe {
-11 |     value: Rc<u32>,
-   |     ^^^^^^^^^^^^^^ required by this field
-note: required by a bound in `assert_thread_safe`
-  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:9:1
-   |
- 9 | #[com_object(thread_safe, interfaces(IThreadSafeRequiresSendSync))]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_thread_safe`
-   = note: this error originates in the attribute macro `com_object` (in Nightly builds, run with -Z macro-backtrace for more info)

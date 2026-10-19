@@ -452,3 +452,41 @@ fn owner_projection_checks_the_complete_revision_before_reusing_a_table() {
     assert_eq!(owner.as_raw(), original);
     assert_eq!(owner.value(), Ok(42));
 }
+
+#[com_object(interfaces(), ownership = exclusive)]
+#[repr(align(128))]
+/// Generic over-aligned state exercises typed exclusive allocation and final weak freeing.
+struct AlignedBox<T: 'static> {
+    /// Concrete payload survives local/interface projection changes.
+    marker: T,
+    /// Counts value destruction while weak storage remains retained.
+    drops: Arc<AtomicUsize>,
+}
+impl<T> Drop for AlignedBox<T> {
+    fn drop(&mut self) {
+        self.drops.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+/// Exclusive storage preserves payload alignment and destroys T before final weak storage release.
+#[test]
+fn generic_exclusive_storage_preserves_alignment_and_weak_expiration() {
+    let drops = Arc::new(AtomicUsize::new(0));
+    let local = AlignedBox::into_local_box(AlignedBox { marker: 29u32, drops: drops.clone() });
+    let concrete = local.downgrade();
+    let unknown = local.query::<IUnknown>().unwrap();
+    assert_eq!(unknown.as_raw().object as usize % 128, 0);
+    concrete
+        .with(|state| {
+            assert_eq!(state.marker, 29);
+            assert_eq!(state as *const _ as usize % 128, 0);
+        })
+        .unwrap();
+    let owner = local.into_interface::<IUnknown>().unwrap();
+    drop(owner);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    assert!(!unknown.is_alive());
+    assert_eq!(concrete.with(|_| ()), Err(NC_E_DROPPED));
+    drop((concrete, unknown));
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+}

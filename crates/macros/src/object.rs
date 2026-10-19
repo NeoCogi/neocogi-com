@@ -1,4 +1,4 @@
-//! Expansion of Rust structs into reference-counted multi-interface COM objects.
+//! Binds Rust implementations to static COM interfaces and typed storage.
 //!
 //! Each private allocation owns the common lifetime header, ownership-specific
 //! borrow authority, and a fully initialized Rust value. Static tables carry interfaces.
@@ -8,21 +8,17 @@
 //! Weak references can retain storage after value destruction, but no constructor
 //! exposes an allocation before initializing that value.
 
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::ItemStruct;
 
 use crate::args::{ObjectArgs, ObjectOwnership};
 use crate::util::runtime_crate_path;
 
-/// Generates object storage, lifecycle thunks, and local construction helpers.
+/// Generates compact interface bindings, typed borrow adapters and legal constructors.
 pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::TokenStream {
-    // `FooComObject` is intentionally private generated storage. Users see the
-    // original Rust `Foo` plus COM interface pointers; the storage layout is an
-    // implementation detail owned by this macro.
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
     let object_ident = &input.ident;
     let object_vis = &input.vis;
-    let storage_ident = format_ident!("{object_ident}ComObject", span = object_ident.span());
     // Rust implementation generics stay inside the allocating binary, and COM
     // pointers cannot carry the lifetime of borrowed application storage.
     let generic = !input.generics.params.is_empty();
@@ -39,20 +35,6 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
         let (_, types, _) = input.generics.split_for_impl();
         generics.make_where_clause().predicates.push(syn::parse_quote!(#object_ident #types: 'static));
     }
-    if let Some(interface) = &args.primary_interface {
-        // The IDL interface owns the threading mode. This bound accepts all
-        // `'static` local implementations and additionally requires Send +
-        // Sync when the interface selects the shared threading model.
-        generics.make_where_clause().predicates.push(syn::parse_quote! {
-            #object_ident #input_type_generics: #nc::__ComSupportsInterfaceThreading<
-                <#interface as #nc::ComInterface>::Threading
-            >
-        });
-    }
-    let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
-    let object_type = quote! { #object_ident #type_generics };
-    let storage_type = quote! { #storage_ident #type_generics };
-
     let declared_threading_model = if let Some(interface) = &args.primary_interface {
         quote! { <#interface as #nc::ComInterface>::Threading }
     } else if args.thread_safe {
@@ -60,17 +42,17 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
     } else {
         quote! { #nc::ThreadLocal }
     };
+    // One proof route for both primary contracts and independent projections.
+    generics.make_where_clause().predicates.push(syn::parse_quote! {
+        #object_ident #input_type_generics: #nc::__ComSupportsInterfaceThreading<#declared_threading_model>
+    });
+    let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
+    let object_type = quote! { #object_ident #type_generics };
+
     // All generated pointer types project through this one implementation-level
     // threading declaration.
     let pointer_threading_model = quote! {
         <#object_type as #nc::ComObject>::Threading
-    };
-    let com_object_impl = quote! {
-        // SAFETY: This associated mode is generated from the object attribute
-        // and is reused by every generated pointer and interface association.
-        unsafe impl #impl_generics #nc::ComObject for #object_type #where_clause {
-            type Threading = #declared_threading_model;
-        }
     };
     // Query order and exported metadata use the same derived-first ancestry.
     // Shared bases are advertised once even when several branches expose them.
@@ -97,116 +79,47 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
             quote! { &#provider::<#object_type>::PROJECTIONS }
         })
         .collect::<Vec<_>>();
-    let thread_safe_marker_impl = (args.thread_safe && args.primary_interface.is_none()).then(|| {
-        let assertion = (!generic).then(|| {
-            quote! {
-                const _: fn() = || {
-                    // Additional direct diagnostic for ordinary nongeneric objects.
-                    fn assert_thread_safe<T: Send + Sync>() {}
-                    assert_thread_safe::<#object_type>();
-                };
-            }
-        });
-        quote! {
-            #assertion
-            // SAFETY: ThreadSafeComObject's Send + Sync supertraits prove the
-            // bounds for every permitted specialization. Interface behavior must
-            // also uphold the documented concurrent-call contract.
-            unsafe impl #impl_generics #nc::ThreadSafeComObject for #object_type #where_clause {}
-        }
-    });
-
-    // Lifetime policy is a property of the provider class, not an interface.
-    // Emit only legal constructors and select one class-specific borrowing policy.
-    // Neither the associated Rust guard nor its layout crosses the C ABI.
-    let (constructors, shared_guard, exclusive_guard, gate_field, acquire_shared, acquire_exclusive) = match args.ownership {
+    // Only the selected provider policy exists; shared calls have no dynamic
+    // exclusive-admission branch. All unsafe layout work belongs to typed support.
+    let (storage, shared_guard, exclusive_guard, constructors) = match args.ownership {
         ObjectOwnership::Shared => (
-            quote! {
-                /// Owns this exact implementation and permits checked local access
-                /// between COM calls without downcasting or borrowing external state.
-                #object_vis fn into_local(value: Self) -> #nc::LocalCom<Self> {
-                    // SAFETY: from_value allocates this exact generated storage and
-                    // transfers its canonical owning IUnknown. The local handle and
-                    // all interface projections use this allocation's one call gate.
-                    unsafe { #nc::LocalCom::__from_owned(Self::from_value(value)) }
-                }
-
-                #[doc = "Wraps a fully initialized Rust value as a COM object and returns its `IUnknown` interface."]
-                #object_vis fn from_value(value: Self) -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
-                    // Construction initializes only ownership, borrow authority and state.
-                    // Interface tables are static and add no per-object fields.
-                    let object = #nc::__alloc::boxed::Box::new(#storage_ident {
-                        control: #nc::lifetime::NcWeakControl::new(&<#storage_type>::CLASS_LIFETIME),
-                        call_gate: #nc::__ComCallGate::new(),
-                        value: core::cell::UnsafeCell::new(core::mem::MaybeUninit::new(value)),
-                    });
-
-                    // Publish the allocation paired with its canonical root table.
-                    // The pair needs neither embedded headers nor owner recovery.
-                    let raw = #nc::__alloc::boxed::Box::into_raw(object);
-                    // SAFETY: Box::into_raw transfers the initial strong reference into COM ownership and
-                    // remains live until the final generated `Release`.
-                    let unknown = #nc::ComRaw { object: raw.cast(), vtable: &#nc::lifetime::CANONICAL_UNKNOWN_VTABLE };
-                    unsafe {
-                        // SAFETY: `unknown` is non-null and owns the initial
-                        // strong reference initialized in the common header.
-                        #nc::ComPtr::<#nc::IUnknown, #pointer_threading_model>::from_raw_owned(unknown)
-                            .expect("new COM object produced a null pointer")
-                    }
-                }
-
-            },
+            quote! { #nc::__ComSharedStorage<Self> },
             quote! { #nc::__ComSharedCall<'a> },
             quote! { #nc::__ComExclusiveCall<'a> },
-            quote! { call_gate: #nc::__ComCallGate, },
-            quote! { #nc::__ComSharedLease::acquire(&storage.call_gate, storage.value.get().cast::<Self>()) },
-            quote! { #nc::__ComExclusiveLease::acquire(&storage.call_gate, storage.value.get().cast::<Self>()) },
+            quote! {
+                /// Owns this exact implementation with checked local access.
+                #object_vis fn into_local(value: Self) -> #nc::LocalCom<Self> {
+                    // SAFETY: the generated constructor proves Self's exact storage.
+                    unsafe { #nc::LocalCom::__from_owned(Self::from_value(value)) }
+                }
+                /// Wraps a complete Rust value in one shared COM allocation.
+                #object_vis fn from_value(value: Self) -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
+                    // SAFETY: this impl's borrow adapters select the same shared layout.
+                    unsafe { #nc::__ComSharedStorage::<Self>::into_shared(value) }
+                }
+            },
         ),
         ObjectOwnership::Exclusive => (
+            quote! { #nc::__ComBoxStorage<Self> },
+            quote! { #nc::lifetime::BoxRead },
+            quote! { #nc::lifetime::BoxWrite },
             quote! {
-                /// Wraps a value in one non-clonable owner. Queries transfer or borrow
-                /// this owner; AddRef and shared ownership conversion are rejected.
+                /// Transfers one exclusive owner of a fully initialized value.
                 #object_vis fn into_box(value: Self) -> #nc::ComBox<#nc::IUnknown, #pointer_threading_model> {
-                    let storage = #nc::__alloc::boxed::Box::into_raw(#nc::__alloc::boxed::Box::new(#storage_ident {
-                        control: #nc::lifetime::NcWeakControl::boxed(&<#storage_type>::CLASS_LIFETIME),
-                        value: core::cell::UnsafeCell::new(core::mem::MaybeUninit::new(value)),
-                    }));
-                    let raw = #nc::ComRaw { object: storage.cast(), vtable: &#nc::lifetime::CANONICAL_UNKNOWN_VTABLE };
-                    // SAFETY: this exact provider initializes and transfers one exclusive owner.
-                    unsafe { #nc::ComBox::from_raw_owned(raw) }.expect("new exclusive object is present")
+                    // SAFETY: borrow adapters use this layout's header admission.
+                    unsafe { #nc::__ComBoxStorage::<Self>::into_exclusive(value) }
                 }
-
-                /// Keeps concrete local construction access until the owner moves into its container.
+                /// Retains concrete construction proof until owner transfer.
                 #object_vis fn into_local_box(value: Self) -> #nc::LocalBox<Self> {
-                    // SAFETY: into_box constructs exactly Self's generated allocation.
+                    // SAFETY: into_box constructs exactly Self's exclusive storage.
                     unsafe { #nc::LocalBox::__from_owned(Self::into_box(value)) }
                 }
             },
-            quote! { #nc::lifetime::BoxRead },
-            quote! { #nc::lifetime::BoxWrite },
-            quote! {},
-            quote! { #nc::__ComSharedLease::acquire_box(object.cast(), storage.value.get().cast::<Self>()) },
-            quote! { #nc::__ComExclusiveLease::acquire_box(object.cast(), storage.value.get().cast::<Self>()) },
         ),
     };
 
     quote! {
         #input
-
-        // Storage order is private but still uses `repr(C)` to keep pointer
-        // arithmetic and field addresses predictable for generated ABI thunks.
-        /// One owned allocation for this exact implementation and all of its concrete interface projections.
-        #[repr(C)]
-        struct #storage_ident #impl_generics #where_clause {
-            /// Common lifetime header at offset zero; shared operations never
-            /// need to recover the concrete Rust payload to manage ownership.
-            control: #nc::lifetime::NcWeakControl,
-            // Shared ownership needs a separate gate because its header counts
-            // owners. Exclusive storage uses only the header's combined state.
-            #gate_field
-            /// Initialized while owned; after destruction, weak references retain storage without a valid Rust value.
-            value: core::cell::UnsafeCell<core::mem::MaybeUninit<#object_type>>,
-        }
 
         impl #impl_generics #object_type #where_clause {
             /// Number of queryable contracts, including canonical IUnknown.
@@ -234,73 +147,26 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
 
             }
 
-        // SAFETY: This impl is generated together with the private storage
-        // layout above. Every paired vtable accepts this allocation directly.
-        unsafe impl #impl_generics #nc::ComAbiObject for #object_type #where_clause {
-            /// Concrete provider policy; no dynamic ownership branch on shared calls.
+        // SAFETY: construction, typed storage recovery, tables, and threading
+        // are generated together and select one concrete ownership policy.
+        unsafe impl #impl_generics #nc::ComObject for #object_type #where_clause {
+            type Threading = #declared_threading_model;
             type SharedGuard<'a> = #shared_guard;
             type ExclusiveGuard<'a> = #exclusive_guard;
-            // The generated gate permits concurrent observers but rejects a
-            // shared call while a mutable call owns the implementation.
+            const VTABLES: &'static [*const #nc::IUnknownVTable] = &Self::COM_VTABLES;
+
             unsafe fn borrow_abi_ref<'a>(
-                object: *mut core::ffi::c_void,
-            ) -> Result<#nc::__ComSharedLease<'a, Self, Self::SharedGuard<'a>>, #nc::NcStatus> {
-                if object.is_null() {
-                    return Err(#nc::NC_E_POINTER);
-                }
-                let storage = object.cast::<#storage_type>();
-                // SAFETY: The caller guarantees that `object` points to this
-                // generated storage, whose gate and value live together.
-                let storage = unsafe { &*storage };
-                // SAFETY: The value and gate are fields of the same live
-                // storage allocation and every generated call uses this gate.
-                unsafe { #acquire_shared }
+                object: *mut ::core::ffi::c_void,
+            ) -> ::core::result::Result<#nc::__ComSharedLease<'a, Self, Self::SharedGuard<'a>>, #nc::NcStatus> {
+                // SAFETY: caller retains the exact storage allocated by our constructor.
+                unsafe { <#storage>::borrow_ref(object) }
             }
 
-            // The generated gate grants exactly one mutable call only while no
-            // shared or mutable call is active on any interface projection.
             unsafe fn borrow_abi_mut<'a>(
-                object: *mut core::ffi::c_void,
-            ) -> Result<#nc::__ComExclusiveLease<'a, Self, Self::ExclusiveGuard<'a>>, #nc::NcStatus> {
-                if object.is_null() {
-                    return Err(#nc::NC_E_POINTER);
-                }
-                let storage = object.cast::<#storage_type>();
-                // SAFETY: The caller guarantees that `object` points to this
-                // generated storage, whose gate and value live together.
-                let storage = unsafe { &*storage };
-                // SAFETY: The value and gate are fields of the same live
-                // storage allocation and every generated call uses this gate.
-                unsafe { #acquire_exclusive }
-            }
-
-        }
-
-        #com_object_impl
-        #thread_safe_marker_impl
-        impl #impl_generics #storage_type #where_clause {
-            /// One immutable class descriptor, independent of object instances.
-            /// Counting/promotion functions are shared; only payload destruction,
-            /// allocator release and this class's projections vary.
-            const CLASS_LIFETIME: #nc::lifetime::NcClassLifetime = #nc::lifetime::NcClassLifetime {
-                destroy_value: Self::destroy_value,
-                deallocate: Self::deallocate,
-                interfaces: <#object_type>::COM_VTABLES.as_ptr(),
-                interface_count: <#object_type>::COM_VTABLES.len(),
-            };
-            /// Destroys initialized Self once while the implicit weak owner retains storage.
-            unsafe extern "C" fn destroy_value(control: *mut #nc::lifetime::NcWeakControl) {
-                let storage = control.cast::<Self>();
-                // SAFETY: only final strong release calls this, after publication
-                // and after all strong-owned calls finish. MaybeUninit keeps the
-                // retained storage valid after destruction and prevents a second drop.
-                unsafe { (*(*storage).value.get()).assume_init_drop(); }
-            }
-            /// Frees the exact provider allocation, including its concrete alignment.
-            /// The fully initialized value was already destroyed by the final owner.
-            unsafe extern "C" fn deallocate(control: *mut #nc::lifetime::NcWeakControl) {
-                // SAFETY: the final weak owner transfers the allocation once.
-                unsafe { drop(#nc::__alloc::boxed::Box::from_raw(control.cast::<Self>())); }
+                object: *mut ::core::ffi::c_void,
+            ) -> ::core::result::Result<#nc::__ComExclusiveLease<'a, Self, Self::ExclusiveGuard<'a>>, #nc::NcStatus> {
+                // SAFETY: the selected storage enforces its one admission/borrow authority.
+                unsafe { <#storage>::borrow_mut(object) }
             }
         }
     }

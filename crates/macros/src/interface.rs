@@ -229,7 +229,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
 
     // A thunk adapts one C ABI vtable call back into the Rust trait method.
     // It accesses the owning generated storage directly through the handle's
-    // opaque `object` pointer, then asks `ComAbiObject` for the concrete Rust
+    // opaque `object` pointer, then asks `ComObject` for the concrete Rust
     // value through the generated object-wide borrow gate. Panics are
     // intentionally not caught here; the non-unwind C ABI boundary follows
     // Rust's normal panic and ABI unwind rules.
@@ -450,10 +450,10 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         };
         let borrow = match method.receiver {
             AbiReceiver::Shared => quote! {
-                <T as #nc::ComAbiObject>::borrow_abi_ref(#object_ident)
+                <T as #nc::ComObject>::borrow_abi_ref(#object_ident)
             },
             AbiReceiver::Mutable => quote! {
-                <T as #nc::ComAbiObject>::borrow_abi_mut(#object_ident)
+                <T as #nc::ComObject>::borrow_abi_mut(#object_ident)
             },
         };
         let invoke = match method.receiver {
@@ -490,7 +490,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 #(#output_preflight)*
                 #(#arg_conversions)*
                 // SAFETY: The object pointer is paired with this generated table.
-                // `ComAbiObject` validates the requested Rust borrow
+                // `ComObject` validates the requested Rust borrow
                 // against every call active on the same allocation.
                 let mut #value_ident = match unsafe { #borrow } {
                     ::core::result::Result::Ok(value) => value,
@@ -655,7 +655,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
 
         impl<T> #vtable_for_ident<T>
         where
-            T: #trait_ident + #nc::ComAbiObject,
+            T: #trait_ident + #nc::ComObject,
         {
             /// Distinct provider bindings in the interface's canonical metadata order.
             /// T fixes the thunk implementation; no object headers are stored here.

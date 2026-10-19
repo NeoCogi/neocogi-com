@@ -87,7 +87,7 @@ impl<T: ComObject> LocalCom<T> {
     /// # Safety
     ///
     /// `owner` must be the canonical IUnknown produced by T's generated object
-    /// storage. Its object address must satisfy T's `ComAbiObject` contract for
+    /// storage. Its object address must satisfy T's `ComObject` contract for
     /// every borrow. An interface implemented by a different Rust type is not
     /// sufficient, even if its IID and ABI signature match.
     pub unsafe fn __from_owned(owner: ComPtr<IUnknown, T::Threading>) -> Self {

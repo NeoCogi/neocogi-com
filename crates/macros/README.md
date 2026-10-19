@@ -21,8 +21,10 @@ struct ButtonObject {
 
 The interface supplies the public identity, threading capability, callable
 surface, and required interfaces. The implementation supplies private
-state and method bodies. Generated storage contains one Rust value, one reference
-count, and one borrow guard. Static tables implement signature-checked
+state and method bodies. Typed facade storage contains one Rust value and the common lifetime header;
+shared providers use one borrow gate and exclusive providers use header admission.
+`ComObject` supplies the single implementation proof; the macro emits no private
+storage companion or per-provider lifecycle bodies. Static tables implement signature-checked
 `QueryInterface`; handles carry the allocation and selected table, so interfaces
 add no per-object fields. The compiler resolves distinct inherited contracts,
 including diamonds, without retaining full inspection metadata in dispatch.

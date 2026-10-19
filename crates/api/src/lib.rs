@@ -527,9 +527,11 @@ pub use neocogi_com_core::{
     validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
 };
 pub use object::{
-    __ComCallGate, __ComSharedCall, __ComExclusiveCall, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComAbiObject,
-    ComObject, ThreadSafeComObject,
+    __ComCallGate, __ComSharedCall, __ComExclusiveCall, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComObject,
 };
+#[cfg(feature = "alloc")]
+#[doc(hidden)]
+pub use object::{__ComBoxStorage, __ComSharedStorage, __ComStorage};
 mod local;
 pub use local::{LocalBox, WeakLocalBox, LocalCom, WeakLocalCom, LocalMut, LocalRef};
 #[doc(hidden)]

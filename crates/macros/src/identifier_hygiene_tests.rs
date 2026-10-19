@@ -87,3 +87,69 @@ fn printed_bindings_preserve_authored_values_and_arguments() {
         String::from_utf8_lossy(&result.stderr)
     );
 }
+
+/// Object expansion must survive printing with authored support names in both ownership modes.
+#[test]
+fn printed_object_bindings_keep_storage_and_support_names_private() {
+    let consumer = crate::test_consumer::Consumer::new("printed-object-storage-proof");
+    let mut generated = String::from(
+        r#"
+        use neocogi_com::{com_interface, NcStatus};
+        mod core {}
+        type Result = ();
+        type Send = ();
+        type Sync = ();
+        struct SharedComObject;
+        struct ExclusiveComObject;
+        #[com_interface(auto_guid = "test.printed.Storage:v1",
+            assigned_signature = b"00000000000000000000000000000641")]
+        trait IValue {
+            fn value(&self) -> ::core::result::Result<u32, NcStatus>;
+        }
+    "#,
+    );
+    for (name, options) in [
+        ("Shared", quote! { interfaces(IValue), thread_safe }),
+        ("Exclusive", quote! { IValue, ownership = exclusive }),
+    ] {
+        let ident = syn::Ident::new(name, proc_macro2::Span::call_site());
+        let object = syn::parse2(quote! { struct #ident<Result> { value: u32, _state: Result } }).unwrap();
+        let expanded = crate::object::expand_com_object(syn::parse2(options).unwrap(), object);
+        generated += &prettyplease::unparse(&syn::parse2(expanded).unwrap());
+        generated += &format!(
+            r#"
+            impl<Result> IValue for {name}<Result> {{
+                fn value(&self) -> ::core::result::Result<u32, NcStatus> {{
+                    ::core::result::Result::Ok(self.value)
+                }}
+            }}
+        "#
+        );
+    }
+    generated += r#"
+        #[test]
+        fn printed_providers_execute_real_calls() {
+            let shared = Shared::from_value(Shared { value: 73, _state: () });
+            let shared = shared.query::<IValueAbi>().unwrap();
+            assert_eq!(shared.value(), ::core::result::Result::Ok(73));
+            let exclusive = Exclusive::into_box(Exclusive { value: 91, _state: () });
+            let projection = exclusive.query_weak::<IValueAbi>().unwrap();
+            assert_eq!(projection.value(), ::core::result::Result::Ok(91));
+            drop(exclusive);
+            assert_eq!(projection.value(), ::core::result::Result::Err(neocogi_com::NC_E_DROPPED));
+        }
+    "#;
+    fs::write(consumer.directory.path().join("src/lib.rs"), generated).unwrap();
+    let output = Command::new("cargo")
+        .args(["test", "--offline", "--manifest-path"])
+        .arg(consumer.directory.path().join("Cargo.toml"))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed"));
+}

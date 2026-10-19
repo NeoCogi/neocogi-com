@@ -74,3 +74,29 @@ Runtime and plugin descriptor ABI remain v1. Core draft 17, fingerprint domain
 authority are unchanged. Historical ABI 11/12 descriptions of cyclic construction
 are superseded by this pre-release contract. This change introduces no generic
 storage redesign or replacement constructor naming scheme.
+
+## Typed storage and implementation proof
+
+`ComObject` is the single unsafe provider-local contract for threading, compact
+vtable bindings and checked concrete borrows. Generated objects no longer define
+a separately named storage companion or implement `ComAbiObject` and
+`ThreadSafeComObject`. Both primary-interface and explicit-list providers prove
+threading through the same mode-dependent bound, including generic specializations.
+
+Facade support owns `Storage<T, Access>`: shared providers select the existing
+call gate; exclusive providers select zero-sized access and the common header's
+combined owner/borrow state. The macro emits only bindings, small typed borrow
+adapters and the selected ownership family's two constructors. Constructor support
+is unsafe because the generated adapters and allocation must select exactly the
+same concrete layout. This is construction proof, never a foreign-object downcast.
+
+The common header remains at offset zero, values retain their concrete alignment,
+and final weak release frees through the allocating provider. `MaybeUninit` keeps
+storage valid after value destruction. Non-generic lifecycle algorithms and
+synchronous exclusive destruction are unchanged. No shared/exclusive runtime
+policy branch or second borrow gate is added. All process registration remains
+inside the one shared `nc_com` runtime; typed storage has no registry state.
+
+This change reduces generated unsafe layout code. Generic support still
+monomorphizes; neither binary-size reduction nor faster dispatch follows from
+source consolidation alone.

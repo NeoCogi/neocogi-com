@@ -76,18 +76,28 @@ impl Drop for Lifetime {
     }
 }
 
+/// Measures real allocated payload placement without naming generated storage.
+fn payload_offset<T: neocogi_com::ComObject>(local: &neocogi_com::LocalCom<T>) -> usize {
+    let root = local.query::<IUnknown>().unwrap();
+    let value = local.try_borrow().unwrap();
+    (&*value as *const T) as usize - root.as_raw().object as usize
+}
+
 /// Interface count adds no payload storage; the common control header and call gate have fixed size.
 #[test]
 fn repeated_diamond_adds_no_per_object_interface_storage() {
     assert_eq!(ITopAbi::INTERFACE_CHAIN.len(), 15);
     assert_eq!(Diamond::<()>::COM_INTERFACE_COUNT, 16); // Includes canonical IUnknown.
     assert_eq!(
-        core::mem::offset_of!(DiamondComObject<()>, value),
+        payload_offset(&Diamond::into_local(Diamond { value: 0, _lifetime: () })),
         core::mem::size_of::<neocogi_com::lifetime::NcWeakControl>() + core::mem::size_of::<usize>()
     );
     // A second state specialization must use exactly the same contract set.
     assert_eq!(
-        core::mem::offset_of!(DiamondComObject<Lifetime>, value),
+        payload_offset(&Diamond::into_local(Diamond {
+            value: 0,
+            _lifetime: Lifetime { drops: Arc::new(AtomicUsize::new(0)) }
+        })),
         core::mem::size_of::<neocogi_com::lifetime::NcWeakControl>() + core::mem::size_of::<usize>()
     );
     let object = Diamond::from_value(Diamond { value: 7, _lifetime: () });
@@ -255,7 +265,7 @@ fn unknown_only_generic_owner_has_no_interface_storage() {
     assert_eq!(owner.try_borrow().unwrap().value, 42);
     assert!(matches!(unknown.query::<IA0Abi>(), Err(NC_E_NOINTERFACE)));
     assert_eq!(
-        core::mem::offset_of!(UnknownOnlyComObject<u32>, value),
+        payload_offset(&owner),
         core::mem::size_of::<neocogi_com::lifetime::NcWeakControl>() + core::mem::size_of::<usize>()
     );
 }
@@ -291,7 +301,7 @@ fn explicit_roots_reuse_their_inherited_contracts() {
     assert_eq!(child.value(), Ok(7));
     assert_eq!(OverlappingRoots::COM_INTERFACE_COUNT, 4);
     assert_eq!(
-        core::mem::offset_of!(OverlappingRootsComObject, value),
+        payload_offset(&OverlappingRoots::into_local(OverlappingRoots { value: 0 })),
         core::mem::size_of::<neocogi_com::lifetime::NcWeakControl>() + core::mem::size_of::<usize>()
     );
 }
@@ -318,7 +328,10 @@ fn generic_aligned_state_keeps_direct_object_access_correct() {
     let owner = unknown.as_raw().object;
     assert_eq!(top.as_raw().object, owner);
     assert_eq!(base.as_raw().object, owner);
-    assert_eq!(owner as usize % core::mem::align_of::<DiamondComObject<AlignedState>>(), 0);
+    assert_eq!(
+        owner as usize % core::mem::align_of::<neocogi_com::__ComSharedStorage<Diamond<AlignedState>>>(),
+        0
+    );
     {
         let mut value = local.try_borrow_mut().unwrap();
         value.value = 29;
