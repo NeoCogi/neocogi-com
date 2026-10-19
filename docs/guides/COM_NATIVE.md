@@ -285,7 +285,7 @@ Debug symbols in the copied ELF libraries are preserved. The native acceptance
 test scripts still use their copied test layout; launching an acceptance test's
 compiler-directory binary directly does not supply adjacent resources. Separate
 PDB/dSYM staging and Windows/macOS debugger execution are not covered by the
-Linux validation. See the [VS Code validation record](../validation/VSCODE_SHARED_LIBRARY_DEBUGGING_2026-10-15.md).
+Linux checks alone. See the [current debugger validation scope](../validation/README.md#tooling-and-debugger-metadata).
 
 ## Browser
 
@@ -314,5 +314,5 @@ use `scripts/run-native-test.py` as a Cargo runner to copy an already compiled
 test and its staged inputs into a temporary application directory. This test-only
 runner never builds; production startup always uses adjacent files directly.
 Cross-compiler tests for the standalone COM sample remain separate.
-The [layout validation record](../validation/NATIVE_LAYOUT_PRIVACY_2026-10-15.md)
-records fresh evidence and platform limitations.
+The [current native validation guide](../validation/README.md#renderers-and-native-applications)
+lists maintained entrypoints and platform limitations.

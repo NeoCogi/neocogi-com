@@ -241,7 +241,7 @@ successful compilation alone. The driver invocation was
 `python3 crates/com/scripts/compatibility.py --suite cross-version --report /tmp/fixed-signature-compatibility.json`.
 
 The historical Rust 1.85 alignment blocker is resolved by the
-[F04 repair](../../../docs/validation/REVIEW_F04_F06_FIXES_2026-10-05.md), which
+[F04 repair](../../../docs/validation/README.md#historical-records), which
 preserves alignment validation and executes the separate minimum-version suite.
 The attempted 32-bit C compilation lacks system libc headers; 32-bit constants
 were updated but have not been executed here. No whole-bundle size or query-speed
