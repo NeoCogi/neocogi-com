@@ -772,8 +772,9 @@ F10 and an unchorded Alt tap enter a window's bar; arrows navigate headings and
 submenus, skipping disabled rows and separators. Enter/Space submits the selected
 row and closes the active path, restoring ordinary application focus. A shown
 standalone menu starts with no row selected: Down selects its first actionable
-row before Enter. Submission captures the actual label at activation and uses
-the shared `Activation` payload. All mapped ports share their consumer's emission-order FIFO.
+row before Enter. Submission emits the shared `IActivatedEvent` marker. The
+envelope identifies the source independently of its editable display label.
+All destinations preserve their consumer's emission-order FIFO.
 
 ## Native paths and standard file pickers
 
