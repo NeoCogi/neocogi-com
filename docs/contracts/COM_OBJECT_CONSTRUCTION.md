@@ -72,8 +72,8 @@ provider. Each callback remains paired with the exact generated allocation.
 Runtime and plugin descriptor ABI remain v1. Core draft 17, fingerprint domain
 10, handle layouts, interface metadata, threading and process-wide runtime
 authority are unchanged. Historical ABI 11/12 descriptions of cyclic construction
-are superseded by this pre-release contract. This change introduces no generic
-storage redesign or replacement constructor naming scheme.
+are superseded by this pre-release contract. The typed storage consolidation
+below preserves the two constructor names for each ownership family.
 
 ## Typed storage and implementation proof
 
