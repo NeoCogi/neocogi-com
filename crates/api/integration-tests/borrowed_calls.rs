@@ -146,7 +146,7 @@ fn borrowed_generated_calls_perform_no_lifecycle_operations() {
     assert!(destination.is_empty());
     assert_eq!(counts.additions.get(), 1);
     assert_eq!(counts.releases.get(), 1);
-    let retained = borrowed.add_ref();
+    let retained = borrowed.try_add_ref().unwrap();
     assert_eq!(borrowed.additions(), Ok(2));
     drop(retained);
     assert_eq!(counts.releases.get(), 2);

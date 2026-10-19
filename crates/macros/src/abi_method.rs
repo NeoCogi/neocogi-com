@@ -306,7 +306,7 @@ fn lower_abi_arg(ty: Type, nc: &syn::Path) -> Result<(Type, Type, AbiArgKind)> {
     if parse_owned_interface_type(&ty, "ComPtr")?.is_some() {
         return Err(syn::Error::new_spanned(
             ty,
-            "COM method arguments cannot take `ComPtr`; use `ComRef<'_, InterfaceAbi>` for borrowed interface parameters and call `add_ref()` if the callee must retain the object",
+            "COM method arguments cannot take `ComPtr`; use `ComRef<'_, InterfaceAbi>` for borrowed interface parameters and call `try_add_ref()` and propagate failure if the callee must retain shared ownership",
         ));
     }
 

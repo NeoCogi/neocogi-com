@@ -124,7 +124,7 @@ pub struct Node;
 impl INode for Node {
     /// The explicit AddRef creates exactly the reference transferred back.
     fn echo(&self, node: ComRef<'_, INodeAbi>) -> Result<ComPtr<INodeAbi>, NcStatus> {
-        Ok(node.add_ref())
+        node.try_add_ref()
     }
 }
 

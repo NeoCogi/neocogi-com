@@ -14,8 +14,8 @@
 //! | `ComRef<'a, T, ThreadLocal>` | Borrows a reference; copy and drop do not touch the count | No | No | None |
 //! | `ComRef<'a, T, ThreadSafe>` | Borrows a reference; copy and drop do not touch the count | Yes | Yes | `into_thread_local` |
 //!
-//! [`ComRef::add_ref`] is the explicit exception for a borrowed handle: it
-//! calls `AddRef` and returns an owning [`ComPtr`] with the same threading
+//! [`ComRef::try_add_ref`] is the explicit exception for a borrowed handle: it
+//! calls `AddRef` fallibly and returns an owning [`ComPtr`] with the same threading
 //! marker. [`ComPtr::query`] likewise preserves the source marker because
 //! `QueryInterface` selects another interface on the same object; it cannot
 //! strengthen that object's threading guarantee.
@@ -434,7 +434,8 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
     }
     /// Compares two live capabilities without querying or borrowing object state.
     /// The object/table ABI guarantees one canonical object address across all
-    /// projections. Both borrows pin their values, preventing address reuse here.
+    /// projections. Their lenders retain allocation storage, preventing address reuse
+    /// even when an exclusive value has already been destroyed.
     pub fn same_object<U: ComInterface + ?Sized, N: ThreadingModel>(&self, other: ComRef<'_, U, N>) -> bool {
         self.raw.object == other.raw.object
     }
@@ -448,13 +449,14 @@ impl<'a, T: ComInterface + ?Sized, M: ThreadingModel> ComRef<'a, T, M> {
         unsafe { crate::WeakComPtr::from_raw_owned(raw) }.ok_or(NC_E_POINTER)
     }
 
-    /// Acquires an owner that can outlive this borrowed view.
-    pub fn add_ref(&self) -> ComPtr<T, M> {
-        self.try_add_ref().expect("interface does not permit shared ownership")
-    }
-
     /// Acquires shared ownership only when the provider permits it. Exclusive
     /// objects return NC_E_INVALID_ARG instead of manufacturing another owner.
+    /// A caller already holding ComPtr should clone that proven shared owner.
+    ///
+    /// ```compile_fail
+    /// use neocogi_com_core::{ComRef, IUnknown};
+    /// fn retain(borrow: ComRef<'_, IUnknown>) { let _owner = borrow.add_ref(); }
+    /// ```
     pub fn try_add_ref(&self) -> Result<ComPtr<T, M>, NcStatus> {
         // SAFETY: the borrow keeps the matching pair live through AddRef.
         if unsafe { raw::add_ref(self.as_raw()) } == 0 {

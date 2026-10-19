@@ -80,7 +80,7 @@ including `'static`, and requires the wrapper's exact generic argument shape.
 | Parameter | What the receiver borrows | Retention beyond the call |
 | --- | --- | --- |
 | `NcValueRef<'_, T>` | A checked value's raw record and producer-owned backing storage | Acquire `T` with `to_owned()` before returning. |
-| `ComRef<'_, I>` or `Option<ComRef<'_, I>>` | A live interface reference | Acquire an owned `ComPtr` with `add_ref()`. An optional threading marker does not change the lifetime rule. |
+| `ComRef<'_, I>` or `Option<ComRef<'_, I>>` | A live interface reference | Acquire shared ownership with `try_add_ref()?`; an exclusive borrow returns `NC_E_INVALID_ARG`. A threading marker does not grant ownership. |
 | `NcCopyFromBufferOffset<'_, T>` | Readable elements for this call | Copy needed contents into owned application storage during the call. |
 | `NcOutputWriter<'_, T>` | Fresh copied output on the provider | Encode directly into raw slots; never read old contents or retain the writer. Clients supply `NcOutput<'_, T>`. |
 

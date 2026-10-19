@@ -58,8 +58,9 @@ method lookup alone never manufactures another COM reference.
 
 `ComRef` borrows a live interface for a call. A consumer accepting a generic
 borrow must use `try_add_ref()` when retaining shared ownership and propagate
-failure. `add_ref()` requires an already established shared-ownership invariant;
-an exclusive borrow returns `NC_E_INVALID_ARG` from fallible acquisition. Exclusive widgets reject shared retention. Capture weak
+failure. There is no infallible borrowed `add_ref()` convenience. A caller already
+holding a `ComPtr` clones that proven shared owner; an exclusive borrow returns
+`NC_E_INVALID_ARG` from fallible acquisition. Exclusive widgets reject shared retention. Capture weak
 identities from `ComBox::downgrade`, `ComBox::query_weak`, or an existing
 `WeakComBox`; a generic borrow does not establish an exclusive lifetime layout. A generic `ComRef` therefore
 does not promise a non-retainable Rust borrow. Never create a COM
