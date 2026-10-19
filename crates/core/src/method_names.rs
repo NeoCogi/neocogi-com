@@ -21,6 +21,7 @@ pub const NC_COM_HANDLE_METHOD_NAMES: &[&str] = &[
     "into_raw",
     "as_com_ref",
     "query",
+    "query_ref",
     "query_weak",
     "downgrade",
     "supports_interface_id",

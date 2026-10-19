@@ -227,3 +227,31 @@ fn exclusive_reader_overflow_and_writer_conflicts_preserve_header_state() {
     drop(write);
     assert!(header.box_is_idle());
 }
+
+/// Borrowed exclusive queries select tables without retaining storage or changing owner state.
+#[test]
+fn borrowed_box_queries_preserve_weak_count_and_explicit_observers_still_expire() {
+    let (control, observed) = allocation();
+    // SAFETY: select exclusive policy before publishing this matching header-first allocation.
+    unsafe { (*control).state.store(BOXED | BOX_OWNER, Ordering::Relaxed) };
+    // SAFETY: transfer the initialized sole owner and its exact canonical projection.
+    let owner = unsafe { crate::ComBox::<IUnknown>::from_raw_owned(ComRaw { object: control.cast(), vtable: &ROOT }) }.unwrap();
+    let before = unsafe { (*control).weak.load(Ordering::Relaxed) };
+    let state = unsafe { (*control).state.load(Ordering::Relaxed) };
+    for _ in 0..16 {
+        let projection = owner.query_ref::<IUnknown>().unwrap();
+        assert_eq!(projection.as_raw(), owner.as_raw());
+        assert!(matches!(owner.query_ref::<crate::INcBytesAbi>(), Err(crate::NC_E_NOINTERFACE)));
+        // SAFETY: the owner retains this fixture's readable common header.
+        assert_eq!(unsafe { (*control).weak.load(Ordering::Relaxed) }, before);
+        assert_eq!(unsafe { (*control).state.load(Ordering::Relaxed) }, state);
+    }
+    let observer = owner.query_weak::<IUnknown>().unwrap();
+    assert_eq!(unsafe { (*control).weak.load(Ordering::Relaxed) }, before + 1);
+    drop(owner);
+    assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
+    assert_eq!(observed.freed.load(Ordering::SeqCst), 0);
+    assert!(!observer.is_alive());
+    drop(observer);
+    assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
+}

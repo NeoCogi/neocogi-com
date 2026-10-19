@@ -8,15 +8,9 @@ error[E0277]: `ComPtr<IUnknown>` cannot be shared between threads safely
    |
    = help: within `LocalCom<Model>`, the trait `Sync` is not implemented for `ComPtr<IUnknown>`
 help: the trait `Sync` is implemented for `ComPtr<T, neocogi_com::ThreadSafe>`
-  --> $WORKSPACE/crates/com/core/src/ptr.rs
-   |
-   | unsafe impl<T: ComInterface + ?Sized> Sync for ComPtr<T, ThreadSafe> {}
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  --> /cargo/deps/neocogi-com-core-0.0.0/src/ptr.rs:199:0
 note: required because it appears within the type `LocalCom<Model>`
-  --> src/local.rs
-   |
-   | pub struct LocalCom<T: ComObject> {
-   |            ^^^^^^^^
+  --> /cargo/deps/neocogi-com-0.0.0/src/local.rs:22:11
    = note: required for `&LocalCom<Model>` to implement `Send`
 note: required because it appears within the type `PhantomData<&LocalCom<Model>>`
   --> $RUST/core/src/marker.rs
@@ -24,10 +18,7 @@ note: required because it appears within the type `PhantomData<&LocalCom<Model>>
    | pub struct PhantomData<T: PointeeSized>;
    |            ^^^^^^^^^^^
 note: required because it appears within the type `LocalRef<'_, Model>`
-  --> src/local.rs
-   |
-   | pub struct LocalRef<'a, T: ComObject> {
-   |            ^^^^^^^^
+  --> /cargo/deps/neocogi-com-0.0.0/src/local.rs:45:11
 note: required because `model` is used within this closure
   --> integration-tests/ui/local_guard_thread_affinity.rs:10:44
    |

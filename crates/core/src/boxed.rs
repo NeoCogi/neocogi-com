@@ -183,6 +183,22 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
         Ok(unsafe { ComBox::from_raw_owned(ComRaw { object: raw.object, vtable: table.cast() }) }.expect("present owner"))
     }
 
+    /// Borrows another exact interface without retaining weak bookkeeping.
+    ///
+    /// The view cannot outlive this sole owner. Methods use the same provider
+    /// admission as every other exclusive projection; no value reference or
+    /// execution lease is created by the query itself. Threading permission is
+    /// preserved. Missing contracts and revision mismatches remain distinct errors.
+    pub fn query_ref<U: ComInterface>(&self) -> Result<ComRef<'_, U, M>, NcStatus> {
+        let object = self.as_raw().object;
+        // SAFETY: this owner retains common exclusive storage and immutable class
+        // tables. Lookup checks U's exact identity without changing ownership.
+        let vtable = unsafe { box_projection(object.cast(), &U::INTERFACE_ID) }?;
+        // SAFETY: lookup certifies the table, and borrowing self retains the
+        // matching storage and initialized value for the returned Rust lifetime.
+        unsafe { ComRef::from_raw_borrowed(ComRaw { object, vtable: vtable.cast() }) }.ok_or(NC_E_POINTER)
+    }
+
     /// Observes another validated interface without consuming this owner or
     /// creating a temporary weak handle for the original projection.
     pub fn query_weak<U: ComInterface>(&self) -> Result<WeakComBox<U, M>, NcStatus> {

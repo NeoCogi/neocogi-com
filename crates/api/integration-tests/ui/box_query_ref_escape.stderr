@@ -1,0 +1,11 @@
+error[E0505]: cannot move out of `owner` because it is borrowed
+ --> integration-tests/ui/box_query_ref_escape.rs:5:10
+  |
+3 | fn inspect(owner: ComBox<IUnknown>) {
+  |            ----- binding `owner` declared here
+4 |     let projection = owner.query_ref::<IUnknown>().unwrap();
+  |                      ----- borrow of `owner` occurs here
+5 |     drop(owner);
+  |          ^^^^^ move out of `owner` occurs here
+6 |     let _raw = projection.as_raw();
+  |                ---------- borrow later used here

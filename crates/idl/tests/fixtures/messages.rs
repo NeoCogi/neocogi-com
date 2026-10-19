@@ -69,7 +69,7 @@ mod message_tests {
         producer.emit().unwrap();
         drop(producer);
         let message = first.try_recv().unwrap();
-        assert!(message.downcast::<ICancelledEventAbi>().unwrap().is_some());
+        assert!(message.query::<ICancelledEventAbi>().unwrap().is_some());
         assert!(message.origin.service::<IProducerAbi>().unwrap().unwrap().upgrade().unwrap().is_none());
     }
 

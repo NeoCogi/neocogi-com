@@ -20,6 +20,9 @@ fn ui_errors_are_stable() {
     t.compile_fail("integration-tests/ui/comptr_thread_local_send.rs");
     t.compile_fail("integration-tests/ui/local_guard_owner_lifetime.rs");
     t.compile_fail("integration-tests/ui/weak_box_borrow_escape.rs");
+    t.compile_fail("integration-tests/ui/box_query_ref_escape.rs");
+    t.compile_fail("integration-tests/ui/event_query_escape.rs");
+    t.compile_fail("integration-tests/ui/query_ref_thread_affinity.rs");
     t.compile_fail("integration-tests/ui/local_guard_thread_affinity.rs");
     t.compile_fail("integration-tests/ui/weak_local_thread_affinity.rs");
     t.compile_fail("integration-tests/ui/weak_local_construction_proof.rs");

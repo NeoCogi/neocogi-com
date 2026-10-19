@@ -71,7 +71,7 @@ fn deliver(object: &mut ComPtr<ExampleObjectAbi>, messages: &std::sync::mpsc::Re
         object.resize(Extent { width, height: 1 }).unwrap();
         let message = messages.try_recv().unwrap();
         let origin = message.origin.service::<ExampleObjectAbi>().unwrap().unwrap();
-        let event = message.downcast::<neocogi_idl_example_contracts::IExtentChangedEventAbi>().unwrap().unwrap().extent().unwrap();
+        let event = message.query::<neocogi_idl_example_contracts::IExtentChangedEventAbi>().unwrap().unwrap().extent().unwrap();
         assert_eq!(event.width, width);
         assert!(origin.upgrade().unwrap().unwrap().as_com_ref().same_object(object.as_com_ref()));
     }

@@ -85,7 +85,7 @@ fn factory_queue_ownership_and_metadata() {
         counter.emit(NcValueRef::new(&event).unwrap()).unwrap();
         drop(event);
         let message = rx.recv().unwrap();
-        let value = message.downcast::<contract::IChangedEventAbi>().unwrap().unwrap();
+        let value = message.query::<contract::IChangedEventAbi>().unwrap().unwrap();
         assert_eq!(value.text().unwrap().to_string().unwrap(), "call-owned");
         assert!(value.enabled().unwrap());
         assert_eq!((value.raw_0().unwrap(), value.budget().unwrap()), (73, 109));
@@ -153,7 +153,7 @@ fn shared_origin_is_weak_in_the_local_inbox() {
     let message = messages.recv().unwrap();
     let origin = message.origin.service::<contract::SharedOriginAbi>().unwrap().unwrap();
     assert!(origin.upgrade().unwrap().is_none());
-    assert!(message.downcast::<contract::ISubmittedEventAbi>().unwrap().is_some());
+    assert!(message.query::<contract::ISubmittedEventAbi>().unwrap().is_some());
 }
 
 #[com_object(interfaces(contract::IChangedEvent), ownership = exclusive)]

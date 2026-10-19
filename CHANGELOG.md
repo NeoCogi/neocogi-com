@@ -1,5 +1,14 @@
 # Changelog
 
+## Borrowed event inspection (pre-release)
+
+`ComBox::query_ref` lends an exact typed interface without weak bookkeeping.
+`EventMessage::query` uses that view and maps only a missing interface to absence;
+borrowed views cannot escape their owner. Explicit `query_weak` continues to
+support independent observation and dropped-owner errors. The common exclusive
+event transfer and weak-origin protocol are unchanged. Generic `ComRef` retention
+is now exclusively fallible; clone an existing `ComPtr` for proven shared ownership.
+
 ## Typed object storage (pre-release)
 
 Consolidate implementation proof in `ComObject` and provider-local typed storage.

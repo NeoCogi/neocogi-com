@@ -1,6 +1,6 @@
 //! A single owned envelope for any concrete IDL event interface.
 use super::{EventOrigin, IEventAbi};
-use crate::{ComBox, ComInterface, NcStatus, NcValueRef, WeakComBox, WeakComPtr, NC_E_NOINTERFACE};
+use crate::{ComBox, ComInterface, ComRef, NcStatus, NcValueRef, WeakComBox, WeakComPtr, NC_E_NOINTERFACE};
 
 /// Captured immutable fact and the producer's non-owning identity.
 /// The event remains readable after origin removal; the consumer decides staleness.
@@ -21,12 +21,12 @@ impl EventMessage {
         }
     }
 
-    /// Queries a concrete event interface; an unsupported type is ordinary absence.
-    /// ABI mismatches and provider failures remain errors, rather than being hidden.
-    /// The projection observes this message's event; it cannot become another owner.
-    /// Its methods return Dropped after the event owner is destroyed.
-    pub fn downcast<T: ComInterface>(&self) -> Result<Option<WeakComBox<T>>, NcStatus> {
-        optional(self.event.query_weak())
+    /// Borrows a concrete event interface while this message retains its owner.
+    /// Missing interfaces produce None; ABI mismatches remain errors. Getter
+    /// failures propagate from the ordinary typed client. No weak token is created.
+    /// For a projection that outlives this envelope, explicitly use event.query_weak.
+    pub fn query<T: ComInterface>(&self) -> Result<Option<ComRef<'_, T>>, NcStatus> {
+        optional(self.event.query_ref())
     }
 }
 

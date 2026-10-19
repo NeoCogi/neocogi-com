@@ -32,7 +32,7 @@ fn main() {
     assert!(reports.is_empty(), "a size query must not publish an uninitialized tail");
     let message = messages.try_recv().unwrap();
     let origin = message.origin.service::<ExampleObjectAbi>().unwrap().unwrap();
-    let changed = message.downcast::<neocogi_idl_example_contracts::IExtentChangedEventAbi>().unwrap().unwrap().extent().unwrap();
+    let changed = message.query::<neocogi_idl_example_contracts::IExtentChangedEventAbi>().unwrap().unwrap().extent().unwrap();
     assert!(origin.same_object(&object.downgrade().unwrap()));
     assert_eq!((changed.width, changed.height), (44, 31));
     // A promotion crosses from the host's weak protocol into plugin-owned storage.
@@ -53,7 +53,7 @@ fn main() {
     restored.query::<ExampleObjectAbi>().unwrap().resize(Extent { width: 45, height: 32 }).unwrap();
     let message = messages.try_recv().unwrap();
     let origin = message.origin.service::<ExampleObjectAbi>().unwrap().unwrap();
-    let changed = message.downcast::<neocogi_idl_example_contracts::IExtentChangedEventAbi>().unwrap().unwrap().extent().unwrap();
+    let changed = message.query::<neocogi_idl_example_contracts::IExtentChangedEventAbi>().unwrap().unwrap().extent().unwrap();
     assert!(origin.same_object(&restored.downgrade().unwrap()));
     assert_eq!((changed.width, changed.height), (45, 32));
     // No queued origin or persistent recipe is allowed to keep either object alive.

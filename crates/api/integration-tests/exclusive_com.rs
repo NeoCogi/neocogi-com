@@ -490,3 +490,26 @@ fn generic_exclusive_storage_preserves_alignment_and_weak_expiration() {
     drop((concrete, unknown));
     assert_eq!(drops.load(Ordering::SeqCst), 1);
 }
+
+/// Borrowed getters/writers execute the real ABI, preserve threading, and share concrete admission.
+#[test]
+fn borrowed_interface_queries_preserve_identity_errors_and_the_call_gate() {
+    let local = Value::into_local_box(value());
+    let observer = local.downgrade();
+    let owner = local.into_interface::<IValueAbi>().unwrap();
+    {
+        let mut projection = owner.query_ref::<IValueAbi>().unwrap();
+        assert_eq!(projection.as_raw(), owner.as_raw());
+        assert_eq!(projection.value(), Ok(42));
+        assert_eq!(projection.set(53), Ok(()));
+        assert_eq!(owner.value(), Ok(53));
+        observer.with(|_| assert_eq!(projection.set(71), Err(NC_E_BUSY))).unwrap();
+        assert!(matches!(projection.try_add_ref(), Err(NC_E_INVALID_ARG)));
+        std::thread::scope(|scope| {
+            scope.spawn(|| assert_eq!(projection.value(), Ok(53))).join().unwrap();
+        });
+    }
+    assert!(matches!(owner.query_ref::<IContainerAbi>(), Err(neocogi_com::NC_E_NOINTERFACE)));
+    assert!(matches!(owner.query_ref::<IValueOtherRevisionAbi>(), Err(neocogi_com::NC_E_ABI_VERSION)));
+    assert_eq!(owner.value(), Ok(53));
+}

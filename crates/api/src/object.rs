@@ -223,7 +223,7 @@ impl Drop for __ComExclusiveCall<'_> {
 
 pub use neocogi_com_core::{__com_add_ref_count, __com_release_ref_count};
 
-/// Implemented by generated COM class storage.
+/// Implementation proof emitted together with typed storage bindings.
 ///
 /// # Safety
 ///

@@ -78,7 +78,7 @@ mod tests {
 
     /// The producer dies immediately; immutable events live until the last queued owner drops.
     #[test]
-    fn queued_events_survive_both_origin_kinds_and_failed_downcasts_return_none() {
+    fn queued_events_survive_both_origin_kinds_and_missing_queries_return_none() {
         let widget_drops = Rc::new(Cell::new(0));
         let event_drops = Rc::new(Cell::new(0));
         let widget = WidgetObject::into_local_box(WidgetObject { drops: widget_drops.clone() });
@@ -107,15 +107,15 @@ mod tests {
         assert!(!first.origin.widget::<WidgetAbi>().unwrap().unwrap().is_alive());
         assert!(first.origin.service::<ServiceAbi>().unwrap().is_none());
         assert!(first.origin.widget::<ServiceAbi>().unwrap().is_none());
-        assert!(first.downcast::<ISubmittedAbi>().unwrap().is_none());
-        assert_eq!(first.downcast::<IChangedAbi>().unwrap().unwrap().value(), Ok(42));
+        assert!(first.query::<ISubmittedAbi>().unwrap().is_none());
+        assert_eq!(first.query::<IChangedAbi>().unwrap().unwrap().value(), Ok(42));
         let second = receive.try_recv().unwrap();
         assert!(second.origin.service::<ServiceAbi>().unwrap().unwrap().upgrade().unwrap().is_none());
         assert!(second.origin.widget::<WidgetAbi>().unwrap().is_none());
-        assert_eq!(second.downcast::<IChangedAbi>().unwrap().unwrap().value(), Ok(42));
+        assert_eq!(second.query::<IChangedAbi>().unwrap().unwrap().value(), Ok(42));
         drop(first);
         assert_eq!(event_drops.get(), 1);
-        let projected = second.downcast::<IChangedAbi>().unwrap().unwrap();
+        let projected = second.event.query_weak::<IChangedAbi>().unwrap();
         drop(second);
         assert_eq!(event_drops.get(), 2);
         assert_eq!(projected.value(), Err(NC_E_DROPPED));
@@ -186,7 +186,7 @@ mod tests {
 
     /// A provider error cannot be mistaken for an unsupported event type.
     #[test]
-    fn downcast_preserves_real_com_errors() {
+    fn query_preserves_real_com_errors() {
         struct WrongRevision;
         // SAFETY: this marker has the same vtable shape; its different signature
         // deliberately requests an unsupported revision without invoking methods.
@@ -208,7 +208,7 @@ mod tests {
             origin: EventOrigin::Service(service.query::<ServiceAbi>().unwrap().downgrade().unwrap().into_unknown()),
             event,
         };
-        assert_eq!(message.downcast::<WrongRevision>().unwrap_err(), NC_E_ABI_VERSION);
+        assert_eq!(message.query::<WrongRevision>().unwrap_err(), NC_E_ABI_VERSION);
     }
 
     /// A rejected transfer preserves the exact event owner and its readable snapshot.

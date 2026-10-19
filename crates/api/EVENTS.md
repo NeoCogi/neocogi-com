@@ -11,15 +11,15 @@ let binding = neocogi_com::events::EventBinding::from_queue(Some(queue.as_com_re
 let counter = factory.create(NcValueRef::new(&binding)?)?;
 // Later, after the producer's call returns:
 let message = inbox.try_recv()?;
-if let Some(event) = message.downcast::<ICounterChangedEventAbi>()? {
+if let Some(event) = message.query::<ICounterChangedEventAbi>()? {
     println!("{}", event.value()?);
 }
 ```
 
-`downcast` returns a weak event projection, leaving the owner in the message.
-An unsupported interface returns `None`; an ABI mismatch remains an error.
-Dropping the event owner expires its projections. The source's weak identity does
-not own the producer, so event facts remain available after widget removal.
+`query` lends a projection borrowed from the message's event owner. It adds no
+weak token. An unsupported interface returns `None`; an ABI mismatch remains an
+error. The source's independently retained weak identity does not own the producer,
+so event facts remain available after widget removal.
 
 The standard channel needs `std` and returns `NC_E_CLOSED` with the event owner
 when disconnected. Independent hosts may implement the single receiver interface
@@ -31,16 +31,17 @@ typed immutable getters with the existing exclusive-owner query:
 
 ```rust,ignore
 let event = snapshots::counter_changed(42)?;
-let changed = event.query_weak::<ICounterChangedEventAbi>()?;
+let changed = event.query_ref::<ICounterChangedEventAbi>()?;
 assert_eq!(changed.value()?, 42);
 ```
 
-`query_weak` returns `NC_E_NOINTERFACE` for a missing projection. Use it when the
-event type is required; use `message.downcast` when filtering a captured message
-by type. The latter maps only that one status to `None`. There is no separate
-free `downcast_event` adapter or native output conversion layer. `EventPort`
-provides explicit Unobserved/Observed/Closed delivery state for shared services.
-Widgets store their common receiver and cached `WeakComBox` origin directly.
+`query_ref` returns `NC_E_NOINTERFACE` for a missing projection; the envelope's
+`message.query` maps only that status to `None` for filtering. An explicit
+`event.query_weak` retains an observation that may outlive the envelope; its
+getters report `NC_E_DROPPED` after owner destruction. There is no separate free
+adapter or native output conversion layer. `EventPort` provides explicit
+Unobserved/Observed/Closed delivery state for shared services. Ordinary widgets
+store their receiver and use the runtime's current owner-scoped origin.
 
 See the [wire and ownership contract](../../../docs/contracts/COM_EVENT_INTERFACES.md),
 [construction and lifetime rules](../../../docs/contracts/CLASS_EVENT_STREAMS.md),

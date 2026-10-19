@@ -3,7 +3,7 @@
 //! Each private allocation owns the common lifetime header, ownership-specific
 //! borrow authority, and a fully initialized Rust value. Static tables carry interfaces.
 //! Metadata, table bindings, and QueryInterface share the same compile-time set.
-//! Generated lifecycle thunks, threading assertions, and construction helpers
+//! Typed storage helpers, threading proofs, and generated constructors
 //! preserve the one allocation and its concrete implementation type.
 //! Weak references can retain storage after value destruction, but no constructor
 //! exposes an allocation before initializing that value.
