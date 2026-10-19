@@ -154,6 +154,14 @@ and producers that must also emit outside widget dispatch.
 Exclusive widgets use `#[com_object(Contract, ownership = exclusive)]`; shared services
 retain the default ownership policy. No later binding operation exists.
 
+Construct the concrete snapshot and move it into `state.post(event)` through
+mutable producer state. Unobserved instances discard the owner immediately.
+Native update algorithms return errors directly, and record committed geometry
+before fallible snapshot/delivery work. For recoverable domain failures, the common
+`events::error(status, message)` reports through the same queue and source stack;
+transport failures still propagate a status. See the
+[failure contract](COM_EVENT_INTERFACES.md#reported-failures).
+
 | Event interface | Producers | Captured data |
 | --- | --- | --- |
 | `IActivatedEvent` | Buttons, list rows, menu commands | Marker; source identity is in the envelope |

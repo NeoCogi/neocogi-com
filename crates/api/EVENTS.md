@@ -43,6 +43,13 @@ adapter or native output conversion layer. `EventPort` provides explicit
 Unobserved/Observed/Closed delivery state for shared services. Ordinary widgets
 store their receiver and use the runtime's current owner-scoped origin.
 
+With `alloc`, `events::error(status, message)` constructs an ordinary exclusive
+`IErrorEvent` with immutable status/message getters. Nonnegative statuses are
+invalid; unknown negative domain codes are preserved. Reports use the same
+receiver and weak-origin envelope, so their data outlives source destruction.
+Reporting is explicit: queue failures return a status and never recursively
+create reports. See [reported failures](../../../docs/contracts/COM_EVENT_INTERFACES.md#reported-failures).
+
 See the [wire and ownership contract](../../../docs/contracts/COM_EVENT_INTERFACES.md),
 [construction and lifetime rules](../../../docs/contracts/CLASS_EVENT_STREAMS.md),
 [executed Button walkthrough](../../ui/api/docs/button_events.rs), and

@@ -4,6 +4,16 @@
 interface IEvent {}
 
 #[version(1)]
+/// An explicitly reported operation failure, independent of its producer's lifetime.
+/// Delivery is ordinary event transport; posting failures remain returned statuses.
+interface IErrorEvent: IEvent {
+    /// Negative NcStatus code, preserving unknown domain-specific errors.
+    fn status(&self) -> Result<i32>;
+    /// Immutable UTF-8 explanation captured when the failure was reported.
+    fn message(&self) -> Result<ComPtr<INcString>>;
+}
+
+#[version(1)]
 /// A captured source identity never owns the producer or borrows its mutable state.
 enum EventOrigin {
     /// Observer of an exclusively owned widget, valid as identity after removal.

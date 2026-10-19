@@ -15,6 +15,11 @@ mod message;
 pub use message::EventMessage;
 
 #[cfg(feature = "alloc")]
+mod error;
+#[cfg(feature = "alloc")]
+pub use error::error;
+
+#[cfg(feature = "alloc")]
 mod stream;
 #[cfg(feature = "alloc")]
 pub use stream::{EventPort};

@@ -330,6 +330,11 @@ captures a weak widget/service origin. The event remains a COM object until its
 handler queries a derived event interface. A rejected post returns the original
 owner. The standard channel reports `NC_E_CLOSED` when disconnected.
 
+The common `IErrorEvent` reports a captured negative status and immutable message
+through that same protocol. With `alloc`, `events::error(status, message)` creates
+its sole owner. Reports remain readable after source destruction; failed delivery
+returns a status and never automatically creates another report.
+
 `EventBinding` describes constructor delivery policy. `#[events(...)]` advertises
 the emitted immutable interfaces and their getter metadata. Factories fix the receiver and weak origin before publication.
 `None` means permanently unobserved. Shared-service `EventPort` state can close
