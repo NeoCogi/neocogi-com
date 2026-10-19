@@ -92,7 +92,7 @@ weak references after final release before printing it.
 
 An allocation probe uses `events::channel()` and checks the typed weak origin and
 `IExtentChangedEvent` getter on each of 10,000 delivered snapshots. It also verifies
-that 10,000 unobserved updates skip snapshot allocation. It measures common receiver
+that 10,000 unobserved updates construct and discard 10,000 snapshots. It measures common receiver
 and channel construction separately from exclusive scalar event delivery and
 standard-channel storage:
 

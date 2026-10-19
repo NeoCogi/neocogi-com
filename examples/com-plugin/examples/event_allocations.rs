@@ -98,7 +98,7 @@ fn main() {
     let silent_delivery = count(|| {
         for width in 0..10_000 { silent.resize(Extent { width, height: 1 }).unwrap(); }
     });
-    assert_eq!(silent_delivery, 0, "unobserved producers skip snapshot construction");
+    assert_eq!(silent_delivery, 10_000, "one directly posted snapshot is discarded per update");
     println!("10,000 unobserved updates: {silent_delivery} allocations");
     let mut inbox = None;
     let binding = count(|| inbox = Some(neocogi_com::events::channel()));

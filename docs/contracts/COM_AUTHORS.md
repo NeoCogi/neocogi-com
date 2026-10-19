@@ -156,7 +156,7 @@ retain the default ownership policy. No later binding operation exists.
 
 | Event interface | Producers | Captured data |
 | --- | --- | --- |
-| `IActivatedEvent` | Buttons, list rows | Label |
+| `IActivatedEvent` | Buttons, list rows, menu commands | Marker; source identity is in the envelope |
 | `ICheckboxChangedEvent` | Checkbox | Checked state |
 | `INumericChangedEvent` | Slider, Number | Finite value |
 | `IScrollbarChangedEvent` | Scrollbar | Nonnegative offset |
@@ -164,8 +164,8 @@ retain the default ownership policy. No later binding operation exists.
 | `IChoiceChangedEvent` | Combo | `ChoiceSelection` |
 | `IFileAcceptedEvent`, `IFileCancelledEvent` | FileDialog | Exact native path or cancellation |
 
-Commit state before constructing and posting the `ComBox` snapshot. Skip allocation
-when unobserved. The receiver captures only the weak origin and event owner;
+Commit state before constructing and posting the `ComBox` snapshot. Posting is
+mutable and consumes a concrete event; an absent destination drops it immediately. The receiver captures only the weak origin and event owner;
 application behavior reads getters after the emitting call releases its mutable gate.
 Built-in constructors validate domains. A consumer must check domain restrictions it
 relies on when reading an independently implemented event.

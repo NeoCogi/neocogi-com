@@ -46,11 +46,8 @@ impl EventPort {
             },
         }
     }
-    /// Allows a producer to avoid allocating snapshots for unobserved services.
-    pub fn is_bound(&self) -> bool {
-        matches!(self.phase, Phase::Observed { .. })
-    }
-    /// Transfers the exclusive event; failed delivery destroys the returned snapshot.
+    /// Transfers the exclusive event, or drops it when no destination was selected.
+    /// Failed delivery destroys the returned snapshot and propagates its status.
     /// Committed producer state is never rolled back by a delivery error.
     pub fn post(&mut self, event: ComBox<IEventAbi>) -> Result<(), NcStatus> {
         match &mut self.phase {

@@ -34,9 +34,8 @@ impl ExampleObject for DynamicExampleObject {
     /// Replaces dimensions through the exclusive generated call gate.
     fn resize(&mut self, extent: Extent) -> Result<(), NcStatus> {
         self.extent = extent;
-        if self.changed.is_bound() {
-            self.changed.post(neocogi_idl_example_contracts::events::extent_changed(extent)?)
-        } else { Ok(()) }
+        let event = neocogi_idl_example_contracts::events::extent_changed(extent)?;
+        self.changed.post(event)
     }
 }
 
