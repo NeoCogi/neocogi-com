@@ -1,8 +1,8 @@
-//! Unix dynamic-library loading through `dlopen`, `dlsym`, and `dlclose`.
+//! Unix dynamic-library loading through `dlopen` and `dlsym`.
 //!
 //! Paths and symbols are converted to NUL-terminated byte strings before the
-//! platform calls. The owned wrapper closes its handle on drop; callers that
-//! cannot safely unload intentionally wrap it in longer-lived storage.
+//! platform calls. Successful handles remain pinned for the process lifetime;
+//! dropping the wrapper does not unload provider code or static descriptors.
 
 use core::ffi::{c_char, c_int, c_void};
 use std::ffi::{CStr, CString};

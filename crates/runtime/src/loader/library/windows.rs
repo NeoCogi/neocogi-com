@@ -1,8 +1,8 @@
 //! Windows dynamic-library loading through the Kernel32 loader APIs.
 //!
 //! Rust paths are encoded as NUL-terminated UTF-16 for `LoadLibraryW`; exported
-//! symbol names use NUL-terminated bytes for `GetProcAddress`. The wrapper owns
-//! one `HMODULE` and releases it through `FreeLibrary` on ordinary drop.
+//! symbol names use NUL-terminated bytes for `GetProcAddress`. Successful module
+//! handles remain process-pinned; dropping the wrapper does not free the module.
 
 use core::ffi::{c_char, c_void};
 use std::ffi::CString;

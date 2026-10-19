@@ -282,7 +282,9 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComBox<T, M> {
 
     /// Lends interface storage for a synchronous ABI argument, without pinning T.
     /// The recipient's generated methods acquire their own checked borrows and
-    /// may return CLOSED. Holding this view cannot delay owner destruction.
+    /// return `NC_E_DROPPED` after owner destruction. An admitted live method can
+    /// return its own error, including `NC_E_CLOSED`. Holding this view cannot
+    /// delay owner destruction.
     pub fn as_com_ref(&self) -> ComRef<'_, T, M> {
         // SAFETY: the weak handle retains the object header and immutable table;
         // every exclusive provider entry validates lifetime before accessing T.
