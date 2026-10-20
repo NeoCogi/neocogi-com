@@ -98,7 +98,6 @@ fn argument(graph: &Generation<'_>, module: &ResolvedModule, parameter: &Paramet
                     syn::parse2(quote! { ::neocogi_com::ComRef<'_, #interface #mode> }).map_err(syntax_error)?,
                     syn::parse_quote!(::neocogi_com::ComRaw<#interface>),
                     AbiArgKind::ComRef {
-                        optional: false,
                         interface_ty: Box::new(interface),
                         mode_ty,
                     },

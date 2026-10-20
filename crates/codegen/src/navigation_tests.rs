@@ -42,14 +42,18 @@ fn typed_interface_and_value_names_keep_their_supplied_identifier_spans() {
             kind: AbiReturnKind::Plain,
         },
     };
-    let args = crate::InterfaceArgs {
-        guid: crate::InterfaceGuid::Assigned(syn::LitStr::new("fa4298eb-5301-4ccb-b132-67bcf98c9102", Span::call_site())),
-        qualified_name: syn::LitStr::new("example.navigation.Counter", Span::call_site()),
-        assigned_signature: Some(syn::LitByteStr::new(&[3; 32], Span::call_site())),
-        runtime_crate: None,
+    let plan = crate::model::InterfacePlan {
+        name: definition.ident,
+        visibility: definition.vis,
+        docs: definition.attrs,
+        id: "fa4298eb-5301-4ccb-b132-67bcf98c9102".parse().unwrap(),
+        qualified_name: "example.navigation.Counter".into(),
+        signature: [3; 32],
         threading: crate::InterfaceThreading::Local,
+        bases: Vec::new(),
+        methods: vec![method],
     };
-    let parts = crate::expand_interface_parts(args, definition, vec![method]).unwrap();
+    let parts = crate::expand_interface_parts(plan).unwrap();
     let abi = parts.abi;
     let provider = parts.provider;
     let expanded = quote! { #abi #provider };

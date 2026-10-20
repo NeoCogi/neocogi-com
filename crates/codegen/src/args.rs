@@ -8,7 +8,7 @@ use quote::ToTokens;
 use neocogi_com_core::NcComInterfaceCompanion as Companion;
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
-use syn::{Ident, LitByteStr, LitInt, LitStr, Path, Result, Token, Type, parenthesized};
+use syn::{Ident, LitStr, Path, Result, Token, parenthesized};
 
 use crate::util::{interface_companion_ident, path_with_last_ident};
 
@@ -35,7 +35,7 @@ pub enum ObjectOwnership {
     Exclusive,
 }
 
-/// Threading spellings accepted by generated interface attributes.
+/// Threading requirement already resolved by the IDL compiler.
 #[derive(Clone, Copy)]
 pub enum InterfaceThreading {
     /// References and calls remain on one thread.
@@ -52,61 +52,9 @@ pub struct ObjectInterface {
     pub vtable_for_path: Path,
 }
 
-/// Parsed options for `#[com_enum]`.
-pub struct EnumArgs {
-    /// Integer representation used for stable variant tags.
-    pub tag: Type,
-    /// Optional path overriding automatic `neocogi-com` crate discovery.
-    pub runtime_crate: Option<Path>,
-    /// Whether to generate format-neutral typed decoding for the Rust enum.
-    pub deserialize: bool,
-    /// Generator-computed declaration signature required by expansion.
-    pub assigned_signature: Option<LitByteStr>,
-}
-
-/// Parsed options for `#[com_struct]`.
-pub struct StructArgs {
-    /// Optional path overriding automatic `neocogi-com` crate discovery.
-    pub runtime_crate: Option<Path>,
-    /// Requested C, packed, or explicitly aligned representation.
-    pub repr: StructReprArgs,
-    /// Check external field layouts through the compiler instead of COM traits.
-    pub c_struct: bool,
-    /// Whether to generate format-neutral typed decoding for the record.
-    pub deserialize: bool,
-    /// Whether omitted named fields retain their `Default` values.
-    pub deserialize_default: bool,
-    /// Generator-computed declaration signature required by expansion.
-    pub assigned_signature: Option<LitByteStr>,
-}
-
-/// Supported physical layout modifiers for generated COM structs.
-pub enum StructReprArgs {
-    /// Ordinary `repr(C)` layout.
-    C,
-    /// Packed layout, optionally with an explicit packing alignment.
-    Packed(Option<LitInt>),
-    /// C layout with an additional explicit alignment.
-    Align(LitInt),
-}
-
-/// Parsed identity and crate-path options for `#[com_interface]`.
-pub struct InterfaceArgs {
-    /// Explicit, derived, or constant-path interface GUID.
-    pub guid: InterfaceGuid,
-    /// Normative qualified name stored in descriptor metadata.
-    pub qualified_name: LitStr,
-    /// Generator-computed declaration signature required by expansion.
-    pub assigned_signature: Option<LitByteStr>,
-    /// Optional path overriding automatic `neocogi-com` crate discovery.
-    pub runtime_crate: Option<Path>,
-    /// Minimum capability promised by this callable contract.
-    pub threading: InterfaceThreading,
-}
-
-/// Source form used to obtain a stable plugin, object, or interface GUID.
+/// Plugin-only identity spelling; callable identity is resolved IDL data.
 #[derive(Clone)]
-pub enum InterfaceGuid {
+pub enum PluginGuid {
     /// Canonical UUID string parsed during macro expansion.
     Explicit(LitStr),
     /// UUID-v5 derivation from the exact qualified-name literal.
@@ -116,249 +64,7 @@ pub enum InterfaceGuid {
     },
     /// Existing constant or expression path supplied by the user.
     Path(Path),
-    /// IDL-assigned UUID whose version is represented separately from its name.
-    Assigned(LitStr),
 }
-impl Parse for EnumArgs {
-    /// Parses the required tag type and optional runtime crate override.
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let mut tag = None;
-        let mut runtime_crate = None;
-        let mut deserialize = false;
-        let mut assigned_signature = None;
-
-        while !input.is_empty() {
-            let keyword: Ident = input.parse()?;
-            if keyword == "tag" {
-                if tag.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate tag = ..."));
-                }
-                input.parse::<Token![=]>()?;
-                tag = Some(input.parse()?);
-            } else if keyword == "neocogi_com" {
-                if runtime_crate.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate neocogi_com = ..."));
-                }
-                input.parse::<Token![=]>()?;
-                runtime_crate = Some(input.parse()?);
-            } else if keyword == "deserialize" {
-                if deserialize {
-                    return Err(syn::Error::new(keyword.span(), "duplicate deserialize"));
-                }
-                deserialize = true;
-            } else if keyword == "assigned_signature" {
-                parse_assigned_signature(input, keyword, &mut assigned_signature)?;
-            } else {
-                return Err(syn::Error::new(
-                    keyword.span(),
-                    "expected tag = integer_type, deserialize, assigned_signature = b\"32 bytes\", or neocogi_com = path",
-                ));
-            }
-
-            if input.is_empty() {
-                break;
-            }
-            input.parse::<Token![,]>()?;
-        }
-
-        Ok(Self {
-            tag: tag.ok_or_else(|| syn::Error::new(input.span(), "expected tag = integer_type"))?,
-            runtime_crate,
-            deserialize,
-            assigned_signature,
-        })
-    }
-}
-
-impl Parse for StructArgs {
-    /// Parses one optional layout modifier and runtime crate override.
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let mut runtime_crate = None;
-        let mut repr = None;
-        let mut c_struct = false;
-        let mut deserialize = false;
-        let mut deserialize_default = false;
-        let mut assigned_signature = None;
-
-        while !input.is_empty() {
-            let keyword: Ident = input.parse()?;
-            if keyword == "neocogi_com" {
-                if runtime_crate.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate neocogi_com = ..."));
-                }
-                input.parse::<Token![=]>()?;
-                runtime_crate = Some(input.parse()?);
-            } else if keyword == "c_struct" {
-                if c_struct {
-                    return Err(syn::Error::new(keyword.span(), "duplicate c_struct"));
-                }
-                c_struct = true;
-            } else if keyword == "deserialize" {
-                if deserialize {
-                    return Err(syn::Error::new(keyword.span(), "duplicate deserialize"));
-                }
-                deserialize = true;
-            } else if keyword == "default" {
-                if deserialize_default {
-                    return Err(syn::Error::new(keyword.span(), "duplicate default"));
-                }
-                deserialize_default = true;
-            } else if keyword == "packed" {
-                if repr.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate COM struct layout option"));
-                }
-
-                let packed = if input.peek(syn::token::Paren) {
-                    let content;
-                    parenthesized!(content in input);
-                    let value = content.parse::<LitInt>()?;
-                    if !content.is_empty() {
-                        return Err(syn::Error::new(content.span(), "expected packed(N)"));
-                    }
-                    Some(value)
-                } else {
-                    None
-                };
-                repr = Some(StructReprArgs::Packed(packed));
-            } else if keyword == "align" {
-                if repr.is_some() {
-                    return Err(syn::Error::new(keyword.span(), "duplicate COM struct layout option"));
-                }
-
-                let content;
-                parenthesized!(content in input);
-                let value = content.parse::<LitInt>()?;
-                if !content.is_empty() {
-                    return Err(syn::Error::new(content.span(), "expected align(N)"));
-                }
-                repr = Some(StructReprArgs::Align(value));
-            } else if keyword == "assigned_signature" {
-                parse_assigned_signature(input, keyword, &mut assigned_signature)?;
-            } else {
-                return Err(syn::Error::new(
-                    keyword.span(),
-                    "expected c_struct, deserialize, default, packed, packed(N), align(N), assigned_signature = b\"32 bytes\", or neocogi_com = path",
-                ));
-            }
-
-            if input.is_empty() {
-                break;
-            }
-            input.parse::<Token![,]>()?;
-        }
-
-        if deserialize_default && !deserialize {
-            return Err(syn::Error::new(input.span(), "default requires deserialize"));
-        }
-
-        Ok(Self {
-            runtime_crate,
-            repr: repr.unwrap_or(StructReprArgs::C),
-            c_struct,
-            deserialize,
-            deserialize_default,
-            assigned_signature,
-        })
-    }
-}
-
-impl Parse for InterfaceArgs {
-    /// Parses interface identity, qualified name, and runtime crate override.
-    fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let mut guid = None;
-        let mut qualified_name = None;
-        let mut runtime_crate = None;
-        let mut assigned_signature = None;
-        let mut threading = None;
-        while !input.is_empty() {
-            if input.peek(LitStr) {
-                if guid.is_some() {
-                    let value: LitStr = input.parse()?;
-                    return Err(syn::Error::new(value.span(), "duplicate interface ID"));
-                }
-                guid = Some(InterfaceGuid::Explicit(input.parse()?));
-            } else {
-                let keyword: Ident = input.parse()?;
-                if keyword == "auto_guid" {
-                    if guid.is_some() {
-                        return Err(syn::Error::new(keyword.span(), "duplicate interface ID"));
-                    }
-                    input.parse::<Token![=]>()?;
-                    let value: LitStr = input.parse()?;
-                    if qualified_name.is_some() {
-                        return Err(syn::Error::new(value.span(), "auto_guid already supplies the qualified name"));
-                    }
-                    qualified_name = Some(value.clone());
-                    guid = Some(InterfaceGuid::AutoGuid { value });
-                } else if keyword == "assigned_guid" {
-                    if guid.is_some() {
-                        return Err(syn::Error::new(keyword.span(), "duplicate interface ID"));
-                    }
-                    input.parse::<Token![=]>()?;
-                    guid = Some(InterfaceGuid::Assigned(input.parse()?));
-                } else if keyword == "name" {
-                    if qualified_name.is_some() {
-                        return Err(syn::Error::new(keyword.span(), "duplicate interface qualified name"));
-                    }
-                    input.parse::<Token![=]>()?;
-                    qualified_name = Some(input.parse()?);
-                } else if keyword == "neocogi_com" {
-                    if runtime_crate.is_some() {
-                        return Err(syn::Error::new(keyword.span(), "duplicate neocogi_com = ..."));
-                    }
-                    input.parse::<Token![=]>()?;
-                    runtime_crate = Some(input.parse()?);
-                } else if keyword == "threading" {
-                    if threading.is_some() {
-                        return Err(syn::Error::new(keyword.span(), "duplicate threading = ..."));
-                    }
-                    input.parse::<Token![=]>()?;
-                    let value: Ident = input.parse()?;
-                    threading = Some(match value.to_string().as_str() {
-                        "local" => InterfaceThreading::Local,
-                        "shared" => InterfaceThreading::Shared,
-                        _ => return Err(syn::Error::new(value.span(), "threading must be `local` or `shared`")),
-                    });
-                } else if keyword == "assigned_signature" {
-                    parse_assigned_signature(input, keyword, &mut assigned_signature)?;
-                } else {
-                    return Err(syn::Error::new(
-                        keyword.span(),
-                        "expected UUID string, name = \"stable.name:v1\", auto_guid = \"stable.name:v1\", assigned_guid = \"UUID\", assigned_signature = b\"32 bytes\", or neocogi_com = path",
-                    ));
-                }
-            }
-
-            if input.is_empty() {
-                break;
-            }
-            input.parse::<Token![,]>()?;
-        }
-
-        Ok(Self {
-            guid: guid.ok_or_else(|| syn::Error::new(input.span(), "expected UUID string or auto_guid = \"stable.name:v1\""))?,
-            qualified_name: qualified_name.ok_or_else(|| syn::Error::new(input.span(), "explicit interface UUIDs require name = \"stable.name:v1\""))?,
-            assigned_signature,
-            runtime_crate,
-            threading: threading.unwrap_or(InterfaceThreading::Local),
-        })
-    }
-}
-
-/// Parses one generator-owned SHA-256 byte array exactly once.
-fn parse_assigned_signature(input: ParseStream<'_>, keyword: Ident, slot: &mut Option<LitByteStr>) -> Result<()> {
-    if slot.is_some() {
-        return Err(syn::Error::new(keyword.span(), "duplicate assigned_signature = ..."));
-    }
-    input.parse::<Token![=]>()?;
-    let signature: LitByteStr = input.parse()?;
-    if signature.value().len() != 32 {
-        return Err(syn::Error::new_spanned(signature, "assigned_signature must contain exactly 32 bytes"));
-    }
-    *slot = Some(signature);
-    Ok(())
-}
-
 impl Parse for ObjectArgs {
     /// Parses a primary interface path or `interfaces(IFoo, module::IBar)` with optional threading.
     ///
@@ -383,7 +89,7 @@ impl Parse for ObjectArgs {
             let starts_named_path = if input.peek(Ident) {
                 let lookahead = input.fork();
                 let candidate: Ident = lookahead.parse()?;
-                !matches!(candidate.to_string().as_str(), "interfaces" | "thread_safe" | "neocogi_com" | "ownership")
+                lookahead.peek(Token![::]) || !matches!(candidate.to_string().as_str(), "interfaces" | "thread_safe" | "neocogi_com" | "ownership")
             } else {
                 false
             };
@@ -533,18 +239,18 @@ fn interface_vtable_for_path(path: &Path) -> Result<Path> {
 }
 
 /// Parses a GUID literal, `auto_guid = ...`, or existing constant path.
-pub fn parse_guid_arg(input: ParseStream<'_>, name: &str) -> Result<InterfaceGuid> {
+pub fn parse_guid_arg(input: ParseStream<'_>, name: &str) -> Result<PluginGuid> {
     let guid = if input.peek(LitStr) {
-        InterfaceGuid::Explicit(input.parse()?)
+        PluginGuid::Explicit(input.parse()?)
     } else {
         let fork = input.fork();
         let keyword: Ident = fork.parse()?;
         if keyword == "auto_guid" && fork.peek(Token![=]) {
             input.parse::<Ident>()?;
             input.parse::<Token![=]>()?;
-            InterfaceGuid::AutoGuid { value: input.parse()? }
+            PluginGuid::AutoGuid { value: input.parse()? }
         } else {
-            InterfaceGuid::Path(Path::parse_mod_style(input)?)
+            PluginGuid::Path(Path::parse_mod_style(input)?)
         }
     };
 

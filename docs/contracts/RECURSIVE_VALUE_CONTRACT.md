@@ -72,15 +72,14 @@ obsolete safe Rust wrappers are removed.
 
 ## Synchronous borrowed parameters
 
-All borrowed COM inputs use the anonymous `'_` lifetime in Rust interface
-**declarations**. IDL generates this form; handwritten `#[com_interface]`
-declarations must follow the same rule. The macro rejects named lifetimes,
-including `'static`, and requires the wrapper's exact generic argument shape.
+IDL emits anonymous call-scoped lifetimes for borrowed COM inputs in generated
+Rust declarations. A producer guard may borrow longer-lived native storage, but
+the receiving method cannot retain its temporary wire or backing storage.
 
 | Parameter | What the receiver borrows | Retention beyond the call |
 | --- | --- | --- |
 | `NcValueRef<'_, T>` | A checked value's raw record and producer-owned backing storage | Acquire `T` with `to_owned()` before returning. |
-| `ComRef<'_, I>` or `Option<ComRef<'_, I>>` | A live interface reference | Acquire shared ownership with `try_add_ref()?`; an exclusive borrow returns `NC_E_INVALID_ARG`. A threading marker does not grant ownership. |
+| `ComRef<'_, I>` | A live interface reference | Acquire shared ownership with `try_add_ref()?`; an exclusive borrow returns `NC_E_INVALID_ARG`. A threading marker does not grant ownership. |
 | `NcCopyFromBufferOffset<'_, T>` | Readable elements for this call | Copy needed contents into owned application storage during the call. |
 | `NcOutputWriter<'_, T>` | Fresh copied output on the provider | Encode directly into raw slots; never read old contents or retain the writer. Clients supply `NcOutput<'_, T>`. |
 
@@ -336,41 +335,32 @@ converted wire is self-contained. Generated wrappers encode before calling the
 vtable; generated thunks decode before invoking application methods. A successful
 foreign result is recursively validated before the wrapper returns it.
 
-Readable and writable buffers contain raw element representations, not native
-application elements. Both directions validate through the same converter.
-Writable buffers are initialized in/out storage: the caller provides initialized
-raw values, the method receives acquired application values, and successful
-results are converted back. Restricted elements require bounded temporary storage;
-each side reserves its native and wire vectors before implementation dispatch.
-Completion converts into reserved capacity, validates every converted output
-(including a copied result), and only then publishes converted buffers. A later
-invalid converted output cannot publish an earlier converted destination. This
-does not roll back application mutations or direct in-place buffer writes.
+Readable buffers contain checked raw element representations. Identity input
+borrowing requires an explicit recursive layout/validity proof; restricted bool
+and payload-enum elements use bounded conversion storage. A retained native
+`Vec` must still keep its source borrowed while its identity wire view exists.
 
-Unrestricted numeric buffers and recursively wire-identical records can instead
-be borrowed directly. The unsafe codec must explicitly prove identical size,
-alignment, every field offset, and absence of content validation or ownership.
-Booleans and enums cannot take this path. Direct borrowing allocates nothing and
-does not walk elements, so conversion allocation/work limits do not restrict its
-length; pointer/count shape checks and the called operation's limits still apply.
-Direct writable buffers retain ordinary in-place semantics even on method failure.
-Without `alloc`, direct buffers work and converted buffers report allocation failure.
+Outputs use fresh write-only slots and a separate initialized-prefix count.
+The caller never supplies old destination contents as input. Both identity
+`push` and bulk completion use the same already-admitted direct copy. Converted
+outputs validate every result before grouped publication. Successful owned COM
+results are acquired before fallible separate-buffer decoding, so failures
+cannot leak the transferred owner. See the authoritative
+[directional buffer contract](COM_OUTPUT_BUFFERS.md) and
+[prepared completion contract](COM_OUTPUT_COMPLETION.md).
 
-Methods accepting `ComBox` inputs must admit the maximum possible copied result
-and converted buffer costs before ownership acceptance. Their output codecs need
-finite allocation-free `MAX_COST`; maximum count, depth, and buffer bytes must
-fit on both caller and provider. Known excessive costs reject before dispatch
-with original owners returned. This ensures valid completion cannot discover an
-allocation or budget failure after those owners have been consumed. Non-consuming
-methods retain actual-output accounting. See
-[prepared output completion](COM_OUTPUT_COMPLETION.md) for the full contract.
+Shared recursive conversion charges actual selected fields against the enclosing
+budget. Isolated consuming output admission instead reserves a finite declared
+maximum before any owner is accepted. These have different responsibilities and
+share no hypothetical sibling prepayment. Ordinary non-consuming results retain
+actual-output accounting. Real rejection restores every original owner; a
+provider violating the admitted completion promise cannot manufacture an error
+that claims ownership has been restored.
 
-Successful owned COM results are acquired before fallible output-buffer decoding,
-so a malformed separate buffer cannot leak the returned reference.
-
-A manually adapted external C record must also provide a checked codec. Its
-`repr(C)` layout does not prove that restricted fields contain valid values.
-Core ABI generation 8 identifies this change to copied slots and buffers.
+External native adapters must explicitly implement the generated contract's
+checked wire semantics. Native C layout alone does not prove restricted field
+validity. IDL owns no native packing, alignment, or external-field mode. See the
+[current ABI entrypoint](../../crates/com/docs/README.md) for binary versions.
 
 ## Current IDL spelling and supported use sites
 
@@ -407,34 +397,24 @@ Records no longer manufacture receiver interfaces, `post_to`, or event traits.
 Declare the delivery interface explicitly, or use the common `IEventReceiver` through the
 event library. Widget commands remain ordinary methods on their interfaces.
 The old `ComMessage`/`NcMessage` implementation and per-message generator are
-removed. IDL canonical ABI encoding revision 4 fingerprints the new lowering.
+removed. The owning [IDL reference](IDL_MODULES.md#contract-changes-and-versions)
+tracks the current canonical encoding independently of the core ABI.
 
 ## COM inspection graph
 
 `IdlValueType` describes scalar, text, named, object, sequence, and array fields
 as structured data. Optional fields reference an ordinary named enum definition. Each enum alternative records its exact tag. An
 interface's `IDL_INTERFACE.values` contains every value definition reached from
-its methods, required projections, and stream argument. Object references remain
+its methods, required projections, and declared event getter payloads. Object references remain
 capabilities; inspecting their additional methods is a separate interface query.
 
-Descriptor schema 8 copies this finite graph through
-`IDesignWidgetCatalog::describe`. The stream identifies its event definition by
-canonical name. It does not embed a second copy or require the designer to link
-the plugin's Rust crate. Transitive definitions are emitted as descriptor data,
-so a host crate does not acquire extra Rust dependencies merely to describe them.
-
-```mermaid
-flowchart TD
-    C[Class methods and event stream] --> D[Named definitions]
-    D --> T[Tree record]
-    T --> B[Scalar bool]
-    T --> S[Sequence]
-    S --> N[Named reference: Tree]
-    N -. identity lookup .-> T
-    D --> W[Versioned COM catalog bytes]
-    W --> V[Validate complete finite graph]
-    V --> H[Unlinked designer and generated form signatures]
-```
+The versioned `DesignWidgetManifest` transports this graph together with concrete
+event interfaces and getter descriptions. Events are identified by canonical
+interface identity and payload metadata; there is no typed-stream argument or
+second embedded definition. The receiving designer need not link the provider's
+Rust crate. See [event metadata](IDL_EVENT_METADATA.md) for the authoritative
+manifest revision and [inspection](../../crates/com/docs/runtime-abi-v1.md) for the
+read-only COM graph boundary.
 
 The designer validates unique definitions, known scalar forms, complete named
 references, unique enum cases/tags, bounded field expressions, and finite inline

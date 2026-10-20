@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use quote::{ToTokens, format_ident, quote};
 use syn::{Generics, Ident, LitStr, Path, Result};
 
-use crate::args::InterfaceGuid;
+use crate::args::PluginGuid;
 
 /// Creates a private local binding with macro-definition hygiene.
 ///
@@ -136,13 +136,13 @@ pub(crate) fn runtime_crate_path(override_path: Option<&Path>) -> Path {
 }
 
 /// Validates a qualified name and emits its matching explicit, derived, or path GUID.
-pub(crate) fn stable_guid(attr: InterfaceGuid, qualified_name: &syn::LitStr, nc: &Path) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn stable_guid(attr: PluginGuid, qualified_name: &syn::LitStr, nc: &Path) -> Result<proc_macro2::TokenStream> {
     let name = qualified_name.value();
     neocogi_com_core::validate_qualified_name(&name)
         .map_err(|error| syn::Error::new(qualified_name.span(), format!("invalid descriptor qualified name: {error}")))?;
     let expected = neocogi_com_core::guid_from_qualified_name(&name);
     match attr {
-        InterfaceGuid::Explicit(value) => {
+        PluginGuid::Explicit(value) => {
             let actual = value
                 .value()
                 .parse::<neocogi_com_core::NcGuid>()
@@ -155,13 +155,13 @@ pub(crate) fn stable_guid(attr: InterfaceGuid, qualified_name: &syn::LitStr, nc:
             }
             guid_tokens(actual, nc)
         }
-        InterfaceGuid::AutoGuid { value } => {
+        PluginGuid::AutoGuid { value } => {
             if value.value() != name {
                 return Err(syn::Error::new(value.span(), "auto_guid must exactly match the descriptor qualified name"));
             }
             Ok(quote! { #nc::guid_from_qualified_name(#qualified_name) })
         }
-        InterfaceGuid::Path(path) => {
+        PluginGuid::Path(path) => {
             let mut names = PrivateNames::new(quote! { #path #nc });
             let provided = names.fresh("__NC_PROVIDED_GUID");
             let derived = names.fresh("__NC_DERIVED_GUID");
@@ -185,16 +185,6 @@ pub(crate) fn stable_guid(attr: InterfaceGuid, qualified_name: &syn::LitStr, nc:
                 #provided
             }})
         }
-        InterfaceGuid::Assigned(value) => {
-            let actual = value
-                .value()
-                .parse::<neocogi_com_core::NcGuid>()
-                .map_err(|err| syn::Error::new(value.span(), err))?;
-            if actual.is_nil() {
-                return Err(syn::Error::new(value.span(), "a callable interface ID must not be nil"));
-            }
-            guid_tokens(actual, nc)
-        }
     }
 }
 
@@ -209,7 +199,7 @@ pub(crate) fn checked_u32_len(len: usize, span: proc_macro2::Span, description: 
 }
 
 /// Emits a field-wise GUID literal independent of host memory byte order.
-fn guid_tokens(value: neocogi_com_core::NcGuid, nc: &Path) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn guid_tokens(value: neocogi_com_core::NcGuid, nc: &Path) -> Result<proc_macro2::TokenStream> {
     let (data1, data2, data3, data4) = value.fields();
     let bytes = data4.iter().map(|byte| quote! { #byte });
     Ok(quote! {
@@ -220,21 +210,6 @@ fn guid_tokens(value: neocogi_com_core::NcGuid, nc: &Path) -> Result<proc_macro2
             data4: [#(#bytes),*],
         }
     })
-}
-
-/// Collects successful values while combining every `syn::Error` encountered.
-pub(crate) fn collect_syn_results<T>(values: impl IntoIterator<Item = Result<T>>) -> Result<Vec<T>> {
-    let mut items = Vec::new();
-    let mut errors = None;
-
-    for value in values {
-        match value {
-            Ok(item) => items.push(item),
-            Err(err) => push_error(&mut errors, err),
-        }
-    }
-
-    if let Some(errors) = errors { Err(errors) } else { Ok(items) }
 }
 
 /// Inserts or combines one error into an optional aggregate diagnostic.

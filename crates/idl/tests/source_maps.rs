@@ -235,7 +235,10 @@ fn cargo_maps_resolve_transitive_templates_and_bundled_sources() {
     let output = Command::new("cargo")
         .args(["build", "--offline", "--message-format=json", "-p", "maps-host", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", root.join("target/source-map-proof"))
+        .env(
+            "CARGO_TARGET_DIR",
+            std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()),
+        )
         .output()
         .unwrap();
     assert!(

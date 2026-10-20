@@ -28,7 +28,8 @@ fn array_and_slice_shorthands_have_identical_fingerprints() {
 /// Closing a borrowed generic referent selects the ordinary slice calling convention.
 #[test]
 fn generic_slice_referents_normalize_after_substitution() {
-    let resolved = graph("#[version(1)] interface IInput<T> { fn read(&self, values: &T) -> Result<()>; } #[version(1)] interface Reader: IInput<Slice<u32>> {}");
+    let resolved =
+        graph("#[version(1)] interface IInput<T> { fn read(&self, values: &T) -> Result<()>; } #[version(1)] interface Reader: IInput<Slice<u32>> {}");
     let module = &resolved.modules()[0];
     let instance = module.source.declarations.iter().find(|value| value.specialization.is_some()).unwrap();
     let DeclarationKind::Interface(interface) = &instance.kind else {
@@ -107,7 +108,10 @@ fn copied_arrays_compile_and_cross_real_com_thunks() {
     let result = std::process::Command::new("cargo")
         .args(["test", "--offline", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", root.join("target/message-proof"))
+        .env(
+            "CARGO_TARGET_DIR",
+            std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()),
+        )
         .output()
         .unwrap();
     assert!(

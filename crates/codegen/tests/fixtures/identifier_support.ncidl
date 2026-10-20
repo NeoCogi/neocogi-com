@@ -1,0 +1,3 @@
+#[version(1)]
+/// Generator support never resolves through ambient Rust type aliases.
+interface IShadow { fn echo(&self, value: u32, other: bool) -> Result<u32>; }

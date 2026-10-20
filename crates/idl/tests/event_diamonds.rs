@@ -91,7 +91,10 @@ fn shared_plain_and_generic_ancestors_publish_getters_once() {
     let output = Command::new("cargo")
         .args(["test", "--offline", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", root.join("target/message-proof"))
+        .env(
+            "CARGO_TARGET_DIR",
+            std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()),
+        )
         .output()
         .unwrap();
     assert!(

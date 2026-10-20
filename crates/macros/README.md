@@ -4,9 +4,9 @@
 `neocogi-com`. Application and plugin crates should use those re-exports rather
 than depend on this implementation crate directly.
 
-Public contracts should normally be written in `.ncidl` files. The generator
-uses the common `com_interface` macro internally; implementation crates use
-`com_object` and `plugin`.
+Public contracts are written in `.ncidl` files. The compiler passes bound typed
+plans to `neocogi-com-codegen`, which emits their complete Rust ABI. This crate
+exports only `com_object`, `plugin`, `ComSerialize`, and `ComDeserialize`.
 
 ## Object implementations
 
@@ -39,7 +39,7 @@ guard performs a query, allocation, or reference-count operation. A local handle
 cannot be recovered safely from an arbitrary foreign interface.
 The local owner's `downgrade()` returns `WeakLocalCom<Implementation>`; promoting
 it recovers a typed strong local owner while the allocation remains alive. This
-works for handwritten and IDL-generated interface contracts and introduces
+works for generated interface contracts and introduces
 no additional allocation or borrow gate. IDL defines interfaces and values;
 Rust object implementations and plugin acquisition own construction.
 Ordinary unit objects have no generated zero-argument constructor.
@@ -83,48 +83,28 @@ feature disabled and register the accessor directly. Define one root per plugin
 crate. Provider methods perform parameterized construction with ordinary typed
 arguments. No bootstrap traits, object role markers or constructor tables exist.
 
-## Interface and value lowering
+## Contract and persistence ownership
 
-`#[com_interface]` generates an interface marker and C-compatible vtable, one
-typed `IFooClient` method view, exact ABI signature metadata, method
-descriptions, and the audited `unsafe impl ComInterface`. IDL-generated
-bindings use the same machinery. Both `ComPtr<IFooAbi>` and
-`ComRef<'_, IFooAbi>` lend the client view, and derived clients dereference to
-their base clients. The macro therefore emits each safe Rust-to-ABI lowering
-once and requires no interface-specific extension-trait import at call sites.
+IDL owns interface identity, signatures, required projections and copied/owning
+value classification. The typed backend generates explicit C wires, one borrowed
+client view and checked provider thunks without parsing Rust wrappers to recover
+that information. Native records/enums have ordinary Rust application layout;
+associated `ComValue::Wire` and `Storage` are their raw integration boundary.
+The recursive identity-borrow proof checks size, alignment, field offsets and
+content validity. There are no COM packing/alignment/external-field modes.
+External native adapters explicitly convert to a generated contract's wire.
 
-Supported methods return `Result<T, NcStatus>`:
+`ComSerialize` and `ComDeserialize` derive standalone positional NCB codecs.
+Fields follow declaration order; variants follow ordinals. No field labels or
+type names are serialized. `#[com_deserialize(default)]` retains trait defaults
+only for absent trailing fields; malformed present data remains an error.
+Packed native records cannot derive field-borrowing serialization: implement an
+explicit codec that copies chosen fields into aligned local values instead.
+IDL emits the same codec machinery directly for eligible declaration graphs.
 
-- plain values provide `AbiType` metadata and checked `ComValue` wire conversion;
-- copied positions require `ComInlineValue`; native application layout stays local;
-- `Result<()>` lowers to status only;
-- a non-void return uses an output pointer written only on success;
-- `ComRef<'_, IFooAbi>` is a borrowed interface parameter;
-- `ComPtr<IFooAbi>` is an owned interface return;
-- `WeakComPtr<IFooAbi>` returns one shared weak header, checked without promotion;
-- bounded copy wrappers lower slices without transferring allocation ownership.
-
-`#[com_struct]` defines fixed C-layout records. `#[com_enum]` defines explicit
-tagged payload layouts. `com_int_enum!` defines a transparent integer newtype
-that preserves unknown values. `ComDeserialize` and `ComSerialize` derive typed
-local value decoding/encoding, separate from runtime object acquisition.
-Record labels emitted by `ComSerialize` are unqualified declaration-name
-literals; named enum payload records use their enclosing enum's name. They do
-not identify types globally. The binary encoder ignores these labels and writes
-fields positionally; generating them requires no `core::any` lookup.
-
-`com_value` fields may contain `WeakComPtr<I>` through the recursive borrowed
-value codec. Acquisition checks shared ownership and exact interface identity
-before retaining weak bookkeeping. These fields are neither copied inline values
-nor persistent object reconstruction. Use IDL for their public declarations.
-
-`com_interface` accepts the generator-owned `threading = local|shared`.
-The same expansion owns required sibling projections and one physical base.
-`ComInterface` owns identity and threading for every closed interface.
-
-Canonical typed ABI signatures are always represented by SHA-256 digests.
-Interface identity is the generated IID plus that signature; human-readable
-names are diagnostic metadata.
+Canonical typed ABI signatures are SHA-256 digests computed by IDL. Callable
+identity is the generated IID plus that signature; names serve inspection.
+Rust implementation macros never choose an interface revision or encode a schema.
 
 Generated value codecs and method adapters keep authored members/parameters
 separate from positional private bindings, qualify their support types/macros,

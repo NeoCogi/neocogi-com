@@ -92,7 +92,7 @@ unsafe impl Sync for IUnknownVTable {}
 
 /// Metadata and raw-pair contract implemented by every COM ABI interface type.
 ///
-/// Prefer defining interfaces with `#[com_interface]` from the `neocogi-com` crate.
+/// Define callable contracts in `.ncidl`; the compiler emits this implementation.
 /// The macro generates this implementation together with the interface marker,
 /// vtable, identity, and ABI signature. The trait remains public and unsealed for
 /// low-level foreign-interface adapters, but handwritten implementations are an

@@ -280,10 +280,9 @@ with `EIDL073`. This also applies to unused templates. Only wholly fieldless
 integer enums may assign numeric values, including sparse and signed values.
 `enum Choice<T> { Empty, Value(T) }` is valid;
 `enum Choice<T> { Empty = 0, Value(T) }` is not. These tags are defined by IDL,
-independently of Rust's native enum representation or payload size. The copied
-`com_enum` and owning `com_value` Rust macros enforce the same rule: neither
-`#[com_tag(...)]` nor explicit Rust discriminants may override a payload tag.
-IDL emits ordinary variants; both macros assign the same zero-based ordinals.
+independently of Rust's native enum representation or payload size. The typed
+backend emits the already-resolved ordinals directly; no Rust declaration
+frontend can override them.
 
 A bit enum requires an explicit `u8`, `u16`, or `u32` representation and an
 explicit nonnegative value for every flag. It generates a transparent value
@@ -519,11 +518,15 @@ sequence still changes the fingerprint.
 - Fixed-width integers, `f32`, `f64`, ABI-defined `bool`, and `Status` are
   value types. `Status` preserves a raw `NcStatus`, including extension codes;
   method failures continue to use the implicit error side of `Result<T>`.
-- A bare struct or enum parameter is copied by value.
+- A bare record or enum parameter is copied only when its complete recursive
+  shape has self-contained wires. Owning named values use `&Value`; providers
+  receive `NcValueRef` and explicitly acquire data to retain it.
 - `&Interface` is a borrowed COM reference valid only for the call.
 - Owned object results require an explicit ownership wrapper such as
   `ComPtr<Interface>` or `ComBox<Interface>`; a bare interface is not a value.
-- `&str` is a borrowed UTF-8 view; `String` is an owned immutable COM string.
+- `&str` lowers to a readable byte view for text. Providers validate UTF-8 when
+  acquiring text. Stored `String` is owned UTF-8 data; an owned COM string object
+  uses the explicit `ComPtr<INcString>` capability.
 - `&[T]` is a borrowed contiguous input slice whose element type is ABI-safe.
 - `&mut [T]` is fresh caller-owned output storage filled synchronously by the callee;
   old contents are never input. Providers receive `NcOutputWriter`, clients pass

@@ -51,7 +51,12 @@ fn declaration_versions_and_names_remain_authoritative() {
     assert_ne!(left.id, right.id);
     assert_ne!(left.abi_signature, right.abi_signature);
     let duplicate = "#[version(1)] enum State { Empty } #[version(2)] enum State { Empty }";
-    assert!(parse_module(Path::new("proof/fingerprints.ncidl"), duplicate).unwrap_err().to_string().contains("EIDL010"));
+    assert!(
+        parse_module(Path::new("proof/fingerprints.ncidl"), duplicate)
+            .unwrap_err()
+            .to_string()
+            .contains("EIDL010")
+    );
 }
 
 /// Resolved free identities and parameter ordinals ignore imports, source parts and binder spelling.
@@ -66,5 +71,10 @@ fn template_free_names_use_resolved_identity() {
 #[test]
 fn canonical_module_encoding_has_stable_golden_digest() {
     let source = "#[version(2)] enum State: u8 { Empty = 0, Ready = 7 } #[version(1)] enum Data<T> { Empty, Value(T) } #[version(1)] struct Snapshot { state: State, value: Data<bool> }";
-    assert_eq!(fingerprint(source), [15, 116, 237, 142, 79, 247, 114, 82, 185, 165, 29, 189, 168, 4, 129, 234, 68, 6, 130, 69, 225, 87, 185, 220, 234, 232, 133, 164, 75, 49, 177, 114]);
+    assert_eq!(
+        fingerprint(source),
+        [
+            15, 116, 237, 142, 79, 247, 114, 82, 185, 165, 29, 189, 168, 4, 129, 234, 68, 6, 130, 69, 225, 87, 185, 220, 234, 232, 133, 164, 75, 49, 177, 114
+        ]
+    );
 }

@@ -107,7 +107,10 @@ impl<T: ComObject> LocalCom<T> {
     /// This uses the same weak protocol as interface pointers and performs no
     /// value borrow, so it is also valid while a local or COM call is active.
     pub fn downgrade(&self) -> Result<WeakLocalCom<T>, NcStatus> {
-        Ok(WeakLocalCom { observer: self.owner.downgrade()?, implementation: PhantomData })
+        Ok(WeakLocalCom {
+            observer: self.owner.downgrade()?,
+            implementation: PhantomData,
+        })
     }
 
     /// Borrows the concrete implementation while excluding mutable COM calls.
@@ -161,7 +164,10 @@ impl<T: ComObject> WeakLocalCom<T> {
 impl<T: ComObject> Clone for WeakLocalCom<T> {
     /// Retains the same control block without promoting or inspecting the value.
     fn clone(&self) -> Self {
-        Self { observer: self.observer.clone(), implementation: PhantomData }
+        Self {
+            observer: self.observer.clone(),
+            implementation: PhantomData,
+        }
     }
 }
 
@@ -207,7 +213,10 @@ impl<T: ComObject> LocalBox<T> {
     }
     /// Creates a concrete observer before ownership moves into a container.
     pub fn downgrade(&self) -> WeakLocalBox<T> {
-        WeakLocalBox { observer: self.owner.downgrade(), implementation: PhantomData }
+        WeakLocalBox {
+            observer: self.owner.downgrade(),
+            implementation: PhantomData,
+        }
     }
     /// Selects a cached non-owning interface without duplicating the unique owner.
     pub fn query<I: ComInterface>(&self) -> Result<crate::WeakComBox<I, T::Threading>, NcStatus> {
@@ -218,7 +227,9 @@ impl<T: ComObject> LocalBox<T> {
     /// Transfers the unique allocation, returning the unchanged local owner if
     /// the requested interface is absent. Rejection never destroys its value.
     pub fn into_interface<I: ComInterface>(self) -> Result<crate::ComBox<I, T::Threading>, (NcStatus, Self)> {
-        self.owner.query().map_err(|(status, owner)| (status, Self { owner, implementation: PhantomData }))
+        self.owner
+            .query()
+            .map_err(|(status, owner)| (status, Self { owner, implementation: PhantomData }))
     }
     /// Observes concrete state under the provider's reader gate.
     pub fn try_borrow(&self) -> Result<__ComSharedLease<'_, T, T::SharedGuard<'_>>, NcStatus> {
@@ -235,7 +246,9 @@ impl<T: ComObject> LocalBox<T> {
 }
 impl<T: ComObject> WeakLocalBox<T> {
     /// Selects a cached interface while retaining only the existing control block.
-    pub fn query<I: ComInterface>(&self) -> Result<crate::WeakComBox<I, T::Threading>, NcStatus> { self.observer.query() }
+    pub fn query<I: ComInterface>(&self) -> Result<crate::WeakComBox<I, T::Threading>, NcStatus> {
+        self.observer.query()
+    }
     /// Observes provider-local state within one non-escaping borrow. The closure
     /// must not destroy this object's owner or wait for its destruction.
     pub fn with<R>(&self, read: impl FnOnce(&T) -> R) -> Result<R, NcStatus> {
@@ -255,5 +268,10 @@ impl<T: ComObject> WeakLocalBox<T> {
 }
 impl<T: ComObject> Clone for WeakLocalBox<T> {
     /// Copies the concrete observer proof without creating another owner.
-    fn clone(&self) -> Self { Self { observer: self.observer.clone(), implementation: PhantomData } }
+    fn clone(&self) -> Self {
+        Self {
+            observer: self.observer.clone(),
+            implementation: PhantomData,
+        }
+    }
 }

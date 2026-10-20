@@ -110,7 +110,10 @@ fn optional_copied_values_and_borrowed_owned_values_cross_com() {
     let result = Command::new("cargo")
         .args(["test", "--offline", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", root.join("target/message-proof"))
+        .env(
+            "CARGO_TARGET_DIR",
+            std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()),
+        )
         .output()
         .unwrap();
     assert!(

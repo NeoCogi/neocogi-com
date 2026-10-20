@@ -7,8 +7,8 @@
 //! constructor frame is present in this ABI.
 
 use crate::{
-    ComInterface, ComPtr, IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode, NcInterfaceId, NcGuid,
-    NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name, validate_version_text,
+    ComInterface, ComPtr, IUnknown, NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_POINTER, NC_OK, NcAbiThreadingMode, NcInterfaceId,
+    NcGuid, NcPluginDependencyDescriptor, NcStaticUtf8, NcStatus, guid_from_qualified_name, validate_qualified_name, validate_version_text,
 };
 
 /// Pre-release plugin descriptor ABI with an exact root factory and dependencies.
@@ -54,8 +54,7 @@ pub type PluginRootAcquire<T> = fn() -> Result<ComPtr<T, <T as ComInterface>::Th
 ///
 /// `out` must be null or aligned and writable for one ComRaw record. A usable
 /// slot is cleared before the implementation's fallible acquisition code runs.
-pub unsafe fn write_plugin_root<T: ComInterface>(out: *mut crate::ComRaw<IUnknown>, acquire: PluginRootAcquire<T>) -> NcStatus
-{
+pub unsafe fn write_plugin_root<T: ComInterface>(out: *mut crate::ComRaw<IUnknown>, acquire: PluginRootAcquire<T>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }

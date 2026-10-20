@@ -11,7 +11,11 @@ fn contract_owner_names_round_trip_without_normalization_collisions() {
     for module in names {
         let key = contract_links_name(module);
         assert!(keys.insert(key.to_ascii_uppercase()), "distinct DEP_* owner for {module}");
-        let bytes = key.strip_prefix("nc_contract_").unwrap().as_bytes().chunks_exact(2)
+        let bytes = key
+            .strip_prefix("nc_contract_")
+            .unwrap()
+            .as_bytes()
+            .chunks_exact(2)
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(String::from_utf8(bytes).unwrap(), module);
@@ -32,7 +36,11 @@ fn colliding_display_names_build_and_call_together() {
         ("lower", "case.same", "Lower", 8),
         ("host", "proof.host", "Host", 0),
     ];
-    fs::write(project.path().join("Cargo.toml"), "[workspace]\nresolver='2'\nmembers=['left','right','upper','lower','host']\n").unwrap();
+    fs::write(
+        project.path().join("Cargo.toml"),
+        "[workspace]\nresolver='2'\nmembers=['left','right','upper','lower','host']\n",
+    )
+    .unwrap();
     for (package, module, name, _) in packages {
         let path = project.path().join(package);
         fs::create_dir_all(path.join("src")).unwrap();
@@ -41,7 +49,8 @@ fn colliding_display_names_build_and_call_together() {
         fs::create_dir_all(source.parent().unwrap()).unwrap();
         let mut manifest = format!(
             "[package]\nname='{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            contract_links_name(module), root.join("crates/com/api"),
+            contract_links_name(module),
+            root.join("crates/com/api"),
         );
         if package == "host" {
             for (dependency, _, _, _) in &packages[..4] {
@@ -50,12 +59,15 @@ fn colliding_display_names_build_and_call_together() {
         }
         manifest.push_str(&format!("[build-dependencies]\nneocogi-idl={{path={:?}}}\n", root.join("crates/com/idl")));
         fs::write(path.join("Cargo.toml"), manifest).unwrap();
-        fs::write(path.join("build.rs"), format!(
-            "fn main() {{ neocogi_idl::cargo::Module::new(\"idl\", {source_path:?}).rust_path({package:?}).build().unwrap(); }}\n"
-        )).unwrap();
+        fs::write(
+            path.join("build.rs"),
+            format!("fn main() {{ neocogi_idl::cargo::Module::new(\"idl\", {source_path:?}).rust_path({package:?}).build().unwrap(); }}\n"),
+        )
+        .unwrap();
         let mut library = format!("include!(concat!(env!(\"OUT_DIR\"), \"/{}.include.rs\"));\n", module.replace('.', "_"));
         let idl = if package == "host" {
-            library.push_str(r#"
+            library.push_str(
+                r#"
 use neocogi_com::{com_object, NcStatus};
 #[com_object(Host)]
 struct Probe;
@@ -75,7 +87,8 @@ fn selected_contracts_execute() {
     assert!(entry.contains("IDL module `proof.host`"));
     assert!(entry.contains("Demangle:"));
 }
-"#);
+"#,
+            );
             let mut text = String::new();
             for (_, dependency, imported, _) in &packages[..4] {
                 text.push_str(&format!("extern {dependency};\nuse {dependency}::{imported};\n"));
@@ -88,10 +101,21 @@ fn selected_contracts_execute() {
         fs::write(source, idl).unwrap();
         fs::write(path.join("src/lib.rs"), library).unwrap();
     }
-    let output = Command::new("cargo").args(["test", "--offline", "-p", "host", "--manifest-path"])
+    let output = Command::new("cargo")
+        .args(["test", "--offline", "-p", "host", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", root.join("target/cargo-contract-proof")).output().unwrap();
-    assert!(output.status.success(), "{}\n{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+        .env(
+            "CARGO_TARGET_DIR",
+            std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()),
+        )
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(String::from_utf8_lossy(&output.stdout).contains("test selected_contracts_execute ... ok"));
 }
 
@@ -103,52 +127,102 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     let sources = [
-        ("leaf", "proof.leaf", "leaf::r#type", vec![], r#"
+        (
+            "leaf",
+            "proof.leaf",
+            "leaf::r#type",
+            vec![],
+            r#"
             #[version(1)] struct Fixed { count: u32 }
             #[version(1)] interface Service { fn read(&self) -> Result<Fixed>; }
-        "#),
-        ("left", "proof.left", "left::bindings", vec!["leaf"], r#"
+        "#,
+        ),
+        (
+            "left",
+            "proof.left",
+            "left::bindings",
+            vec!["leaf"],
+            r#"
             extern proof.leaf;
             #[version(1)] struct Wrapper<T> { fixed: proof::leaf::Fixed, value: T }
             #[version(1)] interface Reader<T> {
                 fn read(&self, source: &proof::leaf::Service, extra: T) -> Result<proof::leaf::Fixed>;
             }
-        "#),
-        ("right", "proof.right", "right::bindings", vec!["leaf"], r#"
+        "#,
+        ),
+        (
+            "right",
+            "proof.right",
+            "right::bindings",
+            vec!["leaf"],
+            r#"
             extern proof.leaf;
             #[version(1)] struct Other<T> { fixed: proof::leaf::Fixed, value: T }
-        "#),
-        ("bridge", "proof.bridge", "bridge", vec!["left", "right"], r#"
+        "#,
+        ),
+        (
+            "bridge",
+            "proof.bridge",
+            "bridge",
+            vec!["left", "right"],
+            r#"
             extern proof.left;
             extern proof.right;
             #[version(1)] struct Combined<T> {
                 left: proof::left::Wrapper<T>, right: proof::right::Other<T>
             }
             #[version(1)] interface Root<T>: proof::left::Reader<T> {}
-        "#),
-        ("consumer", "proof.consumer", "consumer", vec!["bridge"], r#"
+        "#,
+        ),
+        (
+            "consumer",
+            "proof.consumer",
+            "consumer",
+            vec!["bridge"],
+            r#"
             extern proof.bridge;
             #[version(1)] struct Input { value: proof::bridge::Combined<u32> }
             #[version(1)] interface Client: proof::bridge::Root<u32> {
                 fn sum(&self, input: Input) -> Result<u32>;
             }
-        "#),
+        "#,
+        ),
     ];
-    let parsed = sources.iter().map(|(_, module, _, _, text)| {
-        neocogi_idl::parse_module(Path::new(&format!("{}.ncidl", module.replace('.', "/"))), text).unwrap()
-    }).collect();
+    let parsed = sources
+        .iter()
+        .map(|(_, module, _, _, text)| neocogi_idl::parse_module(Path::new(&format!("{}.ncidl", module.replace('.', "/"))), text).unwrap())
+        .collect();
     let graph = neocogi_idl::resolve_modules(parsed).unwrap();
     let module = graph.module("proof.consumer").unwrap();
     // Select public closed declarations by their retained logical template;
     // generated UUID spellings are deliberately not duplicated by this test.
-    let closed = |template: &str| module.source.declarations.iter().find(|declaration| {
-        declaration.specialization.as_ref().is_some_and(|instance| instance.template.segments.join(".") == template)
-    }).unwrap().name.clone();
+    let closed = |template: &str| {
+        module
+            .source
+            .declarations
+            .iter()
+            .find(|declaration| {
+                declaration
+                    .specialization
+                    .as_ref()
+                    .is_some_and(|instance| instance.template.segments.join(".") == template)
+            })
+            .unwrap()
+            .name
+            .clone()
+    };
     let (wrapper, other, combined, reader, provider_root) = (
-        closed("proof.left.Wrapper"), closed("proof.right.Other"), closed("proof.bridge.Combined"),
-        closed("proof.left.Reader"), closed("proof.bridge.Root"),
+        closed("proof.left.Wrapper"),
+        closed("proof.right.Other"),
+        closed("proof.bridge.Combined"),
+        closed("proof.left.Reader"),
+        closed("proof.bridge.Root"),
     );
-    fs::write(project.path().join("Cargo.toml"), "[workspace]\nresolver='2'\nmembers=['leaf','left','right','bridge','consumer']\n").unwrap();
+    fs::write(
+        project.path().join("Cargo.toml"),
+        "[workspace]\nresolver='2'\nmembers=['leaf','left','right','bridge','consumer']\n",
+    )
+    .unwrap();
     for (package, module, rust_path, dependencies, text) in &sources {
         let path = project.path().join(package);
         let source_path = format!("{}.ncidl", module.replace('.', "/"));
@@ -157,16 +231,19 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
         fs::create_dir_all(path.join("src")).unwrap();
         let mut manifest = format!(
             "[package]\nname='{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            contract_links_name(module), root.join("crates/com/api"),
+            contract_links_name(module),
+            root.join("crates/com/api"),
         );
         for dependency in dependencies {
             manifest.push_str(&format!("{dependency}={{path='../{dependency}'}}\n"));
         }
         manifest.push_str(&format!("[build-dependencies]\nneocogi-idl={{path={:?}}}\n", root.join("crates/com/idl")));
         fs::write(path.join("Cargo.toml"), manifest).unwrap();
-        fs::write(path.join("build.rs"), format!(
-            "fn main() {{ neocogi_idl::cargo::Module::new(\"idl\", {source_path:?}).rust_path({rust_path:?}).build().unwrap(); }}\n"
-        )).unwrap();
+        fs::write(
+            path.join("build.rs"),
+            format!("fn main() {{ neocogi_idl::cargo::Module::new(\"idl\", {source_path:?}).rust_path({rust_path:?}).build().unwrap(); }}\n"),
+        )
+        .unwrap();
         fs::write(source, text).unwrap();
         let entry = format!("include!(concat!(env!(\"OUT_DIR\"), \"/{}.include.rs\"));", module.replace('.', "_"));
         let library = match *package {
@@ -177,7 +254,8 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
             "left" => format!("pub mod bindings {{ {entry} }} pub use leaf::r#type::{{Fixed, Service, ServiceAbi, ServiceVtblFor}};"),
             "right" => format!("pub mod bindings {{ {entry} }}"),
             "bridge" => format!("{entry} pub use left::bindings::*; pub use right::bindings::*; pub use left::{{Fixed, Service, ServiceAbi, ServiceVtblFor}};"),
-            "consumer" => format!(r#"
+            "consumer" => format!(
+                r#"
 {entry}
 use bridge::{{Fixed, Service, ServiceAbi, ServiceVtblFor}};
 use neocogi_com::{{com_object, ComRef, NcStatus}};
@@ -207,13 +285,23 @@ impl Client for Controller {{
     let descriptions = ClientAbi::IDL_INTERFACE.values;
     assert!(descriptions.iter().any(|value| value.rust_type == "leaf::r#type::Fixed"));
 }}
-"#),
+"#
+            ),
             _ => unreachable!("fixture package list is exhaustive"),
         };
         fs::write(path.join("src/lib.rs"), library).unwrap();
     }
-    let output = Command::new("cargo").args(["test", "--offline", "-p", "consumer"])
-        .current_dir(project.path()).env("CARGO_TARGET_DIR", project.path().join("target")).output().unwrap();
-    assert!(output.status.success(), "{}\n{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+    let output = Command::new("cargo")
+        .args(["test", "--offline", "-p", "consumer"])
+        .current_dir(project.path())
+        .env("CARGO_TARGET_DIR", project.path().join("target"))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(String::from_utf8_lossy(&output.stdout).contains("test transitive_values_and_interfaces_call ... ok"));
 }

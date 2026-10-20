@@ -99,14 +99,20 @@ pub enum NcAbiPassing {
         mode: NcAbiThreadingMode,
     },
     /// Exclusive owner offered in a writable slot, cleared by the receiver on transfer.
-    ComBoxIn { /// Threading capability preserved by ownership transfer.
-        mode: NcAbiThreadingMode },
+    ComBoxIn {
+        /// Threading capability preserved by ownership transfer.
+        mode: NcAbiThreadingMode,
+    },
     /// The single exclusive owner returned through an out slot.
-    ComBoxOut { /// Threading capability preserved by ownership transfer.
-        mode: NcAbiThreadingMode },
+    ComBoxOut {
+        /// Threading capability preserved by ownership transfer.
+        mode: NcAbiThreadingMode,
+    },
     /// Cached weak token returned through an out slot; owns no initialized value.
-    WeakComBoxOut { /// Threading capability preserved by the observer.
-        mode: NcAbiThreadingMode },
+    WeakComBoxOut {
+        /// Threading capability preserved by the observer.
+        mode: NcAbiThreadingMode,
+    },
     /// Null or a borrowed COM interface valid for the current call.
     OptionalComRef {
         /// Threading capability of a present borrowed pointer.
@@ -358,10 +364,22 @@ impl NcAbiPassingDescriptor {
     /// Builds a C-stable descriptor from a canonical ABI passing mode.
     pub const fn from_abi_passing(passing: NcAbiPassing) -> Self {
         match passing {
-            NcAbiPassing::WeakComPtrOut { mode } => Self { tag: NC_ABI_PASSING_WEAK_COM_PTR_OUT, threading: threading_descriptor(mode) },
-            NcAbiPassing::ComBoxIn { mode } => Self { tag: NC_ABI_PASSING_COM_BOX_IN, threading: threading_descriptor(mode) },
-            NcAbiPassing::ComBoxOut { mode } => Self { tag: NC_ABI_PASSING_COM_BOX_OUT, threading: threading_descriptor(mode) },
-            NcAbiPassing::WeakComBoxOut { mode } => Self { tag: NC_ABI_PASSING_WEAK_COM_BOX_OUT, threading: threading_descriptor(mode) },
+            NcAbiPassing::WeakComPtrOut { mode } => Self {
+                tag: NC_ABI_PASSING_WEAK_COM_PTR_OUT,
+                threading: threading_descriptor(mode),
+            },
+            NcAbiPassing::ComBoxIn { mode } => Self {
+                tag: NC_ABI_PASSING_COM_BOX_IN,
+                threading: threading_descriptor(mode),
+            },
+            NcAbiPassing::ComBoxOut { mode } => Self {
+                tag: NC_ABI_PASSING_COM_BOX_OUT,
+                threading: threading_descriptor(mode),
+            },
+            NcAbiPassing::WeakComBoxOut { mode } => Self {
+                tag: NC_ABI_PASSING_WEAK_COM_BOX_OUT,
+                threading: threading_descriptor(mode),
+            },
             NcAbiPassing::OptionalComRef { mode } => Self {
                 tag: NC_ABI_PASSING_OPTIONAL_COM_REF,
                 threading: threading_descriptor(mode),

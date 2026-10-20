@@ -363,7 +363,10 @@ mod tests {
         for version in ["", "1.0 beta", "1.β", &"v".repeat(129)] {
             let error = validate_version(version, "plugin.version").unwrap_err().to_string();
             assert!(error.contains("plugin.version"), "{error}");
-            assert!(error.contains(&neocogi_com_core::validate_version_text(version).unwrap_err().to_string()), "{error}");
+            assert!(
+                error.contains(&neocogi_com_core::validate_version_text(version).unwrap_err().to_string()),
+                "{error}"
+            );
         }
         validate_version(&"v".repeat(128), "plugin.version").unwrap();
     }

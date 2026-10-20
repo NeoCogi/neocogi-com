@@ -573,7 +573,10 @@ unsafe impl<T: ComValue> ComValue for Vec<T> {
                 // SAFETY: the recursive identity proof includes size, alignment,
                 // initialized bits and identity conversion. Exact prepayment is
                 // required even here because later siblings share this budget.
-                let wire = ValueSlice { pointer: self.as_ptr().cast::<T::Wire>(), len: self.len() as u64 };
+                let wire = ValueSlice {
+                    pointer: self.as_ptr().cast::<T::Wire>(),
+                    len: self.len() as u64,
+                };
                 return Ok((wire, ValueSequenceStorage { _arrays: SequenceArrays::Borrowed }));
             }
             // The second allocation owns child guards as well as the wire array.
@@ -595,7 +598,12 @@ unsafe impl<T: ComValue> ComValue for Vec<T> {
                 pointer: wires.as_ptr(),
                 len: wires.len() as u64,
             };
-            Ok((wire, ValueSequenceStorage { _arrays: SequenceArrays::Converted { _wires: wires, _children: children } }))
+            Ok((
+                wire,
+                ValueSequenceStorage {
+                    _arrays: SequenceArrays::Converted { _wires: wires, _children: children },
+                },
+            ))
         })
     }
     unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
@@ -713,8 +721,13 @@ unsafe impl<T: crate::ComInterface + 'static, M: crate::ThreadingModel> ComValue
             // SAFETY: successful validation proves live weak bookkeeping. Only
             // the canonical provider table is retained, never the caller's table.
             unsafe { crate::lifetime::nc_weak_retain(control) };
-            Ok(unsafe { Self::from_raw_owned(crate::ComRaw { object: wire.object, vtable: table.cast() }) }
-                .expect("validated exclusive observer is present"))
+            Ok(unsafe {
+                Self::from_raw_owned(crate::ComRaw {
+                    object: wire.object,
+                    vtable: table.cast(),
+                })
+            }
+            .expect("validated exclusive observer is present"))
         })
     }
 }

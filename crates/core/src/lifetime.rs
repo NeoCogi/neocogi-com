@@ -87,7 +87,9 @@ pub unsafe extern "C" fn nc_strong_retain(object: *mut c_void) -> u32 {
     };
     // Exclusive objects never manufacture a second owner, including through
     // borrowed COM arguments or foreign AddRef calls.
-    if control.state.load(Ordering::Relaxed) & BOXED != 0 { return 0; }
+    if control.state.load(Ordering::Relaxed) & BOXED != 0 {
+        return 0;
+    }
     retain(&control.state).min(u32::MAX as usize) as u32
 }
 
@@ -318,7 +320,11 @@ impl NcWeakControl {
     /// Constructs an exclusive owner with the same stable C header as shared COM.
     /// Publication must happen only after the provider has initialized its value.
     pub const fn boxed(class: &'static NcClassLifetime) -> Self {
-        Self { state: AtomicUsize::new(BOXED | BOX_OWNER), weak: AtomicUsize::new(1), class }
+        Self {
+            state: AtomicUsize::new(BOXED | BOX_OWNER),
+            weak: AtomicUsize::new(1),
+            class,
+        }
     }
 }
 
@@ -368,7 +374,9 @@ impl BoxRead {
     /// # Safety
     /// `control` obeys the retained exclusive storage contract of `borrow_box`.
     pub unsafe fn enter(control: *mut NcWeakControl) -> Result<Self, NcStatus> {
-        Ok(Self { control: unsafe { borrow_box(control, false) }? })
+        Ok(Self {
+            control: unsafe { borrow_box(control, false) }?,
+        })
     }
 }
 impl BoxWrite {
@@ -377,7 +385,9 @@ impl BoxWrite {
     /// # Safety
     /// `control` obeys the retained exclusive storage contract of `borrow_box`.
     pub unsafe fn enter(control: *mut NcWeakControl) -> Result<Self, NcStatus> {
-        Ok(Self { control: unsafe { borrow_box(control, true) }? })
+        Ok(Self {
+            control: unsafe { borrow_box(control, true) }?,
+        })
     }
 }
 impl Drop for BoxRead {
@@ -449,7 +459,9 @@ pub unsafe extern "C" fn nc_box_release(control: *mut NcWeakControl) {
 /// The common header and requested contract are readable and retained for this call.
 pub unsafe fn box_projection(control: *mut NcWeakControl, requested: &NcInterfaceId) -> Result<*const IUnknownVTable, NcStatus> {
     let header = unsafe { control.as_ref() }.ok_or(NC_E_POINTER)?;
-    if header.state.load(Ordering::Acquire) & BOXED == 0 { return Err(NC_E_INVALID_ARG); }
+    if header.state.load(Ordering::Acquire) & BOXED == 0 {
+        return Err(NC_E_INVALID_ARG);
+    }
     unsafe { projection(header, requested) }
 }
 

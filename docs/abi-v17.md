@@ -117,7 +117,7 @@ protocol; its concrete T and native wrapper do not cross the ABI.
 `offset, length, pointer` slots and `NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET` (`0x04`).
 These built-in contracts copy a prescribed number of unrestricted bytes or fail.
 They have never interpreted old bytes as input, need no enum conversion, and do
-not represent the removed generic mutable-value path. IDL and `com_interface`
+not represent the removed generic mutable-value path. IDL and its typed backend
 output parameters always use the new four-slot protocol.
 
 See [directional output](../../../docs/contracts/COM_OUTPUT_BUFFERS.md),

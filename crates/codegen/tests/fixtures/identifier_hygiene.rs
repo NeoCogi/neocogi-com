@@ -1,4 +1,5 @@
 //! Executable proof: accepted names remain data through codecs and ABI calls.
+mod arguments;
 mod shadow;
 mod values;
 
@@ -174,7 +175,7 @@ mod tests {
         }
     }
 
-    #[com_struct(assigned_signature = b"00000000000000000000000000000901")]
+    #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
     /// Handwritten Rust permits names outside IDL's snake-case spelling policy.
     struct PrivateSpelling {
         /// Forces conversion of restricted bits.
@@ -195,7 +196,8 @@ mod tests {
             __nc_wire_field_0: 72,
             __nc_storage_field_0: 73,
         };
-        let value = NcValueRef::new(&source).unwrap().to_owned().unwrap();
+        let bytes = neocogi_com::binary::to_vec(&source).unwrap();
+        let value: PrivateSpelling = neocogi_com::binary::from_slice(&bytes).unwrap();
         assert!(value.first);
         assert_eq!((value.__nc_field_0, value.__nc_wire_field_0, value.__nc_storage_field_0), (71, 72, 73));
     }
@@ -283,31 +285,7 @@ mod tests {
 mod private_arguments {
     use neocogi_com::*;
 
-    #[com_interface(auto_guid = "nc.tests.hygiene.Parameters:v1", assigned_signature = b"00000000000000000000000000000902")]
-    /// Parameters deliberately use both old and new generator-private spellings.
-    trait IParameters {
-        /// Buffer helper roles cannot be captured by later source parameters.
-        fn buffers(
-            &self,
-            data: NcCopyFromBufferOffset<'_, bool>,
-            __nc_data_values: u32,
-            __nc_data_offset: u32,
-            __nc_data_len: u32,
-            __nc_data_ptr: u32,
-            __nc_arg_0: u32,
-            __nc_arg_0_values: u32,
-            __nc_arg_0_offset: u32,
-            __nc_arg_0_len: u32,
-            __nc_arg_0_ptr: u32,
-        ) -> Result<u32, NcStatus>;
-        /// A failed owner transfer must restore the exact original object.
-        fn owner(&self, status: ComBox<ITokenAbi>, result: bool) -> Result<u32, (NcStatus, ComBox<ITokenAbi>)>;
-    }
-    #[com_interface(auto_guid = "nc.tests.hygiene.Token:v1", assigned_signature = b"00000000000000000000000000000903")]
-    /// Observes a transferred owner's continued lifetime.
-    trait IToken {
-        fn value(&self) -> Result<u32, NcStatus>;
-    }
+    use super::arguments::*;
     #[com_object(interfaces(IToken), ownership = exclusive)]
     /// Single owner returned on rejection and destroyed on successful consumption.
     struct Token;
@@ -378,8 +356,5 @@ mod support_shadow {
     pub struct Ok;
     pub struct Err;
 
-    #[neocogi_com::com_interface(auto_guid = "nc.tests.hygiene.Shadow:v1", assigned_signature = b"00000000000000000000000000000904")]
-    pub trait IShadow {
-        fn echo(&self, value: Result, other: Option) -> ::core::result::Result<u32, neocogi_com::NcStatus>;
-    }
+    include!("support.rs");
 }

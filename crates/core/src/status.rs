@@ -173,10 +173,7 @@ mod tests {
         assert_eq!(NC_E_OUT_OF_MEMORY.code(), -10);
         assert_eq!(NC_E_BUSY.code(), -11);
         // These codes express distinct contracts across independently built COM callers.
-        for (status, code, name) in [
-            (super::NC_E_CLOSED, -13, "NC_E_CLOSED"),
-            (super::NC_E_DROPPED, -14, "NC_E_DROPPED"),
-        ] {
+        for (status, code, name) in [(super::NC_E_CLOSED, -13, "NC_E_CLOSED"), (super::NC_E_DROPPED, -14, "NC_E_DROPPED")] {
             assert_eq!(status.code(), code);
             assert_eq!(status.name(), name);
             assert!(status.is_known());

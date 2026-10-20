@@ -69,7 +69,7 @@ fn independent_consumers_share_specialization_identity_and_signature() {
         syn::parse_file(&rust).expect("closed bindings are ordinary Rust interfaces");
     }
     let object = first.module("test.first").unwrap().source.declaration("Object").unwrap();
-    assert!(matches!(&object.kind, DeclarationKind::Interface(_) ));
+    assert!(matches!(&object.kind, DeclarationKind::Interface(_)));
 }
 
 /// The full event ABI, including nested field changes, participates in stream negotiation.
@@ -189,7 +189,10 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
     let output = Command::new("cargo")
         .args(["test", "--offline", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", root.join("target/message-proof"))
+        .env(
+            "CARGO_TARGET_DIR",
+            std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()),
+        )
         .output()
         .unwrap();
     assert!(
@@ -311,10 +314,7 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
     )
     .unwrap();
     for (name, graph) in [("producer", &producer), ("consumer", &consumer), ("rebound", &rebound)] {
-        fs::write(
-            project.path().join(format!("src/{name}.rs")),
-            generate_rust(graph, "proof.contract").unwrap())
-        .unwrap();
+        fs::write(project.path().join(format!("src/{name}.rs")), generate_rust(graph, "proof.contract").unwrap()).unwrap();
     }
     fs::write(
         project.path().join("src/lib.rs"),
@@ -381,7 +381,10 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
     let output = Command::new("cargo")
         .args(["test", "--offline", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", root.join("target/message-proof"))
+        .env(
+            "CARGO_TARGET_DIR",
+            std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()),
+        )
         .output()
         .unwrap();
     assert!(
@@ -414,6 +417,8 @@ fn value_template_layout_is_part_of_specialized_signatures() {
 /// Standalone fixtures consume the shipped common receiver from its owning crate.
 fn generate_rust(graph: &neocogi_idl::ResolvedModules, module: &str) -> Result<String, neocogi_idl::GenerateError> {
     let mut paths = neocogi_idl::generate::RustModulePaths::default();
-    if graph.module("neocogi.com.events").is_some() { paths.insert("neocogi.com.events", "neocogi_com::events").unwrap(); }
+    if graph.module("neocogi.com.events").is_some() {
+        paths.insert("neocogi.com.events", "neocogi_com::events").unwrap();
+    }
     neocogi_idl::generate::generate_rust_with_paths(graph, module, &paths)
 }

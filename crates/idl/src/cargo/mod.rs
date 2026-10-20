@@ -189,7 +189,9 @@ impl Module {
             // An explicitly selected owner always wins. Otherwise sorted externs
             // choose the same first direct provider for diamond-shaped graphs.
             let provider = if dependency_modules.contains(&module) { &module } else { &provider };
-            paths.route_dependency(&resolved, &module, provider).map_err(|source| BuildError::Idl(source.to_string()))?;
+            paths
+                .route_dependency(&resolved, &module, provider)
+                .map_err(|source| BuildError::Idl(source.to_string()))?;
         }
         let mut bindings =
             generate_rust_with_paths_and_source_map(&resolved, &own_module.name.to_string(), &paths).map_err(|source| BuildError::Idl(source.to_string()))?;

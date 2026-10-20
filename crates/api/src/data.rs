@@ -617,12 +617,7 @@ unsafe extern "C" fn bytes_query_interface(this: *mut c_void, interface_id: *con
         // SAFETY: The storage pointer came from a live bytes object.
         unsafe { BytesObject::add_ref(object) };
         // SAFETY: `out` was checked non-null.
-        unsafe {
-            *out = ComRaw {
-                object,
-                vtable: &BYTES_UNKNOWN_VTABLE as *const _ as *const IUnknownVTable,
-            }
-        };
+        unsafe { *out = ComRaw { object, vtable: &BYTES_UNKNOWN_VTABLE } };
         NC_OK
     } else if interface_id.iid == <INcBytesAbi as ComInterface>::IID {
         if *interface_id != <INcBytesAbi as ComInterface>::INTERFACE_ID {
@@ -732,12 +727,7 @@ unsafe extern "C" fn string_query_interface(this: *mut c_void, interface_id: *co
         // SAFETY: The storage pointer came from a live string object.
         unsafe { StringObject::add_ref(object) };
         // SAFETY: `out` was checked non-null.
-        unsafe {
-            *out = ComRaw {
-                object,
-                vtable: &STRING_UNKNOWN_VTABLE as *const _ as *const IUnknownVTable,
-            }
-        };
+        unsafe { *out = ComRaw { object, vtable: &STRING_UNKNOWN_VTABLE } };
         NC_OK
     } else if interface_id.iid == <INcStringAbi as ComInterface>::IID {
         if *interface_id != <INcStringAbi as ComInterface>::INTERFACE_ID {

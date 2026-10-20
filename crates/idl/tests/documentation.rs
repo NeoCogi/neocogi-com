@@ -96,7 +96,10 @@ fn readme_factory_contract_and_bootstrap_execute_as_documented() {
     let output = Command::new("cargo")
         .args(["test", "--offline", "--features", "dynamic-plugin", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()))
+        .env(
+            "CARGO_TARGET_DIR",
+            std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()),
+        )
         .output()
         .unwrap();
     assert!(
@@ -109,4 +112,49 @@ fn readme_factory_contract_and_bootstrap_execute_as_documented() {
         String::from_utf8_lossy(&output.stdout).contains("test documented_bootstrap ... ok"),
         "bootstrap must execute, not just compile"
     );
+}
+
+/// Scan every active normative guide, rather than only the page edited for a migration.
+/// Dated review/evidence trees and superseded ABI specifications are historical records.
+#[test]
+fn active_guides_do_not_reintroduce_retired_protocol_prescriptions() {
+    fn markdown(root: &Path, files: &mut Vec<std::path::PathBuf>) {
+        for entry in fs::read_dir(root).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                markdown(&path, files);
+            } else if path.extension().is_some_and(|extension| extension == "md") {
+                files.push(path);
+            }
+        }
+    }
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let mut files = Vec::new();
+    for relative in ["docs/contracts", "docs/guides", "docs/architecture"] {
+        markdown(&root.join(relative), &mut files);
+    }
+    for relative in [
+        "crates/com/README.md",
+        "crates/com/api/README.md",
+        "crates/com/macros/README.md",
+        "crates/com/codegen/README.md",
+    ] {
+        files.push(root.join(relative));
+    }
+    files.sort();
+    assert!(files.len() > 30, "scan must retain the full active normative guide set");
+    let retired = [
+        "Writable buffers are initialized in/out storage",
+        "A bare struct or enum parameter is copied by value",
+        "`String` is an owned immutable COM string",
+        "`#[com_struct(packed)]`",
+        "The generator\nuses the common `com_interface` macro internally",
+        "Record labels emitted by `ComSerialize`",
+    ];
+    for path in files {
+        let source = fs::read_to_string(&path).unwrap();
+        for prescription in retired {
+            assert!(!source.contains(prescription), "{} retains retired guidance: {prescription}", path.display());
+        }
+    }
 }

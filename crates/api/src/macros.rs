@@ -1,13 +1,11 @@
-//! User-facing macro exports and the declarative integer-enum helper.
+//! Concrete object/plugin procedures, persistence derives and scalar utilities.
 //!
-//! With the `macros` feature enabled this module re-exports the procedural
-//! macros that define interfaces, IDL descriptions, ABI-safe structs and enums,
-//! and factory plugins. [`com_int_enum!`] remains declarative so it can generate
-//! a transparent integer newtype that preserves unknown values while still
-//! participating in the `AbiType` and `AbiPlainValue` contracts.
+//! IDL owns nominal callable and value declarations and emits their complete
+//! typed Rust bindings. The scalar newtype helpers also remain usable locally
+//! without procedural macros or runtime linkage.
 
 #[cfg(feature = "macros")]
-pub use neocogi_com_macros::{ComDeserialize, ComSerialize, com_enum, com_object, com_interface, com_struct, com_value, plugin};
+pub use neocogi_com_macros::{ComDeserialize, ComSerialize, com_object, plugin};
 
 /// Defines an ABI-stable enum-like integer newtype.
 ///

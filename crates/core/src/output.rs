@@ -48,19 +48,34 @@ impl<'a, T: ComInlineValue> NcOutputWriter<'a, T> {
         // SAFETY: shape is checked; the ABI caller grants the exclusive region
         // for this call. MaybeUninit introduces no initialization assumption.
         let slots = unsafe { core::slice::from_raw_parts_mut(pointer, count) };
-        Ok(Self { offset, slots, written, native: PhantomData })
+        Ok(Self {
+            offset,
+            slots,
+            written,
+            native: PhantomData,
+        })
     }
 
     /// Returns the source offset interpreted by the particular getter.
-    pub fn offset(&self) -> u64 { self.offset }
+    pub fn offset(&self) -> u64 {
+        self.offset
+    }
     /// Returns the number of available result slots, including already written ones.
-    pub fn capacity(&self) -> usize { self.slots.len() }
+    pub fn capacity(&self) -> usize {
+        self.slots.len()
+    }
     /// Returns the initialized prefix length; this count is not yet ABI publication.
-    pub fn written(&self) -> usize { *self.written as usize }
+    pub fn written(&self) -> usize {
+        *self.written as usize
+    }
     /// Returns the remaining slots available for additional writes.
-    pub fn remaining(&self) -> usize { self.capacity() - self.written() }
+    pub fn remaining(&self) -> usize {
+        self.capacity() - self.written()
+    }
     /// Returns true when the getter was supplied no output capacity.
-    pub fn is_empty(&self) -> bool { self.capacity() == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.capacity() == 0
+    }
 
     /// Lends this untouched destination to another synchronous COM provider.
     /// Forwarding uses the same raw slots without scratch allocation. The inner
@@ -70,7 +85,11 @@ impl<'a, T: ComInlineValue> NcOutputWriter<'a, T> {
         match *self.written {
             0 => {
                 let capacity = self.slots.len();
-                Ok(NcOutput { target: OutputTarget::Forward { slots: self.slots, count: self.written }, offset: self.offset, capacity })
+                Ok(NcOutput {
+                    target: OutputTarget::Forward { slots: self.slots, count: self.written },
+                    offset: self.offset,
+                    capacity,
+                })
             }
             _ => Err(crate::NC_E_INVALID_ARG),
         }
@@ -98,18 +117,28 @@ impl<'a, T: ComInlineValue> NcOutputWriter<'a, T> {
     /// Appends a native slice, retaining bulk-copy speed for wire-identical types.
     /// Insufficient space is rejected before any element from this slice is written.
     pub fn extend_from_slice(&mut self, values: &[T]) -> Result<(), NcStatus> {
-        if values.len() > self.remaining() { return Err(NC_E_OUT_OF_RANGE); }
+        if values.len() > self.remaining() {
+            return Err(NC_E_OUT_OF_RANGE);
+        }
         match T::BORROW_WIRE {
             true => {
                 // SAFETY: the codec proves identical layout, unrestricted bits,
                 // and identity conversion. Source and exclusive destination do
                 // not overlap; the checked prefix has enough writable capacity.
-                unsafe { core::ptr::copy_nonoverlapping(values.as_ptr().cast::<T::Wire>(), self.slots.as_mut_ptr().add(self.written()).cast(), values.len()); }
+                unsafe {
+                    core::ptr::copy_nonoverlapping(
+                        values.as_ptr().cast::<T::Wire>(),
+                        self.slots.as_mut_ptr().add(self.written()).cast(),
+                        values.len(),
+                    );
+                }
                 *self.written += values.len() as u64;
                 Ok(())
             }
             false => {
-                for &value in values { self.push(value)?; }
+                for &value in values {
+                    self.push(value)?;
+                }
                 Ok(())
             }
         }
@@ -133,34 +162,57 @@ pub struct NcOutputBuffer<T: ComInlineValue> {
 #[cfg(feature = "alloc")]
 impl<T: ComInlineValue> NcOutputBuffer<T> {
     /// Creates an empty result buffer without allocating.
-    pub fn new() -> Self { Self { values: Vec::new(), wires: Vec::new() } }
+    pub fn new() -> Self {
+        Self { values: Vec::new(), wires: Vec::new() }
+    }
     /// Reuses an application's native allocation while discarding its old values.
-    pub fn from_vec(mut values: Vec<T>) -> Self { values.clear(); Self { values, wires: Vec::new() } }
+    pub fn from_vec(mut values: Vec<T>) -> Self {
+        values.clear();
+        Self { values, wires: Vec::new() }
+    }
     /// Borrows only the results of a completely successful call.
-    pub fn as_slice(&self) -> &[T] { &self.values }
+    pub fn as_slice(&self) -> &[T] {
+        &self.values
+    }
     /// Returns the number of published native results.
-    pub fn len(&self) -> usize { self.values.len() }
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
     /// Returns retained native capacity; a call still uses its explicit requested capacity.
     /// Converted wire storage may have a separately rounded allocation.
-    pub fn capacity(&self) -> usize { self.values.capacity() }
+    pub fn capacity(&self) -> usize {
+        self.values.capacity()
+    }
     /// Returns true when there are no published results.
-    pub fn is_empty(&self) -> bool { self.values.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
     /// Discards published results without releasing reusable capacity.
-    pub fn clear(&mut self) { self.values.clear(); }
+    pub fn clear(&mut self) {
+        self.values.clear();
+    }
     /// Transfers the native results; any separate wire capacity is released locally.
-    pub fn into_vec(self) -> Vec<T> { self.values }
+    pub fn into_vec(self) -> Vec<T> {
+        self.values
+    }
     /// Borrows this buffer for one getter with explicit source offset and capacity.
     /// Storage and limit checks occur inside the generated client before owners
     /// are lent to the provider. Constructing this argument does not allocate.
     pub fn output(&mut self, offset: u64, capacity: usize) -> NcOutput<'_, T> {
-        NcOutput { target: OutputTarget::Buffer(self), offset, capacity }
+        NcOutput {
+            target: OutputTarget::Buffer(self),
+            offset,
+            capacity,
+        }
     }
 }
 
 #[cfg(feature = "alloc")]
 impl<T: ComInlineValue> Default for NcOutputBuffer<T> {
     /// Default buffers have no allocation or published results.
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(feature = "alloc")]
@@ -168,7 +220,9 @@ impl<T: ComInlineValue> core::ops::Deref for NcOutputBuffer<T> {
     /// Read-only access never exposes raw slots or an incomplete native acquisition.
     type Target = [T];
     /// Lends the published slice using ordinary collection operations.
-    fn deref(&self) -> &[T] { self.as_slice() }
+    fn deref(&self) -> &[T] {
+        self.as_slice()
+    }
 }
 
 /// Exclusive client argument for one output-only getter; no Rust layout crosses COM.
@@ -233,7 +287,11 @@ impl<'a, T: ComInlineValue> NcOutput<'a, T> {
             true => {
                 *count = 0;
                 let capacity = slots.len();
-                Ok(Self { target: OutputTarget::Direct { slots, count }, offset, capacity })
+                Ok(Self {
+                    target: OutputTarget::Direct { slots, count },
+                    offset,
+                    capacity,
+                })
             }
         }
     }
@@ -251,9 +309,13 @@ impl<'a, T: ComInlineValue> NcOutput<'a, T> {
                     buffer.wires.try_reserve_exact(self.capacity).map_err(|_| crate::NC_E_OUT_OF_MEMORY)?;
                 }
             }
-            OutputTarget::Direct { .. } | OutputTarget::Forward { .. } => {},
+            OutputTarget::Direct { .. } | OutputTarget::Forward { .. } => {}
         }
-        Ok(PreparedOutput { output: self, written: 0, publication: Publication::Unacquired })
+        Ok(PreparedOutput {
+            output: self,
+            written: 0,
+            publication: Publication::Unacquired,
+        })
     }
     /// Makes failed/private results unavailable while retaining their storage.
     fn clear_results(&mut self) {
@@ -268,9 +330,13 @@ impl<'a, T: ComInlineValue> NcOutput<'a, T> {
 
 impl<T: ComInlineValue> PreparedOutput<'_, T> {
     /// Preserves the getter's logical source offset.
-    pub fn offset(&self) -> u64 { self.output.offset }
+    pub fn offset(&self) -> u64 {
+        self.output.offset
+    }
     /// Returns the requested ABI capacity, never the allocator's rounded capacity.
-    pub fn capacity(&self) -> u64 { self.output.capacity as u64 }
+    pub fn capacity(&self) -> u64 {
+        self.output.capacity as u64
+    }
     /// Borrows raw output storage without creating initialized native elements.
     pub fn as_mut_ptr(&mut self) -> *mut T::Wire {
         match &mut self.output.target {
@@ -284,7 +350,9 @@ impl<T: ComInlineValue> PreparedOutput<'_, T> {
         }
     }
     /// Supplies the independent prefix-count slot to the synchronous raw call.
-    pub fn written_ptr(&mut self) -> *mut u64 { &mut self.written }
+    pub fn written_ptr(&mut self) -> *mut u64 {
+        &mut self.written
+    }
     /// Acquires initialized results privately; no allocation or publication occurs.
     ///
     /// # Safety
@@ -297,14 +365,18 @@ impl<T: ComInlineValue> PreparedOutput<'_, T> {
             Publication::Acquired | Publication::Published => return Err(crate::NC_E_INVALID_ARG),
         }
         let count = usize::try_from(self.written).map_err(|_| NC_E_OUT_OF_RANGE)?;
-        if count > self.output.capacity { return Err(NC_E_OUT_OF_RANGE); }
+        if count > self.output.capacity {
+            return Err(NC_E_OUT_OF_RANGE);
+        }
         match &mut self.output.target {
             #[cfg(feature = "alloc")]
             OutputTarget::Buffer(buffer) => match T::BORROW_WIRE {
                 true => {
                     // SAFETY: the provider initialized the checked prefix, and
                     // the codec proves unrestricted bits and identical layout.
-                    unsafe { buffer.values.set_len(count); }
+                    unsafe {
+                        buffer.values.set_len(count);
+                    }
                 }
                 false => {
                     for index in 0..count {
@@ -318,7 +390,7 @@ impl<T: ComInlineValue> PreparedOutput<'_, T> {
             },
             // Identity-only slots need no conversion. Count publication still
             // waits until every output in the generated call has validated.
-            OutputTarget::Direct { .. } => {},
+            OutputTarget::Direct { .. } => {}
             OutputTarget::Forward { slots, .. } => {
                 if !T::BORROW_WIRE {
                     for slot in &slots[..count] {
@@ -344,10 +416,10 @@ impl<T: ComInlineValue> PreparedOutput<'_, T> {
                     OutputTarget::Direct { count, .. } => **count = self.written as usize,
                     OutputTarget::Forward { count, .. } => **count = self.written,
                     #[cfg(feature = "alloc")]
-                    OutputTarget::Buffer(_) => {},
+                    OutputTarget::Buffer(_) => {}
                 }
                 self.publication = Publication::Published;
-            },
+            }
             Publication::Unacquired | Publication::Published => panic!("output was not completely acquired"),
         }
     }
@@ -369,7 +441,10 @@ mod tests {
         let mut writer = unsafe { NcOutputWriter::<u32>::from_raw(3, prepared.as_mut_ptr(), 2, &mut written) }.unwrap();
         writer.extend_from_slice(&[10, 20]).unwrap();
         drop(writer);
-        unsafe { *prepared.written_ptr() = written; prepared.convert_output().unwrap(); }
+        unsafe {
+            *prepared.written_ptr() = written;
+            prepared.convert_output().unwrap();
+        }
         prepared.publish();
         assert_eq!(count, 2);
         // SAFETY: complete successful acquisition published exactly these slots.
@@ -382,7 +457,7 @@ impl<T: ComInlineValue> Drop for PreparedOutput<'_, T> {
     fn drop(&mut self) {
         match self.publication {
             Publication::Unacquired | Publication::Acquired => self.output.clear_results(),
-            Publication::Published => {},
+            Publication::Published => {}
         }
     }
 }

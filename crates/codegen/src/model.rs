@@ -74,10 +74,8 @@ pub enum AbiArgKind {
         /// Application element converted into each fresh output slot.
         element_ty: Box<Type>,
     },
-    /// Borrowed interface lowered to its raw ABI pointer.
+    /// Required call-scoped interface lowered to its raw object/table pair.
     ComRef {
-        /// Whether a null pointer denotes an explicitly absent capability.
-        optional: bool,
         /// Generated ABI interface type borrowed by the parameter.
         interface_ty: Box<Type>,
         /// Optional explicit `ThreadLocal` or `ThreadSafe` marker.
@@ -123,4 +121,27 @@ pub enum InterfaceOwnership {
     WeakExclusive,
     /// One shared weak header token; promotion is required before value access.
     WeakShared,
+}
+
+/// Complete callable contract supplied by the bound IDL graph.
+/// Identity, signature and bases are required resolved data, never syntax options.
+pub struct InterfacePlan {
+    /// Public provider trait name, retaining the compiler's source location.
+    pub name: Ident,
+    /// Visibility of every public companion emitted for this declaration.
+    pub visibility: syn::Visibility,
+    /// Declaration documentation and source-navigation attributes.
+    pub docs: Vec<Attribute>,
+    /// Canonical non-nil callable identity validated by the resolver.
+    pub id: neocogi_com_core::NcGuid,
+    /// Computed declaration signature in the current canonical grammar.
+    pub signature: [u8; 32],
+    /// Canonical logical declaration name for explicit inspection.
+    pub qualified_name: String,
+    /// Minimum threading capability promised by this interface.
+    pub threading: crate::InterfaceThreading,
+    /// Ordered bound provider paths; first entry supplies the physical prefix.
+    pub bases: Vec<syn::Path>,
+    /// One authoritative ownership/wire plan for traits, calls and descriptions.
+    pub methods: Vec<AbiMethod>,
 }

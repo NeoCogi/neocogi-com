@@ -50,7 +50,7 @@ pub struct IObjectChildrenVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call; `Option<ComRef>` additionally permits both fields null for absence; half-null pairs are invalid.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     #[doc = concat!(
         "On success, `out` receives `", stringify!(< u32 as crate ::ComValue > ::Wire),
         "`."
@@ -68,7 +68,7 @@ pub struct IObjectChildrenVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call; `Option<ComRef>` additionally permits both fields null for absence; half-null pairs are invalid.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     #[doc = concat!(
         "- `", stringify!(index), "` is passed by value as `", stringify!(< u32 as crate
         ::ComValue > ::Wire), "`."
@@ -127,10 +127,9 @@ const _: () = {
         identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
         identity as __nc_value, identity as __nc_raw, identity as __nc_result,
         identity as __nc_values, identity as __nc_writer, identity as __nc_out,
-        identity as __nc_identity, identity as __nc_value_0, identity as __nc_this_0,
-        identity as __nc_status_0, identity as __nc_result_0, identity as __nc_prepared,
-        identity as __nc_out_0, identity as __nc_value_1, identity as __nc_this_1,
-        identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
+        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
+        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
         identity as __nc_prepared_0, identity as __nc_out_1,
     };
     impl<__NcThreading: crate::ThreadingModel> IObjectChildrenClient<__NcThreading> {
@@ -316,7 +315,7 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call; `Option<ComRef>` additionally permits both fields null for absence; half-null pairs are invalid.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     #[doc = concat!(
         "On success, `out` receives `", stringify!(< crate ::NcGuid as crate ::ComValue >
         ::Wire), "`."
@@ -334,7 +333,7 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call; `Option<ComRef>` additionally permits both fields null for absence; half-null pairs are invalid.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     #[doc = concat!(
         "On success, `out` receives `", stringify!(< u32 as crate ::ComValue > ::Wire),
         "`."
@@ -352,7 +351,7 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call; `Option<ComRef>` additionally permits both fields null for absence; half-null pairs are invalid.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     #[doc = concat!(
         "On success, `out` receives an owned `", stringify!(crate ::INcBytesAbi),
         "` object/table pair transferred to the caller."
@@ -370,7 +369,7 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call; `Option<ComRef>` additionally permits both fields null for absence; half-null pairs are invalid.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     #[doc = concat!(
         "On success, `out` receives `", stringify!(< u32 as crate ::ComValue > ::Wire),
         "`."
@@ -388,7 +387,7 @@ pub struct IPersistableVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call; `Option<ComRef>` additionally permits both fields null for absence; half-null pairs are invalid.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     #[doc = concat!(
         "- `", stringify!(index), "` is passed by value as `", stringify!(< u32 as crate
         ::ComValue > ::Wire), "`."
@@ -447,16 +446,15 @@ const _: () = {
         identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
         identity as __nc_value, identity as __nc_raw, identity as __nc_result,
         identity as __nc_values, identity as __nc_writer, identity as __nc_out,
-        identity as __nc_identity, identity as __nc_value_0, identity as __nc_this_0,
-        identity as __nc_status_0, identity as __nc_result_0, identity as __nc_prepared,
-        identity as __nc_out_0, identity as __nc_value_1, identity as __nc_this_1,
-        identity as __nc_status_1, identity as __nc_result_1,
-        identity as __nc_prepared_0, identity as __nc_out_1, identity as __nc_value_2,
-        identity as __nc_this_2, identity as __nc_status_2, identity as __nc_result_2,
-        identity as __nc_prepared_1, identity as __nc_out_2, identity as __nc_value_3,
-        identity as __nc_this_3, identity as __nc_status_3, identity as __nc_result_3,
-        identity as __nc_prepared_2, identity as __nc_out_3, identity as __nc_value_4,
-        identity as __nc_this_4, identity as __nc_status_4, identity as __nc_result_4,
+        identity as __nc_identity, identity as __nc_this_0, identity as __nc_status_0,
+        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
+        identity as __nc_this_1, identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_prepared_0, identity as __nc_out_1, identity as __nc_this_2,
+        identity as __nc_status_2, identity as __nc_result_2,
+        identity as __nc_prepared_1, identity as __nc_out_2, identity as __nc_this_3,
+        identity as __nc_status_3, identity as __nc_result_3,
+        identity as __nc_prepared_2, identity as __nc_out_3, identity as __nc_this_4,
+        identity as __nc_status_4, identity as __nc_result_4,
         identity as __nc_prepared_3, identity as __nc_out_4,
     };
     impl<__NcThreading: crate::ThreadingModel> IPersistableClient<__NcThreading> {
@@ -778,7 +776,7 @@ pub struct IPersistenceFactoryVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call; `Option<ComRef>` additionally permits both fields null for absence; half-null pairs are invalid.
+    ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     #[doc = concat!(
         "- `", stringify!(version), "` is passed by value as `", stringify!(< u32 as
         crate ::ComValue > ::Wire), "`."
@@ -810,7 +808,7 @@ pub struct IPersistenceFactoryVTable {
     ///
     ///# Safety
     ///
-    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call; `Option<ComRef>` additionally permits both fields null for absence; half-null pairs are invalid.
+    ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     #[doc = concat!(
         "- `", stringify!(version), "` is passed by value as `", stringify!(< u32 as
         crate ::ComValue > ::Wire), "`."
@@ -823,8 +821,7 @@ pub struct IPersistenceFactoryVTable {
     #[doc = concat!(
         "- `", stringify!(children), "` is a borrowed `",
         stringify!(self::IObjectChildrenAbi), "` object/table pair.",
-        " Both fields must be non-null.",
-        " The callee must call `AddRef` before retaining a present interface after the call returns."
+        " Both fields must be non-null. The callee must call `AddRef` before retaining a present interface after the call returns."
     )]
     #[doc = concat!(
         "On success, `out` receives an owned `", stringify!(crate ::IUnknown),
@@ -902,10 +899,10 @@ const _: () = {
         identity as __nc_this, identity as __nc_status, identity as __nc_value,
         identity as __nc_raw, identity as __nc_result, identity as __nc_values,
         identity as __nc_writer, identity as __nc_out, identity as __nc_identity,
-        identity as __nc_value_0, identity as __nc_this_0, identity as __nc_status_0,
-        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
-        identity as __nc_value_1, identity as __nc_this_1, identity as __nc_status_1,
-        identity as __nc_result_1, identity as __nc_prepared_0, identity as __nc_out_1,
+        identity as __nc_this_0, identity as __nc_status_0, identity as __nc_result_0,
+        identity as __nc_prepared, identity as __nc_out_0, identity as __nc_this_1,
+        identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_prepared_0, identity as __nc_out_1,
     };
     impl<__NcThreading: crate::ThreadingModel> IPersistenceFactoryClient<__NcThreading> {
         /// Rejects unsupported revisions before any child object is constructed.
@@ -980,8 +977,8 @@ const _: () = {
         #[doc = concat!(
             "- `", stringify!(children), "` borrows a `",
             stringify!(self::IObjectChildrenAbi),
-            "` interface for the duration of the call.", " An interface is required.",
-            " The callee must call `AddRef` before retaining a present interface."
+            "` interface for the duration of the call.",
+            " An interface is required. The callee must call `AddRef` before retaining a present interface."
         )]
         #[doc = concat!(
             "On success, adopts the owned `", stringify!(crate ::IUnknown),

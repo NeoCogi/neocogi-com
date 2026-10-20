@@ -9,13 +9,13 @@ use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::{GenericArgument, Ident, ItemFn, LitStr, Path, PathArguments, Result, ReturnType, Token, Type, bracketed, parenthesized};
 
-use crate::args::{InterfaceGuid, parse_guid_arg};
+use crate::args::{PluginGuid, parse_guid_arg};
 use crate::util::{PrivateNames, checked_u32_len, runtime_crate_path, stable_guid, validate_version_literal};
 
 /// Normalized inputs to one `plugin!` declaration.
 pub struct PluginArgs {
     /// Optional checked plugin ID; omission derives it from `name`.
-    plugin_id: Option<InterfaceGuid>,
+    plugin_id: Option<PluginGuid>,
     /// Normative dotted plugin name.
     name: LitStr,
     /// Static plugin release version.
@@ -139,20 +139,9 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
     if let Some(version) = &args.version {
         validate_version_literal(version)?;
     }
-    let plugin_id = match args.plugin_id {
-        Some(plugin_id) => match stable_guid(plugin_id, &args.name, &nc) {
-            Ok(plugin_id) => plugin_id,
-            Err(error) => return Err(error),
-        },
-        None => match stable_guid(InterfaceGuid::AutoGuid { value: args.name.clone() }, &args.name, &nc) {
-            Ok(plugin_id) => plugin_id,
-            Err(error) => return Err(error),
-        },
-    };
-    let dependency_count = match checked_u32_len(args.dependencies.len(), args.name.span(), "plugin dependency count") {
-        Ok(count) => count,
-        Err(error) => return Err(error),
-    };
+    let identity = args.plugin_id.unwrap_or_else(|| PluginGuid::AutoGuid { value: args.name.clone() });
+    let plugin_id = stable_guid(identity, &args.name, &nc)?;
+    let dependency_count = checked_u32_len(args.dependencies.len(), args.name.span(), "plugin dependency count")?;
     let dependency_len = args.dependencies.len();
     let dependencies = args.dependencies.iter().map(|dependency| {
         quote! {

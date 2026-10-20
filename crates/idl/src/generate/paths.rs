@@ -112,7 +112,9 @@ impl RustModulePaths {
 /// namespace. UUID aliases avoid separator/case collisions and long nested paths;
 /// generated documentation retains the dotted source name for interpretation.
 fn dependency_alias(graph: &ResolvedModules, module: &str) -> Result<Ident, GenerateError> {
-    let owner = graph.module(module).ok_or_else(|| GenerateError::new(format!("dependency route names unknown IDL module {module:?}")))?;
+    let owner = graph
+        .module(module)
+        .ok_or_else(|| GenerateError::new(format!("dependency route names unknown IDL module {module:?}")))?;
     Ok(format_ident!("module_{}", owner.module_id.to_string().replace('-', "")))
 }
 

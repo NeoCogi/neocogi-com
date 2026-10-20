@@ -65,14 +65,17 @@ pub struct WeakComBox<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal>
 /// # Safety
 /// `control` is retained common exclusive storage with immutable provider
 /// metadata, and its declared threading capability permits M.
-unsafe fn observe_projection<T: ComInterface, M: ThreadingModel>(
-    control: *mut crate::lifetime::NcWeakControl,
-) -> Result<WeakComBox<T, M>, NcStatus> {
+unsafe fn observe_projection<T: ComInterface, M: ThreadingModel>(control: *mut crate::lifetime::NcWeakControl) -> Result<WeakComBox<T, M>, NcStatus> {
     let table = unsafe { box_projection(control, &T::INTERFACE_ID) }?;
     // Validation precedes retention, so failure creates no token to release.
     unsafe { nc_weak_retain(control) };
-    Ok(unsafe { WeakComBox::from_raw_owned(ComRaw { object: control.cast(), vtable: table.cast() }) }
-        .expect("retained exclusive storage is present"))
+    Ok(unsafe {
+        WeakComBox::from_raw_owned(ComRaw {
+            object: control.cast(),
+            vtable: table.cast(),
+        })
+    }
+    .expect("retained exclusive storage is present"))
 }
 
 impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
@@ -115,8 +118,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> ComBox<T, M> {
     pub unsafe fn __nc_from_raw_owned_checked(raw: ComRaw<T>) -> Result<Self, NcStatus> {
         // The common release slot can balance either lifetime policy when a
         // foreign result has a mismatched interface or ownership mode.
-        let checked = unsafe { crate::raw::validate_interface(raw) }
-            .and_then(|()| unsafe { box_projection(raw.object.cast(), &T::INTERFACE_ID) }.map(|_| ()));
+        let checked = unsafe { crate::raw::validate_interface(raw) }.and_then(|()| unsafe { box_projection(raw.object.cast(), &T::INTERFACE_ID) }.map(|_| ()));
         if let Err(error) = checked {
             unsafe { crate::raw::release(raw) };
             return Err(error);

@@ -584,7 +584,7 @@ fn reserves_all_visible_macro_companions() {
         resolve_modules(vec![module("example/values.ncidl", &source)]).unwrap();
     }
 
-    // An owned message does not invoke `com_enum`; its private wire helpers
+    // An owned message uses the typed backend directly; its private wire helpers
     // cannot shadow a normal UpperCamel declaration.
     let owned_message = module(
         "example/owned_messages.ncidl",

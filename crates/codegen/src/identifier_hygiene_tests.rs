@@ -12,6 +12,8 @@ fn printed_bindings_preserve_authored_values_and_arguments() {
     for (module, source) in [
         ("values", include_str!("../tests/fixtures/identifier_hygiene.ncidl")),
         ("shadow", include_str!("../tests/fixtures/identifier_shadow.ncidl")),
+        ("arguments", include_str!("../tests/fixtures/identifier_arguments.ncidl")),
+        ("support", include_str!("../tests/fixtures/identifier_support.ncidl")),
     ] {
         let graph = neocogi_idl::resolve_modules(vec![neocogi_idl::parse_module(Path::new(&format!("proof/{module}.ncidl")), source).unwrap()]).unwrap();
         let generated = neocogi_idl::generate_rust(&graph, &format!("proof.{module}")).unwrap();
@@ -52,20 +54,16 @@ fn printed_object_bindings_keep_storage_and_support_names_private() {
     let consumer = crate::test_consumer::Consumer::new("printed-object-storage-proof");
     let mut generated = String::from(
         r#"
-        use neocogi_com::{com_interface, NcStatus};
+        use neocogi_com::NcStatus;
         mod core {}
         type Result = ();
         type Send = ();
         type Sync = ();
         struct SharedComObject;
         struct ExclusiveComObject;
-        #[com_interface(auto_guid = "test.printed.Storage:v1",
-            assigned_signature = b"00000000000000000000000000000641")]
-        trait IValue {
-            fn value(&self) -> ::core::result::Result<u32, NcStatus>;
-        }
     "#,
     );
+    generated += &crate::name_ownership_tests::contract("#[version(1)] interface IValue { fn value(&self) -> Result<u32>; }");
     for (name, options) in [
         ("Shared", quote! { interfaces(IValue), thread_safe }),
         ("Exclusive", quote! { IValue, ownership = exclusive }),

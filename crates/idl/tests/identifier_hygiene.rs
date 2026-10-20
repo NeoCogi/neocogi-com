@@ -20,8 +20,8 @@ fn public_handle_names_reject_before_rust_generation() {
             assert!(error.to_string().contains(name), "{source}: {error}");
         }
         // Raw Rust method identifiers are not part of the IDL snake_case grammar;
-        // they already reject before resolution. The macro tests cover accepted
-        // Rust raw spelling against the same core lookup identity.
+        // they already reject before resolution. There is no parallel handwritten
+        // Rust declaration frontend with a different admission rule.
         let raw = format!("#[version(1)] interface ICollision {{ fn r#{name}(&self) -> Result<u32>; }}");
         assert!(neocogi_idl::parse_module(Path::new("proof/raw_collision.ncidl"), &raw).is_err());
     }
@@ -53,16 +53,25 @@ fn authored_names_preserve_values_across_generated_com() {
     for (module, source) in [
         ("values", include_str!("../../codegen/tests/fixtures/identifier_hygiene.ncidl")),
         ("shadow", include_str!("../../codegen/tests/fixtures/identifier_shadow.ncidl")),
+        ("arguments", include_str!("../../codegen/tests/fixtures/identifier_arguments.ncidl")),
+        ("support", include_str!("../../codegen/tests/fixtures/identifier_support.ncidl")),
     ] {
         let graph = neocogi_idl::resolve_modules(vec![neocogi_idl::parse_module(Path::new(&format!("proof/{module}.ncidl")), source).unwrap()]).unwrap();
         let generated = neocogi_idl::generate_rust(&graph, &format!("proof.{module}")).unwrap();
         fs::write(project.path().join(format!("src/{module}.rs")), generated).unwrap();
     }
-    fs::write(project.path().join("src/lib.rs"), include_str!("../../codegen/tests/fixtures/identifier_hygiene.rs")).unwrap();
+    fs::write(
+        project.path().join("src/lib.rs"),
+        include_str!("../../codegen/tests/fixtures/identifier_hygiene.rs"),
+    )
+    .unwrap();
     let result = Command::new("cargo")
         .args(["test", "--offline", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", root.join("target/message-proof"))
+        .env(
+            "CARGO_TARGET_DIR",
+            std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()),
+        )
         .output()
         .unwrap();
     assert!(

@@ -5,7 +5,9 @@
 //! value. Logical domain closure is deliberately independent of this protocol.
 use core::{marker::PhantomData, ptr::NonNull};
 use crate::lifetime::{NcWeakControl, nc_weak_retain, nc_weak_release, nc_weak_upgrade};
-use crate::{ComInterface, ComPtr, ComRaw, IUnknown, NcInterfaceId, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_DROPPED, NC_E_NOINTERFACE, NC_E_POINTER};
+use crate::{
+    ComInterface, ComPtr, ComRaw, IUnknown, NcInterfaceId, NcStatus, ThreadLocal, ThreadSafe, ThreadingModel, NC_E_DROPPED, NC_E_NOINTERFACE, NC_E_POINTER,
+};
 
 /// One nullable pointer to the common COM lifetime header. Success transfers
 /// one weak reference; a null pointer represents absence and owns nothing.
@@ -134,7 +136,10 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
         unsafe { crate::lifetime::shared_weak_projection(self.control.as_ptr(), &U::INTERFACE_ID) }?;
         // SAFETY: validation precedes acquisition and this token remains alive.
         unsafe { nc_weak_retain(self.control.as_ptr()) };
-        Ok(WeakComPtr { control: self.control, marker: PhantomData })
+        Ok(WeakComPtr {
+            control: self.control,
+            marker: PhantomData,
+        })
     }
 
     /// Restricts cross-thread permission without changing weak ownership or identity.

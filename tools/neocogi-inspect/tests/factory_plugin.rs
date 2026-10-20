@@ -16,11 +16,9 @@ fn build_factory_plugin() -> PathBuf {
         .output()
         .expect("failed to build factory fixture");
     assert_success("factory plugin build", &output);
-    target.join("debug").join(format!(
-        "{}nc_example_com{}",
-        std::env::consts::DLL_PREFIX,
-        std::env::consts::DLL_SUFFIX
-    ))
+    target
+        .join("debug")
+        .join(format!("{}nc_example_com{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX))
 }
 
 /// Reports child diagnostics before failing a build or inspection assertion.

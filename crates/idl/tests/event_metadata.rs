@@ -69,8 +69,10 @@ fn advertised_events_need_no_constructor_and_use_imported_getter_scope() {
 #[test]
 fn emitted_interfaces_must_derive_from_the_common_event_root() {
     for declaration in ["struct Fact { value: u32 }", "interface Fact {}", "interface Fact {}"] {
-        let error = resolve(&format!("{PREFIX} #[version(1)] {declaration} #[version(1)] #[events(Fact)] interface Source {{}}"
-        )).unwrap_err();
+        let error = resolve(&format!(
+            "{PREFIX} #[version(1)] {declaration} #[version(1)] #[events(Fact)] interface Source {{}}"
+        ))
+        .unwrap_err();
         assert!(error.to_string().contains("IEvent"), "{error}");
     }
 }
@@ -143,13 +145,16 @@ fn event_getters_cannot_hide_ambiguity_in_multiple_inheritance() {
 /// Closing one template with different arguments creates distinct getter contracts.
 #[test]
 fn distinct_generic_ancestors_cannot_hide_duplicate_getter_names() {
-    let error = resolve(&format!(r#"{PREFIX}
+    let error = resolve(&format!(
+        r#"{PREFIX}
         #[version(1)] interface Snapshot<T>: IEvent {{ fn value(&self) -> Result<T>; }}
         #[version(1)] interface Left: Snapshot<u32> {{}}
         #[version(1)] interface Right: Snapshot<bool> {{}}
         #[version(1)] interface Fact: Left + Right {{}}
         #[version(1)] #[events(Fact)] interface Source {{}}
-    "#)).unwrap_err();
+    "#
+    ))
+    .unwrap_err();
     assert!(error.to_string().contains("ambiguous"), "{error}");
 }
 

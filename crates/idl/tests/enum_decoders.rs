@@ -24,10 +24,7 @@ fn ordinary_enum_decoders_compile_and_reconstruct_every_payload_shape() {
         #[version(1)] struct Position { x: i32, y: i32 }
     "#;
     let graph = resolve_modules(vec![parse_module(Path::new("proof/enums.ncidl"), source).unwrap()]).unwrap();
-    assert_eq!(
-        graph.values.definitions["proof.enums.Number"].persistence,
-        neocogi_idl::Persistence::Supported
-    );
+    assert_eq!(graph.values.definitions["proof.enums.Number"].persistence, neocogi_idl::Persistence::Supported);
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
@@ -48,7 +45,10 @@ fn ordinary_enum_decoders_compile_and_reconstruct_every_payload_shape() {
     let result = Command::new("cargo")
         .args(["test", "--offline", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", root.join("target/message-proof"))
+        .env(
+            "CARGO_TARGET_DIR",
+            std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()),
+        )
         .output()
         .unwrap();
     assert!(
@@ -58,13 +58,20 @@ fn ordinary_enum_decoders_compile_and_reconstruct_every_payload_shape() {
         String::from_utf8_lossy(&result.stderr)
     );
     for capability in ["ComSerialize", "ComDeserialize"] {
-        fs::write(project.path().join("src/main.rs"), format!(
-            "mod contract; fn requires<T: neocogi_com::{capability}>() {{}} fn main() {{ requires::<contract::Live>(); }}"
-        )).unwrap();
-        let rejected = Command::new("cargo").args(["check", "--offline", "--bin", "enum-proof", "--manifest-path"])
+        fs::write(
+            project.path().join("src/main.rs"),
+            format!("mod contract; fn requires<T: neocogi_com::{capability}>() {{}} fn main() {{ requires::<contract::Live>(); }}"),
+        )
+        .unwrap();
+        let rejected = Command::new("cargo")
+            .args(["check", "--offline", "--bin", "enum-proof", "--manifest-path"])
             .arg(project.path().join("Cargo.toml"))
-            .env("CARGO_TARGET_DIR", root.join("target/message-proof"))
-            .output().unwrap();
+            .env(
+                "CARGO_TARGET_DIR",
+                std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()),
+            )
+            .output()
+            .unwrap();
         let errors = String::from_utf8_lossy(&rejected.stderr);
         assert!(!rejected.status.success(), "live references must not acquire {capability}");
         assert!(errors.contains(capability) && errors.contains("Live"), "{errors}");
@@ -74,7 +81,12 @@ fn ordinary_enum_decoders_compile_and_reconstruct_every_payload_shape() {
 /// Decoder opt-ins are retired, and record format choices never apply to enums.
 #[test]
 fn rejects_obsolete_opt_ins_and_inapplicable_format_policies() {
-    for attribute in ["#[deserialize]", "#[deserialize(if_supported)]", "#[persistence(default)]", "#[persistence(sequence)]"] {
+    for attribute in [
+        "#[deserialize]",
+        "#[deserialize(if_supported)]",
+        "#[persistence(default)]",
+        "#[persistence(sequence)]",
+    ] {
         let source = format!("#[version(1)] {attribute} enum Wrong {{ Value(u32) }}");
         assert!(parse_module(Path::new("proof/enums.ncidl"), &source).is_err());
     }

@@ -7,7 +7,7 @@ an owner already stored in an arbitrary application field.
 
 [ABI v17](../../crates/com/docs/abi-v17.md) retains that transaction boundary and
 replaces the old bidirectional writable buffer with fresh output. IDL and
-handwritten `com_interface` declarations share the same macro and value codecs.
+IDL method/value plans share one typed backend and checked value codecs.
 Persistence serialization is a separate protocol, not part of these getters.
 
 ## Example

@@ -73,7 +73,10 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
     let result = Command::new("cargo")
         .args(["test", "--offline", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", root().join("target/message-proof"))
+        .env(
+            "CARGO_TARGET_DIR",
+            std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root().join("target").into_os_string()),
+        )
         .output()
         .unwrap();
     assert!(
@@ -108,7 +111,10 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
     let result = Command::new("cargo")
         .args(["check", "--offline", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", root().join("target/message-proof"))
+        .env(
+            "CARGO_TARGET_DIR",
+            std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root().join("target").into_os_string()),
+        )
         .output()
         .unwrap();
     let diagnostics = String::from_utf8_lossy(&result.stderr);
@@ -120,6 +126,8 @@ fn constructor_owns_one_permanent_sink_and_publishes_its_reachable_types() {
 /// Standalone fixtures consume the shipped common receiver from its owning crate.
 fn generate_rust(graph: &neocogi_idl::ResolvedModules, module: &str) -> Result<String, neocogi_idl::GenerateError> {
     let mut paths = neocogi_idl::generate::RustModulePaths::default();
-    if graph.module("neocogi.com.events").is_some() { paths.insert("neocogi.com.events", "neocogi_com::events").unwrap(); }
+    if graph.module("neocogi.com.events").is_some() {
+        paths.insert("neocogi.com.events", "neocogi_com::events").unwrap();
+    }
     neocogi_idl::generate::generate_rust_with_paths(graph, module, &paths)
 }

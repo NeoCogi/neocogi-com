@@ -24,35 +24,32 @@ fn decoder_source(style: Decoder, unrelated_return: bool, expand: bool) -> Strin
     let record: syn::ItemStruct = syn::parse_quote! {
         struct Settings { value: u32, enabled: bool }
     };
-    let args = quote! { deserialize, default, assigned_signature = b"00000000000000000000000000000981" };
     let declaration = match (style, expand) {
-        (Decoder::Derive, false) => quote! {
-            #[derive(neocogi_com::ComDeserialize)]
-            #[com_deserialize(default)]
-            #record
-        }
-        .to_string(),
+        (Decoder::Derive, false) => quote! { #[derive(neocogi_com::ComDeserialize)] #[com_deserialize(default)] #record }.to_string(),
         (Decoder::Derive, true) => {
             let input = syn::parse2(quote! { #[com_deserialize(default)] #record }).unwrap();
             let implementation = crate::deserialize::expand_derive(input).unwrap();
             printed(quote! { #record #implementation })
         }
-        (Decoder::Copied, false) => quote! { #[neocogi_com::com_struct(#args)] #record }.to_string(),
-        (Decoder::Copied, true) => printed(crate::structs::expand_com_struct(syn::parse2(args).unwrap(), record).unwrap()),
-        (Decoder::Owned, false) => quote! { #[neocogi_com::com_value(#args)] #record }.to_string(),
-        (Decoder::Owned, true) => printed(crate::value::expand_owned(syn::parse2(args).unwrap(), syn::parse2(quote! { #record }).unwrap()).unwrap()),
+        (Decoder::Copied | Decoder::Owned, _) => {
+            let retained = if matches!(style, Decoder::Owned) { ", retained: Vec<u8>" } else { "" };
+            crate::name_ownership_tests::contract(&format!(
+                "#[version(1)] #[persistence(default)] struct Settings {{ value: u32, enabled: bool{retained} }}"
+            ))
+        }
     };
+    let retained = if matches!(style, Decoder::Owned) { ", retained: vec![]" } else { "" };
     let inherent = if unrelated_return {
         "fn default() -> u32 { 123 }"
     } else {
-        "fn default() -> Self { Self { value: 123, enabled: false } }"
+        &format!("fn default() -> Self {{ Self {{ value: 123, enabled: false{retained} }} }}")
     };
     format!(
         r#"
         #![allow(dead_code)]
         {declaration}
         impl ::core::default::Default for Settings {{
-            fn default() -> Self {{ Self {{ value: 7, enabled: true }} }}
+            fn default() -> Self {{ Self {{ value: 7, enabled: true{retained} }} }}
         }}
         impl Settings {{ {inherent} }}
         #[derive(neocogi_com::ComSerialize)]
@@ -91,13 +88,12 @@ fn plugin_source(shadow: &str, explicit_version: bool, expand: bool) -> String {
     } else {
         quote! { #[neocogi_com::plugin(#args)] #function }.to_string()
     };
+    let bindings = crate::name_ownership_tests::contract("#[version(1)] interface IRoot { fn value(&self) -> Result<u32>; }");
     let expected = if explicit_version { "4.5.6" } else { "0.0.0" };
     format!(
         r#"
         #![allow(dead_code, non_snake_case, unused_macros)]
-        #[neocogi_com::com_interface(auto_guid = "nc.tests.SupportRoot:v1",
-            assigned_signature = b"00000000000000000000000000000982")]
-        trait IRoot {{ fn value(&self) -> Result<u32, neocogi_com::NcStatus>; }}
+        {bindings}
         #[neocogi_com::com_object(interfaces(IRoot))]
         struct Root;
         impl IRoot for Root {{ fn value(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(73) }} }}
@@ -151,7 +147,10 @@ fn run_cases(cases: impl IntoIterator<Item = (String, String)>) {
 fn every_decoder_entrypoint_selects_trait_defaults_in_normal_and_printed_rust() {
     run_cases([Decoder::Derive, Decoder::Copied, Decoder::Owned].into_iter().flat_map(|style| {
         [false, true].into_iter().flat_map(move |unrelated| {
-            [false, true].map(move |expand| {
+            // IDL already emits complete printed Rust; only standalone derives
+            // have distinct ordinary procedural and explicit printed paths.
+            let expansions = if matches!(style, Decoder::Derive) { vec![false, true] } else { vec![true] };
+            expansions.into_iter().map(move |expand| {
                 (
                     format!("{style:?}, unrelated return={unrelated}, printed={expand}"),
                     decoder_source(style, unrelated, expand),

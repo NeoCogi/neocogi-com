@@ -38,6 +38,7 @@ fn ui_errors_are_stable() {
     t.pass("integration-tests/ui/interface_canonical_client.rs");
     t.compile_fail("integration-tests/ui/interface_client_escape.rs");
     t.compile_fail("integration-tests/ui/persistence_retired_policies.rs");
+    t.compile_fail("integration-tests/ui/persistence_packed_record.rs");
 }
 
 /// Construction accepts complete values; none of the former initializer APIs exist.

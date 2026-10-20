@@ -10,46 +10,50 @@ modules. See [IDL contract modules](../../../docs/contracts/IDL_MODULES.md) for 
 source, crate, signature, and tooling model. The
 [current core ABI specification](../docs/README.md) defines the binary boundary.
 
-## Local object example
+## Contracts and concrete objects
 
-```rust
-use neocogi_com::{ComPtr, IUnknown, NcStatus, com_interface, com_object};
+Write the contract in `.ncidl`; its contract crate owns the Cargo IDL build:
 
-// Direct macro use is for low-level fixtures; production contracts use NCIDL.
-#[com_interface(auto_guid = "example.Calculator:v1", assigned_signature = b"00000000000000000000000000000001")]
-pub trait ICalculator {
-    fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
-}
-
-#[com_object(interfaces(ICalculator))]
-pub struct Calculator;
-
-impl ICalculator for Calculator {
-    fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus> {
-        Ok(a + b)
-    }
-}
-
-fn calculate() -> Result<i32, NcStatus> {
-    let unknown: ComPtr<IUnknown> = Calculator::from_value(Calculator);
-    unknown.query::<ICalculatorAbi>()?.add(2, 3)
+```text
+#[version(1)]
+interface ICalculator {
+    fn add(&self, a: i32, b: i32) -> Result<i32>;
 }
 ```
 
-`com_interface` generates the interface marker, vtable, ABI signature, and one
-borrowed `IFooClient` method view. Both `ComPtr<IFooAbi>` and
-`ComRef<'_, IFooAbi>` lend that view through `Deref`, so ordinary calls use the
-same `pointer.method()` syntax without importing an interface-specific trait.
-A derived client view also dereferences to its base client view for inherited
-method lookup. Obtaining an owned base projection still requires checked
-`QueryInterface`.
+`neocogi-idl` binds references, computes canonical identity/signature bytes, and
+passes typed method/value plans to `neocogi-com-codegen`. The backend emits the
+complete trait, C vtable, checked codecs, clients and provider thunks directly.
+There are no handwritten interface/value declaration attributes or signature
+options. The packaged [calculator example](examples/calculator.rs) and its
+[contract source](examples/idl/nc/examples/calculator.ncidl) show the complete path.
 
-Public method names occupied by COM handle operations, such as `clone`, `as_raw`
-and `downgrade`, are rejected by IDL and macro validation. Use a distinct contract
-name such as `clone_value` or `weak_capability`; otherwise Rust would select the
-handle helper before the generated client. The shared
-[identifier policy](../../../docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md)
-does not restrict private parameter names.
+Concrete Rust state implements generated traits and uses `com_object`. This
+runnable example uses the built-in immutable event contract:
+
+```rust
+use neocogi_com::{com_object, ComBox};
+use neocogi_com::events::{IEvent, IEventAbi};
+
+#[com_object(neocogi_com::events::IEvent, ownership = exclusive)]
+struct Activated;
+impl IEvent for Activated {}
+
+let event: ComBox<IEventAbi> = Activated::into_box(Activated).query().unwrap();
+let observed = event.downgrade();
+drop(event);
+assert!(!observed.is_alive());
+```
+
+Generated `ComPtr<IFooAbi>` and `ComRef<'_, IFooAbi>` lend one `IFooClient` method
+view, so calls use `pointer.method()` without an interface-specific trait import.
+Derived clients lend their physical base client for inherited lookup. Owned
+base projections require checked `QueryInterface`.
+
+IDL rejects method names occupied by handle operations, such as `clone`, `as_raw`
+and `downgrade`, using the core-owned member inventory. Legal data names cannot
+capture implementation support or positional locals. See the
+[identifier policy](../../../docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md).
 
 `com_object` generates reference-counted storage and signature-checked
 `QueryInterface`. It does not publish the object as something the runtime can
@@ -267,8 +271,8 @@ let bytes = snapshot(object.as_com_ref())?;
 let restored = recipes.restore(&bytes)?;
 ```
 
-Each registry is thread-local and independently owned. The runtime retains its
-factories until the registry is dropped; registration requires mutable access.
+Each persistence registry is thread-local and independently owned. Its factories
+remain retained until that registry is dropped; registration requires mutable access.
 The same operations run through the shared runtime in native shared deployments
 and through the implementation explicitly retained by a final monolith/browser owner. The NCB-v1 document
 format and provider interface identities are unchanged.
@@ -330,13 +334,13 @@ handler queries a derived event interface. A rejected post returns the original
 owner. The standard channel reports `NC_E_CLOSED` when disconnected.
 
 The common `IErrorEvent` reports a captured negative status and immutable message
-through that same protocol. With `alloc`, `events::error(status, message)` creates
+through that same protocol. With `alloc` and `macros`, `events::error(status, message)` creates
 its sole owner. Reports remain readable after source destruction; failed delivery
 returns a status and never automatically creates another report.
 
 `EventBinding` describes constructor delivery policy. `#[events(...)]` advertises
 the emitted immutable interfaces and their getter metadata. Factories fix the receiver and weak origin before publication.
-`None` means permanently unobserved. Shared-service `EventPort` state can close
+`EventBinding::Unobserved` means permanently unobserved. Shared-service `EventPort` state can close
 idempotently; widget destruction releases its stored receiver. Already queued
 facts remain owned by the inbox. IDL generates no per-widget queue aliases or
 application callback receivers. See [COM event objects](../../../docs/contracts/COM_EVENT_INTERFACES.md)

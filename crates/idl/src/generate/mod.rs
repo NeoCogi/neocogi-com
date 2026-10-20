@@ -6,7 +6,7 @@ use crate::{
     AbiType, Declaration, DeclarationKind, EnumNames, EnumRepr, Method, NamedType, Receiver, ResolvedDeclaration, ResolvedModule, ResolvedModules, Threading,
     VariantFields,
 };
-use proc_macro2::{Ident, Literal, Span, TokenStream};
+use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
 use neocogi_com_core::{NcComDenseEnumMember as DenseMember, NcComInterfaceCompanion};
 
@@ -605,7 +605,7 @@ fn interface_parts(
     module: &ResolvedModule,
     declaration: &Declaration,
 ) -> Result<neocogi_com_codegen::InterfaceExpansion, GenerateError> {
-    use neocogi_com_codegen::{InterfaceArgs, InterfaceGuid, InterfaceThreading};
+    use neocogi_com_codegen::{model::InterfacePlan, InterfaceThreading};
     let DeclarationKind::Interface(interface) = &declaration.kind else {
         return Err(GenerateError::new("interface emission requires a callable declaration"));
     };
@@ -613,22 +613,35 @@ fn interface_parts(
         .declaration(&declaration.name)
         .ok_or_else(|| GenerateError::new("bound interface lost its identity"))?;
     let methods = lower::methods(graph, module, &interface.methods)?;
-    let declarations = methods.iter().map(neocogi_com_codegen::method_declaration);
     let name = rust_ident(&declaration.name)?;
-    let docs = declaration_docs(graph, declaration);
-    let bases = bases(graph, module, &interface.bases)?;
-    let definition = syn::parse2(quote! { #docs pub trait #name #bases { #(#declarations)* } }).map_err(|error| GenerateError::new(error.to_string()))?;
-    let args = InterfaceArgs {
-        guid: InterfaceGuid::Assigned(syn::LitStr::new(&identity.id.to_string(), Span::call_site())),
-        qualified_name: syn::LitStr::new(&identity.qualified_name, Span::call_site()),
-        assigned_signature: Some(syn::LitByteStr::new(&identity.abi_signature, Span::call_site())),
-        runtime_crate: None,
+    use syn::parse::Parser;
+    let docs = syn::Attribute::parse_outer
+        .parse2(declaration_docs(graph, declaration))
+        .map_err(|error| GenerateError::new(error.to_string()))?;
+    let bases = interface
+        .bases
+        .iter()
+        .map(|base| {
+            let bound = resolve(graph, module, base)?;
+            let tokens = named_rust_type(graph, module, bound, false)?;
+            syn::parse2(tokens).map_err(|error| GenerateError::new(error.to_string()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let plan = InterfacePlan {
+        name,
+        visibility: syn::parse_quote!(pub),
+        docs,
+        id: identity.id,
+        signature: identity.abi_signature,
+        qualified_name: identity.qualified_name.clone(),
         threading: match interface.threading {
             Threading::Local => InterfaceThreading::Local,
             Threading::Shared => InterfaceThreading::Shared,
         },
+        bases,
+        methods,
     };
-    neocogi_com_codegen::expand_interface_parts(args, definition, methods).map_err(|error| GenerateError::new(error.to_string()))
+    neocogi_com_codegen::expand_interface_parts(plan).map_err(|error| GenerateError::new(error.to_string()))
 }
 
 /// Formats the Rust-like body accepted by one declarative COM enum macro.
@@ -696,21 +709,6 @@ fn snake_case(value: &str) -> String {
         }
     }
     result
-}
-
-/// Generates a Rust supertrait suffix from IDL required interfaces.
-fn bases(graph: &Generation<'_>, module: &ResolvedModule, values: &[NamedType]) -> Result<TokenStream, GenerateError> {
-    if values.is_empty() {
-        return Ok(quote! {});
-    }
-    let values = values
-        .iter()
-        .map(|value| {
-            let resolved = resolve(graph, module, value)?;
-            named_rust_type(graph, module, resolved, false)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(quote! { : #(#values)+* })
 }
 
 /// Lowers one copied aggregate field or payload type.

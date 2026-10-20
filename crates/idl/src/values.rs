@@ -93,10 +93,7 @@ impl ValueGraph {
                 name.as_str(),
                 "bool" | "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64" | "f32" | "f64" | "Guid" | "Status"
             ),
-            ValueType::Named(name) => self
-                .definitions
-                .get(name)
-                .is_some_and(|value| value.persistence == Persistence::Supported),
+            ValueType::Named(name) => self.definitions.get(name).is_some_and(|value| value.persistence == Persistence::Supported),
             ValueType::Object(_) | ValueType::WeakObject(_) | ValueType::WeakBoxObject(_) => false,
             ValueType::Sequence(value) | ValueType::Array(value, _) => self.can_persist(value),
         }

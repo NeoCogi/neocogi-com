@@ -1,139 +1,11 @@
-//! Procedural macros for `neocogi-com`.
+//! Implementation and persistence procedures for NeoCogi COM.
 //!
-//! This crate turns a Rust trait/struct pair into a small COM-like ABI for
-//! cross-platform Rust component interop:
-//!
-//! - [`macro@com_interface`] keeps the input trait as the Rust implementation
-//!   contract and generates a C-compatible `*Abi` interface type, `*VTable`,
-//!   one safe `*Client` view lent by both `ComPtr` and `ComRef`, static interface
-//!   ABI metadata, and the `unsafe impl neocogi_com::ComInterface` that certifies their raw invariants.
-//! - [`macro@com_object`] wraps a Rust implementation in one allocation containing
-//!   its concrete value, common strong/weak lifetime state and ownership-specific
-//!   call protection. Interface tables are static and outside that allocation;
-//!   every projection preserves the object address. It derives contracts from an IDL
-//!   interface or an explicit local `interfaces(...)` list. Objects are
-//!   thread-local by default; add `thread_safe` to generate
-//!   `ComPtr<_, ThreadSafe>` values for local objects.
-//! - [`macro@plugin`] derives plugin metadata and its acquisition adapter from one
-//!   typed Rust function; `dynamic-plugin` enables the DLL discovery export.
-//! - [`macro@com_struct`] marks a fixed-size record as ABI plain data, owns its
-//!   `repr(C)`/packing/alignment choice, and records its physical layout. It
-//!   checks fields through `neocogi_com::AbiPlainValue` by default, or through
-//!   compiler FFI layout checks with the `c_struct` option. Both modes require
-//!   checked `ComValue` conversion and self-contained `ComInlineValue` wires.
-//! - [`macro@com_enum`] keeps a Rust payload enum for ergonomic code and generates an
-//!   explicit tag + union ABI representation next to it.
-//!
-//! The macros intentionally generate a portable C representation rather than
-//! exposing Rust trait objects. The generated ABI methods are
-//! `unsafe extern "C"` function pointers, return `neocogi_com::NcStatus`, and
-//! write non-void successful return values through an out pointer.
-//!
-//! The target is Rust-to-Rust interoperability across independently built
-//! artifacts: different crate graphs, compiler versions, optimization settings,
-//! or linking modes. The generated ABI is C-compatible, but these macros are not
-//! C header generation tooling and they are not Windows COM bindings. The IDL
-//! build tool supplies each macro expansion with an already-computed,
-//! declaration-scoped signature. Macro expansion emits typed metadata and fixed
-//! bytes; it does not serialize or hash a contract in rustc.
-//!
-//! Owned or long-lived variable-size data such as strings, byte buffers, arrays,
-//! streams, and documents should be modeled as COM interfaces. Do not pass Rust
-//! `String`, `Vec<T>`, slices, references, raw buffers, or allocator-owned memory
-//! across the generated ABI boundary directly. Use `neocogi_com::INcStringAbi` and
-//! `neocogi_com::INcBytesAbi` for common read-only strings and byte buffers. Bounded
-//! call-scoped buffers use `neocogi_com::NcCopyFromBufferOffset` and
-//! `neocogi_com::NcOutputWriter`. For streaming data, expose bounded methods such as
-//! `next_chunk(max_len) -> Result<ComPtr<INcBytesAbi>, NcStatus>`; a successful
-//! chunk must contain at most `max_len` bytes, and an empty chunk can represent
-//! end-of-stream.
-//!
-//! # Current ABI lowering
-//!
-//! Callable methods use shared or mutable receivers and typed results, for example:
-//!
-//! ```text
-//! fn method(&self, arg: AbiSafeType) -> Result<AbiSafeReturn, neocogi_com::NcStatus>;
-//! ```
-//!
-//! Plain values supply `AbiType` metadata and checked `ComValue` conversion.
-//! Raw slots carry the associated wire representation; application layouts are
-//! local. Copied positions additionally require `ComInlineValue`. `Result<(), NcStatus>` is
-//! the void-success form and lowers to a status-only ABI function with no output
-//! pointer. `Result::Err` must contain a negative status. Generated thunks
-//! preserve negative errors and normalize a non-negative error to
-//! `neocogi_com::NC_E_INVALID_ARG` without writing an output slot. COM interface
-//! arguments use `neocogi_com::ComRef<'_, IFooAbi>` and lower
-//! to borrowed object/table pairs. The anonymous `'_` lifetime is required;
-//! named lifetimes, including `'static`, are rejected so the borrow cannot escape
-//! the generated trait call. COM interface returns use
-//! `neocogi_com::ComPtr<IFooAbi>` and lower to owned object/table pairs. Safe
-//! buffer parameters use `neocogi_com::NcCopyFromBufferOffset<'_, T>` or
-//! `neocogi_com::NcOutputWriter<'_, T>`. Readable inputs lower to offset, length,
-//! and raw pointer slots. Output writers lower to offset, capacity, raw wire pointer,
-//! and a separate initialized-prefix count pointer. Generated clients accept
-//! `NcOutput<'_, T>` from reusable `NcOutputBuffer` or identity-only stack storage.
-//! No old output bytes are input. These views require `'_` and remain call-scoped. Borrowed values use `neocogi_com::NcValueRef<'_, T>`
-//! and the same lifetime policy: exactly one anonymous lifetime followed by the
-//! value type. Receivers must call `to_owned()` during the call to retain data.
-//! Even a static application value can need temporary encoded storage, so its
-//! receiver cannot claim a static borrow of the wire. This restricts interface
-//! declarations, not the lifetime of a producer guard created with `NcValueRef::new`.
-//!
-//! The generated ABI function becomes:
-//!
-//! ```text
-//! unsafe extern "C" fn(
-//!     this: *mut core::ffi::c_void,
-//!     arg: ArgumentWire,
-//!     borrowed: neocogi_com::ComRaw<IFooAbi>,
-//!     buffer_offset: u64,
-//!     buffer_len: u64,
-//!     buffer_ptr: *mut u8,
-//!     out: *mut ReturnWire,
-//! ) -> neocogi_com::NcStatus
-//! ```
-//!
-//! Void success methods omit the output pointer:
-//!
-//! ```text
-//! unsafe extern "C" fn(
-//!     this: *mut core::ffi::c_void,
-//!     arg: ArgumentWire,
-//! ) -> neocogi_com::NcStatus
-//! ```
-//!
-//! Methods named `query_interface`, `add_ref`, or `release` conflict with the
-//! generated `IUnknown` lifecycle thunks and are rejected, as are names shadowed
-//! by COM handle methods. Core owns that shared admission policy. Authored
-//! parameter names remain in traits and metadata; conversion bodies use separate
-//! positional bindings so legal names cannot capture generated temporaries.
-//! Other unsupported method shapes likewise fail with span-aware `syn::Error`
-//! diagnostics before any ABI items are generated.
-//!
-//! # Interface IDs
-//!
-//! `neocogi-idl` supplies the deterministic interface GUID, qualified
-//! name, and `assigned_signature` byte string. Direct macro invocations are
-//! low-level generator/test infrastructure and must also provide a complete
-//! precomputed signature; there is intentionally no compiler-side fallback.
-//!
-//! The generator supplies `assigned_guid` after resolving the IDL declaration
-//! name and version, including an explicit ID when authored. Low-level
-//! `auto_guid` instead derives a UUIDv5 directly from its qualified-name text;
-//! a positional UUID literal is a checked pin of that derivation and requires
-//! `name = "..."`. These are distinct identity paths. Interface/plugin names
-//! and plugin release-version literals are validated against the descriptor
-//! text policy during macro expansion.
-//!
-//! Generated code uses the canonical `::neocogi_com` crate path. Use
-//! `neocogi_com = path` on a macro invocation only when generated code must target
-//! an explicit facade or re-export path. The macros never parse Cargo metadata.
-
-#![deny(missing_docs)]
+//! IDL compiles callable and value contracts to complete Rust through the typed
+//! backend. This crate adds concrete object allocation, typed plugin acquisition
+//! and standalone positional NCB codecs to ordinary Rust application types.
 
 use proc_macro::TokenStream;
-use syn::{DeriveInput, ItemEnum, ItemStruct, ItemTrait, parse_macro_input};
+use syn::{DeriveInput, ItemStruct, parse_macro_input};
 
 /// Derives statically typed NCB decoding for a local Rust value.
 ///
@@ -141,8 +13,8 @@ use syn::{DeriveInput, ItemEnum, ItemStruct, ItemTrait, parse_macro_input};
 /// and recursively typed payloads. Use `#[com_deserialize(default)]` on a named
 /// struct to retain `Default` values for an omitted suffix. Truncated field bytes
 /// remain errors. NCB has no alternate named-field or renamed-variant mode.
-/// COM ABI records should normally use `#[com_struct(deserialize)]` instead so
-/// one attribute owns both layout and decoding generation.
+/// IDL records receive their codecs directly from the resolved declaration.
+/// These derives apply to ordinary Rust persistence values.
 #[proc_macro_derive(ComDeserialize, attributes(com_deserialize))]
 pub fn derive_com_deserialize(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
@@ -163,37 +35,6 @@ pub fn derive_com_serialize(item: TokenStream) -> TokenStream {
     }
 }
 
-/// Defines a COM interface from an IDL-generated Rust trait.
-///
-/// The macro keeps the trait as the Rust implementation surface and generates
-/// C-compatible ABI items next to it:
-///
-/// - `ITraitAbi`: a marker naming the typed interface contract.
-/// - `ITraitVTable`: a `#[repr(C)]` vtable.
-/// - `ITraitClient`: the safe method view lent by owning and borrowed pointers.
-/// - An `unsafe impl neocogi_com::ComInterface` for the generated marker.
-///
-/// Generated items inherit the trait visibility.
-/// The generated unsafe implementation certifies the object/table pairing, vtable
-/// prefix, interface identity/signature, and lifecycle contract required
-/// by safe `ComPtr` operations. Defining an interface through this macro does
-/// not require user-written unsafe code.
-///
-/// The required `assigned_signature = b"..."` is the 32-byte declaration
-/// signature computed by `neocogi-idl`. `auto_guid =
-/// "qualified.Name:v1"` stores that exact qualified name and derives its UUIDv5
-/// identity. The qualified name must satisfy the ABI descriptor text policy;
-/// invalid literals are rejected during macro expansion.
-#[proc_macro_attribute]
-pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let attr = parse_macro_input!(attr as neocogi_com_codegen::InterfaceArgs);
-    let input = parse_macro_input!(item as ItemTrait);
-    match neocogi_com_codegen::expand_com_interface(attr, input) {
-        Ok(tokens) => tokens.into(),
-        Err(err) => err.to_compile_error().into(),
-    }
-}
-
 /// Defines concrete COM object storage for a Rust implementation struct.
 ///
 /// A bare `Interface` path implements one IDL interface without
@@ -208,8 +49,8 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     value: i32,
 /// }
 ///
-/// #[com_object(interfaces(IEventSink))]
-/// struct EventSink {
+/// #[com_object(interfaces(IEventReceiver))]
+/// struct EventReceiver {
 ///     pending: bool,
 /// }
 /// ```
@@ -244,104 +85,6 @@ pub fn plugin(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as neocogi_com_codegen::PluginArgs);
     let input = parse_macro_input!(item as syn::ItemFn);
     match neocogi_com_codegen::expand_plugin(args, input) {
-        Ok(tokens) => tokens.into(),
-        Err(error) => error.to_compile_error().into(),
-    }
-}
-
-/// Defines a fixed-size ABI-safe record from generated IDL bindings.
-///
-/// The macro owns the struct representation, derives `Clone, Copy` when those
-/// derives are not already listed, publishes the IDL-assigned nominal identity,
-/// generates checked wire conversion, and implements `neocogi_com::AbiType` and
-/// `neocogi_com::AbiPlainValue` for the struct. By default, it verifies every field
-/// implements `neocogi_com::AbiPlainValue`.
-///
-/// The IDL generator always supplies `assigned_signature = b"..."`; its 32
-/// bytes are stored directly and never hashed by rustc. Accepted layout forms are `#[com_struct]`, `#[com_struct(packed)]`,
-/// `#[com_struct(packed(N))]`, and `#[com_struct(align(N))]`. Do not also write
-/// a raw `#[repr(...)]` attribute; the macro owns the local representation policy.
-/// Application offsets are not reflection metadata. Direct wire borrowing uses
-/// an independent recursive layout proof in the generated codec.
-///
-/// `#[com_struct(c_struct)]` accepts external C-layout field types without generated
-/// `AbiType`/`AbiPlainValue` metadata. Every field still requires an explicit
-/// `ComValue` codec and `ComInlineValue` proof. The option can be combined with packing and
-/// alignment options. The compiler checks the record's FFI layout, including
-/// nested field layouts, through `improper_ctypes_definitions`, promoted to an
-/// error. An incompatible Rust-layout field fails to compile; `Copy` and syntactic
-/// field checks still apply. The author must ensure fields contain no hidden
-/// pointers, references, or ownership duties, which C layout alone cannot prove.
-/// External codec authors must preserve the assigned IDL contract semantics;
-/// a semantic change requires an appropriate contract revision. Independent
-/// compiler versions may use different application layouts because conversion
-/// uses the explicit wire representation.
-/// External fields must implement `ComValue` and `ComInlineValue`, explicitly
-/// defining raw representations and validation. C layout alone never bypasses
-/// checked conversion. Generated method slots use the converted wire type.
-///
-/// Use this for small plain records. Variable-size data, borrowed data, raw
-/// addresses, and values with ownership or release obligations should be modeled
-/// as COM interfaces instead.
-///
-/// Add `deserialize` to generate an NCB [`ComDeserialize`] constructor. Fields
-/// decode in declaration order; `default` permits omitted trailing fields. These
-/// options affect persistence, independently of checked live-call wire layouts.
-#[proc_macro_attribute]
-pub fn com_struct(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as neocogi_com_codegen::StructArgs);
-    let input = parse_macro_input!(item as ItemStruct);
-    match neocogi_com_codegen::expand_com_struct(args, input) {
-        Ok(tokens) => tokens.into(),
-        Err(err) => err.to_compile_error().into(),
-    }
-}
-
-/// Defines a generated tagged payload enum with an explicit COM ABI representation.
-///
-/// The input Rust enum remains available for local Rust code. The IDL generator
-/// supplies both `tag` and the precomputed `assigned_signature`; complete
-/// compile-tested construction, conversion, and ordinal-tag examples live in
-/// the primary `neocogi-com` crate-level documentation.
-///
-/// The native enum is the only application representation. `ComValue` supplies
-/// a separate explicit wire record with an integer tag and recursively lowered
-/// active payload. Generated COM calls use that wire, never the native enum's
-/// Rust layout. Decoding rejects unknown tags before reading any payload and
-/// validates restricted fields (including booleans) before constructing values.
-/// No `NameAbi`, public tag type, or tag/union conversion API is generated.
-///
-/// Tags are always zero-based declaration ordinals, matching IDL and persistence.
-/// Explicit Rust discriminants and `#[com_tag(...)]` are rejected. Reordering
-/// variants changes the contract and requires a declaration version increment.
-///
-/// Variant payload fields must implement `neocogi_com::AbiPlainValue`. Owning Rust values
-/// such as `String`, `Vec<T>`, and `neocogi_com::ComPtr<T>` are rejected because the
-/// copied value must be self-contained. Use `com_value` with `NcValueRef` for
-/// owned payloads, including typed object capabilities. Raw pointers are rejected
-/// in payloads because they carry lifetime, nullability, and ownership rules not
-/// represented by a durable tagged value.
-///
-/// Add `deserialize` to generate a typed NCB constructor for the original
-/// Rust enum. Fieldless, newtype, tuple, and named variants remain statically
-/// typed throughout decoding; this option does not alter the generated ABI.
-#[proc_macro_attribute]
-pub fn com_enum(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as neocogi_com_codegen::EnumArgs);
-    let input = parse_macro_input!(item as ItemEnum);
-    match neocogi_com_codegen::expand_com_enum(args, input) {
-        Ok(tokens) => tokens.into(),
-        Err(err) => err.to_compile_error().into(),
-    }
-}
-
-/// Generates recursive raw fields and typed backing storage for an owned IDL value.
-/// This uses the same field codec as copied structs and enum payloads.
-#[proc_macro_attribute]
-pub fn com_value(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as neocogi_com_codegen::StructArgs);
-    let input = parse_macro_input!(item as syn::DeriveInput);
-    match neocogi_com_codegen::expand_owned(args, input) {
         Ok(tokens) => tokens.into(),
         Err(error) => error.to_compile_error().into(),
     }

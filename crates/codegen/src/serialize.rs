@@ -8,6 +8,18 @@ use crate::util::{PrivateNames, validate_no_generics};
 /// Generates field-by-field writes, never ABI-offset inspection or type erasure.
 pub fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     validate_no_generics(&input.generics, "ComSerialize derives")?;
+    // Deriving field borrows requires ordinary aligned Rust storage. Packed
+    // application records need an explicit codec that first copies each chosen
+    // field into aligned local storage; no byte-layout policy belongs to COM.
+    for attribute in input.attrs.iter().filter(|attribute| attribute.path().is_ident("repr")) {
+        let representations = attribute.parse_args_with(syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated)?;
+        if representations.iter().any(|representation| representation.path().is_ident("packed")) {
+            return Err(syn::Error::new_spanned(
+                attribute,
+                "ComSerialize requires aligned fields; implement an explicit codec for a packed native record",
+            ));
+        }
+    }
     let name = &input.ident;
     let nc: syn::Path = syn::parse_quote!(::neocogi_com);
     let options = crate::deserialize::parse_options(&input.attrs)?;

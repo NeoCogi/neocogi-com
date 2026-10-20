@@ -72,7 +72,10 @@ fn allocation() -> (*mut NcWeakControl, Arc<Observations>) {
     let observations = Arc::new(Observations::default());
     let storage = Box::new(Allocation {
         control: NcWeakControl::new(&CLASS),
-        value: MaybeUninit::new(Value { observations: observations.clone(), self_weak: None }),
+        value: MaybeUninit::new(Value {
+            observations: observations.clone(),
+            self_weak: None,
+        }),
         observations: observations.clone(),
     });
     (Box::into_raw(storage).cast(), observations)
@@ -132,33 +135,43 @@ fn checked_weak_transport_balances_tokens_before_and_after_destruction() {
     let (control, observed) = allocation();
     // SAFETY: this fixture owns the initial strong reference and retains one
     // explicit weak owner across both iterations and final value destruction.
-    unsafe { nc_weak_retain(control); }
+    unsafe {
+        nc_weak_retain(control);
+    }
     for expired in [false, true] {
         // SAFETY: the explicit weak owner keeps this header readable throughout.
         let before = unsafe { (*control).weak.load(Ordering::Relaxed) };
-        unsafe { nc_weak_retain(control); }
+        unsafe {
+            nc_weak_retain(control);
+        }
         // SAFETY: transfer the additional weak token with intentionally wrong T.
-        assert_eq!(unsafe {
-            WeakComPtr::<crate::INcBytesAbi>::__nc_from_raw_owned_checked(NcWeakRaw { control })
-        }.unwrap_err(), crate::NC_E_NOINTERFACE);
+        assert_eq!(
+            unsafe { WeakComPtr::<crate::INcBytesAbi>::__nc_from_raw_owned_checked(NcWeakRaw { control }) }.unwrap_err(),
+            crate::NC_E_NOINTERFACE
+        );
         assert_eq!(unsafe { (*control).weak.load(Ordering::Relaxed) }, before);
         // SAFETY: the source lends a live header; acquisition adds only one weak owner.
-        let acquired = unsafe {
-            WeakComPtr::<IUnknown>::decode_value(NcWeakRaw { control }, &mut ValueBudget::default())
-        }.unwrap();
+        let acquired = unsafe { WeakComPtr::<IUnknown>::decode_value(NcWeakRaw { control }, &mut ValueBudget::default()) }.unwrap();
         assert_eq!(unsafe { (*control).weak.load(Ordering::Relaxed) }, before + 1);
         assert_eq!(unsafe { (*control).state.load(Ordering::Relaxed) }, if expired { 0 } else { 1 });
         drop(acquired);
         assert_eq!(unsafe { (*control).weak.load(Ordering::Relaxed) }, before);
         // A rejected conversion neither acquires nor releases the caller's token.
-        assert_eq!(unsafe {
-            WeakComPtr::<IUnknown>::decode_value(NcWeakRaw { control }, &mut ValueBudget::new(0, 0, 0))
-        }.unwrap_err(), crate::NC_E_OUT_OF_RANGE);
+        assert_eq!(
+            unsafe { WeakComPtr::<IUnknown>::decode_value(NcWeakRaw { control }, &mut ValueBudget::new(0, 0, 0)) }.unwrap_err(),
+            crate::NC_E_OUT_OF_RANGE
+        );
         assert_eq!(unsafe { (*control).weak.load(Ordering::Relaxed) }, before);
-        if !expired { unsafe { nc_strong_release(control.cast()); } }
+        if !expired {
+            unsafe {
+                nc_strong_release(control.cast());
+            }
+        }
     }
     // SAFETY: release the final explicit weak owner; no header reads follow.
-    unsafe { nc_weak_release(control); }
+    unsafe {
+        nc_weak_release(control);
+    }
     assert_eq!(observed.destroyed.load(Ordering::SeqCst), 1);
     assert_eq!(observed.freed.load(Ordering::SeqCst), 1);
 }
