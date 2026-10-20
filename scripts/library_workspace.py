@@ -47,12 +47,17 @@ def library_workspace():
 
 
 def main():
-    """Run a library test command in the fixture, preserving its original output/target locations."""
+    """Run a command with source and build artifacts owned by one temporary fixture."""
     if len(sys.argv) < 2:
         raise SystemExit("usage: library_workspace.py COMMAND [ARG ...]")
     env = dict(os.environ, NEOCOGI_LIBRARY_WORKSPACE="1")
-    env.setdefault("CARGO_TARGET_DIR", str(ROOT / "target/msrv"))
     with library_workspace() as root:
+        # Test binaries embed this source owner's manifest paths. Reusing a
+        # persistent target after the owner is deleted can execute stale binaries
+        # pointing into a previous fixture. Source and artifacts retire together,
+        # as in the archive verifier, while children share this run's one target.
+        env["CARGO_TARGET_DIR"] = str(root / "target")
+        print(f"library fixture target: {env['CARGO_TARGET_DIR']}", flush=True)
         raise SystemExit(subprocess.call(sys.argv[1:], cwd=root, env=env))
 
 

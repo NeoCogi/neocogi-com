@@ -18,8 +18,8 @@ fi
 
 packages=(
   neocogi-com-core
-  neocogi-idl
   neocogi-com-codegen
+  neocogi-idl
   neocogi-com-macros
   neocogi-com-runtime
   neocogi-com
@@ -44,7 +44,7 @@ for package in "${packages[@]}"; do
 done
 
 echo "==> [packages] build workspace archives"
-cargo package -p neocogi-com-core -p neocogi-idl -p neocogi-com-codegen -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --no-verify --allow-dirty --locked --offline
+cargo package -p neocogi-com-core -p neocogi-com-codegen -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --no-verify --allow-dirty --locked --offline
 
 package_dir="${CARGO_TARGET_DIR:-target}/package"
 for package in "${packages[@]}"; do

@@ -111,5 +111,5 @@ freshness-checked against this same typed backend; a change must regenerate both
 Rust declaration-attribute fixtures were retired with their frontend. They are
 not a supported route around IDL admission. Their supported runtime assertions
 now use actual IDL sources; ordinary Rust scope assertions remain on the surviving
-implementation/persistence procedures. Run the backend suite with
-`cargo test -p neocogi-com-codegen --lib -- --test-threads=1`.
+implementation/persistence procedures. Run the compiler-owned backend regressions with
+`cargo test -p neocogi-idl --lib -- --test-threads=1`.

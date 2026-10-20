@@ -51,10 +51,10 @@ fn authored_names_preserve_values_across_generated_com() {
     )
     .unwrap();
     for (module, source) in [
-        ("values", include_str!("../../codegen/tests/fixtures/identifier_hygiene.ncidl")),
-        ("shadow", include_str!("../../codegen/tests/fixtures/identifier_shadow.ncidl")),
-        ("arguments", include_str!("../../codegen/tests/fixtures/identifier_arguments.ncidl")),
-        ("support", include_str!("../../codegen/tests/fixtures/identifier_support.ncidl")),
+        ("values", include_str!("../src/backend_tests/fixtures/identifier_hygiene.ncidl")),
+        ("shadow", include_str!("../src/backend_tests/fixtures/identifier_shadow.ncidl")),
+        ("arguments", include_str!("../src/backend_tests/fixtures/identifier_arguments.ncidl")),
+        ("support", include_str!("../src/backend_tests/fixtures/identifier_support.ncidl")),
     ] {
         let graph = neocogi_idl::resolve_modules(vec![neocogi_idl::parse_module(Path::new(&format!("proof/{module}.ncidl")), source).unwrap()]).unwrap();
         let generated = neocogi_idl::generate_rust(&graph, &format!("proof.{module}")).unwrap();
@@ -62,7 +62,7 @@ fn authored_names_preserve_values_across_generated_com() {
     }
     fs::write(
         project.path().join("src/lib.rs"),
-        include_str!("../../codegen/tests/fixtures/identifier_hygiene.rs"),
+        include_str!("../src/backend_tests/fixtures/identifier_hygiene.rs"),
     )
     .unwrap();
     let result = Command::new("cargo")

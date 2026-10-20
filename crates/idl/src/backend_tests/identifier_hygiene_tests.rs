@@ -1,4 +1,5 @@
 //! Printed bindings must preserve values after macro syntax contexts are lost.
+use crate as neocogi_idl;
 use std::{fs, path::Path, process::Command};
 use quote::quote;
 
@@ -7,13 +8,13 @@ use quote::quote;
 /// contexts, so its runtime checks prove structural name separation as well.
 #[test]
 fn printed_bindings_preserve_authored_values_and_arguments() {
-    let consumer = crate::test_consumer::Consumer::new("printed-hygiene-proof");
+    let consumer = super::test_consumer::Consumer::new("printed-hygiene-proof");
     let project = &consumer.directory;
     for (module, source) in [
-        ("values", include_str!("../tests/fixtures/identifier_hygiene.ncidl")),
-        ("shadow", include_str!("../tests/fixtures/identifier_shadow.ncidl")),
-        ("arguments", include_str!("../tests/fixtures/identifier_arguments.ncidl")),
-        ("support", include_str!("../tests/fixtures/identifier_support.ncidl")),
+        ("values", include_str!("fixtures/identifier_hygiene.ncidl")),
+        ("shadow", include_str!("fixtures/identifier_shadow.ncidl")),
+        ("arguments", include_str!("fixtures/identifier_arguments.ncidl")),
+        ("support", include_str!("fixtures/identifier_support.ncidl")),
     ] {
         let graph = neocogi_idl::resolve_modules(vec![neocogi_idl::parse_module(Path::new(&format!("proof/{module}.ncidl")), source).unwrap()]).unwrap();
         let generated = neocogi_idl::generate_rust(&graph, &format!("proof.{module}")).unwrap();
@@ -26,7 +27,7 @@ fn printed_bindings_preserve_authored_values_and_arguments() {
         .unwrap();
     }
     // Share the semantic assertions with the ordinary procedural-macro path.
-    fs::write(project.path().join("src/lib.rs"), include_str!("../tests/fixtures/identifier_hygiene.rs")).unwrap();
+    fs::write(project.path().join("src/lib.rs"), include_str!("fixtures/identifier_hygiene.rs")).unwrap();
     let result = Command::new("cargo")
         .args(["test", "--offline", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
@@ -51,7 +52,7 @@ fn printed_bindings_preserve_authored_values_and_arguments() {
 /// Object expansion must survive printing with authored support names in both ownership modes.
 #[test]
 fn printed_object_bindings_keep_storage_and_support_names_private() {
-    let consumer = crate::test_consumer::Consumer::new("printed-object-storage-proof");
+    let consumer = super::test_consumer::Consumer::new("printed-object-storage-proof");
     let mut generated = String::from(
         r#"
         use neocogi_com::NcStatus;
@@ -63,14 +64,14 @@ fn printed_object_bindings_keep_storage_and_support_names_private() {
         struct ExclusiveComObject;
     "#,
     );
-    generated += &crate::name_ownership_tests::contract("#[version(1)] interface IValue { fn value(&self) -> Result<u32>; }");
+    generated += &super::name_ownership_tests::contract("#[version(1)] interface IValue { fn value(&self) -> Result<u32>; }");
     for (name, options) in [
         ("Shared", quote! { interfaces(IValue), thread_safe }),
         ("Exclusive", quote! { IValue, ownership = exclusive }),
     ] {
         let ident = syn::Ident::new(name, proc_macro2::Span::call_site());
         let object = syn::parse2(quote! { struct #ident<Result> { value: u32, _state: Result } }).unwrap();
-        let expanded = crate::object::expand_com_object(syn::parse2(options).unwrap(), object);
+        let expanded = neocogi_com_codegen::expand_com_object(syn::parse2(options).unwrap(), object);
         generated += &prettyplease::unparse(&syn::parse2(expanded).unwrap());
         generated += &format!(
             r#"

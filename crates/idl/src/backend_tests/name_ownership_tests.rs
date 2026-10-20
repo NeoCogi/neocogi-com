@@ -4,6 +4,7 @@
 //! values and incompatible types. Compilation alone cannot detect a same-typed
 //! replacement; actual codec budgets, metadata and COM calls establish ownership.
 
+use crate as neocogi_idl;
 use std::{fs, process::Command};
 
 use proc_macro2::TokenStream;
@@ -62,7 +63,7 @@ fn run_consumers(name: &str, cases: impl IntoIterator<Item = (String, String)>) 
 /// Additional integration targets compile as separate crates, so public wires
 /// must remain usable without access to the native field-resolution scope.
 fn run_consumers_with_files(name: &str, cases: impl IntoIterator<Item = (String, String)>, files: &[(&str, &str)]) {
-    let consumer = crate::test_consumer::Consumer::new(name);
+    let consumer = super::test_consumer::Consumer::new(name);
     for (path, source) in files {
         let path = consumer.directory.path().join(path);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -122,12 +123,12 @@ fn source_items(source: &str, expand: bool) -> String {
                 }
                 item.attrs = attributes;
                 let serialization = if serialize {
-                    crate::serialize::expand_derive(syn::parse2(quote! { #item }).unwrap()).unwrap()
+                    neocogi_com_codegen::expand_com_serialize_derive(syn::parse2(quote! { #item }).unwrap()).unwrap()
                 } else {
                     TokenStream::new()
                 };
                 let deserialization = if deserialize {
-                    crate::deserialize::expand_derive(syn::parse2(quote! { #item }).unwrap()).unwrap()
+                    neocogi_com_codegen::expand_com_deserialize_derive(syn::parse2(quote! { #item }).unwrap()).unwrap()
                 } else {
                     TokenStream::new()
                 };
@@ -138,7 +139,7 @@ fn source_items(source: &str, expand: bool) -> String {
                 let definition = match index {
                     Some(index) => {
                         let attribute = item.attrs.remove(index);
-                        crate::object::expand_com_object(attribute.parse_args().unwrap(), item)
+                        neocogi_com_codegen::expand_com_object(attribute.parse_args().unwrap(), item)
                     }
                     None => quote! { #item },
                 };
@@ -151,7 +152,7 @@ fn source_items(source: &str, expand: bool) -> String {
             {
                 Some(index) => {
                     let arguments = item.attrs.remove(index).parse_args().unwrap();
-                    crate::plugin::expand_plugin(arguments, item).unwrap()
+                    neocogi_com_codegen::expand_plugin(arguments, item).unwrap()
                 }
                 None => quote! { #item },
             },

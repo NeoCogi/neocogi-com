@@ -73,14 +73,4 @@ pub fn emit_value(
 }
 
 #[cfg(test)]
-mod identifier_hygiene_tests;
-#[cfg(test)]
-mod name_ownership_tests;
-#[cfg(test)]
 mod navigation_tests;
-#[cfg(test)]
-mod persistence_codegen;
-#[cfg(test)]
-mod support_resolution_tests;
-#[cfg(test)]
-mod test_consumer;

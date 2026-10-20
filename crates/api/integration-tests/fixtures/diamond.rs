@@ -206,7 +206,6 @@ fn every_projection_uses_the_same_exclusive_borrow_gate() {
 
 /// Different modules can use the same local trait spelling with distinct identities.
 mod first {
-    use super::*;
     #[allow(unused_imports)]
     pub use super::{
         FirstIValueAbi as IValueAbi, FirstIValueVTable as IValueVTable, FirstIValueVtblFor as IValueVtblFor, FirstIValueClient as IValueClient,
@@ -215,7 +214,6 @@ mod first {
 }
 /// The second spelling must not collide through an invented storage field name.
 mod second {
-    use super::*;
     #[allow(unused_imports)]
     pub use super::{
         SecondIValueAbi as IValueAbi, SecondIValueVTable as IValueVTable, SecondIValueVtblFor as IValueVtblFor, SecondIValueClient as IValueClient,

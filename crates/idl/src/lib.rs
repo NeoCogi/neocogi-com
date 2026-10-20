@@ -69,3 +69,6 @@ pub use source_map::{GeneratedRust, RustSourceMap, SourceMapFile, SourceMapKind,
 
 mod values;
 pub use values::{Persistence, ValueDefinition, ValueGraph, ValueType};
+
+#[cfg(test)]
+mod backend_tests;

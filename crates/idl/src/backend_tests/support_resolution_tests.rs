@@ -28,12 +28,12 @@ fn decoder_source(style: Decoder, unrelated_return: bool, expand: bool) -> Strin
         (Decoder::Derive, false) => quote! { #[derive(neocogi_com::ComDeserialize)] #[com_deserialize(default)] #record }.to_string(),
         (Decoder::Derive, true) => {
             let input = syn::parse2(quote! { #[com_deserialize(default)] #record }).unwrap();
-            let implementation = crate::deserialize::expand_derive(input).unwrap();
+            let implementation = neocogi_com_codegen::expand_com_deserialize_derive(input).unwrap();
             printed(quote! { #record #implementation })
         }
         (Decoder::Copied | Decoder::Owned, _) => {
             let retained = if matches!(style, Decoder::Owned) { ", retained: Vec<u8>" } else { "" };
-            crate::name_ownership_tests::contract(&format!(
+            super::name_ownership_tests::contract(&format!(
                 "#[version(1)] #[persistence(default)] struct Settings {{ value: u32, enabled: bool{retained} }}"
             ))
         }
@@ -84,11 +84,11 @@ fn plugin_source(shadow: &str, explicit_version: bool, expand: bool) -> String {
         }
     };
     let plugin = if expand {
-        printed(crate::plugin::expand_plugin(syn::parse2(args).unwrap(), function).unwrap())
+        printed(neocogi_com_codegen::expand_plugin(syn::parse2(args).unwrap(), function).unwrap())
     } else {
         quote! { #[neocogi_com::plugin(#args)] #function }.to_string()
     };
-    let bindings = crate::name_ownership_tests::contract("#[version(1)] interface IRoot { fn value(&self) -> Result<u32>; }");
+    let bindings = super::name_ownership_tests::contract("#[version(1)] interface IRoot { fn value(&self) -> Result<u32>; }");
     let expected = if explicit_version { "4.5.6" } else { "0.0.0" };
     format!(
         r#"
@@ -117,7 +117,7 @@ fn plugin_source(shadow: &str, explicit_version: bool, expand: bool) -> String {
 
 /// Executes each real consumer and accumulates independent failures for useful baseline evidence.
 fn run_cases(cases: impl IntoIterator<Item = (String, String)>) {
-    let consumer = crate::test_consumer::Consumer::new("support-resolution-proof");
+    let consumer = super::test_consumer::Consumer::new("support-resolution-proof");
     let mut failures = Vec::new();
     for (name, source) in cases {
         fs::write(consumer.directory.path().join("src/lib.rs"), source).unwrap();

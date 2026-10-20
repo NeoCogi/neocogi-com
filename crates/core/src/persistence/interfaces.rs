@@ -1,5 +1,5 @@
 // Generated from core/idl/neocogi/com/persistence/objects.ncidl.
-// Regenerate: NC_UPDATE_PERSISTENCE_BINDINGS=1 cargo test -p neocogi-com-codegen persistence_bindings_match_idl
+// Regenerate: NC_UPDATE_PERSISTENCE_BINDINGS=1 cargo test -p neocogi-idl persistence_bindings_match_idl
 
 /// Stable logical identity of this generated contract module.
 pub const MODULE_ID: crate::NcGuid = crate::NcGuid::from_fields(
