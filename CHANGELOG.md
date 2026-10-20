@@ -1,5 +1,15 @@
 # Changelog
 
+## Bound base and event fingerprints (pre-release)
+
+Use one lexical bound/free classifier for type expressions, direct bases and
+emitted events. Positional binders no longer fail as unresolved declarations;
+qualified free names retain their identities. Reference slots carry explicit
+bound/free tags under canonical module encoding v11. Regenerate bindings and
+rebuild hosts, plugins and contracts together. Nominal IDs, core ABI 17, discovery
+ABI v1 and the one registry in the shared COM runtime remain unchanged.
+Nested base/event argument spans now retain their authored source for diagnostics.
+
 ## Explicit generated support lookup (pre-release)
 
 Plugin descriptors explicitly resolve Option::Some and the built-in env! macro.

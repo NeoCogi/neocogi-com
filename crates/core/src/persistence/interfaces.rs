@@ -10,9 +10,9 @@ pub const MODULE_ID: crate::NcGuid = crate::NcGuid::from_fields(
 );
 /// Transitive canonical ABI fingerprint of this generated module.
 pub const ABI_FINGERPRINT: [u8; 32] = [
-    75u8, 225u8, 76u8, 78u8, 51u8, 211u8, 133u8, 46u8, 7u8, 18u8, 142u8, 229u8, 97u8,
-    121u8, 63u8, 35u8, 69u8, 52u8, 61u8, 70u8, 193u8, 164u8, 162u8, 82u8, 214u8, 217u8,
-    140u8, 62u8, 128u8, 155u8, 185u8, 9u8,
+    142u8, 95u8, 15u8, 33u8, 34u8, 255u8, 145u8, 117u8, 65u8, 100u8, 141u8, 123u8, 42u8,
+    235u8, 27u8, 158u8, 60u8, 201u8, 148u8, 88u8, 243u8, 53u8, 130u8, 143u8, 158u8,
+    171u8, 133u8, 6u8, 139u8, 112u8, 146u8, 216u8,
 ];
 /// Exact dotted module name derived from the normalized IDL path.
 pub const MODULE_NAME: &str = "neocogi.com.persistence";
@@ -31,7 +31,7 @@ pub trait IObjectChildren {
 }
 /// Exact signature bytes assigned by the IDL compiler.
 #[allow(non_upper_case_globals)]
-static __nc_IObjectChildrenAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"-C\xC7\xD4\xA2\\\xD7L7\xBA\xC02i\xCF>\xD5\xC0\xF61\xD7\xF5\x13\x0F\xEB\xAD5~\xB5\xED\x82\xFCE";
+static __nc_IObjectChildrenAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"jo*\xC3\x1E>Ok\x0B\x97\x7F\x87\xBC\x96\x86\xDB\xF0\x11\x0C\xFE\x95\xCE\x98a\xFE \xFD\xE2H\x15\xFE\xD4";
 #[doc = concat!(
     "Interface marker for [`", stringify!(IObjectChildren),
     "`]; handles carry its object/table pair."
@@ -276,7 +276,7 @@ pub trait IPersistable {
 }
 /// Exact signature bytes assigned by the IDL compiler.
 #[allow(non_upper_case_globals)]
-static __nc_IPersistableAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"C\xC6\x06\x85\xB9Z\x08\x08\xD2\x92\xC2\x1C7E\xD4[PE\xD9\xBC{\x95p\x11\x05Z\xA7|\xFA\x14q\xCA";
+static __nc_IPersistableAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"\x8E\x1Dc\x937\x8DB\xED\x96Z\xE1\x96\xBE\xD5\xC8\xFD\xD9\xCA\x1F\xA0\x94\xD3G\xF2.i[\x1C\x9B\x98\xA4P";
 #[doc = concat!(
     "Interface marker for [`", stringify!(IPersistable),
     "`]; handles carry its object/table pair."
@@ -713,7 +713,7 @@ pub trait IPersistenceFactory {
 }
 /// Exact signature bytes assigned by the IDL compiler.
 #[allow(non_upper_case_globals)]
-static __nc_IPersistenceFactoryAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"t\xBC\xA7\x80e\xF3D\xC3\xD21\xE2\x9C\xA0\x03\xB1\xEA\x92\xC3\xA2d-&\x05[$\x91`\x85\xF9\xCC\xD7_";
+static __nc_IPersistenceFactoryAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"\x80\xCC13=\xDD\xAA?\xD0\xD3\xA01\xCF\xA5M\xFD\xFC\xFF\x863\xD6\x1FkH\xB2\xE3\xC4\xE1\x18PH\x13";
 #[doc = concat!(
     "Interface marker for [`", stringify!(IPersistenceFactory),
     "`]; handles carry its object/table pair."

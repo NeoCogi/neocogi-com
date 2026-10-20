@@ -72,8 +72,8 @@ instantiation is bounded by depth and total instance limits.
 Template parameter names are local binders. Fingerprints encode their zero-based
 positions, so `Pair<T> { value: T }` and `Pair<Item> { value: Item }` have the same
 signature when authored under the same module/name/version. This applies through
-nested arguments, recursive values, enum payloads, interface bases, and method
-inputs/results. Parameter count and order remain significant: exchanging which
+nested arguments, recursive values, enum payloads, direct interface bases, emitted
+event references, and method inputs/results. Parameter count and order remain significant: exchanging which
 parameter a field uses changes the template signature, even if a particular use
 supplies the same concrete type for both arguments. Qualified free types, field
 names, variant names, and method parameter names are not generic binders and
@@ -81,7 +81,7 @@ retain their existing contract meaning. Authored binder names and source spans
 remain available for diagnostics; hashing does not rewrite the source model.
 
 Templates and concrete declarations now share the explicit binary declaration
-encoder under `neocogi-idl:module-abi:v10`. The former separate template string
+encoder under `neocogi-idl:module-abi:v11`. The former separate template string
 encoding and its Debug-formatted policy values are removed. Both paths encode
 parameter positions, resolved free identities, member order, authored enum
 assignment presence, and declaration policies. Regenerate bindings and rebuild
@@ -90,8 +90,21 @@ adapter for the old signatures. Module-wide revision checking is retained.
 Changing implicit enum values to explicit assignments still requires a declaration
 version increment; see [contract changes and versions](#contract-changes-and-versions).
 
+Base and event reference slots encode a discriminator before either the bound
+parameter ordinal or the free module/declaration IDs and recursively encoded
+arguments. Only a bare identifier binds: `B` in `interface Forward<B>: B {}`
+is positional, while `library::B` remains a free declaration even with a binder
+named `B`. Bound parameters cannot accept arguments. Ordinary type and named-only
+reference positions use one lexical classifier; hashing does not resolve a bound
+name as a declaration or mutate the authored syntax model.
+
+This v11 revision adds the explicit bound/free grammar in reference slots. It
+supersedes v10 even for modules without generics: regenerate checked-in bindings
+and rebuild contract crates, plugins and hosts together. Nominal IDs, the core
+object layout, source-graph schema and shared-runtime registry are unchanged.
+
 Interfaces have no implementation-role discriminator in their canonical encoding.
-This is encoding revision 10; regenerate every affected contract and provider,
+This is encoding revision 11; regenerate every affected contract and provider,
 including built-in persistence bindings. Runtime discovery remains ABI v1 and
 core layout remains v17. Closed generic interfaces work as object contracts and
 plugin roots; open templates have no callable ABI.
@@ -635,7 +648,7 @@ those routes nor filesystem roots affect logical IDs or ABI signatures. Pure
 `generate_rust_with_paths` callers continue supplying accessible owner locations;
 Cargo-specific routes are selected by `Module::build`. Source graph schema 7
 requires providers with this namespace and rejects older sidecars; runtime and
-plugin discovery remain ABI v1, core draft 17 and fingerprint domain v10.
+plugin discovery remain ABI v1, core draft 17 and fingerprint domain v11.
 
 ### Diagnostics
 
@@ -678,7 +691,7 @@ An ordinary `cargo build` performs the entire compilation. No external CLI,
 nested Cargo invocation, target rustc invocation, C compiler, or archiver is
 launched by the contract build helper.
 
-Canonical module encoding v10 includes threading, required projections and the current COM ABI explicitly. The resolver
+Canonical module encoding v11 includes threading, required projections and the current COM ABI explicitly. The resolver
 includes exact transitive module fingerprints in each declaration
 signature. The plugin descriptor publishes its root factory's full IID and
 signature. Factory acquisition compares both before calling bootstrap;

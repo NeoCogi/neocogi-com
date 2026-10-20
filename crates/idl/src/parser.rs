@@ -889,7 +889,7 @@ fn attach_declaration_source(declaration: &mut Declaration, source: &SourceFile)
         }
         DeclarationKind::Interface(interface) => {
             attach_interface_source(&mut interface.bases, &mut interface.methods, source);
-            for event in &mut interface.events { event.span.attach(source); }
+            for event in &mut interface.events { attach_named_source(event, source); }
         }
     }
 }
@@ -903,7 +903,7 @@ fn attach_field_source(field: &mut Field, source: &SourceFile) {
 /// Attaches a source file to bases, methods, parameters, and result types.
 fn attach_interface_source(bases: &mut [NamedType], methods: &mut [Method], source: &SourceFile) {
     for base in bases {
-        base.span.attach(source);
+        attach_named_source(base, source);
     }
     for method in methods {
         attach_method_source(method, source);
@@ -920,15 +920,20 @@ fn attach_method_source(method: &mut Method, source: &SourceFile) {
     attach_type_source(&mut method.output, source);
 }
 
+/// Attaches the authored source to a named reference and every nested argument.
+/// Direct base/event substitution can move an argument into the reference slot;
+/// its original source owner must survive that move just as in ordinary types.
+fn attach_named_source(name: &mut NamedType, source: &SourceFile) {
+    name.span.attach(source);
+    for argument in &mut name.arguments {
+        attach_type_source(argument, source);
+    }
+}
+
 /// Attaches a source file to every named path nested in one ABI type.
 fn attach_type_source(ty: &mut AbiType, source: &SourceFile) {
     match ty {
-        AbiType::Named(name) => {
-            name.span.attach(source);
-            for argument in &mut name.arguments {
-                attach_type_source(argument, source);
-            }
-        }
+        AbiType::Named(name) => attach_named_source(name, source),
         AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
         | AbiType::Borrowed(value)
         | AbiType::Vector(value)

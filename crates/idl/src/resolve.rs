@@ -1575,13 +1575,14 @@ fn fingerprint_module(
 /// This compiler/build-time encoding revision is independent of runtime and
 /// plugin descriptor discovery ABI v1. Documentation checks use this same prefix;
 /// changing source provenance or Cargo name mangling must not change its bytes.
-pub const MODULE_ABI_ENCODING_DOMAIN: &[u8] = b"neocogi-idl:module-abi:v10\0";
+/// Revision 11 frames both bound and free references in base/event slots.
+pub const MODULE_ABI_ENCODING_DOMAIN: &[u8] = b"neocogi-idl:module-abi:v11\0";
 
 /// Encodes one module into canonical bytes and hashes the result.
 fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, [u8; 32])]) -> Result<[u8; 32], ResolutionError> {
     let entry = &entries[index];
     let mut encoder = CanonicalEncoder::new();
-    // Templates and concrete declarations share this v10 encoding, including
+    // Templates and concrete declarations share this v11 encoding, including
     // event dependencies and authored policies. Build/debug locations are absent.
     encoder.bytes(MODULE_ABI_ENCODING_DOMAIN);
     encoder.guid(entry.module_id);
@@ -1617,6 +1618,47 @@ struct EncodingScope<'a> {
     module: usize,
     /// Authored binders; only their count and reference positions enter the bytes.
     parameters: &'a [String],
+}
+
+/// Lexical meaning of one name before choosing a type or reference encoding.
+///
+/// Qualified paths are always free. Only a bare identifier can bind to a template
+/// parameter, and a bound parameter cannot itself accept generic arguments.
+enum NameBinding<'a> {
+    /// Zero-based binder position, independent of its authored spelling.
+    Parameter {
+        /// Checked zero-based position in the enclosing declaration's binder list.
+        position: u32,
+    },
+    /// A declaration reference proven not to denote a lexical parameter.
+    Free(FreeName<'a>),
+}
+
+/// Borrowed declaration name admitted only by lexical bound/free classification.
+///
+/// The free encoder takes this proof instead of silently assuming every named
+/// reference is qualified. The original AST and source spans remain untouched.
+struct FreeName<'a>(
+    /// Authored reference that passed the common lexical classifier.
+    &'a NamedType,
+);
+
+/// Classifies a name identically in ordinary type, base and emitted-event positions.
+fn classify_name<'a>(scope: EncodingScope<'_>, name: &'a NamedType, entries: &[ModuleEntry]) -> Result<NameBinding<'a>, ResolutionError> {
+    if let [local] = name.segments.as_slice() {
+        if let Some(position) = scope.parameters.iter().position(|parameter| parameter == local) {
+            if !name.arguments.is_empty() {
+                return Err(source_error(
+                    &entries[scope.module].module, "EIDL060", &name.span,
+                    "a type parameter cannot accept arguments", "remove these type arguments",
+                ));
+            }
+            return Ok(NameBinding::Parameter {
+                position: u32_len(position, &entries[scope.module].name, "parameter position")?,
+            });
+        }
+    }
+    Ok(NameBinding::Free(FreeName(name)))
 }
 
 /// Encodes authored persistence policy uniformly; diagnostic formatting is never ABI grammar.
@@ -1756,28 +1798,27 @@ fn encode_type(scope: EncodingScope<'_>, ty: &AbiType, entries: &[ModuleEntry], 
             encoder.text(name, &entries[scope.module].name)?;
         }
         AbiType::String => encoder.tag(2),
-        AbiType::Named(name) => {
-            if let [local] = name.segments.as_slice() {
-                if let Some(position) = scope.parameters.iter().position(|parameter| parameter == local) {
-                    encoder.tag(14);
-                    encoder.u32(u32_len(position, &entries[scope.module].name, "parameter position")?);
-                    return Ok(());
+        AbiType::Named(name) => match classify_name(scope, name, entries)? {
+            NameBinding::Parameter { position } => {
+                encoder.tag(14);
+                encoder.u32(position);
+            }
+            NameBinding::Free(free) => {
+                encoder.tag(3);
+                if name.segments.as_slice() == ["str"] {
+                    encoder.tag(0);
+                } else if let Some(identity) = builtin_object(name) {
+                    // Fixed core capabilities contribute their exact ABI identity.
+                    encoder.tag(2);
+                    encoder.guid(identity.iid);
+                    // SAFETY: built-in signatures point to immutable core constants.
+                    encoder.bytes(unsafe { identity.abi_signature.as_digest().expect("static core signature") });
+                } else {
+                    encoder.tag(1);
+                    encode_free_declaration(scope, free, entries, encoder)?;
                 }
             }
-            encoder.tag(3);
-            if name.segments.as_slice() == ["str"] {
-                encoder.tag(0);
-            } else if let Some(identity) = builtin_object(name) {
-                // Fixed core capabilities contribute their exact ABI identity.
-                encoder.tag(2);
-                encoder.guid(identity.iid);
-                // SAFETY: built-in signatures point to immutable core constants.
-                encoder.bytes(unsafe { identity.abi_signature.as_digest().expect("static core signature") });
-            } else {
-                encoder.tag(1);
-                encode_named(scope, name, entries, encoder)?;
-            }
-        }
+        },
         AbiType::Borrowed(referent) => {
             encoder.tag(4);
             encode_type(scope, referent, entries, encoder)?;
@@ -1823,8 +1864,29 @@ fn encode_type(scope: EncodingScope<'_>, ty: &AbiType, entries: &[ModuleEntry], 
     Ok(())
 }
 
-/// Encodes owning module and declaration IDs for a named reference.
+/// Encodes a base/event reference with disjoint bound/free alternatives.
+///
+/// Unlike an ordinary type expression, this position has no enclosing type tag.
+/// Both alternatives therefore have an explicit discriminator; a free UUID must
+/// never be mistaken for a parameter ordinal. This grammar starts in domain v11.
 fn encode_named(scope: EncodingScope<'_>, name: &NamedType, entries: &[ModuleEntry], encoder: &mut CanonicalEncoder) -> Result<(), ResolutionError> {
+    match classify_name(scope, name, entries)? {
+        NameBinding::Parameter { position } => {
+            encoder.tag(0);
+            encoder.u32(position);
+        }
+        NameBinding::Free(free) => {
+            encoder.tag(1);
+            encode_free_declaration(scope, free, entries, encoder)?;
+        }
+    }
+    Ok(())
+}
+
+/// Encodes a free declaration's owning module, identity and recursive arguments.
+/// The caller provides lexical classification; this function never interprets binders.
+fn encode_free_declaration(scope: EncodingScope<'_>, free: FreeName<'_>, entries: &[ModuleEntry], encoder: &mut CanonicalEncoder) -> Result<(), ResolutionError> {
+    let name = free.0;
     let (module, id) = if scope.parameters.is_empty() {
         let symbol = resolve_named(scope.module, name, entries)?;
         (symbol.module, symbol.id)
@@ -2078,5 +2140,65 @@ pub(crate) fn builtin_object(name: &NamedType) -> Option<neocogi_com_core::NcInt
         [name] if name == "INcBytes" => Some(neocogi_com_core::INcBytesAbi::INTERFACE_ID),
         [name] if name == "INcString" => Some(neocogi_com_core::INcStringAbi::INTERFACE_ID),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod reference_encoding_tests {
+    use super::*;
+
+    /// Pins the named-only grammar independently of its outer module digest.
+    /// Free UUID bytes cannot impersonate a bound ordinal: both cases have tags.
+    #[test]
+    fn named_references_discriminate_free_identity_and_parameter_positions() {
+        let source = crate::parse_module(
+            std::path::Path::new("proof/codec.ncidl"),
+            "#[version(1)] interface B {}",
+        )
+        .unwrap();
+        let entries = build_entries(vec![source]).unwrap();
+        let parameters = vec!["A".to_owned(), "B".to_owned()];
+        let scope = EncodingScope {
+            module: 0,
+            parameters: &parameters,
+        };
+        let name = |segments: &[&str]| NamedType {
+            span: entries[0].module.declarations[0].span.clone(),
+            segments: segments.iter().map(|value| (*value).to_owned()).collect(),
+            arguments: Vec::new(),
+        };
+        for (position, parameter) in ["A", "B"].into_iter().enumerate() {
+            let mut reference = CanonicalEncoder::new();
+            encode_named(scope, &name(&[parameter]), &entries, &mut reference).unwrap();
+            assert_eq!(
+                reference.bytes,
+                [vec![0], (position as u32).to_be_bytes().to_vec()].concat()
+            );
+            let mut ordinary = CanonicalEncoder::new();
+            encode_type(
+                scope,
+                &AbiType::Named(name(&[parameter])),
+                &entries,
+                &mut ordinary,
+            )
+            .unwrap();
+            assert_eq!(
+                ordinary.bytes,
+                [vec![14], (position as u32).to_be_bytes().to_vec()].concat()
+            );
+        }
+        let mut free = CanonicalEncoder::new();
+        encode_named(scope, &name(&["proof", "codec", "B"]), &entries, &mut free).unwrap();
+        let mut expected = vec![1];
+        expected.extend_from_slice(&entries[0].module_id.to_uuid_bytes());
+        expected.extend_from_slice(&entries[0].declaration_identities[0].id.to_uuid_bytes());
+        expected.extend_from_slice(&0u32.to_be_bytes());
+        assert_eq!(free.bytes, expected);
+        let mut invalid = name(&["B"]);
+        invalid.arguments.push(AbiType::Scalar("u32".to_owned()));
+        let error =
+            encode_named(scope, &invalid, &entries, &mut CanonicalEncoder::new()).unwrap_err();
+        assert_eq!(error.diagnostics[0].code, "EIDL060");
+        assert!(error.to_string().contains("proof/codec.ncidl"));
     }
 }

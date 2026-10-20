@@ -170,10 +170,13 @@ positions and uses are unchanged. An ordinary version increment changes the
 template's nominal ID and consequently its closed nominal IDs as well.
 
 Templates and concrete declarations share the canonical binary declaration
-encoder under `neocogi-idl:module-abi:v10`; there is no separate template string
+encoder under `neocogi-idl:module-abi:v11`; there is no separate template string
 serializer or Debug-based policy encoding. Regenerate and rebuild consumers when
 adopting this encoding. Nominal type IDs remain independent of the encoding
-revision. Parameter-only renames preserve the resulting signatures.
+revision. Parameter-only renames preserve the resulting signatures. Direct generic
+bases and emitted events follow the same binding rule as type expressions; v11
+distinguishes bound/free reference slots explicitly. Invalid closed substitutions
+remain source-level validation errors rather than internal fingerprint failures.
 
 Both integer-enum paths encode whether a value was explicitly assigned, as well
 as its resolved integer. An implicit-to-explicit edit therefore changes the
