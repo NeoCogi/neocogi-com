@@ -218,7 +218,7 @@ protocol; fieldless enums and bit sets preserve their raw scalar values.
 Record-only `#[persistence(default)]` retains an omitted trailing suffix from a
 host-authored Rust Default. Every NCB record is positional; `persistence(sequence)`
 and the old decoder opt-ins are rejected. Both generic and concrete
-contracts share canonical module encoding v11, including authored assignments,
+contracts share canonical module encoding v12, including authored assignments,
 versions, trailing-default policy and positional generic binders.
 
 `Option<T>` comes from the bundled [ordinary IDL enum](stdlib/neocogi/lang.ncidl).

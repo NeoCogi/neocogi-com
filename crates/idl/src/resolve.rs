@@ -1627,14 +1627,14 @@ fn fingerprint_module(
 /// This compiler/build-time encoding revision is independent of runtime and
 /// plugin descriptor discovery ABI v1. Documentation checks use this same prefix;
 /// changing source provenance or Cargo name mangling must not change its bytes.
-/// Revision 11 frames both bound and free references in base/event slots.
-pub const MODULE_ABI_ENCODING_DOMAIN: &[u8] = b"neocogi-idl:module-abi:v11\0";
+/// Revision 12 assigns disjoint tags to every type expression, including parameters.
+pub const MODULE_ABI_ENCODING_DOMAIN: &[u8] = b"neocogi-idl:module-abi:v12\0";
 
 /// Encodes one module into canonical bytes and hashes the result.
 fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, [u8; 32])]) -> Result<[u8; 32], ResolutionError> {
     let entry = &entries[index];
     let mut encoder = CanonicalEncoder::new();
-    // Templates and concrete declarations share this v11 encoding, including
+    // Templates and concrete declarations share this v12 encoding, including
     // event dependencies and authored policies. Build/debug locations are absent.
     encoder.bytes(MODULE_ABI_ENCODING_DOMAIN);
     encoder.guid(entry.module_id);
@@ -1851,22 +1851,61 @@ fn encode_methods(
     Ok(())
 }
 
+/// Disjoint alternatives of the recursive type-expression grammar.
+/// Explicit values are contract bytes. Rust rejects duplicate discriminants;
+/// changing this enum also requires a module encoding revision and regeneration.
+/// Values 7 and 8 are reserved for retired ownership forms.
+#[repr(u8)]
+#[derive(Clone, Copy)]
+enum TypeTag {
+    /// Successful unit value.
+    Unit = 0,
+    /// Length-framed built-in scalar name.
+    Scalar = 1,
+    /// Owned UTF-8 value.
+    String = 2,
+    /// Named declaration or fixed language capability, with its own discriminator.
+    Named = 3,
+    /// Call-scoped value borrow.
+    Borrowed = 4,
+    /// Readable element buffer.
+    Slice = 5,
+    /// Fixed-length recursively encoded array.
+    Array = 6,
+    /// Shared strong object capability.
+    ComPtr = 9,
+    /// Owned dynamic sequence.
+    Vector = 10,
+    /// Unsized sequence referent.
+    UnsizedSlice = 11,
+    /// Exclusive object transfer.
+    ComBox = 12,
+    /// Exclusive weak control token.
+    WeakComBox = 13,
+    /// Fresh copied output buffer, including initialized-prefix completion.
+    OutputSlice = 14,
+    /// Shared weak control token.
+    WeakComPtr = 15,
+    /// Bound template parameter followed by its u32 ordinal; never an output type.
+    Parameter = 16,
+}
+
 /// Encodes one recursively structured ABI type.
 fn encode_type(scope: EncodingScope<'_>, ty: &AbiType, entries: &[ModuleEntry], encoder: &mut CanonicalEncoder) -> Result<(), ResolutionError> {
     match ty {
-        AbiType::Unit => encoder.tag(0),
+        AbiType::Unit => encoder.type_tag(TypeTag::Unit),
         AbiType::Scalar(name) => {
-            encoder.tag(1);
+            encoder.type_tag(TypeTag::Scalar);
             encoder.text(name, &entries[scope.module].name)?;
         }
-        AbiType::String => encoder.tag(2),
+        AbiType::String => encoder.type_tag(TypeTag::String),
         AbiType::Named(name) => match classify_name(scope, name, entries)? {
             NameBinding::Parameter { position } => {
-                encoder.tag(14);
+                encoder.type_tag(TypeTag::Parameter);
                 encoder.u32(position);
             }
             NameBinding::Free(free) => {
-                encoder.tag(3);
+                encoder.type_tag(TypeTag::Named);
                 if name.is_str() {
                     encoder.tag(0);
                 } else if let Some(identity) = builtin_object(name) {
@@ -1882,47 +1921,47 @@ fn encode_type(scope: EncodingScope<'_>, ty: &AbiType, entries: &[ModuleEntry], 
             }
         },
         AbiType::Borrowed(referent) => {
-            encoder.tag(4);
+            encoder.type_tag(TypeTag::Borrowed);
             encode_type(scope, referent, entries, encoder)?;
         }
         AbiType::Slice(element) => {
-            encoder.tag(5);
+            encoder.type_tag(TypeTag::Slice);
             encode_type(scope, element, entries, encoder)?;
         }
         AbiType::Array { element, len } => {
-            encoder.tag(6);
+            encoder.type_tag(TypeTag::Array);
             encoder.u32(*len);
             encode_type(scope, element, entries, encoder)?;
         }
         AbiType::ComBox(target) | AbiType::WeakComBox(target) => {
-            encoder.tag(match ty {
-                AbiType::ComBox(_) => 12,
-                AbiType::WeakComBox(_) => 13,
+            encoder.type_tag(match ty {
+                AbiType::ComBox(_) => TypeTag::ComBox,
+                AbiType::WeakComBox(_) => TypeTag::WeakComBox,
                 _ => unreachable!(),
             });
             encode_type(scope, target, entries, encoder)?;
         }
         AbiType::ComPtr(target) => {
-            encoder.tag(9);
+            encoder.type_tag(TypeTag::ComPtr);
             encode_type(scope, target, entries, encoder)?;
         }
         AbiType::WeakComPtr(target) => {
             // New ownership spelling cannot alias strong or exclusive weak transfers.
-            encoder.tag(15);
+            encoder.type_tag(TypeTag::WeakComPtr);
             encode_type(scope, target, entries, encoder)?;
         }
         AbiType::Vector(element) => {
-            encoder.tag(10);
+            encoder.type_tag(TypeTag::Vector);
             encode_type(scope, element, entries, encoder)?;
         }
         AbiType::UnsizedSlice(element) => {
-            encoder.tag(11);
+            encoder.type_tag(TypeTag::UnsizedSlice);
             encode_type(scope, element, entries, encoder)?;
         }
         AbiType::OutputSlice(element) => {
             // Output-only slots include an initialized-prefix count in ABI 17.
             // Their revision must differ from the retired initialized in/out ABI.
-            encoder.tag(14);
+            encoder.type_tag(TypeTag::OutputSlice);
             encode_type(scope, element, entries, encoder)?;
         }
     }
@@ -1933,7 +1972,7 @@ fn encode_type(scope: EncodingScope<'_>, ty: &AbiType, entries: &[ModuleEntry], 
 ///
 /// Unlike an ordinary type expression, this position has no enclosing type tag.
 /// Both alternatives therefore have an explicit discriminator; a free UUID must
-/// never be mistaken for a parameter ordinal. This grammar starts in domain v11.
+/// never be mistaken for a parameter ordinal. This grammar is retained from v11.
 fn encode_named(scope: EncodingScope<'_>, name: &NamedType, entries: &[ModuleEntry], encoder: &mut CanonicalEncoder) -> Result<(), ResolutionError> {
     match classify_name(scope, name, entries)? {
         NameBinding::Parameter { position } => {
@@ -2004,6 +2043,11 @@ impl CanonicalEncoder {
     /// Starts an empty canonical byte sequence.
     fn new() -> Self {
         Self { bytes: Vec::new() }
+    }
+
+    /// Appends a type-expression alternative; other grammar tags cannot enter here.
+    fn type_tag(&mut self, value: TypeTag) {
+        self.tag(value as u8);
     }
 
     /// Appends one single-byte grammar tag.
@@ -2249,7 +2293,7 @@ mod reference_encoding_tests {
             assert_eq!(reference.bytes, [vec![0], (position as u32).to_be_bytes().to_vec()].concat());
             let mut ordinary = CanonicalEncoder::new();
             encode_type(scope, &AbiType::Named(name(&[parameter])), &entries, &mut ordinary).unwrap();
-            assert_eq!(ordinary.bytes, [vec![14], (position as u32).to_be_bytes().to_vec()].concat());
+            assert_eq!(ordinary.bytes, [vec![16], (position as u32).to_be_bytes().to_vec()].concat());
         }
         let mut free = CanonicalEncoder::new();
         encode_named(scope, &name(&["proof", "codec", "B"]), &entries, &mut free).unwrap();
@@ -2263,5 +2307,48 @@ mod reference_encoding_tests {
         let error = encode_named(scope, &invalid, &entries, &mut CanonicalEncoder::new()).unwrap_err();
         assert_eq!(error.diagnostics[0].code, "EIDL060");
         assert!(error.to_string().contains("proof/codec.ncidl"));
+    }
+
+    /// Every recursive type alternative starts with a distinct byte, regardless
+    /// of its payload length or a following sibling's bytes.
+    #[test]
+    fn type_expression_prefixes_are_disjoint() {
+        let source = crate::parse_module(std::path::Path::new("proof/tags.ncidl"), "#[version(1)] interface Item {}").unwrap();
+        let entries = build_entries(vec![source]).unwrap();
+        let parameters = vec!["T".to_owned()];
+        let scope = EncodingScope { module: 0, parameters: &parameters };
+        let unit = || Box::new(AbiType::Unit);
+        let named = |binding| {
+            AbiType::Named(NamedType {
+                span: entries[0].module.declarations[0].span.clone(),
+                segments: vec!["diagnostic_only".into()],
+                arguments: Vec::new(),
+                binding,
+            })
+        };
+        let alternatives = [
+            (AbiType::Unit, 0),
+            (AbiType::Scalar("u8".into()), 1),
+            (AbiType::String, 2),
+            (named(Binding::Declaration(DeclarationKey { module: 0, name: "Item".into() })), 3),
+            (AbiType::Borrowed(unit()), 4),
+            (AbiType::Slice(unit()), 5),
+            (AbiType::Array { element: unit(), len: 0 }, 6),
+            (AbiType::ComPtr(unit()), 9),
+            (AbiType::Vector(unit()), 10),
+            (AbiType::UnsizedSlice(unit()), 11),
+            (AbiType::ComBox(unit()), 12),
+            (AbiType::WeakComBox(unit()), 13),
+            (AbiType::OutputSlice(unit()), 14),
+            (AbiType::WeakComPtr(unit()), 15),
+            (named(Binding::Parameter { position: 0 }), 16),
+        ];
+        let mut prefixes = std::collections::BTreeSet::new();
+        for (ty, expected) in alternatives {
+            let mut encoder = CanonicalEncoder::new();
+            encode_type(scope, &ty, &entries, &mut encoder).unwrap();
+            assert_eq!(encoder.bytes[0], expected);
+            assert!(prefixes.insert(encoder.bytes[0]));
+        }
     }
 }

@@ -102,7 +102,7 @@ nil UUID with `EIDL074`. This admission matches typed plugin export. Nominal
 value IDs have a separate policy and may still explicitly use nil.
 
 Templates and concrete declarations now share the explicit binary declaration
-encoder under `neocogi-idl:module-abi:v11`. The former separate template string
+encoder under `neocogi-idl:module-abi:v12`. The former separate template string
 encoding and its Debug-formatted policy values are removed. Both paths encode
 parameter positions, resolved free identities, member order, authored enum
 assignment presence, and declaration policies. Regenerate bindings and rebuild
@@ -119,13 +119,16 @@ named `B`. Bound parameters cannot accept arguments. Ordinary type and named-onl
 reference positions use one lexical classifier; hashing does not resolve a bound
 name as a declaration or mutate the authored syntax model.
 
-This v11 revision adds the explicit bound/free grammar in reference slots. It
-supersedes v10 even for modules without generics: regenerate checked-in bindings
+Revision v12 gives every recursive type expression a disjoint tag. A bound
+parameter uses tag 16 followed by its u32 ordinal; fresh output uses tag 14
+followed by its element type. The explicit bound/free grammar in base and event
+slots introduced by v11 remains unchanged. Revision v12 supersedes v11 even for
+modules without generics: regenerate checked-in bindings
 and rebuild contract crates, plugins and hosts together. Nominal IDs, the core
 object layout, source-graph schema and shared-runtime registry are unchanged.
 
 Interfaces have no implementation-role discriminator in their canonical encoding.
-This is encoding revision 11; regenerate every affected contract and provider,
+This is encoding revision 12; regenerate every affected contract and provider,
 including built-in persistence bindings. Runtime discovery remains ABI v1 and
 core layout remains v17. Closed generic interfaces work as object contracts and
 plugin roots; open templates have no callable ABI.
@@ -673,7 +676,7 @@ those routes nor filesystem roots affect logical IDs or ABI signatures. Pure
 `generate_rust_with_paths` callers continue supplying accessible owner locations;
 Cargo-specific routes are selected by `Module::build`. Source graph schema 7
 requires providers with this namespace and rejects older sidecars; runtime and
-plugin discovery remain ABI v1, core draft 17 and fingerprint domain v11.
+plugin discovery remain ABI v1, core draft 17 and fingerprint domain v12.
 
 ### Diagnostics
 
@@ -716,7 +719,7 @@ An ordinary `cargo build` performs the entire compilation. No external CLI,
 nested Cargo invocation, target rustc invocation, C compiler, or archiver is
 launched by the contract build helper.
 
-Canonical module encoding v11 includes threading, required projections and the current COM ABI explicitly. The resolver
+Canonical module encoding v12 includes threading, required projections and the current COM ABI explicitly. The resolver
 includes exact transitive module fingerprints in each declaration
 signature. The plugin descriptor publishes its root factory's full IID and
 signature. Factory acquisition compares both before calling bootstrap;

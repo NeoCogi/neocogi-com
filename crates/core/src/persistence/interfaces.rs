@@ -10,9 +10,9 @@ pub const MODULE_ID: crate::NcGuid = crate::NcGuid::from_fields(
 );
 /// Transitive canonical ABI fingerprint of this generated module.
 pub const ABI_FINGERPRINT: [u8; 32] = [
-    142u8, 95u8, 15u8, 33u8, 34u8, 255u8, 145u8, 117u8, 65u8, 100u8, 141u8, 123u8, 42u8,
-    235u8, 27u8, 158u8, 60u8, 201u8, 148u8, 88u8, 243u8, 53u8, 130u8, 143u8, 158u8,
-    171u8, 133u8, 6u8, 139u8, 112u8, 146u8, 216u8,
+    104u8, 91u8, 140u8, 108u8, 106u8, 78u8, 177u8, 127u8, 34u8, 151u8, 216u8, 174u8,
+    10u8, 125u8, 94u8, 46u8, 43u8, 247u8, 49u8, 109u8, 194u8, 220u8, 238u8, 3u8, 16u8,
+    46u8, 3u8, 92u8, 48u8, 177u8, 173u8, 142u8,
 ];
 /// Exact dotted module name derived from the normalized IDL path.
 pub const MODULE_NAME: &str = "neocogi.com.persistence";
@@ -210,7 +210,7 @@ const _: () = {
 impl IObjectChildrenAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiSignature = crate::NcAbiSignature::from_static(
-        b"jo*\xC3\x1E>Ok\x0B\x97\x7F\x87\xBC\x96\x86\xDB\xF0\x11\x0C\xFE\x95\xCE\x98a\xFE \xFD\xE2H\x15\xFE\xD4",
+        b"}S\xC8\xEB\xF2i\x81\xC9\xAD\xD9\xB8:\xFC\xC7&\x18U\xA9\xDC:\x18?\x102P^=]\xE6\\\xCA\xD9",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
@@ -633,7 +633,7 @@ const _: () = {
 impl IPersistableAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiSignature = crate::NcAbiSignature::from_static(
-        b"\x8E\x1Dc\x937\x8DB\xED\x96Z\xE1\x96\xBE\xD5\xC8\xFD\xD9\xCA\x1F\xA0\x94\xD3G\xF2.i[\x1C\x9B\x98\xA4P",
+        b"\x95\xEDx\x0Ft\xDFD4\xEF\xCB\xC8D\x93f`\xCF`-\x90\xC8*yA\x88\xB1Zk!*W\x8F\xDB",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 5usize] = [
@@ -1027,7 +1027,7 @@ const _: () = {
 impl IPersistenceFactoryAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiSignature = crate::NcAbiSignature::from_static(
-        b"\x80\xCC13=\xDD\xAA?\xD0\xD3\xA01\xCF\xA5M\xFD\xFC\xFF\x863\xD6\x1FkH\xB2\xE3\xC4\xE1\x18PH\x13",
+        b"\r{w\"1]\x134\xECk\xAC8]:f\x91\xEF\x0EI\xDAdHkb\xF7C\xF9\xFF\xD6\xCE \xB8",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [

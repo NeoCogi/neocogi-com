@@ -70,7 +70,7 @@ destructor. The final weak reference frees storage through the allocating
 provider. Each callback remains paired with the exact generated allocation.
 
 Runtime and plugin descriptor ABI remain v1. Core draft 17, fingerprint domain
-10, handle layouts, interface metadata, threading and process-wide runtime
+12, handle layouts, interface metadata, threading and process-wide runtime
 authority are unchanged. Historical ABI 11/12 descriptions of cyclic construction
 are superseded by this pre-release contract. The typed storage consolidation
 below preserves the two constructor names for each ownership family.

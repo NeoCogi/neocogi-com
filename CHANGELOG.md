@@ -1,5 +1,13 @@
 # Changelog
 
+## Foundational contract ownership (pre-release)
+
+Canonical module encoding is now v12. Recursive type alternatives have explicit,
+disjoint discriminants; a template parameter cannot share an output-buffer tag.
+Regenerate all contract bindings and rebuild providers, plugins and hosts together.
+Nominal IDs, core ABI 17 and runtime/plugin descriptor discovery ABI v1 retain
+their existing definitions. Checked-in persistence bindings use the new signatures.
+
 ## Generated binding and public-name ownership (pre-release)
 
 Centralize generated-name allocation and public interface/dense-enum inventories.
