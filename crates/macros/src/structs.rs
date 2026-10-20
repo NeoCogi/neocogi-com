@@ -5,13 +5,13 @@
 //! nominal identity. The checked value codec owns wire layout and conversion;
 //! no application-memory offset table is generated.
 
-use quote::{format_ident, quote};
-use syn::{Attribute, Fields, Ident, ItemStruct, Result};
+use quote::quote;
+use syn::{Attribute, Fields, ItemStruct, Path, Result};
 
 use crate::args::{StructArgs, StructReprArgs};
 use crate::deserialize::expand_struct as expand_struct_deserialize;
 use crate::plain_data::{PlainAbiTypeContext, validate_plain_abi_fields};
-use crate::util::{abi_signature_static_tokens, checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
+use crate::util::{checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
 
 /// Applies local representation policy and emits nominal identity and checked codecs.
 pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Result<proc_macro2::TokenStream> {
@@ -40,7 +40,6 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
     } else {
         quote! {}
     };
-    let signature_bytes_ident = format_ident!("__nc_{struct_ident}_abi_signature_bytes", span = struct_ident.span());
     // Preserve the ordinary field identity/ownership requirement independently
     // of reflection. External C fields supply their own checked codecs instead.
     let field_checks = (!args.c_struct).then(|| {
@@ -54,7 +53,6 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
             };
         }
     });
-    let signature_static = abi_signature_static_tokens(&signature_bytes_ident, assigned_signature, &nc);
 
     let layout_check = args.c_struct.then(|| {
         quote! {
@@ -74,7 +72,7 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
             tag: quote! { 0 },
             fields: input.fields.clone(),
         }],
-        quote! { #nc::NcAbiSignature::from_static(&#signature_bytes_ident) },
+        quote! { #nc::NcAbiSignature::from_static(#assigned_signature) },
         true,
         &nc,
     );
@@ -82,14 +80,13 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
         #input
         #value_codec
         #layout_check
-        #signature_static
 
         #field_checks
         // SAFETY: IDL assigns the exact declaration identity; the field checks
         // and generated codec establish copied value and wire requirements.
         unsafe impl #nc::AbiType for #struct_ident {
             const ABI_TYPE: #nc::NcAbiType =
-                #nc::NcAbiType::Aggregate(#nc::NcAbiSignature::from_static(&#signature_bytes_ident));
+                #nc::NcAbiType::Aggregate(#nc::NcAbiSignature::from_static(#assigned_signature));
         }
         // SAFETY: Fields are copied and have no release protocol. Ordinary fields
         // also have nominal identities; external C fields supply checked codecs.
@@ -149,13 +146,13 @@ fn com_struct_repr_attr(repr: &StructReprArgs) -> Attribute {
 }
 
 /// Returns the `Clone`/`Copy` derives not already present on the source struct.
-pub(crate) fn missing_copy_derives(attrs: &[Attribute]) -> Vec<Ident> {
+pub(crate) fn missing_copy_derives(attrs: &[Attribute]) -> Vec<Path> {
     let mut missing = Vec::new();
     if !has_derive(attrs, "Clone") {
-        missing.push(format_ident!("Clone"));
+        missing.push(syn::parse_quote!(::core::clone::Clone));
     }
     if !has_derive(attrs, "Copy") {
-        missing.push(format_ident!("Copy"));
+        missing.push(syn::parse_quote!(::core::marker::Copy));
     }
     missing
 }
@@ -165,7 +162,7 @@ fn has_derive(attrs: &[Attribute], derive_name: &str) -> bool {
     attrs.iter().filter(|attr| attr.path().is_ident("derive")).any(|attr| {
         let mut found = false;
         let _ = attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident(derive_name) {
+            if meta.path.segments.last().is_some_and(|segment| segment.ident == derive_name) {
                 found = true;
             }
             Ok(())

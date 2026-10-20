@@ -5,8 +5,9 @@
 //! collision-resistant generated identifiers, and combine independent `syn`
 //! errors so callers see all actionable problems from one expansion.
 
-use quote::quote;
-use syn::{Generics, Ident, LitByteStr, LitStr, Path, Result};
+use std::collections::HashSet;
+use quote::{ToTokens, quote};
+use syn::{Generics, Ident, LitStr, Path, Result};
 
 use crate::args::InterfaceGuid;
 
@@ -19,16 +20,46 @@ pub(crate) fn private_ident(name: &str) -> Ident {
     Ident::new(name, proc_macro2::Span::mixed_site())
 }
 
-/// Emits exact static storage for a generator-computed ABI signature.
+/// Private names for one generated lexical scope, disjoint from authored syntax.
 ///
-/// This helper deliberately accepts bytes rather than logical ABI records.
-/// Contract resolution and SHA-256 belong to the IDL build tool; the compiler
-/// only type-checks and stores the resulting fixed-size array.
-pub(crate) fn abi_signature_static_tokens(bytes_ident: &Ident, assigned_signature: &LitByteStr, nc: &Path) -> proc_macro2::TokenStream {
-    quote! {
-        /// Exact signature bytes assigned by the IDL compiler.
-        #[allow(non_upper_case_globals)]
-        static #bytes_ident: [u8; #nc::NcAbiSignature::SHA256_LEN] = *#assigned_signature;
+/// A fixed prefix or mixed-site span does not protect a type parameter after
+/// printing. Collect every identifier that will enter the scope, including path
+/// segments and raw identifiers, before allocating implementation-owned names.
+/// Private item definitions must additionally live in an anonymous scope: this
+/// allocator cannot inspect unrelated items surrounding a macro invocation.
+pub(crate) struct PrivateNames {
+    /// Authored and already allocated identifiers, normalized without `r#`.
+    occupied: HashSet<String>,
+}
+
+impl PrivateNames {
+    /// Seeds one scope from its complete authored input and configured paths.
+    pub(crate) fn new(authored: impl ToTokens) -> Self {
+        fn collect(tokens: proc_macro2::TokenStream, occupied: &mut HashSet<String>) {
+            for token in tokens {
+                match token {
+                    proc_macro2::TokenTree::Ident(ident) => {
+                        occupied.insert(ident.to_string().trim_start_matches("r#").to_owned());
+                    }
+                    proc_macro2::TokenTree::Group(group) => collect(group.stream(), occupied),
+                    _ => {}
+                }
+            }
+        }
+        let mut occupied = HashSet::new();
+        collect(authored.into_token_stream(), &mut occupied);
+        Self { occupied }
+    }
+
+    /// Allocates a deterministic spelling absent from this scope's authored syntax.
+    pub(crate) fn fresh(&mut self, stem: &str) -> Ident {
+        let mut candidate = stem.to_owned();
+        let mut ordinal = 0usize;
+        while !self.occupied.insert(candidate.clone()) {
+            candidate = format!("{stem}_{ordinal}");
+            ordinal += 1;
+        }
+        private_ident(&candidate)
     }
 }
 
@@ -63,25 +94,30 @@ pub(crate) fn stable_guid(attr: InterfaceGuid, qualified_name: &syn::LitStr, nc:
             }
             Ok(quote! { #nc::guid_from_qualified_name(#qualified_name) })
         }
-        InterfaceGuid::Path(path) => Ok(quote! {{
-            const PROVIDED: #nc::NcGuid = #path;
-            const DERIVED: #nc::NcGuid = #nc::guid_from_qualified_name(#qualified_name);
-            const _: () = assert!(
-                PROVIDED.data1 == DERIVED.data1
-                    && PROVIDED.data2 == DERIVED.data2
-                    && PROVIDED.data3 == DERIVED.data3
-                    && PROVIDED.data4[0] == DERIVED.data4[0]
-                    && PROVIDED.data4[1] == DERIVED.data4[1]
-                    && PROVIDED.data4[2] == DERIVED.data4[2]
-                    && PROVIDED.data4[3] == DERIVED.data4[3]
-                    && PROVIDED.data4[4] == DERIVED.data4[4]
-                    && PROVIDED.data4[5] == DERIVED.data4[5]
-                    && PROVIDED.data4[6] == DERIVED.data4[6]
-                    && PROVIDED.data4[7] == DERIVED.data4[7],
-                "GUID constant does not match the descriptor qualified name",
-            );
-            PROVIDED
-        }}),
+        InterfaceGuid::Path(path) => {
+            let mut names = PrivateNames::new(quote! { #path #nc });
+            let provided = names.fresh("__NC_PROVIDED_GUID");
+            let derived = names.fresh("__NC_DERIVED_GUID");
+            Ok(quote! {{
+                const #provided: #nc::NcGuid = #path;
+                const #derived: #nc::NcGuid = #nc::guid_from_qualified_name(#qualified_name);
+                const _: () = ::core::assert!(
+                    #provided.data1 == #derived.data1
+                        && #provided.data2 == #derived.data2
+                        && #provided.data3 == #derived.data3
+                        && #provided.data4[0] == #derived.data4[0]
+                        && #provided.data4[1] == #derived.data4[1]
+                        && #provided.data4[2] == #derived.data4[2]
+                        && #provided.data4[3] == #derived.data4[3]
+                        && #provided.data4[4] == #derived.data4[4]
+                        && #provided.data4[5] == #derived.data4[5]
+                        && #provided.data4[6] == #derived.data4[6]
+                        && #provided.data4[7] == #derived.data4[7],
+                    "GUID constant does not match the descriptor qualified name",
+                );
+                #provided
+            }})
+        }
         InterfaceGuid::Assigned(value) => {
             let actual = value
                 .value()

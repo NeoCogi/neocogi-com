@@ -87,7 +87,8 @@ impl ICheck for Check {
 fn invalid_nested_bool_fails_copied_and_buffer_thunks() {
     let check = Check::from_value(Check).query::<ICheckAbi>().unwrap();
     let ptr = check.as_raw();
-    let wire = __SettingsValueWire { flags: __FlagsValueWire { enabled: 2 } };
+    let mut wire = encode_inline(&Settings { flags: Flags { enabled: true } }).unwrap();
+    wire.flags.enabled = 2;
     let mut out = core::mem::MaybeUninit::uninit();
     // SAFETY: all raw storage is initialized, aligned and live; invalid bytes
     // deliberately test conversion before a restricted Rust value is created.
@@ -108,18 +109,11 @@ fn invalid_nested_bool_fails_copied_and_buffer_thunks() {
 fn enum_tag_is_checked_before_payload_and_nested_field_is_checked_afterward() {
     let check = Check::from_value(Check).query::<ICheckAbi>().unwrap();
     let ptr = check.as_raw();
-    let bad_field = __ActionValueWire {
-        tag: 0,
-        payload: __ActionValuePayload {
-            case_0: __ActionValueCase0 {
-                field_0: __SettingsValueWire { flags: __FlagsValueWire { enabled: 3 } },
-            },
-        },
-    };
-    let bad_tag = __ActionValueWire {
-        tag: 99,
-        payload: __ActionValuePayload { case_1: __ActionValueCase1 { empty: 0 } },
-    };
+    let mut bad_field = encode_inline(&Action::Configure(Settings { flags: Flags { enabled: true } })).unwrap();
+    // Start with the encoded active alternative, then change only its raw bool byte.
+    bad_field.payload.case_0.field_0.flags.enabled = 3;
+    let mut bad_tag = encode_inline(&Action::Idle).unwrap();
+    bad_tag.tag = 99;
     let mut out = core::mem::MaybeUninit::uninit();
     unsafe {
         assert_eq!(((*ptr.vtable).action)(ptr.object, bad_field, out.as_mut_ptr()), NC_E_INVALID_ARG);
@@ -177,9 +171,10 @@ fn enum_buffer_validation_is_atomic_before_native_dispatch() {
         // or boolean byte. The callee must reject before materializing native enums.
         let mut output = [encode_inline(&Action::Idle).unwrap(); 2];
         let mut written = 99;
-        assert_eq!(unsafe {
-            ((*raw.vtable).actions)(raw.object, 0, 2, wire.as_ptr(), 0, 2, output.as_mut_ptr(), &mut written)
-        }, expected);
+        assert_eq!(
+            unsafe { ((*raw.vtable).actions)(raw.object, 0, 2, wire.as_ptr(), 0, 2, output.as_mut_ptr(), &mut written) },
+            expected
+        );
         assert_eq!(output[0].tag, 1);
         assert_eq!(output[1].tag, 1);
         assert_eq!(wire[0].tag, 1);
@@ -226,7 +221,10 @@ fn writable_identity_buffers_retain_the_original_allocation() {
     let mut writer = unsafe { NcOutputWriter::<u32>::from_raw(9, prepared.as_mut_ptr(), 3, &mut written) }.unwrap();
     writer.extend_from_slice(&[1, 8]).unwrap();
     drop(writer);
-    unsafe { *prepared.written_ptr() = written; prepared.convert_output().unwrap(); }
+    unsafe {
+        *prepared.written_ptr() = written;
+        prepared.convert_output().unwrap();
+    }
     prepared.publish();
     assert_eq!(count, 2);
     // SAFETY: only this successfully published prefix was initialized.
@@ -383,7 +381,8 @@ fn buffers_count_selected_variants_without_charging_larger_alternatives() {
 fn buffer_count_includes_each_nested_record() {
     let values = vec![Settings { flags: Flags { enabled: true } }; MAX_VALUE_COUNT / 3 + 1];
     assert!(matches!(encode_value_buffer(&values), Err(NC_E_OUT_OF_RANGE)));
-    let wire = vec![__SettingsValueWire { flags: __FlagsValueWire { enabled: 1 } }; values.len()];
+    let element = encode_inline(&Settings { flags: Flags { enabled: true } }).unwrap();
+    let wire = vec![element; values.len()];
     // SAFETY: all wire records are initialized, but their total work exceeds policy.
     assert!(matches!(
         unsafe { decode_value_buffer::<Settings>(wire.as_ptr(), wire.len() as u64) },

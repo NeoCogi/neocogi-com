@@ -4,6 +4,9 @@ Authored names identify public fields, methods, types and descriptor entries.
 They must not become implementation-local variables in generated conversions.
 The generator must preserve values regardless of a legal author's spelling;
 reserving a growing list of names such as `budget` or `raw_0` is not a solution.
+Name ownership has three separate rules: support operations name their actual
+trait/type/macro owner; private implementation definitions use private lexical or
+trait scopes; intentionally public generated members have explicit admission.
 
 ## Value conversion
 
@@ -38,6 +41,21 @@ The converter qualifies its support types and variants through `::core`, includi
 `Option`, `Some`, `None`, `Result`, `Ok`, and `Err`. A user's own `Option` is still
 a legal application type. COM references continue to use the configured runtime
 crate path. No runtime name lookup, ownership layer, or allocation is added.
+
+Wire, payload, alternative and storage types live inside an anonymous constant
+scope. Their identifiers are allocated against the complete authored type/member
+syntax in that scope. They are not sibling items in the application's module;
+the supported wire/storage locators are `<Value as ComValue>::Wire` and
+`<Value as ComValue>::Storage`. Handwritten foreign-slot tests obtain an initialized
+wire through the codec and mutate its raw fields to test malformed contents.
+Former `__ValueValueWire`/payload/storage spellings impose no application restriction.
+
+Every codec operation and proof explicitly selects `ComValue`, including
+`FIXED_COST`, `BORROW_WIRE`, `encode_prechecked`, `decode_prechecked`, and associated
+wire/storage types. An inherent application operation with the same spelling must
+have no effect, whether its type is incompatible or it returns a plausible wrong
+value. Enum alternatives named `Wire` or `Storage` remain legal. Signature bytes
+are promoted static byte literals, without a generator-named sibling static.
 
 ## Method calls and buffer helpers
 
@@ -124,6 +142,12 @@ qualify their `ComValue` support types and conversion traits. Fixing only the
 recursive record codec would leave these generated consumers vulnerable to the
 same local `Option` declaration.
 
+Integer-enum and flag codecs explicitly select `ComValue` prechecked operations.
+Flag defaults select `::core::default::Default`, and enum predicates select
+`::core::matches!`. Flag validation embeds the union-of-declared-bits expression;
+there is no private associated `KNOWN_BITS` member. A legal authored flag may use
+that spelling. Generated standard derives use absolute core trait paths.
+
 `Option`, `Some` and `None` remain legal local IDL type names. `Result` remains a
 reserved IDL method-return form; this change does not alter that grammar or
 resolver contract. Handwritten Rust interfaces may use locally named types with
@@ -159,6 +183,11 @@ applicable normal/printed consumer coverage. A successful check in another
 emitting family does not establish its name-resolution contract. Private syntax
 contexts alone do not protect printed source, and injective generated names do
 not qualify references to external types, variants, macros or trait operations.
+
+Descriptor method/parameter names are emitted from the normalized authored model
+as string literals. Documentation/assertion/panic macros name their core owner;
+an application `stringify!`, `matches!`, `concat!`, `assert!` or `panic!` cannot
+replace a generated support operation.
 
 ## Regression evidence
 

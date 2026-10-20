@@ -8,7 +8,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Fields, Ident, Visibility};
 
-use crate::util::private_ident;
+use crate::util::{PrivateNames, private_ident};
 
 /// A record or enum alternative with its declared tag and ordered field shape.
 pub(crate) struct ValueCase {
@@ -22,9 +22,12 @@ pub(crate) struct ValueCase {
 
 /// Generates a complete checked codec without altering the application type.
 pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase], signature: TokenStream, inline: bool, nc: &syn::Path) -> TokenStream {
-    let wire_name = format_ident!("__{name}ValueWire", span = name.span());
-    let union_name = format_ident!("__{name}ValuePayload", span = name.span());
-    let storage_name = format_ident!("__{name}ValueStorage", span = name.span());
+    let authored_fields = cases.iter().map(|case| &case.fields);
+    let authored_variants = cases.iter().filter_map(|case| case.variant.as_ref());
+    let mut names = PrivateNames::new(quote! { #name #nc #(#authored_fields)* #(#authored_variants)* });
+    let wire_name = names.fresh("__NcWire");
+    let union_name = names.fresh("__NcPayload");
+    let storage_name = names.fresh("__NcStorage");
     // These are implementation locals, never authored field bindings. Positional
     // renaming remains correct when generated tokens are serialized as Rust text.
     let budget = private_ident("__nc_budget");
@@ -43,7 +46,7 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
     let mut maximum_costs = Vec::new();
     for (index, case) in cases.iter().enumerate() {
         let case_wire = if is_enum {
-            format_ident!("__{name}ValueCase{index}", span = name.span())
+            names.fresh(&format!("__NcCase{index}"))
         } else {
             wire_name.clone()
         };
@@ -136,7 +139,7 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
             raw_values.push(quote! { empty: 0 });
         }
         wires.push(quote! {
-            #[doc(hidden)] #[repr(C)] #[derive(Clone, Copy)]
+            #[doc(hidden)] #[repr(C)] #[derive(::core::clone::Clone, ::core::marker::Copy)]
             /// Raw fields for one structural value alternative.
             #visibility struct #case_wire { #(#raw_fields),* }
         });
@@ -190,10 +193,10 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
     }
     let tagged_wire = is_enum.then(|| {
         quote! {
-            #[doc(hidden)] #[repr(C)] #[derive(Clone, Copy)]
+            #[doc(hidden)] #[repr(C)] #[derive(::core::clone::Clone, ::core::marker::Copy)]
             /// Raw alternatives, inspected only after validating the active tag.
             #visibility union #union_name { #(#members),* }
-            #[doc(hidden)] #[repr(C)] #[derive(Clone, Copy)]
+            #[doc(hidden)] #[repr(C)] #[derive(::core::clone::Clone, ::core::marker::Copy)]
             /// Explicit integer tag and recursively lowered active payload.
             #visibility struct #wire_name {
                 /// Declared variant discriminant; unknown values fail conversion.
@@ -247,28 +250,28 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
                 quote! { #index }
             });
             let raw = field.ident.clone().unwrap_or_else(|| format_ident!("field_{index}"));
-            quote! { ::core::mem::offset_of!(Self, #application) == ::core::mem::offset_of!(Self::Wire, #raw) }
+            quote! { ::core::mem::offset_of!(Self, #application) == ::core::mem::offset_of!(<Self as #nc::ComValue>::Wire, #raw) }
         });
         quote! { const BORROW_WIRE: bool = true #(&& <#fields as #nc::ComValue>::BORROW_WIRE)*
-        && ::core::mem::size_of::<Self>() == ::core::mem::size_of::<Self::Wire>()
-        && ::core::mem::align_of::<Self>() == ::core::mem::align_of::<Self::Wire>()
+        && ::core::mem::size_of::<Self>() == ::core::mem::size_of::<<Self as #nc::ComValue>::Wire>()
+        && ::core::mem::align_of::<Self>() == ::core::mem::align_of::<<Self as #nc::ComValue>::Wire>()
         #(&& #offsets)*; }
     } else {
         quote! {}
     };
     let direct_encode = inline.then(|| {
         quote! {
-            if Self::BORROW_WIRE {
+            if <Self as #nc::ComValue>::BORROW_WIRE {
                 // SAFETY: BORROW_WIRE proves identical field offsets/size/alignment,
                 // unrestricted initialized bits, and no ownership or conversion work.
-                let #wire_input = unsafe { ::core::ptr::from_ref(self).cast::<Self::Wire>().read() };
+                let #wire_input = unsafe { ::core::ptr::from_ref(self).cast::<<Self as #nc::ComValue>::Wire>().read() };
                 return ::core::result::Result::Ok((#wire_input, ()));
             }
         }
     });
     let direct_decode = inline.then(|| {
         quote! {
-            if Self::BORROW_WIRE {
+            if <Self as #nc::ComValue>::BORROW_WIRE {
                 // SAFETY: the recursive proof excludes bools/tags and equates every
                 // active field layout. Padding stays padding in the copied value.
                 return ::core::result::Result::Ok(unsafe { ::core::ptr::from_ref(&#wire_input).cast::<Self>().read() });
@@ -291,6 +294,9 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
         quote! { const _: () = { fn check<T: #nc::ComInlineValue>() {} fn fields() { #(check::<#types>();)* } }; }
     });
     quote! {
+        // Anonymous ownership keeps wire/storage helpers out of the application's
+        // item namespace. Public associated types remain usable through ComValue.
+        const _: () = {
         #(#wires)* #tagged_wire #storage #inline_checks
         // SAFETY: only raw field representations cross COM; recursive conversion
         // validates tags and values before constructing application data.
@@ -303,12 +309,12 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
             /// Retains the storage required by every recursively converted child.
             /// Keep the budgeted traversal shared; isolated small copies use prechecked conversion.
             #[inline(never)]
-            fn encode_value(&self, #budget: &mut #nc::ValueBudget) -> ::core::result::Result<(Self::Wire, Self::Storage), #nc::NcStatus> {
-                match Self::FIXED_COST {
+            fn encode_value(&self, #budget: &mut #nc::ValueBudget) -> ::core::result::Result<(<Self as #nc::ComValue>::Wire, <Self as #nc::ComValue>::Storage), #nc::NcStatus> {
+                match <Self as #nc::ComValue>::FIXED_COST {
                     ::core::option::Option::Some(#cost) => {
                         #budget.fixed(#cost)?;
                         // SAFETY: this exact allocation-free subtree has been charged.
-                        unsafe { Self::encode_prechecked(self) }
+                        unsafe { <Self as #nc::ComValue>::encode_prechecked(self) }
                     }
                     ::core::option::Option::None => match #encode_source { #(#encode),* },
                 }
@@ -316,25 +322,25 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
             /// Selects the valid alternative before decoding any application field.
             /// A shared traversal avoids duplicating its budget handling into every buffer adapter.
             #[inline(never)]
-            unsafe fn decode_value(#wire_input: Self::Wire, #budget: &mut #nc::ValueBudget) -> ::core::result::Result<Self, #nc::NcStatus> {
-                match Self::FIXED_COST {
+            unsafe fn decode_value(#wire_input: <Self as #nc::ComValue>::Wire, #budget: &mut #nc::ValueBudget) -> ::core::result::Result<Self, #nc::NcStatus> {
+                match <Self as #nc::ComValue>::FIXED_COST {
                     ::core::option::Option::Some(#cost) => {
                         #budget.fixed(#cost)?;
                         // SAFETY: raw backing satisfies this codec and cost was charged.
-                        unsafe { Self::decode_prechecked(#wire_input) }
+                        unsafe { <Self as #nc::ComValue>::decode_prechecked(#wire_input) }
                     }
                     ::core::option::Option::None => { #decode_body },
                 }
             }
             /// Converts fields through their same validators after the resource preflight.
             #[inline]
-            unsafe fn encode_prechecked(&self) -> ::core::result::Result<(Self::Wire, Self::Storage), #nc::NcStatus> {
+            unsafe fn encode_prechecked(&self) -> ::core::result::Result<(<Self as #nc::ComValue>::Wire, <Self as #nc::ComValue>::Storage), #nc::NcStatus> {
                 #direct_encode
                 match #encode_source { #(#encode_prechecked),* }
             }
             /// Checks tags and every field after the whole conversion was proved to fit.
             #[inline]
-            unsafe fn decode_prechecked(#wire_input: Self::Wire) -> ::core::result::Result<Self, #nc::NcStatus> {
+            unsafe fn decode_prechecked(#wire_input: <Self as #nc::ComValue>::Wire) -> ::core::result::Result<Self, #nc::NcStatus> {
                 #direct_decode
                 #decode_prechecked_body
             }
@@ -343,6 +349,7 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
             const VALUE_SIGNATURE: #nc::NcAbiSignature = #signature;
         }
         #inline_impl
+        };
     }
 }
 
@@ -356,12 +363,8 @@ pub(crate) fn expand_owned(args: crate::args::StructArgs, input: syn::DeriveInpu
         .ok_or_else(|| syn::Error::new_spanned(&input, "com_value requires an IDL assigned_signature"))?;
     let deserialize = if args.deserialize {
         match &input.data {
-            syn::Data::Struct(record) => {
-                crate::deserialize::expand_struct(&input.ident, &record.fields, &nc, args.deserialize_default)?
-            }
-            syn::Data::Enum(enumeration) if !args.deserialize_default => {
-                crate::deserialize::expand_enum(&input.ident, enumeration, &nc)?
-            }
+            syn::Data::Struct(record) => crate::deserialize::expand_struct(&input.ident, &record.fields, &nc, args.deserialize_default)?,
+            syn::Data::Enum(enumeration) if !args.deserialize_default => crate::deserialize::expand_enum(&input.ident, enumeration, &nc)?,
             _ => return Err(syn::Error::new_spanned(&input, "default deserialization requires a named struct")),
         }
     } else {

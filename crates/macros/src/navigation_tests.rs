@@ -60,7 +60,7 @@ fn generated_interface_and_enum_names_keep_their_authored_identifier_spans() {
                     .unwrap();
                 let args = item.attrs.remove(index).parse_args().unwrap();
                 let expanded = crate::enums::expand_com_enum(args, item).unwrap();
-                for name in ["Track", "__TrackValueWire", "__TrackValuePayload"] {
+                for name in ["Track"] {
                     assert_origin(expanded.clone(), name, expected);
                 }
                 verified += 1;

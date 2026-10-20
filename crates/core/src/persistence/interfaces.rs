@@ -29,16 +29,15 @@ pub trait IObjectChildren {
         index: u32,
     ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus>;
 }
-/// Exact signature bytes assigned by the IDL compiler.
-#[allow(non_upper_case_globals)]
-static __nc_IObjectChildrenAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"jo*\xC3\x1E>Ok\x0B\x97\x7F\x87\xBC\x96\x86\xDB\xF0\x11\x0C\xFE\x95\xCE\x98a\xFE \xFD\xE2H\x15\xFE\xD4";
-#[doc = concat!(
-    "Interface marker for [`", stringify!(IObjectChildren),
+#[doc = ::core::concat!(
+    "Interface marker for [`", ::core::stringify!(IObjectChildren),
     "`]; handles carry its object/table pair."
 )]
 pub enum IObjectChildrenAbi {}
 #[repr(C)]
-#[doc = concat!("C-compatible vtable for [`", stringify!(IObjectChildren), "`].")]
+#[doc = ::core::concat!(
+    "C-compatible vtable for [`", ::core::stringify!(IObjectChildren), "`]."
+)]
 pub struct IObjectChildrenVTable {
     /// Common identity, query and reference-count slots.
     pub unknown: crate::IUnknownVTable,
@@ -104,8 +103,8 @@ unsafe impl crate::ComInterface for IObjectChildrenAbi {
     type Threading = crate::ThreadLocal;
 }
 #[repr(transparent)]
-#[doc = concat!(
-    "Borrowed static method view for [`", stringify!(IObjectChildren), "`]."
+#[doc = ::core::concat!(
+    "Borrowed static method view for [`", ::core::stringify!(IObjectChildren), "`]."
 )]
 pub struct IObjectChildrenClient<M: crate::ThreadingModel = crate::ThreadLocal> {
     /// Certified transparent storage supplied only by a live COM pointer borrow.
@@ -186,7 +185,7 @@ impl<M: crate::ThreadingModel> IObjectChildrenClient<M> {
 impl IObjectChildrenAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiSignature = crate::NcAbiSignature::from_static(
-        &__nc_IObjectChildrenAbi_abi_signature_bytes,
+        b"jo*\xC3\x1E>Ok\x0B\x97\x7F\x87\xBC\x96\x86\xDB\xF0\x11\x0C\xFE\x95\xCE\x98a\xFE \xFD\xE2H\x15\xFE\xD4",
     );
     #[doc(hidden)]
     pub const __NC_METHOD_0_PARAMS: [crate::NcMethodParamDescriptor; 0usize] = [];
@@ -200,7 +199,7 @@ impl IObjectChildrenAbi {
     #[doc(hidden)]
     pub const __NC_METHOD_1_PARAMS: [crate::NcMethodParamDescriptor; 1usize] = [
         crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(index)),
+            name: crate::NcStaticUtf8::from_static("index"),
             passing: crate::NcAbiPassingDescriptor::from_abi_passing(
                 crate::NcAbiPassing::Value,
             ),
@@ -219,14 +218,14 @@ impl IObjectChildrenAbi {
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
         crate::NcMethodDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(count)),
+            name: crate::NcStaticUtf8::from_static("count"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
             params: Self::__NC_METHOD_0_PARAMS.as_ptr(),
             returns: Self::__NC_METHOD_0_RETURN,
         },
         crate::NcMethodDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(get)),
+            name: crate::NcStaticUtf8::from_static("get"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 1u32,
             params: Self::__NC_METHOD_1_PARAMS.as_ptr(),
@@ -274,16 +273,15 @@ pub trait IPersistable {
         index: u32,
     ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus>;
 }
-/// Exact signature bytes assigned by the IDL compiler.
-#[allow(non_upper_case_globals)]
-static __nc_IPersistableAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"\x8E\x1Dc\x937\x8DB\xED\x96Z\xE1\x96\xBE\xD5\xC8\xFD\xD9\xCA\x1F\xA0\x94\xD3G\xF2.i[\x1C\x9B\x98\xA4P";
-#[doc = concat!(
-    "Interface marker for [`", stringify!(IPersistable),
+#[doc = ::core::concat!(
+    "Interface marker for [`", ::core::stringify!(IPersistable),
     "`]; handles carry its object/table pair."
 )]
 pub enum IPersistableAbi {}
 #[repr(C)]
-#[doc = concat!("C-compatible vtable for [`", stringify!(IPersistable), "`].")]
+#[doc = ::core::concat!(
+    "C-compatible vtable for [`", ::core::stringify!(IPersistable), "`]."
+)]
 pub struct IPersistableVTable {
     /// Common identity, query and reference-count slots.
     pub unknown: crate::IUnknownVTable,
@@ -403,7 +401,9 @@ unsafe impl crate::ComInterface for IPersistableAbi {
     type Threading = crate::ThreadLocal;
 }
 #[repr(transparent)]
-#[doc = concat!("Borrowed static method view for [`", stringify!(IPersistable), "`].")]
+#[doc = ::core::concat!(
+    "Borrowed static method view for [`", ::core::stringify!(IPersistable), "`]."
+)]
 pub struct IPersistableClient<M: crate::ThreadingModel = crate::ThreadLocal> {
     /// Certified transparent storage supplied only by a live COM pointer borrow.
     __nc_pointer: crate::NcClientPointer<IPersistableAbi, M>,
@@ -574,7 +574,7 @@ impl<M: crate::ThreadingModel> IPersistableClient<M> {
 impl IPersistableAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiSignature = crate::NcAbiSignature::from_static(
-        &__nc_IPersistableAbi_abi_signature_bytes,
+        b"\x8E\x1Dc\x937\x8DB\xED\x96Z\xE1\x96\xBE\xD5\xC8\xFD\xD9\xCA\x1F\xA0\x94\xD3G\xF2.i[\x1C\x9B\x98\xA4P",
     );
     #[doc(hidden)]
     pub const __NC_METHOD_0_PARAMS: [crate::NcMethodParamDescriptor; 0usize] = [];
@@ -619,7 +619,7 @@ impl IPersistableAbi {
     #[doc(hidden)]
     pub const __NC_METHOD_4_PARAMS: [crate::NcMethodParamDescriptor; 1usize] = [
         crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(index)),
+            name: crate::NcStaticUtf8::from_static("index"),
             passing: crate::NcAbiPassingDescriptor::from_abi_passing(
                 crate::NcAbiPassing::Value,
             ),
@@ -638,35 +638,35 @@ impl IPersistableAbi {
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 5usize] = [
         crate::NcMethodDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(type_id)),
+            name: crate::NcStaticUtf8::from_static("type_id"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
             params: Self::__NC_METHOD_0_PARAMS.as_ptr(),
             returns: Self::__NC_METHOD_0_RETURN,
         },
         crate::NcMethodDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(schema_version)),
+            name: crate::NcStaticUtf8::from_static("schema_version"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
             params: Self::__NC_METHOD_1_PARAMS.as_ptr(),
             returns: Self::__NC_METHOD_1_RETURN,
         },
         crate::NcMethodDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(save_state)),
+            name: crate::NcStaticUtf8::from_static("save_state"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
             params: Self::__NC_METHOD_2_PARAMS.as_ptr(),
             returns: Self::__NC_METHOD_2_RETURN,
         },
         crate::NcMethodDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(child_count)),
+            name: crate::NcStaticUtf8::from_static("child_count"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
             params: Self::__NC_METHOD_3_PARAMS.as_ptr(),
             returns: Self::__NC_METHOD_3_RETURN,
         },
         crate::NcMethodDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(child)),
+            name: crate::NcStaticUtf8::from_static("child"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 1u32,
             params: Self::__NC_METHOD_4_PARAMS.as_ptr(),
@@ -711,16 +711,15 @@ pub trait IPersistenceFactory {
         children: crate::ComRef<'_, IObjectChildrenAbi>,
     ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus>;
 }
-/// Exact signature bytes assigned by the IDL compiler.
-#[allow(non_upper_case_globals)]
-static __nc_IPersistenceFactoryAbi_abi_signature_bytes: [u8; crate::NcAbiSignature::SHA256_LEN] = *b"\x80\xCC13=\xDD\xAA?\xD0\xD3\xA01\xCF\xA5M\xFD\xFC\xFF\x863\xD6\x1FkH\xB2\xE3\xC4\xE1\x18PH\x13";
-#[doc = concat!(
-    "Interface marker for [`", stringify!(IPersistenceFactory),
+#[doc = ::core::concat!(
+    "Interface marker for [`", ::core::stringify!(IPersistenceFactory),
     "`]; handles carry its object/table pair."
 )]
 pub enum IPersistenceFactoryAbi {}
 #[repr(C)]
-#[doc = concat!("C-compatible vtable for [`", stringify!(IPersistenceFactory), "`].")]
+#[doc = ::core::concat!(
+    "C-compatible vtable for [`", ::core::stringify!(IPersistenceFactory), "`]."
+)]
 pub struct IPersistenceFactoryVTable {
     /// Common identity, query and reference-count slots.
     pub unknown: crate::IUnknownVTable,
@@ -814,8 +813,8 @@ unsafe impl crate::ComInterface for IPersistenceFactoryAbi {
     type Threading = crate::ThreadLocal;
 }
 #[repr(transparent)]
-#[doc = concat!(
-    "Borrowed static method view for [`", stringify!(IPersistenceFactory), "`]."
+#[doc = ::core::concat!(
+    "Borrowed static method view for [`", ::core::stringify!(IPersistenceFactory), "`]."
 )]
 pub struct IPersistenceFactoryClient<M: crate::ThreadingModel = crate::ThreadLocal> {
     /// Certified transparent storage supplied only by a live COM pointer borrow.
@@ -940,19 +939,19 @@ impl<M: crate::ThreadingModel> IPersistenceFactoryClient<M> {
 impl IPersistenceFactoryAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiSignature = crate::NcAbiSignature::from_static(
-        &__nc_IPersistenceFactoryAbi_abi_signature_bytes,
+        b"\x80\xCC13=\xDD\xAA?\xD0\xD3\xA01\xCF\xA5M\xFD\xFC\xFF\x863\xD6\x1FkH\xB2\xE3\xC4\xE1\x18PH\x13",
     );
     #[doc(hidden)]
     pub const __NC_METHOD_0_PARAMS: [crate::NcMethodParamDescriptor; 3usize] = [
         crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(version)),
+            name: crate::NcStaticUtf8::from_static("version"),
             passing: crate::NcAbiPassingDescriptor::from_abi_passing(
                 crate::NcAbiPassing::Value,
             ),
             ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::__nc_abi_type::<u32>()),
         },
         crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(state)),
+            name: crate::NcStaticUtf8::from_static("state"),
             passing: crate::NcAbiPassingDescriptor::from_abi_passing(
                 crate::NcAbiPassing::CopyFromBufferOffset,
             ),
@@ -961,7 +960,7 @@ impl IPersistenceFactoryAbi {
             ),
         },
         crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(child_count)),
+            name: crate::NcStaticUtf8::from_static("child_count"),
             passing: crate::NcAbiPassingDescriptor::from_abi_passing(
                 crate::NcAbiPassing::Value,
             ),
@@ -978,14 +977,14 @@ impl IPersistenceFactoryAbi {
     #[doc(hidden)]
     pub const __NC_METHOD_1_PARAMS: [crate::NcMethodParamDescriptor; 3usize] = [
         crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(version)),
+            name: crate::NcStaticUtf8::from_static("version"),
             passing: crate::NcAbiPassingDescriptor::from_abi_passing(
                 crate::NcAbiPassing::Value,
             ),
             ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::__nc_abi_type::<u32>()),
         },
         crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(state)),
+            name: crate::NcStaticUtf8::from_static("state"),
             passing: crate::NcAbiPassingDescriptor::from_abi_passing(
                 crate::NcAbiPassing::CopyFromBufferOffset,
             ),
@@ -994,7 +993,7 @@ impl IPersistenceFactoryAbi {
             ),
         },
         crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(children)),
+            name: crate::NcStaticUtf8::from_static("children"),
             passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComRef {
                 mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
             }),
@@ -1015,14 +1014,14 @@ impl IPersistenceFactoryAbi {
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
         crate::NcMethodDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(validate)),
+            name: crate::NcStaticUtf8::from_static("validate"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 3u32,
             params: Self::__NC_METHOD_0_PARAMS.as_ptr(),
             returns: Self::__NC_METHOD_0_RETURN,
         },
         crate::NcMethodDescriptor {
-            name: crate::NcStaticUtf8::from_static(stringify!(restore)),
+            name: crate::NcStaticUtf8::from_static("restore"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 3u32,
             params: Self::__NC_METHOD_1_PARAMS.as_ptr(),

@@ -311,7 +311,7 @@ unsafe extern "C" {
     /// C reads the explicit prefix count and verifies inactive tail bytes stay untouched.
     fn nc_c_exercise_choice_output(
         object: *mut core::ffi::c_void,
-        output: unsafe extern "C" fn(*mut core::ffi::c_void, u64, u64, *mut __NativeChoiceValueWire, *mut u64, *mut u32) -> NcStatus,
+        output: unsafe extern "C" fn(*mut core::ffi::c_void, u64, u64, *mut <NativeChoice as neocogi_com::ComValue>::Wire, *mut u64, *mut u32) -> NcStatus,
         pointer_status: NcStatus,
     ) -> i32;
 }

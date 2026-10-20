@@ -11,7 +11,7 @@ use syn::{ItemTrait, Result, TypeParamBound, TraitBoundModifier, PathArguments};
 use crate::abi_method::{parse_abi_trait_item, raw_vtable_method_docs, safe_method_docs, validate_interface_trait};
 use crate::args::{InterfaceArgs, InterfaceThreading};
 use crate::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind};
-use crate::util::{abi_signature_static_tokens, checked_u32_len, collect_syn_results, stable_guid, private_ident, push_error, runtime_crate_path};
+use crate::util::{checked_u32_len, collect_syn_results, stable_guid, private_ident, push_error, runtime_crate_path};
 
 /// Expands one validated interface trait into its complete Rust and C ABI surface.
 pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Result<proc_macro2::TokenStream> {
@@ -182,7 +182,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         .collect::<Vec<_>>();
     let method_descriptors = methods.iter().zip(&method_param_counts).enumerate().map(|(index, (method, param_count))| {
         let index = index as u32;
-        let method_ident = &method.ident;
+        let method_name = method.ident.to_string();
         let receiver = match method.receiver {
             AbiReceiver::Shared => quote! { #nc::NC_ABI_RECEIVER_SHARED },
             AbiReceiver::Mutable => quote! { #nc::NC_ABI_RECEIVER_MUTABLE },
@@ -191,7 +191,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         let return_ident = method_return_const_ident(index as usize);
         quote! {
             #nc::NcMethodDescriptor {
-                name: #nc::NcStaticUtf8::from_static(stringify!(#method_ident)),
+                name: #nc::NcStaticUtf8::from_static(#method_name),
                 receiver: #receiver,
                 param_count: #param_count,
                 params: Self::#params_ident.as_ptr(),
@@ -199,8 +199,6 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             }
         }
     });
-    let signature_bytes_ident = format_ident!("__nc_{abi_ident}_abi_signature_bytes", span = trait_ident.span());
-    let signature_static = abi_signature_static_tokens(&signature_bytes_ident, &assigned_signature, &nc);
     let method_count_usize = methods.len();
 
     // Each Rust method contributes one vtable slot. Non-void `Result<T,
@@ -389,7 +387,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         // report rejection without returning those owners. Malformed successful
         // output is a provider contract violation, never a recoverable rejection.
         let output_error = match has_owners {
-            true => quote! { panic!("invalid output after COM ownership commit: {:?}", status) },
+            true => quote! { ::core::panic!("invalid output after COM ownership commit: {:?}", status) },
             false => quote! { return status },
         };
         // Provider writes are already encoded directly into caller capacity.
@@ -531,28 +529,31 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         quote! { #(#user_docs)* #(#generated_docs)* pub #body }
     });
 
-    let output_contracts = methods.iter().flat_map(|method| {
-        if !method.args.iter().any(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. })) {
-            return Vec::new();
-        }
-        let mut proofs = Vec::new();
-        if matches!(method.ok.kind, AbiReturnKind::Plain) {
-            let ty = &method.ok.rust_ty;
-            proofs.push(quote! {
-                assert!(<#ty as #nc::ComValue>::MAX_COST.is_some(),
-                    "consuming COM copied output requires an allocation-free MAX_COST");
-            });
-        }
-        for arg in &method.args {
-            if let AbiArgKind::OutputBuffer { element_ty } = &arg.kind {
+    let output_contracts = methods
+        .iter()
+        .flat_map(|method| {
+            if !method.args.iter().any(|arg| matches!(arg.kind, AbiArgKind::ComBox { .. })) {
+                return Vec::new();
+            }
+            let mut proofs = Vec::new();
+            if matches!(method.ok.kind, AbiReturnKind::Plain) {
+                let ty = &method.ok.rust_ty;
                 proofs.push(quote! {
-                    assert!(<#element_ty as #nc::ComValue>::BORROW_WIRE || <#element_ty as #nc::ComValue>::MAX_COST.is_some(),
-                        "consuming COM converted buffer output requires an allocation-free MAX_COST");
+                    ::core::assert!(<#ty as #nc::ComValue>::MAX_COST.is_some(),
+                        "consuming COM copied output requires an allocation-free MAX_COST");
                 });
             }
-        }
-        proofs
-    }).collect::<Vec<_>>();
+            for arg in &method.args {
+                if let AbiArgKind::OutputBuffer { element_ty } = &arg.kind {
+                    proofs.push(quote! {
+                        ::core::assert!(<#element_ty as #nc::ComValue>::BORROW_WIRE || <#element_ty as #nc::ComValue>::MAX_COST.is_some(),
+                            "consuming COM converted buffer output requires an allocation-free MAX_COST");
+                    });
+                }
+            }
+            proofs
+        })
+        .collect::<Vec<_>>();
     let output_contracts = match output_contracts.is_empty() {
         true => quote! {},
         false => quote! { const _: () = { #(#output_contracts)* }; },
@@ -564,17 +565,16 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         // IDL and handwritten interfaces share this codec-level requirement.
         #output_contracts
 
-        #signature_static
 
         // The marker gives ComRaw/ComPtr their static interface contract.
         // No IFooAbi instance is stored in the object allocation.
-        #[doc = concat!("Interface marker for [`", stringify!(#trait_ident), "`]; handles carry its object/table pair.")]
+        #[doc = ::core::concat!("Interface marker for [`", ::core::stringify!(#trait_ident), "`]; handles carry its object/table pair.")]
         #vis enum #abi_ident {}
 
         // Vtables start with the `IUnknown` function table, then append the
         // interface-specific methods in source order.
         #[repr(C)]
-        #[doc = concat!("C-compatible vtable for [`", stringify!(#trait_ident), "`].")]
+        #[doc = ::core::concat!("C-compatible vtable for [`", ::core::stringify!(#trait_ident), "`].")]
         #vis struct #vtable_ident {
             #prefix_field
             #(#method_fields)*
@@ -596,7 +596,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         // The view only lends method lookup. It has no constructor, ownership
         // conversions or Clone/Copy implementation and cannot outlive its lender.
         #[repr(transparent)]
-        #[doc = concat!("Borrowed static method view for [`", stringify!(#trait_ident), "`].")]
+        #[doc = ::core::concat!("Borrowed static method view for [`", ::core::stringify!(#trait_ident), "`].")]
         #vis struct #client_ident<M: #nc::ThreadingModel = #nc::ThreadLocal> {
             /// Certified transparent storage supplied only by a live COM pointer borrow.
             __nc_pointer: #nc::NcClientPointer<#abi_ident, M>,
@@ -617,7 +617,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         impl #abi_ident {
             #[doc = "Canonical validation form of this interface's typed ABI contract."]
             pub const ABI_SIGNATURE: #nc::NcAbiSignature =
-                #nc::NcAbiSignature::from_static(&#signature_bytes_ident);
+                #nc::NcAbiSignature::from_static(#assigned_signature);
 
             #(#method_abi_descriptors)*
 
@@ -717,7 +717,11 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
         let ident = &arg.binding;
         match &arg.kind {
             AbiArgKind::OutputBuffer { element_ty } => quote! { #ident: #nc::NcOutput<'_, #element_ty> },
-            _ => { let ty = &arg.rust_ty; quote! { #ident: #ty } }}
+            _ => {
+                let ty = &arg.rust_ty;
+                quote! { #ident: #ty }
+            }
+        }
     });
     let owners = method
         .args
@@ -752,8 +756,8 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
             let slot = owner_slot_ident(ident);
             quote! {
                 match status.is_ok() {
-                    true => assert!(#slot.is_null(), "successful COM call did not consume its owner"),
-                    false => assert!(#slot.object == #ident.as_raw().object && #slot.vtable == #ident.as_raw().vtable,
+                    true => ::core::assert!(#slot.is_null(), "successful COM call did not consume its owner"),
+                    false => ::core::assert!(#slot.object == #ident.as_raw().object && #slot.vtable == #ident.as_raw().vtable,
                         "rejected COM call did not return its original owner"),
                 }
             }
@@ -824,7 +828,9 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
         })
         .collect::<Vec<_>>();
     let buffer_publication = method.args.iter().filter_map(|arg| {
-        let AbiArgKind::OutputBuffer { .. } = &arg.kind else { return None; };
+        let AbiArgKind::OutputBuffer { .. } = &arg.kind else {
+            return None;
+        };
         let ident = &arg.binding;
         Some(quote! { #ident.publish(); })
     });
@@ -921,12 +927,12 @@ fn method_abi_descriptor_consts(nc: &syn::Path, index: usize, method: &AbiMethod
 
 /// Emits the physical descriptor for one lowered parameter.
 fn method_param_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_macro2::TokenStream {
-    let ident = &arg.ident;
+    let name = arg.ident.to_string();
     let passing = arg_passing_descriptor(nc, arg);
     let ty = arg_type_descriptor(nc, arg);
     quote! {
         #nc::NcMethodParamDescriptor {
-            name: #nc::NcStaticUtf8::from_static(stringify!(#ident)),
+            name: #nc::NcStaticUtf8::from_static(#name),
             passing: #passing,
             ty: #ty,
         }
@@ -1092,10 +1098,14 @@ fn raw_vtable_arg_params(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
             let len_ident = buffer_len_ident(ident);
             let ptr_ident = buffer_ptr_ident(ident);
             let written_ident = buffer_written_ident(ident);
-            vec![quote! { #offset_ident: u64 }, quote! { #len_ident: u64 }, {
-                let ty = &arg.abi_ty;
-                quote! { #ptr_ident: #ty }
-            }, quote! { #written_ident: *mut u64 },
+            vec![
+                quote! { #offset_ident: u64 },
+                quote! { #len_ident: u64 },
+                {
+                    let ty = &arg.abi_ty;
+                    quote! { #ptr_ident: #ty }
+                },
+                quote! { #written_ident: *mut u64 },
             ]
         }
     }
@@ -1134,7 +1144,11 @@ fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
         AbiArgKind::ComRef { optional: true, .. } => vec![quote! { #ident.map_or(::core::default::Default::default(), |value| value.as_raw()) }],
         AbiArgKind::ComRef { optional: false, .. } => vec![quote! { #ident.as_raw() }],
         AbiArgKind::CopyFromBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.len() }, quote! { #ident.as_ptr() }],
-        AbiArgKind::OutputBuffer { .. } => vec![quote! { #ident.offset() }, quote! { #ident.capacity() }, quote! { #ident.as_mut_ptr() }, quote! { #ident.written_ptr() },
+        AbiArgKind::OutputBuffer { .. } => vec![
+            quote! { #ident.offset() },
+            quote! { #ident.capacity() },
+            quote! { #ident.as_mut_ptr() },
+            quote! { #ident.written_ptr() },
         ],
     }
 }
@@ -1173,9 +1187,7 @@ fn validate_generated_method_identifiers(methods: &[AbiMethod], errors: &mut Opt
         if neocogi_com_core::is_reserved_com_method(&method_name) {
             push_error(
                 errors,
-                syn::Error::new(
-                    method.ident.span(),
-                    format!("COM method `{method_name}` conflicts with a COM handle operation")),
+                syn::Error::new(method.ident.span(), format!("COM method `{method_name}` conflicts with a COM handle operation")),
             );
         }
     }

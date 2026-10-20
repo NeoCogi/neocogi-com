@@ -132,6 +132,12 @@ and select required trait operations explicitly. Plugin support lookup and defau
 decoding have independent normal/printed semantic controls. See [generated identifier hygiene](../../../docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md)
 for the contract, the corruption it prevents, and executable regression coverage.
 
+Value wire/payload/storage definitions live in anonymous implementation scopes.
+Use `<Value as neocogi_com::ComValue>::Wire` or `::Storage` for explicit raw-slot
+integration; private sibling helper spellings are no longer generated APIs.
+Codec proofs and conversions select their trait explicitly, independently of
+same-named application methods/constants. Signature literals need no sibling static.
+
 Executable package tests own their fixtures and ask Cargo for the actual core
 and facade package locations. They also run against extracted SDK archives;
 `bash crates/com/scripts/test-packages.sh` supplies the matching SDK offline and

@@ -1,5 +1,16 @@
 # Changelog
 
+## Generated value and support ownership (pre-release)
+
+Checked value codecs explicitly select their ComValue proofs, operations and
+associated types. Application methods/constants cannot alter codec budgets or
+converted values. Wire/payload/storage helpers live in anonymous implementation
+scopes; explicit raw consumers use ComValue::Wire instead of sibling helper names.
+Static signature literals replace named sibling byte arrays. Metadata names are
+emitted as literals and standard support traits/macros/derives use core paths.
+Flags embed their mask expression, allowing an authored KNOWN_BITS flag.
+Wire layouts, canonical identities and the shared runtime registry are unchanged.
+
 ## Bound base and event fingerprints (pre-release)
 
 Use one lexical bound/free classifier for type expressions, direct bases and
@@ -16,7 +27,7 @@ Plugin descriptors explicitly resolve Option::Some and the built-in env! macro.
 Default-policy decoders explicitly invoke trait Default in derive/copied/owned
 entrypoints. Adversarial normal/printed consumers preserve descriptor version,
 actual root acquisition and missing-field semantics under application shadowing.
-This closes the remaining COM8 support-lookup cases without changing COM layouts,
+This fixes those COM8 plugin/default-decoder cases without changing COM layouts,
 wire formats, Cargo owner encoding or the shared runtime registry.
 
 ## Borrowed event inspection (pre-release)

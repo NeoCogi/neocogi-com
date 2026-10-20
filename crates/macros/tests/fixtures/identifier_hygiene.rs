@@ -208,6 +208,9 @@ mod tests {
             assert!(other.enabled);
             Ok(value)
         }
+        fn flags(&self, value: super::shadow::Flags) -> Result<u8, NcStatus> {
+            Ok(value.raw())
+        }
     }
 
     #[test]
@@ -219,6 +222,9 @@ mod tests {
         let shadow = Shadow::from_value(Shadow).query::<super::shadow::IShadowAbi>().unwrap();
         assert_eq!(shadow.echo(73, value.value), Ok(73));
         let flags = super::shadow::Flags::ENABLED | super::shadow::Flags::VISIBLE;
+        assert_eq!(flags, super::shadow::Flags::KNOWN_BITS);
+        assert_eq!(shadow.flags(flags).unwrap(), 3);
+        assert_eq!(shadow.flags(super::shadow::Flags::from_raw(4)), Err(NC_E_INVALID_TAG));
         assert_eq!(NcValueRef::new(&flags).unwrap().to_owned().unwrap(), flags);
         assert_eq!(super::shadow::State::Ready.canonical_name(), Some("ready"));
         assert_eq!(super::shadow::State::from_raw(255).canonical_name(), None);

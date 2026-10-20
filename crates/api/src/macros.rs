@@ -53,7 +53,7 @@ macro_rules! com_int_enum {
     ) => {
         $(#[$type_meta])*
         #[repr(transparent)]
-        #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+        #[derive(::core::clone::Clone, ::core::marker::Copy, ::core::fmt::Debug, ::core::cmp::Eq, ::core::hash::Hash, ::core::cmp::Ord, ::core::cmp::PartialEq, ::core::cmp::PartialOrd)]
         $vis struct $name(pub $repr);
 
         impl $name {
@@ -78,7 +78,7 @@ macro_rules! com_int_enum {
             /// Returns whether this value is one of the constants known at
             /// compile time.
             pub const fn is_known(self) -> bool {
-                matches!(self.0, $($value)|*)
+                ::core::matches!(self.0, $($value)|*)
             }
 
             /// Returns whether this value is not one of the constants known at
@@ -125,11 +125,11 @@ macro_rules! com_int_enum {
             type Storage = ();
             /// Accounts for the scalar before validating its authored domain.
             fn encode_value(&self, budget: &mut $crate::ValueBudget) -> ::core::result::Result<($repr, ()), $crate::NcStatus> {
-                budget.value(|_| unsafe { Self::encode_prechecked(self) })
+                budget.value(|_| unsafe { <Self as $crate::ComValue>::encode_prechecked(self) })
             }
             /// Accounts for the scalar before accepting any raw integer.
             unsafe fn decode_value(wire: $repr, budget: &mut $crate::ValueBudget) -> ::core::result::Result<Self, $crate::NcStatus> {
-                budget.value(|_| unsafe { Self::decode_prechecked(wire) })
+                budget.value(|_| unsafe { <Self as $crate::ComValue>::decode_prechecked(wire) })
             }
             /// Preserves domain checks inside a prepaid fixed aggregate.
             unsafe fn encode_prechecked(&self) -> ::core::result::Result<($repr, ()), $crate::NcStatus> {
@@ -184,7 +184,7 @@ macro_rules! com_bit_enum {
     ) => {
         $(#[$type_meta])*
         #[repr(transparent)]
-        #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+        #[derive(::core::clone::Clone, ::core::marker::Copy, ::core::fmt::Debug, ::core::cmp::Eq, ::core::hash::Hash, ::core::cmp::Ord, ::core::cmp::PartialEq, ::core::cmp::PartialOrd)]
         $vis struct $name($repr);
 
         impl $name {
@@ -192,9 +192,6 @@ macro_rules! com_bit_enum {
                 $(#[$flag_meta])*
                 pub const $flag: Self = Self($value);
             )*
-
-            /// Union of every bit present in a declared flag or alias.
-            const KNOWN_BITS: $repr = 0 $(| $value)*;
 
             /// Creates a value from raw ABI storage without hiding unknown bits.
             pub const fn from_raw(value: $repr) -> Self {
@@ -223,11 +220,11 @@ macro_rules! com_bit_enum {
 
             /// Returns whether the raw representation contains only declared bits.
             pub const fn is_valid(self) -> bool {
-                self.0 & !Self::KNOWN_BITS == 0
+                self.0 & !(0 $(| $value)*) == 0
             }
         }
 
-        impl Default for $name {
+        impl ::core::default::Default for $name {
             /// Creates the empty bit set.
             fn default() -> Self {
                 Self::from_raw(0)
@@ -319,11 +316,11 @@ macro_rules! com_bit_enum {
             type Storage = ();
             /// Accounts for the scalar before validating its authored domain.
             fn encode_value(&self, budget: &mut $crate::ValueBudget) -> ::core::result::Result<($repr, ()), $crate::NcStatus> {
-                budget.value(|_| unsafe { Self::encode_prechecked(self) })
+                budget.value(|_| unsafe { <Self as $crate::ComValue>::encode_prechecked(self) })
             }
             /// Accounts for the scalar before accepting any raw integer.
             unsafe fn decode_value(wire: $repr, budget: &mut $crate::ValueBudget) -> ::core::result::Result<Self, $crate::NcStatus> {
-                budget.value(|_| unsafe { Self::decode_prechecked(wire) })
+                budget.value(|_| unsafe { <Self as $crate::ComValue>::decode_prechecked(wire) })
             }
             /// Preserves domain checks inside a prepaid fixed aggregate.
             unsafe fn encode_prechecked(&self) -> ::core::result::Result<($repr, ()), $crate::NcStatus> {

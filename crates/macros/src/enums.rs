@@ -5,12 +5,12 @@
 //! Nominal metadata identifies the wire contract without promising a Rust layout.
 
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::{Fields, Ident, ItemEnum, Result};
 
 use crate::args::EnumArgs;
 use crate::plain_data::{PlainAbiTypeContext, validate_plain_abi_fields};
-use crate::util::{abi_signature_static_tokens, checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
+use crate::util::{checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
 
 /// Emits a native enum, its checked inline codec, and declaration identity.
 /// Persistence and wire conversion use the same zero-based declaration ordinals.
@@ -38,8 +38,6 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
             "com_enum requires an IDL-generator assigned_signature; define cross-component contracts in .ncidl",
         )
     })?;
-    let signature_name = format_ident!("__nc_{name}_abi_signature_bytes", span = name.span());
-    let signature_static = abi_signature_static_tokens(&signature_name, signature, &nc);
     let cases = variants
         .iter()
         .map(|(variant, fields, tag)| crate::value::ValueCase {
@@ -48,7 +46,7 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
             tag: quote! { #tag },
         })
         .collect::<Vec<_>>();
-    let codec = crate::value::expand(name, vis, &cases, quote! { #nc::NcAbiSignature::from_static(&#signature_name) }, true, &nc);
+    let codec = crate::value::expand(name, vis, &cases, quote! { #nc::NcAbiSignature::from_static(#signature) }, true, &nc);
     let decoder = if args.deserialize {
         let data = syn::DataEnum {
             enum_token: input.enum_token,
@@ -62,13 +60,12 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
     let tag_type = &args.tag;
     Ok(quote! {
         #input
-        #signature_static
         #codec
         #decoder
 
         // A const assertion cannot be disabled by overflow-lint settings in the
         // consuming crate. Uniqueness follows directly from ordinal assignment.
-        const _: () = assert!(
+        const _: () = ::core::assert!(
             #count == 0 || (#count - 1) as u128 <= <#tag_type>::MAX as u128,
             "enum variant ordinals exceed the declared tag representation",
         );

@@ -382,6 +382,9 @@ mod identifier_hygiene_tests;
 mod support_resolution_tests;
 
 #[cfg(test)]
+mod name_ownership_tests;
+
+#[cfg(test)]
 mod method_name_tests;
 
 #[cfg(test)]
