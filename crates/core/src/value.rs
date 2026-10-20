@@ -72,24 +72,17 @@ impl ValueBudget {
         self.depth += 1;
         result
     }
-    /// Prepays fixed elements or an affordable allocation-free upper bound.
-    /// Exact costs reject impossible buffers before allocation. A maximum that
-    /// does not fit falls back to actual variant accounting; it never rejects
-    /// an ordinary buffer merely because a more expensive variant exists.
+    /// Prepays only exact element costs in a shared recursive traversal.
+    /// An upper bound cannot spend this parent's remainder: inactive alternatives
+    /// must leave their allowance available to later actual siblings.
     #[cfg(feature = "alloc")]
-    fn fixed_elements<T: ComValue>(&mut self, len: usize) -> Result<bool, NcStatus> {
+    fn exact_elements<T: ComValue>(&mut self, len: usize) -> Result<bool, NcStatus> {
         match T::FIXED_COST {
             Some(cost) => {
                 self.fixed(cost.elements(len).ok_or(NC_E_OUT_OF_RANGE)?)?;
                 Ok(true)
             }
-            None => match T::MAX_COST.and_then(|cost| cost.elements(len)) {
-                Some(cost) if cost.values <= self.values && cost.depth <= self.depth => {
-                    self.fixed(cost)?;
-                    Ok(true)
-                }
-                _ => Ok(false),
-            },
+            None => Ok(false),
         }
     }
     /// Charges an allocation/copy before touching producer-controlled storage.
@@ -150,9 +143,10 @@ pub unsafe trait ComValue: Sized + 'static {
     /// This is macro infrastructure, not an alternative unchecked wire format.
     ///
     /// # Safety
-    /// Either FIXED_COST or MAX_COST was charged to the shared conversion
-    /// budget, or MAX_COST fits the entire budget of an isolated conversion
-    /// with no subsequent work. Charging a maximum prepays any selected variant.
+    /// In a shared recursive traversal, the exact FIXED_COST must be charged.
+    /// A MAX_COST proof is permitted only for a complete isolated conversion or
+    /// an admitted fresh output region whose remaining budget has no other user.
+    /// An upper bound must never spend hypothetical payload costs needed by siblings.
     /// Every active child must have a finite allocation-free MAX_COST. Content
     /// validation remains required even though budget bookkeeping is omitted.
     #[doc(hidden)]
@@ -542,50 +536,73 @@ impl<W: Copy> ValueSlice<W> {
     }
 }
 
-/// Typed temporary arrays retain both raw elements and their indirect backing.
+/// Call-scoped sequence backing; the producer source remains borrowed separately.
+/// Identity elements with an exact prepaid cost use their original region. Other
+/// elements retain concrete wire arrays and every child guard until the call ends.
 #[cfg(feature = "alloc")]
 pub struct ValueSequenceStorage<T: ComValue> {
-    /// Contiguous wire elements addressed by the exported sequence descriptor.
-    wires: Vec<T::Wire>,
-    /// Storage for every element, retained until the synchronous call returns.
-    children: Vec<T::Storage>,
+    /// Representation is local codec infrastructure, never part of the raw ABI.
+    _arrays: SequenceArrays<T>,
+}
+
+/// The two actual sequence-production strategies, selected by the codec proof.
+#[cfg(feature = "alloc")]
+enum SequenceArrays<T: ComValue> {
+    /// Original identity elements are kept live by the enclosing source borrow.
+    Borrowed,
+    /// Converted elements require both contiguous raw slots and child backing.
+    Converted {
+        /// Contiguous wire elements addressed by the exported sequence descriptor.
+        _wires: Vec<T::Wire>,
+        /// Storage for every element, retained until the synchronous call returns.
+        _children: Vec<T::Storage>,
+    },
 }
 #[cfg(feature = "alloc")]
-// SAFETY: raw sequence elements are independently encoded and their storage lives
-// in the call guard; decoding validates each element before returning Vec<T>.
+// SAFETY: identity elements borrow the live application source under ComValue's
+// source-borrow contract. Converted elements and children live in the call guard.
+// Decoding validates each element before returning independently owned Vec<T>.
 unsafe impl<T: ComValue> ComValue for Vec<T> {
     type Wire = ValueSlice<T::Wire>;
     type Storage = ValueSequenceStorage<T>;
     fn encode_value(&self, budget: &mut ValueBudget) -> Result<(Self::Wire, Self::Storage), NcStatus> {
         budget.value(|budget| {
             budget.sequence::<T::Wire>(self.len())?;
+            let exact = budget.exact_elements::<T>(self.len())?;
+            if T::BORROW_WIRE && exact {
+                // SAFETY: the recursive identity proof includes size, alignment,
+                // initialized bits and identity conversion. Exact prepayment is
+                // required even here because later siblings share this budget.
+                let wire = ValueSlice { pointer: self.as_ptr().cast::<T::Wire>(), len: self.len() as u64 };
+                return Ok((wire, ValueSequenceStorage { _arrays: SequenceArrays::Borrowed }));
+            }
             // The second allocation owns child guards as well as the wire array.
             budget.bytes(self.len().checked_mul(core::mem::size_of::<T::Storage>()).ok_or(NC_E_OUT_OF_RANGE)?)?;
-            let fixed = budget.fixed_elements::<T>(self.len())?;
-            let mut storage = ValueSequenceStorage { wires: Vec::new(), children: Vec::new() };
-            storage.wires.try_reserve_exact(self.len()).map_err(|_| NC_E_OUT_OF_MEMORY)?;
-            storage.children.try_reserve_exact(self.len()).map_err(|_| NC_E_OUT_OF_MEMORY)?;
+            let mut wires = Vec::new();
+            let mut children = Vec::new();
+            wires.try_reserve_exact(self.len()).map_err(|_| NC_E_OUT_OF_MEMORY)?;
+            children.try_reserve_exact(self.len()).map_err(|_| NC_E_OUT_OF_MEMORY)?;
             for value in self {
-                let (wire, child) = match fixed {
-                    // SAFETY: fixed_elements prepaid this element's exact cost.
+                let (wire, child) = match exact {
+                    // SAFETY: exact_elements prepaid this element's exact cost.
                     true => unsafe { value.encode_prechecked() },
                     false => value.encode_value(budget),
                 }?;
-                storage.wires.push(wire);
-                storage.children.push(child);
+                wires.push(wire);
+                children.push(child);
             }
             let wire = ValueSlice {
-                pointer: storage.wires.as_ptr(),
-                len: storage.wires.len() as u64,
+                pointer: wires.as_ptr(),
+                len: wires.len() as u64,
             };
-            Ok((wire, storage))
+            Ok((wire, ValueSequenceStorage { _arrays: SequenceArrays::Converted { _wires: wires, _children: children } }))
         })
     }
     unsafe fn decode_value(wire: Self::Wire, budget: &mut ValueBudget) -> Result<Self, NcStatus> {
         budget.value(|budget| {
             let len = usize::try_from(wire.len).map_err(|_| NC_E_OUT_OF_RANGE)?;
             budget.sequence::<T>(len)?;
-            let fixed = budget.fixed_elements::<T>(len)?;
+            let fixed = budget.exact_elements::<T>(len)?;
             // SAFETY: the caller supplies live raw elements; size checks precede this borrow.
             let elements = unsafe { wire.elements() }?;
             let mut values = Vec::new();
@@ -753,7 +770,19 @@ pub(crate) fn reserve_value_buffer<T>(len: usize) -> Result<Vec<T>, NcStatus> {
 fn buffer_budget<Element: ComInlineValue, Stored>(len: usize) -> Result<(ValueBudget, bool), NcStatus> {
     let mut budget = ValueBudget::default();
     budget.sequence::<Stored>(len)?;
-    let prechecked = budget.fixed_elements::<Element>(len)?;
+    // This budget belongs to the complete isolated buffer, so no later sibling
+    // needs its remainder. An affordable maximum may therefore replace actual
+    // variant accounting here; shared Vec traversals use exact_elements only.
+    let prechecked = match budget.exact_elements::<Element>(len)? {
+        true => true,
+        false => match Element::MAX_COST.and_then(|cost| cost.elements(len)) {
+            Some(cost) if cost.values <= budget.values && cost.depth <= budget.depth => {
+                budget.fixed(cost)?;
+                true
+            }
+            _ => false,
+        },
+    };
     Ok((budget, prechecked))
 }
 

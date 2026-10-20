@@ -51,6 +51,7 @@ fn ui_errors_are_stable() {
     t.compile_fail("integration-tests/ui/interface_value_ref_named_lifetime.rs");
     t.compile_fail("integration-tests/ui/interface_value_ref_shape.rs");
     t.compile_fail("integration-tests/ui/interface_value_ref_escape.rs");
+    t.compile_fail("integration-tests/ui/value_vec_source_escape.rs");
     t.compile_fail("integration-tests/ui/interface_default_method.rs");
     t.compile_fail("integration-tests/ui/interface_explicit_guid_name_mismatch.rs");
     t.compile_fail("integration-tests/ui/interface_empty_qualified_name.rs");

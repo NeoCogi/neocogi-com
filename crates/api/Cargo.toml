@@ -40,6 +40,10 @@ name = "abi_policy"
 path = "integration-tests/abi_policy.rs"
 
 [[test]]
+name = "foundation_values"
+path = "integration-tests/foundation_values.rs"
+
+[[test]]
 name = "native_c_abi"
 path = "integration-tests/native_c_abi.rs"
 

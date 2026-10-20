@@ -169,8 +169,18 @@ large unused enum alternative or absent optional payload cannot make a small
 valid value fail during ordinary conversion. Buffer conversion can likewise
 prepay an affordable maximum for all elements; an unaffordable maximum falls
 back to actual-variant accounting. Owned sequences retain their shared parent
-budget. Consuming method outputs have a stricter admission rule: all possible
+budget and prepay only exact `FIXED_COST`. Spending an affordable `MAX_COST` in
+that shared traversal would charge inactive payloads and steal a later sibling's
+allowance. Permuting siblings with the same actual count/depth/bytes cannot change
+acceptance. Consuming method outputs have a stricter admission rule: all possible
 outputs must fit before accepting owners, as described below.
+
+A borrowed `Vec<T>` producer reuses its original element region when the recursive
+`BORROW_WIRE` layout proof and an exact element cost both hold. The source remains
+borrowed by `NcValueRef`; wire/storage alone are not an independently owned
+encoding. Shared count/depth and element-region byte checks still apply. Other
+elements retain a converted wire vector and concrete child guards. Receiver
+`to_owned()` independently allocates and validates its own native sequence.
 
 ```mermaid
 flowchart TD

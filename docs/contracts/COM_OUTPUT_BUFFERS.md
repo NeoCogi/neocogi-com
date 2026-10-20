@@ -57,6 +57,13 @@ recovery of already consumed owners.
 
 ## Foreign memory obligations
 
+Identity element admission checks a representable destination region without a
+conversion count/depth budget. Both `push` and `extend_from_slice` subsequently
+copy under that same identity proof; an individual write never re-enters ordinary
+inline conversion. Converted elements retain their prepaid maximum and restricted
+field validators. The distinction belongs to output admission/completion and does
+not relax shared recursive value-tree limits.
+
 Raw callers supply aligned, exclusively writable, live capacity and a separate
 live count destination. Raw successful providers initialize all active fields in
 the reported prefix and never write beyond capacity. Padding and inactive union

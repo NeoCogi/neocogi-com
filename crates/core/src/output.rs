@@ -78,16 +78,18 @@ impl<'a, T: ComInlineValue> NcOutputWriter<'a, T> {
 
     /// Encodes one native value directly into its next raw destination slot.
     pub fn push(&mut self, value: T) -> Result<(), NcStatus> {
+        if T::BORROW_WIRE {
+            // Identity admission requires no conversion budget. Individual and
+            // bulk writes must use exactly the same direct-copy rule afterward.
+            return self.extend_from_slice(core::slice::from_ref(&value));
+        }
         let index = self.written();
         let slot = self.slots.get_mut(index).ok_or(NC_E_OUT_OF_RANGE)?;
         // Capacity admission prepaid every possible inline alternative. Content
         // still follows the same recursive typed codec as ordinary COM arguments.
-        let wire = match T::BORROW_WIRE {
-            true => crate::encode_inline(&value)?,
-            // SAFETY: ComInlineValue supplies self-contained Copy storage and
-            // its MAX_COST was prepaid for every slot before implementation entry.
-            false => unsafe { value.encode_prechecked() }?.0,
-        };
+        // SAFETY: ComInlineValue supplies self-contained Copy storage and its
+        // MAX_COST was prepaid for every slot before implementation entry.
+        let wire = unsafe { value.encode_prechecked() }?.0;
         slot.write(wire);
         *self.written += 1;
         Ok(())

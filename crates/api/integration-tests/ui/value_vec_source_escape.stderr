@@ -1,0 +1,11 @@
+error[E0597]: `source` does not live long enough
+ --> integration-tests/ui/value_vec_source_escape.rs:7:33
+  |
+6 |         let source = vec![13_u32; 8];
+  |             ------ binding `source` declared here
+7 |         guard = NcValueRef::new(&source).unwrap();
+  |                                 ^^^^^^^ borrowed value does not live long enough
+8 |     }
+  |     - `source` dropped here while still borrowed
+9 |     let _owned = guard.to_owned();
+  |                  ----- borrow later used here
