@@ -7,11 +7,9 @@ use crate::factory_plugin_registry::{PluginOrigin, RegisteredFactoryPlugin};
 
 /// Borrows a complete record from process-lived registration storage.
 pub(crate) fn plugin_info(registered: &RegisteredFactoryPlugin) -> NcPluginInfoV1 {
-    // SAFETY: Registration validates this immutable graph and retains its code
-    // and metadata by static ownership or a process-pinned native mapping.
-    let plugin = unsafe { &*registered.description };
+    let plugin = registered.descriptor.get();
     NcPluginInfoV1 {
-        plugin_id: registered.plugin_id,
+        plugin_id: plugin.plugin_id,
         qualified_name: static_utf8_view(plugin.qualified_name),
         version: static_utf8_view(plugin.plugin_version),
         library_path: match &registered.origin {
@@ -25,8 +23,8 @@ pub(crate) fn plugin_info(registered: &RegisteredFactoryPlugin) -> NcPluginInfoV
             interface: plugin.root_factory,
             threading: plugin.root_factory_threading,
         },
-        dependencies: registered.dependency_ids.as_ptr(),
-        dependency_count: registered.dependency_ids.len(),
+        dependencies: plugin.dependencies,
+        dependency_count: plugin.dependency_count as usize,
     }
 }
 

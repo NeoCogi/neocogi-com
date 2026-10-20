@@ -62,34 +62,57 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Barrier};
 
-    use neocogi_com_core::{NC_E_NOT_FOUND, NcGuid};
+    use neocogi_com_core::{IUnknown, NC_E_CLOSED, NC_E_NOT_FOUND, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8};
 
-    use crate::factory_plugin_registry::{PluginOrigin, RegisteredFactoryPlugin};
-    use crate::loader::PinnedLibrary;
+    use crate::factory_plugin_registry::PluginOrigin;
+    use crate::factory_registration::prepare_factory_plugin;
+
+    /// Registry fixtures use the same complete validation as production records.
+    fn description(name: &'static str) -> &'static NcPluginDescriptor {
+        /// Publication and lookup must never invoke this entrypoint.
+        unsafe extern "C" fn acquire(out: *mut neocogi_com_core::ComRaw<IUnknown>) -> neocogi_com_core::NcStatus {
+            // SAFETY: the descriptor ABI grants one writable output on invocation.
+            unsafe { out.write(neocogi_com_core::ComRaw::null()) };
+            NC_E_CLOSED
+        }
+        Box::leak(Box::new(NcPluginDescriptor {
+            description_abi_version: neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
+            core_abi_version: neocogi_com_core::NC_COM_CORE_ABI_VERSION,
+            plugin_id: neocogi_com_core::guid_from_qualified_name(name),
+            qualified_name: NcStaticUtf8::from_static(name),
+            plugin_version: NcStaticUtf8::from_static("1.0.0"),
+            dependencies: core::ptr::null(),
+            dependency_count: 0,
+            root_factory: IUnknown::INTERFACE_ID,
+            root_factory_threading: neocogi_com_core::NC_ABI_THREADING_THREAD_LOCAL,
+            acquire: Some(acquire),
+        }))
+    }
 
     /// Confirms dependency validation reads the sole factory plugin registry.
     #[test]
     fn catalog_resolves_factory_plugin_dependencies() {
         let runtime = RuntimeState::new();
-        let factory_id = NcGuid::from_fields(0x6150_0012, 0x5100, 0x4100, [0x92; 8]);
-        let missing_id = NcGuid::from_fields(0x6150_0013, 0x5100, 0x4100, [0x93; 8]);
+        let description = description("nc.tests.state.dependency");
+        let factory_id = description.plugin_id;
+        let missing_id = neocogi_com_core::guid_from_qualified_name("nc.tests.state.missing");
 
         {
             let mut catalog = runtime.write_catalog();
-            // These null descriptor roots are safe in this lookup-only test:
-            // dependency validation reads only the owned IDs in each record.
-            catalog.insert(RegisteredFactoryPlugin {
-                plugin_id: factory_id,
-                description: core::ptr::null(),
-                dependency_ids: Vec::new(),
-                origin: PluginOrigin::Static,
-            });
+            // SAFETY: the fixture descriptor, buffers and code are process-lived.
+            catalog.insert(unsafe { prepare_factory_plugin(description, PluginOrigin::Static) }.unwrap());
         }
 
         let catalog = runtime.read_catalog();
         assert!(catalog.contains_plugin(factory_id));
-        assert_eq!(catalog.validate_plugin_dependencies(&[factory_id]), Ok(()));
-        assert_eq!(catalog.validate_plugin_dependencies(&[missing_id]), Err(NC_E_NOT_FOUND));
+        assert_eq!(
+            catalog.validate_plugin_dependencies(&[NcPluginDependencyDescriptor { plugin_id: factory_id }]),
+            Ok(())
+        );
+        assert_eq!(
+            catalog.validate_plugin_dependencies(&[NcPluginDependencyDescriptor { plugin_id: missing_id }]),
+            Err(NC_E_NOT_FOUND)
+        );
     }
 
     #[test]
@@ -97,7 +120,8 @@ mod tests {
         let runtime = Arc::new(RuntimeState::new());
         let records_inserted = Arc::new(Barrier::new(2));
         let release_publication = Arc::new(Barrier::new(2));
-        let plugin_id = NcGuid::from_fields(0x6150_0001, 0x5100, 0x4100, [0x81; 8]);
+        let description = description("nc.tests.state.publication");
+        let plugin_id = description.plugin_id;
 
         let writer = {
             let runtime = Arc::clone(&runtime);
@@ -105,15 +129,9 @@ mod tests {
             let release_publication = Arc::clone(&release_publication);
             std::thread::spawn(move || {
                 let mut catalog = runtime.write_catalog();
-                catalog.insert(RegisteredFactoryPlugin {
-                    plugin_id,
-                    description: core::ptr::null(),
-                    dependency_ids: Vec::new(),
-                    origin: PluginOrigin::Dynamic {
-                        path: PathBuf::from("test-plugin"),
-                        _library: PinnedLibrary::test_stub(),
-                    },
-                });
+                // SAFETY: immutable static-lifetime metadata/code back this
+                // provenance-only fixture; no fake native handle is required.
+                catalog.insert(unsafe { prepare_factory_plugin(description, PluginOrigin::Dynamic { path: PathBuf::from("test-plugin") }) }.unwrap());
 
                 // Pause after the complete plugin record has been inserted but
                 // before the one publication guard is released.

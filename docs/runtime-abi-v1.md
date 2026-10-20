@@ -69,10 +69,12 @@ authority that combines the provider's descriptor with runtime registration stat
 ## One authoritative record
 
 The catalog has one append-only record per registered plugin GUID and one
-GUID-to-record index. A record owns copied hard dependency GUIDs and its first
-registration origin: static storage, or an owned dynamic library path and a
-private pinned native handle. It retains the validated descriptor, which supplies
-name, release version and the exact single factory contract.
+GUID-to-record index. A record retains one validated process-lived descriptor and
+its first registration origin: static storage or an owned dynamic library path.
+The descriptor supplies the ID, dependency table, name, release version and exact
+single factory contract. No independent ID field or dependency projection Vec is
+stored beside it. The actual origin is supplied before validation/publication;
+dynamic loading never constructs a provisional static registration.
 
 Lookup and enumeration use the same allocation-free projection of these records.
 There are no parallel ID vectors, cached metadata summaries or module-to-plugin
@@ -88,7 +90,7 @@ the S4 registry-enumeration simplification recorded in the optimization register
 | `library_path` | First successful dynamic caller path; empty denotes static origin. Provenance, without reopening a file. |
 | `factory.interface` | Exact root factory IID and full ABI signature retained in static or pinned storage. |
 | `factory.threading` | Valid raw `NcAbiThreadingMode`; the Rust facade returns the typed enum. |
-| `dependencies` / `dependency_count` | Immutable aligned GUID array in declared dependency order, copied from validated registration data. |
+| `dependencies` / `dependency_count` | Original immutable aligned `NcPluginDependencyDescriptor` array in declared order, borrowed directly from the validated descriptor. |
 
 `NcFactoryInfoV1` contains only interface and threading information: the enclosing
 plugin already supplies identity. There is one factory per plugin, so a separate
@@ -96,9 +98,9 @@ interface GUID or enumeration is unnecessary. Neither record contains a live COM
 reference. Reading metadata never invokes the factory bootstrap.
 
 All views returned by registered-plugin lookup and enumeration remain readable
-for the process lifetime. Descriptor storage is static or pinned; dependency and
-path buffers are immutable heap allocations. Catalog vector growth moves their
-owners, not their backing allocations. The projection never points into a
+for the process lifetime. Descriptor and dependency storage is static or pinned;
+path buffers are immutable heap allocations. Catalog vector growth moves the
+records, not that backing storage. The projection never points into a
 movable record, stack temporary or temporary metadata copy. The caller may read
 views after the catalog read guard is released.
 
@@ -218,7 +220,7 @@ compatibility belongs to factory acquisition and subsequent interface transfers.
 ## Publication, provenance and repeated loading
 
 Native open, symbol lookup, descriptor entry and validation run outside the catalog
-lock. Registration copies dependency GUIDs, then takes one write guard to require
+lock. Registration validates the immutable descriptor, then takes one write guard to require
 all hard providers, check identity/capacity and publish descriptor and origin
 together. Failure leaves the catalog unchanged. Plugin code and user callbacks
 never run while a catalog guard is held.
@@ -230,7 +232,10 @@ interchangeable. Repeated static registration is idempotent. A later dynamic ope
 of the same already-static descriptor preserves its original static origin.
 
 Native mappings remain pinned until process exit, including inspection-only opens
-and failures after opening. Repeated loads still open and validate the library;
+and failures after opening. Pinning belongs to the platform loader's never-unload
+policy; dropping the symbol-resolution wrapper does not close a mapping. Catalog
+provenance holds no optional native handle or handle-free test substitute.
+Repeated loads still open and validate the library;
 catalog idempotency does not suppress native loader calls or initialization.
 Once registered, metadata and factory acquisition do not reopen the origin path,
 so the plugin remains callable after its file is removed.

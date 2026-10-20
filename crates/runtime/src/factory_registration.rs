@@ -1,38 +1,27 @@
 //! Atomic publication of self-contained plugin descriptors.
 //!
-//! Metadata validation and dependency copying happen before the catalog lock is acquired.
+//! Metadata validation happens before the catalog lock is acquired.
 //! The exclusive phase checks dependencies and plugin identity, then publishes
 //! the plugin record and its lookup index together. Contract compatibility belongs to typed factory
 //! acquisition and interface transfers, so registration never traverses IDL.
 
-use neocogi_com_core::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NC_OK, NcPluginDescriptor, NcStatus, validate_plugin_descriptor};
+use neocogi_com_core::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, NC_OK, NcPluginDescriptor, NcStatus};
+use crate::descriptor::ValidatedPluginDescriptor;
 
 use crate::factory_plugin_registry::{FactoryPluginRegistry, PluginOrigin, RegisteredFactoryPlugin};
 use crate::state::RuntimeState;
 
-/// Validates one descriptor and copies the data needed for atomic publication.
+/// Validates one descriptor with its actual origin before atomic publication.
 ///
 /// # Safety
 ///
 /// `plugin` must be null or point to a complete immutable descriptor whose
 /// strings, signature bytes, dependency table, and code remain live for the
 /// process-wide registration lifetime.
-pub(crate) unsafe fn prepare_factory_plugin(plugin: *const NcPluginDescriptor) -> Result<RegisteredFactoryPlugin, NcStatus> {
+pub(crate) unsafe fn prepare_factory_plugin(plugin: *const NcPluginDescriptor, origin: PluginOrigin) -> Result<RegisteredFactoryPlugin, NcStatus> {
     // SAFETY: The caller provides the descriptor and every referenced lifetime.
-    let status = unsafe { validate_plugin_descriptor(plugin) };
-    if status.is_err() {
-        return Err(status);
-    }
-    // SAFETY: Validation rejected null and checked the descriptor generation.
-    let description = unsafe { &*plugin };
-    // SAFETY: Validation established the dependency table's pointer/count shape.
-    let dependency_ids = unsafe { description.dependencies() }?.iter().map(|dependency| dependency.plugin_id).collect();
-    Ok(RegisteredFactoryPlugin {
-        plugin_id: description.plugin_id,
-        description: plugin,
-        dependency_ids,
-        origin: PluginOrigin::Static,
-    })
+    let descriptor = unsafe { ValidatedPluginDescriptor::new(plugin) }?;
+    Ok(RegisteredFactoryPlugin { descriptor, origin })
 }
 
 impl RuntimeState {
@@ -44,7 +33,7 @@ impl RuntimeState {
     /// callable for the process-wide registry lifetime.
     pub(crate) unsafe fn register_plugin_descriptor(&self, plugin: *const NcPluginDescriptor) -> NcStatus {
         // SAFETY: The caller supplies the immutable metadata and code lifetime.
-        let batch = match unsafe { prepare_factory_plugin(plugin) } {
+        let batch = match unsafe { prepare_factory_plugin(plugin, PluginOrigin::Static) } {
             Ok(batch) => batch,
             Err(status) => return status,
         };
@@ -55,11 +44,11 @@ impl RuntimeState {
 impl FactoryPluginRegistry {
     /// Checks every state-dependent rule before publishing any plugin indexes.
     pub(crate) fn commit_factory_plugin_registration(&mut self, plugin: RegisteredFactoryPlugin) -> NcStatus {
-        if let Err(status) = self.validate_plugin_dependencies(&plugin.dependency_ids) {
+        if let Err(status) = self.validate_plugin_dependencies(plugin.descriptor.dependencies()) {
             return status;
         }
-        match self.plugin(plugin.plugin_id) {
-            Some(existing) if existing.description == plugin.description => return NC_OK,
+        match self.plugin(plugin.descriptor.id()) {
+            Some(existing) if existing.descriptor.as_ptr() == plugin.descriptor.as_ptr() => return NC_OK,
             Some(_) => return NC_E_INVALID_ARG,
             None => {}
         }
@@ -113,11 +102,7 @@ mod tests {
         assert_eq!(unsafe { runtime.register_plugin_descriptor(&PLUGIN) }, NC_OK);
         // The first static origin also survives a later dynamic encounter of
         // the same descriptor without reserving any dynamic-provider slot.
-        let mut repeat = unsafe { prepare_factory_plugin(&PLUGIN) }.unwrap();
-        repeat.origin = PluginOrigin::Dynamic {
-            path: "later-dynamic-path".into(),
-            _library: crate::loader::PinnedLibrary::test_stub(),
-        };
+        let repeat = unsafe { prepare_factory_plugin(&PLUGIN, PluginOrigin::Dynamic { path: "later-dynamic-path".into() }) }.unwrap();
         assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(repeat), NC_OK);
         let catalog = runtime.read_catalog();
         assert!(catalog.contains_plugin(PLUGIN.plugin_id));
@@ -132,21 +117,21 @@ mod tests {
         static DEPENDENCIES: [NcPluginDependencyDescriptor; 1] = [NcPluginDependencyDescriptor {
             plugin_id: guid_from_qualified_name("nc.tests.missing"),
         }];
-        let plugin = NcPluginDescriptor {
+        let plugin = Box::leak(Box::new(NcPluginDescriptor {
             dependency_count: 1,
             dependencies: DEPENDENCIES.as_ptr(),
             ..PLUGIN
-        };
+        }));
         let runtime = RuntimeState::new();
-        // SAFETY: Failed validation retains no pointer to this stack descriptor.
-        assert_eq!(unsafe { runtime.register_plugin_descriptor(&plugin) }, NC_E_NOT_FOUND);
+        // SAFETY: the descriptor and its dependency table are process-lived.
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(plugin) }, NC_E_NOT_FOUND);
         let catalog = runtime.read_catalog();
         assert!(!catalog.contains_plugin(PLUGIN.plugin_id));
         assert_eq!(catalog.len(), 0);
     }
 
     /// Validates a real descriptor with process-lifetime test metadata, then adds
-    /// a handle-free dynamic owner to isolate catalog accounting from native I/O.
+    /// actual dynamic provenance to isolate catalog accounting from native I/O.
     fn dynamic_fixture(name: String) -> RegisteredFactoryPlugin {
         let name: &'static str = Box::leak(name.into_boxed_str());
         let description = Box::leak(Box::new(NcPluginDescriptor {
@@ -156,12 +141,7 @@ mod tests {
         }));
         // SAFETY: These test allocations and the inherited static fields remain
         // immutable and process-live, just like validated native metadata.
-        let mut plugin = unsafe { prepare_factory_plugin(description) }.unwrap();
-        plugin.origin = PluginOrigin::Dynamic {
-            path: std::path::PathBuf::from(name),
-            _library: crate::loader::PinnedLibrary::test_stub(),
-        };
-        plugin
+        unsafe { prepare_factory_plugin(description, PluginOrigin::Dynamic { path: std::path::PathBuf::from(name) }) }.unwrap()
     }
 
     /// Capacity bounds distinct dynamic providers. Repeats preserve their first
@@ -175,19 +155,15 @@ mod tests {
             assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(plugin), NC_OK);
         }
         let id = guid_from_qualified_name("nc.tests.capacity.provider0");
-        let description = runtime.read_catalog().plugin(id).unwrap().description;
+        let description = runtime.read_catalog().plugin(id).unwrap().descriptor.as_ptr();
         // SAFETY: The fixture allocated immutable process-lifetime metadata.
-        let mut repeat = unsafe { prepare_factory_plugin(description) }.unwrap();
-        repeat.origin = PluginOrigin::Dynamic {
-            path: "alternate-path".into(),
-            _library: crate::loader::PinnedLibrary::test_stub(),
-        };
+        let repeat = unsafe { prepare_factory_plugin(description, PluginOrigin::Dynamic { path: "alternate-path".into() }) }.unwrap();
         assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(repeat), NC_OK);
         // SAFETY: PLUGIN is immutable static storage.
         assert_eq!(unsafe { runtime.register_plugin_descriptor(&PLUGIN) }, NC_OK);
 
         let overflow = dynamic_fixture("nc.tests.capacity.overflow".into());
-        let overflow_id = overflow.plugin_id;
+        let overflow_id = overflow.descriptor.id();
         assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(overflow), NC_E_OUT_OF_RANGE);
         let conflict = dynamic_fixture("nc.tests.capacity.provider0".into());
         assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(conflict), NC_E_INVALID_ARG);

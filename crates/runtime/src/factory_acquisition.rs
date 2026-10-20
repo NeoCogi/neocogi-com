@@ -6,7 +6,7 @@
 
 use neocogi_com_core::{
     IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_ABI_THREADING_THREAD_SAFE, NC_E_NOINTERFACE, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcAcquirePluginFactory,
-    NcPluginDescriptor, NcGuid, NcInterfaceId, NcStatus, raw,
+    NcGuid, NcInterfaceId, NcStatus, raw,
 };
 
 use crate::factory_plugin_registry::FactoryPluginRegistry;
@@ -19,9 +19,7 @@ pub(crate) fn resolve_factory(
     requested_threading: u32,
 ) -> Result<NcAcquirePluginFactory, NcStatus> {
     let registered = registry.plugin(plugin_id).ok_or(NC_E_NOT_FOUND)?;
-    // SAFETY: The registry retains only validated immutable descriptions whose
-    // static or mapped-library owner remains live while registered.
-    let description: &NcPluginDescriptor = unsafe { &*registered.description };
+    let description = registered.descriptor.get();
     if description.root_factory.iid != factory_interface.iid {
         return Err(NC_E_NOINTERFACE);
     }
@@ -115,7 +113,8 @@ mod tests {
     };
 
     use super::*;
-    use crate::factory_plugin_registry::RegisteredFactoryPlugin;
+    use crate::factory_plugin_registry::PluginOrigin;
+    use crate::factory_registration::prepare_factory_plugin;
 
     /// Stable fake factory interface used by raw acquisition validation.
     const FACTORY_ID: NcGuid = NcGuid::from_fields(1, 2, 3, [4; 8]);
@@ -221,12 +220,8 @@ mod tests {
         let _fixture = FIXTURE_LOCK.lock().unwrap();
         FACTORY_DROPS.store(0, Ordering::SeqCst);
         let mut registry = FactoryPluginRegistry::new();
-        registry.insert(RegisteredFactoryPlugin {
-            plugin_id: DESCRIPTION.plugin_id,
-            description: &DESCRIPTION,
-            dependency_ids: Vec::new(),
-            origin: crate::factory_plugin_registry::PluginOrigin::Static,
-        });
+        // SAFETY: DESCRIPTION and all referenced code/buffers are immutable statics.
+        registry.insert(unsafe { prepare_factory_plugin(&DESCRIPTION, PluginOrigin::Static) }.unwrap());
         let resolved = resolve_factory(&registry, DESCRIPTION.plugin_id, FACTORY_INTERFACE, NC_ABI_THREADING_THREAD_LOCAL);
         let mut out = neocogi_com_core::ComRaw::null();
         // SAFETY: The local output slot receives one owned fixture reference.
@@ -243,12 +238,8 @@ mod tests {
         let _fixture = FIXTURE_LOCK.lock().unwrap();
         FACTORY_ACQUISITIONS.store(0, Ordering::SeqCst);
         let mut registry = FactoryPluginRegistry::new();
-        registry.insert(RegisteredFactoryPlugin {
-            plugin_id: DESCRIPTION.plugin_id,
-            description: &DESCRIPTION,
-            dependency_ids: Vec::new(),
-            origin: crate::factory_plugin_registry::PluginOrigin::Static,
-        });
+        // SAFETY: DESCRIPTION and all referenced code/buffers are immutable statics.
+        registry.insert(unsafe { prepare_factory_plugin(&DESCRIPTION, PluginOrigin::Static) }.unwrap());
         /// The fixture's exact digest is [7; 32]; differ only at its final byte.
         static DIFFERENT_LAST_BYTE: [u8; 32] = {
             let mut bytes = [7; 32];

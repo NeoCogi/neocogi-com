@@ -30,10 +30,12 @@ pub(crate) use inspection::inspect_plugin_descriptor;
 pub use inspection::{FactoryInspection, PluginInspection, inspect_plugin_library};
 pub use plan::{PluginDependencyPlanError, plan_plugin_load_order};
 
-/// Process-pinned native library handle whose mapping backs registered metadata pointers.
+/// Open handle for symbol resolution in a process-pinned native mapping.
+/// The platform wrapper never unloads on drop; registration retains metadata,
+/// while failed/repeated loads and inspection have the same mapping lifetime.
 pub(crate) struct PinnedLibrary {
     /// Native handle retained privately; its mapping is never unloaded.
-    _library: Option<library::DynamicLibrary>,
+    library: library::DynamicLibrary,
 }
 
 impl PinnedLibrary {
@@ -42,26 +44,15 @@ impl PinnedLibrary {
         // Both live loading and inspection pin every successfully opened mapping;
         // only live loading additionally publishes a plugin record.
         let library = library::DynamicLibrary::open(path).map_err(|error| PluginLoadError::new(error.kind, path, None, error.message))?;
-        Ok(Self { _library: Some(library) })
-    }
-
-    #[cfg(test)]
-    /// Creates a handle-free library token for catalog publication tests.
-    pub(crate) fn test_stub() -> Self {
-        Self { _library: None }
+        Ok(Self { library })
     }
 
     /// Resolves and types the required plugin descriptor entrypoint.
     unsafe fn get_plugin_descriptor(&self, path: &Path) -> Result<NcGetPluginDescriptor, PluginLoadError> {
         // SAFETY: The caller selected trusted neocogi-com plugin code and the
         // returned address is called with the exact public plugin-descriptor ABI type.
-        let symbol = unsafe {
-            self._library
-                .as_ref()
-                .expect("opened libraries own a native handle")
-                .symbol(NC_GET_PLUGIN_DESCRIPTOR_SYMBOL.as_bytes())
-        }
-        .map_err(|message| PluginLoadError::new(PluginLoadErrorKind::FindSymbol, path, None, message))?;
+        let symbol = unsafe { self.library.symbol(NC_GET_PLUGIN_DESCRIPTOR_SYMBOL.as_bytes()) }
+            .map_err(|message| PluginLoadError::new(PluginLoadErrorKind::FindSymbol, path, None, message))?;
 
         // SAFETY: The symbol name uniquely identifies this function signature.
         Ok(unsafe { core::mem::transmute::<*mut c_void, NcGetPluginDescriptor>(symbol) })
@@ -97,12 +88,8 @@ impl RuntimeState {
         // SAFETY: The pinned mapping backs the descriptor and its bootstrap.
         let description = unsafe { plugin_descriptor_from_entrypoint(get, path)? };
         // SAFETY: The entrypoint promises immutable process-lifetime metadata.
-        let mut plugin = unsafe { prepare_loaded_factory_plugin(path, description)? };
-        let plugin_id = plugin.plugin_id;
-        plugin.origin = PluginOrigin::Dynamic {
-            path: path.to_path_buf(),
-            _library: library,
-        };
+        let plugin = unsafe { prepare_loaded_factory_plugin(path, description)? };
+        let plugin_id = plugin.descriptor.id();
         // Descriptor, dependencies and provenance enter the catalog together.
         // Native loading and metadata validation above invoke no code under this lock.
         let status = self.write_catalog().commit_factory_plugin_registration(plugin);
@@ -142,10 +129,10 @@ unsafe fn plugin_descriptor_from_entrypoint(get_descriptor: NcGetPluginDescripto
     Ok(plugin)
 }
 
-/// Validates and projects one loaded plugin descriptor into owned records.
+/// Validates one process-pinned descriptor with the actual dynamic provenance.
 unsafe fn prepare_loaded_factory_plugin(path: &Path, plugin: *const NcPluginDescriptor) -> Result<RegisteredFactoryPlugin, PluginLoadError> {
     // SAFETY: The descriptor and its referenced data remain backed by the pinned library during
-    // this call and by retained ownership after a successful commit.
-    unsafe { prepare_factory_plugin(plugin) }
+    // this call and by the platform's never-unload policy afterward, even on error.
+    unsafe { prepare_factory_plugin(plugin, PluginOrigin::Dynamic { path: path.to_path_buf() }) }
         .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), "plugin descriptor failed load validation"))
 }

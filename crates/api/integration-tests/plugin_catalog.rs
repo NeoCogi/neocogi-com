@@ -66,6 +66,7 @@ fn complete_records_are_coherent_owned_and_stable_across_growth() {
     let mut raw = MaybeUninit::<NcPluginInfoV1>::uninit();
     assert_eq!(unsafe { (api.plugin_info)(consumer.plugin_id, raw.as_mut_ptr()) }, NC_OK);
     let saved = unsafe { raw.assume_init() };
+    assert_eq!(saved.dependencies, deps.as_ptr());
     let mut out = [saved; 4];
     assert_eq!(unsafe { (api.plugin_infos)(out.as_mut_ptr(), 1, &mut len) }, NC_E_INSUFFICIENT_BUFFER);
     assert_eq!(len, 3);
@@ -101,7 +102,7 @@ fn complete_records_are_coherent_owned_and_stable_across_growth() {
         }
     }
     // These old pointers remain readable after the record vector has reallocated.
-    assert_eq!(unsafe { *saved.dependencies }, second.plugin_id);
+    assert_eq!(unsafe { (*saved.dependencies).plugin_id }, second.plugin_id);
     assert_eq!(
         unsafe { core::str::from_utf8_unchecked(core::slice::from_raw_parts(saved.qualified_name.data, saved.qualified_name.len)) },
         "nc.tests.catalog.consumer"

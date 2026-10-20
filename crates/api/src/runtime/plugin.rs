@@ -177,10 +177,10 @@ fn owned_plugin_info(info: NcPluginInfoV1) -> Result<PluginInfo, NcStatus> {
     }
     let mut dependencies = super::try_vec_with_capacity(count)?;
     if count != 0 {
-        // SAFETY: Runtime records supply immutable, aligned, process-lived GUID
-        // arrays of the advertised length. Destination storage is independent.
+        // SAFETY: Runtime records supply the descriptor's immutable, aligned,
+        // process-lived dependency table. Destination GUID storage is independent.
         let borrowed = unsafe { core::slice::from_raw_parts(info.dependencies, count) };
-        dependencies.extend_from_slice(borrowed);
+        dependencies.extend(borrowed.iter().map(|dependency| dependency.plugin_id));
     }
     Ok(PluginInfo {
         plugin_id: info.plugin_id,

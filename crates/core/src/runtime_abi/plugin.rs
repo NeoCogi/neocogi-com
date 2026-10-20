@@ -1,6 +1,6 @@
 //! Complete immutable views of registered plugins and their single factories.
 //!
-//! Lookup and enumeration return the same record. Text, dependency GUID arrays
+//! Lookup and enumeration return the same record. Text, dependency descriptors
 //! and interface signatures remain readable for the process lifetime: registration
 //! is append-only, descriptors are static or pinned, and catalog-owned buffers
 //! never change. Copy the views when independent application ownership is needed.
@@ -50,10 +50,11 @@ pub struct NcPluginInfoV1 {
     pub library_path: NcUtf8View,
     /// The plugin's single root factory contract.
     pub factory: NcFactoryInfoV1,
-    /// Immutable, aligned GUID array in declared dependency order.
+    /// Immutable dependency descriptors in declared order, borrowed directly
+    /// from the registered plugin's original description without a projection copy.
     /// May be null when `dependency_count` is zero; otherwise readable for exactly
-    /// that many GUIDs. Registration validates and owns this process-lived array.
-    pub dependencies: *const NcGuid,
+    /// that many records. Registration validates this process-lived array.
+    pub dependencies: *const crate::NcPluginDependencyDescriptor,
     /// Number of hard provider GUIDs in `dependencies`.
     pub dependency_count: usize,
 }
