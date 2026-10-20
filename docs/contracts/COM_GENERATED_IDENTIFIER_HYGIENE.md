@@ -130,6 +130,36 @@ resolver contract. Handwritten Rust interfaces may use locally named types with
 fully qualified result signatures. Authored types remain distinct from the
 compiler's support language at every affected emission stage.
 
+## Plugin support and trait operations
+
+Support qualification also applies to the value and macro namespaces independently.
+Plugin descriptors use `::core::option::Option::Some` for the acquisition adapter
+and `::core::env!` for an omitted package version. A provider's `Some` function or
+local `env!` macro must not change generated metadata or acquisition behavior.
+Explicit version literals keep their existing meaning. This is separate from
+the exact hexadecimal Cargo-owner encoding described in [IDL modules](IDL_MODULES.md).
+
+The trailing-default persistence policy invokes
+`<Self as ::core::default::Default>::default()`. It must not select an inherent
+`Self::default`, even one returning the same type with plausible different values.
+Derive, copied-record and owned-record entrypoints share that operation. Defaults
+apply only to absent trailing fields; malformed or truncated present fields fail.
+
+| Emitting family | Required execution coverage |
+| --- | --- |
+| Copied/owned values and enums | IDL consumer sentinels and printed value expansions |
+| Interface clients, thunks, buffers and metadata | Normal/printed interface consumers, owner-return and callable-name regressions |
+| Concrete objects and threading proofs | Normal/printed shared/exclusive construction under support-shaped names |
+| IDL helpers, dense enums and flags | Source-emission shadowing and constructor/event consumer fixtures |
+| Plugin descriptor and acquisition adapter | Separate `Some` and `env!` shadowing cases, wrong-type and same-type wrong-value controls, explicit version, and actual C acquisition/getter calls |
+| Default decoding from derive/copied/owned records | Inherent methods returning Self or an unrelated type; empty/partial/full/malformed/truncated record semantics, normal and printed |
+
+Each new emitting entrypoint must identify its support references and join the
+applicable normal/printed consumer coverage. A successful check in another
+emitting family does not establish its name-resolution contract. Private syntax
+contexts alone do not protect printed source, and injective generated names do
+not qualify references to external types, variants, macros or trait operations.
+
 ## Regression evidence
 
 `crates/com/idl/tests/identifier_hygiene.rs` resolves accepted IDL, compiles the

@@ -127,7 +127,9 @@ Interface identity is the generated IID plus that signature; human-readable
 names are diagnostic metadata.
 
 Generated value codecs and method adapters keep authored members/parameters
-separate from positional private bindings and qualify their support types. See [generated identifier hygiene](../../../docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md)
+separate from positional private bindings, qualify their support types/macros,
+and select required trait operations explicitly. Plugin support lookup and default
+decoding have independent normal/printed semantic controls. See [generated identifier hygiene](../../../docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md)
 for the contract, the corruption it prevents, and executable regression coverage.
 
 Executable package tests own their fixtures and ask Cargo for the actual core

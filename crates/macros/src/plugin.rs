@@ -166,7 +166,9 @@ pub(crate) fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macr
     let version = args
         .version
         .as_ref()
-        .map_or_else(|| quote! { env!("CARGO_PKG_VERSION") }, |version| quote! { #version });
+        // This reference is expanded in the provider's macro namespace. A local
+        // env! must not replace the compiler's package-version lookup.
+        .map_or_else(|| quote! { ::core::env!("CARGO_PKG_VERSION") }, |version| quote! { #version });
 
     Ok(quote! {
         #input
@@ -187,7 +189,7 @@ pub(crate) fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macr
             dependencies: NC_COM_PLUGIN_DEPENDENCIES.as_ptr(),
             root_factory: <#interface as #nc::ComInterface>::INTERFACE_ID,
             root_factory_threading: <<#interface as #nc::ComInterface>::Threading as #nc::ThreadingModel>::ABI_THREADING_MODE.as_raw(),
-            acquire: Some(__nc_acquire_plugin_root),
+            acquire: ::core::option::Option::Some(__nc_acquire_plugin_root),
         };
 
         /// Returns the plugin descriptor for static registration.

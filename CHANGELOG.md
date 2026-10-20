@@ -1,5 +1,14 @@
 # Changelog
 
+## Explicit generated support lookup (pre-release)
+
+Plugin descriptors explicitly resolve Option::Some and the built-in env! macro.
+Default-policy decoders explicitly invoke trait Default in derive/copied/owned
+entrypoints. Adversarial normal/printed consumers preserve descriptor version,
+actual root acquisition and missing-field semantics under application shadowing.
+This closes the remaining COM8 support-lookup cases without changing COM layouts,
+wire formats, Cargo owner encoding or the shared runtime registry.
+
 ## Borrowed event inspection (pre-release)
 
 `ComBox::query_ref` lends an exact typed interface without weak bookkeeping.

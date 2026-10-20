@@ -62,7 +62,9 @@ pub(crate) fn expand_struct(ident: &Ident, fields: &Fields, nc: &Path, default: 
             });
             quote! {
                 __nc_reader.record(#count, |__nc_fields| {
-                    let mut __nc_value = Self::default();
+                    // The persistence policy requires the trait's defaults,
+                    // independently of any same-named inherent application method.
+                    let mut __nc_value = <Self as ::core::default::Default>::default();
                     #(#assignments)*
                     ::core::result::Result::Ok(__nc_value)
                 })
