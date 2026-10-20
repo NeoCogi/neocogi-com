@@ -64,6 +64,7 @@ fn ui_errors_are_stable() {
     t.compile_fail("integration-tests/ui/interface_manual_safe_impl.rs");
     t.compile_fail("integration-tests/ui/interface_malformed_qualified_names.rs");
     t.compile_fail("integration-tests/ui/interface_missing_assigned_signature.rs");
+    t.compile_fail("integration-tests/ui/interface_nil_callable_id.rs");
     t.compile_fail("integration-tests/ui/interface_nested_vec_arg.rs");
     t.pass("integration-tests/ui/interface_canonical_client.rs");
     t.compile_fail("integration-tests/ui/interface_non_ascii_qualified_name.rs");

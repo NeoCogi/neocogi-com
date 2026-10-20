@@ -438,7 +438,7 @@ fn rejects_recursive_value_layouts() {
     let error = resolve_modules(vec![source]).unwrap_err().to_string();
 
     assert!(
-        error.contains("error[EIDL063]: recursive copied-value layout: First -> neocogi::lang::Option<example::recursive::Second> -> Second -> First"),
+        error.contains("error[EIDL063]: recursive copied-value layout: First -> Option<Second> -> Second -> First"),
         "{error}"
     );
     assert!(error.contains("this field closes the recursive layout"), "{error}");

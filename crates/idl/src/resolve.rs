@@ -1,6 +1,8 @@
 //! Cross-module name resolution, ABI validation, and canonical identities.
 
+mod bind;
 mod events;
+use crate::binding::{Binding, DeclarationKey, Intrinsic};
 use std::{
     collections::{BTreeSet, HashMap},
     fmt,
@@ -114,65 +116,32 @@ impl ResolvedModules {
         self.modules.iter().find(|module| module.source.name.to_string() == name)
     }
 
-    /// Selects a local projection of a canonical identity, falling back to its owner.
-    /// Closed generic values share identity across consumers but have distinct
-    /// generated Rust paths; metadata must use the path available to its caller.
-    pub(crate) fn resolve_canonical<'a>(&'a self, owner: &str, canonical: &str) -> Option<ResolvedDeclaration<'a>> {
-        let preferred = self.module(owner)?;
-        std::iter::once(preferred)
-            .chain(self.modules.iter().filter(|module| module.source.name.to_string() != owner))
-            .find_map(|module| {
-                let index = module.declarations.iter().position(|identity| identity.qualified_name == canonical)?;
-                Some(ResolvedDeclaration {
-                    module,
-                    declaration: &module.source.declarations[index],
-                    identity: &module.declarations[index],
-                })
-            })
+    /// Selects this graph's exact bound Rust projection. Source spelling and
+    /// imports are never reconstructed here; the name must belong to this graph.
+    pub(crate) fn resolve_declaration<'a>(&'a self, name: &NamedType) -> Option<ResolvedDeclaration<'a>> {
+        self.project(name.binding.projection()?)
     }
 
-    /// Resolves one local, imported, or module-qualified declaration path.
-    ///
-    /// Semantic resolution has already rejected missing and ambiguous paths.
-    /// This read-only view lets generators reuse the authoritative mapping
-    /// without rebuilding a second name-resolution implementation.
-    pub fn resolve_declaration<'a>(&'a self, owner: &str, name: &NamedType) -> Option<ResolvedDeclaration<'a>> {
-        let owner = self.module(owner)?;
-        if !name.arguments.is_empty() {
-            // Specialization provenance keeps fully qualified source arguments.
-            // Compare semantic spellings rather than source spans, then select
-            // the using module's concrete Rust projection.
-            let spelling = name.rust_path();
-            let index = owner.source.declarations.iter().position(|declaration| {
-                declaration.specialization.as_ref().is_some_and(|instance| {
-                    let mut applied = instance.template.clone();
-                    applied.arguments = instance.arguments.clone();
-                    applied.rust_path() == spelling
-                })
-            })?;
-            return Some(ResolvedDeclaration {
-                module: owner,
-                declaration: &owner.source.declarations[index],
-                identity: &owner.declarations[index],
-            });
-        }
-        let (module_name, declaration_name) = if name.segments.len() == 1 {
-            let declaration_name = name.segments.first()?.as_str();
-            if owner.source.declaration(declaration_name).is_some() {
-                (owner.source.name.to_string(), declaration_name)
-            } else {
-                let import = owner.source.imports.iter().find(|import| import.name == declaration_name)?;
-                (import.module.clone(), declaration_name)
-            }
-        } else {
-            (name.segments[..name.segments.len() - 1].join("."), name.segments.last()?.as_str())
-        };
-        let module = self.module(&module_name)?;
-        let source_index = module.source.declarations.iter().position(|declaration| declaration.name == declaration_name)?;
+    /// Borrows one concrete declaration and its already-computed canonical identity.
+    fn project(&self, key: &DeclarationKey) -> Option<ResolvedDeclaration<'_>> {
+        let module = self.modules.get(key.module)?;
+        let index = module.source.declarations.iter().position(|declaration| declaration.name == key.name)?;
         Some(ResolvedDeclaration {
             module,
-            declaration: &module.source.declarations[source_index],
-            identity: &module.declarations[source_index],
+            declaration: &module.source.declarations[index],
+            identity: &module.declarations[index],
+        })
+    }
+
+    /// A consumer may expose its own closed projection of a supplied canonical
+    /// type. This explicit local preference never searches unrelated modules.
+    pub(crate) fn local_projection<'a>(&'a self, owner: &ResolvedModule, canonical: &str) -> Option<ResolvedDeclaration<'a>> {
+        let module = self.module(&owner.source.name.to_string())?;
+        let index = module.declarations.iter().position(|identity| identity.qualified_name == canonical)?;
+        Some(ResolvedDeclaration {
+            module,
+            declaration: &module.source.declarations[index],
+            identity: &module.declarations[index],
         })
     }
 }
@@ -216,7 +185,7 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
     });
     // Validate authored names and dependencies before templates are removed;
     // unused templates must not hide duplicate identities or ambiguous imports.
-    let mut authored = build_entries(modules.clone())?;
+    let mut authored = build_entries(modules)?;
     connect_externals_and_imports(&mut authored)?;
     // Enum shape/tag and public method-name rules are independent of type arguments.
     // Validate before specialization so unused templates cannot conceal a bad contract.
@@ -229,7 +198,24 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
             }
         }
     }
-    let modules = crate::specialize::expand(modules)?;
+    let mut diagnostics = bind::bind(&mut authored)?;
+    // Stored ownership form is independent of resolving another field's name.
+    // Check the same policy before substitution and after closing arguments so
+    // a missing declaration never hides an unrelated borrowed-field diagnostic.
+    for (index, entry) in authored.iter().enumerate() {
+        for declaration in &entry.module.declarations {
+            for field in stored_fields(declaration) {
+                collect_diagnostics(&mut diagnostics, validate_field_form(index, field.ty, &authored, &field.context, field.span));
+            }
+        }
+    }
+    if !diagnostics.is_empty() {
+        let sources = authored.iter().flat_map(|entry| entry.module.sources.iter().cloned()).collect::<Vec<_>>();
+        return Err(ResolutionError {
+            diagnostics: diagnostics.into_iter().map(|diagnostic| diagnostic.with_sources(&sources)).collect(),
+        });
+    }
+    let modules = crate::specialize::expand(authored.into_iter().map(|entry| entry.module).collect())?;
     let mut entries = build_entries(modules)?;
     connect_externals_and_imports(&mut entries)?;
     let values = resolve_value_graph(&entries)?;
@@ -353,7 +339,7 @@ fn validate_closed_argument(graph: &ResolvedModules, module: &ResolvedModule, ty
                 AbiType::Named(name) => {
                     builtin_object(name).is_some()
                         || graph
-                            .resolve_declaration(&module.source.name.to_string(), name)
+                            .resolve_declaration(name)
                             .is_some_and(|target| matches!(target.declaration.kind, DeclarationKind::Interface(_)))
                 }
                 _ => false,
@@ -414,6 +400,8 @@ pub(crate) struct Symbol {
     id: NcGuid,
     /// Declaration category relevant to ABI position rules.
     kind: SymbolKind,
+    /// Authored arity used only by the lexical binding phase.
+    parameters: usize,
 }
 
 /// Coarse declaration categories used by the type validator.
@@ -448,6 +436,7 @@ enum VisitState {
 
 /// Creates graph nodes and rejects duplicate module or declaration IDs.
 fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionError> {
+    let owners = modules.iter().map(|module| module.name.to_string()).collect::<Vec<_>>();
     let mut module_names = HashMap::<String, (SourceSpan, Vec<SourceFile>)>::new();
     let mut global_declaration_ids = HashMap::<NcGuid, (String, SourceSpan, Vec<SourceFile>)>::new();
     let mut entries = Vec::with_capacity(modules.len());
@@ -487,8 +476,8 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
             }
             let qualified_name = match &declaration.specialization {
                 Some(specialization) => {
-                    let segments = &specialization.template.segments;
-                    format!("{}.{}", segments[..segments.len() - 1].join("."), declaration.name)
+                    let owner = specialization.template.binding.declaration().expect("bound specialization template").module;
+                    format!("{}.{}", owners[owner], declaration.name)
                 }
                 None => module.name.qualify(&declaration.name),
             };
@@ -496,6 +485,15 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
                 .id
                 .explicit
                 .unwrap_or_else(|| derive_declaration_id(&qualified_name, declaration.id.version));
+            if matches!(declaration.kind, DeclarationKind::Interface(_)) && id.is_nil() {
+                return Err(source_error(
+                    &module,
+                    "EIDL074",
+                    &declaration.span,
+                    "a callable interface ID must not be nil",
+                    "choose a nonnil explicit ID or a derived versioned identity",
+                ));
+            }
             if let Some(previous) = declaration_ids.insert(id, declaration.span.clone()) {
                 return Err(ResolutionError {
                     diagnostics: vec![
@@ -526,6 +524,7 @@ fn build_entries(modules: Vec<Module>) -> Result<Vec<ModuleEntry>, ResolutionErr
                 declaration: declaration_index,
                 id,
                 kind: symbol_kind(&declaration.kind),
+                parameters: declaration.parameters.len(),
             };
             local_symbols.insert(declaration.name.clone(), symbol);
             declaration_identities.push(DeclarationIdentity {
@@ -655,6 +654,9 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
     let entry = &entries[index];
     let mut diagnostics = Vec::new();
     for declaration in &entry.module.declarations {
+        for field in stored_fields(declaration) {
+            collect_diagnostics(&mut diagnostics, validate_field_type(index, field.ty, entries, &field.context, field.span));
+        }
         match &declaration.kind {
             DeclarationKind::Struct(record) => {
                 if record.persistence.required() {
@@ -684,54 +686,8 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
                         }
                     }
                 }
-                for field in &record.fields {
-                    collect_diagnostics(
-                        &mut diagnostics,
-                        validate_field_type(
-                            index,
-                            &field.ty,
-                            entries,
-                            &format!("struct {} field {}", declaration.name, field.name),
-                            &field.span,
-                        ),
-                    );
-                }
             }
-            DeclarationKind::Enum(enumeration) => {
-                for variant in &enumeration.variants {
-                    match &variant.fields {
-                        VariantFields::Unit => {}
-                        VariantFields::Tuple(fields) => {
-                            for (field_index, field) in fields.iter().enumerate() {
-                                collect_diagnostics(
-                                    &mut diagnostics,
-                                    validate_field_type(
-                                        index,
-                                        field,
-                                        entries,
-                                        &format!("enum {} variant {} field {field_index}", declaration.name, variant.name),
-                                        &variant.span,
-                                    ),
-                                );
-                            }
-                        }
-                        VariantFields::Named(fields) => {
-                            for field in fields {
-                                collect_diagnostics(
-                                    &mut diagnostics,
-                                    validate_field_type(
-                                        index,
-                                        &field.ty,
-                                        entries,
-                                        &format!("enum {} variant {} field {}", declaration.name, variant.name, field.name),
-                                        &field.span,
-                                    ),
-                                );
-                            }
-                        }
-                    }
-                }
-            }
+            DeclarationKind::Enum(_) => {}
             DeclarationKind::BitEnum(bit_enum) => collect_diagnostics(&mut diagnostics, validate_bit_enum(entry, declaration, bit_enum)),
             DeclarationKind::Interface(interface) => {
                 collect_diagnostics(&mut diagnostics, validate_interface_bases(index, interface, entries, &declaration.name));
@@ -1227,7 +1183,7 @@ fn validate_methods(index: usize, methods: &[Method], entries: &[ModuleEntry], v
 }
 
 /// Visits message storage without synthesizing callback methods or delivery parameters.
-fn value_fields(declaration: &Declaration) -> Vec<&AbiType> {
+pub(crate) fn value_fields(declaration: &Declaration) -> Vec<&AbiType> {
     match &declaration.kind {
         DeclarationKind::Struct(record) => record.fields.iter().map(|field| &field.ty).collect(),
         DeclarationKind::Enum(enumeration) => enumeration
@@ -1243,17 +1199,84 @@ fn value_fields(declaration: &Declaration) -> Vec<&AbiType> {
     }
 }
 
-/// Validates recursive field syntax independently from method ownership positions.
-fn validate_field_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
-    if matches!(ty, AbiType::ComBox(_)) {
-        return Err(source_error(
+/// One stored field use retains source context independently of its type binding.
+struct StoredField<'a> {
+    /// Authored or substituted value type under this field's storage rules.
+    ty: &'a AbiType,
+    /// Original field/tuple location, including template provenance.
+    span: &'a SourceSpan,
+    /// Concrete declaration/variant/field name used in an author diagnostic.
+    context: String,
+}
+
+/// Enumerates stored fields once for both authored and substituted admission.
+fn stored_fields(declaration: &Declaration) -> Vec<StoredField<'_>> {
+    match &declaration.kind {
+        DeclarationKind::Struct(record) => record
+            .fields
+            .iter()
+            .map(|field| StoredField {
+                ty: &field.ty,
+                span: &field.span,
+                context: format!("struct {} field {}", declaration.name, field.name),
+            })
+            .collect(),
+        DeclarationKind::Enum(enumeration) => enumeration
+            .variants
+            .iter()
+            .flat_map(|variant| {
+                let prefix = format!("enum {} variant {} field", declaration.name, variant.name);
+                match &variant.fields {
+                    VariantFields::Unit => Vec::new(),
+                    VariantFields::Tuple(fields) => fields
+                        .iter()
+                        .enumerate()
+                        .map(|(index, ty)| StoredField {
+                            ty,
+                            span: &variant.span,
+                            context: format!("{prefix} {index}"),
+                        })
+                        .collect(),
+                    VariantFields::Named(fields) => fields
+                        .iter()
+                        .map(|field| StoredField {
+                            ty: &field.ty,
+                            span: &field.span,
+                            context: format!("{prefix} {}", field.name),
+                        })
+                        .collect(),
+                }
+            })
+            .collect(),
+        DeclarationKind::BitEnum(_) | DeclarationKind::Interface(_) => Vec::new(),
+    }
+}
+
+/// Storage ownership form is independent of declaration lookup and specialization.
+fn validate_field_form(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+    match ty {
+        AbiType::ComBox(_) => Err(source_error(
             &entries[index].module,
             "EIDL060",
             span,
             format!("{context}: exclusive owners are method transfers, not repeatable fields"),
             "use an explicit owning object contract instead of a repeatable value codec",
-        ));
+        )),
+        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::UnsizedSlice(_) | AbiType::OutputSlice(_) => Err(source_error(
+            &entries[index].module,
+            "EIDL060",
+            span,
+            format!("{context} requires an owned field"),
+            "use Vec<T> for indirect ownership; borrowed fields cannot escape a call",
+        )),
+        AbiType::Array { element, .. } | AbiType::Vector(element) => validate_field_form(index, element, entries, context, span),
+        _ => Ok(()),
     }
+}
+
+/// Validates recursive field syntax independently from method ownership positions.
+fn validate_field_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
+    validate_field_form(index, ty, entries, context, span)?;
     match ty {
         AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Ok(()),
         AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => {
@@ -1282,13 +1305,7 @@ fn validate_field_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], cont
             }
         }
         AbiType::Array { element, .. } | AbiType::Vector(element) => validate_field_type(index, element, entries, context, span),
-        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::UnsizedSlice(_) | AbiType::OutputSlice(_) => Err(source_error(
-            &entries[index].module,
-            "EIDL060",
-            span,
-            format!("{context} requires an owned field"),
-            "use Vec<T> for indirect ownership; borrowed fields cannot escape a call",
-        )),
+        AbiType::Borrowed(_) | AbiType::Slice(_) | AbiType::UnsizedSlice(_) | AbiType::OutputSlice(_) => unreachable!("field form already rejected"),
     }
 }
 
@@ -1534,61 +1551,32 @@ enum ResolvedName {
 
 /// Resolves a path while recognizing the unsized str built-in.
 fn resolve_named_or_str(index: usize, name: &NamedType, entries: &[ModuleEntry]) -> Result<ResolvedName, ResolutionError> {
-    if name.segments.as_slice() == ["str"] {
+    if name.is_str() {
         Ok(ResolvedName::Str)
     } else {
         resolve_named(index, name, entries).map(ResolvedName::Symbol)
     }
 }
 
-/// Resolves an unqualified import or explicitly module-qualified path.
+/// Reads a concrete bound projection from the completed symbol table.
+/// Lexical lookup happens only in bind::bind, before specialization.
 fn resolve_named(index: usize, name: &NamedType, entries: &[ModuleEntry]) -> Result<Symbol, ResolutionError> {
-    let entry = &entries[index];
-    if name.segments.len() == 1 {
-        let source_name = &name.segments[0];
-        return entry
-            .local_symbols
-            .get(source_name)
-            .or_else(|| entry.imported_symbols.get(source_name))
-            .copied()
-            .ok_or_else(|| {
-                source_error(
-                    &entry.module,
-                    "EIDL070",
-                    &name.span,
-                    format!("unknown IDL type {source_name:?}"),
-                    "type is not declared or imported",
-                )
-            });
-    }
-
-    let module_name = name.segments[..name.segments.len() - 1].join(".");
-    let declaration_name = &name.segments[name.segments.len() - 1];
-    let Some(module_index) = entries.iter().position(|candidate| candidate.name == module_name) else {
-        return Err(source_error(
-            &entry.module,
-            "EIDL071",
-            &name.span,
-            format!("unknown IDL module {module_name:?}"),
-            "module is not present in the contract graph",
-        ));
-    };
-    if !entry.dependencies.contains(&module_index) {
-        return Err(source_error(
-            &entry.module,
-            "EIDL072",
-            &name.span,
-            format!("type {} is used without declaring its external module", name.rust_path()),
-            "missing external dependency",
-        ));
-    }
-    entries[module_index].local_symbols.get(declaration_name).copied().ok_or_else(|| {
+    let key = name.binding.projection().ok_or_else(|| {
         source_error(
-            &entry.module,
-            "EIDL070",
+            &entries[index].module,
+            "EIDL099",
             &name.span,
-            format!("unknown IDL type {}", name.rust_path()),
-            "module does not declare this type",
+            "type has no bound concrete projection",
+            "compiler binding invariant",
+        )
+    })?;
+    entries[key.module].local_symbols.get(&key.name).copied().ok_or_else(|| {
+        source_error(
+            &entries[index].module,
+            "EIDL099",
+            &name.span,
+            "bound declaration is absent",
+            "compiler projection invariant",
         )
     })
 }
@@ -1712,21 +1700,19 @@ struct FreeName<'a>(
 
 /// Classifies a name identically in ordinary type, base and emitted-event positions.
 fn classify_name<'a>(scope: EncodingScope<'_>, name: &'a NamedType, entries: &[ModuleEntry]) -> Result<NameBinding<'a>, ResolutionError> {
-    if let [local] = name.segments.as_slice() {
-        if let Some(position) = scope.parameters.iter().position(|parameter| parameter == local) {
-            if !name.arguments.is_empty() {
-                return Err(source_error(
-                    &entries[scope.module].module,
-                    "EIDL060",
-                    &name.span,
-                    "a type parameter cannot accept arguments",
-                    "remove these type arguments",
-                ));
-            }
-            return Ok(NameBinding::Parameter {
-                position: u32_len(position, &entries[scope.module].name, "parameter position")?,
-            });
+    if let Binding::Parameter { position } = name.binding {
+        // The binding phase already rejects arguments on parameters. Keep this
+        // invariant check for direct internal encoder callers as well.
+        if !name.arguments.is_empty() {
+            return Err(source_error(
+                &entries[scope.module].module,
+                "EIDL060",
+                &name.span,
+                "a type parameter cannot accept arguments",
+                "remove these type arguments",
+            ));
         }
+        return Ok(NameBinding::Parameter { position });
     }
     Ok(NameBinding::Free(FreeName(name)))
 }
@@ -1881,7 +1867,7 @@ fn encode_type(scope: EncodingScope<'_>, ty: &AbiType, entries: &[ModuleEntry], 
             }
             NameBinding::Free(free) => {
                 encoder.tag(3);
-                if name.segments.as_slice() == ["str"] {
+                if name.is_str() {
                     encoder.tag(0);
                 } else if let Some(identity) = builtin_object(name) {
                     // Fixed core capabilities contribute their exact ABI identity.
@@ -1971,31 +1957,22 @@ fn encode_free_declaration(
     encoder: &mut CanonicalEncoder,
 ) -> Result<(), ResolutionError> {
     let name = free.0;
-    let (module, id) = if scope.parameters.is_empty() {
-        let symbol = resolve_named(scope.module, name, entries)?;
-        (symbol.module, symbol.id)
-    } else {
-        // Specialization qualifies every free template name. It can refer to
-        // another template that has no concrete symbol-table entry of its own.
-        let owner = name.segments[..name.segments.len() - 1].join(".");
-        let local = name.segments.last().expect("normalized named type");
-        let module = entries
-            .iter()
-            .position(|entry| entry.name == owner)
-            .ok_or_else(|| error(Some(&entries[scope.module].name), format!("unresolved template module {owner}")))?;
-        let declaration = entries[module]
-            .module
-            .declarations
-            .iter()
-            .chain(&entries[module].module.templates)
-            .find(|declaration| &declaration.name == local)
-            .ok_or_else(|| error(Some(&owner), format!("unresolved template declaration {local}")))?;
-        let id = declaration
-            .id
-            .explicit
-            .unwrap_or_else(|| derive_declaration_id(&entries[module].module.name.qualify(local), declaration.id.version));
-        (module, id)
-    };
+    let key = name
+        .binding
+        .declaration()
+        .ok_or_else(|| error(Some(&entries[scope.module].name), "free reference is not bound"))?;
+    let module = key.module;
+    let declaration = entries[module]
+        .module
+        .declarations
+        .iter()
+        .chain(&entries[module].module.templates)
+        .find(|declaration| declaration.name == key.name)
+        .ok_or_else(|| error(Some(&entries[module].name), "bound free declaration is absent"))?;
+    let id = declaration
+        .id
+        .explicit
+        .unwrap_or_else(|| derive_declaration_id(&entries[module].module.name.qualify(&key.name), declaration.id.version));
     encoder.guid(entries[module].module_id);
     encoder.guid(id);
     encoder.u32(u32_len(name.arguments.len(), &entries[scope.module].name, "type argument count")?);
@@ -2234,10 +2211,10 @@ fn error(module: Option<&str>, message: impl Into<String>) -> ResolutionError {
 /// Recognizes core object capabilities without manufacturing IDL declarations.
 pub(crate) fn builtin_object(name: &NamedType) -> Option<neocogi_com_core::NcInterfaceId> {
     use neocogi_com_core::ComInterface;
-    match name.segments.as_slice() {
-        [name] if name == "IUnknown" => Some(neocogi_com_core::IUnknown::INTERFACE_ID),
-        [name] if name == "INcBytes" => Some(neocogi_com_core::INcBytesAbi::INTERFACE_ID),
-        [name] if name == "INcString" => Some(neocogi_com_core::INcStringAbi::INTERFACE_ID),
+    match name.binding {
+        Binding::Intrinsic(Intrinsic::Unknown) => Some(neocogi_com_core::IUnknown::INTERFACE_ID),
+        Binding::Intrinsic(Intrinsic::Bytes) => Some(neocogi_com_core::INcBytesAbi::INTERFACE_ID),
+        Binding::Intrinsic(Intrinsic::String) => Some(neocogi_com_core::INcStringAbi::INTERFACE_ID),
         _ => None,
     }
 }
@@ -2258,6 +2235,13 @@ mod reference_encoding_tests {
             span: entries[0].module.declarations[0].span.clone(),
             segments: segments.iter().map(|value| (*value).to_owned()).collect(),
             arguments: Vec::new(),
+            binding: if segments.len() == 1 {
+                Binding::Parameter {
+                    position: parameters.iter().position(|parameter| parameter == segments[0]).unwrap() as u32,
+                }
+            } else {
+                Binding::Declaration(DeclarationKey { module: 0, name: "B".to_owned() })
+            },
         };
         for (position, parameter) in ["A", "B"].into_iter().enumerate() {
             let mut reference = CanonicalEncoder::new();

@@ -80,6 +80,27 @@ names, variant names, and method parameter names are not generic binders and
 retain their existing contract meaning. Authored binder names and source spans
 remain available for diagnostics; hashing does not rewrite the source model.
 
+Semantic binding runs once for every authored declaration, including unused
+templates. Bare parameters bind to their zero-based positions; other names bind
+to exact declarations or language intrinsics. A fully qualified reference to the
+current module needs no `extern`; an explicit self-`extern` remains invalid.
+Missing names, missing external dependencies and invalid stored borrows retain
+the same source-aware diagnostics whether the graph contains generics or not.
+Specialization, capability analysis, encoding and Rust generation consume those
+bindings instead of interpreting source spelling again.
+
+A closed generic use carries both its canonical template/argument identity and
+its concrete supplying Rust projection. Inherited interface and advertised event
+metadata follow that supplying declaration, including nested values. A projection
+already materialized in the requesting module may be used locally; an unrelated
+module with the same canonical specialization never supplies metadata or creates
+a new dependency. Rust paths and compiler-local declaration keys do not enter ABI
+signatures.
+
+Callable interfaces, including unused templates with explicit IDs, reject the
+nil UUID with `EIDL074`. This admission matches typed plugin export. Nominal
+value IDs have a separate policy and may still explicitly use nil.
+
 Templates and concrete declarations now share the explicit binary declaration
 encoder under `neocogi-idl:module-abi:v11`. The former separate template string
 encoding and its Debug-formatted policy values are removed. Both paths encode

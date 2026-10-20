@@ -9,7 +9,7 @@ pub(super) fn generate_owned(
     identity: &crate::DeclarationIdentity,
 ) -> Result<String, GenerateError> {
     let name = rust_ident(&declaration.name)?;
-    let docs = declaration_docs(declaration);
+    let docs = declaration_docs(graph, declaration);
     let signature = signature_literal(identity.abi_signature);
     let data = match &declaration.kind {
         DeclarationKind::Struct(record) => {

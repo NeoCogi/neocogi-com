@@ -190,6 +190,9 @@ pub(crate) fn stable_guid(attr: InterfaceGuid, qualified_name: &syn::LitStr, nc:
                 .value()
                 .parse::<neocogi_com_core::NcGuid>()
                 .map_err(|err| syn::Error::new(value.span(), err))?;
+            if actual.is_nil() {
+                return Err(syn::Error::new(value.span(), "a callable interface ID must not be nil"));
+            }
             guid_tokens(actual, nc)
         }
     }

@@ -19,8 +19,8 @@ use syn::{
 
 use crate::{
     PersistencePolicy, AbiType, BitEnum, BitFlag, Declaration, DeclarationId, DeclarationKind, Diagnostic, Enum, EnumNames, EnumRepr, EnumVariant,
-    ExternalModule, Field, Import, Interface, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile,
-    SourceSpan, Struct, Threading, VariantFields,
+    ExternalModule, Field, Import, Interface, Method, Module, ModuleName, ModulePathError, NamedType, Parameter, Receiver, SourceFile, SourceSpan, Struct,
+    Threading, VariantFields,
 };
 
 mod keyword {
@@ -657,6 +657,7 @@ fn named_path(path: &syn::Path) -> syn::Result<NamedType> {
         return Err(syn::Error::new_spanned(path, "IDL type path cannot be empty"));
     }
     Ok(NamedType {
+        binding: crate::binding::Binding::Unbound,
         span: SourceSpan::from_parser(path.span()),
         segments,
         arguments,
@@ -889,7 +890,9 @@ fn attach_declaration_source(declaration: &mut Declaration, source: &SourceFile)
         }
         DeclarationKind::Interface(interface) => {
             attach_interface_source(&mut interface.bases, &mut interface.methods, source);
-            for event in &mut interface.events { attach_named_source(event, source); }
+            for event in &mut interface.events {
+                attach_named_source(event, source);
+            }
         }
     }
 }
@@ -934,7 +937,10 @@ fn attach_named_source(name: &mut NamedType, source: &SourceFile) {
 fn attach_type_source(ty: &mut AbiType, source: &SourceFile) {
     match ty {
         AbiType::Named(name) => attach_named_source(name, source),
-        AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
+        AbiType::ComPtr(value)
+        | AbiType::WeakComPtr(value)
+        | AbiType::ComBox(value)
+        | AbiType::WeakComBox(value)
         | AbiType::Borrowed(value)
         | AbiType::Vector(value)
         | AbiType::UnsizedSlice(value)
@@ -1114,7 +1120,9 @@ fn parse_persistence(attribute: &Attribute) -> syn::Result<PersistencePolicy> {
     let policy = attribute.parse_args::<Ident>()?;
     match policy.to_string().as_str() {
         "default" => Ok(PersistencePolicy::Default),
-        _ => Err(syn::Error::new_spanned(policy, "expected default; NCB fields are always positional and ordinary value persistence is automatic",
+        _ => Err(syn::Error::new_spanned(
+            policy,
+            "expected default; NCB fields are always positional and ordinary value persistence is automatic",
         )),
     }
 }

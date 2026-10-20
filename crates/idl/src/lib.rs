@@ -9,6 +9,7 @@
 #![deny(missing_docs)]
 
 mod diagnostic;
+mod binding;
 mod model;
 mod parser;
 mod path;

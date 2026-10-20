@@ -317,31 +317,38 @@ fn design_fields(graph: &Generation<'_>, module: &ResolvedModule, fields: &[crat
 }
 
 /// Collects reachable definitions once, retaining named edges across recursive sequences.
-fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration) -> Result<Vec<TokenStream>, GenerateError> {
-    use std::collections::BTreeSet;
-    fn data(name: &str, graph: &Generation<'_>, names: &mut BTreeSet<String>) {
-        if !names.insert(name.to_owned()) {
-            return;
+fn interface_value_metadata<'a>(graph: &Generation<'a>, module: &ResolvedModule, declaration: &Declaration) -> Result<Vec<TokenStream>, GenerateError> {
+    use std::collections::{BTreeMap, BTreeSet};
+    fn data<'a>(
+        value: ResolvedDeclaration<'a>,
+        graph: &Generation<'a>,
+        preferred: &ResolvedModule,
+        names: &mut BTreeMap<String, ResolvedDeclaration<'a>>,
+    ) -> Result<(), GenerateError> {
+        let value = graph.graph.local_projection(preferred, &value.identity.qualified_name).unwrap_or(value);
+        if names.contains_key(&value.identity.qualified_name) {
+            return Ok(());
         }
-        if let Some(definition) = graph.graph.values.definitions.get(name) {
-            for field in &definition.fields {
-                edge(field, graph, names);
-            }
+        names.insert(value.identity.qualified_name.clone(), value);
+        // Follow the actual supplying declaration's bound fields. The global
+        // canonical capability graph deliberately contains no Rust projection.
+        for field in crate::resolve::value_fields(value.declaration) {
+            root(field, graph, value.module, preferred, names)?;
         }
+        Ok(())
     }
-    fn edge(ty: &crate::ValueType, graph: &Generation<'_>, names: &mut BTreeSet<String>) {
+    fn root<'a>(
+        ty: &AbiType,
+        graph: &Generation<'a>,
+        module: &ResolvedModule,
+        preferred: &ResolvedModule,
+        names: &mut BTreeMap<String, ResolvedDeclaration<'a>>,
+    ) -> Result<(), GenerateError> {
         match ty {
-            crate::ValueType::Named(name) => data(name, graph, names),
-            crate::ValueType::Sequence(value) | crate::ValueType::Array(value, _) => edge(value, graph, names),
-            _ => {}
-        }
-    }
-    fn root(ty: &AbiType, graph: &Generation<'_>, module: &ResolvedModule, names: &mut BTreeSet<String>) -> Result<(), GenerateError> {
-        match ty {
-            AbiType::Named(name) if builtin_object_type(name).is_none() && name.segments.as_slice() != ["str"] => {
+            AbiType::Named(name) if builtin_object_type(name).is_none() && !name.is_str() => {
                 let value = resolve(graph, module, name)?;
                 if !matches!(value.declaration.kind, DeclarationKind::Interface(_)) {
-                    data(&value.identity.qualified_name, graph, names);
+                    data(value, graph, preferred, names)?;
                 }
             }
             AbiType::ComPtr(value)
@@ -353,17 +360,18 @@ fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, dec
             | AbiType::UnsizedSlice(value)
             | AbiType::Slice(value)
             | AbiType::OutputSlice(value)
-            | AbiType::Array { element: value, .. } => root(value, graph, module, names)?,
+            | AbiType::Array { element: value, .. } => root(value, graph, module, preferred, names)?,
             _ => {}
         }
         Ok(())
     }
-    fn interface(
-        graph: &Generation<'_>,
+    fn interface<'a>(
+        graph: &Generation<'a>,
         module: &ResolvedModule,
         declaration: &Declaration,
+        preferred: &ResolvedModule,
         visited: &mut BTreeSet<String>,
-        names: &mut BTreeSet<String>,
+        names: &mut BTreeMap<String, ResolvedDeclaration<'a>>,
     ) -> Result<(), GenerateError> {
         if !visited.insert(module.source.name.qualify(&declaration.name)) {
             return Ok(());
@@ -373,33 +381,24 @@ fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, dec
         };
         if let Some(specialization) = &declaration.specialization {
             for argument in &specialization.arguments {
-                root(argument, graph, module, names)?;
+                root(argument, graph, module, preferred, names)?;
             }
         }
         for method in &value.methods {
             for parameter in &method.parameters {
-                root(&parameter.ty, graph, module, names)?;
+                root(&parameter.ty, graph, module, preferred, names)?;
             }
-            root(&method.output, graph, module, names)?;
+            root(&method.output, graph, module, preferred, names)?;
         }
         for base in value.bases.iter().chain(&value.events) {
             let base = resolve(graph, module, base)?;
-            interface(graph, base.module, base.declaration, visited, names)?;
+            interface(graph, base.module, base.declaration, preferred, visited, names)?;
         }
         Ok(())
     }
-    let mut names = BTreeSet::new();
-    interface(graph, module, declaration, &mut BTreeSet::new(), &mut names)?;
-    names
-        .iter()
-        .map(|name| {
-            let value = graph
-                .graph
-                .resolve_canonical(&module.source.name.to_string(), name)
-                .expect("reachable definition exists");
-            design_definition(graph, value.module, value.declaration)
-        })
-        .collect()
+    let mut names = BTreeMap::new();
+    interface(graph, module, declaration, module, &mut BTreeSet::new(), &mut names)?;
+    names.values().map(|value| design_definition(graph, value.module, value.declaration)).collect()
 }
 
 /// Detects explicit String/Vec spellings in this module's normalized field graph.
@@ -428,7 +427,7 @@ fn generate_imports(graph: &Generation<'_>, module: &ResolvedModule) -> Result<T
 
 /// Generates one public declaration from its resolved source-order identity.
 fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration, source_index: usize) -> Result<String, GenerateError> {
-    let declaration_docs = declaration_docs(declaration);
+    let declaration_docs = declaration_docs(graph, declaration);
     let name = rust_ident(&declaration.name)?;
     let identity = module
         .declarations
@@ -784,7 +783,7 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
             value_type(graph, module, ty)
         }
         AbiType::Borrowed(referent) => match referent.as_ref() {
-            AbiType::Named(name) if name.segments.as_slice() == ["str"] => Ok(quote! { ::neocogi_com::NcCopyFromBufferOffset<'_, u8> }),
+            AbiType::Named(name) if name.is_str() => Ok(quote! { ::neocogi_com::NcCopyFromBufferOffset<'_, u8> }),
             AbiType::Named(name) if builtin_object_type(name).is_none() => {
                 let resolved = resolve(graph, module, name)?;
                 match &resolved.declaration.kind {
@@ -861,7 +860,7 @@ fn object_reference_type(graph: &Generation<'_>, module: &ResolvedModule, name: 
 fn resolve<'a>(graph: &Generation<'a>, module: &ResolvedModule, name: &NamedType) -> Result<ResolvedDeclaration<'a>, GenerateError> {
     graph
         .graph
-        .resolve_declaration(&module.source.name.to_string(), name)
+        .resolve_declaration(name)
         .ok_or_else(|| GenerateError::new(format!("resolved module {} lost type mapping for {}", module.source.name, name.rust_path())))
 }
 
@@ -943,10 +942,11 @@ fn scalar(value: &str) -> Result<TokenStream, GenerateError> {
 
 /// Maps the two explicit core-capability spellings to existing COM interface markers.
 fn builtin_object_type(name: &NamedType) -> Option<TokenStream> {
-    match name.segments.as_slice() {
-        [name] if name == "IUnknown" => Some(quote! { ::neocogi_com::IUnknown }),
-        [name] if name == "INcBytes" => Some(quote! { ::neocogi_com::INcBytesAbi }),
-        [name] if name == "INcString" => Some(quote! { ::neocogi_com::INcStringAbi }),
+    use crate::binding::{Binding, Intrinsic};
+    match name.binding {
+        Binding::Intrinsic(Intrinsic::Unknown) => Some(quote! { ::neocogi_com::IUnknown }),
+        Binding::Intrinsic(Intrinsic::Bytes) => Some(quote! { ::neocogi_com::INcBytesAbi }),
+        Binding::Intrinsic(Intrinsic::String) => Some(quote! { ::neocogi_com::INcStringAbi }),
         _ => None,
     }
 }
@@ -954,19 +954,57 @@ fn builtin_object_type(name: &NamedType) -> Option<TokenStream> {
 /// Documents a concrete declaration and explains generated generic name mangling.
 /// Cargo module-name encoding is reversible; specialization UUIDs are identities,
 /// not an encoding of source text. Keep the closed spelling beside the Rust name.
-fn declaration_docs(declaration: &Declaration) -> TokenStream {
+fn declaration_docs(graph: &Generation<'_>, declaration: &Declaration) -> TokenStream {
     let origin = origin_docs(&declaration.docs, &declaration.span);
     let Some(instance) = &declaration.specialization else { return origin };
     let mut applied = instance.template.clone();
     applied.arguments = instance.arguments.clone();
+    // This is a synthesized display view, not a rewritten semantic AST. Canonical
+    // owner keys explain imported templates without losing authored source spans.
+    let mut display = AbiType::Named(applied);
+    qualify_display(graph, &mut display);
     let explanation = Literal::string(&format!(
         " Closed IDL type: `{}`. Rust name `{}` appends `Instance` and the closed type's nominal UUID as hexadecimal digits. \
          The UUID derives from the template and argument identities; it is not reversibly mangled source text. \
          Use this closed spelling to interpret the generated name; decoding the UUID cannot recover the type arguments.",
-        applied.rust_path(),
+        display.source_name(),
         declaration.name,
     ));
     quote! { #origin #[doc = #explanation] }
+}
+
+/// Qualifies a disposable documentation view using established declaration keys.
+/// It neither looks up source spelling nor changes canonical/supplying ownership.
+fn qualify_display(graph: &Generation<'_>, ty: &mut AbiType) {
+    match ty {
+        AbiType::Named(name) => {
+            if let Some(key) = name.binding.declaration() {
+                let mut segments = graph.graph.modules()[key.module]
+                    .source
+                    .name
+                    .to_string()
+                    .split('.')
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>();
+                segments.push(key.name.clone());
+                name.segments = segments;
+            }
+            for argument in &mut name.arguments {
+                qualify_display(graph, argument);
+            }
+        }
+        AbiType::ComPtr(value)
+        | AbiType::WeakComPtr(value)
+        | AbiType::ComBox(value)
+        | AbiType::WeakComBox(value)
+        | AbiType::Borrowed(value)
+        | AbiType::Vector(value)
+        | AbiType::UnsizedSlice(value)
+        | AbiType::Slice(value)
+        | AbiType::OutputSlice(value)
+        | AbiType::Array { element: value, .. } => qualify_display(graph, value),
+        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
+    }
 }
 
 /// Adds readable provenance after authored docs, so it survives Rust macro forwarding.

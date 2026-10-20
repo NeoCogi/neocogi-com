@@ -5,7 +5,8 @@
 //! module or a Rust crate path. Ordinary resolution then validates the resulting
 //! methods, inheritance, borrowed values, and threading exactly once.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
+use crate::binding::{Binding, DeclarationKey};
 use neocogi_com_core::{NcGuid, guid_from_name, guid_from_qualified_name};
 use crate::{
     AbiType, Declaration, DeclarationKind, DeclarationId, Diagnostic, ExternalModule, Module, NamedType, ResolutionError, SourceSpan, Specialization,
@@ -19,20 +20,6 @@ const MAX_INSTANTIATIONS: usize = 4096;
 
 /// Expands all used struct, enum, and interface templates while preserving their source contracts.
 pub(crate) fn expand(modules: Vec<Module>) -> Result<Vec<Module>, ResolutionError> {
-    if !modules.iter().flat_map(|module| &module.declarations).any(|declaration| {
-        if is_template(declaration) {
-            return true;
-        }
-        let mut copy = declaration.clone();
-        let mut generic = false;
-        let _ = visit_types(&mut copy, &mut |ty| {
-            generic |= has_arguments(ty);
-            Ok(())
-        });
-        generic
-    }) {
-        return Ok(modules);
-    }
     let originals = modules.clone();
     let mut expansion = Expansion {
         originals,
@@ -44,27 +31,13 @@ pub(crate) fn expand(modules: Vec<Module>) -> Result<Vec<Module>, ResolutionErro
         for mut declaration in declarations {
             match &declaration.kind {
                 _ if is_template(&declaration) => {
-                    // Canonicalize free names now so imports and aliases do not
-                    // change the template fingerprint or instantiated meaning.
-                    let parameters = declaration
-                        .parameters
-                        .iter()
-                        .map(|name| {
-                            (
-                                name.clone(),
-                                AbiType::Named(NamedType {
-                                    span: declaration.span.clone(),
-                                    segments: vec![name.clone()],
-                                    arguments: Vec::new(),
-                                }),
-                            )
-                        })
-                        .collect();
-                    expansion.normalize_declaration(index, &mut declaration, &parameters)?;
+                    // Lexical ownership is already bound. Open parameters stay
+                    // positional; substitution never resolves a source spelling.
+                    substitute_declaration(&mut declaration, &[])?;
                     expansion.modules[index].templates.push(declaration);
                 }
                 _ => {
-                    expansion.normalize_declaration(index, &mut declaration, &BTreeMap::new())?;
+                    substitute_declaration(&mut declaration, &[])?;
                     expansion.lower_declaration(index, &mut declaration, 0)?;
                     expansion.modules[index].declarations.push(declaration);
                 }
@@ -91,111 +64,23 @@ pub(crate) fn expand(modules: Vec<Module>) -> Result<Vec<Module>, ResolutionErro
 
 /// Mutable compiler worklist; source declarations remain immutable during substitution.
 struct Expansion {
-    /// Original names, imports, and templates used for lexical resolution.
+    /// Immutable bound source declarations; lexical lookup has already finished.
     originals: Vec<Module>,
     /// Concrete modules accumulated for ordinary ABI validation.
     modules: Vec<Module>,
     /// One local projection per canonical specialization, including active recursion.
-    instances: HashMap<(usize, String), String>,
+    instances: HashMap<(usize, NcGuid), DeclarationKey>,
 }
 
 impl Expansion {
-    /// Resolves an authored path only through its declared module dependencies.
-    fn lookup(&self, owner: usize, name: &NamedType) -> Result<(usize, &Declaration), ResolutionError> {
-        let module = &self.originals[owner];
-        let local = name.segments.last().ok_or_else(|| failure(&name.span, "empty type path"))?;
-        let module_name = if name.segments.len() == 1 {
-            if module.declaration(local).is_some() {
-                module.name.to_string()
-            } else {
-                module
-                    .imports
-                    .iter()
-                    .find(|import| &import.name == local)
-                    .map(|import| import.module.clone())
-                    .ok_or_else(|| failure(&name.span, format!("unknown type {local}")))?
-            }
-        } else {
-            name.segments[..name.segments.len() - 1].join(".")
-        };
-        if module_name != module.name.to_string() && !module.externals.iter().any(|external| external.module == module_name) {
-            return Err(failure(
-                &name.span,
-                format!("type {} requires an explicit extern {module_name}", name.rust_path()),
-            ));
-        }
-        let index = self
-            .originals
-            .iter()
-            .position(|module| module.name.to_string() == module_name)
-            .ok_or_else(|| failure(&name.span, format!("unknown module {module_name}")))?;
-        let declaration = self.originals[index]
-            .declaration(local)
-            .ok_or_else(|| failure(&name.span, format!("unknown declaration {module_name}.{local}")))?;
-        Ok((index, declaration))
-    }
-
-    /// Qualifies free names and substitutes parameters without expanding concrete declarations yet.
-    fn normalize_type(&self, owner: usize, ty: &mut AbiType, substitutions: &BTreeMap<String, AbiType>) -> Result<(), ResolutionError> {
-        match ty {
-            AbiType::Named(name) => {
-                if crate::resolve::builtin_object(name).is_some() || name.segments.as_slice() == ["str"] {
-                    if !name.arguments.is_empty() {
-                        return Err(failure(&name.span, "built-in types do not accept type arguments"));
-                    }
-                    return Ok(());
-                }
-                if name.segments.len() == 1 {
-                    if let Some(value) = substitutions.get(&name.segments[0]) {
-                        if !name.arguments.is_empty() {
-                            return Err(failure(&name.span, "a type parameter cannot accept arguments"));
-                        }
-                        *ty = value.clone();
-                        return Ok(());
-                    }
-                }
-                let (index, declaration) = self.lookup(owner, name)?;
-                let expected = declaration.parameters.len();
-                if name.arguments.len() != expected {
-                    return Err(failure(
-                        &name.span,
-                        format!("{} expects {expected} type arguments, received {}", declaration.name, name.arguments.len()),
-                    ));
-                }
-                name.segments = self.originals[index]
-                    .name
-                    .to_string()
-                    .split('.')
-                    .map(str::to_owned)
-                    .chain([declaration.name.clone()])
-                    .collect();
-                for argument in &mut name.arguments {
-                    self.normalize_type(owner, argument, substitutions)?;
-                }
-            }
-            AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
-            | AbiType::Borrowed(value)
-            | AbiType::Vector(value)
-            | AbiType::UnsizedSlice(value)
-            | AbiType::Slice(value)
-            | AbiType::OutputSlice(value)
-            | AbiType::Array { element: value, .. } => {
-                self.normalize_type(owner, value, substitutions)?;
-            }
-            AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
-        }
-        // A generic T may close to Slice<U>; normalize &T just like &[U].
-        if let AbiType::Borrowed(value) = ty {
-            if let AbiType::UnsizedSlice(element) = value.as_ref() {
-                *ty = AbiType::Slice(element.clone());
-            }
-        }
-        Ok(())
-    }
-
-    /// Applies the same substitution traversal to fields, bases, methods, and results.
-    fn normalize_declaration(&self, owner: usize, declaration: &mut Declaration, substitutions: &BTreeMap<String, AbiType>) -> Result<(), ResolutionError> {
-        visit_types(declaration, &mut |ty| self.normalize_type(owner, ty, substitutions))
+    /// Selects a previously bound source declaration, without import/path lookup.
+    fn declaration(&self, name: &NamedType) -> Result<(usize, &Declaration), ResolutionError> {
+        let key = name.binding.declaration().ok_or_else(|| failure(&name.span, "expected a bound declaration"))?;
+        let declaration = self.originals[key.module]
+            .declaration(&key.name)
+            .or_else(|| self.modules[key.module].declaration(&key.name))
+            .ok_or_else(|| failure(&name.span, "bound declaration is absent"))?;
+        Ok((key.module, declaration))
     }
 
     /// Creates concrete references and records template-introduced dependencies.
@@ -204,16 +89,15 @@ impl Expansion {
             AbiType::Named(name) => {
                 if !name.arguments.is_empty() {
                     *name = self.instantiate(target, name.clone(), depth + 1)?;
-                } else if name.segments.len() > 1 {
-                    let dependency = name.segments[..name.segments.len() - 1].join(".");
-                    if dependency == self.modules[target].name.to_string() {
-                        name.segments = vec![name.segments.last().unwrap().clone()];
-                    } else {
-                        self.add_dependency(target, &dependency, &name.span);
-                    }
+                } else if let Some(key) = name.binding.declaration() {
+                    let dependency = self.modules[key.module].name.to_string();
+                    self.add_dependency(target, &dependency, &name.span);
                 }
             }
-            AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
+            AbiType::ComPtr(value)
+            | AbiType::WeakComPtr(value)
+            | AbiType::ComBox(value)
+            | AbiType::WeakComBox(value)
             | AbiType::Borrowed(value)
             | AbiType::Vector(value)
             | AbiType::UnsizedSlice(value)
@@ -242,34 +126,17 @@ impl Expansion {
 
     /// Materializes a closed value or interface once in the consumer's module.
     fn instantiate(&mut self, target: usize, mut name: NamedType, depth: usize) -> Result<NamedType, ResolutionError> {
-        let key = name.rust_path();
-        if let Some(local) = self.instances.get(&(target, key.clone())) {
-            return Ok(NamedType {
-                span: name.span,
-                segments: vec![local.clone()],
-                arguments: Vec::new(),
-            });
+        let identity = self.type_identity(&AbiType::Named(name.clone()))?;
+        if let Some(key) = self.instances.get(&(target, identity)) {
+            return Ok(projected(name.span, key.clone()));
         }
         if depth > MAX_DEPTH || self.instances.len() >= MAX_INSTANTIATIONS {
             return Err(failure(&name.span, "type specialization exceeds the compiler depth or instance limit"));
         }
-        let module_name = name.segments[..name.segments.len() - 1].join(".");
-        let owner = self
-            .originals
-            .iter()
-            .position(|module| module.name.to_string() == module_name)
-            .ok_or_else(|| failure(&name.span, "missing template module"))?;
-        let mut declaration = self.originals[owner]
-            .declaration(name.segments.last().unwrap())
-            .ok_or_else(|| failure(&name.span, "missing declaration template"))?
-            .clone();
-        let substitutions = declaration
-            .parameters
-            .iter()
-            .cloned()
-            .zip(name.arguments.iter().cloned())
-            .collect::<BTreeMap<_, _>>();
-        let identity = self.type_identity(&AbiType::Named(name.clone()))?;
+        let (owner, declaration) = self.declaration(&name)?;
+        let module_name = self.originals[owner].name.to_string();
+        let mut declaration = declaration.clone();
+        let substitutions = name.arguments.clone();
         // Mangle the closed nominal type identity, not its display spelling.
         // The UUID suffix cannot be demangled; generation documents the full
         // template and argument spelling beside the resulting Rust declaration.
@@ -278,8 +145,9 @@ impl Expansion {
         if self.originals[target].declaration(&local).is_some() {
             return Err(failure(&name.span, "generated specialization name collides with an authored declaration"));
         }
-        self.instances.insert((target, key), local.clone());
-        self.normalize_declaration(owner, &mut declaration, &substitutions)?;
+        let key = DeclarationKey { module: target, name: local.clone() };
+        self.instances.insert((target, identity), key.clone());
+        substitute_declaration(&mut declaration, &substitutions)?;
         let arguments = std::mem::take(&mut name.arguments);
         declaration.specialization = Some(Specialization { template: name.clone(), arguments });
         declaration.name = local.clone();
@@ -291,17 +159,47 @@ impl Expansion {
         declaration.parameters.clear();
         // Materialize nested arguments even when the template does not store
         // them. Adapters and inspection can then resolve the same closed type.
-        for mut argument in declaration.specialization.as_ref().unwrap().arguments.clone() {
-            self.lower_type(target, &mut argument, depth)?;
+        for argument in &mut declaration.specialization.as_mut().unwrap().arguments {
+            self.project_argument(target, argument, depth)?;
         }
         self.add_dependency(target, &module_name, &name.span);
         self.lower_declaration(target, &mut declaration, depth)?;
         self.modules[target].declarations.push(declaration);
-        Ok(NamedType {
-            span: name.span,
-            segments: vec![local],
-            arguments: Vec::new(),
-        })
+        Ok(projected(name.span, key))
+    }
+
+    /// Retains an argument's canonical expression together with its actual local
+    /// projection. Phantom arguments need this provenance just as stored fields do.
+    fn project_argument(&mut self, target: usize, ty: &mut AbiType, depth: usize) -> Result<(), ResolutionError> {
+        match ty {
+            AbiType::Named(name) => {
+                if matches!(name.binding, Binding::Application { .. }) {
+                    let closed = self.instantiate(target, name.clone(), depth + 1)?;
+                    let key = closed.binding.projection().expect("materialized argument").clone();
+                    let Binding::Application { projection, .. } = &mut name.binding else {
+                        unreachable!()
+                    };
+                    *projection = Some(key);
+                } else if let Some(key) = name.binding.declaration() {
+                    self.add_dependency(target, &self.modules[key.module].name.to_string(), &name.span);
+                }
+                for argument in &mut name.arguments {
+                    self.project_argument(target, argument, depth)?;
+                }
+            }
+            AbiType::ComPtr(value)
+            | AbiType::WeakComPtr(value)
+            | AbiType::ComBox(value)
+            | AbiType::WeakComBox(value)
+            | AbiType::Borrowed(value)
+            | AbiType::Vector(value)
+            | AbiType::UnsizedSlice(value)
+            | AbiType::Slice(value)
+            | AbiType::OutputSlice(value)
+            | AbiType::Array { element: value, .. } => self.project_argument(target, value, depth)?,
+            AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
+        }
+        Ok(())
     }
 
     /// Hashes semantic type identities; import spelling and the consumer module are excluded.
@@ -312,18 +210,11 @@ impl Expansion {
                 if let Some(identity) = crate::resolve::builtin_object(name) {
                     return Ok(identity.iid);
                 }
-                if name.segments.as_slice() == ["str"] {
+                if name.is_str() {
                     return Ok(guid_from_qualified_name("neocogi.idl.str"));
                 }
-                let module_name = name.segments[..name.segments.len() - 1].join(".");
-                let module = self
-                    .originals
-                    .iter()
-                    .find(|module| module.name.to_string() == module_name)
-                    .ok_or_else(|| failure(&name.span, "generic argument has no owning module"))?;
-                let declaration = module
-                    .declaration(name.segments.last().unwrap())
-                    .ok_or_else(|| failure(&name.span, "unknown generic argument"))?;
+                let (owner, declaration) = self.declaration(name)?;
+                let module = &self.originals[owner];
                 let id = declaration
                     .id
                     .explicit
@@ -336,7 +227,10 @@ impl Expansion {
                     bytes.extend_from_slice(&self.type_identity(argument)?.to_uuid_bytes());
                 }
             }
-            AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
+            AbiType::ComPtr(value)
+            | AbiType::WeakComPtr(value)
+            | AbiType::ComBox(value)
+            | AbiType::WeakComBox(value)
             | AbiType::Borrowed(value)
             | AbiType::Vector(value)
             | AbiType::UnsizedSlice(value)
@@ -364,6 +258,56 @@ impl Expansion {
         }
         Ok(guid_from_name(guid_from_qualified_name("neocogi.idl.closed-type:v1"), &bytes))
     }
+}
+
+/// Creates the concrete named view of one already materialized projection.
+fn projected(span: SourceSpan, key: DeclarationKey) -> NamedType {
+    NamedType {
+        span,
+        segments: vec![key.name.clone()],
+        arguments: Vec::new(),
+        binding: Binding::Declaration(key),
+    }
+}
+
+/// Substitutes bound positions while preserving every free declaration owner.
+fn substitute_type(ty: &mut AbiType, substitutions: &[AbiType]) -> Result<(), ResolutionError> {
+    match ty {
+        AbiType::Named(name) => {
+            if let Binding::Parameter { position } = name.binding {
+                if let Some(value) = substitutions.get(position as usize) {
+                    *ty = value.clone();
+                    return Ok(());
+                }
+            }
+            for argument in &mut name.arguments {
+                substitute_type(argument, substitutions)?;
+            }
+        }
+        AbiType::ComPtr(value)
+        | AbiType::WeakComPtr(value)
+        | AbiType::ComBox(value)
+        | AbiType::WeakComBox(value)
+        | AbiType::Borrowed(value)
+        | AbiType::Vector(value)
+        | AbiType::UnsizedSlice(value)
+        | AbiType::Slice(value)
+        | AbiType::OutputSlice(value)
+        | AbiType::Array { element: value, .. } => substitute_type(value, substitutions)?,
+        AbiType::Unit | AbiType::Scalar(_) | AbiType::String => {}
+    }
+    // A closed &T where T is Slice<U> uses the ordinary input-buffer convention.
+    if let AbiType::Borrowed(value) = ty {
+        if let AbiType::UnsizedSlice(element) = value.as_ref() {
+            *ty = AbiType::Slice(element.clone());
+        }
+    }
+    Ok(())
+}
+
+/// Fields, bases and emitted events share the same positional substitution.
+fn substitute_declaration(declaration: &mut Declaration, substitutions: &[AbiType]) -> Result<(), ResolutionError> {
+    visit_types(declaration, &mut |ty| substitute_type(ty, substitutions))
 }
 
 /// Identifies reusable declarations before their parameters are substituted.
@@ -432,21 +376,6 @@ fn failure(span: &SourceSpan, message: impl Into<String>) -> ResolutionError {
     }
 }
 
-/// Detects generic references without changing ordinary nongeneric diagnostic behavior.
-fn has_arguments(ty: &AbiType) -> bool {
-    match ty {
-        AbiType::Named(name) => !name.arguments.is_empty(),
-        AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
-        | AbiType::Borrowed(value)
-        | AbiType::Vector(value)
-        | AbiType::UnsizedSlice(value)
-        | AbiType::Slice(value)
-        | AbiType::OutputSlice(value)
-        | AbiType::Array { element: value, .. } => has_arguments(value),
-        _ => false,
-    }
-}
-
 /// Computes a closed contract signature from its template and exact argument revisions.
 /// The using module is deliberately absent, allowing independently built consumers
 /// to negotiate the same specialization without sharing generated Rust definitions.
@@ -467,12 +396,12 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &AbiType) -> Result<[u8; 3
                     identity.abi_signature.as_digest().expect("static core signature")
                 }));
             }
-            if name.segments.as_slice() == ["str"] {
+            if name.is_str() {
                 return Ok(crate::sha256::digest(b"neocogi.idl.str"));
             }
-            let module_name = name.segments[..name.segments.len() - 1].join(".");
-            let module = graph.module(&module_name).ok_or_else(|| failure(&name.span, "generic type module is absent"))?;
-            let local = name.segments.last().unwrap();
+            let key = name.binding.declaration().ok_or_else(|| failure(&name.span, "generic argument is not bound"))?;
+            let module = &graph.modules()[key.module];
+            let local = &key.name;
             if name.arguments.is_empty() {
                 return module
                     .declaration(local)
@@ -495,7 +424,10 @@ fn type_signature(graph: &crate::ResolvedModules, ty: &AbiType) -> Result<[u8; 3
                 bytes.extend_from_slice(&type_signature(graph, argument)?);
             }
         }
-        AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
+        AbiType::ComPtr(value)
+        | AbiType::WeakComPtr(value)
+        | AbiType::ComBox(value)
+        | AbiType::WeakComBox(value)
         | AbiType::Borrowed(value)
         | AbiType::Vector(value)
         | AbiType::UnsizedSlice(value)

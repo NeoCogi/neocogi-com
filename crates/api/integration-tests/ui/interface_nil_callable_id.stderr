@@ -1,0 +1,5 @@
+error: a callable interface ID must not be nil
+ --> integration-tests/ui/interface_nil_callable_id.rs:3:21
+  |
+3 |     assigned_guid = "00000000-0000-0000-0000-000000000000",
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

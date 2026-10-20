@@ -243,7 +243,6 @@ pub struct Method {
     pub output: AbiType,
 }
 
-
 /// Receiver capability for one COM method.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Receiver {
@@ -273,13 +272,19 @@ pub struct NamedType {
     pub segments: Vec<String>,
     /// Arguments to a declaration template, resolved before ordinary ABI validation.
     pub arguments: Vec<AbiType>,
+    /// Semantic owner assigned once before specialization; source paths are not
+    /// reinterpreted by hashing, ABI validation, metadata or Rust generation.
+    pub(crate) binding: crate::binding::Binding,
 }
 
 impl NamedType {
+    /// Whether binding selected the language's borrowed UTF-8 view intrinsic.
+    pub(crate) fn is_str(&self) -> bool {
+        matches!(self.binding, crate::binding::Binding::Intrinsic(crate::binding::Intrinsic::Str))
+    }
     /// Returns the source-like `::`-separated spelling of this path.
     pub fn rust_path(&self) -> String {
-        // Source rendering is diagnostic only; identity resolution uses the
-        // original segment vector to avoid splitting normalized text again.
+        // Rendering is diagnostic only; semantic meaning is owned by binding.
         let path = self.segments.join("::");
         match self.arguments.is_empty() {
             true => path,
@@ -350,14 +355,14 @@ pub enum AbiType {
 /// Origin of a closed declaration; generated Rust names never determine its COM identity.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Specialization {
-    /// Fully qualified template declaration with no arguments.
+    /// Bound source template declaration with no arguments; spelling is diagnostic.
     pub template: NamedType,
-    /// Fully qualified, substituted argument types in template parameter order.
+    /// Bound, substituted argument types in template parameter order.
     pub arguments: Vec<AbiType>,
 }
 
 impl AbiType {
-    /// Renders a structural spelling for diagnostics and template fingerprinting.
+    /// Renders authored structural spelling for diagnostics, never for fingerprinting.
     pub fn source_name(&self) -> String {
         match self {
             Self::Unit => "()".into(),
