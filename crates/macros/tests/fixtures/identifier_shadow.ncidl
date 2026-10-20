@@ -3,11 +3,14 @@
 #[version(1)] struct Some { value: u32 }
 #[version(1)] struct None { value: u32 }
 #[version(1)] struct Default { value: u32 }
+#[version(1)] struct T { value: u32 }
+#[version(1)] struct M { value: u32 }
 #[version(1)] struct Envelope { value: Option }
 #[version(1)] #[dense] #[names(snake_case)] enum State: u8 { Idle = 0, Ready = 1 }
 #[version(1)] interface IShadow {
     fn echo(&self, value: u32, other: Option) -> Result<u32>;
     fn flags(&self, value: Flags) -> Result<u8>;
+    fn typed(&self, input: T, other: M) -> Result<T>;
 }
 /// Flags use the second exported copied-value macro, with the same support rule.
 #[version(1)] bitenum Flags: u8 { ENABLED = 1, VISIBLE = 2, KNOWN_BITS = 3 }

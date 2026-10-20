@@ -10,7 +10,7 @@ use syn::spanned::Spanned;
 use syn::{GenericArgument, Ident, ItemFn, LitStr, Path, PathArguments, Result, ReturnType, Token, Type, bracketed, parenthesized};
 
 use crate::args::{InterfaceGuid, parse_guid_arg};
-use crate::util::{checked_u32_len, runtime_crate_path, stable_guid, validate_version_literal};
+use crate::util::{PrivateNames, checked_u32_len, runtime_crate_path, stable_guid, validate_version_literal};
 
 /// Normalized inputs to one `plugin!` declaration.
 pub(crate) struct PluginArgs {
@@ -170,51 +170,62 @@ pub(crate) fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macr
         // env! must not replace the compiler's package-version lookup.
         .map_or_else(|| quote! { ::core::env!("CARGO_PKG_VERSION") }, |version| quote! { #version });
 
+    // Seed every authored reference before adding private function-scoped items.
+    // The GUID expression can itself contain a caller-provided constant path.
+    let paths = &args.dependencies;
+    let mut names = PrivateNames::new(quote! { #input #nc #interface #plugin_id #version #(#paths)* });
+    let dependencies_name = names.fresh("NC_COM_PLUGIN_DEPENDENCIES");
+    let descriptor_name = names.fresh("NC_COM_PLUGIN_DESCRIPTOR");
+    let adapter = names.fresh("__nc_acquire_plugin_root");
+    let output = names.binding("__nc_output");
+
+    let binding_imports = names.binding_imports();
     Ok(quote! {
         #input
 
+        /// Returns immutable assembly metadata without constructing a root.
+        /// Private items have function scope; their names are fresh against every
+        /// authored acquisition/dependency reference, including printed source.
+        pub const fn plugin_descriptor() -> &'static #nc::NcPluginDescriptor {
+        #binding_imports
         /// Hard plugin dependencies required before this interface can be acquired.
-        static NC_COM_PLUGIN_DEPENDENCIES: [#nc::NcPluginDependencyDescriptor; #dependency_len] = [
+        static #dependencies_name: [#nc::NcPluginDependencyDescriptor; #dependency_len] = [
             #(#dependencies,)*
         ];
 
         /// Immutable plugin metadata consumed by the shared runtime.
-        static NC_COM_PLUGIN_DESCRIPTOR: #nc::NcPluginDescriptor = #nc::NcPluginDescriptor {
+        static #descriptor_name: #nc::NcPluginDescriptor = #nc::NcPluginDescriptor {
             description_abi_version: #nc::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
             core_abi_version: #nc::NC_COM_CORE_ABI_VERSION,
             plugin_id: #plugin_id,
             qualified_name: #nc::NcStaticUtf8::from_static(#name),
             plugin_version: #nc::NcStaticUtf8::from_static(#version),
             dependency_count: #dependency_count,
-            dependencies: NC_COM_PLUGIN_DEPENDENCIES.as_ptr(),
+            dependencies: #dependencies_name.as_ptr(),
             root_factory: <#interface as #nc::ComInterface>::INTERFACE_ID,
             root_factory_threading: <<#interface as #nc::ComInterface>::Threading as #nc::ThreadingModel>::ABI_THREADING_MODE.as_raw(),
-            acquire: ::core::option::Option::Some(__nc_acquire_plugin_root),
+            acquire: ::core::option::Option::Some(#adapter),
         };
-
-        /// Returns the plugin descriptor for static registration.
-        /// This borrows immutable assembly metadata without constructing a factory.
-        /// The descriptor, its tables and bootstrap code remain live while this
-        /// assembly is mapped; dynamic consumers must retain that mapping.
-        pub fn plugin_descriptor() -> &'static #nc::NcPluginDescriptor {
-            &NC_COM_PLUGIN_DESCRIPTOR
-        }
 
         /// Transfers one typed root through the fixed acquisition ABI.
         ///
         /// # Safety
         /// `out` must be null or writable for one raw COM pair. The helper clears
         /// usable storage before calling provider code and transfers only success.
-        unsafe extern "C" fn __nc_acquire_plugin_root(out: *mut #nc::ComRaw<#nc::IUnknown>) -> #nc::NcStatus {
+        unsafe extern "C" fn #adapter(#output: *mut #nc::ComRaw<#nc::IUnknown>) -> #nc::NcStatus {
             // SAFETY: forwarded output obligations; the typed function fixes the
             // exact interface and threading used by the descriptor above.
-            unsafe { #nc::write_plugin_root::<#interface>(out, #acquire) }
+            unsafe { #nc::write_plugin_root::<#interface>(#output, #acquire) }
+        }
+
+        &#descriptor_name
         }
 
         // The gate belongs to the provider crate. Static-only local uses need
         // not declare the feature; suppress the intentional gate only here.
         #[allow(unexpected_cfgs)]
         const _: () = {
+        #binding_imports
         /// Lends immutable metadata while this dynamic plugin remains mapped.
         ///
         /// # Safety
@@ -222,9 +233,9 @@ pub(crate) fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macr
         /// must retain the library while using any reachable metadata or code.
         #[cfg(feature = "dynamic-plugin")]
         #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn nc_get_plugin_descriptor_v1(out: *mut *const #nc::NcPluginDescriptor) -> #nc::NcStatus {
+        pub unsafe extern "C" fn nc_get_plugin_descriptor_v1(#output: *mut *const #nc::NcPluginDescriptor) -> #nc::NcStatus {
             // SAFETY: the descriptor is immutable static data owned by this library.
-            unsafe { #nc::return_plugin_descriptor(out, plugin_descriptor()) }
+            unsafe { #nc::return_plugin_descriptor(#output, plugin_descriptor()) }
         }
         };
     })

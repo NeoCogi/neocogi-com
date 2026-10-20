@@ -4,12 +4,13 @@
 //! those tokens once, validates mutually exclusive or all-or-nothing options,
 //! and derives the generated ABI/vtable paths needed by later expansion stages.
 
-use quote::{ToTokens, format_ident};
+use quote::ToTokens;
+use neocogi_com_core::NcComInterfaceCompanion as Companion;
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::{Ident, LitByteStr, LitInt, LitStr, Path, Result, Token, Type, parenthesized};
 
-use crate::util::path_with_last_ident;
+use crate::util::{interface_companion_ident, path_with_last_ident};
 
 /// Parsed options for concrete `#[com_object]` storage generation.
 pub(crate) struct ObjectArgs {
@@ -249,7 +250,6 @@ impl Parse for StructArgs {
         if deserialize_default && !deserialize {
             return Err(syn::Error::new(input.span(), "default requires deserialize"));
         }
-
 
         Ok(Self {
             runtime_crate,
@@ -518,7 +518,7 @@ fn interface_abi_path(path: &Path) -> Result<Path> {
         return Err(syn::Error::new(path.span(), "expected interface path"));
     };
     let trait_ident = &last.ident;
-    let abi_ident = format_ident!("{trait_ident}Abi", span = trait_ident.span());
+    let abi_ident = interface_companion_ident(trait_ident, Companion::Abi);
     Ok(path_with_last_ident(path, abi_ident))
 }
 
@@ -528,7 +528,7 @@ fn interface_vtable_for_path(path: &Path) -> Result<Path> {
         return Err(syn::Error::new(path.span(), "expected interface path"));
     };
     let trait_ident = &last.ident;
-    let vtable_for_ident = format_ident!("{trait_ident}VtblFor", span = trait_ident.span());
+    let vtable_for_ident = interface_companion_ident(trait_ident, Companion::Provider);
     Ok(path_with_last_ident(path, vtable_for_ident))
 }
 

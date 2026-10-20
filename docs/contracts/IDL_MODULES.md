@@ -281,7 +281,11 @@ silently rewrites them. The parser enforces the corresponding conventions:
 
 Public generated names share the declaration/import namespace. The resolver
 checks interface companions and codec helper names before emission; collisions
-report `EIDL021`. Event declarations generate no per-product helper names.
+report `EIDL021`. Dense enum variants also cannot duplicate their generated public
+COUNT/ALL members, or NAMES when `#[names(...)]` is enabled; ordinary enums retain
+those spellings. Admission and emission share core's typed public-name inventories.
+Private code-generation helper names are isolated, rather than reserved from IDL.
+Event declarations generate no per-product helper names.
 `#[events(...)]` is validated separately against immutable event interfaces, with
 invalid contracts reported as `EIDL065`. See [event metadata](IDL_EVENT_METADATA.md).
 

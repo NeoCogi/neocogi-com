@@ -62,7 +62,7 @@ pub(super) fn generate_owned(
     format_rust(quote! {
         #[::neocogi_com::com_value(assigned_signature = #signature #deserialize)]
         #serialize
-        #[derive(Clone, Debug)]
+        #[derive(::core::clone::Clone, ::core::fmt::Debug)]
         #docs #data
     })
 }

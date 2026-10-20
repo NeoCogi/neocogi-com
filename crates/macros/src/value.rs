@@ -8,7 +8,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Fields, Ident, Visibility};
 
-use crate::util::{PrivateNames, private_ident};
+use crate::util::{PrivateNames, application_fields};
 
 /// A record or enum alternative with its declared tag and ordered field shape.
 pub(crate) struct ValueCase {
@@ -21,19 +21,40 @@ pub(crate) struct ValueCase {
 }
 
 /// Generates a complete checked codec without altering the application type.
-pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase], signature: TokenStream, inline: bool, nc: &syn::Path) -> TokenStream {
+pub(crate) fn expand(
+    name: &Ident,
+    visibility: &Visibility,
+    cases: &[ValueCase],
+    signature: TokenStream,
+    inline: bool,
+    plain_fields: bool,
+    nc: &syn::Path,
+) -> TokenStream {
     let authored_fields = cases.iter().map(|case| &case.fields);
     let authored_variants = cases.iter().filter_map(|case| case.variant.as_ref());
     let mut names = PrivateNames::new(quote! { #name #nc #(#authored_fields)* #(#authored_variants)* });
+    // Resolve authored field syntax while Self still denotes the application.
+    // The private converter uses these typed projections, never reinterpreting
+    // Self or macro-produced names inside a generated wire/storage definition.
+    let mut field_owners = Vec::new();
+    let native_fields = names.fresh("__NcNativeFields");
+    let cases = cases
+        .iter()
+        .map(|case| ValueCase {
+            variant: case.variant.clone(),
+            tag: case.tag.clone(),
+            fields: application_fields(name, &case.fields, &native_fields, &mut field_owners),
+        })
+        .collect::<Vec<_>>();
     let wire_name = names.fresh("__NcWire");
     let union_name = names.fresh("__NcPayload");
     let storage_name = names.fresh("__NcStorage");
     // These are implementation locals, never authored field bindings. Positional
     // renaming remains correct when generated tokens are serialized as Rust text.
-    let budget = private_ident("__nc_budget");
-    let wire_input = private_ident("__nc_wire");
-    let raw_record = private_ident("__nc_raw_record");
-    let cost = private_ident("__nc_cost");
+    let budget = names.binding("__nc_budget");
+    let wire_input = names.binding("__nc_wire");
+    let raw_record = names.binding("__nc_raw_record");
+    let cost = names.binding("__nc_cost");
     let is_enum = cases.first().is_some_and(|case| case.variant.is_some());
     let mut wires = Vec::new();
     let mut members = Vec::new();
@@ -45,6 +66,7 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
     let mut fixed_costs = Vec::new();
     let mut maximum_costs = Vec::new();
     for (index, case) in cases.iter().enumerate() {
+        let case_cost = names.fresh("__NC_CASE_COST");
         let case_wire = if is_enum {
             names.fresh(&format!("__NcCase{index}"))
         } else {
@@ -66,9 +88,9 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
             // Preserve the public member, but never introduce it as a local.
             // Prefixes alone cannot prevent an author from choosing the same name.
             let member = field.ident.clone().unwrap_or_else(|| format_ident!("field_{position}"));
-            let binding = private_ident(&format!("__nc_field_{position}"));
-            let raw = private_ident(&format!("__nc_wire_field_{position}"));
-            let stored = private_ident(&format!("__nc_storage_field_{position}"));
+            let binding = names.binding(&format!("__nc_field_{position}"));
+            let raw = names.binding(&format!("__nc_wire_field_{position}"));
+            let stored = names.binding(&format!("__nc_storage_field_{position}"));
             let ty = &field.ty;
             raw_fields.push(quote! { /// Recursively checked raw field; never an application reference.
             pub #member: <#ty as #nc::ComValue>::Wire });
@@ -139,7 +161,9 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
             raw_values.push(quote! { empty: 0 });
         }
         wires.push(quote! {
-            #[doc(hidden)] #[repr(C)] #[derive(::core::clone::Clone, ::core::marker::Copy)]
+            // Native field projections remain private; consumers see only their
+            // normalized raw types. Separate-crate wire access is regression-tested.
+            #[doc(hidden)] #[allow(private_interfaces)] #[repr(C)] #[derive(::core::clone::Clone, ::core::marker::Copy)]
             /// Raw fields for one structural value alternative.
             #visibility struct #case_wire { #(#raw_fields),* }
         });
@@ -160,8 +184,8 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
             quote! { #storage_name::#case_storage { #(#stored_values),* } }
         };
         encode.push(quote! { #pattern => {
-            const COST: ::core::option::Option<#nc::ValueCost> = #known_cost;
-            #budget.aggregate(COST.ok_or(#nc::NC_E_OUT_OF_RANGE)?, |#budget| {
+            const #case_cost: ::core::option::Option<#nc::ValueCost> = #known_cost;
+            #budget.aggregate(#case_cost.ok_or(#nc::NC_E_OUT_OF_RANGE)?, |#budget| {
                 #(#encoding)* ::core::result::Result::Ok((#constructed_wire, #stored))
             })
         } });
@@ -180,8 +204,8 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
             quote! { #read ::core::result::Result::Ok(#decoded_fixed) }
         });
         let decode_case = quote! {
-            const COST: ::core::option::Option<#nc::ValueCost> = #known_cost;
-            #budget.aggregate(COST.ok_or(#nc::NC_E_OUT_OF_RANGE)?, |#budget| {
+            const #case_cost: ::core::option::Option<#nc::ValueCost> = #known_cost;
+            #budget.aggregate(#case_cost.ok_or(#nc::NC_E_OUT_OF_RANGE)?, |#budget| {
                 #read ::core::result::Result::Ok(#decoded)
             })
         };
@@ -193,10 +217,10 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
     }
     let tagged_wire = is_enum.then(|| {
         quote! {
-            #[doc(hidden)] #[repr(C)] #[derive(::core::clone::Clone, ::core::marker::Copy)]
+            #[doc(hidden)] #[allow(private_interfaces)] #[repr(C)] #[derive(::core::clone::Clone, ::core::marker::Copy)]
             /// Raw alternatives, inspected only after validating the active tag.
             #visibility union #union_name { #(#members),* }
-            #[doc(hidden)] #[repr(C)] #[derive(::core::clone::Clone, ::core::marker::Copy)]
+            #[doc(hidden)] #[allow(private_interfaces)] #[repr(C)] #[derive(::core::clone::Clone, ::core::marker::Copy)]
             /// Explicit integer tag and recursively lowered active payload.
             #visibility struct #wire_name {
                 /// Declared variant discriminant; unknown values fail conversion.
@@ -214,6 +238,7 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
     let storage = (!inline).then(|| {
         quote! {
             #[doc(hidden)]
+            #[allow(private_interfaces)]
             /// Concrete ownership of converted indirect fields; never erased.
             #visibility enum #storage_name { #(#storages),* }
         }
@@ -291,13 +316,45 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
     });
     let inline_checks = inline.then(|| {
         let types = cases.iter().flat_map(|case| case.fields.iter().map(|field| &field.ty));
-        quote! { const _: () = { fn check<T: #nc::ComInlineValue>() {} fn fields() { #(check::<#types>();)* } }; }
+        let check = names.fresh("__nc_require_inline");
+        let fields = names.fresh("__nc_inline_fields");
+        let parameter = names.fresh("__NcInline");
+        quote! { const _: () = { fn #check<#parameter: #nc::ComInlineValue>() {} fn #fields() { #(#check::<#types>();)* } }; }
     });
+    let plain_checks = plain_fields.then(|| {
+        let types = cases.iter().flat_map(|case| case.fields.iter().map(|field| &field.ty));
+        let check = names.fresh("__nc_require_plain");
+        let fields = names.fresh("__nc_plain_fields");
+        let parameter = names.fresh("__NcPlain");
+        quote! {
+            const _: () = {
+                /// Requires durable copied identity independently of reflection.
+                fn #check<#parameter: #nc::AbiPlainValue>() {}
+                /// Checks native fields at their application owner without runtime work.
+                fn #fields() { #(#check::<#types>();)* }
+            };
+        }
+    });
+    let field_scope = (!field_owners.is_empty()).then(|| {
+        quote! {
+            /// Native field syntax belongs to this application; it is not public API.
+            trait #native_fields<const INDEX: usize> {
+                /// The native field type before any private conversion bindings exist.
+                type Value;
+            }
+        }
+    });
+    let binding_imports = names.binding_imports();
     quote! {
+        // No binding imports or helper declarations enter the authored type scope.
+        const _: () = {
+        #field_scope
+        #(#field_owners)*
         // Anonymous ownership keeps wire/storage helpers out of the application's
         // item namespace. Public associated types remain usable through ComValue.
         const _: () = {
-        #(#wires)* #tagged_wire #storage #inline_checks
+        #binding_imports
+        #(#wires)* #tagged_wire #storage #inline_checks #plain_checks
         // SAFETY: only raw field representations cross COM; recursive conversion
         // validates tags and values before constructing application data.
         unsafe impl #nc::ComValue for #name {
@@ -350,6 +407,7 @@ pub(crate) fn expand(name: &Ident, visibility: &Visibility, cases: &[ValueCase],
         }
         #inline_impl
         };
+        };
     }
 }
 
@@ -396,6 +454,7 @@ pub(crate) fn expand_owned(args: crate::args::StructArgs, input: syn::DeriveInpu
         &input.vis,
         &cases,
         quote! { #nc::NcAbiSignature::from_static(#signature) },
+        false,
         false,
         &nc,
     );

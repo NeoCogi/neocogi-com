@@ -46,7 +46,7 @@ pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<pro
             tag: quote! { #tag },
         })
         .collect::<Vec<_>>();
-    let codec = crate::value::expand(name, vis, &cases, quote! { #nc::NcAbiSignature::from_static(#signature) }, true, &nc);
+    let codec = crate::value::expand(name, vis, &cases, quote! { #nc::NcAbiSignature::from_static(#signature) }, true, false, &nc);
     let decoder = if args.deserialize {
         let data = syn::DataEnum {
             enum_token: input.enum_token,

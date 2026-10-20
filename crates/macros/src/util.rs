@@ -6,7 +6,7 @@
 //! errors so callers see all actionable problems from one expansion.
 
 use std::collections::HashSet;
-use quote::{ToTokens, quote};
+use quote::{ToTokens, format_ident, quote};
 use syn::{Generics, Ident, LitStr, Path, Result};
 
 use crate::args::InterfaceGuid;
@@ -30,11 +30,14 @@ pub(crate) fn private_ident(name: &str) -> Ident {
 pub(crate) struct PrivateNames {
     /// Authored and already allocated identifiers, normalized without `r#`.
     occupied: HashSet<String>,
+    /// Executable binding names that need protection from ambient const patterns.
+    bindings: Vec<Ident>,
 }
 
 impl PrivateNames {
     /// Seeds one scope from its complete authored input and configured paths.
     pub(crate) fn new(authored: impl ToTokens) -> Self {
+        /// Recurses through syntax groups without interpreting literal contents.
         fn collect(tokens: proc_macro2::TokenStream, occupied: &mut HashSet<String>) {
             for token in tokens {
                 match token {
@@ -48,19 +51,83 @@ impl PrivateNames {
         }
         let mut occupied = HashSet::new();
         collect(authored.into_token_stream(), &mut occupied);
-        Self { occupied }
+        Self { occupied, bindings: Vec::new() }
     }
 
     /// Allocates a deterministic spelling absent from this scope's authored syntax.
     pub(crate) fn fresh(&mut self, stem: &str) -> Ident {
+        self.fresh_family(stem, &[""])
+    }
+
+    /// Reserves an argument and every derived buffer/owner helper as one family.
+    /// Checking only the base would let an authored const expression capture a
+    /// later `_values`, `_written` or owner-slot binding after printing. The
+    /// suffix inventory includes the empty suffix for the base binding itself.
+    pub(crate) fn fresh_family(&mut self, stem: &str, suffixes: &[&str]) -> Ident {
         let mut candidate = stem.to_owned();
         let mut ordinal = 0usize;
-        while !self.occupied.insert(candidate.clone()) {
+        while suffixes.iter().any(|suffix| self.occupied.contains(&format!("{candidate}{suffix}"))) {
             candidate = format!("{stem}_{ordinal}");
             ordinal += 1;
         }
+        for suffix in suffixes {
+            self.occupied.insert(format!("{candidate}{suffix}"));
+        }
         private_ident(&candidate)
     }
+
+    /// Allocates a local/parameter binding, also protecting its Rust pattern lookup.
+    pub(crate) fn binding(&mut self, stem: &str) -> Ident {
+        self.binding_family(stem, &[""])
+    }
+
+    /// Allocates one argument plus its buffer and owner-slot bindings.
+    pub(crate) fn binding_family(&mut self, stem: &str, suffixes: &[&str]) -> Ident {
+        let base = self.fresh_family(stem, suffixes);
+        self.bindings.extend(suffixes.iter().map(|suffix| private_ident(&format!("{base}{suffix}"))));
+        base
+    }
+
+    /// Owns binding lookup inside an anonymous implementation scope.
+    ///
+    /// Rust treats an identifier pattern as an ambient constant/variant when one
+    /// exists, even for mixed-site tokens. A private function import permits local
+    /// bindings to shadow that name. Freshness keeps these aliases away from every
+    /// authored reference; lexical scope keeps them out of the application module.
+    /// No imported function is called or instantiated and no runtime state exists.
+    pub(crate) fn binding_imports(&self) -> proc_macro2::TokenStream {
+        let bindings = &self.bindings;
+        quote! {
+            #[allow(unused_imports)]
+            use ::core::convert::{ #(identity as #bindings),* };
+        }
+    }
+}
+
+/// Derives a public companion with authored navigation and the shared API policy.
+pub(crate) fn interface_companion_ident(name: &Ident, companion: neocogi_com_core::NcComInterfaceCompanion) -> Ident {
+    format_ident!("{name}{}", companion.suffix(), span = name.span())
+}
+
+/// Binds field syntax at its application owner and returns canonical projections.
+///
+/// Emit `owners` in a scope without private declarations/imports. Self then names
+/// the application, and even opaque macros resolve before converter bindings are
+/// introduced. One ordered owner list supplies indices across enum alternatives;
+/// each independent expansion owns its own lexical trait and implementations.
+pub(crate) fn application_fields(name: &Ident, fields: &syn::Fields, owner: &Ident, owners: &mut Vec<proc_macro2::TokenStream>) -> syn::Fields {
+    let mut fields = fields.clone();
+    for field in &mut fields {
+        let index = owners.len();
+        let ty = &field.ty;
+        owners.push(quote! {
+            impl #owner<#index> for #name {
+                type Value = #ty;
+            }
+        });
+        field.ty = syn::parse2(quote! { <#name as #owner<#index>>::Value }).expect("generated field projection is a type");
+    }
+    fields
 }
 
 /// Uses an explicit facade path or the canonical public `neocogi-com` crate name.

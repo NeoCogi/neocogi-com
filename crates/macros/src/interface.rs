@@ -6,12 +6,13 @@
 //! surface, so pointer ownership, buffer bounds, and documentation stay aligned.
 
 use quote::{format_ident, quote};
+use neocogi_com_core::NcComInterfaceCompanion as Companion;
 use syn::{ItemTrait, Result, TypeParamBound, TraitBoundModifier, PathArguments};
 
 use crate::abi_method::{parse_abi_trait_item, raw_vtable_method_docs, safe_method_docs, validate_interface_trait};
 use crate::args::{InterfaceArgs, InterfaceThreading};
 use crate::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind};
-use crate::util::{checked_u32_len, collect_syn_results, stable_guid, private_ident, push_error, runtime_crate_path};
+use crate::util::{checked_u32_len, collect_syn_results, stable_guid, private_ident, push_error, runtime_crate_path, PrivateNames, interface_companion_ident};
 
 /// Expands one validated interface trait into its complete Rust and C ABI surface.
 pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Result<proc_macro2::TokenStream> {
@@ -57,20 +58,45 @@ pub(crate) struct InterfaceExpansion {
 }
 
 /// Lowers both halves once so checked-in built-ins and ordinary IDL stay identical.
-pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, methods: Vec<AbiMethod>) -> Result<InterfaceExpansion> {
+pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, mut methods: Vec<AbiMethod>) -> Result<InterfaceExpansion> {
     // Generated names are deliberately mechanical and predictable. A trait
     // named `IFoo` produces `IFooAbi`, `IFooVTable`, `IFooVtblFor<T>`, and
     // `IFooClient`.
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
+    // All authored syntax is known before introducing provider/client binders or
+    // executable locals. The same spelling policy survives printing/reparsing.
+    let mut names = PrivateNames::new(quote! { #input #nc });
+    let provider = names.fresh("__NcProvider");
+    let mode = names.fresh("__NcThreading");
+    let object_ident = names.binding("__nc_dispatch_object");
+    let value_ident = names.binding("__nc_dispatch_value");
+    for method in &mut methods {
+        for (position, argument) in method.args.iter_mut().enumerate() {
+            argument.binding = names.binding_family(
+                &format!("__nc_arg_{position}"),
+                &["", "_owner_slot", "_offset", "_len", "_ptr", "_values", "_written"],
+            );
+        }
+    }
+    // Private locals cannot capture authored const expressions in value types.
+    let this_local = names.binding("__nc_this");
+    let status_local = names.binding("__nc_status");
+    let value_local = names.binding("__nc_value");
+    let raw_local = names.binding("__nc_raw");
+    let result_local = names.binding("__nc_result");
+    let values_local = names.binding("__nc_values");
+    let writer_local = names.binding("__nc_writer");
+    let output_local = names.binding("__nc_out");
+    let identity_local = names.binding("__nc_identity");
     let trait_ident = &input.ident;
     let vis = &input.vis;
     // Implicit format captures do not pass Ident fragments to quote's span
     // inference. Keep each derived public name anchored to the source trait,
     // including when the trait comes from an OUT_DIR include.
-    let abi_ident = format_ident!("{trait_ident}Abi", span = trait_ident.span());
-    let vtable_ident = format_ident!("{trait_ident}VTable", span = trait_ident.span());
-    let vtable_for_ident = format_ident!("{trait_ident}VtblFor", span = trait_ident.span());
-    let client_ident = format_ident!("{trait_ident}Client", span = trait_ident.span());
+    let abi_ident = interface_companion_ident(trait_ident, Companion::Abi);
+    let vtable_ident = interface_companion_ident(trait_ident, Companion::VTable);
+    let vtable_for_ident = interface_companion_ident(trait_ident, Companion::Provider);
+    let client_ident = interface_companion_ident(trait_ident, Companion::Client);
     let threading = match args.threading {
         InterfaceThreading::Local => quote! { #nc::ThreadLocal },
         InterfaceThreading::Shared => quote! { #nc::ThreadSafe },
@@ -113,8 +139,8 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     let base = interface_paths.first();
     // The first supertrait supplies the physical prefix. Every later one is
     // a required sibling projection; all refer to the same owned Rust value.
-    let required_providers = interface_paths.iter().map(|path| generated_path(path, "VtblFor")).collect::<Vec<_>>();
-    let required_abis = interface_paths.iter().map(|path| generated_path(path, "Abi")).collect::<Vec<_>>();
+    let required_providers = interface_paths.iter().map(|path| generated_path(path, Companion::Provider)).collect::<Vec<_>>();
+    let required_abis = interface_paths.iter().map(|path| generated_path(path, Companion::Abi)).collect::<Vec<_>>();
     let mut base_identity = quote! { #nc::NcInterfaceId::NONE };
     let mut prefix_field = quote! {
         /// Common identity, query and reference-count slots.
@@ -122,7 +148,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     };
     let mut prefix_value = quote! {
         unknown: #nc::IUnknownVTable {
-            interface_id: identity,
+            interface_id: #identity_local,
             query_interface: #nc::lifetime::nc_query_interface,
             add_ref: #nc::lifetime::nc_strong_retain,
             release: #nc::lifetime::nc_strong_release,
@@ -131,19 +157,19 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     };
     let mut client_base = quote! {};
     if let Some(base) = base {
-        let base_abi = generated_path(base, "Abi");
-        let base_vtable = generated_path(base, "VTable");
-        let base_vtable_for = generated_path(base, "VtblFor");
-        let base_client = generated_path(base, "Client");
+        let base_abi = generated_path(base, Companion::Abi);
+        let base_vtable = generated_path(base, Companion::VTable);
+        let base_vtable_for = generated_path(base, Companion::Provider);
+        let base_client = generated_path(base, Companion::Client);
         base_identity = quote! { <#base_abi as #nc::ComInterface>::INTERFACE_ID };
         prefix_field = quote! {
             /// Complete inherited vtable at offset zero; local slots follow it.
             pub base: #base_vtable,
         };
-        prefix_value = quote! { base: #base_vtable_for::<T>::with_identity(identity), };
+        prefix_value = quote! { base: #base_vtable_for::<#provider>::with_identity(#identity_local), };
         client_base = quote! {
-            impl<M: #nc::ThreadingModel> ::core::ops::Deref for #client_ident<M> {
-                type Target = #base_client<M>;
+            impl<#mode: #nc::ThreadingModel> ::core::ops::Deref for #client_ident<#mode> {
+                type Target = #base_client<#mode>;
                 fn deref(&self) -> &Self::Target {
                     // SAFETY: Both generated views are transparent pointer words.
                     // The inherited table is a physical prefix of the derived table.
@@ -153,7 +179,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 }
             }
 
-            impl<M: #nc::ThreadingModel> ::core::ops::DerefMut for #client_ident<M> {
+            impl<#mode: #nc::ThreadingModel> ::core::ops::DerefMut for #client_ident<#mode> {
                 fn deref_mut(&mut self) -> &mut Self::Target {
                     // SAFETY: Both views are transparent pointer words and the
                     // mutable borrow remains tied to this derived client view.
@@ -175,27 +201,21 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         }
     }
 
-    let method_abi_descriptors = methods
-        .iter()
-        .enumerate()
-        .map(|(index, method)| method_abi_descriptor_consts(&nc, index, method))
-        .collect::<Vec<_>>();
-    let method_descriptors = methods.iter().zip(&method_param_counts).enumerate().map(|(index, (method, param_count))| {
-        let index = index as u32;
+    let method_descriptors = methods.iter().zip(&method_param_counts).map(|(method, param_count)| {
         let method_name = method.ident.to_string();
         let receiver = match method.receiver {
             AbiReceiver::Shared => quote! { #nc::NC_ABI_RECEIVER_SHARED },
             AbiReceiver::Mutable => quote! { #nc::NC_ABI_RECEIVER_MUTABLE },
         };
-        let params_ident = method_params_const_ident(index as usize);
-        let return_ident = method_return_const_ident(index as usize);
+        let parameters = method.args.iter().map(|argument| method_param_descriptor(&nc, argument));
+        let returns = method_return_descriptor(&nc, method);
         quote! {
             #nc::NcMethodDescriptor {
                 name: #nc::NcStaticUtf8::from_static(#method_name),
                 receiver: #receiver,
                 param_count: #param_count,
-                params: Self::#params_ident.as_ptr(),
-                returns: Self::#return_ident,
+                params: (&[#(#parameters),*] as &'static [#nc::NcMethodParamDescriptor]).as_ptr(),
+                returns: #returns,
             }
         }
     });
@@ -212,13 +232,13 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             AbiReturnKind::Void => quote! {},
             AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => {
                 let ret = &method.ok.abi_ty;
-                quote! { __nc_out: *mut #ret, }
+                quote! { #output_local: *mut #ret, }
             }
         };
         quote! {
             #(#docs)*
             pub #method_ident: unsafe extern "C" fn(
-                this: *mut ::core::ffi::c_void,
+                #this_local: *mut ::core::ffi::c_void,
                 #(#abi_args,)*
                 #out_param
             ) -> #nc::NcStatus,
@@ -236,8 +256,6 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         let thunk_ident = format_ident!("{method_ident}_thunk", span = method_ident.span());
         // Argument bindings are positional and distinct from dispatch helpers.
         // Mixed-site spans additionally isolate ordinary macro expansion.
-        let object_ident = private_ident("__nc_dispatch_object");
-        let value_ident = private_ident("__nc_dispatch_value");
         let params = method.args.iter().flat_map(|arg| raw_vtable_arg_params(arg));
         let arg_conversions = method.args.iter().filter_map(|arg| match &arg.kind {
             AbiArgKind::ComBox { interface_ty, mode_ty } => {
@@ -246,8 +264,8 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 Some(quote! {
                     // Validate without adopting: any later input or receiver
                     // rejection must leave the original owner in the caller slot.
-                    if let ::core::result::Result::Err(status) = unsafe { #nc::ComBox::<#interface_ty, #mode>::__nc_validate_raw_input(#ident) } {
-                        return status;
+                    if let ::core::result::Result::Err(#status_local) = unsafe { #nc::ComBox::<#interface_ty, #mode>::__nc_validate_raw_input(#ident) } {
+                        return #status_local;
                     }
                 })
             },
@@ -257,8 +275,8 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     // SAFETY: the caller supplies this concrete value's raw C record
                     // and keeps its selected borrowed fields live for the call.
                     let #ident = match unsafe { #nc::NcValueRef::<#value_ty>::from_raw(#ident) } {
-                        ::core::result::Result::Ok(value) => value,
-                        ::core::result::Result::Err(status) => return status,
+                        ::core::result::Result::Ok(#value_local) => #value_local,
+                        ::core::result::Result::Err(#status_local) => return #status_local,
                     };
                 })
             }
@@ -268,7 +286,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 Some(quote! {
                     // SAFETY: copied wire storage is initialized; restricted fields are validated here.
                     let #ident = match unsafe { #nc::decode_inline::<#ty>(#ident) } {
-                        ::core::result::Result::Ok(value) => value, ::core::result::Result::Err(status) => return status,
+                        ::core::result::Result::Ok(#value_local) => #value_local, ::core::result::Result::Err(#status_local) => return #status_local,
                     };
                 })
             }
@@ -282,8 +300,8 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     // SAFETY: initialized input is checked before native access;
                     // identity borrowing additionally requires the codec proof.
                     let #values = match unsafe { #nc::DecodedInput::<#element_ty>::from_raw(#ptr, #len) } {
-                        ::core::result::Result::Ok(values) => values,
-                        ::core::result::Result::Err(status) => return status,
+                        ::core::result::Result::Ok(#values_local) => #values_local,
+                        ::core::result::Result::Err(#status_local) => return #status_local,
                     };
                     let #ident = #nc::NcCopyFromBufferOffset::new(#offset, #values.as_slice());
                 })
@@ -306,8 +324,8 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     // SAFETY: raw caller grants exclusive uninitialized wire
                     // capacity. No old destination field is read or decoded.
                     let #ident = match unsafe { #nc::NcOutputWriter::<#element_ty>::from_raw(#offset, #ptr, #len, &mut #values) } {
-                        ::core::result::Result::Ok(writer) => writer,
-                        ::core::result::Result::Err(status) => return status,
+                        ::core::result::Result::Ok(#writer_local) => #writer_local,
+                        ::core::result::Result::Err(#status_local) => return #status_local,
                     };
                 })
             }
@@ -330,8 +348,8 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                         // responsibility for the duration of the call.
                         #nc::ComRef::<#interface_ty, #mode_ty>::__nc_from_raw_borrowed_checked(#ident)
                     } {
-                        ::core::result::Result::Ok(value) => value,
-                        ::core::result::Result::Err(status) => return status,
+                        ::core::result::Result::Ok(#value_local) => #value_local,
+                        ::core::result::Result::Err(#status_local) => return #status_local,
                     }
                 };
                 Some(match optional {
@@ -348,7 +366,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         let has_owners = !owners.is_empty();
         let output_checks = consuming_return_checks(&nc, method);
         let output_preflight = output_checks.iter().map(|check| quote! {
-            if let ::core::result::Result::Err(status) = #check { return status; }
+            if let ::core::result::Result::Err(#status_local) = #check { return #status_local; }
         });
         // Save slots before replacing raw argument bindings with ordinary owners.
         // Adoption happens only after all validation and receiver admission.
@@ -364,7 +382,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             }
         });
         let error_arm = match has_owners {
-            false => quote! { ::core::result::Result::Err(status) => status.normalize_error(), },
+            false => quote! { ::core::result::Result::Err(#status_local) => #status_local.normalize_error(), },
             true => {
                 let names = owners.iter().map(|arg| &arg.binding);
                 let restores = owners.iter().map(|arg| {
@@ -373,12 +391,12 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                     quote! { unsafe { *#slot = #ident.into_raw(); } }
                 });
                 quote! {
-                    ::core::result::Result::Err((status, #(#names),*)) => {
+                    ::core::result::Result::Err((#status_local, #(#names),*)) => {
                         // No receiver borrow survives while returned owners are
                         // handed back. Every forwarding provider must propagate
                         // this error tuple without destroying or replacing inputs.
                         #(#restores)*
-                        status.normalize_error()
+                        #status_local.normalize_error()
                     },
                 }
             },
@@ -387,8 +405,8 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         // report rejection without returning those owners. Malformed successful
         // output is a provider contract violation, never a recoverable rejection.
         let output_error = match has_owners {
-            true => quote! { ::core::panic!("invalid output after COM ownership commit: {:?}", status) },
-            false => quote! { return status },
+            true => quote! { ::core::panic!("invalid output after COM ownership commit: {:?}", #status_local) },
+            false => quote! { return #status_local },
         };
         // Provider writes are already encoded directly into caller capacity.
         // Publish every prefix only after the return value also encoded successfully.
@@ -403,17 +421,17 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             AbiReturnKind::Void => quote! {},
             AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => {
                 let ret = &method.ok.abi_ty;
-                quote! { __nc_out: *mut #ret, }
+                quote! { #output_local: *mut #ret, }
             }
         };
         let pointer_check = match &method.ok.kind {
             AbiReturnKind::Void => quote! {
-                if this.is_null() {
+                if #this_local.is_null() {
                     return #nc::NC_E_POINTER;
                 }
             },
             AbiReturnKind::Plain | AbiReturnKind::ComPtr { .. } => quote! {
-                if this.is_null() || __nc_out.is_null() {
+                if #this_local.is_null() || #output_local.is_null() {
                     return #nc::NC_E_POINTER;
                 }
             },
@@ -426,40 +444,40 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 },
             },
             AbiReturnKind::Plain => quote! {
-                ::core::result::Result::Ok(value) => {
+                ::core::result::Result::Ok(#value_local) => {
                     // SAFETY: Non-void thunks checked `__nc_out` for null before the
                     // Rust method was called.
-                    let raw = match #nc::encode_inline(&value) { ::core::result::Result::Ok(raw) => raw, ::core::result::Result::Err(status) => { #output_error } };
+                    let #raw_local = match #nc::encode_inline(&#value_local) { ::core::result::Result::Ok(#raw_local) => #raw_local, ::core::result::Result::Err(#status_local) => { #output_error } };
                     #(#buffer_publication)*
-                    unsafe { *__nc_out = raw; }
+                    unsafe { *#output_local = #raw_local; }
                     #nc::NC_OK
                 }
             },
             AbiReturnKind::ComPtr { .. } => quote! {
-                ::core::result::Result::Ok(value) => {
+                ::core::result::Result::Ok(#value_local) => {
                     // SAFETY: Non-void thunks checked `__nc_out` for null.
                     // `into_raw` transfers the returned owned COM reference to
                     // the caller.
                     #(#buffer_publication)*
-                    unsafe { *__nc_out = value.into_raw(); }
+                    unsafe { *#output_local = #value_local.into_raw(); }
                     #nc::NC_OK
                 }
             },
         };
         let borrow = match method.receiver {
             AbiReceiver::Shared => quote! {
-                <T as #nc::ComObject>::borrow_abi_ref(#object_ident)
+                <#provider as #nc::ComObject>::borrow_abi_ref(#object_ident)
             },
             AbiReceiver::Mutable => quote! {
-                <T as #nc::ComObject>::borrow_abi_mut(#object_ident)
+                <#provider as #nc::ComObject>::borrow_abi_mut(#object_ident)
             },
         };
         let invoke = match method.receiver {
             AbiReceiver::Shared => quote! {
-                <T as #trait_ident>::#method_ident(&*#value_ident, #(#arg_names),*)
+                <#provider as #trait_ident>::#method_ident(&*#value_ident, #(#arg_names),*)
             },
             AbiReceiver::Mutable => quote! {
-                <T as #trait_ident>::#method_ident(&mut *#value_ident, #(#arg_names),*)
+                <#provider as #trait_ident>::#method_ident(&mut *#value_ident, #(#arg_names),*)
             },
         };
         quote! {
@@ -472,7 +490,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
             /// The interface belongs to T's live generated storage. Non-null ABI
             /// arguments must satisfy their method's readable/writable contracts.
             unsafe extern "C" fn #thunk_ident(
-                this: *mut ::core::ffi::c_void,
+                #this_local: *mut ::core::ffi::c_void,
                 #(#params,)*
                 #out_param
             ) -> #nc::NcStatus {
@@ -480,7 +498,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
 
                 // SAFETY: `this` was checked non-null above and is a generated
                 // object address paired with this vtable.
-                let #object_ident = this;
+                let #object_ident = #this_local;
                 if #object_ident.is_null() {
                     return #nc::NC_E_POINTER;
                 }
@@ -491,15 +509,15 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
                 // `ComObject` validates the requested Rust borrow
                 // against every call active on the same allocation.
                 let mut #value_ident = match unsafe { #borrow } {
-                    ::core::result::Result::Ok(value) => value,
-                    ::core::result::Result::Err(status) => return status,
+                    ::core::result::Result::Ok(#value_local) => #value_local,
+                    ::core::result::Result::Err(#status_local) => return #status_local,
                 };
                 #(#owner_adoptions)*
-                let result = #invoke;
+                let #result_local = #invoke;
                 // Release the object-wide borrow before lowering an owned
                 // result into the caller's output slot.
                 ::core::mem::drop(#value_ident);
-                match result {
+                match #result_local {
                     #success_arm
                     // Rust `Result::Err` must map to a negative ABI status.
                     // Normalizing here prevents an invalid `Err(success)` from
@@ -522,12 +540,15 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     // Generate one safe lowering for each source method. Both owning `ComPtr`
     // and borrowed `ComRef` handles lend this client view, and a derived view
     // dereferences through its generated base views for inherited calls.
-    let client_methods = methods.iter().map(|method| {
-        let user_docs = &method.doc_attrs;
-        let generated_docs = safe_method_docs(trait_ident, method);
-        let body = safe_client_method_body(&nc, method);
-        quote! { #(#user_docs)* #(#generated_docs)* pub #body }
-    });
+    let client_methods = methods
+        .iter()
+        .map(|method| {
+            let user_docs = &method.doc_attrs;
+            let generated_docs = safe_method_docs(trait_ident, method);
+            let body = safe_client_method_body(&nc, method, &mut names);
+            quote! { #(#user_docs)* #(#generated_docs)* pub #body }
+        })
+        .collect::<Vec<_>>();
 
     let output_contracts = methods
         .iter()
@@ -558,6 +579,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         true => quote! {},
         false => quote! { const _: () = { #(#output_contracts)* }; },
     };
+    let binding_imports = names.binding_imports();
     let abi = quote! {
         #input
 
@@ -597,29 +619,30 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
         // conversions or Clone/Copy implementation and cannot outlive its lender.
         #[repr(transparent)]
         #[doc = ::core::concat!("Borrowed static method view for [`", ::core::stringify!(#trait_ident), "`].")]
-        #vis struct #client_ident<M: #nc::ThreadingModel = #nc::ThreadLocal> {
+        #vis struct #client_ident<#mode: #nc::ThreadingModel = #nc::ThreadLocal> {
             /// Certified transparent storage supplied only by a live COM pointer borrow.
-            __nc_pointer: #nc::NcClientPointer<#abi_ident, M>,
+            __nc_pointer: #nc::NcClientPointer<#abi_ident, #mode>,
         }
 
         // SAFETY: The generated view is transparent pointer storage; all safe
         // methods make synchronous ABI calls and never transfer its borrowed pointer.
         unsafe impl #nc::ComClientInterface for #abi_ident {
-            type Client<M: #nc::ThreadingModel> = #client_ident<M>;
+            type Client<#mode: #nc::ThreadingModel> = #client_ident<#mode>;
         }
 
-        impl<M: #nc::ThreadingModel> #client_ident<M> {
+        const _: () = {
+        #binding_imports
+        impl<#mode: #nc::ThreadingModel> #client_ident<#mode> {
             #(#client_methods)*
         }
 
         #client_base
+        };
 
         impl #abi_ident {
             #[doc = "Canonical validation form of this interface's typed ABI contract."]
             pub const ABI_SIGNATURE: #nc::NcAbiSignature =
                 #nc::NcAbiSignature::from_static(#assigned_signature);
-
-            #(#method_abi_descriptors)*
 
             #[doc = "Static descriptors for this interface's ABI methods."]
             pub const METHOD_DESCRIPTORS: [#nc::NcMethodDescriptor; #method_count_usize] = [
@@ -648,32 +671,34 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
     let provider = quote! {
         #[doc(hidden)]
         /// Statically typed vtable and lifecycle adapters for one provider type.
-        #vis struct #vtable_for_ident<T>(
+        #vis struct #vtable_for_ident<#provider>(
             /// Associates dispatch with T without allocating or owning a value.
-            ::core::marker::PhantomData<T>
+            ::core::marker::PhantomData<#provider>
         );
 
-        impl<T> #vtable_for_ident<T>
+        const _: () = {
+        #binding_imports
+        impl<#provider> #vtable_for_ident<#provider>
         where
-            T: #trait_ident + #nc::ComObject,
+            #provider: #trait_ident + #nc::ComObject,
         {
             /// Distinct provider bindings in the interface's canonical metadata order.
             /// T fixes the thunk implementation; no object headers are stored here.
-            pub const PROJECTIONS: [#nc::__ComProjection<T>; #abi_ident::INTERFACE_CHAIN.len()] =
+            pub const PROJECTIONS: [#nc::__ComProjection<#provider>; #abi_ident::INTERFACE_CHAIN.len()] =
                 #nc::__nc_projection_table(
                     &#abi_ident::INTERFACE_CHAIN,
                     // SAFETY: this macro emits the exact contract identity and
                     // complete prefix-compatible vtable for T's allocation.
                     unsafe { #nc::__ComProjection::new(<#abi_ident as #nc::ComInterface>::INTERFACE_ID,
                         &Self::VTABLE as *const #vtable_ident as *const #nc::IUnknownVTable) },
-                    &[#(&#required_providers::<T>::PROJECTIONS,)*],
+                    &[#(&#required_providers::<#provider>::PROJECTIONS,)*],
                 );
 
             /// Table for a standalone projection of this interface.
             pub const VTABLE: #vtable_ident = Self::with_identity(&<#abi_ident as #nc::ComInterface>::INTERFACE_ID);
 
             /// Builds an inherited prefix advertising the actual outer projection.
-            pub const fn with_identity(identity: &'static #nc::NcInterfaceId) -> #vtable_ident {
+            pub const fn with_identity(#identity_local: &'static #nc::NcInterfaceId) -> #vtable_ident {
                 #vtable_ident {
                     #prefix_value
                     #(#vtable_entries,)*
@@ -682,6 +707,7 @@ pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, meth
 
             #(#thunks)*
         }
+        };
     };
     Ok(InterfaceExpansion { abi, provider })
 }
@@ -711,7 +737,14 @@ pub(crate) fn validate_callable_methods(input: &ItemTrait, methods: &[AbiMethod]
 /// `ComPtr` and `ComRef` both dereference to the client view containing this
 /// body. Derived client views also dereference to their base client, so one
 /// emitted implementation serves owned, borrowed, and inherited calls.
-fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::TokenStream {
+fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod, names: &mut PrivateNames) -> proc_macro2::TokenStream {
+    // Private locals cannot capture authored const expressions in value types.
+    let value_local = names.binding("__nc_value");
+    let this_local = names.binding("__nc_this");
+    let status_local = names.binding("__nc_status");
+    let result_local = names.binding("__nc_result");
+    let prepared_local = names.binding("__nc_prepared");
+    let output_local = names.binding("__nc_out");
     let method_ident = &method.ident;
     let args = method.args.iter().map(|arg| {
         let ident = &arg.binding;
@@ -755,7 +788,7 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
             let ident = &arg.binding;
             let slot = owner_slot_ident(ident);
             quote! {
-                match status.is_ok() {
+                match #status_local.is_ok() {
                     true => ::core::assert!(#slot.is_null(), "successful COM call did not consume its owner"),
                     false => ::core::assert!(#slot.object == #ident.as_raw().object && #slot.vtable == #ident.as_raw().vtable,
                         "rejected COM call did not return its original owner"),
@@ -788,21 +821,21 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
                     #(#arg_preparations)*
                     ::core::result::Result::Ok::<_, #nc::NcStatus>((#(#prepared,)*))
                 })() {
-                    ::core::result::Result::Ok(prepared) => prepared,
-                    ::core::result::Result::Err(status) => return ::core::result::Result::Err((status, #(#owner_names),*)),
+                    ::core::result::Result::Ok(#prepared_local) => #prepared_local,
+                    ::core::result::Result::Err(#status_local) => return ::core::result::Result::Err((#status_local, #(#owner_names),*)),
                 };
                 #(#owner_setup)*
             }
         }
     };
     let rejection = match has_owners {
-        false => quote! { status },
+        false => quote! { #status_local },
         true => {
             let recover = owners.iter().map(|arg| {
                 let ident = &arg.binding;
                 quote! { ::core::mem::ManuallyDrop::into_inner(#ident) }
             });
-            quote! { (status, #(#recover),*) }
+            quote! { (#status_local, #(#recover),*) }
         }
     };
     // Malformed output after a successful ownership commit is a provider
@@ -811,7 +844,7 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
         false => quote! { ? },
         true => quote! { .expect("invalid output after COM ownership commit") },
     };
-    let arg_names = method.args.iter().flat_map(safe_vtable_call_args).collect::<Vec<_>>();
+    let arg_names = method.args.iter().flat_map(|arg| safe_vtable_call_args(arg, &value_local)).collect::<Vec<_>>();
     let buffer_acquisition = method
         .args
         .iter()
@@ -844,16 +877,16 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
             let abi_ret = &method.ok.abi_ty;
             let decode = match kind {
                 AbiReturnKind::Plain => quote! {
-                    (unsafe { #nc::decode_inline::<#rust_ret>(__nc_out.assume_init()) }) #acquire
+                    (unsafe { #nc::decode_inline::<#rust_ret>(#output_local.assume_init()) }) #acquire
                 },
                 AbiReturnKind::ComPtr { .. } => quote! {
-                    (unsafe { <#rust_ret>::__nc_from_raw_owned_checked(__nc_out.assume_init()) }) #acquire
+                    (unsafe { <#rust_ret>::__nc_from_raw_owned_checked(#output_local.assume_init()) }) #acquire
                 },
                 AbiReturnKind::Void => unreachable!(),
             };
             (
-                quote! { let mut __nc_out = ::core::mem::MaybeUninit::<#abi_ret>::uninit(); },
-                quote! { __nc_out.as_mut_ptr(), },
+                quote! { let mut #output_local = ::core::mem::MaybeUninit::<#abi_ret>::uninit(); },
+                quote! { #output_local.as_mut_ptr(), },
                 decode,
             )
         }
@@ -861,22 +894,22 @@ fn safe_client_method_body(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::T
     let body = quote! {
         #preparation
         #output_storage
-        let this = self.__nc_pointer.as_raw();
+        let #this_local = self.__nc_pointer.as_raw();
         // SAFETY: this view borrows retained interface storage. Prepared input
         // buffers, owner slots and optional output storage remain live for the
         // synchronous call. The provider validates its own object admission.
-        let status = unsafe {
-            ((*this.vtable).#method_ident)(this.object, #(#arg_names,)* #output_argument)
+        let #status_local = unsafe {
+            ((*#this_local.vtable).#method_ident)(#this_local.object, #(#arg_names,)* #output_argument)
         };
         #(#owner_checks)*
-        if status.is_err() { return ::core::result::Result::Err(#rejection); }
+        if #status_local.is_err() { return ::core::result::Result::Err(#rejection); }
         // ABI success promises initialized output. Acquire owned results before
         // validating mutable buffers so a buffer error cannot leak that result.
-        let result = #success;
+        let #result_local = #success;
         #(#buffer_acquisition)*
         // Publish only after all converted outputs, including the result, validated.
         #(#buffer_publication)*
-        ::core::result::Result::Ok(result)
+        ::core::result::Result::Ok(#result_local)
     };
     quote! {
         fn #method_ident (#receiver, #(#args),*) -> ::core::result::Result<#rust_ret, #error_type> {
@@ -904,24 +937,6 @@ fn safe_receiver(receiver: AbiReceiver) -> proc_macro2::TokenStream {
     match receiver {
         AbiReceiver::Shared => quote! { &self },
         AbiReceiver::Mutable => quote! { &mut self },
-    }
-}
-
-/// Emits private parameter and return descriptor constants for one method.
-fn method_abi_descriptor_consts(nc: &syn::Path, index: usize, method: &AbiMethod) -> proc_macro2::TokenStream {
-    let params_ident = method_params_const_ident(index);
-    let return_ident = method_return_const_ident(index);
-    let params = method.args.iter().map(|arg| method_param_descriptor(nc, arg));
-    let param_count = method.args.len();
-    let returns = method_return_descriptor(nc, method);
-    quote! {
-        #[doc(hidden)]
-        pub const #params_ident: [#nc::NcMethodParamDescriptor; #param_count] = [
-            #(#params,)*
-        ];
-
-        #[doc(hidden)]
-        pub const #return_ident: #nc::NcMethodReturnDescriptor = #returns;
     }
 }
 
@@ -1066,16 +1081,6 @@ fn return_type_descriptor(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::To
     }
 }
 
-/// Builds the private parameter-array constant name for a method index.
-fn method_params_const_ident(index: usize) -> syn::Ident {
-    format_ident!("__NC_METHOD_{index}_PARAMS")
-}
-
-/// Builds the private return-descriptor constant name for a method index.
-fn method_return_const_ident(index: usize) -> syn::Ident {
-    format_ident!("__NC_METHOD_{index}_RETURN")
-}
-
 /// Expands one logical argument into its raw vtable parameter list.
 fn raw_vtable_arg_params(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.binding;
@@ -1132,7 +1137,7 @@ fn safe_arg_preparation(nc: &syn::Path, arg: &crate::model::AbiArg) -> Option<pr
 }
 
 /// Emits the raw values passed for one source-level safe argument.
-fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenStream> {
+fn safe_vtable_call_args(arg: &crate::model::AbiArg, value_local: &syn::Ident) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.binding;
     match &arg.kind {
         AbiArgKind::ComBox { .. } => {
@@ -1141,7 +1146,7 @@ fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
         }
         AbiArgKind::BorrowedValue { .. } => vec![quote! { #ident.as_ptr() }],
         AbiArgKind::Plain => vec![quote! { #ident }],
-        AbiArgKind::ComRef { optional: true, .. } => vec![quote! { #ident.map_or(::core::default::Default::default(), |value| value.as_raw()) }],
+        AbiArgKind::ComRef { optional: true, .. } => vec![quote! { #ident.map_or(::core::default::Default::default(), |#value_local| #value_local.as_raw()) }],
         AbiArgKind::ComRef { optional: false, .. } => vec![quote! { #ident.as_raw() }],
         AbiArgKind::CopyFromBufferOffset { .. } => vec![quote! { #ident.offset() }, quote! { #ident.len() }, quote! { #ident.as_ptr() }],
         AbiArgKind::OutputBuffer { .. } => vec![
@@ -1202,10 +1207,10 @@ fn threading_mode_expr(nc: &syn::Path, mode_ty: Option<&syn::Type>) -> proc_macr
 }
 
 /// Preserves a base's module path while selecting one generated companion type.
-fn generated_path(path: &syn::Path, suffix: &str) -> syn::Path {
+fn generated_path(path: &syn::Path, companion: Companion) -> syn::Path {
     let mut generated = path.clone();
     let last = generated.segments.last_mut().expect("trait paths have a final segment");
-    last.ident = format_ident!("{}{suffix}", last.ident);
+    last.ident = interface_companion_ident(&last.ident, companion);
     generated
 }
 

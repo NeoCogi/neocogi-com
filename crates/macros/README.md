@@ -137,6 +137,13 @@ Use `<Value as neocogi_com::ComValue>::Wire` or `::Storage` for explicit raw-slo
 integration; private sibling helper spellings are no longer generated APIs.
 Codec proofs and conversions select their trait explicitly, independently of
 same-named application methods/constants. Signature literals need no sibling static.
+Provider/client generics and executable bindings are allocated against authored
+syntax. Anonymous implementation scopes protect pattern lookup from ambient
+constants even after printing. Plugin helper items stay behind `plugin_descriptor()`;
+object tables live directly in `ComObject::VTABLES`. Intentional public companion
+and dense-enum names share one core admission/emission policy.
+Private lexical field projections preserve application `Self`, opaque type macros
+and private native fields; no public field-resolution API is added.
 
 Executable package tests own their fixtures and ask Cargo for the actual core
 and facade package locations. They also run against extracted SDK archives;

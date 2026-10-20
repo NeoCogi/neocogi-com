@@ -35,6 +35,8 @@ mod buffer;
 mod client;
 mod method_names;
 pub use method_names::{NC_COM_HANDLE_METHOD_NAMES, is_reserved_com_method};
+mod generated_names;
+pub use generated_names::{NcComDenseEnumMember, NcComInterfaceCompanion};
 mod data;
 mod decode;
 mod encode;
@@ -101,8 +103,7 @@ pub use metadata::{
     validate_version_text,
 };
 pub use object::{
-    __nc_find_interface, __ComSupportsInterfaceThreading, ComInterface,
-    IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
+    __nc_find_interface, __ComSupportsInterfaceThreading, ComInterface, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown, IUnknownVTable,
 };
 pub use raw_handle::ComRaw;
 pub use ptr::{ComPtr, ComRef, ThreadLocal, ThreadSafe, ThreadingModel, raw};
@@ -120,8 +121,8 @@ pub use status::{
 #[doc(hidden)]
 pub use metadata::{__ComProjection, __nc_interface_chain, __nc_object_interface_count, __nc_projection_table, __nc_projection_vtables};
 pub use plugin_descriptor::{
-    NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAcquirePluginFactory, NcPluginDescriptor, NcGetPluginDescriptor,
-    PluginRootAcquire, write_plugin_root, return_plugin_descriptor, validate_plugin_descriptor,
+    NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAcquirePluginFactory, NcPluginDescriptor, NcGetPluginDescriptor, PluginRootAcquire,
+    write_plugin_root, return_plugin_descriptor, validate_plugin_descriptor,
 };
 
 pub use value_buffer::{EncodedInput, DecodedInput};

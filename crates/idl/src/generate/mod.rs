@@ -3,11 +3,12 @@
 use std::fmt;
 
 use crate::{
-    AbiType, Declaration, DeclarationKind, EnumNames, EnumRepr, Method, NamedType, Receiver, ResolvedDeclaration, ResolvedModule,
-    ResolvedModules, Threading, VariantFields,
+    AbiType, Declaration, DeclarationKind, EnumNames, EnumRepr, Method, NamedType, Receiver, ResolvedDeclaration, ResolvedModule, ResolvedModules, Threading,
+    VariantFields,
 };
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote;
+use neocogi_com_core::{NcComDenseEnumMember as DenseMember, NcComInterfaceCompanion};
 
 mod events;
 mod mapping;
@@ -113,8 +114,7 @@ fn generate_module(graph: &Generation<'_>, module_name: &str) -> Result<crate::G
         .declarations
         .iter()
         .enumerate()
-        .map(|(index, declaration)| generate_declaration(graph, module, declaration, index)
-        )
+        .map(|(index, declaration)| generate_declaration(graph, module, declaration, index))
         .collect::<Result<Vec<_>, _>>()?;
     let module_id = guid_literal(module.module_id);
     let fingerprint = module.abi_fingerprint.iter().copied();
@@ -171,8 +171,9 @@ fn generate_design_metadata(graph: &Generation<'_>, module: &ResolvedModule) -> 
             });
         }
         if let DeclarationKind::Interface(_) = &declaration.kind {
-            let abi = rust_ident(&format!("{}Abi", declaration.name))?;
-            let rust_abi = Literal::string(&public_rust_path(graph, module, &format!("{}Abi", declaration.name))?);
+            let abi_name = format!("{}{}", declaration.name, NcComInterfaceCompanion::Abi.suffix());
+            let abi = rust_ident(&abi_name)?;
+            let rust_abi = Literal::string(&public_rust_path(graph, module, &abi_name)?);
             let events = events::descriptions(graph, module, declaration)?;
             let values = interface_value_metadata(graph, module, declaration)?;
             descriptions.push(quote! {
@@ -277,7 +278,9 @@ fn design_field_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiTy
             })
         }
         AbiType::WeakComPtr(value) | AbiType::WeakComBox(value) => {
-            let AbiType::Named(name) = value.as_ref() else { return Err(GenerateError::new("weak target is not a contract")); };
+            let AbiType::Named(name) = value.as_ref() else {
+                return Err(GenerateError::new("weak target is not a contract"));
+            };
             let qualified = match builtin_object_type(name) {
                 Some(_) => name.segments.join("."),
                 None => resolve(graph, module, name)?.identity.qualified_name.clone(),
@@ -287,8 +290,7 @@ fn design_field_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiTy
                 _ => quote! { ::neocogi_com::design::IdlValueType::WeakBoxObject(#qualified) },
             })
         }
-        AbiType::ComPtr(value) | AbiType::ComBox(value) => design_field_type(graph, module, value)
-        ,
+        AbiType::ComPtr(value) | AbiType::ComBox(value) => design_field_type(graph, module, value),
         AbiType::Vector(value) => {
             let value = design_field_type(graph, module, value)?;
             Ok(quote! { ::neocogi_com::design::IdlValueType::Sequence(&#value) })
@@ -342,7 +344,10 @@ fn interface_value_metadata(graph: &Generation<'_>, module: &ResolvedModule, dec
                     data(&value.identity.qualified_name, graph, names);
                 }
             }
-            AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
+            AbiType::ComPtr(value)
+            | AbiType::WeakComPtr(value)
+            | AbiType::ComBox(value)
+            | AbiType::WeakComBox(value)
             | AbiType::Borrowed(value)
             | AbiType::Vector(value)
             | AbiType::UnsizedSlice(value)
@@ -455,7 +460,7 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
             format_rust(quote! {
                 #com_struct
                 #serialize
-                #[derive(Debug, PartialEq)]
+                #[derive(::core::fmt::Debug, ::core::cmp::PartialEq)]
                 #declaration_docs
                 pub struct #name { #(#fields)* }
             })
@@ -470,6 +475,10 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
                 .collect::<Result<Vec<_>, _>>()?;
             let dense_members = if enumeration.dense {
                 let count = enumeration.variants.len();
+                let count_member = rust_ident(DenseMember::Count.name())?;
+                let all_member = rust_ident(DenseMember::All.name())?;
+                let names_member = rust_ident(DenseMember::Names.name())?;
+                let canonical_member = rust_ident(DenseMember::CanonicalName.name())?;
                 let canonical_members = match enumeration.names {
                     Some(EnumNames::SnakeCase) => {
                         let names = enumeration
@@ -479,12 +488,12 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
                             .collect::<Vec<_>>();
                         quote! {
                             /// Canonical names corresponding exactly to [`Self::ALL`].
-                            pub const NAMES: [&'static str; Self::COUNT] = [#(#names),*];
+                            pub const #names_member: [&'static str; Self::#count_member] = [#(#names),*];
 
                             /// Returns the canonical name, or `None` for an unknown ABI value.
-                            pub const fn canonical_name(self) -> ::core::option::Option<&'static str> {
+                            pub const fn #canonical_member(self) -> ::core::option::Option<&'static str> {
                                 let ordinal = self.raw() as usize;
-                                if ordinal < Self::COUNT { ::core::option::Option::Some(Self::NAMES[ordinal]) } else { ::core::option::Option::None }
+                                if ordinal < Self::#count_member { ::core::option::Option::Some(Self::#names_member[ordinal]) } else { ::core::option::Option::None }
                             }
                         }
                     }
@@ -493,10 +502,10 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
                 quote! {
                     impl #name {
                         /// Number of declared values in this dense IDL domain.
-                        pub const COUNT: usize = #count;
+                        pub const #count_member: usize = #count;
 
                         /// Every declared value in its zero-based discriminant order.
-                        pub const ALL: [Self; Self::COUNT] = [#(Self::#value_names),*];
+                        pub const #all_member: [Self; Self::#count_member] = [#(Self::#value_names),*];
 
                         #canonical_members
                     }
@@ -554,7 +563,7 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
                 format_rust(quote! {
                     #[::neocogi_com::com_enum(tag = #repr, assigned_signature = #assigned_signature #deserialize)]
                     #serialize
-                    #[derive(Clone, Copy, Debug, PartialEq)]
+                    #[derive(::core::clone::Clone, ::core::marker::Copy, ::core::fmt::Debug, ::core::cmp::PartialEq)]
                     #declaration_docs
                     pub enum #name { #(#variants)* }
                 })
@@ -593,15 +602,15 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
             let methods = interface_methods(graph, module, &interface.methods)?;
             let threading = threading_ident(interface.threading);
             format_rust(quote! {
-                #[::neocogi_com::com_interface(
-                    assigned_guid = #id,
-                    name = #qualified_name,
-                    threading = #threading,
-                    assigned_signature = #assigned_signature
-                )]
-                #declaration_docs
-                pub trait #name #bases { #(#methods)* }
-                })
+            #[::neocogi_com::com_interface(
+                assigned_guid = #id,
+                name = #qualified_name,
+                threading = #threading,
+                assigned_signature = #assigned_signature
+            )]
+            #declaration_docs
+            pub trait #name #bases { #(#methods)* }
+            })
         }
     }
 }
@@ -722,7 +731,10 @@ fn interface_methods(graph: &Generation<'_>, module: &ResolvedModule, values: &[
             // Owning arguments are transactional: failure returns the
             // original owners in declaration order, through ordinary Rust
             // values. Only the status and restored C slots cross COM.
-            let owners = method.parameters.iter().filter(|parameter| matches!(parameter.ty, AbiType::ComBox(_)))
+            let owners = method
+                .parameters
+                .iter()
+                .filter(|parameter| matches!(parameter.ty, AbiType::ComBox(_)))
                 .map(|parameter| parameter_type(graph, module, &parameter.ty))
                 .collect::<Result<Vec<_>, _>>()?;
             let error = match owners.is_empty() {
@@ -795,7 +807,13 @@ fn parameter_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType)
             Ok(quote! { ::neocogi_com::NcOutputWriter<'_, #element> })
         }
         AbiType::ComBox(_) => owned_object_type(graph, module, ty),
-        AbiType::WeakComBox(_) | AbiType::WeakComPtr(_) | AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => Err(GenerateError::new(
+        AbiType::WeakComBox(_)
+        | AbiType::WeakComPtr(_)
+        | AbiType::ComPtr(_)
+        | AbiType::Unit
+        | AbiType::String
+        | AbiType::Vector(_)
+        | AbiType::UnsizedSlice(_) => Err(GenerateError::new(
             "unit, owned collections/text, and unborrowed slices are not valid method inputs",
         )),
     }
@@ -852,11 +870,13 @@ fn resolve<'a>(graph: &Generation<'a>, module: &ResolvedModule, name: &NamedType
 fn named_rust_type(graph: &Generation<'_>, module: &ResolvedModule, resolved: ResolvedDeclaration<'_>, abi_suffix: bool) -> Result<TokenStream, GenerateError> {
     let mut name = resolved.declaration.name.clone();
     if abi_suffix && matches!(resolved.declaration.kind, DeclarationKind::Interface(_)) {
-        name.push_str("Abi");
+        name.push_str(NcComInterfaceCompanion::Abi.suffix());
     }
     let name = rust_ident(&name)?;
     if resolved.module.source.name == module.source.name {
-        Ok(quote! { #name })
+        // Generation owns this module location; local references cannot become
+        // private generic binders introduced by a subsequent macro expansion.
+        Ok(quote! { self::#name })
     } else {
         let crate_ident = graph.paths.dependency_path(&resolved.module.source.name.to_string())?;
         Ok(quote! { #crate_ident::#name })
@@ -966,7 +986,9 @@ fn owned_object_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiTy
         AbiType::WeakComBox(target) => (target, "WeakComBox"),
         _ => return Err(GenerateError::new("resolved type is not an object ownership wrapper")),
     };
-    let AbiType::Named(name) = target.as_ref() else { return Err(GenerateError::new("object target is not a contract")); };
+    let AbiType::Named(name) = target.as_ref() else {
+        return Err(GenerateError::new("object target is not a contract"));
+    };
     let shared = object_reference_type(graph, module, name, true)?;
     let mut ty: syn::TypePath = syn::parse2(shared).map_err(|error| GenerateError::new(error.to_string()))?;
     let segment = ty.path.segments.last_mut().expect("generated object wrapper");

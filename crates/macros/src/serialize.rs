@@ -1,9 +1,9 @@
 //! Static serialization generation for explicitly selected persistent values.
 
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::{Data, DeriveInput, Fields, Result};
-use crate::util::validate_no_generics;
+use crate::util::{PrivateNames, validate_no_generics};
 
 /// Generates field-by-field writes, never ABI-offset inspection or type erasure.
 pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
@@ -11,6 +11,8 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     let name = &input.ident;
     let nc: syn::Path = syn::parse_quote!(::neocogi_com);
     let options = crate::deserialize::parse_options(&input.attrs)?;
+    let mut names = PrivateNames::new(quote! { #input #nc });
+    let serializer = names.binding("__nc_serializer");
     let body = match &input.data {
         Data::Struct(data) => {
             let values = data
@@ -26,7 +28,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
                     quote! { &self.#member }
                 })
                 .collect::<Vec<_>>();
-            fields(&data.fields, &values, &nc)
+            fields(&data.fields, &values, &nc, &serializer)
         }
         Data::Enum(data) => {
             if options.default {
@@ -36,7 +38,12 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
             for (index, variant) in data.variants.iter().enumerate() {
                 let index = index as u32;
                 let ident = &variant.ident;
-                let bindings = variant.fields.iter().enumerate().map(|(i, _)| format_ident!("__field_{i}")).collect::<Vec<_>>();
+                let bindings = variant
+                    .fields
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| names.binding(&format!("__nc_field_{i}")))
+                    .collect::<Vec<_>>();
                 let pattern = match &variant.fields {
                     Fields::Unit => quote! { Self::#ident },
                     Fields::Unnamed(_) => quote! { Self::#ident(#(#bindings),*) },
@@ -53,40 +60,44 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
                     Fields::Unit => quote! {},
                     Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
                         let field = &values[0];
-                        quote! { #nc::ComSerialize::com_serialize(#field, serializer)?; }
+                        quote! { #nc::ComSerialize::com_serialize(#field, #serializer)?; }
                     }
-                    _ => fields(&variant.fields, &values, &nc),
+                    _ => fields(&variant.fields, &values, &nc, &serializer),
                 };
                 arms.push(quote! { #pattern => {
-                    serializer.begin_variant(#index)?;
+                    #serializer.begin_variant(#index)?;
                     #payload
-                    serializer.end_variant()?;
+                    #serializer.end_variant()?;
                 } });
             }
             quote! { match self { #(#arms),* } }
         }
         Data::Union(_) => return Err(syn::Error::new_spanned(name, "unions require an explicit persistent representation")),
     };
+    let binding_imports = names.binding_imports();
     Ok(quote! {
+        const _: () = {
+        #binding_imports
         impl #nc::ComSerialize for #name {
             /// Emits the declared persistent members without native memory layout.
-            fn com_serialize(&self, serializer: &mut #nc::binary::Writer<'_>) -> ::core::result::Result<(), #nc::binary::Error> {
+            fn com_serialize(&self, #serializer: &mut #nc::binary::Writer<'_>) -> ::core::result::Result<(), #nc::binary::Error> {
                 #body
                 ::core::result::Result::Ok(())
             }
         }
+        };
     })
 }
 
 /// Emits ordered record or tuple members through the same counted NCB representation.
-fn fields(fields: &Fields, values: &[TokenStream], nc: &syn::Path) -> TokenStream {
+fn fields(fields: &Fields, values: &[TokenStream], nc: &syn::Path, serializer: &syn::Ident) -> TokenStream {
     let len = values.len();
     match fields {
-        Fields::Unit => quote! { serializer.serialize_unit()?; },
+        Fields::Unit => quote! { #serializer.serialize_unit()?; },
         _ => quote! {
-            serializer.begin_sequence(#len)?;
-            #(#nc::ComSerialize::com_serialize(#values, serializer)?;)*
-            serializer.end_sequence()?;
+            #serializer.begin_sequence(#len)?;
+            #(#nc::ComSerialize::com_serialize(#values, #serializer)?;)*
+            #serializer.end_sequence()?;
         },
     }
 }

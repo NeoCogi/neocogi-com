@@ -10,7 +10,12 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
 /// Any payload forbids assignments throughout the enum, including unused templates.
 #[test]
 fn payload_enum_tags_are_compiler_owned_for_every_variant_shape() {
-    for body in ["Empty = 0, Value(T)", "Empty, Value(T) = 1", "Value { data: T } = 3", "Empty = 4, Zero(())", "Zero { value: () } = 0",
+    for body in [
+        "Empty = 0, Value(T)",
+        "Empty, Value(T) = 1",
+        "Value { data: T } = 3",
+        "Empty = 4, Zero(())",
+        "Zero { value: () } = 0",
     ] {
         for parameters in ["", "<T>"] {
             let body = if parameters.is_empty() { body.replace("T", "u32") } else { body.into() };
@@ -613,4 +618,32 @@ fn rejects_generated_rust_name_collisions_before_emission() {
     let error = resolve_modules(vec![origin, consumer]).unwrap_err().to_string();
     assert!(error.contains("error[EIDL021]"), "{error}");
     assert!(error.contains("IFooAbi"), "{error}");
+}
+
+/// Only actually emitted public dense members reserve authored variant spellings.
+#[test]
+fn dense_member_conflicts_are_source_aware_and_policy_specific() {
+    for generic in ["", "<T>"] {
+        for name in ["COUNT", "ALL", "NAMES"] {
+            for named in [false, true] {
+                let policy = if named { "#[names(snake_case)]" } else { "" };
+                let source = format!("#[version(1)] #[dense] {policy} enum Choice{generic}: u8 {{ {name} = 0, Ready = 1 }}");
+                let result = resolve_modules(vec![module("proof/dense.ncidl", &source)]);
+                if name == "NAMES" && !named {
+                    result.unwrap();
+                } else {
+                    let error = result.unwrap_err().to_string();
+                    assert!(error.contains("error[EIDL021]"), "{source}: {error}");
+                    assert!(error.contains("proof/dense.ncidl") && error.contains(name), "{error}");
+                    assert!(error.contains("public dense-enum API"), "{error}");
+                }
+            }
+        }
+    }
+    // An ordinary integer enum has no dense helpers and keeps all three names.
+    resolve_modules(vec![module(
+        "proof/plain.ncidl",
+        "#[version(1)] enum Choice: u8 { COUNT = 0, ALL = 1, NAMES = 2 }",
+    )])
+    .unwrap();
 }

@@ -46,8 +46,23 @@ fn generated_interface_and_enum_names_keep_their_authored_identifier_spans() {
                     .unwrap();
                 let args = item.attrs.remove(index).parse_args().unwrap();
                 let expanded = crate::interface::expand_com_interface(args, item).unwrap();
-                for name in ["CounterAbi", "CounterVTable", "CounterVtblFor", "CounterClient"] {
-                    assert_origin(expanded.clone(), name, expected);
+                let actual = syn::parse2::<syn::File>(expanded.clone())
+                    .unwrap()
+                    .items
+                    .into_iter()
+                    .filter_map(|item| match item {
+                        syn::Item::Struct(item) => Some(item.ident.to_string()),
+                        syn::Item::Enum(item) => Some(item.ident.to_string()),
+                        _ => None,
+                    })
+                    .collect::<std::collections::BTreeSet<_>>();
+                let public = neocogi_com_core::NcComInterfaceCompanion::ALL
+                    .into_iter()
+                    .map(|companion| format!("Counter{}", companion.suffix()))
+                    .collect::<std::collections::BTreeSet<_>>();
+                assert_eq!(actual, public, "public emission and collision admission must have one inventory");
+                for name in public {
+                    assert_origin(expanded.clone(), &name, expected);
                 }
                 verified += 1;
             }

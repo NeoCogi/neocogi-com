@@ -211,6 +211,10 @@ mod tests {
         fn flags(&self, value: super::shadow::Flags) -> Result<u8, NcStatus> {
             Ok(value.raw())
         }
+        fn typed(&self, input: super::shadow::T, other: super::shadow::M) -> Result<super::shadow::T, NcStatus> {
+            assert_eq!(other.value, 91);
+            Ok(input)
+        }
     }
 
     #[test]
@@ -225,6 +229,7 @@ mod tests {
         assert_eq!(flags, super::shadow::Flags::KNOWN_BITS);
         assert_eq!(shadow.flags(flags).unwrap(), 3);
         assert_eq!(shadow.flags(super::shadow::Flags::from_raw(4)), Err(NC_E_INVALID_TAG));
+        assert_eq!(shadow.typed(super::shadow::T { value: 73 }, super::shadow::M { value: 91 }).unwrap().value, 73);
         assert_eq!(NcValueRef::new(&flags).unwrap().to_owned().unwrap(), flags);
         assert_eq!(super::shadow::State::Ready.canonical_name(), Some("ready"));
         assert_eq!(super::shadow::State::from_raw(255).canonical_name(), None);

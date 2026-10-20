@@ -14,11 +14,11 @@ note: required because it appears within the type `Generic<Rc<u32>>`
  7 |     state: T,
    |     ^^^^^^^^ required by this field
    = note: required for `Generic<Rc<u32>>` to implement `neocogi_com::__ComSupportsInterfaceThreading<neocogi_com::ThreadSafe>`
-note: required by a bound in `Generic::<T>::from_value`
+note: required by a bound in `_::<impl Generic<T>>::from_value`
   --> integration-tests/ui/object_generic_threading.rs:5:1
    |
  5 | #[com_object(interfaces(), thread_safe)]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Generic::<T>::from_value`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `_::<impl Generic<T>>::from_value`
    = note: this error originates in the attribute macro `com_object` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: `Rc<u32>` cannot be sent between threads safely

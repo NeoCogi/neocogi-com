@@ -22,6 +22,7 @@ quote.workspace = true
 syn.workspace = true
 
 [dev-dependencies]
+syn = { workspace = true, features = ["visit"] }
 neocogi-idl.workspace = true
 prettyplease.workspace = true
 tempfile.workspace = true

@@ -56,7 +56,7 @@ pub struct IObjectChildrenVTable {
         "`."
     )]
     pub count: unsafe extern "C" fn(
-        this: *mut ::core::ffi::c_void,
+        __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut <u32 as crate::ComValue>::Wire,
     ) -> crate::NcStatus,
     #[doc = concat!(
@@ -78,7 +78,7 @@ pub struct IObjectChildrenVTable {
         "` object/table pair transferred to the caller."
     )]
     pub get: unsafe extern "C" fn(
-        this: *mut ::core::ffi::c_void,
+        __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0: <u32 as crate::ComValue>::Wire,
         __nc_out: *mut crate::ComRaw<crate::IUnknown>,
     ) -> crate::NcStatus,
@@ -106,130 +106,152 @@ unsafe impl crate::ComInterface for IObjectChildrenAbi {
 #[doc = ::core::concat!(
     "Borrowed static method view for [`", ::core::stringify!(IObjectChildren), "`]."
 )]
-pub struct IObjectChildrenClient<M: crate::ThreadingModel = crate::ThreadLocal> {
+pub struct IObjectChildrenClient<
+    __NcThreading: crate::ThreadingModel = crate::ThreadLocal,
+> {
     /// Certified transparent storage supplied only by a live COM pointer borrow.
-    __nc_pointer: crate::NcClientPointer<IObjectChildrenAbi, M>,
+    __nc_pointer: crate::NcClientPointer<IObjectChildrenAbi, __NcThreading>,
 }
 unsafe impl crate::ComClientInterface for IObjectChildrenAbi {
-    type Client<M: crate::ThreadingModel> = IObjectChildrenClient<M>;
+    type Client<__NcThreading: crate::ThreadingModel> = IObjectChildrenClient<
+        __NcThreading,
+    >;
 }
-impl<M: crate::ThreadingModel> IObjectChildrenClient<M> {
-    /// Returns the number of fully initialized child objects.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:5:8` (module `neocogi.com.persistence`).
-    ///
-    #[doc = concat!(
-        "Calls [`", stringify!(IObjectChildren), "::", stringify!(count),
-        "`] through the generated COM ABI vtable."
-    )]
-    ///
-    ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-    ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-    #[doc = concat!(
-        "On success, returns `", stringify!(u32), "` from the ABI out slot."
-    )]
-    pub fn count(&self) -> ::core::result::Result<u32, crate::NcStatus> {
-        let mut __nc_out = ::core::mem::MaybeUninit::<
-            <u32 as crate::ComValue>::Wire,
-        >::uninit();
-        let this = self.__nc_pointer.as_raw();
-        let status = unsafe {
-            ((*this.vtable).count)(this.object, __nc_out.as_mut_ptr())
-        };
-        if status.is_err() {
-            return ::core::result::Result::Err(status);
+const _: () = {
+    #[allow(unused_imports)]
+    use ::core::convert::{
+        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
+        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
+        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
+        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
+        identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
+        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
+        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_identity, identity as __nc_value_0, identity as __nc_this_0,
+        identity as __nc_status_0, identity as __nc_result_0, identity as __nc_prepared,
+        identity as __nc_out_0, identity as __nc_value_1, identity as __nc_this_1,
+        identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_prepared_0, identity as __nc_out_1,
+    };
+    impl<__NcThreading: crate::ThreadingModel> IObjectChildrenClient<__NcThreading> {
+        /// Returns the number of fully initialized child objects.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:5:8` (module `neocogi.com.persistence`).
+        ///
+        #[doc = concat!(
+            "Calls [`", stringify!(IObjectChildren), "::", stringify!(count),
+            "`] through the generated COM ABI vtable."
+        )]
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        #[doc = concat!(
+            "On success, returns `", stringify!(u32), "` from the ABI out slot."
+        )]
+        pub fn count(&self) -> ::core::result::Result<u32, crate::NcStatus> {
+            let mut __nc_out_0 = ::core::mem::MaybeUninit::<
+                <u32 as crate::ComValue>::Wire,
+            >::uninit();
+            let __nc_this_0 = self.__nc_pointer.as_raw();
+            let __nc_status_0 = unsafe {
+                ((*__nc_this_0.vtable)
+                    .count)(__nc_this_0.object, __nc_out_0.as_mut_ptr())
+            };
+            if __nc_status_0.is_err() {
+                return ::core::result::Result::Err(__nc_status_0);
+            }
+            let __nc_result_0 = (unsafe {
+                crate::decode_inline::<u32>(__nc_out_0.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_0)
         }
-        let result = (unsafe { crate::decode_inline::<u32>(__nc_out.assume_init()) })?;
-        ::core::result::Result::Ok(result)
-    }
-    /// Returns an owned reference; indices must be less than count.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:7:8` (module `neocogi.com.persistence`).
-    ///
-    #[doc = concat!(
-        "Calls [`", stringify!(IObjectChildren), "::", stringify!(get),
-        "`] through the generated COM ABI vtable."
-    )]
-    ///
-    ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-    ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-    #[doc = concat!(
-        "- `", stringify!(index), "` is passed by value as `", stringify!(u32), "`."
-    )]
-    #[doc = concat!(
-        "On success, adopts the owned `", stringify!(crate ::IUnknown),
-        "` interface pointer returned through `out` as `", stringify!(crate ::ComPtr <
-        crate ::IUnknown >), "`."
-    )]
-    pub fn get(
-        &self,
-        __nc_arg_0: u32,
-    ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
-        let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
-        let mut __nc_out = ::core::mem::MaybeUninit::<
-            crate::ComRaw<crate::IUnknown>,
-        >::uninit();
-        let this = self.__nc_pointer.as_raw();
-        let status = unsafe {
-            ((*this.vtable).get)(this.object, __nc_arg_0, __nc_out.as_mut_ptr())
-        };
-        if status.is_err() {
-            return ::core::result::Result::Err(status);
+        /// Returns an owned reference; indices must be less than count.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:7:8` (module `neocogi.com.persistence`).
+        ///
+        #[doc = concat!(
+            "Calls [`", stringify!(IObjectChildren), "::", stringify!(get),
+            "`] through the generated COM ABI vtable."
+        )]
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        #[doc = concat!(
+            "- `", stringify!(index), "` is passed by value as `", stringify!(u32), "`."
+        )]
+        #[doc = concat!(
+            "On success, adopts the owned `", stringify!(crate ::IUnknown),
+            "` interface pointer returned through `out` as `", stringify!(crate ::ComPtr
+            < crate ::IUnknown >), "`."
+        )]
+        pub fn get(
+            &self,
+            __nc_arg_0: u32,
+        ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
+            let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
+            let mut __nc_out_1 = ::core::mem::MaybeUninit::<
+                crate::ComRaw<crate::IUnknown>,
+            >::uninit();
+            let __nc_this_1 = self.__nc_pointer.as_raw();
+            let __nc_status_1 = unsafe {
+                ((*__nc_this_1.vtable)
+                    .get)(__nc_this_1.object, __nc_arg_0, __nc_out_1.as_mut_ptr())
+            };
+            if __nc_status_1.is_err() {
+                return ::core::result::Result::Err(__nc_status_1);
+            }
+            let __nc_result_1 = (unsafe {
+                <crate::ComPtr<
+                    crate::IUnknown,
+                >>::__nc_from_raw_owned_checked(__nc_out_1.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_1)
         }
-        let result = (unsafe {
-            <crate::ComPtr<
-                crate::IUnknown,
-            >>::__nc_from_raw_owned_checked(__nc_out.assume_init())
-        })?;
-        ::core::result::Result::Ok(result)
     }
-}
+};
 impl IObjectChildrenAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiSignature = crate::NcAbiSignature::from_static(
         b"jo*\xC3\x1E>Ok\x0B\x97\x7F\x87\xBC\x96\x86\xDB\xF0\x11\x0C\xFE\x95\xCE\x98a\xFE \xFD\xE2H\x15\xFE\xD4",
     );
-    #[doc(hidden)]
-    pub const __NC_METHOD_0_PARAMS: [crate::NcMethodParamDescriptor; 0usize] = [];
-    #[doc(hidden)]
-    pub const __NC_METHOD_0_RETURN: crate::NcMethodReturnDescriptor = crate::NcMethodReturnDescriptor {
-        passing: crate::NcAbiPassingDescriptor::from_abi_passing(
-            crate::NcAbiPassing::Out,
-        ),
-        ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::__nc_abi_type::<u32>()),
-    };
-    #[doc(hidden)]
-    pub const __NC_METHOD_1_PARAMS: [crate::NcMethodParamDescriptor; 1usize] = [
-        crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static("index"),
-            passing: crate::NcAbiPassingDescriptor::from_abi_passing(
-                crate::NcAbiPassing::Value,
-            ),
-            ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::__nc_abi_type::<u32>()),
-        },
-    ];
-    #[doc(hidden)]
-    pub const __NC_METHOD_1_RETURN: crate::NcMethodReturnDescriptor = crate::NcMethodReturnDescriptor {
-        passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComPtrOut {
-            mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
-        }),
-        ty: crate::NcAbiTypeDescriptor::from_interface(
-            <crate::IUnknown as crate::ComInterface>::INTERFACE_ID,
-        ),
-    };
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
         crate::NcMethodDescriptor {
             name: crate::NcStaticUtf8::from_static("count"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: Self::__NC_METHOD_0_PARAMS.as_ptr(),
-            returns: Self::__NC_METHOD_0_RETURN,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
+                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<u32>(),
+                ),
+            },
         },
         crate::NcMethodDescriptor {
             name: crate::NcStaticUtf8::from_static("get"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 1u32,
-            params: Self::__NC_METHOD_1_PARAMS.as_ptr(),
-            returns: Self::__NC_METHOD_1_RETURN,
+            params: (&[
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("index"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<u32>(),
+                    ),
+                },
+            ] as &'static [crate::NcMethodParamDescriptor])
+                .as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComPtrOut {
+                    mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
+                }),
+                ty: crate::NcAbiTypeDescriptor::from_interface(
+                    <crate::IUnknown as crate::ComInterface>::INTERFACE_ID,
+                ),
+            },
         },
     ];
     ///Static ABI descriptor for this interface.
@@ -300,7 +322,7 @@ pub struct IPersistableVTable {
         ::Wire), "`."
     )]
     pub type_id: unsafe extern "C" fn(
-        this: *mut ::core::ffi::c_void,
+        __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut <crate::NcGuid as crate::ComValue>::Wire,
     ) -> crate::NcStatus,
     #[doc = concat!(
@@ -318,7 +340,7 @@ pub struct IPersistableVTable {
         "`."
     )]
     pub schema_version: unsafe extern "C" fn(
-        this: *mut ::core::ffi::c_void,
+        __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut <u32 as crate::ComValue>::Wire,
     ) -> crate::NcStatus,
     #[doc = concat!(
@@ -336,7 +358,7 @@ pub struct IPersistableVTable {
         "` object/table pair transferred to the caller."
     )]
     pub save_state: unsafe extern "C" fn(
-        this: *mut ::core::ffi::c_void,
+        __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut crate::ComRaw<crate::INcBytesAbi>,
     ) -> crate::NcStatus,
     #[doc = concat!(
@@ -354,7 +376,7 @@ pub struct IPersistableVTable {
         "`."
     )]
     pub child_count: unsafe extern "C" fn(
-        this: *mut ::core::ffi::c_void,
+        __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut <u32 as crate::ComValue>::Wire,
     ) -> crate::NcStatus,
     #[doc = concat!(
@@ -376,7 +398,7 @@ pub struct IPersistableVTable {
         "` object/table pair transferred to the caller."
     )]
     pub child: unsafe extern "C" fn(
-        this: *mut ::core::ffi::c_void,
+        __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0: <u32 as crate::ComValue>::Wire,
         __nc_out: *mut crate::ComRaw<crate::IUnknown>,
     ) -> crate::NcStatus,
@@ -404,273 +426,297 @@ unsafe impl crate::ComInterface for IPersistableAbi {
 #[doc = ::core::concat!(
     "Borrowed static method view for [`", ::core::stringify!(IPersistable), "`]."
 )]
-pub struct IPersistableClient<M: crate::ThreadingModel = crate::ThreadLocal> {
+pub struct IPersistableClient<
+    __NcThreading: crate::ThreadingModel = crate::ThreadLocal,
+> {
     /// Certified transparent storage supplied only by a live COM pointer borrow.
-    __nc_pointer: crate::NcClientPointer<IPersistableAbi, M>,
+    __nc_pointer: crate::NcClientPointer<IPersistableAbi, __NcThreading>,
 }
 unsafe impl crate::ComClientInterface for IPersistableAbi {
-    type Client<M: crate::ThreadingModel> = IPersistableClient<M>;
+    type Client<__NcThreading: crate::ThreadingModel> = IPersistableClient<
+        __NcThreading,
+    >;
 }
-impl<M: crate::ThreadingModel> IPersistableClient<M> {
-    /// Identifies the registered construction recipe, not this object instance.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8` (module `neocogi.com.persistence`).
-    ///
-    #[doc = concat!(
-        "Calls [`", stringify!(IPersistable), "::", stringify!(type_id),
-        "`] through the generated COM ABI vtable."
-    )]
-    ///
-    ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-    ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-    #[doc = concat!(
-        "On success, returns `", stringify!(crate ::NcGuid), "` from the ABI out slot."
-    )]
-    pub fn type_id(&self) -> ::core::result::Result<crate::NcGuid, crate::NcStatus> {
-        let mut __nc_out = ::core::mem::MaybeUninit::<
-            <crate::NcGuid as crate::ComValue>::Wire,
-        >::uninit();
-        let this = self.__nc_pointer.as_raw();
-        let status = unsafe {
-            ((*this.vtable).type_id)(this.object, __nc_out.as_mut_ptr())
-        };
-        if status.is_err() {
-            return ::core::result::Result::Err(status);
+const _: () = {
+    #[allow(unused_imports)]
+    use ::core::convert::{
+        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
+        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
+        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
+        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
+        identity as __nc_arg_0_written, identity as __nc_this, identity as __nc_status,
+        identity as __nc_value, identity as __nc_raw, identity as __nc_result,
+        identity as __nc_values, identity as __nc_writer, identity as __nc_out,
+        identity as __nc_identity, identity as __nc_value_0, identity as __nc_this_0,
+        identity as __nc_status_0, identity as __nc_result_0, identity as __nc_prepared,
+        identity as __nc_out_0, identity as __nc_value_1, identity as __nc_this_1,
+        identity as __nc_status_1, identity as __nc_result_1,
+        identity as __nc_prepared_0, identity as __nc_out_1, identity as __nc_value_2,
+        identity as __nc_this_2, identity as __nc_status_2, identity as __nc_result_2,
+        identity as __nc_prepared_1, identity as __nc_out_2, identity as __nc_value_3,
+        identity as __nc_this_3, identity as __nc_status_3, identity as __nc_result_3,
+        identity as __nc_prepared_2, identity as __nc_out_3, identity as __nc_value_4,
+        identity as __nc_this_4, identity as __nc_status_4, identity as __nc_result_4,
+        identity as __nc_prepared_3, identity as __nc_out_4,
+    };
+    impl<__NcThreading: crate::ThreadingModel> IPersistableClient<__NcThreading> {
+        /// Identifies the registered construction recipe, not this object instance.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8` (module `neocogi.com.persistence`).
+        ///
+        #[doc = concat!(
+            "Calls [`", stringify!(IPersistable), "::", stringify!(type_id),
+            "`] through the generated COM ABI vtable."
+        )]
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        #[doc = concat!(
+            "On success, returns `", stringify!(crate ::NcGuid),
+            "` from the ABI out slot."
+        )]
+        pub fn type_id(&self) -> ::core::result::Result<crate::NcGuid, crate::NcStatus> {
+            let mut __nc_out_0 = ::core::mem::MaybeUninit::<
+                <crate::NcGuid as crate::ComValue>::Wire,
+            >::uninit();
+            let __nc_this_0 = self.__nc_pointer.as_raw();
+            let __nc_status_0 = unsafe {
+                ((*__nc_this_0.vtable)
+                    .type_id)(__nc_this_0.object, __nc_out_0.as_mut_ptr())
+            };
+            if __nc_status_0.is_err() {
+                return ::core::result::Result::Err(__nc_status_0);
+            }
+            let __nc_result_0 = (unsafe {
+                crate::decode_inline::<crate::NcGuid>(__nc_out_0.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_0)
         }
-        let result = (unsafe {
-            crate::decode_inline::<crate::NcGuid>(__nc_out.assume_init())
-        })?;
-        ::core::result::Result::Ok(result)
-    }
-    /// Identifies the persistent initialization schema, independently of COM ABI.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
-    ///
-    #[doc = concat!(
-        "Calls [`", stringify!(IPersistable), "::", stringify!(schema_version),
-        "`] through the generated COM ABI vtable."
-    )]
-    ///
-    ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-    ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-    #[doc = concat!(
-        "On success, returns `", stringify!(u32), "` from the ABI out slot."
-    )]
-    pub fn schema_version(&self) -> ::core::result::Result<u32, crate::NcStatus> {
-        let mut __nc_out = ::core::mem::MaybeUninit::<
-            <u32 as crate::ComValue>::Wire,
-        >::uninit();
-        let this = self.__nc_pointer.as_raw();
-        let status = unsafe {
-            ((*this.vtable).schema_version)(this.object, __nc_out.as_mut_ptr())
-        };
-        if status.is_err() {
-            return ::core::result::Result::Err(status);
+        /// Identifies the persistent initialization schema, independently of COM ABI.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
+        ///
+        #[doc = concat!(
+            "Calls [`", stringify!(IPersistable), "::", stringify!(schema_version),
+            "`] through the generated COM ABI vtable."
+        )]
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        #[doc = concat!(
+            "On success, returns `", stringify!(u32), "` from the ABI out slot."
+        )]
+        pub fn schema_version(&self) -> ::core::result::Result<u32, crate::NcStatus> {
+            let mut __nc_out_1 = ::core::mem::MaybeUninit::<
+                <u32 as crate::ComValue>::Wire,
+            >::uninit();
+            let __nc_this_1 = self.__nc_pointer.as_raw();
+            let __nc_status_1 = unsafe {
+                ((*__nc_this_1.vtable)
+                    .schema_version)(__nc_this_1.object, __nc_out_1.as_mut_ptr())
+            };
+            if __nc_status_1.is_err() {
+                return ::core::result::Result::Err(__nc_status_1);
+            }
+            let __nc_result_1 = (unsafe {
+                crate::decode_inline::<u32>(__nc_out_1.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_1)
         }
-        let result = (unsafe { crate::decode_inline::<u32>(__nc_out.assume_init()) })?;
-        ::core::result::Result::Ok(result)
-    }
-    /// Exports initialization data only: no receivers, runtime pointers or caches.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
-    ///
-    #[doc = concat!(
-        "Calls [`", stringify!(IPersistable), "::", stringify!(save_state),
-        "`] through the generated COM ABI vtable."
-    )]
-    ///
-    ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-    ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-    #[doc = concat!(
-        "On success, adopts the owned `", stringify!(crate ::INcBytesAbi),
-        "` interface pointer returned through `out` as `", stringify!(crate ::ComPtr <
-        crate ::INcBytesAbi >), "`."
-    )]
-    pub fn save_state(
-        &self,
-    ) -> ::core::result::Result<crate::ComPtr<crate::INcBytesAbi>, crate::NcStatus> {
-        let mut __nc_out = ::core::mem::MaybeUninit::<
-            crate::ComRaw<crate::INcBytesAbi>,
-        >::uninit();
-        let this = self.__nc_pointer.as_raw();
-        let status = unsafe {
-            ((*this.vtable).save_state)(this.object, __nc_out.as_mut_ptr())
-        };
-        if status.is_err() {
-            return ::core::result::Result::Err(status);
+        /// Exports initialization data only: no receivers, runtime pointers or caches.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
+        ///
+        #[doc = concat!(
+            "Calls [`", stringify!(IPersistable), "::", stringify!(save_state),
+            "`] through the generated COM ABI vtable."
+        )]
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        #[doc = concat!(
+            "On success, adopts the owned `", stringify!(crate ::INcBytesAbi),
+            "` interface pointer returned through `out` as `", stringify!(crate ::ComPtr
+            < crate ::INcBytesAbi >), "`."
+        )]
+        pub fn save_state(
+            &self,
+        ) -> ::core::result::Result<crate::ComPtr<crate::INcBytesAbi>, crate::NcStatus> {
+            let mut __nc_out_2 = ::core::mem::MaybeUninit::<
+                crate::ComRaw<crate::INcBytesAbi>,
+            >::uninit();
+            let __nc_this_2 = self.__nc_pointer.as_raw();
+            let __nc_status_2 = unsafe {
+                ((*__nc_this_2.vtable)
+                    .save_state)(__nc_this_2.object, __nc_out_2.as_mut_ptr())
+            };
+            if __nc_status_2.is_err() {
+                return ::core::result::Result::Err(__nc_status_2);
+            }
+            let __nc_result_2 = (unsafe {
+                <crate::ComPtr<
+                    crate::INcBytesAbi,
+                >>::__nc_from_raw_owned_checked(__nc_out_2.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_2)
         }
-        let result = (unsafe {
-            <crate::ComPtr<
-                crate::INcBytesAbi,
-            >>::__nc_from_raw_owned_checked(__nc_out.assume_init())
-        })?;
-        ::core::result::Result::Ok(result)
-    }
-    /// Returns the number of owned persistent children; parent links are excluded.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8` (module `neocogi.com.persistence`).
-    ///
-    #[doc = concat!(
-        "Calls [`", stringify!(IPersistable), "::", stringify!(child_count),
-        "`] through the generated COM ABI vtable."
-    )]
-    ///
-    ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-    ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-    #[doc = concat!(
-        "On success, returns `", stringify!(u32), "` from the ABI out slot."
-    )]
-    pub fn child_count(&self) -> ::core::result::Result<u32, crate::NcStatus> {
-        let mut __nc_out = ::core::mem::MaybeUninit::<
-            <u32 as crate::ComValue>::Wire,
-        >::uninit();
-        let this = self.__nc_pointer.as_raw();
-        let status = unsafe {
-            ((*this.vtable).child_count)(this.object, __nc_out.as_mut_ptr())
-        };
-        if status.is_err() {
-            return ::core::result::Result::Err(status);
+        /// Returns the number of owned persistent children; parent links are excluded.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8` (module `neocogi.com.persistence`).
+        ///
+        #[doc = concat!(
+            "Calls [`", stringify!(IPersistable), "::", stringify!(child_count),
+            "`] through the generated COM ABI vtable."
+        )]
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        #[doc = concat!(
+            "On success, returns `", stringify!(u32), "` from the ABI out slot."
+        )]
+        pub fn child_count(&self) -> ::core::result::Result<u32, crate::NcStatus> {
+            let mut __nc_out_3 = ::core::mem::MaybeUninit::<
+                <u32 as crate::ComValue>::Wire,
+            >::uninit();
+            let __nc_this_3 = self.__nc_pointer.as_raw();
+            let __nc_status_3 = unsafe {
+                ((*__nc_this_3.vtable)
+                    .child_count)(__nc_this_3.object, __nc_out_3.as_mut_ptr())
+            };
+            if __nc_status_3.is_err() {
+                return ::core::result::Result::Err(__nc_status_3);
+            }
+            let __nc_result_3 = (unsafe {
+                crate::decode_inline::<u32>(__nc_out_3.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_3)
         }
-        let result = (unsafe { crate::decode_inline::<u32>(__nc_out.assume_init()) })?;
-        ::core::result::Result::Ok(result)
-    }
-    /// Returns one child in the order described by the parent's initialization.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:22:8` (module `neocogi.com.persistence`).
-    ///
-    #[doc = concat!(
-        "Calls [`", stringify!(IPersistable), "::", stringify!(child),
-        "`] through the generated COM ABI vtable."
-    )]
-    ///
-    ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-    ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-    #[doc = concat!(
-        "- `", stringify!(index), "` is passed by value as `", stringify!(u32), "`."
-    )]
-    #[doc = concat!(
-        "On success, adopts the owned `", stringify!(crate ::IUnknown),
-        "` interface pointer returned through `out` as `", stringify!(crate ::ComPtr <
-        crate ::IUnknown >), "`."
-    )]
-    pub fn child(
-        &self,
-        __nc_arg_0: u32,
-    ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
-        let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
-        let mut __nc_out = ::core::mem::MaybeUninit::<
-            crate::ComRaw<crate::IUnknown>,
-        >::uninit();
-        let this = self.__nc_pointer.as_raw();
-        let status = unsafe {
-            ((*this.vtable).child)(this.object, __nc_arg_0, __nc_out.as_mut_ptr())
-        };
-        if status.is_err() {
-            return ::core::result::Result::Err(status);
+        /// Returns one child in the order described by the parent's initialization.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:22:8` (module `neocogi.com.persistence`).
+        ///
+        #[doc = concat!(
+            "Calls [`", stringify!(IPersistable), "::", stringify!(child),
+            "`] through the generated COM ABI vtable."
+        )]
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        #[doc = concat!(
+            "- `", stringify!(index), "` is passed by value as `", stringify!(u32), "`."
+        )]
+        #[doc = concat!(
+            "On success, adopts the owned `", stringify!(crate ::IUnknown),
+            "` interface pointer returned through `out` as `", stringify!(crate ::ComPtr
+            < crate ::IUnknown >), "`."
+        )]
+        pub fn child(
+            &self,
+            __nc_arg_0: u32,
+        ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
+            let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
+            let mut __nc_out_4 = ::core::mem::MaybeUninit::<
+                crate::ComRaw<crate::IUnknown>,
+            >::uninit();
+            let __nc_this_4 = self.__nc_pointer.as_raw();
+            let __nc_status_4 = unsafe {
+                ((*__nc_this_4.vtable)
+                    .child)(__nc_this_4.object, __nc_arg_0, __nc_out_4.as_mut_ptr())
+            };
+            if __nc_status_4.is_err() {
+                return ::core::result::Result::Err(__nc_status_4);
+            }
+            let __nc_result_4 = (unsafe {
+                <crate::ComPtr<
+                    crate::IUnknown,
+                >>::__nc_from_raw_owned_checked(__nc_out_4.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_4)
         }
-        let result = (unsafe {
-            <crate::ComPtr<
-                crate::IUnknown,
-            >>::__nc_from_raw_owned_checked(__nc_out.assume_init())
-        })?;
-        ::core::result::Result::Ok(result)
     }
-}
+};
 impl IPersistableAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiSignature = crate::NcAbiSignature::from_static(
         b"\x8E\x1Dc\x937\x8DB\xED\x96Z\xE1\x96\xBE\xD5\xC8\xFD\xD9\xCA\x1F\xA0\x94\xD3G\xF2.i[\x1C\x9B\x98\xA4P",
     );
-    #[doc(hidden)]
-    pub const __NC_METHOD_0_PARAMS: [crate::NcMethodParamDescriptor; 0usize] = [];
-    #[doc(hidden)]
-    pub const __NC_METHOD_0_RETURN: crate::NcMethodReturnDescriptor = crate::NcMethodReturnDescriptor {
-        passing: crate::NcAbiPassingDescriptor::from_abi_passing(
-            crate::NcAbiPassing::Out,
-        ),
-        ty: crate::NcAbiTypeDescriptor::from_abi_type(
-            crate::__nc_abi_type::<crate::NcGuid>(),
-        ),
-    };
-    #[doc(hidden)]
-    pub const __NC_METHOD_1_PARAMS: [crate::NcMethodParamDescriptor; 0usize] = [];
-    #[doc(hidden)]
-    pub const __NC_METHOD_1_RETURN: crate::NcMethodReturnDescriptor = crate::NcMethodReturnDescriptor {
-        passing: crate::NcAbiPassingDescriptor::from_abi_passing(
-            crate::NcAbiPassing::Out,
-        ),
-        ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::__nc_abi_type::<u32>()),
-    };
-    #[doc(hidden)]
-    pub const __NC_METHOD_2_PARAMS: [crate::NcMethodParamDescriptor; 0usize] = [];
-    #[doc(hidden)]
-    pub const __NC_METHOD_2_RETURN: crate::NcMethodReturnDescriptor = crate::NcMethodReturnDescriptor {
-        passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComPtrOut {
-            mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
-        }),
-        ty: crate::NcAbiTypeDescriptor::from_interface(
-            <crate::INcBytesAbi as crate::ComInterface>::INTERFACE_ID,
-        ),
-    };
-    #[doc(hidden)]
-    pub const __NC_METHOD_3_PARAMS: [crate::NcMethodParamDescriptor; 0usize] = [];
-    #[doc(hidden)]
-    pub const __NC_METHOD_3_RETURN: crate::NcMethodReturnDescriptor = crate::NcMethodReturnDescriptor {
-        passing: crate::NcAbiPassingDescriptor::from_abi_passing(
-            crate::NcAbiPassing::Out,
-        ),
-        ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::__nc_abi_type::<u32>()),
-    };
-    #[doc(hidden)]
-    pub const __NC_METHOD_4_PARAMS: [crate::NcMethodParamDescriptor; 1usize] = [
-        crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static("index"),
-            passing: crate::NcAbiPassingDescriptor::from_abi_passing(
-                crate::NcAbiPassing::Value,
-            ),
-            ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::__nc_abi_type::<u32>()),
-        },
-    ];
-    #[doc(hidden)]
-    pub const __NC_METHOD_4_RETURN: crate::NcMethodReturnDescriptor = crate::NcMethodReturnDescriptor {
-        passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComPtrOut {
-            mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
-        }),
-        ty: crate::NcAbiTypeDescriptor::from_interface(
-            <crate::IUnknown as crate::ComInterface>::INTERFACE_ID,
-        ),
-    };
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 5usize] = [
         crate::NcMethodDescriptor {
             name: crate::NcStaticUtf8::from_static("type_id"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: Self::__NC_METHOD_0_PARAMS.as_ptr(),
-            returns: Self::__NC_METHOD_0_RETURN,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
+                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<crate::NcGuid>(),
+                ),
+            },
         },
         crate::NcMethodDescriptor {
             name: crate::NcStaticUtf8::from_static("schema_version"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: Self::__NC_METHOD_1_PARAMS.as_ptr(),
-            returns: Self::__NC_METHOD_1_RETURN,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
+                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<u32>(),
+                ),
+            },
         },
         crate::NcMethodDescriptor {
             name: crate::NcStaticUtf8::from_static("save_state"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: Self::__NC_METHOD_2_PARAMS.as_ptr(),
-            returns: Self::__NC_METHOD_2_RETURN,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComPtrOut {
+                    mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
+                }),
+                ty: crate::NcAbiTypeDescriptor::from_interface(
+                    <crate::INcBytesAbi as crate::ComInterface>::INTERFACE_ID,
+                ),
+            },
         },
         crate::NcMethodDescriptor {
             name: crate::NcStaticUtf8::from_static("child_count"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 0u32,
-            params: Self::__NC_METHOD_3_PARAMS.as_ptr(),
-            returns: Self::__NC_METHOD_3_RETURN,
+            params: (&[] as &'static [crate::NcMethodParamDescriptor]).as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Out,
+                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                    crate::__nc_abi_type::<u32>(),
+                ),
+            },
         },
         crate::NcMethodDescriptor {
             name: crate::NcStaticUtf8::from_static("child"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 1u32,
-            params: Self::__NC_METHOD_4_PARAMS.as_ptr(),
-            returns: Self::__NC_METHOD_4_RETURN,
+            params: (&[
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("index"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<u32>(),
+                    ),
+                },
+            ] as &'static [crate::NcMethodParamDescriptor])
+                .as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComPtrOut {
+                    mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
+                }),
+                ty: crate::NcAbiTypeDescriptor::from_interface(
+                    <crate::IUnknown as crate::ComInterface>::INTERFACE_ID,
+                ),
+            },
         },
     ];
     ///Static ABI descriptor for this interface.
@@ -708,7 +754,7 @@ pub trait IPersistenceFactory {
         &self,
         version: u32,
         state: crate::NcCopyFromBufferOffset<'_, u8>,
-        children: crate::ComRef<'_, IObjectChildrenAbi>,
+        children: crate::ComRef<'_, self::IObjectChildrenAbi>,
     ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus>;
 }
 #[doc = ::core::concat!(
@@ -748,7 +794,7 @@ pub struct IPersistenceFactoryVTable {
     )]
     ///On success, no output value is written.
     pub validate: unsafe extern "C" fn(
-        this: *mut ::core::ffi::c_void,
+        __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0: <u32 as crate::ComValue>::Wire,
         __nc_arg_1_offset: u64,
         __nc_arg_1_len: u64,
@@ -775,8 +821,9 @@ pub struct IPersistenceFactoryVTable {
         "` buffer."
     )]
     #[doc = concat!(
-        "- `", stringify!(children), "` is a borrowed `", stringify!(IObjectChildrenAbi),
-        "` object/table pair.", " Both fields must be non-null.",
+        "- `", stringify!(children), "` is a borrowed `",
+        stringify!(self::IObjectChildrenAbi), "` object/table pair.",
+        " Both fields must be non-null.",
         " The callee must call `AddRef` before retaining a present interface after the call returns."
     )]
     #[doc = concat!(
@@ -784,12 +831,12 @@ pub struct IPersistenceFactoryVTable {
         "` object/table pair transferred to the caller."
     )]
     pub restore: unsafe extern "C" fn(
-        this: *mut ::core::ffi::c_void,
-        __nc_arg_0: <u32 as crate::ComValue>::Wire,
-        __nc_arg_1_offset: u64,
-        __nc_arg_1_len: u64,
-        __nc_arg_1_ptr: *const <u8 as crate::ComValue>::Wire,
-        __nc_arg_2: crate::ComRaw<IObjectChildrenAbi>,
+        __nc_this: *mut ::core::ffi::c_void,
+        __nc_arg_0_0: <u32 as crate::ComValue>::Wire,
+        __nc_arg_1_0_offset: u64,
+        __nc_arg_1_0_len: u64,
+        __nc_arg_1_0_ptr: *const <u8 as crate::ComValue>::Wire,
+        __nc_arg_2_0: crate::ComRaw<self::IObjectChildrenAbi>,
         __nc_out: *mut crate::ComRaw<crate::IUnknown>,
     ) -> crate::NcStatus,
 }
@@ -816,216 +863,257 @@ unsafe impl crate::ComInterface for IPersistenceFactoryAbi {
 #[doc = ::core::concat!(
     "Borrowed static method view for [`", ::core::stringify!(IPersistenceFactory), "`]."
 )]
-pub struct IPersistenceFactoryClient<M: crate::ThreadingModel = crate::ThreadLocal> {
+pub struct IPersistenceFactoryClient<
+    __NcThreading: crate::ThreadingModel = crate::ThreadLocal,
+> {
     /// Certified transparent storage supplied only by a live COM pointer borrow.
-    __nc_pointer: crate::NcClientPointer<IPersistenceFactoryAbi, M>,
+    __nc_pointer: crate::NcClientPointer<IPersistenceFactoryAbi, __NcThreading>,
 }
 unsafe impl crate::ComClientInterface for IPersistenceFactoryAbi {
-    type Client<M: crate::ThreadingModel> = IPersistenceFactoryClient<M>;
+    type Client<__NcThreading: crate::ThreadingModel> = IPersistenceFactoryClient<
+        __NcThreading,
+    >;
 }
-impl<M: crate::ThreadingModel> IPersistenceFactoryClient<M> {
-    /// Rejects unsupported revisions before any child object is constructed.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8` (module `neocogi.com.persistence`).
-    ///
-    #[doc = concat!(
-        "Calls [`", stringify!(IPersistenceFactory), "::", stringify!(validate),
-        "`] through the generated COM ABI vtable."
-    )]
-    ///
-    ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
-    ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-    #[doc = concat!(
-        "- `", stringify!(version), "` is passed by value as `", stringify!(u32), "`."
-    )]
-    #[doc = concat!(
-        "- `", stringify!(state), "` is passed as a safe readable `", stringify!(u8),
-        "` buffer plus offset."
-    )]
-    #[doc = concat!(
-        "- `", stringify!(child_count), "` is passed by value as `", stringify!(u32),
-        "`."
-    )]
-    ///On success, returns `()`.
-    pub fn validate(
-        &self,
-        __nc_arg_0: u32,
-        __nc_arg_1: crate::NcCopyFromBufferOffset<'_, u8>,
-        __nc_arg_2: u32,
-    ) -> ::core::result::Result<(), crate::NcStatus> {
-        let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
-        let __nc_arg_1 = crate::EncodedInput::new(__nc_arg_1)?;
-        let __nc_arg_2 = crate::encode_inline(&__nc_arg_2)?;
-        let this = self.__nc_pointer.as_raw();
-        let status = unsafe {
-            ((*this.vtable)
-                .validate)(
-                this.object,
-                __nc_arg_0,
-                __nc_arg_1.offset(),
-                __nc_arg_1.len(),
-                __nc_arg_1.as_ptr(),
-                __nc_arg_2,
-            )
-        };
-        if status.is_err() {
-            return ::core::result::Result::Err(status);
+const _: () = {
+    #[allow(unused_imports)]
+    use ::core::convert::{
+        identity as __nc_dispatch_object, identity as __nc_dispatch_value,
+        identity as __nc_arg_0, identity as __nc_arg_0_owner_slot,
+        identity as __nc_arg_0_offset, identity as __nc_arg_0_len,
+        identity as __nc_arg_0_ptr, identity as __nc_arg_0_values,
+        identity as __nc_arg_0_written, identity as __nc_arg_1,
+        identity as __nc_arg_1_owner_slot, identity as __nc_arg_1_offset,
+        identity as __nc_arg_1_len, identity as __nc_arg_1_ptr,
+        identity as __nc_arg_1_values, identity as __nc_arg_1_written,
+        identity as __nc_arg_2, identity as __nc_arg_2_owner_slot,
+        identity as __nc_arg_2_offset, identity as __nc_arg_2_len,
+        identity as __nc_arg_2_ptr, identity as __nc_arg_2_values,
+        identity as __nc_arg_2_written, identity as __nc_arg_0_0,
+        identity as __nc_arg_0_0_owner_slot, identity as __nc_arg_0_0_offset,
+        identity as __nc_arg_0_0_len, identity as __nc_arg_0_0_ptr,
+        identity as __nc_arg_0_0_values, identity as __nc_arg_0_0_written,
+        identity as __nc_arg_1_0, identity as __nc_arg_1_0_owner_slot,
+        identity as __nc_arg_1_0_offset, identity as __nc_arg_1_0_len,
+        identity as __nc_arg_1_0_ptr, identity as __nc_arg_1_0_values,
+        identity as __nc_arg_1_0_written, identity as __nc_arg_2_0,
+        identity as __nc_arg_2_0_owner_slot, identity as __nc_arg_2_0_offset,
+        identity as __nc_arg_2_0_len, identity as __nc_arg_2_0_ptr,
+        identity as __nc_arg_2_0_values, identity as __nc_arg_2_0_written,
+        identity as __nc_this, identity as __nc_status, identity as __nc_value,
+        identity as __nc_raw, identity as __nc_result, identity as __nc_values,
+        identity as __nc_writer, identity as __nc_out, identity as __nc_identity,
+        identity as __nc_value_0, identity as __nc_this_0, identity as __nc_status_0,
+        identity as __nc_result_0, identity as __nc_prepared, identity as __nc_out_0,
+        identity as __nc_value_1, identity as __nc_this_1, identity as __nc_status_1,
+        identity as __nc_result_1, identity as __nc_prepared_0, identity as __nc_out_1,
+    };
+    impl<__NcThreading: crate::ThreadingModel> IPersistenceFactoryClient<__NcThreading> {
+        /// Rejects unsupported revisions before any child object is constructed.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8` (module `neocogi.com.persistence`).
+        ///
+        #[doc = concat!(
+            "Calls [`", stringify!(IPersistenceFactory), "::", stringify!(validate),
+            "`] through the generated COM ABI vtable."
+        )]
+        ///
+        ///This safe wrapper invokes the raw vtable function and maps a successful status to `Ok(())`.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        #[doc = concat!(
+            "- `", stringify!(version), "` is passed by value as `", stringify!(u32),
+            "`."
+        )]
+        #[doc = concat!(
+            "- `", stringify!(state), "` is passed as a safe readable `", stringify!(u8),
+            "` buffer plus offset."
+        )]
+        #[doc = concat!(
+            "- `", stringify!(child_count), "` is passed by value as `", stringify!(u32),
+            "`."
+        )]
+        ///On success, returns `()`.
+        pub fn validate(
+            &self,
+            __nc_arg_0: u32,
+            __nc_arg_1: crate::NcCopyFromBufferOffset<'_, u8>,
+            __nc_arg_2: u32,
+        ) -> ::core::result::Result<(), crate::NcStatus> {
+            let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
+            let __nc_arg_1 = crate::EncodedInput::new(__nc_arg_1)?;
+            let __nc_arg_2 = crate::encode_inline(&__nc_arg_2)?;
+            let __nc_this_0 = self.__nc_pointer.as_raw();
+            let __nc_status_0 = unsafe {
+                ((*__nc_this_0.vtable)
+                    .validate)(
+                    __nc_this_0.object,
+                    __nc_arg_0,
+                    __nc_arg_1.offset(),
+                    __nc_arg_1.len(),
+                    __nc_arg_1.as_ptr(),
+                    __nc_arg_2,
+                )
+            };
+            if __nc_status_0.is_err() {
+                return ::core::result::Result::Err(__nc_status_0);
+            }
+            let __nc_result_0 = ();
+            ::core::result::Result::Ok(__nc_result_0)
         }
-        let result = ();
-        ::core::result::Result::Ok(result)
-    }
-    /// Returns a fully initialized object; every child is already constructed.
-    /// Failure must release resources acquired by this call and publish no root.
-    /// IDL source: `neocogi/com/persistence/objects.ncidl:32:8` (module `neocogi.com.persistence`).
-    ///
-    #[doc = concat!(
-        "Calls [`", stringify!(IPersistenceFactory), "::", stringify!(restore),
-        "`] through the generated COM ABI vtable."
-    )]
-    ///
-    ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
-    ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
-    #[doc = concat!(
-        "- `", stringify!(version), "` is passed by value as `", stringify!(u32), "`."
-    )]
-    #[doc = concat!(
-        "- `", stringify!(state), "` is passed as a safe readable `", stringify!(u8),
-        "` buffer plus offset."
-    )]
-    #[doc = concat!(
-        "- `", stringify!(children), "` borrows a `", stringify!(IObjectChildrenAbi),
-        "` interface for the duration of the call.", " An interface is required.",
-        " The callee must call `AddRef` before retaining a present interface."
-    )]
-    #[doc = concat!(
-        "On success, adopts the owned `", stringify!(crate ::IUnknown),
-        "` interface pointer returned through `out` as `", stringify!(crate ::ComPtr <
-        crate ::IUnknown >), "`."
-    )]
-    pub fn restore(
-        &self,
-        __nc_arg_0: u32,
-        __nc_arg_1: crate::NcCopyFromBufferOffset<'_, u8>,
-        __nc_arg_2: crate::ComRef<'_, IObjectChildrenAbi>,
-    ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
-        let __nc_arg_0 = crate::encode_inline(&__nc_arg_0)?;
-        let __nc_arg_1 = crate::EncodedInput::new(__nc_arg_1)?;
-        let mut __nc_out = ::core::mem::MaybeUninit::<
-            crate::ComRaw<crate::IUnknown>,
-        >::uninit();
-        let this = self.__nc_pointer.as_raw();
-        let status = unsafe {
-            ((*this.vtable)
-                .restore)(
-                this.object,
-                __nc_arg_0,
-                __nc_arg_1.offset(),
-                __nc_arg_1.len(),
-                __nc_arg_1.as_ptr(),
-                __nc_arg_2.as_raw(),
-                __nc_out.as_mut_ptr(),
-            )
-        };
-        if status.is_err() {
-            return ::core::result::Result::Err(status);
+        /// Returns a fully initialized object; every child is already constructed.
+        /// Failure must release resources acquired by this call and publish no root.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:32:8` (module `neocogi.com.persistence`).
+        ///
+        #[doc = concat!(
+            "Calls [`", stringify!(IPersistenceFactory), "::", stringify!(restore),
+            "`] through the generated COM ABI vtable."
+        )]
+        ///
+        ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
+        ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        #[doc = concat!(
+            "- `", stringify!(version), "` is passed by value as `", stringify!(u32),
+            "`."
+        )]
+        #[doc = concat!(
+            "- `", stringify!(state), "` is passed as a safe readable `", stringify!(u8),
+            "` buffer plus offset."
+        )]
+        #[doc = concat!(
+            "- `", stringify!(children), "` borrows a `",
+            stringify!(self::IObjectChildrenAbi),
+            "` interface for the duration of the call.", " An interface is required.",
+            " The callee must call `AddRef` before retaining a present interface."
+        )]
+        #[doc = concat!(
+            "On success, adopts the owned `", stringify!(crate ::IUnknown),
+            "` interface pointer returned through `out` as `", stringify!(crate ::ComPtr
+            < crate ::IUnknown >), "`."
+        )]
+        pub fn restore(
+            &self,
+            __nc_arg_0_0: u32,
+            __nc_arg_1_0: crate::NcCopyFromBufferOffset<'_, u8>,
+            __nc_arg_2_0: crate::ComRef<'_, self::IObjectChildrenAbi>,
+        ) -> ::core::result::Result<crate::ComPtr<crate::IUnknown>, crate::NcStatus> {
+            let __nc_arg_0_0 = crate::encode_inline(&__nc_arg_0_0)?;
+            let __nc_arg_1_0 = crate::EncodedInput::new(__nc_arg_1_0)?;
+            let mut __nc_out_1 = ::core::mem::MaybeUninit::<
+                crate::ComRaw<crate::IUnknown>,
+            >::uninit();
+            let __nc_this_1 = self.__nc_pointer.as_raw();
+            let __nc_status_1 = unsafe {
+                ((*__nc_this_1.vtable)
+                    .restore)(
+                    __nc_this_1.object,
+                    __nc_arg_0_0,
+                    __nc_arg_1_0.offset(),
+                    __nc_arg_1_0.len(),
+                    __nc_arg_1_0.as_ptr(),
+                    __nc_arg_2_0.as_raw(),
+                    __nc_out_1.as_mut_ptr(),
+                )
+            };
+            if __nc_status_1.is_err() {
+                return ::core::result::Result::Err(__nc_status_1);
+            }
+            let __nc_result_1 = (unsafe {
+                <crate::ComPtr<
+                    crate::IUnknown,
+                >>::__nc_from_raw_owned_checked(__nc_out_1.assume_init())
+            })?;
+            ::core::result::Result::Ok(__nc_result_1)
         }
-        let result = (unsafe {
-            <crate::ComPtr<
-                crate::IUnknown,
-            >>::__nc_from_raw_owned_checked(__nc_out.assume_init())
-        })?;
-        ::core::result::Result::Ok(result)
     }
-}
+};
 impl IPersistenceFactoryAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: crate::NcAbiSignature = crate::NcAbiSignature::from_static(
         b"\x80\xCC13=\xDD\xAA?\xD0\xD3\xA01\xCF\xA5M\xFD\xFC\xFF\x863\xD6\x1FkH\xB2\xE3\xC4\xE1\x18PH\x13",
     );
-    #[doc(hidden)]
-    pub const __NC_METHOD_0_PARAMS: [crate::NcMethodParamDescriptor; 3usize] = [
-        crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static("version"),
-            passing: crate::NcAbiPassingDescriptor::from_abi_passing(
-                crate::NcAbiPassing::Value,
-            ),
-            ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::__nc_abi_type::<u32>()),
-        },
-        crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static("state"),
-            passing: crate::NcAbiPassingDescriptor::from_abi_passing(
-                crate::NcAbiPassing::CopyFromBufferOffset,
-            ),
-            ty: crate::NcAbiTypeDescriptor::from_abi_type(
-                crate::__nc_abi_plain_type::<u8>(),
-            ),
-        },
-        crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static("child_count"),
-            passing: crate::NcAbiPassingDescriptor::from_abi_passing(
-                crate::NcAbiPassing::Value,
-            ),
-            ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::__nc_abi_type::<u32>()),
-        },
-    ];
-    #[doc(hidden)]
-    pub const __NC_METHOD_0_RETURN: crate::NcMethodReturnDescriptor = crate::NcMethodReturnDescriptor {
-        passing: crate::NcAbiPassingDescriptor::from_abi_passing(
-            crate::NcAbiPassing::Void,
-        ),
-        ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
-    };
-    #[doc(hidden)]
-    pub const __NC_METHOD_1_PARAMS: [crate::NcMethodParamDescriptor; 3usize] = [
-        crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static("version"),
-            passing: crate::NcAbiPassingDescriptor::from_abi_passing(
-                crate::NcAbiPassing::Value,
-            ),
-            ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::__nc_abi_type::<u32>()),
-        },
-        crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static("state"),
-            passing: crate::NcAbiPassingDescriptor::from_abi_passing(
-                crate::NcAbiPassing::CopyFromBufferOffset,
-            ),
-            ty: crate::NcAbiTypeDescriptor::from_abi_type(
-                crate::__nc_abi_plain_type::<u8>(),
-            ),
-        },
-        crate::NcMethodParamDescriptor {
-            name: crate::NcStaticUtf8::from_static("children"),
-            passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComRef {
-                mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
-            }),
-            ty: crate::NcAbiTypeDescriptor::from_interface(
-                <IObjectChildrenAbi as crate::ComInterface>::INTERFACE_ID,
-            ),
-        },
-    ];
-    #[doc(hidden)]
-    pub const __NC_METHOD_1_RETURN: crate::NcMethodReturnDescriptor = crate::NcMethodReturnDescriptor {
-        passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComPtrOut {
-            mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
-        }),
-        ty: crate::NcAbiTypeDescriptor::from_interface(
-            <crate::IUnknown as crate::ComInterface>::INTERFACE_ID,
-        ),
-    };
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [crate::NcMethodDescriptor; 2usize] = [
         crate::NcMethodDescriptor {
             name: crate::NcStaticUtf8::from_static("validate"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 3u32,
-            params: Self::__NC_METHOD_0_PARAMS.as_ptr(),
-            returns: Self::__NC_METHOD_0_RETURN,
+            params: (&[
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("version"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<u32>(),
+                    ),
+                },
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("state"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::CopyFromBufferOffset,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<u8>(),
+                    ),
+                },
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("child_count"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<u32>(),
+                    ),
+                },
+            ] as &'static [crate::NcMethodParamDescriptor])
+                .as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                    crate::NcAbiPassing::Void,
+                ),
+                ty: crate::NcAbiTypeDescriptor::from_abi_type(crate::NcAbiType::Void),
+            },
         },
         crate::NcMethodDescriptor {
             name: crate::NcStaticUtf8::from_static("restore"),
             receiver: crate::NC_ABI_RECEIVER_SHARED,
             param_count: 3u32,
-            params: Self::__NC_METHOD_1_PARAMS.as_ptr(),
-            returns: Self::__NC_METHOD_1_RETURN,
+            params: (&[
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("version"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::Value,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_type::<u32>(),
+                    ),
+                },
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("state"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(
+                        crate::NcAbiPassing::CopyFromBufferOffset,
+                    ),
+                    ty: crate::NcAbiTypeDescriptor::from_abi_type(
+                        crate::__nc_abi_plain_type::<u8>(),
+                    ),
+                },
+                crate::NcMethodParamDescriptor {
+                    name: crate::NcStaticUtf8::from_static("children"),
+                    passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComRef {
+                        mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
+                    }),
+                    ty: crate::NcAbiTypeDescriptor::from_interface(
+                        <self::IObjectChildrenAbi as crate::ComInterface>::INTERFACE_ID,
+                    ),
+                },
+            ] as &'static [crate::NcMethodParamDescriptor])
+                .as_ptr(),
+            returns: crate::NcMethodReturnDescriptor {
+                passing: crate::NcAbiPassingDescriptor::from_abi_passing(crate::NcAbiPassing::ComPtrOut {
+                    mode: <crate::ThreadLocal as crate::ThreadingModel>::ABI_THREADING_MODE,
+                }),
+                ty: crate::NcAbiTypeDescriptor::from_interface(
+                    <crate::IUnknown as crate::ComInterface>::INTERFACE_ID,
+                ),
+            },
         },
     ];
     ///Static ABI descriptor for this interface.

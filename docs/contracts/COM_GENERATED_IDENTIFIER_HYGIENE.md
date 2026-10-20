@@ -37,6 +37,38 @@ Structural separation is required even with hygienic tokens: printing generated
 Rust and reparsing it loses syntax context, as happens for core's checked-in
 persistence interfaces. A private prefix alone is not a collision guarantee.
 
+`PrivateNames` owns each emitting scope. Allocate type/item names with `fresh`
+and executable pattern/parameter names with `binding`; allocate buffer/owner
+families together so every derived suffix is disjoint from authored syntax.
+Seed the allocator with all authored tokens and configured support paths before
+introducing generated declarations. Raw identifiers have their ordinary identity.
+
+Freshness against the input is necessary but does not reveal unrelated ambient
+constants. Rust can interpret even a mixed-site identifier pattern as such a
+constant. Anonymous implementation scopes therefore include private imports of
+`::core::convert::identity` under each registered binding name. An imported
+function can be shadowed by a local pattern; the ambient constant cannot capture
+it. These imports are never called or instantiated and create no runtime state.
+They must remain inside the implementation scope and away from authored references.
+Removing an apparently unused import can reintroduce the printed-source defect.
+
+Authored field types resolve before any private binding scope exists. A private,
+lexically scoped trait binds each original field as an associated type in an impl
+for the application type. Wire/storage helpers and decoders consume its canonical
+projections. This keeps `Self`, `Self::WIDTH`, recursive `Vec<Self>` and opaque
+type macros attached to their application owner without rewriting macro tokens.
+Independent wire/decoder expansions own separate anonymous scopes. Persistent
+construction imposes no `ComValue` bound and no public native-type projection is
+added: public application types may retain private field types.
+
+Generated raw/storage helper declarations allow `private_interfaces` locally:
+the lexical field-resolution trait deliberately stays private, while the actual
+wire field types normalize to the existing raw representations. This does not
+publish native values or add runtime state. A separate consumer crate reads and
+mutates those public raw fields through `ComValue::Wire`, then decodes/re-encodes
+them; it verifies that no native-field visibility is required. Ordinary copied
+field proofs live with this same native-type owner rather than a sibling scope.
+
 The converter qualifies its support types and variants through `::core`, including
 `Option`, `Some`, `None`, `Result`, `Ok`, and `Err`. A user's own `Option` is still
 a legal application type. COM references continue to use the configured runtime
@@ -117,6 +149,14 @@ Core's persistence ABI and facade provider bindings are regenerated from the sam
 interface expansion. Keeping those printed files synchronized is required; a
 macro-only fix would leave a second, stale implementation in the repository.
 
+Provider/client generic parameters use fresh identifiers against the full trait
+syntax, including base, argument/return paths and runtime aliases. The general
+Rust macro preserves interfaces inside local blocks; it does not assume every
+authored type can be rewritten as `self::Type`. The IDL emitter knows its module
+and emits owner-qualified local paths. Private method parameter/return metadata
+arrays are promoted inline inside `METHOD_DESCRIPTORS`; no `__NC_METHOD_*`
+associated implementation constants are emitted.
+
 ## Object constructor generics
 
 Rust implementation type and const parameters retain their authored names,
@@ -132,6 +172,11 @@ concrete object name. Both ordinary constructor entrypoints for each ownership
 mode execute real getter/setter ABI calls and verify normal weak expiration.
 This removes the constructor-binder problem; other generator-owned support-name
 qualification requirements in this document remain applicable.
+
+Object constructor parameters and table-evaluation locals use the same private
+binding policy, including authored const generics. Tables are evaluated directly
+in `ComObject::VTABLES`; there is no inherent `COM_VTABLES` forwarding member.
+Public constructors and `COM_INTERFACE_COUNT` remain deliberate API members.
 
 ## IDL source emission and exported enum macros
 
@@ -162,6 +207,15 @@ and `::core::env!` for an omitted package version. A provider's `Some` function 
 local `env!` macro must not change generated metadata or acquisition behavior.
 Explicit version literals keep their existing meaning. This is separate from
 the exact hexadecimal Cargo-owner encoding described in [IDL modules](IDL_MODULES.md).
+
+The public `const fn plugin_descriptor()` accessor owns its private descriptor/dependency
+statics and C acquisition adapter lexically. Allocate their names against the
+authored acquisition, dependency, interface and GUID references, including names
+inside constant-path expressions. Moving fixed names into a function without
+protecting those references is insufficient. The descriptor retains static
+lifetime, provider-local typed acquisition and the same native discovery symbol.
+Static metadata composition uses this accessor rather than private sibling names;
+the shared-runtime DLL probe follows that rule as well.
 
 The trailing-default persistence policy invokes
 `<Self as ::core::default::Default>::default()`. It must not select an inherent
@@ -217,5 +271,27 @@ sentinels received from the real application channel after posting an event.
 Both consumer tests put Cargo artifacts under the workspace `target/message-proof`
 directory so ordinary workspace `cargo clean` also removes them.
 
-Public companion-item and constructor-alias collisions are a separate namespace
-resolution problem. This contract does not claim to resolve that audit finding.
+## Intentional public names and acceptance
+
+Core's `NcComInterfaceCompanion` inventory owns Abi/VTable/VtblFor/Client suffixes;
+IDL admission, interface expansion and object path derivation consume it. Core's
+`NcComDenseEnumMember` inventory owns dense COUNT/ALL and names-policy NAMES/
+canonical_name. IDL reports actual conflicts with EIDL021 at authored source,
+including unused templates. NAMES remains legal when the names policy is absent;
+ordinary integer enums do not reserve dense helpers. Private implementation names
+never enter these public inventories. Handwritten declarations retain the ordinary
+Rust restriction against duplicating an intentional public generated member.
+IDL's existing enum/flag casing rules already exclude lowercase inherent helper
+names such as `raw`, `from_raw` and `canonical_name`; these fail in parsing rather
+than requiring another generated-name blacklist.
+
+`name_ownership_tests` checks both emitted text and normal expansion through real
+consumers: copied/owned records/enums, trait operations/proofs, public/private
+namespaces, local/imported/private-looking types, raw identifiers, inherited and
+mutable calls, owner rejection/consumption, buffers, C plugin acquisition and NCB
+conversion, including application `Self` and opaque field-type macros. In
+addition to explicit wrong-type/wrong-value controls, the harness
+extracts actual generated pattern bindings and synthesizes ambient constants for
+them, excluding all authored identifiers. A private spelling change cannot evade
+that regression. Full printing drops macro syntax contexts; semantic values,
+budget boundaries, descriptors and real calls must remain correct.

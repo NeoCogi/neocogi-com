@@ -7,10 +7,52 @@ fn module(path: &str, source: &str) -> neocogi_idl::Module {
     parse_module(Path::new(path), source).unwrap()
 }
 
+/// Compare actual public dense-only emission with the shared admission inventory.
+/// Subtracting ordinary enum members avoids maintaining a second list of common
+/// reflection/codec members; adding a new dense helper must update the policy.
+#[test]
+fn dense_public_members_match_admission_inventory() {
+    use std::collections::BTreeSet;
+    /// Reads the actual inherent public members from the production emitter.
+    fn members(attributes: &str) -> BTreeSet<String> {
+        let source = format!("#[version(1)] {attributes} enum Choice: u8 {{ Ready = 0, Other = 1 }}");
+        let graph = resolve_modules(vec![module("proof/public.ncidl", &source)]).unwrap();
+        let source = neocogi_idl::generate_rust(&graph, "proof.public").unwrap();
+        syn::parse_file(&source)
+            .unwrap()
+            .items
+            .into_iter()
+            .filter_map(|item| match item {
+                syn::Item::Impl(item) if item.trait_.is_none() => Some(item.items),
+                _ => None,
+            })
+            .flatten()
+            .filter_map(|item| match item {
+                syn::ImplItem::Const(item) if matches!(item.vis, syn::Visibility::Public(_)) => Some(item.ident.to_string()),
+                syn::ImplItem::Fn(item) if matches!(item.vis, syn::Visibility::Public(_)) => Some(item.sig.ident.to_string()),
+                _ => None,
+            })
+            .collect()
+    }
+    let ordinary = members("");
+    for names in [false, true] {
+        let dense = members(if names { "#[dense] #[names(snake_case)]" } else { "#[dense]" });
+        let actual = dense.difference(&ordinary).cloned().collect::<BTreeSet<_>>();
+        let expected = neocogi_com_core::NcComDenseEnumMember::ALL
+            .into_iter()
+            .filter(|member| member.is_emitted(names))
+            .map(|member| member.name().to_owned())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(actual, expected);
+    }
+}
+
 /// Imported messages generate typed access without pulling transport into the baseline ABI crate.
 #[test]
 fn imported_event_getters_use_the_declaring_module() {
-    let message = module("example/messages.ncidl", "extern neocogi.com.events; use neocogi.com.events::IEvent; #[version(1)] struct Changed { value: u32 } #[version(1)] interface IChanged: IEvent { fn value(&self) -> Result<Changed>; }",
+    let message = module(
+        "example/messages.ncidl",
+        "extern neocogi.com.events; use neocogi.com.events::IEvent; #[version(1)] struct Changed { value: u32 } #[version(1)] interface IChanged: IEvent { fn value(&self) -> Result<Changed>; }",
     );
     let source = module(
         "example/source.ncidl",

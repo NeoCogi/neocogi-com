@@ -1,5 +1,19 @@
 # Changelog
 
+## Generated binding and public-name ownership (pre-release)
+
+Centralize generated-name allocation and public interface/dense-enum inventories.
+Protect provider/client binders, argument/helper families and const-expression
+references. Anonymous implementation scopes distinguish generated patterns from
+ambient constants through function-only imports that have no runtime state.
+Resolve field syntax at its application owner before using canonical typed
+projections in wire helpers and decoders; preserve Self and opaque type macros.
+Scope plugin metadata/acquisition helpers behind their public accessor, evaluate
+object tables directly in ComObject::VTABLES, and inline private method metadata.
+IDL qualifies local type paths and diagnoses dense public-member conflicts early.
+Normal/printed consumers synthesize collision names from actual generated bindings
+and execute shared/exclusive, buffer, ownership, plugin and persistence boundaries.
+
 ## Generated value and support ownership (pre-release)
 
 Checked value codecs explicitly select their ComValue proofs, operations and

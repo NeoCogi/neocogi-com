@@ -40,20 +40,6 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
     } else {
         quote! {}
     };
-    // Preserve the ordinary field identity/ownership requirement independently
-    // of reflection. External C fields supply their own checked codecs instead.
-    let field_checks = (!args.c_struct).then(|| {
-        let types = input.fields.iter().map(|field| &field.ty);
-        quote! {
-            const _: () = {
-                /// Requires durable copied identity for every ordinary record field.
-                fn require<T: #nc::AbiPlainValue>() {}
-                /// Type-checks fields without introducing a runtime call or table.
-                fn fields() { #(require::<#types>();)* }
-            };
-        }
-    });
-
     let layout_check = args.c_struct.then(|| {
         quote! {
             const _: extern "C" fn(#struct_ident) = {
@@ -74,6 +60,7 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
         }],
         quote! { #nc::NcAbiSignature::from_static(#assigned_signature) },
         true,
+        !args.c_struct,
         &nc,
     );
     Ok(quote! {
@@ -81,7 +68,6 @@ pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Resu
         #value_codec
         #layout_check
 
-        #field_checks
         // SAFETY: IDL assigns the exact declaration identity; the field checks
         // and generated codec establish copied value and wire requirements.
         unsafe impl #nc::AbiType for #struct_ident {

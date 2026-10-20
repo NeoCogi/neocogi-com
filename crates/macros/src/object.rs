@@ -12,11 +12,17 @@ use quote::quote;
 use syn::ItemStruct;
 
 use crate::args::{ObjectArgs, ObjectOwnership};
-use crate::util::runtime_crate_path;
+use crate::util::{PrivateNames, runtime_crate_path};
 
 /// Generates compact interface bindings, typed borrow adapters and legal constructors.
 pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::TokenStream {
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
+    let declared_paths = args.interfaces.iter().map(|interface| &interface.abi_path);
+    let mut names = PrivateNames::new(quote! { #input #nc #(#declared_paths)* });
+    let object_pointer = names.binding("__nc_object_pointer");
+    let initial = names.binding("__nc_initial_value");
+    let contracts = names.binding("__nc_contracts");
+    let projections = names.binding("__nc_projections");
     let object_ident = &input.ident;
     let object_vis = &input.vis;
     // Rust implementation generics stay inside the allocating binary, and COM
@@ -88,14 +94,14 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
             quote! { #nc::__ComExclusiveCall<'a> },
             quote! {
                 /// Owns this exact implementation with checked local access.
-                #object_vis fn into_local(value: Self) -> #nc::LocalCom<Self> {
+                #object_vis fn into_local(#initial: Self) -> #nc::LocalCom<Self> {
                     // SAFETY: the generated constructor proves Self's exact storage.
-                    unsafe { #nc::LocalCom::__from_owned(Self::from_value(value)) }
+                    unsafe { #nc::LocalCom::__from_owned(Self::from_value(#initial)) }
                 }
                 /// Wraps a complete Rust value in one shared COM allocation.
-                #object_vis fn from_value(value: Self) -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
+                #object_vis fn from_value(#initial: Self) -> #nc::ComPtr<#nc::IUnknown, #pointer_threading_model> {
                     // SAFETY: this impl's borrow adapters select the same shared layout.
-                    unsafe { #nc::__ComSharedStorage::<Self>::into_shared(value) }
+                    unsafe { #nc::__ComSharedStorage::<Self>::into_shared(#initial) }
                 }
             },
         ),
@@ -105,43 +111,29 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
             quote! { #nc::lifetime::BoxWrite },
             quote! {
                 /// Transfers one exclusive owner of a fully initialized value.
-                #object_vis fn into_box(value: Self) -> #nc::ComBox<#nc::IUnknown, #pointer_threading_model> {
+                #object_vis fn into_box(#initial: Self) -> #nc::ComBox<#nc::IUnknown, #pointer_threading_model> {
                     // SAFETY: borrow adapters use this layout's header admission.
-                    unsafe { #nc::__ComBoxStorage::<Self>::into_exclusive(value) }
+                    unsafe { #nc::__ComBoxStorage::<Self>::into_exclusive(#initial) }
                 }
                 /// Retains concrete construction proof until owner transfer.
-                #object_vis fn into_local_box(value: Self) -> #nc::LocalBox<Self> {
+                #object_vis fn into_local_box(#initial: Self) -> #nc::LocalBox<Self> {
                     // SAFETY: into_box constructs exactly Self's exclusive storage.
-                    unsafe { #nc::LocalBox::__from_owned(Self::into_box(value)) }
+                    unsafe { #nc::LocalBox::__from_owned(Self::into_box(#initial)) }
                 }
             },
         ),
     };
 
+    let binding_imports = names.binding_imports();
     quote! {
         #input
+        const _: () = {
+        #binding_imports
 
         impl #impl_generics #object_type #where_clause {
             /// Number of queryable contracts, including canonical IUnknown.
             /// The expression depends on contract types, never implementation generics.
             pub const COM_INTERFACE_COUNT: usize = #interface_count;
-
-            /// Runtime queries consume only static vtable pointers for this implementation.
-            /// Descriptor traversal and typed provider selection occur inside this constant;
-            /// no full descriptor or duplicate query-identity table escapes into runtime use.
-            const COM_VTABLES: [*const #nc::IUnknownVTable; #interface_count] = {
-                let contracts = #nc::__nc_interface_chain::<{ #interface_count }>(
-                    &#nc::IUnknown::INTERFACE_DESCRIPTOR, &[#(#declared_chains,)*],
-                );
-                let projections = #nc::__nc_projection_table(
-                    &contracts,
-                    // SAFETY: this allocation's canonical unknown table delegates
-                    // lifecycle and queries to the same stored implementation.
-                    unsafe { #nc::__ComProjection::<Self>::new(#nc::IUnknown::INTERFACE_ID, &#nc::lifetime::CANONICAL_UNKNOWN_VTABLE) },
-                    &[#(#providers,)*],
-                );
-                #nc::__nc_projection_vtables(&projections)
-            };
 
             #constructors
 
@@ -153,21 +145,35 @@ pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_mac
             type Threading = #declared_threading_model;
             type SharedGuard<'a> = #shared_guard;
             type ExclusiveGuard<'a> = #exclusive_guard;
-            const VTABLES: &'static [*const #nc::IUnknownVTable] = &Self::COM_VTABLES;
+            /// One trait-owned static table; no inherent forwarding member is emitted.
+            const VTABLES: &'static [*const #nc::IUnknownVTable] = &{
+                let #contracts = #nc::__nc_interface_chain::<{ #interface_count }>(
+                    &#nc::IUnknown::INTERFACE_DESCRIPTOR, &[#(#declared_chains,)*],
+                );
+                let #projections = #nc::__nc_projection_table(
+                    &#contracts,
+                    // SAFETY: this allocation's canonical unknown table delegates
+                    // lifecycle and queries to the same stored implementation.
+                    unsafe { #nc::__ComProjection::<Self>::new(#nc::IUnknown::INTERFACE_ID, &#nc::lifetime::CANONICAL_UNKNOWN_VTABLE) },
+                    &[#(#providers,)*],
+                );
+                #nc::__nc_projection_vtables(&#projections)
+            };
 
             unsafe fn borrow_abi_ref<'a>(
-                object: *mut ::core::ffi::c_void,
+                #object_pointer: *mut ::core::ffi::c_void,
             ) -> ::core::result::Result<#nc::__ComSharedLease<'a, Self, Self::SharedGuard<'a>>, #nc::NcStatus> {
                 // SAFETY: caller retains the exact storage allocated by our constructor.
-                unsafe { <#storage>::borrow_ref(object) }
+                unsafe { <#storage>::borrow_ref(#object_pointer) }
             }
 
             unsafe fn borrow_abi_mut<'a>(
-                object: *mut ::core::ffi::c_void,
+                #object_pointer: *mut ::core::ffi::c_void,
             ) -> ::core::result::Result<#nc::__ComExclusiveLease<'a, Self, Self::ExclusiveGuard<'a>>, #nc::NcStatus> {
                 // SAFETY: the selected storage enforces its one admission/borrow authority.
-                unsafe { <#storage>::borrow_mut(object) }
+                unsafe { <#storage>::borrow_mut(#object_pointer) }
             }
         }
+        };
     }
 }

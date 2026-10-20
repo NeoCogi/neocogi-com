@@ -1,17 +1,16 @@
 //! Cross-module name resolution, ABI validation, and canonical identities.
 
-
 mod events;
 use std::{
     collections::{BTreeSet, HashMap},
     fmt,
 };
 
-use neocogi_com_core::{NcGuid, guid_from_name, guid_from_qualified_name};
+use neocogi_com_core::{NcComDenseEnumMember, NcComInterfaceCompanion, NcGuid, guid_from_name, guid_from_qualified_name};
 
 use crate::{
-    AbiType, BitEnum, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, Method, Module, NamedType, SourceFile, SourceSpan, Threading,
-    VariantFields, sha256::digest,
+    AbiType, BitEnum, Declaration, DeclarationKind, Diagnostic, Enum, EnumRepr, Method, Module, NamedType, SourceFile, SourceSpan, Threading, VariantFields,
+    sha256::digest,
 };
 
 /// UUID namespace reserved for canonical NeoCogi IDL identities.
@@ -332,7 +331,11 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
         collect_diagnostics(&mut diagnostics, validate_generated_names(module));
     }
     if !diagnostics.is_empty() {
-        let sources = graph.modules.iter().flat_map(|module| module.source.sources.iter().cloned()).collect::<Vec<_>>();
+        let sources = graph
+            .modules
+            .iter()
+            .flat_map(|module| module.source.sources.iter().cloned())
+            .collect::<Vec<_>>();
         return Err(ResolutionError {
             diagnostics: diagnostics.into_iter().map(|diagnostic| diagnostic.with_sources(&sources)).collect(),
         });
@@ -733,7 +736,9 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
             DeclarationKind::Interface(interface) => {
                 collect_diagnostics(&mut diagnostics, validate_interface_bases(index, interface, entries, &declaration.name));
                 collect_diagnostics(&mut diagnostics, events::validate(index, interface, entries, &declaration.name));
-                collect_diagnostics(&mut diagnostics, validate_methods(index, &interface.methods, entries, values, &declaration.name),
+                collect_diagnostics(
+                    &mut diagnostics,
+                    validate_methods(index, &interface.methods, entries, values, &declaration.name),
                 );
             }
         }
@@ -752,8 +757,8 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
 /// authored interfaces and closed generic specializations use the same
 /// macro, so a single inventory covers both namespaces.
 fn interface_companions(name: &str, companions: &mut Vec<String>) {
-    for suffix in ["Abi", "VTable", "VtblFor", "Client"] {
-        companions.push(format!("{name}{suffix}"));
+    for companion in NcComInterfaceCompanion::ALL {
+        companions.push(format!("{name}{}", companion.suffix()));
     }
 }
 
@@ -790,12 +795,12 @@ fn validate_generated_names(module: &ResolvedModule) -> Result<(), ResolutionErr
             let origin = &declaration.span;
             if let Some((previous_span, previous_name)) = occupied.get(name.as_str()) {
                 let diagnostic = Diagnostic::new(
-                        "EIDL021",
-                        format!("generated Rust name {name:?} from {} conflicts with {previous_name}", declaration.name),
-                    )
-                    .with_sources(&source.sources)
-                    .primary(origin, "this declaration generates the conflicting name")
-                    .secondary(previous_span, "name is already present here");
+                    "EIDL021",
+                    format!("generated Rust name {name:?} from {} conflicts with {previous_name}", declaration.name),
+                )
+                .with_sources(&source.sources)
+                .primary(origin, "this declaration generates the conflicting name")
+                .secondary(previous_span, "name is already present here");
                 diagnostics.push(diagnostic);
             } else {
                 occupied.insert(name.to_owned(), (origin.clone(), format!("generated companion of {}", declaration.name)));
@@ -953,7 +958,10 @@ fn collect_type_references<'a>(ty: &'a AbiType, output: &mut Vec<&'a NamedType>)
     match ty {
         AbiType::Named(name) => output.push(name),
         AbiType::Array { element, .. } => collect_type_references(element, output),
-        AbiType::ComPtr(_) | AbiType::WeakComPtr(_) | AbiType::ComBox(_) | AbiType::WeakComBox(_)
+        AbiType::ComPtr(_)
+        | AbiType::WeakComPtr(_)
+        | AbiType::ComBox(_)
+        | AbiType::WeakComBox(_)
         | AbiType::Borrowed(_)
         | AbiType::Vector(_)
         | AbiType::UnsizedSlice(_)
@@ -1027,6 +1035,27 @@ fn validate_enum(entry: &ModuleEntry, declaration: &Declaration, enumeration: &E
             format!("dense enum {} must use an unsigned representation and unit variants", declaration.name),
             "invalid dense-enum shape",
         ));
+    }
+    if enumeration.dense {
+        for variant in &enumeration.variants {
+            if let Some(member) = NcComDenseEnumMember::ALL
+                .into_iter()
+                .find(|member| member.is_emitted(enumeration.names.is_some()) && member.name() == variant.name)
+            {
+                return Err(source_error(
+                    &entry.module,
+                    "EIDL021",
+                    &variant.span,
+                    format!(
+                        "enum {} variant {} conflicts with generated dense-enum member {}",
+                        declaration.name,
+                        variant.name,
+                        member.name()
+                    ),
+                    "this spelling is part of the generated public dense-enum API",
+                ));
+            }
+        }
     }
     let (minimum, maximum) = repr_range(enumeration.repr);
     let mut previous = -1i128;
@@ -1144,12 +1173,20 @@ fn validate_interface_bases(index: usize, interface: &crate::Interface, entries:
 /// Rejects handle lookup conflicts at authored spans, even for unused templates.
 /// Generated/specialized methods reuse the same policy during final validation.
 fn validate_method_names(module: &Module, methods: &[Method]) -> Result<(), ResolutionError> {
-    let diagnostics = methods.iter().filter(|method| neocogi_com_core::is_reserved_com_method(&method.name)).map(|method| {
-        Diagnostic::new("EIDL100", format!("COM method `{}` conflicts with a COM handle operation", method.name))
-            .with_sources(&module.sources)
-            .primary(&method.span, "choose a distinct interface method name")
-    }).collect::<Vec<_>>();
-    if diagnostics.is_empty() { Ok(()) } else { Err(ResolutionError { diagnostics }) }
+    let diagnostics = methods
+        .iter()
+        .filter(|method| neocogi_com_core::is_reserved_com_method(&method.name))
+        .map(|method| {
+            Diagnostic::new("EIDL100", format!("COM method `{}` conflicts with a COM handle operation", method.name))
+                .with_sources(&module.sources)
+                .primary(&method.span, "choose a distinct interface method name")
+        })
+        .collect::<Vec<_>>();
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(ResolutionError { diagnostics })
+    }
 }
 
 /// Validates ordinary signatures and generated output getters in vtable order.
@@ -1172,7 +1209,13 @@ fn validate_methods(index: usize, methods: &[Method], entries: &[ModuleEntry], v
         }
         collect_diagnostics(
             &mut diagnostics,
-            validate_output_type(index, &method.output, entries, values, &format!("{owner}::{} result", method.name), &method.span,
+            validate_output_type(
+                index,
+                &method.output,
+                entries,
+                values,
+                &format!("{owner}::{} result", method.name),
+                &method.span,
             ),
         );
     }
@@ -1203,7 +1246,10 @@ fn value_fields(declaration: &Declaration) -> Vec<&AbiType> {
 /// Validates recursive field syntax independently from method ownership positions.
 fn validate_field_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], context: &str, span: &SourceSpan) -> Result<(), ResolutionError> {
     if matches!(ty, AbiType::ComBox(_)) {
-        return Err(source_error(&entries[index].module, "EIDL060", span,
+        return Err(source_error(
+            &entries[index].module,
+            "EIDL060",
+            span,
             format!("{context}: exclusive owners are method transfers, not repeatable fields"),
             "use an explicit owning object contract instead of a repeatable value codec",
         ));
@@ -1211,7 +1257,8 @@ fn validate_field_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], cont
     match ty {
         AbiType::Unit | AbiType::Scalar(_) | AbiType::String => Ok(()),
         AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => {
-            validate_object_target(index, value, entries, context, span)}
+            validate_object_target(index, value, entries, context, span)
+        }
         AbiType::Named(name) => {
             if builtin_object(name).is_some() {
                 return Err(source_error(
@@ -1343,7 +1390,13 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
 }
 
 /// Requires an implemented self-contained copied lowering at this method position.
-fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan,
+fn validate_value_type(
+    index: usize,
+    ty: &AbiType,
+    entries: &[ModuleEntry],
+    values: &crate::ValueGraph,
+    context: &str,
+    span: &SourceSpan,
 ) -> Result<(), ResolutionError> {
     validate_field_type(index, ty, entries, context, span)?;
     if copied_type(index, ty, entries, values) {
@@ -1360,7 +1413,13 @@ fn validate_value_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], valu
 }
 
 /// Validates an input without allowing implicit COM ownership transfer.
-fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &crate::ValueGraph, context: &str, span: &SourceSpan,
+fn validate_parameter_type(
+    index: usize,
+    ty: &AbiType,
+    entries: &[ModuleEntry],
+    values: &crate::ValueGraph,
+    context: &str,
+    span: &SourceSpan,
 ) -> Result<(), ResolutionError> {
     let span = type_span(ty).unwrap_or(span);
     if let AbiType::Borrowed(referent) = ty {
@@ -1372,8 +1431,12 @@ fn validate_parameter_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], 
     }
     match ty {
         AbiType::ComBox(value) => validate_object_target(index, value, entries, context, span),
-        AbiType::WeakComBox(_) => Err(source_error(&entries[index].module, "EIDL061", span,
-            format!("{context}: weak box inputs must use a live interface borrow"), "unsupported ownership transfer",
+        AbiType::WeakComBox(_) => Err(source_error(
+            &entries[index].module,
+            "EIDL061",
+            span,
+            format!("{context}: weak box inputs must use a live interface borrow"),
+            "unsupported ownership transfer",
         )),
         AbiType::WeakComPtr(_) | AbiType::ComPtr(_) | AbiType::Unit | AbiType::String | AbiType::Vector(_) | AbiType::UnsizedSlice(_) => Err(source_error(
             &entries[index].module,
@@ -1434,7 +1497,8 @@ fn validate_output_type(
     match ty {
         AbiType::Unit | AbiType::Scalar(_) => Ok(()),
         AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value) => {
-            validate_object_target(index, value, entries, context, span)}
+            validate_object_target(index, value, entries, context, span)
+        }
         AbiType::Named(_) | AbiType::Array { .. } => validate_value_type(index, ty, entries, values, context, span),
         AbiType::String => Err(source_error(
             &entries[index].module,
@@ -1590,7 +1654,10 @@ fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, 
     // parameters require a scope, not a second serializer or diagnostic strings.
     encoder.u32(u32_len(entry.module.templates.len(), &entry.name, "template count")?);
     for template in &entry.module.templates {
-        let id = template.id.explicit.unwrap_or_else(|| derive_declaration_id(&entry.module.name.qualify(&template.name), template.id.version));
+        let id = template
+            .id
+            .explicit
+            .unwrap_or_else(|| derive_declaration_id(&entry.module.name.qualify(&template.name), template.id.version));
         encode_declaration(index, template, id, entries, &mut encoder)?;
     }
 
@@ -1649,8 +1716,11 @@ fn classify_name<'a>(scope: EncodingScope<'_>, name: &'a NamedType, entries: &[M
         if let Some(position) = scope.parameters.iter().position(|parameter| parameter == local) {
             if !name.arguments.is_empty() {
                 return Err(source_error(
-                    &entries[scope.module].module, "EIDL060", &name.span,
-                    "a type parameter cannot accept arguments", "remove these type arguments",
+                    &entries[scope.module].module,
+                    "EIDL060",
+                    &name.span,
+                    "a type parameter cannot accept arguments",
+                    "remove these type arguments",
                 ));
             }
             return Ok(NameBinding::Parameter {
@@ -1679,7 +1749,9 @@ fn encode_declaration(
     entries: &[ModuleEntry],
     encoder: &mut CanonicalEncoder,
 ) -> Result<(), ResolutionError> {
-    let scope = EncodingScope { module: index, parameters: &declaration.parameters ,
+    let scope = EncodingScope {
+        module: index,
+        parameters: &declaration.parameters,
     };
     encoder.u32(u32_len(scope.parameters.len(), &entries[index].name, "type parameter count")?);
     encoder.text(&declaration.name, &entries[index].name)?;
@@ -1700,7 +1772,9 @@ fn encode_declaration(
             encoder.tag(enum_repr_tag(enumeration.repr));
             encoder.tag(u8::from(enumeration.has_payload()));
             encoder.tag(u8::from(enumeration.dense));
-            encoder.tag(match enumeration.names { None => 0, Some(crate::EnumNames::SnakeCase) => 1 ,
+            encoder.tag(match enumeration.names {
+                None => 0,
+                Some(crate::EnumNames::SnakeCase) => 1,
             });
             encoder.u32(u32_len(enumeration.variants.len(), &entries[index].name, "variant count")?);
             let mut previous = -1i64;
@@ -1748,7 +1822,9 @@ fn encode_declaration(
             encode_methods(scope, &interface.bases, &interface.methods, interface.threading, entries, encoder)?;
             // Emitted interfaces are semantic dependencies, independent of vtable ancestry.
             encoder.u32(u32_len(interface.events.len(), &entries[index].name, "event count")?);
-            for event in &interface.events { encode_named(scope, event, entries, encoder)?; }
+            for event in &interface.events {
+                encode_named(scope, event, entries, encoder)?;
+            }
         }
     }
     Ok(())
@@ -1833,7 +1909,10 @@ fn encode_type(scope: EncodingScope<'_>, ty: &AbiType, entries: &[ModuleEntry], 
             encode_type(scope, element, entries, encoder)?;
         }
         AbiType::ComBox(target) | AbiType::WeakComBox(target) => {
-            encoder.tag(match ty { AbiType::ComBox(_) => 12, AbiType::WeakComBox(_) => 13, _ => unreachable!() ,
+            encoder.tag(match ty {
+                AbiType::ComBox(_) => 12,
+                AbiType::WeakComBox(_) => 13,
+                _ => unreachable!(),
             });
             encode_type(scope, target, entries, encoder)?;
         }
@@ -1885,7 +1964,12 @@ fn encode_named(scope: EncodingScope<'_>, name: &NamedType, entries: &[ModuleEnt
 
 /// Encodes a free declaration's owning module, identity and recursive arguments.
 /// The caller provides lexical classification; this function never interprets binders.
-fn encode_free_declaration(scope: EncodingScope<'_>, free: FreeName<'_>, entries: &[ModuleEntry], encoder: &mut CanonicalEncoder) -> Result<(), ResolutionError> {
+fn encode_free_declaration(
+    scope: EncodingScope<'_>,
+    free: FreeName<'_>,
+    entries: &[ModuleEntry],
+    encoder: &mut CanonicalEncoder,
+) -> Result<(), ResolutionError> {
     let name = free.0;
     let (module, id) = if scope.parameters.is_empty() {
         let symbol = resolve_named(scope.module, name, entries)?;
@@ -1895,12 +1979,21 @@ fn encode_free_declaration(scope: EncodingScope<'_>, free: FreeName<'_>, entries
         // another template that has no concrete symbol-table entry of its own.
         let owner = name.segments[..name.segments.len() - 1].join(".");
         let local = name.segments.last().expect("normalized named type");
-        let module = entries.iter().position(|entry| entry.name == owner)
+        let module = entries
+            .iter()
+            .position(|entry| entry.name == owner)
             .ok_or_else(|| error(Some(&entries[scope.module].name), format!("unresolved template module {owner}")))?;
-        let declaration = entries[module].module.declarations.iter().chain(&entries[module].module.templates)
+        let declaration = entries[module]
+            .module
+            .declarations
+            .iter()
+            .chain(&entries[module].module.templates)
             .find(|declaration| &declaration.name == local)
             .ok_or_else(|| error(Some(&owner), format!("unresolved template declaration {local}")))?;
-        let id = declaration.id.explicit.unwrap_or_else(|| derive_declaration_id(&entries[module].module.name.qualify(local), declaration.id.version));
+        let id = declaration
+            .id
+            .explicit
+            .unwrap_or_else(|| derive_declaration_id(&entries[module].module.name.qualify(local), declaration.id.version));
         (module, id)
     };
     encoder.guid(entries[module].module_id);
@@ -2036,7 +2129,10 @@ pub(crate) fn is_reserved_name(name: &str) -> bool {
             | "IUnknown"
             | "INcBytes"
             | "INcString"
-            | "ComPtr" | "WeakComPtr" | "ComBox" | "WeakComBox"
+            | "ComPtr"
+            | "WeakComPtr"
+            | "ComBox"
+            | "WeakComBox"
             | "Vec"
             | "Slice"
             | "Array"
@@ -2055,7 +2151,10 @@ fn u32_len(value: usize, module: &str, field: &str) -> Result<u32, ResolutionErr
 fn type_span(ty: &AbiType) -> Option<&SourceSpan> {
     match ty {
         AbiType::Named(name) => Some(&name.span),
-        AbiType::ComPtr(value) | AbiType::WeakComPtr(value) | AbiType::ComBox(value) | AbiType::WeakComBox(value)
+        AbiType::ComPtr(value)
+        | AbiType::WeakComPtr(value)
+        | AbiType::ComBox(value)
+        | AbiType::WeakComBox(value)
         | AbiType::Borrowed(value)
         | AbiType::Vector(value)
         | AbiType::UnsizedSlice(value)
@@ -2151,17 +2250,10 @@ mod reference_encoding_tests {
     /// Free UUID bytes cannot impersonate a bound ordinal: both cases have tags.
     #[test]
     fn named_references_discriminate_free_identity_and_parameter_positions() {
-        let source = crate::parse_module(
-            std::path::Path::new("proof/codec.ncidl"),
-            "#[version(1)] interface B {}",
-        )
-        .unwrap();
+        let source = crate::parse_module(std::path::Path::new("proof/codec.ncidl"), "#[version(1)] interface B {}").unwrap();
         let entries = build_entries(vec![source]).unwrap();
         let parameters = vec!["A".to_owned(), "B".to_owned()];
-        let scope = EncodingScope {
-            module: 0,
-            parameters: &parameters,
-        };
+        let scope = EncodingScope { module: 0, parameters: &parameters };
         let name = |segments: &[&str]| NamedType {
             span: entries[0].module.declarations[0].span.clone(),
             segments: segments.iter().map(|value| (*value).to_owned()).collect(),
@@ -2170,22 +2262,10 @@ mod reference_encoding_tests {
         for (position, parameter) in ["A", "B"].into_iter().enumerate() {
             let mut reference = CanonicalEncoder::new();
             encode_named(scope, &name(&[parameter]), &entries, &mut reference).unwrap();
-            assert_eq!(
-                reference.bytes,
-                [vec![0], (position as u32).to_be_bytes().to_vec()].concat()
-            );
+            assert_eq!(reference.bytes, [vec![0], (position as u32).to_be_bytes().to_vec()].concat());
             let mut ordinary = CanonicalEncoder::new();
-            encode_type(
-                scope,
-                &AbiType::Named(name(&[parameter])),
-                &entries,
-                &mut ordinary,
-            )
-            .unwrap();
-            assert_eq!(
-                ordinary.bytes,
-                [vec![14], (position as u32).to_be_bytes().to_vec()].concat()
-            );
+            encode_type(scope, &AbiType::Named(name(&[parameter])), &entries, &mut ordinary).unwrap();
+            assert_eq!(ordinary.bytes, [vec![14], (position as u32).to_be_bytes().to_vec()].concat());
         }
         let mut free = CanonicalEncoder::new();
         encode_named(scope, &name(&["proof", "codec", "B"]), &entries, &mut free).unwrap();
@@ -2196,8 +2276,7 @@ mod reference_encoding_tests {
         assert_eq!(free.bytes, expected);
         let mut invalid = name(&["B"]);
         invalid.arguments.push(AbiType::Scalar("u32".to_owned()));
-        let error =
-            encode_named(scope, &invalid, &entries, &mut CanonicalEncoder::new()).unwrap_err();
+        let error = encode_named(scope, &invalid, &entries, &mut CanonicalEncoder::new()).unwrap_err();
         assert_eq!(error.diagnostics[0].code, "EIDL060");
         assert!(error.to_string().contains("proof/codec.ncidl"));
     }
