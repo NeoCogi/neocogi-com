@@ -15,7 +15,7 @@ use crate::util::{checked_u32_len, push_error, runtime_crate_path, validate_no_g
 /// Emits a native enum, its checked inline codec, and declaration identity.
 /// Persistence and wire conversion use the same zero-based declaration ordinals.
 /// Only the active recursively checked payload crosses the foreign boundary.
-pub(crate) fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<proc_macro2::TokenStream> {
+pub fn expand_com_enum(args: EnumArgs, mut input: ItemEnum) -> Result<proc_macro2::TokenStream> {
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
     validate_com_enum(&input)?;
     let derives = crate::structs::missing_copy_derives(&input.attrs);

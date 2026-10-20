@@ -11,7 +11,9 @@ The single `neocogi-idl` package separates responsibilities into Rust modules:
   the complete source graph.
 - `cargo` discovers sources and exchanges versioned source graphs through
   Cargo `links`/`DEP_*`. Build scripts use `neocogi_idl::cargo::Module`.
-- `generate` emits formatted Rust bindings with fixed declaration signatures.
+- `generate` lowers bound ownership into typed method/value plans and emits complete
+  Rust through `neocogi-com-codegen`, with fixed declaration signatures. Generated
+  contracts do not invoke interface/value attribute macros or reparse Rust types.
   Its pure entrypoints perform no Cargo environment access.
 - `tools/idl/example-contracts` and `example-consumer-contracts` cover standalone
   and imported contracts. [examples/com-plugin](../../../examples/com-plugin)
@@ -70,7 +72,7 @@ module = "example.widgets"
 source = "idl/example/widgets"
 
 [dependencies]
-neocogi-com = { version = "0.0.0", default-features = false, features = ["macros"] }
+neocogi-com = { version = "0.0.0", default-features = false }
 
 [build-dependencies]
 neocogi-idl = "0.0.0"
@@ -78,7 +80,7 @@ neocogi-idl = "0.0.0"
 
 The version selectors assume published matching packages; inside this checkout
 use the corresponding workspace dependencies or local paths. This minimal
-copied-value/interface setup needs `macros`; modules with owned values also
+copied-value/interface setup needs no procedural macros; modules with owned values
 need the facade's `alloc` feature (or `std`) for owned value decoding. `build.rs` owns generation:
 
 ```rust,no_run
@@ -118,9 +120,8 @@ artifacts do not affect ABI identity. See [source mapping](../../../docs/guides/
 for schema, coordinates, path resolution and macro-expansion limits.
 
 The resolver gives IDL declarations a UUID derived from their qualified name and
-binary version, or the explicit UUID from `#[id]`. Generated macros receive it as
-`assigned_guid`. This differs from the low-level macro's `auto_guid` path, which
-hashes a qualified-name string directly. The declaration signature then includes
+binary version, or the explicit UUID from `#[id]`. The typed backend embeds that
+identity directly in the generated ABI. The declaration signature includes
 the module fingerprint and declaration UUID; runtime calls compare those exact
 identity/signature bytes.
 

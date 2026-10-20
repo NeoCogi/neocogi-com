@@ -15,53 +15,11 @@ fn printed_bindings_preserve_authored_values_and_arguments() {
     ] {
         let graph = neocogi_idl::resolve_modules(vec![neocogi_idl::parse_module(Path::new(&format!("proof/{module}.ncidl")), source).unwrap()]).unwrap();
         let generated = neocogi_idl::generate_rust(&graph, &format!("proof.{module}")).unwrap();
-        let mut expanded = proc_macro2::TokenStream::new();
-        for item in syn::parse_file(&generated).unwrap().items {
-            // Strip only the macro being expanded; retain documentation, derives,
-            // public names, and metadata exactly as an ordinary consumer does.
-            let tokens = match item {
-                syn::Item::Struct(mut item) => {
-                    let index = item
-                        .attrs
-                        .iter()
-                        .position(|attr| matches!(attr.path().segments.last().unwrap().ident.to_string().as_str(), "com_struct" | "com_value"))
-                        .unwrap();
-                    let attr = item.attrs.remove(index);
-                    match attr.path().segments.last().unwrap().ident.to_string().as_str() {
-                        "com_struct" => crate::structs::expand_com_struct(attr.parse_args().unwrap(), item).unwrap(),
-                        "com_value" => crate::value::expand_owned(attr.parse_args().unwrap(), syn::parse2(quote! { #item }).unwrap()).unwrap(),
-                        _ => unreachable!(),
-                    }
-                }
-                syn::Item::Enum(mut item) => {
-                    let index = item
-                        .attrs
-                        .iter()
-                        .position(|attr| matches!(attr.path().segments.last().unwrap().ident.to_string().as_str(), "com_enum" | "com_value"))
-                        .unwrap();
-                    let attr = item.attrs.remove(index);
-                    match attr.path().segments.last().unwrap().ident.to_string().as_str() {
-                        "com_enum" => crate::enums::expand_com_enum(attr.parse_args().unwrap(), item).unwrap(),
-                        "com_value" => crate::value::expand_owned(attr.parse_args().unwrap(), syn::parse2(quote! { #item }).unwrap()).unwrap(),
-                        _ => unreachable!(),
-                    }
-                }
-                syn::Item::Trait(mut item) => {
-                    let index = item
-                        .attrs
-                        .iter()
-                        .position(|attr| attr.path().segments.last().unwrap().ident == "com_interface")
-                        .unwrap();
-                    let args = item.attrs.remove(index).parse_args().unwrap();
-                    crate::interface::expand_com_interface(args, item).unwrap()
-                }
-                item => quote! { #item },
-            };
-            expanded.extend(tokens);
-        }
+        // The backend already emitted the complete typed ABI. Printing and
+        // reparsing cannot rely on proc-macro hygiene or a second contract parser.
         fs::write(
             project.path().join(format!("src/{module}.rs")),
-            prettyplease::unparse(&syn::parse2(expanded).unwrap()),
+            prettyplease::unparse(&syn::parse_file(&generated).unwrap()),
         )
         .unwrap();
     }

@@ -8,22 +8,22 @@
 use syn::{Attribute, Ident, Type};
 
 /// One validated COM method after source syntax has been lowered.
-pub(crate) struct AbiMethod {
+pub struct AbiMethod {
     /// Method name, also used as the generated vtable field name.
-    pub(crate) ident: Ident,
+    pub ident: Ident,
     /// User documentation propagated to generated safe and raw methods.
-    pub(crate) doc_attrs: Vec<Attribute>,
+    pub doc_attrs: Vec<Attribute>,
     /// Borrowing permission required while dispatching the method.
-    pub(crate) receiver: AbiReceiver,
+    pub receiver: AbiReceiver,
     /// Parameters in source and vtable order.
-    pub(crate) args: Vec<AbiArg>,
+    pub args: Vec<AbiArg>,
     /// Successful payload; failure is always represented by `NcStatus`.
-    pub(crate) ok: AbiReturn,
+    pub ok: AbiReturn,
 }
 
 /// Borrowing mode declared by one COM method receiver.
 #[derive(Clone, Copy)]
-pub(crate) enum AbiReceiver {
+pub enum AbiReceiver {
     /// The method observes its implementation through a shared borrow.
     Shared,
     /// The method may mutate its implementation through an exclusive borrow.
@@ -31,23 +31,23 @@ pub(crate) enum AbiReceiver {
 }
 
 /// One method parameter and its ABI lowering.
-pub(crate) struct AbiArg {
+pub struct AbiArg {
     /// Source-level parameter identifier.
-    pub(crate) ident: Ident,
+    pub ident: Ident,
     /// Positional local used only by generated clients, vtable slots and thunks.
     /// Separate from `ident` so source names never enter implementation scopes,
     /// including when expanded tokens are printed and reparsed without hygiene.
-    pub(crate) binding: Ident,
+    pub binding: Ident,
     /// Rust type appearing in the safe trait method.
-    pub(crate) rust_ty: Type,
+    pub rust_ty: Type,
     /// Raw type appearing in the generated C vtable slot.
-    pub(crate) abi_ty: Type,
+    pub abi_ty: Type,
     /// Ownership and pointer transformation applied during lowering.
-    pub(crate) kind: AbiArgKind,
+    pub kind: AbiArgKind,
 }
 
 /// Ownership/passing rule selected for a method parameter.
-pub(crate) enum AbiArgKind {
+pub enum AbiArgKind {
     /// Unique owner passed through a writable C slot. Success consumes it;
     /// every rejection restores the original owner, including provider errors.
     /// The Rust signature exposes ComBox and an ownership-bearing error tuple.
@@ -58,13 +58,22 @@ pub(crate) enum AbiArgKind {
         mode_ty: Option<Box<Type>>,
     },
     /// Concrete generated message borrowed through its own C record.
-    BorrowedValue { value_ty: Box<Type> },
+    BorrowedValue {
+        /// Concrete application value whose checked wire is borrowed.
+        value_ty: Box<Type>,
+    },
     /// ABI-safe scalar or aggregate passed directly by value.
     Plain,
     /// Call-scoped source buffer lowered to a const element pointer plus bounds.
-    CopyFromBufferOffset { element_ty: Box<Type> },
+    CopyFromBufferOffset {
+        /// Application element acquired from each checked readable wire.
+        element_ty: Box<Type>,
+    },
     /// Write-only copied output lowered to offset, capacity, wire pointer and prefix-count pointer.
-    OutputBuffer { element_ty: Box<Type> },
+    OutputBuffer {
+        /// Application element converted into each fresh output slot.
+        element_ty: Box<Type>,
+    },
     /// Borrowed interface lowered to its raw ABI pointer.
     ComRef {
         /// Whether a null pointer denotes an explicitly absent capability.
@@ -77,17 +86,17 @@ pub(crate) enum AbiArgKind {
 }
 
 /// Successful method return and its ABI lowering.
-pub(crate) struct AbiReturn {
+pub struct AbiReturn {
     /// Success type appearing in the source-level `Result`.
-    pub(crate) rust_ty: Type,
+    pub rust_ty: Type,
     /// Raw output-pointee type, or unit for a status-only method.
-    pub(crate) abi_ty: Type,
+    pub abi_ty: Type,
     /// Ownership and output-slot transformation applied during lowering.
-    pub(crate) kind: AbiReturnKind,
+    pub kind: AbiReturnKind,
 }
 
 /// Ownership/passing rule selected for a successful return.
-pub(crate) enum AbiReturnKind {
+pub enum AbiReturnKind {
     /// Status-only `Result<(), NcStatus>` with no output pointer.
     Void,
     /// ABI-safe value returned through an output pointer.
@@ -105,7 +114,7 @@ pub(crate) enum AbiReturnKind {
 
 /// Lifetime token transferred by an object-valued method result.
 #[derive(Clone, Copy)]
-pub(crate) enum InterfaceOwnership {
+pub enum InterfaceOwnership {
     /// Another shared owner whose lifetime ends with Release.
     Shared,
     /// The one exclusive owner; queries cannot duplicate this token.

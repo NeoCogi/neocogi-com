@@ -24,7 +24,7 @@ module = "neocogi.com.events"
 source = "idl/neocogi/com/events"
 
 [build-dependencies]
-neocogi-idl = { workspace = true, optional = true }
+neocogi-idl.workspace = true
 
 [dependencies]
 neocogi-com-core = { workspace = true, default-features = false }
@@ -74,7 +74,7 @@ trybuild.workspace = true
 
 [features]
 default = ["macros", "std"]
-macros = ["dep:neocogi-com-macros", "dep:neocogi-idl"]
+macros = ["dep:neocogi-com-macros"]
 std = ["alloc", "neocogi-com-core/std"]
 alloc = ["neocogi-com-core/alloc"]
 # Stateless typed runtime clients; linkage belongs to the final assembly.

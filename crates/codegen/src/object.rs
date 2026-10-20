@@ -15,7 +15,7 @@ use crate::args::{ObjectArgs, ObjectOwnership};
 use crate::util::{PrivateNames, runtime_crate_path};
 
 /// Generates compact interface bindings, typed borrow adapters and legal constructors.
-pub(crate) fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::TokenStream {
+pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::TokenStream {
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
     let declared_paths = args.interfaces.iter().map(|interface| &interface.abi_path);
     let mut names = PrivateNames::new(quote! { #input #nc #(#declared_paths)* });

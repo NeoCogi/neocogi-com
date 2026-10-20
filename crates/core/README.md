@@ -177,7 +177,7 @@ The COM facade re-exports these contracts and supplies concrete-provider thunks.
 
 The canonical IDL is `idl/neocogi/com/persistence/objects.ncidl`. Its built-in
 bindings are checked in because core cannot depend on its own IDL compiler.
-Verify them with `cargo test -p neocogi-com-macros persistence_bindings_match_idl`;
+Verify them with `cargo test -p neocogi-com-codegen persistence_bindings_match_idl`;
 set `NC_UPDATE_PERSISTENCE_BINDINGS=1` on that command to regenerate both halves.
 Changes to common canonical encoding must refresh these bindings even when the
 persistence IDL and physical layouts are unchanged: their exact signatures include

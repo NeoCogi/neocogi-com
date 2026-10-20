@@ -6,7 +6,7 @@ use syn::{Data, DeriveInput, Fields, Result};
 use crate::util::{PrivateNames, validate_no_generics};
 
 /// Generates field-by-field writes, never ABI-offset inspection or type erasure.
-pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
+pub fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     validate_no_generics(&input.generics, "ComSerialize derives")?;
     let name = &input.ident;
     let nc: syn::Path = syn::parse_quote!(::neocogi_com);

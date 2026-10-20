@@ -179,7 +179,9 @@ fn nested_records_and_aggregate_sequences_resolve_uniformly() {
     let graph = resolve_modules(vec![parse_module(Path::new("example/values.ncidl"), source).unwrap()]).unwrap();
     assert!(graph.values.definitions["example.values.Inner"].copied);
     assert!(!graph.values.definitions["example.values.Outer"].copied);
-    assert!(generate_rust(&graph, "example.values").unwrap().contains("com_value"));
+    let source = generate_rust(&graph, "example.values").unwrap();
+    assert!(source.contains("unsafe impl ::neocogi_com::ComValue for Outer"));
+    assert!(!source.contains("::neocogi_com::com_value("));
 }
 
 /// Inline option recursion is just as infinite as an ordinary recursive field.
@@ -198,6 +200,8 @@ fn optional_cycles_and_removed_message_annotation_are_rejected() {
 /// Standalone fixtures consume the shipped common receiver from its owning crate.
 fn generate_rust(graph: &neocogi_idl::ResolvedModules, module: &str) -> Result<String, neocogi_idl::GenerateError> {
     let mut paths = neocogi_idl::generate::RustModulePaths::default();
-    if graph.module("neocogi.com.events").is_some() { paths.insert("neocogi.com.events", "neocogi_com::events").unwrap(); }
+    if graph.module("neocogi.com.events").is_some() {
+        paths.insert("neocogi.com.events", "neocogi_com::events").unwrap();
+    }
     neocogi_idl::generate::generate_rust_with_paths(graph, module, &paths)
 }

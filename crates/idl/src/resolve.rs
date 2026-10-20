@@ -707,11 +707,11 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
     }
 }
 
-/// Adds every top-level type emitted by `com_interface` for one trait name.
+/// Adds every public type emitted by the typed interface backend for one name.
 ///
-/// Keep this inventory aligned with `crates/com/macros/src/interface.rs`. Both
-/// authored interfaces and closed generic specializations use the same
-/// macro, so a single inventory covers both namespaces.
+/// Resolver and backend consume the core companion inventory directly. Authored
+/// interfaces and closed specializations therefore reserve the same namespace
+/// without maintaining a second list of generated support names.
 fn interface_companions(name: &str, companions: &mut Vec<String>) {
     for companion in NcComInterfaceCompanion::ALL {
         companions.push(format!("{name}{}", companion.suffix()));

@@ -4,7 +4,7 @@
 
 #![deny(missing_docs)]
 
-// Contract definitions require macros but neither allocation nor runtime linkage.
+// Complete typed contract bindings need neither macros, allocation nor runtime linkage.
 #[allow(unused_imports)]
 mod contracts;
 pub use contracts::*;
@@ -14,9 +14,9 @@ mod message;
 #[cfg(feature = "alloc")]
 pub use message::EventMessage;
 
-#[cfg(feature = "alloc")]
+#[cfg(all(feature = "alloc", feature = "macros"))]
 mod error;
-#[cfg(feature = "alloc")]
+#[cfg(all(feature = "alloc", feature = "macros"))]
 pub use error::error;
 
 #[cfg(feature = "alloc")]
@@ -24,9 +24,9 @@ mod stream;
 #[cfg(feature = "alloc")]
 pub use stream::{EventPort};
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "macros"))]
 mod channel;
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "macros"))]
 pub use channel::channel;
 
 #[cfg(feature = "alloc")]
@@ -52,7 +52,7 @@ impl EventBinding {
     }
 }
 
-#[cfg(all(test, feature = "std"))]
+#[cfg(all(test, feature = "std", feature = "macros"))]
 mod tests {
     //! Receiver capture distinguishes a valid borrow from shared lifetime authority.
     use super::*;

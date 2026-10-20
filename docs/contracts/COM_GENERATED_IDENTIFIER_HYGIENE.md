@@ -260,9 +260,10 @@ spellings, and successful/rejected exclusive-owner calls. They verify the origin
 descriptor names and exact owner identity. A handwritten interface shadows core
 support names with application items to check that those names remain usable.
 
-`crates/com/macros/src/identifier_hygiene_tests.rs` expands the IDL value/interface
-macros, prints the complete output, and runs the same semantic assertions in a
-fresh consumer crate. This verifies the path that cannot retain macro hygiene.
+`crates/com/codegen/src/identifier_hygiene_tests.rs` prints the complete typed
+IDL output and runs the same semantic assertions in a fresh consumer crate.
+This verifies the path that cannot retain macro hygiene; contract attributes
+and a second Rust contract parser are absent from that path.
 The persistence-generation test independently checks the committed built-ins.
 The shared shadowing fixture includes dense integer enums, flags, and interface
 metadata beside local `Option`/`Some`/`None` types. Constructor/event tests compile

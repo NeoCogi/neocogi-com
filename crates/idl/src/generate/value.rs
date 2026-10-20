@@ -1,8 +1,11 @@
-//! Application storage selection for the single recursively checked value model.
+//! One typed application/value plan for copied and owning IDL aggregates.
 use super::*;
+use neocogi_com_codegen::ValueCase;
+use syn::parse::Parser;
 
-/// Emits an owning record or enum; its fields use the same codec as copied values.
-pub(super) fn generate_owned(
+/// Lowers a bound aggregate once into application fields and checked wire cases.
+/// Native record layout is local; only the backend's explicit C wire crosses COM.
+pub(super) fn generate_aggregate(
     graph: &Generation<'_>,
     module: &ResolvedModule,
     declaration: &Declaration,
@@ -11,60 +14,164 @@ pub(super) fn generate_owned(
     let name = rust_ident(&declaration.name)?;
     let docs = declaration_docs(graph, declaration);
     let signature = signature_literal(identity.abi_signature);
-    let data = match &declaration.kind {
+    let copied = graph.graph.values.definitions[&identity.qualified_name].copied;
+    let mut cases = Vec::new();
+    let (data, native) = match &declaration.kind {
         DeclarationKind::Struct(record) => {
-            let fields = record
-                .fields
-                .iter()
-                .map(|field| {
-                    let name = rust_ident(&field.name)?;
-                    let docs = origin_docs(&field.docs, &field.span);
-                    let ty = owned_type(graph, module, &field.ty)?;
-                    Ok(quote! { #docs pub #name: #ty })
-                })
-                .collect::<Result<Vec<_>, GenerateError>>()?;
-            quote! { pub struct #name { #(#fields),* } }
+            let fields = named_fields(graph, module, &record.fields, true)?;
+            let native = quote! { pub struct #name #fields };
+            cases.push(ValueCase {
+                variant: None,
+                tag: quote! { 0 },
+                fields: syn::Fields::Named(fields.clone()),
+            });
+            (
+                syn::Data::Struct(syn::DataStruct {
+                    struct_token: Default::default(),
+                    fields: syn::Fields::Named(fields),
+                    semi_token: None,
+                }),
+                native,
+            )
         }
         DeclarationKind::Enum(enumeration) => {
-            let variants = enumeration
-                .variants
-                .iter()
-                .map(|variant| {
-                    let name = rust_ident(&variant.name)?;
-                    let docs = origin_docs(&variant.docs, &variant.span);
-                    let fields = match &variant.fields {
-                        VariantFields::Unit => quote! {},
-                        VariantFields::Tuple(fields) => {
-                            let types = fields.iter().map(|ty| owned_type(graph, module, ty)).collect::<Result<Vec<_>, _>>()?;
-                            quote! { (#(#types),*) }
-                        }
-                        VariantFields::Named(fields) => {
-                            let fields = fields
-                                .iter()
-                                .map(|field| {
-                                    let name = rust_ident(&field.name)?;
-                                    let ty = owned_type(graph, module, &field.ty)?;
-                                    let docs = origin_docs(&field.docs, &field.span);
-                                    Ok(quote! { #docs #name: #ty })
-                                })
-                                .collect::<Result<Vec<_>, GenerateError>>()?;
-                            quote! { { #(#fields),* } }
-                        }
-                    };
-                    Ok(quote! { #docs #name #fields })
-                })
-                .collect::<Result<Vec<_>, GenerateError>>()?;
-            quote! { pub enum #name { #(#variants),* } }
+            let mut variants = syn::punctuated::Punctuated::new();
+            for (ordinal, variant) in enumeration.variants.iter().enumerate() {
+                let ident = rust_ident(&variant.name)?;
+                let attributes = attributes(origin_docs(&variant.docs, &variant.span))?;
+                let fields = match &variant.fields {
+                    VariantFields::Unit => syn::Fields::Unit,
+                    VariantFields::Named(fields) => syn::Fields::Named(named_fields(graph, module, fields, false)?),
+                    VariantFields::Tuple(fields) => syn::Fields::Unnamed(syn::FieldsUnnamed {
+                        paren_token: Default::default(),
+                        unnamed: fields
+                            .iter()
+                            .map(|ty| field(graph, module, None, ty, Vec::new(), false))
+                            .collect::<Result<_, _>>()?,
+                    }),
+                };
+                let tag = Literal::u32_unsuffixed(u32::try_from(ordinal).map_err(|_| GenerateError::new("enum ordinal exceeds u32"))?);
+                cases.push(ValueCase {
+                    variant: Some(ident.clone()),
+                    tag: quote! { #tag },
+                    fields: fields.clone(),
+                });
+                variants.push(syn::Variant {
+                    attrs: attributes,
+                    ident,
+                    fields,
+                    discriminant: None,
+                });
+            }
+            let native = quote! { pub enum #name { #variants } };
+            (
+                syn::Data::Enum(syn::DataEnum {
+                    enum_token: Default::default(),
+                    brace_token: Default::default(),
+                    variants,
+                }),
+                native,
+            )
         }
-        _ => return Err(GenerateError::new("owned values require a record or enum")),
+        _ => return Err(GenerateError::new("aggregate emission requires a record or payload enum")),
     };
-    let (deserialize, serialize) = persistence_attributes(graph, declaration, identity);
-    format_rust(quote! {
-        #[::neocogi_com::com_value(assigned_signature = #signature #deserialize)]
-        #serialize
-        #[derive(::core::clone::Clone, ::core::fmt::Debug)]
-        #docs #data
+    let nc = syn::parse_quote!(::neocogi_com);
+    let codec = neocogi_com_codegen::emit_value(
+        &name,
+        &syn::parse_quote!(pub),
+        &cases,
+        quote! { ::neocogi_com::NcAbiSignature::from_static(#signature) },
+        copied,
+        copied && matches!(declaration.kind, DeclarationKind::Struct(_)),
+        &nc,
+    );
+    let derives = if copied {
+        quote! { #[derive(::core::clone::Clone, ::core::marker::Copy, ::core::fmt::Debug, ::core::cmp::PartialEq)] }
+    } else {
+        quote! { #[derive(::core::clone::Clone, ::core::fmt::Debug)] }
+    };
+    let nominal = copied.then(|| {
+        quote! {
+            // SAFETY: the bound IDL declaration supplies nominal identity; the
+            // checked self-contained codec supplies the physical wire contract.
+            unsafe impl ::neocogi_com::AbiType for #name {
+                const ABI_TYPE: ::neocogi_com::NcAbiType = ::neocogi_com::NcAbiType::Aggregate(<Self as ::neocogi_com::ComValueType>::VALUE_SIGNATURE);
+            }
+            // SAFETY: every copied field is self-contained and has no release protocol.
+            unsafe impl ::neocogi_com::AbiPlainValue for #name {}
+        }
+    });
+    let persistence = if graph.graph.values.definitions[&identity.qualified_name].persistence == crate::Persistence::Supported {
+        let decoder = match &data {
+            syn::Data::Struct(record) => neocogi_com_codegen::emit_record_decoder(
+                &name,
+                &record.fields,
+                &nc,
+                matches!(&declaration.kind, DeclarationKind::Struct(record) if record.persistence == crate::PersistencePolicy::Default),
+            ),
+            syn::Data::Enum(enumeration) => neocogi_com_codegen::emit_enum_decoder(&name, enumeration, &nc),
+            syn::Data::Union(_) => unreachable!("IDL has no native unions"),
+        }
+        .map_err(|error| GenerateError::new(error.to_string()))?;
+        let serializer = neocogi_com_codegen::expand_com_serialize_derive(syn::DeriveInput {
+            attrs: Vec::new(),
+            vis: syn::parse_quote!(pub),
+            ident: name.clone(),
+            generics: Default::default(),
+            data,
+        })
+        .map_err(|error| GenerateError::new(error.to_string()))?;
+        quote! { #decoder #serializer }
+    } else {
+        quote! {}
+    };
+    format_rust(quote! { #derives #docs #native #codec #nominal #persistence })
+}
+
+/// Builds application fields directly from their bound IDL field uses.
+fn named_fields(graph: &Generation<'_>, module: &ResolvedModule, fields: &[crate::Field], public: bool) -> Result<syn::FieldsNamed, GenerateError> {
+    Ok(syn::FieldsNamed {
+        brace_token: Default::default(),
+        named: fields
+            .iter()
+            .map(|source| {
+                field(
+                    graph,
+                    module,
+                    Some(rust_ident(&source.name)?),
+                    &source.ty,
+                    attributes(origin_docs(&source.docs, &source.span))?,
+                    public,
+                )
+            })
+            .collect::<Result<_, _>>()?,
     })
+}
+
+/// Only Rust syntax is represented here; no field spelling is resolved again.
+fn field(
+    graph: &Generation<'_>,
+    module: &ResolvedModule,
+    ident: Option<Ident>,
+    ty: &AbiType,
+    attrs: Vec<syn::Attribute>,
+    public: bool,
+) -> Result<syn::Field, GenerateError> {
+    Ok(syn::Field {
+        attrs,
+        vis: if public { syn::parse_quote!(pub) } else { syn::Visibility::Inherited },
+        mutability: syn::FieldMutability::None,
+        colon_token: ident.as_ref().map(|_| Default::default()),
+        ident,
+        ty: syn::parse2(owned_type(graph, module, ty)?).map_err(|error| GenerateError::new(error.to_string()))?,
+    })
+}
+
+/// Keeps source annotations as syntax shared by native fields and source mapping.
+fn attributes(tokens: TokenStream) -> Result<Vec<syn::Attribute>, GenerateError> {
+    syn::Attribute::parse_outer
+        .parse2(tokens)
+        .map_err(|error| GenerateError::new(error.to_string()))
 }
 
 /// Maps a recursive field to application ownership; no native wire copying occurs here.
@@ -86,23 +193,6 @@ pub(super) fn owned_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &A
         }
         _ => return Err(GenerateError::new("resolved field has no owned value lowering")),
     })
-}
-
-/// Generates both directions only when the complete graph proves persistence.
-/// Explicit record policies have already been checked against unsupported leaves.
-pub(super) fn persistence_attributes(graph: &Generation<'_>, declaration: &Declaration, identity: &crate::DeclarationIdentity) -> (TokenStream, TokenStream) {
-    if graph.graph.values.definitions[&identity.qualified_name].persistence != crate::Persistence::Supported {
-        return (quote! {}, quote! {});
-    }
-    let policy = match &declaration.kind {
-        DeclarationKind::Struct(record) => record.persistence,
-        _ => crate::PersistencePolicy::Automatic,
-    };
-    let decoder = match policy {
-        crate::PersistencePolicy::Automatic => quote! { , deserialize },
-        crate::PersistencePolicy::Default => quote! { , deserialize, default },
-    };
-    (decoder, quote! { #[derive(::neocogi_com::ComSerialize)] })
 }
 
 /// Integer enums and bit sets persist their declared scalar, preserving unknown

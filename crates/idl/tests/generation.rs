@@ -137,7 +137,7 @@ fn generates_rust_bindings_for_a_module_graph() {
     let generated_render = neocogi_idl::generate_rust(&graph, "neocogi.render").unwrap();
     syn::parse_file(&generated).expect("generated bindings must be valid Rust syntax");
     assert!(generated.lines().count() > 20, "generated bindings must use readable multiline formatting");
-    assert!(generated.contains("com_interface"));
+    assert!(generated.contains("unsafe impl ::neocogi_com::ComInterface for UiFactoryAbi"));
     assert!(!generated.contains("factory,"));
     assert!(generated.contains("com_int_enum"));
     assert!(generated.contains("com_bit_enum"));
@@ -145,23 +145,29 @@ fn generates_rust_bindings_for_a_module_graph() {
     assert!(generated.contains("pub enum Filter: u8"));
     assert!(generated.contains("/// Texture sampling filter."));
     assert!(generated.contains("/// Uses the nearest texel."));
-    assert!(!generated.contains("#[doc ="));
     assert!(generated.contains("pub const COUNT: usize = 2"));
     assert!(generated.contains("pub const ALL: [Self; Self::COUNT]"));
     assert!(generated.contains("pub const NAMES: [&'static str; Self::COUNT]"));
     assert!(generated.contains("pub const fn canonical_name"));
     assert!(!generated.contains("fn index"));
     assert!(generated.contains("trait UiFactory"));
-    assert!(generated.contains("threading = shared"));
+    assert!(generated.contains("type Threading = ::neocogi_com::ThreadSafe"));
     assert!(generated.contains("NcOutputWriter"));
     assert!(generated_render.contains("pub status: ::neocogi_com::NcStatus"));
-    assert!(generated_render.contains("com_struct("));
-    assert!(generated_render.contains("deserialize"));
+    assert!(generated_render.contains("unsafe impl ::neocogi_com::AbiType for Size"));
+    assert!(generated_render.contains("impl ::neocogi_com::ComSerialize for Size"));
+    assert!(generated_render.contains("impl ::neocogi_com::ComDeserialize for Size"));
     // Neither copied declarations nor COM object methods require alloc syntax.
     assert!(!generated_render.contains("extern crate alloc"));
     assert!(!generated.contains("extern crate alloc"));
-    assert_eq!(generated.matches("assigned_signature = b").count(), 2);
-    assert_eq!(generated_render.matches("assigned_signature = b").count(), 3);
+    for (module, source) in [("neocogi.ui", &generated), ("neocogi.render", &generated_render)] {
+        for declaration in &graph.module(module).unwrap().declarations {
+            assert!(source.contains(&proc_macro2::Literal::byte_string(&declaration.abi_signature).to_string()));
+        }
+        for retired in ["com_interface", "com_struct", "com_enum", "com_value"] {
+            assert!(!source.contains(&format!("::neocogi_com::{retired}(")));
+        }
+    }
     assert!(!generated.contains("NcAbiSignaturePart"));
     assert!(!generated.contains("__encode"));
     assert!(!generated.contains("std::any::Any"));

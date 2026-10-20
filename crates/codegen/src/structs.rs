@@ -14,7 +14,7 @@ use crate::plain_data::{PlainAbiTypeContext, validate_plain_abi_fields};
 use crate::util::{checked_u32_len, push_error, runtime_crate_path, validate_no_generics};
 
 /// Applies local representation policy and emits nominal identity and checked codecs.
-pub(crate) fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Result<proc_macro2::TokenStream> {
+pub fn expand_com_struct(args: StructArgs, mut input: ItemStruct) -> Result<proc_macro2::TokenStream> {
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
     validate_com_struct(&input)?;
     checked_u32_len(fields_len(&input.fields), input.ident.span(), "COM struct field count")?;

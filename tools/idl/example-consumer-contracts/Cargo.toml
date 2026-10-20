@@ -13,7 +13,7 @@ module = "neocogi.idl_consumer"
 source = "idl/neocogi/idl_consumer.ncidl"
 
 [dependencies]
-neocogi-com = { workspace = true, features = ["macros"] }
+neocogi-com = { workspace = true }
 neocogi-idl-example-contracts = { path = "../example-contracts" }
 
 [build-dependencies]

@@ -34,9 +34,15 @@ fn rust_locations_only_change_import_paths() {
     let mut paths = RustModulePaths::default();
     paths.insert("example.contract", "shared_api::contracts").unwrap();
     let relocated = generate_rust_with_paths(&graph, "example.consumer", &paths).unwrap();
-    // Token comparison ignores wrapping introduced by longer paths; every other
-    // emitted token, including assigned identities and signatures, must agree.
-    let normalize = |text: &str| text.parse::<proc_macro2::TokenStream>().unwrap().to_string();
+    // Reformat after relocating paths: multiline generic arguments acquire
+    // optional trailing commas. Every semantic token, including precomputed
+    // identities/signatures and transported metadata strings, must still agree.
+    let normalize = |text: &str| {
+        prettyplease::unparse(&syn::parse_file(text).unwrap())
+            .parse::<proc_macro2::TokenStream>()
+            .unwrap()
+            .to_string()
+    };
     assert_eq!(
         normalize(&baseline.replace("example_contract_contracts", "shared_api::contracts")),
         normalize(&relocated)
@@ -189,7 +195,10 @@ fn raw_identifier_catalog_paths_compile_in_exported_forms() {
         let output = Command::new("cargo")
             .args(&arguments)
             .current_dir(directory)
-            .env("CARGO_TARGET_DIR", std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()))
+            .env(
+                "CARGO_TARGET_DIR",
+                std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()),
+            )
             .output()
             .unwrap();
         assert!(

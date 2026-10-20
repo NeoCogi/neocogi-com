@@ -15,7 +15,7 @@ use crate::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind};
 use crate::util::{checked_u32_len, collect_syn_results, stable_guid, private_ident, push_error, runtime_crate_path, PrivateNames, interface_companion_ident};
 
 /// Expands one validated interface trait into its complete Rust and C ABI surface.
-pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Result<proc_macro2::TokenStream> {
+pub fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Result<proc_macro2::TokenStream> {
     let mut errors = None;
     validate_interface_trait(&input, &mut errors);
 
@@ -41,7 +41,7 @@ pub(crate) fn expand_com_interface(args: InterfaceArgs, input: ItemTrait) -> Res
 ///
 /// The emitted source trait remains intact, while `methods` become vtable
 /// slots, typed descriptions, thunks, and safe client methods.
-pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: ItemTrait, methods: Vec<AbiMethod>) -> Result<proc_macro2::TokenStream> {
+pub fn expand_com_interface_with_methods(args: InterfaceArgs, input: ItemTrait, methods: Vec<AbiMethod>) -> Result<proc_macro2::TokenStream> {
     let InterfaceExpansion { abi, provider } = expand_interface_parts(args, input, methods)?;
     Ok(quote! { #abi #provider })
 }
@@ -50,15 +50,15 @@ pub(crate) fn expand_com_interface_with_methods(args: InterfaceArgs, input: Item
 ///
 /// Core owns the ABI and safe clients. The facade owns generated object thunks,
 /// whose borrow gates and concrete object storage must not enter the core ABI.
-pub(crate) struct InterfaceExpansion {
+pub struct InterfaceExpansion {
     /// Traits, markers, clients and metadata, using only allocation-free core types.
-    pub(crate) abi: proc_macro2::TokenStream,
+    pub abi: proc_macro2::TokenStream,
     /// Concrete-provider projections and thunks, using facade object support.
-    pub(crate) provider: proc_macro2::TokenStream,
+    pub provider: proc_macro2::TokenStream,
 }
 
 /// Lowers both halves once so checked-in built-ins and ordinary IDL stay identical.
-pub(crate) fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, mut methods: Vec<AbiMethod>) -> Result<InterfaceExpansion> {
+pub fn expand_interface_parts(args: InterfaceArgs, input: ItemTrait, mut methods: Vec<AbiMethod>) -> Result<InterfaceExpansion> {
     // Generated names are deliberately mechanical and predictable. A trait
     // named `IFoo` produces `IFooAbi`, `IFooVTable`, `IFooVtblFor<T>`, and
     // `IFooClient`.

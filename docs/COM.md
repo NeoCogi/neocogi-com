@@ -259,7 +259,8 @@ protocol. Live COM calls retain their separate checked wire representation.
 ## Crates
 
 - `neocogi-com-core`: raw ABI layouts and traits (`no_std` by default).
-- `neocogi-com-macros`: procedural macro implementation.
+- `neocogi-com-codegen`: one typed Rust backend for IDL and implementation helpers.
+- `neocogi-com-macros`: thin procedural entrypoints over that backend.
 - `neocogi-com`: object helpers, built-in event contracts/adapters, and optional
   shared/static runtime clients.
 - `neocogi-com-runtime`: plugin catalog, loader, and persistence implementation;

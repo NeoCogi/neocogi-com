@@ -484,7 +484,6 @@ mod data;
 /// Generated source-level descriptions used by typed authoring tools.
 pub mod design;
 /// Built-in typed queue contracts and construction-bound producer storage.
-#[cfg(feature = "macros")]
 pub mod events;
 mod macros;
 mod object;

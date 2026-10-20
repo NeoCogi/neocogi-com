@@ -283,9 +283,9 @@ See [persistence semantics and ownership](../runtime/PERSISTENCE.md).
 
 | Selection | Available behavior |
 | --- | --- |
-| `default-features = false` | `no_std` core ABI, pointer/client support, persistence contracts, and serialization traits; no runtime linkage |
+| `default-features = false` | `no_std` core ABI, pointer/client support, event/persistence contracts, and serialization traits; no runtime linkage |
 | `alloc` | Heap-backed object helpers, owned string/byte objects, the binary codec, and `ObjectRecord` |
-| `macros` | Macro/derive re-exports and built-in event contracts; heap-backed object storage also needs `alloc` |
+| `macros` | Implementation macro/derive re-exports; concrete error/channel helpers also use this storage-generation support |
 | `std` | `alloc` plus standard-library integrations; no runtime linkage by itself |
 | Defaults: `std`, `macros` | Local objects, owned data, and event adapters; no runtime linkage |
 | `runtime` | Implies `std`; enables stateless runtime/persistence clients. The final assembly supplies linkage. |
@@ -313,11 +313,12 @@ Runtime discovery declarations live in `src/runtime/ffi.rs`. They are stateless.
 Caller-scoped persistence contexts and event queues do not replace or populate the
 global plugin catalog.
 
-The `macros` feature also exposes built-in event contracts through
+Built-in event contracts are available independently of `macros` through
 [`neocogi_com::events`](EVENTS.md). Contracts need no allocation or runtime;
-receiver allocation needs `alloc`, and applications using standard channels need `std`. Persistent UI
-controllers and scheduling belong to the UI facade and core contracts. Event IDL compilation
-is an optional build dependency of this feature and runs on the build machine.
+the concrete error-event constructor needs `alloc` plus `macros`, and the standard
+channel helper needs `std` plus `macros`. Persistent UI controllers and scheduling
+belong to the UI facade and core contracts. Event IDL compilation runs on the
+build machine and emits complete Rust independently of target macro features.
 
 ### Construction-bound event receivers
 

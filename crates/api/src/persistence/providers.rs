@@ -1,5 +1,5 @@
 // Generated from core/idl/neocogi/com/persistence/objects.ncidl.
-// Regenerate: NC_UPDATE_PERSISTENCE_BINDINGS=1 cargo test -p neocogi-com-macros persistence_bindings_match_idl
+// Regenerate: NC_UPDATE_PERSISTENCE_BINDINGS=1 cargo test -p neocogi-com-codegen persistence_bindings_match_idl
 
 use super::*;
 #[doc(hidden)]

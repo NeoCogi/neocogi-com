@@ -19,6 +19,7 @@ fi
 packages=(
   neocogi-com-core
   neocogi-idl
+  neocogi-com-codegen
   neocogi-com-macros
   neocogi-com-runtime
   neocogi-com
@@ -30,6 +31,7 @@ for package in "${packages[@]}"; do
   case "$package" in
     neocogi-com-core) package_license="crates/com/core/LICENSE-MIT" ;;
     neocogi-idl) package_license="crates/com/idl/LICENSE-MIT" ;;
+    neocogi-com-codegen) package_license="crates/com/codegen/LICENSE-MIT" ;;
     neocogi-com-macros) package_license="crates/com/macros/LICENSE-MIT" ;;
     neocogi-com-runtime) package_license="crates/com/runtime/LICENSE-MIT" ;;
     neocogi-com) package_license="crates/com/api/LICENSE-MIT" ;;
@@ -42,7 +44,7 @@ for package in "${packages[@]}"; do
 done
 
 echo "==> [packages] build workspace archives"
-cargo package -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --no-verify --allow-dirty --locked --offline
+cargo package -p neocogi-com-core -p neocogi-idl -p neocogi-com-codegen -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --no-verify --allow-dirty --locked --offline
 
 package_dir="${CARGO_TARGET_DIR:-target}/package"
 for package in "${packages[@]}"; do
@@ -87,7 +89,7 @@ import json
 from pathlib import Path
 import sys
 root, version = Path(sys.argv[1]), sys.argv[2]
-packages = ("neocogi-com-core", "neocogi-idl", "neocogi-com-macros",
+packages = ("neocogi-com-core", "neocogi-idl", "neocogi-com-codegen", "neocogi-com-macros",
             "neocogi-com-runtime", "neocogi-com", "neocogi-inspect")
 (root / ".cargo").mkdir()
 (root / ".cargo/config.toml").write_text("[patch.crates-io]\n" + "".join(

@@ -13,7 +13,7 @@ use crate::args::{InterfaceGuid, parse_guid_arg};
 use crate::util::{PrivateNames, checked_u32_len, runtime_crate_path, stable_guid, validate_version_literal};
 
 /// Normalized inputs to one `plugin!` declaration.
-pub(crate) struct PluginArgs {
+pub struct PluginArgs {
     /// Optional checked plugin ID; omission derives it from `name`.
     plugin_id: Option<InterfaceGuid>,
     /// Normative dotted plugin name.
@@ -111,7 +111,7 @@ fn reject_duplicate_paths(paths: &[Path], subject: &str) -> Result<()> {
 }
 
 /// Emits immutable plugin metadata backed by one exact typed factory interface.
-pub(crate) fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::TokenStream> {
+pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::TokenStream> {
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
     let signature = &input.sig;
     if !signature.inputs.is_empty()

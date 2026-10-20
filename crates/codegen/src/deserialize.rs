@@ -19,7 +19,7 @@ pub(crate) struct DeriveOptions {
 }
 
 /// Expands a local value's NCB constructor; live ABI layout is handled separately.
-pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
+pub fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     validate_no_generics(&input.generics, "ComDeserialize derives")?;
     let options = parse_options(&input.attrs)?;
     let nc: Path = syn::parse_quote!(::neocogi_com);
@@ -72,7 +72,7 @@ fn implementation(
 }
 
 /// Generates construction after COM value-layout validation, when used by an attribute macro.
-pub(crate) fn expand_struct(ident: &Ident, fields: &Fields, nc: &Path, default: bool) -> Result<TokenStream> {
+pub fn expand_struct(ident: &Ident, fields: &Fields, nc: &Path, default: bool) -> Result<TokenStream> {
     let mut names = PrivateNames::new(quote! { #ident #fields #nc });
     let reader = names.binding("__nc_reader");
     let field_reader = names.binding("__nc_fields");
@@ -142,7 +142,7 @@ fn construction(fields: &Fields, destination: TokenStream, field_reader: &Ident)
 /// Generates one ordinal switch for unit, newtype, tuple and record cases.
 /// Aggregate payloads enter one additional value scope, preserving NCB budgets;
 /// newtypes read one child, and unit variants have no payload value at all.
-pub(crate) fn expand_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path) -> Result<TokenStream> {
+pub fn expand_enum(ident: &Ident, data: &syn::DataEnum, nc: &Path) -> Result<TokenStream> {
     let variants = &data.variants;
     let mut names = PrivateNames::new(quote! { #ident #variants #nc });
     let reader = names.binding("__nc_reader");

@@ -13,22 +13,22 @@ use syn::{Ident, LitByteStr, LitInt, LitStr, Path, Result, Token, Type, parenthe
 use crate::util::{interface_companion_ident, path_with_last_ident};
 
 /// Parsed options for concrete `#[com_object]` storage generation.
-pub(crate) struct ObjectArgs {
+pub struct ObjectArgs {
     /// Explicit interface list after deriving ABI and vtable helper paths.
-    pub(crate) interfaces: Vec<ObjectInterface>,
+    pub interfaces: Vec<ObjectInterface>,
     /// Constructor and call-lifetime policy fixed for every instance of this class.
-    pub(crate) ownership: ObjectOwnership,
+    pub ownership: ObjectOwnership,
     /// Whether generated object storage may be shared across threads.
-    pub(crate) thread_safe: bool,
+    pub thread_safe: bool,
     /// Optional path overriding automatic `neocogi-com` crate discovery.
-    pub(crate) runtime_crate: Option<Path>,
+    pub runtime_crate: Option<Path>,
     /// Optional generated ABI path for a factory-created interface contract.
-    pub(crate) primary_interface: Option<Path>,
+    pub primary_interface: Option<Path>,
 }
 
 /// Provider-side lifetime policy; interface ABI and threading remain independent.
 #[derive(Clone, Copy)]
-pub(crate) enum ObjectOwnership {
+pub enum ObjectOwnership {
     /// Strong references keep the implementation alive throughout each call.
     Shared,
     /// One owner controls retirement; weak calls need temporary admission.
@@ -37,7 +37,7 @@ pub(crate) enum ObjectOwnership {
 
 /// Threading spellings accepted by generated interface attributes.
 #[derive(Clone, Copy)]
-pub(crate) enum InterfaceThreading {
+pub enum InterfaceThreading {
     /// References and calls remain on one thread.
     Local,
     /// References and calls may cross threads.
@@ -45,43 +45,43 @@ pub(crate) enum InterfaceThreading {
 }
 
 /// Generated contract and statically typed provider paths for one object interface.
-pub(crate) struct ObjectInterface {
+pub struct ObjectInterface {
     /// Path to the macro-generated interface marker.
-    pub(crate) abi_path: Path,
+    pub abi_path: Path,
     /// Path to the generated vtable provider and canonical binding table.
-    pub(crate) vtable_for_path: Path,
+    pub vtable_for_path: Path,
 }
 
 /// Parsed options for `#[com_enum]`.
-pub(crate) struct EnumArgs {
+pub struct EnumArgs {
     /// Integer representation used for stable variant tags.
-    pub(crate) tag: Type,
+    pub tag: Type,
     /// Optional path overriding automatic `neocogi-com` crate discovery.
-    pub(crate) runtime_crate: Option<Path>,
+    pub runtime_crate: Option<Path>,
     /// Whether to generate format-neutral typed decoding for the Rust enum.
-    pub(crate) deserialize: bool,
+    pub deserialize: bool,
     /// Generator-computed declaration signature required by expansion.
-    pub(crate) assigned_signature: Option<LitByteStr>,
+    pub assigned_signature: Option<LitByteStr>,
 }
 
 /// Parsed options for `#[com_struct]`.
-pub(crate) struct StructArgs {
+pub struct StructArgs {
     /// Optional path overriding automatic `neocogi-com` crate discovery.
-    pub(crate) runtime_crate: Option<Path>,
+    pub runtime_crate: Option<Path>,
     /// Requested C, packed, or explicitly aligned representation.
-    pub(crate) repr: StructReprArgs,
+    pub repr: StructReprArgs,
     /// Check external field layouts through the compiler instead of COM traits.
-    pub(crate) c_struct: bool,
+    pub c_struct: bool,
     /// Whether to generate format-neutral typed decoding for the record.
-    pub(crate) deserialize: bool,
+    pub deserialize: bool,
     /// Whether omitted named fields retain their `Default` values.
-    pub(crate) deserialize_default: bool,
+    pub deserialize_default: bool,
     /// Generator-computed declaration signature required by expansion.
-    pub(crate) assigned_signature: Option<LitByteStr>,
+    pub assigned_signature: Option<LitByteStr>,
 }
 
 /// Supported physical layout modifiers for generated COM structs.
-pub(crate) enum StructReprArgs {
+pub enum StructReprArgs {
     /// Ordinary `repr(C)` layout.
     C,
     /// Packed layout, optionally with an explicit packing alignment.
@@ -91,22 +91,22 @@ pub(crate) enum StructReprArgs {
 }
 
 /// Parsed identity and crate-path options for `#[com_interface]`.
-pub(crate) struct InterfaceArgs {
+pub struct InterfaceArgs {
     /// Explicit, derived, or constant-path interface GUID.
-    pub(crate) guid: InterfaceGuid,
+    pub guid: InterfaceGuid,
     /// Normative qualified name stored in descriptor metadata.
-    pub(crate) qualified_name: LitStr,
+    pub qualified_name: LitStr,
     /// Generator-computed declaration signature required by expansion.
-    pub(crate) assigned_signature: Option<LitByteStr>,
+    pub assigned_signature: Option<LitByteStr>,
     /// Optional path overriding automatic `neocogi-com` crate discovery.
-    pub(crate) runtime_crate: Option<Path>,
+    pub runtime_crate: Option<Path>,
     /// Minimum capability promised by this callable contract.
-    pub(crate) threading: InterfaceThreading,
+    pub threading: InterfaceThreading,
 }
 
 /// Source form used to obtain a stable plugin, object, or interface GUID.
 #[derive(Clone)]
-pub(crate) enum InterfaceGuid {
+pub enum InterfaceGuid {
     /// Canonical UUID string parsed during macro expansion.
     Explicit(LitStr),
     /// UUID-v5 derivation from the exact qualified-name literal.
@@ -533,7 +533,7 @@ fn interface_vtable_for_path(path: &Path) -> Result<Path> {
 }
 
 /// Parses a GUID literal, `auto_guid = ...`, or existing constant path.
-pub(crate) fn parse_guid_arg(input: ParseStream<'_>, name: &str) -> Result<InterfaceGuid> {
+pub fn parse_guid_arg(input: ParseStream<'_>, name: &str) -> Result<InterfaceGuid> {
     let guid = if input.peek(LitStr) {
         InterfaceGuid::Explicit(input.parse()?)
     } else {

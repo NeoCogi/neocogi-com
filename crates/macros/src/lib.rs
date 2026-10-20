@@ -135,28 +135,6 @@
 use proc_macro::TokenStream;
 use syn::{DeriveInput, ItemEnum, ItemStruct, ItemTrait, parse_macro_input};
 
-mod abi_method;
-mod args;
-mod deserialize;
-mod enums;
-mod interface;
-mod model;
-mod object;
-mod plain_data;
-mod plugin;
-mod serialize;
-mod structs;
-mod util;
-mod value;
-
-use args::{ObjectArgs, EnumArgs, InterfaceArgs, StructArgs};
-use deserialize::expand_derive as expand_com_deserialize_derive;
-use enums::expand_com_enum;
-use plugin::{PluginArgs, expand_plugin};
-use interface::expand_com_interface;
-use object::expand_com_object;
-use structs::expand_com_struct;
-
 /// Derives statically typed NCB decoding for a local Rust value.
 ///
 /// Struct fields decode in declaration order; enums use declaration ordinals
@@ -168,7 +146,7 @@ use structs::expand_com_struct;
 #[proc_macro_derive(ComDeserialize, attributes(com_deserialize))]
 pub fn derive_com_deserialize(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
-    match expand_com_deserialize_derive(input) {
+    match neocogi_com_codegen::expand_com_deserialize_derive(input) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }
@@ -179,7 +157,7 @@ pub fn derive_com_deserialize(item: TokenStream) -> TokenStream {
 #[proc_macro_derive(ComSerialize, attributes(com_deserialize))]
 pub fn derive_com_serialize(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
-    match serialize::expand_derive(input) {
+    match neocogi_com_codegen::expand_com_serialize_derive(input) {
         Ok(tokens) => tokens.into(),
         Err(error) => error.to_compile_error().into(),
     }
@@ -208,9 +186,9 @@ pub fn derive_com_serialize(item: TokenStream) -> TokenStream {
 /// invalid literals are rejected during macro expansion.
 #[proc_macro_attribute]
 pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let attr = parse_macro_input!(attr as InterfaceArgs);
+    let attr = parse_macro_input!(attr as neocogi_com_codegen::InterfaceArgs);
     let input = parse_macro_input!(item as ItemTrait);
-    match expand_com_interface(attr, input) {
+    match neocogi_com_codegen::expand_com_interface(attr, input) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }
@@ -244,9 +222,9 @@ pub fn com_interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// This provider-local choice never changes an interface's C ABI or threading.
 #[proc_macro_attribute]
 pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as ObjectArgs);
+    let args = parse_macro_input!(attr as neocogi_com_codegen::ObjectArgs);
     let input = parse_macro_input!(item as ItemStruct);
-    expand_com_object(args, input).into()
+    neocogi_com_codegen::expand_com_object(args, input).into()
 }
 
 /// Describes one plugin using a safe typed acquisition function.
@@ -263,9 +241,9 @@ pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// is imposed on ordinary interface methods.
 #[proc_macro_attribute]
 pub fn plugin(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as PluginArgs);
+    let args = parse_macro_input!(attr as neocogi_com_codegen::PluginArgs);
     let input = parse_macro_input!(item as syn::ItemFn);
-    match expand_plugin(args, input) {
+    match neocogi_com_codegen::expand_plugin(args, input) {
         Ok(tokens) => tokens.into(),
         Err(error) => error.to_compile_error().into(),
     }
@@ -311,9 +289,9 @@ pub fn plugin(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// options affect persistence, independently of checked live-call wire layouts.
 #[proc_macro_attribute]
 pub fn com_struct(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as StructArgs);
+    let args = parse_macro_input!(attr as neocogi_com_codegen::StructArgs);
     let input = parse_macro_input!(item as ItemStruct);
-    match expand_com_struct(args, input) {
+    match neocogi_com_codegen::expand_com_struct(args, input) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }
@@ -349,43 +327,22 @@ pub fn com_struct(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// typed throughout decoding; this option does not alter the generated ABI.
 #[proc_macro_attribute]
 pub fn com_enum(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as EnumArgs);
+    let args = parse_macro_input!(attr as neocogi_com_codegen::EnumArgs);
     let input = parse_macro_input!(item as ItemEnum);
-    match expand_com_enum(args, input) {
+    match neocogi_com_codegen::expand_com_enum(args, input) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }
 }
 
-#[cfg(test)]
-mod persistence_codegen;
-
-#[cfg(test)]
-mod navigation_tests;
-
 /// Generates recursive raw fields and typed backing storage for an owned IDL value.
 /// This uses the same field codec as copied structs and enum payloads.
 #[proc_macro_attribute]
 pub fn com_value(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as StructArgs);
+    let args = parse_macro_input!(attr as neocogi_com_codegen::StructArgs);
     let input = parse_macro_input!(item as syn::DeriveInput);
-    match value::expand_owned(args, input) {
+    match neocogi_com_codegen::expand_owned(args, input) {
         Ok(tokens) => tokens.into(),
         Err(error) => error.to_compile_error().into(),
     }
 }
-
-#[cfg(test)]
-mod identifier_hygiene_tests;
-
-#[cfg(test)]
-mod support_resolution_tests;
-
-#[cfg(test)]
-mod name_ownership_tests;
-
-#[cfg(test)]
-mod method_name_tests;
-
-#[cfg(test)]
-mod test_consumer;

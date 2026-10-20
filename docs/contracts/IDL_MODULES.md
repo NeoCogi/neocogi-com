@@ -798,6 +798,25 @@ and uses the same acquisition operation against the one implementation explicitl
 
 ## Tool ownership and migration
 
+The compiler lowers the bound graph directly into typed method and value plans.
+`neocogi-com-codegen` emits provider traits, C wires/vtables, clients, thunks,
+metadata and persistence implementations from those plans. Generated contracts
+contain complete Rust instead of interface/value attributes whose expansions
+would have to recover ownership by parsing Rust types again. Core depends on
+neither compiler nor backend; the explicit interface-only bootstrap emits its
+checked-in persistence ABI and the facade's provider half from the same plan.
+
+Copied native records have ordinary Rust application layout. COM owns their
+explicit C wire layout and checked conversion. Direct borrowing still requires
+the codec's complete `BORROW_WIRE` size, alignment, offset and bit-validity proof.
+It cannot infer identity from the application's representation attribute.
+
+Generated contract crates need no procedural macro feature. Enable `alloc` for
+owned values and `std` where required by local code. The facade's common event
+contracts are available without those features. Its allocating error-event
+constructor also needs `macros`; the standard-channel helper needs both `std`
+and `macros` to generate their concrete implementation storage.
+
 - `neocogi-idl` owns parsing, semantic validation, and canonical fingerprints.
 - `neocogi-idl` owns source discovery, graph exchange, and Rust generation.
 - `cargo-neocogi` optionally manages modules; Cargo builds applications/plugins.

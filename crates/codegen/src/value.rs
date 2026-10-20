@@ -11,7 +11,7 @@ use syn::{Fields, Ident, Visibility};
 use crate::util::{PrivateNames, application_fields};
 
 /// A record or enum alternative with its declared tag and ordered field shape.
-pub(crate) struct ValueCase {
+pub struct ValueCase {
     /// None identifies a record; Some names an enum alternative.
     pub variant: Option<Ident>,
     /// Raw discriminant used only by tagged enums.
@@ -412,7 +412,7 @@ pub(crate) fn expand(
 }
 
 /// Parses owned declaration policy before sharing the ordinary field converter.
-pub(crate) fn expand_owned(args: crate::args::StructArgs, input: syn::DeriveInput) -> syn::Result<TokenStream> {
+pub fn expand_owned(args: crate::args::StructArgs, input: syn::DeriveInput) -> syn::Result<TokenStream> {
     crate::util::validate_no_generics(&input.generics, "IDL values")?;
     let nc = crate::util::runtime_crate_path(args.runtime_crate.as_ref());
     let signature = args
