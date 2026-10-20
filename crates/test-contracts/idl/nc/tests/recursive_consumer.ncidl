@@ -19,4 +19,3 @@ interface ConsumerIExchange {
     /// Returned values must be checked against the consumer's full contract.
     fn produce(&self) -> Result<ComPtr<ConsumerIValue>>;
 }
-

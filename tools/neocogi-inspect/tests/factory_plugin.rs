@@ -3,22 +3,52 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-/// Builds the real generated factory fixture using ordinary Cargo.
+/// Reads the exact dynamic output reported by Cargo, independent of build-dir layout.
+fn shared_artifact(output: &Output, target_name: &str) -> PathBuf {
+    let filename = format!("{}{target_name}{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX);
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|record| record["reason"] == "compiler-artifact" && record["target"]["name"] == target_name)
+        .flat_map(|record| {
+            record["filenames"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|name| PathBuf::from(name.as_str().unwrap()))
+                .collect::<Vec<_>>()
+        })
+        .find(|path| path.file_name().is_some_and(|name| name == filename.as_str()))
+        .expect("Cargo reports the requested shared library")
+}
+
+/// The final fixture owns shared-runtime link selection; the facade never supplies it.
 fn build_factory_plugin() -> PathBuf {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let target = workspace.join("target/factory-plugin-inspector-fixture");
-    let output = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned()))
+    let target = std::env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| workspace.join("target"));
+    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
+    let runtime = Command::new(&cargo)
+        .args(["build", "--offline", "--locked", "--manifest-path"])
+        .arg(workspace.join("Cargo.toml"))
+        .args(["-p", "neocogi-com-runtime", "--lib", "--message-format=json", "--target-dir"])
+        .arg(&target)
+        .output()
+        .expect("build the fixture's shared runtime");
+    assert_success("shared runtime build", &runtime);
+    let runtime = shared_artifact(&runtime, "nc_com");
+    let output = Command::new(cargo)
         .args(["rustc", "--offline", "--locked", "--manifest-path"])
         .arg(workspace.join("examples/com-plugin/Cargo.toml"))
         .arg("--target-dir")
         .arg(&target)
-        .args(["--lib", "--crate-type", "cdylib", "--features", "dynamic-plugin"])
+        .args(["--lib", "--crate-type", "cdylib", "--features", "dynamic-plugin", "--message-format=json"])
+        .env("NC_COM_RUNTIME_LINK_DIR", runtime.parent().unwrap())
         .output()
-        .expect("failed to build factory fixture");
+        .expect("build factory fixture with explicit final linkage");
     assert_success("factory plugin build", &output);
-    target
-        .join("debug")
-        .join(format!("{}nc_example_com{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX))
+    shared_artifact(&output, "nc_example_com")
 }
 
 /// Reports child diagnostics before failing a build or inspection assertion.

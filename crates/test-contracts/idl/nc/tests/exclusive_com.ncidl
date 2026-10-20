@@ -30,5 +30,3 @@ interface IPair {
     /// normalization must preserve both owners while reporting INVALID_ARG.
     fn offer(&mut self, left: ComBox<IValue>, right: ComBox<IValue>, accept: bool) -> Result<u32>;
 }
-
-

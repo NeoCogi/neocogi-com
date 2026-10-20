@@ -3,4 +3,3 @@
 interface IRight {
     fn changed(&self) -> Result<()>;
 }
-
