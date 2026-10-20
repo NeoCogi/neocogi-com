@@ -948,6 +948,15 @@ the prior scene intact. The native renderer snapshots shared immutable mesh buff
 before preparing actual depth-tested GPU work; it does not substitute CPU UI
 triangles for application rendering.
 
+`MeshVertex` is a generated application value with ordinary Rust layout, not a GPU
+byte format. The COM wire representation and GPU vertex representation have separate
+owners. For each new immutable mesh upload, the renderer copies the named position,
+normal and UV fields into its private dense float record. All mesh backends derive
+their attribute offsets and stride from that record; they never reinterpret the
+generated application record as GPU bytes. The temporary encoding is discarded
+after upload. Cache identity still follows the original shared mesh allocation, so
+camera edits reuse the existing GPU buffers without encoding the geometry again.
+
 The reusable Vulkan mesh renderer uploads each immutable mesh once and shares its native
 vertex/index buffers across draws and frame slots. Camera updates, draw reordering,
 temporary hiding and swapchain resizing do not replace the geometry. A replacement
