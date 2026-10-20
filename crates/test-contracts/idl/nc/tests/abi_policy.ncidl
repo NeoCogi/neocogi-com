@@ -1,0 +1,42 @@
+#[version(1)]
+struct ExternalFieldsContractPair {
+    x: f32,
+    y: f32,
+}
+
+#[version(1)]
+struct ExternalFieldsSample {
+    pairs: [ExternalFieldsContractPair; 2],
+}
+
+#[id(1, "d94975ff-73bd-506d-b3ff-624351004fe7")]
+interface ExternalFieldsIExternalFields {
+    fn echo(&self, value: ExternalFieldsSample) -> Result<ExternalFieldsSample>;
+    fn sum(&self, values: &[ExternalFieldsSample]) -> Result<f32>;
+}
+
+#[id(1, "be3b63c2-5ea1-5ddd-aa6e-803343b38af3")]
+interface IPolicyValue {
+    fn value(&self) -> Result<i32>;
+}
+
+#[id(1, "e68a0ddb-0d68-5e76-9d03-4186119e1c45")]
+interface IPolicyService {
+    fn add(&self, a: i32, b: i32) -> Result<i32>;
+    fn flush(&self) -> Result<()>;
+    fn retain(&self, value: &IPolicyValue) -> Result<ComPtr<IPolicyValue>>;
+}
+
+#[id(1, "9be73186-f123-47bc-8140-4a57825eeb21")]
+/// Constructor-free class shape used to exercise IDL implementation storage.
+interface DescribedValue: IPolicyValue {
+    /// Replaces the stored value through the class's primary projection.
+    fn replace(&mut self, value: i32) -> Result<()>;
+}
+
+#[id(1, "564e2ee9-f2de-4e30-959f-a82315a64394")]
+/// Typed provider that owns construction policy for `DescribedValue`.
+interface ValueFactory {
+    /// Creates one initialized class instance without a runtime class registry.
+    fn create(&self, value: i32) -> Result<ComPtr<DescribedValue>>;
+}

@@ -1,14 +1,9 @@
-use neocogi_com::{NcStatus, com_object, com_interface};
+use neocogi_com::{NcStatus, com_object};
 
-#[com_interface(auto_guid = "nc.tests.ui.DuplicateClassInterface:v1", assigned_signature = b"99999999999999999999999999999999")]
-pub trait IDuplicateClassInterface {
-    fn value(&self) -> Result<u32, NcStatus>;
-}
+extern crate self as fixture_ui_class_duplicate_interface;
+neocogi_com_test_contracts::ui_class_duplicate_interface!();
 
-#[com_object(interfaces(
-    IDuplicateClassInterface,
-    IDuplicateClassInterface
-))]
+#[com_object(interfaces(IDuplicateClassInterface, IDuplicateClassInterface))]
 pub struct DuplicateInterface;
 
 fn main() {}

@@ -1,0 +1,33 @@
+#[version(1)]
+/// Semantic element kind, with explicit stable scalar values.
+enum ElementKind: u16 {
+    /// Root element.
+    Root = 1,
+    /// Button element.
+    Button = 2,
+    /// Label element.
+    Label = 3,
+}
+
+#[id(1, "04cbeddb-72eb-5912-9310-659b03f2606e")]
+interface IElement {
+    fn id(&self) -> Result<u64>;
+    fn kind(&self) -> Result<ElementKind>;
+}
+
+#[id(1, "3e6f4c4a-1793-53f8-a69a-3d5f60d2ca5f")]
+interface IDocument {
+    fn root_id(&self) -> Result<u64>;
+}
+
+#[version(1)]
+enum Selection: u32 {
+    Empty,
+    Element{
+        id: u64,
+        kind: ElementKind,
+    },
+    Document{
+        root_id: u64,
+    },
+}

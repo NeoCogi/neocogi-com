@@ -1,5 +1,0 @@
-error: COM structs cannot be generic
- --> integration-tests/ui/struct_generic.rs:4:22
-  |
-4 | pub struct BadGeneric<T> {
-  |                      ^^^

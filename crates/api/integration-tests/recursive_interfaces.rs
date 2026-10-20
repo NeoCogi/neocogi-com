@@ -1,33 +1,31 @@
 //! Recursive contracts and independently compiled contract revisions must remain
 //! usable without permitting calls through an incompatible projected interface.
 
-use neocogi_com::{ComPtr, ComRef, IUnknown, NcStatus, NC_E_ABI_VERSION, NC_E_NOT_FOUND, com_object, com_interface};
+use neocogi_com::{ComPtr, ComRef, IUnknown, NcStatus, NC_E_ABI_VERSION, NC_E_NOT_FOUND, com_object};
 use std::{cell::Cell, rc::Rc};
 
 /// First revision as understood by the consumer binary.
 pub mod consumer {
     use super::*;
 
-    #[com_interface(auto_guid = "nc.tests.recursion.BaseValue:v1", assigned_signature = b"00000000000000000000000000000016")]
-    /// Consumer expects a 32-bit value.
-    pub trait IBaseValue {
-        /// Reads the old contract's scalar.
-        fn value(&self) -> Result<u32, NcStatus>;
-    }
+    #[allow(unused_imports)]
+    pub use fixture_recursive_consumer::{
+        ConsumerIBaseValueAbi as IBaseValueAbi, ConsumerIBaseValueVTable as IBaseValueVTable, ConsumerIBaseValueVtblFor as IBaseValueVtblFor,
+        ConsumerIBaseValueClient as IBaseValueClient, ConsumerIBaseValue as IBaseValue,
+    };
 
-    #[com_interface(auto_guid = "nc.tests.recursion.Value:v1", assigned_signature = b"00000000000000000000000000000017")]
-    /// The empty derived contract changes its signature when the base changes.
-    pub trait IValue: IBaseValue {}
+    #[allow(unused_imports)]
+    pub use fixture_recursive_consumer::{
+        ConsumerIValueAbi as IValueAbi, ConsumerIValueVTable as IValueVTable, ConsumerIValueVtblFor as IValueVtblFor, ConsumerIValueClient as IValueClient,
+        ConsumerIValue as IValue,
+    };
     impl IValue for Value {}
 
-    #[com_interface(auto_guid = "nc.tests.recursion.Exchange:v1", assigned_signature = b"00000000000000000000000000000018")]
-    /// The surrounding local contract only names the value IID.
-    pub trait IExchange {
-        /// Calls must validate the value against the producer's full contract.
-        fn accept(&self, value: ComRef<'_, IValueAbi>) -> Result<(), NcStatus>;
-        /// Returned values must be checked against the consumer's full contract.
-        fn produce(&self) -> Result<ComPtr<IValueAbi>, NcStatus>;
-    }
+    #[allow(unused_imports)]
+    pub use fixture_recursive_consumer::{
+        ConsumerIExchangeAbi as IExchangeAbi, ConsumerIExchangeVTable as IExchangeVTable, ConsumerIExchangeVtblFor as IExchangeVtblFor,
+        ConsumerIExchangeClient as IExchangeClient, ConsumerIExchange as IExchange,
+    };
 
     #[com_object(interfaces(IValue))]
     /// Valid consumer-side value object used as a borrowed argument.
@@ -45,26 +43,24 @@ pub mod consumer {
 pub mod producer {
     use super::*;
 
-    #[com_interface(auto_guid = "nc.tests.recursion.BaseValue:v1", assigned_signature = b"00000000000000000000000000000019")]
-    /// The producer's revision returns 64 bits, so its full signature differs.
-    pub trait IBaseValue {
-        /// Reads the producer's scalar.
-        fn value(&self) -> Result<u64, NcStatus>;
-    }
+    #[allow(unused_imports)]
+    pub use fixture_recursive_producer::{
+        ProducerIBaseValueAbi as IBaseValueAbi, ProducerIBaseValueVTable as IBaseValueVTable, ProducerIBaseValueVtblFor as IBaseValueVtblFor,
+        ProducerIBaseValueClient as IBaseValueClient, ProducerIBaseValue as IBaseValue,
+    };
 
-    #[com_interface(auto_guid = "nc.tests.recursion.Value:v1", assigned_signature = b"00000000000000000000000000000020")]
-    /// The empty derived contract changes its signature when the base changes.
-    pub trait IValue: IBaseValue {}
+    #[allow(unused_imports)]
+    pub use fixture_recursive_producer::{
+        ProducerIValueAbi as IValueAbi, ProducerIValueVTable as IValueVTable, ProducerIValueVtblFor as IValueVtblFor, ProducerIValueClient as IValueClient,
+        ProducerIValue as IValue,
+    };
     impl IValue for Value {}
 
-    #[com_interface(auto_guid = "nc.tests.recursion.Exchange:v1", assigned_signature = b"00000000000000000000000000000018")]
-    /// Same local method contract as the consumer, with producer-side checks.
-    pub trait IExchange {
-        /// Rejects a borrowed value with the wrong full identity before dispatch.
-        fn accept(&self, value: ComRef<'_, IValueAbi>) -> Result<(), NcStatus>;
-        /// Transfers a reference which the consumer must reject and release.
-        fn produce(&self) -> Result<ComPtr<IValueAbi>, NcStatus>;
-    }
+    #[allow(unused_imports)]
+    pub use fixture_recursive_producer::{
+        ProducerIExchangeAbi as IExchangeAbi, ProducerIExchangeVTable as IExchangeVTable, ProducerIExchangeVtblFor as IExchangeVtblFor,
+        ProducerIExchangeClient as IExchangeClient, ProducerIExchange as IExchange,
+    };
 
     #[com_object(interfaces(IValue))]
     /// Tracks exactly-once final release of an incompatible owned return.
@@ -110,12 +106,12 @@ pub mod producer {
     }
 }
 
-#[com_interface(auto_guid = "nc.tests.recursion.Node:v1", assigned_signature = b"00000000000000000000000000000021")]
-/// A natural self-reference previously failed constant evaluation.
-pub trait INode {
-    /// Retains and returns the borrowed node without interpreting its state.
-    fn echo(&self, node: ComRef<'_, INodeAbi>) -> Result<ComPtr<INodeAbi>, NcStatus>;
-}
+extern crate self as fixture_recursive_interfaces;
+neocogi_com_test_contracts::recursive_interfaces!();
+extern crate self as fixture_recursive_consumer;
+neocogi_com_test_contracts::recursive_consumer!();
+extern crate self as fixture_recursive_producer;
+neocogi_com_test_contracts::recursive_producer!();
 
 #[com_object(interfaces(INode))]
 /// Stateless echo node, sufficient to exercise recursion and ownership.
@@ -126,20 +122,6 @@ impl INode for Node {
     fn echo(&self, node: ComRef<'_, INodeAbi>) -> Result<ComPtr<INodeAbi>, NcStatus> {
         node.try_add_ref()
     }
-}
-
-#[com_interface(auto_guid = "nc.tests.recursion.Left:v1", assigned_signature = b"00000000000000000000000000000022")]
-/// First half of a mutual reference, without storing a strong ownership cycle.
-pub trait ILeft {
-    /// Provides the opposing capability when available.
-    fn right(&self) -> Result<ComPtr<IRightAbi>, NcStatus>;
-}
-
-#[com_interface(auto_guid = "nc.tests.recursion.Right:v1", assigned_signature = b"00000000000000000000000000000023")]
-/// Second half of a mutually recursive contract.
-pub trait IRight {
-    /// Provides the opposing capability when available.
-    fn left(&self) -> Result<ComPtr<ILeftAbi>, NcStatus>;
 }
 
 #[com_object(interfaces(ILeft, IRight))]
@@ -170,17 +152,62 @@ fn self_and_mutual_references_compile_and_preserve_identity() {
     assert_eq!(pair.query::<IRightAbi>().unwrap().left().unwrap_err(), NC_E_NOT_FOUND);
 }
 
+/// Deliberately inconsistent dependency metadata exercises the raw boundary
+/// which the ordinary IDL compiler will not synthesize with equal signatures.
+static FOREIGN_EXCHANGE: consumer::IExchangeVTable = consumer::IExchangeVTable {
+    unknown: neocogi_com::IUnknownVTable {
+        interface_id: &<consumer::IExchangeAbi as neocogi_com::ComInterface>::INTERFACE_ID,
+        ..producer::IExchangeVtblFor::<producer::Exchange>::VTABLE.unknown
+    },
+    accept: foreign_accept,
+    produce: foreign_produce,
+};
+
+/// Forwards the same two-word C input to the real producer's checked thunk.
+/// The negative test supplies readable, strongly retained consumer storage.
+unsafe extern "C" fn foreign_accept(object: *mut core::ffi::c_void, value: neocogi_com::ComRaw<consumer::IValueAbi>) -> NcStatus {
+    // SAFETY: object is the live concrete producer; marker casting preserves
+    // both raw words. Its thunk checks the expected value identity before use.
+    unsafe { (producer::IExchangeVtblFor::<producer::Exchange>::VTABLE.accept)(object, value.cast()) }
+}
+
+/// Publishes one owned, readable value with deliberately incompatible metadata.
+unsafe extern "C" fn foreign_produce(object: *mut core::ffi::c_void, output: *mut neocogi_com::ComRaw<consumer::IValueAbi>) -> NcStatus {
+    let mut value = neocogi_com::ComRaw::<producer::IValueAbi>::null();
+    // SAFETY: object is retained by the test; the local output is aligned and
+    // writable. Success transfers one real producer reference into value.
+    let status = unsafe { (producer::IExchangeVtblFor::<producer::Exchange>::VTABLE.produce)(object, &mut value) };
+    // SAFETY: the generated caller grants this output slot. The marker changes
+    // no pointer/lifecycle representation; the client must reject and release it.
+    unsafe { output.write(value.cast()) };
+    status
+}
+
 #[test]
 fn full_pointer_checks_reject_incompatible_arguments_and_release_owned_returns() {
-    assert_eq!(consumer::IExchangeAbi::ABI_SIGNATURE, producer::IExchangeAbi::ABI_SIGNATURE);
+    // Genuine dependency revisions change the complete surrounding contract.
+    assert_ne!(consumer::IExchangeAbi::ABI_SIGNATURE, producer::IExchangeAbi::ABI_SIGNATURE);
     assert_ne!(consumer::IValueAbi::ABI_SIGNATURE, producer::IValueAbi::ABI_SIGNATURE);
     let calls = Rc::new(Cell::new(0));
     let drops = Rc::new(Cell::new(0));
-    let exchange: ComPtr<consumer::IExchangeAbi> = producer::Exchange::from_value(producer::Exchange {
+    let exchange_owner: ComPtr<producer::IExchangeAbi> = producer::Exchange::from_value(producer::Exchange {
         calls: calls.clone(),
         drops: drops.clone(),
     })
     .query()
+    .unwrap();
+    assert!(matches!(exchange_owner.query::<consumer::IExchangeAbi>(), Err(NC_E_ABI_VERSION)));
+    assert_eq!(calls.get(), 0);
+    // The raw fixture deliberately advertises the consumer exchange while
+    // forwarding typed slots to a different value revision. Storage and shared
+    // lifetime remain the real producer's; no incompatible Rust value is formed.
+    let raw = exchange_owner.as_raw();
+    let exchange = unsafe {
+        ComRef::<consumer::IExchangeAbi>::__nc_from_raw_borrowed_checked(neocogi_com::ComRaw {
+            object: raw.object,
+            vtable: &FOREIGN_EXCHANGE,
+        })
+    }
     .unwrap();
     let value: ComPtr<consumer::IValueAbi> = consumer::Value::from_value(consumer::Value).query().unwrap();
     assert_eq!(exchange.accept(value.as_com_ref()), Err(NC_E_ABI_VERSION));

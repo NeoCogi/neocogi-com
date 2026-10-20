@@ -1,0 +1,4 @@
+#[id(1, "bed97a49-763e-504e-b40b-a08bd733340d")]
+interface IDuplicateClassInterface {
+    fn value(&self) -> Result<u32>;
+}

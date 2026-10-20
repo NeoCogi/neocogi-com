@@ -1,0 +1,4 @@
+#[id(1, "1dd5d31d-35a8-529e-a64f-c674a1835fa8")]
+interface IMutReceiver {
+    fn value(&mut self) -> Result<u32>;
+}

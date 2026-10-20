@@ -1,20 +1,11 @@
-use neocogi_com::{ComPtr, IUnknown, NcStatus, com_object, com_interface};
+use neocogi_com::{ComPtr, IUnknown, NcStatus, com_object};
 
-#[com_interface(auto_guid = "nc.examples.calculator.Calculator:v1", assigned_signature = b"00000000000000000000000000000024")]
-pub trait ICalculator {
-    fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
-    fn subtract(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
+// Contract identity and wire codecs are compiled from examples/idl/nc/examples/calculator.ncidl.
+#[allow(dead_code, unused_imports)]
+mod bindings {
+    include!(concat!(env!("OUT_DIR"), "/example_calculator.rs"));
 }
-
-#[com_interface(auto_guid = "nc.examples.calculator.Formatter:v1", assigned_signature = b"00000000000000000000000000000025")]
-pub trait IFormatter {
-    fn describe(&self, value: i32) -> Result<i32, NcStatus>;
-}
-
-#[com_interface(auto_guid = "nc.examples.calculator.NotImplemented:v1", assigned_signature = b"00000000000000000000000000000026")]
-pub trait INotImplemented {
-    fn noop(&self, value: i32) -> Result<i32, NcStatus>;
-}
+use bindings::*;
 
 #[com_object(interfaces(ICalculator, IFormatter))]
 pub struct Calculator;

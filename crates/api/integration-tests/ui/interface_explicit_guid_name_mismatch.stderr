@@ -1,5 +1,0 @@
-error: explicit UUID does not match qualified name `nc.tests.ui.ExplicitGuidMismatch:v1`; expected 8feab21d-65ab-58a7-bfb6-7cfc4b2af332
- --> integration-tests/ui/interface_explicit_guid_name_mismatch.rs:4:5
-  |
-4 |     "00000000-0000-5000-8000-000000000000",
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

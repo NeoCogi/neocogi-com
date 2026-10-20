@@ -1,5 +1,0 @@
-error[E0080]: evaluation panicked: enum variant ordinals exceed the declared tag representation
- --> integration-tests/ui/enum_tag_range.rs:1:1
-  |
-1 | #[neocogi_com::com_enum(tag = i8, assigned_signature = b"00000000000000000000000000000045")]
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `_` failed here

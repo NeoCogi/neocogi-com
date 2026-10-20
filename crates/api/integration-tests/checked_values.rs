@@ -3,52 +3,9 @@
 #![recursion_limit = "256"]
 use neocogi_com::*;
 
-#[com_struct(assigned_signature = b"00000000000000000000000000000081")]
-#[derive(Debug, PartialEq)]
-/// A plain record containing a restricted scalar.
-pub struct Flags {
-    /// A byte on the wire and a bool only after validation.
-    pub enabled: bool,
-}
-#[com_struct(assigned_signature = b"00000000000000000000000000000082")]
-#[derive(Debug, PartialEq)]
-/// Nested ordinary records must recursively lower their fields.
-pub struct Settings {
-    /// Validation cannot stop at this named type boundary.
-    pub flags: Flags,
-}
-#[com_enum(tag = u8, assigned_signature = b"00000000000000000000000000000083")]
-#[derive(Clone, Copy, Debug, PartialEq)]
-/// Enum payload uses the same nested record converter.
-pub enum Action {
-    /// Selects a nested checked payload.
-    Configure(Settings),
-    /// Requires no initialized payload.
-    Idle,
-}
-#[com_struct(assigned_signature = b"00000000000000000000000000000087")]
-#[derive(Debug, PartialEq)]
-/// Copied records and fixed arrays store native enums, not public tag/union wrappers.
-pub struct ActionSet {
-    /// Alternatives of unequal payload size still lower each active value.
-    pub actions: [Action; 2],
-}
-#[com_interface(auto_guid = "nc.tests.values.Check:v1", assigned_signature = b"00000000000000000000000000000084")]
-/// Real copied, enum, and buffer slots for adversarial raw callers.
-pub trait ICheck {
-    /// Returns the input after the thunk validates it.
-    fn settings(&self, value: Settings) -> Result<Settings, NcStatus>;
-    /// The native enum lowers to a checked wire record in the raw slot.
-    fn action(&self, value: Action) -> Result<Action, NcStatus>;
-    /// A copied record may recursively contain native enums in fixed arrays.
-    fn action_set(&self, value: ActionSet) -> Result<ActionSet, NcStatus>;
-    /// A transformation has a distinct readable input and fresh output destination.
-    fn actions(&self, input: NcCopyFromBufferOffset<'_, Action>, value: NcOutputWriter<'_, Action>) -> Result<(), NcStatus>;
-    /// Nested restricted fields are checked before reconstructing a typed slice.
-    fn input(&self, value: NcCopyFromBufferOffset<'_, Settings>) -> Result<u32, NcStatus>;
-    /// Output elements are produced without decoding old destination bytes.
-    fn output(&self, value: NcOutputWriter<'_, Settings>) -> Result<(), NcStatus>;
-}
+extern crate self as fixture_checked_values;
+neocogi_com_test_contracts::checked_values!();
+
 #[com_object(ICheck)]
 /// Stateless implementation; errors must originate before method dispatch.
 struct Check;
@@ -182,16 +139,6 @@ fn enum_buffer_validation_is_atomic_before_native_dispatch() {
     }
 }
 
-#[com_struct(assigned_signature = b"00000000000000000000000000000085")]
-#[derive(Debug, PartialEq)]
-/// Numeric render-style records need no validation or allocation when borrowed.
-pub struct Coordinates {
-    /// Every floating-point bit pattern is a valid initialized Rust value.
-    pub x: f32,
-    /// The second field has the same application and wire offset.
-    pub y: f32,
-}
-
 /// Identity proof retains zero-copy behavior without admitting restricted fields.
 #[test]
 fn unrestricted_buffers_borrow_in_place_and_restricted_buffers_are_separate() {
@@ -293,18 +240,6 @@ fn variant_dependent_shapes_retain_exact_dynamic_accounting() {
     }
 }
 
-#[com_value(assigned_signature = b"00000000000000000000000000000086")]
-#[derive(Debug, PartialEq)]
-/// Mixes fixed records, a selected enum variant, and variable-length ownership.
-pub struct MixedSettings {
-    /// This fixed record is counted together with the enclosing root.
-    pub settings: Settings,
-    /// Text remains dynamically byte-counted and independently acquired.
-    pub title: String,
-    /// Only the selected alternative contributes logical values and depth.
-    pub action: Action,
-}
-
 /// Counting known fields together must leave exact shared limits for dynamic fields.
 #[test]
 fn mixed_records_preserve_cumulative_bytes_values_and_depth() {
@@ -322,13 +257,16 @@ fn mixed_records_preserve_cumulative_bytes_values_and_depth() {
             Err(NC_E_OUT_OF_RANGE)
         ));
         // SAFETY: the source and typed guard retain every active wire field.
-        assert_eq!(
+        assert!(matches!(
             unsafe { MixedSettings::decode_value(wire, &mut ValueBudget::new(bytes, values, depth)) },
             Err(NC_E_OUT_OF_RANGE)
-        );
+        ));
     }
     // SAFETY: the retained source supplies the valid string backing.
-    assert_eq!(unsafe { MixedSettings::decode_value(wire, &mut ValueBudget::new(2, 9, 5)) }, Ok(value));
+    let decoded = unsafe { MixedSettings::decode_value(wire, &mut ValueBudget::new(2, 9, 5)) }.unwrap();
+    assert_eq!(decoded.settings, value.settings);
+    assert_eq!(decoded.title, value.title);
+    assert_eq!(decoded.action, value.action);
 }
 
 /// Eight optional levels compose a small value whose largest shape exceeds depth 64.

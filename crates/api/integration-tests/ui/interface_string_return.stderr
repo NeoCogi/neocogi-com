@@ -1,5 +1,0 @@
-error: COM method returns cannot be String; model strings as COM interfaces
- --> integration-tests/ui/interface_string_return.rs:5:31
-  |
-5 |     fn value(&self) -> Result<String, neocogi_com::NcStatus>;
-  |                               ^^^^^^

@@ -1,23 +1,9 @@
 //! Fully exported enum wire types work in a crate that requires complete public documentation.
 #![deny(missing_docs)]
-use neocogi_com::{com_enum, ComValue};
+use neocogi_com::{ComValue};
 
-#[com_enum(tag = u8, assigned_signature = b"00000000000000000000000000000045")]
-/// Public semantic choice with all three supported payload shapes.
-pub enum Documented {
-    /// Variant without payload data.
-    Empty,
-    /// Tuple payload retains its positional field documentation in the generated struct.
-    Tuple(
-        /// Exact requested extent.
-        i32,
-    ),
-    /// Named payload retains its field documentation in the generated struct.
-    Named {
-        /// Relative weight used by the consuming policy.
-        weight: f32,
-    },
-}
+extern crate self as fixture_ui_enum_public_documentation;
+neocogi_com_test_contracts::ui_enum_public_documentation!();
 
 fn main() {
     let value = Documented::Named { weight: 2.0 };

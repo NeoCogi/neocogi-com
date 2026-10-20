@@ -1,9 +1,7 @@
-use neocogi_com::{com_object, com_interface, NcStatus};
+use neocogi_com::{com_object, NcStatus};
 
-#[com_interface(auto_guid = "test.BorrowedClass:v1", assigned_signature = b"99999999999999999999999999999999")]
-trait IRead {
-    fn value(&self) -> Result<u32, NcStatus>;
-}
+extern crate self as fixture_ui_class_lifetime;
+neocogi_com_test_contracts::ui_class_lifetime!();
 
 #[com_object(interfaces(IRead))]
 struct Reader<'a> {

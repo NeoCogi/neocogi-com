@@ -1,12 +1,12 @@
 error[E0597]: `value` does not live long enough
-  --> integration-tests/ui/class_generic_borrowed.rs:20:56
+  --> integration-tests/ui/class_generic_borrowed.rs:18:56
    |
-19 |     let value = String::from("stack-owned text");
+17 |     let value = String::from("stack-owned text");
    |         ----- binding `value` declared here
-20 |     let _retained = Reader::from_value(Reader { value: value.as_str() });
+18 |     let _retained = Reader::from_value(Reader { value: value.as_str() });
    |                     -----------------------------------^^^^^------------
    |                     |                                  |
    |                     |                                  borrowed value does not live long enough
    |                     argument requires that `value` is borrowed for `'static`
-21 | }
+19 | }
    | - `value` dropped here while still borrowed

@@ -1,0 +1,15 @@
+#[version(1)]
+/// A sequence of strings needs both source text and producer-owned wire records.
+struct Message {
+    /// Each string wire borrows text; the enclosing wire array is temporary storage.
+    entries: Vec<String>,
+}
+
+#[id(1, "3bdf14b7-4d51-5d43-b0bb-431e484a5a8c")]
+/// Owns messages through the supported call-scoped borrowed-value interface.
+interface IValueReceiver {
+    /// Acquires an independent message before the producer call guard is released.
+    fn retain(&mut self, value: &Message) -> Result<()>;
+    /// Observes retained contents in a later call, after original storage can expire.
+    fn matches(&self, expected: &Message) -> Result<bool>;
+}

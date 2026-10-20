@@ -1,10 +1,14 @@
-use neocogi_com::{com_interface, com_object, NcStatus, WeakLocalCom};
+use neocogi_com::{com_object, NcStatus, WeakLocalCom};
 
-#[com_interface(auto_guid = "nc.tests.weak_local.Local:v1", assigned_signature = b"00000000000000000000000000000063")]
-trait ILocal { fn value(&self) -> Result<u32, NcStatus>; }
+extern crate self as fixture_ui_weak_local_thread_affinity;
+neocogi_com_test_contracts::ui_weak_local_thread_affinity!();
 #[com_object(ILocal)]
 struct Local;
-impl ILocal for Local { fn value(&self) -> Result<u32, NcStatus> { Ok(1) } }
+impl ILocal for Local {
+    fn value(&self) -> Result<u32, NcStatus> {
+        Ok(1)
+    }
+}
 
 fn send<T: Send>() {}
 fn sync<T: Sync>() {}

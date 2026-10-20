@@ -1,19 +1,10 @@
 //! Concrete interfaces over generic owned state, without generic contracts or registered constructors.
-use neocogi_com::{com_object, com_interface, ComPtr, NcStatus};
+use neocogi_com::{com_object, ComPtr, NcStatus};
 use std::{cell::Cell, rc::Rc};
 
-#[com_interface(auto_guid = "test.GenericBase:v1", assigned_signature = b"00000000000000000000000000000043")]
-/// Concrete base contract independent of the implementation's type arguments.
-trait IBase {
-    /// Returns one copied observation from owned state.
-    fn value(&self) -> Result<u32, NcStatus>;
-}
-#[com_interface(auto_guid = "test.GenericSink:v1", assigned_signature = b"00000000000000000000000000000044")]
-/// Derived concrete event sink, including direct inherited calls.
-trait ISink: IBase {
-    /// Applies one concrete event value to its retained handler.
-    fn receive(&self, value: u32) -> Result<(), NcStatus>;
-}
+extern crate self as fixture_ui_class_generic_owned;
+neocogi_com_test_contracts::ui_class_generic_owned!();
+
 /// Rust-local handler trait keeps data and behavior explicit inside one binary.
 trait Handler {
     /// Commits a value to the caller's concrete owned state.

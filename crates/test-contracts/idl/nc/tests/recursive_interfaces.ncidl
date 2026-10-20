@@ -1,0 +1,20 @@
+#[id(1, "b983100a-a932-51b7-afa4-f894c64ae1c8")]
+/// A natural self-reference previously failed constant evaluation.
+interface INode {
+    /// Retains and returns the borrowed node without interpreting its state.
+    fn echo(&self, node: &INode) -> Result<ComPtr<INode>>;
+}
+
+#[id(1, "25fa4db1-7869-50d6-96a2-cd30c5280360")]
+/// First half of a mutual reference, without storing a strong ownership cycle.
+interface ILeft {
+    /// Provides the opposing capability when available.
+    fn right(&self) -> Result<ComPtr<IRight>>;
+}
+
+#[id(1, "56e24810-4944-53f9-a3bf-8ff3bdb9c9fb")]
+/// Second half of a mutually recursive contract.
+interface IRight {
+    /// Provides the opposing capability when available.
+    fn left(&self) -> Result<ComPtr<ILeft>>;
+}

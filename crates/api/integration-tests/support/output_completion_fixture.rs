@@ -48,8 +48,12 @@ impl IComplete for Receiver {
             allocation_probe::deny_remaining();
         }
         self.calls.fetch_add(1, SeqCst);
-        for _ in 0..choices.capacity() { choices.push(Choice::Filled(Details { flags: [true, false] })).unwrap(); }
-        for _ in 0..flags.capacity() { flags.push(true).unwrap(); }
+        for _ in 0..choices.capacity() {
+            choices.push(Choice::Filled(Details { flags: [true, false] })).unwrap();
+        }
+        for _ in 0..flags.capacity() {
+            flags.push(true).unwrap();
+        }
         match reject {
             true => Err((NC_E_INVALID_ARG, first, second)),
             false => {
@@ -61,7 +65,9 @@ impl IComplete for Receiver {
     /// Direct writable integers require neither staging nor output allocation.
     fn direct(&mut self, first: ComBox<IItemAbi>, mut values: NcOutputWriter<'_, u64>) -> Result<u32, (NcStatus, ComBox<IItemAbi>)> {
         self.calls.fetch_add(1, SeqCst);
-        for _ in 0..values.capacity() { values.push(9).unwrap(); }
+        for _ in 0..values.capacity() {
+            values.push(9).unwrap();
+        }
         self.children[0] = Some(first);
         Ok(42)
     }
@@ -271,16 +277,36 @@ fn raw_provider_count_failure_never_adopts_an_owner() {
     let probe = Probe::start(Some(0));
     // SAFETY: all owners and wire capacity are valid; the absent count pointer
     // must be rejected before implementation entry or ownership adoption.
-    let status = unsafe { ((*raw.vtable).complete)(raw.object, &mut first, &mut second,
-        0, 1, choice.as_mut_ptr(), std::ptr::null_mut(),
-        0, 1, flag.as_mut_ptr(), &mut flags_written, 0, 0, output.as_mut_ptr()) };
+    let status = unsafe {
+        ((*raw.vtable).complete)(
+            raw.object,
+            &mut first,
+            &mut second,
+            0,
+            1,
+            choice.as_mut_ptr(),
+            std::ptr::null_mut(),
+            0,
+            1,
+            flag.as_mut_ptr(),
+            &mut flags_written,
+            0,
+            0,
+            output.as_mut_ptr(),
+        )
+    };
     let report = probe.finish();
     assert_eq!(status, NC_E_POINTER);
     assert_eq!(report.attempts, 0);
     assert_eq!([first.object, second.object], identities);
     assert_eq!(calls.load(SeqCst), 0);
     // SAFETY: rejection kept both original unique tokens in their transfer slots.
-    unsafe { drop((ComBox::<IItemAbi>::from_raw_owned(first).unwrap(), ComBox::<IItemAbi>::from_raw_owned(second).unwrap())); }
+    unsafe {
+        drop((
+            ComBox::<IItemAbi>::from_raw_owned(first).unwrap(),
+            ComBox::<IItemAbi>::from_raw_owned(second).unwrap(),
+        ));
+    }
     assert_eq!(drops.load(SeqCst), 2);
 }
 

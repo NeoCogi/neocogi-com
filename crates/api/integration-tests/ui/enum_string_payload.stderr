@@ -1,5 +1,0 @@
-error: COM enum payload fields cannot be String; model strings as COM interfaces
- --> integration-tests/ui/enum_string_payload.rs:5:10
-  |
-5 |     Text(String),
-  |          ^^^^^^

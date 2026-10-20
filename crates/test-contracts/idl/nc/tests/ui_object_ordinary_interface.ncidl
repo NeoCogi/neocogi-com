@@ -1,0 +1,5 @@
+#[id(1, "677ac82b-8a5a-51b5-8dcf-2c3dc45f5e47")]
+/// Ordinary interfaces need no construction role to have an implementation.
+interface IObject {
+
+}

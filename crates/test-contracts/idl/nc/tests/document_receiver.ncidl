@@ -1,0 +1,8 @@
+extern neocogi.com.events;
+
+#[version(1)]
+/// Installs a checked receiver borrow across the document consumer boundary.
+interface IRetainer {
+    /// Captures a shared receiver or returns the exact retention failure.
+    fn install(&mut self, queue: &neocogi::com::events::IEventReceiver) -> Result<()>;
+}

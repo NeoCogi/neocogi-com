@@ -1,5 +1,0 @@
-error: COM interfaces cannot be unsafe
- --> integration-tests/ui/interface_unsafe_trait.rs:4:5
-  |
-4 | pub unsafe trait IUnsafeTrait {
-  |     ^^^^^^

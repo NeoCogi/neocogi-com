@@ -1,0 +1,4 @@
+#[id(1, "7bdabf53-4098-5b25-8ce3-1e9ad164e940")]
+interface IThreadLocalSend {
+    fn value(&self) -> Result<u32>;
+}

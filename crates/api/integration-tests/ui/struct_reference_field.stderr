@@ -1,5 +1,0 @@
-error: COM struct fields cannot be Rust references; model borrowed data as COM interfaces
- --> integration-tests/ui/struct_reference_field.rs:5:12
-  |
-5 |     value: &'static u8,
-  |            ^^^^^^^^^^^

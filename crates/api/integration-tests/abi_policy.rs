@@ -1,11 +1,10 @@
 use neocogi_com::{
-    ComInterface, ComPtr, ComRef, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_OK, NcAbiSignature, NcPluginDescriptor, NcStatus,
-    write_plugin_root, com_object, com_interface, format_abi_signature, format_method_signature,
-    guid_from_qualified_name, validate_plugin_descriptor,
+    ComInterface, ComPtr, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_OK, NcAbiSignature, NcPluginDescriptor, NcStatus, write_plugin_root, com_object,
+    format_abi_signature, format_method_signature, guid_from_qualified_name, validate_plugin_descriptor,
 };
 
 mod external_fields {
-    use neocogi_com::{ComPtr, NcCopyFromBufferOffset, NcStatus, com_object, com_interface, com_struct};
+    use neocogi_com::{ComPtr, NcCopyFromBufferOffset, NcStatus, com_object};
 
     // Models a C-layout dependency type with no neocogi-com traits.
     #[repr(C)]
@@ -19,29 +18,32 @@ mod external_fields {
     // External layout alone is insufficient; the adapter explicitly provides
     // the same checked conversion contract required of every other field.
     unsafe impl neocogi_com::ComValue for Pair {
-        type Wire = Self;
+        type Wire = <ContractPair as neocogi_com::ComValue>::Wire;
         type Storage = ();
-        fn encode_value(&self, budget: &mut neocogi_com::ValueBudget) -> Result<(Self, ()), NcStatus> {
-            budget.value(|_| Ok((*self, ())))
+        fn encode_value(&self, budget: &mut neocogi_com::ValueBudget) -> Result<(Self::Wire, ()), NcStatus> {
+            neocogi_com::ComValue::encode_value(&ContractPair { x: self.x, y: self.y }, budget)
         }
-        unsafe fn decode_value(wire: Self, budget: &mut neocogi_com::ValueBudget) -> Result<Self, NcStatus> {
-            budget.value(|_| Ok(wire))
+        unsafe fn decode_value(wire: Self::Wire, budget: &mut neocogi_com::ValueBudget) -> Result<Self, NcStatus> {
+            // SAFETY: the caller supplies the explicit generated ContractPair wire.
+            let pair = unsafe { <ContractPair as neocogi_com::ComValue>::decode_value(wire, budget) }?;
+            Ok(Self { x: pair.x, y: pair.y })
         }
     }
     // SAFETY: Pair has no pointer or ownership-bearing field.
     unsafe impl neocogi_com::ComInlineValue for Pair {}
 
-    #[com_struct(c_struct, assigned_signature = b"00000000000000000000000000000010")]
-    #[derive(Debug, PartialEq)]
-    struct Sample {
-        pairs: [Pair; 2],
-    }
+    #[allow(unused_imports)]
+    pub use fixture_abi_policy::{ExternalFieldsContractPair as ContractPair};
 
-    #[com_interface(auto_guid = "nc.tests.abi_policy.ExternalFields:v1", assigned_signature = b"00000000000000000000000000000011")]
-    trait IExternalFields {
-        fn echo(&self, value: Sample) -> Result<Sample, NcStatus>;
-        fn sum(&self, values: NcCopyFromBufferOffset<'_, Sample>) -> Result<f32, NcStatus>;
-    }
+    #[allow(unused_imports)]
+    pub use fixture_abi_policy::{ExternalFieldsSample as Sample};
+
+    #[allow(unused_imports)]
+    pub use fixture_abi_policy::{
+        ExternalFieldsIExternalFieldsAbi as IExternalFieldsAbi, ExternalFieldsIExternalFieldsVTable as IExternalFieldsVTable,
+        ExternalFieldsIExternalFieldsVtblFor as IExternalFieldsVtblFor, ExternalFieldsIExternalFieldsClient as IExternalFieldsClient,
+        ExternalFieldsIExternalFields as IExternalFields,
+    };
 
     #[com_object(interfaces(IExternalFields))]
     struct ExternalFields;
@@ -59,41 +61,33 @@ mod external_fields {
     fn external_c_fields_require_an_explicit_checked_codec() {
         let interface: ComPtr<IExternalFieldsAbi> = ExternalFields::from_value(ExternalFields).query().unwrap();
         let value = Sample {
-            pairs: [Pair { x: 1.25, y: -2.5 }, Pair { x: 4.0, y: 0.125 }],
+            pairs: [ContractPair { x: 1.25, y: -2.5 }, ContractPair { x: 4.0, y: 0.125 }],
         };
         assert_eq!(interface.echo(value).unwrap(), value);
         assert_eq!(interface.sum(NcCopyFromBufferOffset::new(0, &[value, value])).unwrap(), 5.75);
     }
 
     #[test]
-    fn c_struct_rejects_rust_layout_fields() {
-        trybuild::TestCases::new().compile_fail("integration-tests/ui/struct_c_layout_rust_field.rs");
+    fn native_adapter_uses_the_generated_contract_wire() {
+        use neocogi_com::ComValue;
+        let interface: ComPtr<IExternalFieldsAbi> = ExternalFields::from_value(ExternalFields).query().unwrap();
+        let native = Pair { x: 1.25, y: -2.5 };
+        let (pair_wire, _storage) = native.encode_value(&mut Default::default()).unwrap();
+        let contract_pair = unsafe { ContractPair::decode_value(pair_wire, &mut Default::default()) }.unwrap();
+        let (input, _storage) = Sample { pairs: [contract_pair; 2] }.encode_value(&mut Default::default()).unwrap();
+        let raw = interface.as_raw();
+        let mut output = core::mem::MaybeUninit::uninit();
+        // SAFETY: real checked input wire, live owned provider and writable exact output.
+        assert_eq!(unsafe { ((*raw.vtable).echo)(raw.object, input, output.as_mut_ptr()) }, neocogi_com::NC_OK);
+        let decoded = unsafe { Sample::decode_value(output.assume_init(), &mut Default::default()) }.unwrap();
+        let (returned, _) = decoded.pairs[0].encode_value(&mut Default::default()).unwrap();
+        let result = unsafe { Pair::decode_value(returned, &mut Default::default()) }.unwrap();
+        assert_eq!(result, native);
     }
 }
 
-#[com_interface(auto_guid = "nc.tests.abi_policy.Value:v1", assigned_signature = b"00000000000000000000000000000012")]
-pub trait IPolicyValue {
-    fn value(&self) -> Result<i32, NcStatus>;
-}
-
-#[com_interface(auto_guid = "nc.tests.abi_policy.Service:v1", assigned_signature = b"00000000000000000000000000000013")]
-pub trait IPolicyService {
-    fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
-    fn flush(&self) -> Result<(), NcStatus>;
-    fn retain(&self, value: ComRef<'_, IPolicyValueAbi>) -> Result<ComPtr<IPolicyValueAbi>, NcStatus>;
-}
-
-#[com_interface(
-    assigned_guid = "9be73186-f123-47bc-8140-4a57825eeb21",
-    name = "nc.tests.abi_policy.DescribedValue",
-    threading = local,
-    assigned_signature = b"00000000000000000000000000000014"
-)]
-/// Constructor-free class shape used to exercise IDL implementation storage.
-pub trait DescribedValue: IPolicyValue {
-    /// Replaces the stored value through the class's primary projection.
-    fn replace(&mut self, value: i32) -> Result<(), NcStatus>;
-}
+extern crate self as fixture_abi_policy;
+neocogi_com_test_contracts::abi_policy!();
 
 #[com_object(DescribedValue)]
 /// Private state implementing a class that can only be obtained from a factory.
@@ -117,18 +111,6 @@ impl DescribedValue for DescribedValueObject {
     }
 }
 
-#[com_interface(
-    assigned_guid = "564e2ee9-f2de-4e30-959f-a82315a64394",
-    name = "nc.tests.abi_policy.ValueFactory",
-    threading = local,
-    assigned_signature = b"00000000000000000000000000000015"
-)]
-/// Typed provider that owns construction policy for `DescribedValue`.
-pub trait ValueFactory {
-    /// Creates one initialized class instance without a runtime class registry.
-    fn create(&self, value: i32) -> Result<ComPtr<DescribedValueAbi>, NcStatus>;
-}
-
 #[com_object(ValueFactory)]
 /// Stateless factory implementation used by the constructor-free path.
 struct ValueFactoryObject;
@@ -141,10 +123,10 @@ impl ValueFactory for ValueFactoryObject {
 }
 
 /// Acquires one owned root; object construction remains on its typed methods.
-#[neocogi_com::plugin(name = "nc.tests.factory_plugin",
-    version = "1.0.0")]
+#[neocogi_com::plugin(name = "nc.tests.factory_plugin", version = "1.0.0")]
 fn acquire_root() -> Result<neocogi_com::ComPtr<ValueFactoryAbi>, neocogi_com::NcStatus> {
-    ValueFactoryObject::from_value(ValueFactoryObject).query()}
+    ValueFactoryObject::from_value(ValueFactoryObject).query()
+}
 
 /// Confirms factories create described objects without runtime construction.
 #[test]
@@ -190,7 +172,10 @@ fn factory_plugin_metadata_has_no_repeated_root_contract() {
     assert_eq!(unsafe { neocogi_com::return_plugin_descriptor(&mut exported, plugin_descriptor()) }, NC_OK);
     assert!(core::ptr::eq(exported, description));
     // The renamed C export preserves the null-output error contract.
-    assert_eq!(unsafe { neocogi_com::return_plugin_descriptor(core::ptr::null_mut(), plugin_descriptor()) }, neocogi_com::NC_E_POINTER);
+    assert_eq!(
+        unsafe { neocogi_com::return_plugin_descriptor(core::ptr::null_mut(), plugin_descriptor()) },
+        neocogi_com::NC_E_POINTER
+    );
 }
 
 fn signature_text(signature: NcAbiSignature) -> String {
@@ -204,7 +189,7 @@ fn generated_interface_iids_and_signatures_are_stable() {
     assert_eq!(IPolicyValueAbi::IID, guid_from_qualified_name("nc.tests.abi_policy.Value:v1"));
     assert_eq!(
         unsafe { IPolicyValueAbi::INTERFACE_DESCRIPTOR.qualified_name.as_str() }.unwrap(),
-        "nc.tests.abi_policy.Value:v1"
+        "nc.tests.abi_policy.IPolicyValue"
     );
     assert_eq!(IPolicyValueAbi::IID.to_string(), "be3b63c2-5ea1-5ddd-aa6e-803343b38af3");
     assert_eq!(IPolicyServiceAbi::IID.to_string(), "e68a0ddb-0d68-5e76-9d03-4186119e1c45");

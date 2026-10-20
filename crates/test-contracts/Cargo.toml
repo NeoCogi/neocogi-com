@@ -1,0 +1,11 @@
+[package]
+name = "neocogi-com-test-contracts"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "IDL-owned local contract fixtures for COM integration and compiler tests"
+license = "MIT"
+
+[build-dependencies]
+neocogi-idl.workspace = true
+neocogi-com-core.workspace = true

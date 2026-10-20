@@ -1,10 +1,8 @@
-use neocogi_com::{NcStatus, com_object, com_interface};
+use neocogi_com::{NcStatus, com_object};
 use std::rc::Rc;
 
-#[com_interface(auto_guid = "nc.tests.ui.ThreadSafeRequiresSendSync:v1", assigned_signature = b"99999999999999999999999999999999")]
-pub trait IThreadSafeRequiresSendSync {
-    fn value(&self) -> Result<u32, NcStatus>;
-}
+extern crate self as fixture_ui_class_thread_safe_requires_send_sync;
+neocogi_com_test_contracts::ui_class_thread_safe_requires_send_sync!();
 
 #[com_object(thread_safe, interfaces(IThreadSafeRequiresSendSync))]
 pub struct NotActuallyThreadSafe {

@@ -1,0 +1,15 @@
+#[id(1, "46ccd2af-1d70-58ed-984f-0a05d8fdfb83")]
+/// Base contract used to verify inherited lookup on the generated client view.
+interface ICanonicalClientBase {
+    /// Reads one plain value through the shared safe receiver.
+    fn value(&self) -> Result<u32>;
+}
+
+#[id(1, "e78f370a-aba3-5f93-a317-6ddac6c219a4")]
+/// Derived contract used through both owning and borrowed handles.
+interface ICanonicalClientDerived: ICanonicalClientBase {
+    /// Writes one plain value through the mutable safe receiver.
+    fn set_value(&mut self, value: u32) -> Result<()>;
+    /// Returns an owned base interface after receiving a checked borrow.
+    fn echo(&self, source: &ICanonicalClientBase) -> Result<ComPtr<ICanonicalClientBase>>;
+}

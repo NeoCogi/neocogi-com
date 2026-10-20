@@ -1,5 +1,0 @@
-error: `ComRef` parameters must use `'_` as their call-scoped lifetime; named lifetimes, including `'static`, are not supported
-  --> integration-tests/ui/interface_comref_static_lifetime.rs:12:37
-   |
-12 |         object: neocogi_com::ComRef<'static, IObjectAbi>,
-   |                                     ^^^^^^^

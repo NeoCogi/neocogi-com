@@ -1,0 +1,22 @@
+#[id(1, "2cfb6582-c5c0-56dc-b9ec-2432ad8f8717")]
+/// Test contract with closure distinct from object destruction.
+interface IValue {
+    /// Reads only while the domain is open.
+    fn value(&self) -> Result<u32>;
+    /// Logically closes a retained object without changing COM lifetime.
+    fn close(&mut self) -> Result<()>;
+}
+
+#[id(1, "ec2fde94-50bc-55c7-96d0-6fac60425d4f")]
+/// Sibling/ancestor projections must share a single weak control identity.
+interface IDerived: IValue {
+
+}
+
+#[id(1, "3d84132b-82ef-5e6a-b570-07245929c16b")]
+#[threading(shared)]
+/// Minimal shared contract used to race final release with promotion.
+interface IShared {
+    /// Reads the initialized object under its ordinary shared COM call gate.
+    fn value(&self) -> Result<u32>;
+}

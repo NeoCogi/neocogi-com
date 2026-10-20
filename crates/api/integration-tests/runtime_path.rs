@@ -37,7 +37,7 @@ fn run_fixture_cargo(cargo: &str, manifest: &Path, target_dir: &Path, operation:
 #[test]
 fn macro_output_and_rustdoc_support_an_explicit_runtime_facade() {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("integration-tests/fixtures/runtime-path/Cargo.toml");
-    let target_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../target/runtime-path-fixture");
+    let target_dir = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../target"));
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
 
     run_fixture_cargo(&cargo, &manifest, &target_dir, "check", &[], false);

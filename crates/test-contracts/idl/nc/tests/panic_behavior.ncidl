@@ -1,0 +1,9 @@
+#[id(1, "81679519-7286-5466-bbe2-e32188f1560d")]
+interface IPanics {
+    fn panic_now(&self) -> Result<()>;
+}
+
+#[id(1, "ab399b79-330b-58d6-a6e9-eb0fa01fa4c9")]
+interface IDropPanics {
+    fn touch(&self) -> Result<()>;
+}

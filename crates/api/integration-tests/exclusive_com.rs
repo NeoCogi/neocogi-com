@@ -1,22 +1,15 @@
 //! Exclusive ownership through real generated ABI calls, including destruction races.
-use neocogi_com::{com_interface, com_object, ComInterface, ComBox, WeakComBox, IUnknown, NcStatus, NC_E_BUSY, NC_E_DROPPED, NC_E_INVALID_ARG};
+use neocogi_com::{com_object, ComInterface, ComBox, WeakComBox, IUnknown, NcStatus, NC_E_BUSY, NC_E_DROPPED, NC_E_INVALID_ARG};
 use std::sync::{
     Arc, Barrier,
     atomic::{AtomicUsize, Ordering},
 };
 
-#[com_interface(auto_guid = "nc.tests.exclusive.Value:v1", threading = shared, assigned_signature = b"00000000000000000000000000000901")]
-/// Shared readers and exclusive writers exercise the same object-wide gate.
-trait IValue {
-    /// Returns state without acquiring an owning reference.
-    fn value(&self) -> Result<u32, NcStatus>;
-    /// Mutates state only when no reader or writer is already executing.
-    fn set(&mut self, value: u32) -> Result<(), NcStatus>;
-    /// Holds a reader inside the provider while its owner is removed elsewhere.
-    fn wait_read(&self) -> Result<u32, NcStatus>;
-    /// Holds a writer to prove conflicting weak calls fail without blocking.
-    fn wait_write(&mut self) -> Result<(), NcStatus>;
-}
+extern crate self as fixture_exclusive_com;
+neocogi_com_test_contracts::exclusive_com!();
+// Independent revisions deliberately share an IID and negotiate by signature.
+extern crate self as fixture_exclusive_com_other_revision;
+neocogi_com_test_contracts::exclusive_com_other_revision!();
 
 #[com_object(interfaces(IValue), thread_safe, ownership = exclusive)]
 /// Test object whose observations and rendezvous outlive its exclusive owner.
@@ -135,7 +128,10 @@ fn thread_safe_owner_drop_waits_for_admitted_readers_and_writers() {
         entered.wait();
         assert_eq!(weak.value(), if writer { Err(NC_E_BUSY) } else { Ok(42) });
         let (finished, received) = std::sync::mpsc::channel();
-        let dropping = std::thread::spawn(move || { drop(owner); finished.send(()).unwrap(); });
+        let dropping = std::thread::spawn(move || {
+            drop(owner);
+            finished.send(()).unwrap();
+        });
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         while weak.is_alive() {
             assert!(std::time::Instant::now() < deadline, "owner did not start destruction");
@@ -236,16 +232,6 @@ fn owners_and_cached_weak_handles_are_two_words() {
     assert_eq!(size_of::<Option<ComBox<IUnknown>>>(), 2 * size_of::<usize>());
 }
 
-#[com_interface(auto_guid = "nc.tests.exclusive.Container:v1", assigned_signature = b"00000000000000000000000000000902")]
-/// A real ABI container transfers the only owner and exposes only weak child access.
-trait IContainer {
-    /// Consumes its input on success and returns the same owner on failure.
-    fn insert(&mut self, child: neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>, reject: bool) -> Result<(), (NcStatus, neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>)>;
-    /// Returns an observer while the container remains the sole owner.
-    fn child(&self) -> Result<WeakComBox<IValueAbi, neocogi_com::ThreadSafe>, NcStatus>;
-    /// Removes the child permanently; there is no detach or close operation.
-    fn remove(&mut self) -> Result<(), NcStatus>;
-}
 #[com_object(IContainer, ownership = exclusive)]
 /// Ordinary owned state is sufficient; the ABI gate coordinates access.
 struct Container {
@@ -254,7 +240,11 @@ struct Container {
 }
 impl IContainer for Container {
     /// Validation failure leaves the input for caller-side Drop after this call.
-    fn insert(&mut self, child: neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>, reject: bool) -> Result<(), (NcStatus, neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>)> {
+    fn insert(
+        &mut self,
+        child: neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>,
+        reject: bool,
+    ) -> Result<(), (NcStatus, neocogi_com::ComBox<IValueAbi, neocogi_com::ThreadSafe>)> {
         if reject {
             return Err((NC_E_INVALID_ARG, child));
         }
@@ -333,10 +323,12 @@ fn local_box_observers_follow_owner_transfer_and_gate_conflicts() {
     local.try_borrow_mut().unwrap().value = 17;
     let mut observer = local.downgrade();
     let mut interface = local.query::<IValueAbi>().unwrap();
-    observer.with(|read| {
-        assert_eq!(read.value, 17);
-        assert_eq!(interface.set(18), Err(NC_E_BUSY));
-    }).unwrap();
+    observer
+        .with(|read| {
+            assert_eq!(read.value, 17);
+            assert_eq!(interface.set(18), Err(NC_E_BUSY));
+        })
+        .unwrap();
     let owner = local.into_interface::<IValueAbi>().unwrap();
     observer.with_mut(|value| value.value = 19).unwrap();
     assert_eq!(interface.value(), Ok(19));
@@ -352,14 +344,6 @@ fn local_box_observers_follow_owner_transfer_and_gate_conflicts() {
     assert_eq!(origin.value(), Err(NC_E_DROPPED));
 }
 
-#[com_interface(auto_guid = "nc.tests.exclusive.Pair:v1", assigned_signature = b"00000000000000000000000000000903")]
-/// Two ownership inputs prove the ABI commits or returns the complete set.
-trait IPair {
-    /// A false choice deliberately returns a malformed nonnegative error status;
-    /// normalization must preserve both owners while reporting INVALID_ARG.
-    fn offer(&mut self, left: ComBox<IValueAbi, neocogi_com::ThreadSafe>, right: ComBox<IValueAbi, neocogi_com::ThreadSafe>, accept: bool)
-        -> Result<u32, (NcStatus, ComBox<IValueAbi, neocogi_com::ThreadSafe>, ComBox<IValueAbi, neocogi_com::ThreadSafe>)>;
-}
 #[com_object(IPair, ownership = exclusive)]
 /// Ordinary fields own accepted values; dispatch admission belongs to COM.
 struct Pair {
@@ -368,11 +352,18 @@ struct Pair {
 }
 impl IPair for Pair {
     /// Match expresses the whole rejection/commit decision without transfer flags.
-    fn offer(&mut self, left: ComBox<IValueAbi, neocogi_com::ThreadSafe>, right: ComBox<IValueAbi, neocogi_com::ThreadSafe>, accept: bool)
-        -> Result<u32, (NcStatus, ComBox<IValueAbi, neocogi_com::ThreadSafe>, ComBox<IValueAbi, neocogi_com::ThreadSafe>)> {
+    fn offer(
+        &mut self,
+        left: ComBox<IValueAbi, neocogi_com::ThreadSafe>,
+        right: ComBox<IValueAbi, neocogi_com::ThreadSafe>,
+        accept: bool,
+    ) -> Result<u32, (NcStatus, ComBox<IValueAbi, neocogi_com::ThreadSafe>, ComBox<IValueAbi, neocogi_com::ThreadSafe>)> {
         match accept {
             false => Err((neocogi_com::NC_OK, left, right)),
-            true => { self.values = Some([left, right]); Ok(2) },
+            true => {
+                self.values = Some([left, right]);
+                Ok(2)
+            }
         }
     }
 }
@@ -432,13 +423,6 @@ fn owner_identity_projection_preserves_cached_table_and_destroys_once() {
     assert_eq!(weak.value(), Err(NC_E_DROPPED));
     drop(weak);
     assert_eq!(drops.load(Ordering::SeqCst), 1);
-}
-
-#[com_interface(auto_guid = "nc.tests.exclusive.Value:v1", threading = shared, assigned_signature = b"00000000000000000000000000000902")]
-/// Same nominal interface with a different ABI revision must not reuse a cached table.
-trait IValueOtherRevision {
-    /// This declaration is intentionally incompatible with the published Value contract.
-    fn value(&self) -> Result<u64, NcStatus>;
 }
 
 /// Comparing only GUIDs would incorrectly allow this revision to bypass lookup.

@@ -1,5 +1,0 @@
-error: COM methods cannot be async
- --> integration-tests/ui/interface_async_method.rs:5:5
-  |
-5 |     async fn value(&self) -> Result<u32, neocogi_com::NcStatus>;
-  |     ^^^^^

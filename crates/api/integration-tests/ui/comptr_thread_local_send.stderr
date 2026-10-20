@@ -1,20 +1,20 @@
 error[E0277]: `ComPtr<IUnknown>` cannot be sent between threads safely
-  --> integration-tests/ui/comptr_thread_local_send.rs:19:24
+  --> integration-tests/ui/comptr_thread_local_send.rs:17:24
    |
-19 |     std::thread::spawn(move || drop(unknown));
+17 |     std::thread::spawn(move || drop(unknown));
    |     ------------------ -------^^^^^^^^^^^^^^
    |     |                  |
    |     |                  `ComPtr<IUnknown>` cannot be sent between threads safely
-   |     |                  within this `{closure@$DIR/integration-tests/ui/comptr_thread_local_send.rs:19:24: 19:31}`
+   |     |                  within this `{closure@$DIR/integration-tests/ui/comptr_thread_local_send.rs:17:24: 17:31}`
    |     required by a bound introduced by this call
    |
-   = help: within `{closure@$DIR/integration-tests/ui/comptr_thread_local_send.rs:19:24: 19:31}`, the trait `Send` is not implemented for `ComPtr<IUnknown>`
+   = help: within `{closure@$DIR/integration-tests/ui/comptr_thread_local_send.rs:17:24: 17:31}`, the trait `Send` is not implemented for `ComPtr<IUnknown>`
 help: the trait `Send` is implemented for `ComPtr<T, neocogi_com::ThreadSafe>`
   --> /cargo/deps/neocogi-com-core-0.0.0/src/ptr.rs:197:0
 note: required because `unknown` is used within this closure
-  --> integration-tests/ui/comptr_thread_local_send.rs:19:37
+  --> integration-tests/ui/comptr_thread_local_send.rs:17:37
    |
-19 |     std::thread::spawn(move || drop(unknown));
+17 |     std::thread::spawn(move || drop(unknown));
    |                                     ^^^^^^^
 note: required by a bound in `spawn`
   --> $RUST/std/src/thread/functions.rs

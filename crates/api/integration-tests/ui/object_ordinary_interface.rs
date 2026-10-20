@@ -1,8 +1,7 @@
-use neocogi_com::{com_object, com_interface};
+use neocogi_com::{com_object};
 
-#[com_interface(auto_guid = "nc.tests.ui.NotFactory:v1", assigned_signature = b"00000000000000000000000000000002")]
-/// Ordinary interfaces need no construction role to have an implementation.
-trait IObject {}
+extern crate self as fixture_ui_object_ordinary_interface;
+neocogi_com_test_contracts::ui_object_ordinary_interface!();
 
 #[com_object(IObject)]
 /// The same object macro supports services and construction providers.

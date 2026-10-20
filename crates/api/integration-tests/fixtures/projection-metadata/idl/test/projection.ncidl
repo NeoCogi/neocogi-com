@@ -1,0 +1,24 @@
+#[id(1, "4e2df01f-ee60-540e-8a49-e63a0fa47d4a")]
+/// Shared base whose schema name must disappear unless inspection is requested.
+interface MetadataRetentionSentinelBase {
+    /// The method name is another marker which dispatch itself does not need.
+    fn metadata_retention_sentinel_method(&self) -> Result<u32>;
+}
+
+#[id(1, "94a7225a-f748-549a-92ac-08b74c3b9641")]
+/// First inheritance path to the common base.
+interface MetadataRetentionSentinelLeft: MetadataRetentionSentinelBase {
+
+}
+
+#[id(1, "2f211b5f-9dd7-51e4-b3a2-1ec14a90d82e")]
+/// Second inheritance path must resolve to the same exact base contract and object address.
+interface MetadataRetentionSentinelRight: MetadataRetentionSentinelBase {
+
+}
+
+#[id(1, "63714062-b53d-53db-a1e5-a1b9956152cd")]
+/// Top of a diamond with four unique authored contracts.
+interface MetadataRetentionSentinelTop: MetadataRetentionSentinelLeft + MetadataRetentionSentinelRight {
+
+}

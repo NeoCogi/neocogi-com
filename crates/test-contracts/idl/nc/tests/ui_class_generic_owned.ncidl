@@ -1,0 +1,13 @@
+#[id(1, "adaf33dc-29e3-5387-b8ba-79cef8b168a7")]
+/// Concrete base contract independent of the implementation's type arguments.
+interface IBase {
+    /// Returns one copied observation from owned state.
+    fn value(&self) -> Result<u32>;
+}
+
+#[id(1, "2fb379cb-919e-58ac-b809-f5d4e9558567")]
+/// Derived concrete event sink, including direct inherited calls.
+interface ISink: IBase {
+    /// Applies one concrete event value to its retained handler.
+    fn receive(&self, value: u32) -> Result<()>;
+}

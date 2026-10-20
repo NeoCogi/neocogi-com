@@ -1,0 +1,34 @@
+#[id(1, "2b26dbbb-64ad-5619-a85d-fd240dcd11f6")]
+#[threading(shared)]
+/// Shared readers and exclusive writers exercise the same object-wide gate.
+interface IValue {
+    /// Returns state without acquiring an owning reference.
+    fn value(&self) -> Result<u32>;
+    /// Mutates state only when no reader or writer is already executing.
+    fn set(&mut self, value: u32) -> Result<()>;
+    /// Holds a reader inside the provider while its owner is removed elsewhere.
+    fn wait_read(&self) -> Result<u32>;
+    /// Holds a writer to prove conflicting weak calls fail without blocking.
+    fn wait_write(&mut self) -> Result<()>;
+}
+
+#[id(1, "3bd939d7-5ee1-5ae7-acf7-2e0f3ce5fe9c")]
+/// A real ABI container transfers the only owner and exposes only weak child access.
+interface IContainer {
+    /// Consumes its input on success and returns the same owner on failure.
+    fn insert(&mut self, child: ComBox<IValue>, reject: bool) -> Result<()>;
+    /// Returns an observer while the container remains the sole owner.
+    fn child(&self) -> Result<WeakComBox<IValue>>;
+    /// Removes the child permanently; there is no detach or close operation.
+    fn remove(&mut self) -> Result<()>;
+}
+
+#[id(1, "ea9e614b-1113-5181-bde5-12d72143ce2a")]
+/// Two ownership inputs prove the ABI commits or returns the complete set.
+interface IPair {
+    /// A false choice deliberately returns a malformed nonnegative error status;
+    /// normalization must preserve both owners while reporting INVALID_ARG.
+    fn offer(&mut self, left: ComBox<IValue>, right: ComBox<IValue>, accept: bool) -> Result<u32>;
+}
+
+

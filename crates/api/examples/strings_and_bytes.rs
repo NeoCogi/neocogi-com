@@ -1,24 +1,15 @@
-use neocogi_com::{ComPtr, ComRef, INcBytesAbi, INcBytesComPtrExt, INcStringComPtrExt, IUnknown, NcBytes, NcStatus, NcString, com_object, com_interface};
+use neocogi_com::{ComPtr, ComRef, INcBytesAbi, INcBytesComPtrExt, INcStringComPtrExt, IUnknown, NcBytes, NcStatus, NcString, com_object};
 use std::cell::Cell;
 
 const NC_E_EXAMPLE_INVALID_ARG_CODE: i32 = -101;
 const NC_E_EXAMPLE_INVALID_ARG: NcStatus = NcStatus::from_code(NC_E_EXAMPLE_INVALID_ARG_CODE);
 
-#[com_interface(
-    auto_guid = "nc.examples.strings_and_bytes.ByteConsumer:v1",
-    assigned_signature = b"00000000000000000000000000000027"
-)]
-pub trait IByteConsumer {
-    fn consume(&self, bytes: ComRef<'_, INcBytesAbi>) -> Result<u64, NcStatus>;
+// Contract identity and wire codecs are compiled from examples/idl/nc/examples/strings_and_bytes.ncidl.
+#[allow(dead_code, unused_imports)]
+mod bindings {
+    include!(concat!(env!("OUT_DIR"), "/example_strings_and_bytes.rs"));
 }
-
-#[com_interface(
-    auto_guid = "nc.examples.strings_and_bytes.ByteStream:v1",
-    assigned_signature = b"00000000000000000000000000000028"
-)]
-pub trait IByteStream {
-    fn next_chunk(&self, max_len: u64) -> Result<ComPtr<INcBytesAbi>, NcStatus>;
-}
+use bindings::*;
 
 #[com_object(interfaces(IByteStream))]
 pub struct MemoryByteStream {

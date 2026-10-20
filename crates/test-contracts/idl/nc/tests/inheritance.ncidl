@@ -1,0 +1,43 @@
+#[id(1, "48ae159c-8c8a-5f41-9441-3461bfcc947d")]
+/// A predicate whose method used to collide with `ComPtr::is`.
+interface PredicateIPredicate {
+    /// Exercises ordinary generated dispatch for the verb `is`.
+    fn is(&self) -> Result<bool>;
+}
+
+#[id(1, "32227985-ee04-56c2-95ca-eb3807117b58")]
+/// Common widget contract, including a recursive return to its derived type.
+interface ContractIWidget {
+    /// Observes the shared concrete state.
+    fn value(&self) -> Result<u32>;
+    /// Returns another button without making ABI signatures recursively expand.
+    fn button(&self) -> Result<ComPtr<IButton>>;
+}
+
+#[id(1, "ad99d1d8-360d-5cda-aa4f-59453f44a31b")]
+/// Required sibling projection inherited transitively by the toggle contract.
+interface IAudit {
+    /// Observes whether the allocation's authoritative value is nonzero.
+    fn active(&self) -> Result<bool>;
+}
+
+#[id(1, "397bf76d-0a92-5656-93ae-1921414a3e2a")]
+/// Adds one slot after the complete widget prefix.
+interface IButton: ContractIWidget + IAudit {
+    /// Changes state observed through all projections.
+    fn set_value(&mut self, value: u32) -> Result<()>;
+}
+
+#[id(1, "220bfbc8-9bcb-5c0c-aed3-f6901a00c6c1")]
+/// A second level verifies recursive vtables and inherited client lookup.
+interface IToggle: IButton {
+    /// Copies a base value through a checked borrowed argument.
+    fn copy_value(&mut self, source: &ContractIWidget) -> Result<()>;
+}
+
+#[id(1, "cdd59aae-c8a3-57cb-a507-36da69d84fda")]
+/// A mutating receiver makes accidental entry with malformed arguments visible.
+interface PairInputsIAcceptPair {
+    /// Reports presence and counts only successfully decoded invocations.
+    fn accept(&mut self, value: &IUnknown) -> Result<bool>;
+}

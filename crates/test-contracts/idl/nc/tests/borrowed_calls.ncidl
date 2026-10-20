@@ -1,0 +1,14 @@
+#[id(1, "99919feb-3792-5ced-a2d0-1e437ab649d3")]
+/// Fixed interface used by owning and borrowed generated clients.
+interface ICounter {
+    /// Returns the number of AddRef calls observed so far.
+    fn additions(&self) -> Result<u32>;
+    /// Returns an owned reference alongside deliberately malformed foreign output.
+    fn malformed_output(&self, output: &mut [bool]) -> Result<ComPtr<IDerivedCounter>>;
+}
+
+#[id(1, "f3727294-c877-5182-8b97-57135e01736c")]
+/// A derived contract with no local slots exercises inherited dispatch alone.
+interface IDerivedCounter: ICounter {
+
+}

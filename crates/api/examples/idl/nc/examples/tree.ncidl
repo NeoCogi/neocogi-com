@@ -1,0 +1,35 @@
+#[version(1)]
+/// Semantic element kind, with explicit stable scalar values.
+enum NodeKind: u16 {
+    /// Document element.
+    Document = 1,
+    /// Body element.
+    Body = 2,
+    /// Button element.
+    Button = 3,
+    /// Span element.
+    Span = 4,
+}
+
+#[version(1)]
+enum TreeMutation: u32 {
+    None,
+    ChildAdded(u64, NodeKind),
+    AttributeChanged{
+        element: u64,
+        name_id: u32,
+    },
+}
+
+#[id(1, "57938557-9120-5569-9071-4ac14aa88d02")]
+interface IElement {
+    fn kind(&self) -> Result<NodeKind>;
+    fn child_count(&self) -> Result<i32>;
+    fn first_child_kind(&self) -> Result<NodeKind>;
+}
+
+#[id(1, "a1ce4d53-530b-530d-a2b7-f50c25d56269")]
+interface IDocument {
+    fn root_kind(&self) -> Result<NodeKind>;
+    fn root_child_count(&self) -> Result<i32>;
+}

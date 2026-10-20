@@ -1,5 +1,0 @@
-error: optional COM inputs must be Option<ComRef<'_, InterfaceAbi>>
- --> integration-tests/ui/interface_nested_vec_arg.rs:5:28
-  |
-5 |     fn value(&self, value: Option<Vec<u8>>) -> Result<u32, neocogi_com::NcStatus>;
-  |                            ^^^^^^^^^^^^^^^

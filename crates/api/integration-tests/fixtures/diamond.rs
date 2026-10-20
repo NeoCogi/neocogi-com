@@ -3,43 +3,34 @@ use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
 };
-use neocogi_com::{com_interface, com_object, ComInterface, IUnknown, NcInterfaceId, NcStatus, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_NOINTERFACE, NC_OK};
+use neocogi_com::{com_object, ComInterface, IUnknown, NcInterfaceId, NcStatus, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_NOINTERFACE, NC_OK};
 
-#[com_interface(auto_guid = "test.diamond.A0:v1", assigned_signature = b"00000000000000000000000000000001")]
-/// Shared read capability reached by every left and right ancestry path.
-trait IA0 {
-    /// Reads the one concrete counter under the common borrow gate.
-    fn value(&self) -> Result<u32, NcStatus>;
-}
-#[com_interface(auto_guid = "test.diamond.B0:v1", assigned_signature = b"00000000000000000000000000000002")]
-/// Shared mutation capability; the implementation uses exclusive mutable access.
-trait IB0 {
-    /// Replaces the one concrete counter through any acquired projection.
-    fn set_value(&mut self, value: u32) -> Result<(), NcStatus>;
-}
+extern crate self as fixture_diamond;
+neocogi_com_test_contracts::diamond!();
 
-/// Adds two distinct contracts requiring the same two parents at each level.
-macro_rules! level {
-    ($left:ident, $right:ident, $base_left:ident, $base_right:ident, $left_id:literal, $right_id:literal) => {
-        #[com_interface(auto_guid = $left_id, assigned_signature = b"00000000000000000000000000000003")]
-        /// Left branch of one repeated diamond; no additional method slots.
-        trait $left: $base_left + $base_right {}
-        #[com_interface(auto_guid = $right_id, assigned_signature = b"00000000000000000000000000000004")]
-        /// Right branch shares both parents instead of owning separate state.
-        trait $right: $base_left + $base_right {}
-        impl<T: 'static> $left for Diamond<T> {}
-        impl<T: 'static> $right for Diamond<T> {}
-    };
-}
-level!(IA1, IB1, IA0, IB0, "test.diamond.A1:v1", "test.diamond.B1:v1");
-level!(IA2, IB2, IA1, IB1, "test.diamond.A2:v1", "test.diamond.B2:v1");
-level!(IA3, IB3, IA2, IB2, "test.diamond.A3:v1", "test.diamond.B3:v1");
-level!(IA4, IB4, IA3, IB3, "test.diamond.A4:v1", "test.diamond.B4:v1");
-level!(IA5, IB5, IA4, IB4, "test.diamond.A5:v1", "test.diamond.B5:v1");
-level!(IA6, IB6, IA5, IB5, "test.diamond.A6:v1", "test.diamond.B6:v1");
-#[com_interface(auto_guid = "test.diamond.Top:v1", assigned_signature = b"00000000000000000000000000000005")]
-/// Complete 15-contract graph formerly expanded to 255 physical headers.
-trait ITop: IA6 + IB6 {}
+impl<T: 'static> IA1 for Diamond<T> {}
+
+impl<T: 'static> IB1 for Diamond<T> {}
+
+impl<T: 'static> IA2 for Diamond<T> {}
+
+impl<T: 'static> IB2 for Diamond<T> {}
+
+impl<T: 'static> IA3 for Diamond<T> {}
+
+impl<T: 'static> IB3 for Diamond<T> {}
+
+impl<T: 'static> IA4 for Diamond<T> {}
+
+impl<T: 'static> IB4 for Diamond<T> {}
+
+impl<T: 'static> IA5 for Diamond<T> {}
+
+impl<T: 'static> IB5 for Diamond<T> {}
+
+impl<T: 'static> IA6 for Diamond<T> {}
+
+impl<T: 'static> IB6 for Diamond<T> {}
 
 #[com_object(ITop)]
 /// Generic application storage proves interface storage is independent of Rust state type.
@@ -216,16 +207,20 @@ fn every_projection_uses_the_same_exclusive_borrow_gate() {
 /// Different modules can use the same local trait spelling with distinct identities.
 mod first {
     use super::*;
-    #[com_interface(auto_guid = "test.diamond.first.Value:v1", assigned_signature = b"00000000000000000000000000000006")]
-    /// One independent capability.
-    pub trait IValue {}
+    #[allow(unused_imports)]
+    pub use super::{
+        FirstIValueAbi as IValueAbi, FirstIValueVTable as IValueVTable, FirstIValueVtblFor as IValueVtblFor, FirstIValueClient as IValueClient,
+        FirstIValue as IValue,
+    };
 }
 /// The second spelling must not collide through an invented storage field name.
 mod second {
     use super::*;
-    #[com_interface(auto_guid = "test.diamond.second.Value:v1", assigned_signature = b"00000000000000000000000000000007")]
-    /// A different capability sharing only its unqualified Rust name.
-    pub trait IValue {}
+    #[allow(unused_imports)]
+    pub use super::{
+        SecondIValueAbi as IValueAbi, SecondIValueVTable as IValueVTable, SecondIValueVtblFor as IValueVtblFor, SecondIValueClient as IValueClient,
+        SecondIValue as IValue,
+    };
 }
 #[com_object(interfaces(first::IValue, second::IValue))]
 /// A flat object uses identities instead of derived per-interface field names.

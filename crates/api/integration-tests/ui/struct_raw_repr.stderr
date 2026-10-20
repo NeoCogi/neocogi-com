@@ -1,5 +1,0 @@
-error: COM struct layout is controlled by #[com_struct], #[com_struct(packed)], #[com_struct(packed(N))], or #[com_struct(align(N))]; remove #[repr(...)]
- --> integration-tests/ui/struct_raw_repr.rs:4:1
-  |
-4 | #[repr(C, packed)]
-  | ^^^^^^^^^^^^^^^^^^

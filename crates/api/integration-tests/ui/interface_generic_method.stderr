@@ -1,5 +1,0 @@
-error: COM methods cannot be generic
- --> integration-tests/ui/interface_generic_method.rs:5:13
-  |
-5 |     fn value<T>(&self, value: T) -> Result<T, neocogi_com::NcStatus>;
-  |             ^^^

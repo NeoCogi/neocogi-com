@@ -1,0 +1,4 @@
+#[id(1, "336a7375-ca08-50f4-8f4d-0ee034a0d9e6")]
+interface IValue {
+    fn value(&self) -> Result<u32>;
+}

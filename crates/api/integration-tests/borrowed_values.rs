@@ -1,24 +1,10 @@
 //! Real generated COM calls may retain acquired values, never borrowed wire guards.
 
-use neocogi_com::{com_interface, com_object, com_value, ComPtr, NcStatus, NcValueRef};
+use neocogi_com::{com_object, ComPtr, NcStatus, NcValueRef};
 use std::sync::LazyLock;
 
-/// A sequence of strings needs both source text and producer-owned wire records.
-#[com_value(assigned_signature = b"00000000000000000000000000000091")]
-#[derive(Clone, Debug, PartialEq)]
-pub struct Message {
-    /// Each string wire borrows text; the enclosing wire array is temporary storage.
-    pub entries: Vec<String>,
-}
-
-/// Owns messages through the supported call-scoped borrowed-value interface.
-#[com_interface(auto_guid = "nc.tests.borrowed_values.Receiver:v1", assigned_signature = b"00000000000000000000000000000092")]
-pub trait IValueReceiver {
-    /// Acquires an independent message before the producer call guard is released.
-    fn retain(&mut self, value: NcValueRef<'_, Message>) -> Result<(), NcStatus>;
-    /// Observes retained contents in a later call, after original storage can expire.
-    fn matches(&self, expected: NcValueRef<'_, Message>) -> Result<bool, NcStatus>;
-}
+extern crate self as fixture_borrowed_values;
+neocogi_com_test_contracts::borrowed_values!();
 
 /// Mutable provider state stores the application value without shared mutation.
 #[com_object(IValueReceiver)]
@@ -36,7 +22,8 @@ impl IValueReceiver for Receiver {
 
     /// Compare owned values without handing internal storage back across the ABI.
     fn matches(&self, expected: NcValueRef<'_, Message>) -> Result<bool, NcStatus> {
-        Ok(self.saved.as_ref() == Some(&expected.to_owned()?))
+        let expected = expected.to_owned()?;
+        Ok(self.saved.as_ref().is_some_and(|saved| saved.entries == expected.entries))
     }
 }
 

@@ -1,5 +1,0 @@
-error: COM struct fields cannot be String; model strings as COM interfaces
- --> integration-tests/ui/struct_string_field.rs:5:12
-  |
-5 |     value: String,
-  |            ^^^^^^

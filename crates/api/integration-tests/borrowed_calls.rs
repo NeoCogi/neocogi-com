@@ -1,21 +1,11 @@
 //! Counts lifecycle calls on a foreign-style object to distinguish a borrowed
 //! dispatch from an AddRef/call/Release sequence with the same final count.
 
-use neocogi_com::{com_interface, ComInterface, ComPtr, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, NC_E_NOINTERFACE, NC_OK};
+use neocogi_com::{ComInterface, ComPtr, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, NC_E_NOINTERFACE, NC_OK};
 use std::{cell::Cell, ffi::c_void, rc::Rc};
 
-#[com_interface(auto_guid = "nc.tests.borrowed.Counter:v1", assigned_signature = b"00000000000000000000000000000001")]
-/// Fixed interface used by owning and borrowed generated clients.
-pub trait ICounter {
-    /// Returns the number of AddRef calls observed so far.
-    fn additions(&self) -> Result<u32, NcStatus>;
-    /// Returns an owned reference alongside deliberately malformed foreign output.
-    fn malformed_output(&self, output: neocogi_com::NcOutputWriter<'_, bool>) -> Result<ComPtr<IDerivedCounterAbi>, NcStatus>;
-}
-
-#[com_interface(auto_guid = "nc.tests.borrowed.DerivedCounter:v1", assigned_signature = b"00000000000000000000000000000002")]
-/// A derived contract with no local slots exercises inherited dispatch alone.
-pub trait IDerivedCounter: ICounter {}
+extern crate self as fixture_borrowed_calls;
+neocogi_com_test_contracts::borrowed_calls!();
 
 #[derive(Default)]
 /// Observations kept alive after the foreign object's final release.
@@ -137,12 +127,7 @@ fn borrowed_generated_calls_perform_no_lifecycle_operations() {
     // A failed acquisition must preserve the safe bool and release the returned
     // reference immediately. The original caller still owns the object afterward.
     let mut destination = neocogi_com::NcOutputBuffer::<bool>::new();
-    assert_eq!(
-        borrowed
-            .malformed_output(destination.output(0, 1))
-            .unwrap_err(),
-        neocogi_com::NC_E_INVALID_ARG
-    );
+    assert_eq!(borrowed.malformed_output(destination.output(0, 1)).unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
     assert!(destination.is_empty());
     assert_eq!(counts.additions.get(), 1);
     assert_eq!(counts.releases.get(), 1);

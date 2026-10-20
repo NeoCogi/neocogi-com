@@ -1,4 +1,6 @@
 //! Generated factory registration and acquisition in shared-runtime or static mode.
+extern crate self as fixture_factory_plugin_runtime;
+neocogi_com_test_contracts::factory_plugin_runtime!();
 
 use neocogi_com::{ComPtr, NcStatus, Runtime, com_object, guid_from_qualified_name};
 use neocogi_idl_example_contracts::{ExampleFactory, ExampleFactoryAbi, ExampleObject, ExampleObjectAbi, Extent, IMeasured};
@@ -54,10 +56,8 @@ impl ExampleFactory for ExampleFactoryImplementation {
 }
 
 /// Acquires one owned root; object construction remains on its typed methods.
-#[neocogi_com::plugin(name = "nc.tests.generated_factory_plugin",
-    version = "1.0.0")]
-fn acquire_root() -> Result<neocogi_com::ComPtr<neocogi_idl_example_contracts::ExampleFactoryAbi>,
-    neocogi_com::NcStatus> {
+#[neocogi_com::plugin(name = "nc.tests.generated_factory_plugin", version = "1.0.0")]
+fn acquire_root() -> Result<neocogi_com::ComPtr<neocogi_idl_example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
     ExampleFactoryImplementation::from_value(ExampleFactoryImplementation).query()
 }
 
@@ -139,7 +139,7 @@ fn complete_plugin_info_and_direct_acquisition_work_without_filesystem_path() {
 
 /// A plugin may publish a finished service without a construction-role marker.
 mod service_root {
-    use neocogi_com::{ComInterface, ComPtr, NcStatus, Runtime, ThreadSafe, com_interface, com_object};
+    use neocogi_com::{ComInterface, ComPtr, NcStatus, Runtime, ThreadSafe, com_object};
     use std::sync::atomic::{AtomicU32, Ordering};
 
     /// Tracks initialization separately from metadata inspection.
@@ -147,12 +147,11 @@ mod service_root {
     /// Counts owners released after real calls through the acquired ABI.
     static DROPPED: AtomicU32 = AtomicU32::new(0);
 
-    #[com_interface(auto_guid = "nc.tests.plugin.Service:v1", threading = shared, assigned_signature = b"00000000000000000000000000000091")]
-    /// Ordinary service whose state is initialized in Rust.
-    trait IService {
-        /// Reads the sequence assigned to this acquisition.
-        fn sequence(&self) -> Result<u32, NcStatus>;
-    }
+    #[allow(unused_imports)]
+    pub use fixture_factory_plugin_runtime::{
+        ServiceRootIServiceAbi as IServiceAbi, ServiceRootIServiceVTable as IServiceVTable, ServiceRootIServiceVtblFor as IServiceVtblFor,
+        ServiceRootIServiceClient as IServiceClient, ServiceRootIService as IService,
+    };
 
     #[com_object(IService)]
     /// Provider-private state; no factory implementation association is needed.
@@ -176,7 +175,10 @@ mod service_root {
     #[neocogi_com::plugin(name = "nc.tests.plugin.service")]
     /// Creates one initialized service with the interface's declared threading.
     fn acquire() -> Result<ComPtr<IServiceAbi, ThreadSafe>, NcStatus> {
-        Service::from_value(Service { sequence: ACQUIRED.fetch_add(1, Ordering::SeqCst) }).query()
+        Service::from_value(Service {
+            sequence: ACQUIRED.fetch_add(1, Ordering::SeqCst),
+        })
+        .query()
     }
 
     /// Inspection does not construct; two acquisitions own two independent services.
@@ -223,7 +225,10 @@ mod failed_root {
         // SAFETY: null is a supported defensive ABI input.
         assert_eq!(unsafe { acquire(core::ptr::null_mut()) }, NC_E_POINTER);
         assert_eq!(CALLED.load(Ordering::SeqCst), 0);
-        let mut out = ComRaw::<IUnknown> { object: core::ptr::dangling_mut(), vtable: core::ptr::dangling() };
+        let mut out = ComRaw::<IUnknown> {
+            object: core::ptr::dangling_mut(),
+            vtable: core::ptr::dangling(),
+        };
         // SAFETY: output storage is valid; the stale pair is never dereferenced.
         assert!(unsafe { acquire(&mut out) }.is_err());
         assert!(out.is_null());

@@ -1,16 +1,11 @@
-use neocogi_com::{com_enum, ComValue};
+use neocogi_com::{ComValue};
 
-#[derive(Debug, PartialEq)]
-#[com_enum(tag = u8, assigned_signature = b"77777777777777777777777777777777")]
-enum CaseFoldedVariant {
-    Foo(u8),
-    FOO(u16),
-    _EMPTY(u32),
-}
+extern crate self as fixture_ui_enum_case_folded_variant;
+neocogi_com_test_contracts::ui_enum_case_folded_variant!();
 
 // Case folding is irrelevant to positional wire union fields.
 fn main() {
-    for value in [CaseFoldedVariant::Foo(1), CaseFoldedVariant::FOO(2), CaseFoldedVariant::_EMPTY(3)] {
+    for value in [CaseFoldedVariant::Foo(1), CaseFoldedVariant::FOO(2), CaseFoldedVariant::Empty(3)] {
         let (wire, _storage) = value.encode_value(&mut Default::default()).unwrap();
         // SAFETY: valid inline encoding, with no foreign references.
         assert_eq!(unsafe { CaseFoldedVariant::decode_value(wire, &mut Default::default()) }.unwrap(), value);

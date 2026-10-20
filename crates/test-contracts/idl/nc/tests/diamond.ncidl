@@ -1,0 +1,103 @@
+#[id(1, "227cc2e8-b8b2-59b6-b28c-1631c7b5671e")]
+/// Shared read capability reached by every left and right ancestry path.
+interface IA0 {
+    /// Reads the one concrete counter under the common borrow gate.
+    fn value(&self) -> Result<u32>;
+}
+
+#[id(1, "1e504dfd-5403-5c0f-9b8b-375c6008117a")]
+/// Shared mutation capability; the implementation uses exclusive mutable access.
+interface IB0 {
+    /// Replaces the one concrete counter through any acquired projection.
+    fn set_value(&mut self, value: u32) -> Result<()>;
+}
+
+#[id(1, "4975ebe0-71bc-5d9a-a9c7-d7045ca53140")]
+/// One branch of the repeated diamond, sharing both prior parents.
+interface IA1: IA0 + IB0 {
+
+}
+
+#[id(1, "2af30a72-5cfd-5390-afd3-f3a8bc5c2f69")]
+/// One branch of the repeated diamond, sharing both prior parents.
+interface IB1: IA0 + IB0 {
+
+}
+
+#[id(1, "36955a01-10cf-5b03-84d2-4a62ba65a481")]
+/// One branch of the repeated diamond, sharing both prior parents.
+interface IA2: IA1 + IB1 {
+
+}
+
+#[id(1, "8dcf17ef-3f0a-5bd7-bd0d-3e80455eaedd")]
+/// One branch of the repeated diamond, sharing both prior parents.
+interface IB2: IA1 + IB1 {
+
+}
+
+#[id(1, "3299d773-2f0d-506f-a412-46c6ad68ca4a")]
+/// One branch of the repeated diamond, sharing both prior parents.
+interface IA3: IA2 + IB2 {
+
+}
+
+#[id(1, "9fe68112-2c6a-5635-bf0c-83318c761f5a")]
+/// One branch of the repeated diamond, sharing both prior parents.
+interface IB3: IA2 + IB2 {
+
+}
+
+#[id(1, "9ae497ec-e5cf-5c6a-b1ed-9ce0e7a5c6e5")]
+/// One branch of the repeated diamond, sharing both prior parents.
+interface IA4: IA3 + IB3 {
+
+}
+
+#[id(1, "454bac9c-2354-567b-9afe-bedf8711585e")]
+/// One branch of the repeated diamond, sharing both prior parents.
+interface IB4: IA3 + IB3 {
+
+}
+
+#[id(1, "67f6d28c-fa89-53a6-b3e2-97abc40e08a8")]
+/// One branch of the repeated diamond, sharing both prior parents.
+interface IA5: IA4 + IB4 {
+
+}
+
+#[id(1, "a8d14679-0455-53a8-aea5-0bb92ef493ec")]
+/// One branch of the repeated diamond, sharing both prior parents.
+interface IB5: IA4 + IB4 {
+
+}
+
+#[id(1, "08c21d74-80c5-50d4-b1e9-b2d2eb6cd282")]
+/// One branch of the repeated diamond, sharing both prior parents.
+interface IA6: IA5 + IB5 {
+
+}
+
+#[id(1, "7fe3638f-d8f5-5e9b-98d8-efd98d02fdaf")]
+/// One branch of the repeated diamond, sharing both prior parents.
+interface IB6: IA5 + IB5 {
+
+}
+
+#[id(1, "97fe9e01-dc43-5d89-b1e2-1164b0c1ae2e")]
+/// Complete 15-contract graph formerly expanded to 255 physical headers.
+interface ITop: IA6 + IB6 {
+
+}
+
+#[id(1, "d64330e2-50da-58ca-a74f-4abace998c88")]
+/// One independent capability.
+interface FirstIValue {
+
+}
+
+#[id(1, "ba837272-09d6-5f0b-a097-c4982e0f9ebe")]
+/// A different capability sharing only its unqualified Rust name.
+interface SecondIValue {
+
+}

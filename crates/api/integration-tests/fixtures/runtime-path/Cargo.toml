@@ -8,3 +8,6 @@ publish = false
 
 [dependencies]
 renamed_nc = { package = "neocogi-com", path = "../../.." }
+
+[build-dependencies]
+neocogi-idl = { path = "../../../../idl" }

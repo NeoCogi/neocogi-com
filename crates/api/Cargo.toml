@@ -63,6 +63,7 @@ name = "ui"
 path = "integration-tests/ui.rs"
 
 [dev-dependencies]
+neocogi-com-test-contracts.workspace = true
 # Each test executable explicitly retains this implementation; production facade
 # features never select it for unrelated host/plugin artifacts.
 neocogi-com-runtime.workspace = true

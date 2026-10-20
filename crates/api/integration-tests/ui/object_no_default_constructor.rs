@@ -1,8 +1,7 @@
-use neocogi_com::{com_interface, com_object};
+use neocogi_com::{com_object};
 
-#[com_interface(auto_guid = "nc.tests.ui.Object:v1", assigned_signature = b"00000000000000000000000000000001")]
-/// An ordinary callable contract has no public default-construction policy.
-trait IObject {}
+extern crate self as fixture_ui_object_no_default_constructor;
+neocogi_com_test_contracts::ui_object_no_default_constructor!();
 
 #[com_object(IObject)]
 /// Even a unit implementation must be passed explicitly to `from_value`.

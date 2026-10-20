@@ -4,72 +4,34 @@ use neocogi_com::*;
 #[path = "support/allocation_probe.rs"]
 mod allocation_probe;
 
-#[com_struct(assigned_signature = b"00000000000000000000000000000811")]
-#[derive(Debug, PartialEq)]
-/// Nested restricted leaves require validation in both conversion directions.
-pub struct Details {
-    /// A fixed array changes both the maximum count and maximum depth.
-    pub flags: [bool; 2],
-}
-#[com_enum(tag = u8, assigned_signature = b"00000000000000000000000000000812")]
-#[derive(Clone, Copy, Debug, PartialEq)]
-/// Unequal alternatives make input-only budget checks insufficient.
-pub enum Choice {
-    /// Cheap current value does not bound a provider's possible replacement.
-    Idle,
-    /// More expensive but still allocation-free output.
-    Filled(Details),
-}
+extern crate self as fixture_output_completion;
+neocogi_com_test_contracts::output_completion!();
+
 /// A copied zero-sized return can still exceed the logical traversal limit.
 type Excessive = [[bool; 0]; MAX_VALUE_COUNT];
-#[com_interface(auto_guid = "nc.tests.completion.Item:v1", assigned_signature = b"00000000000000000000000000000813")]
-/// Small exclusive input observed through a weak reference after transfer.
-trait IItem {
-    /// Confirms liveness without owning the object.
-    fn value(&self) -> Result<u32, NcStatus>;
-}
-#[com_interface(auto_guid = "nc.tests.completion.Complete:v1", assigned_signature = b"00000000000000000000000000000814")]
-/// Real generated ownership and completion paths, including multiple outputs.
-trait IComplete {
-    /// Accepts both owners or returns both original identities, with checked outputs.
-    fn complete(
-        &mut self,
-        first: ComBox<IItemAbi>,
-        second: ComBox<IItemAbi>,
-        choices: NcOutputWriter<'_, Choice>,
-        flags: NcOutputWriter<'_, bool>,
-        reject: bool,
-        deny_after_entry: bool,
-    ) -> Result<Choice, (NcStatus, ComBox<IItemAbi>, ComBox<IItemAbi>)>;
-    /// Direct numeric buffers retain their existing allocation-free identity path.
-    fn direct(&mut self, first: ComBox<IItemAbi>, values: NcOutputWriter<'_, u64>) -> Result<u32, (NcStatus, ComBox<IItemAbi>)>;
-    /// Known but excessive maximum must reject before implementation entry.
-    fn excessive(&mut self, first: ComBox<IItemAbi>) -> Result<Excessive, (NcStatus, ComBox<IItemAbi>)>;
-}
+
 #[path = "support/output_completion_fixture.rs"]
 mod generated_calls;
 
-#[com_interface(auto_guid = "nc.tests.completion.Ordinary:v1", assigned_signature = b"00000000000000000000000000000831")]
-/// Ordinary outputs admit capacity before entry and acquire all results before publication.
-trait IOrdinaryOutputs {
-    /// A later converted buffer may exceed the actual-value budget.
-    fn buffers(&mut self, flags: NcOutputWriter<'_, bool>, choices: NcOutputWriter<'_, Choice>) -> Result<(), NcStatus>;
-    /// An invalid copied return must not publish earlier converted buffers either.
-    fn result(&mut self, flags: NcOutputWriter<'_, bool>) -> Result<Excessive, NcStatus>;
-}
 #[com_object(IOrdinaryOutputs)]
 /// Deliberately produces valid native outputs exceeding ordinary conversion limits.
 struct OrdinaryOutputs;
 impl IOrdinaryOutputs for OrdinaryOutputs {
     /// Each current Idle is cheap, but Filled may exceed the combined output count.
     fn buffers(&mut self, mut flags: NcOutputWriter<'_, bool>, mut choices: NcOutputWriter<'_, Choice>) -> Result<(), NcStatus> {
-        for _ in 0..flags.capacity() { flags.push(true)?; }
-        for _ in 0..choices.capacity() { choices.push(Choice::Filled(Details { flags: [true; 2] }))?; }
+        for _ in 0..flags.capacity() {
+            flags.push(true)?;
+        }
+        for _ in 0..choices.capacity() {
+            choices.push(Choice::Filled(Details { flags: [true; 2] }))?;
+        }
         Ok(())
     }
     /// Returns zero physical bytes with too many logical array values.
     fn result(&mut self, mut flags: NcOutputWriter<'_, bool>) -> Result<Excessive, NcStatus> {
-        for _ in 0..flags.capacity() { flags.push(true)?; }
+        for _ in 0..flags.capacity() {
+            flags.push(true)?;
+        }
         Ok([[]; MAX_VALUE_COUNT])
     }
 }
@@ -83,7 +45,19 @@ fn provider_validates_all_converted_outputs_before_publishing_any() {
     let mut choices_written = 0;
     let mut choices = vec![encode_inline(&Choice::Idle).unwrap(); MAX_VALUE_COUNT / 5 + 1];
     // SAFETY: live initialized writable wire buffers and a valid provider object.
-    let status = unsafe { ((*raw.vtable).buffers)(raw.object, 0, 1, flags.as_mut_ptr(), &mut flags_written, 0, choices.len() as u64, choices.as_mut_ptr(), &mut choices_written) };
+    let status = unsafe {
+        ((*raw.vtable).buffers)(
+            raw.object,
+            0,
+            1,
+            flags.as_mut_ptr(),
+            &mut flags_written,
+            0,
+            choices.len() as u64,
+            choices.as_mut_ptr(),
+            &mut choices_written,
+        )
+    };
     assert_eq!(status, NC_E_OUT_OF_RANGE);
     assert_eq!(flags, [0]);
     assert!(choices.iter().all(|wire| unsafe { decode_inline::<Choice>(*wire) }.unwrap() == Choice::Idle));
@@ -191,12 +165,6 @@ fn consuming_output_admission_checks_bytes_count_depth_and_exact_boundaries() {
     assert_eq!(check_buffer_output::<TooDeep>(0), Ok(()));
 }
 
-#[com_interface(auto_guid = "nc.tests.output.OneWay:v1", assigned_signature = b"00000000000000000000000000001504")]
-/// Fresh copied output can be forwarded without borrowing initialized native values.
-trait IOneWay {
-    /// Writes one nested enum regardless of the larger supplied capacity.
-    fn get(&self, reject: bool, output: NcOutputWriter<'_, Choice>) -> Result<u32, NcStatus>;
-}
 #[com_object(IOneWay)]
 /// Source implementation writes a short prefix and can reject after production.
 struct OneWay;

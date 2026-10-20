@@ -9,9 +9,3 @@ error: expected default; NCB fields are always positional and variants use ordin
    |
 14 | #[com_deserialize(rename_all = "snake_case")]
    |                   ^^^^^^^^^^
-
-error: expected c_struct, deserialize, default, packed, packed(N), align(N), assigned_signature = b"32 bytes", or neocogi_com = path
-  --> integration-tests/ui/persistence_retired_policies.rs:21:40
-   |
-21 | #[neocogi_com::com_struct(deserialize, sequence, assigned_signature = b"00000000000000000000000000000001")]
-   |                                        ^^^^^^^^

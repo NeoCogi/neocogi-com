@@ -1,0 +1,23 @@
+#[id(1, "c444d484-c30c-5e06-9cea-c25b70ca9e7f")]
+/// First independent capability, matching a normal leaf's ancestry shape.
+interface IWidget {
+
+}
+
+#[id(1, "f24cf891-570e-5bd0-bb51-7018410e74c7")]
+/// Second independent capability.
+interface ILayout {
+
+}
+
+#[id(1, "77716c57-6eee-5384-ba72-0d5de110e984")]
+/// Third independent capability.
+interface IEvents {
+
+}
+
+#[id(1, "1fbc0f83-3cb2-5371-97e8-33cd669fa544")]
+/// Concrete leaf contract with no repeated ancestors.
+interface ILeaf: IWidget + ILayout + IEvents {
+
+}

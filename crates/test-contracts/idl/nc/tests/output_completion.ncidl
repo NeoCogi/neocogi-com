@@ -1,0 +1,49 @@
+#[version(1)]
+/// Nested restricted leaves require validation in both conversion directions.
+struct Details {
+    /// A fixed array changes both the maximum count and maximum depth.
+    flags: [bool; 2],
+}
+
+#[version(1)]
+/// Unequal alternatives make input-only budget checks insufficient.
+enum Choice: u8 {
+    /// Cheap current value does not bound a provider's possible replacement.
+    Idle,
+    /// More expensive but still allocation-free output.
+    Filled(Details),
+}
+
+#[id(1, "bb1f0e51-45e5-541a-914e-c1518d031e04")]
+/// Small exclusive input observed through a weak reference after transfer.
+interface IItem {
+    /// Confirms liveness without owning the object.
+    fn value(&self) -> Result<u32>;
+}
+
+#[id(1, "d3aeb4e5-29a7-5979-9d65-04d0bb531456")]
+/// Real generated ownership and completion paths, including multiple outputs.
+interface IComplete {
+    /// Accepts both owners or returns both original identities, with checked outputs.
+    fn complete(&mut self, first: ComBox<IItem>, second: ComBox<IItem>, choices: &mut [Choice], flags: &mut [bool], reject: bool, deny_after_entry: bool) -> Result<Choice>;
+    /// Direct numeric buffers retain their existing allocation-free identity path.
+    fn direct(&mut self, first: ComBox<IItem>, values: &mut [u64]) -> Result<u32>;
+    /// Known but excessive maximum must reject before implementation entry.
+    fn excessive(&mut self, first: ComBox<IItem>) -> Result<[[bool; 0]; 1000000]>;
+}
+
+#[id(1, "ce20f285-8e98-58aa-818f-77520ca88fd0")]
+/// Ordinary outputs admit capacity before entry and acquire all results before publication.
+interface IOrdinaryOutputs {
+    /// A later converted buffer may exceed the actual-value budget.
+    fn buffers(&mut self, flags: &mut [bool], choices: &mut [Choice]) -> Result<()>;
+    /// An invalid copied return must not publish earlier converted buffers either.
+    fn result(&mut self, flags: &mut [bool]) -> Result<[[bool; 0]; 1000000]>;
+}
+
+#[id(1, "bd3502ac-3df3-506f-8c24-c2c007395d75")]
+/// Fresh copied output can be forwarded without borrowing initialized native values.
+interface IOneWay {
+    /// Writes one nested enum regardless of the larger supplied capacity.
+    fn get(&self, reject: bool, output: &mut [Choice]) -> Result<u32>;
+}

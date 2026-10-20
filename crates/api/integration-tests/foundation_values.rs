@@ -8,20 +8,9 @@ use std::sync::{
 #[path = "support/allocation_probe.rs"]
 mod allocation_probe;
 
-#[com_value(assigned_signature = b"00000000000000000000000000771001")]
-#[derive(Debug, PartialEq)]
-/// Dynamic sibling sequences share the enclosing record's actual-value budget.
-pub struct Payload {
-    /// Absent/present alternatives have different logical costs.
-    pub batches: Vec<Vec<Option<u8>>>,
-}
+extern crate self as fixture_foundation_values;
+neocogi_com_test_contracts::foundation_values!();
 
-#[com_interface(auto_guid = "nc.tests.foundation.Receiver:v1", assigned_signature = b"00000000000000000000000000771002")]
-/// Receiver explicitly acquires its borrowed argument through the real ABI.
-trait IReceiver {
-    /// Returns the acquired element count so both producer and receiver execute.
-    fn retain(&mut self, value: NcValueRef<'_, Payload>) -> Result<u32, NcStatus>;
-}
 #[com_object(IReceiver)]
 /// Entry counting distinguishes producer rejection from provider acquisition.
 struct Receiver {
@@ -66,18 +55,16 @@ fn shared_nested_sequences_charge_actual_count_and_depth() {
 #[test]
 fn mixed_record_and_sequence_permutations_retain_exact_boundaries() {
     for batches in [
-        vec![vec![None, None], vec![Some(7), Some(7), Some(7)]],
-        vec![vec![Some(7), Some(7), Some(7)], vec![None, None]],
+        vec![vec![MaybeBytes::None, MaybeBytes::None], vec![MaybeBytes::Some([7; 6]); 3]],
+        vec![vec![MaybeBytes::Some([7; 6]); 3], vec![MaybeBytes::None, MaybeBytes::None]],
     ] {
         let value = Payload { batches };
-        let (wire, _storage) = value.encode_value(&mut ValueBudget::new(MAX_VALUE_BYTES, 12, 5)).unwrap();
+        let (wire, _storage) = value.encode_value(&mut ValueBudget::new(MAX_VALUE_BYTES, 30, 6)).unwrap();
         // SAFETY: the concrete producer/guard retain all active option payloads.
-        assert_eq!(
-            unsafe { Payload::decode_value(wire, &mut ValueBudget::new(MAX_VALUE_BYTES, 12, 5)) }.unwrap(),
-            value
-        );
+        let decoded = unsafe { Payload::decode_value(wire, &mut ValueBudget::new(MAX_VALUE_BYTES, 30, 6)) }.unwrap();
+        assert_eq!(decoded.batches, value.batches);
         assert!(matches!(
-            value.encode_value(&mut ValueBudget::new(MAX_VALUE_BYTES, 11, 5)),
+            value.encode_value(&mut ValueBudget::new(MAX_VALUE_BYTES, 29, 6)),
             Err(NC_E_OUT_OF_RANGE)
         ));
     }
@@ -90,15 +77,15 @@ fn generated_calls_accept_fitting_values_in_both_sibling_orders() {
     let mut receiver = Receiver::from_value(Receiver { entries: entries.clone() }).query::<IReceiverAbi>().unwrap();
     for reverse in [false, true] {
         let mut value = Payload {
-            batches: vec![vec![None; 100_000], vec![Some(7); 400_000]],
+            batches: vec![vec![MaybeBytes::None; 100_000], vec![MaybeBytes::Some([7; 6]); 100_000]],
         };
         if reverse {
             value.batches.reverse();
         }
-        assert_eq!(receiver.retain(NcValueRef::new(&value).unwrap()), Ok(500_000));
-        let (wire, _storage) = value.encode_value(&mut ValueBudget::new(MAX_VALUE_BYTES, 900_004, 5)).unwrap();
+        assert_eq!(receiver.retain(NcValueRef::new(&value).unwrap()), Ok(200_000));
+        let (wire, _storage) = value.encode_value(&mut ValueBudget::new(MAX_VALUE_BYTES, 900_004, 6)).unwrap();
         // SAFETY: independently initialized raw input shares the retained producer backing.
-        assert_eq!(receiver.retain(unsafe { NcValueRef::from_raw(&wire) }.unwrap()), Ok(500_000));
+        assert_eq!(receiver.retain(unsafe { NcValueRef::from_raw(&wire) }.unwrap()), Ok(200_000));
     }
     assert_eq!(entries.load(Ordering::SeqCst), 4);
 }
@@ -155,12 +142,6 @@ fn deep() -> Deep {
     array8(array8(array8(array8(array8(array8(array8(array8(7))))))))
 }
 
-#[com_interface(auto_guid = "nc.tests.foundation.Item:v1", assigned_signature = b"00000000000000000000000000771003")]
-/// Concrete transferred owner used to exercise consuming output admission.
-trait IItem {
-    /// Confirms the same returned owner remains callable.
-    fn value(&self) -> Result<u32, NcStatus>;
-}
 #[com_object(interfaces(IItem), ownership = exclusive)]
 /// Stateless exclusive transfer fixture.
 struct Item;
@@ -169,14 +150,7 @@ impl IItem for Item {
         Ok(73)
     }
 }
-#[com_interface(auto_guid = "nc.tests.foundation.Output:v1", assigned_signature = b"00000000000000000000000000771004")]
-/// Both ordinary and consuming methods must honor the same identity admission.
-trait IOutput {
-    /// Produces a deep identity element through either writer entrypoint.
-    fn ordinary(&self, bulk: bool, output: NcOutputWriter<'_, Deep>) -> Result<(), NcStatus>;
-    /// Returns the exact owner after successful already-admitted completion.
-    fn consuming(&self, owner: ComBox<IItemAbi>, output: NcOutputWriter<'_, Deep>) -> Result<ComBox<IItemAbi>, (NcStatus, ComBox<IItemAbi>)>;
-}
+
 #[com_object(IOutput)]
 /// Stateless provider deliberately uses individual writes on the consuming path.
 struct Output;

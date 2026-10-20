@@ -1,0 +1,5 @@
+#[id(1, "7dc57002-bf21-57ab-8671-1137682a5bf0")]
+/// An ordinary callable contract has no public default-construction policy.
+interface IObject {
+
+}

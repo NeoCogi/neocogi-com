@@ -1,0 +1,13 @@
+#[version(1)]
+/// A real named value whose encoding needs a temporary array of string wires.
+struct Message {
+    /// The producer retains text while its guard owns the converted sequence.
+    entries: Vec<String>,
+}
+
+#[id(1, "bd96a6f5-e79b-5bb6-b6dc-27bf6caae5e0")]
+/// The supported declaration lends the value only for the current call.
+interface IValueReceiver {
+    /// Retention requires an owned value acquired during this method.
+    fn retain(&mut self, value: &Message) -> Result<()>;
+}

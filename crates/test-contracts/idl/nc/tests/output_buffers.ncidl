@@ -1,0 +1,15 @@
+#[version(1)]
+/// Restricted record proves output acquisition recursively checks raw fields.
+struct Flag {
+    /// Native bool is a raw byte until the complete output validates.
+    enabled: bool,
+}
+
+#[version(1)]
+/// Both the selected tag and its nested restricted payload require validation.
+enum Choice: u8 {
+    /// Empty payload must not be inspected as the other alternative.
+    Empty,
+    /// Active payload recursively validates its bool byte.
+    Value(Flag),
+}

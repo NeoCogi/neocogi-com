@@ -1,0 +1,13 @@
+#[version(1)]
+/// Public semantic choice with all three supported payload shapes.
+enum Documented: u8 {
+    /// Variant without payload data.
+    Empty,
+    /// Tuple payload retains its positional field documentation in the generated struct.
+    Tuple(i32),
+    /// Named payload retains its field documentation in the generated struct.
+    Named{
+        /// Relative weight used by the consuming policy.
+        weight: f32,
+    },
+}

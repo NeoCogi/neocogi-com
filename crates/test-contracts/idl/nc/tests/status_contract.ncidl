@@ -1,0 +1,19 @@
+#[id(1, "53288140-d8b6-559c-9f66-f25daba3800d")]
+interface IInvalidStatus {
+    fn plain(&self, status: Status) -> Result<u32>;
+    fn object(&self, status: Status) -> Result<ComPtr<IUnknown>>;
+    fn void(&self, status: Status) -> Result<()>;
+}
+
+#[version(1)]
+/// Legal Rust variants whose lowercase spellings are reserved field identifiers.
+enum KeywordPayload: u8 {
+    /// Exercises a control-flow keyword.
+    Move(u32),
+    /// Exercises a type-definition keyword.
+    Type(u8),
+    /// Exercises a keyword which cannot simply become a raw identifier.
+    Crate(u64),
+    /// Previously collided with the generator's empty-union sentinel.
+    Empty(u16),
+}

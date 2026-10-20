@@ -1,0 +1,4 @@
+#[id(1, "7ddd1936-6406-52d3-9f72-1b9569715c47")]
+interface IRead {
+    fn value(&self) -> Result<u32>;
+}

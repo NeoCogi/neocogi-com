@@ -1,18 +1,17 @@
 //! Single-base layout, identity and ownership checks across generated interfaces.
 
-use neocogi_com::{com_interface, com_object, ComInterface, ComPtr, ComRef, IUnknown, NcStatus, NC_E_NOINTERFACE};
+use neocogi_com::{com_object, ComInterface, ComPtr, ComRef, IUnknown, NcStatus, NC_E_NOINTERFACE};
 use std::{cell::Cell, rc::Rc};
 
 /// Interface verbs belong to the contract, rather than boolean handle probes.
 mod predicate {
     use super::*;
 
-    #[com_interface(auto_guid = "nc.tests.inheritance.Predicate:v1", assigned_signature = b"00000000000000000000000000000020")]
-    /// A predicate whose method used to collide with `ComPtr::is`.
-    trait IPredicate {
-        /// Exercises ordinary generated dispatch for the verb `is`.
-        fn is(&self) -> Result<bool, NcStatus>;
-    }
+    #[allow(unused_imports)]
+    pub use fixture_inheritance::{
+        PredicateIPredicateAbi as IPredicateAbi, PredicateIPredicateVTable as IPredicateVTable, PredicateIPredicateVtblFor as IPredicateVtblFor,
+        PredicateIPredicateClient as IPredicateClient, PredicateIPredicate as IPredicate,
+    };
 
     #[com_object(IPredicate)]
     /// Stateless provider reached through both owning and borrowed clients.
@@ -37,36 +36,15 @@ mod predicate {
 mod contract {
     use super::*;
 
-    #[com_interface(auto_guid = "nc.tests.inheritance.Widget:v1", assigned_signature = b"00000000000000000000000000000007")]
-    /// Common widget contract, including a recursive return to its derived type.
-    pub trait IWidget {
-        /// Observes the shared concrete state.
-        fn value(&self) -> Result<u32, NcStatus>;
-        /// Returns another button without making ABI signatures recursively expand.
-        fn button(&self) -> Result<ComPtr<super::IButtonAbi>, NcStatus>;
-    }
+    #[allow(unused_imports)]
+    pub use fixture_inheritance::{
+        ContractIWidgetAbi as IWidgetAbi, ContractIWidgetVTable as IWidgetVTable, ContractIWidgetVtblFor as IWidgetVtblFor,
+        ContractIWidgetClient as IWidgetClient, ContractIWidget as IWidget,
+    };
 }
 
-#[com_interface(auto_guid = "nc.tests.inheritance.Audit:v1", assigned_signature = b"00000000000000000000000000000016")]
-/// Required sibling projection inherited transitively by the toggle contract.
-pub trait IAudit {
-    /// Observes whether the allocation's authoritative value is nonzero.
-    fn active(&self) -> Result<bool, NcStatus>;
-}
-
-#[com_interface(auto_guid = "nc.tests.inheritance.Button:v1", assigned_signature = b"00000000000000000000000000000008")]
-/// Adds one slot after the complete widget prefix.
-pub trait IButton: contract::IWidget + IAudit {
-    /// Changes state observed through all projections.
-    fn set_value(&mut self, value: u32) -> Result<(), NcStatus>;
-}
-
-#[com_interface(auto_guid = "nc.tests.inheritance.Toggle:v1", assigned_signature = b"00000000000000000000000000000009")]
-/// A second level verifies recursive vtables and inherited client lookup.
-pub trait IToggle: IButton {
-    /// Copies a base value through a checked borrowed argument.
-    fn copy_value(&mut self, source: ComRef<'_, contract::IWidgetAbi>) -> Result<(), NcStatus>;
-}
+extern crate self as fixture_inheritance;
+neocogi_com_test_contracts::inheritance!();
 
 #[com_object(interfaces(IToggle))]
 #[derive(Default)]
@@ -220,16 +198,15 @@ fn interface_pairs_share_one_object_without_embedded_headers() {
     );
 }
 
-/// Exercises nullable raw pairs through real generated argument lowering.
+/// Required borrowed pairs reject every null shape before generated dispatch.
 mod pair_inputs {
-    use neocogi_com::{com_interface, com_object, ComPtr, ComRaw, ComRef, IUnknown, NcStatus, NC_E_POINTER, NC_OK};
+    use neocogi_com::{com_object, ComPtr, ComRaw, ComRef, IUnknown, NcStatus, NC_E_POINTER, NC_OK};
 
-    #[com_interface(auto_guid = "nc.tests.inheritance.AcceptPair:v1", assigned_signature = b"00000000000000000000000000000019")]
-    /// A mutating receiver makes accidental entry with malformed arguments visible.
-    trait IAcceptPair {
-        /// Reports presence and counts only successfully decoded invocations.
-        fn accept(&mut self, value: Option<ComRef<'_, IUnknown>>) -> Result<bool, NcStatus>;
-    }
+    #[allow(unused_imports)]
+    pub use fixture_inheritance::{
+        PairInputsIAcceptPairAbi as IAcceptPairAbi, PairInputsIAcceptPairVTable as IAcceptPairVTable, PairInputsIAcceptPairVtblFor as IAcceptPairVtblFor,
+        PairInputsIAcceptPairClient as IAcceptPairClient, PairInputsIAcceptPair as IAcceptPair,
+    };
 
     #[com_object(IAcceptPair)]
     /// Local state can be inspected through the same borrow gate as its COM calls.
@@ -239,15 +216,16 @@ mod pair_inputs {
     }
     impl IAcceptPair for Receiver {
         /// Uses an ordinary mutable borrow; raw input validation precedes this method.
-        fn accept(&mut self, value: Option<ComRef<'_, IUnknown>>) -> Result<bool, NcStatus> {
+        fn accept(&mut self, value: ComRef<'_, IUnknown>) -> Result<bool, NcStatus> {
             self.calls += 1;
-            Ok(value.is_some())
+            let _ = value;
+            Ok(true)
         }
     }
 
-    /// Absence is exactly two null fields; neither half-null shape is absence.
+    /// Required interface inputs admit exactly a complete present pair.
     #[test]
-    fn optional_pairs_validate_both_words_before_entering_rust() {
+    fn required_pairs_validate_both_words_before_entering_rust() {
         let local = Receiver::into_local(Receiver { calls: 0 });
         let receiver = local.query::<IAcceptPairAbi>().unwrap();
         let root: ComPtr<IUnknown> = receiver.query().unwrap();
@@ -256,9 +234,8 @@ mod pair_inputs {
         let mut output = 99u8;
         // SAFETY: source/output are live; rejected pairs require no pointer reads.
         unsafe {
-            assert_eq!(((*source.vtable).accept)(source.object, ComRaw::null(), &mut output), NC_OK);
-            assert_eq!(output, 0);
             for malformed in [
+                ComRaw::null(),
                 ComRaw {
                     object: present.object,
                     vtable: core::ptr::null(),
@@ -275,6 +252,6 @@ mod pair_inputs {
             assert_eq!(((*source.vtable).accept)(source.object, present, &mut output), NC_OK);
         }
         assert_eq!(output, 1);
-        assert_eq!(local.try_borrow().unwrap().calls, 2);
+        assert_eq!(local.try_borrow().unwrap().calls, 1);
     }
 }

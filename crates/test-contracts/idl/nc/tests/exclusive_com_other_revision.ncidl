@@ -1,0 +1,7 @@
+#[id(1, "2b26dbbb-64ad-5619-a85d-fd240dcd11f6")]
+#[threading(shared)]
+/// Same nominal interface with a different ABI revision must not reuse a cached table.
+interface IValueOtherRevision {
+    /// This declaration is intentionally incompatible with the published Value contract.
+    fn value(&self) -> Result<u64>;
+}

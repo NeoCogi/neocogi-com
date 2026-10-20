@@ -1,0 +1,40 @@
+#[version(1)]
+struct NativeAggregate {
+    tag: u8,
+    count: u32,
+    value: u64,
+}
+
+#[id(1, "7d83570c-632d-5dfb-b7f3-094248f1ba9e")]
+interface INativeValue {
+    fn value(&self) -> Result<i32>;
+}
+
+#[id(1, "7ffa886f-0074-53cb-a828-5f031b786ee2")]
+interface INativeCalculator: INativeValue {
+    fn add(&self, a: i32, b: i32) -> Result<i32>;
+    fn reset(&self) -> Result<()>;
+    fn make_value(&self, value: i32) -> Result<ComPtr<INativeValue>>;
+    fn read_value(&self, value: &INativeValue) -> Result<i32>;
+    fn sum_buffer(&self, input: &[u8]) -> Result<u64>;
+    fn fill_buffer(&self, output: &mut [u8]) -> Result<()>;
+    fn transform(&self, input: NativeAggregate) -> Result<NativeAggregate>;
+}
+
+#[version(1)]
+/// Native enum whose declaration-order tags and restricted bool cross the C boundary.
+enum NativeChoice: i32 {
+    /// A bool is represented as an unrestricted byte until checked decoding.
+    Flag(bool),
+    /// No payload storage is inspected for this variant.
+    Empty,
+}
+
+#[id(1, "6b32e8a9-7dc1-575f-9348-8616f657bcba")]
+/// Independent C code calls this generated slot using only the explicit wire layout.
+interface INativeChoice {
+    /// Returns the checked native value unchanged through the generated output codec.
+    fn echo(&self, value: NativeChoice) -> Result<NativeChoice>;
+    /// Produces two values without reading old output bytes; returns required total.
+    fn output(&self, output: &mut [NativeChoice]) -> Result<u32>;
+}

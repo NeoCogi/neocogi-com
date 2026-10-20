@@ -1,0 +1,9 @@
+#[id(1, "c3a76143-3725-596c-9aa0-7434c400ad27")]
+interface IBase {
+    fn value(&self) -> Result<u32>;
+}
+
+#[id(1, "fe037656-3eff-5502-a6e8-04814ff8f9cb")]
+interface IDerived: IBase {
+
+}

@@ -1,0 +1,4 @@
+#[id(1, "0826d06e-0845-50dd-a39c-a17214b65c5b")]
+interface ILocal {
+    fn value(&self) -> Result<u32>;
+}

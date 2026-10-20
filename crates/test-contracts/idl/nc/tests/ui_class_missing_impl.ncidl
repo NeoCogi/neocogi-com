@@ -1,0 +1,4 @@
+#[id(1, "4c43abed-1d29-55f5-8f92-52f13d181feb")]
+interface IMissingImpl {
+    fn value(&self) -> Result<u32>;
+}

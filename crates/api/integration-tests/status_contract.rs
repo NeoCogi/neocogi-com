@@ -1,14 +1,7 @@
-use neocogi_com::{ComPtr, IUnknown, NC_E_INVALID_ARG, NC_OK, NcStatus, com_interface, com_object};
+use neocogi_com::{ComPtr, IUnknown, NC_E_INVALID_ARG, NC_OK, NcStatus, com_object};
 
-#[com_interface(
-    auto_guid = "nc.tests.status_contract.InvalidStatus:v1",
-    assigned_signature = b"00000000000000000000000000000003"
-)]
-pub trait IInvalidStatus {
-    fn plain(&self, status: NcStatus) -> Result<u32, NcStatus>;
-    fn object(&self, status: NcStatus) -> Result<ComPtr<IUnknown>, NcStatus>;
-    fn void(&self, status: NcStatus) -> Result<(), NcStatus>;
-}
+extern crate self as fixture_status_contract;
+neocogi_com_test_contracts::status_contract!();
 
 #[com_object(interfaces(IInvalidStatus))]
 pub struct InvalidStatusObject;
@@ -62,27 +55,13 @@ fn generated_thunks_normalize_non_negative_result_errors_for_every_return_shape(
     }
 }
 
-#[neocogi_com::com_enum(tag = u8, assigned_signature = b"00000000000000000000000000000004")]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-/// Legal Rust variants whose lowercase spellings are reserved field identifiers.
-enum KeywordPayload {
-    /// Exercises a control-flow keyword.
-    Move(u32),
-    /// Exercises a type-definition keyword.
-    Type(u8),
-    /// Exercises a keyword which cannot simply become a raw identifier.
-    Crate(u64),
-    /// Previously collided with the generator's empty-union sentinel.
-    _EMPTY(u16),
-}
-
 #[test]
 fn keyword_shaped_payload_variants_round_trip_without_identifier_collisions() {
     for value in [
         KeywordPayload::Move(7),
         KeywordPayload::Type(8),
         KeywordPayload::Crate(9),
-        KeywordPayload::_EMPTY(10),
+        KeywordPayload::Empty(10),
     ] {
         let wire = neocogi_com::encode_inline(&value).unwrap();
         // SAFETY: checked inline encoding supplies valid self-contained storage.

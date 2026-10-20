@@ -1,21 +1,12 @@
 //! Weak COM lifetime is allocation-wide, independent of logical closure or queued payloads.
-use neocogi_com::{com_interface, com_object, ComPtr, IUnknown, NcStatus, WeakComPtr, NC_E_CLOSED, NC_E_DROPPED};
+use neocogi_com::{com_object, ComPtr, IUnknown, NcStatus, WeakComPtr, NC_E_CLOSED, NC_E_DROPPED};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
 };
 
-#[com_interface(auto_guid = "nc.tests.weak.Value:v1", assigned_signature = b"00000000000000000000000000000801")]
-/// Test contract with closure distinct from object destruction.
-pub trait IValue {
-    /// Reads only while the domain is open.
-    fn value(&self) -> Result<u32, NcStatus>;
-    /// Logically closes a retained object without changing COM lifetime.
-    fn close(&mut self) -> Result<(), NcStatus>;
-}
-#[com_interface(auto_guid = "nc.tests.weak.Derived:v1", assigned_signature = b"weak-derived-contract-revision01")]
-/// Sibling/ancestor projections must share a single weak control identity.
-pub trait IDerived: IValue {}
+extern crate self as fixture_weak_com;
+neocogi_com_test_contracts::weak_com!();
 
 #[com_object(IDerived)]
 /// Stores a weak self reference to prove no self-retention cycle is introduced.
@@ -113,7 +104,11 @@ fn logical_close_does_not_expire_a_retained_object() {
 #[test]
 fn weak_self_connection_after_allocation_drops_without_a_cycle() {
     let drops = Arc::new(AtomicUsize::new(0));
-    let local = Value::into_local(Value { drops: drops.clone(), closed: false, origin: None });
+    let local = Value::into_local(Value {
+        drops: drops.clone(),
+        closed: false,
+        origin: None,
+    });
     let origin = local.query::<IDerivedAbi>().unwrap().downgrade().unwrap();
     local.try_borrow_mut().unwrap().origin = Some(origin);
     let weak = local.try_borrow().unwrap().origin.as_ref().unwrap().clone();
@@ -123,12 +118,6 @@ fn weak_self_connection_after_allocation_drops_without_a_cycle() {
     assert!(weak.upgrade().unwrap().is_none());
 }
 
-#[com_interface(auto_guid = "nc.tests.weak.Shared:v1", threading = shared, assigned_signature = b"00000000000000000000000000000802")]
-/// Minimal shared contract used to race final release with promotion.
-pub trait IShared {
-    /// Reads the initialized object under its ordinary shared COM call gate.
-    fn value(&self) -> Result<u32, NcStatus>;
-}
 #[com_object(interfaces(IShared), thread_safe)]
 /// Shared implementation contains only synchronized destruction observations.
 struct SharedValue {
@@ -232,7 +221,11 @@ fn failed_factory_after_connection_drops_the_value_and_expires_its_weak_identity
     let drops = Arc::new(AtomicUsize::new(0));
     let mut escaped = None;
     let result = (|| -> Result<ComPtr<IValueAbi>, NcStatus> {
-        let local = Value::into_local(Value { drops: drops.clone(), closed: false, origin: None });
+        let local = Value::into_local(Value {
+            drops: drops.clone(),
+            closed: false,
+            origin: None,
+        });
         let origin = local.query::<IDerivedAbi>()?.downgrade()?;
         local.try_borrow_mut()?.origin = Some(origin.clone());
         escaped = Some(origin);
@@ -403,9 +396,7 @@ enum WrongRevision {}
 // SAFETY: this marker describes IValue's physical table with a different revision;
 // only rejection tests use it, and no provider publishes that revision.
 unsafe impl neocogi_com::ComInterface for WrongRevision {
-    const INTERFACE_ID: neocogi_com::NcInterfaceId = neocogi_com::NcInterfaceId::new(
-        IValueAbi::IID, neocogi_com::NcAbiSignature::from_static(&[0; 32]),
-    );
+    const INTERFACE_ID: neocogi_com::NcInterfaceId = neocogi_com::NcInterfaceId::new(IValueAbi::IID, neocogi_com::NcAbiSignature::from_static(&[0; 32]));
     type VTable = IValueVTable;
     type Threading = neocogi_com::ThreadLocal;
 }
@@ -415,7 +406,11 @@ unsafe impl neocogi_com::ComInterface for WrongRevision {
 fn checked_weak_wire_preserves_expiration_and_rejects_wrong_contracts() {
     use neocogi_com::{ComValue, NcWeakRaw, ValueBudget, NC_E_ABI_VERSION, NC_E_NOINTERFACE, NC_E_POINTER};
     let drops = Arc::new(AtomicUsize::new(0));
-    let owner = Value::from_value(Value { drops: drops.clone(), closed: false, origin: None });
+    let owner = Value::from_value(Value {
+        drops: drops.clone(),
+        closed: false,
+        origin: None,
+    });
     let weak = owner.query::<IValueAbi>().unwrap().downgrade().unwrap();
     let mut owner = Some(owner);
     for expired in [false, true] {
@@ -428,11 +423,23 @@ fn checked_weak_wire_preserves_expiration_and_rejects_wrong_contracts() {
         let acquired = unsafe { WeakComPtr::<IValueAbi>::decode_value(wire, &mut ValueBudget::default()) }.unwrap();
         assert!(weak.same_object(&acquired));
         // SAFETY: wrong interface/revision tokens still transfer valid weak storage.
-        assert_eq!(unsafe { WeakComPtr::<ISharedAbi>::__nc_from_raw_owned_checked(weak.clone().into_raw()) }.unwrap_err(), NC_E_NOINTERFACE);
-        assert_eq!(unsafe { WeakComPtr::<WrongRevision>::__nc_from_raw_owned_checked(weak.clone().into_raw()) }.unwrap_err(), NC_E_ABI_VERSION);
+        assert_eq!(
+            unsafe { WeakComPtr::<ISharedAbi>::__nc_from_raw_owned_checked(weak.clone().into_raw()) }.unwrap_err(),
+            NC_E_NOINTERFACE
+        );
+        assert_eq!(
+            unsafe { WeakComPtr::<WrongRevision>::__nc_from_raw_owned_checked(weak.clone().into_raw()) }.unwrap_err(),
+            NC_E_ABI_VERSION
+        );
         // SAFETY: null is valid malformed wire storage, never a valid pointer.
-        assert_eq!(unsafe { WeakComPtr::<IValueAbi>::__nc_from_raw_owned_checked(NcWeakRaw::null()) }.unwrap_err(), NC_E_POINTER);
-        assert_eq!(unsafe { WeakComPtr::<IValueAbi>::decode_value(NcWeakRaw::null(), &mut ValueBudget::default()) }.unwrap_err(), NC_E_POINTER);
+        assert_eq!(
+            unsafe { WeakComPtr::<IValueAbi>::__nc_from_raw_owned_checked(NcWeakRaw::null()) }.unwrap_err(),
+            NC_E_POINTER
+        );
+        assert_eq!(
+            unsafe { WeakComPtr::<IValueAbi>::decode_value(NcWeakRaw::null(), &mut ValueBudget::default()) }.unwrap_err(),
+            NC_E_POINTER
+        );
         drop((checked, acquired));
         if !expired {
             drop(owner.take());
@@ -446,20 +453,30 @@ fn checked_weak_wire_preserves_expiration_and_rejects_wrong_contracts() {
 fn checked_shared_weak_wire_rejects_exclusive_control_blocks() {
     #[com_object(IShared, ownership = exclusive)]
     struct Exclusive;
-    impl IShared for Exclusive { fn value(&self) -> Result<u32, NcStatus> { Ok(1) } }
+    impl IShared for Exclusive {
+        fn value(&self) -> Result<u32, NcStatus> {
+            Ok(1)
+        }
+    }
     let owner = Exclusive::into_box(Exclusive);
     let observer = owner.downgrade();
     let control = observer.as_raw().object.cast();
     // SAFETY: observer keeps the valid exclusive header alive; this independent
     // weak retain is transferred to the rejection path, which must release it.
-    unsafe { neocogi_com::lifetime::nc_weak_retain(control); }
-    assert_eq!(unsafe {
-        WeakComPtr::<IUnknown>::__nc_from_raw_owned_checked(neocogi_com::NcWeakRaw { control })
-    }.unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
+    unsafe {
+        neocogi_com::lifetime::nc_weak_retain(control);
+    }
+    assert_eq!(
+        unsafe { WeakComPtr::<IUnknown>::__nc_from_raw_owned_checked(neocogi_com::NcWeakRaw { control }) }.unwrap_err(),
+        neocogi_com::NC_E_INVALID_ARG
+    );
     drop(owner);
     // The permanent ownership tag also rejects expired exclusive allocations.
-    unsafe { neocogi_com::lifetime::nc_weak_retain(control); }
-    assert_eq!(unsafe {
-        WeakComPtr::<IUnknown>::__nc_from_raw_owned_checked(neocogi_com::NcWeakRaw { control })
-    }.unwrap_err(), neocogi_com::NC_E_INVALID_ARG);
+    unsafe {
+        neocogi_com::lifetime::nc_weak_retain(control);
+    }
+    assert_eq!(
+        unsafe { WeakComPtr::<IUnknown>::__nc_from_raw_owned_checked(neocogi_com::NcWeakRaw { control }) }.unwrap_err(),
+        neocogi_com::NC_E_INVALID_ARG
+    );
 }

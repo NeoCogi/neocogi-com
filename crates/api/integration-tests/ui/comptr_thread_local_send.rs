@@ -1,9 +1,7 @@
-use neocogi_com::{ComPtr, IUnknown, NcStatus, com_object, com_interface};
+use neocogi_com::{ComPtr, IUnknown, NcStatus, com_object};
 
-#[com_interface(auto_guid = "nc.tests.ui.ThreadLocalSend:v1", assigned_signature = b"99999999999999999999999999999999")]
-pub trait IThreadLocalSend {
-    fn value(&self) -> Result<u32, NcStatus>;
-}
+extern crate self as fixture_ui_comptr_thread_local_send;
+neocogi_com_test_contracts::ui_comptr_thread_local_send!();
 
 #[com_object(interfaces(IThreadLocalSend))]
 pub struct ThreadLocalObject;

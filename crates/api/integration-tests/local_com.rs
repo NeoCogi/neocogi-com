@@ -1,19 +1,13 @@
 //! Checks shared ownership and alias exclusion between typed access and COM.
 
-use neocogi_com::{com_interface, com_object, NcStatus, NC_E_BUSY};
+use neocogi_com::{com_object, NcStatus, NC_E_BUSY};
 use std::{
     rc::Rc,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-#[com_interface(auto_guid = "nc.tests.local.Counter:v1", assigned_signature = b"00000000000000000000000000000061")]
-/// The foreign projection deliberately exposes less than the concrete model.
-pub trait ICounter {
-    /// Reads the authoritative value under the shared COM gate.
-    fn value(&self) -> Result<u32, NcStatus>;
-    /// Changes that same value under the exclusive COM gate.
-    fn set_value(&mut self, value: u32) -> Result<(), NcStatus>;
-}
+extern crate self as fixture_local_com;
+neocogi_com_test_contracts::local_com!();
 
 #[com_object(interfaces(ICounter))]
 /// Owned state survives whichever kind of handle is dropped first.
@@ -157,13 +151,6 @@ fn weak_local_promotion_preserves_busy_checks_and_unwind_recovery() {
     assert!(weak.upgrade().unwrap().is_none());
 }
 
-#[com_interface(auto_guid = "nc.tests.local.Shared:v1", threading = shared, assigned_signature = b"00000000000000000000000000000062")]
-/// Shared service used to prove that typed weak observers preserve thread capability.
-pub trait IShared {
-    /// Reads ordinary state under the generated shared gate.
-    fn value(&self) -> Result<u32, NcStatus>;
-}
-
 #[com_object(IShared)]
 /// Plain state can be borrowed through a promoted local owner on another thread.
 struct Shared {
@@ -173,10 +160,14 @@ struct Shared {
     drops: std::sync::Arc<AtomicUsize>,
 }
 impl IShared for Shared {
-    fn value(&self) -> Result<u32, NcStatus> { Ok(self.value) }
+    fn value(&self) -> Result<u32, NcStatus> {
+        Ok(self.value)
+    }
 }
 impl Drop for Shared {
-    fn drop(&mut self) { self.drops.fetch_add(1, Ordering::SeqCst); }
+    fn drop(&mut self) {
+        self.drops.fetch_add(1, Ordering::SeqCst);
+    }
 }
 
 /// A successful promotion keeps the concrete value alive through the other owner's release.
@@ -217,31 +208,49 @@ mod generic_constructor_names {
     #[com_object(interfaces(ICounter))]
     /// Shared storage accepts private-looking names and an ordinary interface-like `I`.
     struct __NcInterface2<I, r#__NcInterface0 = (), const __NcInterface1: u32 = 7>
-    where I: Copy + From<u32> + Into<u32> {
+    where
+        I: Copy + From<u32> + Into<u32>,
+    {
         /// Concrete application state is independent of the chosen COM interface.
         value: I,
         /// Keeps the authored type parameter in the implementation's type.
         marker: PhantomData<__NcInterface0>,
     }
     impl<I, P, const SCALE: u32> ICounter for __NcInterface2<I, P, SCALE>
-    where I: Copy + From<u32> + Into<u32> {
-        fn value(&self) -> Result<u32, NcStatus> { Ok(self.value.into() + SCALE) }
-        fn set_value(&mut self, value: u32) -> Result<(), NcStatus> { self.value = value.into(); Ok(()) }
+    where
+        I: Copy + From<u32> + Into<u32>,
+    {
+        fn value(&self) -> Result<u32, NcStatus> {
+            Ok(self.value.into() + SCALE)
+        }
+        fn set_value(&mut self, value: u32) -> Result<(), NcStatus> {
+            self.value = value.into();
+            Ok(())
+        }
     }
 
     #[com_object(interfaces(ICounter), ownership = exclusive)]
     /// Exclusive storage exercises both ordinary constructors with the same names.
     struct Exclusive<I, r#__NcInterface0 = (), const __NcInterface1: u32 = 7>
-    where I: Copy + From<u32> + Into<u32> {
+    where
+        I: Copy + From<u32> + Into<u32>,
+    {
         /// Owned application state, mutated through the existing COM call gate.
         value: I,
         /// Preserves the authored type parameter without introducing allocation.
         marker: PhantomData<__NcInterface0>,
     }
     impl<I, P, const SCALE: u32> ICounter for Exclusive<I, P, SCALE>
-    where I: Copy + From<u32> + Into<u32> {
-        fn value(&self) -> Result<u32, NcStatus> { Ok(self.value.into() + SCALE) }
-        fn set_value(&mut self, value: u32) -> Result<(), NcStatus> { self.value = value.into(); Ok(()) }
+    where
+        I: Copy + From<u32> + Into<u32>,
+    {
+        fn value(&self) -> Result<u32, NcStatus> {
+            Ok(self.value.into() + SCALE)
+        }
+        fn set_value(&mut self, value: u32) -> Result<(), NcStatus> {
+            self.value = value.into();
+            Ok(())
+        }
     }
 
     /// Both ordinary shared entrypoints execute real ABI calls with legal generic names.

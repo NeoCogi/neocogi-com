@@ -1,0 +1,6 @@
+#[id(1, "eb682f03-f4b7-4403-97a5-eb66ec6e4810")]
+/// First revision of a shared nominal interface.
+interface ILeft {
+
+}
+

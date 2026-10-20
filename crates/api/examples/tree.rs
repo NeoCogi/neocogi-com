@@ -1,35 +1,11 @@
-use neocogi_com::{ComValue, ComPtr, IUnknown, NcStatus, com_object, com_enum, com_int_enum, com_interface};
+use neocogi_com::{ComValue, ComPtr, IUnknown, NcStatus, com_object};
 
-com_int_enum! {
-    /// Stable node kinds used by this example's COM ABI.
-    pub enum NodeKind: u16 {
-        DOCUMENT = 1,
-        BODY = 2,
-        BUTTON = 3,
-        SPAN = 4,
-    }
+// Contract identity and wire codecs are compiled from examples/idl/nc/examples/tree.ncidl.
+#[allow(dead_code, unused_imports)]
+mod bindings {
+    include!(concat!(env!("OUT_DIR"), "/example_tree.rs"));
 }
-
-#[com_enum(tag = u32, assigned_signature = b"00000000000000000000000000000029")]
-#[derive(Debug, PartialEq)]
-pub enum TreeMutation {
-    None,
-    ChildAdded(u64, NodeKind),
-    AttributeChanged { element: u64, name_id: u32 },
-}
-
-#[com_interface(auto_guid = "nc.examples.tree.Element:v1", assigned_signature = b"00000000000000000000000000000030")]
-pub trait IElement {
-    fn kind(&self) -> Result<NodeKind, NcStatus>;
-    fn child_count(&self) -> Result<i32, NcStatus>;
-    fn first_child_kind(&self) -> Result<NodeKind, NcStatus>;
-}
-
-#[com_interface(auto_guid = "nc.examples.tree.Document:v1", assigned_signature = b"00000000000000000000000000000031")]
-pub trait IDocument {
-    fn root_kind(&self) -> Result<NodeKind, NcStatus>;
-    fn root_child_count(&self) -> Result<i32, NcStatus>;
-}
+use bindings::*;
 
 #[com_object(interfaces(IElement))]
 pub struct Element {
@@ -84,9 +60,9 @@ impl IDocument for Document {
 }
 
 fn main() -> Result<(), NcStatus> {
-    let button = Element::create_element(NodeKind::BUTTON, Vec::new());
-    let span = Element::create_element(NodeKind::SPAN, Vec::new());
-    let body = Element::create_element(NodeKind::BODY, vec![button.clone(), span.clone()]);
+    let button = Element::create_element(NodeKind::Button, Vec::new());
+    let span = Element::create_element(NodeKind::Span, Vec::new());
+    let body = Element::create_element(NodeKind::Body, vec![button.clone(), span.clone()]);
     let document = Document::create_document(body.clone());
 
     println!("document root kind = {:?}", document.root_kind()?);
@@ -110,6 +86,6 @@ fn main() -> Result<(), NcStatus> {
     let decoded = unsafe { TreeMutation::decode_value(wire, &mut Default::default()) }?;
     println!("mutation round trip = {decoded:?}");
 
-    let _ = NodeKind::DOCUMENT;
+    let _ = NodeKind::Document;
     Ok(())
 }

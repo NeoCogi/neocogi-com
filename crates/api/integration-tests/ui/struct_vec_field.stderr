@@ -1,5 +1,0 @@
-error: COM struct fields cannot be Vec; model variable-size data as COM interfaces
- --> integration-tests/ui/struct_vec_field.rs:5:12
-  |
-5 |     value: Vec<u8>,
-  |            ^^^^^^^

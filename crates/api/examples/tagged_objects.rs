@@ -1,23 +1,11 @@
-use neocogi_com::{ComPtr, IUnknown, NcStatus, com_object, com_enum, com_int_enum, com_interface};
+use neocogi_com::{ComPtr, IUnknown, NcStatus, com_object};
 
-com_int_enum! {
-    pub enum ElementKind: u16 {
-        ROOT = 1,
-        BUTTON = 2,
-        LABEL = 3,
-    }
+// Contract identity and wire codecs are compiled from examples/idl/nc/examples/tagged_objects.ncidl.
+#[allow(dead_code, unused_imports)]
+mod bindings {
+    include!(concat!(env!("OUT_DIR"), "/example_tagged_objects.rs"));
 }
-
-#[com_interface(auto_guid = "nc.examples.tagged_objects.Element:v1", assigned_signature = b"00000000000000000000000000000032")]
-pub trait IElement {
-    fn id(&self) -> Result<u64, NcStatus>;
-    fn kind(&self) -> Result<ElementKind, NcStatus>;
-}
-
-#[com_interface(auto_guid = "nc.examples.tagged_objects.Document:v1", assigned_signature = b"00000000000000000000000000000033")]
-pub trait IDocument {
-    fn root_id(&self) -> Result<u64, NcStatus>;
-}
+use bindings::*;
 
 #[com_object(interfaces(IElement))]
 pub struct Element {
@@ -60,14 +48,6 @@ impl IDocument for Document {
     }
 }
 
-#[com_enum(tag = u32, assigned_signature = b"00000000000000000000000000000034")]
-#[derive(Debug)]
-pub enum Selection {
-    Empty,
-    Element { id: u64, kind: ElementKind },
-    Document { root_id: u64 },
-}
-
 fn describe(selection: Selection) -> Result<(), NcStatus> {
     match selection {
         Selection::Empty => println!("selection is empty"),
@@ -82,8 +62,8 @@ fn describe(selection: Selection) -> Result<(), NcStatus> {
 }
 
 fn main() -> Result<(), NcStatus> {
-    let root = Element::create_element(1, ElementKind::ROOT);
-    let button = Element::create_element(2, ElementKind::BUTTON);
+    let root = Element::create_element(1, ElementKind::Root);
+    let button = Element::create_element(2, ElementKind::Button);
     let document = Document::create_document(root.clone());
 
     // Generated COM APIs now accept these native values directly. Their

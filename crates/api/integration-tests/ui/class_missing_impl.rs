@@ -1,9 +1,7 @@
-use neocogi_com::{com_object, com_interface};
+use neocogi_com::{com_object};
 
-#[com_interface(auto_guid = "nc.tests.ui.MissingImpl:v1", assigned_signature = b"99999999999999999999999999999999")]
-pub trait IMissingImpl {
-    fn value(&self) -> Result<u32, neocogi_com::NcStatus>;
-}
+extern crate self as fixture_ui_class_missing_impl;
+neocogi_com_test_contracts::ui_class_missing_impl!();
 
 #[com_object(interfaces(IMissingImpl))]
 pub struct MissingImpl;

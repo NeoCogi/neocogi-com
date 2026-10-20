@@ -1,11 +1,7 @@
-use neocogi_com::{com_interface, ComPtr, NcStatus};
+use neocogi_com::{ComPtr, NcStatus};
 
-#[com_interface(auto_guid = "nc.tests.ui.ClientBase:v1", assigned_signature = b"99999999999999999999999999999999")]
-pub trait IBase {
-    fn value(&self) -> Result<u32, NcStatus>;
-}
-#[com_interface(auto_guid = "nc.tests.ui.ClientDerived:v1", assigned_signature = b"99999999999999999999999999999999")]
-pub trait IDerived: IBase {}
+extern crate self as fixture_ui_interface_client_escape;
+neocogi_com_test_contracts::ui_interface_client_escape!();
 
 // A method view cannot survive the owner which lends it, including after
 // dereferencing through an inherited base view.

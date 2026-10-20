@@ -1,0 +1,15 @@
+#[id(1, "75668568-fee9-5c40-97fa-9c1b85e036ea")]
+interface IOverrideResolved {
+    fn value(&self) -> Result<u16>;
+}
+
+#[version(1)]
+enum OverrideEvent: u16 {
+    Ready(u32),
+}
+
+#[version(1)]
+struct OverridePoint {
+    x: u16,
+    y: u16,
+}

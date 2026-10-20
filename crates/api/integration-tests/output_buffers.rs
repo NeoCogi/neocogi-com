@@ -6,23 +6,8 @@ use std::mem::MaybeUninit;
 mod allocation_probe;
 use allocation_probe::Probe;
 
-#[com_struct(assigned_signature = b"00000000000000000000000000000201")]
-#[derive(Debug, PartialEq)]
-/// Restricted record proves output acquisition recursively checks raw fields.
-struct Flag {
-    /// Native bool is a raw byte until the complete output validates.
-    enabled: bool,
-}
-
-#[com_enum(tag = u8, assigned_signature = b"00000000000000000000000000000202")]
-#[derive(Clone, Copy, Debug, PartialEq)]
-/// Both the selected tag and its nested restricted payload require validation.
-enum Choice {
-    /// Empty payload must not be inspected as the other alternative.
-    Empty,
-    /// Active payload recursively validates its bool byte.
-    Value(Flag),
-}
+extern crate self as fixture_output_buffers;
+neocogi_com_test_contracts::output_buffers!();
 
 /// Produces two booleans through the real raw pointer/capacity/count protocol.
 unsafe extern "C" fn flags(pointer: *mut u8, capacity: u64, written: *mut u64) -> NcStatus {
@@ -34,7 +19,10 @@ unsafe extern "C" fn flags(pointer: *mut u8, capacity: u64, written: *mut u64) -
         output.push(false)?;
         Ok(())
     };
-    match operation() { Ok(()) => NC_OK, Err(status) => status }
+    match operation() {
+        Ok(()) => NC_OK,
+        Err(status) => status,
+    }
 }
 
 #[test]
@@ -81,7 +69,10 @@ fn direct_numeric_output_has_no_wire_allocation_and_retains_its_native_pointer()
     let mut output = unsafe { NcOutputWriter::<u32>::from_raw(0, pointer, 3, &mut written) }.unwrap();
     output.extend_from_slice(&[4, 5]).unwrap();
     drop(output);
-    unsafe { *prepared.written_ptr() = written; prepared.convert_output().unwrap(); }
+    unsafe {
+        *prepared.written_ptr() = written;
+        prepared.convert_output().unwrap();
+    }
     prepared.publish();
     assert_eq!(probe.finish().attempts, 0);
     assert_eq!(buffer.as_slice(), &[4, 5]);
@@ -106,7 +97,13 @@ fn bad_later_enum_or_nested_bool_discards_the_entire_result() {
             prepared.as_mut_ptr().add(1).write(bad);
             *prepared.written_ptr() = 2;
         }
-        assert_eq!(unsafe { prepared.convert_output() }, Err(match malformed_tag { true => NC_E_INVALID_TAG, false => NC_E_INVALID_ARG }));
+        assert_eq!(
+            unsafe { prepared.convert_output() },
+            Err(match malformed_tag {
+                true => NC_E_INVALID_TAG,
+                false => NC_E_INVALID_ARG,
+            })
+        );
         drop(prepared);
         assert!(buffer.is_empty());
     }
@@ -119,7 +116,12 @@ fn acquired_first_output_is_discarded_when_a_later_output_fails() {
     let mut a = first.output(0, 1).prepare().unwrap();
     let mut b = second.output(0, 1).prepare().unwrap();
     // SAFETY: all slots are live initialized raw bytes; 7 is deliberately invalid.
-    unsafe { a.as_mut_ptr().write(1); *a.written_ptr() = 1; b.as_mut_ptr().write(7); *b.written_ptr() = 1; }
+    unsafe {
+        a.as_mut_ptr().write(1);
+        *a.written_ptr() = 1;
+        b.as_mut_ptr().write(7);
+        *b.written_ptr() = 1;
+    }
     unsafe { a.convert_output() }.unwrap();
     assert_eq!(unsafe { b.convert_output() }, Err(NC_E_INVALID_ARG));
     drop((a, b));
@@ -137,8 +139,14 @@ fn count_shape_capacity_and_budget_fail_without_exposing_output() {
     assert_eq!(empty.capacity(), 0);
     drop(empty);
     assert_eq!(written, 0);
-    assert!(matches!(unsafe { NcOutputWriter::<bool>::from_raw(0, std::ptr::null_mut(), 1, &mut written) }, Err(NC_E_POINTER)));
-    assert!(matches!(unsafe { NcOutputWriter::<bool>::from_raw(0, std::ptr::null_mut(), u64::MAX, &mut written) }, Err(NC_E_OUT_OF_RANGE)));
+    assert!(matches!(
+        unsafe { NcOutputWriter::<bool>::from_raw(0, std::ptr::null_mut(), 1, &mut written) },
+        Err(NC_E_POINTER)
+    ));
+    assert!(matches!(
+        unsafe { NcOutputWriter::<bool>::from_raw(0, std::ptr::null_mut(), u64::MAX, &mut written) },
+        Err(NC_E_OUT_OF_RANGE)
+    ));
     let mut slots = [MaybeUninit::<u32>::uninit(); 1];
     let mut writer = unsafe { NcOutputWriter::<u32>::from_raw(0, slots.as_mut_ptr().cast(), 1, &mut written) }.unwrap();
     assert_eq!(writer.extend_from_slice(&[1, 2]), Err(NC_E_OUT_OF_RANGE));
@@ -148,7 +156,9 @@ fn count_shape_capacity_and_budget_fail_without_exposing_output() {
     drop(writer);
     let mut buffer = NcOutputBuffer::<bool>::new();
     let mut prepared = buffer.output(0, 1).prepare().unwrap();
-    unsafe { *prepared.written_ptr() = 2; }
+    unsafe {
+        *prepared.written_ptr() = 2;
+    }
     assert_eq!(unsafe { prepared.convert_output() }, Err(NC_E_OUT_OF_RANGE));
     drop(prepared);
     assert!(buffer.is_empty());

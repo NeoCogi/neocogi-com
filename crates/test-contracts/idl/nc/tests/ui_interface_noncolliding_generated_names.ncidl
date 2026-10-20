@@ -1,0 +1,4 @@
+#[id(1, "621f62a6-6935-598e-ad6d-995ad3ce84d7")]
+interface INoncollidingGeneratedNames {
+    fn write(&self, object: &[u8], nc_out: u64, result: u64, status: u64) -> Result<()>;
+}

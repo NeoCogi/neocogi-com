@@ -1,6 +1,6 @@
 #![cfg(unix)]
 
-use neocogi_com::{ComPtr, IUnknown, NcStatus, com_interface, com_object};
+use neocogi_com::{ComPtr, IUnknown, NcStatus, com_object};
 use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, Output};
 
@@ -9,10 +9,8 @@ const RUN_DROP_HELPER_ENV: &str = "NC_COM_RUN_ABI_DROP_PANIC_HELPER";
 const THUNK_RETURNED_STATUS_EXIT_CODE: i32 = 97;
 const RELEASE_RETURNED_EXIT_CODE: i32 = 98;
 
-#[com_interface(auto_guid = "nc.tests.panic_behavior.Panics:v1", assigned_signature = b"00000000000000000000000000000005")]
-pub trait IPanics {
-    fn panic_now(&self) -> Result<(), NcStatus>;
-}
+extern crate self as fixture_panic_behavior;
+neocogi_com_test_contracts::panic_behavior!();
 
 #[com_object(interfaces(IPanics))]
 pub struct PanickingObject;
@@ -21,11 +19,6 @@ impl IPanics for PanickingObject {
     fn panic_now(&self) -> Result<(), NcStatus> {
         panic!("intentional panic through generated ABI thunk")
     }
-}
-
-#[com_interface(auto_guid = "nc.tests.panic_behavior.DropPanics:v1", assigned_signature = b"00000000000000000000000000000006")]
-pub trait IDropPanics {
-    fn touch(&self) -> Result<(), NcStatus>;
 }
 
 #[com_object(interfaces(IDropPanics))]

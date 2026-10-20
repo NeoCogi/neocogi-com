@@ -2,21 +2,16 @@
 //! Run with `cargo run --release -p neocogi-com --example query_cost`.
 //! Each line reports integer nanoseconds per successful query plus balanced release;
 //! discard the first warmup line and compare the remaining samples on the same host.
-use neocogi_com::{com_interface, com_object, ComInterface, IUnknown, NcInterfaceId, NC_OK};
+use neocogi_com::{com_object, ComInterface, IUnknown, NcInterfaceId, NC_OK};
 use std::{hint::black_box, time::Instant};
 
-#[com_interface(auto_guid = "probe.Widget", assigned_signature = b"00000000000000000000000000000001")]
-/// First independent capability, matching a normal leaf's ancestry shape.
-trait IWidget {}
-#[com_interface(auto_guid = "probe.Layout", assigned_signature = b"00000000000000000000000000000002")]
-/// Second independent capability.
-trait ILayout {}
-#[com_interface(auto_guid = "probe.Events", assigned_signature = b"00000000000000000000000000000003")]
-/// Third independent capability.
-trait IEvents {}
-#[com_interface(auto_guid = "probe.Leaf", assigned_signature = b"00000000000000000000000000000004")]
-/// Concrete leaf contract with no repeated ancestors.
-trait ILeaf: IWidget + ILayout + IEvents {}
+// Contract identity and wire codecs are compiled from examples/idl/nc/examples/query_cost.ncidl.
+#[allow(dead_code, unused_imports)]
+mod bindings {
+    include!(concat!(env!("OUT_DIR"), "/example_query_cost.rs"));
+}
+use bindings::*;
+
 #[com_object(interfaces(ILeaf))]
 /// State is irrelevant to query dispatch and deliberately empty.
 struct Leaf;

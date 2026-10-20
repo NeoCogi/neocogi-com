@@ -1,0 +1,6 @@
+#[id(1, "eb682f03-f4b7-4403-97a5-eb66ec6e4810")]
+/// An incompatible revision cannot be hidden by deduplication.
+interface IRight {
+    fn changed(&self) -> Result<()>;
+}
+

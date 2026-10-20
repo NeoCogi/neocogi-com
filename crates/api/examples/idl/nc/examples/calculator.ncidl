@@ -1,0 +1,15 @@
+#[id(1, "11002ee5-0bdc-5b7c-9aea-993a0d8b4dc2")]
+interface ICalculator {
+    fn add(&self, a: i32, b: i32) -> Result<i32>;
+    fn subtract(&self, a: i32, b: i32) -> Result<i32>;
+}
+
+#[id(1, "576f4d34-fe74-5f12-a215-3e0fbaa07979")]
+interface IFormatter {
+    fn describe(&self, value: i32) -> Result<i32>;
+}
+
+#[id(1, "3d0847e9-b866-50d2-89df-8c01816e177d")]
+interface INotImplemented {
+    fn noop(&self, value: i32) -> Result<i32>;
+}

@@ -19,3 +19,6 @@ lto = "fat"
 codegen-units = 1
 strip = "symbols"
 panic = "abort"
+
+[build-dependencies]
+neocogi-idl = { path = "../../../../idl" }

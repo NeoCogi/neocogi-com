@@ -1,0 +1,5 @@
+#[id(1, "608cacd0-1be5-5c8f-b2b3-7fd332911290")]
+interface IGeneratedNameCollision {
+    fn fixed_locals(&self, this: u32, object: u32, nc_value: u32, nc_out: u32) -> Result<u32>;
+    fn buffer_slot(&self, data: &[u8], nc_data_len: u64) -> Result<()>;
+}

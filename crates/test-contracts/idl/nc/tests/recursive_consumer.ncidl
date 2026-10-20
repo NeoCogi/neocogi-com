@@ -1,0 +1,22 @@
+#[id(1, "d3a9c122-dacc-5580-af0b-8ec3cf11f168")]
+/// Consumer expects a 32-bit value.
+interface ConsumerIBaseValue {
+    /// Reads the old contract's scalar.
+    fn value(&self) -> Result<u32>;
+}
+
+#[id(1, "06f55665-a092-519b-816f-0fb1c71966b4")]
+/// The empty derived contract changes its signature when the base changes.
+interface ConsumerIValue: ConsumerIBaseValue {
+
+}
+
+#[id(1, "bfd5c49d-7c92-559e-9a15-4e18011e5b2a")]
+/// The surrounding local contract only names the value IID.
+interface ConsumerIExchange {
+    /// Calls must validate the value against the producer's full contract.
+    fn accept(&self, value: &ConsumerIValue) -> Result<()>;
+    /// Returned values must be checked against the consumer's full contract.
+    fn produce(&self) -> Result<ComPtr<ConsumerIValue>>;
+}
+

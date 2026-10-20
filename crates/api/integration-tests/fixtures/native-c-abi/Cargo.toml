@@ -10,4 +10,5 @@ publish = false
 neocogi-com = { path = "../../.." }
 
 [build-dependencies]
+neocogi-idl = { path = "../../../../idl" }
 cc = { version = "=1.2.0", default-features = false }

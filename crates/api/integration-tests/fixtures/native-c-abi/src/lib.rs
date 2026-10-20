@@ -1,28 +1,10 @@
-use neocogi_com::{ComPtr, ComRef, NcCopyFromBufferOffset, NcOutputWriter, NcStatus, NC_E_OUT_OF_RANGE, com_object, com_interface, com_struct};
+use neocogi_com::{ComPtr, ComRef, NcCopyFromBufferOffset, NcOutputWriter, NcStatus, NC_E_OUT_OF_RANGE, com_object};
 
-#[com_struct(assigned_signature = b"00000000000000000000000000000040")]
-#[derive(Debug, Default, PartialEq)]
-pub struct NativeAggregate {
-    pub tag: u8,
-    pub count: u32,
-    pub value: u64,
+#[allow(dead_code, unused_imports)]
+mod bindings {
+    include!(concat!(env!("OUT_DIR"), "/contracts.rs"));
 }
-
-#[com_interface(auto_guid = "nc.tests.native_c_abi.Value:v1", assigned_signature = b"00000000000000000000000000000041")]
-pub trait INativeValue {
-    fn value(&self) -> Result<i32, NcStatus>;
-}
-
-#[com_interface(auto_guid = "nc.tests.native_c_abi.Calculator:v1", assigned_signature = b"00000000000000000000000000000042")]
-pub trait INativeCalculator: INativeValue {
-    fn add(&self, a: i32, b: i32) -> Result<i32, NcStatus>;
-    fn reset(&self) -> Result<(), NcStatus>;
-    fn make_value(&self, value: i32) -> Result<ComPtr<INativeValueAbi>, NcStatus>;
-    fn read_value(&self, value: ComRef<'_, INativeValueAbi>) -> Result<i32, NcStatus>;
-    fn sum_buffer(&self, input: NcCopyFromBufferOffset<'_, u8>) -> Result<u64, NcStatus>;
-    fn fill_buffer(&self, output: NcOutputWriter<'_, u8>) -> Result<(), NcStatus>;
-    fn transform(&self, input: NativeAggregate) -> Result<NativeAggregate, NcStatus>;
-}
+use bindings::*;
 
 #[com_object(interfaces(INativeValue))]
 pub struct NativeValue {
@@ -86,24 +68,6 @@ impl INativeCalculator for NativeCalculator {
     }
 }
 
-#[neocogi_com::com_enum(tag = i32, assigned_signature = b"00000000000000000000000000000043")]
-#[derive(Debug, PartialEq)]
-/// Native enum whose declaration-order tags and restricted bool cross the C boundary.
-pub enum NativeChoice {
-    /// A bool is represented as an unrestricted byte until checked decoding.
-    Flag(bool),
-    /// No payload storage is inspected for this variant.
-    Empty,
-}
-
-#[com_interface(auto_guid = "nc.tests.native_c_abi.Choice:v1", assigned_signature = b"00000000000000000000000000000044")]
-/// Independent C code calls this generated slot using only the explicit wire layout.
-pub trait INativeChoice {
-    /// Returns the checked native value unchanged through the generated output codec.
-    fn echo(&self, value: NativeChoice) -> Result<NativeChoice, NcStatus>;
-    /// Produces two values without reading old output bytes; returns required total.
-    fn output(&self, output: NcOutputWriter<'_, NativeChoice>) -> Result<u32, NcStatus>;
-}
 #[com_object(interfaces(INativeChoice))]
 /// Stateless native implementation reached only after foreign input validation.
 struct Choice;
@@ -126,7 +90,6 @@ mod tests {
     use neocogi_com::{ComInterface, IUnknown, NC_E_POINTER, NC_OK, NcDebugApiV1, NcInterfaceDescriptor, NcInterfaceId, NcRuntimeApiV1, NcPluginInfoV1};
 
     #[repr(C)]
-    #[derive(Default)]
     struct NativeCResults {
         sum: i32,
         made_value: i32,
@@ -144,7 +107,14 @@ mod tests {
         null_copy_to_status: i32,
         zero_copy_from_status: i32,
         zero_copy_to_status: i32,
-        aggregate: NativeAggregate,
+        aggregate: <NativeAggregate as neocogi_com::ComValue>::Wire,
+    }
+
+    impl Default for NativeCResults {
+        fn default() -> Self {
+            // SAFETY: all fields are unrestricted scalar wire values; zero is valid.
+            unsafe { core::mem::zeroed() }
+        }
     }
 
     #[repr(C)]
@@ -270,10 +240,10 @@ mod tests {
             plugin_dependencies_offset: core::mem::offset_of!(NcPluginInfoV1, dependencies),
             plugin_dependency_count_offset: core::mem::offset_of!(NcPluginInfoV1, dependency_count),
             debug_first_function_offset: core::mem::offset_of!(NcDebugApiV1, create_messenger),
-            aggregate_size: core::mem::size_of::<NativeAggregate>(),
-            aggregate_align: core::mem::align_of::<NativeAggregate>(),
-            aggregate_count_offset: core::mem::offset_of!(NativeAggregate, count),
-            aggregate_value_offset: core::mem::offset_of!(NativeAggregate, value),
+            aggregate_size: core::mem::size_of::<<NativeAggregate as neocogi_com::ComValue>::Wire>(),
+            aggregate_align: core::mem::align_of::<<NativeAggregate as neocogi_com::ComValue>::Wire>(),
+            aggregate_count_offset: core::mem::offset_of!(<NativeAggregate as neocogi_com::ComValue>::Wire, count),
+            aggregate_value_offset: core::mem::offset_of!(<NativeAggregate as neocogi_com::ComValue>::Wire, value),
         }
     }
 
@@ -301,7 +271,10 @@ mod tests {
         assert_eq!(results.null_copy_to_status, NC_E_POINTER.code());
         assert_eq!(results.zero_copy_from_status, NC_OK.code());
         assert_eq!(results.zero_copy_to_status, NC_OK.code());
-        assert_eq!(results.aggregate, NativeAggregate { tag: 4, count: 7, value: 14 });
+        assert_eq!(
+            unsafe { <NativeAggregate as neocogi_com::ComValue>::decode_value(results.aggregate, &mut Default::default()) }.unwrap(),
+            NativeAggregate { tag: 4, count: 7, value: 14 }
+        );
         assert_eq!(unsafe { nc_c_validate_abi_layouts(&native_abi_layouts()) }, 1);
     }
 }

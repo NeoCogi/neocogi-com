@@ -1,0 +1,4 @@
+#[id(1, "9c43d209-3ae4-5865-9d8f-62a8f3a616b3")]
+interface IThreadSafeRequiresSendSync {
+    fn value(&self) -> Result<u32>;
+}

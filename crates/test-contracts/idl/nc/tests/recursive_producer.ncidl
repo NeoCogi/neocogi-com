@@ -1,0 +1,22 @@
+#[id(1, "d3a9c122-dacc-5580-af0b-8ec3cf11f168")]
+/// The producer's revision returns 64 bits, so its full signature differs.
+interface ProducerIBaseValue {
+    /// Reads the producer's scalar.
+    fn value(&self) -> Result<u64>;
+}
+
+#[id(1, "06f55665-a092-519b-816f-0fb1c71966b4")]
+/// The empty derived contract changes its signature when the base changes.
+interface ProducerIValue: ProducerIBaseValue {
+
+}
+
+#[id(1, "bfd5c49d-7c92-559e-9a15-4e18011e5b2a")]
+/// Same local method contract as the consumer, with producer-side checks.
+interface ProducerIExchange {
+    /// Rejects a borrowed value with the wrong full identity before dispatch.
+    fn accept(&self, value: &ProducerIValue) -> Result<()>;
+    /// Transfers a reference which the consumer must reject and release.
+    fn produce(&self) -> Result<ComPtr<ProducerIValue>>;
+}
+

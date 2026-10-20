@@ -1,0 +1,9 @@
+#[id(1, "3f2a9c39-4cdd-5d82-b829-404f9fe31a26")]
+interface IByteConsumer {
+    fn consume(&self, bytes: &INcBytes) -> Result<u64>;
+}
+
+#[id(1, "513e1e77-d1f9-5649-9c0a-2c62f90120a4")]
+interface IByteStream {
+    fn next_chunk(&self, max_len: u64) -> Result<ComPtr<INcBytes>>;
+}
