@@ -88,7 +88,8 @@ use normal Rust providers. This crate neither invokes Cargo nor resolves package
 
 Every dynamic consumer resolves process-wide registration, provenance, dependency
 checks and pinned code through one `nc_com`. A DLL must never privately link a
-runtime instance. `neocogi-com` is the typed facade; it owns no runtime state.
+runtime instance. `neocogi-com` is the typed facade; it owns no runtime state or
+implementation linkage. Its `runtime` feature adds only stateless clients.
 
 The native composition and each dynamic plugin use one small
 `neocogi-native-runtime-link` integration crate. It declares `nc_com` as a normal
@@ -105,7 +106,9 @@ neocogi-native-runtime-link = { workspace = true, optional = true }
 
 A dynamic provider enables that dependency with `dynamic-plugin` and imports its
 metadata using `use neocogi_native_runtime_link as _;`. This never embeds runtime
-state. Cargo deduplicates the normal runtime artifact across consumers.
+state. The bridge owns the explicit shared import as well as deployment metadata.
+Cargo deduplicates the normal runtime artifact across consumers. Test-helper
+features cannot suppress this import or inject a private implementation.
 
 Normal artifact paths are available while compiling Rust, not to `build.rs`.
 The private `neocogi-native-layout` macro reads those paths during compilation
@@ -120,11 +123,17 @@ This native-workspace bridge uses nightly Rust's `link_arg_attribute` and tracke
 procedural-macro inputs in addition to Cargo's nightly artifact dependencies.
 It is isolated from the portable COM/IDL SDK and its stable Rust 1.85 consumers.
 On Windows it copies `nc_com.dll` beside the executable for initial imports;
-compile-only import libraries stay in `lib-imports/`. The facade names MSVC's
+compile-only import libraries stay in `lib-imports/`. The bridge names MSVC's
 `nc_com.dll.lib` import library
 [verbatim](https://doc.rust-lang.org/reference/items/external-blocks.html#r-items.extern.attributes.link.modifiers.verbatim).
 Platform execution evidence is recorded separately; Linux checks do not establish
 Windows or macOS loader behavior.
+
+Final monolith/browser owners instead directly depend on `neocogi-com-runtime`
+and retain `extern crate nc_com as _;` once. Unit/integration test executables do
+the same through a dev dependency and an explicit root import. Reusable helpers
+never select implementation linkage through COM/UI facade features. The demo
+host and portable example reject contradictory final shared/embedded modes.
 
 The runtime still verifies a requested root's exact IID, transitive signature and
 threading before entering plugin code, then validates the returned owned

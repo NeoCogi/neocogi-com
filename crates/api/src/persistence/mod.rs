@@ -5,8 +5,8 @@
 //! used by `com_object` without introducing a dependency back into the facade.
 //!
 //! With `runtime`, `FactoryRegistry` and `snapshot` forward operations to the
-//! linked runtime. `static-runtime` selects the same implementation inside the
-//! executable or browser module. Contracts remain usable without either feature.
+//! runtime chosen by the final assembly: one shared native image, or one directly
+//! retained implementation in a monolith/browser/test. Contracts need no runtime feature.
 
 pub use neocogi_com_core::persistence::*;
 #[rustfmt::skip]

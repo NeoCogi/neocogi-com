@@ -1,17 +1,11 @@
-//! Raw discovery of the runtime selected by the facade feature graph.
+//! Stateless runtime discovery declarations, independent of dependency features.
 //!
-//! Shared callers import the C symbols from nc_com; static callers retain the
-//! implementation rlib. Both routes use the same versioned tables and checks.
+//! Final native assemblies supply the shared import; final monolith/browser/test
+//! assemblies retain the implementation once. The facade never chooses or owns
+//! an implementation image, so additive feature unification cannot split catalogs.
 
 use neocogi_com_core::{NcPersistenceApiV1, NcDebugApiV1, NcRuntimeApiV1};
 
-// Keep the implementation in the link graph so the exact same exported C
-// symbols resolve from its rlib. No alternate tables or catalog are introduced.
-#[cfg(feature = "static-runtime")]
-extern crate nc_com as _;
-
-#[cfg_attr(all(not(test), not(feature = "static-runtime"), not(target_env = "msvc")), link(name = "nc_com"))]
-#[cfg_attr(all(not(test), not(feature = "static-runtime"), target_env = "msvc"), link(name = "nc_com.dll.lib", kind = "dylib", modifiers = "+verbatim"))]
 unsafe extern "C" {
     /// Returns the runtime ABI v1 caller-scoped persistence table.
     pub(crate) fn nc_com_get_persistence_api_v1() -> *const NcPersistenceApiV1;

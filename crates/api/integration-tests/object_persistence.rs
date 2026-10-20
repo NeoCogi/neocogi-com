@@ -441,3 +441,6 @@ fn binary_limits_agree_across_snapshot_and_factory_restore() {
     drop(root);
     assert_eq!(counts.live.load(Ordering::Relaxed), 0);
 }
+
+// This final test executable owns its isolated process runtime.
+extern crate nc_com as _;

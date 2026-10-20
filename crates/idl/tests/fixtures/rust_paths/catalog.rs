@@ -87,3 +87,6 @@ fn main() {
         assert_eq!(registry.kinds().count(), 0);
     }
 }
+
+// The fixture final executable explicitly owns its process runtime.
+extern crate nc_com as _;

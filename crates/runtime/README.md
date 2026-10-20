@@ -55,8 +55,10 @@ There is no generated wrapper package. Output names are `libnc_com.so` on Linux,
 [native guide](../../../docs/guides/COM_NATIVE.md) explains Cargo artifact paths
 and the distinction between development builds and installation.
 
-A monolithic host enables the facade's `static-runtime` feature and links this
-same implementation once. No generated wrapper project is required. See the
+A monolithic/browser final owner enables the facade's `runtime` clients, directly
+depends on `neocogi-com-runtime`, and retains `extern crate nc_com as _;` once.
+The facade has no implementation-selection feature. Native shared owners instead
+supply the import from this sole shared runtime image. No wrapper project is required. See the
 [plain-Cargo example](../../../examples/com-plugin/README.md) for both modes.
 The runtime is `std`-only; core ABI and reduced-feature contracts retain
 `no_std` support.

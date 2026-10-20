@@ -151,9 +151,9 @@
 //! the `alloc` feature because `#[com_object]` stores each COM object in a
 //! reference-counted heap allocation. `Runtime` requires the `runtime`
 //! feature, which also enables `std`; `std` enables `alloc`.
-//! Defaults enable `std` and `macros`, but do not link a runtime. `static-runtime`
-//! implies `runtime` and selects the implementation rlib instead of the shared
-//! library. Consequently, `--all-features` uses static runtime linkage.
+//! Defaults enable `std` and `macros`, but do not link a runtime. `runtime` adds
+//! stateless clients only. Final native assemblies import shared `nc_com`; final
+//! monolith/browser/test owners retain its rlib. Features never select an image.
 //!
 //! Cross-component declarations belong in `.ncidl`. `neocogi-idl`
 //! invokes the macros below with precomputed 32-byte declaration signatures;
@@ -567,3 +567,7 @@ pub use neocogi_com_core::{EncodedInput, DecodedInput};
 pub use neocogi_com_core::{NcOutput, NcOutputWriter, PreparedOutput};
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::NcOutputBuffer;
+
+// Only this test executable retains an implementation, independently of facade features.
+#[cfg(all(test, feature = "runtime"))]
+extern crate nc_com as _;

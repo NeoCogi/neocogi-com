@@ -60,8 +60,8 @@ fn readme_factory_contract_and_bootstrap_execute_as_documented() {
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
-        "[package]\nname='documented-com-bootstrap'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[features]\ndynamic-plugin=[]\n[dependencies]\nneocogi-com={{path={:?},features=['static-runtime']}}\n",
-        root.join("crates/com/api"),
+        "[package]\nname='documented-com-bootstrap'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[features]\ndynamic-plugin=[]\n[dependencies]\nneocogi-com={{path={:?},features=['runtime']}}\nneocogi-com-runtime={{path={:?}}}\n",
+        root.join("crates/com/api"), root.join("crates/com/runtime"),
     )).unwrap();
     // The guide's generated contract crate is represented by a module here;
     // every authored line below comes directly from its marked public block.
@@ -96,7 +96,7 @@ fn readme_factory_contract_and_bootstrap_execute_as_documented() {
     let output = Command::new("cargo")
         .args(["test", "--offline", "--features", "dynamic-plugin", "--manifest-path"])
         .arg(project.path().join("Cargo.toml"))
-        .env("CARGO_TARGET_DIR", root.join("target/documentation-proof"))
+        .env("CARGO_TARGET_DIR", std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()))
         .output()
         .unwrap();
     assert!(

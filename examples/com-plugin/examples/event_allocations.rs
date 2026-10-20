@@ -109,3 +109,7 @@ fn main() {
     println!("common receiver and channel: {binding} allocations");
     println!("10,000 scalar events including channel storage: {delivery} allocations");
 }
+
+// Embedded ownership belongs to this final executable, never the facade.
+#[cfg(feature = "monolith")]
+extern crate nc_com as _;

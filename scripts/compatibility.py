@@ -184,7 +184,7 @@ def linked_tests(build: Build, target: Path, env: dict[str, str], native_target:
 def safety() -> dict:
     """Interpret current pure Rust targets with Miri; native loading stays in other suites.
 
-    Static runtime selection is deliberate: Miri cannot execute arbitrary dlopen
+    Test executables explicitly retain their runtime: Miri cannot execute arbitrary dlopen
     calls. No Miri safety diagnostic is suppressed and no deleted plugin fixture is
     reconstructed. Exact sentinels and executed counts are checked just as for
     native tests, and temporary build outputs are removed on success or failure.
@@ -197,9 +197,9 @@ def safety() -> dict:
     targets = [
         (["-p", "neocogi-com-core", "--lib", "--features", "std"], "abi::array_tests::array_signature_matches_known_sha256_and_distinguishes_shapes"),
         (["-p", "neocogi-com-runtime", "--lib"], "loader::plan::tests::orders_dependencies_before_dependents_deterministically"),
-        (["-p", "neocogi-com", "--lib", "--features", "static-runtime"], "runtime::tests::table_rejects_a_short_allocation_before_forming_a_full_reference"),
+        (["-p", "neocogi-com", "--lib", "--features", "runtime"], "runtime::tests::table_rejects_a_short_allocation_before_forming_a_full_reference"),
     ]
-    targets.extend((["-p", "neocogi-com", "--features", "static-runtime", "--test", name], sentinel) for name, sentinel in (
+    targets.extend((["-p", "neocogi-com", "--features", "runtime", "--test", name], sentinel) for name, sentinel in (
         ("local_com", "local_and_foreign_calls_share_one_gate_and_one_model"),
         ("borrowed_values", "owned_message_outlives_producer_guard_and_source"),
         # Name required targets explicitly: reordering the native table must

@@ -770,7 +770,7 @@ Dynamic loading validates and registers one plugin atomically. Providers must
 already be registered; registration invokes neither factories nor dependency
 loaders. Root acquisition then checks the requested signature before bootstrap.
 A monolith links plugin rlibs, registers their Rust descriptor getters directly,
-and uses the same acquisition operation against one `static-runtime` instance.
+and uses the same acquisition operation against the one implementation explicitly retained by its final monolith owner.
 
 ## Tool ownership and migration
 

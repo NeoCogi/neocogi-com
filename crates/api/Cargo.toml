@@ -29,7 +29,6 @@ neocogi-idl = { workspace = true, optional = true }
 [dependencies]
 neocogi-com-core = { workspace = true, default-features = false }
 neocogi-com-macros = { workspace = true, optional = true }
-neocogi-com-runtime = { workspace = true, optional = true, default-features = false }
 
 [package.metadata.docs.rs]
 all-features = true
@@ -64,6 +63,9 @@ name = "ui"
 path = "integration-tests/ui.rs"
 
 [dev-dependencies]
+# Each test executable explicitly retains this implementation; production facade
+# features never select it for unrelated host/plugin artifacts.
+neocogi-com-runtime.workspace = true
 # The native-C ABI fixture runs Cargo offline from its own workspace. Keeping
 # its build dependency here ensures clean test runners fetch it first.
 cc = { version = "=1.2.0", default-features = false }
@@ -75,11 +77,8 @@ default = ["macros", "std"]
 macros = ["dep:neocogi-com-macros", "dep:neocogi-idl"]
 std = ["alloc", "neocogi-com-core/std"]
 alloc = ["neocogi-com-core/alloc"]
-# Shared-mode unification is intentional: every facade resolves the same
-# process registry from libnc_com.
+# Stateless typed runtime clients; linkage belongs to the final assembly.
 runtime = ["std"]
-# Static/browser hosts own one instance of the existing runtime implementation.
-static-runtime = ["runtime", "dep:neocogi-com-runtime"]
 
 [[test]]
 name = "recursive_interfaces"

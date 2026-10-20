@@ -230,3 +230,6 @@ mod failed_root {
         assert_eq!(CALLED.load(Ordering::SeqCst), 1);
     }
 }
+
+// This final test executable owns its isolated process runtime.
+extern crate nc_com as _;

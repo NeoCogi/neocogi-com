@@ -10,6 +10,12 @@
 
 const _: &str = neocogi_native_layout::stage_library!("CARGO_CDYLIB_FILE_COM_LIBRARY_nc_com");
 
+// The final native assembly owns this import. Facade/runtime capability features
+// contain declarations only and cannot suppress it or retain an implementation.
+#[cfg_attr(not(target_env = "msvc"), link(name = "nc_com"))]
+#[cfg_attr(target_env = "msvc", link(name = "nc_com.dll.lib", kind = "dylib", modifiers = "+verbatim"))]
+unsafe extern "C" {}
+
 #[cfg(all(unix, not(target_os = "macos")))]
 #[allow(clippy::duplicated_attributes, reason = "ordered link-arg attributes supply an option and its value")]
 #[link(kind = "link-arg", name = "-rpath")]

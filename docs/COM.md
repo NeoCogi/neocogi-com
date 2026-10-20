@@ -157,12 +157,16 @@ may be a finished service or an ordinary provider with typed creation methods.
 
 ## Host acquisition
 
-For a monolith, enable `neocogi-com/static-runtime` and register the linked
-provider before requesting its exact factory. The following complete function
+For a monolith, enable `neocogi-com/runtime`, directly depend on
+`neocogi-com-runtime`, and retain that implementation in the final assembly.
+Register the linked provider before requesting its exact factory. The following complete function
 uses the declarations and implementation above:
 
 <!-- checked-example: static-host -->
 ```rust,ignore
+// Only this final assembly owns the embedded runtime.
+extern crate nc_com as _;
+
 /// Executes bootstrap, construction, inherited reads and a mutable COM call.
 fn static_example() -> Result<(), NcStatus> {
     let runtime = neocogi_com::Runtime::global();
@@ -264,8 +268,8 @@ protocol. Live COM calls retain their separate checked wire representation.
   and Cargo build integration shared by contract crates and `cargo-neocogi`.
 
 The facade's defaults (`std`, `macros`) support local objects without linking a
-runtime. `runtime` enables clients of the shared `nc_com` library;
-`static-runtime` implies `runtime` and links its implementation rlib instead.
+runtime. `runtime` enables stateless clients; native final owners import shared
+`nc_com`, while final monolith/browser/test owners directly retain the rlib once.
 See the [feature and deployment table](api/README.md#features-and-scope).
 The [core data guide](core/README.md#text-bytes-and-borrowed-storage) distinguishes
 unsafe descriptor borrows such as `NcStaticUtf8::as_str` from owned string copies.

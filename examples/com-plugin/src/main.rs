@@ -119,3 +119,7 @@ impl neocogi_com::persistence::IPersistenceFactory for PersistenceAdapter {
             .query()
     }
 }
+
+// Embedded ownership belongs to this final executable, never the facade.
+#[cfg(feature = "monolith")]
+extern crate nc_com as _;

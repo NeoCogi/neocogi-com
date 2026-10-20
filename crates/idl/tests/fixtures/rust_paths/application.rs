@@ -19,3 +19,6 @@ mod tests {
         assert!(matches!(event.value().unwrap(), CounterEvent::Changed(value) if value.value == 42));
     }
 }
+
+// The fixture final executable explicitly owns its process runtime.
+extern crate nc_com as _;

@@ -20,9 +20,10 @@ default = []
 dynamic-plugin = []
 # Hosts select the shared runtime unless they explicitly request a monolith.
 host = ["neocogi-com/runtime"]
-monolith = ["host", "neocogi-com/static-runtime"]
+monolith = ["host", "dep:neocogi-com-runtime"]
 
 [dependencies]
+neocogi-com-runtime = { workspace = true, optional = true }
 neocogi-com = { workspace = true, features = ["macros", "std"] }
 neocogi-idl-example-contracts = { path = "../../tools/idl/example-contracts" }
 

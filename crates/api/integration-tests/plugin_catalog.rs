@@ -115,3 +115,6 @@ fn complete_records_are_coherent_owned_and_stable_across_growth() {
     assert_eq!(runtime.acquire_registered_plugin_root(consumer.plugin_id).unwrap_err(), NC_E_CLOSED);
     assert_eq!(ACQUIRES.load(Ordering::SeqCst), 1);
 }
+
+// This final test executable owns its isolated process runtime.
+extern crate nc_com as _;

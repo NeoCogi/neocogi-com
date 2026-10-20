@@ -55,8 +55,8 @@ generic COM object-persistence service.
 
 Persistence is implemented in `neocogi-com-runtime` and called through
 `NcPersistenceApiV1`, returned by `nc_com_get_persistence_api_v1`. Enable the
-facade's `runtime` feature for shared hosts, or `static-runtime` for monoliths
-and browser modules. Runtime and host must be rebuilt together for this added
+facade's `runtime` feature for callers. Native final owners import the shared
+runtime; final monolith/browser owners directly retain its implementation rlib. Runtime and host must be rebuilt together for this added
 pre-alpha ABI table. Providers only implementing the contracts need neither
 feature. The built-in contracts remain available without allocation; portable
 `ObjectRecord` authoring requires `alloc` but no linked runtime.

@@ -92,3 +92,6 @@ fn build_library(case: &str) -> PathBuf {
     assert!(output.status.success(), "compile {case}: {}", String::from_utf8_lossy(&output.stderr));
     library
 }
+
+// This final test executable owns its isolated process runtime.
+extern crate nc_com as _;

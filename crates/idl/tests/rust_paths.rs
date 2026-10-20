@@ -107,8 +107,9 @@ fn raw_identifier_catalog_paths_compile_in_exported_forms() {
     fs::create_dir_all(directory.join("app/src")).unwrap();
     fs::write(directory.join("Cargo.toml"), "[workspace]\nmembers=['contracts','app']\nresolver='3'\n").unwrap();
     let dependencies = format!(
-        "[dependencies]\nneocogi-com={{path={:?},features=['static-runtime']}}\nneocogi-ui={{path={:?}}}\nneocogi-ui-document={{path={:?}}}\n",
+        "[dependencies]\nneocogi-com={{path={:?},features=['runtime']}}\nneocogi-com-runtime={{path={:?}}}\nneocogi-ui={{path={:?}}}\nneocogi-ui-document={{path={:?}}}\n",
         root.join("crates/com/api"),
+        root.join("crates/com/runtime"),
         root.join("crates/ui/api"),
         root.join("crates/ui/document"),
     );
@@ -188,7 +189,7 @@ fn raw_identifier_catalog_paths_compile_in_exported_forms() {
         let output = Command::new("cargo")
             .args(&arguments)
             .current_dir(directory)
-            .env("CARGO_TARGET_DIR", root.join("target/message-proof"))
+            .env("CARGO_TARGET_DIR", std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| root.join("target").into_os_string()))
             .output()
             .unwrap();
         assert!(

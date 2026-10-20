@@ -270,7 +270,7 @@ let restored = recipes.restore(&bytes)?;
 Each registry is thread-local and independently owned. The runtime retains its
 factories until the registry is dropped; registration requires mutable access.
 The same operations run through the shared runtime in native shared deployments
-and through its linked implementation with `static-runtime`. The NCB-v1 document
+and through the implementation explicitly retained by a final monolith/browser owner. The NCB-v1 document
 format and provider interface identities are unchanged.
 
 The former `neocogi-com-persistence` and `neocogi-com-persistence-contracts` crates
@@ -288,32 +288,30 @@ See [persistence semantics and ownership](../runtime/PERSISTENCE.md).
 | `macros` | Macro/derive re-exports and built-in event contracts; heap-backed object storage also needs `alloc` |
 | `std` | `alloc` plus standard-library integrations; no runtime linkage by itself |
 | Defaults: `std`, `macros` | Local objects, owned data, and event adapters; no runtime linkage |
-| `runtime` | Implies `std`; links the `nc_com` native runtime through internal C declarations and enables runtime/persistence clients |
-| `static-runtime` | Implies `runtime`; links the `nc_com` implementation as an rlib inside the final native binary or browser module |
+| `runtime` | Implies `std`; enables stateless runtime/persistence clients. The final assembly supplies linkage. |
 
 For shared mode, build and deploy `libnc_com.so` on Linux, `libnc_com.dylib` on
 macOS, or `nc_com.dll` with its import library on Windows. Ordinary
 `cargo build -p neocogi-com-runtime` produces both the rlib and the platform's
-shared library, as declared by the runtime manifest. The rlib serves
-`static-runtime`; shared deployments use the native library. See the
-[runtime build guide](../runtime/README.md#build-and-link) for the owning commands.
-`NC_COM_RUNTIME_LINK_DIR` supplies native linker search paths; deployment must
-separately satisfy the OS loader. Ordinary Cargo owns compilation.
+shared library, as declared by the runtime manifest. The rlib serves final embedded
+assemblies; shared deployments import the native library. See the [runtime build guide](../runtime/README.md#build-and-link).
 
-Shared-mode `runtime` feature unification is intentional: facade instances
-hold no catalog, and their external calls resolve to the staged runtime.
-`static-runtime` wins if both are enabled. Keep it out of separate plugin
-images; `--all-features` therefore selects static linkage rather than validating
-a shared deployment.
+The facade never links or retains an implementation, including with all features.
+Native workspace applications and plugins use `neocogi-native-runtime-link`, which
+owns the shared import, Cargo artifact and application-relative loader paths.
+Portable consumers supply the same final link settings in their own build script;
+`examples/com-plugin/build.rs` illustrates the platform import and optional
+`NC_COM_RUNTIME_LINK_DIR` search path.
 
-This is not Windows COM, a source-reflection system, a sandbox, or a plugin
-marketplace. Applications own installation, path discovery, trust, and policy.
+A monolith or browser final owner directly depends on `neocogi-com-runtime` and
+retains it with `extern crate nc_com as _;`. Tests do the same in their executable
+root, with a dev dependency. Libraries and test helpers do not toggle facade
+implementation features. Every native host/plugin caller resolves the single
+shared `nc_com` catalog; a separate embedded assembly retains one implementation.
 
-Runtime discovery declarations live in `src/runtime/ffi.rs`. Shared builds may
-set `NC_COM_RUNTIME_LINK_DIR` to the runtime/import-library directory. Without
-`runtime`, the facade emits no runtime link requirement. `static-runtime` retains
-the implementation rlib and takes precedence over shared linkage when features
-unify; separately loaded plugins must not enable it.
+Runtime discovery declarations live in `src/runtime/ffi.rs`. They are stateless.
+Caller-scoped persistence contexts and event queues do not replace or populate the
+global plugin catalog.
 
 The `macros` feature also exposes built-in event contracts through
 [`neocogi_com::events`](EVENTS.md). Contracts need no allocation or runtime;

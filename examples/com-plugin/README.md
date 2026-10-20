@@ -27,16 +27,17 @@ fn acquire_root() -> Result<neocogi_com::ComPtr<api::ExampleFactoryAbi>, neocogi
 ```
 
 The Cargo library target defaults to `crate-type = ["rlib"]`. Only the final
-shared-library build enables `dynamic-plugin`. Do not enable `static-runtime`
-in separately loaded plugin images.
+shared-library build enables `dynamic-plugin`. Its build script owns shared
+linkage. `monolith` directly selects the implementation dependency retained by the
+final executable; selecting both final modes is rejected before compilation.
 
 ## Shared plugin and host
 
 From the repository root, on Linux:
 
 ```sh
-cargo rustc -p neocogi-example-com-plugin --lib --crate-type cdylib --features dynamic-plugin
 cargo rustc -p neocogi-com-runtime --lib --crate-type cdylib
+NC_COM_RUNTIME_LINK_DIR="$PWD/target/debug" cargo rustc -p neocogi-example-com-plugin --lib --crate-type cdylib --features dynamic-plugin
 NC_COM_RUNTIME_LINK_DIR="$PWD/target/debug" cargo build -p neocogi-example-com-plugin --bin neocogi-example-com --features host
 LD_LIBRARY_PATH="$PWD/target/debug" target/debug/neocogi-example-com "$PWD/target/debug/libnc_example_com.so"
 ```

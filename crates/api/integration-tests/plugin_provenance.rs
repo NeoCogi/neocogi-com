@@ -114,3 +114,6 @@ fn build_library() -> PathBuf {
         std::env::consts::DLL_SUFFIX
     ))
 }
+
+// This final test executable owns its isolated process runtime.
+extern crate nc_com as _;
