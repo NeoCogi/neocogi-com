@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, dataclass
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -51,9 +52,12 @@ CASES = (
     Case("stable-release", Build("stable", "release", "abort", "fat"), Build("stable", "release", "unwind", "thin"), Build("stable", "release", "abort", "fat")),
 )
 # Keep semantic sentinels next to their actual target, not stale names in several scripts.
-LINKED_TESTS = {
+RUNTIME_TESTS = {
     "factory_plugin_runtime": "generated_contract_factory_acquires_without_a_class_table",
     "object_persistence": "registry_ownership_is_local_and_releases_retained_factories",
+}
+# These targets exercise generated calls and ownership without native runtime imports.
+ABI_TESTS = {
     "checked_values": "invalid_nested_bool_fails_copied_and_buffer_thunks",
     "output_buffers": "raw_output_initializes_only_reported_prefix_and_reuses_capacity",
     "output_completion": "generated_calls::generated_commit_completes_with_all_further_allocation_denied",
@@ -157,9 +161,13 @@ def cargo(build: Build, target: Path, arguments: list[str], env: dict[str, str],
                 *(["--", *harness] if harness else [])], env=policy)
 
 
-def linked_tests(build: Build, target: Path, env: dict[str, str], native_target: str, sanitizer: str | None) -> None:
-    """Run ABI/value/lifetime/persistence checks with the same instrumentation as the runtime."""
-    for target_name, sentinel in LINKED_TESTS.items():
+def ordinary_tests(build: Build, target: Path, env: dict[str, str], native_target: str, sanitizer: str | None) -> None:
+    """Execute runtime-free ABI cases and explicitly embedded library owners.
+
+    These are valuable regressions, but their test counts do not prove shared
+    linkage. They receive no staged-runtime loader or link-directory overrides.
+    """
+    for target_name, sentinel in ABI_TESTS.items():
         args = ["test", "-p", "neocogi-com", "--features", "runtime", "--test", target_name]
         require_tests(cargo(build, target, args, env, native_target, sanitizer, ("--list",)), sentinel)
         require_execution(cargo(build, target, args, env, native_target, sanitizer))
@@ -179,6 +187,81 @@ def linked_tests(build: Build, target: Path, env: dict[str, str], native_target:
         args = ["test", "--manifest-path", str(manifest)]
         require_tests(cargo(build, target, args, env, native_target, harness=("--list",)))
         require_execution(cargo(build, target, args, env, native_target))
+
+
+def shared_artifacts(output: str, manifest: Path) -> dict[str, Path]:
+    """Admit the two actual Cargo test artifacts and exclude an embedded runtime.
+
+    Cached compiler-artifact records count just as fresh ones: admitting only
+    records rebuilt this time would hide a previously compiled runtime rlib.
+    The maintained case roots, package manifest and test kinds jointly identify
+    this fixed fixture; package/test names alone cannot identify its assembly.
+    """
+    artifacts = {}
+    for line in output.splitlines():
+        if not line.startswith("{"):
+            continue
+        record = json.loads(line)
+        if record.get("reason") != "compiler-artifact":
+            continue
+        target = record["target"]
+        if target["name"] == "nc_com":
+            raise RuntimeError("shared qualification contains the nc_com runtime implementation")
+        if not record.get("executable"):
+            continue
+        name = target["name"]
+        if (Path(record["manifest_path"]).resolve() != manifest.resolve()
+                or name not in RUNTIME_TESTS or target["kind"] != ["test"]
+                or not record["profile"]["test"]
+                or Path(target["src_path"]).resolve() != (manifest.parent / f"../../support/{name}_cases.rs").resolve()
+                or name in artifacts):
+            raise RuntimeError(f"unexpected shared qualification executable: {name}")
+        artifacts[name] = require_file(Path(record["executable"]))
+    if artifacts.keys() != RUNTIME_TESTS.keys():
+        raise RuntimeError("missing shared qualification test artifacts")
+    if len(set(artifacts.values())) != len(artifacts):
+        raise RuntimeError("shared qualification executables must be distinct")
+    return artifacts
+
+
+def require_runtime_dependency(executable: Path, runtime: Path, env: dict[str, str], cwd: Path) -> None:
+    """Withhold only the staged runtime and reject discovery from the same binary.
+
+    Positive discovery must have happened first. Always restore the runtime,
+    including on process launch errors; never launch another Cargo build here.
+    A failed process that still lists tests does not prove a loader dependency.
+    """
+    require_file(executable)
+    require_file(runtime)
+    withheld = runtime.parent.parent / ("withheld-" + runtime.name)
+    if withheld.exists():
+        raise RuntimeError(f"runtime withholding path already exists: {withheld}")
+    runtime.rename(withheld)
+    try:
+        arguments = [str(executable), "--list"]
+        print("+ (runtime withheld)", subprocess.list2cmdline(arguments), flush=True)
+        process = subprocess.run(arguments, env=env, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        print(process.stdout, end="", flush=True)
+        if process.returncode == 0 or any(line.endswith(": test") for line in process.stdout.splitlines()):
+            raise RuntimeError("shared qualification still discovers tests without the staged runtime")
+    finally:
+        withheld.rename(runtime)
+
+
+def shared_tests(artifacts: dict[str, Path], runtime: Path, env: dict[str, str], cwd: Path) -> dict:
+    """Execute complete relocated suites, then prove the same bytes require nc_com."""
+    evidence = {}
+    for name, executable in artifacts.items():
+        digest = hashlib.sha256(require_file(executable).read_bytes()).hexdigest()
+        require_tests(run([str(executable), "--list"], env=env, cwd=cwd), RUNTIME_TESTS[name])
+        # No sentinel filter: every maintained case, including raw persistence,
+        # executes against the shared implementation in a single-threaded process.
+        require_execution(run([str(executable), "--test-threads=1"], env=env, cwd=cwd))
+        require_runtime_dependency(executable, runtime, env, cwd)
+        if hashlib.sha256(require_file(executable).read_bytes()).hexdigest() != digest:
+            raise RuntimeError(f"qualification executable changed during execution: {name}")
+        evidence[name] = {"sha256": digest, "runtime_withheld": "discovery failed"}
+    return evidence
 
 
 def safety() -> dict:
@@ -204,7 +287,7 @@ def safety() -> dict:
         ("borrowed_values", "owned_message_outlives_producer_guard_and_source"),
         # Name required targets explicitly: reordering the native table must
         # not silently substitute a different Miri workload after a migration.
-        *((name, LINKED_TESTS[name]) for name in ("checked_values", "output_buffers", "output_completion", "exclusive_com", "weak_com")),
+        *((name, ABI_TESTS[name]) for name in ("checked_values", "output_buffers", "output_completion", "exclusive_com", "weak_com")),
     ))
     # These tests traverse hundreds of thousands of values at the public budget
     # boundary. They run in linked/ASan/TSan suites; Miri covers allocation faults,
@@ -273,17 +356,37 @@ def execute(case: Case, *, linked: bool = False, sanitizer: str | None = None) -
             # Plugin mappings and the process-global runtime intentionally remain pinned.
             runtime_env["ASAN_OPTIONS"] = "detect_leaks=0"
             runtime_env["LSAN_OPTIONS"] = "detect_leaks=0"
+        groups = {"independent_sample": "pending"}
         if linked or sanitizer:
-            linked_tests(case.host, work / "tests", {**runtime_env, "NC_COM_RUNTIME_LINK_DIR": str(link)}, next(iter(triples)), sanitizer)
+            # ABI tests/library owners are ordinary Rust assemblies, independent
+            # of the shared fixture. Instrumentation retains its established
+            # pinned-library leak policy without claiming native imports here.
+            ordinary_env = {**env, **({"ASAN_OPTIONS": "detect_leaks=0", "LSAN_OPTIONS": "detect_leaks=0"} if sanitizer else {})}
+            ordinary_tests(case.host, work / "tests", ordinary_env, next(iter(triples)), sanitizer)
+            run(["rustup", "run", case.host.toolchain, "cargo", "clean", "--target-dir", str(work / "tests")], env=env)
+            groups["ordinary_abi_and_embedded"] = "passed"
+            manifest = ROOT / "crates/com/api/integration-tests/fixtures/shared-runtime/Cargo.toml"
+            require_file(manifest.with_name("Cargo.lock"))
+            output = cargo(case.host, work / "tests", ["test", "--manifest-path", str(manifest), "--tests", "--no-run", "--message-format=json"],
+                           {**env, "NC_COM_RUNTIME_LINK_DIR": str(link)}, next(iter(triples)), sanitizer)
+            qualification = work / "qualification"
+            qualification.mkdir()
+            artifacts = {}
+            for name, original in shared_artifacts(output, manifest).items():
+                artifacts[name] = qualification / original.name
+                shutil.copy2(original, artifacts[name])
             run(["rustup", "run", case.host.toolchain, "cargo", "clean", "--target-dir", str(work / "tests")], env=env)
         shutil.rmtree(link)
+        if linked or sanitizer:
+            groups["shared_runtime_regressions"] = shared_tests(artifacts, stage / library("nc_com"), runtime_env, qualification)
         expected = {executable, library("nc_com"), library("nc_example_com")}
         if {path.name for path in stage.iterdir()} != expected:
             raise RuntimeError("deployment must contain exactly host, runtime and plugin")
         output = run([str(stage / executable), str(stage / library("nc_example_com"))], env=runtime_env, cwd=stage)
         if output.strip() != SUCCESS:
             raise RuntimeError("host did not report completion of its behavioral checks")
-    return {"case": asdict(case), "compilers": versions, "sanitizer": sanitizer, "status": "passed"}
+        groups["independent_sample"] = "passed"
+    return {"case": asdict(case), "compilers": versions, "sanitizer": sanitizer, "groups": groups, "status": "passed"}
 
 
 def main() -> None:

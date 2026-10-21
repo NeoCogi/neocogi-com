@@ -7,9 +7,11 @@ from contextlib import redirect_stdout
 import io
 import json
 import os
+import copy
 from pathlib import Path
 import sys
 import tempfile
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -54,6 +56,109 @@ class AdmissionTests(unittest.TestCase):
                 driver.require_file(path)
             path.write_bytes(b"artifact")
             self.assertEqual(driver.require_file(path), path)
+
+    def test_shared_artifacts_admit_exact_fresh_and_cached_case_roots(self):
+        """Cargo supplies paths; both cache states must establish the same assembly."""
+        with tempfile.TemporaryDirectory() as directory:
+            manifest, records = self.shared_records(Path(directory))
+            expected = {row["target"]["name"]: Path(row["executable"]) for row in records}
+            for fresh in (False, True):
+                for record in records:
+                    record["fresh"] = fresh
+                output = "compiler progress\n" + "\n".join(map(json.dumps, records))
+                self.assertEqual(driver.shared_artifacts(output, manifest), expected)
+
+    @staticmethod
+    def shared_records(root):
+        """Two nonempty executables with Cargo's actual manifest/source identity fields."""
+        manifest = root / "fixtures/shared-runtime/Cargo.toml"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text("[package]")
+        records = []
+        for name in driver.RUNTIME_TESTS:
+            executable = root / (name + ".exe")
+            executable.write_bytes(name.encode())
+            records.append({"reason": "compiler-artifact", "manifest_path": str(manifest),
+                            "target": {"name": name, "kind": ["test"],
+                                       "src_path": str(manifest.parent / f"../../support/{name}_cases.rs")},
+                            "profile": {"test": True}, "executable": str(executable), "fresh": False})
+        return manifest, records
+
+    def test_shared_admission_rejects_incomplete_or_foreign_executables(self):
+        """Names/counts cannot stand in for package, kind, maintained roots or actual files."""
+        with tempfile.TemporaryDirectory() as directory:
+            manifest, records = self.shared_records(Path(directory))
+            invalid = [records[:1], records + records[:1]]
+            for field, value in (("manifest_path", str(manifest.with_name("foreign.toml"))),
+                                 ("executable", str(manifest.with_name("missing.exe")))):
+                changed = copy.deepcopy(records)
+                changed[0][field] = value
+                invalid.append(changed)
+            for field, value in (("name", "renamed"), ("kind", ["bin"]), ("src_path", str(manifest))):
+                changed = copy.deepcopy(records)
+                changed[0]["target"][field] = value
+                invalid.append(changed)
+            changed = copy.deepcopy(records)
+            changed[0]["profile"]["test"] = False
+            invalid.append(changed)
+            changed = copy.deepcopy(records)
+            changed[0]["executable"] = changed[1]["executable"]
+            invalid.append(changed)
+            for rows in invalid:
+                with self.subTest(rows=rows), self.assertRaises(RuntimeError):
+                    driver.shared_artifacts("\n".join(map(json.dumps, rows)), manifest)
+
+    def test_shared_admission_rejects_cached_runtime_with_matching_names(self):
+        """Adding an implementation dependency must fail even if both test artifacts match."""
+        with tempfile.TemporaryDirectory() as directory:
+            manifest, records = self.shared_records(Path(directory))
+            for fresh in (False, True):
+                runtime = {"reason": "compiler-artifact", "target": {"name": "nc_com"},
+                           "fresh": fresh, "executable": None}
+                with self.assertRaisesRegex(RuntimeError, "runtime implementation"):
+                    driver.shared_artifacts("\n".join(map(json.dumps, [*records, runtime])), manifest)
+
+    def test_runtime_withholding_rejects_discovery_and_always_restores(self):
+        """Failure after listing or launch failure cannot leave the staged runtime removed."""
+        with tempfile.TemporaryDirectory() as directory, redirect_stdout(io.StringIO()):
+            root = Path(directory)
+            stage = root / "stage"
+            stage.mkdir()
+            runtime, executable = stage / "nc_com", root / "test.exe"
+            runtime.write_bytes(b"runtime")
+            executable.write_bytes(b"test")
+            for status, output, valid in ((127, "loader failed", True), (0, "", False),
+                                          (1, "sentinel: test\n", False)):
+                with patch.object(driver.subprocess, "run", return_value=subprocess.CompletedProcess([], status, output)):
+                    if valid:
+                        driver.require_runtime_dependency(executable, runtime, {}, root)
+                    else:
+                        with self.assertRaises(RuntimeError):
+                            driver.require_runtime_dependency(executable, runtime, {}, root)
+                self.assertEqual(runtime.read_bytes(), b"runtime")
+                self.assertFalse((root / "withheld-nc_com").exists())
+            with patch.object(driver.subprocess, "run", side_effect=OSError("launch failure")):
+                with self.assertRaises(OSError):
+                    driver.require_runtime_dependency(executable, runtime, {}, root)
+            self.assertEqual(runtime.read_bytes(), b"runtime")
+
+    def test_shared_execution_runs_complete_suites_before_negative_control(self):
+        """Discovery is followed by an unfiltered execution, never a sentinel-only pass."""
+        with tempfile.TemporaryDirectory() as directory:
+            manifest, records = self.shared_records(Path(directory))
+            artifacts = driver.shared_artifacts("\n".join(map(json.dumps, records)), manifest)
+            outputs = []
+            for name in artifacts:
+                outputs.extend([driver.RUNTIME_TESTS[name] + ": test\n", "test result: ok. 4 passed; 0 failed;"])
+            with patch.object(driver, "run", side_effect=outputs) as run, patch.object(driver, "require_runtime_dependency") as negative:
+                evidence = driver.shared_tests(artifacts, Path("runtime"), {}, manifest.parent)
+            self.assertEqual(evidence.keys(), artifacts.keys())
+            self.assertEqual(negative.call_count, 2)
+            self.assertEqual([call.args[0][1:] for call in run.call_args_list],
+                             [["--list"], ["--test-threads=1"], ["--list"], ["--test-threads=1"]])
+            for output in ("0 tests", "test result: ok. 0 passed; 0 failed;"):
+                with patch.object(driver, "run", return_value=output), self.assertRaises(RuntimeError):
+                    driver.shared_tests(artifacts, Path("runtime"), {}, manifest.parent)
 
     def test_ambient_compiler_flags_profiles_and_loader_paths_are_removed(self):
         """The build case owns these settings; an invoking Cargo process cannot select them."""

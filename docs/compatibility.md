@@ -8,8 +8,8 @@ old contract revisions or different architectures are interchangeable.
 
 [`scripts/compatibility.py`](../scripts/compatibility.py) owns the independent
 build and execution policy. It uses installed Rustup toolchains and Python 3.10+
-with only the standard library. No wrapper Cargo project or extra production
-crate is introduced. Run from any working directory:
+with only the standard library. An unpublished final test fixture imports the
+shared runtime; no extra production crate is introduced. Run from any working directory:
 
 ```sh
 python3 crates/com/scripts/compatibility.py --suite cross-version --report /tmp/com-cross.json
@@ -30,12 +30,15 @@ compiler flag is interchangeable:
 
 Unspecified panic/LTO settings are unwind/off. Randomization uses seed 107.
 `cross-version` executes the two mixed-compiler rows; `build-flags` adds
-`stable-release`. `linked` also discovers and runs current C-layout, checked-value,
-recursive-interface, prepared consuming-output completion, exclusive/shared
-lifetime and persistence regressions against
-its explicitly built shared runtime. Their names and nonempty execution are
-checked; merely installing nightly or finding a successfully compiled binary is
-never a passing compatibility case.
+`stable-release`. `linked` separates ordinary C-layout, checked-value,
+recursive-interface, output-completion and lifetime regressions from actual shared
+runtime qualification. Factory registration/acquisition and persistence execute
+their complete maintained cases through the independent
+[`shared-runtime` final fixture](../api/integration-tests/fixtures/shared-runtime/Cargo.toml).
+The same case files are included by the ordinary embedded roots. Capability
+features never choose an implementation; each final assembly owns that choice.
+Exact names, nonempty execution and actual Cargo artifacts are checked. Installing
+nightly or finding a successfully compiled binary never passes a compatibility case.
 
 Stable/nightly are rolling selectors, independent of the COM crates' declared
 Rust 1.85 minimum. The separate `com-msrv` CI job runs the existing floor suite:
@@ -70,10 +73,28 @@ comes from executing its CI row, not from another platform's successful build.
    compiler/profile policy. The host links the freshly built runtime.
 4. Require the exact nonempty artifacts. Copy only the executable, runtime and
    plugin into a relocation directory. Clean each build target after copying it.
-5. Run the existing [example host](../../../examples/com-plugin/src/main.rs) from
+5. In linked/instrumented rows, run the ordinary ABI group without staged runtime
+   paths. Build the independent shared test fixture once with `--locked --no-run
+   --message-format=json`. Its committed lockfile supports Rust 1.85; missing or
+   stale child locks fail rather than being regenerated. Admit exactly its two
+   expected test artifacts and maintained case roots, rejecting runtime
+   implementation artifacts even when cached. Cargo supplies executable paths.
+   The fixture's build script owns final test linker arguments (`-lnc_com`, or
+   `nc_com.dll.lib` on MSVC). This keeps the import after Rust library references
+   on Rust 1.85, whose `rustc-link-lib` ordering can otherwise discard it under
+   ELF `--as-needed`. No runtime implementation is a Rust dependency of this fixture.
+6. Relocate these two executables into a private sibling directory, then clean
+   their build target and remove the runtime link directory before discovery.
+   Discover exact sentinels and execute both complete suites with
+   `--test-threads=1`. Withhold only the staged runtime and require discovery to
+   fail without listing tests, restoring the library even on launch failure.
+   Check the executables' unchanged hashes. Neither matching test counts nor
+   exported-symbol absence alone establishes the final assembly.
+7. Run the existing [example host](../../../examples/com-plugin/src/main.rs) from
    that directory, with the loader path restricted to the staged libraries and
    the temporary runtime link directory removed. Ordinary OS dependencies remain.
-6. Require successful exit and the completion marker printed after all assertions.
+8. Require successful exit and the completion marker printed after all assertions.
+   Reports distinguish the ordinary group, shared runtime cases and sample.
 
 The shared example exercises typed factory construction, inherited interface
 calls, exclusive mutation, events delivered into the host's concrete queue,
@@ -85,9 +106,10 @@ release/abort builds. Normal completion crosses calls in both directions; panic
 settings are build policies, not permission to unwind over a COM call.
 
 Native C layout and malformed copied/nested boolean values are separate explicit
-checks in `linked`, as are the full unique-owner and shared weak-lifetime test
-targets. They are not falsely described as coverage provided by the small
-cross-compiler example alone. The monolith remains a separate integration test
+checks in `linked`, as are the runtime-free unique-owner and weak-lifetime test
+targets. These ordinary assemblies do not qualify shared runtime linkage. The
+separate final fixture qualifies both factory and persistence cases against the
+staged library. The monolith remains a separate integration test
 because it must work without any native NeoCogi libraries.
 
 ## Entry points, safety checks and CI
@@ -120,9 +142,11 @@ plugin and test harnesses under the same sanitizer. Instrumented executables
 export sanitizer hooks before linker section collection: a later-loaded plugin
 may need a hook that the host itself never called. Without that export,
 ThreadSanitizer tests could pass before plugin acquisition failed on an undefined
-`__tsan_atomic64_exchange`. The six Rust targets from `linked` and the three
-library suites execute against the instrumented runtime;
-the relocated example then executes without its build targets. Native-C layout
+`__tsan_atomic64_exchange`. The six runtime-free Rust targets and three intentionally
+embedded library suites retain their ordinary mode under instrumentation. The
+two independent factory/persistence targets import the instrumented shared runtime
+and run after build/link cleanup, including the missing-runtime control. The
+relocated example then executes without its build targets. Native-C layout
 checks remain in `linked`, since this driver does not instrument the C compiler.
 Leak reporting is disabled for sanitizer execution because successful plugin
 libraries and process runtime registrations intentionally remain pinned. Address
