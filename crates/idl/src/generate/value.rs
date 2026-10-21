@@ -1,7 +1,71 @@
 //! One typed application/value plan for copied and owning IDL aggregates.
 use super::*;
-use neocogi_com_codegen::ValueCase;
+use neocogi_com_codegen::{ScalarDomain, ScalarMember, ScalarPlan, ValueCase};
 use syn::parse::Parser;
+
+/// Lowers checked integer values directly into the shared backend's scalar plan.
+/// Dense names are compiler policy; the backend receives their resolved text/order.
+pub(super) fn generate_scalar(graph: &Generation<'_>, declaration: &Declaration, identity: &crate::DeclarationIdentity) -> Result<String, GenerateError> {
+    let (repr, domain, members) = match &declaration.kind {
+        DeclarationKind::Enum(enumeration) => {
+            let mut previous = -1i64;
+            let members = enumeration
+                .variants
+                .iter()
+                .map(|variant| {
+                    let value = variant.discriminant.unwrap_or(previous + 1);
+                    previous = value;
+                    Ok(ScalarMember {
+                        name: rust_ident(&variant.name)?,
+                        value,
+                        docs: origin_docs(&variant.docs, &variant.span),
+                    })
+                })
+                .collect::<Result<Vec<_>, GenerateError>>()?;
+            let domain = if enumeration.dense {
+                let names = enumeration.names.map(|policy| match policy {
+                    EnumNames::SnakeCase => enumeration
+                        .variants
+                        .iter()
+                        .map(|variant| syn::LitStr::new(&snake_case(&variant.name), proc_macro2::Span::call_site()))
+                        .collect(),
+                });
+                ScalarDomain::DenseEnumeration { names }
+            } else {
+                ScalarDomain::Enumeration
+            };
+            (enumeration.repr, domain, members)
+        }
+        DeclarationKind::BitEnum(flags) => {
+            let members = flags
+                .flags
+                .iter()
+                .map(|flag| {
+                    Ok(ScalarMember {
+                        name: rust_ident(&flag.name)?,
+                        value: i64::try_from(flag.value).map_err(|_| GenerateError::new("resolved flag exceeds supported integer widths"))?,
+                        docs: origin_docs(&flag.docs, &flag.span),
+                    })
+                })
+                .collect::<Result<Vec<_>, GenerateError>>()?;
+            (flags.repr, ScalarDomain::Flags, members)
+        }
+        _ => return Err(GenerateError::new("scalar emission requires a fieldless enum or flag set")),
+    };
+    let repr = enum_repr(repr);
+    let signature = signature_literal(identity.abi_signature);
+    let plan = ScalarPlan {
+        name: rust_ident(&declaration.name)?,
+        visibility: syn::parse_quote!(pub),
+        docs: declaration_docs(graph, declaration),
+        repr: syn::parse_quote!(#repr),
+        members,
+        domain,
+        signature: quote! { ::neocogi_com::NcAbiSignature::from_static(#signature) },
+        persistence: graph.graph.values.definitions[&identity.qualified_name].persistence == crate::Persistence::Supported,
+    };
+    format_rust(neocogi_com_codegen::emit_scalar(&plan, &syn::parse_quote!(::neocogi_com)))
+}
 
 /// Lowers a bound aggregate once into application fields and checked wire cases.
 /// Native record layout is local; only the backend's explicit C wire crosses COM.
@@ -193,24 +257,4 @@ pub(super) fn owned_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &A
         }
         _ => return Err(GenerateError::new("resolved field has no owned value lowering")),
     })
-}
-
-/// Integer enums and bit sets persist their declared scalar, preserving unknown
-/// values exactly as their transparent COM application representation does.
-/// Payload enums instead use the generated ordinal-and-payload variant protocol.
-pub(super) fn integer_persistence(name: &Ident, repr: &TokenStream) -> TokenStream {
-    quote! {
-        impl ::neocogi_com::ComSerialize for #name {
-            /// Writes the declared integer width without native memory or padding.
-            fn com_serialize(&self, serializer: &mut ::neocogi_com::binary::Writer<'_>) -> ::core::result::Result<(), ::neocogi_com::binary::Error> {
-                ::neocogi_com::ComSerialize::com_serialize(&self.raw(), serializer)
-            }
-        }
-        impl ::neocogi_com::ComDeserialize for #name {
-            /// Restores raw values; semantic validity remains the operation's responsibility.
-            fn com_deserialize(decoder: &mut ::neocogi_com::binary::Reader<'_>) -> ::core::result::Result<Self, ::neocogi_com::binary::Error> {
-                <#repr as ::neocogi_com::ComDeserialize>::com_deserialize(decoder).map(Self::from_raw)
-            }
-        }
-    }
 }

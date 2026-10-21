@@ -18,21 +18,29 @@ fn dense_public_members_match_admission_inventory() {
         let source = format!("#[version(1)] {attributes} enum Choice: u8 {{ Ready = 0, Other = 1 }}");
         let graph = resolve_modules(vec![module("proof/public.ncidl", &source)]).unwrap();
         let source = neocogi_idl::generate_rust(&graph, "proof.public").unwrap();
-        syn::parse_file(&source)
-            .unwrap()
-            .items
-            .into_iter()
-            .filter_map(|item| match item {
-                syn::Item::Impl(item) if item.trait_.is_none() => Some(item.items),
-                _ => None,
-            })
-            .flatten()
-            .filter_map(|item| match item {
-                syn::ImplItem::Const(item) if matches!(item.vis, syn::Visibility::Public(_)) => Some(item.ident.to_string()),
-                syn::ImplItem::Fn(item) if matches!(item.vis, syn::Visibility::Public(_)) => Some(item.sig.ident.to_string()),
-                _ => None,
-            })
-            .collect()
+        /// Inherent APIs may live inside their implementation-owned anonymous scope.
+        #[derive(Default)]
+        struct Members(BTreeSet<String>);
+        impl<'ast> syn::visit::Visit<'ast> for Members {
+            fn visit_item_impl(&mut self, item: &'ast syn::ItemImpl) {
+                if item.trait_.is_none() {
+                    for item in &item.items {
+                        let name = match item {
+                            syn::ImplItem::Const(item) if matches!(item.vis, syn::Visibility::Public(_)) => Some(&item.ident),
+                            syn::ImplItem::Fn(item) if matches!(item.vis, syn::Visibility::Public(_)) => Some(&item.sig.ident),
+                            _ => None,
+                        };
+                        if let Some(name) = name {
+                            self.0.insert(name.to_string());
+                        }
+                    }
+                }
+                syn::visit::visit_item_impl(self, item);
+            }
+        }
+        let mut members = Members::default();
+        syn::visit::Visit::visit_file(&mut members, &syn::parse_file(&source).unwrap());
+        members.0
     }
     let ordinary = members("");
     for names in [false, true] {
@@ -139,10 +147,10 @@ fn generates_rust_bindings_for_a_module_graph() {
     assert!(generated.lines().count() > 20, "generated bindings must use readable multiline formatting");
     assert!(generated.contains("unsafe impl ::neocogi_com::ComInterface for UiFactoryAbi"));
     assert!(!generated.contains("factory,"));
-    assert!(generated.contains("com_int_enum"));
-    assert!(generated.contains("com_bit_enum"));
-    assert!(generated.contains("pub bitenum WindowOptions: u16"));
-    assert!(generated.contains("pub enum Filter: u8"));
+    assert!(!generated.contains("com_int_enum"));
+    assert!(!generated.contains("com_bit_enum"));
+    assert!(generated.contains("pub struct WindowOptions("));
+    assert!(generated.contains("pub struct Filter("));
     assert!(generated.contains("/// Texture sampling filter."));
     assert!(generated.contains("/// Uses the nearest texel."));
     assert!(generated.contains("pub const COUNT: usize = 2"));
@@ -269,7 +277,7 @@ fn generates_negative_signed_enum_discriminants() {
     .unwrap();
     let graph = neocogi_idl::resolve_modules(vec![source]).unwrap();
     let generated = neocogi_idl::generate_rust(&graph, "example.signed").unwrap();
-    assert!(generated.contains("Failed = -1"), "{generated}");
+    assert!(generated.contains("pub const Failed: Self = Self(-1)"), "{generated}");
     assert!(!generated.contains("com_tag"), "{generated}");
     assert!(generated.contains("Accepted(i32)"), "{generated}");
 }

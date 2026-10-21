@@ -13,6 +13,7 @@ mod method_docs;
 pub mod model;
 mod object;
 mod plugin;
+mod scalar;
 mod serialize;
 mod util;
 mod value;
@@ -24,6 +25,7 @@ pub use interface::{InterfaceExpansion, expand_interface_parts};
 pub use deserialize::{expand_derive as expand_com_deserialize_derive, expand_struct as emit_record_decoder, expand_enum as emit_enum_decoder};
 pub use serialize::expand_derive as expand_com_serialize_derive;
 pub use value::{ValueCase};
+pub use scalar::{ScalarDomain, ScalarMember, ScalarPlan, emit_scalar};
 
 /// Derives a provider trait declaration from the same typed plan as its ABI.
 /// Ownership-bearing errors return original exclusive inputs in parameter order.

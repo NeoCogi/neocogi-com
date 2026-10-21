@@ -14,36 +14,6 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 const UNKNOWN_TEST_STATUS_CODE: i32 = -77;
 const UNKNOWN_TEST_STATUS: NcStatus = NcStatus::from_code(UNKNOWN_TEST_STATUS_CODE);
 
-com_bit_enum! {
-    /// Typed flags used to exercise generated bit-set behavior.
-    bitenum TestOptions: u16 {
-        /// Empty option set.
-        NONE = 0,
-        /// First independent behavior.
-        FIRST = 1,
-        /// Second independent behavior.
-        SECOND = 2,
-        /// Declared alias combining both behaviors.
-        BOTH = 3,
-    }
-}
-
-#[test]
-fn bit_enum_preserves_typed_combinations_and_unknown_bits() {
-    let mut options = TestOptions::FIRST | TestOptions::SECOND;
-
-    assert_eq!(options, TestOptions::BOTH);
-    assert!(options.contains(TestOptions::FIRST));
-    assert!(options.intersects(TestOptions::SECOND));
-    assert!(options.is_valid());
-    options &= TestOptions::FIRST;
-    assert_eq!(options.raw(), 1);
-    options ^= TestOptions::BOTH;
-    assert_eq!(options, TestOptions::SECOND);
-    assert!(TestOptions::NONE.is_empty());
-    assert!(!TestOptions::from_raw(4).is_valid());
-}
-
 #[test]
 fn add_ref_count_increments() {
     let ref_count = AtomicU32::new(1);

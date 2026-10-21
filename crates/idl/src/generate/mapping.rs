@@ -4,10 +4,9 @@ use std::collections::BTreeMap;
 use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{
-    parse::{Parse, ParseStream},
     spanned::Spanned,
     visit::{self, Visit},
-    Attribute, Token,
+    Attribute,
 };
 use crate::{Declaration, DeclarationKind, ResolvedModule, SourceSpan, VariantFields};
 use crate::source_map::*;
@@ -142,13 +141,9 @@ fn map_syntax(
         parent,
         scope: String::new(),
         mappings,
-        error: None,
     };
     mapper.visit_file(&syntax);
-    match mapper.error {
-        Some(error) => Err(GenerateError::new(format!("cannot map generated value macro: {error}"))),
-        None => Ok(()),
-    }
+    Ok(())
 }
 
 /// Traverses owned syntax with ordinary exclusive access; no shared mutation is needed.
@@ -163,8 +158,6 @@ struct Mapper<'a> {
     scope: String,
     /// Result buffer owned by the module generation call.
     mappings: &'a mut Vec<SourceMapping>,
-    /// First unexpected COM macro shape; propagated after the infallible visitor completes.
-    error: Option<syn::Error>,
 }
 impl Mapper<'_> {
     /// Emits one syntax range under a temporary origin/name scope, then restores its parent.
@@ -219,7 +212,7 @@ impl Mapper<'_> {
     }
 }
 impl<'ast> Visit<'ast> for Mapper<'_> {
-    /// Covers every item form emitted by this generator; macro bodies are handled separately.
+    /// Covers every ordinary item form emitted by the typed backend.
     fn visit_item(&mut self, item: &'ast syn::Item) {
         let (attrs, kind, name) = match item {
             syn::Item::Struct(value) => (&value.attrs, SourceMapKind::Struct, value.ident.to_string()),
@@ -268,55 +261,10 @@ impl<'ast> Visit<'ast> for Mapper<'_> {
         });
     }
 
-    /// COM integer/flag macros contain IDL-shaped enum syntax rather than ordinary Rust items.
-    /// Parse their tokens directly to preserve final-file spans without rewriting source text.
-    fn visit_item_macro(&mut self, item: &'ast syn::ItemMacro) {
-        match item.mac.path.segments.last().map(|segment| segment.ident.to_string()).as_deref() {
-            Some("com_int_enum" | "com_bit_enum") => match syn::parse2::<MacroEnum>(item.mac.tokens.clone()) {
-                Ok(value) => self.enter(&value.attrs, item.span(), SourceMapKind::Enum, value.name.to_string(), |mapper| {
-                    for variant in &value.variants {
-                        mapper.visit_variant(variant);
-                    }
-                }),
-                Err(error) if self.error.is_none() => self.error = Some(error),
-                Err(_) => {}
-            },
-            _ => visit::visit_item_macro(self, item),
-        }
-    }
-}
-
-/// The small enum grammar shared by the two generated COM value macros.
-struct MacroEnum {
-    /// Docs inside the macro identify the declaration that owns its alternatives.
-    attrs: Vec<Attribute>,
-    /// Public generated value type name.
-    name: syn::Ident,
-    /// Alternatives retain their original formatted-token locations.
-    variants: syn::punctuated::Punctuated<syn::Variant, Token![,]>,
-}
-impl Parse for MacroEnum {
-    /// Consumes only the generator's known grammar and rejects unexpected trailing tokens.
-    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
-        let attrs = input.call(Attribute::parse_outer)?;
-        input.parse::<syn::Visibility>()?;
-        match input.peek(Token![enum]) {
-            true => {
-                input.parse::<Token![enum]>()?;
-            }
-            false => {
-                let keyword = input.parse::<syn::Ident>()?;
-                if keyword != "bitenum" {
-                    return Err(syn::Error::new(keyword.span(), "expected enum or bitenum"));
-                }
-            }
-        }
-        let name = input.parse()?;
-        input.parse::<Token![:]>()?;
-        input.parse::<syn::Type>()?;
-        let body;
-        syn::braced!(body in input);
-        let variants = body.parse_terminated(syn::Variant::parse, Token![,])?;
-        Ok(Self { attrs, name, variants })
+    /// Scalar enum/flag members are ordinary associated constants with their own IDL origins.
+    fn visit_impl_item_const(&mut self, item: &'ast syn::ImplItemConst) {
+        self.enter(&item.attrs, item.span(), SourceMapKind::Constant, item.ident.to_string(), |mapper| {
+            visit::visit_impl_item_const(mapper, item)
+        });
     }
 }

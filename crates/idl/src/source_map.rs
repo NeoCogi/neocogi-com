@@ -62,7 +62,7 @@ pub enum SourceMapKind {
     Declaration,
     /// Concrete Rust record or generated message wire representation.
     Struct,
-    /// Rust enum or the enum-shaped body of a COM value macro.
+    /// Concrete Rust enum, including ordinary payload enums.
     Enum,
     /// Generated message payload union.
     Union,
@@ -76,9 +76,9 @@ pub enum SourceMapKind {
     Method,
     /// Named or positional record/variant field.
     Field,
-    /// Enum alternative or flag in a COM value macro.
+    /// Alternative in a concrete Rust enum.
     Variant,
-    /// Constant derived from its owning declaration.
+    /// Top-level or associated constant, including scalar enum values and flags.
     Constant,
     /// Type alias derived from its owning declaration.
     Type,

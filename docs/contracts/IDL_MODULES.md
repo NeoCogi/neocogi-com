@@ -272,6 +272,15 @@ integer newtype and preserves unknown values. An enum with tuple or named
 payloads generates a tagged sum representation. This keeps ordinary protocol
 enumerations compact while making payload layout explicit.
 
+Fieldless enum and flag wrappers, constants, checked live codecs, nominal
+signatures and eligible raw-integer persistence are emitted directly by the typed
+Rust backend. Generated output contains ordinary structs and impls, with no
+intermediate scalar macro grammar or formatter text rewriting. Source maps visit
+those ordinary Rust nodes: scalar wrappers are structs and their authored values
+are associated constants, each retaining its exact IDL origin. Payload alternatives
+remain Rust enum variants. The compact integer representation does not permit
+skipping live enum-domain or known-bit validation.
+
 Enum classification follows the declaration, before generic specialization. If
 any variant has tuple or named fields (including a `()` payload), the whole declaration
 is a tagged sum. Every variant then receives its zero-based declaration ordinal;

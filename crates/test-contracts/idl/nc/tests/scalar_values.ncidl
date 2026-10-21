@@ -1,0 +1,52 @@
+#[version(1)]
+/// Unsigned byte boundary values and a deliberately sparse live domain.
+enum Byte: u8 { Zero = 0, Maximum = 255 }
+#[version(1)]
+/// Unsigned sixteen-bit limits use their exact declared storage width.
+enum Short: u16 { Zero = 0, Maximum = 65535 }
+#[version(1)]
+/// Unsigned thirty-two-bit values must not narrow through signed storage.
+enum Word: u32 { Zero = 0, Maximum = 4294967295 }
+#[version(1)]
+/// Signed byte emission retains negative extrema and sparse unknown values.
+enum SignedByte: i8 { Minimum = -128, Negative = -1, Zero = 0, Maximum = 127 }
+#[version(1)]
+/// Signed sixteen-bit limits survive both live and persistent conversion.
+enum SignedShort: i16 { Minimum = -32768, Maximum = 32767 }
+#[version(1)]
+/// Signed thirty-two-bit minimum cannot be formed by overflowing its magnitude.
+enum SignedWord: i32 { Minimum = -2147483648, Maximum = 2147483647 }
+#[version(1)]
+/// A complete table axis exercises canonical names and unknown ordinals.
+#[dense]
+#[names(snake_case)]
+enum Order: u8 { FirstItem = 0, LastItem = 1 }
+#[version(1)]
+/// Typed combinations, aliases and the explicit empty value retain their behavior.
+bitenum TestOptions: u16 { NONE = 0, FIRST = 1, SECOND = 2, BOTH = 3 }
+#[version(1)]
+/// The most significant byte bit remains unsigned.
+bitenum TinyFlags: u8 { LOW = 1, HIGH = 128 }
+#[version(1)]
+/// The most significant word bit remains unsigned.
+bitenum WideFlags: u32 { LOW = 1, HIGH = 2147483648 }
+#[version(1)]
+/// Real native aggregate conversion must recurse into restricted scalar domains.
+struct Values {
+    /// A fieldless enum still requires live domain validation.
+    byte: Byte,
+    /// A combined flag set checks its declared bit mask.
+    flags: TestOptions,
+}
+#[version(1)]
+/// Production generated clients and thunks exercise scalars through actual ABI slots.
+interface IScalars {
+    /// Preserves valid byte values and rejects all undeclared wire values.
+    fn byte(&self, value: Byte) -> Result<Byte>;
+    /// Every combination of the two known bits is valid.
+    fn flags(&self, value: TestOptions) -> Result<TestOptions>;
+    /// High unsigned flag bits survive raw calls.
+    fn tiny(&self, value: TinyFlags) -> Result<TinyFlags>;
+    /// Aggregate conversion cannot bypass its scalar fields' checks.
+    fn values(&self, value: Values) -> Result<Values>;
+}

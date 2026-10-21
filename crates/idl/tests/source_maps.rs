@@ -47,7 +47,7 @@ fn graph(reverse: bool) -> neocogi_idl::ResolvedModules {
     resolve_modules(vec![parse_module_parts(Path::new("example/widgets"), &parts).unwrap()]).unwrap()
 }
 
-/// Definitions and members map through formatting, macros and closed generic code.
+/// Ordinary Rust definitions and members map through formatting and closed generic code.
 #[test]
 fn formatted_rust_and_derived_helpers_retain_exact_idl_origins() {
     let generated = generate_rust_with_source_map(&graph(false), "example.widgets").unwrap();
@@ -57,8 +57,8 @@ fn formatted_rust_and_derived_helpers_retain_exact_idl_origins() {
     for (rust, idl, needle, path, kind) in [
         ("pub struct Size", TYPES, "Size", "types.ncidl", SourceMapKind::Struct),
         ("pub width:", TYPES, "width", "types.ncidl", SourceMapKind::Field),
-        ("Right = 1", TYPES, "Right", "types.ncidl", SourceMapKind::Variant),
-        ("ACTIVE = 1", TYPES, "ACTIVE", "types.ncidl", SourceMapKind::Variant),
+        ("pub const Right:", TYPES, "Right", "types.ncidl", SourceMapKind::Constant),
+        ("pub const ACTIVE:", TYPES, "ACTIVE", "types.ncidl", SourceMapKind::Constant),
         ("fn resize(", WIDGETS, "resize", "controls.ncidl", SourceMapKind::Method),
         ("pub trait Textbox", WIDGETS, "Textbox", "controls.ncidl", SourceMapKind::Trait),
         ("Cancelled", TYPES, "Cancelled", "types.ncidl", SourceMapKind::Variant),
@@ -68,7 +68,7 @@ fn formatted_rust_and_derived_helpers_retain_exact_idl_origins() {
         assert_eq!(map.sources[entry.original.source].path, format!("example/widgets/{path}"), "{rust}");
         assert_eq!(entry.original.range.start, position(idl, needle), "{rust}");
     }
-    // Raw wire helpers now come from the shared macro; source navigation maps
+    // Raw wire helpers come from the typed backend; source navigation maps
     // their authored value declaration rather than synthetic receiver methods.
     // The owned payload and borrowed wire field share the authored field location.
     let text_fields = map

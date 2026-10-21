@@ -13,7 +13,8 @@ The single `neocogi-idl` package separates responsibilities into Rust modules:
   Cargo `links`/`DEP_*`. Build scripts use `neocogi_idl::cargo::Module`.
 - `generate` lowers bound ownership into typed method/value plans and emits complete
   Rust through `neocogi-com-codegen`, with fixed declaration signatures. Generated
-  contracts do not invoke interface/value attribute macros or reparse Rust types.
+  contracts do not invoke interface/value attribute or scalar declaration macros,
+  rewrite formatted declarations, or reparse Rust types to recover their contracts.
   Its pure entrypoints perform no Cargo environment access.
 - `tools/idl/example-contracts` and `example-consumer-contracts` cover standalone
   and imported contracts. [examples/com-plugin](../../../examples/com-plugin)

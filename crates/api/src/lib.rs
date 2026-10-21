@@ -119,7 +119,6 @@ mod data;
 pub mod design;
 /// Built-in typed queue contracts and construction-bound producer storage.
 pub mod events;
-mod macros;
 mod object;
 pub mod persistence;
 #[cfg(feature = "runtime")]
@@ -134,7 +133,7 @@ pub use neocogi_com_core::{NcCopyFromBufferOffset, WeakComPtr, NcWeakRaw};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
-pub use macros::{ComDeserialize, ComSerialize, com_object, plugin};
+pub use neocogi_com_macros::{ComDeserialize, ComSerialize, com_object, plugin};
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{format_abi_signature, format_method_signature};
 pub use neocogi_com_core::{

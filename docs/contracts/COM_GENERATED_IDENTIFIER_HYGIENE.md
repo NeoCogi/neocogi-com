@@ -79,8 +79,8 @@ allocation, so there is no cyclic-constructor binder or promotion state.
 
 Support types/variants are qualified through `::core` and the explicit COM facade.
 `Option`, `Some` and `None` remain legal IDL type names. Generated standard derives,
-assertions and other macros name their actual owner. Integer-enum and flag helpers
-select `ComValue` operations explicitly and inline the declared flag-bit union
+assertions and other macros name their actual owner. Direct scalar enum/flag emission
+selects `ComValue` operations explicitly and inlines the declared flag-bit union
 rather than inventing a private inherent `KNOWN_BITS` member.
 
 Plugin acquisition uses `::core::option::Option::Some`. An omitted version uses

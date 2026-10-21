@@ -4,6 +4,11 @@ Typed Rust emission shared by `neocogi-idl` and the implementation macros.
 Canonical identities and contract validation belong to IDL; core remains
 independent of the build tool and retains freshness-checked bootstrap bindings.
 
+Resolved scalar plans emit transparent enum/flag wrappers, constants, checked
+live conversion and eligible raw persistence directly. The same lexical binding
+ownership used by interfaces and aggregates protects printed scalar Rust. No
+declarative scalar frontend or macro-body source-map parser remains.
+
 Compiler-dependent naming consumers and bootstrap freshness live in
 `neocogi-idl::backend_tests`. The backend has no dependency back to its compiler,
 including in tests. This keeps normal archive publication ordered core → backend

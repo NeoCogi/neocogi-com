@@ -350,7 +350,6 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
         struct Persistent { bytes: ambient_bytes!() }
         #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
         pub struct PublicPersistent { inner: Persistent }
-        neocogi_com::com_int_enum! { enum NativeTag: u8 { Original = 17, Replacement = 73 } }
         #[derive(neocogi_com::ComSerialize, neocogi_com::ComDeserialize)]
         pub struct Envelope { inner: Tree, tag: u8 }
         pub fn envelope() -> Envelope {
@@ -573,15 +572,17 @@ fn authored_wire_names_are_distinct_from_private_wire_definitions() {
     run_consumers("wire-name-ownership-proof", cases);
 }
 
-/// Exported declarative helpers and interface metadata obey the same support rule.
+/// Direct scalar emission and interface metadata obey the same support rule.
 #[test]
 fn core_support_cannot_be_replaced_by_application_traits_or_macros() {
     let cases = [false, true].map(|expand| {
-        let declaration = contract("#[version(1)] interface IValue { fn echo(&self, value: u32) -> Result<u32>; }");
-        (
-            format!("printed={expand}"),
-            format!(
-                r#"
+        let declaration = contract(
+            "#[version(1)] enum Tag: u8 { Ready = 1, Other = 3 } \
+             #[version(1)] bitenum Flags: u8 { KNOWN_BITS = 1, WRITABLE = 2 } \
+             #[version(1)] interface IValue { fn echo(&self, value: u32) -> Result<u32>; }",
+        );
+        let source = format!(
+            r#"
             #![allow(dead_code, unused_macros)]
             struct Default;
             macro_rules! matches {{ ($($input:tt)*) => {{ true }}; }}
@@ -589,8 +590,6 @@ fn core_support_cannot_be_replaced_by_application_traits_or_macros() {
             macro_rules! concat {{ ($($input:tt)*) => {{ "captured" }}; }}
             macro_rules! assert {{ ($($input:tt)*) => {{ compile_error!("application assert selected") }}; }}
             macro_rules! panic {{ ($($input:tt)*) => {{ compile_error!("application panic selected") }}; }}
-            neocogi_com::com_int_enum! {{ pub enum Tag: u8 {{ Ready = 1, Other = 3 }} }}
-            neocogi_com::com_bit_enum! {{ pub bitenum Flags: u8 {{ KNOWN_BITS = 1, WRITABLE = 2 }} }}
             impl Tag {{
                 fn encode_prechecked(&self) -> u32 {{ 99 }}
                 fn decode_prechecked(_: u8) -> Result<Self, neocogi_com::NcStatus> {{ Ok(Self::Other) }}
@@ -623,8 +622,8 @@ fn core_support_cannot_be_replaced_by_application_traits_or_macros() {
                 ::core::assert_eq!(owner.echo(73).unwrap(), 73);
             }}
         "#
-            ),
-        )
+        );
+        (format!("printed={expand}"), source_items(&source, expand))
     });
     run_consumers("core-support-owner-proof", cases);
 }

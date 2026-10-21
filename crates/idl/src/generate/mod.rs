@@ -8,7 +8,7 @@ use crate::{
 };
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
-use neocogi_com_core::{NcComDenseEnumMember as DenseMember, NcComInterfaceCompanion};
+use neocogi_com_core::NcComInterfaceCompanion;
 
 mod events;
 mod lower;
@@ -464,121 +464,14 @@ fn generate_imports(graph: &Generation<'_>, module: &ResolvedModule) -> Result<T
 
 /// Generates one public declaration from its resolved source-order identity.
 fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration, source_index: usize) -> Result<String, GenerateError> {
-    let declaration_docs = declaration_docs(graph, declaration);
-    let name = rust_ident(&declaration.name)?;
     let identity = module
         .declarations
         .get(source_index)
         .ok_or_else(|| GenerateError::new("resolved declaration order does not match its source module"))?;
     match &declaration.kind {
-        DeclarationKind::Struct(_) => return value::generate_aggregate(graph, module, declaration, identity),
-        DeclarationKind::Enum(enumeration) if enumeration.has_payload() => return value::generate_aggregate(graph, module, declaration, identity),
-        _ => {}
-    }
-    // One contract module remains the compatibility unit, but the resolver
-    // folds the declaration ID into each signature so typed metadata can still
-    // distinguish two aggregates from the same exact module revision.
-    let assigned_signature = signature_literal(identity.abi_signature);
-    match &declaration.kind {
-        DeclarationKind::Struct(_) => unreachable!("records use the typed aggregate plan"),
-        DeclarationKind::Enum(enumeration) => {
-            let repr = enum_repr(enumeration.repr);
-            let value_names = enumeration
-                .variants
-                .iter()
-                .map(|variant| rust_ident(&variant.name))
-                .collect::<Result<Vec<_>, _>>()?;
-            let dense_members = if enumeration.dense {
-                let count = enumeration.variants.len();
-                let count_member = rust_ident(DenseMember::Count.name())?;
-                let all_member = rust_ident(DenseMember::All.name())?;
-                let names_member = rust_ident(DenseMember::Names.name())?;
-                let canonical_member = rust_ident(DenseMember::CanonicalName.name())?;
-                let canonical_members = match enumeration.names {
-                    Some(EnumNames::SnakeCase) => {
-                        let names = enumeration
-                            .variants
-                            .iter()
-                            .map(|variant| Literal::string(&snake_case(&variant.name)))
-                            .collect::<Vec<_>>();
-                        quote! {
-                            /// Canonical names corresponding exactly to [`Self::ALL`].
-                            pub const #names_member: [&'static str; Self::#count_member] = [#(#names),*];
-
-                            /// Returns the canonical name, or `None` for an unknown ABI value.
-                            pub const fn #canonical_member(self) -> ::core::option::Option<&'static str> {
-                                let ordinal = self.raw() as usize;
-                                if ordinal < Self::#count_member { ::core::option::Option::Some(Self::#names_member[ordinal]) } else { ::core::option::Option::None }
-                            }
-                        }
-                    }
-                    None => quote! {},
-                };
-                quote! {
-                    impl #name {
-                        /// Number of declared values in this dense IDL domain.
-                        pub const #count_member: usize = #count;
-
-                        /// Every declared value in its zero-based discriminant order.
-                        pub const #all_member: [Self; Self::#count_member] = [#(Self::#value_names),*];
-
-                        #canonical_members
-                    }
-                }
-            } else {
-                quote! {}
-            };
-            let mut previous = -1i64;
-            let variants = enumeration
-                .variants
-                .iter()
-                .map(|variant| {
-                    let variant_docs = origin_docs(&variant.docs, &variant.span);
-                    let variant_name = rust_ident(&variant.name)?;
-                    let discriminant = variant.discriminant.unwrap_or(previous + 1);
-                    previous = discriminant;
-                    // Signed IDL representations may use negative values. Emit a
-                    // unary minus and magnitude so both Rust enum syntax and the
-                    // COM tag parser see the same integer expression.
-                    let tag = if discriminant < 0 {
-                        let magnitude = Literal::u64_unsuffixed(discriminant.unsigned_abs());
-                        quote! { -#magnitude }
-                    } else {
-                        let value = Literal::u64_unsuffixed(discriminant as u64);
-                        quote! { #value }
-                    };
-                    Ok(quote! { #variant_docs #variant_name = #tag, })
-                })
-                .collect::<Result<Vec<_>, GenerateError>>()?;
-            let mut source = format_macro_enum("com_int_enum", "enum", declaration_docs, &name, &repr, &variants)?;
-            if graph.graph.values.definitions[&identity.qualified_name].persistence == crate::Persistence::Supported {
-                source.push_str(&format_rust(value::integer_persistence(&name, &repr))?);
-            }
-            source.push_str(&format_rust(quote! {
-                #dense_members
-                impl ::neocogi_com::ComValueType for #name { const VALUE_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(#assigned_signature); }
-            })?);
-            Ok(source)
-        }
-
-        DeclarationKind::BitEnum(bit_enum) => {
-            let repr = enum_repr(bit_enum.repr);
-            let flags = bit_enum
-                .flags
-                .iter()
-                .map(|flag| {
-                    let flag_docs = origin_docs(&flag.docs, &flag.span);
-                    let flag_name = rust_ident(&flag.name)?;
-                    let value = Literal::u64_unsuffixed(flag.value);
-                    Ok(quote! { #flag_docs #flag_name = #value, })
-                })
-                .collect::<Result<Vec<_>, GenerateError>>()?;
-            let mut source = format_macro_enum("com_bit_enum", "bitenum", declaration_docs, &name, &repr, &flags)?;
-            source.push_str(&format_rust(quote! {
-                impl ::neocogi_com::ComValueType for #name { const VALUE_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(#assigned_signature); }
-            })?);
-            Ok(source)
-        }
+        DeclarationKind::Struct(_) => value::generate_aggregate(graph, module, declaration, identity),
+        DeclarationKind::Enum(enumeration) if enumeration.has_payload() => value::generate_aggregate(graph, module, declaration, identity),
+        DeclarationKind::Enum(_) | DeclarationKind::BitEnum(_) => value::generate_scalar(graph, declaration, identity),
         DeclarationKind::Interface(_) => {
             let parts = interface_parts(graph, module, declaration)?;
             let abi = parts.abi;
@@ -642,51 +535,6 @@ fn interface_parts(
         methods,
     };
     neocogi_com_codegen::expand_interface_parts(plan).map_err(|error| GenerateError::new(error.to_string()))
-}
-
-/// Formats the Rust-like body accepted by one declarative COM enum macro.
-fn format_macro_enum(
-    macro_name: &str,
-    keyword: &str,
-    declaration_docs: TokenStream,
-    name: &Ident,
-    repr: &TokenStream,
-    members: &[TokenStream],
-) -> Result<String, GenerateError> {
-    // Pretty-printers intentionally treat arbitrary macro bodies as opaque.
-    // Format an equivalent, valid Rust enum first, then restore the small
-    // `enum Name: Repr` / `bitenum Name: Repr` grammar owned by our macros.
-    let formatted = format_rust(quote! {
-        #declaration_docs
-        #[repr(#repr)]
-        pub enum #name { #(#members)* }
-    })?;
-    let repr_attribute = format!("#[repr({repr})]");
-    let rust_declaration = format!("pub enum {name} {{");
-    let macro_declaration = format!("pub {keyword} {name}: {repr} {{");
-    let mut found_declaration = false;
-    let mut source = format!("::neocogi_com::{macro_name}! {{\n");
-
-    for line in formatted.lines() {
-        // The representation is expressed after the name in the macro grammar,
-        // so its temporary standard-Rust attribute must not remain in the body.
-        if line == repr_attribute {
-            continue;
-        }
-        source.push_str("    ");
-        if line == rust_declaration {
-            source.push_str(&macro_declaration);
-            found_declaration = true;
-        } else {
-            source.push_str(line);
-        }
-        source.push('\n');
-    }
-    if !found_declaration {
-        return Err(GenerateError::new(format!("formatted enum {name} lost its generated declaration")));
-    }
-    source.push_str("}\n");
-    Ok(source)
 }
 
 /// Converts one Rust-like variant identifier into a stable snake-case name.
