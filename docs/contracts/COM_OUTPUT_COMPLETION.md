@@ -167,4 +167,5 @@ maximum alternatives before entry, and exercise malformed successful output.
 uses independent output signatures and raw storage. Readable-input regressions
 still reject malformed bits before implementation entry; transformations now
 supply explicit input plus separate output. See
-benchmark evidence for CPU and shipping-size results.
+[output ownership regressions](../../crates/com/api/integration-tests/output_completion.rs)
+for executed behavior checks.

@@ -164,12 +164,8 @@ historical measurements, not claims about current source.
 | Same headers plus separate codec optimization | 1,482,544 |
 | One-pointer headers and static owner offsets (`1129d592`) | 1,479,896 |
 
-The metadata-heavy version's regression and rollback are documented in
-diamond-storage rollback. The
-canonical-storage/codec evidence
-and one-pointer-header evidence
-retain compiler, hashes, sections, object sizes and query samples. These changes
-had still not achieved the requested 1,400,000-byte deployment target.
+These historical stages had not achieved the requested 1,400,000-byte
+deployment target. Raw run archives are excluded from Git.
 
 ## Initial object/table measurement
 
@@ -224,12 +220,8 @@ for the baseline and 18–20 for the candidate. These probes used the host's
 No query speedup is established; earlier measurements under different scheduling
 conditions must not be compared as though they were this paired run.
 
-The saved evidence preserves all
-seven file hashes and sections, original capture metadata, source commits, raw
-query samples, allocation figures and validation results. Candidate files were
-captured before commit and cleanup; a final rebuild after implementation edits
-produced identical hashes for all seven artifacts. The record distinguishes that
-working-tree capture from the later implementation commit.
+Raw run archives are excluded from Git; repeat the workload before drawing
+conclusions about the current implementation.
 
 Validation passed 266 COM/core/macros/runtime/IDL tests, followed by a 31-test
 runtime run adding one bootstrap regression; 85 widget/design tests; 24 offscreen
@@ -360,14 +352,9 @@ the generated object query is therefore a size/performance tradeoff in this
 workload, not a free optimization. No application frame-time measurement was made.
 The code-size result must be assessed with this slowdown visible.
 
-The follow-up evidence records
-the independent captures, final source revision, raw query samples, checks and
-linker-only experiment. Default linker output was rebuilt after the experiment;
-all seven hashes matched the final uncompressed capture before cleanup.
-
-The remaining 9,872-byte increase is attributed in the
-Cargo Bloat follow-up, including exact query-table
-relocation counts, construction-function disassembly and a reverted experiment.
+A separate Cargo Bloat/disassembly investigation attributed the remaining
+9,872-byte increase. Its broad acquisition-outlining experiment increased text
+by 2,356 bytes and was reverted; this is not a blanket recommendation to outline.
 
 ## Verification and reproduction
 
@@ -418,9 +405,8 @@ Final strong release destroys the value and its resources, while weak owners kee
 only the allocation capacity and class metadata alive. Constructor rollback and
 exact promotion semantics are specified in [ABI v12](../../crates/com/docs/abi-v12.md#weak-lifetime-references).
 
-The controlled full/Vulkan measurement
-reduces deployment from 1,536,440 to 1,505,688 bytes: 30,752 fewer bytes (2.00%).
-The report separates instructions, table coalescing, relocation records and the
-runtime memory tradeoff. Historical tables above remain measurements of their
+A historical matched full/Vulkan comparison reduced deployment from 1,536,440 to 1,505,688 bytes: 30,752 fewer bytes (2.00%).
+Instruction/table/relocation changes and allocation-header costs remain distinct
+from process memory. Historical tables above remain measurements of their
 named revisions; none promises that one-pointer weak handles recover the older
 1.3–1.4 MB target.

@@ -123,5 +123,5 @@ not represent the removed generic mutable-value path. IDL and its typed backend
 output parameters always use the new four-slot protocol.
 
 See [directional output](../../../docs/contracts/COM_OUTPUT_BUFFERS.md),
-[ownership completion](../../../docs/contracts/COM_OUTPUT_COMPLETION.md), and
-measurements for examples and evidence.
+[ownership completion](../../../docs/contracts/COM_OUTPUT_COMPLETION.md) for examples
+and regression requirements.

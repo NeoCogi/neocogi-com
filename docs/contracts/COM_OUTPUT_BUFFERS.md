@@ -84,8 +84,7 @@ output preserves checked wire encoding, early admission, and grouped publication
 while removing the input direction and provider scratch. It does not pass Rust
 enums, vectors, allocator ownership, or writer layout across a plugin boundary.
 
-See the benchmark protocol for generated-call CPU and
-actual full/Vulkan/min-size assembly measurements. The migration includes real generated thunks, owner failure injection, malformed
+The output migration includes real generated thunks, owner failure injection, malformed
 outputs, native C, and independently compiled host/plugin checks. Core generation
 17 and revised output-bearing fingerprints prevent mixing retired signatures.
 
