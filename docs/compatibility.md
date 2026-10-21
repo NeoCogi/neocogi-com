@@ -237,7 +237,7 @@ for allocation injection, output bounds, owner preservation, and consumer checks
 ## Published archive validation
 
 Run `bash crates/com/scripts/test-packages.sh` with Rust 1.85 installed. It creates
-real Cargo archives for the five SDK packages and inspector, extracts them into a
+real Cargo archives for the six SDK packages and inspector, extracts them into a
 fresh directory, and patches dependencies **only to those extracted archives**.
 Rust 1.85 checks all shipped targets and runs shipped executable tests and
 runnable documentation examples. An ordinary runtime build must produce both its

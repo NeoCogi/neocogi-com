@@ -91,6 +91,8 @@ methods, functions, fields, variants and helpers.
 | Integer enum or bit flag wrapper and associated constants | Its declaration and each authored member |
 | Interface method and generated forwarding methods | The authored method identifier |
 | Closed generic interface methods | The method in the generic template |
+| Closed generic roots, clients and wire helpers | The bound template's defining identifier, including imported and memberless templates |
+| Value `IDL_TYPE` and interface `IDL_INTERFACE`, including initializer bodies | The owning value/interface declaration identifier |
 | `ITextChangedEvent::text` | The event interface getter declaration |
 | Value wire and codec helpers | The originating value declaration |
 | Native enum alternatives and named fields | The originating variant and field |
@@ -101,6 +103,13 @@ known declaration or member. Positional fields inherit their variant origin.
 Origins identify the authored cause; they are not a line-for-line translation
 of generated algorithm bodies. Module constants such as `MODULE_ID` have no
 individual authored declaration and remain unmapped.
+
+Ordinary generation completes each declaration with its authoring metadata before
+mapping its formatted fragment once. There is no separate unmapped metadata tail.
+For closed generics, the existing bound template key selects the defining
+identifier; the complete application expression remains the semantic use-site
+span for diagnostics. Authored members retain their more specific origins.
+The allocation-free core bootstrap deliberately omits facade authoring metadata.
 
 The map describes the final emitted `.rs` file, including complete Rust contract
 definitions and generated client methods. It does not describe a separately
@@ -188,10 +197,11 @@ reported map paths, resolution to the authored file, unchanged-output reuse, and
 location-only edits refreshing the map without changing binding behavior.
 
 The navigation check compiles one independent nodes-contract consumer before
-starting the language server. That same Rust source supplies all eleven requests:
+starting the language server. That same Rust source supplies all thirteen requests:
 Textbox ABI/client/vtable, SliderOptions struct, LayoutTrack/ChildCrossSize enums,
 FillStates wrapper/HOVER flag, and the enum/Fixed/extent identifiers in a native
-constructor. Each definition must reach emitted nodes Rust and its adjacent map
+constructor, plus `SliderOptions::IDL_TYPE` and `TextboxAbi::IDL_INTERFACE`.
+Each definition must reach emitted nodes Rust and its adjacent map
 must match the exact expected authored IDL file and identifier range. Merely
 selecting an existing IDL file is insufficient.
 
@@ -227,4 +237,4 @@ otherwise its scratch target is removed with the temporary consumer. The server
 process is shut down on completion or failure. No editor settings are changed.
 The original eight-symbol navigation result used rust-analyzer 0.3.3057-standalone;
 that historical result predates native enum and direct scalar emission and is not
-current acceptance for these eleven requests.
+current acceptance for these thirteen requests.

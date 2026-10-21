@@ -76,9 +76,16 @@ pub(super) fn map_header(source: &str, module: &ResolvedModule, map: &mut RustSo
 }
 
 /// Maps a complete declaration fragment and refines it with nested syntax ranges.
-/// Closed generic specializations retain the source spans of their template declarations.
-pub(super) fn map_declaration(source: &str, offset: usize, declaration: &Declaration, map: &mut RustSourceMap) -> Result<(), GenerateError> {
-    let origin = original(&declaration.span, map);
+/// The caller supplies the defining identifier separately from a specialization's
+/// diagnostic use site. Authored members still refine that declaration fallback.
+pub(super) fn map_declaration(
+    source: &str,
+    offset: usize,
+    declaration: &Declaration,
+    declaration_origin: &SourceSpan,
+    map: &mut RustSourceMap,
+) -> Result<(), GenerateError> {
+    let origin = original(declaration_origin, map);
     map.mappings.push(SourceMapping {
         kind: SourceMapKind::Declaration,
         name: declaration.name.clone(),
@@ -95,7 +102,7 @@ pub(super) fn map_declaration(source: &str, offset: usize, declaration: &Declara
     let mut add = |span: &SourceSpan| {
         origins.insert(origin_label(span), original(span, map));
     };
-    add(&declaration.span);
+    add(declaration_origin);
     match &declaration.kind {
         DeclarationKind::Struct(record) => {
             for field in &record.fields {
