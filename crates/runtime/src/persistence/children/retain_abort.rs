@@ -17,16 +17,13 @@ const RETURNED_EXIT_CODE: i32 = 97;
 /// keep intentionally unbalanced synthetic counts away from ordinary Drop tests.
 pub fn assert_aborts(test_name: &str, case: &str, operation: impl FnOnce()) {
     let selection = format!("{test_name}/{case}");
-    match std::env::var(CASE_ENV) {
-        Ok(selected) => {
-            if selected == selection {
-                operation();
-                std::process::exit(RETURNED_EXIT_CODE);
-            }
-            // A child executes just its selected case, never more subprocesses.
-            return;
+    if let Ok(selected) = std::env::var(CASE_ENV) {
+        if selected == selection {
+            operation();
+            std::process::exit(RETURNED_EXIT_CODE);
         }
-        Err(_) => {}
+        // A child executes just its selected case, never more subprocesses.
+        return;
     }
 
     let output = Command::new(std::env::current_exe().expect("current test executable"))

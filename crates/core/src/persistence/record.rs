@@ -88,10 +88,10 @@ impl ComDeserialize for ObjectRecord {
     fn com_deserialize(reader: &mut binary::Reader<'_>) -> Result<Self, binary::Error> {
         reader.record(Self::FIELD_COUNT, |fields| {
             Ok(Self {
-                type_id: fields.next()?.ok_or_else(|| fields.error("missing field"))?,
-                schema_version: fields.next()?.ok_or_else(|| fields.error("missing field"))?,
-                state: fields.next()?.ok_or_else(|| fields.error("missing field"))?,
-                children: fields.next()?.ok_or_else(|| fields.error("missing field"))?,
+                type_id: fields.read_next()?.ok_or_else(|| fields.error("missing field"))?,
+                schema_version: fields.read_next()?.ok_or_else(|| fields.error("missing field"))?,
+                state: fields.read_next()?.ok_or_else(|| fields.error("missing field"))?,
+                children: fields.read_next()?.ok_or_else(|| fields.error("missing field"))?,
             })
         })
     }

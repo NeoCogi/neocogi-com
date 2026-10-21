@@ -124,8 +124,8 @@ fn native_enums_cross_copied_nested_array_and_buffer_slots() {
     assert!(matches!(Flags::ABI_TYPE, NcAbiType::Aggregate(signature) if signature == Flags::VALUE_SIGNATURE));
     assert!(matches!(Settings::ABI_TYPE, NcAbiType::Aggregate(signature) if signature == Settings::VALUE_SIGNATURE));
     assert!(matches!(ActionSet::ABI_TYPE, NcAbiType::Aggregate(signature) if signature == ActionSet::VALUE_SIGNATURE));
-    assert!(!Action::BORROW_WIRE);
-    assert!(!ActionSet::BORROW_WIRE);
+    const { assert!(!Action::BORROW_WIRE) };
+    const { assert!(!ActionSet::BORROW_WIRE) };
 }
 
 /// A later malformed enum element must not publish an earlier valid element's mutation.
@@ -181,9 +181,10 @@ fn writable_identity_buffers_retain_the_original_allocation() {
     assert_eq!(prepared.as_mut_ptr(), pointer.cast());
     let mut written = 0;
     // SAFETY: the prepared output lends the same exclusive, properly sized wire slots.
-    let mut writer = unsafe { NcOutputWriter::<u32>::from_raw(9, prepared.as_mut_ptr(), 3, &mut written) }.unwrap();
-    writer.extend_from_slice(&[1, 8]).unwrap();
-    drop(writer);
+    {
+        let mut writer = unsafe { NcOutputWriter::<u32>::from_raw(9, prepared.as_mut_ptr(), 3, &mut written) }.unwrap();
+        writer.extend_from_slice(&[1, 8]).unwrap();
+    }
     unsafe {
         *prepared.written_ptr() = written;
         prepared.convert_output().unwrap();
@@ -353,5 +354,5 @@ fn numeric_arrays_borrow_in_place_but_boolean_arrays_are_checked() {
     // SAFETY: the encoded guard borrows the original initialized numeric array.
     let decoded = unsafe { DecodedInput::<[Coordinates; 2]>::from_raw(encoded.as_ptr(), encoded.len()) }.unwrap();
     assert_eq!(decoded.as_slice().as_ptr(), values.as_ptr());
-    assert!(!<[Settings; 2]>::BORROW_WIRE);
+    const { assert!(!<[Settings; 2]>::BORROW_WIRE) };
 }

@@ -62,7 +62,7 @@ fn recursive_guard_survives_moves_and_acquires_independent_children() {
     assert_eq!(decoded, source);
     drop(moved);
     drop(source);
-    assert_eq!(decoded.children[0].enabled, false);
+    assert!(!decoded.children[0].enabled);
 }
 
 #[test]

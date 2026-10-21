@@ -88,7 +88,7 @@ pub fn expand_struct(ident: &Ident, fields: &Fields, nc: &Path, default: bool) -
                 let member = field.ident.as_ref().expect("named field");
                 let ty = &field.ty;
                 quote! {
-                    if let ::core::option::Option::Some(#field_value) = #field_reader.next::<#ty>()? {
+                    if let ::core::option::Option::Some(#field_value) = #field_reader.read_next::<#ty>()? {
                         #value.#member = #field_value;
                     }
                 }
@@ -126,7 +126,7 @@ fn construction(fields: &Fields, destination: TokenStream, field_reader: &Ident)
     };
     let values = fields.iter().map(|field| {
         let ty = &field.ty;
-        let read = quote! { #field_reader.next::<#ty>()?.ok_or_else(|| #field_reader.error(#missing))? };
+        let read = quote! { #field_reader.read_next::<#ty>()?.ok_or_else(|| #field_reader.error(#missing))? };
         match &field.ident {
             Some(member) => quote! { #member: #read },
             None => read,

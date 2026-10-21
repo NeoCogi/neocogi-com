@@ -51,6 +51,41 @@ pub struct ScalarPlan {
     pub persistence: bool,
 }
 
+/// Emits signed endpoints without narrowing the validated fixed-width value.
+fn integer(value: i64) -> TokenStream {
+    let magnitude = Literal::u64_unsuffixed(value.unsigned_abs());
+    if value < 0 {
+        quote! { -#magnitude }
+    } else {
+        quote! { #magnitude }
+    }
+}
+
+/// Derives disjoint inclusive patterns from the declared live domain. Sorting
+/// affects only membership testing, never authored constant or metadata order.
+/// Contiguous runs use ranges so ordinary generated bindings pass strict Clippy.
+fn enumeration_patterns(members: &[ScalarMember]) -> Vec<TokenStream> {
+    let mut values = members.iter().map(|member| member.value).collect::<Vec<_>>();
+    values.sort_unstable();
+    values.dedup();
+    let mut values = values.into_iter().peekable();
+    let mut patterns = Vec::new();
+    while let Some(first) = values.next() {
+        let mut last = first;
+        while values.peek().is_some_and(|next| last.checked_add(1) == Some(*next)) {
+            last = values.next().expect("peeked adjacent value");
+        }
+        let start = integer(first);
+        patterns.push(if first == last {
+            start
+        } else {
+            let end = integer(last);
+            quote! { #start..=#end }
+        });
+    }
+    patterns
+}
+
 /// Emits the complete wrapper, public operations, live codecs and eligible persistence.
 /// All implementation bindings have lexical owners so printed Rust retains hygiene.
 pub fn emit_scalar(plan: &ScalarPlan, nc: &syn::Path) -> TokenStream {
@@ -73,19 +108,10 @@ pub fn emit_scalar(plan: &ScalarPlan, nc: &syn::Path) -> TokenStream {
     let serializer = names.binding("__nc_serializer");
     let decoder = names.binding("__nc_decoder");
     let rhs = names.binding("__nc_rhs");
+    let known_mask = names.binding("__nc_known_mask");
     let ordinal = names.binding("__nc_ordinal");
     let bindings = names.binding_imports();
-    let values = members
-        .iter()
-        .map(|member| {
-            let magnitude = Literal::u64_unsuffixed(member.value.unsigned_abs());
-            if member.value < 0 {
-                quote! { -#magnitude }
-            } else {
-                quote! { #magnitude }
-            }
-        })
-        .collect::<Vec<_>>();
+    let values = members.iter().map(|member| integer(member.value)).collect::<Vec<_>>();
     let constants = members.iter().zip(&values).map(|(member, value)| {
         let ScalarMember { name, docs, .. } = member;
         quote! {
@@ -94,35 +120,51 @@ pub fn emit_scalar(plan: &ScalarPlan, nc: &syn::Path) -> TokenStream {
             pub const #name: Self = Self(#value);
         }
     });
-    let enumeration_valid = if values.is_empty() {
-        quote! { false }
-    } else {
-        quote! { ::core::matches!(self.0, #(#values)|*) }
-    };
     let (field_visibility, predicate, validation, operations) = match domain {
-        ScalarDomain::Enumeration | ScalarDomain::DenseEnumeration { .. } => (
-            quote! { pub },
-            quote! { is_known },
-            enumeration_valid,
-            quote! {
-                /// Returns whether this raw value lies outside the declared live domain.
-                pub const fn is_unknown(self) -> bool { !self.is_known() }
-            },
-        ),
-        ScalarDomain::Flags => (
-            quote! {},
-            quote! { is_valid },
-            // Inline the mask: an authored KNOWN_BITS flag remains an ordinary member.
-            quote! { self.0 & !(0 #(| #values)*) == 0 },
-            quote! {
+        ScalarDomain::Enumeration | ScalarDomain::DenseEnumeration { .. } => {
+            let patterns = enumeration_patterns(members);
+            let validation = if patterns.is_empty() {
+                quote! { false }
+            } else {
+                quote! { ::core::matches!(self.0, #(#patterns)|*) }
+            };
+            (
+                quote! { pub },
+                quote! { is_known },
+                validation,
+                quote! {
+                    /// Returns whether this raw value lies outside the declared live domain.
+                    pub const fn is_unknown(self) -> bool { !self.is_known() }
+                },
+            )
+        }
+        ScalarDomain::Flags => {
+            // Fold the declared bits once at generation time. Zero and aliases
+            // do not add runtime operations or change the public member order.
+            let known_bits = members.iter().fold(0, |mask, member| mask | member.value);
+            let mask = integer(known_bits);
+            // A typed local states the mask in the actual storage width. The
+            // same subset test covers empty, partial and full-width domains;
+            // no public mask name or width-specific validation table is needed.
+            let validation = quote! {
+                let #known_mask: #repr = #mask;
+                self.0 & !#known_mask == 0
+            };
+            (
+                quote! {},
+                quote! { is_valid },
+                // The local mask leaves authored KNOWN_BITS an ordinary member.
+                validation,
+                quote! {
                 /// Returns whether the bit set is empty.
                 pub const fn is_empty(self) -> bool { self.0 == 0 }
                 /// Returns whether every requested bit is present.
                 pub const fn contains(self, #rhs: Self) -> bool { self.0 & #rhs.0 == #rhs.0 }
                 /// Returns whether at least one requested bit is present.
                 pub const fn intersects(self, #rhs: Self) -> bool { self.0 & #rhs.0 != 0 }
-            },
-        ),
+                },
+            )
+        }
     };
     let dense = match domain {
         ScalarDomain::DenseEnumeration { names } => {

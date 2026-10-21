@@ -29,11 +29,9 @@ fn integer_assignment_presence_is_contract_data_for_templates_and_concrete_enums
 #[test]
 fn declaration_policies_are_encoded_uniformly() {
     for parameters in ["", "<T>"] {
-        for attribute in ["#[persistence(default)]"] {
-            let ordinary = format!("#[version(1)] struct Data{parameters} {{ value: u32 }}");
-            let changed = format!("{attribute} {ordinary}");
-            assert_ne!(fingerprint(&ordinary), fingerprint(&changed));
-        }
+        let ordinary = format!("#[version(1)] struct Data{parameters} {{ value: u32 }}");
+        let changed = format!("#[persistence(default)] {ordinary}");
+        assert_ne!(fingerprint(&ordinary), fingerprint(&changed));
         let ordinary = format!("#[version(1)] enum State{parameters}: u8 {{ Empty, Ready }}");
         let dense = format!("#[dense] {ordinary}");
         assert_ne!(fingerprint(&ordinary), fingerprint(&dense));

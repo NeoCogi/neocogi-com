@@ -71,7 +71,12 @@ fn deliver(object: &mut ComPtr<ExampleObjectAbi>, messages: &std::sync::mpsc::Re
         object.resize(Extent { width, height: 1 }).unwrap();
         let message = messages.try_recv().unwrap();
         let origin = message.origin.service::<ExampleObjectAbi>().unwrap().unwrap();
-        let event = message.query::<neocogi_idl_example_contracts::IExtentChangedEventAbi>().unwrap().unwrap().extent().unwrap();
+        let event = message
+            .query::<neocogi_idl_example_contracts::IExtentChangedEventAbi>()
+            .unwrap()
+            .unwrap()
+            .extent()
+            .unwrap();
         assert_eq!(event.width, width);
         assert!(origin.upgrade().unwrap().unwrap().as_com_ref().same_object(object.as_com_ref()));
     }
@@ -96,7 +101,9 @@ fn main() {
     let unobserved = neocogi_com::events::EventBinding::Unobserved;
     let mut silent = factory.create(Extent { width: 0, height: 0 }, NcValueRef::new(&unobserved).unwrap()).unwrap();
     let silent_delivery = count(|| {
-        for width in 0..10_000 { silent.resize(Extent { width, height: 1 }).unwrap(); }
+        for width in 0..10_000 {
+            silent.resize(Extent { width, height: 1 }).unwrap();
+        }
     });
     assert_eq!(silent_delivery, 10_000, "one directly posted snapshot is discarded per update");
     println!("10,000 unobserved updates: {silent_delivery} allocations");

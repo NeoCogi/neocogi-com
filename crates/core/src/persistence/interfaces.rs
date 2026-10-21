@@ -50,6 +50,10 @@ pub struct IObjectChildrenVTable {
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
     ///On success, `out` receives `< u32 as :: neocogi_com :: ComValue > :: Wire`.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
     pub count: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
@@ -66,6 +70,10 @@ pub struct IObjectChildrenVTable {
     ///- `index` uses ABI storage `< u32 as :: neocogi_com :: ComValue > :: Wire` for `u32`. Passed by value.
     ///
     ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: IUnknown >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
     pub get: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0: <u32 as ::neocogi_com::ComValue>::Wire,
@@ -300,6 +308,10 @@ pub struct IPersistableVTable {
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
     ///On success, `out` receives `< :: neocogi_com :: NcGuid as :: neocogi_com :: ComValue > :: Wire`.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
     pub type_id: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut <::neocogi_com::NcGuid as ::neocogi_com::ComValue>::Wire,
@@ -315,6 +327,10 @@ pub struct IPersistableVTable {
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
     ///On success, `out` receives `< u32 as :: neocogi_com :: ComValue > :: Wire`.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
     pub schema_version: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
@@ -330,6 +346,10 @@ pub struct IPersistableVTable {
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
     ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: INcBytesAbi >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: INcBytesAbi >`. The caller receives one shared owner and releases it when finished.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
     pub save_state: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::INcBytesAbi>,
@@ -345,6 +365,10 @@ pub struct IPersistableVTable {
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
     ///On success, `out` receives `< u32 as :: neocogi_com :: ComValue > :: Wire`.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
     pub child_count: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
@@ -361,6 +385,10 @@ pub struct IPersistableVTable {
     ///- `index` uses ABI storage `< u32 as :: neocogi_com :: ComValue > :: Wire` for `u32`. Passed by value.
     ///
     ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: IUnknown >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
     pub child: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0: <u32 as ::neocogi_com::ComValue>::Wire,
@@ -731,6 +759,10 @@ pub struct IPersistenceFactoryVTable {
     ///- `child_count` uses ABI storage `< u32 as :: neocogi_com :: ComValue > :: Wire` for `u32`. Passed by value.
     ///
     ///On success, no output value is written.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
     pub validate: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0: <u32 as ::neocogi_com::ComValue>::Wire,
@@ -754,6 +786,10 @@ pub struct IPersistenceFactoryVTable {
     ///- `children` uses ABI storage `:: neocogi_com :: ComRaw < self :: IObjectChildrenAbi >` for `:: neocogi_com :: ComRef < '_ , self :: IObjectChildrenAbi >`. This is a borrowed object/table pair. Both fields must be non-null. The callee must call `AddRef` before retaining the interface after the call returns.
     ///
     ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: IUnknown >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
+    #[allow(
+        clippy::type_complexity,
+        reason = "Raw vtable slots retain the exact flattened IDL ABI."
+    )]
     pub restore: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_0: <u32 as ::neocogi_com::ComValue>::Wire,

@@ -146,10 +146,14 @@ fn raw_documentation_matches_physical_slots_and_returned_ownership() {
     let graph = crate::resolve_modules(vec![crate::parse_module(Path::new("proof/physical.ncidl"), source).unwrap()]).unwrap();
     let generated = crate::generate_rust(&graph, "proof.physical").unwrap();
     let file = syn::parse_file(&generated).unwrap();
-    let table = file.items.iter().find_map(|item| match item {
-        syn::Item::Struct(item) if item.ident == "ShapesVTable" => Some(item),
-        _ => None,
-    }).unwrap();
+    let table = file
+        .items
+        .iter()
+        .find_map(|item| match item {
+            syn::Item::Struct(item) if item.ident == "ShapesVTable" => Some(item),
+            _ => None,
+        })
+        .unwrap();
     for (method, parameters) in [
         ("actions", vec![3, 6]),
         ("modes", vec![3]),
@@ -157,8 +161,14 @@ fn raw_documentation_matches_physical_slots_and_returned_ownership() {
         ("consume", vec![1]),
         ("number", vec![1]),
     ] {
-        let slot = table.fields.iter().find(|field| field.ident.as_ref().is_some_and(|ident| ident == method)).unwrap();
-        let syn::Type::BareFn(signature) = &slot.ty else { panic!("raw callable slot") };
+        let slot = table
+            .fields
+            .iter()
+            .find(|field| field.ident.as_ref().is_some_and(|ident| ident == method))
+            .unwrap();
+        let syn::Type::BareFn(signature) = &slot.ty else {
+            panic!("raw callable slot")
+        };
         let docs = definition_docs(&slot.attrs);
         for parameter in parameters {
             let physical = signature.inputs[parameter].ty.to_token_stream().to_string();
@@ -171,9 +181,17 @@ fn raw_documentation_matches_physical_slots_and_returned_ownership() {
         ("weak_shared", "shared weak control token"),
         ("weak_exclusive", "weak observer that retains allocation storage, never the concrete value"),
     ] {
-        let slot = table.fields.iter().find(|field| field.ident.as_ref().is_some_and(|ident| ident == method)).unwrap();
-        let syn::Type::BareFn(signature) = &slot.ty else { panic!("raw callable slot") };
-        let syn::Type::Ptr(out) = &signature.inputs.last().unwrap().ty else { panic!("output pointer") };
+        let slot = table
+            .fields
+            .iter()
+            .find(|field| field.ident.as_ref().is_some_and(|ident| ident == method))
+            .unwrap();
+        let syn::Type::BareFn(signature) = &slot.ty else {
+            panic!("raw callable slot")
+        };
+        let syn::Type::Ptr(out) = &signature.inputs.last().unwrap().ty else {
+            panic!("output pointer")
+        };
         let physical = out.elem.to_token_stream().to_string();
         let docs = definition_docs(&slot.attrs);
         let returned = docs.lines().find(|line| line.starts_with("On success,")).unwrap();
@@ -233,10 +251,13 @@ fn raw_documentation_matches_physical_slots_and_returned_ownership() {
             assert!(weak.upgrade().unwrap().is_none());
         }
     "#;
-    super::name_ownership_tests::run_consumers("physical-method-doc-consumers", [
-        ("normal".to_owned(), implementation.replace("$BINDING", &generated)),
-        ("printed".to_owned(), implementation.replace("$BINDING", &prettyplease::unparse(&file))),
-    ]);
+    super::name_ownership_tests::run_consumers(
+        "physical-method-doc-consumers",
+        [
+            ("normal".to_owned(), implementation.replace("$BINDING", &generated)),
+            ("printed".to_owned(), implementation.replace("$BINDING", &prettyplease::unparse(&file))),
+        ],
+    );
 }
 
 /// Bootstrap's ABI half needs only core, including executable support paths inside

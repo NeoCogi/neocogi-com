@@ -255,15 +255,15 @@ IDL, facade and inspector repository integration suites inspect sibling packages
 current guide examples or nested native fixture workspaces. Their source files
 stay in checkout CI and are excluded from registry archives, so Cargo does not
 advertise test targets whose inputs are absent. Package-local unit tests remain
-included. Macro printer fixtures belong to the macro archive; the core handle
+included. Compiler backend printer fixtures belong to the IDL archive; the core handle
 source audit belongs to core. The small subprocess helper is deliberately local
 to each owning package rather than requiring a published test-support crate.
 
-The macro package's executable tests create an ordinary matching-version facade
+The IDL package's backend executable tests create an ordinary matching-version facade
 consumer. Cargo metadata supplies the selected core/facade source locations;
 there is no `../core` or `../api` convention. In a checkout it reuses Cargo's
 workspace package. Archive validation supplies all SDK archives through normal
 patch configuration; after publication the same consumer resolves the published
 version. These checks require that matching SDK and its registry dependencies
-be available offline. They do not introduce a production macro-to-facade dependency
+be available offline. They do not introduce a production IDL-to-facade dependency
 or a cyclic publication order.

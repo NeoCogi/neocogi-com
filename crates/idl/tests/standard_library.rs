@@ -61,9 +61,8 @@ fn ordinary_optional_payload_rules_apply_at_every_use_site() {
         );
     }
     graph("tree", "#[version(1)] struct Tree { children: Option<Vec<Tree>> }");
-    for source in ["#[version(1)] enum Substitute<T> { Value(T) }"] {
-        assert!(resolve_modules(vec![parse_module(Path::new("neocogi/lang.ncidl"), source).unwrap()]).is_err());
-    }
+    let source = "#[version(1)] enum Substitute<T> { Value(T) }";
+    assert!(resolve_modules(vec![parse_module(Path::new("neocogi/lang.ncidl"), source).unwrap()]).is_err());
 }
 
 /// Uses names recovered from declarations so the fixture never guesses specialization hashes.

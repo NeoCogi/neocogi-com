@@ -1,7 +1,7 @@
 //! Command-line extraction and comparison of owned plugin inspection artifacts.
 //!
-//! `dump` and `check` load trusted libraries only long enough to copy descriptor
-//! metadata. `diff` never loads code; it strictly validates versioned serialized
+//! `dump` and `check` copy descriptor metadata from trusted libraries whose
+//! mappings remain pinned for the process lifetime. `diff` never loads code; it strictly validates versioned serialized
 //! artifacts and compares their identities, ABI signatures, and derived diagnostics for
 //! deterministic CI output.
 

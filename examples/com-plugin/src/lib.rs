@@ -22,9 +22,7 @@ impl IMeasured for DynamicExampleObject {
     /// Writes only fresh copied records into caller storage, without provider scratch.
     fn reports(&self, mut output: neocogi_com::NcOutputWriter<'_, ExtentReport>) -> Result<u32, NcStatus> {
         if output.capacity() >= 2 {
-            output.extend_from_slice(&[
-                ExtentReport::Current { extent: self.extent, usable: true },
-                ExtentReport::Empty])?;
+            output.extend_from_slice(&[ExtentReport::Current { extent: self.extent, usable: true }, ExtentReport::Empty])?;
         }
         Ok(2)
     }
@@ -62,7 +60,8 @@ impl ExampleFactory for DynamicExampleFactory {
 /// Acquires one owned root; object construction remains on its typed methods.
 #[neocogi_com::plugin(name = "nc.examples.factory_plugin_component")]
 fn acquire_root() -> Result<neocogi_com::ComPtr<neocogi_idl_example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
-    DynamicExampleFactory::from_value(DynamicExampleFactory).query()}
+    DynamicExampleFactory::from_value(DynamicExampleFactory).query()
+}
 
 // Only the final DSO exports this symbol; monoliths call the Rust getter.
 

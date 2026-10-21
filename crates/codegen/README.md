@@ -22,3 +22,9 @@ physical types used by dispatch; it never reconstructs wire pointers from native
 element types or treats weak tokens as strong owners. Safe documentation continues
 to describe native Rust values. The existing result ownership category supplies
 the shared/exclusive/weak lifetime contract in both descriptions.
+
+Generated raw vtable function-pointer fields narrowly allow Clippy's type-complexity
+lint: their flattened signature is the physical IDL calling convention. The policy
+does not cover safe methods, providers or ordinary algorithms. Introducing private
+ABI aliases solely for this lint would add generated names without simplifying
+the contract; other generated-code warnings remain checked by downstream gates.

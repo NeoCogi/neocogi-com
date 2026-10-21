@@ -228,8 +228,8 @@ impl ComDeserialize for State {
     fn com_deserialize(reader: &mut Reader<'_>) -> Result<Self, Error> {
         reader.record(2, |fields| {
             Ok(Self {
-                label: fields.next()?.ok_or_else(|| fields.error("missing field"))?,
-                enabled: fields.next()?.ok_or_else(|| fields.error("missing field"))?,
+                label: fields.read_next()?.ok_or_else(|| fields.error("missing field"))?,
+                enabled: fields.read_next()?.ok_or_else(|| fields.error("missing field"))?,
             })
         })
     }
@@ -245,7 +245,7 @@ still reject duplicate keys because repeated keys are possible in NCB.
 
 Custom codecs follow the same accounting rule as generated ones. The caller
 enters a decoded value through `Reader::read`; its `ComDeserialize` method reads
-children with `read` or `Sequence::next`. A transparent scalar wrapper delegates
+children with `read` or `Sequence::read_next`. A transparent scalar wrapper delegates
 directly to its scalar's `ComDeserialize` implementation to reuse the current
 value scope. An enum's anonymous tuple/record payload enters one extra
 `Reader::value` scope before reading its aggregate. Writer scalar operations

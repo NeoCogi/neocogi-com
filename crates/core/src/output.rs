@@ -437,6 +437,16 @@ impl<T: ComInlineValue> PreparedOutput<'_, T> {
     }
 }
 
+impl<T: ComInlineValue> Drop for PreparedOutput<'_, T> {
+    /// Every rejected, malformed, or unwinding call makes its complete output unavailable.
+    fn drop(&mut self) {
+        match self.publication {
+            Publication::Unacquired | Publication::Acquired => self.output.clear_results(),
+            Publication::Published => {}
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     //! Stack output proves the exact protocol also works with alloc disabled.
@@ -450,9 +460,10 @@ mod tests {
         let mut prepared = output.prepare().unwrap();
         let mut written = 0;
         // SAFETY: prepared owns the two stack slots, separate from the local count.
-        let mut writer = unsafe { NcOutputWriter::<u32>::from_raw(3, prepared.as_mut_ptr(), 2, &mut written) }.unwrap();
-        writer.extend_from_slice(&[10, 20]).unwrap();
-        drop(writer);
+        {
+            let mut writer = unsafe { NcOutputWriter::<u32>::from_raw(3, prepared.as_mut_ptr(), 2, &mut written) }.unwrap();
+            writer.extend_from_slice(&[10, 20]).unwrap();
+        }
         unsafe {
             *prepared.written_ptr() = written;
             prepared.convert_output().unwrap();
@@ -461,15 +472,5 @@ mod tests {
         assert_eq!(count, 2);
         // SAFETY: complete successful acquisition published exactly these slots.
         assert_eq!(unsafe { slots.map(|slot| slot.assume_init()) }, [10, 20]);
-    }
-}
-
-impl<T: ComInlineValue> Drop for PreparedOutput<'_, T> {
-    /// Every rejected, malformed, or unwinding call makes its complete output unavailable.
-    fn drop(&mut self) {
-        match self.publication {
-            Publication::Unacquired | Publication::Acquired => self.output.clear_results(),
-            Publication::Published => {}
-        }
     }
 }

@@ -181,6 +181,31 @@ impl IUnknown {
     };
 }
 
+/// Finds a canonical table by the identity already stored in its common prefix.
+///
+/// This shared lookup has no implementation-type parameter and reads no inspection
+/// descriptors. The caller owns reference transfer, so failed lookup cannot leak a
+/// reference and successful lookup alone does not extend the allocation's lifetime.
+///
+/// # Safety
+/// Every table must have a permanently valid IUnknownVTable prefix with a readable
+/// generated identity and remain immutable while this function runs. The caller
+/// must pair the returned table with an allocation of its matching implementation.
+#[doc(hidden)]
+pub unsafe fn __nc_find_interface(vtables: &[*const IUnknownVTable], requested: &NcInterfaceId) -> Result<*const IUnknownVTable, crate::NcStatus> {
+    for &vtable in vtables {
+        // SAFETY: generated compact tables retain only valid permanent vtables.
+        let actual = unsafe { &*(*vtable).interface_id };
+        if actual.iid == requested.iid {
+            return match actual.abi_signature == requested.abi_signature {
+                true => Ok(vtable),
+                false => Err(crate::NC_E_ABI_VERSION),
+            };
+        }
+    }
+    Err(crate::NC_E_NOINTERFACE)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{ComInterface, IID_IUNKNOWN, IUNKNOWN_INTERFACE_ID, IUNKNOWN_QUALIFIED_NAME, IUnknown};
@@ -208,29 +233,4 @@ mod tests {
         assert_eq!(core::mem::size_of::<crate::ComRaw<IUnknown>>(), 2 * core::mem::size_of::<usize>());
         assert!(crate::ComRaw::<IUnknown>::null().cast::<crate::IUnknown>().is_null());
     }
-}
-
-/// Finds a canonical table by the identity already stored in its common prefix.
-///
-/// This shared lookup has no implementation-type parameter and reads no inspection
-/// descriptors. The caller owns reference transfer, so failed lookup cannot leak a
-/// reference and successful lookup alone does not extend the allocation's lifetime.
-///
-/// # Safety
-/// Every table must have a permanently valid IUnknownVTable prefix with a readable
-/// generated identity and remain immutable while this function runs. The caller
-/// must pair the returned table with an allocation of its matching implementation.
-#[doc(hidden)]
-pub unsafe fn __nc_find_interface(vtables: &[*const IUnknownVTable], requested: &NcInterfaceId) -> Result<*const IUnknownVTable, crate::NcStatus> {
-    for &vtable in vtables {
-        // SAFETY: generated compact tables retain only valid permanent vtables.
-        let actual = unsafe { &*(*vtable).interface_id };
-        if actual.iid == requested.iid {
-            return match actual.abi_signature == requested.abi_signature {
-                true => Ok(vtable),
-                false => Err(crate::NC_E_ABI_VERSION),
-            };
-        }
-    }
-    Err(crate::NC_E_NOINTERFACE)
 }

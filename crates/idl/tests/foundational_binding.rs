@@ -136,7 +136,7 @@ fn inherited_and_event_values_keep_the_supplying_projection_without_bystander_de
     );
     let mut paths = neocogi_idl::generate::RustModulePaths::default();
     for name in ["demo.ext", "demo.mid", "demo.leaf"] {
-        paths.insert(name, &format!("binding_peers::{}", name.split('.').last().unwrap())).unwrap();
+        paths.insert(name, &format!("binding_peers::{}", name.split('.').next_back().unwrap())).unwrap();
     }
     paths.insert("neocogi.com.events", "neocogi_com::events").unwrap();
     let project = tempfile::tempdir().unwrap();

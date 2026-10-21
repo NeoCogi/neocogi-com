@@ -569,7 +569,7 @@ pub struct Sequence<'a, 'de> {
 impl Sequence<'_, '_> {
     /// Acquires the next concrete value, or reports a genuinely absent suffix.
     /// Truncated bytes remain an error and never masquerade as an omitted field.
-    pub fn next<T: ComDeserialize>(&mut self) -> Result<Option<T>, Error> {
+    pub fn read_next<T: ComDeserialize>(&mut self) -> Result<Option<T>, Error> {
         match self.remaining {
             0 => Ok(None),
             _ => {

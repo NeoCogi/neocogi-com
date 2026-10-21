@@ -218,6 +218,9 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
         quote! {
             #(#source_docs)*
             #(#docs)*
+            // The flattened slot is the contract's actual C calling convention.
+            // An extra alias would add a generated name solely to disguise it.
+            #[allow(clippy::type_complexity, reason = "Raw vtable slots retain the exact flattened IDL ABI.")]
             pub #method_ident: unsafe extern "C" fn(
                 #this_local: *mut ::core::ffi::c_void,
                 #(#abi_args,)*
@@ -345,6 +348,8 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
         });
         // Save slots before replacing raw argument bindings with ordinary owners.
         // Adoption happens only after all validation and receiver admission.
+        // ComRaw's Default is canonical absence, so taking a validated writable
+        // slot transfers its one owner while clearing both words before dispatch.
         let owner_adoptions = owners.iter().map(|arg| {
             let ident = &arg.binding;
             let ty = &arg.rust_ty;
@@ -352,7 +357,7 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
             quote! {
                 let #slot = #ident;
                 let #ident = unsafe {
-                    <#ty>::from_raw_owned(::core::mem::replace(&mut *#slot, #nc::ComRaw::null()))
+                    <#ty>::from_raw_owned(::core::mem::take(&mut *#slot))
                 }.expect("validated unique COM owner");
             }
         });

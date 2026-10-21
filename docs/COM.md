@@ -300,6 +300,12 @@ a contract crate's generated bindings are not a native library.
 
 ## Checking the documentation
 
+The complete maintained quality gate is `bash crates/com/scripts/test-quality.sh`.
+It checks workspace formatting, all SDK targets/features with strict Clippy,
+supported allocation modes, ABI snippets, local links and strict rustdoc. The COM
+CI job runs that same script without dropping dependency lint coverage. Native
+backend and cross-platform driver checks retain their separate CI rows.
+
 Run these commands from the workspace root:
 
 ```sh

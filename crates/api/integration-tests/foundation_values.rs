@@ -172,7 +172,7 @@ impl IOutput for Output {
 /// Safe generated calls and raw provider admission agree, with stack-only output.
 #[test]
 fn admitted_identity_push_and_bulk_complete_through_generated_calls() {
-    assert!(Deep::BORROW_WIRE);
+    const { assert!(Deep::BORROW_WIRE) };
     assert_eq!(check_buffer_output::<Deep>(1), Ok(()));
     let provider = Output::from_value(Output).query::<IOutputAbi>().unwrap();
     for bulk in [false, true] {

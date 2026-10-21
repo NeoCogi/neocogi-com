@@ -72,7 +72,7 @@ impl<T: ComDeserialize, const N: usize> ComDeserialize for [T; N] {
         reader.sequence(|sequence| {
             let mut values: [Option<T>; N] = core::array::from_fn(|_| None);
             for slot in &mut values {
-                *slot = Some(sequence.next()?.ok_or_else(|| sequence.error("invalid sequence length"))?);
+                *slot = Some(sequence.read_next()?.ok_or_else(|| sequence.error("invalid sequence length"))?);
             }
             Ok(values.map(|value| value.expect("every fixed-array slot was acquired")))
         })
@@ -87,7 +87,7 @@ impl<T: ComDeserialize> ComDeserialize for Vec<T> {
             // eager-capacity ceiling; the cursor already checked element limits.
             let eager = 4096 / core::mem::size_of::<T>().max(1);
             let mut values = Vec::with_capacity(sequence.remaining().min(eager));
-            while let Some(value) = sequence.next()? {
+            while let Some(value) = sequence.read_next()? {
                 values.push(value);
             }
             Ok(values)

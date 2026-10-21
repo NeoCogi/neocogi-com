@@ -57,14 +57,23 @@ fn raw_vtable_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
     let physical = arg.abi_ty.to_token_stream();
     let native = arg.rust_ty.to_token_stream();
     let contract = match &arg.kind {
-        AbiArgKind::ComBox { .. } => "The writable owner slot transfers one exclusive owner. Success clears the slot. Every error restores the original owner unchanged; the caller decides whether to retry or destroy it. Providers must finish all fallible preparation before committing ownership.",
+        AbiArgKind::ComBox { .. } => {
+            "The writable owner slot transfers one exclusive owner. Success clears the slot. Every error restores the original owner unchanged; the caller decides whether to retry or destroy it. Providers must finish all fallible preparation before committing ownership."
+        }
         AbiArgKind::BorrowedValue { .. } => "The pointed-to checked representation is borrowed; the receiver acquires owned fields before retaining data.",
         AbiArgKind::Plain => "Passed by value.",
-        AbiArgKind::ComRef { .. } => "This is a borrowed object/table pair. Both fields must be non-null. The callee must call `AddRef` before retaining the interface after the call returns.",
+        AbiArgKind::ComRef { .. } => {
+            "This is a borrowed object/table pair. Both fields must be non-null. The callee must call `AddRef` before retaining the interface after the call returns."
+        }
         AbiArgKind::CopyFromBufferOffset { .. } => "The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.",
-        AbiArgKind::OutputBuffer { .. } => "The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.",
+        AbiArgKind::OutputBuffer { .. } => {
+            "The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias."
+        }
     };
-    vec![literal_doc(format!("- `{ident}` uses ABI storage `{physical}` for `{native}`. {contract}"), ident.span())]
+    vec![literal_doc(
+        format!("- `{ident}` uses ABI storage `{physical}` for `{native}`. {contract}"),
+        ident.span(),
+    )]
 }
 
 /// Describes the existing result token category without reconstructing its wire.
@@ -209,10 +218,7 @@ fn safe_return_docs(ok: &AbiReturn) -> Vec<proc_macro2::TokenStream> {
             let rust_ty = &ok.rust_ty;
             let contract = returned_ownership(*ownership);
             vec![literal_doc(
-                format!(
-                    "On success, returns `{rust_ty}`. {contract}",
-                    rust_ty = rust_ty.to_token_stream()
-                ),
+                format!("On success, returns `{rust_ty}`. {contract}", rust_ty = rust_ty.to_token_stream()),
                 ok.rust_ty.span(),
             )]
         }

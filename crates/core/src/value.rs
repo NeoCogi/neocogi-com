@@ -473,11 +473,14 @@ unsafe impl<T: ComValue, const N: usize> ComValue for [T; N] {
     }
 }
 
+/// An array's wire and lifetime storage come from its one ComValue contract.
+type EncodedArray<T, const N: usize> = (<[T; N] as ComValue>::Wire, <[T; N] as ComValue>::Storage);
+
 /// Retains initialized array guards and drops a partial prefix on conversion failure.
 fn encode_array<T: ComValue, const N: usize>(
     values: &[T; N],
     mut convert: impl FnMut(&T) -> Result<(T::Wire, T::Storage), NcStatus>,
-) -> Result<(ValueArray<T::Wire, N>, [T::Storage; N]), NcStatus> {
+) -> Result<EncodedArray<T, N>, NcStatus> {
     let mut slots: [Option<(T::Wire, T::Storage)>; N] = core::array::from_fn(|_| None);
     for (slot, value) in slots.iter_mut().zip(values) {
         *slot = Some(convert(value)?);
