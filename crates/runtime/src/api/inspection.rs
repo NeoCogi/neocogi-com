@@ -6,7 +6,7 @@ use core::{ffi::c_void, ptr};
 use neocogi_com_core::{NC_DEBUG_TYPE_PLUGIN, NC_E_NOT_FOUND, NC_E_POINTER, NC_OK, NcGuid, NcInspectPluginDescriptorCallbackV1, NcPluginInfoV1, NcStatus};
 
 use crate::inspection as runtime_inspection;
-use crate::loader::inspect_plugin_descriptor;
+use crate::loader::open_plugin_descriptor;
 use crate::state::RuntimeState;
 
 use super::runtime::load_error_status;
@@ -28,7 +28,7 @@ pub(super) unsafe extern "C" fn inspect_plugin_library_utf8(
     };
 
     // SAFETY: The ABI caller selected this path as trusted plugin code.
-    let plugin = match unsafe { inspect_plugin_descriptor(path) } {
+    let plugin = match unsafe { open_plugin_descriptor(path) } {
         Ok(plugin) => plugin,
         Err(error) => {
             let status = error.status().unwrap_or_else(|| load_error_status(error.kind()));
@@ -39,7 +39,7 @@ pub(super) unsafe extern "C" fn inspect_plugin_library_utf8(
 
     // SAFETY: Validation succeeded while the opened module was pinned. The
     // callback receives exactly the synchronous borrow promised by the ABI.
-    unsafe { callback(plugin, user_data) }
+    unsafe { callback(plugin.as_ptr(), user_data) }
 }
 
 /// Writes borrowed descriptor metadata for one registered plugin.

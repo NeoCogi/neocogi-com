@@ -157,3 +157,8 @@ path = "integration-tests/output_buffers.rs"
 name = "plugin_catalog"
 path = "integration-tests/plugin_catalog.rs"
 required-features = ["runtime"]
+
+[[test]]
+name = "plugin_inspection"
+path = "integration-tests/plugin_inspection.rs"
+required-features = ["runtime"]

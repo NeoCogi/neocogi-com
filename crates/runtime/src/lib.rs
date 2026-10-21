@@ -1,8 +1,8 @@
 //! Process-global runtime implementation for `neocogi-com`.
 //!
-//! One append-only plugin catalog owns validated descriptors, copied hard
+//! One append-only plugin catalog owns validated descriptors, borrowed hard
 //! dependencies and registration provenance. Dynamic records retain their first
-//! diagnostic path and private process-pinned native library owner. Static
+//! diagnostic path and borrow metadata/code from process-pinned native mappings. Static
 //! records borrow process-lifetime code and metadata. No module identity,
 //! module registry, class registry or runtime contract graph exists.
 //! Registration validates metadata before the catalog write lock, then publishes

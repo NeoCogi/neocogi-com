@@ -9,9 +9,9 @@ use std::path::Path;
 use std::string::String;
 use std::vec::Vec;
 
-use neocogi_com_core::{NC_E_INVALID_ARG, NcAbiThreadingMode, NcPluginDescriptor, NcGuid, NcStaticUtf8, validate_plugin_descriptor};
+use neocogi_com_core::{NcAbiThreadingMode, NcGuid};
 
-use super::{PinnedLibrary, PluginLoadError, PluginLoadErrorKind, plugin_descriptor_from_entrypoint};
+use super::{PluginLoadError, open_plugin_descriptor};
 
 /// Owned metadata extracted without constructing a plugin's root factory.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -53,70 +53,20 @@ pub struct FactoryInspection {
 /// `path` must identify trusted code obeying the plugin descriptor ABI.
 pub unsafe fn inspect_plugin_library(path: impl AsRef<Path>) -> Result<PluginInspection, PluginLoadError> {
     let path = path.as_ref();
-    // SAFETY: The caller trusts the selected library and its fixed C entrypoint.
-    let plugin = unsafe { inspect_plugin_descriptor(path) }?;
-    // SAFETY: Validation established readable metadata in a pinned library.
-    let plugin = unsafe { &*plugin };
-    // SAFETY: The signature was validated and its storage remains pinned.
-    let root_factory_signature = *unsafe { plugin.root_factory.abi_signature.as_digest() }
-        .ok_or_else(|| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(NC_E_INVALID_ARG), "missing root factory signature"))?;
-    let root_factory_threading = NcAbiThreadingMode::from_raw(plugin.root_factory_threading)
-        .ok_or_else(|| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(NC_E_INVALID_ARG), "invalid root factory threading"))?;
-    // SAFETY: Descriptor validation checked this immutable pointer/count table.
-    let dependencies = unsafe { plugin.dependencies() }
-        .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), "invalid plugin dependencies"))?
-        .iter()
-        .map(|dependency| dependency.plugin_id)
-        .collect();
+    // SAFETY: the selected library promises immutable process-lived metadata/code.
+    let descriptor = unsafe { open_plugin_descriptor(path) }?;
+    let plugin = descriptor.get();
     Ok(PluginInspection {
         description_abi_version: plugin.description_abi_version,
         core_abi_version: plugin.core_abi_version,
-        plugin_id: plugin.plugin_id,
-        // SAFETY: Both views refer to validated UTF-8 in the pinned library.
-        qualified_name: unsafe { copy_static_utf8(path, plugin.qualified_name) }?,
-        plugin_version: unsafe { copy_static_utf8(path, plugin.plugin_version) }?,
-        dependencies,
+        plugin_id: descriptor.id(),
+        qualified_name: descriptor.qualified_name().to_owned(),
+        plugin_version: descriptor.version().to_owned(),
+        dependencies: descriptor.dependencies().iter().map(|dependency| dependency.plugin_id).collect(),
         factory: FactoryInspection {
             root_factory_id: plugin.root_factory.iid,
-            root_factory_signature,
-            root_factory_threading,
+            root_factory_signature: *descriptor.factory_signature(),
+            root_factory_threading: descriptor.factory_threading(),
         },
     })
-}
-
-/// Opens and validates a descriptor retained for a synchronous C callback.
-///
-/// # Safety
-///
-/// `path` must identify trusted plugin code. Every pointer in its descriptor
-/// must obey the immutable metadata lifetime promised by the C entrypoint.
-pub(crate) unsafe fn inspect_plugin_descriptor(path: &Path) -> Result<*const NcPluginDescriptor, PluginLoadError> {
-    let module = PinnedLibrary::open(path)?;
-    // SAFETY: The caller trusts the pinned module and its versioned C symbol.
-    let get = unsafe { module.get_plugin_descriptor(path)? };
-    // SAFETY: The pinned library keeps the returned descriptor alive.
-    let plugin = unsafe { plugin_descriptor_from_entrypoint(get, path)? };
-    // SAFETY: The entrypoint promises complete immutable metadata storage.
-    let status = unsafe { validate_plugin_descriptor(plugin) };
-    if status.is_err() {
-        return Err(PluginLoadError::new(
-            PluginLoadErrorKind::Metadata,
-            path,
-            Some(status),
-            "invalid plugin descriptor",
-        ));
-    }
-    Ok(plugin)
-}
-
-/// Copies native text so an inspection result exposes no foreign borrow.
-///
-/// # Safety
-///
-/// `value` must refer to readable immutable bytes for this synchronous copy.
-unsafe fn copy_static_utf8(path: &Path, value: NcStaticUtf8) -> Result<String, PluginLoadError> {
-    // SAFETY: The caller establishes readability; the helper validates UTF-8.
-    unsafe { value.as_str() }
-        .map(str::to_owned)
-        .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), "invalid plugin text"))
 }

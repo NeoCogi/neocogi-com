@@ -1,8 +1,8 @@
 //! Validated immutable descriptor ownership at the process-runtime boundary.
-use neocogi_com_core::{NcGuid, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStatus, validate_plugin_descriptor};
+use neocogi_com_core::{NcAbiThreadingMode, NcGuid, NcPluginDependencyDescriptor, NcPluginDescriptor, NcStaticUtf8, NcStatus, validate_plugin_descriptor};
 
 /// A descriptor whose complete immutable graph and code remain process-lived.
-/// Construction validates the raw schema once. Every catalog projection borrows
+/// Construction validates the raw schema once. Every inspection/catalog projection borrows
 /// this same source; no independent ID or dependency allocation can diverge.
 pub(crate) struct ValidatedPluginDescriptor {
     /// Static storage or a native mapping pinned by the platform loader itself.
@@ -10,7 +10,7 @@ pub(crate) struct ValidatedPluginDescriptor {
 }
 
 impl ValidatedPluginDescriptor {
-    /// Validates one process-lived raw descriptor before it enters the catalog.
+    /// Validates one process-lived raw descriptor before inspection or catalog publication.
     ///
     /// # Safety
     /// A nonnull pointer and every referenced buffer/function must be readable,
@@ -41,6 +41,30 @@ impl ValidatedPluginDescriptor {
         self.description
     }
 
+    /// Borrows the admitted qualified name without repeating UTF-8 or naming validation.
+    pub(crate) fn qualified_name(&self) -> &'static str {
+        // SAFETY: construction admitted this immutable, process-lived text view.
+        unsafe { validated_text(self.description.qualified_name) }
+    }
+
+    /// Borrows the admitted version without repeating UTF-8 or version validation.
+    pub(crate) fn version(&self) -> &'static str {
+        // SAFETY: construction admitted this immutable, process-lived text view.
+        unsafe { validated_text(self.description.plugin_version) }
+    }
+
+    /// Borrows the required complete factory signature from its original storage.
+    pub(crate) fn factory_signature(&self) -> &'static [u8; 32] {
+        // SAFETY: construction proved presence; the complete digest is immutable and process-lived.
+        unsafe { self.description.root_factory.abi_signature.as_digest() }.expect("validated plugin descriptor has a factory signature")
+    }
+
+    /// Projects the admitted integer into its typed threading mode.
+    /// The assertion records an internal invariant, not another metadata rejection path.
+    pub(crate) fn factory_threading(&self) -> NcAbiThreadingMode {
+        NcAbiThreadingMode::from_raw(self.description.root_factory_threading).expect("validated plugin descriptor has a factory threading mode")
+    }
+
     /// Borrows declared dependencies without copying or representation casts.
     pub(crate) fn dependencies(&self) -> &'static [NcPluginDependencyDescriptor] {
         if self.description.dependency_count == 0 {
@@ -50,4 +74,19 @@ impl ValidatedPluginDescriptor {
         // construction retains its immutable process lifetime. Empty may be null.
         unsafe { core::slice::from_raw_parts(self.description.dependencies, self.description.dependency_count as usize) }
     }
+}
+
+/// Borrows already-admitted text; arbitrary raw descriptor fields must use validation first.
+///
+/// # Safety
+/// The view's extent/readability, UTF-8 and immutable process lifetime must have
+/// been established by descriptor admission. This helper performs no validation.
+unsafe fn validated_text(value: NcStaticUtf8) -> &'static str {
+    if value.len == 0 {
+        return "";
+    }
+    // SAFETY: admission proved the nonempty region and representable length.
+    let bytes = unsafe { core::slice::from_raw_parts(value.data, value.len as usize) };
+    // SAFETY: descriptor validation checked UTF-8 before this immutable view was published.
+    unsafe { core::str::from_utf8_unchecked(bytes) }
 }

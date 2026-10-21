@@ -87,3 +87,12 @@ short-lived process bounds that retention. Inspection does not add plugin
 catalog records, so its pinned handles are outside the 1,024-record live-load
 ceiling. The planner sorts already-inspected
 descriptions; it does not find paths or load dependencies.
+
+Native loading, owned inspection and synchronous descriptor callbacks share one
+open-and-admit boundary returning the existing validated descriptor wrapper.
+Inspection borrows its admitted text, signature and dependency table without
+revalidating those fields; only the public owned result copies them. Malformed
+metadata returns the shared validation status before projection or callbacks.
+Registration separately checks dependency availability, identity conflicts and
+capacity at publication. Inspection neither performs those catalog checks nor
+registers a plugin or invokes its factory. All metadata/code remains process-pinned.

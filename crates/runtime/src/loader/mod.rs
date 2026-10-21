@@ -17,7 +17,7 @@ use std::path::Path;
 use neocogi_com_core::{NC_E_POINTER, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcPluginDescriptor, NcGetPluginDescriptor, NcGuid};
 
 use crate::factory_plugin_registry::{PluginOrigin, RegisteredFactoryPlugin};
-use crate::factory_registration::prepare_factory_plugin;
+use crate::descriptor::ValidatedPluginDescriptor;
 use crate::state::RuntimeState;
 
 mod error;
@@ -26,7 +26,6 @@ mod library;
 mod plan;
 
 pub use error::{PluginLoadError, PluginLoadErrorKind};
-pub(crate) use inspection::inspect_plugin_descriptor;
 pub use inspection::{FactoryInspection, PluginInspection, inspect_plugin_library};
 pub use plan::{PluginDependencyPlanError, plan_plugin_load_order};
 
@@ -81,14 +80,12 @@ impl RuntimeState {
     /// That code must not directly or indirectly start nested neocogi-com loading.
     pub unsafe fn load_plugin_library(&self, path: impl AsRef<Path>) -> Result<NcGuid, PluginLoadError> {
         let path = path.as_ref();
-        let library = PinnedLibrary::open(path)?;
-        // SAFETY: The caller selects trusted code; the opened library stays
-        // process-pinned even when symbol resolution or publication fails.
-        let get = unsafe { library.get_plugin_descriptor(path)? };
-        // SAFETY: The pinned mapping backs the descriptor and its bootstrap.
-        let description = unsafe { plugin_descriptor_from_entrypoint(get, path)? };
-        // SAFETY: The entrypoint promises immutable process-lifetime metadata.
-        let plugin = unsafe { prepare_loaded_factory_plugin(path, description)? };
+        // SAFETY: The selected library promises process-lived immutable metadata and code.
+        let descriptor = unsafe { open_plugin_descriptor(path) }?;
+        let plugin = RegisteredFactoryPlugin {
+            descriptor,
+            origin: PluginOrigin::Dynamic { path: path.to_path_buf() },
+        };
         let plugin_id = plugin.descriptor.id();
         // Descriptor, dependencies and provenance enter the catalog together.
         // Native loading and metadata validation above invoke no code under this lock.
@@ -129,10 +126,20 @@ unsafe fn plugin_descriptor_from_entrypoint(get_descriptor: NcGetPluginDescripto
     Ok(plugin)
 }
 
-/// Validates one process-pinned descriptor with the actual dynamic provenance.
-unsafe fn prepare_loaded_factory_plugin(path: &Path, plugin: *const NcPluginDescriptor) -> Result<RegisteredFactoryPlugin, PluginLoadError> {
-    // SAFETY: The descriptor and its referenced data remain backed by the pinned library during
-    // this call and by the platform's never-unload policy afterward, even on error.
-    unsafe { prepare_factory_plugin(plugin, PluginOrigin::Dynamic { path: path.to_path_buf() }) }
-        .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), "plugin descriptor failed load validation"))
+/// Opens and admits immutable metadata once, without publication or factory acquisition.
+/// Owned inspection, synchronous callbacks and live loading share this boundary.
+/// Native opening pins the mapping on success and every later failure.
+///
+/// # Safety
+/// The path selects plugin code honoring the descriptor ABI and the process
+/// lifetime of all reachable metadata/code. Entry must not start a nested load.
+pub(crate) unsafe fn open_plugin_descriptor(path: &Path) -> Result<ValidatedPluginDescriptor, PluginLoadError> {
+    let module = PinnedLibrary::open(path)?;
+    // SAFETY: the selected pinned module supplies its fixed descriptor entrypoint.
+    let get = unsafe { module.get_plugin_descriptor(path)? };
+    // SAFETY: the mapping keeps the descriptor and all referenced storage alive.
+    let raw = unsafe { plugin_descriptor_from_entrypoint(get, path)? };
+    // SAFETY: the entrypoint promises complete immutable process-lived metadata/code.
+    unsafe { ValidatedPluginDescriptor::new(raw) }
+        .map_err(|status| PluginLoadError::new(PluginLoadErrorKind::Metadata, path, Some(status), "invalid plugin descriptor"))
 }
