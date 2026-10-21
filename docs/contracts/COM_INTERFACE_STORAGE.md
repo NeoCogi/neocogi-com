@@ -165,7 +165,7 @@ historical measurements, not claims about current source.
 | One-pointer headers and static owner offsets (`1129d592`) | 1,479,896 |
 
 The metadata-heavy version's regression and rollback are documented in
-DIAMOND_STORAGE_ROLLBACK.md. The
+diamond-storage rollback. The
 canonical-storage/codec evidence
 and one-pointer-header evidence
 retain compiler, hashes, sections, object sizes and query samples. These changes
