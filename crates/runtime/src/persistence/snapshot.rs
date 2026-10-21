@@ -5,7 +5,8 @@ use neocogi_com_core::persistence::{IPersistableAbi, Limits, ObjectRecord};
 
 /// Exports a shared opt-in tree, detects ownership cycles, and bounds traversal.
 /// A live exclusive root is a valid borrow but cannot be retained along the
-/// capture path; it returns `NC_E_INVALID_ARG` before persistence getters run.
+/// capture path; after budget admission it returns `NC_E_INVALID_ARG` before
+/// persistence getters run. Exhausted budgets retain OUT_OF_RANGE precedence.
 pub(crate) fn snapshot_with_limits(object: ComRef<'_, IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
     let mut capture = Capture {
         limits,
@@ -25,7 +26,7 @@ struct Capture {
     remaining: usize,
     /// Aggregate provider-state byte budget left before final document encoding.
     bytes_left: usize,
-    /// Canonical COM identities retained only along the current ownership path.
+    /// Strong owners retain allocation identity only along the current ancestor path.
     active: Vec<ComPtr<IUnknown>>,
 }
 
@@ -39,9 +40,10 @@ impl Capture {
         self.remaining -= 1;
         // A borrow does not promise shared ownership. Reject non-shareable roots
         // through the Result before querying any persistence provider methods.
-        // Canonical IUnknown identity catches cycles through different projections.
-        let identity = object.try_add_ref()?.query::<IUnknown>()?;
-        if self.active.iter().any(|parent| parent.as_raw() == identity.as_raw()) {
+        // Tables identify dispatch views; retained allocation identity detects cycles
+        // through every valid projection without another exact-interface query.
+        let identity = object.try_add_ref()?;
+        if self.active.iter().any(|parent| parent.as_com_ref().same_object(identity.as_com_ref())) {
             return Err(NC_E_INVALID_ARG);
         }
         let value = identity.query::<IPersistableAbi>()?;

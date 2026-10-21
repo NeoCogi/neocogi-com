@@ -444,3 +444,6 @@ fn binary_limits_agree_across_snapshot_and_factory_restore() {
 
 // This final test executable owns its isolated process runtime.
 extern crate nc_com as _;
+
+#[path = "support/snapshot_identity.rs"]
+mod snapshot_identity;

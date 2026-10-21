@@ -20,7 +20,7 @@ result. It must not submit GPU work or invoke application behavior. See
 
 Initially each widget mounts once, under one parent in one runtime. Attachment checks duplicate membership, cycles, and owner compatibility before publishing an edit. Container track/span settings belong to the parent-child relationship. Do not place them in a generic widget property map. Foreign-runtime widgets and foreign-renderer resources are errors, even if their numerical IDs happen to match.
 
-IDs are scoped to their owner. A static counter compiled into several shared libraries is several counters. Do not assume it provides process-wide identity. QueryInterface's canonical IUnknown projection identifies a live COM object; arbitrary interface-header addresses can differ on the same object.
+IDs are scoped to their owner. A static counter compiled into several shared libraries is several counters. Do not assume it provides process-wide identity. All valid COM projections carry the same allocation address; table addresses identify dispatch views. Compare retained or live-borrowed allocations with `ComRef::same_object`. Strong ancestor owners preserve identity during persistence capture. Exact interface queries may retain their selected table and do not canonicalize dispatch-view equality.
 
 Default UI and GPU pointers are thread-local. Atomic reference counts do not make UI methods, OS windows, or GPU contexts thread-safe. Do not strengthen a threading marker without the corresponding implementation guarantee, including final destruction on another thread.
 
