@@ -61,6 +61,13 @@ fn descriptions_are_literals_across_all_method_shapes_and_printed_consumers() {
     ] {
         assert!(docs.text.iter().any(|text| text.contains(expected)), "missing {expected}");
     }
+    // Return prose must begin its own paragraph after argument bullet lists.
+    // Literal descriptions now participate in downstream Markdown/Clippy checks.
+    for pair in docs.text.windows(2) {
+        if pair[1].starts_with("On success,") {
+            assert!(pair[0].is_empty(), "return paragraph continues an argument list: {pair:?}");
+        }
+    }
     assert!(!docs.text.iter().any(|text| text.contains("Preparation discards")));
     assert!(!generated.source_map.mappings.is_empty(), "final formatted source retains origins");
     let file = prettyplease::unparse(&file);

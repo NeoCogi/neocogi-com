@@ -46,6 +46,7 @@ pub struct IObjectChildrenVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///
     ///On success, `out` receives `< u32 as :: neocogi_com :: ComValue > :: Wire`.
     pub count: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
@@ -59,6 +60,7 @@ pub struct IObjectChildrenVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///- `index` is passed by value as `< u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///
     ///On success, `out` receives an owned `:: neocogi_com :: IUnknown` object/table pair transferred to the caller.
     pub get: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
@@ -123,6 +125,7 @@ const _: () = {
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///
         ///On success, returns `u32` from the ABI out slot.
         pub fn count(&self) -> ::core::result::Result<u32, ::neocogi_com::NcStatus> {
             let mut __nc_out_0 = ::core::mem::MaybeUninit::<
@@ -149,6 +152,7 @@ const _: () = {
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///- `index` is passed by value as `u32`.
+        ///
         ///On success, adopts the owned `:: neocogi_com :: IUnknown` interface pointer returned through `out` as `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`.
         pub fn get(
             &self,
@@ -288,6 +292,7 @@ pub struct IPersistableVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///
     ///On success, `out` receives `< :: neocogi_com :: NcGuid as :: neocogi_com :: ComValue > :: Wire`.
     pub type_id: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
@@ -300,6 +305,7 @@ pub struct IPersistableVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///
     ///On success, `out` receives `< u32 as :: neocogi_com :: ComValue > :: Wire`.
     pub schema_version: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
@@ -312,6 +318,7 @@ pub struct IPersistableVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///
     ///On success, `out` receives an owned `:: neocogi_com :: INcBytesAbi` object/table pair transferred to the caller.
     pub save_state: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
@@ -324,6 +331,7 @@ pub struct IPersistableVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
+    ///
     ///On success, `out` receives `< u32 as :: neocogi_com :: ComValue > :: Wire`.
     pub child_count: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
@@ -337,6 +345,7 @@ pub struct IPersistableVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///- `index` is passed by value as `< u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///
     ///On success, `out` receives an owned `:: neocogi_com :: IUnknown` object/table pair transferred to the caller.
     pub child: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
@@ -407,6 +416,7 @@ const _: () = {
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///
         ///On success, returns `:: neocogi_com :: NcGuid` from the ABI out slot.
         pub fn type_id(
             &self,
@@ -436,6 +446,7 @@ const _: () = {
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///
         ///On success, returns `u32` from the ABI out slot.
         pub fn schema_version(
             &self,
@@ -463,6 +474,7 @@ const _: () = {
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///
         ///On success, adopts the owned `:: neocogi_com :: INcBytesAbi` interface pointer returned through `out` as `:: neocogi_com :: ComPtr < :: neocogi_com :: INcBytesAbi >`.
         pub fn save_state(
             &self,
@@ -495,6 +507,7 @@ const _: () = {
         ///
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
+        ///
         ///On success, returns `u32` from the ABI out slot.
         pub fn child_count(
             &self,
@@ -523,6 +536,7 @@ const _: () = {
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///- `index` is passed by value as `u32`.
+        ///
         ///On success, adopts the owned `:: neocogi_com :: IUnknown` interface pointer returned through `out` as `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`.
         pub fn child(
             &self,
@@ -699,6 +713,7 @@ pub struct IPersistenceFactoryVTable {
     ///- `version` is passed by value as `< u32 as :: neocogi_com :: ComValue > :: Wire`.
     ///- `state` lowers to `offset: u64`, `len: u64`, and a readable `*const u8` buffer.
     ///- `child_count` is passed by value as `< u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///
     ///On success, no output value is written.
     pub validate: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
@@ -718,6 +733,7 @@ pub struct IPersistenceFactoryVTable {
     ///- `version` is passed by value as `< u32 as :: neocogi_com :: ComValue > :: Wire`.
     ///- `state` lowers to `offset: u64`, `len: u64`, and a readable `*const u8` buffer.
     ///- `children` is a borrowed `self :: IObjectChildrenAbi` object/table pair. Both fields must be non-null. The callee must call `AddRef` before retaining a present interface after the call returns.
+    ///
     ///On success, `out` receives an owned `:: neocogi_com :: IUnknown` object/table pair transferred to the caller.
     pub restore: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
@@ -807,6 +823,7 @@ const _: () = {
         ///- `version` is passed by value as `u32`.
         ///- `state` is passed as a safe readable `u8` buffer plus offset.
         ///- `child_count` is passed by value as `u32`.
+        ///
         ///On success, returns `()`.
         pub fn validate(
             &self,
@@ -846,6 +863,7 @@ const _: () = {
         ///- `version` is passed by value as `u32`.
         ///- `state` is passed as a safe readable `u8` buffer plus offset.
         ///- `children` borrows a `self :: IObjectChildrenAbi` interface for the duration of the call. An interface is required. The callee must call `AddRef` before retaining a present interface.
+        ///
         ///On success, adopts the owned `:: neocogi_com :: IUnknown` interface pointer returned through `out` as `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`.
         pub fn restore(
             &self,

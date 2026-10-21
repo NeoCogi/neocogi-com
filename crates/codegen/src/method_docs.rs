@@ -44,6 +44,7 @@ pub(crate) fn raw_vtable_method_docs(trait_ident: &Ident, method: &AbiMethod) ->
         #[doc = ""]
         #safety_doc
         #(#arg_docs)*
+        #[doc = ""]
         #(#return_docs)*
     }]
 }
@@ -156,6 +157,7 @@ pub(crate) fn safe_method_docs(trait_ident: &Ident, method: &AbiMethod) -> Vec<p
         #wrapper_doc
         #[doc = "Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`."]
         #(#arg_docs)*
+        #[doc = ""]
         #(#return_docs)*
     }]
 }

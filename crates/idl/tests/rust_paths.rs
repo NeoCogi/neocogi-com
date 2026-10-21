@@ -34,19 +34,46 @@ fn rust_locations_only_change_import_paths() {
     let mut paths = RustModulePaths::default();
     paths.insert("example.contract", "shared_api::contracts").unwrap();
     let relocated = generate_rust_with_paths(&graph, "example.consumer", &paths).unwrap();
-    // Reformat after relocating paths: multiline generic arguments acquire
-    // optional trailing commas. Every semantic token, including precomputed
-    // identities/signatures and transported metadata strings, must still agree.
+    // Descriptions display the actual type printer's whitespace; they are not
+    // executable paths or transported metadata. Compare those separately, while
+    // every non-doc token (including signature/identity/string metadata) agrees.
+    fn without_docs(tokens: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+        use proc_macro2::{Delimiter, Group, TokenTree};
+        let mut input = tokens.into_iter().peekable();
+        let mut output = proc_macro2::TokenStream::new();
+        while let Some(token) = input.next() {
+            if matches!(&token, TokenTree::Punct(value) if value.as_char() == '#')
+                && matches!(input.peek(), Some(TokenTree::Group(group))
+                    if group.delimiter() == Delimiter::Bracket
+                    && syn::parse2::<syn::Meta>(group.stream()).is_ok_and(|meta| meta.path().is_ident("doc")))
+            {
+                input.next();
+                continue;
+            }
+            output.extend([match token {
+                TokenTree::Group(group) => {
+                    let mut rebuilt = Group::new(group.delimiter(), without_docs(group.stream()));
+                    rebuilt.set_span(group.span());
+                    TokenTree::Group(rebuilt)
+                }
+                token => token,
+            }]);
+        }
+        output
+    }
     let normalize = |text: &str| {
-        prettyplease::unparse(&syn::parse_file(text).unwrap())
-            .parse::<proc_macro2::TokenStream>()
-            .unwrap()
-            .to_string()
+        let formatted = prettyplease::unparse(&syn::parse_file(text).unwrap());
+        without_docs(formatted.parse().unwrap()).to_string()
     };
     assert_eq!(
         normalize(&baseline.replace("example_contract_contracts", "shared_api::contracts")),
         normalize(&relocated)
     );
+    // Removing documentation cannot make the relocation regression pass: both
+    // outputs must describe the actual selected supplying interface projection.
+    assert!(baseline.contains("- `source` borrows a `:: example_contract_contracts :: IBaseAbi`"));
+    assert!(relocated.contains("- `source` borrows a `:: shared_api :: contracts :: IBaseAbi`"));
+
     assert!(relocated.contains("shared_api::contracts::Changed"));
 }
 
