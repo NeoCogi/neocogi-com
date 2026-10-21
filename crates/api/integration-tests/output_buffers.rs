@@ -45,6 +45,68 @@ fn raw_output_initializes_only_reported_prefix_and_reuses_capacity() {
     }
 }
 
+/// Produces a previous successful boolean result without manufacturing initialized buffer state.
+fn seeded_flags() -> NcOutputBuffer<bool> {
+    let mut buffer = NcOutputBuffer::new();
+    let mut prepared = buffer.output(9, 4).prepare().unwrap();
+    // SAFETY: the primitive supplies live wire/count storage; flags initializes its prefix.
+    unsafe {
+        assert_eq!(flags(prepared.as_mut_ptr(), prepared.capacity(), prepared.written_ptr()), NC_OK);
+        prepared.convert_output().unwrap();
+    }
+    prepared.publish();
+    buffer
+}
+
+/// Freshness begins when the view is obtained, even if it is abandoned without preparation.
+#[test]
+fn output_view_acquisition_discards_previous_results_without_allocation() {
+    for capacity in [0, 4, usize::MAX] {
+        let mut buffer = seeded_flags();
+        let retained_capacity = buffer.capacity();
+        let probe = Probe::start(Some(0));
+        drop(buffer.output(0, capacity));
+        assert_eq!(probe.finish().attempts, 0);
+        assert!(buffer.is_empty());
+        assert_eq!(buffer.capacity(), retained_capacity);
+        // Both allocations survive view abandonment; producing the next result allocates nothing.
+        let probe = Probe::start(Some(0));
+        let mut prepared = buffer.output(9, 4).prepare().unwrap();
+        // SAFETY: prepared grants exactly the wire/count region needed by flags.
+        unsafe {
+            assert_eq!(flags(prepared.as_mut_ptr(), prepared.capacity(), prepared.written_ptr()), NC_OK);
+            prepared.convert_output().unwrap();
+        }
+        prepared.publish();
+        assert_eq!(probe.finish().attempts, 0);
+        assert_eq!(buffer.as_slice(), &[true, false]);
+    }
+}
+
+/// Unwinding before a later preparation discards old results and the stack's old published count.
+#[test]
+fn output_view_acquisition_is_fresh_across_unwinding() {
+    for prepare_first in [false, true] {
+        let mut first = seeded_flags();
+        let mut second = seeded_flags();
+        let mut slots = [MaybeUninit::<u32>::uninit(); 1];
+        let mut count = 1;
+        let failure = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let first = first.output(0, 4);
+            let second = second.output(0, 4);
+            let direct = NcOutput::from_slots(0, &mut slots, &mut count).unwrap();
+            if prepare_first {
+                drop(first.prepare().unwrap());
+            }
+            let _retained_unprepared = (second, direct);
+            panic!("stop before later output preparation");
+        }));
+        assert!(failure.is_err());
+        assert!(first.is_empty() && second.is_empty());
+        assert_eq!(count, 0);
+    }
+}
+
 #[test]
 fn either_preparation_allocation_can_fail_before_any_provider_runs() {
     for ordinal in 1..=2 {

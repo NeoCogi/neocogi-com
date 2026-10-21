@@ -39,8 +39,10 @@ fn accept(
 ```
 
 The caller owns `NcOutputBuffer<bool>` and passes `flags.output(0, count)`.
-Old buffer results are discarded during preparation, never encoded as input.
-Keeping an old snapshot for application rollback is the application's decision.
+Acquiring that output view immediately discards old buffer results, retaining
+native and wire capacity. Abandoning the view, failing an earlier argument or
+unwinding before preparation still leaves every acquired output fresh. Old
+values are never encoded as input. Application rollback needs a separate snapshot.
 The provider must still prepare its own fallible work before ownership commit.
 
 Each raw input owner slot stays unchanged through preparation, becomes null on
@@ -56,6 +58,7 @@ sequenceDiagram
     participant C as Generated caller
     participant T as Generated provider thunk
     participant P as Implementation
+    C->>C: Acquire output views; discard every previous result
     C->>C: Admit maximum output cost; reserve native and wire capacity
     C->>T: Lend owner slots and fresh raw output storage
     T->>T: Check every argument and output; no scratch allocation
@@ -155,8 +158,8 @@ cover uninitialized/short prefixes, bad tags and nested booleans, count/pointer
 shape, resource admission, allocation failure, reuse, and grouped publication.
 [Generated-call tests](../../crates/com/api/integration-tests/output_completion.rs)
 run the [shared fixture](../../crates/com/api/integration-tests/support/output_completion_fixture.rs)
-through handwritten macros and [compiled IDL](../../crates/com/idl/tests/output_completion.rs).
-They deny every preparation allocation independently, verify exact owner identity
+through two independently [compiled IDL paths](../../crates/com/idl/tests/output_completion.rs).
+They seed previous successful results, deny every preparation allocation independently, verify exact owner identity
 and destruction, deny all allocation after implementation entry, reject excessive
 maximum alternatives before entry, and exercise malformed successful output.
 

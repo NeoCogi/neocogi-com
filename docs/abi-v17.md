@@ -56,6 +56,8 @@ Writers cannot read old values, allocate conversion vectors, or retain storage.
 using the same slots; the nested result is validated before its count propagates.
 
 Clients use `NcOutput<'_, T>` from `NcOutputBuffer<T>::output(offset, capacity)`.
+Acquiring the view immediately discards previous results, even if preparation
+never reaches it or the view is abandoned. Retained capacity is unchanged.
 Converted results retain reusable native and wire allocations locally. Identity
 results use only native allocation; `NcOutput::from_slots` also permits
 allocation-free `MaybeUninit<T>` storage with the identity proof. No Rust writer,

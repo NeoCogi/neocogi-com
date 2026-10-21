@@ -149,8 +149,9 @@ impl<'a, T: ComInlineValue> NcOutputWriter<'a, T> {
 ///
 /// Numeric wire-identical results allocate only native storage. Converted results
 /// retain a second raw vector; it contains no resource capabilities or provider
-/// allocations. Each call discards its previous results. Applications requiring
-/// old/new rollback keep their old snapshot separately until the new call succeeds.
+/// allocations. Acquiring an output view immediately discards previous results,
+/// including when the view is abandoned or an earlier argument rejects before
+/// preparation. Applications requiring old/new rollback keep a separate snapshot.
 #[cfg(feature = "alloc")]
 pub struct NcOutputBuffer<T: ComInlineValue> {
     /// Only fully acquired, published native results may be observed through this field.
@@ -196,9 +197,12 @@ impl<T: ComInlineValue> NcOutputBuffer<T> {
         self.values
     }
     /// Borrows this buffer for one getter with explicit source offset and capacity.
+    /// Immediately discards previous results while retaining both allocations,
+    /// even if this view is never prepared or the generated call fails earlier.
     /// Storage and limit checks occur inside the generated client before owners
     /// are lent to the provider. Constructing this argument does not allocate.
     pub fn output(&mut self, offset: u64, capacity: usize) -> NcOutput<'_, T> {
+        self.values.clear();
         NcOutput {
             target: OutputTarget::Buffer(self),
             offset,
@@ -295,10 +299,11 @@ impl<'a, T: ComInlineValue> NcOutput<'a, T> {
             }
         }
     }
-    /// Discards old results, admits every possible output, and reserves storage.
+    /// Admits every possible fresh output and reserves storage before dispatch.
+    /// View acquisition already discarded old results; preparation may short-circuit
+    /// without visiting other supplied views. Completion guards discard new results.
     #[doc(hidden)]
     pub fn prepare(mut self) -> Result<PreparedOutput<'a, T>, NcStatus> {
-        self.clear_results();
         crate::check_buffer_output::<T>(u64::try_from(self.capacity).map_err(|_| NC_E_OUT_OF_RANGE)?)?;
         match &mut self.target {
             #[cfg(feature = "alloc")]

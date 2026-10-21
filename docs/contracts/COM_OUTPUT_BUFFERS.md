@@ -28,10 +28,13 @@ publication belongs to the thunk after successful implementation completion.
 ## Caller storage and publication
 
 `NcOutputBuffer<T>` owns reusable native results and, only for converted elements,
-separate raw capacity. `output(offset, capacity)` creates a borrowed argument;
-generated preparation clears previous results, admits the complete possible
-shape, and reserves capacity before provider entry or ownership transfer.
-Reservations are fallible. Dropping the buffer frees both allocations locally.
+separate raw capacity. `output(offset, capacity)` immediately discards previous
+results and creates a borrowed fresh-output argument without allocating. This
+also applies when the view is abandoned, an earlier argument rejects, or the
+caller unwinds before preparation reaches this output. Keep a separate snapshot
+for rollback. Generated preparation admits the complete possible shape and
+reserves capacity before provider entry or ownership transfer. Reservations are
+fallible. Dropping the buffer frees both allocations locally.
 
 Allocation-free numeric callers can instead use `NcOutput::from_slots` with
 `MaybeUninit<T>` slots and a result count. This requires the identity-wire proof

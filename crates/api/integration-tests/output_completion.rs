@@ -107,12 +107,38 @@ fn caller_validates_later_output_before_publishing_earlier_buffer() {
     // SAFETY: the provider and substituted C-shaped table remain live throughout
     // this scoped borrow. Only the output-writing slot is deliberately malformed.
     let mut client = unsafe { ComRef::<IOrdinaryOutputsAbi>::from_raw_borrowed(raw) }.unwrap();
-    let mut flags = NcOutputBuffer::<bool>::new();
-    let mut choices = NcOutputBuffer::<Choice>::new();
+    let mut flags = generated_calls::seeded_output(true);
+    let mut choices = generated_calls::seeded_output(Choice::Idle);
     let status = client.buffers(flags.output(0, 1), choices.output(0, 1));
     assert_eq!(status, Err(NC_E_INVALID_TAG));
     assert!(flags.is_empty());
     assert!(choices.is_empty());
+}
+
+/// Ordinary callers have the same freshness rule even when an earlier output never prepares.
+#[test]
+fn ordinary_admission_rejection_discards_seeded_outputs_in_either_order() {
+    for reject_first in [true, false] {
+        let mut provider = OrdinaryOutputs::from_value(OrdinaryOutputs).query::<IOrdinaryOutputsAbi>().unwrap();
+        let mut flags = generated_calls::seeded_output(true);
+        let mut choices = generated_calls::seeded_output(Choice::Idle);
+        let result = provider.buffers(
+            flags.output(0, if reject_first { usize::MAX } else { 1 }),
+            choices.output(0, if reject_first { 1 } else { usize::MAX }),
+        );
+        assert_eq!(result, Err(NC_E_OUT_OF_RANGE));
+        assert!(flags.is_empty() && choices.is_empty());
+    }
+}
+
+/// A successful empty replacement publishes an empty group without retaining old values.
+#[test]
+fn ordinary_empty_success_replaces_seeded_outputs() {
+    let mut provider = OrdinaryOutputs::from_value(OrdinaryOutputs).query::<IOrdinaryOutputsAbi>().unwrap();
+    let mut flags = generated_calls::seeded_output(true);
+    let mut choices = generated_calls::seeded_output(Choice::Idle);
+    assert_eq!(provider.buffers(flags.output(0, 0), choices.output(0, 0)), Ok(()));
+    assert!(flags.is_empty() && choices.is_empty());
 }
 
 #[test]

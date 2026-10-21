@@ -1,4 +1,4 @@
-//! Shared real-ABI regressions, compiled against both macro and IDL declarations.
+//! Shared real-ABI regressions, compiled against independently generated IDL declarations.
 use super::*;
 use std::sync::{
     Arc,
@@ -97,6 +97,23 @@ fn items() -> ([ComBox<IItemAbi>; 2], Arc<AtomicUsize>) {
     ([make(), make()], drops)
 }
 
+/// Publishes one valid old result through the real output primitive before fault injection.
+/// Both native and converted-wire capacities remain reusable by the next generated call.
+pub(super) fn seeded_output<T: ComInlineValue>(value: T) -> NcOutputBuffer<T> {
+    let mut buffer = NcOutputBuffer::<T>::new();
+    let mut prepared = buffer.output(0, 1).prepare().unwrap();
+    let wire = encode_inline(&value).unwrap();
+    // SAFETY: preparation reserved one writable wire slot and a distinct count;
+    // this initialized wire is produced by T's checked codec.
+    unsafe {
+        prepared.as_mut_ptr().write(wire);
+        *prepared.written_ptr() = 1;
+        prepared.convert_output().unwrap();
+    }
+    prepared.publish();
+    buffer
+}
+
 #[test]
 fn every_generated_preparation_failure_returns_both_original_owners() {
     let capacity = 2;
@@ -105,8 +122,8 @@ fn every_generated_preparation_failure_returns_both_original_owners() {
         let (mut receiver, calls) = receiver();
         let ([first, second], drops) = items();
         let identities = [first.as_raw().object, second.as_raw().object];
-        let mut choices = NcOutputBuffer::<Choice>::new();
-        let mut flags = NcOutputBuffer::<bool>::new();
+        let mut choices = seeded_output(Choice::Idle);
+        let mut flags = seeded_output(true);
         let probe = Probe::start(Some(ordinal));
         let result = receiver.complete(
             first,
@@ -127,6 +144,36 @@ fn every_generated_preparation_failure_returns_both_original_owners() {
         assert_eq!(second.value(), Ok(42));
         assert!(choices.is_empty());
         assert!(flags.is_empty());
+        drop((first, second));
+        assert_eq!(drops.load(SeqCst), 2);
+    }
+}
+
+/// First and later admission rejection discard every supplied old result before owner transfer.
+#[test]
+fn generated_admission_rejection_discards_seeded_outputs_in_either_order() {
+    for reject_first in [true, false] {
+        let (mut receiver, calls) = receiver();
+        let ([first, second], drops) = items();
+        let identities = [first.as_raw().object, second.as_raw().object];
+        let mut choices = seeded_output(Choice::Idle);
+        let mut flags = seeded_output(true);
+        let result = receiver.complete(
+            first,
+            second,
+            choices.output(0, if reject_first { usize::MAX } else { 1 }),
+            flags.output(0, if reject_first { 1 } else { usize::MAX }),
+            false,
+            false,
+        );
+        let (status, first, second) = result.unwrap_err();
+        assert_eq!(status, NC_E_OUT_OF_RANGE);
+        assert_eq!([first.as_raw().object, second.as_raw().object], identities);
+        assert_eq!(calls.load(SeqCst), 0);
+        assert_eq!(drops.load(SeqCst), 0);
+        assert!(choices.is_empty() && flags.is_empty());
+        assert_eq!(first.value(), Ok(42));
+        assert_eq!(second.value(), Ok(42));
         drop((first, second));
         assert_eq!(drops.load(SeqCst), 2);
     }
@@ -169,8 +216,8 @@ fn implementation_rejection_restores_owners_without_publishing_outputs() {
     let (mut receiver, calls) = receiver();
     let ([first, second], drops) = items();
     let identities = [first.as_raw().object, second.as_raw().object];
-    let mut choices = NcOutputBuffer::<Choice>::new();
-    let mut flags = NcOutputBuffer::<bool>::new();
+    let mut choices = seeded_output(Choice::Idle);
+    let mut flags = seeded_output(true);
     let probe = Probe::start(None);
     let result = receiver.complete(
         first,
@@ -386,8 +433,8 @@ fn invalid_committed_output_is_a_contract_violation_not_an_owner_rejection() {
     raw.vtable = &table;
     // SAFETY: receiver and substituted table outlive this borrowed test client.
     let mut client = unsafe { ComRef::<ICompleteAbi>::from_raw_borrowed(raw) }.unwrap();
-    let mut choices = NcOutputBuffer::<Choice>::new();
-    let mut flags = NcOutputBuffer::<bool>::new();
+    let mut choices = seeded_output(Choice::Idle);
+    let mut flags = seeded_output(true);
     let failure = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         client.complete(
             first,

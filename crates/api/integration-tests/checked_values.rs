@@ -89,6 +89,22 @@ fn valid_calls_acquire_output_buffers_and_nested_return_values() {
     assert_eq!(check.input(NcCopyFromBufferOffset::new(0, &values)).unwrap(), 1);
 }
 
+/// A readable argument may reject before the generated client prepares a later output.
+#[test]
+fn early_readable_input_rejection_discards_the_previous_output_result() {
+    let check = Check::from_value(Check).query::<ICheckAbi>().unwrap();
+    let mut output = NcOutputBuffer::new();
+    let input = [Action::Configure(Settings { flags: Flags { enabled: true } })];
+    check.actions(NcCopyFromBufferOffset::new(0, &input), output.output(0, 1)).unwrap();
+    assert_eq!(output.as_slice(), &[Action::Idle]);
+    let excessive = vec![Action::Idle; MAX_VALUE_COUNT + 1];
+    assert_eq!(
+        check.actions(NcCopyFromBufferOffset::new(0, &excessive), output.output(0, 1)),
+        Err(NC_E_OUT_OF_RANGE),
+    );
+    assert!(output.is_empty());
+}
+
 /// Native enums round-trip directly, nested in copied records, and through writable buffers.
 #[test]
 fn native_enums_cross_copied_nested_array_and_buffer_slots() {
