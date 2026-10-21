@@ -9,7 +9,7 @@ use quote::{format_ident, quote};
 use neocogi_com_core::NcComInterfaceCompanion as Companion;
 use syn::Result;
 
-use crate::method_docs::{raw_vtable_method_docs, safe_method_docs};
+use crate::method_docs::{literal_doc, raw_vtable_method_docs, safe_method_docs};
 use crate::args::InterfaceThreading;
 use crate::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind, InterfacePlan};
 use crate::util::{checked_u32_len, guid_tokens, private_ident, PrivateNames, interface_companion_ident};
@@ -552,6 +552,12 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
         false => quote! { const _: () = { #(#output_contracts)* }; },
     };
     let binding_imports = names.binding_imports();
+    let marker_doc = literal_doc(
+        format!("Interface marker for [`{trait_ident}`]; handles carry its object/table pair."),
+        trait_ident.span(),
+    );
+    let table_doc = literal_doc(format!("C-compatible vtable for [`{trait_ident}`]."), trait_ident.span());
+    let client_doc = literal_doc(format!("Borrowed static method view for [`{trait_ident}`]."), trait_ident.span());
     let abi = quote! {
         #input
 
@@ -562,13 +568,13 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
 
         // The marker gives ComRaw/ComPtr their static interface contract.
         // No IFooAbi instance is stored in the object allocation.
-        #[doc = ::core::concat!("Interface marker for [`", ::core::stringify!(#trait_ident), "`]; handles carry its object/table pair.")]
+        #marker_doc
         #vis enum #abi_ident {}
 
         // Vtables start with the `IUnknown` function table, then append the
         // interface-specific methods in source order.
         #[repr(C)]
-        #[doc = ::core::concat!("C-compatible vtable for [`", ::core::stringify!(#trait_ident), "`].")]
+        #table_doc
         #vis struct #vtable_ident {
             #prefix_field
             #(#method_fields)*
@@ -590,7 +596,7 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
         // The view only lends method lookup. It has no constructor, ownership
         // conversions or Clone/Copy implementation and cannot outlive its lender.
         #[repr(transparent)]
-        #[doc = ::core::concat!("Borrowed static method view for [`", ::core::stringify!(#trait_ident), "`].")]
+        #client_doc
         #vis struct #client_ident<#mode: #nc::ThreadingModel = #nc::ThreadLocal> {
             /// Certified transparent storage supplied only by a live COM pointer borrow.
             __nc_pointer: #nc::NcClientPointer<#abi_ident, #mode>,

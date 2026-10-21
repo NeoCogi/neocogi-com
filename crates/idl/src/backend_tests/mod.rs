@@ -10,3 +10,5 @@ mod support_resolution_tests;
 mod test_consumer;
 
 mod public_name_tests;
+
+mod documentation_tests;

@@ -230,6 +230,13 @@ impl<T: ComInlineValue> core::ops::Deref for NcOutputBuffer<T> {
 }
 
 /// Exclusive client argument for one output-only getter; no Rust layout crosses COM.
+///
+/// Acquiring this view clears the destination's previous published results, even
+/// if the view is abandoned or another argument fails before this one prepares.
+/// Preparation validates limits and reserves storage before provider entry.
+/// Only successful validation of every output publishes the new initialized
+/// prefixes. Failure or abandonment leaves no published result; reusable caller
+/// allocations remain caller-owned.
 pub struct NcOutput<'a, T: ComInlineValue> {
     /// Keeps caller storage exclusively borrowed through validation and publication.
     target: OutputTarget<'a, T>,

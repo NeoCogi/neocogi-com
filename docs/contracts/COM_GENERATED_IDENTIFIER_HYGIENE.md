@@ -134,3 +134,17 @@ operations (`into`, `try_into`, `to_owned`, `clone_into`). Source audits cover
 local impls; executable generated consumers cover prelude lookup and provider
 entry/status. Recheck that surface when changing compiler or edition. Arbitrarily
 imported extension traits can require qualified generated-client calls.
+
+## Backend-created documentation and bootstrap roots
+
+Backend-created descriptions are literal doc attributes, formatted from typed
+names at generation time. Authored attrs and source origins are retained
+separately in their original order; source maps describe final formatted output.
+Poison-macro consumers must assert actual descriptions and ABI calls, since a
+substituted but valid doc string can compile successfully.
+
+Core and facade resolve ordinary canonical support paths through private lexical
+self-aliases. Bootstrap generation formats the two ordinary halves unchanged;
+there is no token-text or syntax-path rebasing. Core exports alone enforce its
+ABI-half dependency boundary, including executable paths inside proof macros.
+The alias creates no facade/compiler dependency or runtime state.

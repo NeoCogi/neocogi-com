@@ -1,7 +1,15 @@
 //! Method documentation derived from the same typed ownership plan as dispatch.
-use quote::quote;
+use quote::{quote, ToTokens};
+use syn::spanned::Spanned;
 use syn::Ident;
 use crate::model::{AbiMethod, AbiArg, AbiArgKind, AbiReturn, AbiReturnKind};
+
+/// Backend-created prose is evaluated here; consumers receive only literal text.
+/// Authored documentation/provenance attributes are retained separately by callers.
+pub(crate) fn literal_doc(text: String, span: proc_macro2::Span) -> proc_macro2::TokenStream {
+    let text = syn::LitStr::new(&text, span);
+    quote! { #[doc = #text] }
+}
 
 /// Generates rustdoc describing one unsafe raw vtable slot and its contracts.
 pub(crate) fn raw_vtable_method_docs(trait_ident: &Ident, method: &AbiMethod) -> Vec<proc_macro2::TokenStream> {
@@ -25,8 +33,10 @@ pub(crate) fn raw_vtable_method_docs(trait_ident: &Ident, method: &AbiMethod) ->
     };
     let return_docs = raw_vtable_return_docs(&method.ok);
 
+    let leading_doc = literal_doc(format!("Raw COM ABI vtable slot for [`{trait_ident}::{method_ident}`]."), method_ident.span());
+
     vec![quote! {
-        #[doc = concat!("Raw COM ABI vtable slot for [`", stringify!(#trait_ident), "::", stringify!(#method_ident), "`].")]
+        #leading_doc
         #[doc = ""]
         #status_doc
         #[doc = ""]
@@ -42,35 +52,52 @@ pub(crate) fn raw_vtable_method_docs(trait_ident: &Ident, method: &AbiMethod) ->
 fn raw_vtable_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.ident;
     match &arg.kind {
-        AbiArgKind::ComBox { .. } => vec![quote! {
-            #[doc = concat!("- `", stringify!(#ident), "` transfers one exclusive owner. Success clears the writable owner slot. Every error restores the original owner unchanged; the caller decides whether to retry or destroy it. Providers must finish all fallible preparation before committing ownership.")]
-        }],
-        AbiArgKind::BorrowedValue { .. } => vec![quote! {
-            #[doc = concat!("- `", stringify!(#ident), "` borrows its exact generated message representation; the receiver acquires owned fields before retaining data.")]
-        }],
+        AbiArgKind::ComBox { .. } => vec![literal_doc(
+            format!(
+                "- `{ident}` transfers one exclusive owner. Success clears the writable owner slot. Every error restores the original owner unchanged; the caller decides whether to retry or destroy it. Providers must finish all fallible preparation before committing ownership."
+            ),
+            ident.span(),
+        )],
+        AbiArgKind::BorrowedValue { .. } => vec![literal_doc(
+            format!("- `{ident}` borrows its exact generated message representation; the receiver acquires owned fields before retaining data."),
+            ident.span(),
+        )],
         AbiArgKind::Plain => {
             let abi_ty = &arg.abi_ty;
-            vec![quote! {
-                #[doc = concat!("- `", stringify!(#ident), "` is passed by value as `", stringify!(#abi_ty), "`.")]
-            }]
+            vec![literal_doc(
+                format!("- `{ident}` is passed by value as `{abi_ty}`.", abi_ty = abi_ty.to_token_stream()),
+                ident.span(),
+            )]
         }
         AbiArgKind::ComRef { interface_ty, .. } => {
             let interface_ty = interface_ty.as_ref();
-            vec![quote! {
-                #[doc = concat!("- `", stringify!(#ident), "` is a borrowed `", stringify!(#interface_ty), "` object/table pair.", " Both fields must be non-null. The callee must call `AddRef` before retaining a present interface after the call returns.")]
-            }]
+            vec![literal_doc(
+                format!(
+                    "- `{ident}` is a borrowed `{interface_ty}` object/table pair. Both fields must be non-null. The callee must call `AddRef` before retaining a present interface after the call returns.",
+                    interface_ty = interface_ty.to_token_stream()
+                ),
+                ident.span(),
+            )]
         }
         AbiArgKind::CopyFromBufferOffset { element_ty } => {
             let element_ty = element_ty.as_ref();
-            vec![quote! {
-                #[doc = concat!("- `", stringify!(#ident), "` lowers to `offset: u64`, `len: u64`, and a readable `*const ", stringify!(#element_ty), "` buffer.")]
-            }]
+            vec![literal_doc(
+                format!(
+                    "- `{ident}` lowers to `offset: u64`, `len: u64`, and a readable `*const {element_ty}` buffer.",
+                    element_ty = element_ty.to_token_stream()
+                ),
+                ident.span(),
+            )]
         }
         AbiArgKind::OutputBuffer { element_ty } => {
             let element_ty = element_ty.as_ref();
-            vec![quote! {
-                #[doc = concat!("- `", stringify!(#ident), "` lowers to `offset: u64`, `capacity: u64`, writable `*mut <", stringify!(#element_ty), " as ComValue>::Wire`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.")]
-            }]
+            vec![literal_doc(
+                format!(
+                    "- `{ident}` lowers to `offset: u64`, `capacity: u64`, writable `*mut <{element_ty} as ComValue>::Wire`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.",
+                    element_ty = element_ty.to_token_stream()
+                ),
+                ident.span(),
+            )]
         }
     }
 }
@@ -85,15 +112,20 @@ fn raw_vtable_return_docs(ok: &AbiReturn) -> Vec<proc_macro2::TokenStream> {
         }
         AbiReturnKind::Plain => {
             let abi_ty = &ok.abi_ty;
-            vec![quote! {
-                #[doc = concat!("On success, `out` receives `", stringify!(#abi_ty), "`.")]
-            }]
+            vec![literal_doc(
+                format!("On success, `out` receives `{abi_ty}`.", abi_ty = abi_ty.to_token_stream()),
+                ok.rust_ty.span(),
+            )]
         }
         AbiReturnKind::ComPtr { interface_ty, .. } => {
             let interface_ty = interface_ty.as_ref();
-            vec![quote! {
-                #[doc = concat!("On success, `out` receives an owned `", stringify!(#interface_ty), "` object/table pair transferred to the caller.")]
-            }]
+            vec![literal_doc(
+                format!(
+                    "On success, `out` receives an owned `{interface_ty}` object/table pair transferred to the caller.",
+                    interface_ty = interface_ty.to_token_stream()
+                ),
+                ok.rust_ty.span(),
+            )]
         }
     }
 }
@@ -112,9 +144,14 @@ pub(crate) fn safe_method_docs(trait_ident: &Ident, method: &AbiMethod) -> Vec<p
     };
     let return_docs = safe_return_docs(&method.ok);
 
+    let leading_doc = literal_doc(
+        format!("Calls [`{trait_ident}::{method_ident}`] through the generated COM ABI vtable."),
+        method_ident.span(),
+    );
+
     vec![quote! {
         #[doc = ""]
-        #[doc = concat!("Calls [`", stringify!(#trait_ident), "::", stringify!(#method_ident), "`] through the generated COM ABI vtable.")]
+        #leading_doc
         #[doc = ""]
         #wrapper_doc
         #[doc = "Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`."]
@@ -127,35 +164,52 @@ pub(crate) fn safe_method_docs(trait_ident: &Ident, method: &AbiMethod) -> Vec<p
 fn safe_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.ident;
     match &arg.kind {
-        AbiArgKind::ComBox { .. } => vec![quote! {
-            #[doc = concat!("- `", stringify!(#ident), "` transfers one exclusive owner. Success clears the writable owner slot. Every error restores the original owner unchanged; the caller decides whether to retry or destroy it. Providers must finish all fallible preparation before committing ownership.")]
-        }],
-        AbiArgKind::BorrowedValue { .. } => vec![quote! {
-            #[doc = concat!("- `", stringify!(#ident), "` borrows its exact generated message representation; the receiver acquires owned fields before retaining data.")]
-        }],
+        AbiArgKind::ComBox { .. } => vec![literal_doc(
+            format!(
+                "- `{ident}` transfers one exclusive owner. Success clears the writable owner slot. Every error restores the original owner unchanged; the caller decides whether to retry or destroy it. Providers must finish all fallible preparation before committing ownership."
+            ),
+            ident.span(),
+        )],
+        AbiArgKind::BorrowedValue { .. } => vec![literal_doc(
+            format!("- `{ident}` borrows its exact generated message representation; the receiver acquires owned fields before retaining data."),
+            ident.span(),
+        )],
         AbiArgKind::Plain => {
             let rust_ty = &arg.rust_ty;
-            vec![quote! {
-                #[doc = concat!("- `", stringify!(#ident), "` is passed by value as `", stringify!(#rust_ty), "`.")]
-            }]
+            vec![literal_doc(
+                format!("- `{ident}` is passed by value as `{rust_ty}`.", rust_ty = rust_ty.to_token_stream()),
+                ident.span(),
+            )]
         }
         AbiArgKind::ComRef { interface_ty, .. } => {
             let interface_ty = interface_ty.as_ref();
-            vec![quote! {
-                #[doc = concat!("- `", stringify!(#ident), "` borrows a `", stringify!(#interface_ty), "` interface for the duration of the call.", " An interface is required. The callee must call `AddRef` before retaining a present interface.")]
-            }]
+            vec![literal_doc(
+                format!(
+                    "- `{ident}` borrows a `{interface_ty}` interface for the duration of the call. An interface is required. The callee must call `AddRef` before retaining a present interface.",
+                    interface_ty = interface_ty.to_token_stream()
+                ),
+                ident.span(),
+            )]
         }
         AbiArgKind::CopyFromBufferOffset { element_ty } => {
             let element_ty = element_ty.as_ref();
-            vec![quote! {
-                #[doc = concat!("- `", stringify!(#ident), "` is passed as a safe readable `", stringify!(#element_ty), "` buffer plus offset.")]
-            }]
+            vec![literal_doc(
+                format!(
+                    "- `{ident}` is passed as a safe readable `{element_ty}` buffer plus offset.",
+                    element_ty = element_ty.to_token_stream()
+                ),
+                ident.span(),
+            )]
         }
         AbiArgKind::OutputBuffer { element_ty } => {
             let element_ty = element_ty.as_ref();
-            vec![quote! {
-                #[doc = concat!("- `", stringify!(#ident), "` takes `NcOutput<", stringify!(#element_ty), ">` from caller-owned output storage. Preparation discards prior results and reserves before dispatch. Only the successfully validated prefix is published; the provider receives `NcOutputWriter` and cannot read old destination values.")]
-            }]
+            vec![literal_doc(
+                format!(
+                    "- `{ident}` supplies output storage for `{element_ty}` through [`::neocogi_com::NcOutput`]. See its lifecycle contract for acquisition, preparation and publication.",
+                    element_ty = element_ty.to_token_stream()
+                ),
+                ident.span(),
+            )]
         }
     }
 }
@@ -170,16 +224,22 @@ fn safe_return_docs(ok: &AbiReturn) -> Vec<proc_macro2::TokenStream> {
         }
         AbiReturnKind::Plain => {
             let rust_ty = &ok.rust_ty;
-            vec![quote! {
-                #[doc = concat!("On success, returns `", stringify!(#rust_ty), "` from the ABI out slot.")]
-            }]
+            vec![literal_doc(
+                format!("On success, returns `{rust_ty}` from the ABI out slot.", rust_ty = rust_ty.to_token_stream()),
+                ok.rust_ty.span(),
+            )]
         }
         AbiReturnKind::ComPtr { interface_ty, .. } => {
             let rust_ty = &ok.rust_ty;
             let interface_ty = interface_ty.as_ref();
-            vec![quote! {
-                #[doc = concat!("On success, adopts the owned `", stringify!(#interface_ty), "` interface pointer returned through `out` as `", stringify!(#rust_ty), "`.")]
-            }]
+            vec![literal_doc(
+                format!(
+                    "On success, adopts the owned `{interface_ty}` interface pointer returned through `out` as `{rust_ty}`.",
+                    interface_ty = interface_ty.to_token_stream(),
+                    rust_ty = rust_ty.to_token_stream()
+                ),
+                ok.rust_ty.span(),
+            )]
         }
     }
 }

@@ -22,14 +22,9 @@ fn persistence_bindings_match_idl() {
     .unwrap();
     let graph = neocogi_idl::resolve_modules(vec![module]).unwrap();
     let generated = neocogi_idl::generate::generate_bootstrap(&graph, "neocogi.com.persistence").unwrap();
-    // Core and facade consume the same typed plan as ordinary compiled peers.
-    // Only the canonical support path changes at the explicit bootstrap boundary.
-    let abi = generated
-        .abi
-        .parse::<proc_macro2::TokenStream>()
-        .unwrap()
-        .to_string()
-        .replace(":: neocogi_com", "crate");
+    // Each actual consumer owns its canonical lexical self-root. Keep generated
+    // executable paths and authored literals unchanged; format syntax only.
+    let abi = generated.abi;
     let provider = generated.provider;
     check_generated(&consumer.core.join("src/persistence/interfaces.rs"), &abi);
     check_generated(&consumer.facade.join("src/persistence/providers.rs"), &format!("use super::*; {}", provider));
