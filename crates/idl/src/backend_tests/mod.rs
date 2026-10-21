@@ -8,3 +8,5 @@ mod name_ownership_tests;
 mod persistence_codegen;
 mod support_resolution_tests;
 mod test_consumer;
+
+mod public_name_tests;

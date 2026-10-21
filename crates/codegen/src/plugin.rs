@@ -6,11 +6,15 @@
 
 use quote::{ToTokens, quote};
 use syn::parse::{Parse, ParseStream};
+use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 use syn::{GenericArgument, Ident, ItemFn, LitStr, Path, PathArguments, Result, ReturnType, Token, Type, bracketed, parenthesized};
 
 use crate::args::{PluginGuid, parse_guid_arg};
 use crate::util::{PrivateNames, checked_u32_len, runtime_crate_path, stable_guid, validate_version_literal};
+
+/// Module-level accessor owned by this procedure; source admission uses Rust identity.
+const ACCESSOR_NAME: &str = "plugin_descriptor";
 
 /// Normalized inputs to one `plugin!` declaration.
 pub struct PluginArgs {
@@ -114,6 +118,13 @@ fn reject_duplicate_paths(paths: &[Path], subject: &str) -> Result<()> {
 pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::TokenStream> {
     let nc = runtime_crate_path(args.runtime_crate.as_ref());
     let signature = &input.sig;
+    if signature.ident.unraw() == ACCESSOR_NAME {
+        return Err(syn::Error::new(
+            signature.ident.span(),
+            "plugin acquisition conflicts with generated plugin_descriptor accessor",
+        ));
+    }
+    let accessor = Ident::new(ACCESSOR_NAME, signature.ident.span());
     if !signature.inputs.is_empty()
         || !signature.generics.params.is_empty()
         || signature.generics.where_clause.is_some()
@@ -175,7 +186,7 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
         /// Returns immutable assembly metadata without constructing a root.
         /// Private items have function scope; their names are fresh against every
         /// authored acquisition/dependency reference, including printed source.
-        pub const fn plugin_descriptor() -> &'static #nc::NcPluginDescriptor {
+        pub const fn #accessor() -> &'static #nc::NcPluginDescriptor {
         #binding_imports
         /// Hard plugin dependencies required before this interface can be acquired.
         static #dependencies_name: [#nc::NcPluginDependencyDescriptor; #dependency_len] = [
@@ -224,7 +235,7 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn nc_get_plugin_descriptor_v1(#output: *mut *const #nc::NcPluginDescriptor) -> #nc::NcStatus {
             // SAFETY: the descriptor is immutable static data owned by this library.
-            unsafe { #nc::return_plugin_descriptor(#output, plugin_descriptor()) }
+            unsafe { #nc::return_plugin_descriptor(#output, #accessor()) }
         }
         };
     })

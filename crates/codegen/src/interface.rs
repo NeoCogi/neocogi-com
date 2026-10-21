@@ -14,6 +14,32 @@ use crate::args::InterfaceThreading;
 use crate::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind, InterfacePlan};
 use crate::util::{checked_u32_len, guid_tokens, private_ident, PrivateNames, interface_companion_ident};
 
+/// Physical public prefix selected by the interface's ordered base list.
+/// Emission and source admission share this policy; only local method slots
+/// occupy the selected prefix's field namespace.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InterfaceVTablePrefix {
+    /// Root interfaces begin with the common identity/lifetime table.
+    Unknown,
+    /// Derived interfaces begin with their first base's complete table.
+    Base,
+}
+
+impl InterfaceVTablePrefix {
+    /// Selects the physical prefix without inspecting or allocating Rust syntax.
+    pub const fn select(has_base: bool) -> Self {
+        if has_base { Self::Base } else { Self::Unknown }
+    }
+
+    /// Public field spelling used by table definitions and their initializers.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::Base => "base",
+        }
+    }
+}
+
 /// Separately emitted contract and provider support for built-in interfaces.
 ///
 /// Core owns the ABI and safe clients. The facade owns generated object thunks,
@@ -89,6 +115,7 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
     // Bases already name bound supplying projections. Their first entry is the
     // physical prefix; the remainder require sibling views of the same object.
     let base = interface_paths.first();
+    let prefix = syn::Ident::new(InterfaceVTablePrefix::select(base.is_some()).name(), trait_ident.span());
     // The first supertrait supplies the physical prefix. Every later one is
     // a required sibling projection; all refer to the same owned Rust value.
     let required_providers = interface_paths.iter().map(|path| generated_path(path, Companion::Provider)).collect::<Vec<_>>();
@@ -96,10 +123,10 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
     let mut base_identity = quote! { #nc::NcInterfaceId::NONE };
     let mut prefix_field = quote! {
         /// Common identity, query and reference-count slots.
-        pub unknown: #nc::IUnknownVTable,
+        pub #prefix: #nc::IUnknownVTable,
     };
     let mut prefix_value = quote! {
-        unknown: #nc::IUnknownVTable {
+        #prefix: #nc::IUnknownVTable {
             interface_id: #identity_local,
             query_interface: #nc::lifetime::nc_query_interface,
             add_ref: #nc::lifetime::nc_strong_retain,
@@ -116,9 +143,9 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
         base_identity = quote! { <#base_abi as #nc::ComInterface>::INTERFACE_ID };
         prefix_field = quote! {
             /// Complete inherited vtable at offset zero; local slots follow it.
-            pub base: #base_vtable,
+            pub #prefix: #base_vtable,
         };
-        prefix_value = quote! { base: #base_vtable_for::<#provider>::with_identity(#identity_local), };
+        prefix_value = quote! { #prefix: #base_vtable_for::<#provider>::with_identity(#identity_local), };
         client_base = quote! {
             impl<#mode: #nc::ThreadingModel> ::core::ops::Deref for #client_ident<#mode> {
                 type Target = #base_client<#mode>;

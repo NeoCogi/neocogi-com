@@ -10,6 +10,7 @@
 
 mod binding;
 mod diagnostic;
+mod metadata_names;
 mod model;
 mod parser;
 mod path;

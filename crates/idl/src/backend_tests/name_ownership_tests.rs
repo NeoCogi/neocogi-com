@@ -56,7 +56,7 @@ fn ambient_binding_constants(authored: &str, generated: &syn::File) -> String {
 
 /// Runs several complete source selections in one real SDK consumer.
 /// The scratch target is removed with the consumer after every child has exited.
-fn run_consumers(name: &str, cases: impl IntoIterator<Item = (String, String)>) {
+pub(super) fn run_consumers(name: &str, cases: impl IntoIterator<Item = (String, String)>) {
     run_consumers_with_files(name, cases, &[]);
 }
 

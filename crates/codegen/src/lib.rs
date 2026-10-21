@@ -21,7 +21,7 @@ mod value;
 pub use args::{InterfaceThreading, ObjectArgs, ObjectInterface, ObjectOwnership};
 pub use plugin::{PluginArgs, expand_plugin};
 pub use object::expand_com_object;
-pub use interface::{InterfaceExpansion, expand_interface_parts};
+pub use interface::{InterfaceVTablePrefix, InterfaceExpansion, expand_interface_parts};
 pub use deserialize::{expand_derive as expand_com_deserialize_derive, expand_struct as emit_record_decoder, expand_enum as emit_enum_decoder};
 pub use serialize::expand_derive as expand_com_serialize_derive;
 pub use value::{ValueCase};

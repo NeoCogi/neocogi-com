@@ -113,3 +113,24 @@ not a supported route around IDL admission. Their supported runtime assertions
 now use actual IDL sources; ordinary Rust scope assertions remain on the surviving
 implementation/persistence procedures. Run the compiler-owned backend regressions with
 `cargo test -p neocogi-idl --lib -- --test-threads=1`.
+
+## Contextual public-name admission
+
+The physical prefix is selected by `InterfaceVTablePrefix` in codegen. Root
+interfaces reject a local `unknown` slot; derived interfaces reject a local
+`base` slot. The converse names and parameter spellings remain legal. IDL checks
+authored declarations before specialization and closed declarations afterward;
+removing a frontend requires moving both its admission rule and behavioral tests.
+
+IDL owns `IDL_TYPE` and `IDL_INTERFACE` spellings. A bit flag cannot occupy its
+value's inherent `IDL_TYPE` metadata namespace. Standalone value reflection and
+interface-owned reachable metadata remain separate supported access scopes.
+The plugin procedure owns `plugin_descriptor`; ordinary and raw acquisition
+identifiers with that identity reject at the input. The C discovery export's
+anonymous scope leaves its ordinary Rust spelling legal for acquisition.
+
+Core's receiver inventory includes the supported standard-prelude blanket
+operations (`into`, `try_into`, `to_owned`, `clone_into`). Source audits cover
+local impls; executable generated consumers cover prelude lookup and provider
+entry/status. Recheck that surface when changing compiler or edition. Arbitrarily
+imported extension traits can require qualified generated-client calls.

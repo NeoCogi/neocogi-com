@@ -193,7 +193,8 @@ pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, Resoluti
         for declaration in &entry.module.declarations {
             match &declaration.kind {
                 DeclarationKind::Enum(enumeration) => validate_enum(entry, declaration, enumeration)?,
-                DeclarationKind::Interface(interface) => validate_method_names(&entry.module, &interface.methods)?,
+                DeclarationKind::BitEnum(bit_enum) => validate_metadata_names(entry, bit_enum)?,
+                DeclarationKind::Interface(interface) => validate_method_names(&entry.module, interface)?,
                 _ => {}
             }
         }
@@ -692,10 +693,7 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
             DeclarationKind::Interface(interface) => {
                 collect_diagnostics(&mut diagnostics, validate_interface_bases(index, interface, entries, &declaration.name));
                 collect_diagnostics(&mut diagnostics, events::validate(index, interface, entries, &declaration.name));
-                collect_diagnostics(
-                    &mut diagnostics,
-                    validate_methods(index, &interface.methods, entries, values, &declaration.name),
-                );
+                collect_diagnostics(&mut diagnostics, validate_methods(index, interface, entries, values, &declaration.name));
             }
         }
     }
@@ -929,8 +927,26 @@ fn collect_type_references<'a>(ty: &'a AbiType, output: &mut Vec<&'a NamedType>)
     }
 }
 
+/// Flags share their value's inherent namespace with per-value IDL metadata.
+/// Run at authored and closed stages so unused templates cannot hide conflicts.
+fn validate_metadata_names(entry: &ModuleEntry, bit_enum: &BitEnum) -> Result<(), ResolutionError> {
+    for flag in &bit_enum.flags {
+        if flag.name == crate::metadata_names::VALUE_METADATA_MEMBER {
+            return Err(source_error(
+                &entry.module,
+                "EIDL021",
+                &flag.span,
+                format!("flag {} conflicts with generated per-value metadata", flag.name),
+                "choose a distinct flag name",
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Checks every bit pattern against the selected unsigned storage width.
 fn validate_bit_enum(entry: &ModuleEntry, declaration: &Declaration, bit_enum: &BitEnum) -> Result<(), ResolutionError> {
+    validate_metadata_names(entry, bit_enum)?;
     let (_, maximum) = repr_range(bit_enum.repr);
     let mut values = HashMap::<u64, SourceSpan>::new();
     for flag in &bit_enum.flags {
@@ -1128,14 +1144,23 @@ fn validate_interface_bases(index: usize, interface: &crate::Interface, entries:
 
 /// Rejects handle lookup conflicts at authored spans, even for unused templates.
 /// Generated/specialized methods reuse the same policy during final validation.
-fn validate_method_names(module: &Module, methods: &[Method]) -> Result<(), ResolutionError> {
-    let diagnostics = methods
+fn validate_method_names(module: &Module, interface: &crate::Interface) -> Result<(), ResolutionError> {
+    let prefix = neocogi_com_codegen::InterfaceVTablePrefix::select(!interface.bases.is_empty());
+    let diagnostics = interface
+        .methods
         .iter()
-        .filter(|method| neocogi_com_core::is_reserved_com_method(&method.name))
+        .filter(|method| neocogi_com_core::is_reserved_com_method(&method.name) || method.name == prefix.name())
         .map(|method| {
-            Diagnostic::new("EIDL100", format!("COM method `{}` conflicts with a COM handle operation", method.name))
-                .with_sources(&module.sources)
-                .primary(&method.span, "choose a distinct interface method name")
+            Diagnostic::new(
+                "EIDL100",
+                if method.name == prefix.name() {
+                    format!("COM method `{}` conflicts with the generated `{}` vtable prefix", method.name, prefix.name())
+                } else {
+                    format!("COM method `{}` conflicts with a COM handle operation", method.name)
+                },
+            )
+            .with_sources(&module.sources)
+            .primary(&method.span, "choose a distinct interface method name")
         })
         .collect::<Vec<_>>();
     if diagnostics.is_empty() {
@@ -1146,10 +1171,16 @@ fn validate_method_names(module: &Module, methods: &[Method]) -> Result<(), Reso
 }
 
 /// Validates ordinary signatures and generated output getters in vtable order.
-fn validate_methods(index: usize, methods: &[Method], entries: &[ModuleEntry], values: &crate::ValueGraph, owner: &str) -> Result<(), ResolutionError> {
+fn validate_methods(
+    index: usize,
+    interface: &crate::Interface,
+    entries: &[ModuleEntry],
+    values: &crate::ValueGraph,
+    owner: &str,
+) -> Result<(), ResolutionError> {
     let mut diagnostics = Vec::new();
-    collect_diagnostics(&mut diagnostics, validate_method_names(&entries[index].module, methods));
-    for method in methods {
+    collect_diagnostics(&mut diagnostics, validate_method_names(&entries[index].module, interface));
+    for method in &interface.methods {
         for parameter in &method.parameters {
             collect_diagnostics(
                 &mut diagnostics,
