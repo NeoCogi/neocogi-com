@@ -855,8 +855,7 @@ Each IDL-generated COM interface projection exposes `*Abi::IDL_INTERFACE` beside
 its physical `INTERFACE_DESCRIPTOR`. The former points at the latter, retains
 its required interface chain, and describes the declared event interfaces and
 their complete inherited getter results. See [event metadata](IDL_EVENT_METADATA.md).
-Every struct, enum, and bit enum exposes `Type::IDL_TYPE`; postable messages also
-expose `Message::IDL_MESSAGE`. These records include ordered struct fields,
+Every struct, enum, and bit enum exposes `Type::IDL_TYPE`. These records include ordered struct fields,
 enum cases and payloads, and named bit flags. A custom-widget designer can inspect these records through
 the registered concrete COM interface type, then verify a constructed object by
 `QueryInterface` against the descriptor's identity and ABI signature. This is
@@ -889,7 +888,9 @@ Messages keep the exclusive COM owner until handling. Unsupported event queries
 return `None`; actual ABI/provider errors remain errors.
 
 `EventPort` is a nongeneric shared-service convenience with explicit terminal
-closure. Exclusive widgets store their common receiver and cached weak origin.
+closure. Exclusive widgets keep delivery in `WidgetState`; posting captures the
+active weak origin from the traversal stack. Shared services retain their explicit
+service origin.
 `com_object(Contract, ownership = exclusive)` generates allocation and weak-call
 admission, without event installation or callback adapters. See
 [COM event objects](COM_EVENT_INTERFACES.md).

@@ -104,8 +104,9 @@ impl Runtime {
     /// Registration is atomic: no plugin record becomes
     /// visible unless its metadata, provider dependencies, and process identity
     /// mapping are valid. Factory compatibility is checked during acquisition.
-    /// The runtime retains the descriptor and copies dependency GUIDs; it does
-    /// not own the provider's metadata allocation. Inspection through
+    /// The runtime borrows dependency tables from the validated process-lived
+    /// descriptor; its provider retains the metadata allocation. Owned application
+    /// inspection results copy their own data. Inspection through
     /// [`Self::plugin_info`] returns a separate record with first registration
     /// provenance.
     /// Registering the same descriptor again preserves its first origin.
@@ -173,11 +174,11 @@ impl Runtime {
         let status = unsafe { (self.runtime_api().acquire_factory_plugin)(plugin_id, root, NC_ABI_THREADING_THREAD_LOCAL, &mut out) };
         status_to_result(status)?;
         // The dynamically selected factory has a common lifecycle prefix, but
-        // its table identity is not IUnknown. Query canonical IUnknown before
+        // its table identity is not IUnknown. Query the exact IUnknown contract before
         // constructing that safe typed handle; erasing the raw table type alone
         // is not an interface conversion.
         // SAFETY: the runtime supplies a live factory pair. The common query
-        // checks canonical identity, same-object ownership, and rejected results.
+        // checks requested interface identity, same-object ownership, and rejected results.
         let identity = unsafe { crate::raw::__nc_query_interface(out, &IUnknown::INTERFACE_ID) };
         // SAFETY: the original factory reference is consumed on every result path.
         unsafe { crate::raw::release(out) };

@@ -109,6 +109,18 @@ for package in "${packages[@]}"; do
   cargo +1.85.0 check --manifest-path "$manifest" --all-targets --all-features --offline
   echo "==> [packages] all shipped tests: $package"
   cargo +1.85.0 test --manifest-path "$manifest" --tests --all-features --offline
+  if [[ "$package" == neocogi-com ]]; then
+    # Compiling an example does not execute main. Assert the actual extracted
+    # package's full stream; early successful EOF must not satisfy this check.
+    echo "==> [packages] execute strings_and_bytes from the extracted facade"
+    example_output="$(cargo +1.85.0 run --manifest-path "$manifest" --example strings_and_bytes --all-features --offline)"
+    expected_output=$'display name: neocogi-com\nchunk len=8: "chunked "\nchunk len=8: "stream o"\nchunk len=7: "ver COM"'
+    if [[ "$example_output" != "$expected_output" ]]; then
+      printf 'unexpected strings_and_bytes output:\n%s\n' "$example_output" >&2
+      exit 1
+    fi
+    printf '%s\n' "$example_output"
+  fi
   if [[ "$package" != neocogi-inspect ]]; then
     echo "==> [packages] published documentation examples: $package"
     cargo +1.85.0 test --manifest-path "$manifest" --doc --all-features --offline

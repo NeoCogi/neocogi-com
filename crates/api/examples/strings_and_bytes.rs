@@ -57,7 +57,7 @@ fn main() -> Result<(), NcStatus> {
     println!("display name: {}", display_name.to_string()?);
     let mut prefix = [0; 2];
     display_name.copy_to(0, &mut prefix)?;
-    assert_eq!(&prefix, b"nc");
+    assert_eq!(&prefix, b"ne");
 
     let counter_unknown: ComPtr<IUnknown> = ByteCounter::from_value(ByteCounter);
     let counter = counter_unknown.query::<IByteConsumerAbi>()?;

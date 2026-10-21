@@ -150,6 +150,9 @@ fn active_guides_do_not_reintroduce_retired_protocol_prescriptions() {
         "`#[com_struct(packed)]`",
         "The generator\nuses the common `com_interface` macro internally",
         "Record labels emitted by `ComSerialize`",
+        "`Message::IDL_MESSAGE`",
+        "common receiver and cached weak origin",
+        "QueryInterface's canonical IUnknown projection identifies a live COM object",
     ];
     for path in files {
         let source = fs::read_to_string(&path).unwrap();
