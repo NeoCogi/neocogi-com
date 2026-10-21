@@ -160,6 +160,18 @@ class AdmissionTests(unittest.TestCase):
                 with patch.object(driver, "run", return_value=output), self.assertRaises(RuntimeError):
                     driver.shared_tests(artifacts, Path("runtime"), {}, manifest.parent)
 
+    def test_ordinary_abi_cases_do_not_enable_native_runtime_clients(self):
+        """Sanitizer exports must not turn a pure test into an unresolved native importer."""
+        outputs = []
+        for sentinel in driver.ABI_TESTS.values():
+            outputs.extend([sentinel + ": test\n", "test result: ok. 1 passed; 0 failed;"])
+        outputs.extend(["native_layout: test\n", "test result: ok. 1 passed; 0 failed;"])
+        with patch.object(driver, "cargo", side_effect=outputs) as cargo:
+            driver.ordinary_tests(driver.Build("stable"), Path("target"), {}, "x86_64-unknown-linux-gnu", None)
+        for call in cargo.call_args_list[:2 * len(driver.ABI_TESTS)]:
+            self.assertNotIn("--features", call.args[2])
+            self.assertEqual(call.args[3], {})
+
     def test_ambient_compiler_flags_profiles_and_loader_paths_are_removed(self):
         """The build case owns these settings; an invoking Cargo process cannot select them."""
         overrides = {name: "stale" for name in (

@@ -37,6 +37,10 @@ their complete maintained cases through the independent
 [`shared-runtime` final fixture](../api/integration-tests/fixtures/shared-runtime/Cargo.toml).
 The same case files are included by the ordinary embedded roots. Capability
 features never choose an implementation; each final assembly owns that choice.
+The ordinary ABI group enables no unused runtime client capability. Sanitizer
+executables export their hooks, which can retain otherwise unused public facade
+functions; compiling runtime clients into a pure ABI test would then require
+native imports that the test does not own.
 Exact names, nonempty execution and actual Cargo artifacts are checked. Installing
 nightly or finding a successfully compiled binary never passes a compatibility case.
 

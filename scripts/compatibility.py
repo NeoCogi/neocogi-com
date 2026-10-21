@@ -168,7 +168,10 @@ def ordinary_tests(build: Build, target: Path, env: dict[str, str], native_targe
     linkage. They receive no staged-runtime loader or link-directory overrides.
     """
     for target_name, sentinel in ABI_TESTS.items():
-        args = ["test", "-p", "neocogi-com", "--features", "runtime", "--test", target_name]
+        # These cases need no runtime client capability. Exporting sanitizer
+        # hooks retains public functions, so an unused runtime feature would
+        # create native imports even though none of these tests calls them.
+        args = ["test", "-p", "neocogi-com", "--test", target_name]
         require_tests(cargo(build, target, args, env, native_target, sanitizer, ("--list",)), sentinel)
         require_execution(cargo(build, target, args, env, native_target, sanitizer))
     if sanitizer:
