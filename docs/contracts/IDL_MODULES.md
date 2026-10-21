@@ -823,11 +823,23 @@ explicit C wire layout and checked conversion. Direct borrowing still requires
 the codec's complete `BORROW_WIRE` size, alignment, offset and bit-validity proof.
 It cannot infer identity from the application's representation attribute.
 
-Generated contract crates need no procedural macro feature. Enable `alloc` for
-owned values and `std` where required by local code. The facade's common event
+Generated contract definitions need no procedural macro feature. A package that
+also compiles concrete Rust objects, including handwritten event snapshots, must
+request `neocogi-com/macros` in its own normal dependency. Its name ending in
+`contracts` does not make those implementations generated-only code. Enable `alloc`
+for owned values and `std` where required by local code. The facade's common event
 contracts are available without those features. Its allocating error-event
 constructor also needs `macros`; the standard-channel helper needs both `std`
 and `macros` to generate their concrete implementation storage.
+
+The checkout check `python3 scripts/check-contract-consumers.py` runs a separate
+consumer for each built-in event implementation package and a generated-only
+renderer control. Each event consumer has only its normal contract dependency
+and constructs, queries, reads and drops a real snapshot. Direct local macro
+requests are checked separately because mandatory transitive dependencies can
+otherwise conceal their omission through feature unification. The check uses
+Python 3.11+ and carries the active repository toolchain into temporary consumers;
+it does not add application contract packages to the portable SDK archive gate.
 
 - `neocogi-idl` owns parsing, semantic validation, and canonical fingerprints.
 - `neocogi-idl` owns source discovery, graph exchange, and Rust generation.
