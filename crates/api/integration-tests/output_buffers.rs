@@ -65,7 +65,9 @@ fn output_view_acquisition_discards_previous_results_without_allocation() {
         let mut buffer = seeded_flags();
         let retained_capacity = buffer.capacity();
         let probe = Probe::start(Some(0));
-        drop(buffer.output(0, capacity));
+        {
+            let _view = buffer.output(0, capacity);
+        }
         assert_eq!(probe.finish().attempts, 0);
         assert!(buffer.is_empty());
         assert_eq!(buffer.capacity(), retained_capacity);
@@ -127,10 +129,11 @@ fn direct_numeric_output_has_no_wire_allocation_and_retains_its_native_pointer()
     let pointer = prepared.as_mut_ptr();
     let probe = Probe::start(Some(0));
     let mut written = 0;
-    // SAFETY: prepared grants exclusive writable wire slots and a distinct local count.
-    let mut output = unsafe { NcOutputWriter::<u32>::from_raw(0, pointer, 3, &mut written) }.unwrap();
-    output.extend_from_slice(&[4, 5]).unwrap();
-    drop(output);
+    {
+        // SAFETY: prepared grants exclusive writable wire slots and a distinct local count.
+        let mut output = unsafe { NcOutputWriter::<u32>::from_raw(0, pointer, 3, &mut written) }.unwrap();
+        output.extend_from_slice(&[4, 5]).unwrap();
+    }
     unsafe {
         *prepared.written_ptr() = written;
         prepared.convert_output().unwrap();
@@ -196,10 +199,11 @@ fn count_shape_capacity_and_budget_fail_without_exposing_output() {
     let mut numeric = NcOutputBuffer::<u64>::new();
     assert_eq!(numeric.output(0, usize::MAX).prepare().err().unwrap(), NC_E_OUT_OF_RANGE);
     let mut written = 3;
-    // SAFETY: empty storage permits null; nonempty null is rejected before access.
-    let empty = unsafe { NcOutputWriter::<bool>::from_raw(0, std::ptr::null_mut(), 0, &mut written) }.unwrap();
-    assert_eq!(empty.capacity(), 0);
-    drop(empty);
+    {
+        // SAFETY: empty storage permits null; nonempty null is rejected before access.
+        let empty = unsafe { NcOutputWriter::<bool>::from_raw(0, std::ptr::null_mut(), 0, &mut written) }.unwrap();
+        assert_eq!(empty.capacity(), 0);
+    }
     assert_eq!(written, 0);
     assert!(matches!(
         unsafe { NcOutputWriter::<bool>::from_raw(0, std::ptr::null_mut(), 1, &mut written) },
@@ -210,12 +214,13 @@ fn count_shape_capacity_and_budget_fail_without_exposing_output() {
         Err(NC_E_OUT_OF_RANGE)
     ));
     let mut slots = [MaybeUninit::<u32>::uninit(); 1];
-    let mut writer = unsafe { NcOutputWriter::<u32>::from_raw(0, slots.as_mut_ptr().cast(), 1, &mut written) }.unwrap();
-    assert_eq!(writer.extend_from_slice(&[1, 2]), Err(NC_E_OUT_OF_RANGE));
-    assert_eq!(writer.written(), 0);
-    writer.push(4).unwrap();
-    assert_eq!(writer.push(5), Err(NC_E_OUT_OF_RANGE));
-    drop(writer);
+    {
+        let mut writer = unsafe { NcOutputWriter::<u32>::from_raw(0, slots.as_mut_ptr().cast(), 1, &mut written) }.unwrap();
+        assert_eq!(writer.extend_from_slice(&[1, 2]), Err(NC_E_OUT_OF_RANGE));
+        assert_eq!(writer.written(), 0);
+        writer.push(4).unwrap();
+        assert_eq!(writer.push(5), Err(NC_E_OUT_OF_RANGE));
+    }
     let mut buffer = NcOutputBuffer::<bool>::new();
     let mut prepared = buffer.output(0, 1).prepare().unwrap();
     unsafe {

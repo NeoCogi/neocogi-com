@@ -143,7 +143,7 @@ fn fixed_width_storage_and_raw_persistence_cover_every_supported_representation(
     assert_eq!(encode_inline(&SignedShort::Minimum), Ok(i16::MIN));
     assert_eq!(encode_inline(&SignedWord::Minimum), Ok(i32::MIN));
     assert_eq!(encode_inline(&WideFlags::HIGH), Ok(1 << 31));
-    assert!(!Byte::BORROW_WIRE && !TestOptions::BORROW_WIRE);
+    const { assert!(!Byte::BORROW_WIRE && !TestOptions::BORROW_WIRE) };
     assert_eq!(Byte::FIXED_COST, <u8 as ComValue>::FIXED_COST);
     assert!(<Byte as ComValue>::encode_value(&Byte::Zero, &mut ValueBudget::new(0, 0, 1)).is_err());
     assert_eq!(<Byte as ComValue>::encode_value(&Byte::Zero, &mut ValueBudget::new(0, 1, 1)), Ok((0, ())));
