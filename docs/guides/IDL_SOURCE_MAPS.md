@@ -33,12 +33,13 @@ re-exports its public definitions. Public contract import paths stay the same.
 `BuildOutput::include` and Cargo's `idl_include` metadata identify this entry.
 The definitions and `.rs.map` remain adjacent, with unchanged map coordinates.
 
-Directly including the definitions made rust-analyzer's attribute-macro navigation
-stop at `include!`, even though the generated file existed. The module entry lets
-Go to Definition reach the generated file. COM macros also preserve the source
-identifier's span for derived ABI, client, vtable, tag and payload names. For
-example, `TextboxAbi` navigates to the `Textbox` declaration in the generated Rust;
-its header is produced by the `com_interface` attribute on that declaration.
+The module entry was introduced when contract attribute expansion caused
+rust-analyzer navigation to stop at `include!`. Current IDL generation emits
+complete ordinary Rust definitions. Go to Definition reaches the actual emitted
+ABI, client, vtable, native value or scalar wrapper definition in that file.
+For example, `TextboxAbi` is an emitted interface marker; `LayoutTrack` is a
+native Rust enum. Its `Fixed` variant and `extent` field have their own definitions.
+The adjacent map connects each definition to the authored IDL identifier.
 
 Existing external contract crates should change `/<stem>.rs` to
 `/<stem>.include.rs` in their include statement, rebuild, and reload the
@@ -87,12 +88,12 @@ methods, functions, fields, variants and helpers.
 | --- | --- |
 | Copied struct or enum | Its declaration identifier |
 | Named field or enum alternative | Its authored field or variant identifier |
-| Integer enum or bit flag macro body | Its declaration and each variant/flag |
+| Integer enum or bit flag wrapper and associated constants | Its declaration and each authored member |
 | Interface method and generated forwarding methods | The authored method identifier |
 | Closed generic interface methods | The method in the generic template |
 | `ITextChangedEvent::text` | The event interface getter declaration |
-| Message wire record and codec helpers | The originating message declaration |
-| Message case helper and borrowed named fields | The originating variant and field |
+| Value wire and codec helpers | The originating value declaration |
+| Native enum alternatives and named fields | The originating variant and field |
 | Imported re-export | Its individual local imported identifier, including split source parts |
 
 A generated helper without a distinct authored counterpart inherits its nearest
@@ -101,10 +102,13 @@ Origins identify the authored cause; they are not a line-for-line translation
 of generated algorithm bodies. Module constants such as `MODULE_ID` have no
 individual authored declaration and remain unmapped.
 
-The map describes the emitted `.rs` file **before Rust macro expansion**. It does
-not describe a separately expanded Rust dump. Provenance docs also survive where
-COM macros forward authored documentation to generated client methods, as in the
-checked-in persistence bindings.
+The map describes the final emitted `.rs` file, including complete Rust contract
+definitions and generated client methods. It does not describe a separately
+expanded Rust dump. Application-owned object/serialization macros remain separate
+from direct IDL emission. Native values' associated checked wire and storage
+definitions are implementation details, not public tag/payload companions.
+Provenance documentation accompanies the actual emitted declarations and methods,
+including the checked-in persistence bootstrap.
 
 ## JSON format and lookup
 
@@ -177,20 +181,50 @@ origin explicitly.
 
 ## Validation
 
-Tests cover Unicode columns, multipart ordering, formatting, macro enum/flag
-bodies, message fields/cases, closed generic interfaces, callback bodies, imports, EOF
+Tests cover Unicode columns, multipart ordering, formatting, scalar wrappers and
+constants, native fields/variants, closed generic interfaces, method bodies, imports, EOF
 boundaries and JSON round-tripping. A real Cargo module-generation test verifies
 reported map paths, resolution to the authored file, unchanged-output reuse, and
 location-only edits refreshing the map without changing binding behavior.
 
-The real language-server check exercises eight struct/interface/enum companion
-names and verifies each definition lands in the generated `.rs` file with a
-resolvable adjacent IDL mapping:
+The navigation check compiles one independent nodes-contract consumer before
+starting the language server. That same Rust source supplies all eleven requests:
+Textbox ABI/client/vtable, SliderOptions struct, LayoutTrack/ChildCrossSize enums,
+FillStates wrapper/HOVER flag, and the enum/Fixed/extent identifiers in a native
+constructor. Each definition must reach emitted nodes Rust and its adjacent map
+must match the exact expected authored IDL file and identifier range. Merely
+selecting an existing IDL file is insufficient.
+
+From the repository directory, provision the selected toolchain's server and run:
 
 ```sh
+rustup component add rust-analyzer
 python3 scripts/check-idl-navigation.py --rust-analyzer /path/to/rust-analyzer
 ```
 
-It uses cached Cargo dependencies and an installed language server. An optional
-`CARGO_TARGET_DIR` selects a reusable build cache. The fix was verified with
-rust-analyzer `0.3.3057-standalone`; no editor settings were modified.
+Omit `--rust-analyzer` to use the installed rustup shim. An explicitly selected
+standalone server is also supported. The check resolves the active compiler in
+repository cwd, respecting caller overrides, and propagates it to the temporary
+consumer, server and server-spawned Cargo processes. A temporary directory must
+not silently select the user's unrelated default compiler.
+
+The compile-only gate uses the identical source and needs no server:
+
+```sh
+python3 scripts/check-idl-navigation.py --compile-only
+python3 -m unittest discover -s scripts -p test_idl_navigation.py
+```
+
+Compile-only success establishes compilation, not editor navigation. The ordinary
+mode is required for the actual server and exact-map acceptance; both paths run
+in the existing UI CI job. The focused Python tests cover marker positions,
+response forms, Unicode coordinate conversion, range specificity, wrong existing
+origins and server EOF. Compiler source-map tests retain their separate purpose.
+
+The script uses cached Cargo dependencies. A caller-selected `CARGO_TARGET_DIR`
+is retained, with relative paths interpreted from the invocation directory;
+otherwise its scratch target is removed with the temporary consumer. The server
+process is shut down on completion or failure. No editor settings are changed.
+The original eight-symbol navigation result used rust-analyzer 0.3.3057-standalone;
+that historical result predates native enum and direct scalar emission and is not
+current acceptance for these eleven requests.
