@@ -2,7 +2,7 @@
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 use syn::Ident;
-use crate::model::{AbiMethod, AbiArg, AbiArgKind, AbiReturn, AbiReturnKind};
+use crate::model::{AbiMethod, AbiArg, AbiArgKind, AbiReturn, AbiReturnKind, InterfaceOwnership};
 
 /// Backend-created prose is evaluated here; consumers receive only literal text.
 /// Authored documentation/provenance attributes are retained separately by callers.
@@ -52,54 +52,29 @@ pub(crate) fn raw_vtable_method_docs(trait_ident: &Ident, method: &AbiMethod) ->
 /// Generates pointer, bounds, and ownership documentation for one raw argument.
 fn raw_vtable_arg_docs(arg: &AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.ident;
-    match &arg.kind {
-        AbiArgKind::ComBox { .. } => vec![literal_doc(
-            format!(
-                "- `{ident}` transfers one exclusive owner. Success clears the writable owner slot. Every error restores the original owner unchanged; the caller decides whether to retry or destroy it. Providers must finish all fallible preparation before committing ownership."
-            ),
-            ident.span(),
-        )],
-        AbiArgKind::BorrowedValue { .. } => vec![literal_doc(
-            format!("- `{ident}` borrows its exact generated message representation; the receiver acquires owned fields before retaining data."),
-            ident.span(),
-        )],
-        AbiArgKind::Plain => {
-            let abi_ty = &arg.abi_ty;
-            vec![literal_doc(
-                format!("- `{ident}` is passed by value as `{abi_ty}`.", abi_ty = abi_ty.to_token_stream()),
-                ident.span(),
-            )]
-        }
-        AbiArgKind::ComRef { interface_ty, .. } => {
-            let interface_ty = interface_ty.as_ref();
-            vec![literal_doc(
-                format!(
-                    "- `{ident}` is a borrowed `{interface_ty}` object/table pair. Both fields must be non-null. The callee must call `AddRef` before retaining a present interface after the call returns.",
-                    interface_ty = interface_ty.to_token_stream()
-                ),
-                ident.span(),
-            )]
-        }
-        AbiArgKind::CopyFromBufferOffset { element_ty } => {
-            let element_ty = element_ty.as_ref();
-            vec![literal_doc(
-                format!(
-                    "- `{ident}` lowers to `offset: u64`, `len: u64`, and a readable `*const {element_ty}` buffer.",
-                    element_ty = element_ty.to_token_stream()
-                ),
-                ident.span(),
-            )]
-        }
-        AbiArgKind::OutputBuffer { element_ty } => {
-            let element_ty = element_ty.as_ref();
-            vec![literal_doc(
-                format!(
-                    "- `{ident}` lowers to `offset: u64`, `capacity: u64`, writable `*mut <{element_ty} as ComValue>::Wire`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.",
-                    element_ty = element_ty.to_token_stream()
-                ),
-                ident.span(),
-            )]
-        }
+    // Physical storage comes from the dispatch plan, never reconstructed from
+    // the application element/interface type. Native enums need checked wires.
+    let physical = arg.abi_ty.to_token_stream();
+    let native = arg.rust_ty.to_token_stream();
+    let contract = match &arg.kind {
+        AbiArgKind::ComBox { .. } => "The writable owner slot transfers one exclusive owner. Success clears the slot. Every error restores the original owner unchanged; the caller decides whether to retry or destroy it. Providers must finish all fallible preparation before committing ownership.",
+        AbiArgKind::BorrowedValue { .. } => "The pointed-to checked representation is borrowed; the receiver acquires owned fields before retaining data.",
+        AbiArgKind::Plain => "Passed by value.",
+        AbiArgKind::ComRef { .. } => "This is a borrowed object/table pair. Both fields must be non-null. The callee must call `AddRef` before retaining the interface after the call returns.",
+        AbiArgKind::CopyFromBufferOffset { .. } => "The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.",
+        AbiArgKind::OutputBuffer { .. } => "The writable buffer pointer is accompanied by `offset: u64`, `capacity: u64`, and a separate `written: *mut u64`. Old contents are not input. Only the successfully reported initialized prefix may be read; count and element storage must not alias.",
+    };
+    vec![literal_doc(format!("- `{ident}` uses ABI storage `{physical}` for `{native}`. {contract}"), ident.span())]
+}
+
+/// Describes the existing result token category without reconstructing its wire.
+/// Both raw and safe methods promise the same ownership with different type spelling.
+fn returned_ownership(ownership: InterfaceOwnership) -> &'static str {
+    match ownership {
+        InterfaceOwnership::Shared => "The caller receives one shared owner and releases it when finished.",
+        InterfaceOwnership::Exclusive => "The caller receives the sole exclusive owner; interface queries cannot duplicate it.",
+        InterfaceOwnership::WeakExclusive => "The caller receives a weak observer that retains allocation storage, never the concrete value.",
+        InterfaceOwnership::WeakShared => "The caller receives one shared weak control token; promotion is required before accessing the value.",
     }
 }
 
@@ -118,13 +93,12 @@ fn raw_vtable_return_docs(ok: &AbiReturn) -> Vec<proc_macro2::TokenStream> {
                 ok.rust_ty.span(),
             )]
         }
-        AbiReturnKind::ComPtr { interface_ty, .. } => {
-            let interface_ty = interface_ty.as_ref();
+        AbiReturnKind::ComPtr { ownership, .. } => {
+            let physical = ok.abi_ty.to_token_stream();
+            let native = ok.rust_ty.to_token_stream();
+            let contract = returned_ownership(*ownership);
             vec![literal_doc(
-                format!(
-                    "On success, `out` receives an owned `{interface_ty}` object/table pair transferred to the caller.",
-                    interface_ty = interface_ty.to_token_stream()
-                ),
+                format!("On success, `out` receives `{physical}` for `{native}`. {contract}"),
                 ok.rust_ty.span(),
             )]
         }
@@ -231,13 +205,12 @@ fn safe_return_docs(ok: &AbiReturn) -> Vec<proc_macro2::TokenStream> {
                 ok.rust_ty.span(),
             )]
         }
-        AbiReturnKind::ComPtr { interface_ty, .. } => {
+        AbiReturnKind::ComPtr { ownership, .. } => {
             let rust_ty = &ok.rust_ty;
-            let interface_ty = interface_ty.as_ref();
+            let contract = returned_ownership(*ownership);
             vec![literal_doc(
                 format!(
-                    "On success, adopts the owned `{interface_ty}` interface pointer returned through `out` as `{rust_ty}`.",
-                    interface_ty = interface_ty.to_token_stream(),
+                    "On success, returns `{rust_ty}`. {contract}",
                     rust_ty = rust_ty.to_token_stream()
                 ),
                 ok.rust_ty.span(),

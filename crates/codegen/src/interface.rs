@@ -205,6 +205,7 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
     // return. `Result<(), NcStatus>` lowers to a status-only ABI function.
     let method_fields = methods.iter().map(|method| {
         let method_ident = &method.ident;
+        let source_docs = &method.doc_attrs;
         let docs = raw_vtable_method_docs(trait_ident, method);
         let abi_args = method.args.iter().flat_map(raw_vtable_arg_params);
         let out_param = match &method.ok.kind {
@@ -215,6 +216,7 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
             }
         };
         quote! {
+            #(#source_docs)*
             #(#docs)*
             pub #method_ident: unsafe extern "C" fn(
                 #this_local: *mut ::core::ffi::c_void,
@@ -232,6 +234,7 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
     // Rust's normal panic and ABI unwind rules.
     let thunks = methods.iter().map(|method| {
         let method_ident = &method.ident;
+        let source_docs = &method.doc_attrs;
         let thunk_ident = format_ident!("{method_ident}_thunk", span = method_ident.span());
         // Argument bindings are positional and distinct from dispatch helpers.
         // Mixed-site spans additionally isolate ordinary macro expansion.
@@ -453,6 +456,7 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
             },
         };
         quote! {
+            #(#source_docs)*
             /// Validates raw pointers, borrows the concrete provider through its
             /// object-wide gate, invokes its typed method, and lowers the result.
             /// The gate is released before transferring an owned result; errors

@@ -89,7 +89,7 @@ methods, functions, fields, variants and helpers.
 | Copied struct or enum | Its declaration identifier |
 | Named field or enum alternative | Its authored field or variant identifier |
 | Integer enum or bit flag wrapper and associated constants | Its declaration and each authored member |
-| Interface method and generated forwarding methods | The authored method identifier |
+| Interface method, client method, raw vtable slot and complete provider thunk body | The supplying authored method identifier |
 | Closed generic interface methods | The method in the generic template |
 | Closed generic roots, clients and wire helpers | The bound template's defining identifier, including imported and memberless templates |
 | Value `IDL_TYPE` and interface `IDL_INTERFACE`, including initializer bodies | The owning value/interface declaration identifier |
@@ -103,6 +103,12 @@ known declaration or member. Positional fields inherit their variant origin.
 Origins identify the authored cause; they are not a line-for-line translation
 of generated algorithm bodies. Module constants such as `MODULE_ID` have no
 individual authored declaration and remain unmapped.
+
+Every method-specific representation consumes the origin already retained in its
+shared method plan. Inherited calls use the supplying base's method; imported
+closed generic methods use their template method rather than the application
+expression or enclosing interface. Synthetic helpers without a specific method
+cause continue using declaration-level fallback.
 
 Ordinary generation completes each declaration with its authoring metadata before
 mapping its formatted fragment once. There is no separate unmapped metadata tail.

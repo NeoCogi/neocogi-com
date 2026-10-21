@@ -64,6 +64,8 @@ const _: () = {
                 get: Self::get_thunk,
             }
         }
+        /// Returns the number of fully initialized child objects.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:5:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// The gate is released before transferring an owned result; errors
@@ -109,6 +111,8 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
+        /// Returns an owned reference; indices must be less than count.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:7:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// The gate is released before transferring an owned result; errors
@@ -231,6 +235,8 @@ const _: () = {
                 child: Self::child_thunk,
             }
         }
+        /// Identifies the registered construction recipe, not this object instance.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// The gate is released before transferring an owned result; errors
@@ -276,6 +282,8 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
+        /// Identifies the persistent initialization schema, independently of COM ABI.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// The gate is released before transferring an owned result; errors
@@ -321,6 +329,8 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
+        /// Exports initialization data only: no receivers, runtime pointers or caches.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// The gate is released before transferring an owned result; errors
@@ -362,6 +372,8 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
+        /// Returns the number of owned persistent children; parent links are excluded.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// The gate is released before transferring an owned result; errors
@@ -407,6 +419,8 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
+        /// Returns one child in the order described by the parent's initialization.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:22:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// The gate is released before transferring an owned result; errors
@@ -538,6 +552,8 @@ const _: () = {
                 restore: Self::restore_thunk,
             }
         }
+        /// Rejects unsupported revisions before any child object is constructed.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// The gate is released before transferring an owned result; errors
@@ -605,6 +621,9 @@ const _: () = {
                 ::core::result::Result::Err(__nc_status) => __nc_status.normalize_error(),
             }
         }
+        /// Returns a fully initialized object; every child is already constructed.
+        /// Failure must release resources acquired by this call and publish no root.
+        /// IDL source: `neocogi/com/persistence/objects.ncidl:32:8` (module `neocogi.com.persistence`).
         /// Validates raw pointers, borrows the concrete provider through its
         /// object-wide gate, invokes its typed method, and lowers the result.
         /// The gate is released before transferring an owned result; errors

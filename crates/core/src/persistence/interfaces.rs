@@ -39,6 +39,8 @@ pub enum IObjectChildrenAbi {}
 pub struct IObjectChildrenVTable {
     /// Common identity, query and reference-count slots.
     pub unknown: ::neocogi_com::IUnknownVTable,
+    /// Returns the number of fully initialized child objects.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:5:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IObjectChildren::count`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -52,6 +54,8 @@ pub struct IObjectChildrenVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus,
+    /// Returns an owned reference; indices must be less than count.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:7:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IObjectChildren::get`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -59,9 +63,9 @@ pub struct IObjectChildrenVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `index` is passed by value as `< u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///- `index` uses ABI storage `< u32 as :: neocogi_com :: ComValue > :: Wire` for `u32`. Passed by value.
     ///
-    ///On success, `out` receives an owned `:: neocogi_com :: IUnknown` object/table pair transferred to the caller.
+    ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: IUnknown >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
     pub get: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0: <u32 as ::neocogi_com::ComValue>::Wire,
@@ -153,7 +157,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///- `index` is passed by value as `u32`.
         ///
-        ///On success, adopts the owned `:: neocogi_com :: IUnknown` interface pointer returned through `out` as `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`.
+        ///On success, returns `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
         pub fn get(
             &self,
             __nc_arg_0: u32,
@@ -285,6 +289,8 @@ pub enum IPersistableAbi {}
 pub struct IPersistableVTable {
     /// Common identity, query and reference-count slots.
     pub unknown: ::neocogi_com::IUnknownVTable,
+    /// Identifies the registered construction recipe, not this object instance.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:14:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::type_id`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -298,6 +304,8 @@ pub struct IPersistableVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut <::neocogi_com::NcGuid as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus,
+    /// Identifies the persistent initialization schema, independently of COM ABI.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:16:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::schema_version`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -311,6 +319,8 @@ pub struct IPersistableVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus,
+    /// Exports initialization data only: no receivers, runtime pointers or caches.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:18:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::save_state`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -319,11 +329,13 @@ pub struct IPersistableVTable {
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
     ///
-    ///On success, `out` receives an owned `:: neocogi_com :: INcBytesAbi` object/table pair transferred to the caller.
+    ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: INcBytesAbi >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: INcBytesAbi >`. The caller receives one shared owner and releases it when finished.
     pub save_state: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut ::neocogi_com::ComRaw<::neocogi_com::INcBytesAbi>,
     ) -> ::neocogi_com::NcStatus,
+    /// Returns the number of owned persistent children; parent links are excluded.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:20:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::child_count`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -337,6 +349,8 @@ pub struct IPersistableVTable {
         __nc_this: *mut ::core::ffi::c_void,
         __nc_out: *mut <u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus,
+    /// Returns one child in the order described by the parent's initialization.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:22:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistable::child`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -344,9 +358,9 @@ pub struct IPersistableVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `index` is passed by value as `< u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///- `index` uses ABI storage `< u32 as :: neocogi_com :: ComValue > :: Wire` for `u32`. Passed by value.
     ///
-    ///On success, `out` receives an owned `:: neocogi_com :: IUnknown` object/table pair transferred to the caller.
+    ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: IUnknown >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
     pub child: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0: <u32 as ::neocogi_com::ComValue>::Wire,
@@ -475,7 +489,7 @@ const _: () = {
         ///This safe wrapper creates an uninitialized ABI out slot, invokes the raw vtable function, and reads the out value only when the returned status is successful.
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///
-        ///On success, adopts the owned `:: neocogi_com :: INcBytesAbi` interface pointer returned through `out` as `:: neocogi_com :: ComPtr < :: neocogi_com :: INcBytesAbi >`.
+        ///On success, returns `:: neocogi_com :: ComPtr < :: neocogi_com :: INcBytesAbi >`. The caller receives one shared owner and releases it when finished.
         pub fn save_state(
             &self,
         ) -> ::core::result::Result<
@@ -537,7 +551,7 @@ const _: () = {
         ///Generated Rust thunks preserve negative `Result::Err` statuses and normalize non-negative error values to `NC_E_INVALID_ARG`.
         ///- `index` is passed by value as `u32`.
         ///
-        ///On success, adopts the owned `:: neocogi_com :: IUnknown` interface pointer returned through `out` as `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`.
+        ///On success, returns `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
         pub fn child(
             &self,
             __nc_arg_0: u32,
@@ -703,6 +717,8 @@ pub enum IPersistenceFactoryAbi {}
 pub struct IPersistenceFactoryVTable {
     /// Common identity, query and reference-count slots.
     pub unknown: ::neocogi_com::IUnknownVTable,
+    /// Rejects unsupported revisions before any child object is constructed.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:29:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistenceFactory::validate`].
     ///
     ///Returns `NcStatus`; success is represented by the returned status and there is no `out` pointer.
@@ -710,9 +726,9 @@ pub struct IPersistenceFactoryVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `version` is passed by value as `< u32 as :: neocogi_com :: ComValue > :: Wire`.
-    ///- `state` lowers to `offset: u64`, `len: u64`, and a readable `*const u8` buffer.
-    ///- `child_count` is passed by value as `< u32 as :: neocogi_com :: ComValue > :: Wire`.
+    ///- `version` uses ABI storage `< u32 as :: neocogi_com :: ComValue > :: Wire` for `u32`. Passed by value.
+    ///- `state` uses ABI storage `* const < u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `child_count` uses ABI storage `< u32 as :: neocogi_com :: ComValue > :: Wire` for `u32`. Passed by value.
     ///
     ///On success, no output value is written.
     pub validate: unsafe extern "C" fn(
@@ -723,6 +739,9 @@ pub struct IPersistenceFactoryVTable {
         __nc_arg_1_ptr: *const <u8 as ::neocogi_com::ComValue>::Wire,
         __nc_arg_2: <u32 as ::neocogi_com::ComValue>::Wire,
     ) -> ::neocogi_com::NcStatus,
+    /// Returns a fully initialized object; every child is already constructed.
+    /// Failure must release resources acquired by this call and publish no root.
+    /// IDL source: `neocogi/com/persistence/objects.ncidl:32:8` (module `neocogi.com.persistence`).
     ///Raw COM ABI vtable slot for [`IPersistenceFactory::restore`].
     ///
     ///Returns `NcStatus`; the `out` pointer is initialized only when the returned status is successful.
@@ -730,11 +749,11 @@ pub struct IPersistenceFactoryVTable {
     ///# Safety
     ///
     ///`this` must be the live allocation address paired with this table; `out` must be valid writable storage. Arguments lowered from `ComRef` must be valid borrowed object/table pairs for the duration of the call. Both fields must be non-null.
-    ///- `version` is passed by value as `< u32 as :: neocogi_com :: ComValue > :: Wire`.
-    ///- `state` lowers to `offset: u64`, `len: u64`, and a readable `*const u8` buffer.
-    ///- `children` is a borrowed `self :: IObjectChildrenAbi` object/table pair. Both fields must be non-null. The callee must call `AddRef` before retaining a present interface after the call returns.
+    ///- `version` uses ABI storage `< u32 as :: neocogi_com :: ComValue > :: Wire` for `u32`. Passed by value.
+    ///- `state` uses ABI storage `* const < u8 as :: neocogi_com :: ComValue > :: Wire` for `:: neocogi_com :: NcCopyFromBufferOffset < '_ , u8 >`. The readable buffer pointer is accompanied by `offset: u64` and `len: u64`.
+    ///- `children` uses ABI storage `:: neocogi_com :: ComRaw < self :: IObjectChildrenAbi >` for `:: neocogi_com :: ComRef < '_ , self :: IObjectChildrenAbi >`. This is a borrowed object/table pair. Both fields must be non-null. The callee must call `AddRef` before retaining the interface after the call returns.
     ///
-    ///On success, `out` receives an owned `:: neocogi_com :: IUnknown` object/table pair transferred to the caller.
+    ///On success, `out` receives `:: neocogi_com :: ComRaw < :: neocogi_com :: IUnknown >` for `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
     pub restore: unsafe extern "C" fn(
         __nc_this: *mut ::core::ffi::c_void,
         __nc_arg_0_0: <u32 as ::neocogi_com::ComValue>::Wire,
@@ -864,7 +883,7 @@ const _: () = {
         ///- `state` is passed as a safe readable `u8` buffer plus offset.
         ///- `children` borrows a `self :: IObjectChildrenAbi` interface for the duration of the call. An interface is required. The callee must call `AddRef` before retaining a present interface.
         ///
-        ///On success, adopts the owned `:: neocogi_com :: IUnknown` interface pointer returned through `out` as `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`.
+        ///On success, returns `:: neocogi_com :: ComPtr < :: neocogi_com :: IUnknown >`. The caller receives one shared owner and releases it when finished.
         pub fn restore(
             &self,
             __nc_arg_0_0: u32,

@@ -14,3 +14,11 @@ Compiler-dependent naming consumers and bootstrap freshness live in
 including in tests. This keeps normal archive publication ordered core → backend
 → IDL → facade/macro consumers. Run the compiler's library tests for those real
 IDL/ABI regressions and this package's unit tests for typed emission primitives.
+
+Each method plan owns its authored documentation/origin, safe Rust types, physical
+ABI types and explicit ownership categories. Traits, clients, raw vtable slots and
+provider thunks retain the same method origin. Raw documentation prints the same
+physical types used by dispatch; it never reconstructs wire pointers from native
+element types or treats weak tokens as strong owners. Safe documentation continues
+to describe native Rust values. The existing result ownership category supplies
+the shared/exclusive/weak lifetime contract in both descriptions.
