@@ -169,14 +169,16 @@ the parameter-binder rename above is an explicit exception because the binding
 positions and uses are unchanged. An ordinary version increment changes the
 template's nominal ID and consequently its closed nominal IDs as well.
 
-Templates and concrete declarations share the canonical binary declaration
-encoder under `neocogi-idl:module-abi:v13`; there is no separate template string
+Templates and concrete declarations share the
+[canonical binary declaration encoder](IDL_MODULES.md#canonical-signatures);
+there is no separate template string
 serializer or Debug-based policy encoding. Regenerate and rebuild consumers when
 adopting this encoding. Nominal type IDs remain independent of the encoding
 revision. Parameter-only renames preserve the resulting signatures. Direct generic
-bases and emitted events follow the same binding rule as type expressions.
-Revision v12 retains the framed bound/free reference slots and gives bound
-parameters a type-expression tag distinct from output buffers. Invalid closed substitutions
+bases follow the same binding rule as type expressions. Base references frame
+their bound/free alternatives; bound parameters have a type-expression tag
+distinct from output buffers. UI event publication is outside this encoding.
+Invalid closed substitutions
 remain source-level validation errors rather than internal fingerprint failures.
 
 Both integer-enum paths encode whether a value was explicitly assigned, as well

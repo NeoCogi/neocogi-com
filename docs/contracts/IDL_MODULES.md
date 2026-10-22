@@ -6,10 +6,10 @@ No contract shared library, native description archive, getter, runtime graph,
 or contract registration step is produced.
 
 `interface` is the only callable contract declaration. It describes public
-methods, threading, required projections and event/design metadata. Rust owns
+methods, threading, required projections and source metadata. Rust owns
 concrete storage (`#[com_object]`) and plugin acquisition (`#[plugin]`). Ordinary
-typed interface methods handle parameterized construction. Concrete event values
-and an explicit receiver argument select event delivery during construction.
+typed interface methods handle parameterized construction. UI separately owns
+[event publication and delivery](UI_EVENT_METADATA.md) using ordinary interfaces.
 
 A suffix such as `interface Button: IWidget + IActions` gives one physical vtable
 prefix (the first entry) and required sibling projections (later entries). All
@@ -75,7 +75,7 @@ Structs, enums, and interfaces can declare type parameters. Each use must supply
 A template is a source-level contract, not an open COM vtable. The compiler
 substitutes each closed use into an ordinary concrete declaration, then applies
 the same field ownership, finite-layout, copied-position, inheritance, threading,
-and delivery checks used for declarations without parameters. Thus
+and value-transport checks used for declarations without parameters. Thus
 a generic method taking `&T` cannot instantiate T as a scalar; `IValue<u32>`
 with scalar-valued `get`/`set` methods is valid. Methods do not declare their
 own type parameters. Concrete classes and plugin acquisition live in Rust,
@@ -94,8 +94,8 @@ instantiation is bounded by depth and total instance limits.
 Template parameter names are local binders. Fingerprints encode their zero-based
 positions, so `Pair<T> { value: T }` and `Pair<Item> { value: Item }` have the same
 signature when authored under the same module/name/version. This applies through
-nested arguments, recursive values, enum payloads, direct interface bases, emitted
-event references, and method inputs/results. Parameter count and order remain significant: exchanging which
+nested arguments, recursive values, enum payloads, direct interface bases,
+and method inputs/results. Parameter count and order remain significant: exchanging which
 parameter a field uses changes the template signature, even if a particular use
 supplies the same concrete type for both arguments. Qualified free types, field
 names, variant names, and method parameter names are not generic binders and
@@ -112,8 +112,8 @@ Specialization, capability analysis, encoding and Rust generation consume those
 bindings instead of interpreting source spelling again.
 
 A closed generic use carries both its canonical template/argument identity and
-its concrete supplying Rust projection. Inherited interface and advertised event
-metadata follow that supplying declaration, including nested values. A projection
+its concrete supplying Rust projection. Inherited interface methods and their
+value metadata follow that supplying declaration, including nested values. A projection
 already materialized in the requesting module may be used locally; an unrelated
 module with the same canonical specialization never supplies metadata or creates
 a new dependency. Rust paths and compiler-local declaration keys do not enter ABI
@@ -123,7 +123,9 @@ Callable interfaces, including unused templates with explicit IDs, reject the
 nil UUID with `EIDL074`. This admission matches typed plugin export. Nominal
 value IDs have a separate policy and may still explicitly use nil.
 
-Templates and concrete declarations now share the explicit binary declaration
+### Canonical signatures
+
+Templates and concrete declarations share the explicit binary declaration
 encoder under `neocogi-idl:module-abi:v13`. The former separate template string
 encoding and its Debug-formatted policy values are removed. Both paths encode
 parameter positions, resolved free identities, member order, authored enum
@@ -133,7 +135,7 @@ adapter for the old signatures. Module-wide revision checking is retained.
 Changing implicit enum values to explicit assignments still requires a declaration
 version increment; see [contract changes and versions](#contract-changes-and-versions).
 
-Base and event reference slots encode a discriminator before either the bound
+Base reference slots encode a discriminator before either the bound
 parameter ordinal or the free module/declaration IDs and recursively encoded
 arguments. Only a bare identifier binds: `B` in `interface Forward<B>: B {}`
 is positional, while `library::B` remains a free declaration even with a binder
@@ -141,19 +143,18 @@ named `B`. Bound parameters cannot accept arguments. Ordinary type and named-onl
 reference positions use one lexical classifier; hashing does not resolve a bound
 name as a declaration or mutate the authored syntax model.
 
-Revision v12 gives every recursive type expression a disjoint tag. A bound
+Every recursive type expression has a disjoint tag. A bound
 parameter uses tag 16 followed by its u32 ordinal; fresh output uses tag 14
-followed by its element type. The explicit bound/free grammar in base and event
-slots introduced by v11 remains unchanged. Revision v12 supersedes v11 even for
-modules without generics: regenerate checked-in bindings
-and rebuild contract crates, plugins and hosts together. Nominal IDs, the core
-object layout, source-graph schema and shared-runtime registry are unchanged.
+followed by its element type. Base slots retain the explicit bound/free grammar
+described above.
 
 Interfaces have no implementation-role discriminator in their canonical encoding.
-This is encoding revision 12; regenerate every affected contract and provider,
-including built-in persistence bindings. Runtime discovery remains ABI v1 and
-core layout remains v17. Closed generic interfaces work as object contracts and
-plugin roots; open templates have no callable ABI.
+Revision v13 removes UI event publication edges from callable contract identity;
+IDL has no event-reference slots. Rebuild affected contracts, providers and hosts
+together, including built-in persistence bindings. Nominal IDs, core layout v17,
+source-graph schema and the shared-runtime registry are separate contracts;
+runtime discovery remains ABI v1. Closed generic interfaces work as object
+contracts and plugin roots; open templates have no callable ABI.
 
 Generic values can nest and recurse through explicit sequences:
 
@@ -707,8 +708,9 @@ access and the hidden provider namespace use consumer-specific routes. Neither
 those routes nor filesystem roots affect logical IDs or ABI signatures. Pure
 `generate_rust_with_paths` callers continue supplying accessible owner locations;
 Cargo-specific routes are selected by `Module::build`. Source graph schema 7
-requires providers with this namespace and rejects older sidecars; runtime and
-plugin discovery remain ABI v1, core draft 17 and fingerprint domain v12.
+requires providers with this namespace and rejects older sidecars. Runtime and
+plugin discovery remain ABI v1 and core draft 17; source routes do not change
+the [canonical signature encoding](#canonical-signatures).
 
 ### Diagnostics
 
@@ -751,7 +753,8 @@ An ordinary `cargo build` performs the entire compilation. No external CLI,
 nested Cargo invocation, target rustc invocation, C compiler, or archiver is
 launched by the contract build helper.
 
-Canonical module encoding v13 includes threading, required projections and the current COM ABI explicitly. The resolver
+The [canonical module encoding](#canonical-signatures) includes threading,
+required projections and the current COM ABI explicitly. The resolver
 includes exact transitive module fingerprints in each declaration
 signature. The plugin descriptor publishes its root factory's full IID and
 signature. Factory acquisition compares both before calling bootstrap;
