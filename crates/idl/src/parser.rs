@@ -40,6 +40,11 @@ pub enum ParseError {
         /// Structured compiler diagnostic with exact source annotations.
         Diagnostic,
     ),
+    /// The compiler could not create its explicitly sized IDL syntax worker.
+    Worker(
+        /// Operating-system reason the syntax worker could not be started.
+        std::io::Error,
+    ),
 }
 
 impl fmt::Display for ParseError {
@@ -48,6 +53,7 @@ impl fmt::Display for ParseError {
         match self {
             Self::ModulePath(error) => write!(formatter, "{error}"),
             Self::Source(error) => write!(formatter, "{error}"),
+            Self::Worker(error) => write!(formatter, "cannot start IDL syntax worker: {error}"),
         }
     }
 }
@@ -71,9 +77,11 @@ pub struct ModuleSource<'a> {
 }
 
 /// Parses one source file whose relative path defines its logical module name.
+/// Recursive syntax admission uses a compiler-owned stack. Returned models and
+/// diagnostics contain owned source coordinates, never thread-local token spans.
 pub fn parse_module(relative_path: &Path, source: &str) -> Result<Module, ParseError> {
     let name = ModuleName::from_relative_source(relative_path)?;
-    assemble_module(name, [ModuleSource { path: relative_path, text: source }])
+    crate::syntax::with_syntax_stack(|| assemble_module(name, [ModuleSource { path: relative_path, text: source }])).map_err(ParseError::Worker)?
 }
 
 /// Parses and merges every source part belonging to one logical IDL module.
@@ -81,6 +89,8 @@ pub fn parse_module(relative_path: &Path, source: &str) -> Result<Module, ParseE
 /// `relative_directory` alone defines module identity. Part filenames and
 /// caller enumeration order are presentation details and never enter the ABI
 /// fingerprint. Each part must be a `.ncidl` file below that directory.
+/// All parts share one syntax worker and return the same owned model boundary
+/// as [`parse_module`]. Worker startup failure is [`ParseError::Worker`].
 pub fn parse_module_parts(relative_directory: &Path, parts: &[ModuleSource<'_>]) -> Result<Module, ParseError> {
     let name = ModuleName::from_relative_directory(relative_directory)?;
     for part in parts {
@@ -100,7 +110,16 @@ pub fn parse_module_parts(relative_directory: &Path, parts: &[ModuleSource<'_>])
             )));
         }
     }
-    assemble_module(name, parts.iter().copied())
+    crate::syntax::with_syntax_stack(|| assemble_module(name, parts.iter().copied())).map_err(ParseError::Worker)?
+}
+
+/// A lowered item and its name's parser-local span during duplicate admission.
+/// Only `value` enters the stable module model; `span` never leaves this worker.
+struct Parsed<T> {
+    /// Language-neutral item with stable, owned source coordinates.
+    value: T,
+    /// Original identifier span used to compose an immediate Syn diagnostic.
+    span: Span,
 }
 
 /// Parses source parts in portable path order and builds one canonical module.
@@ -231,7 +250,7 @@ impl Parse for ModuleSyntax {
                 continue;
             }
 
-            let declaration = if input.peek(Token![struct]) {
+            let Parsed { value: declaration, span } = if input.peek(Token![struct]) {
                 parse_struct(attributes, input)?
             } else if input.peek(Token![enum]) {
                 parse_enum(attributes, input)?
@@ -243,8 +262,8 @@ impl Parse for ModuleSyntax {
                 return Err(input.error("expected `extern`, `use`, `struct`, `enum`, `bitenum`, or `interface`"));
             };
 
-            if let Some(previous) = declaration_names.insert(declaration.name.clone(), declaration.span.clone()) {
-                return Err(duplicate_error("EIDL010", "declaration", &declaration.name, &declaration.span, &previous));
+            if let Some(previous) = declaration_names.insert(declaration.name.clone(), span) {
+                return Err(duplicate_error("EIDL010", "declaration", &declaration.name, span, previous));
             }
             declarations.push(declaration);
         }
@@ -276,7 +295,7 @@ fn parse_external(input: ParseStream<'_>) -> syn::Result<ExternalModule> {
 }
 
 /// Parses one fixed-width bit set with explicit named flag patterns.
-fn parse_bit_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Declaration> {
+fn parse_bit_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Parsed<Declaration>> {
     let metadata = parse_attributes(attributes, AttributeContext::BitEnum)?;
     input.parse::<keyword::bitenum>()?;
     let name = input.parse::<Ident>()?;
@@ -294,9 +313,9 @@ fn parse_bit_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Re
     let mut flags = Vec::new();
     let mut names = HashMap::new();
     while !body.is_empty() {
-        let flag = parse_bit_flag(&body)?;
-        if let Some(previous) = names.insert(flag.name.clone(), flag.span.clone()) {
-            return Err(duplicate_error("EIDL014", "bit enum flag", &flag.name, &flag.span, &previous));
+        let Parsed { value: flag, span } = parse_bit_flag(&body)?;
+        if let Some(previous) = names.insert(flag.name.clone(), span) {
+            return Err(duplicate_error("EIDL014", "bit enum flag", &flag.name, span, previous));
         }
         flags.push(flag);
     }
@@ -307,7 +326,7 @@ fn parse_bit_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Re
 }
 
 /// Parses one copied record declaration.
-fn parse_struct(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Declaration> {
+fn parse_struct(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Parsed<Declaration>> {
     let metadata = parse_attributes(attributes, AttributeContext::Plain)?;
     input.parse::<Token![struct]>()?;
     let name = input.parse::<Ident>()?;
@@ -318,9 +337,9 @@ fn parse_struct(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Resu
     let mut fields = Vec::new();
     let mut names = HashMap::new();
     while !body.is_empty() {
-        let field = parse_named_field(&body)?;
-        if let Some(previous) = names.insert(field.name.clone(), field.span.clone()) {
-            return Err(duplicate_error("EIDL013", "field", &field.name, &field.span, &previous));
+        let Parsed { value: field, span } = parse_named_field(&body)?;
+        if let Some(previous) = names.insert(field.name.clone(), span) {
+            return Err(duplicate_error("EIDL013", "field", &field.name, span, previous));
         }
         fields.push(field);
     }
@@ -339,7 +358,7 @@ fn parse_struct(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Resu
 }
 
 /// Parses one enum with unit, tuple, or named payload variants.
-fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Declaration> {
+fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Parsed<Declaration>> {
     let metadata = parse_attributes(attributes, AttributeContext::Enum)?;
     input.parse::<Token![enum]>()?;
     let name = input.parse::<Ident>()?;
@@ -351,9 +370,9 @@ fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result
     let mut variants = Vec::new();
     let mut names = HashMap::new();
     while !body.is_empty() {
-        let variant = parse_enum_variant(&body)?;
-        if let Some(previous) = names.insert(variant.name.clone(), variant.span.clone()) {
-            return Err(duplicate_error("EIDL015", "enum variant", &variant.name, &variant.span, &previous));
+        let Parsed { value: variant, span } = parse_enum_variant(&body)?;
+        if let Some(previous) = names.insert(variant.name.clone(), span) {
+            return Err(duplicate_error("EIDL015", "enum variant", &variant.name, span, previous));
         }
         variants.push(variant);
     }
@@ -374,7 +393,7 @@ fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result
 }
 
 /// Parses one callable contract with threading, projections and ordinary methods.
-fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Declaration> {
+fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Parsed<Declaration>> {
     let metadata = parse_attributes(attributes, AttributeContext::Interface)?;
     let threading = metadata_threading(&metadata);
     let events = metadata.events.clone();
@@ -395,15 +414,18 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::R
 }
 
 /// Combines common metadata with one declaration-specific payload.
-fn declaration(name: Ident, parameters: Vec<String>, metadata: Attributes, kind: DeclarationKind) -> Declaration {
-    Declaration {
-        span: SourceSpan::from_parser(name.span()),
-        docs: metadata.docs,
-        name: name.to_string(),
-        id: metadata.id,
-        parameters,
-        specialization: None,
-        kind,
+fn declaration(name: Ident, parameters: Vec<String>, metadata: Attributes, kind: DeclarationKind) -> Parsed<Declaration> {
+    Parsed {
+        span: name.span(),
+        value: Declaration {
+            span: SourceSpan::from_parser(name.span()),
+            docs: metadata.docs,
+            name: name.to_string(),
+            id: metadata.id,
+            parameters,
+            specialization: None,
+            kind,
+        },
     }
 }
 
@@ -433,9 +455,10 @@ fn parse_methods(input: ParseStream<'_>) -> syn::Result<Vec<Method>> {
         let attributes = Attribute::parse_outer(&body)?;
         let mut source = body.parse::<TraitItemFn>()?;
         source.attrs.splice(0..0, attributes);
+        let span = source.sig.ident.span();
         let method = lower_method(source)?;
-        if let Some(previous) = names.insert(method.name.clone(), method.span.clone()) {
-            return Err(duplicate_error("EIDL016", "method or port", &method.name, &method.span, &previous));
+        if let Some(previous) = names.insert(method.name.clone(), span) {
+            return Err(duplicate_error("EIDL016", "method or port", &method.name, span, previous));
         }
         methods.push(method);
     }
@@ -494,8 +517,8 @@ fn lower_method(source: TraitItemFn) -> syn::Result<Method> {
         let name = pattern.ident.to_string();
         require_snake_case(&pattern.ident, "parameter")?;
         let span = SourceSpan::from_parser(pattern.ident.span());
-        if let Some(previous) = names.insert(name.clone(), span.clone()) {
-            return Err(duplicate_error("EIDL017", "parameter", &name, &span, &previous));
+        if let Some(previous) = names.insert(name.clone(), pattern.ident.span()) {
+            return Err(duplicate_error("EIDL017", "parameter", &name, pattern.ident.span(), previous));
         }
         parameters.push(Parameter {
             span,
@@ -692,7 +715,7 @@ fn parse_type_parameters(input: ParseStream<'_>) -> syn::Result<Vec<String>> {
 }
 
 /// Parses one named field and consumes its required comma when another follows.
-fn parse_named_field(input: ParseStream<'_>) -> syn::Result<Field> {
+fn parse_named_field(input: ParseStream<'_>) -> syn::Result<Parsed<Field>> {
     let attributes = Attribute::parse_outer(input)?;
     let docs = parse_doc_only_attributes(&attributes)?;
     if input.peek(Token![pub]) {
@@ -705,16 +728,19 @@ fn parse_named_field(input: ParseStream<'_>) -> syn::Result<Field> {
     if !input.is_empty() {
         input.parse::<Token![,]>()?;
     }
-    Ok(Field {
-        span: SourceSpan::from_parser(name.span()),
-        docs,
-        name: name.to_string(),
-        ty,
+    Ok(Parsed {
+        span: name.span(),
+        value: Field {
+            span: SourceSpan::from_parser(name.span()),
+            docs,
+            name: name.to_string(),
+            ty,
+        },
     })
 }
 
 /// Parses one enum variant including an optional explicit discriminant.
-fn parse_enum_variant(input: ParseStream<'_>) -> syn::Result<EnumVariant> {
+fn parse_enum_variant(input: ParseStream<'_>) -> syn::Result<Parsed<EnumVariant>> {
     let attributes = Attribute::parse_outer(input)?;
     let docs = parse_doc_only_attributes(&attributes)?;
     let name = input.parse::<Ident>()?;
@@ -733,9 +759,9 @@ fn parse_enum_variant(input: ParseStream<'_>) -> syn::Result<EnumVariant> {
         let mut values = Vec::new();
         let mut names = HashMap::new();
         while !content.is_empty() {
-            let field = parse_named_field(&content)?;
-            if let Some(previous) = names.insert(field.name.clone(), field.span.clone()) {
-                return Err(duplicate_error("EIDL013", "variant field", &field.name, &field.span, &previous));
+            let Parsed { value: field, span } = parse_named_field(&content)?;
+            if let Some(previous) = names.insert(field.name.clone(), span) {
+                return Err(duplicate_error("EIDL013", "variant field", &field.name, span, previous));
             }
             values.push(field);
         }
@@ -756,17 +782,20 @@ fn parse_enum_variant(input: ParseStream<'_>) -> syn::Result<EnumVariant> {
     if !input.is_empty() {
         input.parse::<Token![,]>()?;
     }
-    Ok(EnumVariant {
-        span: SourceSpan::from_parser(name.span()),
-        docs,
-        name: name.to_string(),
-        discriminant,
-        fields,
+    Ok(Parsed {
+        span: name.span(),
+        value: EnumVariant {
+            span: SourceSpan::from_parser(name.span()),
+            docs,
+            name: name.to_string(),
+            discriminant,
+            fields,
+        },
     })
 }
 
 /// Parses one explicitly valued bit flag and consumes its trailing comma.
-fn parse_bit_flag(input: ParseStream<'_>) -> syn::Result<BitFlag> {
+fn parse_bit_flag(input: ParseStream<'_>) -> syn::Result<Parsed<BitFlag>> {
     let attributes = Attribute::parse_outer(input)?;
     let docs = parse_doc_only_attributes(&attributes)?;
     let name = input.parse::<Ident>()?;
@@ -776,11 +805,14 @@ fn parse_bit_flag(input: ParseStream<'_>) -> syn::Result<BitFlag> {
     if !input.is_empty() {
         input.parse::<Token![,]>()?;
     }
-    Ok(BitFlag {
-        span: SourceSpan::from_parser(name.span()),
-        docs,
-        name: name.to_string(),
-        value,
+    Ok(Parsed {
+        span: name.span(),
+        value: BitFlag {
+            span: SourceSpan::from_parser(name.span()),
+            docs,
+            name: name.to_string(),
+            value,
+        },
     })
 }
 
@@ -837,8 +869,8 @@ fn parse_import(input: ParseStream<'_>) -> syn::Result<Vec<Import>> {
         require_upper_camel_case(&name, "imported declaration")?;
         let normalized = name.to_string();
         let span = SourceSpan::from_parser(name.span());
-        if let Some(previous) = unique_names.insert(normalized.clone(), span.clone()) {
-            return Err(duplicate_error("EIDL018", "import name", &normalized, &span, &previous));
+        if let Some(previous) = unique_names.insert(normalized.clone(), name.span()) {
+            return Err(duplicate_error("EIDL018", "import name", &normalized, name.span(), previous));
         }
         normalized_names.push(Import {
             span,
@@ -850,9 +882,9 @@ fn parse_import(input: ParseStream<'_>) -> syn::Result<Vec<Import>> {
 }
 
 /// Produces one syntax error with both duplicate and original declarations.
-fn duplicate_error(code: &str, role: &str, name: &str, current: &SourceSpan, previous: &SourceSpan) -> syn::Error {
-    let mut error = syn::Error::new(current.parser_span(), format!("[{code}] duplicate {role} {name:?}"));
-    error.combine(syn::Error::new(previous.parser_span(), "first declared here"));
+fn duplicate_error(code: &str, role: &str, name: &str, current: Span, previous: Span) -> syn::Error {
+    let mut error = syn::Error::new(current, format!("[{code}] duplicate {role} {name:?}"));
+    error.combine(syn::Error::new(previous, "first declared here"));
     error
 }
 

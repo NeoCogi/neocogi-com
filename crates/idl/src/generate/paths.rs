@@ -15,11 +15,34 @@ use quote::{format_ident, quote};
 #[derive(Clone, Debug, Default)]
 pub struct RustModulePaths {
     /// Exact logical names mapped to validated absolute, nongeneric Rust paths.
-    pub(super) modules: BTreeMap<String, syn::Path>,
+    pub(super) modules: BTreeMap<String, RustPath>,
     /// Consumer-accessible dependency paths selected by Cargo. These also drive
     /// the provider's hidden re-exports; canonical owner paths above still own
     /// public inspection metadata. Pure generation leaves this map empty.
-    pub(super) dependencies: BTreeMap<String, syn::Path>,
+    pub(super) dependencies: BTreeMap<String, RustPath>,
+}
+
+/// Validated path spelling without thread-local token spans. Backend syntax is
+/// constructed on the generation worker rather than retained by its caller.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct RustPath {
+    /// Canonical identifiers, including any authored raw-identifier prefixes.
+    segments: Vec<String>,
+}
+
+impl RustPath {
+    /// Retains identifiers from a validated owner path or compiler-owned route.
+    fn from_syntax(path: &syn::Path) -> Self {
+        Self {
+            segments: path.segments.iter().map(|segment| segment.ident.to_string()).collect(),
+        }
+    }
+
+    /// Builds fresh absolute syntax in the thread that will emit its tokens.
+    fn syntax(&self) -> Result<syn::Path, GenerateError> {
+        syn::parse_str(&format!("::{}", self.segments.join("::")))
+            .map_err(|error| GenerateError::new(format!("cannot construct validated Rust contract path: {error}")))
+    }
 }
 
 impl RustModulePaths {
@@ -57,7 +80,7 @@ impl RustModulePaths {
             let alias = dependency_alias(graph, module)?;
             syn::parse_quote!(#owner::__nc_dependencies::#alias)
         };
-        self.dependencies.insert(module.to_owned(), path);
+        self.dependencies.insert(module.to_owned(), RustPath::from_syntax(&path));
         Ok(())
     }
 
@@ -65,7 +88,7 @@ impl RustModulePaths {
     /// Ordinary pure generators continue using their explicitly supplied owners.
     pub(super) fn dependency_path(&self, module: &str) -> Result<syn::Path, GenerateError> {
         match self.dependencies.get(module) {
-            Some(path) => Ok(path.clone()),
+            Some(path) => path.syntax(),
             None => self.path(module),
         }
     }
@@ -85,6 +108,7 @@ impl RustModulePaths {
             return Ok(TokenStream::new());
         };
         let exports = self.dependencies.iter().map(|(module, path)| {
+            let path = path.syntax()?;
             let alias = dependency_alias(graph, module)?;
             let documentation = format!(
                 "IDL module `{module}`. The alias is `module_` plus its logical module UUID as hex, not an ABI signature or reversible module-name encoding."
@@ -102,8 +126,8 @@ impl RustModulePaths {
     /// Resolves an explicit location or the established conventional crate name.
     pub(super) fn path(&self, module: &str) -> Result<syn::Path, GenerateError> {
         match self.modules.get(module) {
-            Some(path) => Ok(path.clone()),
-            None => parse_rust_path(&format!("::{}_contracts", module.replace('.', "_"))),
+            Some(path) => path.syntax(),
+            None => parse_rust_path(&format!("::{}_contracts", module.replace('.', "_")))?.syntax(),
         }
     }
 }
@@ -120,11 +144,9 @@ fn dependency_alias(graph: &ResolvedModules, module: &str) -> Result<Ident, Gene
 
 /// Applies COM's binding-path contract before constructing the backend's syntax tree.
 /// `syn` is a token-construction dependency here, not a separate metadata policy.
-fn parse_rust_path(value: &str) -> Result<syn::Path, GenerateError> {
+fn parse_rust_path(value: &str) -> Result<RustPath, GenerateError> {
     neocogi_com_core::validate_rust_path(value).map_err(|error| GenerateError::new(format!("invalid Rust contract path {value:?}: {error}")))?;
-    let mut path: syn::Path =
-        syn::parse_str(value).map_err(|error| GenerateError::new(format!("cannot parse validated Rust contract path {value:?}: {error}")))?;
+    let path: syn::Path = syn::parse_str(value).map_err(|error| GenerateError::new(format!("cannot parse validated Rust contract path {value:?}: {error}")))?;
     // Equivalent optional-root spellings must not conflict during registration.
-    path.leading_colon = Some(Default::default());
-    Ok(path)
+    Ok(RustPath::from_syntax(&path))
 }

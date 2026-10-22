@@ -55,8 +55,9 @@ pub struct SourcePosition {
     pub column: usize,
 }
 
-/// Exact source range attached to an IDL syntax-model element.
-#[derive(Clone)]
+/// Exact, owned source range attached to an IDL syntax-model element.
+/// Parser-local spans are reduced to these coordinates before a worker returns.
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct SourceSpan {
     /// Logical source owner, attached with the part path before semantic resolution.
     module: String,
@@ -66,8 +67,6 @@ pub struct SourceSpan {
     start: SourcePosition,
     /// Exclusive end of the range.
     end: SourcePosition,
-    /// Original parser span retained only while producing parser diagnostics.
-    raw: Span,
 }
 
 impl SourceSpan {
@@ -83,7 +82,6 @@ impl SourceSpan {
                 column: start.column + 1,
             },
             end: SourcePosition { line: end.line, column: end.column + 1 },
-            raw: span,
         }
     }
 
@@ -91,11 +89,6 @@ impl SourceSpan {
     pub(crate) fn attach(&mut self, source: &SourceFile) {
         self.module.clone_from(&source.module);
         self.path.clone_from(&source.path);
-    }
-
-    /// Returns the parser span for composing a multi-label syntax error.
-    pub(crate) fn parser_span(&self) -> Span {
-        self.raw
     }
 
     /// Returns the logical module that authored this range, including template origins.
@@ -116,42 +109,6 @@ impl SourceSpan {
     /// Returns the exclusive end of this range.
     pub fn end(&self) -> SourcePosition {
         self.end
-    }
-}
-
-impl fmt::Debug for SourceSpan {
-    /// Omits the process-local parser span while showing stable coordinates.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("SourceSpan")
-            .field("module", &self.module)
-            .field("path", &self.path)
-            .field("start", &self.start)
-            .field("end", &self.end)
-            .finish()
-    }
-}
-
-impl PartialEq for SourceSpan {
-    /// Compares only portable source identity and coordinates.
-    fn eq(&self, other: &Self) -> bool {
-        self.module == other.module && self.path == other.path && self.start == other.start && self.end == other.end
-    }
-}
-
-impl Eq for SourceSpan {}
-
-impl Ord for SourceSpan {
-    /// Orders ranges independently of filesystem discovery order.
-    fn cmp(&self, other: &Self) -> Ordering {
-        (&self.module, &self.path, self.start, self.end).cmp(&(&other.module, &other.path, other.start, other.end))
-    }
-}
-
-impl PartialOrd for SourceSpan {
-    /// Delegates to the total portable source ordering.
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
     }
 }
 

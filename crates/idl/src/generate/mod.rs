@@ -14,7 +14,6 @@ mod events;
 mod lower;
 mod mapping;
 mod paths;
-mod syntax;
 mod value;
 pub use paths::RustModulePaths;
 
@@ -66,6 +65,9 @@ pub fn generate_rust_with_source_map(graph: &ResolvedModules, module_name: &str)
 }
 
 /// Generates mapped Rust with explicit backend paths; provenance never changes ABI identity.
+/// Lowering, formatting, mapping and syntax destruction share one compiler-owned
+/// stack. Only the borrowed semantic graph, owned path identifiers and completed
+/// source/map data cross that worker boundary.
 pub fn generate_rust_with_paths_and_source_map(
     graph: &ResolvedModules,
     module_name: &str,
@@ -76,7 +78,8 @@ pub fn generate_rust_with_paths_and_source_map(
             return Err(GenerateError::new(format!("Rust location names unknown IDL module {name:?}")));
         }
     }
-    generate_module(&Generation { graph, paths }, module_name)
+    crate::syntax::with_syntax_stack(|| generate_module(&Generation { graph, paths }, module_name))
+        .map_err(|error| GenerateError::new(format!("cannot start generated-Rust syntax worker: {error}")))?
 }
 
 /// Immutable resolved graph and Rust locations shared by every declaration backend.
@@ -101,6 +104,12 @@ pub struct BootstrapBindings {
 /// Authoring design metadata is facade-only and is deliberately omitted. Values
 /// and open templates are outside this allocation-free core bootstrap contract.
 pub fn generate_bootstrap(graph: &ResolvedModules, module_name: &str) -> Result<BootstrapBindings, GenerateError> {
+    crate::syntax::with_syntax_stack(|| generate_bootstrap_inner(graph, module_name))
+        .map_err(|error| GenerateError::new(format!("cannot start generated-Rust syntax worker: {error}")))?
+}
+
+/// Keeps bootstrap lowering, formatting and syntax destruction on one worker.
+fn generate_bootstrap_inner(graph: &ResolvedModules, module_name: &str) -> Result<BootstrapBindings, GenerateError> {
     let paths = RustModulePaths::default();
     let generation = Generation { graph, paths: &paths };
     let module = graph.module(module_name).ok_or_else(|| GenerateError::new("bootstrap module is absent"))?;
@@ -478,14 +487,11 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
 
 /// Formats ordinary generated Rust syntax with stable, human-readable layout.
 fn format_rust(tokens: TokenStream) -> Result<String, GenerateError> {
-    // Printed tokens are an intermediate transport, not the published layout.
-    // Parse and print inside one worker so its recursive syntax tree and spans
-    // never cross threads. Prettyplease owns final whitespace and doc comments.
-    let source = tokens.to_string();
-    syntax::with_syntax_stack(move || {
-        let syntax = syn::parse_file(&source).map_err(|error| GenerateError::new(format!("generated invalid Rust syntax: {error}")))?;
-        Ok(prettyplease::unparse(&syntax))
-    })
+    // The public generation boundary already owns this worker's stack. Keep
+    // tokens and syntax local through printing and destruction, without nested
+    // workers or a redundant token-to-text transport between compiler stages.
+    let syntax = syn::parse2(tokens).map_err(|error| GenerateError::new(format!("generated invalid Rust syntax: {error}")))?;
+    Ok(prettyplease::unparse(&syntax))
 }
 
 /// Emits both interface halves from one resolved ownership plan. The backend

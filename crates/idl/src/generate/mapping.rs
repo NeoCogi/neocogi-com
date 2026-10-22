@@ -141,18 +141,16 @@ fn map_syntax(
     parent: Option<SourceMapOrigin>,
     mappings: &mut Vec<SourceMapping>,
 ) -> Result<(), GenerateError> {
-    super::syntax::with_syntax_stack(move || {
-        let syntax = syn::parse_file(source).map_err(|error| GenerateError::new(format!("cannot map generated Rust: {error}")))?;
-        let mut mapper = Mapper {
-            offset,
-            origins,
-            parent,
-            scope: String::new(),
-            mappings,
-        };
-        mapper.visit_file(&syntax);
-        Ok(())
-    })
+    let syntax = syn::parse_file(source).map_err(|error| GenerateError::new(format!("cannot map generated Rust: {error}")))?;
+    let mut mapper = Mapper {
+        offset,
+        origins,
+        parent,
+        scope: String::new(),
+        mappings,
+    };
+    mapper.visit_file(&syntax);
+    Ok(())
 }
 
 /// Traverses owned syntax with ordinary exclusive access; no shared mutation is needed.

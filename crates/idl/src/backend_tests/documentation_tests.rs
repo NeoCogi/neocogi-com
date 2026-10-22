@@ -2,26 +2,71 @@
 use std::{fs, path::Path, process::Command};
 use syn::visit::Visit;
 
-/// Valid deeply nested ABI types must format and map on a Windows-sized caller
+/// Valid deeply nested ABI types must parse, format and map on an MSVC-sized caller
 /// stack. Keep the source self-contained so extracted SDK tests exercise it too.
 #[test]
-fn deeply_nested_output_types_generate_and_map_on_a_two_mebibyte_stack() {
+fn deeply_nested_output_types_generate_and_map_on_a_one_mebibyte_stack() {
     std::thread::Builder::new()
-        .stack_size(2 * 1024 * 1024)
+        .stack_size(1024 * 1024)
         .spawn(|| {
             let element = (0..65).fold(String::from("u8"), |element, _| format!("[{element}; 1]"));
-            let source = format!("#[version(1)] interface Deep {{\nfn ordinary(&self, output: &mut [{element}]) -> Result<()>;\n}}");
-            let module = crate::parse_module(Path::new("proof/deep.ncidl"), &source).unwrap();
-            let graph = crate::resolve_modules(vec![module]).unwrap();
-            let generated = crate::generate_rust_with_source_map(&graph, "proof.deep").unwrap();
-            assert!(generated.source.contains("pub trait Deep"));
-            assert!(generated.source_map.mappings.iter().any(|mapping| {
-                mapping.kind == crate::SourceMapKind::Method && mapping.name.ends_with("::ordinary") && mapping.original.range.start.line == 2
-            }));
+            let methods = format!(
+                "#[version(1)] interface Deep {{\nfn ordinary(&self, output: &mut [{element}]) -> Result<()>;\nfn consuming(&self, owner: ComBox<Owned>, output: &mut [{element}]) -> Result<ComBox<Owned>>;\n}}"
+            );
+            let owner = "#[version(1)] interface Owned {}";
+            let single = crate::parse_module(Path::new("proof/deep.ncidl"), &format!("{methods}\n{owner}")).unwrap();
+            let parts = crate::parse_module_parts(
+                Path::new("proof/deep"),
+                &[
+                    crate::ModuleSource { path: Path::new("proof/deep/methods.ncidl"), text: &methods },
+                    crate::ModuleSource { path: Path::new("proof/deep/owned.ncidl"), text: owner },
+                ],
+            )
+            .unwrap();
+            for module in [single, parts] {
+                let graph = crate::resolve_modules(vec![module]).unwrap();
+                let bootstrap = crate::generate::generate_bootstrap(&graph, "proof.deep").unwrap();
+                assert!(bootstrap.abi.contains("pub trait Deep"));
+                assert!(bootstrap.provider.contains("ordinary"));
+                let generated = crate::generate_rust_with_source_map(&graph, "proof.deep").unwrap();
+                assert!(generated.source.contains("pub trait Deep"));
+                for (name, line) in [("::ordinary", 2), ("::consuming", 3)] {
+                    assert!(generated.source_map.mappings.iter().any(|mapping| {
+                        mapping.kind == crate::SourceMapKind::Method && mapping.name.ends_with(name) && mapping.original.range.start.line == line
+                    }));
+                }
+            }
         })
         .unwrap()
         .join()
         .unwrap();
+}
+
+/// Parser-local spans become owned diagnostics before the syntax worker exits.
+/// Deep malformed inputs must preserve both duplicate labels on a small caller.
+#[test]
+fn deeply_nested_duplicate_parameters_keep_their_source_after_worker_exit() {
+    let error = std::thread::Builder::new()
+        .stack_size(1024 * 1024)
+        .spawn(|| {
+            let element = (0..65).fold(String::from("u8"), |element, _| format!("[{element}; 1]"));
+            let source = format!("#[version(1)] interface Deep {{\nfn ordinary(&self,\noutput: &mut [{element}],\noutput: u8) -> Result<()>;\n}}");
+            crate::parse_module(Path::new("proof/deep.ncidl"), &source).unwrap_err()
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    let crate::ParseError::Source(diagnostic) = error else {
+        panic!("expected an authored diagnostic")
+    };
+    assert_eq!(diagnostic.code, "EIDL017");
+    assert_eq!(diagnostic.labels.len(), 2);
+    for (label, line) in diagnostic.labels.iter().zip([4, 3]) {
+        assert_eq!(label.span.path(), "proof/deep.ncidl");
+        assert_eq!(label.span.start(), crate::SourcePosition { line, column: 1 });
+        assert_eq!(label.span.end(), crate::SourcePosition { line, column: 7 });
+    }
+    assert!(diagnostic.to_string().contains("first declared here"));
 }
 
 /// Collect actual doc values throughout traits, clients and raw tables.

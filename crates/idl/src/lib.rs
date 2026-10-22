@@ -18,6 +18,7 @@ mod resolve;
 mod sha256;
 mod specialize;
 mod standard;
+mod syntax;
 pub use standard::is_bundled_module;
 
 pub use model::{

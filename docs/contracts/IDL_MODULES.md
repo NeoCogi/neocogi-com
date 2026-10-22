@@ -34,12 +34,19 @@ ABI identity remains independent of paths and locations. Run
 `cargo neocogi module generate <module>` to obtain the exact map path. The
 [source mapping guide](../guides/IDL_SOURCE_MAPS.md) defines the format and lookup rules.
 
-Generated Rust parsing, formatting and mapping run with an explicit eight-MiB
-syntax-worker stack on every host. Deep valid output-buffer types therefore do
-not depend on a build-script main thread's platform default. Workers exchange
-Rust text and stable source coordinates; parser spans and syntax trees remain
-thread-local. Failure to create a worker is a generation error and publishes no
-partial output. The separate IDL parser and resolver retain their own diagnostics.
+IDL source parsing and complete Rust generation use one explicit eight-MiB
+syntax-worker stack policy on every host. Deep valid
+output-buffer types therefore do not depend on a build-script main thread's
+platform default, including MSVC's one-MiB executable stack. Single-file and
+multipart parsers return owned module models and diagnostics with stable source
+coordinates. Generation owns lowering, formatting, mapping and syntax destruction
+inside one worker per module or bootstrap call. Rust module paths retain validated
+identifier spellings and create token syntax only where needed. Original parser
+spans exist only during syntax admission; syntax trees and process-local spans
+never cross workers. Failure to start an IDL parser
+worker returns `ParseError::Worker`; generated-Rust worker failures return
+`GenerateError`. Neither publishes partial output. Semantic resolution retains
+its own diagnostics and does not run a syntax worker.
 
 ## Closed generic values and interfaces
 
