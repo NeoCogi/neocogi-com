@@ -257,7 +257,17 @@ mod metadata_calls {
         assert!(name.starts_with("neocogi.lang.OptionInstance"));
         let interface: neocogi_com::idl_metadata::InterfaceMetadata = PlainAbi::IDL_INTERFACE;
         assert!(interface.rust_abi.ends_with("::PlainAbi"));
+        assert_eq!(interface.qualified_name, "proof.maps.Plain");
+        assert_eq!(interface.identity.iid, PlainAbi::INTERFACE_DESCRIPTOR.interface_id);
+        // SAFETY: this fixture compares actual generated immutable descriptors.
+        assert_eq!(interface.identity.abi_signature, unsafe { PlainAbi::INTERFACE_DESCRIPTOR.abi_signature.as_digest().unwrap() });
+        assert_eq!(interface.chain.len(), 1); // No implicit IUnknown interface ancestor.
         assert_eq!(interface.chain.len(), PlainAbi::INTERFACE_CHAIN.len());
+        for (local, physical) in interface.chain.iter().zip(PlainAbi::INTERFACE_CHAIN) {
+            assert_eq!(local.iid, physical.interface_id);
+            // SAFETY: generated physical signatures have immutable static backing.
+            assert_eq!(local.abi_signature, unsafe { physical.abi_signature.as_digest().unwrap() });
+        }
         let method: &neocogi_com::idl_metadata::MethodMetadata = &interface.methods[0];
         assert_eq!(method.name, "read");
         assert!(method.parameters.is_empty());

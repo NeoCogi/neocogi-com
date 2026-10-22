@@ -355,6 +355,15 @@ mod support_shadow {
     pub struct None;
     pub struct Ok;
     pub struct Err;
+    pub struct InterfaceIdentity;
 
     include!("support.rs");
+
+    /// Normal and printed metadata must resolve support through the facade.
+    #[test]
+    fn local_metadata_keeps_its_identity_type_out_of_application_scope() {
+        let identity: ::neocogi_com::idl_metadata::InterfaceIdentity = IShadowAbi::IDL_INTERFACE.identity;
+        assert_eq!(identity.iid, <IShadowAbi as ::neocogi_com::ComInterface>::IID);
+        assert_eq!(IShadowAbi::IDL_INTERFACE.chain, &[identity]);
+    }
 }

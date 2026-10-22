@@ -892,6 +892,22 @@ ownership, and reachable value definitions. `Value::IDL_TYPE` is a `TypeMetadata
 describing record fields, enum cases or bit flags. These records describe the
 source contract; physical interface descriptors still define ABI compatibility.
 
+Local interface records hold `qualified_name: &'static str`, an
+`InterfaceIdentity` containing the IID and required `&'static [u8; 32]` signature,
+and a static slice of those identities. Safe construction enforces the text and
+digest storage lifetimes. It does not prove handwritten records describe a real
+provider; domain admission and actual COM queries retain that responsibility.
+Local readers follow no raw descriptor pointers. The compiler emits both local
+and physical identities from the same resolved declarations, preserving exact
+digest bytes without changing canonical encoding or the physical ABI.
+
+The local interface chain is derived-first in declared-parent order, with shared
+ancestors once and required siblings retained. A no-base interface contains only
+itself; IUnknown is supplied separately by object construction. Methods remain
+base-first and retain their bound supplying scopes. Generation rejects repeated
+IIDs with different signatures before deduplicating them. Full generated-chain
+comparisons protect agreement with physical projection order.
+
 For example, a tool reading an interface with `fn set_value(&mut self, value: u32)`
 finds a mutable method named `set_value`, one `u32` parameter named `value`, and
 a unit result. It can inspect that data without calling the method or owning an

@@ -10,6 +10,7 @@ use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
 use neocogi_com_core::NcComInterfaceCompanion;
 
+mod interface_metadata;
 mod lower;
 mod mapping;
 mod method_metadata;
@@ -205,6 +206,10 @@ fn generate_declaration_metadata(graph: &Generation<'_>, module: &ResolvedModule
         let interface_member = rust_ident(crate::metadata_names::INTERFACE_METADATA_MEMBER)?;
         let abi_name = format!("{}{}", declaration.name, NcComInterfaceCompanion::Abi.suffix());
         let abi = rust_ident(&abi_name)?;
+        let declaration_identity = module.declaration(&declaration.name).expect("resolved interface identity");
+        let qualified_name = Literal::string(&declaration_identity.qualified_name);
+        let identity = interface_metadata::identity(declaration_identity);
+        let chain = interface_metadata::ancestry(graph, module, declaration)?;
         let rust_abi = Literal::string(&public_rust_path(graph, module, &abi_name)?);
         let methods = method_metadata::descriptions(graph, module, declaration)?;
         let values = interface_value_metadata(graph, module, declaration)?;
@@ -212,8 +217,9 @@ fn generate_declaration_metadata(graph: &Generation<'_>, module: &ResolvedModule
             impl #abi {
                 /// Callable interface identity, inherited methods and reachable value definitions.
                 pub const #interface_member: ::neocogi_com::idl_metadata::InterfaceMetadata = ::neocogi_com::idl_metadata::InterfaceMetadata {
-                    abi: &Self::INTERFACE_DESCRIPTOR,
-                    chain: &Self::INTERFACE_CHAIN,
+                    qualified_name: #qualified_name,
+                    identity: #identity,
+                    chain: &[#(#chain),*],
                     rust_abi: #rust_abi,
                     methods: &[#(#methods),*],
                     values: &[#(#values),*],

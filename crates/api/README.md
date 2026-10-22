@@ -31,7 +31,10 @@ options. The packaged [calculator example](examples/calculator.rs) and its
 Tools can read generated contracts through `neocogi_com::idl_metadata` without
 depending on the compiler. `InterfaceAbi::IDL_INTERFACE` contains an
 `InterfaceMetadata` with methods, argument/result ownership and reachable value
-definitions. `Value::IDL_TYPE` contains a `TypeMetadata` with record fields,
+definitions. Its name, complete signature and ancestry use lifetime-bearing static
+Rust references; safe readers need no raw descriptor borrowing. Physical ABI
+descriptors remain separate and use the same resolved identities.
+`Value::IDL_TYPE` contains a `TypeMetadata` with record fields,
 enum cases or bit flags. These static Rust records stay inside their defining
 binary; a domain owns any transported catalog and its application policy.
 

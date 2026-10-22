@@ -10,8 +10,13 @@
 //! structs are not a cross-library ABI. Physical descriptors and signatures
 //! remain responsible for COM call compatibility. This module stores no global
 //! registry and assigns no application meaning to methods or value types.
+//!
+//! Local names and complete signatures use Rust static borrows, rather than raw
+//! physical descriptor pointers. Safe record construction therefore establishes
+//! readable backing storage; consumers still validate domain semantics. Both
+//! local facts and physical ABI descriptions come from the same resolved IDL.
 
-use crate::{NcAbiReceiver, NcInterfaceDescriptor};
+use crate::{NcAbiReceiver, NcGuid};
 
 /// Structural field expression; named edges refer to the finite definition table.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -128,13 +133,35 @@ pub struct MethodMetadata {
     pub returns: MethodType,
 }
 
+/// Exact local interface identity with required, immutable static signature bytes.
+///
+/// Equality compares the IID and all digest bytes by value, independently of
+/// backing addresses. This Rust record is not a physical ABI descriptor or proof
+/// that handwritten metadata agrees with a provider. Physical call negotiation
+/// continues to use the generated COM contract.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct InterfaceIdentity {
+    /// Canonical interface identifier from the resolved declaration.
+    pub iid: NcGuid,
+    /// Complete SHA-256 contract digest; absence cannot be represented here.
+    pub abi_signature: &'static [u8; 32],
+}
+
 /// One callable interface, inherited methods and reachable value definitions.
+///
+/// Static Rust references retain their backing lifetime through safe construction.
+/// Public records may still describe semantically inconsistent interfaces; domain
+/// readers validate those relationships without following raw ABI pointers.
 #[derive(Clone, Copy)]
 pub struct InterfaceMetadata {
-    /// Existing physical interface identity.
-    pub abi: &'static NcInterfaceDescriptor,
-    /// This projection and required base/sibling descriptors in query order.
-    pub chain: &'static [&'static NcInterfaceDescriptor],
+    /// Exact dotted IDL name, borrowed directly from static Rust text.
+    pub qualified_name: &'static str,
+    /// Required interface IID and complete signature from the resolved declaration.
+    pub identity: InterfaceIdentity,
+    /// This projection first, then distinct required bases/siblings in query order.
+    /// Shared ancestors appear once; the implicit IUnknown object projection is
+    /// separate from interface ancestry and is not added here.
+    pub chain: &'static [InterfaceIdentity],
     /// Public Rust path of the generated concrete projection.
     /// Uses the same [`crate::validate_rust_path`] contract as value bindings.
     pub rust_abi: &'static str,
