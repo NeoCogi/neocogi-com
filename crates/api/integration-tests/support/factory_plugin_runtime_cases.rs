@@ -11,7 +11,7 @@ struct ExampleObjectImplementation {
     /// Current dimensions returned by both callable projections.
     extent: Extent,
     /// The constructor supplies the sole receiver, retained as private producer state.
-    events: neocogi_com::events::EventPort,
+    events: neocogi_idl_example_contracts::notifications::ExtentDelivery,
 }
 
 impl IMeasured for ExampleObjectImplementation {
@@ -33,7 +33,7 @@ impl ExampleObject for ExampleObjectImplementation {
     /// Replaces dimensions through the generated exclusive `&mut self` call.
     fn resize(&mut self, extent: Extent) -> Result<(), NcStatus> {
         self.extent = extent;
-        self.events.post(neocogi_idl_example_contracts::events::extent_changed(extent)?)
+        self.events.changed(extent)
     }
 }
 
@@ -43,14 +43,14 @@ struct ExampleFactoryImplementation;
 
 impl ExampleFactory for ExampleFactoryImplementation {
     /// Creates one object directly without a runtime class registry lookup.
-    fn create(&self, extent: Extent, events: neocogi_com::NcValueRef<'_, neocogi_com::events::EventBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
-        let queue = events.to_owned()?.into_queue();
+    fn create(&self, extent: Extent, events: neocogi_com::NcValueRef<'_, neocogi_idl_example_contracts::ExtentBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
+        let binding = events.to_owned()?;
         let local = ExampleObjectImplementation::into_local(ExampleObjectImplementation {
             extent,
-            events: neocogi_com::events::EventPort::new(),
+            events: neocogi_idl_example_contracts::notifications::ExtentDelivery::Unobserved,
         });
         let origin = local.query::<ExampleObjectAbi>()?.downgrade()?;
-        local.try_borrow_mut()?.events = neocogi_com::events::EventPort::with_queue(queue, origin);
+        local.try_borrow_mut()?.events = neocogi_idl_example_contracts::notifications::ExtentDelivery::new(binding, origin);
         local.query()
     }
 }
@@ -77,7 +77,7 @@ fn generated_contract_factory_acquires_without_a_class_table() {
     let mut object = factory
         .create(
             Extent { width: 20, height: 10 },
-            neocogi_com::NcValueRef::new(&neocogi_com::events::EventBinding::Unobserved).unwrap(),
+            neocogi_com::NcValueRef::new(&neocogi_idl_example_contracts::ExtentBinding::Unobserved).unwrap(),
         )
         .expect("interface object creation failed");
     assert_eq!(object.extent().expect("extent query failed"), Extent { width: 20, height: 10 });
@@ -126,7 +126,7 @@ fn complete_plugin_info_and_direct_acquisition_work_without_filesystem_path() {
     let object = factory
         .create(
             Extent { width: 10, height: 10 },
-            neocogi_com::NcValueRef::new(&neocogi_com::events::EventBinding::Unobserved).unwrap(),
+            neocogi_com::NcValueRef::new(&neocogi_idl_example_contracts::ExtentBinding::Unobserved).unwrap(),
         )
         .expect("interface object creation failed");
     assert_eq!(object.extent().expect("extent query failed"), Extent { width: 10, height: 10 });

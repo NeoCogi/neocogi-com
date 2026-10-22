@@ -1,5 +1,3 @@
-use neocogi.com.events::EventBinding;
-extern neocogi.com.events;
 /// Copied dimensions used by the example object surface.
 #[version(1)]
 struct Extent {
@@ -17,4 +15,18 @@ enum ExtentReport {
     Current { extent: Extent, usable: bool },
     /// Unit variant leaves inactive payload bytes uninterpreted.
     Empty,
+}
+
+/// Immutable domain fact with a source which cannot retain the producer.
+#[version(1)]
+struct ExtentNotification {
+    source: WeakComPtr<ExampleObject>,
+    extent: Extent,
+}
+
+/// Construction selects one domain observer for the lifetime of this object.
+#[version(1)]
+enum ExtentBinding {
+    Unobserved,
+    Observed(ComPtr<IExtentObserver>),
 }

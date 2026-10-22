@@ -12,7 +12,7 @@ interface ExampleObject: IMeasured {
 
 #[version(1)]
 interface ExampleFactory {
-    fn create(&self, extent: Extent, events: &EventBinding) -> Result<ComPtr<ExampleObject>>;
+    fn create(&self, extent: Extent, events: &ExtentBinding) -> Result<ComPtr<ExampleObject>>;
 }
 ```
 
@@ -72,37 +72,29 @@ self-contained monolith. See the [matrix contract](../../crates/com/docs/compati
 link and loader directories. `cargo-neocogi` is optional deployment tooling and
 is not used by this example.
 
-## Persistence and a typed class stream
+## Persistence and typed notifications
 
-The object exposes `IPersistable`; `ExampleFactory::create` accepts
-`EventBinding`. The host uses `events::channel()` for ordinary and restored objects. `post`
-moves the exclusive event owner and captures a weak service origin. The handler
-queries `IExtentChangedEvent` and reads `extent()` directly; no Rust callback or
-channel representation crosses COM.
+The object exposes `IPersistable`; `ExampleFactory::create` accepts the domain
+`ExtentBinding`. The host implements `IExtentObserver::changed` and captures an
+owned `ExtentNotification` in an ordinary local channel. Each fact contains the
+new extent and a typed weak `ExampleObject` identity. No UI contract, Rust callback,
+or channel representation crosses COM.
 
-The persistence adapter retains this same queue separately from saved dimensions.
-Restoring supplies the queue during construction, just like the ordinary factory.
-Neither path permits later receiver installation. The host verifies each queued
-origin against the corresponding object; weak origins do not keep objects alive.
+The persistence adapter retains the same observer separately from saved dimensions.
+Restoration supplies it during construction, just like the ordinary factory.
+There is no later observer installation. The host verifies the weak source against
+the corresponding object, exercises successful live promotion, and checks expiry
+after final release. Notifications cannot keep their producer alive.
 
 The compatibility driver executes this sequence across a real shared-library
-boundary; the build-modes test covers the monolith. The implementation library also checks for Wasm.
-The host's output remains `factory object: 44 x 31`; assertions verify the extra
-snapshot and event behavior, successful weak promotion while live, and expired
-weak references after final release before printing it.
+boundary; the build-modes test covers the monolith. The implementation library
+also checks for Wasm. Assertions verify ordinary calls, output buffers, notifications,
+persistence and final release before printing `factory object: 44 x 31`.
 
-An allocation probe uses `events::channel()` and checks the typed weak origin and
-`IExtentChangedEvent` getter on each of 10,000 delivered snapshots. It also verifies
-that 10,000 unobserved updates construct and discard 10,000 snapshots. It measures common receiver
-and channel construction separately from exclusive scalar event delivery and
-standard-channel storage:
+The allocation probe checks 10,000 typed notifications and verifies that unobserved
+domain updates allocate nothing. It separately measures observer/channel setup
+and delivered notifications, including standard-channel storage:
 
 ```sh
 cargo run -p neocogi-example-com-plugin --example event_allocations --features monolith
 ```
-
-It reports allocation counts for setup and repeated posts; channel storage can
-allocate. It is not a latency benchmark or a zero-allocation promise.
-
-The probe also feeds the decoder a truncated collection advertising 65,536
-large records and checks that its initial allocation stays within 4 KiB.

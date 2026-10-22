@@ -13,7 +13,7 @@ module = "neocogi.idl_example"
 source = "idl/neocogi/idl_example"
 
 [dependencies]
-neocogi-com = { workspace = true, default-features = false, features = ["alloc", "macros"] }
+neocogi-com = { workspace = true, default-features = false, features = ["alloc"] }
 
 [build-dependencies]
 neocogi-idl.workspace = true

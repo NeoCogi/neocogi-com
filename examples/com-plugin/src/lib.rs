@@ -11,7 +11,7 @@ struct DynamicExampleObject {
     /// Dimensions owned entirely by this COM object allocation.
     extent: Extent,
     /// Optional concrete destination, excluded from the persistent state.
-    changed: neocogi_com::events::EventPort,
+    changed: neocogi_idl_example_contracts::notifications::ExtentDelivery,
 }
 
 impl IMeasured for DynamicExampleObject {
@@ -32,8 +32,7 @@ impl ExampleObject for DynamicExampleObject {
     /// Replaces dimensions through the exclusive generated call gate.
     fn resize(&mut self, extent: Extent) -> Result<(), NcStatus> {
         self.extent = extent;
-        let event = neocogi_idl_example_contracts::events::extent_changed(extent)?;
-        self.changed.post(event)
+        self.changed.changed(extent)
     }
 }
 
@@ -43,16 +42,16 @@ struct DynamicExampleFactory;
 
 impl ExampleFactory for DynamicExampleFactory {
     /// Constructs one typed object without consulting a runtime class table.
-    fn create(&self, extent: Extent, events: NcValueRef<'_, neocogi_com::events::EventBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
-        let queue = events.to_owned()?.into_queue();
+    fn create(&self, extent: Extent, events: NcValueRef<'_, neocogi_idl_example_contracts::ExtentBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
+        let binding = events.to_owned()?;
         let local = DynamicExampleObject::into_local(DynamicExampleObject {
             extent,
-            changed: neocogi_com::events::EventPort::new(),
+            changed: neocogi_idl_example_contracts::notifications::ExtentDelivery::Unobserved,
         });
         // Obtain identity from initialized storage and connect delivery before
         // returning the first application-facing object capability.
         let origin = local.query::<ExampleObjectAbi>()?.downgrade()?;
-        local.try_borrow_mut()?.changed = neocogi_com::events::EventPort::with_queue(queue, origin);
+        local.try_borrow_mut()?.changed = neocogi_idl_example_contracts::notifications::ExtentDelivery::new(binding, origin);
         local.query()
     }
 }

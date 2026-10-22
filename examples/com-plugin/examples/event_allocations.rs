@@ -1,6 +1,8 @@
-//! Single-threaded allocation probe for the common receiver and exclusive events.
+//! Single-threaded allocation probe for domain notifications and ordinary updates.
 //! Run with: cargo run -p neocogi-example-com-plugin --example event_allocations --features monolith
 
+#[path = "../support/notification_channel.rs"]
+mod notification_channel;
 use std::{
     alloc::{GlobalAlloc, Layout, System},
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -66,17 +68,12 @@ fn count(operation: impl FnOnce()) -> usize {
 }
 
 /// Emits and drains scalar events; assertion formatting only runs on a failure.
-fn deliver(object: &mut ComPtr<ExampleObjectAbi>, messages: &std::sync::mpsc::Receiver<neocogi_com::events::EventMessage>) {
+fn deliver(object: &mut ComPtr<ExampleObjectAbi>, messages: &std::sync::mpsc::Receiver<neocogi_idl_example_contracts::ExtentNotification>) {
     for width in 0..10_000 {
         object.resize(Extent { width, height: 1 }).unwrap();
         let message = messages.try_recv().unwrap();
-        let origin = message.origin.service::<ExampleObjectAbi>().unwrap().unwrap();
-        let event = message
-            .query::<neocogi_idl_example_contracts::IExtentChangedEventAbi>()
-            .unwrap()
-            .unwrap()
-            .extent()
-            .unwrap();
+        let origin = message.source;
+        let event = message.extent;
         assert_eq!(event.width, width);
         assert!(origin.upgrade().unwrap().unwrap().as_com_ref().same_object(object.as_com_ref()));
     }
@@ -98,19 +95,19 @@ fn main() {
     let factory = runtime
         .acquire_plugin_root::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .unwrap();
-    let unobserved = neocogi_com::events::EventBinding::Unobserved;
+    let unobserved = neocogi_idl_example_contracts::ExtentBinding::Unobserved;
     let mut silent = factory.create(Extent { width: 0, height: 0 }, NcValueRef::new(&unobserved).unwrap()).unwrap();
     let silent_delivery = count(|| {
         for width in 0..10_000 {
             silent.resize(Extent { width, height: 1 }).unwrap();
         }
     });
-    assert_eq!(silent_delivery, 10_000, "one directly posted snapshot is discarded per update");
+    assert_eq!(silent_delivery, 0, "unobserved domain updates need no snapshot allocation");
     println!("10,000 unobserved updates: {silent_delivery} allocations");
     let mut inbox = None;
-    let binding = count(|| inbox = Some(neocogi_com::events::channel()));
+    let binding = count(|| inbox = Some(notification_channel::channel()));
     let (queue, messages) = inbox.unwrap();
-    let events = neocogi_com::events::EventBinding::Observed(queue);
+    let events = neocogi_idl_example_contracts::ExtentBinding::Observed(queue);
     let mut object = factory.create(Extent { width: 0, height: 0 }, NcValueRef::new(&events).unwrap()).unwrap();
     let delivery = count(|| deliver(&mut object, &messages));
     println!("common receiver and channel: {binding} allocations");

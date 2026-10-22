@@ -5,5 +5,5 @@
 
 include!(concat!(env!("OUT_DIR"), "/neocogi_idl_example.include.rs"));
 
-/// Immutable event construction for this independently authored contract.
-pub mod events;
+/// Domain notification delivery, independent of UI event contracts.
+pub mod notifications;
