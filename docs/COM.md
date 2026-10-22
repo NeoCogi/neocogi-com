@@ -33,16 +33,11 @@ boundaries, and [the current ABI specification](docs/README.md) for the binary m
 
 ## IDL
 
-The COM-owned [IDL compiler](idl) generates concrete checked ABIs for copied
-values and closed generic interfaces. UI owns event transport and publication;
-its concrete factories can accept
-`EventBinding` with its final receiver. The application implements
-the common [`IEventReceiver` projection](../ui/api/EVENTS.md), moves each exclusive event and weak
-origin, maps them to an application message, and posts the parent's standard queue.
-Exclusive widgets store their queue and `WeakComBox` origin directly; shared
-services may use `EventPort`. A constructed object exposes no receiver-installation method;
-`com_object` generates its ordinary COM implementation. Application behavior runs
-later under ordinary mutable access. No event syntax or named output relay remains.
+The COM-owned [IDL compiler](idl) generates checked ABIs for ordinary values
+and callable interfaces. Domains can define their own observer contracts, as in
+the [standalone example](../../examples/com-plugin/README.md). UI owns its event
+protocol, publication and widget origin policy; see [UI event delivery](../ui/api/EVENTS.md)
+and [owner-scoped origins](../../docs/contracts/WIDGET_EVENT_ORIGINS.md).
 
 IDL declares public values and interfaces; the [language reference](../../docs/contracts/IDL_MODULES.md)
 owns the accepted syntax. Construction surfaces are ordinary interfaces. Concrete
@@ -263,8 +258,7 @@ protocol. Live COM calls retain their separate checked wire representation.
 - `neocogi-com-core`: raw ABI layouts and traits (`no_std` by default).
 - `neocogi-com-codegen`: one typed Rust backend for IDL and implementation helpers.
 - `neocogi-com-macros`: thin procedural entrypoints over that backend.
-- `neocogi-com`: object helpers, built-in event contracts/adapters, and optional
-  shared/static runtime clients.
+- `neocogi-com`: typed object/data helpers and optional stateless runtime clients.
 - `neocogi-com-runtime`: plugin catalog, loader, and persistence implementation;
   its Rust library target is `nc_com`.
 - `neocogi-idl` under `crates/com/idl`: IDL parser/resolver

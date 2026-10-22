@@ -25,13 +25,15 @@ source graphs between build scripts; it does not create a contract shared librar
 or runtime contract-registration step. IDL parsing and macros run on the build
 machine. The runtime compares already-computed identities and signatures.
 
-Five production crates own COM: `core` supplies ABI and value support; `api`
-supplies object helpers, ordinary event contracts and runtime clients; `runtime`
-owns loading, registries and persistence execution; `macros` expands Rust object
-implementations; `idl` owns parsing through Cargo integration. Only the process
-runtime is deployed as the COM shared library (`libnc_com.so` on Linux). Contracts
-and facade helpers compile into their consumers. Cargo artifact dependencies build native development compositions directly;
-[the native guide](../guides/COM_NATIVE.md) explains their graph and link ownership.
+COM responsibilities have concrete owners: `core` supplies ABI and value support;
+`codegen` emits typed Rust bindings; `idl` owns parsing through Cargo integration;
+`macros` supplies thin Rust implementation/persistence entrypoints; `api` supplies
+object helpers and runtime clients; `runtime` owns loading, the plugin catalog
+and persistence execution. Only the process runtime is deployed as the COM shared
+library (`libnc_com.so` on Linux). Native hosts and plugins use that one global
+registry. Contracts and facade helpers compile into their consumers. Cargo
+artifact dependencies build native compositions directly; [the native guide](../guides/COM_NATIVE.md)
+explains the graph and final link ownership.
 `cargo-neocogi` retains module authoring commands. The
 [standalone sample](../../examples/com-plugin/README.md) also demonstrates the raw
 shared-library boundary and monolithic linking.
@@ -68,33 +70,19 @@ ownership transfer and the limits of concurrent Drop.
 
 ## Events and UI ownership
 
-A factory receives the complete `EventBinding` during construction.
-All producers share the common `IEventReceiver` interface. Its synchronous `post`
-captures the weak origin and moves a `ComBox<IEvent>` into the inbox. Application
-behavior runs later under mutable access. There are no named-output connections,
-late subscriptions, receiver installation or generated application routing.
+COM provides ordinary callable interfaces and explicit ownership. Domains can
+use typed observers without depending on UI, as the [standalone example](../../examples/com-plugin/README.md)
+demonstrates. UI owns its [event protocol and deferred delivery](../../crates/ui/api/EVENTS.md),
+[producer publication](../contracts/UI_EVENT_METADATA.md) and [widget origins](../contracts/WIDGET_EVENT_ORIGINS.md).
+Those contracts do not add event syntax or policy to IDL or the COM process runtime.
 
-For widgets, the owning parent/container holds `ComBox`; callers retain
-`WeakComBox` observations. The UI runtime scopes the current weak origin during widget update and private dispatch; ordinary widgets retain no self-reference. Removing the owner rejects new calls immediately, waits for
-admitted calls and destroys the widget and owned children before Drop returns.
-There is no independently closed live widget. Close intent is an ordinary event:
-the behavioral parent decides whether to remove its child after the call returns.
-
-The retained UI schedules composite `IWidgetDispatcher::dispatch_next` implementations
-descendant-first, using weak observations. A composite owns its own model and
-receiver. A top-level `Dispatcher<Processor>` supplies `IApplicationDispatcher` for
-application messages and empty-inbox `MessageProcessor::apply_pending_changes` visits.
-The generated `ApplicationDispatch` outcome distinguishes message handling,
-applied pending changes, and idle visits; both kinds of work revisit child
-behavior and layout before later input. COM's process runtime owns no event loop. The
-[UI event guide](../../crates/ui/runtime/docs/EVENTS.md) links the executable Button
-walkthrough and defines dispatch and stale-message policy.
-
-Shared services still use `ComPtr`, `WeakComPtr` and, where appropriate, `EventPort`.
-A shared service may define its own close operation; its closed status is separate
-from allocation lifetime. These are different ownership contracts, not alternate
-widget paths. [Exclusive ownership](../contracts/EXCLUSIVE_WIDGET_OWNERSHIP.md) and
-[lifetime errors](../contracts/COM_LIFETIME_ERRORS.md) define the distinction.
+Ordinary widgets post through their owning traversal scope; services and explicit
+out-of-traversal completions retain the weak origins justified by the UI contract.
+[Exclusive ownership](../contracts/EXCLUSIVE_WIDGET_OWNERSHIP.md) and
+[lifetime errors](../contracts/COM_LIFETIME_ERRORS.md) define synchronous owner
+removal and its distinction from a service's optional close operation. Queues and
+UI origin scopes remain under their own owners, independent of the single global
+plugin registry in shared native `nc_com`.
 
 ## Independent-build compatibility
 
