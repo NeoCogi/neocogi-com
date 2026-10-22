@@ -99,6 +99,15 @@ mod tests {
     /// Includes one field per semantic getter and preserves authored event/base order.
     #[test]
     fn catalog_admits_and_round_trips_all_three_diamonds() {
+        for metadata in [&source::FactAbi::IDL_INTERFACE, &source::PlainFactAbi::IDL_INTERFACE] {
+            assert_eq!(metadata.methods.iter().map(|method| method.name).collect::<Vec<_>>(),
+                ["value", "left", "right", "revision"]);
+            assert!(metadata.methods.iter().all(|method| method.receiver == neocogi_com::NcAbiReceiver::Shared
+                && method.parameters.is_empty()));
+            assert_eq!(metadata.methods[0].returns, neocogi_com::design::IdlMethodType::Value(
+                neocogi_com::design::IdlValueType::Named("proof.contracts.Detail")));
+        }
+        assert_eq!(source::ScalarFactAbi::IDL_INTERFACE.methods.len(), 1);
         let descriptor = &source::SourceAbi::IDL_INTERFACE;
         let events: Vec<_> = descriptor.events.iter().map(|event| event.qualified_name).collect();
         assert_eq!(events, ["proof.source.ScalarFact", "proof.source.Fact", "proof.source.PlainFact"]);

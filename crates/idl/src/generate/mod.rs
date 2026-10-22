@@ -13,6 +13,7 @@ use neocogi_com_core::NcComInterfaceCompanion;
 mod events;
 mod lower;
 mod mapping;
+mod method_metadata;
 mod paths;
 mod value;
 pub use paths::RustModulePaths;
@@ -207,6 +208,7 @@ fn generate_declaration_metadata(graph: &Generation<'_>, module: &ResolvedModule
         let abi = rust_ident(&abi_name)?;
         let rust_abi = Literal::string(&public_rust_path(graph, module, &abi_name)?);
         let events = events::descriptions(graph, module, declaration)?;
+        let methods = method_metadata::descriptions(graph, module, declaration)?;
         let values = interface_value_metadata(graph, module, declaration)?;
         quote! {
             impl #abi {
@@ -215,6 +217,7 @@ fn generate_declaration_metadata(graph: &Generation<'_>, module: &ResolvedModule
                     abi: &Self::INTERFACE_DESCRIPTOR,
                     chain: &Self::INTERFACE_CHAIN,
                     rust_abi: #rust_abi,
+                    methods: &[#(#methods),*],
                     events: &[#(#events),*],
                     values: &[#(#values),*],
                 };
@@ -310,6 +313,7 @@ fn design_field_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiTy
             let name = Literal::string(&name.segments.join("."));
             Ok(quote! { ::neocogi_com::design::IdlValueType::Object(#name) })
         }
+        AbiType::Named(name) if name.is_str() => Ok(quote! { ::neocogi_com::design::IdlValueType::Text }),
         AbiType::Named(name) => {
             let resolved = resolve(graph, module, name)?;
             let qualified = Literal::string(&resolved.identity.qualified_name);

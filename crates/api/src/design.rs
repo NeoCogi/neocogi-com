@@ -7,7 +7,7 @@
 //! their values into a versioned COM design catalog for unlinked authoring hosts.
 //! `neocogi-inspect` reads plugin manifests, not this graph or application layouts.
 
-use crate::NcInterfaceDescriptor;
+use crate::{NcAbiReceiver, NcInterfaceDescriptor};
 
 /// Structural field expression; named edges refer to the finite definition table.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -96,6 +96,45 @@ pub struct IdlEvent {
     pub fields: &'static [IdlField],
 }
 
+/// Source-level ownership and borrowing of one method argument or success result.
+/// Value graphs describe repeatable data; call-only transfers remain explicit here.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IdlMethodType {
+    /// Repeatable by-value data or a retained shared/weak capability.
+    Value(IdlValueType),
+    /// One exclusive interface owner transferred through the call.
+    ExclusiveObject(&'static str),
+    /// Call-scoped view of data or an interface, without escaping ownership.
+    Borrowed(IdlValueType),
+    /// Read-only caller-provided element sequence.
+    InputBuffer(IdlValueType),
+    /// Caller-provided storage initialized through checked output completion.
+    OutputBuffer(IdlValueType),
+}
+
+/// One named method parameter with its source-level call ownership.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IdlParameter {
+    /// Authored parameter identifier, excluding the receiver.
+    pub name: &'static str,
+    /// Semantic argument shape independent of its physical pointer/count slots.
+    pub ty: IdlMethodType,
+}
+
+/// Ordinary method introspection, including inherited methods once per interface identity.
+/// This describes callable contracts without assigning application event semantics.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IdlMethod {
+    /// Authored method identifier.
+    pub name: &'static str,
+    /// Shared or exclusive access required to call the implementation.
+    pub receiver: NcAbiReceiver,
+    /// Ordered logical parameters, excluding the receiver.
+    pub parameters: &'static [IdlParameter],
+    /// Successful return shape; failures use the ordinary COM status protocol.
+    pub returns: IdlMethodType,
+}
+
 /// A COM class/interface and its complete transitive authoring contract.
 #[derive(Clone, Copy)]
 pub struct IdlInterface {
@@ -106,6 +145,8 @@ pub struct IdlInterface {
     /// Public Rust path of the generated concrete projection.
     /// Uses the same [`crate::validate_rust_path`] contract as value bindings.
     pub rust_abi: &'static str,
+    /// Base-first method descriptions, with shared ancestors included once.
+    pub methods: &'static [IdlMethod],
     /// Immutable interfaces this source can emit; the receiver is always IEventReceiver.
     pub events: &'static [IdlEvent],
     /// Finite definitions reachable from this interface chain and event getters.
