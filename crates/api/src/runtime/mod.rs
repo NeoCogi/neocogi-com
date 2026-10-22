@@ -191,8 +191,8 @@ impl Runtime {
     /// The path must have a nonempty UTF-8 representation without interior NUL
     /// bytes. This is required plugin loading: any path conversion, loading,
     /// description, dependency, or registration failure prints/emits its
-    /// diagnostic and aborts the process. Failure never returns. This policy also
-    /// applies to designer startup: loading has no recoverable `try_` alternative.
+    /// diagnostic and aborts the process. Failure never returns; loading has no
+    /// recoverable `try_` alternative.
     /// Plugin loading calls must not be nested: native loader initialization
     /// and the plugin description entrypoint must not directly or indirectly
     /// call this operation while another load is in progress.

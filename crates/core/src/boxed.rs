@@ -43,7 +43,7 @@ pub struct ComBox<T: ComInterface + ?Sized, M: ThreadingModel = ThreadLocal> {
 /// retained control address is also the canonical object address, and the table
 /// was validated when this handle was created. Every provider method must check
 /// lifetime before reading the value. Expired handles return `NC_E_DROPPED`.
-/// Clone/drop affect only weak bookkeeping; they never prolong widget resources.
+/// Clone/drop affect only weak bookkeeping; they never prolong the object's value lifetime.
 ///
 /// ```compile_fail
 /// use neocogi_com_core::{WeakComBox, IUnknown};

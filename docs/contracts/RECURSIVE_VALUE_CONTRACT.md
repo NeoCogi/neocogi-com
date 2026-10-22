@@ -393,28 +393,27 @@ any enum: it is copied when all payloads are copied. Values containing sequences
 text, or COM references use the borrowed named-value form. Owning aggregate
 returns remain rejected; a fixed array is eligible exactly when its element is.
 
-Records no longer manufacture receiver interfaces, `post_to`, or event traits.
-Declare the delivery interface explicitly, or use the common `IEventReceiver` through the
-event library. Widget commands remain ordinary methods on their interfaces.
-The old `ComMessage`/`NcMessage` implementation and per-message generator are
-removed. The owning [IDL reference](IDL_MODULES.md#contract-changes-and-versions)
+An application declares ordinary interfaces for message delivery and commands.
+UI supplies its own [event receiver and delivery policy](UI_EVENT_INTERFACES.md).
+The owning [IDL reference](IDL_MODULES.md#contract-changes-and-versions)
 tracks the current canonical encoding independently of the core ABI.
 
 ## COM inspection graph
 
-`ValueType` describes scalar, text, named, object, sequence, and array fields
-as structured data. Optional fields reference an ordinary named enum definition. Each enum alternative records its exact tag. An
-interface's `IDL_INTERFACE.values` contains every value definition reached from
-its methods, required projections, and declared event getter payloads. Object references remain
-capabilities; inspecting their additional methods is a separate interface query.
+`neocogi_com::idl_metadata::ValueType` describes scalar, text, named, object,
+weak capability, sequence and array fields as structured data. Optional fields
+reference an ordinary named enum definition. Each enum alternative records its
+exact tag. An interface's `IDL_INTERFACE.values` contains the definitions reached
+through its ordinary methods and required projections. Object references remain
+capabilities; their additional methods have separate interface metadata.
 
-The versioned `DesignWidgetManifest` transports this graph together with concrete
-event interfaces and getter descriptions. Events are identified by canonical
-interface identity and payload metadata; there is no typed-stream argument or
-second embedded definition. The receiving designer need not link the provider's
-Rust crate. See [event metadata](UI_EVENT_METADATA.md) for the authoritative
-manifest revision and [inspection](../../crates/com/docs/runtime-abi-v1.md) for the
-read-only COM graph boundary.
+UI separately declares the events a widget publishes and merges their getter
+value graphs with the producer's graph. Its versioned `DesignWidgetManifest`
+copies the result through a COM catalog, so the receiving designer need not link
+the provider's Rust crate. See [UI event metadata](UI_EVENT_METADATA.md) for this
+application-level format. The process runtime's
+[plugin inspection](../../crates/com/docs/runtime-abi-v1.md) reads plugin/factory
+descriptors rather than these source-level value definitions.
 
 The designer validates unique definitions, known scalar forms, complete named
 references, unique enum cases/tags, bounded field expressions, and finite inline

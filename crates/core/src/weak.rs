@@ -32,10 +32,9 @@ impl NcWeakRaw {
 /// A typed non-owning reference to a COM object's lifetime.
 ///
 /// Clone/drop retain/release bookkeeping only. `upgrade` returns a temporary
-/// strong owner, or None after final strong release. It does not test widget
-/// closure or current form membership. Queued event payloads remain independently
-/// owned even when their origin expires. The threading marker preserves exactly
-/// the originating handle's permissions, including after object destruction.
+/// strong owner, or None after final strong release. Logical service closure and
+/// application membership are separate from object lifetime. The threading
+/// marker preserves the originating handle's permissions after object destruction.
 ///
 /// Thread-local weak references cannot be sent or shared with another thread:
 /// ```compile_fail
@@ -122,7 +121,7 @@ impl<T: ComInterface + ?Sized, M: ThreadingModel> WeakComPtr<T, M> {
     /// Every valid COM object supports IUnknown with the same threading capability.
     /// This consumes the existing weak owner without cloning it, querying the
     /// value, or extending its strong lifetime. It is useful for diagnostics and
-    /// heterogeneous identity collections; event payloads retain their own types.
+    /// heterogeneous identity collections without changing the threading mode.
     pub fn into_unknown(self) -> WeakComPtr<IUnknown, M> {
         let control = self.control;
         core::mem::forget(self);

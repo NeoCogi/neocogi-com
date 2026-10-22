@@ -7,7 +7,7 @@ fn module(path: &str, source: &str) -> Module {
     parse_module(Path::new(path), source).unwrap()
 }
 
-/// Own-module qualification has one meaning in fields, methods, bases and events.
+/// Own-module qualification has one meaning in fields, methods and bases.
 #[test]
 fn qualified_local_references_do_not_depend_on_unused_templates() {
     let source = r#"
@@ -130,7 +130,7 @@ fn projection_graph(bystander: bool) -> ResolvedModules {
 
 /// Metadata provenance and inherited calls work with only the genuine dependencies.
 #[test]
-fn inherited_and_event_values_keep_the_supplying_projection_without_bystander_dependencies() {
+fn inherited_value_metadata_keeps_the_supplying_projection_without_bystander_dependencies() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
     let graph = projection_graph(true);
     let without = projection_graph(false);

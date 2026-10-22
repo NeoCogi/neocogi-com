@@ -76,7 +76,7 @@ impl Parse for ObjectArgs {
     /// and required siblings. Its implementation cannot redeclare those facts
     /// with an additional list or threading flag. The explicit-list form is for
     /// objects exposing several independent projections. Ownership is independent
-    /// of those interfaces and defaults to shared; widgets opt into exclusive.
+    /// of those interfaces and defaults to shared; an implementation can select exclusive.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let mut interfaces = None;
         let mut thread_safe = false;

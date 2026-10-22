@@ -417,8 +417,8 @@ impl NcWeakControl {
     }
 
     /// Observes an idle exclusive implementation without calling provider code.
-    /// Thread-local tree removal uses this before committing a fallible edit to
-    /// reject recursive destruction. Concurrent owners still synchronize in Drop.
+    /// An owner can preflight destruction against reentry. This observation
+    /// reserves no access; Drop still waits for calls admitted concurrently.
     pub fn box_is_idle(&self) -> bool {
         self.state.load(Ordering::Acquire) == BOXED | BOX_OWNER
     }
@@ -433,7 +433,7 @@ impl NcWeakControl {
 /// # Safety
 /// Transfers the sole owner exactly once. The caller must not be executing a
 /// method/borrow of this object, or hold a resource required by an active call:
-/// waiting on such a call would deadlock. UI self-removal uses queued requests.
+/// waiting on such a call would deadlock. Defer destruction until that call returns.
 #[inline(never)]
 pub unsafe extern "C" fn nc_box_release(control: *mut NcWeakControl) {
     let Some(header) = (unsafe { control.as_ref() }) else { return };

@@ -49,8 +49,8 @@ pub fn derive_com_serialize(item: TokenStream) -> TokenStream {
 ///     value: i32,
 /// }
 ///
-/// #[com_object(interfaces(IEventReceiver))]
-/// struct EventReceiver {
+/// #[com_object(interfaces(IProcessor))]
+/// struct Processor {
 ///     pending: bool,
 /// }
 /// ```

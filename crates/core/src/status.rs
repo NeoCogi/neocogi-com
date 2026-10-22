@@ -59,7 +59,6 @@ impl NcStatus {
                 | NC_E_LOAD_FAILED
                 | NC_E_OUT_OF_MEMORY
                 | NC_E_BUSY
-                | NC_E_ALREADY_BOUND
                 | NC_E_CLOSED
                 | NC_E_DROPPED
         )
@@ -80,7 +79,6 @@ impl NcStatus {
             NC_E_LOAD_FAILED => "NC_E_LOAD_FAILED",
             NC_E_OUT_OF_MEMORY => "NC_E_OUT_OF_MEMORY",
             NC_E_BUSY => "NC_E_BUSY",
-            NC_E_ALREADY_BOUND => "NC_E_ALREADY_BOUND",
             NC_E_CLOSED => "NC_E_CLOSED",
             NC_E_DROPPED => "NC_E_DROPPED",
             _ => "NC_STATUS_UNKNOWN",
@@ -138,9 +136,6 @@ pub const NC_E_OUT_OF_MEMORY: NcStatus = NcStatus::from_code(-10);
 /// Returned when a call requires exclusive object access but another call is active.
 pub const NC_E_BUSY: NcStatus = NcStatus::from_code(-11);
 
-/// A single-consumer capability already has its lifetime destination.
-pub const NC_E_ALREADY_BOUND: NcStatus = NcStatus::from_code(-12);
-
 /// A service, session or channel has closed and rejects this operation.
 /// The COM object representing that capability may still exist.
 pub const NC_E_CLOSED: NcStatus = NcStatus::from_code(-13);
@@ -183,9 +178,12 @@ mod tests {
 
     #[test]
     fn result_error_normalization_preserves_errors_and_rejects_successes() {
-        let unknown_error = NcStatus::from_code(-77);
-
-        assert_eq!(unknown_error.normalize_error(), unknown_error);
+        for code in [-12, -77, i32::MIN] {
+            let unknown_error = NcStatus::from_code(code);
+            assert!(!unknown_error.is_known());
+            assert_eq!(unknown_error.name(), "NC_STATUS_UNKNOWN");
+            assert_eq!(unknown_error.normalize_error(), unknown_error);
+        }
         assert_eq!(NC_OK.normalize_error(), NC_E_INVALID_ARG);
         assert_eq!(NcStatus::from_code(1).normalize_error(), NC_E_INVALID_ARG);
     }
