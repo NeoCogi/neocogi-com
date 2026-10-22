@@ -442,7 +442,7 @@ impl BytesObject {
         let object = object.cast::<Self>();
         // SAFETY: `object` is a live bytes storage pointer whose refcount stays
         // valid until final Release.
-        unsafe { __com_add_ref_count(&(*object).ref_count) }
+        unsafe { __com_add_ref_count(&(*object).ref_count) }.expect("COM reference count exhausted or unowned")
     }
 
     /// Decrements the shared count and frees the allocation at zero.
@@ -510,7 +510,7 @@ impl StringObject {
         let object = object.cast::<Self>();
         // SAFETY: `object` is a live string storage pointer whose refcount
         // stays valid until final Release.
-        unsafe { __com_add_ref_count(&(*object).ref_count) }
+        unsafe { __com_add_ref_count(&(*object).ref_count) }.expect("COM reference count exhausted or unowned")
     }
 
     /// Decrements the shared count and frees string storage at zero.

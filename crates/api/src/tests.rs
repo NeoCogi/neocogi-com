@@ -9,7 +9,6 @@
 use super::*;
 use core::ffi::c_void;
 use core::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
-use std::panic::{AssertUnwindSafe, catch_unwind};
 
 const UNKNOWN_TEST_STATUS_CODE: i32 = -77;
 const UNKNOWN_TEST_STATUS: NcStatus = NcStatus::from_code(UNKNOWN_TEST_STATUS_CODE);
@@ -18,7 +17,7 @@ const UNKNOWN_TEST_STATUS: NcStatus = NcStatus::from_code(UNKNOWN_TEST_STATUS_CO
 fn add_ref_count_increments() {
     let ref_count = AtomicU32::new(1);
 
-    assert_eq!(__com_add_ref_count(&ref_count), 2);
+    assert_eq!(__com_add_ref_count(&ref_count), Some(2));
     assert_eq!(ref_count.load(Ordering::Relaxed), 2);
 }
 
@@ -34,9 +33,7 @@ fn release_ref_count_decrements() {
 #[test]
 fn add_ref_count_rejects_exhaustion_without_changing_the_counter() {
     let ref_count = AtomicU32::new(u32::MAX);
-    let result = catch_unwind(AssertUnwindSafe(|| __com_add_ref_count(&ref_count)));
-
-    assert!(result.is_err(), "retain returned without counting a new owner");
+    assert_eq!(__com_add_ref_count(&ref_count), None, "retain returned without counting a new owner");
     assert_eq!(ref_count.load(Ordering::Relaxed), u32::MAX);
 }
 
@@ -45,7 +42,7 @@ fn add_ref_count_rejects_exhaustion_without_changing_the_counter() {
 fn add_ref_count_accepts_the_last_owner_and_balances_its_release() {
     let ref_count = AtomicU32::new(u32::MAX - 1);
 
-    assert_eq!(__com_add_ref_count(&ref_count), u32::MAX);
+    assert_eq!(__com_add_ref_count(&ref_count), Some(u32::MAX));
     assert_eq!(__com_release_ref_count(&ref_count), Some(u32::MAX - 1));
     assert_eq!(ref_count.load(Ordering::Relaxed), u32::MAX - 1);
 }
@@ -54,7 +51,7 @@ fn add_ref_count_accepts_the_last_owner_and_balances_its_release() {
 #[test]
 fn add_ref_count_rejects_zero_without_resurrection() {
     let ref_count = AtomicU32::new(0);
-    assert!(catch_unwind(AssertUnwindSafe(|| __com_add_ref_count(&ref_count))).is_err());
+    assert_eq!(__com_add_ref_count(&ref_count), None);
     assert_eq!(ref_count.load(Ordering::Relaxed), 0);
 }
 
@@ -66,14 +63,15 @@ fn add_ref_count_contenders_cannot_both_claim_the_last_available_owner() {
     let outcomes = std::thread::scope(|scope| {
         let retain = || {
             start.wait();
-            catch_unwind(AssertUnwindSafe(|| __com_add_ref_count(&ref_count)))
+            __com_add_ref_count(&ref_count)
         };
         let first = scope.spawn(retain);
         let second = scope.spawn(retain);
         [first.join().unwrap(), second.join().unwrap()]
     });
 
-    assert_eq!(outcomes.iter().filter(|result| result.is_ok()).count(), 1);
+    assert_eq!(outcomes.iter().filter(|result| result.is_some()).count(), 1);
+    assert_eq!(outcomes.iter().filter(|result| result.is_none()).count(), 1);
     assert_eq!(ref_count.load(Ordering::Relaxed), u32::MAX);
     assert_eq!(__com_release_ref_count(&ref_count), Some(u32::MAX - 1));
 }
@@ -81,13 +79,7 @@ fn add_ref_count_contenders_cannot_both_claim_the_last_available_owner() {
 #[test]
 fn release_ref_count_does_not_underflow_at_zero() {
     let ref_count = AtomicU32::new(0);
-    let result = catch_unwind(AssertUnwindSafe(|| __com_release_ref_count(&ref_count)));
-
-    if cfg!(debug_assertions) {
-        assert!(result.is_err());
-    } else {
-        assert_eq!(result.unwrap(), None);
-    }
+    assert_eq!(__com_release_ref_count(&ref_count), None);
     assert_eq!(ref_count.load(Ordering::Relaxed), 0);
 }
 

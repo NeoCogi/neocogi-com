@@ -26,8 +26,15 @@ pub fn assert_aborts(test_name: &str, case: &str, operation: impl FnOnce()) {
         return;
     }
 
-    let output = Command::new(std::env::current_exe().expect("current test executable"))
-        .args(["--exact", test_name, "--nocapture", "--test-threads=1"])
+    let mut command = Command::new(std::env::current_exe().expect("current test executable"));
+    command.args(["--exact", test_name, "--nocapture", "--test-threads=1"]);
+    if cfg!(panic = "abort") {
+        // Nightly abort-mode libtest normally wraps each test in another
+        // process and reports its abort as exit 101. This child already owns
+        // process isolation: observe the provider's signal directly instead.
+        command.args(["-Z", "unstable-options", "--force-run-in-process"]);
+    }
+    let output = command
         .env(CASE_ENV, selection)
         .env("RUST_BACKTRACE", "0")
         .output()

@@ -106,7 +106,7 @@ unsafe extern "C" fn query_interface(this: *mut c_void, requested: *const NcInte
         }
         _ => return NC_E_NOINTERFACE,
     };
-    __com_add_ref_count(&object.references);
+    __com_add_ref_count(&object.references).expect("COM reference count exhausted or unowned");
     // SAFETY: The new reference owns the selected projection from this allocation.
     unsafe { out.write(ComRaw { object: this, vtable: projection }) };
     NC_OK
@@ -119,7 +119,7 @@ unsafe extern "C" fn query_interface(this: *mut c_void, requested: *const NcInte
 unsafe extern "C" fn add_ref(this: *mut c_void) -> u32 {
     // SAFETY: The caller owns a live reference for this synchronous call.
     match unsafe { storage(this) } {
-        Ok(object) => __com_add_ref_count(&object.references),
+        Ok(object) => __com_add_ref_count(&object.references).expect("COM reference count exhausted or unowned"),
         Err(_) => 0,
     }
 }
