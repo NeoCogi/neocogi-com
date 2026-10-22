@@ -8,6 +8,9 @@
 /// Deep valid output-buffer types must not depend on the caller's thread stack.
 const SYNTAX_STACK_BYTES: usize = 8 * 1024 * 1024;
 
+#[cfg(test)]
+mod tests;
+
 /// Runs one syntax operation with borrowed, typed inputs and returns its result.
 /// Spawn failure stays an I/O error for the owning phase to classify. An internal
 /// panic retains its payload instead of becoming an authored IDL diagnostic.

@@ -7,6 +7,9 @@ use std::{
 };
 
 use crate::resolve_modules;
+
+#[cfg(test)]
+mod worker_failure_tests;
 use serde::{Deserialize, Serialize};
 
 use crate::generate::{RustModulePaths, generate_rust_with_paths_and_source_map};
