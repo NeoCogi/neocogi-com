@@ -3,7 +3,7 @@ use std::path::Path;
 use neocogi_idl::{parse_module, resolve_modules};
 
 /// Resolves one module so independent ownership spellings share logical names.
-fn graph(source: &str) -> Result<neocogi_idl::ResolvedModules, neocogi_idl::ResolutionError> {
+fn graph(source: &str) -> Result<neocogi_idl::ResolvedModules, neocogi_idl::ModuleGraphError> {
     resolve_modules(vec![parse_module(Path::new("proof/ownership.ncidl"), source).unwrap()])
 }
 

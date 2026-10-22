@@ -2,7 +2,7 @@
 use std::{fs, path::Path, process::Command};
 
 /// Resolve a complete authored module without creating a Rust consumer first.
-fn resolve(source: &str) -> Result<crate::ResolvedModules, crate::ResolutionError> {
+fn resolve(source: &str) -> Result<crate::ResolvedModules, crate::ModuleGraphError> {
     crate::resolve_modules(vec![crate::parse_module(Path::new("proof/names.ncidl"), source).unwrap()])
 }
 
@@ -14,6 +14,9 @@ fn physical_prefix_conflicts_are_rejected_at_authored_methods() {
             let source =
                 format!("#[version(1)] interface Parent {{}}\n#[version(1)] interface Invalid{generic}{base} {{\n fn {name}(&self) -> Result<u32>;\n}}");
             let error = resolve(&source).unwrap_err();
+            let crate::ModuleGraphError::Resolution(error) = error else {
+                panic!("expected semantic diagnostics")
+            };
             let diagnostic = error.diagnostics.iter().find(|d| d.code == "EIDL100").unwrap();
             let text = error.to_string();
             assert!(diagnostic.message.contains("vtable prefix"), "{text}");

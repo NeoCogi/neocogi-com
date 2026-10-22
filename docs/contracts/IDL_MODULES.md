@@ -45,8 +45,16 @@ identifier spellings and create token syntax only where needed. Original parser
 spans exist only during syntax admission; syntax trees and process-local spans
 never cross workers. Failure to start an IDL parser
 worker returns `ParseError::Worker`; generated-Rust worker failures return
-`GenerateError`. Neither publishes partial output. Semantic resolution retains
-its own diagnostics and does not run a syntax worker.
+`GenerateError`. Neither publishes partial output. The public `resolve_modules`
+operation first admits the ordinary bundled `neocogi.lang` source. Its
+`ModuleGraphError::BundledSource(ParseError)` retains parser/worker failures,
+including their operating-system cause, rather than asserting that tested
+source guarantees an available worker. The subsequent semantic algorithm starts
+no syntax worker and retains `ResolutionError` diagnostics through
+`ModuleGraphError::Resolution`. Cargo preserves this typed graph failure in
+`BuildError::Resolve` before generation, artifact writes or success metadata.
+Empty input still fails before bundled admission; the reserved-library-name
+check follows bundled parsing. Internal worker panics retain their payloads.
 
 ## Closed generic values and interfaces
 

@@ -58,7 +58,16 @@ impl fmt::Display for ParseError {
     }
 }
 
-impl std::error::Error for ParseError {}
+impl std::error::Error for ParseError {
+    /// Exposes environmental/path causes without manufacturing errors from diagnostics.
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ModulePath(source) => Some(source),
+            Self::Worker(source) => Some(source),
+            Self::Source(_) => None,
+        }
+    }
+}
 
 impl From<ModulePathError> for ParseError {
     /// Preserves a module-path failure without erasing its category.

@@ -3,7 +3,7 @@ use neocogi_idl::{generate_rust, parse_module, resolve_modules};
 use std::{fs, path::Path, process::Command};
 
 /// Resolves independently authored variants at the same nominal module identity.
-fn graph(source: &str) -> Result<neocogi_idl::ResolvedModules, neocogi_idl::ResolutionError> {
+fn graph(source: &str) -> Result<neocogi_idl::ResolvedModules, neocogi_idl::ModuleGraphError> {
     resolve_modules(vec![parse_module(Path::new("proof/weak.ncidl"), source).unwrap()])
 }
 

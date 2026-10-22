@@ -1,6 +1,7 @@
 //! Cross-module name resolution, ABI validation, and canonical identities.
 
 mod bind;
+use crate::ParseError;
 use crate::binding::{Binding, DeclarationKey, Intrinsic};
 use std::{
     collections::{BTreeSet, HashMap},
@@ -169,13 +170,59 @@ impl fmt::Display for ResolutionError {
 
 impl std::error::Error for ResolutionError {}
 
-/// Resolves imports, validates ABI positions, and fingerprints a module DAG.
-pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, ResolutionError> {
+/// Failure to admit bundled source or resolve the authored module graph.
+///
+/// Semantic collectors retain [`ResolutionError`]; an environmental parser
+/// failure must never be represented by an empty set of authored diagnostics.
+#[derive(Debug)]
+pub enum ModuleGraphError {
+    /// The compiler-owned `neocogi.lang` dependency could not be parsed.
+    BundledSource(ParseError),
+    /// Admitted modules contain source-level semantic errors.
+    Resolution(ResolutionError),
+}
+
+impl fmt::Display for ModuleGraphError {
+    /// Adds bundled-source context while preserving existing semantic rendering.
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::BundledSource(source) => write!(formatter, "cannot admit bundled neocogi.lang source: {source}"),
+            Self::Resolution(source) => source.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for ModuleGraphError {
+    /// Retains the parser/OS cause or complete semantic diagnostic collection.
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::BundledSource(source) => Some(source),
+            Self::Resolution(source) => Some(source),
+        }
+    }
+}
+
+impl From<ResolutionError> for ModuleGraphError {
+    /// Keeps semantic-only helpers independent of dependency admission errors.
+    fn from(source: ResolutionError) -> Self {
+        Self::Resolution(source)
+    }
+}
+
+/// Admits the bundled dependency, then resolves and fingerprints a module DAG.
+/// Worker startup failure is returned before generation or artifact publication;
+/// genuine internal worker panics retain the syntax owner's panic behavior.
+pub fn resolve_modules(modules: Vec<Module>) -> Result<ResolvedModules, ModuleGraphError> {
     if modules.is_empty() {
-        return Err(error(None, "at least one IDL module is required"));
+        return Err(error(None, "at least one IDL module is required").into());
     }
 
-    let mut modules = crate::standard::attach(modules)?;
+    let modules = crate::standard::attach(modules)?;
+    resolve_semantics(modules).map_err(ModuleGraphError::Resolution)
+}
+
+/// Resolves already admitted owned models; only semantic diagnostics enter collectors.
+fn resolve_semantics(mut modules: Vec<Module>) -> Result<ResolvedModules, ResolutionError> {
     modules.sort_by(|left, right| {
         left.name
             .cmp(&right.name)

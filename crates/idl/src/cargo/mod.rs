@@ -173,7 +173,7 @@ impl Module {
                 Ok(module)
             })
             .collect::<Result<Vec<_>, BuildError>>()?;
-        let resolved = resolve_modules(parsed).map_err(|source| BuildError::Idl(source.to_string()))?;
+        let resolved = resolve_modules(parsed).map_err(BuildError::Resolve)?;
         let resolved_module = resolved
             .module(&own_module.name.to_string())
             .ok_or_else(|| BuildError::Idl("resolved graph lost the crate's own module".into()))?;
@@ -326,7 +326,12 @@ pub enum BuildError {
         /// Original JSON codec failure.
         source: serde_json::Error,
     },
-    /// Parsing, resolution, or generation rejected the module graph.
+    /// Bundled admission or semantic resolution rejected the module graph.
+    Resolve(
+        /// Typed graph failure, retaining the parser and operating-system cause.
+        crate::ModuleGraphError,
+    ),
+    /// Parsing or generation rejected the module graph.
     Idl(
         /// Complete source-level diagnostic.
         String,
@@ -346,6 +351,7 @@ impl fmt::Display for BuildError {
             }
             Self::Io { operation, path, source } => write!(formatter, "failed to {operation} {}: {source}", path.display()),
             Self::Json { operation, path, source } => write!(formatter, "failed to {operation} {}: {source}", path.display()),
+            Self::Resolve(source) => source.fmt(formatter),
             Self::Idl(message) => formatter.write_str(message),
         }
     }
@@ -357,6 +363,7 @@ impl std::error::Error for BuildError {
         match self {
             Self::Io { source, .. } => Some(source),
             Self::Json { source, .. } => Some(source),
+            Self::Resolve(source) => Some(source),
             _ => None,
         }
     }

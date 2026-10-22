@@ -8,7 +8,7 @@ fn module(path: &str, source: &str) -> Module {
 }
 
 /// Ordinary declarations and generic reference-only interfaces.
-fn graph(parameters: (&str, &str), base: &str, event: &str, instantiate: bool) -> Result<ResolvedModules, neocogi_idl::ResolutionError> {
+fn graph(parameters: (&str, &str), base: &str, event: &str, instantiate: bool) -> Result<ResolvedModules, neocogi_idl::ModuleGraphError> {
     let (base_parameter, event_parameter) = parameters;
     let templates = format!(
         r#"
@@ -118,6 +118,9 @@ fn invalid_closed_references_have_source_diagnostics() {
     ] {
         let source = format!("#[version(1)] struct Data {{ value: u32 }} #[version(1)] interface Ordinary {{}} {declaration}");
         let error = resolve_modules(vec![module("proof/invalid.ncidl", &source)]).unwrap_err();
+        let neocogi_idl::ModuleGraphError::Resolution(error) = error else {
+            panic!("expected semantic diagnostics")
+        };
         assert!(!error.diagnostics.is_empty());
         assert!(error.diagnostics.iter().all(|d| d.code == code), "{declaration}: {error}");
         assert!(error.to_string().contains("proof/invalid.ncidl"), "source context missing: {error}");

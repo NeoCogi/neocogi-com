@@ -16,6 +16,9 @@ fn public_handle_names_reject_before_rust_generation() {
         ] {
             let module = neocogi_idl::parse_module(Path::new("proof/collision.ncidl"), &source).unwrap();
             let error = neocogi_idl::resolve_modules(vec![module]).unwrap_err();
+            let neocogi_idl::ModuleGraphError::Resolution(error) = error else {
+                panic!("expected semantic diagnostics")
+            };
             assert!(error.diagnostics.iter().any(|diagnostic| diagnostic.code == "EIDL100"), "{source}: {error}");
             assert!(error.to_string().contains(name), "{source}: {error}");
         }
@@ -27,13 +30,10 @@ fn public_handle_names_reject_before_rust_generation() {
     }
     let source = "#[version(1)] interface ICapability { fn downgrade(&self) -> Result<WeakComPtr<ICapability>>; }";
     let module = neocogi_idl::parse_module(Path::new("proof/exact_return.ncidl"), source).unwrap();
-    assert!(
-        neocogi_idl::resolve_modules(vec![module])
-            .unwrap_err()
-            .diagnostics
-            .iter()
-            .any(|d| d.code == "EIDL100")
-    );
+    let neocogi_idl::ModuleGraphError::Resolution(error) = neocogi_idl::resolve_modules(vec![module]).unwrap_err() else {
+        panic!("expected semantic diagnostics")
+    };
+    assert!(error.diagnostics.iter().any(|d| d.code == "EIDL100"));
 }
 
 /// Compiles the actual IDL output, including names that used to capture codec locals.

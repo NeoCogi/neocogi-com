@@ -414,6 +414,9 @@ fn collects_independent_type_errors() {
         "#,
     );
     let error = resolve_modules(vec![source]).unwrap_err();
+    let neocogi_idl::ModuleGraphError::Resolution(error) = error else {
+        panic!("expected semantic diagnostics")
+    };
     let rendered = error.to_string();
 
     assert_eq!(error.diagnostics.len(), 2);

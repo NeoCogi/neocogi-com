@@ -29,7 +29,8 @@ pub use diagnostic::{Diagnostic, DiagnosticLabel, LabelStyle, SourceFile, Source
 pub use parser::{ModuleSource, ParseError, parse_module, parse_module_parts};
 pub use path::{ModuleName, ModulePathError};
 pub use resolve::{
-    MODULE_ABI_ENCODING_DOMAIN, DeclarationIdentity, ResolutionError, ResolvedDeclaration, ResolvedDependency, ResolvedModule, ResolvedModules, resolve_modules,
+    MODULE_ABI_ENCODING_DOMAIN, DeclarationIdentity, ModuleGraphError, ResolutionError, ResolvedDeclaration, ResolvedDependency, ResolvedModule,
+    ResolvedModules, resolve_modules,
 };
 
 /// One parsed and structurally validated IDL module.

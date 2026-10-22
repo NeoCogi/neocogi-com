@@ -502,6 +502,9 @@ fn imported_and_phantom_specializations_separate_definitions_from_use_sites() {
         neocogi_idl::parse_module(Path::new("origins/consumer.ncidl"), &bad).unwrap(),
     ])
     .unwrap_err();
+    let neocogi_idl::ModuleGraphError::Resolution(error) = error else {
+        panic!("expected semantic diagnostics")
+    };
     let diagnostic = &error.diagnostics[0];
     let primary = diagnostic.labels.iter().find(|label| label.style == neocogi_idl::LabelStyle::Primary).unwrap();
     let start = position(&bad, "Stored<Size, Size>");

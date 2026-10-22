@@ -3,7 +3,10 @@
 //! Prelude names are ordinary declarations after lexical lookup. The bundled
 //! source participates in specialization and fingerprints just like a dependency;
 //! no Option-specific rule exists in value conversion or metadata generation.
-use crate::{AbiType, ExternalModule, Import, Module, ResolutionError, SourceSpan};
+use crate::{AbiType, ExternalModule, Import, Module, ModuleGraphError, ResolutionError, SourceSpan};
+
+#[cfg(test)]
+mod tests;
 
 /// Compiler-owned module containing portable generic value declarations.
 const LANGUAGE_MODULE: &str = "neocogi.lang";
@@ -20,13 +23,14 @@ pub fn is_bundled_module(name: &str) -> bool {
 /// Authored declarations/imports and template parameters take lexical precedence.
 /// The compiler owns the reserved module path so another package cannot silently
 /// replace the meaning or fingerprint of the shipped standard library.
-pub(crate) fn attach(mut modules: Vec<Module>) -> Result<Vec<Module>, ResolutionError> {
-    let standard =
-        crate::parse_module(std::path::Path::new("neocogi/lang.ncidl"), LANGUAGE_SOURCE).expect("the bundled IDL library is tested with the ordinary parser");
+pub(crate) fn attach(mut modules: Vec<Module>) -> Result<Vec<Module>, ModuleGraphError> {
+    // Tested syntax is not proof that the OS can start another syntax worker.
+    let standard = crate::parse_module(std::path::Path::new("neocogi/lang.ncidl"), LANGUAGE_SOURCE).map_err(ModuleGraphError::BundledSource)?;
     if let Some(module) = modules.iter().find(|module| is_bundled_module(&module.name.to_string())) {
         return Err(ResolutionError {
             diagnostics: vec![crate::Diagnostic::new("EIDL067", "neocogi.lang is reserved for the bundled IDL library").with_sources(&module.sources)],
-        });
+        }
+        .into());
     }
     let mut needed = false;
     for module in &mut modules {

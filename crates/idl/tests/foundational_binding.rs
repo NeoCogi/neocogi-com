@@ -39,6 +39,9 @@ fn independent_name_and_storage_errors_have_one_source_aware_policy() {
     let mut previous = None;
     for unused in ["", "#[version(1)] struct Unused<T> { value: T }"] {
         let error = resolve_modules(vec![module("proof/errors.ncidl", &format!("{source}{unused}"))]).unwrap_err();
+        let neocogi_idl::ModuleGraphError::Resolution(error) = error else {
+            panic!("expected semantic diagnostics")
+        };
         assert_eq!(error.diagnostics.len(), 3);
         let rendered = error.to_string();
         assert!(rendered.contains("unknown IDL type \"Missing\""));
@@ -67,6 +70,9 @@ fn independent_name_and_storage_errors_have_one_source_aware_policy() {
                 module("proof/other.ncidl", "#[version(1)] struct Local { value:u32 }"),
             ])
             .unwrap_err();
+            let neocogi_idl::ModuleGraphError::Resolution(error) = error else {
+                panic!("expected semantic diagnostics")
+            };
             assert_eq!(error.diagnostics[0].code, expected);
         }
     }
@@ -78,6 +84,9 @@ fn nil_callable_ids_are_rejected_before_specialization_or_generation() {
     for parameters in ["", "<T>"] {
         let source = format!("#[id(1, \"00000000-0000-0000-0000-000000000000\")] interface Invalid{parameters} {{}}");
         let error = resolve_modules(vec![module("proof/nil.ncidl", &source)]).unwrap_err();
+        let neocogi_idl::ModuleGraphError::Resolution(error) = error else {
+            panic!("expected semantic diagnostics")
+        };
         assert_eq!(error.diagnostics[0].code, "EIDL074");
         assert!(error.to_string().contains("a callable interface ID must not be nil"));
         assert!(error.to_string().contains("proof/nil.ncidl"));
