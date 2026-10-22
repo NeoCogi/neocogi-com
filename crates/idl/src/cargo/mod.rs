@@ -59,8 +59,8 @@ impl Module {
 
     /// Publishes declarations from a crate-rooted Rust module instead of a dedicated crate.
     ///
-    /// For example, `neocogi_com::events` keeps the logical contract identity
-    /// `neocogi.com.events` while exposing its bindings inside the COM facade.
+    /// For example, `example_api::contracts` keeps the logical contract identity
+    /// `example.contracts` while exposing its bindings inside the owning facade.
     /// Validation occurs during build, before any generated output is written.
     pub fn rust_path(mut self, path: impl Into<String>) -> Self {
         self.rust_path = Some(path.into());

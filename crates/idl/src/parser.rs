@@ -396,7 +396,6 @@ fn parse_enum(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result
 fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::Result<Parsed<Declaration>> {
     let metadata = parse_attributes(attributes, AttributeContext::Interface)?;
     let threading = metadata_threading(&metadata);
-    let events = metadata.events.clone();
     // Dispatch already identified the keyword. Consuming it here keeps one
     // grammar for identity, projections, threading, and callable ordering.
     input.parse::<Ident>()?;
@@ -409,7 +408,7 @@ fn parse_interface(attributes: Vec<Attribute>, input: ParseStream<'_>) -> syn::R
         name,
         parameters,
         metadata,
-        DeclarationKind::Interface(Interface { bases, events, methods, threading }),
+        DeclarationKind::Interface(Interface { bases, methods, threading }),
     ))
 }
 
@@ -922,9 +921,6 @@ fn attach_declaration_source(declaration: &mut Declaration, source: &SourceFile)
         }
         DeclarationKind::Interface(interface) => {
             attach_interface_source(&mut interface.bases, &mut interface.methods, source);
-            for event in &mut interface.events {
-                attach_named_source(event, source);
-            }
         }
     }
 }
@@ -945,7 +941,7 @@ fn attach_interface_source(bases: &mut [NamedType], methods: &mut [Method], sour
     }
 }
 
-/// Attaches one ordinary or event-delivery signature and every nested input span.
+/// Attaches one ordinary callable signature and every nested input span.
 fn attach_method_source(method: &mut Method, source: &SourceFile) {
     method.span.attach(source);
     for parameter in &mut method.parameters {
@@ -956,7 +952,7 @@ fn attach_method_source(method: &mut Method, source: &SourceFile) {
 }
 
 /// Attaches the authored source to a named reference and every nested argument.
-/// Direct base/event substitution can move an argument into the reference slot;
+/// Direct base substitution can move an argument into the reference slot;
 /// its original source owner must survive that move just as in ordinary types.
 fn attach_named_source(name: &mut NamedType, source: &SourceFile) {
     name.span.attach(source);
@@ -1053,8 +1049,6 @@ struct Attributes {
     id: DeclarationId,
     /// Interface threading capability.
     threading: Option<Threading>,
-    /// Authored emitted event interfaces, independent of constructor signatures.
-    events: Vec<NamedType>,
     /// Typed construction policy selected independently of live transport.
     persistence: PersistencePolicy,
     /// Whether an enum is a zero-based contiguous unit-value domain.
@@ -1068,7 +1062,6 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
     let mut docs = Vec::new();
     let mut id = None;
     let mut threading = None;
-    let mut events = None;
     let mut persistence = PersistencePolicy::Automatic;
     let mut dense = false;
     let mut enum_names = None;
@@ -1094,15 +1087,6 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
                 version: positive_version(arguments.version, &attribute)?,
                 explicit: Some(NcGuid::from_uuid_bytes(parse_uuid(&arguments.uuid)?)),
             });
-        } else if attribute.path().is_ident("events") && matches!(context, AttributeContext::Interface) {
-            if events.is_some() {
-                return Err(syn::Error::new_spanned(attribute, "duplicate event declaration"));
-            }
-            let names = attribute.parse_args_with(Punctuated::<syn::Path, Token![,]>::parse_terminated)?;
-            if names.is_empty() {
-                return Err(syn::Error::new_spanned(attribute, "events requires at least one event interface"));
-            }
-            events = Some(names.iter().map(named_path).collect::<syn::Result<Vec<_>>>()?);
         } else if attribute.path().is_ident("threading") && matches!(context, AttributeContext::Interface) {
             if threading.is_some() {
                 return Err(syn::Error::new_spanned(attribute, "duplicate threading capability"));
@@ -1140,7 +1124,6 @@ fn parse_attributes(attributes: Vec<Attribute>, context: AttributeContext) -> sy
         docs,
         id,
         threading,
-        events: events.unwrap_or_default(),
         persistence,
         dense,
         enum_names,

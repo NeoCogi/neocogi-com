@@ -38,7 +38,7 @@ parameters and enum assignments. The compiler exposes its exact domain as
   acquisition, recursion, budgets and metadata.
 - [Local NCB persistence](../core/README.md#why-persistence-is-ncb-only): concrete
   bounded cursors, ordered construction, codec history and independent-plugin checks.
-- [Event queues](../api/EVENTS.md) and [UI event delivery](../../ui/runtime/docs/EVENTS.md):
+- [Event queues](../../ui/api/EVENTS.md) and [UI event delivery](../../ui/runtime/docs/EVENTS.md):
   concrete queue implementations, weak origins and deferred application behavior.
 - [Independent-build compatibility](compatibility.md): executed compiler/flag
   matrix, sanitizers and platform limits.

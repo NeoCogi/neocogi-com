@@ -41,17 +41,8 @@ fn main() {
     println!("cargo:rerun-if-changed={}", root.display());
     let mut modules = BTreeMap::new();
     sources(&root, &root, &mut modules);
-    let event = parse_module(
-        Path::new("neocogi/com/events.ncidl"),
-        include_str!("../api/idl/neocogi/com/events/events.ncidl"),
-    )
-    .unwrap();
-    modules.insert(event.name.to_string(), event);
     let mut output = String::new();
     for (name, module) in &modules {
-        if name == "neocogi.com.events" {
-            continue;
-        }
         let mut selected = BTreeSet::new();
         dependencies(name, &modules, &mut selected);
         let graph = resolve_modules(selected.iter().map(|name| modules[name].clone()).collect()).unwrap_or_else(|error| panic!("{error}"));
@@ -61,18 +52,13 @@ fn main() {
             if neocogi_idl::is_bundled_module(&logical) {
                 continue;
             }
-            let rust = if logical == "neocogi.com.events" {
-                "neocogi_com::events".into()
-            } else {
-                let segments = dependency.source.name.segments();
-                assert_eq!(&segments[..2], ["nc", "tests"]);
-                let mut rust = format!("fixture_{}", segments[2]);
-                for scope in &segments[3..] {
-                    rust.push_str("::");
-                    rust.push_str(scope);
-                }
-                rust
-            };
+            let segments = dependency.source.name.segments();
+            assert_eq!(&segments[..2], ["nc", "tests"]);
+            let mut rust = format!("fixture_{}", segments[2]);
+            for scope in &segments[3..] {
+                rust.push_str("::");
+                rust.push_str(scope);
+            }
             paths.insert(&logical, &rust).unwrap();
         }
         let rust = neocogi_idl::generate::generate_rust_with_paths(&graph, name, &paths).unwrap();

@@ -21,7 +21,8 @@ metadata, and signatures remain in their consumers. No separate contract `.so`, 
 archive, getter, runtime inventory, or event-contract seeding is produced.
 `interface` describes callable behavior and required projections. Implementations
 own private Rust state through `#[com_object]`; `#[plugin]` publishes a typed
-acquisition function. Ordinary methods construct parameterized objects. Events are ordinary typed values delivered to a constructor-supplied queue.
+acquisition function. Ordinary methods construct parameterized objects. A domain
+may define its own observer contracts; UI supplies its own event protocol.
 
 The [plain-Cargo sample](../../examples/com-plugin/README.md) builds the same
 plugin as a shared library and as an rlib statically linked into a monolith.
@@ -33,9 +34,10 @@ boundaries, and [the current ABI specification](docs/README.md) for the binary m
 ## IDL
 
 The COM-owned [IDL compiler](idl) generates concrete checked ABIs for copied
-values and closed generic interfaces. A concrete class's factory can accept
+values and closed generic interfaces. UI owns event transport and publication;
+its concrete factories can accept
 `EventBinding` with its final receiver. The application implements
-the common [`IEventReceiver` projection](api/EVENTS.md), moves each exclusive event and weak
+the common [`IEventReceiver` projection](../ui/api/EVENTS.md), moves each exclusive event and weak
 origin, maps them to an application message, and posts the parent's standard queue.
 Exclusive widgets store their queue and `WeakComBox` origin directly; shared
 services may use `EventPort`. A constructed object exposes no receiver-installation method;
@@ -283,7 +285,7 @@ marketplace. Applications own installation, trust, signatures, and path policy.
 [`neocogi_com::persistence`](runtime/PERSISTENCE.md) provides runtime-owned opt-in semantic snapshots and explicit,
 context-bound factory reconstruction. The portable value codec remains separate
 from object acquisition; arbitrary private object memory is never serialized.
-[`events`](api/EVENTS.md) binds concrete class streams directly. Generated form
+[`events`](../ui/api/EVENTS.md) binds concrete class streams directly. Generated form
 fields expose checked widget interfaces, and typed receivers post application
 messages without an intermediate component relay.
 

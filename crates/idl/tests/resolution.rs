@@ -39,19 +39,18 @@ fn integer_assignments_and_automatic_payload_tags_remain_supported() {
     }
 }
 
-/// The library stream accepts declared messages, while general IDL remains event-agnostic.
+/// Ordinary nongeneric values reject template arguments independently of their use site.
 #[test]
-fn common_event_binding_rejects_type_arguments() {
+fn nongeneric_values_reject_type_arguments() {
     let declaration = "interface Changed {}";
     let source = module(
         "example/events.ncidl",
         &format!(
-            "extern neocogi.com.events; use neocogi.com.events::EventBinding; #[version(1)] {declaration} #[version(1)] interface SourceFactory {{ fn create(&self, events: &EventBinding<Source, Changed>) -> Result<ComPtr<Source>>; }}
+            "#[version(1)] struct Settings {{ enabled: bool }} #[version(1)] {declaration} #[version(1)] interface SourceFactory {{ fn create(&self, events: &Settings<Source, Changed>) -> Result<ComPtr<Source>>; }}
     #[version(1)] interface Source {{}}"
         ),
     );
-    let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));
-    match resolve_modules(vec![source, transport]) {
+    match resolve_modules(vec![source]) {
         Err(_) => {}
         Ok(graph) => assert!(neocogi_idl::generate_rust(&graph, "example.events").is_err()),
     }

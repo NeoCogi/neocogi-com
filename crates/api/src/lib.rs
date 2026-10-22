@@ -21,21 +21,24 @@
 //! packaged `calculator` example document a complete source/build/provider flow.
 //!
 //! Concrete Rust state uses `com_object` with those generated interfaces.
-//! The following runnable example uses the built-in immutable event contract:
+//! The following runnable example uses the ordinary object-children contract:
 //!
 //! ```
-//! use neocogi_com::{com_object, ComBox};
-//! use neocogi_com::events::{IEvent, IEventAbi};
+//! use neocogi_com::{com_object, ComBox, ComPtr, IUnknown, NcStatus, NC_E_OUT_OF_RANGE};
+//! use neocogi_com::persistence::{IObjectChildren, IObjectChildrenAbi};
 //!
-//! #[com_object(neocogi_com::events::IEvent, ownership = exclusive)]
-//! struct Activated;
-//! impl IEvent for Activated {}
+//! #[com_object(neocogi_com::persistence::IObjectChildren, ownership = exclusive)]
+//! struct EmptyChildren;
+//! impl IObjectChildren for EmptyChildren {
+//!     fn count(&self) -> Result<u32, NcStatus> { Ok(0) }
+//!     fn get(&self, _: u32) -> Result<ComPtr<IUnknown>, NcStatus> { Err(NC_E_OUT_OF_RANGE) }
+//! }
 //!
-//! let event: ComBox<IEventAbi> = Activated::into_box(Activated).query().unwrap();
-//! let origin_observer = event.downgrade();
-//! assert!(origin_observer.is_alive());
-//! drop(event);
-//! assert!(!origin_observer.is_alive());
+//! let owner: ComBox<IObjectChildrenAbi> = EmptyChildren::into_box(EmptyChildren).query().unwrap();
+//! assert_eq!(owner.count().unwrap(), 0);
+//! let observed = owner.downgrade();
+//! drop(owner);
+//! assert!(!observed.is_alive());
 //! ```
 //!
 //! Shared objects have `from_value` and `into_local`; exclusive objects have
@@ -88,18 +91,10 @@
 //! one catalog in that assembly. Caller-owned persistence registries and event
 //! queues have separate ownership and do not replace the global plugin catalog.
 //!
-//! Built-in [`events`] contracts are always generated, independently of optional
-//! macro support or runtime linkage. Posting transfers an immutable event owner
-//! and captures a weak origin; every rejected transfer returns the original
-//! owner. The standard channel queues facts for later handling. Unobserved
-//! producers still construct and drop their events through the same ownership
-//! path. Widgets derive origins from traversal; services retain their own weak
-//! origins. Event and error payloads remain readable after producer destruction.
-//!
 //! Default features are `std` and `macros`. `alloc` enables owned values and
 //! output buffers; `macros` exports implementation/persistence procedures.
 //! `runtime` enables stateless clients and implies `std`, without choosing linkage.
-//! With all defaults disabled, raw ABI types, event/persistence contracts and
+//! With all defaults disabled, raw ABI types, persistence contracts and
 //! allocation-free pointer/client support remain available.
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -117,8 +112,6 @@ pub extern crate alloc as __alloc;
 mod data;
 /// Generated source-level descriptions used by typed authoring tools.
 pub mod design;
-/// Built-in typed queue contracts and construction-bound producer storage.
-pub mod events;
 mod object;
 pub mod persistence;
 #[cfg(feature = "runtime")]

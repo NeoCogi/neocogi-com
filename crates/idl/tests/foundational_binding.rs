@@ -6,26 +6,22 @@ use std::{fs, path::Path, process::Command};
 fn module(path: &str, source: &str) -> Module {
     parse_module(Path::new(path), source).unwrap()
 }
-/// Real common event contracts keep event admission and generated ABI identities honest.
-fn events() -> Module {
-    module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"))
-}
 
 /// Own-module qualification has one meaning in fields, methods, bases and events.
 #[test]
 fn qualified_local_references_do_not_depend_on_unused_templates() {
     let source = r#"
-        extern neocogi.com.events; use neocogi.com.events::IEvent;
+
         #[version(1)] struct Local { value: u32 }
         #[version(1)] struct Holder { value: proof::binding::Local }
         #[version(1)] interface IBase { fn read(&self) -> Result<proof::binding::Local>; }
-        #[version(1)] interface Fact: IEvent { fn value(&self) -> Result<proof::binding::Local>; }
-        #[version(1)] #[events(proof::binding::Fact)] interface Receiver: proof::binding::IBase {
+        #[version(1)] interface Fact { fn value(&self) -> Result<proof::binding::Local>; }
+        #[version(1)] interface Receiver: proof::binding::IBase {
             fn echo(&self, value: &proof::binding::Holder) -> Result<proof::binding::Local>;
         }
     "#;
     for unused in ["", "#[version(1)] struct Unused<T> { value: T }"] {
-        let graph = resolve_modules(vec![events(), module("proof/binding.ncidl", &format!("{source}\n{unused}"))]).unwrap();
+        let graph = resolve_modules(vec![module("proof/binding.ncidl", &format!("{source}\n{unused}"))]).unwrap();
         neocogi_idl::generate_rust(&graph, "proof.binding").unwrap();
     }
     let error = resolve_modules(vec![module(
@@ -97,7 +93,6 @@ fn nil_callable_ids_are_rejected_before_specialization_or_generation() {
 /// Builds the same genuine provider/consumer graph with optional unrelated projections.
 fn projection_graph(bystander: bool) -> ResolvedModules {
     let mut modules = vec![
-        events(),
         module(
             "demo/ext.ncidl",
             "#[version(1)] struct Inner<T> { value:T } #[version(1)] struct Boxed<T> { nested:Inner<T> }",
@@ -105,14 +100,14 @@ fn projection_graph(bystander: bool) -> ResolvedModules {
         module(
             "demo/mid.ncidl",
             r#"
-            extern demo.ext; extern neocogi.com.events; use neocogi.com.events::IEvent;
+            extern demo.ext;
             #[version(1)] interface IBase { fn get(&self) -> Result<demo::ext::Boxed<u32>>; }
-            #[version(1)] interface Fact: IEvent { fn value(&self) -> Result<demo::ext::Boxed<u32>>; }
+            #[version(1)] interface Fact { fn value(&self) -> Result<demo::ext::Boxed<u32>>; }
         "#,
         ),
         module(
             "demo/leaf.ncidl",
-            "extern demo.mid; #[version(1)] #[events(demo::mid::Fact)] interface IChild: demo::mid::IBase {}",
+            "extern demo.mid; #[version(1)] interface IChild: demo::mid::IBase + demo::mid::Fact {}",
         ),
     ];
     if bystander {
@@ -138,7 +133,6 @@ fn inherited_and_event_values_keep_the_supplying_projection_without_bystander_de
     for name in ["demo.ext", "demo.mid", "demo.leaf"] {
         paths.insert(name, &format!("binding_peers::{}", name.split('.').next_back().unwrap())).unwrap();
     }
-    paths.insert("neocogi.com.events", "neocogi_com::events").unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(
@@ -181,11 +175,13 @@ fn inherited_and_event_values_keep_the_supplying_projection_without_bystander_de
         pub mod ext; pub mod mid; pub mod leaf;
         #[neocogi_com::com_object(leaf::IChild)] struct Provider;
         impl leaf::IChild for Provider {{}}
+        impl mid::Fact for Provider {{
+            fn value(&self) -> Result<mid::{boxed},neocogi_com::NcStatus> {{ Ok(mid::{boxed} {{ nested:mid::{inner} {{ value:91 }} }}) }}
+        }}
         impl mid::IBase for Provider {{
             fn get(&self) -> Result<mid::{boxed}, neocogi_com::NcStatus> {{ Ok(mid::{boxed} {{ nested:mid::{inner} {{ value:73 }} }}) }}
         }}
         #[neocogi_com::com_object(interfaces(mid::Fact), ownership=exclusive)] struct Snapshot;
-        impl neocogi_com::events::IEvent for Snapshot {{}}
         impl mid::Fact for Snapshot {{
             fn value(&self) -> Result<mid::{boxed},neocogi_com::NcStatus> {{ Ok(mid::{boxed} {{ nested:mid::{inner} {{ value:91 }} }}) }}
         }}
@@ -195,7 +191,7 @@ fn inherited_and_event_values_keep_the_supplying_projection_without_bystander_de
             for value in values {{ assert!(value.rust_type.starts_with("binding_peers::mid::"),"{{}}",value.rust_type); }}
             assert_eq!(Provider::from_value(Provider).query::<leaf::IChildAbi>().unwrap().get().unwrap().nested.value,73);
             assert_eq!(Snapshot::into_box(Snapshot).query::<mid::FactAbi>().unwrap().value().unwrap().nested.value,91);
-            assert_eq!(leaf::IChildAbi::IDL_INTERFACE.events.len(),1);
+            assert_eq!(leaf::IChildAbi::IDL_INTERFACE.methods.len(),2);
         }}
     "#
         ),

@@ -7,7 +7,7 @@ struct Extent {
     height: u32,
 }
 
-/// Concrete scalar event used by shared and monolithic typed-stream proofs.
+/// Copied report used by dynamic and monolithic ABI qualification.
 /// Copied payload enum used to verify one-way outputs across independently built plugins.
 #[version(1)]
 enum ExtentReport {

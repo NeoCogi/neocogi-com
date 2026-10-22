@@ -10,9 +10,9 @@ pub const MODULE_ID: ::neocogi_com::NcGuid = ::neocogi_com::NcGuid::from_fields(
 );
 /// Transitive canonical ABI fingerprint of this generated module.
 pub const ABI_FINGERPRINT: [u8; 32] = [
-    104u8, 91u8, 140u8, 108u8, 106u8, 78u8, 177u8, 127u8, 34u8, 151u8, 216u8, 174u8,
-    10u8, 125u8, 94u8, 46u8, 43u8, 247u8, 49u8, 109u8, 194u8, 220u8, 238u8, 3u8, 16u8,
-    46u8, 3u8, 92u8, 48u8, 177u8, 173u8, 142u8,
+    33u8, 81u8, 246u8, 243u8, 125u8, 56u8, 133u8, 202u8, 30u8, 147u8, 202u8, 41u8, 37u8,
+    62u8, 129u8, 194u8, 191u8, 148u8, 242u8, 247u8, 144u8, 113u8, 167u8, 228u8, 197u8,
+    22u8, 157u8, 140u8, 99u8, 107u8, 123u8, 101u8,
 ];
 /// Exact dotted module name derived from the normalized IDL path.
 pub const MODULE_NAME: &str = "neocogi.com.persistence";
@@ -197,7 +197,7 @@ const _: () = {
 impl IObjectChildrenAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
-        b"}S\xC8\xEB\xF2i\x81\xC9\xAD\xD9\xB8:\xFC\xC7&\x18U\xA9\xDC:\x18?\x102P^=]\xE6\\\xCA\xD9",
+        b"\x19\x90\x98fW\x9D\x12\x9DI\xD6,{\xDA\xD7[\x8Bt6\xD1*\xF6\xED\x04r\xD2*o'\xDF|s\x84",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 2usize] = [
@@ -611,7 +611,7 @@ const _: () = {
 impl IPersistableAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
-        b"\x95\xEDx\x0Ft\xDFD4\xEF\xCB\xC8D\x93f`\xCF`-\x90\xC8*yA\x88\xB1Zk!*W\x8F\xDB",
+        b"\xDD-g\xB5n\xEF\xB3\xCB)P\x02\xFA\xCE\x1C\x86\xAE_9\xD4}{P\x03\xF7~\xDF\xCC#\xE6<\x07\xC1",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 5usize] = [
@@ -962,7 +962,7 @@ const _: () = {
 impl IPersistenceFactoryAbi {
     ///Canonical validation form of this interface's typed ABI contract.
     pub const ABI_SIGNATURE: ::neocogi_com::NcAbiSignature = ::neocogi_com::NcAbiSignature::from_static(
-        b"\r{w\"1]\x134\xECk\xAC8]:f\x91\xEF\x0EI\xDAdHkb\xF7C\xF9\xFF\xD6\xCE \xB8",
+        b"\x8B\xB3\x1F\xFD_\xFB\x10\xF3\x8A\xD5G\xE87\x929\x03\xF0\xE1|\xDA\x02%_\xA5\xE5H\xAEo\0\x04\xE9\xCE",
     );
     ///Static descriptors for this interface's ABI methods.
     pub const METHOD_DESCRIPTORS: [::neocogi_com::NcMethodDescriptor; 2usize] = [

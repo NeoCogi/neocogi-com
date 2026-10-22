@@ -2,7 +2,7 @@
 //!
 //! These immutable records supplement explicit method diagnostic descriptors:
 //! ABI signatures identify compatibility, while these records
-//! retain declared event, struct, and enum names needed by authoring tools.
+//! retain declared method, struct, and enum names needed by authoring tools.
 //! Generated records stay local to their defining binary. A plugin may copy
 //! their values into a versioned COM design catalog for unlinked authoring hosts.
 //! `neocogi-inspect` reads plugin manifests, not this graph or application layouts.
@@ -85,17 +85,6 @@ pub struct IdlType {
     pub shape: IdlShape,
 }
 
-/// One concrete immutable event interface advertised by a producer's IDL declaration.
-#[derive(Clone, Copy)]
-pub struct IdlEvent {
-    /// Canonical logical interface name, independent of Rust binding paths.
-    pub qualified_name: &'static str,
-    /// Exact event IID and checked ABI revision, negotiated on the event object.
-    pub abi: &'static NcInterfaceDescriptor,
-    /// Immutable zero-argument getters, including inherited event getters.
-    pub fields: &'static [IdlField],
-}
-
 /// Source-level ownership and borrowing of one method argument or success result.
 /// Value graphs describe repeatable data; call-only transfers remain explicit here.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -147,8 +136,6 @@ pub struct IdlInterface {
     pub rust_abi: &'static str,
     /// Base-first method descriptions, with shared ancestors included once.
     pub methods: &'static [IdlMethod],
-    /// Immutable interfaces this source can emit; the receiver is always IEventReceiver.
-    pub events: &'static [IdlEvent],
-    /// Finite definitions reachable from this interface chain and event getters.
+    /// Finite definitions reachable from this interface chain and method types.
     pub values: &'static [IdlType],
 }

@@ -94,7 +94,7 @@ through the existing mutable gate. These names describe message processing and
 ownership without imposing model/view/controller roles.
 
 ```rust
-let (queue, messages) = neocogi_com::events::channel();
+let (queue, messages) = neocogi_ui::events::channel();
 let button = ui.widgets().button_with_queue("Open", Some(queue.as_com_ref()))?;
 let picker = ui.file_dialog_with_queue(window.as_com_ref(), Some(queue.as_com_ref()))?;
 let app = neocogi_ui::events::Dispatcher::into_local(
@@ -160,7 +160,7 @@ Native update algorithms return errors directly, and record committed geometry
 before fallible snapshot/delivery work. For recoverable domain failures, the common
 `events::error(status, message)` reports through the same queue and source stack;
 transport failures still propagate a status. See the
-[failure contract](COM_EVENT_INTERFACES.md#reported-failures).
+[failure contract](UI_EVENT_INTERFACES.md#reported-failures).
 
 | Event interface | Producers | Captured data |
 | --- | --- | --- |
@@ -178,10 +178,10 @@ application behavior reads getters after the emitting call releases its mutable 
 Built-in constructors validate domains. A consumer must check domain restrictions it
 relies on when reading an independently implemented event.
 
-`#[events(...)]` advertises the emitted interfaces. `IDL_INTERFACE.events` describes
+`ui_event_sources!` advertises the emitted interfaces. `UiEventSource::EVENT_SOURCE.events` describes
 their identities and actual getters; catalog registration validates the reachable
 value graph. The loader checks observable keys before construction and the advertised
-interface after it. See [event metadata](IDL_EVENT_METADATA.md).
+interface after it. See [event metadata](UI_EVENT_METADATA.md).
 
 `*_with_queue` passes `IEventReceiver`; `*_unobserved` chooses permanent non-delivery.
 There is no later attachment API. Windows, popups, menus, built-ins and plugins use
@@ -189,7 +189,7 @@ this same construction discipline. Widget destruction releases its receiver.
 Shared window/popup/menu services can use `EventPort::close`. Queued facts survive
 source removal. The standard channel returns `NC_E_CLOSED` with the event owner
 on disconnection; other receivers choose their own capacity/error policy. Delivery
-errors do not roll back committed state. See [COM event objects](COM_EVENT_INTERFACES.md).
+errors do not roll back committed state. See [COM event objects](UI_EVENT_INTERFACES.md).
 
 Behavioral composites bind their children to queues targeting a private typed
 channel, then own the receiver and model as fields of the concrete widget.
@@ -748,7 +748,7 @@ shape or destination validation leaves the complete declaration usable.
 let menus = ui.menus()?;
 let bar = menus.create("")?;
 let file = bar.submenu("File")?;
-let menu_queue = app_queue.query::<neocogi_com::events::IEventReceiverAbi>()?;
+let menu_queue = app_queue.query::<neocogi_ui::events::IEventReceiverAbi>()?;
 let open = file.item_with_queue("Open", Some(menu_queue.as_com_ref()))?;
 open.set_shortcut_hint("Ctrl+O")?; // Presentation text, not a shortcut binding.
 open.set_mark(MenuMark::Checked { checked: false })?;
@@ -809,7 +809,7 @@ Construct the component with its completion queue, then open it from an ordinary
 application handler:
 
 ```rust
-let completions = app_queue.query::<neocogi_com::events::IEventReceiverAbi>()?;
+let completions = app_queue.query::<neocogi_ui::events::IEventReceiverAbi>()?;
 let mut picker = ui.file_dialog_with_queue(window.as_com_ref(), Some(completions.as_com_ref()))?;
 let mut request = FileDialogRequest::new(native_directory);
 request.title = "Choose a document".to_owned();

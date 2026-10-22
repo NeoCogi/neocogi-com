@@ -57,30 +57,29 @@ fn dense_public_members_match_admission_inventory() {
 
 /// Imported messages generate typed access without pulling transport into the baseline ABI crate.
 #[test]
-fn imported_event_getters_use_the_declaring_module() {
+fn imported_getters_use_the_declaring_module() {
     let message = module(
         "example/messages.ncidl",
-        "extern neocogi.com.events; use neocogi.com.events::IEvent; #[version(1)] struct Changed { value: u32 } #[version(1)] interface IChanged: IEvent { fn value(&self) -> Result<Changed>; }",
+        " #[version(1)] struct Changed { value: u32 } #[version(1)] interface IChanged { fn value(&self) -> Result<Changed>; }",
     );
     let source = module(
         "example/source.ncidl",
         r#"
         extern example.messages;
         use example.messages::IChanged;
-        extern neocogi.com.events; use neocogi.com.events::EventBinding;
-        #[version(1)] interface ISourceFactory { fn create(&self, events: &EventBinding) -> Result<ComPtr<ISource>>; }
-        #[version(1)] #[events(IChanged)] interface ISource {}
+
+        #[version(1)] interface ISourceFactory { fn create(&self, events: &Option<u32>) -> Result<ComPtr<ISource>>; }
+        #[version(1)] interface ISource: IChanged {}
     "#,
     );
-    let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));
-    let graph = resolve_modules(vec![message, source, transport]).unwrap();
+    let graph = resolve_modules(vec![message, source]).unwrap();
     let generated = neocogi_idl::generate_rust(&graph, "example.source").unwrap();
     syn::parse_file(&generated).expect("imported message bindings parse");
-    assert!(generated.contains("IdlEvent"));
+    assert!(generated.contains("IdlMethod"));
     assert!(generated.contains("example_messages_contracts::Changed"));
-    assert!(generated.contains("IChangedAbi::INTERFACE_DESCRIPTOR"));
+    assert!(generated.contains("example.messages.Changed"));
     assert!(!generated.contains("__map_"));
-    let baseline = neocogi_idl::generate_rust(&graph, "neocogi.com.events").unwrap();
+    let baseline = neocogi_idl::generate_rust(&graph, "example.messages").unwrap();
     assert!(!baseline.contains("EVENT_BINDING_API_VERSION"));
     assert!(!baseline.contains("__nc_get_contract_module_description"));
 }
@@ -181,7 +180,7 @@ fn generates_rust_bindings_for_a_module_graph() {
     assert!(!generated.contains("std::any::Any"));
     // Event helpers require an EventBinding parameter; ordinary factory methods
     // must not synthesize a receiver or an event-source implementation.
-    assert!(!generated.contains("impl ::neocogi_com::events::EventSource"));
+    assert!(!generated.contains("IdlEvent"));
     assert!(!generated.contains("pub type ButtonEventBinding"));
 }
 
@@ -296,20 +295,19 @@ fn generated_interface_exposes_its_idl_event_and_nested_message_shape() {
             Changed(Changed),
             Submitted,
         }
-        extern neocogi.com.events; use neocogi.com.events::EventBinding;
-        #[version(1)] interface WidgetFactory { fn create(&self, events: &EventBinding) -> Result<ComPtr<Widget>>; }
+
+        #[version(1)] interface WidgetFactory { fn create(&self, events: &Option<u32>) -> Result<ComPtr<Widget>>; }
         #[version(1)] interface Widget {}
     "#,
     );
-    let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));
-    let graph = resolve_modules(vec![source, transport]).unwrap();
+    let graph = resolve_modules(vec![source]).unwrap();
     let generated = neocogi_idl::generate_rust(&graph, "example.widget").unwrap();
     syn::parse_file(&generated).unwrap();
     assert!(generated.contains("pub const IDL_TYPE"));
     assert!(generated.contains("pub const IDL_TYPE"));
     assert!(generated.contains("IdlShape::BitEnum"));
     assert!(generated.contains("pub const IDL_INTERFACE"));
-    assert!(generated.contains("events: &[]"));
+    assert!(generated.contains("methods: &[]"));
     assert!(generated.contains(r#"name: "Changed""#));
     assert!(generated.contains(r#"name: "Submitted""#));
 }
@@ -326,13 +324,12 @@ fn direct_design_shape_resolution_preserves_variant_grouping_and_tags() {
             Say(String),
             Pause,
         }
-        extern neocogi.com.events; use neocogi.com.events::EventBinding;
-        #[version(1)] interface ShapeFactory { fn create(&self, events: &EventBinding) -> Result<ComPtr<Actor>>; }
+
+        #[version(1)] interface ShapeFactory { fn create(&self, events: &Option<u32>) -> Result<ComPtr<Actor>>; }
         #[version(1)] interface Actor {}
     "#,
     );
-    let transport = module("neocogi/com/events.ncidl", include_str!("../../api/idl/neocogi/com/events/events.ncidl"));
-    let graph = resolve_modules(vec![source, transport]).unwrap();
+    let graph = resolve_modules(vec![source]).unwrap();
     let generated = neocogi_idl::generate_rust(&graph, "example.shapes").unwrap();
     syn::parse_file(&generated).unwrap();
 

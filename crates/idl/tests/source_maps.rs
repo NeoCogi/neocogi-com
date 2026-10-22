@@ -256,7 +256,6 @@ mod metadata_calls {
         let interface = PlainAbi::IDL_INTERFACE;
         assert!(interface.rust_abi.ends_with("::PlainAbi"));
         assert_eq!(interface.chain.len(), PlainAbi::INTERFACE_CHAIN.len());
-        assert!(interface.events.is_empty());
         let owner = Provider::from_value(Provider);
         let projection = owner.query::<PlainAbi>().unwrap();
         assert_eq!(projection.read(), Ok(37));

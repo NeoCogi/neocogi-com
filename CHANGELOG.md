@@ -1,5 +1,14 @@
 # Changelog
 
+## UI-owned event contracts (pre-release)
+
+Move event transport and snapshot publication into UI. COM and IDL retain only
+ordinary interfaces, typed ownership and generic method/value introspection.
+`ui_event_sources!` replaces the IDL event attribute; catalog publication validates
+snapshot getters. Encoding v13 removes application event edges, so rebuild all
+contracts and consumers. The native global registry remains in shared `nc_com`.
+The standalone SDK example uses its own typed extent observer without UI dependencies.
+
 ## Foundational contract ownership (pre-release)
 
 Canonical module encoding is now v12. Recursive type alternatives have explicit,

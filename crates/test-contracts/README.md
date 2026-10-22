@@ -8,10 +8,7 @@ introducing a second contract language or relying on another package's `OUT_DIR`
 
 Each fixture resolves only its declared source dependencies. Deliberately
 incompatible revisions with the same nominal IID belong to independent graphs;
-computed signatures must differ. The ordinary `neocogi.com.events` source comes
-from its real owner in the COM facade. This helper owns no runtime state and no
-registry. Packaged examples and independently built native fixtures compile their
-own IDL sources and do not depend on this unpublished crate.
+computed signatures must differ. UI transport fixtures live in the UI test suites; this crate has no UI contract dependency.
 
 Rust compile-fail tests retain object, call-borrow, thread-affinity and ownership
 checks. Declaration-language admission belongs to the IDL parser/resolver suites.

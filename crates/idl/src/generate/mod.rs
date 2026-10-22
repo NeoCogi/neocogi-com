@@ -10,7 +10,6 @@ use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
 use neocogi_com_core::NcComInterfaceCompanion;
 
-mod events;
 mod lower;
 mod mapping;
 mod method_metadata;
@@ -207,7 +206,6 @@ fn generate_declaration_metadata(graph: &Generation<'_>, module: &ResolvedModule
         let abi_name = format!("{}{}", declaration.name, NcComInterfaceCompanion::Abi.suffix());
         let abi = rust_ident(&abi_name)?;
         let rust_abi = Literal::string(&public_rust_path(graph, module, &abi_name)?);
-        let events = events::descriptions(graph, module, declaration)?;
         let methods = method_metadata::descriptions(graph, module, declaration)?;
         let values = interface_value_metadata(graph, module, declaration)?;
         quote! {
@@ -218,7 +216,6 @@ fn generate_declaration_metadata(graph: &Generation<'_>, module: &ResolvedModule
                     chain: &Self::INTERFACE_CHAIN,
                     rust_abi: #rust_abi,
                     methods: &[#(#methods),*],
-                    events: &[#(#events),*],
                     values: &[#(#values),*],
                 };
             }
@@ -345,7 +342,9 @@ fn design_field_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiTy
             let len = Literal::u32_unsuffixed(*len);
             Ok(quote! { ::neocogi_com::design::IdlValueType::Array(&#element, #len) })
         }
-        _ => Ok(quote! { ::neocogi_com::design::IdlValueType::Unit }),
+        AbiType::Borrowed(_) | AbiType::UnsizedSlice(_) | AbiType::Slice(_) | AbiType::OutputSlice(_) => {
+            Err(GenerateError::new("call-only type requires explicit method ownership metadata"))
+        }
     }
 }
 
@@ -435,7 +434,7 @@ fn interface_value_metadata<'a>(graph: &Generation<'a>, module: &ResolvedModule,
             }
             root(&method.output, graph, module, preferred, names)?;
         }
-        for base in value.bases.iter().chain(&value.events) {
+        for base in &value.bases {
             let base = resolve(graph, module, base)?;
             interface(graph, base.module, base.declaration, preferred, visited, names)?;
         }

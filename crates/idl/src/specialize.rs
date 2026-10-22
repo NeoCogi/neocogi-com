@@ -305,7 +305,7 @@ fn substitute_type(ty: &mut AbiType, substitutions: &[AbiType]) -> Result<(), Re
     Ok(())
 }
 
-/// Fields, bases and emitted events share the same positional substitution.
+/// Fields, bases share the same positional substitution.
 fn substitute_declaration(declaration: &mut Declaration, substitutions: &[AbiType]) -> Result<(), ResolutionError> {
     visit_types(declaration, &mut |ty| substitute_type(ty, substitutions))
 }
@@ -342,7 +342,7 @@ pub(crate) fn visit_types(declaration: &mut Declaration, visit: &mut impl FnMut(
         }
         DeclarationKind::BitEnum(_) => {}
         DeclarationKind::Interface(interface) => {
-            for base in interface.bases.iter_mut().chain(&mut interface.events) {
+            for base in &mut interface.bases {
                 visit_named(base, visit)?;
             }
             for method in &mut interface.methods {
@@ -356,7 +356,7 @@ pub(crate) fn visit_types(declaration: &mut Declaration, visit: &mut impl FnMut(
     Ok(())
 }
 
-/// Preserves the named-only constraint on interface projections and emitted events.
+/// Preserves the named-only constraint on interface projections.
 fn visit_named(name: &mut NamedType, visit: &mut impl FnMut(&mut AbiType) -> Result<(), ResolutionError>) -> Result<(), ResolutionError> {
     let mut ty = AbiType::Named(name.clone());
     visit(&mut ty)?;

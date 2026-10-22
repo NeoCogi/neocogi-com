@@ -29,19 +29,23 @@ options. The packaged [calculator example](examples/calculator.rs) and its
 [contract source](examples/idl/nc/examples/calculator.ncidl) show the complete path.
 
 Concrete Rust state implements generated traits and uses `com_object`. This
-runnable example uses the built-in immutable event contract:
+runnable example uses the ordinary object-children contract:
 
 ```rust
-use neocogi_com::{com_object, ComBox};
-use neocogi_com::events::{IEvent, IEventAbi};
+use neocogi_com::{com_object, ComBox, ComPtr, IUnknown, NcStatus, NC_E_OUT_OF_RANGE};
+use neocogi_com::persistence::{IObjectChildren, IObjectChildrenAbi};
 
-#[com_object(neocogi_com::events::IEvent, ownership = exclusive)]
-struct Activated;
-impl IEvent for Activated {}
+#[com_object(neocogi_com::persistence::IObjectChildren, ownership = exclusive)]
+struct EmptyChildren;
+impl IObjectChildren for EmptyChildren {
+    fn count(&self) -> Result<u32, NcStatus> { Ok(0) }
+    fn get(&self, _: u32) -> Result<ComPtr<IUnknown>, NcStatus> { Err(NC_E_OUT_OF_RANGE) }
+}
 
-let event: ComBox<IEventAbi> = Activated::into_box(Activated).query().unwrap();
-let observed = event.downgrade();
-drop(event);
+let owner: ComBox<IObjectChildrenAbi> = EmptyChildren::into_box(EmptyChildren).query().unwrap();
+assert_eq!(owner.count().unwrap(), 0);
+let observed = owner.downgrade();
+drop(owner);
 assert!(!observed.is_alive());
 ```
 
@@ -287,11 +291,11 @@ See [persistence semantics and ownership](../runtime/PERSISTENCE.md).
 
 | Selection | Available behavior |
 | --- | --- |
-| `default-features = false` | `no_std` core ABI, pointer/client support, event/persistence contracts, and serialization traits; no runtime linkage |
+| `default-features = false` | `no_std` core ABI, pointer/client support, persistence contracts, and serialization traits; no runtime linkage |
 | `alloc` | Heap-backed object helpers, owned string/byte objects, the binary codec, and `ObjectRecord` |
-| `macros` | Implementation macro/derive re-exports; concrete error/channel helpers also use this storage-generation support |
+| `macros` | Implementation macro/derive re-exports |
 | `std` | `alloc` plus standard-library integrations; no runtime linkage by itself |
-| Defaults: `std`, `macros` | Local objects, owned data, and event adapters; no runtime linkage |
+| Defaults: `std`, `macros` | Local objects, owned data, and implementation macros; no runtime linkage |
 | `runtime` | Implies `std`; enables stateless runtime/persistence clients. The final assembly supplies linkage. |
 
 For shared mode, build and deploy `libnc_com.so` on Linux, `libnc_com.dylib` on
@@ -317,34 +321,12 @@ Runtime discovery declarations live in `src/runtime/ffi.rs`. They are stateless.
 Caller-scoped persistence contexts and event queues do not replace or populate the
 global plugin catalog.
 
-Built-in event contracts are available independently of `macros` through
-[`neocogi_com::events`](EVENTS.md). Contracts need no allocation or runtime;
-the concrete error-event constructor needs `alloc` plus `macros`, and the standard
-channel helper needs `std` plus `macros`. Persistent UI controllers and scheduling
-belong to the UI facade and core contracts. Event IDL compilation runs on the
-build machine and emits complete Rust independently of target macro features.
-
-### Construction-bound event receivers
-
-All producers accept the common `IEventReceiver`. `events::channel()` supplies an
-ordinary local inbox; applications needing another envelope or capacity policy
-implement that one interface themselves. `post` transfers a `ComBox<IEvent>` and
-captures a weak widget/service origin. The event remains a COM object until its
-handler queries a derived event interface. A rejected post returns the original
-owner. The standard channel reports `NC_E_CLOSED` when disconnected.
-
-The common `IErrorEvent` reports a captured negative status and immutable message
-through that same protocol. With `alloc` and `macros`, `events::error(status, message)` creates
-its sole owner. Reports remain readable after source destruction; failed delivery
-returns a status and never automatically creates another report.
-
-`EventBinding` describes constructor delivery policy. `#[events(...)]` advertises
-the emitted immutable interfaces and their getter metadata. Factories fix the receiver and weak origin before publication.
-`EventBinding::Unobserved` means permanently unobserved. Shared-service `EventPort` state can close
-idempotently; widget destruction releases its stored receiver. Already queued
-facts remain owned by the inbox. IDL generates no per-widget queue aliases or
-application callback receivers. See [COM event objects](../../../docs/contracts/COM_EVENT_INTERFACES.md)
-and [event ownership](../../../docs/contracts/CLASS_EVENT_STREAMS.md).
+UI owns its event contracts, immutable snapshots, delivery policy and catalog
+publication. COM only supplies ordinary callable interfaces and ownership.
+See [UI event delivery](../../ui/api/EVENTS.md) and
+[UI authoring metadata](../../../docs/contracts/UI_EVENT_METADATA.md).
+COM-only libraries can define domain observer interfaces directly; the
+[SDK example](../../../examples/com-plugin/README.md) demonstrates this.
 
 
 Concrete providers select one ownership policy. Shared ownership is the default;

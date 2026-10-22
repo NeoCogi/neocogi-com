@@ -209,8 +209,6 @@ pub enum VariantFields {
 pub struct Interface {
     /// Base followed by required sibling interfaces, in declared query order.
     pub bases: Vec<NamedType>,
-    /// Concrete immutable event interfaces this producer may emit, in authored order.
-    pub events: Vec<NamedType>,
     /// Ordinary methods in normative vtable order.
     pub methods: Vec<Method>,
     /// Minimum threading capability promised by every implementation.

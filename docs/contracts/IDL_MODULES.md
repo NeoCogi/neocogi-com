@@ -116,7 +116,7 @@ nil UUID with `EIDL074`. This admission matches typed plugin export. Nominal
 value IDs have a separate policy and may still explicitly use nil.
 
 Templates and concrete declarations now share the explicit binary declaration
-encoder under `neocogi-idl:module-abi:v12`. The former separate template string
+encoder under `neocogi-idl:module-abi:v13`. The former separate template string
 encoding and its Debug-formatted policy values are removed. Both paths encode
 parameter positions, resolved free identities, member order, authored enum
 assignment presence, and declaration policies. Regenerate bindings and rebuild
@@ -170,9 +170,8 @@ interface ITreeInput {
 `Handle<IUnknown>` is valid: the interface argument becomes the referent of an
 explicit owner. Replacing `ComPtr<I>` with `I` in that template makes this use
 invalid. Likewise, `Node<bool>` is finite because its children are a sequence;
-`struct Loop<T> { child: Option<Loop<T>> }` fails when instantiated. A generic
-value may itself be an argument to `EventBinding`, and all cases still belong
-to that class's single event stream.
+`struct Loop<T> { child: Option<Loop<T>> }` fails when instantiated. Generic values can appear in ordinary interface methods and aggregate fields.
+UI event bindings are an ordinary nongeneric UI-owned value.
 
 Closed definitions have consumer-local Rust names and consumer-independent
 contract identities. Inspection reports canonical value identities and the
@@ -331,9 +330,8 @@ report `EIDL021`. Dense enum variants also cannot duplicate their generated publ
 COUNT/ALL members, or NAMES when `#[names(...)]` is enabled; ordinary enums retain
 those spellings. Admission and emission share core's typed public-name inventories.
 Private code-generation helper names are isolated, rather than reserved from IDL.
-Event declarations generate no per-product helper names.
-`#[events(...)]` is validated separately against immutable event interfaces, with
-invalid contracts reported as `EIDL065`. See [event metadata](IDL_EVENT_METADATA.md).
+Event publication belongs to UI Rust declarations. IDL rejects `#[events(...)]`
+as an unsupported attribute. See [UI event metadata](UI_EVENT_METADATA.md).
 
 ### Concrete messages and streams
 
@@ -379,8 +377,8 @@ Conversions share cumulative byte, value-count and depth budgets. Defaults are
 readable initialized active raw storage; validation cannot prove an arbitrary
 pointer is live. See [the complete contract](RECURSIVE_VALUE_CONTRACT.md).
 
-For several event kinds, declare concrete interfaces derived from `IEvent` and
-advertise them using `#[events(...)]`. A factory accepts the common `EventBinding`;
+For UI event kinds, declare ordinary interfaces derived from the UI `IEvent` and
+publish them using the Rust `ui_event_sources!` declaration. A factory accepts the common `EventBinding`;
 its Observed case contains `IEventReceiver`. The parent supplies that receiver
 before publication. Events transfer as exclusive `ComBox<IEvent>` capabilities.
 There is no later attachment or replacement operation. See
@@ -745,7 +743,7 @@ An ordinary `cargo build` performs the entire compilation. No external CLI,
 nested Cargo invocation, target rustc invocation, C compiler, or archiver is
 launched by the contract build helper.
 
-Canonical module encoding v12 includes threading, required projections and the current COM ABI explicitly. The resolver
+Canonical module encoding v13 includes threading, required projections and the current COM ABI explicitly. The resolver
 includes exact transitive module fingerprints in each declaration
 signature. The plugin descriptor publishes its root factory's full IID and
 signature. Factory acquisition compares both before calling bootstrap;
@@ -757,13 +755,11 @@ module graph or impose a process-wide single revision for each module.
 (9), exclusive owners (12), and exclusive weak observations (13). Closed generic
 identities also preserve this distinction. Existing spellings keep their encoding.
 
-`neocogi.com.events` is a logical contract module owned by the COM facade. It
-publishes `IEvent`, `EventOrigin`, `IEventReceiver`, and the ordinary
-`EventBinding` enum. Producers advertise concrete event interfaces through `#[events(...)]`. UI scheduling uses `neocogi.ui.core::IWidgetDispatcher::dispatch_next` and the
-separate, borrowed `IApplicationDispatcher` for application messages. Neither
-the IDL nor the COM process runtime owns a UI event loop.
-Consumers depend on `neocogi-com` with `macros`; no runtime contract registration
-or connection lease is required.
+`neocogi.ui.core` owns UI event interfaces and `EventBinding`. IDL treats them
+as ordinary declarations. UI Rust declarations and catalog admission own event
+publication and getter policy. UI scheduling uses `IWidgetDispatcher::dispatch_next`
+and the separate borrowed `IApplicationDispatcher`. The COM runtime owns only
+the single global plugin catalog, shared by native hosts and plugins.
 
 ## Implementation and plugin publication
 
@@ -841,14 +837,13 @@ Generated contract definitions need no procedural macro feature. A package that
 also compiles concrete Rust objects, including handwritten event snapshots, must
 request `neocogi-com/macros` in its own normal dependency. Its name ending in
 `contracts` does not make those implementations generated-only code. Enable `alloc`
-for owned values and `std` where required by local code. The facade's common event
-contracts are available without those features. Its allocating error-event
-constructor also needs `macros`; the standard-channel helper needs both `std`
-and `macros` to generate their concrete implementation storage.
+for owned values and `std` where required by local code. UI core contracts own
+event transport and Rust snapshots, requesting `alloc` and `macros` directly.
+The UI facade owns the standard-channel helper; COM has no built-in event module.
 
 The checkout check `python3 scripts/check-contract-consumers.py` runs a separate
-consumer for each built-in event implementation package and a generated-only
-renderer control. Each event consumer has only its normal contract dependency
+consumer for each of three UI event implementation packages, plus generated-only
+SDK and renderer controls. Each event consumer has only its normal contract dependency
 and constructs, queries, reads and drops a real snapshot. Direct local macro
 requests are checked separately because mandatory transitive dependencies can
 otherwise conceal their omission through feature unification. The check uses
@@ -864,7 +859,8 @@ it does not add application contract packages to the portable SDK archive gate.
 
 Use `interface` for public capabilities, required projections and typed object
 construction methods. Remove former `class` and `factory` keywords; their names,
-methods, threading, events and design metadata remain on ordinary interfaces.
+methods, threading and source metadata remain on ordinary interfaces. UI owns
+event publication separately.
 Implement storage with `#[com_object]` and plugin acquisition with `#[plugin]`.
 Exclusive widgets use `ownership = exclusive`; shared services use the default
 shared policy. Keep event receivers in explicit private fields initialized by
@@ -877,16 +873,12 @@ removed runtime contract mechanism.
 
 ### Generated authoring metadata
 
-Each IDL-generated COM interface projection exposes `*Abi::IDL_INTERFACE` beside
-its physical `INTERFACE_DESCRIPTOR`. The former points at the latter, retains
-its required interface chain, and describes the declared event interfaces and
-their complete inherited getter results. See [event metadata](IDL_EVENT_METADATA.md).
-Every struct, enum, and bit enum exposes `Type::IDL_TYPE`. These records include ordered struct fields,
-enum cases and payloads, and named bit flags. A custom-widget designer can inspect these records through
-the registered concrete COM interface type, then verify a constructed object by
-`QueryInterface` against the descriptor's identity and ABI signature. This is
-source-derived metadata; UI documents do not redeclare Rust paths, event types,
-or message shapes. Physical descriptors remain the authority for ABI validation.
+`IDL_INTERFACE` describes ordinary methods, receiver access, argument/result
+ownership, and the value definitions reachable through callable interfaces.
+`IDL_TYPE` describes source aggregate shapes. UI declares producer event lists
+in Rust and derives getter fields during validated catalog publication. These
+static references stay local to their owning binary; see
+[UI event metadata](UI_EVENT_METADATA.md).
 
 Generated IDL records are Rust-side static data inside their defining binary.
 For independent widget plugins, the root factory implements the shared
@@ -907,8 +899,9 @@ its concrete event getter types and optional form fields.
 getters. The common `EventBinding` selects permanent Unobserved or Observed delivery.
 Factories accept it before publishing a product; no attachment method is generated.
 
-`#[events(...)]` declares emitted interface identities. `IDL_INTERFACE.events`
-contains their real getter metadata, independently of the widget's interface chain.
+`ui_event_sources!` declares emitted interface identities in the owning Rust crate.
+`UiEventSource::EVENT_SOURCE` references ordinary `IDL_INTERFACE.methods`; UI
+validates getter policy when copying a design catalog.
 Hosts use `events::channel()` or implement `IEventReceiver` once for their inbox.
 Messages keep the exclusive COM owner until handling. Unsupported event queries
 return `None`; actual ABI/provider errors remain errors.
@@ -919,7 +912,7 @@ active weak origin from the traversal stack. Shared services retain their explic
 service origin.
 `com_object(Contract, ownership = exclusive)` generates allocation and weak-call
 admission, without event installation or callback adapters. See
-[COM event objects](COM_EVENT_INTERFACES.md).
+[COM event objects](UI_EVENT_INTERFACES.md).
 
 The queue acquires facts synchronously; application handlers run later with
 `&mut self` after traversal releases its borrows. No parent state pointer or Rust

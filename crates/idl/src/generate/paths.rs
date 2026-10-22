@@ -48,7 +48,7 @@ impl RustPath {
 impl RustModulePaths {
     /// Associates a logical module with a crate-rooted Rust location.
     ///
-    /// Accepts paths such as `neocogi_com::events` and rejects relative keywords,
+    /// Accepts paths such as `example_api::contracts` and rejects relative keywords,
     /// generic arguments, and conflicting registrations. An identical repeated
     /// registration is harmless when dependency graphs share one contract owner.
     /// COM's `validate_rust_path` defines the shared grammar and byte limit; valid

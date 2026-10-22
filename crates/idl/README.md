@@ -29,29 +29,11 @@ plugin acquisition live in Rust implementations. The [language reference](../../
 owns the grammar. Records and enums share recursive checked conversion;
 there is no separate message declaration category.
 
-Construction-bound delivery uses the ordinary library enum
-`neocogi.com.events.EventBinding` as a borrowed constructor argument. Its
-`Observed(ComPtr<IEventReceiver>)` case supplies the common receiver;
-`Unobserved` chooses permanent non-delivery. The factory retains the receiver
-before returning its product. There is no Rust sender or closure in the ABI.
-
-Producers advertise event interfaces explicitly using `#[events(IChanged, ...)]`.
-Resolution verifies immutable getters and `IEvent` ancestry; generation exposes
-`IDL_INTERFACE.events` and its reachable value graph. No constructor-derived helpers
-or native payload associations are emitted. See [event metadata](../../../docs/contracts/IDL_EVENT_METADATA.md).
-`com_object(Contract)` supplies class allocation without later receiver attachment.
-
-All contracts, including events, are compile-time definitions. The build helper
-emits no native artifact, exported getter, runtime module graph, or built-in
-registration hook. Only generated layouts, wrappers, and exact signatures are
-compiled into consumers. Source-part names and documentation do not affect ABI
-fingerprints; ordered members and transitive dependency revisions do. Generic
-parameter references are encoded by declaration position, so consistently
-renaming a binder preserves the contract while changing which parameter is used
-does not. See the [parameter-position contract](../../../docs/contracts/IDL_GENERIC_VALUES.md#parameter-positions-and-contract-signatures)
-for examples, regeneration requirements, and cross-module COM regressions.
-
-See [IDL modules](../../../docs/contracts/IDL_MODULES.md) for syntax and package setup.
+UI event transport is an ordinary contract in `neocogi.ui.core`. IDL has no
+application event syntax or event-root dependency. UI declares producer outputs
+with `ui_event_sources!` beside generated Rust bindings, and validates snapshot
+getters when publishing a catalog. See
+[UI event metadata](../../../docs/contracts/UI_EVENT_METADATA.md).
 
 ## Contract crate setup
 
@@ -220,7 +202,7 @@ protocol; fieldless enums and bit sets preserve their raw scalar values.
 Record-only `#[persistence(default)]` retains an omitted trailing suffix from a
 host-authored Rust Default. Every NCB record is positional; `persistence(sequence)`
 and the old decoder opt-ins are rejected. Both generic and concrete
-contracts share canonical module encoding v12, including authored assignments,
+contracts share canonical module encoding v13, including authored assignments,
 versions, trailing-default policy and positional generic binders.
 
 `Option<T>` comes from the bundled [ordinary IDL enum](stdlib/neocogi/lang.ncidl).

@@ -14,15 +14,6 @@ description = "Typed C-ABI COM clients, object helpers, and optional runtime bin
 keywords = ["com", "abi", "ffi", "plugin"]
 categories = ["api-bindings", "development-tools::ffi"]
 
-# Own the unchanged logical events module while exposing it through this facade.
-# Cargo owner for IDL module `neocogi.com.events`: UTF-8 bytes encoded as hex.
-# Demangle by decoding hex pairs after `nc_contract_`; this is not a library name.
-links = "nc_contract_6e656f636f67692e636f6d2e6576656e7473"
-
-[package.metadata.neocogi-contract]
-module = "neocogi.com.events"
-source = "idl/neocogi/com/events"
-
 [build-dependencies]
 neocogi-idl.workspace = true
 

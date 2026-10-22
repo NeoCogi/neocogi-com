@@ -412,7 +412,7 @@ The versioned `DesignWidgetManifest` transports this graph together with concret
 event interfaces and getter descriptions. Events are identified by canonical
 interface identity and payload metadata; there is no typed-stream argument or
 second embedded definition. The receiving designer need not link the provider's
-Rust crate. See [event metadata](IDL_EVENT_METADATA.md) for the authoritative
+Rust crate. See [event metadata](UI_EVENT_METADATA.md) for the authoritative
 manifest revision and [inspection](../../crates/com/docs/runtime-abi-v1.md) for the
 read-only COM graph boundary.
 
@@ -429,7 +429,7 @@ through its COM catalog.
 | --- | --- |
 | Nested booleans never become unchecked Rust values | [Copied argument, enum payload, and readable/writable buffer thunks](../../crates/com/api/integration-tests/checked_values.rs) receive literal invalid raw bytes and return errors. |
 | Only the selected enum/optional payload is read | [Core value tests](../../crates/com/core/tests/recursive_values.rs) cover uninitialized absent payloads; copied enum tests cover unknown tags. |
-| Recursion is explicit and bounded | [IDL resolution tests](../../crates/com/idl/tests/resolution.rs) reject inline cycles; [compiled generated bindings](../../crates/com/idl/tests/fixtures/messages.rs) round-trip recursive trees and reject cyclic raw pointers. |
+| Recursion is explicit and bounded | [IDL resolution tests](../../crates/com/idl/tests/resolution.rs) reject inline cycles; [compiled generated bindings](../../crates/ui/api/tests/fixtures/messages.rs) round-trip recursive trees and reject cyclic raw pointers. |
 | Sibling fields share resource limits | Core and generated-binding tests exceed cumulative text/storage or depth budgets; zero-sized elements still consume work. |
 | Numeric buffers remain direct borrows | Pointer-identity assertions prove numeric record and writable scalar buffers retain the original allocation; boolean-bearing records use separate storage. |
 | Borrowed values cannot escape the call | [IDL resolution](../../crates/com/idl/tests/resolution.rs) checks source ownership positions; [compile-fail fixtures](../../crates/com/api/integration-tests/ui.rs) check receiver and source-guard lifetimes. |

@@ -1,6 +1,6 @@
 //! Closed generic contracts must agree across independent consuming modules.
 use std::path::Path;
-use neocogi_idl::{DeclarationKind, Module, ResolvedModules, parse_module, resolve_modules};
+use neocogi_idl::{generate_rust, DeclarationKind, Module, ResolvedModules, parse_module, resolve_modules};
 
 /// Gives an inline contract its actual logical module identity.
 fn module(path: &str, source: &str) -> Module {
@@ -252,10 +252,10 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
         #[version(1)] interface IExchange<Value> { fn roundtrip(&self, value: Value) -> Result<Value>; }
     "#;
     let consumer_source = r#"
-        extern proof.templates; extern neocogi.com.events;
+        extern proof.templates;
         use proof.templates::{Pair, Node, Change, Handle, IExchange, IValueReceiver};
-        use neocogi.com.events::EventBinding;
-        #[version(1)] interface ExchangeFactory { fn create(&self, events: &EventBinding) -> Result<ComPtr<Exchange>>; }
+
+        #[version(1)] interface ExchangeFactory { fn create(&self, events: &Option<u32>) -> Result<ComPtr<Exchange>>; }
         #[version(1)] interface Exchange: IExchange<Pair<bool, bool>> {}
         #[version(1)] interface Receiver: IValueReceiver<Change<Node<String>>> {}
         #[version(1)] interface IData { fn inspect(&self, owner: &Handle<IUnknown>) -> Result<()>; }
@@ -263,10 +263,8 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
     // Resolve independently: accidental dependence on the other consumer's
     // generated declarations cannot make this ABI compatibility proof pass.
     let make_graph = |_name: &str, template_source: &str| {
-        let events = fs::read_to_string(root.join("crates/com/api/idl/neocogi/com/events/events.ncidl")).unwrap();
         resolve_modules(vec![
             module("proof/templates.ncidl", template_source),
-            module("neocogi/com/events.ncidl", &events),
             module("proof/contract.ncidl", consumer_source),
         ])
         .unwrap()
@@ -412,13 +410,4 @@ fn value_template_layout_is_part_of_specialized_signatures() {
     let changed = instances(&graph("second: u32, first: T"), "proof.consumer");
     assert_eq!(first[0].1, changed[0].1);
     assert_ne!(first[0].2, changed[0].2);
-}
-
-/// Standalone fixtures consume the shipped common receiver from its owning crate.
-fn generate_rust(graph: &neocogi_idl::ResolvedModules, module: &str) -> Result<String, neocogi_idl::GenerateError> {
-    let mut paths = neocogi_idl::generate::RustModulePaths::default();
-    if graph.module("neocogi.com.events").is_some() {
-        paths.insert("neocogi.com.events", "neocogi_com::events").unwrap();
-    }
-    neocogi_idl::generate::generate_rust_with_paths(graph, module, &paths)
 }

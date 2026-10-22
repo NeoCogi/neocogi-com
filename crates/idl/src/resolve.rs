@@ -1,7 +1,6 @@
 //! Cross-module name resolution, ABI validation, and canonical identities.
 
 mod bind;
-mod events;
 use crate::binding::{Binding, DeclarationKey, Intrinsic};
 use std::{
     collections::{BTreeSet, HashMap},
@@ -692,7 +691,6 @@ fn validate_module(index: usize, entries: &[ModuleEntry], values: &crate::ValueG
             DeclarationKind::BitEnum(bit_enum) => collect_diagnostics(&mut diagnostics, validate_bit_enum(entry, declaration, bit_enum)),
             DeclarationKind::Interface(interface) => {
                 collect_diagnostics(&mut diagnostics, validate_interface_bases(index, interface, entries, &declaration.name));
-                collect_diagnostics(&mut diagnostics, events::validate(index, interface, entries, &declaration.name));
                 collect_diagnostics(&mut diagnostics, validate_methods(index, interface, entries, values, &declaration.name));
             }
         }
@@ -1658,15 +1656,15 @@ fn fingerprint_module(
 /// This compiler/build-time encoding revision is independent of runtime and
 /// plugin descriptor discovery ABI v1. Documentation checks use this same prefix;
 /// changing source provenance or Cargo name mangling must not change its bytes.
-/// Revision 12 assigns disjoint tags to every type expression, including parameters.
-pub const MODULE_ABI_ENCODING_DOMAIN: &[u8] = b"neocogi-idl:module-abi:v12\0";
+/// Revision 13 removes UI event publication edges from ordinary callable contracts.
+pub const MODULE_ABI_ENCODING_DOMAIN: &[u8] = b"neocogi-idl:module-abi:v13\0";
 
 /// Encodes one module into canonical bytes and hashes the result.
 fn encode_module(index: usize, entries: &[ModuleEntry], dependencies: &[(usize, [u8; 32])]) -> Result<[u8; 32], ResolutionError> {
     let entry = &entries[index];
     let mut encoder = CanonicalEncoder::new();
-    // Templates and concrete declarations share this v12 encoding, including
-    // event dependencies and authored policies. Build/debug locations are absent.
+    // Templates and concrete declarations share this v13 encoding, including
+    // ordinary type dependencies and authored policies. Build/debug locations are absent.
     encoder.bytes(MODULE_ABI_ENCODING_DOMAIN);
     encoder.guid(entry.module_id);
     // Templates and concrete declarations use exactly the same grammar. Bound
@@ -1729,7 +1727,7 @@ struct FreeName<'a>(
     &'a NamedType,
 );
 
-/// Classifies a name identically in ordinary type, base and emitted-event positions.
+/// Classifies a name identically in ordinary type, base positions.
 fn classify_name<'a>(scope: EncodingScope<'_>, name: &'a NamedType, entries: &[ModuleEntry]) -> Result<NameBinding<'a>, ResolutionError> {
     if let Binding::Parameter { position } = name.binding {
         // The binding phase already rejects arguments on parameters. Keep this
@@ -1837,11 +1835,6 @@ fn encode_declaration(
         DeclarationKind::Interface(interface) => {
             encoder.tag(3);
             encode_methods(scope, &interface.bases, &interface.methods, interface.threading, entries, encoder)?;
-            // Emitted interfaces are semantic dependencies, independent of vtable ancestry.
-            encoder.u32(u32_len(interface.events.len(), &entries[index].name, "event count")?);
-            for event in &interface.events {
-                encode_named(scope, event, entries, encoder)?;
-            }
         }
     }
     Ok(())
@@ -1999,7 +1992,7 @@ fn encode_type(scope: EncodingScope<'_>, ty: &AbiType, entries: &[ModuleEntry], 
     Ok(())
 }
 
-/// Encodes a base/event reference with disjoint bound/free alternatives.
+/// Encodes a base reference with disjoint bound/free alternatives.
 ///
 /// Unlike an ordinary type expression, this position has no enclosing type tag.
 /// Both alternatives therefore have an explicit discriminator; a free UUID must

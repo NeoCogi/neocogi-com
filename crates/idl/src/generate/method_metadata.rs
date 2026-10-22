@@ -35,11 +35,15 @@ fn collect(
             Receiver::Shared => quote! { ::neocogi_com::NcAbiReceiver::Shared },
             Receiver::Mutable => quote! { ::neocogi_com::NcAbiReceiver::Mutable },
         };
-        let parameters = method.parameters.iter().map(|parameter| {
-            let name = Literal::string(&parameter.name);
-            let ty = call_type(graph, module, &parameter.ty)?;
-            Ok(quote! { ::neocogi_com::design::IdlParameter { name: #name, ty: #ty } })
-        }).collect::<Result<Vec<_>, GenerateError>>()?;
+        let parameters = method
+            .parameters
+            .iter()
+            .map(|parameter| {
+                let name = Literal::string(&parameter.name);
+                let ty = call_type(graph, module, &parameter.ty)?;
+                Ok(quote! { ::neocogi_com::design::IdlParameter { name: #name, ty: #ty } })
+            })
+            .collect::<Result<Vec<_>, GenerateError>>()?;
         let returns = call_type(graph, module, &method.output)?;
         methods.push(quote! {
             ::neocogi_com::design::IdlMethod {
