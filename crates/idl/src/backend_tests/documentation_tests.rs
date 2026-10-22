@@ -2,6 +2,28 @@
 use std::{fs, path::Path, process::Command};
 use syn::visit::Visit;
 
+/// Valid deeply nested ABI types must format and map on a Windows-sized caller
+/// stack. Keep the source self-contained so extracted SDK tests exercise it too.
+#[test]
+fn deeply_nested_output_types_generate_and_map_on_a_two_mebibyte_stack() {
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            let element = (0..65).fold(String::from("u8"), |element, _| format!("[{element}; 1]"));
+            let source = format!("#[version(1)] interface Deep {{\nfn ordinary(&self, output: &mut [{element}]) -> Result<()>;\n}}");
+            let module = crate::parse_module(Path::new("proof/deep.ncidl"), &source).unwrap();
+            let graph = crate::resolve_modules(vec![module]).unwrap();
+            let generated = crate::generate_rust_with_source_map(&graph, "proof.deep").unwrap();
+            assert!(generated.source.contains("pub trait Deep"));
+            assert!(generated.source_map.mappings.iter().any(|mapping| {
+                mapping.kind == crate::SourceMapKind::Method && mapping.name.ends_with("::ordinary") && mapping.original.range.start.line == 2
+            }));
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
 /// Collect actual doc values throughout traits, clients and raw tables.
 #[derive(Default)]
 struct Docs {

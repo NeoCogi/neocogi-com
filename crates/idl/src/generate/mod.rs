@@ -14,6 +14,7 @@ mod events;
 mod lower;
 mod mapping;
 mod paths;
+mod syntax;
 mod value;
 pub use paths::RustModulePaths;
 
@@ -477,12 +478,14 @@ fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declara
 
 /// Formats ordinary generated Rust syntax with stable, human-readable layout.
 fn format_rust(tokens: TokenStream) -> Result<String, GenerateError> {
-    // `TokenStream::to_string` is intended for diagnostics rather than source
-    // generation: it collapses layout and exposes doc comments as `#[doc]`.
-    // Parsing gives the source printer enough syntax to choose conventional
-    // whitespace and documentation-comment notation.
-    let syntax = syn::parse2::<syn::File>(tokens).map_err(|error| GenerateError::new(format!("generated invalid Rust syntax: {error}")))?;
-    Ok(prettyplease::unparse(&syntax))
+    // Printed tokens are an intermediate transport, not the published layout.
+    // Parse and print inside one worker so its recursive syntax tree and spans
+    // never cross threads. Prettyplease owns final whitespace and doc comments.
+    let source = tokens.to_string();
+    syntax::with_syntax_stack(move || {
+        let syntax = syn::parse_file(&source).map_err(|error| GenerateError::new(format!("generated invalid Rust syntax: {error}")))?;
+        Ok(prettyplease::unparse(&syntax))
+    })
 }
 
 /// Emits both interface halves from one resolved ownership plan. The backend

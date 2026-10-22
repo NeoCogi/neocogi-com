@@ -34,6 +34,13 @@ ABI identity remains independent of paths and locations. Run
 `cargo neocogi module generate <module>` to obtain the exact map path. The
 [source mapping guide](../guides/IDL_SOURCE_MAPS.md) defines the format and lookup rules.
 
+Generated Rust parsing, formatting and mapping run with an explicit eight-MiB
+syntax-worker stack on every host. Deep valid output-buffer types therefore do
+not depend on a build-script main thread's platform default. Workers exchange
+Rust text and stable source coordinates; parser spans and syntax trees remain
+thread-local. Failure to create a worker is a generation error and publishes no
+partial output. The separate IDL parser and resolver retain their own diagnostics.
+
 ## Closed generic values and interfaces
 
 Structs, enums, and interfaces can declare type parameters. Each use must supply all arguments:
