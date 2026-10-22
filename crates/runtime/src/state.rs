@@ -68,14 +68,14 @@ mod tests {
     use crate::factory_registration::prepare_factory_plugin;
 
     /// Registry fixtures use the same complete validation as production records.
-    fn description(name: &'static str) -> &'static NcPluginDescriptor {
+    const fn description(name: &'static str) -> NcPluginDescriptor {
         /// Publication and lookup must never invoke this entrypoint.
         unsafe extern "C" fn acquire(out: *mut neocogi_com_core::ComRaw<IUnknown>) -> neocogi_com_core::NcStatus {
             // SAFETY: the descriptor ABI grants one writable output on invocation.
             unsafe { out.write(neocogi_com_core::ComRaw::null()) };
             NC_E_CLOSED
         }
-        Box::leak(Box::new(NcPluginDescriptor {
+        NcPluginDescriptor {
             description_abi_version: neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
             core_abi_version: neocogi_com_core::NC_COM_CORE_ABI_VERSION,
             plugin_id: neocogi_com_core::guid_from_qualified_name(name),
@@ -86,21 +86,21 @@ mod tests {
             root_factory: IUnknown::INTERFACE_ID,
             root_factory_threading: neocogi_com_core::NC_ABI_THREADING_THREAD_LOCAL,
             acquire: Some(acquire),
-        }))
+        }
     }
 
     /// Confirms dependency validation reads the sole factory plugin registry.
     #[test]
     fn catalog_resolves_factory_plugin_dependencies() {
         let runtime = RuntimeState::new();
-        let description = description("nc.tests.state.dependency");
-        let factory_id = description.plugin_id;
+        static DESCRIPTION: NcPluginDescriptor = description("nc.tests.state.dependency");
+        let factory_id = DESCRIPTION.plugin_id;
         let missing_id = neocogi_com_core::guid_from_qualified_name("nc.tests.state.missing");
 
         {
             let mut catalog = runtime.write_catalog();
             // SAFETY: the fixture descriptor, buffers and code are process-lived.
-            catalog.insert(unsafe { prepare_factory_plugin(description, PluginOrigin::Static) }.unwrap());
+            catalog.insert(unsafe { prepare_factory_plugin(&DESCRIPTION, PluginOrigin::Static) }.unwrap());
         }
 
         let catalog = runtime.read_catalog();
@@ -120,8 +120,8 @@ mod tests {
         let runtime = Arc::new(RuntimeState::new());
         let records_inserted = Arc::new(Barrier::new(2));
         let release_publication = Arc::new(Barrier::new(2));
-        let description = description("nc.tests.state.publication");
-        let plugin_id = description.plugin_id;
+        static DESCRIPTION: NcPluginDescriptor = description("nc.tests.state.publication");
+        let plugin_id = DESCRIPTION.plugin_id;
 
         let writer = {
             let runtime = Arc::clone(&runtime);
@@ -131,7 +131,7 @@ mod tests {
                 let mut catalog = runtime.write_catalog();
                 // SAFETY: immutable static-lifetime metadata/code back this
                 // provenance-only fixture; no fake native handle is required.
-                catalog.insert(unsafe { prepare_factory_plugin(description, PluginOrigin::Dynamic { path: PathBuf::from("test-plugin") }) }.unwrap());
+                catalog.insert(unsafe { prepare_factory_plugin(&DESCRIPTION, PluginOrigin::Dynamic { path: PathBuf::from("test-plugin") }) }.unwrap());
 
                 // Pause after the complete plugin record has been inserted but
                 // before the one publication guard is released.

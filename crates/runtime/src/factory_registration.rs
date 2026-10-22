@@ -93,6 +93,53 @@ mod tests {
         acquire: Some(acquire_stub),
     };
 
+    /// Fixed process-lived names model independent loaded providers without
+    /// leaking per-test allocations. Four decimal digits cover the capacity.
+    static CAPACITY_NAMES: [[u8; 30]; NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS] = {
+        assert!(NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS <= 10_000);
+        let mut names = [*b"nc.tests.capacity.provider0000"; NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS];
+        let mut index = 0;
+        while index < names.len() {
+            let mut number = index;
+            let mut digit = 0;
+            while digit < 4 {
+                names[index][29 - digit] = b'0' + (number % 10) as u8;
+                number /= 10;
+                digit += 1;
+            }
+            index += 1;
+        }
+        names
+    };
+
+    /// Complete immutable descriptors obey the production process-lifetime
+    /// contract and leave no intentionally unreachable heap storage for Miri.
+    struct CapacityPlugins {
+        /// Every pointer refers to CAPACITY_NAMES or the immutable PLUGIN fields.
+        descriptors: [NcPluginDescriptor; NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS],
+    }
+    // SAFETY: this private fixture contains only immutable process-lived views,
+    // with no thread-affine owner or destructor. Initialization publishes once.
+    unsafe impl Send for CapacityPlugins {}
+
+    /// Hash names once at runtime rather than exceeding the const-evaluation
+    /// budget. The OnceLock itself owns the complete inline descriptor storage.
+    fn capacity_plugins() -> &'static [NcPluginDescriptor] {
+        static PLUGINS: std::sync::OnceLock<CapacityPlugins> = std::sync::OnceLock::new();
+        &PLUGINS
+            .get_or_init(|| {
+                let mut descriptors = [PLUGIN; NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS];
+                for (descriptor, name) in descriptors.iter_mut().zip(&CAPACITY_NAMES) {
+                    // SAFETY: the template and generated decimal digits are all ASCII.
+                    let name = unsafe { core::str::from_utf8_unchecked(name) };
+                    descriptor.plugin_id = guid_from_qualified_name(name);
+                    descriptor.qualified_name = NcStaticUtf8::from_static(name);
+                }
+                CapacityPlugins { descriptors }
+            })
+            .descriptors
+    }
+
     /// Publication and repeated registration share the same immutable identity.
     #[test]
     fn registration_is_atomic_and_idempotent_without_constructing_a_factory() {
@@ -117,14 +164,14 @@ mod tests {
         static DEPENDENCIES: [NcPluginDependencyDescriptor; 1] = [NcPluginDependencyDescriptor {
             plugin_id: guid_from_qualified_name("nc.tests.missing"),
         }];
-        let plugin = Box::leak(Box::new(NcPluginDescriptor {
+        static DEPENDENT: NcPluginDescriptor = NcPluginDescriptor {
             dependency_count: 1,
             dependencies: DEPENDENCIES.as_ptr(),
             ..PLUGIN
-        }));
+        };
         let runtime = RuntimeState::new();
         // SAFETY: the descriptor and its dependency table are process-lived.
-        assert_eq!(unsafe { runtime.register_plugin_descriptor(plugin) }, NC_E_NOT_FOUND);
+        assert_eq!(unsafe { runtime.register_plugin_descriptor(&DEPENDENT) }, NC_E_NOT_FOUND);
         let catalog = runtime.read_catalog();
         assert!(!catalog.contains_plugin(PLUGIN.plugin_id));
         assert_eq!(catalog.len(), 0);
@@ -132,15 +179,10 @@ mod tests {
 
     /// Validates a real descriptor with process-lifetime test metadata, then adds
     /// actual dynamic provenance to isolate catalog accounting from native I/O.
-    fn dynamic_fixture(name: String) -> RegisteredFactoryPlugin {
-        let name: &'static str = Box::leak(name.into_boxed_str());
-        let description = Box::leak(Box::new(NcPluginDescriptor {
-            plugin_id: guid_from_qualified_name(name),
-            qualified_name: NcStaticUtf8::from_static(name),
-            ..PLUGIN
-        }));
-        // SAFETY: These test allocations and the inherited static fields remain
-        // immutable and process-live, just like validated native metadata.
+    fn dynamic_fixture(description: &'static NcPluginDescriptor) -> RegisteredFactoryPlugin {
+        // SAFETY: each fixture descriptor references immutable static UTF-8.
+        let name = unsafe { description.qualified_name.as_str() }.unwrap();
+        // SAFETY: The complete graph is immutable static metadata and code.
         unsafe { prepare_factory_plugin(description, PluginOrigin::Dynamic { path: std::path::PathBuf::from(name) }) }.unwrap()
     }
 
@@ -150,28 +192,39 @@ mod tests {
     #[test]
     fn dynamic_capacity_counts_unique_providers_and_preserves_first_origin() {
         let runtime = RuntimeState::new();
-        for index in 0..NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS {
-            let plugin = dynamic_fixture(format!("nc.tests.capacity.provider{index}"));
+        let descriptions = capacity_plugins();
+        for description in descriptions {
+            let plugin = dynamic_fixture(description);
             assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(plugin), NC_OK);
         }
-        let id = guid_from_qualified_name("nc.tests.capacity.provider0");
+        let id = descriptions[0].plugin_id;
         let description = runtime.read_catalog().plugin(id).unwrap().descriptor.as_ptr();
-        // SAFETY: The fixture allocated immutable process-lifetime metadata.
+        // SAFETY: The fixture uses immutable static metadata.
         let repeat = unsafe { prepare_factory_plugin(description, PluginOrigin::Dynamic { path: "alternate-path".into() }) }.unwrap();
         assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(repeat), NC_OK);
         // SAFETY: PLUGIN is immutable static storage.
         assert_eq!(unsafe { runtime.register_plugin_descriptor(&PLUGIN) }, NC_OK);
 
-        let overflow = dynamic_fixture("nc.tests.capacity.overflow".into());
+        static OVERFLOW: NcPluginDescriptor = NcPluginDescriptor {
+            plugin_id: guid_from_qualified_name("nc.tests.capacity.overflow"),
+            qualified_name: NcStaticUtf8::from_static("nc.tests.capacity.overflow"),
+            ..PLUGIN
+        };
+        static CONFLICT: NcPluginDescriptor = NcPluginDescriptor {
+            plugin_id: guid_from_qualified_name("nc.tests.capacity.provider0000"),
+            qualified_name: NcStaticUtf8::from_static("nc.tests.capacity.provider0000"),
+            ..PLUGIN
+        };
+        let overflow = dynamic_fixture(&OVERFLOW);
         let overflow_id = overflow.descriptor.id();
         assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(overflow), NC_E_OUT_OF_RANGE);
-        let conflict = dynamic_fixture("nc.tests.capacity.provider0".into());
+        let conflict = dynamic_fixture(&CONFLICT);
         assert_eq!(runtime.write_catalog().commit_factory_plugin_registration(conflict), NC_E_INVALID_ARG);
 
         let catalog = runtime.read_catalog();
         assert_eq!(catalog.dynamic_count(), NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS);
         assert!(!catalog.contains_plugin(overflow_id));
         assert!(matches!(&catalog.plugin(id).unwrap().origin,
-            PluginOrigin::Dynamic { path, .. } if path == std::path::Path::new("nc.tests.capacity.provider0")));
+            PluginOrigin::Dynamic { path, .. } if path == std::path::Path::new("nc.tests.capacity.provider0000")));
     }
 }
