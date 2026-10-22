@@ -41,6 +41,12 @@ run_rustdoc() {
 }
 
 run_cargo "format" fmt --all --check
+# The development workspace does not commit its root lockfile. Resolve once on
+# a fresh checkout, then keep every quality row on that graph. Existing caller
+# lockfiles stay authoritative: stale ones must still fail the locked checks.
+if [[ ! -f Cargo.lock ]]; then
+  run_cargo "resolve missing workspace lockfile" generate-lockfile
+fi
 run_cargo "Clippy, all targets and features" \
   clippy -p neocogi-com-core -p neocogi-idl -p neocogi-com-codegen -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --all-targets --all-features --locked -- -D warnings
 run_cargo "COM SDK with all features" \
