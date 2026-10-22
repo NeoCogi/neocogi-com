@@ -110,8 +110,8 @@ pub extern crate alloc as __alloc;
 
 #[cfg(feature = "alloc")]
 mod data;
-/// Generated source-level descriptions used by typed authoring tools.
-pub mod design;
+/// Static descriptions of generated IDL interfaces, methods and value types.
+pub mod idl_metadata;
 mod object;
 pub mod persistence;
 #[cfg(feature = "runtime")]

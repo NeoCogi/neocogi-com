@@ -402,7 +402,7 @@ tracks the current canonical encoding independently of the core ABI.
 
 ## COM inspection graph
 
-`IdlValueType` describes scalar, text, named, object, sequence, and array fields
+`ValueType` describes scalar, text, named, object, sequence, and array fields
 as structured data. Optional fields reference an ordinary named enum definition. Each enum alternative records its exact tag. An
 interface's `IDL_INTERFACE.values` contains every value definition reached from
 its methods, required projections, and declared event getter payloads. Object references remain

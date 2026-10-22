@@ -36,7 +36,7 @@ fn weak_shared_identity_and_capabilities_are_distinct() {
     assert!(!value.copied);
     assert_eq!(value.persistence, neocogi_idl::Persistence::Unsupported);
     let source = generate_rust(&g, "proof.weak").unwrap();
-    assert!(source.contains("IdlValueType::WeakObject"));
+    assert!(source.contains("ValueType::WeakObject"));
     assert!(source.contains("WeakComPtr<::neocogi_com::INcStringAbi>"));
 }
 

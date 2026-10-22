@@ -79,6 +79,13 @@ the `.ncidl` source and transitive module graph, generates Rust bindings into
 `OUT_DIR`, and publishes the graph through Cargo metadata. Ordinary Cargo
 regenerates bindings after an IDL edit; no separate native artifact is built.
 
+`neocogi_com::idl_metadata` supplies static descriptions that tools can read
+without depending on the compiler. `InterfaceAbi::IDL_INTERFACE` describes
+methods and their argument/result types; `Value::IDL_TYPE` describes fields,
+enum cases or bit flags. These records stay local to their defining binary.
+Domains own any transported catalog format and its application rules; see
+[generated IDL metadata](../../docs/contracts/IDL_MODULES.md#generated-idl-metadata).
+
 ## Implementing interfaces
 
 `#[com_object(contract::Interface)]` associates private Rust storage with one

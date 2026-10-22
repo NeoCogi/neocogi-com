@@ -96,16 +96,16 @@ mod tests {
     /// COM authoring metadata reaches the ordinary enum and its payload references.
     #[test]
     fn inspection_exposes_option_as_an_enum_definition() {
-        use neocogi_com::design::{IdlShape, IdlValueType};
+        use neocogi_com::idl_metadata::{TypeShape, ValueType};
         let description = IValuesAbi::IDL_INTERFACE;
         let options = description.values.iter().filter(|value| value.qualified_name.starts_with("neocogi.lang.OptionInstance")).collect::<Vec<_>>();
         assert_eq!(options.len(), 4);
         for definition in options {
-            let IdlShape::Enum(variants) = definition.shape else { panic!("ordinary enum metadata expected") };
+            let TypeShape::Enum(variants) = definition.shape else { panic!("ordinary enum metadata expected") };
             assert_eq!(variants[0].name, "None");
             assert!(variants[0].fields.is_empty());
             assert_eq!(variants[1].name, "Some");
-            assert!(matches!(variants[1].fields[0].ty, IdlValueType::Scalar(_) | IdlValueType::Text | IdlValueType::Object(_)));
+            assert!(matches!(variants[1].fields[0].ty, ValueType::Scalar(_) | ValueType::Text | ValueType::Object(_)));
         }
     }
 }

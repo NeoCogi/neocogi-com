@@ -248,14 +248,20 @@ mod metadata_calls {
     }
     #[test]
     fn metadata_and_actual_com_call_agree() {
-        let value = Item::IDL_TYPE;
+        let value: neocogi_com::idl_metadata::TypeMetadata = Item::IDL_TYPE;
         assert_eq!(value.qualified_name, "proof.maps.Item");
-        let neocogi_com::design::IdlShape::Struct(fields) = value.shape else { panic!("record shape") };
+        let neocogi_com::idl_metadata::TypeShape::Struct(fields) = value.shape else { panic!("record shape") };
         assert_eq!(fields.len(), 1);
         assert_eq!(fields[0].name, "value");
-        let interface = PlainAbi::IDL_INTERFACE;
+        let neocogi_com::idl_metadata::ValueType::Named(name) = fields[0].ty else { panic!("Option metadata must retain its named enum") };
+        assert!(name.starts_with("neocogi.lang.OptionInstance"));
+        let interface: neocogi_com::idl_metadata::InterfaceMetadata = PlainAbi::IDL_INTERFACE;
         assert!(interface.rust_abi.ends_with("::PlainAbi"));
         assert_eq!(interface.chain.len(), PlainAbi::INTERFACE_CHAIN.len());
+        let method: &neocogi_com::idl_metadata::MethodMetadata = &interface.methods[0];
+        assert_eq!(method.name, "read");
+        assert!(method.parameters.is_empty());
+        assert_eq!(method.returns, neocogi_com::idl_metadata::MethodType::Value(neocogi_com::idl_metadata::ValueType::Scalar("u32")));
         let owner = Provider::from_value(Provider);
         let projection = owner.query::<PlainAbi>().unwrap();
         assert_eq!(projection.read(), Ok(37));

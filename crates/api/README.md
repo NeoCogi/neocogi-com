@@ -28,6 +28,13 @@ There are no handwritten interface/value declaration attributes or signature
 options. The packaged [calculator example](examples/calculator.rs) and its
 [contract source](examples/idl/nc/examples/calculator.ncidl) show the complete path.
 
+Tools can read generated contracts through `neocogi_com::idl_metadata` without
+depending on the compiler. `InterfaceAbi::IDL_INTERFACE` contains an
+`InterfaceMetadata` with methods, argument/result ownership and reachable value
+definitions. `Value::IDL_TYPE` contains a `TypeMetadata` with record fields,
+enum cases or bit flags. These static Rust records stay inside their defining
+binary; a domain owns any transported catalog and its application policy.
+
 Concrete Rust state implements generated traits and uses `com_object`. This
 runnable example uses the ordinary object-children contract:
 

@@ -75,7 +75,7 @@ fn imported_getters_use_the_declaring_module() {
     let graph = resolve_modules(vec![message, source]).unwrap();
     let generated = neocogi_idl::generate_rust(&graph, "example.source").unwrap();
     syn::parse_file(&generated).expect("imported message bindings parse");
-    assert!(generated.contains("IdlMethod"));
+    assert!(generated.contains("MethodMetadata"));
     assert!(generated.contains("example_messages_contracts::Changed"));
     assert!(generated.contains("example.messages.Changed"));
     assert!(!generated.contains("__map_"));
@@ -305,7 +305,7 @@ fn generated_interface_exposes_its_idl_event_and_nested_message_shape() {
     syn::parse_file(&generated).unwrap();
     assert!(generated.contains("pub const IDL_TYPE"));
     assert!(generated.contains("pub const IDL_TYPE"));
-    assert!(generated.contains("IdlShape::BitEnum"));
+    assert!(generated.contains("TypeShape::BitEnum"));
     assert!(generated.contains("pub const IDL_INTERFACE"));
     assert!(generated.contains("methods: &[]"));
     assert!(generated.contains(r#"name: "Changed""#));
@@ -350,7 +350,7 @@ fn direct_design_shape_resolution_preserves_variant_grouping_and_tags() {
     assert!(generated.contains(r#"name: "Say""#));
     assert!(generated.contains(r#"tag: 1i64"#));
     assert!(generated.contains(r#"name: "0""#));
-    assert!(generated.contains(r#"IdlValueType::Text"#));
+    assert!(generated.contains(r#"ValueType::Text"#));
 
     assert!(generated.contains(r#"name: "Pause""#));
     assert!(generated.contains(r#"tag: 2i64"#));

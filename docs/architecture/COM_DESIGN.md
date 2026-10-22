@@ -28,7 +28,7 @@ machine. The runtime compares already-computed identities and signatures.
 COM responsibilities have concrete owners: `core` supplies ABI and value support;
 `codegen` emits typed Rust bindings; `idl` owns parsing through Cargo integration;
 `macros` supplies thin Rust implementation/persistence entrypoints; `api` supplies
-object helpers and runtime clients; `runtime` owns loading, the plugin catalog
+object helpers, static IDL metadata and runtime clients; `runtime` owns loading, the plugin catalog
 and persistence execution. Only the process runtime is deployed as the COM shared
 library (`libnc_com.so` on Linux). Native hosts and plugins use that one global
 registry. Contracts and facade helpers compile into their consumers. Cargo

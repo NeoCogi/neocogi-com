@@ -882,11 +882,22 @@ Remove contract registration and `MODULE` imports, and rebuild against runtime
 ABI v1 and the versioned plugin descriptor getter. No legacy adapter retains the
 removed runtime contract mechanism.
 
-### Generated authoring metadata
+### Generated IDL metadata
 
-`IDL_INTERFACE` describes ordinary methods, receiver access, argument/result
-ownership, and the value definitions reachable through callable interfaces.
-`IDL_TYPE` describes source aggregate shapes. UI declares producer event lists
+[`neocogi_com::idl_metadata`](../../crates/com/api/src/idl_metadata.rs) contains
+static descriptions of interfaces and values for tools that need to read a
+contract without linking the IDL compiler. `InterfaceAbi::IDL_INTERFACE` is an
+`InterfaceMetadata`: it describes methods, receiver access, argument/result
+ownership, and reachable value definitions. `Value::IDL_TYPE` is a `TypeMetadata`
+describing record fields, enum cases or bit flags. These records describe the
+source contract; physical interface descriptors still define ABI compatibility.
+
+For example, a tool reading an interface with `fn set_value(&mut self, value: u32)`
+finds a mutable method named `set_value`, one `u32` parameter named `value`, and
+a unit result. It can inspect that data without calling the method or owning an
+implementation. The metadata constants create no runtime registration.
+
+UI declares producer event lists
 in Rust and derives getter fields during validated catalog publication. These
 static references stay local to their owning binary; see
 [UI event metadata](UI_EVENT_METADATA.md).

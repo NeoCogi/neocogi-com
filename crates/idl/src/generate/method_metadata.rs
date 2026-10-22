@@ -41,12 +41,12 @@ fn collect(
             .map(|parameter| {
                 let name = Literal::string(&parameter.name);
                 let ty = call_type(graph, module, &parameter.ty)?;
-                Ok(quote! { ::neocogi_com::design::IdlParameter { name: #name, ty: #ty } })
+                Ok(quote! { ::neocogi_com::idl_metadata::ParameterMetadata { name: #name, ty: #ty } })
             })
             .collect::<Result<Vec<_>, GenerateError>>()?;
         let returns = call_type(graph, module, &method.output)?;
         methods.push(quote! {
-            ::neocogi_com::design::IdlMethod {
+            ::neocogi_com::idl_metadata::MethodMetadata {
                 name: #name, receiver: #receiver, parameters: &[#(#parameters),*], returns: #returns,
             }
         });
@@ -66,7 +66,7 @@ fn call_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> R
                 None => resolve(graph, module, name)?.identity.qualified_name.clone(),
             };
             let name = Literal::string(&name);
-            return Ok(quote! { ::neocogi_com::design::IdlMethodType::ExclusiveObject(#name) });
+            return Ok(quote! { ::neocogi_com::idl_metadata::MethodType::ExclusiveObject(#name) });
         }
         AbiType::Borrowed(value) => ("Borrowed", value.as_ref()),
         AbiType::Slice(value) | AbiType::UnsizedSlice(value) => ("InputBuffer", value.as_ref()),
@@ -74,6 +74,6 @@ fn call_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> R
         _ => ("Value", ty),
     };
     let kind = rust_ident(kind)?;
-    let value = design_field_type(graph, module, value)?;
-    Ok(quote! { ::neocogi_com::design::IdlMethodType::#kind(#value) })
+    let value = value_type_metadata(graph, module, value)?;
+    Ok(quote! { ::neocogi_com::idl_metadata::MethodType::#kind(#value) })
 }
