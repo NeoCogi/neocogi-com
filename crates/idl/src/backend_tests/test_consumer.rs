@@ -81,9 +81,11 @@ impl Consumer {
 }
 
 /// Queries Cargo's actual selected package locations; failures retain Cargo's diagnostic.
+/// Resolution may require target-only packages a host build never downloaded.
+/// Cache-only drivers select `CARGO_NET_OFFLINE` explicitly for all their children.
 fn metadata(manifest: &Path) -> Metadata {
     let output = Command::new("cargo")
-        .args(["metadata", "--offline", "--format-version=1", "--manifest-path"])
+        .args(["metadata", "--format-version=1", "--manifest-path"])
         .arg(manifest)
         .output()
         .unwrap();

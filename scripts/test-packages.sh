@@ -3,6 +3,9 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
 
+# Archive qualification uses cached inputs for the driver and nested consumers.
+export CARGO_NET_OFFLINE=true
+
 for command in cargo tar cmp mktemp python3; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "$command is required for package verification" >&2
@@ -44,7 +47,7 @@ for package in "${packages[@]}"; do
 done
 
 echo "==> [packages] build workspace archives"
-cargo package -p neocogi-com-core -p neocogi-com-codegen -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --no-verify --allow-dirty --locked --offline
+cargo package -p neocogi-com-core -p neocogi-com-codegen -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --no-verify --allow-dirty --locked
 
 package_dir="${CARGO_TARGET_DIR:-target}/package"
 for package in "${packages[@]}"; do
@@ -106,14 +109,14 @@ cd "$verify_root"
 for package in "${packages[@]}"; do
   manifest="$verify_root/$package-$version/Cargo.toml"
   echo "==> [packages] Rust 1.85 library/binary check: $package"
-  cargo +1.85.0 check --manifest-path "$manifest" --all-targets --all-features --offline
+  cargo +1.85.0 check --manifest-path "$manifest" --all-targets --all-features
   echo "==> [packages] all shipped tests: $package"
-  cargo +1.85.0 test --manifest-path "$manifest" --tests --all-features --offline
+  cargo +1.85.0 test --manifest-path "$manifest" --tests --all-features
   if [[ "$package" == neocogi-com ]]; then
     # Compiling an example does not execute main. Assert the actual extracted
     # package's full stream; early successful EOF must not satisfy this check.
     echo "==> [packages] execute strings_and_bytes from the extracted facade"
-    example_output="$(cargo +1.85.0 run --manifest-path "$manifest" --example strings_and_bytes --all-features --offline)"
+    example_output="$(cargo +1.85.0 run --manifest-path "$manifest" --example strings_and_bytes --all-features)"
     expected_output=$'display name: neocogi-com\nchunk len=8: "chunked "\nchunk len=8: "stream o"\nchunk len=7: "ver COM"'
     if [[ "$example_output" != "$expected_output" ]]; then
       printf 'unexpected strings_and_bytes output:\n%s\n' "$example_output" >&2
@@ -123,14 +126,14 @@ for package in "${packages[@]}"; do
   fi
   if [[ "$package" != neocogi-inspect ]]; then
     echo "==> [packages] published documentation examples: $package"
-    cargo +1.85.0 test --manifest-path "$manifest" --doc --all-features --offline
+    cargo +1.85.0 test --manifest-path "$manifest" --doc --all-features
   fi
 done
 
 # The public runtime build guide promises both ordinary Cargo outputs. Check
 # actual files, rather than a copied manifest description or an explicit override.
 echo "==> [packages] ordinary runtime build emits its declared rlib and shared library"
-cargo +1.85.0 build --manifest-path "$verify_root/neocogi-com-runtime-$version/Cargo.toml" --offline
+cargo +1.85.0 build --manifest-path "$verify_root/neocogi-com-runtime-$version/Cargo.toml"
 python3 - <<'PYRUNTIME'
 import os
 from pathlib import Path
@@ -183,8 +186,8 @@ fn main() {
     assert_eq!(neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 1);
 }
 RUST
-cargo +1.85.0 run --manifest-path consumer/Cargo.toml --offline
-cargo +1.85.0 check --manifest-path "$verify_root/neocogi-com-$version/Cargo.toml" --no-default-features --offline
-cargo +1.85.0 check --manifest-path "$verify_root/neocogi-com-$version/Cargo.toml" --no-default-features --features alloc --offline
+cargo +1.85.0 run --manifest-path consumer/Cargo.toml
+cargo +1.85.0 check --manifest-path "$verify_root/neocogi-com-$version/Cargo.toml" --no-default-features
+cargo +1.85.0 check --manifest-path "$verify_root/neocogi-com-$version/Cargo.toml" --no-default-features --features alloc
 
 echo "package archive targets, shipped tests and downstream COM call passed"
