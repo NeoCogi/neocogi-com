@@ -5,6 +5,7 @@
 //! pre-release v1 contract may change in place; all roles use the same checkout.
 
 mod debug;
+mod host;
 mod persistence;
 mod plugin;
 mod runtime;
@@ -17,6 +18,7 @@ pub use debug::{
 };
 pub use plugin::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NcFactoryInfoV1, NcInspectPluginDescriptorCallbackV1, NcPluginInfoV1};
 pub use runtime::NcRuntimeApiV1;
+pub use host::{NcHostApiV1, validate_host_api};
 
 /// Pre-alpha runtime shared-library ABI generation.
 ///

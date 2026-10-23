@@ -687,6 +687,21 @@ storage; scalar shape checks are not arbitrary-pointer validation.
 
 ## Unified C table
 
+The implementation also exposes `nc_com::initialize_process()` as an ordinary
+Rust host entry. It initializes its existing singleton without provider calls
+and returns an immutable `NcHostApiV1`: byte size, runtime/core versions (both 1),
+and pointers to the runtime, debug and persistence tables. The complete service
+graph and callback code remain process/instance-lived, including after main
+returns. Copying this description does not create a registry.
+
+`validate_host_api` checks required pointers, advertised byte sizes and matching
+versions without invoking callbacks. It reads prefixes before complete layouts;
+the unsafe caller still guarantees readable backing, valid callable tables and
+coherent ownership. Validation retains nothing. Adopting references for process
+lifetime additionally requires that lifetime for every reachable table/code
+allocation; a static outer description alone proves no child lifetime. This is
+part of pre-release ABI-v1, with no new ABI generation or identity changes.
+
 Check `nc_com_runtime_abi_version() == 1` before obtaining a versioned table. Check
 its size prefix before reading its full layout, then match `core_abi_version`.
 The pre-release v1 layouts are revision-specific even when sizes happen to match.

@@ -17,6 +17,8 @@ use neocogi_com_core::{
 };
 
 mod exports;
+#[cfg(test)]
+mod host_tests;
 mod inspection;
 mod persistence;
 mod runtime;
@@ -44,6 +46,18 @@ pub(super) static DEBUG_API_V1: NcDebugApiV1 = NcDebugApiV1 {
     size: mem::size_of::<NcDebugApiV1>(),
     create_messenger: debug::create_messenger,
     destroy_messenger: debug::destroy_messenger,
+};
+
+/// Canonical immutable access description of this implementation's services.
+/// No owned container or registry address crosses the ABI: callbacks execute in
+/// the host and reach its private singleton. All backing survives main's return.
+pub(crate) static HOST_API: neocogi_com_core::NcHostApiV1 = neocogi_com_core::NcHostApiV1 {
+    size: mem::size_of::<neocogi_com_core::NcHostApiV1>(),
+    runtime_abi_version: neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION,
+    core_abi_version: NC_COM_CORE_ABI_VERSION,
+    runtime: &RUNTIME_API_V1,
+    debug: &DEBUG_API_V1,
+    persistence: &PERSISTENCE_API_V1,
 };
 
 /// Validates a borrowed ABI UTF-8 path and returns a call-scoped `Path` view.

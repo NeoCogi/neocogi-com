@@ -39,3 +39,16 @@ mod state;
 pub use loader::{
     FactoryInspection, PluginDependencyPlanError, PluginInspection, PluginLoadError, PluginLoadErrorKind, inspect_plugin_library, plan_plugin_load_order,
 };
+
+/// Initializes the selected host implementation and lends its canonical C API.
+///
+/// Initialization is empty, infallible and idempotent. It invokes no provider,
+/// loads no library and seeds no contract registry. State, immutable tables and
+/// callback code remain valid for the process/Wasm-instance lifetime, including
+/// after the application entry returns. Copies of the supplied access do not
+/// create additional owners. Reusable libraries/plugins receive that access;
+/// they do not select or initialize another implementation.
+pub fn initialize_process() -> &'static neocogi_com_core::NcHostApiV1 {
+    let _ = state::RuntimeState::global();
+    &api::HOST_API
+}

@@ -123,6 +123,7 @@ mod tests;
 pub use neocogi_com_core::lifetime;
 pub use neocogi_com_core::{ComBox, WeakComBox};
 pub use neocogi_com_core::{NcCopyFromBufferOffset, WeakComPtr, NcWeakRaw};
+pub use neocogi_com_core::{NcHostApiV1, validate_host_api};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
