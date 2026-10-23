@@ -1,10 +1,21 @@
 //! Canonical logical types used to describe COM ABI contracts.
 //!
-//! These enums and records are the semantic vocabulary behind runtime metadata:
-//! value types, passing modes, threading promises, aggregate identities, and interface
-//! identities. Raw numeric constants mirror each stable C representation for
-//! consumers that do not use the Rust enums. ABI signature generation belongs to
-//! the IDL resolver and is intentionally absent from this runtime crate.
+//! Rust enums describe logical value types, passing modes and threading promises.
+//! Physical metadata records use fixed-width integer tags whose accepted encodings
+//! are named by the `NC_ABI_*` constants. ABI signature generation belongs to the
+//! IDL resolver and is intentionally absent from this runtime crate.
+//!
+//! # Why physical tags use integers
+//!
+//! An initialized `u32` can hold an unknown or reserved code until a reader rejects
+//! it. A Rust enum may hold only its declared discriminants, even with `repr(u32)`;
+//! reading an invalid enum is undefined behavior before an ordinary match can
+//! reject it. Readers therefore check raw integers before interpreting them as
+//! logical variants, using checked conversion rather than transmutation.
+//!
+//! Flat constants are the current naming API, not a requirement of C interoperability.
+//! An enum could organize the known encodings locally with checked conversion;
+//! the raw record would still need integer storage that permits validation.
 
 use crate::guid::NcGuid;
 use crate::signature::NcAbiSignature;
@@ -46,7 +57,10 @@ impl NcInterfaceId {
     }
 }
 
-/// Canonical ABI type retained in generated method and field metadata.
+/// Logical Rust type used to construct generated method and field metadata.
+///
+/// [`NcAbiTypeDescriptor::from_abi_type`] lowers this enum to a physical record.
+/// This enum's native representation is not the shared-library metadata layout.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NcAbiType {
     /// No value is present.
@@ -90,7 +104,10 @@ pub enum NcAbiType {
     },
 }
 
-/// How a method argument or return value crosses the ABI boundary.
+/// Logical Rust description of how an argument or result crosses the ABI boundary.
+///
+/// [`NcAbiPassingDescriptor`] stores the corresponding raw integer encodings;
+/// this enum's native representation does not cross the shared-library boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NcAbiPassing {
     /// Shared weak header returned through an out slot; promotion is separate.
@@ -204,6 +221,10 @@ impl NcAbiThreadingMode {
     }
 }
 
+// These constants name raw descriptor encodings, separately from NcAbiType's
+// logical variants and payloads. Integer storage permits rejection of reserved
+// or unknown tags; see NcAbiTypeDescriptor's representation rationale.
+
 /// C-stable ABI type tag for no value (void).
 pub const NC_ABI_TYPE_VOID: u32 = 0x00;
 /// C-stable ABI type tag for `bool`.
@@ -282,10 +303,17 @@ pub const NC_ABI_RECEIVER_SHARED: u32 = 0x00;
 pub const NC_ABI_RECEIVER_MUTABLE: u32 = 0x01;
 
 /// C-stable typed ABI descriptor for one method argument or return type.
+///
+/// The raw tag remains an integer so reserved or unknown codes can be inspected
+/// and rejected before semantic use. Replacing it with a Rust enum would assume
+/// a valid discriminant when reading the record; `repr(u32)` fixes representation
+/// but does not permit undeclared variants. [`NcAbiType`] is the local logical
+/// description used when constructing known descriptors.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct NcAbiTypeDescriptor {
-    /// One of the `NC_ABI_TYPE_*` values.
+    /// Raw type encoding; valid producers use one of the `NC_ABI_TYPE_*` values.
+    /// Readers must reject unsupported codes before interpreting the type.
     pub tag: u32,
     /// Declaration-scoped aggregate signature when `tag == NC_ABI_TYPE_AGGREGATE`.
     ///
@@ -351,12 +379,17 @@ impl NcAbiTypeDescriptor {
 }
 
 /// C-stable typed ABI descriptor for one method argument or return passing mode.
+///
+/// Integer fields permit checked admission of incoming tags and threading codes,
+/// for the same reason as [`NcAbiTypeDescriptor`]. [`NcAbiPassing`] describes
+/// logical passing modes locally; [`NcAbiThreadingMode::from_raw`] checks the
+/// raw threading encoding before constructing a Rust enum value.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct NcAbiPassingDescriptor {
-    /// One of the `NC_ABI_PASSING_*` values.
+    /// Raw passing encoding; readers must validate against `NC_ABI_PASSING_*`.
     pub tag: u32,
-    /// One of the `NC_ABI_THREADING_*` values for COM pointer modes.
+    /// Raw `NC_ABI_THREADING_*` encoding for COM pointer modes, checked on admission.
     pub threading: u32,
 }
 

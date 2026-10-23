@@ -19,6 +19,33 @@ Independently compiled modules remain supported with different compiler versions
 and flags when they agree on core generation, exact signatures, target C layout,
 and atomic pointer width. Rust native enum or container layout never becomes ABI.
 
+## Integer metadata tags and Rust enums
+
+Physical metadata uses fixed-width integer fields: `NcAbiTypeDescriptor.tag` is
+a `u32`, as are the passing and threading encodings in `NcAbiPassingDescriptor`.
+The `NC_ABI_TYPE_*`, `NC_ABI_PASSING_*` and related constants name their accepted
+encodings. `NcAbiType`, `NcAbiPassing`, `NcAbiThreadingMode` and `NcAbiReceiver`
+are local Rust descriptions converted explicitly to or from those raw values;
+their native enum layouts are not shared-library metadata contracts.
+
+Integer storage allows a reader to inspect and reject an unsupported code.
+For example, type tag `0x01` denotes `bool`, while reserved tag `0x10` must be
+rejected by a reader interpreting the type. Both are representable as initialized
+`u32` values. The signature formatter matches the raw codes and returns
+`NC_E_INVALID_ARG` for an unsupported tag.
+
+A Rust enum may contain only a declared discriminant. `#[repr(u32)]` fixes its
+representation but does not make other integers valid enum values. Receiving
+an invalid enum and then trying to reject it in an ordinary match is already
+undefined behavior; see the [Rust validity rules](https://doc.rust-lang.org/reference/behavior-considered-undefined.html).
+Read the raw integer first and use checked interpretation or conversion, never
+transmutation of an unchecked tag.
+
+Flat constants are an API organization choice. Known encodings could instead
+have namespaced enum variants with checked integer conversion; the physical
+record would still need storage that permits raw-value validation. This rationale
+does not require backward compatibility or acceptance of unfamiliar tags.
+
 ## Raw output parameter
 
 A logical output `T` becomes four raw arguments in this order:
