@@ -65,7 +65,7 @@ a Rust reference; conflicting or reentrant access returns `NC_E_BUSY`. Shared
 objects keep their method borrow state separate from strong counting. Exclusive
 objects combine owner presence and reader/writer admission in one atomic word.
 The ABI implementation contains the necessary `UnsafeCell`; semantic state stays
-in ordinary fields. See the [current ABI](../../crates/com/docs/README.md) for layouts,
+in ordinary fields. See the [current ABI](../../crates/com/docs/abi-v1.md) for layouts,
 ownership transfer and the limits of concurrent Drop.
 
 ## Events and UI ownership
@@ -108,8 +108,8 @@ Dynamic and static assemblies use the same typed acquisition. Dynamic builds exp
 `nc_get_plugin_descriptor_v1`; monoliths register the same provider's Rust
 descriptor and link the runtime statically. Independent compiler versions and
 build flags are supported when the target C ABI, core generation and exact contract
-signatures agree. The [compatibility matrix](../../crates/com/docs/compatibility.md)
-records actual cross-build verification. The [current contract index](../../crates/com/docs/README.md)
+signatures agree. The [compatibility matrix](../../crates/com/docs/abi-v1.md#independent-build-compatibility)
+records actual cross-build verification. The [current contract index](../../crates/com/docs/abi-v1.md)
 separates core ABI generation from discovery versions and IDL hash encoding.
 
 Inspection exposes plugin and factory compatibility metadata. A custom widget

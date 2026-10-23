@@ -8,7 +8,7 @@ support, typed plugin roots, and an optional facade over the linked
 Public cross-library contracts should be authored as Rust-like `.ncidl`
 modules. See [IDL contract modules](../../../docs/contracts/IDL_MODULES.md) for their
 source, crate, signature, and tooling model. The
-[current core ABI specification](../docs/README.md) defines the binary boundary.
+[current core ABI specification](../docs/abi-v1.md) defines the binary boundary.
 
 ## Contracts and concrete objects
 
@@ -239,7 +239,7 @@ release version, static/dynamic origin, single `FactoryInfo` and hard dependency
 GUIDs. `Runtime::plugins()` returns these complete owned records in registration
 order, without separate factory or dependency queries. Repeated provider loads reuse the
 first registration and origin; conflicting providers are rejected. See
-[runtime ABI v1](../docs/runtime-abi-v1.md).
+[runtime ABI v1](../docs/abi-v1.md#runtime-and-global-registry).
 
 Inspection is a separate operation that can report errors without registering
 or acquiring a plugin factory. Its fallible result does not make live loading optional.

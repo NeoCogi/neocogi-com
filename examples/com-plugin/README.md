@@ -66,7 +66,7 @@ The [compatibility driver](../../crates/com/scripts/compatibility.py) independen
 builds the shared runtime, host and plugin with explicitly selected compilers and
 flags, removes their build outputs, and executes the relocated three-file deployment.
 The [build-modes integration test](tests/build_modes.rs) separately checks the
-self-contained monolith. See the [matrix contract](../../crates/com/docs/compatibility.md).
+self-contained monolith. See the [matrix contract](../../crates/com/docs/abi-v1.md#independent-build-compatibility).
 
 `--release` can be added to each build command; use `target/release` for the
 link and loader directories. `cargo-neocogi` is optional deployment tooling and

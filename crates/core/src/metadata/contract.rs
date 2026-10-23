@@ -20,11 +20,12 @@
 use crate::guid::NcGuid;
 use crate::signature::NcAbiSignature;
 
-/// Current experimental draft core ABI version.
+/// Current pre-release COM core ABI baseline.
 ///
-/// This identifies the current binary generation; it does not mean core ABI v17 has
-/// reached its ratification milestone.
-pub const NC_COM_CORE_ABI_VERSION: u32 = 17;
+/// Core, runtime discovery and plugin descriptor discovery currently report v1.
+/// Pre-release layouts can change in place; rebuild all peers from the same
+/// checkout and check exact interface signatures as well as the version prefix.
+pub const NC_COM_CORE_ABI_VERSION: u32 = 1;
 
 /// Stable identity for one COM interface ABI contract.
 ///

@@ -1,5 +1,17 @@
 # Changelog
 
+The current contract is [pre-release ABI v1](docs/abi-v1.md). Entries below record
+its development; later entries can supersede older implementation details.
+Historical draft numbers do not define additional supported COM baselines.
+
+## One pre-release ABI-v1 specification
+
+Consolidate the core object, runtime discovery and compatibility specifications
+into one guide. Core, runtime and plugin discovery identify the v1 baseline;
+the IDL canonical encoding, catalog schemas and exact interface signatures retain
+their separate identities. Rebuild contracts, providers and hosts together.
+The native global registry remains owned by the shared COM runtime.
+
 ## UI-owned event contracts (pre-release)
 
 Move event transport and snapshot publication into UI. COM and IDL retain only
@@ -14,7 +26,7 @@ The standalone SDK example uses its own typed extent observer without UI depende
 Canonical module encoding is now v12. Recursive type alternatives have explicit,
 disjoint discriminants; a template parameter cannot share an output-buffer tag.
 Regenerate all contract bindings and rebuild providers, plugins and hosts together.
-Nominal IDs, core ABI 17 and runtime/plugin descriptor discovery ABI v1 retain
+Nominal IDs, core ABI v1 and runtime/plugin descriptor discovery ABI v1 retain
 their existing definitions. Checked-in persistence bindings use the new signatures.
 
 ## Generated binding and public-name ownership (pre-release)
@@ -48,7 +60,7 @@ Use one lexical bound/free classifier for type expressions, direct bases and
 emitted events. Positional binders no longer fail as unresolved declarations;
 qualified free names retain their identities. Reference slots carry explicit
 bound/free tags under canonical module encoding v11. Regenerate bindings and
-rebuild hosts, plugins and contracts together. Nominal IDs, core ABI 17, discovery
+rebuild hosts, plugins and contracts together. Nominal IDs, core ABI v1, discovery
 ABI v1 and the one registry in the shared COM runtime remain unchanged.
 Nested base/event argument spans now retain their authored source for diagnostics.
 
@@ -92,7 +104,7 @@ declaration fully connected.
 Generated storage retains `MaybeUninit<T>` because weak references can keep
 storage allocated after value destruction; there is no uninitialized-value
 construction phase. Shared/exclusive borrowing, interface tables,
-threading promises, descriptor ABI v1, core draft 17 and fingerprint domain 10
+threading promises, descriptor ABI v1, core ABI v1 and fingerprint domain 10
 remain unchanged. This supersedes the cyclic construction described in the
 historical ABI 11/12 entries below. See
 [the construction contract](../../docs/contracts/COM_OBJECT_CONSTRUCTION.md).
@@ -106,19 +118,19 @@ destruction, allocator release and interface projections remain class-specific.
 Publish cyclic construction after initialization, preserve rollback for escaped
 weak origins, and transfer promoted ownership without an extra query retain.
 IDL fingerprints and core generation reject the former weak-token contract.
-See [ABI v12](docs/abi-v12.md).
+See [ABI v1](docs/abi-v1.md).
 
 All notable changes to the experimental component ABI are documented here.
 Semantic-version compatibility begins only after an explicitly ratified ABI.
 
-## Weak lifetime handles (core ABI 11)
+## Weak lifetime handles (core ABI v1)
 
 Add the optional C-shaped weak downgrade operation to the common object prefix,
 `WeakComPtr<T>` with checked promotion, and generated cyclic initialization for
 weak self origins. Generated objects keep one Arc-backed allocation; final strong
 release destroys the value, while weak references can retain its empty shell.
 The two-word strong handle and exact interface negotiation remain unchanged.
-Old core generations are rejected before dispatch. See [ABI v11](docs/abi-v11.md).
+Old core generations are rejected before dispatch. See [ABI v1](docs/abi-v1.md).
 
 ## Shared binding-path validation
 
@@ -132,7 +144,7 @@ Regression coverage compiles IDL published under `r#type`, copies its descriptor
 through real catalog COM calls, compiles exported forms in a downstream crate,
 and dispatches the typed event. See the [descriptor text contract](core/README.md#descriptor-text-validation).
 
-## Object/table handles (core ABI 10)
+## Object/table handles (core ABI v1)
 
 COM references now carry the allocation address and selected interface table.
 Generated objects have no per-interface headers, and dispatch no longer recovers
@@ -237,7 +249,7 @@ prefixes and full explicit inspection remain supported.
 These entries record superseded designs, not the current API. Native contract
 artifacts, `trait`/`class` IDL declarations, global contract registration, and
 runtime ABI v2 were subsequently removed or replaced. Current binary contracts
-are core v12, factory-plugin v1, and runtime v1; see the [ABI guide](docs/abi-v12.md).
+are core v1, plugin descriptor v1, and runtime v1; see the [ABI guide](docs/abi-v1.md).
 
 - Added Rust-like `.ncidl` modules with `struct`, `enum`, `trait`, `class`, and
   `factory` declarations. Every module is an ordinary Cargo crate whose

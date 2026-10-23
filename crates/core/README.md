@@ -3,7 +3,7 @@
 The C-shaped ABI shared by generated contracts, hosts, plugins, and the process
 runtime. Its default configuration is allocation-free; optional `alloc` helpers
 own decoded values and binary documents. Most authors use the `neocogi-com`
-facade. The [current object ABI](../docs/README.md) remains experimental.
+facade. The [current object ABI](../docs/abi-v1.md) remains experimental.
 
 Core defines statuses, GUIDs, exact signatures, typed metadata, raw object/table pairs
 and vtables, `IUnknown`, `ComPtr`, and `ComRef`. `ComInterface` owns identity and
@@ -26,9 +26,9 @@ bootstrap function or live factory reference. These records have different roles
 and do not own the storage behind their pointers.
 
 Runtime discovery stays v1, with three tables: complete plugin operations, debug,
-and persistence. See [runtime ABI v1](../docs/runtime-abi-v1.md) for descriptor
+and persistence. See [runtime ABI v1](../docs/abi-v1.md#runtime-and-global-registry) for descriptor
 lifetimes, inspection and acquisition, and the
-[ABI specification entrypoint](../docs/README.md) for object layouts.
+[ABI specification entrypoint](../docs/abi-v1.md) for object layouts.
 
 ## Interface safety
 
@@ -254,8 +254,9 @@ each child once. Propagate any error and discard that document operation; these
 cursors do not promise recovery after a partial read or write. Measurement runs
 that same writer without storing bytes.
 
-NCB version 1 and canonical IDL encoding v8 are unchanged by the persistence
-simplification. Core ABI v16 subsequently replaces signature views only. The
+NCB version 1 is independent of the COM ABI-v1 signature view and the compiler's
+canonical IDL encoding; the [IDL reference](../../../docs/contracts/IDL_MODULES.md)
+owns the current fingerprint domain. The
 codec's Rust traits/cursors never cross a plugin boundary; providers exchange
 the existing C-shaped persistence handles and byte buffers. The removed
 `sequence` and `rename_all` policies are rejected rather than silently ignored.

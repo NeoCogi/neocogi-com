@@ -338,15 +338,17 @@ mod tests {
         assert_eq!(unsafe { validate_plugin_descriptor(&unsigned) }, NC_E_INVALID_ARG);
     }
 
-    /// Old layouts are rejected using only their common prefix, without a
-    /// current-size reference, signature read or bootstrap access.
+    /// Unsupported versions are rejected using only their common prefix,
+    /// without a complete descriptor borrow, signature read or bootstrap access.
     #[test]
-    fn rejects_previous_generations_from_the_version_prefix_alone() {
+    fn rejects_unsupported_versions_from_the_prefix_alone() {
         assert_eq!(core::mem::offset_of!(NcPluginDescriptor, description_abi_version), 0);
         assert_eq!(core::mem::offset_of!(NcPluginDescriptor, core_abi_version), 4);
         for versions in [
-            [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 8],
-            [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 15],
+            [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 0],
+            [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 2],
+            [NC_PLUGIN_DESCRIPTOR_ABI_VERSION, u32::MAX],
+            [0, NC_COM_CORE_ABI_VERSION],
             [NC_PLUGIN_DESCRIPTOR_ABI_VERSION + 1, NC_COM_CORE_ABI_VERSION],
         ] {
             // SAFETY: Only the readable version prefix is promised for an

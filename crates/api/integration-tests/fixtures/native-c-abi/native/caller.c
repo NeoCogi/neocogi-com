@@ -91,7 +91,7 @@ typedef struct NcWeakRaw { NcWeakControl *control; } NcWeakRaw;
 _Static_assert(sizeof(NcWeakRaw) == sizeof(void *), "weak token must be one pointer");
 
 struct IUnknownVTable {
-    /* Exact selected contract; receivers are direct object addresses in core ABI 12. */
+    /* Exact selected contract; receivers are direct object addresses in core ABI v1. */
     const NcInterfaceId *interface_id;
     NcStatus (*query_interface)(
         void *self,

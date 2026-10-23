@@ -18,10 +18,10 @@
 //! of checked live-call wire layouts. Scalar and fixed-size codecs work without
 //! allocation; owned values and growable output require the `alloc` feature.
 //!
-//! [`NC_COM_CORE_ABI_VERSION`] selects the experimental pre-alpha core draft. This version
-//! identifies its current binary generation, not a ratified compatibility
-//! baseline. Cross-release compatibility begins only at an explicitly named
-//! future ratification milestone.
+//! [`NC_COM_CORE_ABI_VERSION`] is the pre-release v1 baseline, alongside runtime
+//! and plugin discovery v1. Layouts may change in place before ratification;
+//! matching version numbers alone do not establish cross-checkout compatibility.
+//! Rebuild peers together and require their exact interface signatures.
 
 #![no_std]
 #![deny(missing_docs)]

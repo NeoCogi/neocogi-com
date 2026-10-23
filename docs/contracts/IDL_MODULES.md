@@ -151,7 +151,7 @@ described above.
 Interfaces have no implementation-role discriminator in their canonical encoding.
 Revision v13 removes UI event publication edges from callable contract identity;
 IDL has no event-reference slots. Rebuild affected contracts, providers and hosts
-together, including built-in persistence bindings. Nominal IDs, core layout v17,
+together, including built-in persistence bindings. Nominal IDs, core ABI v1,
 source-graph schema and the shared-runtime registry are separate contracts;
 runtime discovery remains ABI v1. Closed generic interfaces work as object
 contracts and plugin roots; open templates have no callable ABI.
@@ -709,7 +709,7 @@ those routes nor filesystem roots affect logical IDs or ABI signatures. Pure
 `generate_rust_with_paths` callers continue supplying accessible owner locations;
 Cargo-specific routes are selected by `Module::build`. Source graph schema 7
 requires providers with this namespace and rejects older sidecars. Runtime and
-plugin discovery remain ABI v1 and core draft 17; source routes do not change
+plugin discovery and the core baseline remain ABI v1; source routes do not change
 the [canonical signature encoding](#canonical-signatures).
 
 ### Diagnostics
@@ -754,8 +754,9 @@ nested Cargo invocation, target rustc invocation, C compiler, or archiver is
 launched by the contract build helper.
 
 The [canonical module encoding](#canonical-signatures) includes threading,
-required projections and the current COM ABI explicitly. The resolver
-includes exact transitive module fingerprints in each declaration
+required projections and the exact identities of referenced core interfaces.
+The numeric core discovery version is a separate admission check, not a
+fingerprint input. The resolver includes exact transitive module fingerprints in each declaration
 signature. The plugin descriptor publishes its root factory's full IID and
 signature. Factory acquisition compares both before calling bootstrap;
 `QueryInterface` and typed pointer transfers continue to check exact identity.
@@ -999,7 +1000,7 @@ example, enum limits, and real generated-call regressions.
 
 The provider threading guarantee is preserved for all three owner/observer
 wrappers. See [exclusive widget ownership](EXCLUSIVE_WIDGET_OWNERSHIP.md) and
-[current core ABI](../../crates/com/docs/README.md) for lifetime and concurrency rules.
+[current core ABI](../../crates/com/docs/abi-v1.md) for lifetime and concurrency rules.
 
 ## Interpreting generated names
 

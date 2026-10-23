@@ -2030,7 +2030,7 @@ fn encode_type(scope: EncodingScope<'_>, ty: &AbiType, entries: &[ModuleEntry], 
             encode_type(scope, element, entries, encoder)?;
         }
         AbiType::OutputSlice(element) => {
-            // Output-only slots include an initialized-prefix count in ABI 17.
+            // Output-only slots include an initialized-prefix count in ABI v1.
             // Their revision must differ from the retired initialized in/out ABI.
             encoder.type_tag(TypeTag::OutputSlice);
             encode_type(scope, element, entries, encoder)?;

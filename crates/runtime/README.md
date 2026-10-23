@@ -32,7 +32,7 @@ errors. It exposes plugin/factory data, not a runtime inventory of contract
 declarations. Static registration and later factory calls retain their existing
 status-returning contracts; they are separate operations from live loading.
 
-[Runtime ABI v1](../docs/runtime-abi-v1.md) has three C tables:
+[Runtime ABI v1](../docs/abi-v1.md#runtime-and-global-registry) has three C tables:
 complete plugin operations, diagnostics and persistence. Plugin lookup and
 enumeration share one projection containing identity, factory and dependencies. Loading
 returns a plugin GUID. Plugin inspection reports static origin or the first
@@ -40,7 +40,7 @@ library path; native handles remain private. The same descriptor reuses its
 registration, while conflicting descriptors are rejected. There is no module
 ID, module registry or module-to-plugin join. The limit is 1,024 distinct dynamic
 providers, excluding static registrations and repeats, and 64 active messengers.
-Plugin descriptor ABI v1 and core object ABI v17 remain independently versioned.
+Plugin descriptor ABI v1 and core object ABI v1 remain independently versioned.
 
 ## Build and link
 

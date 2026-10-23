@@ -13,19 +13,22 @@ fn example<'a>(document: &'a str, label: &str) -> &'a str {
     body.split_once("\n```").expect("example has a closing fence").0
 }
 
-/// Advancing the binary contract must also advance the one public specification entrypoint.
+/// One maintained specification owns the pre-release v1 baseline and its examples.
 #[test]
-fn current_abi_guide_matches_compiler_version() {
-    let version = neocogi_com_core::NC_COM_CORE_ABI_VERSION;
-    let index = include_str!("../../docs/README.md");
-    let selection = format!("[Core ABI v{version}](abi-v{version}.md)");
-    assert!(index.contains(&selection), "the current guide must select {selection}");
-    let specification = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../docs/abi-v{version}.md"));
-    let document = fs::read_to_string(specification).expect("selected ABI specification must exist");
-    assert!(
-        document.starts_with(&format!("# COM core ABI v{version}:")),
-        "selected specification must describe the current generation"
-    );
+fn com_abi_v1_has_one_specification_and_matching_discovery_versions() {
+    assert_eq!(neocogi_com_core::NC_COM_CORE_ABI_VERSION, 1);
+    assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 1);
+    assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 1);
+    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../docs");
+    let mut specifications = fs::read_dir(&directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "md"))
+        .collect::<Vec<_>>();
+    specifications.sort();
+    assert_eq!(specifications, [directory.join("abi-v1.md")], "keep one COM ABI document");
+    let document = include_str!("../../docs/abi-v1.md");
+    assert!(document.starts_with("# COM ABI v1\n"));
 }
 
 /// Current guidance consumes the actual compiler encoding and Cargo name policy.
@@ -115,7 +118,7 @@ fn readme_factory_contract_and_bootstrap_execute_as_documented() {
 }
 
 /// Scan every active normative guide, rather than only the page edited for a migration.
-/// Dated review/evidence trees and superseded ABI specifications are historical records.
+/// Dated review/evidence trees retain their recorded source scope.
 #[test]
 fn active_guides_do_not_reintroduce_retired_protocol_prescriptions() {
     fn markdown(root: &Path, files: &mut Vec<std::path::PathBuf>) {

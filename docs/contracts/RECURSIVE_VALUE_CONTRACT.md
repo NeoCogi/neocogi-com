@@ -14,7 +14,7 @@ alive. It can be stored recursively in borrowed aggregates or returned directly;
 its wire is `NcWeakRaw`. Acquisition validates shared ownership and the exact
 interface, then retains a weak token without promotion. Expired tokens remain
 valid transport values. Weak fields have distinct design metadata and do not
-acquire copied-buffer or persistence capability. See [ABI v17](../../crates/com/docs/abi-v17.md#shared-weak-result-and-value-transport).
+acquire copied-buffer or persistence capability. See [ABI v1](../../crates/com/docs/abi-v1.md#shared-weak-result-and-value-transport).
 
 A value consists of scalar leaves or recursively composed aggregates: records,
 tagged enum alternatives, fixed arrays, and sequences. `Option<T>` is a bundled
@@ -360,7 +360,7 @@ that claims ownership has been restored.
 External native adapters must explicitly implement the generated contract's
 checked wire semantics. Native C layout alone does not prove restricted field
 validity. IDL owns no native packing, alignment, or external-field mode. See the
-[current ABI entrypoint](../../crates/com/docs/README.md) for binary versions.
+[current ABI entrypoint](../../crates/com/docs/abi-v1.md) for binary versions.
 
 ## Current IDL spelling and supported use sites
 
@@ -412,7 +412,7 @@ value graphs with the producer's graph. Its versioned `DesignWidgetManifest`
 copies the result through a COM catalog, so the receiving designer need not link
 the provider's Rust crate. See [UI event metadata](UI_EVENT_METADATA.md) for this
 application-level format. The process runtime's
-[plugin inspection](../../crates/com/docs/runtime-abi-v1.md) reads plugin/factory
+[plugin inspection](../../crates/com/docs/abi-v1.md#runtime-and-global-registry) reads plugin/factory
 descriptors rather than these source-level value definitions.
 
 The designer validates unique definitions, known scalar forms, complete named

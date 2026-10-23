@@ -96,4 +96,4 @@ count reaches the outer thunk.
 The built-in `INcBytes` and `INcString` exact-range byte-copy methods retain
 their three-argument pointer protocol and descriptor category. They never read
 old bytes, contain no restricted native elements, and are independent of the
-removed generic mutable buffer. See [ABI v17](../../crates/com/docs/abi-v17.md).
+removed generic mutable buffer. See [ABI v1](../../crates/com/docs/abi-v1.md).

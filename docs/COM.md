@@ -5,7 +5,7 @@ through an explicit C-shaped ABI. Rust-like IDL is the source of public contract
 truth; generated COM interfaces carry calls, and plugins expose one typed root
 factory.
 
-The [current COM contract](docs/README.md) is experimental and may change before ratification.
+The [current COM contract](docs/abi-v1.md) is experimental and may change before ratification.
 
 ## Component model
 
@@ -29,7 +29,7 @@ plugin as a shared library and as an rlib statically linked into a monolith.
 
 See [IDL contract modules](../../docs/contracts/IDL_MODULES.md) for authoring and native
 builds, [component design](../../docs/architecture/COM_DESIGN.md) for responsibility
-boundaries, and [the current ABI specification](docs/README.md) for the binary model.
+boundaries, and [the current ABI specification](docs/abi-v1.md) for the binary model.
 
 ## IDL
 
@@ -216,7 +216,7 @@ Runtime ABI v1 has one complete plugin-operation table, plus debug and
 caller-scoped persistence tables. Lookup and enumeration return the same complete
 plugin description, including its factory contract and dependency GUIDs. Loading returns the plugin GUID; inspection
 reports its first static/dynamic origin. Separate module identities and module
-queries were removed. See [the runtime contract](docs/runtime-abi-v1.md).
+queries were removed. See [the runtime contract](docs/abi-v1.md#runtime-and-global-registry).
 Acquisition checks the exact factory signature before bootstrap. Unconnected
 contract revisions can coexist; incompatible pointer transfers are rejected.
 `neocogi-inspect` emits schema 9 with plugin/dependency/root-factory metadata,
@@ -292,7 +292,7 @@ messages without an intermediate component relay.
 
 ## Executed compatibility checks
 
-The [compatibility matrix](docs/compatibility.md) defines independent runtime,
+The [compatibility matrix](docs/abi-v1.md#independent-build-compatibility) defines independent runtime,
 host and plugin builds, mixed compiler/profile policies, relocated execution,
 and the separate Miri/sanitizer checks. One standard-library Python driver owns
 these checks; shell, PowerShell and CI entry points delegate to it. An ordinary

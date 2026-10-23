@@ -69,11 +69,11 @@ the value once, while its implicit weak owner keeps storage valid through that
 destructor. The final weak reference frees storage through the allocating
 provider. Each callback remains paired with the exact generated allocation.
 
-Runtime and plugin descriptor ABI remain v1. Core draft 17, handle layouts,
+Runtime, plugin descriptor and core ABI remain v1. Handle layouts,
 threading and process-wide runtime authority are unchanged by typed storage.
 The compiler owns the separate [canonical signature encoding](IDL_MODULES.md#canonical-signatures).
-Historical ABI 11/12 descriptions of cyclic construction
-are superseded by this pre-release contract. The typed storage consolidation
+Earlier descriptions of cyclic construction are superseded by this pre-release
+contract. The typed storage consolidation
 below preserves the two constructor names for each ownership family.
 
 ## Typed storage and implementation proof

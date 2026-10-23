@@ -73,8 +73,7 @@ unsafe impl ComInterface for INcBytesAbi {
     type VTable = INcBytesVTable;
 }
 
-/// SHA-256 of `neocogi-com:core-abi:v13\0` followed by the preceding v12 digest.
-/// Precomputed signature for the built-in byte-sequence contract.
+/// Fixed ABI-v1 signature for the built-in byte-sequence contract.
 ///
 /// This checked-in digest prevents the core crate from hashing during rustc
 /// constant evaluation while retaining an exact identity for the built-in ABI.
@@ -204,8 +203,7 @@ unsafe impl ComInterface for INcStringAbi {
     type VTable = INcStringVTable;
 }
 
-/// SHA-256 of `neocogi-com:core-abi:v13\0` followed by the preceding v12 digest.
-/// Precomputed signature for the built-in UTF-8 string contract.
+/// Fixed ABI-v1 signature for the built-in UTF-8 string contract.
 ///
 /// This checked-in digest prevents the core crate from hashing during rustc
 /// constant evaluation while retaining an exact identity for the built-in ABI.

@@ -3,7 +3,7 @@
 The current ABI uses **`{object, interface_vtable}` handles**. A generated object
 contains one concrete Rust value and a common lifetime header. Shared objects keep
 a separate call-borrow gate; exclusive objects combine owner presence and borrowing
-in the header's atomic state. The [current ABI specification](../../crates/com/docs/README.md)
+in the header's atomic state. The [current ABI specification](../../crates/com/docs/abi-v1.md)
 defines both ownership policies. This guide explains interface storage; its size
 tables record the named historical revisions, not current allocation costs.
 Interfaces add no fields to each allocation. A handle selects a static table and
@@ -82,10 +82,9 @@ an IUnknown projection. This matters at plugin bootstrap: it transfers an erased
 interface view, the runtime validates/returns the factory view, and typed factory
 clients adopt it directly. Clients asking for IUnknown query that exact contract.
 
-Core ABI **generation 10 introduced** this layout and calling convention. Later
-generations changed lifetime and ownership-transfer rules while retaining the
-object/table pair. Discovery requires the [current generation](../../crates/com/docs/README.md),
-including its behavioral rules, before activation.
+The [COM ABI v1 contract](../../crates/com/docs/abi-v1.md) specifies this layout,
+calling convention and ownership behavior. Discovery checks that baseline before
+acquisition; exact interface signatures additionally select the callable contract.
 
 ## Compilation, queries, and borrowed inherited methods
 
@@ -100,8 +99,10 @@ A successful shared-owner query transfers exactly one reference and returns the 
 address with the requested table. An absent IID returns `NC_E_NOINTERFACE`; a
 matching IID with a different signature returns `NC_E_ABI_VERSION`. Failure clears
 both output words. Typed clients also reject a returned different object and
-release its transferred reference. Exclusive-owner queries return weak observations
-and never add an owner. Object address determines allocation identity;
+release its transferred reference. For exclusive objects, `ComBox::query(self)`
+moves the sole owner, `query_ref(&self)` borrows a projection, and
+`query_weak(&self)` creates a weak observation. None duplicates the owner.
+Object address determines allocation identity;
 GUID plus signature determines interface identity. Table-address equality is not
 a substitute for contract validation.
 
@@ -383,11 +384,11 @@ Release. Interleave old/new binaries and discard each run's warmup. These sample
 measure query plus release, not application throughput. Save logs/binaries outside
 `target` before the required Cargo cleanup before and after every commit.
 
-## Historical follow-up: shared weak lifetimes in core ABI 12
+## Shared weak lifetimes
 
-This section records the shared-service migration. Current widgets instead follow
-[exclusive ownership](EXCLUSIVE_WIDGET_OWNERSHIP.md); the current ABI index above
-is the authority for new providers.
+Shared services use strong and weak reference counts. Widgets instead follow
+[exclusive ownership](EXCLUSIVE_WIDGET_OWNERSHIP.md); the ABI specification above
+defines both lifetime policies.
 
 The strong object/table handle remains two words; a weak handle now contains one
 control pointer. Generated allocations use the common COM header in place of
@@ -402,8 +403,9 @@ weak handle saves one pointer. Concrete-value alignment can introduce padding;
 interface count still adds no per-object fields. Lifetime changes do not add a
 call gate: the existing gate continues to enforce typed mutable/shared access.
 Final strong release destroys the value and its resources, while weak owners keep
-only the allocation capacity and class metadata alive. Constructor rollback and
-exact promotion semantics are specified in [ABI v12](../../crates/com/docs/abi-v12.md#weak-lifetime-references).
+only the allocation capacity and class metadata alive. Objects always start from
+initialized values; no cyclic constructor or rollback protocol exists. Exact
+promotion semantics are specified in [ABI v1](../../crates/com/docs/abi-v1.md#weak-lifetime-references).
 
 A historical matched full/Vulkan comparison reduced deployment from 1,536,440 to 1,505,688 bytes: 30,752 fewer bytes (2.00%).
 Instruction/table/relocation changes and allocation-header costs remain distinct

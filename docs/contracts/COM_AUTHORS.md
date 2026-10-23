@@ -1070,7 +1070,7 @@ contract, its conservative enum limit, and failure-injection tests.
 Fresh private builders may deliberately discard returned candidates after a
 failed ABI call, provided those candidates cannot own an active receiver. There
 is no implicit tuple-to-status conversion that would hide that decision. See
-[ABI v17](../../crates/com/docs/abi-v17.md) for wire slots, forwarding, multiple inputs
+[ABI v1](../../crates/com/docs/abi-v1.md) for wire slots, forwarding, multiple inputs
 and the requirement to return valid output after accepting ownership.
 
 For construction code that deliberately abandons failed candidates, convert to
@@ -1091,7 +1091,7 @@ input. Providers implement `NcOutputWriter<'_, T>`, write using `push` or
 after success. Short results expose only their initialized prefix. A true
 transformation takes a distinct `&[T]` input and output argument. See
 [the complete contract](COM_OUTPUT_BUFFERS.md) for forwarding, allocation-free
-identity storage, failure semantics, wire validation, and ABI generation 17.
+identity storage, failure semantics, wire validation, and ABI v1.
 
 Private content created by `WidgetFactory::dispatching_leaf` receives a borrowed
 `LeafDispatchContext` in `DispatchingLeafContent::dispatch_next`. After committing

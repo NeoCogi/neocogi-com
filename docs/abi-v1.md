@@ -1,0 +1,1162 @@
+# COM ABI v1
+
+This is the single current COM binary contract. The authoritative layouts are
+the public `#[repr(C)]` definitions in [core](../core/src/lib.rs); this document
+describes how their calling, ownership, runtime and deployment rules compose.
+
+COM is pre-release. Core, runtime-table and plugin-descriptor discovery all
+currently report version **1**. Layouts and behavior may change in place before
+ratification: rebuild the runtime, host, plugins and generated contracts from
+the same checkout. Version 1 is not a promise of compatibility with an older
+checkout that also reported 1. There are no compatibility adapters for retired
+experimental layouts.
+
+| Identity or version | Current authority and purpose |
+| --- | --- |
+| Core ABI | `NC_COM_CORE_ABI_VERSION == 1`; object/lifetime/descriptor layout and behavior |
+| Runtime ABI | `NC_COM_RUNTIME_ABI_VERSION == 1`; versioned C table discovery |
+| Plugin descriptor ABI | `NC_PLUGIN_DESCRIPTOR_ABI_VERSION == 1`; native getter and descriptor prefix |
+| Interface contract | IID plus exact 32-byte ABI signature, checked at connection boundaries |
+| IDL fingerprint encoding | `neocogi_idl::MODULE_ABI_ENCODING_DOMAIN`; compiler-owned canonical bytes, currently encoding v13 |
+| NCB format | Version 1 positional persistence encoding, separate from live COM wire values |
+
+The IDL encoding revision is not a COM ABI generation. Naming this contract v1
+does not reassign existing IIDs, built-in signature bytes, IDL fingerprints or
+application catalog schemas. Ordinary IDL signatures continue to describe exact
+transitive contracts; core discovery checks the enclosing binary contract.
+
+## Scope
+
+The boundary uses fixed-width values, explicit C-layout records and `extern "C"`
+function pointers. `NcStatus` is the result protocol; GUID/signature pairs select
+interfaces. Rust trait objects, native enum/container layout, slices, arbitrary
+references, allocator-owned `String`/`Vec`, implementation types and unwinding
+do not cross the boundary. Recursive application values use checked raw records,
+integer tags and call-scoped pointer/count storage. A receiver acquires any
+contents it retains.
+
+This is a component ABI with its own registry and lifetime protocol; it supplies
+no Windows COM activation, apartments or operating-system marshalling. The one
+global native plugin registry lives in shared `nc_com`. Object storage and
+caller-owned persistence contexts retain their separate responsibilities.
+
+
+## Interface identity and calls
+
+Every generated interface has a Rust marker, a `#[repr(C)]` method table,
+an exact GUID/signature identity, and separate inspection descriptions. The
+marker has no instances in object storage. Raw references are explicit C records:
+
+```c
+typedef struct NcWeakRaw NcWeakRaw;
+typedef struct IUnknownVTable IUnknownVTable;
+
+typedef struct NcRawInterface {
+    void *object;
+    const IUnknownVTable *vtable; /* typed tables share this prefix */
+} NcRawInterface;
+
+struct IUnknownVTable {
+    const NcInterfaceId *interface_id;
+    NcStatus (*query_interface)(void *object, const NcInterfaceId *id, NcRawInterface *out);
+    uint32_t (*add_ref)(void *object);
+    uint32_t (*release)(void *object);
+    NcStatus (*downgrade)(void *object, NcWeakRaw *out); /* nullable capability */
+};
+```
+
+Rust names the corresponding generic record `ComRaw<T>`. The object pointer is
+the allocation's identity and stays unchanged across queries. The table selects
+methods for that exact concrete implementation. Ordinary method receivers take
+`void *object`; borrowed interface arguments pass pairs by value and owned
+interface results write pairs into caller-provided output records. Tables
+contain no owner offsets, and objects contain no embedded interface headers.
+
+A present pair has two non-null pointers. Absence has **both** pointers null.
+A half-null pair is malformed and checked adoption returns `NC_E_POINTER`
+before reading either pointer. Nullable raw records are distinct from safe
+`Option<ComPtr<T>>`; the latter's Rust niche is not the foreign representation.
+Safe owners, borrows, and their optional forms occupy two pointer words.
+`ComRaw` copying never acquires ownership by itself.
+
+Tables have the common prefix above. A derived table can embed its first base's
+full method table at offset zero. All nested prefixes advertise the actual
+outer interface's identity. A borrowed inherited method view keeps the original
+pair and uses compatible prefix slots. It is not an owned base handle; acquiring
+one requires QueryInterface and its exact table. This design preserves static
+inherited slots; it does not claim to deduplicate their entries.
+
+A successful query returns the same object address and the exact requested
+table, with one acquired reference. Failure clears both output words and
+transfers no reference. Typed wrappers validate the returned contract and reject
+object substitution. Comparing `object` tests allocation identity; comparing both
+fields tests the selected view. Table addresses alone are not contract identities:
+GUID and signature are authoritative. Implementations may share or duplicate
+identical static tables without changing those contracts.
+
+Discovery checks core ABI v1 before dispatch. Exact interface signatures do
+not replace that global layout/behavior check. See the
+[storage rationale](../../../docs/contracts/COM_INTERFACE_STORAGE.md) for the
+object/table design and its measurement boundaries.
+
+The IDL resolver computes the module fingerprint before target Rust compilation. It
+covers declaration names and versions, record fields, enum representations and
+variants, method order/names/receivers/parameters/returns, inheritance,
+threading, referenced declaration identities, and exact dependency revisions.
+It then derives each declaration signature from that fingerprint and the
+declaration ID. Distinct aggregates therefore remain distinct in typed
+descriptors, while any module revision change still changes every declaration
+signature. Generated target bindings contain the typed layouts, vtables,
+descriptors, and completed 32 bytes; they do not reconstruct or hash the IDL
+graph at runtime. The IDL compiler computes those hashes during the Cargo build.
+
+`QueryInterface` matches both GUID and ABI signature. A GUID collision or a
+stale binding therefore cannot silently produce a typed pointer. A successful
+query returns one owned reference. `ComPtr` calls `AddRef` on clone and
+`Release` on drop; `ComRef` is borrowed and changes no count.
+
+`Result<(), NcStatus>` lowers to a status-only call. Other successful results
+use an output pointer that remains unwritten on failure. Expected failures must
+be negative `NcStatus` values. Panics must not cross an `extern "C"` boundary.
+
+Mutable IDL methods lower from `&mut self`. Generated object storage enforces an
+exclusive call gate and reports conflicting/reentrant access as `NC_E_BUSY`.
+
+## Signature storage and absence
+
+```c
+typedef struct NcAbiSignature {
+    const uint8_t (*digest)[32];
+} NcAbiSignature;
+```
+
+Rust uses `#[repr(C)] struct NcAbiSignature { digest: *const [u8; 32] }`.
+This is a thin pointer, not a Rust slice pointer. Null explicitly means no
+contract where the enclosing record permits absence. A root factory must have a
+present signature; absence returns `NC_E_INVALID_ARG`. An all-zero digest remains
+a present digest and must never be interpreted as absent or unchecked.
+
+Generated signatures point to immutable provider-local static arrays. Modules
+stay pinned while metadata/objects can refer to them. Synchronous interface
+queries may borrow a caller's `[u8; 32]` for the call only; no provider may retain
+that requested identity pointer. Contents determine equality and hashing, never
+addresses. Separate libraries can store the same digest at different locations.
+
+The public static constructor accepts only `&'static [u8; 32]`; incorrect widths
+fail compilation. `EMPTY` supplies explicit absence. The unsafe `as_digest`
+accessor returns `Option<&[u8; 32]>`; it neither reads a foreign length nor invents
+an empty byte slice. Foreign producers must still guarantee readable immutable
+storage for all 32 bytes. Pointer shape does not validate arbitrary native memory.
+
+The signature view occupies one pointer word, while backing storage remains
+32 bytes. It is not an inline digest or an owning pointer. The checked-in
+built-in digests and compiler-emitted declaration digests are fixed contract
+identities; comparing their pointer addresses would incorrectly distinguish
+equal contracts stored in different libraries.
+
+The public static constructor makes digest width a compile-time obligation:
+
+```rust
+use neocogi_com::{NcAbiSignature, NC_COM_CORE_ABI_VERSION};
+assert_eq!(NC_COM_CORE_ABI_VERSION, 1);
+static FIRST: [u8; 32] = [7; 32];
+static SECOND: [u8; 32] = [7; 32];
+let a = NcAbiSignature::from_static(&FIRST);
+let b = NcAbiSignature::from_static(&SECOND);
+assert_eq!(a, b); // Content equality across separate backing declarations.
+assert!(!a.is_empty());
+assert!(NcAbiSignature::EMPTY.is_empty());
+```
+
+```compile_fail
+use neocogi_com::NcAbiSignature;
+static WRONG_WIDTH: [u8; 17] = [0; 17];
+let _ = NcAbiSignature::from_static(&WRONG_WIDTH);
+```
+
+## Weak lifetime references
+
+`IUnknownVTable.downgrade` is optional. Absence reports `NC_E_NOINTERFACE`;
+success transfers one retained shared weak token at the canonical allocation
+address. Failure clears its output. Handwritten providers opting in implement
+the common header and lifetime protocol, not an opaque Rust Weak token.
+
+```c
+typedef struct NcWeakControl NcWeakControl;
+typedef struct NcWeakRaw { NcWeakControl *control; } NcWeakRaw;
+```
+
+The [common lifetime engine](../core/src/lifetime.rs) defines `NcWeakControl`
+in this field order: `state: AtomicUsize`, `weak: AtomicUsize`, and
+`class: *const NcClassLifetime`. Its immutable class metadata contains provider-local
+`destroy_value` and `deallocate` C callbacks followed by the interface-table
+pointer array and its count. Foreign implementations match target atomic
+width/alignment and synchronization; no Rust Arc representation is inspected.
+There is no per-handle weak operation table. `nc_weak_retain`, `nc_weak_release`
+and `nc_weak_upgrade` are C-callable common operations, without a promise of
+unmangled dynamic exports. The native C fixture receives their addresses explicitly.
+
+A shared `WeakComPtr<T>` owns one weak reference and occupies one pointer word.
+Cloning changes only weak ownership. Promotion acquires a strong owner before
+selecting the exact requested interface, and never resurrects a destroyed value.
+Failure clears both strong output words; contract negotiation errors remain errors.
+An expired value reports `NC_E_DROPPED`, mapped by Rust `upgrade()` to `Ok(None)`.
+Canonical control addresses remain unique while weak owners prevent storage reuse.
+
+Objects are constructed from completely initialized values. Generated construction
+publishes one shared strong owner or the exclusive owner bit, plus an implicit
+weak storage reference. There is no cyclic initializer, unpublished callable
+object, or rollback state exposed by construction. Obtain weak identities after
+construction while an owner is available.
+
+Logical closure is separate from destruction. A closed service retained by a
+strong owner can still be promoted; its methods enforce closure. Owned queued
+facts remain readable after their weak source expires. UI owns event snapshots,
+origin policy and dispatch; those are ordinary domain interfaces rather than
+special IDL or runtime metadata categories.
+
+## Allocation and borrowing
+
+`NcWeakControl` is the common header, at offset zero of one provider allocation.
+Its first atomic word counts strong references for shared objects. Exclusive
+objects instead use the highest bit for exclusive mode, the next bit for owner
+presence, the next bit for mutable borrowing, and the remaining bits for readers.
+Exclusive mode remains set after destruction. The other header words are the weak
+count and a pointer to immutable class metadata. That metadata is shared by all
+instances of a class and supplies provider-local destruction and allocation release.
+
+Generated exclusive storage places `UnsafeCell<MaybeUninit<T>>` after the header.
+It contains no separate call gate. Generated shared storage retains its separate
+borrow gate because its header word counts strong owners. Both policies produce
+a two-word provider-local lease: a value reference and one selected guard.
+Shared entry requires the caller to retain a strong owner throughout the call;
+the shared borrow gate does not acquire a replacement ownership reference.
+
+Exclusive objects have one `ComBox` owner and cached `WeakComBox` observers.
+Their shared `AddRef` slot returns zero without retaining; shared query and
+shared weak downgrade reject with `NC_E_INVALID_ARG`. Borrowed references cannot
+silently grant another owner: use fallible `ComRef::try_add_ref` when ownership
+policy is not already proven shared. Consuming exclusive queries preserve the
+one owner; borrowed `query_ref` and weak observation do not duplicate it.
+
+A reader atomically checks owner presence, excludes the writer and increments the
+reader count. A writer atomically checks owner presence and zero borrowers before
+setting its bit. Conflicts and reader-count exhaustion return `NC_E_BUSY`;
+expired objects return `NC_E_DROPPED`. These checks precede creation
+of any Rust reference. Acquire admission pairs with release of prior borrows and
+construction publication. Reader release subtracts one; writer release clears only
+its bit, preserving concurrent owner removal. Exclusive borrow release never
+destroys the value; the owning thread completes synchronous destruction.
+
+## Drop and weak storage
+
+Every successful shared retain records exactly one additional owner. This applies
+to generated objects and to strong-only bytes, strings and persistence child
+lists. An exhausted counter terminates the process through the non-unwinding
+`extern "C"` entrypoint before returning an owner, in every build profile.
+`Clone`/`AddRef` have no recoverable exhaustion status. A zero private count also
+cannot be retained or resurrected; raw callers must keep valid storage owned
+throughout the operation.
+
+Generated shared counters use the common pointer-width header; strong-only
+providers keep their existing `AtomicU32` and have no weak-control allocation.
+The last available count is usable and may later be decremented normally.
+Saturating the **actual** counter while accepting more owners would undercount
+later releases and permit premature destruction. A capped diagnostic `u32`
+return is allowed only when the wider private counter still records the retain.
+This policy does not change any handle, method table or core ABI version.
+
+Exclusive owner Drop clears owner presence with an acquire/release operation, rejecting all
+new calls. It waits for existing readers/writers using acquire observations, invokes
+the provider's destructor exactly once, and releases its implicit weak storage
+reference. Drop returns only after value destruction, including ordinary owned
+child fields. The wait uses spin hints; std-enabled builds also yield to the
+scheduler. Completion requires admitted calls to terminate: this is not wait-free.
+
+The implicit weak reference lasts through the destructor, protecting storage when
+T drops a weak-to-self field. The last external weak reference frees allocation
+storage through the original provider and never drops T again. Provider code and
+metadata must remain loaded until that final weak release.
+
+An exclusive weak handle's `as_com_ref` borrows retained interface storage,
+not T. Each method still acquires its own checked access, so keeping an ABI
+argument view cannot prolong the value's lifetime. Liveness and idle observations
+are snapshots, never access permission. Cached interface queries can inspect
+retained class metadata after value destruction. No weak reference upgrades to
+an exclusive owner. Shared weak handles instead use `upgrade()` to acquire a
+shared strong reference.
+
+An executing method must not destroy its own owner, directly or by removing an
+ancestor; waiting would deadlock. Nor may the dropping thread hold resources
+needed for an admitted call to finish. These are ordinary blocking synchronization
+constraints, not permission to defer destruction. Thread-local UI removal checks
+the existing subtree borrow state before committing and returns Busy on recursive
+removal. Widget behavior posts ordinary typed close intent to its parent, whose
+handler decides removal after the child returns; no COM lifecycle queue is involved.
+Explicit ThreadSafe objects additionally require Send + Sync
+implementations and permit destruction on the dropping thread.
+
+## Consuming arguments
+
+The wire argument is `*mut ComRaw<I>`: writable call-scoped storage containing
+one exclusive owner. On successful return the slot is null. On **every** negative
+status it contains exactly its original object/table pair. For multiple owning
+inputs, all transfer together or all return, in declaration order. Raw callers
+must provide distinct, properly aligned slots and valid unique owners; forged
+pointers and duplicate ownership tokens are not made safe by slot validation.
+
+The Rust provider and client use ordinary `ComBox` values:
+
+```text
+fn insert(&mut self, child: ComBox<IWidgetAbi>)
+    -> Result<(), (NcStatus, ComBox<IWidgetAbi>)>;
+```
+
+IDL still spells this `fn insert(&mut self, child: ComBox<IWidget>) -> Result<()>`.
+It generates the error tuple from the owning parameters. For two inputs, the Rust
+error is `(NcStatus, ComBox<A>, ComBox<B>)`. No `ComBoxInput` or transfer-state enum
+is exposed. The macro rejects incomplete or reordered error tuple signatures.
+
+The generated thunk validates every argument and admits the receiver before it
+adopts any input. It clears the raw slots, invokes the provider, releases the
+receiver borrow, then restores returned owners on failure. A forwarding provider
+propagates the complete error; it must not silently discard or substitute owners.
+Safe clients check the success/failure handshake before recovering Rust ownership.
+
+Providers finish fallible validation and resource preparation before ownership
+commit. Failure leaves input values and destination topology unchanged. After
+commit they return a valid successful value. Invalid output after a successful
+commit is a **provider contract violation**, not a recoverable rejection: those
+input owners are no longer available to return. Generated code panics on this
+violation (a panic inside an extern-C provider aborts). Non-owning methods retain
+ordinary checked-output status errors. This is not an exception allowing a provider
+to lose an owner on an ordinary application or resource error.
+
+Generated adapters finish fallible preparation before adoption. Copied consuming
+results require a finite allocation-free `ComValue::MAX_COST`. Converted output
+buffers prepay their complete finite capacity before invocation; conversion uses
+reserved storage and publishes only after every output succeeds. Input-only
+values charge actual work. Unavailable required maxima reject the declaration;
+known unaffordable work returns `NC_E_OUT_OF_RANGE` with original owners intact.
+See [prepared completion](../../../docs/contracts/COM_OUTPUT_COMPLETION.md)
+for exact ordering and resource accounting.
+
+The caller decides whether to retry or destroy returned inputs. In particular,
+rejecting ancestor A offered to descendant B returns A through every forwarding
+call before application code can drop it. This requires no deferred-destruction
+queue. Destroying one's own active owner remains forbidden by the synchronous
+Drop contract; ownership-taking providers must validate before accepting it.
+
+`ComBox::query` and `LocalBox::into_interface` likewise return the original owner
+on failed projection. UI facade calls preserve the original typed widget or
+compiled component. Private builders that create fresh, unpublished candidates
+may explicitly discard a returned owner when abandoning their own construction;
+that is a caller decision, never automatic error conversion in COM.
+
+A construction-only helper can select `IWidget` once and keep that projection
+through insertion and disposal. Restoring the original concrete interface just
+before Drop is unnecessary. A consuming `ComBox::query` of the same exact
+interface reuses its already-validated table; matching includes the ABI signature,
+not just the GUID. Different revisions and interfaces still take checked lookup.
+This changes neither the wire protocol nor ownership/borrow state.
+
+## Construction access
+
+`LocalBox` borrows are tied to its unique owner, so Rust prevents moving that owner
+while its local guard lives. `WeakLocalBox::with` and `with_mut` provide scoped
+provider-local construction access without exporting implementation references or
+guards. Their closures must obey the same non-recursive-destruction rule as methods.
+No implementation pointer, Any payload, or foreign downcast is exposed by safe APIs.
+Shared `LocalCom<T>` and its weak local counterpart likewise preserve typed
+construction proof in Rust. Foreign COM projections cannot recover a concrete
+implementation or fabricate that proof.
+
+
+## Threading capabilities
+
+The ABI exposes thread-local and thread-safe object capabilities. The raw
+pointer representation is identical; the typed pointer marker retains the
+producer's promise after the concrete implementation type is erased.
+
+- `ComPtr<T, ThreadLocal>` and `ComRef<T, ThreadLocal>` are neither `Send` nor
+  `Sync`.
+- `ComPtr<T, ThreadSafe>` and `ComRef<T, ThreadSafe>` are `Send + Sync`.
+- weakening thread-safe to thread-local is safe; upgrading is not.
+
+Generated thread-safe implementations require their private Rust value to be
+`Send + Sync`. Atomic reference counting protects lifetime but does not by
+itself prove safe concurrent method calls or destruction.
+
+## Contract declarations and checked values
+
+IDL supports public `struct`, `enum`, `bitenum` and ordinary `interface`
+declarations. Construction and observation are ordinary interface methods;
+concrete classes and plugin acquisition are Rust implementation concerns.
+The [IDL reference](../../../docs/contracts/IDL_MODULES.md) owns accepted syntax,
+identity and canonical encoding. Special class/factory/event IDL roles are absent.
+
+`ComValue` supplies separate raw `Wire` and concrete producer `Storage` types.
+Boolean wire fields are bytes checked for 0 or 1. Payload enums decode an integer
+tag before reading only its selected lowered payload. Records, options, arrays
+and sequences use the same recursive conversion. `ComInlineValue` additionally
+proves self-contained copied wire storage; native `repr(C)` alone is insufficient.
+No application-memory layout table or full source reflection graph is published
+by physical metadata. Binary-local `idl_metadata` records instead carry static
+Rust names/digests and bound method/value facts; a domain owns any transported catalog.
+
+Named borrowed inputs use `NcValueRef<'_, T>`; passing tag
+`NC_ABI_PASSING_BORROWED_VALUE` (`0x07`) means a pointer to the exact wire aggregate.
+`NcValueRef::new(&value)?` retains producer storage for the call, and `to_owned()`
+validates/acquires retained contents. The receiver's Rust declaration uses the
+anonymous call lifetime for borrowed COM/value/buffer wrappers. Static application
+data does not make temporary encoded arrays static. Retain acquired owners,
+never the borrowed pointers. Optional COM borrowing has its own raw passing tag;
+ordinary IDL optional capabilities use their tagged value representation.
+
+One shared conversion budget bounds temporary/acquired storage to 8 MiB,
+one million visited values and depth 64. Allocation is fallible. Recursive
+identity-wire proofs permit unrestricted numeric/direct buffers without per-element
+conversion or allocation; their lengths are not capped by hypothetical conversion
+work. Operation-specific bounds still apply. Inline cycles fail resolution;
+sequence indirection permits finite recursive values. See the
+[recursive-value contract](../../../docs/contracts/RECURSIVE_VALUE_CONTRACT.md).
+
+Built-in data interfaces exercise shared ownership and checked native calls:
+
+```rust
+use neocogi_com::{INcBytesAbi, INcBytesComPtrExt, INcStringComPtrExt, IUnknown, NcString};
+let text = NcString::from_utf8_str("ABI v1");
+let another = text.clone();
+let bytes = text.query::<INcBytesAbi>().unwrap();
+assert_eq!(bytes.to_vec().unwrap(), b"ABI v1");
+assert_eq!(another.to_string().unwrap(), "ABI v1");
+let identity = text.query::<IUnknown>().unwrap();
+assert!(identity.as_com_ref().same_object(bytes.as_com_ref()));
+drop(text); // Other strong owners still retain the immutable value.
+assert_eq!(another.to_string().unwrap(), "ABI v1");
+```
+
+
+## Integer metadata tags and Rust enums
+
+Physical metadata uses fixed-width integer fields: `NcAbiTypeDescriptor.tag` is
+a `u32`, as are the passing and threading encodings in `NcAbiPassingDescriptor`.
+The `NC_ABI_TYPE_*`, `NC_ABI_PASSING_*` and related constants name their accepted
+encodings. `NcAbiType`, `NcAbiPassing`, `NcAbiThreadingMode` and `NcAbiReceiver`
+are local Rust descriptions converted explicitly to or from those raw values;
+their native enum layouts are not shared-library metadata contracts.
+
+Integer storage allows a reader to inspect and reject an unsupported code.
+For example, type tag `0x01` denotes `bool`, while reserved tag `0x10` must be
+rejected by a reader interpreting the type. Both are representable as initialized
+`u32` values. The signature formatter matches the raw codes and returns
+`NC_E_INVALID_ARG` for an unsupported tag.
+
+A Rust enum may contain only a declared discriminant. `#[repr(u32)]` fixes its
+representation but does not make other integers valid enum values. Receiving
+an invalid enum and then trying to reject it in an ordinary match is already
+undefined behavior; see the [Rust validity rules](https://doc.rust-lang.org/reference/behavior-considered-undefined.html).
+Read the raw integer first and use checked interpretation or conversion, never
+transmutation of an unchecked tag.
+
+Flat constants are an API organization choice. Known encodings could instead
+have namespaced enum variants with checked integer conversion; the physical
+record would still need storage that permits raw-value validation. This rationale
+does not require backward compatibility or acceptance of unfamiliar tags.
+
+## Raw output parameter
+
+A logical output `T` becomes four raw arguments in this order:
+
+```c
+uint64_t offset,
+uint64_t capacity,
+TWire *elements,
+uint64_t *written
+```
+
+`TWire` is the existing generated C-layout copied wire record, not necessarily
+native `T`. Boolean fields are `uint8_t`; payload enums have an explicit tag and
+selected wire payload. The logical descriptor passing tag is
+`NC_ABI_PASSING_OUTPUT_BUFFER` (`0x0c`). A method's ordinary result slot, if any,
+is separate. For example, a snapshot getter can return its *required total size*
+while `written` is zero because supplied capacity was insufficient.
+
+The raw caller supplies valid, aligned, exclusively writable capacity plus a
+separate count slot. Regions and different output arguments must not overlap.
+Zero capacity permits a null element pointer but still requires a count pointer.
+Old element contents need not be initialized; the provider must never read them.
+On success, `written <= capacity`, and every active field in that prefix is
+initialized. Padding, inactive payloads, and the tail are never inspected.
+On error no prefix is published; raw bytes may have been modified and must not
+be treated as results. Pointer checks cannot prove arbitrary memory validity.
+
+## Typed views and ordering
+
+Provider declarations use `NcOutputWriter<'_, T>` for self-contained
+`ComInlineValue` elements. `push` encodes one native value into its raw slot;
+`extend_from_slice` preserves bulk copy for the recursive identity-wire proof.
+Writers cannot read old values, allocate conversion vectors, or retain storage.
+`forward` lends an untouched writer to another synchronous generated client
+using the same slots; the nested result is validated before its count propagates.
+
+Clients use `NcOutput<'_, T>` from `NcOutputBuffer<T>::output(offset, capacity)`.
+Acquiring the view immediately discards previous results, even if preparation
+never reaches it or the view is abandoned. Retained capacity is unchanged.
+Converted results retain reusable native and wire allocations locally. Identity
+results use only native allocation; `NcOutput::from_slots` also permits
+allocation-free `MaybeUninit<T>` storage with the identity proof. No Rust writer,
+Vec, allocator ownership, or native enum representation crosses the boundary.
+
+Every output is admitted and all needed caller capacity is reserved before any
+owning argument is transferred. Provider thunks validate writable storage and
+admit all output shapes before adopting owners; they require no output scratch.
+Converted outputs prepay the whole capacity's finite maximum byte/value/depth
+cost, including non-consuming calls. Input-only values retain actual-input
+validation. Consuming copied returns additionally require finite maximum cost.
+Thus valid successful output cannot exhaust conversion allocation or budget.
+
+Thunks publish counts only after implementation success and result encoding.
+Clients check counts, validate restricted fields into their reserved native
+storage, acquire *every* output, then publish the complete group. Any failed call
+leaves no new native results, even if an earlier output had already validated.
+This does not undo provider application mutations or restore previous snapshots.
+Successful malformed output after owner acceptance remains a contract violation;
+it cannot return owners the implementation has already stored.
+
+Readable input buffers remain `NcCopyFromBufferOffset<'_, T>`. A transformation
+must take explicit input and separate output. There is no generic compatibility
+adapter retaining initialized input/output semantics. The obsolete wrapper and
+its encoded/decoded output guards have been removed.
+
+## Shared weak result and value transport
+
+`WeakComPtr<I>` results transfer one `NcWeakRaw` through a writable output slot.
+The raw record is the existing single common-header pointer, without a cached
+interface table. `NC_ABI_PASSING_WEAK_COM_PTR_OUT` (`0x0d`) identifies this passing
+mode; the return type descriptor supplies the exact interface identity and the
+passing descriptor preserves the threading capability. It is distinct from the
+two-word exclusive `WeakComBox` output (`0x0b`).
+
+A successful provider transfers one retained weak token. The client rejects null
+tokens, exclusive ownership, missing interfaces and wrong interface revisions,
+releasing a rejected transferred token exactly once. Errors transfer no result.
+Expired shared tokens remain valid: checking reads immutable
+interface metadata under weak ownership and never promotes or reads the value.
+Raw callers must supply a retained valid header, readable class metadata and
+provider code lifetime; checks cannot make an arbitrary pointer safe.
+
+A weak field in a borrowed value uses the same `NcWeakRaw` as a borrowed token.
+The source handle keeps its header alive throughout encoding and acquisition.
+Decoding validates before retaining an independent weak reference. Partial
+aggregate failure drops already acquired fields. It never creates a strong owner
+and is not a copied inline value or an implicit persistence representation.
+
+IDL assigns shared weak ownership its own fingerprint tag. Metadata readers
+reject unsupported passing categories. `WeakLocalCom<T>`
+is construction-proven Rust access layered on this existing shared lifetime
+protocol; its concrete T and native wrapper do not cross the ABI.
+
+## Fixed byte-copy primitives
+
+`INcBytes::copy_to` and `INcString::copy_utf8_to` retain their exact-range
+`offset, length, pointer` slots and `NC_ABI_PASSING_COPY_TO_BUFFER_OFFSET` (`0x04`).
+These built-in contracts copy a prescribed number of unrestricted bytes or fail.
+They have never interpreted old bytes as input, need no enum conversion, and do
+not represent the removed generic mutable-value path. IDL and its typed backend
+output parameters always use the new four-slot protocol.
+
+See [directional output](../../../docs/contracts/COM_OUTPUT_BUFFERS.md),
+[ownership completion](../../../docs/contracts/COM_OUTPUT_COMPLETION.md) for examples
+and regression requirements.
+
+## Compile-time modules
+
+A module's build script resolves its transitive source graph and emits Rust
+bindings with fixed declaration signatures. Contracts have no native libraries,
+module-description getters, runtime registration tables, or builtin seeding.
+Cargo `links`/`DEP_*` graph metadata remains a build-time dependency protocol.
+
+The signature covers the complete transitive module revision, preserving exact
+compatibility across independently built hosts and plugins. Different revisions
+may coexist while disconnected; factories and COM pointer transfers reject an
+incompatible connection. Registration no longer enforces one module revision
+per process.
+
+## Runtime and global registry
+
+### Why keep a shared registry?
+
+The process needs one authority for plugin GUIDs, dependency validation,
+registration order, first registration provenance and pinned native code. The
+registry lives in the shared `nc_com`, not in consumer facades or individual
+DLLs. Passing a runtime implementation into each component would permit
+independent registries and break those process-wide assumptions.
+
+`Runtime` is a stateless Rust handle to that implementation. Static/browser hosts
+link the same implementation once; shared hosts and DLL consumers import the
+sole shared runtime. The internal catalog remains useful, but does not require
+public registry or inspection context objects. Plugin operations use one table;
+diagnostics and persistence retain separate tables because their callback and
+caller-owned context lifecycles are independent of plugin registration.
+
+## Provider descriptor and registered information
+
+`NcPluginDescriptor` is the provider-authored input: plugin identity and release
+version, hard dependency records, the exact root factory interface/threading
+contract, and its bootstrap function. `#[plugin]` derives the root
+contract from the typed Rust acquisition return and creates this immutable descriptor.
+The root is any closed ordinary interface: a finished service or a provider with
+typed construction methods. Existing wire field names such as `root_factory`
+describe that root and impose no IDL construction role.
+The accessor and native export return metadata without registration or acquisition.
+
+| Provider boundary | Current contract |
+| --- | --- |
+| Metadata input | `NcPluginDescriptor`; no separate plugin-kind qualifier. |
+| Generated Rust accessor | `plugin_descriptor()` borrows assembly metadata. |
+| Native getter | `NcGetPluginDescriptor`, exported as `nc_get_plugin_descriptor_v1` by `#[plugin]` under `dynamic-plugin`. |
+| Validation | `validate_plugin_descriptor` checks metadata without acquiring a factory or checking whether providers are registered. |
+| Static registration | `Runtime::register_plugin_descriptor` validates and publishes the descriptor after requiring registered hard providers. |
+| Unregistered library inspection | `Runtime::with_plugin_library_descriptor` lends the validated descriptor to a synchronous visitor. |
+| Registered inspection output | `NcPluginInfoV1` / owned `PluginInfo`, including first registration origin. |
+| Factory acquisition | `Runtime::acquire_plugin_root` checks the exact contract and returns one COM owner. |
+
+The descriptor's `description_abi_version` field remains the v1 discovery prefix,
+matching `NC_PLUGIN_DESCRIPTOR_ABI_VERSION`. Its next field is
+`core_abi_version`, currently 1. Both are checked before the remaining layout is
+read. The two-word prefix must be checked before borrowing the complete descriptor.
+Matching version numbers alone do not make different pre-release checkouts compatible.
+
+The provider owns the descriptor's storage and code. Static registration requires
+the entire graph to remain immutable for the process lifetime, including referenced
+text, dependency tables and signature bytes. A static root reference alone does
+not prove these raw-pointer lifetimes. Dynamic registration pins the exporting
+library. Descriptor copies own neither those allocations nor a library mapping.
+The native getter clears a usable output slot before validation, leaves it null
+on failure, and returns `NC_E_POINTER` for null output.
+
+`NcPluginInfoV1` is an output projected from a registered catalog record; it has
+provenance but no bootstrap pointer. The facade's `PluginInfo` owns copies of text,
+paths and dependency GUIDs. Neither output can be used to register a provider, and
+neither holds a live factory reference. The catalog below remains the single
+authority that combines the provider's descriptor with runtime registration state.
+
+## One authoritative record
+
+The catalog has one append-only record per registered plugin GUID and one
+GUID-to-record index. A record retains one validated process-lived descriptor and
+its first registration origin: static storage or an owned dynamic library path.
+The descriptor supplies the ID, dependency table, name, release version and exact
+single factory contract. No independent ID field or dependency projection Vec is
+stored beside it. The actual origin is supplied before validation/publication;
+dynamic loading never constructs a provisional static registration.
+
+Lookup and enumeration use the same allocation-free projection of these records.
+There are no parallel ID vectors, cached metadata summaries or module-to-plugin
+joins. Enumeration returns complete records, removing the need for repeated
+lookups to assemble plugin, factory and dependency information. Registration and inspection share this one authoritative record.
+
+| `NcPluginInfoV1` field | Meaning and owner |
+| --- | --- |
+| `plugin_id` | Stable GUID derived from the qualified plugin name; acquisition and lookup key. |
+| `qualified_name` | Borrowed immutable descriptor text; copied to `PluginInfo.qualified_name`. |
+| `version` | Plugin release text, distinct from interface ABI signatures. |
+| `library_path` | First successful dynamic caller path; empty denotes static origin. Provenance, without reopening a file. |
+| `factory.interface` | Exact root factory IID and full ABI signature retained in static or pinned storage. |
+| `factory.threading` | Valid raw `NcAbiThreadingMode`; the Rust facade returns the typed enum. |
+| `dependencies` / `dependency_count` | Original immutable aligned `NcPluginDependencyDescriptor` array in declared order, borrowed directly from the validated descriptor. |
+
+`NcFactoryInfoV1` contains only interface and threading information: the enclosing
+plugin already supplies identity. There is one factory per plugin, so a separate
+interface GUID or enumeration is unnecessary. Neither record contains a live COM
+reference. Reading metadata never invokes the factory bootstrap.
+
+All views returned by registered-plugin lookup and enumeration remain readable
+for the process lifetime. Descriptor and dependency storage is static or pinned;
+path buffers are immutable heap allocations. Catalog vector growth moves the
+records, not that backing storage. The projection never points into a
+movable record, stack temporary or temporary metadata copy. The caller may read
+views after the catalog read guard is released.
+
+The facade copies text, paths and GUID arrays into owned `PluginInfo` values.
+Changing those values cannot change registration state. `FactoryInfo.interface`
+retains the existing process-lived signature view rather than copying a contract
+or acquiring a native handle. The raw ABI trusts valid aligned/readable pointer
+storage; scalar shape checks are not arbitrary-pointer validation.
+
+## Unified C table
+
+Check `nc_com_runtime_abi_version() == 1` before obtaining a versioned table. Check
+its size prefix before reading its full layout, then match `core_abi_version`.
+The pre-release v1 layouts are revision-specific even when sizes happen to match.
+
+Only the version export and three getters remain:
+
+- `nc_com_get_runtime_api_v1`: `NcRuntimeApiV1`, all plugin operations below.
+- `nc_com_get_debug_api_v1`: `NcDebugApiV1`, debug messenger lifecycle.
+- `nc_com_get_persistence_api_v1`: `NcPersistenceApiV1`, caller-owned persistence contexts.
+
+| Runtime operation | Result and purpose |
+| --- | --- |
+| `register_plugin_descriptor` | Validate and atomically register a static descriptor. No factory acquisition. |
+| `load_plugin_library_utf8` | Open a mandatory trusted plugin library, pin its code and register it; output its GUID. |
+| `acquire_factory_plugin` | Check exact interface/signature/threading, call bootstrap and transfer one owned factory reference. |
+| `plugin_info` | Write one complete borrowed record, or return `NC_E_NOT_FOUND`. |
+| `plugin_count` | Snapshot number of all registered plugins, including static ones. |
+| `plugin_infos` | Fill complete records in successful registration order under one read guard. |
+| `inspect_plugin_library_utf8` | Open and validate an unregistered library, lending its descriptor to a synchronous callback. |
+
+An unknown GUID is distinguishable from a registered plugin with no dependencies:
+lookup returns `NC_E_NOT_FOUND` for the former and a complete zero-dependency
+record for the latter. Lookup checks a null output first (`NC_E_POINTER`) and
+writes nothing on failure.
+
+## Enumeration protocol
+
+The raw count is a snapshot, not a reservation. Registration can grow the catalog
+between count and fill. Each fill acquires one read guard, fixes the ordered set
+of records, projects every field and releases the guard before returning.
+
+1. `out_len` must point to writable, aligned storage for one `usize`. Null returns
+   `NC_E_POINTER` without writing any record.
+2. Write the current required length to `out_len`.
+3. If capacity is insufficient, return `NC_E_INSUFFICIENT_BUFFER`. No record is
+   written, including when `out` is null. The caller may allocate and retry.
+4. If the required length is zero, return `NC_OK`; null `out` is accepted.
+5. Otherwise `out` must provide aligned writable storage for the advertised
+   capacity. Null returns `NC_E_POINTER`. Data and length outputs must not overlap.
+6. Write exactly the required prefix and return `NC_OK`. Spare slots are untouched.
+
+A successful fill is one coherent metadata snapshot; later registration does not
+change it. It does not snapshot live factory objects or their reference counts.
+The Rust `plugins()` wrapper retains the existing bounded count/fill reader:
+65,536 elements, at most eight strictly growing retries after the initial fill,
+and fallible capacity reservation. Dependency copies use the same element bound;
+individual text copies allow at most 1 MiB. Invalid raw scalar/count shapes return
+statuses before allocation or dereferencing those arrays. These are facade
+resource limits, separate from the dynamic-provider limit.
+
+## Rust application API
+
+Registered metadata is available directly on `Runtime`; no intermediate
+`Inspection` or `PluginRegistry` context is needed:
+
+An embedded executable explicitly retains one runtime implementation:
+
+```rust
+extern crate nc_com as _;
+use neocogi_com::Runtime;
+let runtime = Runtime::global(); // Checks discovery/table size/core ABI v1.
+let plugins = runtime.plugins().unwrap();
+for plugin in plugins {
+    println!("{} {}", plugin.qualified_name, plugin.version);
+}
+```
+
+This example's manifest enables `neocogi-com/runtime` and directly depends on
+`neocogi-com-runtime` (Rust crate name `nc_com`). Dynamic native applications and
+plugins instead import the one shared library; they must not retain private
+implementation copies. The [factory walkthrough](../README.md) executes a complete
+generated typed registration/acquisition example.
+
+`plugin_info` returns `None` only for an unknown GUID. `plugins` returns owned
+complete records in registration order; clients no longer enumerate IDs and then
+perform three extra metadata queries per plugin. Applications can use the factory
+contract to explain what the plugin supplies without creating a factory object.
+The generated factory example in the COM/IDL documentation tests exercises actual
+typed acquisition; catalog tests exercise these direct methods against C tables.
+
+A generic host that does not know the factory's Rust type calls
+`acquire_registered_plugin_root(plugin_id)`. The facade reads the registered exact
+interface without allocating owned strings or dependency lists, acquires that
+interface with a thread-local request and queries canonical `IUnknown`. An erased
+raw factory table has the common lifecycle prefix but is not itself canonical
+`IUnknown`; the query is required before typed adoption. The original bootstrap
+reference is released on every path. The returned handle stays on the caller's
+thread even if the provider supports shared threading.
+
+## Acquisition and ownership
+
+Acquisition means obtaining one owned root factory COM reference. The descriptor
+stores `acquire: Option<NcAcquirePluginFactory>`; generated bootstrap code adapts
+the implementation's typed construction policy to that fixed no-argument ABI.
+A provider may create a fresh factory or retain an existing instance. The runtime
+promises no singleton and no identity reuse between successful calls.
+
+The runtime compares the requested IID, full signature and threading capability
+before invoking bootstrap. It releases the catalog guard before plugin code runs,
+then validates the returned object/table pair and its declared contract. Rejected
+returned references are released. The raw output starts null and only success
+transfers one owner. Typed facade adoption preserves the requested IDL factory
+contract and threading model. Product construction occurs through factory methods.
+
+Loading and metadata queries never acquire factories. Registration does not need
+an application factory type and does not traverse the IDL contract graph. Exact
+compatibility belongs to factory acquisition and subsequent interface transfers.
+
+## Publication, provenance and repeated loading
+
+Native open, symbol lookup, descriptor entry and validation run outside the catalog
+lock. Registration validates the immutable descriptor, then takes one write guard to require
+all hard providers, check identity/capacity and publish descriptor and origin
+together. Failure leaves the catalog unchanged. Plugin code and user callbacks
+never run while a catalog guard is held.
+
+The same GUID and descriptor address reuse the first registration and consume no
+extra capacity. A different descriptor claiming that GUID returns
+`NC_E_INVALID_ARG`; matching name or version text alone does not make providers
+interchangeable. Repeated static registration is idempotent. A later dynamic open
+of the same already-static descriptor preserves its original static origin.
+
+Native mappings remain pinned until process exit, including inspection-only opens
+and failures after opening. Pinning belongs to the platform loader's never-unload
+policy; dropping the symbol-resolution wrapper does not close a mapping. Catalog
+provenance holds no optional native handle or handle-free test substitute.
+Repeated loads still open and validate the library;
+catalog idempotency does not suppress native loader calls or initialization.
+Once registered, metadata and factory acquisition do not reopen the origin path,
+so the plugin remains callable after its file is removed.
+
+`NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS` bounds distinct dynamic registrations at
+1,024. Static registrations, repeats and inspection-only opens are excluded. The
+count derives from authoritative records. Inspection-only pins therefore remain
+outside that bound; build tooling inspects in a short-lived process. There is no
+unloading, path discovery, recursive dependency loading or injected runtime.
+
+## Unregistered inspection and errors
+
+`Runtime::with_plugin_library_descriptor(path, visitor)` remains unsafe: the
+path selects trusted native code, and opening can execute platform loader code.
+It validates a descriptor and invokes the visitor synchronously exactly once,
+without registering the plugin, acquiring a factory or following dependencies.
+The descriptor graph is borrowed only during the callback; copy needed metadata.
+Do not retain descriptor pointers or panic across the C callback boundary. Once
+opened, the mapping is pinned even if validation or the visitor later fails.
+
+| Operation | Failure policy |
+| --- | --- |
+| Static registration | Ordinary validation/dependency/identity status; no partial publication. |
+| Required live loading | Native loading, description, dependency, identity or capacity failures diagnose and abort. |
+| Raw live-load arguments | Invalid pointers/path shape return statuses before loading; the application facade treats these as fatal too. GUID output is cleared to nil first. |
+| Factory acquisition | Ordinary unknown-plugin, interface/signature/threading or bootstrap status. |
+| Registered metadata | `None` for missing Rust lookup; raw `NC_E_NOT_FOUND`; copy/allocation errors remain statuses. |
+| Unregistered inspection | Recoverable loader/validation/visitor status. Callback status is returned unchanged by C; Rust visitor errors are normalized. |
+
+## Verification boundaries
+
+The regression suites check complete lookup/enumeration agreement, dependency
+ordering, failed publication, duplicate registration, owned copies, borrowed
+views across catalog growth, null/empty/undersized buffers and untouched spare
+slots. They also verify that metadata does not invoke bootstrap, that ABI remains
+v1, and that independent C layouts match the combined table and plugin record.
+Native-library tests cover provenance, identity conflicts, post-unlink metadata
+and retained factory code. Both shared-runtime and static configurations exercise
+the same contracts; generated factories still undergo exact identity checks.
+
+## Persistence and diagnostics
+
+`NcPersistenceApiV1` creates/destroys caller-owned, thread-local contexts, registers
+borrowed `IPersistenceFactory` objects with one retained owner, snapshots
+`IPersistable` trees, and restores an owned canonical `IUnknown`. Contexts do not
+populate or replace the global plugin catalog. Mutation/destruction requires
+exclusive access; restore takes a shared borrow. `NcPersistenceLimitsV1` carries
+binary and object-tree budgets explicitly.
+
+Capture calls `NcPersistenceWriteBytesV1` exactly once on success with the complete
+borrowed document; failure never calls it. The callback may copy bytes, must not
+unwind, and cannot retain the pointer. Temporary storage is destroyed in the
+runtime, so no Rust allocator ownership crosses the ABI. Snapshot identity retains
+the canonical allocation along active ancestors; repeated siblings are legal.
+Logical interface equality is not allocation identity. Validate the whole recipe
+before constructing objects and release partial restored owners on failure.
+NCB v1, live-call wire validation and application reconstruction remain distinct
+contracts; see [persistence](../runtime/PERSISTENCE.md).
+
+`NcDebugApiV1` separately owns callback messenger creation/destruction. At most
+64 messengers are live; callbacks execute outside runtime catalog locks. Final
+destruction prevents new entry and waits for admitted callbacks to finish.
+Callbacks may run concurrently on any thread and must not destroy a messenger.
+Callback data is call-scoped. Its lifecycle does not belong in the
+plugin operation table or a persistence context; see [debug ABI](../core/src/runtime_abi/debug.rs).
+
+## Borrowed metadata storage
+
+`NcStaticUtf8` is `(*const u8, u32)`; `NcUtf8View` is `(*const u8, usize)`.
+Neither owns storage or retains a library. `NcStaticUtf8::as_str` is unsafe:
+UTF-8 is checked, but readable backing storage and its returned lifetime remain
+caller obligations. Static/pinned descriptor graphs must retain names, signature
+bytes, dependency arrays and code; a static outer reference does not prove raw
+children are static. Copy callback metadata needed after a callback. See the
+[text/lifetime table](../core/README.md#text-bytes-and-borrowed-storage).
+
+## Native and embedded linkage
+
+The COM facade contains stateless declarations and clients. Its `runtime` feature
+does not choose a runtime implementation. Every final native host and plugin
+imports the one `nc_com` shared image. Workspace native owners use
+`neocogi-native-runtime-link` for Cargo's normal target-profile cdylib artifact,
+explicit imports, staging and relative loader paths. Declaring the deployed
+runtime as a build dependency would apply build-tool profile policy.
+
+Final monolith/browser/test executables instead retain the runtime implementation
+once through a direct dependency and `extern crate nc_com as _;`. Reusable
+facades/helpers never select embedded linkage through additive features.
+Process-pinned native mappings retain provider code through final object/weak
+release. File relocation and import-library policy belong to final deployment;
+see the [native guide](../../../docs/guides/COM_NATIVE.md).
+
+
+## Independent-build compatibility
+
+The interoperability contract is a matching target C ABI, current core/runtime
+ABI generation, and exact generated contract signatures. Independently selected
+Rust compilers, optimization, LTO and panic settings must not leak private Rust
+layout or allocator ownership across that boundary. This does not promise that
+old contract revisions or different architectures are interchangeable.
+
+[`scripts/compatibility.py`](../scripts/compatibility.py) owns the independent
+build and execution policy. It uses installed Rustup toolchains and Python 3.10+
+with only the standard library. An unpublished final test fixture imports the
+shared runtime; no extra production crate is introduced. From the repository root, run:
+
+```sh
+python3 crates/com/scripts/compatibility.py --suite cross-version --report /tmp/com-cross.json
+python3 crates/com/scripts/compatibility.py --suite build-flags --report /tmp/com-flags.json
+python3 crates/com/scripts/compatibility.py --suite linked --report /tmp/com-linked.json
+python3 -m unittest discover -s crates/com/scripts -p test_compatibility.py
+```
+
+The matrix is deliberately explicit, rather than a claim that every possible
+compiler flag is interchangeable:
+
+| Case | Shared runtime | Host | Plugin |
+| --- | --- | --- | --- |
+| linked | stable, debug | stable, debug | stable, debug |
+| stable-host | stable, debug | stable, debug | nightly, release, abort, fat LTO, randomized private layout |
+| nightly-host | nightly, debug | nightly, release, abort, thin LTO, randomized private layout | stable, debug |
+| stable-release | stable, release, abort, fat LTO | stable, release, unwind, thin LTO | stable, release, abort, fat LTO |
+
+Unspecified panic/LTO settings are unwind/off. Randomization uses seed 107.
+`cross-version` executes the two mixed-compiler rows; `build-flags` adds
+`stable-release`. `linked` separates ordinary C-layout, checked-value,
+recursive-interface, output-completion and lifetime regressions from actual shared
+runtime qualification. Factory registration/acquisition and persistence execute
+their complete maintained cases through the independent
+[`shared-runtime` final fixture](../api/integration-tests/fixtures/shared-runtime/Cargo.toml).
+The same case files are included by the ordinary embedded roots. Capability
+features never choose an implementation; each final assembly owns that choice.
+The ordinary ABI group enables no unused runtime client capability. Sanitizer
+executables export their hooks, which can retain otherwise unused public facade
+functions; compiling runtime clients into a pure ABI test would then require
+native imports that the test does not own.
+Exact names, nonempty execution and actual Cargo artifacts are checked. Installing
+nightly or finding a successfully compiled binary never passes a compatibility case.
+
+Stable/nightly are rolling selectors, independent of the COM crates' declared
+Rust 1.85 minimum. The separate `com-msrv` CI job runs the existing floor suite:
+
+```sh
+rustup toolchain install 1.85.0 --profile minimal
+# The workspace lock is untracked; resolve once before the locked suite.
+cargo +1.85.0 generate-lockfile
+bash crates/com/scripts/test-msrv.sh
+```
+
+That suite checks all COM/IDL/inspector targets and features, library tests,
+normative ABI snippets, inspector binary tests, and the facade/core feature
+variants. It verifies compiler support; it does not execute the cross-compiler
+dynamic-loader matrix or promise the same floor for UI/rendering dependencies.
+
+Reports record `rustc -vV` for every selected compiler plus each role's exact
+profile, panic and LTO policy. Reports change to `running` before work begins and
+`failed` on error; an older success cannot remain as the current result. The
+platform must permit native execution with matching host triples. Linux, macOS
+and Windows artifact names are handled; MSVC's import library is prepared only
+for linking and is not shipped as a runtime dependency. Platform qualification
+comes from executing its CI row, not from another platform's successful build.
+
+## What one case does
+
+1. Validate installed compilers and their native target agreement. Remove ambient
+   compiler, target, profile and loader-path overrides from the build environment.
+2. Build the runtime explicitly as a `cdylib`. Its manifest offers both `rlib`
+   and `cdylib`: static consumers select the former; shared hosts use `libnc_com`.
+3. Build the plugin and host independently, each with its own Cargo target and
+   compiler/profile policy. The host links the freshly built runtime.
+4. Require the exact nonempty artifacts. Copy only the executable, runtime and
+   plugin into a relocation directory. Clean each build target after copying it.
+5. In linked/instrumented rows, run the ordinary ABI group without staged runtime
+   paths. Build the independent shared test fixture once with `--locked --no-run
+   --message-format=json`. Its committed lockfile supports Rust 1.85; missing or
+   stale child locks fail rather than being regenerated. Admit exactly its two
+   expected test artifacts and maintained case roots, rejecting runtime
+   implementation artifacts even when cached. Cargo supplies executable paths.
+   The fixture's build script owns final test linker arguments (`-lnc_com`, or
+   `nc_com.dll.lib` on MSVC). This keeps the import after Rust library references
+   on Rust 1.85, whose `rustc-link-lib` ordering can otherwise discard it under
+   ELF `--as-needed`. No runtime implementation is a Rust dependency of this fixture.
+6. Relocate these two executables into a private sibling directory, then clean
+   their build target and remove the runtime link directory before discovery.
+   Discover exact sentinels and execute both complete suites with
+   `--test-threads=1`. Withhold only the staged runtime and require discovery to
+   fail without listing tests, restoring the library even on launch failure.
+   Check the executables' unchanged hashes. Neither matching test counts nor
+   exported-symbol absence alone establishes the final assembly.
+7. Run the existing [example host](../../../examples/com-plugin/src/main.rs) from
+   that directory, with the loader path restricted to the staged libraries and
+   the temporary runtime link directory removed. Ordinary OS dependencies remain.
+8. Require successful exit and the completion marker printed after all assertions.
+   Reports distinguish the ordinary group, shared runtime cases and sample.
+
+The shared example exercises typed factory construction, inherited interface
+calls, exclusive mutation, domain notifications delivered into the host's concrete queue,
+canonical weak-origin identity, fresh copied output (nested enum/boolean and short
+prefix) through ABI v1, persistence through provider-owned byte buffers,
+restoration through a host-implemented factory adapter, promotion while live,
+and failed promotion after final object release. All assertions execute in
+release/abort builds. Normal completion crosses calls in both directions; panic
+settings are build policies, not permission to unwind over a COM call.
+
+Native C layout and malformed copied/nested boolean values are separate explicit
+checks in `linked`, as are the runtime-free unique-owner and weak-lifetime test
+targets. These ordinary assemblies do not qualify shared runtime linkage. The
+separate final fixture qualifies both factory and persistence cases against the
+staged library. The monolith remains a separate integration test
+because it must work without any native NeoCogi libraries.
+
+## Entry points, safety checks and CI
+
+The shell entry points `test-cross-version.sh`, `test-build-flags.sh`, and
+`test-linked-runtime.sh` select the corresponding driver suite. The linked
+PowerShell entry point selects the same suite and propagates its exit code.
+They accept driver arguments such as `--report`; there is no independent shell
+matrix or old arbitrary Cargo-argument forwarding to keep in sync.
+
+`test-safety.sh` selects `--suite safety`. It requires nightly with `miri` and
+`rust-src` installed. It discovers and interprets the complete COM core, runtime,
+and facade library tests, plus current `local_com`, `borrowed_values`,
+`checked_values`, `output_buffers`, `output_completion`, `exclusive_com` and
+`weak_com` targets.
+Four explicit large-buffer stress cases remain native-only: the two checked-value
+budget traversals and the output-completion maximum-variant/provider-publication
+stress tests. Their exact names live in the driver. They run in linked, ASan and
+TSan suites; Miri runs the remaining 13 checked-value tests, six directional output-buffer
+tests and eleven output-completion tests, including allocation injection, preserved owners, and malformed outputs.
+Facade tests select the static runtime because Miri interprets pure Rust and
+cannot load native plugins.
+That is a different check from executing the real shared-library boundary.
+
+`test-sanitizers.sh` selects `--suite sanitizers`, executing address and then
+thread instrumentation and failing on either error. The `address` and `thread`
+suites also run individually. These require nightly `rust-src` and
+`x86_64-unknown-linux-gnu`. Each rebuilds the standard library, runtime, host,
+plugin and test harnesses under the same sanitizer. Instrumented executables
+export sanitizer hooks before linker section collection: a later-loaded plugin
+may need a hook that the host itself never called. Without that export,
+ThreadSanitizer tests could pass before plugin acquisition failed on an undefined
+`__tsan_atomic64_exchange`. The six runtime-free Rust targets and three intentionally
+embedded library suites retain their ordinary mode under instrumentation. The
+two independent factory/persistence targets import the instrumented shared runtime
+and run after build/link cleanup, including the missing-runtime control. The
+relocated example then executes without its build targets. Native-C layout
+checks remain in `linked`, since this driver does not instrument the C compiler.
+Leak reporting is disabled for sanitizer execution because successful plugin
+libraries and process runtime registrations intentionally remain pinned. Address
+and data-race checks remain enabled. Miri receives no suppression flags.
+
+```sh
+rustup toolchain install nightly --component miri --component rust-src
+crates/com/scripts/test-safety.sh --report /tmp/com-miri.json
+python3 crates/com/scripts/compatibility.py --suite address --report /tmp/com-asan.json
+python3 crates/com/scripts/compatibility.py --suite thread --report /tmp/com-tsan.json
+```
+
+Missing components, unsupported sanitizer targets, discovery mismatches and
+instrumentation errors fail the invocation; they are never silently skipped.
+The combined sanitizer report records both cases and is successful only after
+both complete. Temporary targets are deleted even when verification fails;
+passing native roles also run explicit `cargo clean` after copying. Miri's task
+owns its private temporary target, not the user's shared interpreter sysroot
+cache; cleanup leaves that shared compiler cache intact.
+
+[CI](../../../.github/workflows/rust.yml) keeps ordinary static/unit/IDL tests
+separate from the independent-build matrix. Linux executes the three mixed-build
+rows; Linux, macOS and Windows each execute the linked row. Separate Linux jobs
+run Miri and both sanitizers. A platform job is not evidence until it actually
+runs successfully; local Linux validation does not imply macOS/Windows execution.
+
+The ordinary COM job also runs facade/runtime library tests in release mode.
+Strong-only retain exhaustion formerly returned uncounted owners only when debug
+assertions were disabled, so debug tests alone cannot prevent its recurrence.
+Both profiles exercise injected counter limits and native subprocess termination
+through byte/string/list `Clone` and `QueryInterface` entrypoints. Miri skips those
+process-abort cases and interprets the ordinary count/final-destruction tests,
+including child-list deallocation through its original owning pointer.
+
+## Published archive validation
+
+Run `bash crates/com/scripts/test-packages.sh` with Rust 1.85 installed. It creates
+real Cargo archives for the six SDK packages and inspector, extracts them into a
+fresh directory, and patches dependencies **only to those extracted archives**.
+Rust 1.85 checks all shipped targets and runs shipped executable tests and
+runnable documentation examples. An ordinary runtime build must produce both its
+rlib and platform shared library, matching the public build guide. One temporary shared target
+cache avoids retaining one copy per package and is removed after verification. The gate also builds a fresh consumer
+with `build.rs`, generates an interface and executes its checked COM call. Runtime
+and descriptor discovery are asserted to remain v1. No-default and alloc-only
+facade checks cover the portable feature boundary. CI runs this same gate.
+
+IDL, facade and inspector repository integration suites inspect sibling packages,
+current guide examples or nested native fixture workspaces. Their source files
+stay in checkout CI and are excluded from registry archives, so Cargo does not
+advertise test targets whose inputs are absent. Package-local unit tests remain
+included. Compiler backend printer fixtures belong to the IDL archive; the core handle
+source audit belongs to core. The small subprocess helper is deliberately local
+to each owning package rather than requiring a published test-support crate.
+
+The IDL package's backend executable tests create an ordinary matching-version facade
+consumer. Cargo metadata supplies the selected core/facade source locations;
+there is no `../core` or `../api` convention. In a checkout it reuses Cargo's
+workspace package. Archive validation supplies all SDK archives through normal
+patch configuration; after publication the same consumer resolves the published
+version. These checks require that matching SDK and its registry dependencies
+be available offline. They do not introduce a production IDL-to-facade dependency
+or a cyclic publication order.
+
+### Evidence limits
+
+The commands above define acceptance; their presence is not a passing result.
+Record actual source, compiler/profile/features, platform, executed/ignored cases
+and limitations with each run. Native C layout, relocated shared ownership,
+Miri, sanitizers, compiler floor and extracted archives are distinct scopes.
+Dated runs and old specifications remain retrievable in Git, not as competing
+normative files. [Validation](../../../docs/validation/README.md) owns procedures;
+[review history](../../../docs/reviews/archive/README.md) owns recorded dispositions.
+No historical test counts are promoted to acceptance for this ABI-v1 consolidation.
+
+## Related contracts
+
+
+- [COM overview and executed factory example](../README.md): contract authoring,
+  implementations, plugin export and bootstrap.
+- [IDL language and generation](../../../docs/contracts/IDL_MODULES.md): accepted syntax,
+  identities, revisions, value shapes and Cargo integration.
+- [Component responsibilities](../../../docs/architecture/COM_DESIGN.md): build tools,
+  providers, runtime and application ownership.
+- [Object/table representation](../../../docs/contracts/COM_INTERFACE_STORAGE.md): handle
+  layout and the reason diamond inheritance does not require object headers.
+- [Exclusive widget ownership](../../../docs/contracts/EXCLUSIVE_WIDGET_OWNERSHIP.md):
+  `ComBox`, weak observations, synchronous Drop and parent-controlled removal.
+- [Lifetime errors](../../../docs/contracts/COM_LIFETIME_ERRORS.md): dropped objects versus
+  closed services and error propagation from live receivers.
+- [Prepared output completion](../../../docs/contracts/COM_OUTPUT_COMPLETION.md): fallible
+  preparation and the ownership boundary of consuming ABI calls.
+- [Recursive values](../../../docs/contracts/RECURSIVE_VALUE_CONTRACT.md): checked wire
+  acquisition, recursion, budgets and metadata.
+- [Local NCB persistence](../core/README.md#why-persistence-is-ncb-only): concrete
+  bounded cursors, ordered construction, codec history and independent-plugin checks.
+- [Event queues](../../ui/api/EVENTS.md) and [UI event delivery](../../ui/runtime/docs/EVENTS.md):
+  concrete queue implementations, weak origins and deferred application behavior.
+- [Independent-build compatibility](#independent-build-compatibility): compiler/flag
+  matrix, instrumentation and platform limits.
