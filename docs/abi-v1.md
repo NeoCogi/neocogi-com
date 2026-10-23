@@ -747,8 +747,8 @@ An embedded executable explicitly retains one runtime implementation:
 ```rust
 extern crate nc_com as _;
 use neocogi_com::Runtime;
-let runtime = Runtime::global(); // Checks discovery/table size/core ABI v1.
-let plugins = runtime.plugins().unwrap();
+let runtime = Runtime::global(); // Obtains the stateless global handle.
+let plugins = runtime.plugins().unwrap(); // Checks discovery/table size/core ABI v1.
 for plugin in plugins {
     println!("{} {}", plugin.qualified_name, plugin.version);
 }
