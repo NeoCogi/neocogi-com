@@ -1,6 +1,6 @@
 //! Self-contained plugin descriptors and typed factory acquisition.
 //!
-//! A plugin carries the exact interface identity of its zero-argument factory.
+//! A plugin carries the exact interface identity of its host-supplied factory.
 //! Compatibility is checked when that factory is requested; no runtime module
 //! graph or contract-library ownership participates in registration. Object construction after
 //! bootstrap occurs only through typed factory methods; no class table or erased
@@ -29,19 +29,18 @@ pub const NC_GET_PLUGIN_DESCRIPTOR_SYMBOL: &str = "nc_get_plugin_descriptor_v1";
 ///
 /// # Safety
 ///
+/// `host` satisfies [`crate::validate_host_api`]'s readable-prefix obligations.
+/// Supported tables and callback code remain immutable for process/Wasm-instance
+/// lifetime and belong to one coherent host supporting concurrent entrypoints.
+/// Caller-owned contexts keep their operation-specific thread/borrow rules.
+/// Null/incompatible access is rejected
+/// before provider code. A copied outer record alone does not prove child lifetimes.
 /// `out` must be valid for one ComRaw record write. The function must clear both
 /// fields before fallible work and return one owned factory pair only on success.
 /// Its erased table preserves the declared factory identity, not IUnknown's
 /// identity. Common lifecycle calls are valid; typed IUnknown adoption requires
 /// QueryInterface. Erasure neither casts the object nor acquires a reference.
-pub type NcAcquirePluginFactory = unsafe extern "C" fn(out: *mut crate::ComRaw<IUnknown>) -> NcStatus;
-
-/// Safe Rust acquisition function for an interface's exact threading model.
-///
-/// This callable stays inside the provider binary. It initializes or retains one
-/// root and transfers its owner to the generated native adapter on success.
-/// It is separate from the fixed C acquisition function pointer above.
-pub type PluginRootAcquire<T> = fn() -> Result<ComPtr<T, <T as ComInterface>::Threading>, NcStatus>;
+pub type NcAcquirePluginFactory = unsafe extern "C" fn(host: *const crate::NcHostApiV1, out: *mut crate::ComRaw<IUnknown>) -> NcStatus;
 
 /// Adapts a safe typed root-factory constructor to the fixed plugin ABI.
 ///
@@ -54,7 +53,10 @@ pub type PluginRootAcquire<T> = fn() -> Result<ComPtr<T, <T as ComInterface>::Th
 ///
 /// `out` must be null or aligned and writable for one ComRaw record. A usable
 /// slot is cleared before the implementation's fallible acquisition code runs.
-pub unsafe fn write_plugin_root<T: ComInterface>(out: *mut crate::ComRaw<IUnknown>, acquire: PluginRootAcquire<T>) -> NcStatus {
+pub unsafe fn write_plugin_root<T: ComInterface>(
+    out: *mut crate::ComRaw<IUnknown>,
+    acquire: impl FnOnce() -> Result<ComPtr<T, T::Threading>, NcStatus>,
+) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }
@@ -118,7 +120,7 @@ pub struct NcPluginDescriptor {
     pub root_factory: NcInterfaceId,
     /// Threading capability promised by the returned root factory.
     pub root_factory_threading: u32,
-    /// Fixed no-argument root factory bootstrap operation.
+    /// Fixed bootstrap supplied with access to the acquiring host.
     pub acquire: Option<NcAcquirePluginFactory>,
 }
 
@@ -275,7 +277,7 @@ mod tests {
     const FACTORY_ID: NcInterfaceId = NcInterfaceId::new(NcGuid::from_fields(6, 7, 8, [9; 8]), NcAbiSignature::from_static(&[5; 32]));
 
     /// Satisfies the fixed factory acquisition shape for descriptor validation.
-    unsafe extern "C" fn acquire_factory(out: *mut crate::ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn acquire_factory(_host: *const crate::NcHostApiV1, out: *mut crate::ComRaw<IUnknown>) -> NcStatus {
         if out.is_null() {
             return NC_E_POINTER;
         }

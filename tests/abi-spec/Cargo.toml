@@ -9,5 +9,5 @@ publish = false
 
 [dependencies]
 neocogi-com = { path = "../../api", features = ["runtime"] }
-# The guide's embedded example explicitly retains this one implementation.
+# The guide's com_main entry explicitly initializes this selected implementation.
 neocogi-com-runtime = { path = "../../runtime" }

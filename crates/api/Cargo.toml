@@ -30,6 +30,11 @@ name = "abi_policy"
 path = "integration-tests/abi_policy.rs"
 
 [[test]]
+name = "com_main"
+path = "integration-tests/com_main.rs"
+required-features = ["macros", "std"]
+
+[[test]]
 name = "foundation_values"
 path = "integration-tests/foundation_values.rs"
 
@@ -69,7 +74,7 @@ default = ["macros", "std"]
 macros = ["dep:neocogi-com-macros"]
 std = ["alloc", "neocogi-com-core/std"]
 alloc = ["neocogi-com-core/alloc"]
-# Stateless typed runtime clients; linkage belongs to the final assembly.
+# Supplied-host service clients; this feature chooses no implementation.
 runtime = ["std"]
 
 [[test]]

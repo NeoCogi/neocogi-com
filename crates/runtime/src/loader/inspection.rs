@@ -35,7 +35,7 @@ pub struct PluginInspection {
 /// Owned factory compatibility data, independent of native pointer lifetimes.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FactoryInspection {
-    /// Stable interface identity returned by the zero-argument bootstrap.
+    /// Stable interface identity returned by the supplied-host bootstrap.
     pub root_factory_id: NcGuid,
     /// Complete generated signature, including the transitive IDL fingerprint.
     pub root_factory_signature: [u8; 32],

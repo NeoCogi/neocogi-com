@@ -58,11 +58,14 @@ fn exclusive_snapshot_returns_status_before_getters_and_preserves_owner() {
     .query::<IPersistableAbi>()
     .unwrap();
     let identity = owner.query_weak::<IUnknown>().unwrap();
-    assert_eq!(snapshot(identity.as_com_ref()), Err(NC_E_INVALID_ARG));
-    assert_eq!(snapshot_with_limits(identity.as_com_ref(), Limits::default()), Err(NC_E_INVALID_ARG));
+    assert_eq!(snapshot(&crate::host_runtime(), identity.as_com_ref()), Err(NC_E_INVALID_ARG));
+    assert_eq!(
+        snapshot_with_limits(&crate::host_runtime(), identity.as_com_ref(), Limits::default()),
+        Err(NC_E_INVALID_ARG)
+    );
     // SAFETY: The linked runtime table is process-lived. The live owner protects
     // identity, and the callback receives one exclusive local counter for this call.
-    let api = unsafe { nc_com_get_persistence_api_v1().as_ref() }.unwrap();
+    let api = unsafe { nc_com::initialize_process().persistence.as_ref() }.unwrap();
     let mut deliveries = 0usize;
     let status = unsafe {
         (api.snapshot)(
@@ -104,17 +107,12 @@ impl IPersistenceFactory for ExclusiveFactory {
     }
 }
 
-unsafe extern "C" {
-    /// The final assembly selects the implementation of this runtime ABI getter.
-    fn nc_com_get_persistence_api_v1() -> *const neocogi_com::NcPersistenceApiV1;
-}
-
 /// Rejection across the raw table leaves the registry empty and usable for shared registration.
 #[test]
 fn raw_factory_registration_rejects_exclusive_projection_without_mutation() {
     let owner = ExclusiveFactory::into_box(ExclusiveFactory).query::<IPersistenceFactoryAbi>().unwrap();
     // SAFETY: The linked runtime lends an immutable table for the process lifetime.
-    let api = unsafe { nc_com_get_persistence_api_v1().as_ref() }.unwrap();
+    let api = unsafe { nc_com::initialize_process().persistence.as_ref() }.unwrap();
     let mut context = core::ptr::null_mut();
     // SAFETY: Fresh local output; all context operations remain sequential on this thread.
     assert_eq!(unsafe { (api.create_context)(&mut context) }, neocogi_com::NC_OK);
@@ -143,7 +141,7 @@ fn raw_factory_registration_rejects_exclusive_projection_without_mutation() {
 #[test]
 fn shared_root_without_persistence_returns_nointerface() {
     let owner = Factory::from_value(Factory { counts: Arc::new(Counts::default()) });
-    assert_eq!(snapshot(owner.as_com_ref()), Err(neocogi_com::NC_E_NOINTERFACE));
+    assert_eq!(snapshot(&crate::host_runtime(), owner.as_com_ref()), Err(neocogi_com::NC_E_NOINTERFACE));
 }
 
 /// Explicit recipe identity, unrelated to individual object addresses.
@@ -224,7 +222,7 @@ impl Drop for Factory {
 #[test]
 fn registry_ownership_is_local_and_releases_retained_factories() {
     let (first, counts) = registry();
-    let second = FactoryRegistry::new().unwrap();
+    let second = FactoryRegistry::new(&crate::host_runtime()).unwrap();
     let bytes = binary::to_vec(&record("root", vec![])).unwrap();
     // A recipe in one context must never become visible in another context.
     assert_eq!(second.restore(&bytes).err(), Some(neocogi_com::NC_E_NOT_FOUND));
@@ -233,7 +231,7 @@ fn registry_ownership_is_local_and_releases_retained_factories() {
     drop(first);
     assert_eq!(counts.factories_dropped.load(Ordering::Relaxed), 1);
     // Releasing a registry does not invalidate objects it previously created.
-    assert_eq!(snapshot(root.as_com_ref()).unwrap(), bytes);
+    assert_eq!(snapshot(&crate::host_runtime(), root.as_com_ref()).unwrap(), bytes);
     drop(root);
     assert_eq!(counts.live.load(Ordering::Relaxed), 0);
 }
@@ -287,7 +285,7 @@ fn record(label: &str, children: Vec<ObjectRecord>) -> ObjectRecord {
 fn registry() -> (FactoryRegistry, Arc<Counts>) {
     let counts = Arc::new(Counts::default());
     let factory = Factory::from_value(Factory { counts: counts.clone() }).query().unwrap();
-    let mut registry = FactoryRegistry::new().unwrap();
+    let mut registry = FactoryRegistry::new(&crate::host_runtime()).unwrap();
     registry.register(KIND, factory).unwrap();
     (registry, counts)
 }
@@ -338,8 +336,8 @@ fn recursive_objects_round_trip_through_their_factories() {
     let (registry, counts) = registry();
     let root = registry.restore(&bytes).unwrap();
     assert_eq!(counts.live.load(Ordering::Relaxed), 4);
-    assert_eq!(snapshot(root.as_com_ref()).unwrap(), bytes);
-    let copy = registry.restore(&snapshot(root.as_com_ref()).unwrap()).unwrap();
+    assert_eq!(snapshot(&crate::host_runtime(), root.as_com_ref()).unwrap(), bytes);
+    let copy = registry.restore(&snapshot(&crate::host_runtime(), root.as_com_ref()).unwrap()).unwrap();
     drop(root);
     drop(copy);
     assert_eq!(counts.live.load(Ordering::Relaxed), 0);
@@ -382,7 +380,7 @@ fn tree_limits_and_duplicate_registration_preserve_existing_state() {
     assert!(registry.restore_with_limits(&bytes, Limits { objects: 1, ..Limits::default() }).is_err());
     assert_eq!(counts.created.load(Ordering::Relaxed), 0);
     let root = registry.restore(&bytes).unwrap();
-    assert!(snapshot_with_limits(root.as_com_ref(), Limits { depth: 1, ..Limits::default() }).is_err());
+    assert!(snapshot_with_limits(&crate::host_runtime(), root.as_com_ref(), Limits { depth: 1, ..Limits::default() }).is_err());
     drop(root);
     assert_eq!(counts.live.load(Ordering::Relaxed), 0);
 }
@@ -407,7 +405,7 @@ fn binary_limits_agree_across_snapshot_and_factory_restore() {
         objects: 1,
         depth: 1,
     };
-    assert_eq!(snapshot_with_limits(root.as_com_ref(), exact).unwrap(), bytes);
+    assert_eq!(snapshot_with_limits(&crate::host_runtime(), root.as_com_ref(), exact).unwrap(), bytes);
     let restored = registry.restore_with_limits(&bytes, exact).unwrap();
     drop(restored);
     let created = counts.created.load(Ordering::Relaxed);
@@ -431,7 +429,7 @@ fn binary_limits_agree_across_snapshot_and_factory_restore() {
         },
     ] {
         let insufficient = Limits { binary, ..exact };
-        assert!(snapshot_with_limits(root.as_com_ref(), insufficient).is_err());
+        assert!(snapshot_with_limits(&crate::host_runtime(), root.as_com_ref(), insufficient).is_err());
         assert!(registry.restore_with_limits(&bytes, insufficient).is_err());
         // A resource rejection must precede factory acquisition, preserving the
         // already-live root and preventing construction of a partial copy.
@@ -442,6 +440,11 @@ fn binary_limits_agree_across_snapshot_and_factory_restore() {
     assert_eq!(counts.live.load(Ordering::Relaxed), 0);
 }
 
-
 #[path = "snapshot_identity.rs"]
 mod snapshot_identity;
+
+/// Initializes this final test executable's selected host and admits its static tables.
+fn host_runtime() -> neocogi_com::Runtime {
+    // SAFETY: the explicit implementation owns its complete process-lived graph.
+    unsafe { neocogi_com::Runtime::__from_host_api(nc_com::initialize_process()) }.expect("test host API is compatible")
+}

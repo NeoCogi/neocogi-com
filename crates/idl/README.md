@@ -17,7 +17,7 @@ The single `neocogi-idl` package separates responsibilities into Rust modules:
   rewrite formatted declarations, or reparse Rust types to recover their contracts.
   Its pure entrypoints perform no Cargo environment access.
 - `tools/idl/example-contracts` and `example-consumer-contracts` cover standalone
-  and imported contracts. [examples/com-plugin](../../../examples/com-plugin)
+  and imported contracts. [examples/com-plugin](https://github.com/NeoCogi/foundations/tree/master/examples/com-plugin)
   demonstrates their dynamic and monolithic use.
 
 Structs, enums, and ordinary interfaces support type parameters. One expansion
@@ -25,7 +25,7 @@ pass substitutes closed uses into concrete declarations with deterministic
 identities before ABI resolution. Fields, recursive layouts, and method slots
 then follow exactly the same rules as nongeneric declarations. IDL interfaces
 define public capabilities, including construction methods. Concrete classes and
-plugin acquisition live in Rust implementations. The [language reference](../../../docs/contracts/IDL_MODULES.md)
+plugin acquisition live in Rust implementations. The [language reference](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/IDL_MODULES.md)
 owns the grammar. Records and enums share recursive checked conversion;
 there is no separate message declaration category.
 
@@ -33,7 +33,7 @@ UI event transport is an ordinary contract in `neocogi.ui.core`. IDL has no
 application event syntax or event-root dependency. UI declares producer outputs
 with `ui_event_sources!` beside generated Rust bindings, and validates snapshot
 getters when publishing a catalog. See
-[UI event metadata](../../../docs/contracts/UI_EVENT_METADATA.md).
+[UI event metadata](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/UI_EVENT_METADATA.md).
 
 ## Contract crate setup
 
@@ -99,7 +99,7 @@ fields, variants, methods and derived helpers to their IDL origins. Generated Ru
 includes readable `IDL source: path:line:column` documentation. For in-memory tools,
 `generate_rust_with_source_map` returns the Rust and map together; explicit Rust
 locations use `generate::generate_rust_with_paths_and_source_map`. These provenance
-artifacts do not affect ABI identity. See [source mapping](../../../docs/guides/IDL_SOURCE_MAPS.md)
+artifacts do not affect ABI identity. See [source mapping](https://github.com/NeoCogi/foundations/blob/master/docs/guides/IDL_SOURCE_MAPS.md)
 for schema, coordinates, path resolution and macro-expansion limits.
 
 The resolver gives IDL declarations a UUID derived from their qualified name and
@@ -150,7 +150,7 @@ even inside ordinary copied records, enum payloads, and method buffers.
 Copied method slots and buffer elements accept scalars, finite copied
 records/enums/bit sets, and arrays whose elements are recursively copied. Values containing strings, sequences or object fields must be borrowed through a named record/enum. Unsupported
 copied positions fail during IDL resolution. See the normative
-[recursive value contract](../../../docs/contracts/RECURSIVE_VALUE_CONTRACT.md) for limits,
+[recursive value contract](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/RECURSIVE_VALUE_CONTRACT.md) for limits,
 ownership, wire memory obligations, and examples.
 
 ## Publishing contracts inside an existing Rust crate
@@ -167,7 +167,7 @@ or ABI fingerprints. Conflicting owners and malformed paths fail generation.
 The pure `generate::generate_rust_with_paths` API accepts a validated
 `RustModulePaths` mapping for callers outside Cargo; it requires no global state.
 
-COM owns the [binding-path grammar](../core/README.md#descriptor-text-validation)
+COM owns the [binding-path grammar](https://github.com/NeoCogi/foundations/blob/master/crates/com/core/README.md#descriptor-text-validation)
 through `validate_rust_path`. IDL calls it for explicit/conventional module paths
 and complete published type paths; `syn` then builds the compiler's syntax tree.
 Catalog producers and readers call the same COM validator. Paths have a 1024-byte
@@ -208,7 +208,7 @@ versions, trailing-default policy and positional generic binders.
 `Option<T>` comes from the bundled [ordinary IDL enum](stdlib/neocogi/lang.ncidl).
 It follows lexical lookup and normal specialization; copied payloads permit
 copied calls, and owned payloads require a borrow of the whole enum. See the
-[generic value guide](../../../docs/contracts/IDL_GENERIC_VALUES.md) and
+[generic value guide](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/IDL_GENERIC_VALUES.md) and
 [compiled example](examples/generic_values.ncidl) for collection constructors,
 borrowed optional COM capabilities, and the remaining explicit limitations.
 
@@ -221,4 +221,4 @@ and initialized-prefix count pointer in ABI v1. Existing destination
 contents are never input. A transformation needs an explicit readable argument
 and a separate output. Recursive checked wire types remain authoritative; Rust
 containers, enum layout, and persistence serialization do not cross these slots.
-See [the output contract](../../../docs/contracts/COM_OUTPUT_BUFFERS.md).
+See [the output contract](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/COM_OUTPUT_BUFFERS.md).

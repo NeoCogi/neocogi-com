@@ -1,8 +1,8 @@
 //! Unified plugin operations owned by the one linked `nc_com` runtime.
 //! Registration, loading, factory acquisition, lookup, enumeration and unregistered
 //! inspection share this table. Diagnostics and persistence have independent
-//! lifecycles and tables. Callers check the unversioned runtime generation before
-//! retrieving this immutable size-prefixed table. Pre-release v1 changes in place;
+//! lifecycles and tables. Callers admit this immutable size-prefixed table through
+//! the host-supplied API description. Pre-release v1 changes in place;
 //! all participants must be rebuilt from the same checkout.
 
 use core::ffi::c_void;

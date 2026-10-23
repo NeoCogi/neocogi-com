@@ -57,7 +57,7 @@ class AdmissionTests(unittest.TestCase):
             path.write_bytes(b"artifact")
             self.assertEqual(driver.require_file(path), path)
 
-    def test_shared_artifacts_admit_exact_fresh_and_cached_case_roots(self):
+    def test_qualification_artifacts_admit_exact_fresh_and_cached_case_roots(self):
         """Cargo supplies paths; both cache states must establish the same assembly."""
         with tempfile.TemporaryDirectory() as directory:
             manifest, records = self.shared_records(Path(directory))
@@ -66,12 +66,12 @@ class AdmissionTests(unittest.TestCase):
                 for record in records:
                     record["fresh"] = fresh
                 output = "compiler progress\n" + "\n".join(map(json.dumps, records))
-                self.assertEqual(driver.shared_artifacts(output, manifest), expected)
+                self.assertEqual(driver.qualification_artifacts(output, manifest), expected)
 
     @staticmethod
     def shared_records(root):
         """Two nonempty executables with Cargo's actual manifest/source identity fields."""
-        manifest = root / "fixtures/shared-runtime/Cargo.toml"
+        manifest = root / "fixtures/host-runtime/Cargo.toml"
         manifest.parent.mkdir(parents=True)
         manifest.write_text("[package]")
         records = []
@@ -106,59 +106,34 @@ class AdmissionTests(unittest.TestCase):
             invalid.append(changed)
             for rows in invalid:
                 with self.subTest(rows=rows), self.assertRaises(RuntimeError):
-                    driver.shared_artifacts("\n".join(map(json.dumps, rows)), manifest)
+                    driver.qualification_artifacts("\n".join(map(json.dumps, rows)), manifest)
 
-    def test_shared_admission_rejects_cached_runtime_with_matching_names(self):
-        """Adding an implementation dependency must fail even if both test artifacts match."""
+    def test_cached_host_implementation_is_ordinary_build_evidence(self):
+        """The final host now links nc_com; cached rlib records are expected."""
         with tempfile.TemporaryDirectory() as directory:
             manifest, records = self.shared_records(Path(directory))
             for fresh in (False, True):
                 runtime = {"reason": "compiler-artifact", "target": {"name": "nc_com"},
                            "fresh": fresh, "executable": None}
-                with self.assertRaisesRegex(RuntimeError, "runtime implementation"):
-                    driver.shared_artifacts("\n".join(map(json.dumps, [*records, runtime])), manifest)
+                admitted = driver.qualification_artifacts("\n".join(map(json.dumps, [*records, runtime])), manifest)
+                self.assertEqual(admitted.keys(), driver.RUNTIME_TESTS.keys())
 
-    def test_runtime_withholding_rejects_discovery_and_always_restores(self):
-        """Failure after listing or launch failure cannot leave the staged runtime removed."""
-        with tempfile.TemporaryDirectory() as directory, redirect_stdout(io.StringIO()):
-            root = Path(directory)
-            stage = root / "stage"
-            stage.mkdir()
-            runtime, executable = stage / "nc_com", root / "test.exe"
-            runtime.write_bytes(b"runtime")
-            executable.write_bytes(b"test")
-            for status, output, valid in ((127, "loader failed", True), (0, "", False),
-                                          (1, "sentinel: test\n", False)):
-                with patch.object(driver.subprocess, "run", return_value=subprocess.CompletedProcess([], status, output)):
-                    if valid:
-                        driver.require_runtime_dependency(executable, runtime, {}, root)
-                    else:
-                        with self.assertRaises(RuntimeError):
-                            driver.require_runtime_dependency(executable, runtime, {}, root)
-                self.assertEqual(runtime.read_bytes(), b"runtime")
-                self.assertFalse((root / "withheld-nc_com").exists())
-            with patch.object(driver.subprocess, "run", side_effect=OSError("launch failure")):
-                with self.assertRaises(OSError):
-                    driver.require_runtime_dependency(executable, runtime, {}, root)
-            self.assertEqual(runtime.read_bytes(), b"runtime")
-
-    def test_shared_execution_runs_complete_suites_before_negative_control(self):
+    def test_qualification_execution_runs_complete_suites_without_a_runtime_dso(self):
         """Discovery is followed by an unfiltered execution, never a sentinel-only pass."""
         with tempfile.TemporaryDirectory() as directory:
             manifest, records = self.shared_records(Path(directory))
-            artifacts = driver.shared_artifacts("\n".join(map(json.dumps, records)), manifest)
+            artifacts = driver.qualification_artifacts("\n".join(map(json.dumps, records)), manifest)
             outputs = []
             for name in artifacts:
                 outputs.extend([driver.RUNTIME_TESTS[name] + ": test\n", "test result: ok. 4 passed; 0 failed;"])
-            with patch.object(driver, "run", side_effect=outputs) as run, patch.object(driver, "require_runtime_dependency") as negative:
-                evidence = driver.shared_tests(artifacts, Path("runtime"), {}, manifest.parent)
+            with patch.object(driver, "run", side_effect=outputs) as run:
+                evidence = driver.qualification_tests(artifacts, {}, manifest.parent)
             self.assertEqual(evidence.keys(), artifacts.keys())
-            self.assertEqual(negative.call_count, 2)
             self.assertEqual([call.args[0][1:] for call in run.call_args_list],
                              [["--list"], ["--test-threads=1"], ["--list"], ["--test-threads=1"]])
             for output in ("0 tests", "test result: ok. 0 passed; 0 failed;"):
                 with patch.object(driver, "run", return_value=output), self.assertRaises(RuntimeError):
-                    driver.shared_tests(artifacts, Path("runtime"), {}, manifest.parent)
+                    driver.qualification_tests(artifacts, {}, manifest.parent)
 
     def test_ordinary_abi_cases_do_not_enable_native_runtime_clients(self):
         """Sanitizer exports must not turn a pure test into an unresolved native importer."""
@@ -177,7 +152,7 @@ class AdmissionTests(unittest.TestCase):
         overrides = {name: "stale" for name in (
             "CARGO", "RUSTC", "RUSTUP_TOOLCHAIN", "RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS",
             "CARGO_TARGET_DIR", "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS",
-            "CARGO_PROFILE_RELEASE_PANIC", "CARGO_BUILD_TARGET", "CARGO_BUILD_RUSTC", "NC_COM_RUNTIME_LINK_DIR",
+            "CARGO_PROFILE_RELEASE_PANIC", "CARGO_BUILD_TARGET", "CARGO_BUILD_RUSTC",
             "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "MIRIFLAGS", "ASAN_OPTIONS", "TSAN_OPTIONS",
         )}
         with patch.dict(os.environ, {**overrides, "PATH": "tool-search"}, clear=True):

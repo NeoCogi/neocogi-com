@@ -1,4 +1,4 @@
-//! Caller-scoped persistence operations exported by the shared runtime.
+//! Caller-scoped persistence operations supplied by the host runtime.
 //!
 //! Contexts belong to their creating runtime and thread. Foreign callers must
 //! keep them alive for each call, exclusively borrow them for registration and
@@ -41,7 +41,7 @@ pub struct NcPersistenceLimitsV1 {
 /// and never retains `user_data`. A failed capture does not call it at all.
 pub type NcPersistenceWriteBytesV1 = unsafe extern "C" fn(user_data: *mut c_void, bytes: *const u8, len: usize) -> NcStatus;
 
-/// Size-prefixed persistence table, discovered after the runtime ABI version check.
+/// Size-prefixed persistence table admitted through the host API description.
 #[repr(C)]
 pub struct NcPersistenceApiV1 {
     /// Available table bytes, including this prefix.

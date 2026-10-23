@@ -45,7 +45,7 @@ fn ordinary_cargo_builds_a_relocatable_monolith() {
         &[
             "build",
             "-p",
-            "neocogi-example-com-plugin",
+            "neocogi-example-com-host",
             "--bin",
             "neocogi-example-com",
             "--features",

@@ -68,7 +68,7 @@ pub(crate) unsafe fn acquire_factory(
 
     // SAFETY: The registered pointer remains mapped and `out` satisfies its
     // fixed output contract for this synchronous call.
-    let status = unsafe { acquire(out) };
+    let status = unsafe { acquire(crate::initialize_process(), out) };
     if status.is_err() {
         // A plugin must clear failed outputs. Clear defensively without
         // dereferencing an untrusted value supplied on an error path.
@@ -188,7 +188,7 @@ mod tests {
     };
 
     /// Allocates and transfers one fake root factory reference.
-    unsafe extern "C" fn acquire(out: *mut neocogi_com_core::ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn acquire(_host: *const neocogi_com_core::NcHostApiV1, out: *mut neocogi_com_core::ComRaw<IUnknown>) -> NcStatus {
         if out.is_null() {
             return NC_E_POINTER;
         }
@@ -284,7 +284,7 @@ mod malformed_bootstrap_tests {
     use neocogi_com_core::ComRaw;
 
     /// Simulates a producer writing an object word without a method table.
-    unsafe extern "C" fn missing_table(out: *mut ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn missing_table(_host: *const neocogi_com_core::NcHostApiV1, out: *mut ComRaw<IUnknown>) -> NcStatus {
         // SAFETY: the test supplies one writable output record; no object is acquired.
         unsafe {
             *out = ComRaw {
@@ -295,7 +295,7 @@ mod malformed_bootstrap_tests {
         NC_OK
     }
     /// Simulates the opposite half-null shape; its table must never be read.
-    unsafe extern "C" fn missing_object(out: *mut ComRaw<IUnknown>) -> NcStatus {
+    unsafe extern "C" fn missing_object(_host: *const neocogi_com_core::NcHostApiV1, out: *mut ComRaw<IUnknown>) -> NcStatus {
         // SAFETY: the test supplies one writable output record; shape rejection comes first.
         unsafe {
             *out = ComRaw {

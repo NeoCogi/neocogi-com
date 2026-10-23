@@ -1,5 +1,5 @@
 //! Single-threaded allocation probe for domain notifications and ordinary updates.
-//! Run with: cargo run -p neocogi-example-com-plugin --example event_allocations --features monolith
+//! Run with: cargo run -p neocogi-example-com-host --example event_allocations --features monolith
 
 #[path = "../support/notification_channel.rs"]
 mod notification_channel;
@@ -80,7 +80,8 @@ fn deliver(object: &mut ComPtr<ExampleObjectAbi>, messages: &std::sync::mpsc::Re
 }
 
 /// Measures concrete receiver construction and repeated typed ABI delivery separately.
-fn main() {
+#[neocogi_com::com_main]
+fn main(runtime: Runtime) {
     // A valid collection count followed by no elements must not reserve 64 MiB
     // for 65,536 records of 1,024 bytes each before detecting truncated input.
     count(|| {
@@ -89,7 +90,6 @@ fn main() {
     let largest = LARGEST_ALLOCATION.load(Ordering::Relaxed);
     assert!(largest <= 4096, "malformed input reserved {largest} bytes before validation");
     println!("largest eager allocation for truncated large-record collection: {largest} bytes");
-    let runtime = Runtime::global();
     // SAFETY: The immutable descriptor and implementation are linked into this executable.
     unsafe { runtime.register_plugin_descriptor(nc_example_com::plugin_descriptor()) }.unwrap();
     let factory = runtime
@@ -113,7 +113,3 @@ fn main() {
     println!("common receiver and channel: {binding} allocations");
     println!("10,000 scalar events including channel storage: {delivery} allocations");
 }
-
-// Embedded ownership belongs to this final executable, never the facade.
-#[cfg(feature = "monolith")]
-extern crate nc_com as _;

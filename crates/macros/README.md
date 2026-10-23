@@ -28,7 +28,7 @@ storage companion or per-provider lifecycle bodies. Static tables implement sign
 `QueryInterface`; handles carry the allocation and selected table, so interfaces
 add no per-object fields. The compiler resolves distinct inherited contracts,
 including diamonds, without retaining full inspection metadata in dispatch.
-See the [storage decision](../../../docs/contracts/COM_INTERFACE_STORAGE.md) for the
+See the [storage decision](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/COM_INTERFACE_STORAGE.md) for the
 history of the reverted metadata-heavy version and the deliberate handle-size
 tradeoff in the current representation.
 `into_local(initialized_value)` returns a `LocalCom<Implementation>` when the
@@ -63,7 +63,7 @@ implementation's storage and lifetime; the acquisition function owns initializat
 struct UiFactoryObject;
 
 #[neocogi_com::plugin(name = "example.ui")]
-fn acquire_root() -> Result<neocogi_com::ComPtr<my_contracts::UiFactoryAbi>, neocogi_com::NcStatus> {
+fn acquire_root(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<my_contracts::UiFactoryAbi>, neocogi_com::NcStatus> {
     UiFactoryObject::from_value(UiFactoryObject).query()
 }
 ```
@@ -109,7 +109,7 @@ Rust implementation macros never choose an interface revision or encode a schema
 Generated value codecs and method adapters keep authored members/parameters
 separate from positional private bindings, qualify their support types/macros,
 and select required trait operations explicitly. Plugin support lookup and default
-decoding have independent normal/printed semantic controls. See [generated identifier hygiene](../../../docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md)
+decoding have independent normal/printed semantic controls. See [generated identifier hygiene](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md)
 for the contract, the corruption it prevents, and executable regression coverage.
 
 Value wire/payload/storage definitions live in anonymous implementation scopes.
@@ -129,4 +129,4 @@ Executable package tests own their fixtures and ask Cargo for the actual core
 and facade package locations. They also run against extracted SDK archives;
 `bash crates/com/scripts/test-packages.sh` supplies the matching SDK offline and
 checks all shipped test targets. Checkout-only integration suites remain in
-repository CI. See [archive validation](../docs/abi-v1.md#published-archive-validation).
+repository CI. See [archive validation](https://github.com/NeoCogi/foundations/blob/master/crates/com/docs/abi-v1.md#published-archive-validation).

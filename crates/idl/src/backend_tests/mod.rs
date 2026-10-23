@@ -12,3 +12,5 @@ mod test_consumer;
 mod public_name_tests;
 
 mod documentation_tests;
+
+mod host_entry_tests;

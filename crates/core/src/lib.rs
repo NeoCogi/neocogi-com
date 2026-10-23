@@ -126,8 +126,8 @@ pub use status::{
 #[doc(hidden)]
 pub use metadata::{__ComProjection, __nc_interface_chain, __nc_object_interface_count, __nc_projection_table, __nc_projection_vtables};
 pub use plugin_descriptor::{
-    NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAcquirePluginFactory, NcPluginDescriptor, NcGetPluginDescriptor, PluginRootAcquire,
-    write_plugin_root, return_plugin_descriptor, validate_plugin_descriptor,
+    NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NC_GET_PLUGIN_DESCRIPTOR_SYMBOL, NcAcquirePluginFactory, NcPluginDescriptor, NcGetPluginDescriptor, write_plugin_root,
+    return_plugin_descriptor, validate_plugin_descriptor,
 };
 
 pub use value_buffer::{EncodedInput, DecodedInput};

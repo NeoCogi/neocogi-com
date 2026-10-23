@@ -22,31 +22,21 @@ fn shared_artifact(output: &Output, target_name: &str) -> PathBuf {
         .expect("Cargo reports the requested shared library")
 }
 
-/// The final fixture owns shared-runtime link selection; the facade never supplies it.
+/// Builds a pure provider that is inspectable without any initialized runtime.
 fn build_factory_plugin() -> PathBuf {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let target = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| workspace.join("target"));
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
-    let runtime = Command::new(&cargo)
-        .args(["build", "--offline", "--locked", "--manifest-path"])
-        .arg(workspace.join("Cargo.toml"))
-        .args(["-p", "neocogi-com-runtime", "--lib", "--message-format=json", "--target-dir"])
-        .arg(&target)
-        .output()
-        .expect("build the fixture's shared runtime");
-    assert_success("shared runtime build", &runtime);
-    let runtime = shared_artifact(&runtime, "nc_com");
     let output = Command::new(cargo)
         .args(["rustc", "--offline", "--locked", "--manifest-path"])
         .arg(workspace.join("examples/com-plugin/Cargo.toml"))
         .arg("--target-dir")
         .arg(&target)
         .args(["--lib", "--crate-type", "cdylib", "--features", "dynamic-plugin", "--message-format=json"])
-        .env("NC_COM_RUNTIME_LINK_DIR", runtime.parent().unwrap())
         .output()
-        .expect("build factory fixture with explicit final linkage");
+        .expect("build runtime-free factory fixture");
     assert_success("factory plugin build", &output);
     shared_artifact(&output, "nc_example_com")
 }

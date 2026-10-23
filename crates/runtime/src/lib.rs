@@ -18,8 +18,8 @@
 //! return statuses. Caller-owned persistence contexts stay outside the catalog.
 //!
 //! The Cargo package is `neocogi-com-runtime`; the Rust target is `nc_com`.
-//! Static and browser hosts link this implementation once. Native shared hosts
-//! import the C ABI from the sole shared `nc_com` image. Pure ABI records remain
+//! Native and browser hosts link this implementation once and lend its immutable
+//! C service tables to providers. No runtime DSO is deployed. Pure ABI records remain
 //! in `neocogi-com-core`; importing them creates no runtime state.
 
 #![deny(missing_docs)]
@@ -47,7 +47,9 @@ pub use loader::{
 /// callback code remain valid for the process/Wasm-instance lifetime, including
 /// after the application entry returns. Copies of the supplied access do not
 /// create additional owners. Reusable libraries/plugins receive that access;
-/// they do not select or initialize another implementation.
+/// they do not select or initialize another implementation. Host catalog/debug
+/// entrypoints synchronize concurrent calls; caller-owned persistence contexts
+/// retain their thread-local and exclusive-operation requirements.
 pub fn initialize_process() -> &'static neocogi_com_core::NcHostApiV1 {
     let _ = state::RuntimeState::global();
     &api::HOST_API

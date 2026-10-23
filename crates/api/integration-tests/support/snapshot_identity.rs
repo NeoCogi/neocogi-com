@@ -211,12 +211,12 @@ impl Entry {
     /// Raw delivery stays untouched on capture failure and matches safe bytes on success.
     fn capture(self, root: ComRef<'_, IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
         match self {
-            Self::Safe => neocogi_com::persistence::snapshot_with_limits(root, limits),
+            Self::Safe => neocogi_com::persistence::snapshot_with_limits(&crate::host_runtime(), root, limits),
             Self::Raw => {
                 let mut sink = Sink { bytes: Vec::new(), calls: 0 };
                 // SAFETY: linked table is static; root and exclusive sink outlive the call.
                 let status = unsafe {
-                    ((*super::nc_com_get_persistence_api_v1()).snapshot)(root.as_raw(), limits.into(), Some(deliver), core::ptr::from_mut(&mut sink).cast())
+                    ((*nc_com::initialize_process().persistence).snapshot)(root.as_raw(), limits.into(), Some(deliver), core::ptr::from_mut(&mut sink).cast())
                 };
                 if status.is_err() {
                     assert_eq!(sink.calls, 0);

@@ -7,7 +7,7 @@ use neocogi_com::*;
 /// Counts bootstrap calls so metadata operations cannot silently acquire objects.
 static ACQUIRES: AtomicUsize = AtomicUsize::new(0);
 /// Returns a distinctive ordinary acquisition error without transferring ownership.
-unsafe extern "C" fn acquire(out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn acquire(_host: *const neocogi_com::NcHostApiV1, out: *mut ComRaw<IUnknown>) -> NcStatus {
     unsafe { out.write(ComRaw::null()) };
     ACQUIRES.fetch_add(1, Ordering::SeqCst);
     NC_E_CLOSED
@@ -27,17 +27,13 @@ fn description(name: &'static str, dependencies: &'static [NcPluginDependencyDes
         acquire: Some(acquire),
     }))
 }
-unsafe extern "C" {
-    /// Actual linked C table, exercised in shared and static configurations.
-    fn nc_com_get_runtime_api_v1() -> *const NcRuntimeApiV1;
-}
 
 /// A separate integration executable starts with an empty process registry.
 #[test]
 fn complete_records_are_coherent_owned_and_stable_across_growth() {
-    let runtime = Runtime::global();
+    let runtime = crate::host_runtime();
     assert_eq!(runtime.runtime_abi_version(), 1);
-    let api = unsafe { &*nc_com_get_runtime_api_v1() };
+    let api = unsafe { &*nc_com::initialize_process().runtime };
     let mut len = usize::MAX;
     assert_eq!(unsafe { (api.plugin_infos)(ptr::null_mut(), 0, &mut len) }, NC_OK);
     assert_eq!(len, 0);
@@ -119,3 +115,9 @@ fn complete_records_are_coherent_owned_and_stable_across_growth() {
 
 // This final test executable owns its isolated process runtime.
 extern crate nc_com as _;
+
+/// Initializes this final test executable's selected host and admits its static tables.
+fn host_runtime() -> neocogi_com::Runtime {
+    // SAFETY: the explicit implementation owns its complete process-lived graph.
+    unsafe { neocogi_com::Runtime::__from_host_api(nc_com::initialize_process()) }.expect("test host API is compatible")
+}

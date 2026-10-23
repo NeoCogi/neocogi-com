@@ -130,21 +130,17 @@ for package in "${packages[@]}"; do
   fi
 done
 
-# The public runtime build guide promises both ordinary Cargo outputs. Check
-# actual files, rather than a copied manifest description or an explicit override.
-echo "==> [packages] ordinary runtime build emits its declared rlib and shared library"
+# The host implementation is an ordinary rlib; there is no runtime DSO mode.
+echo "==> [packages] ordinary runtime build emits its host rlib"
 cargo +1.85.0 build --manifest-path "$verify_root/neocogi-com-runtime-$version/Cargo.toml"
 python3 - <<'PYRUNTIME'
 import os
 from pathlib import Path
-import platform
 output = Path(os.environ["CARGO_TARGET_DIR"]) / "debug"
-shared = {"Linux": "libnc_com.so", "Darwin": "libnc_com.dylib", "Windows": "nc_com.dll"}[platform.system()]
-for name in ("libnc_com.rlib", shared):
-    artifact = output / name
-    if not artifact.is_file() or artifact.stat().st_size == 0:
-        raise SystemExit(f"ordinary runtime build did not emit {artifact}")
-print("ordinary runtime outputs passed: rlib and shared library")
+artifact = output / "libnc_com.rlib"
+if not artifact.is_file() or artifact.stat().st_size == 0:
+    raise SystemExit(f"ordinary runtime build did not emit {artifact}")
+print("ordinary host implementation rlib passed")
 PYRUNTIME
 
 # Ordinary downstream usage: generate interfaces at build time, implement one
@@ -160,7 +156,7 @@ edition = "2024"
 links = "nc_contract_70726f6f662e61726368697665"
 [dependencies]
 MANIFEST
-printf 'neocogi-com = "=%s"\n[build-dependencies]\nneocogi-idl = "=%s"\n' "$version" "$version" >> consumer/Cargo.toml
+printf 'neocogi-com = { version = "=%s", features = ["runtime"] }\nneocogi-com-runtime = "=%s"\n[build-dependencies]\nneocogi-idl = "=%s"\n' "$version" "$version" "$version" >> consumer/Cargo.toml
 cat > consumer/build.rs <<'BUILD'
 //! A normal downstream build script; no source-tree layout assumptions.
 fn main() {
@@ -179,8 +175,15 @@ struct Value;
 impl Counter for Value {
     fn read(&self) -> Result<u32, NcStatus> { Ok(42) }
 }
-fn main() {
-    let counter = Value::from_value(Value).query::<CounterAbi>().unwrap();
+#[neocogi_com::plugin(name = "proof.archive.provider")]
+fn acquire(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<CounterAbi>, NcStatus> {
+    Value::from_value(Value).query()
+}
+#[neocogi_com::com_main]
+fn main(runtime: neocogi_com::Runtime) {
+    // SAFETY: this extracted-only consumer links its complete provider graph.
+    unsafe { runtime.register_plugin_descriptor(plugin_descriptor()) }.unwrap();
+    let counter = runtime.acquire_plugin_root::<CounterAbi>(plugin_descriptor().plugin_id).unwrap();
     assert_eq!(counter.read(), Ok(42));
     assert_eq!(neocogi_com::NC_COM_RUNTIME_ABI_VERSION, 1);
     assert_eq!(neocogi_com::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 1);

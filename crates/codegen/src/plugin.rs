@@ -125,7 +125,7 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
         ));
     }
     let accessor = Ident::new(ACCESSOR_NAME, signature.ident.span());
-    if !signature.inputs.is_empty()
+    if signature.inputs.len() != 1
         || !signature.generics.params.is_empty()
         || signature.generics.where_clause.is_some()
         || signature.asyncness.is_some()
@@ -136,7 +136,7 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
     {
         return Err(syn::Error::new_spanned(
             signature,
-            "plugin acquisition must be a safe, non-generic, zero-argument Rust function",
+            "plugin acquisition must be a safe, non-generic Rust function taking one Runtime argument",
         ));
     }
     let ReturnType::Type(_, output) = &signature.output else {
@@ -178,6 +178,7 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
     let descriptor_name = names.fresh("NC_COM_PLUGIN_DESCRIPTOR");
     let adapter = names.fresh("__nc_acquire_plugin_root");
     let output = names.binding("__nc_output");
+    let host = names.binding("__nc_host_api");
 
     let binding_imports = names.binding_imports();
     Ok(quote! {
@@ -193,7 +194,7 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
             #(#dependencies,)*
         ];
 
-        /// Immutable plugin metadata consumed by the shared runtime.
+        /// Immutable plugin metadata consumed by the host runtime.
         static #descriptor_name: #nc::NcPluginDescriptor = #nc::NcPluginDescriptor {
             description_abi_version: #nc::NC_PLUGIN_DESCRIPTOR_ABI_VERSION,
             core_abi_version: #nc::NC_COM_CORE_ABI_VERSION,
@@ -210,12 +211,20 @@ pub fn expand_plugin(args: PluginArgs, input: ItemFn) -> Result<proc_macro2::Tok
         /// Transfers one typed root through the fixed acquisition ABI.
         ///
         /// # Safety
+        /// `host` grants readable prefixes and, for supported versions, a complete
+        /// immutable coherent process-lived graph of tables and callable code,
+        /// with concurrent host entrypoints and documented per-context ownership.
         /// `out` must be null or writable for one raw COM pair. The helper clears
-        /// usable storage before calling provider code and transfers only success.
-        unsafe extern "C" fn #adapter(#output: *mut #nc::ComRaw<#nc::IUnknown>) -> #nc::NcStatus {
+        /// usable storage before host admission or provider code and transfers only success.
+        unsafe extern "C" fn #adapter(#host: *const #nc::NcHostApiV1, #output: *mut #nc::ComRaw<#nc::IUnknown>) -> #nc::NcStatus {
             // SAFETY: forwarded output obligations; the typed function fixes the
             // exact interface and threading used by the descriptor above.
-            unsafe { #nc::write_plugin_root::<#interface>(#output, #acquire) }
+            unsafe {
+                #nc::write_plugin_root::<#interface>(#output, || {
+                    let #host = #nc::Runtime::__from_host_api(#host)?;
+                    #acquire(#host)
+                })
+            }
         }
 
         &#descriptor_name
@@ -285,14 +294,16 @@ mod signature_tests {
     #[test]
     fn rejects_non_bootstrap_function_shapes() {
         for source in [
-            "fn root(value: u32) -> Result<ComPtr<I>, NcStatus> { todo!() }",
-            "unsafe fn root() -> Result<ComPtr<I>, NcStatus> { todo!() }",
-            "async fn root() -> Result<ComPtr<I>, NcStatus> { todo!() }",
-            "extern \"C\" fn root() -> Result<ComPtr<I>, NcStatus> { todo!() }",
-            "fn root<T>() -> Result<ComPtr<I>, NcStatus> { todo!() }",
-            "fn root() -> Result<ComBox<I>, NcStatus> { todo!() }",
-            "fn root() -> AliasedResult { todo!() }",
-            "fn root() {}",
+            "fn root() -> Result<ComPtr<I>, NcStatus> { todo!() }",
+            "unsafe fn root(runtime: Runtime) -> Result<ComPtr<I>, NcStatus> { todo!() }",
+            "async fn root(runtime: Runtime) -> Result<ComPtr<I>, NcStatus> { todo!() }",
+            "extern \"C\" fn root(runtime: Runtime) -> Result<ComPtr<I>, NcStatus> { todo!() }",
+            "fn root<T>(runtime: Runtime) -> Result<ComPtr<I>, NcStatus> { todo!() }",
+            "fn root(runtime: Runtime) -> Result<ComBox<I>, NcStatus> { todo!() }",
+            "fn root(runtime: Runtime) -> AliasedResult { todo!() }",
+            "fn root(runtime: Runtime) {}",
+            "fn root(a: Runtime, b: Runtime) -> Result<ComPtr<I>, NcStatus> { todo!() }",
+            "fn root(runtime: Runtime) -> Result<ComPtr<I>, NcStatus> where Runtime: Copy { todo!() }",
         ] {
             let args = syn::parse_str("name = \"nc.test.invalid\"").unwrap();
             let function = syn::parse_str(source).unwrap();

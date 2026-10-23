@@ -1,23 +1,18 @@
-//! Safe Rust ownership over the linked runtime's persistence operation table.
+//! Safe Rust ownership over the supplied host's persistence operation table.
 
 use core::{
     ffi::c_void,
-    mem,
     ptr::{self, NonNull},
     slice,
 };
 use std::vec::Vec;
 use neocogi_com_core::{NcPersistenceApiV1, NcPersistenceContext};
-use crate::runtime::ffi as runtime_sys;
-use crate::{
-    ComPtr, ComRef, IUnknown, NcGuid, NcStatus, NC_COM_CORE_ABI_VERSION, NC_COM_RUNTIME_ABI_VERSION, NC_E_ABI_VERSION, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY,
-    NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK,
-};
+use crate::{ComPtr, ComRef, IUnknown, NcGuid, NcStatus, Runtime, NC_E_INVALID_ARG, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_OK};
 use super::{IPersistenceFactoryAbi, Limits};
 
 /// An explicitly owned, thread-local set of reconstruction factories.
 ///
-/// Storage lives in the linked runtime and is released by that same runtime.
+/// Storage lives in the supplied host and is released by that same runtime.
 /// Registration requires `&mut self`; restore only borrows the registry. The
 /// opaque non-null pointer deliberately makes this owner neither Send nor Sync,
 /// matching the thread-local persistence provider contracts. Creating one does
@@ -30,9 +25,9 @@ pub struct FactoryRegistry {
 }
 
 impl FactoryRegistry {
-    /// Creates an empty context after checking both runtime and core ABI versions.
-    pub fn new() -> Result<Self, NcStatus> {
-        let api = persistence_api()?;
+    /// Creates an empty context in the admitted host, retaining its table for Drop.
+    pub fn new(runtime: &Runtime) -> Result<Self, NcStatus> {
+        let api = runtime.persistence;
         let mut context = ptr::null_mut();
         // SAFETY: The checked table receives a valid local output slot.
         let status = unsafe { (api.create_context)(&mut context) };
@@ -83,14 +78,14 @@ impl Drop for FactoryRegistry {
 /// Captures a shared opt-in object tree with the default limits.
 /// A borrowed exclusive root returns `NC_E_INVALID_ARG`; its sole owner is
 /// preserved. Supporting exclusive trees requires a separate observation protocol.
-pub fn snapshot(object: ComRef<'_, IUnknown>) -> Result<Vec<u8>, NcStatus> {
-    snapshot_with_limits(object, Limits::default())
+pub fn snapshot(runtime: &Runtime, object: ComRef<'_, IUnknown>) -> Result<Vec<u8>, NcStatus> {
+    snapshot_with_limits(runtime, object, Limits::default())
 }
 
 /// Returns caller-owned document bytes after one successful shared-tree traversal.
 /// Non-shareable roots fail before persistence getters or byte delivery run.
-pub fn snapshot_with_limits(object: ComRef<'_, IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
-    let api = persistence_api()?;
+pub fn snapshot_with_limits(runtime: &Runtime, object: ComRef<'_, IUnknown>, limits: Limits) -> Result<Vec<u8>, NcStatus> {
+    let api = runtime.persistence;
     let mut destination = SnapshotDestination {
         maximum: limits.binary.bytes,
         bytes: None,
@@ -144,28 +139,5 @@ unsafe extern "C" fn receive_snapshot(user_data: *mut c_void, bytes: *const u8, 
             destination.bytes = Some(output);
             NC_OK
         }
-    }
-}
-
-/// Checks mandatory ABI discovery before reading the size-prefixed operation table.
-fn persistence_api() -> Result<&'static NcPersistenceApiV1, NcStatus> {
-    // SAFETY: The unversioned discovery symbol is callable before table lookup.
-    if unsafe { runtime_sys::nc_com_runtime_abi_version() } != NC_COM_RUNTIME_ABI_VERSION {
-        return Err(NC_E_ABI_VERSION);
-    }
-    // SAFETY: A matching generation guarantees a static size-prefixed v1 table.
-    let api = unsafe { runtime_sys::nc_com_get_persistence_api_v1() };
-    if api.is_null() {
-        return Err(NC_E_ABI_VERSION);
-    }
-    // SAFETY: Read only the common prefix before creating a full table reference.
-    if unsafe { api.cast::<usize>().read() } < mem::size_of::<NcPersistenceApiV1>() {
-        return Err(NC_E_ABI_VERSION);
-    }
-    // SAFETY: The advertised prefix now includes every function this client uses.
-    let api = unsafe { &*api };
-    match api.core_abi_version {
-        NC_COM_CORE_ABI_VERSION => Ok(api),
-        _ => Err(NC_E_ABI_VERSION),
     }
 }

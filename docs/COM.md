@@ -118,7 +118,7 @@ impl ExampleObject for ExampleObjectImpl {
     }
 }
 
-/// Stateless root with the generated zero-argument bootstrap.
+/// Stateless root with the generated supplied-host bootstrap.
 #[com_object(example_contracts::ExampleFactory)]
 struct ExampleFactoryImpl;
 
@@ -144,7 +144,7 @@ Use `&mut self` for mutation and keep ordinary state in plain fields.
 ```rust,ignore
 /// Acquires one initialized provider; returns its exact interface projection.
 #[neocogi_com::plugin(name = "example.component", version = "1.0.0")]
-fn acquire_root() -> Result<neocogi_com::ComPtr<example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+fn acquire_root(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
     ExampleFactoryImpl::from_value(ExampleFactoryImpl).query()
 }
 ```
@@ -155,7 +155,7 @@ IID/signature, threading, and one bootstrap pointer. Static assemblies call
 `plugin_descriptor()` directly. Both paths borrow the provider-authored
 `NcPluginDescriptor`; neither acquires a factory. The runtime later returns
 `PluginInfo` for inspection, adding registration origin and omitting bootstrap
-code. Every shared object uses `from_value(initialized_value)`. The zero-argument
+code. Every shared object uses `from_value(initialized_value)`. The supplied-host
 Rust acquisition function owns initialization and transfers one reference. A root
 may be a finished service or an ordinary provider with typed creation methods.
 
@@ -164,16 +164,12 @@ may be a finished service or an ordinary provider with typed creation methods.
 For a monolith, enable `neocogi-com/runtime`, directly depend on
 `neocogi-com-runtime`, and retain that implementation in the final assembly.
 Register the linked provider before requesting its exact factory. The following complete function
-uses the declarations and implementation above:
+accepts access supplied by the host entry and uses the declarations above:
 
 <!-- checked-example: static-host -->
 ```rust,ignore
-// Only this final assembly owns the embedded runtime.
-extern crate nc_com as _;
-
 /// Executes bootstrap, construction, inherited reads and a mutable COM call.
-fn static_example() -> Result<(), NcStatus> {
-    let runtime = neocogi_com::Runtime::global();
+fn static_example(runtime: neocogi_com::Runtime) -> Result<(), NcStatus> {
     let descriptor = plugin_descriptor();
     // SAFETY: linked plugin code and macro-generated static metadata remain
     // available for the process lifetime, including every returned COM handle.
@@ -265,15 +261,15 @@ protocol. Live COM calls retain their separate checked wire representation.
 - `neocogi-com-core`: raw ABI layouts and traits (`no_std` by default).
 - `neocogi-com-codegen`: one typed Rust backend for IDL and implementation helpers.
 - `neocogi-com-macros`: thin procedural entrypoints over that backend.
-- `neocogi-com`: typed object/data helpers and optional stateless runtime clients.
+- `neocogi-com`: typed object/data helpers and optional supplied-host service clients.
 - `neocogi-com-runtime`: plugin catalog, loader, and persistence implementation;
   its Rust library target is `nc_com`.
 - `neocogi-idl` under `crates/com/idl`: IDL parser/resolver
   and Cargo build integration shared by contract crates and `cargo-neocogi`.
 
 The facade's defaults (`std`, `macros`) support local objects without linking a
-runtime. `runtime` enables stateless clients; native final owners import shared
-`nc_com`, while final monolith/browser/test owners directly retain the rlib once.
+runtime. `runtime` enables service clients; every final native/browser host
+explicitly links the `nc_com` rlib and supplies access to reusable libraries/plugins.
 See the [feature and deployment table](api/README.md#features-and-scope).
 The [core data guide](core/README.md#text-bytes-and-borrowed-storage) distinguishes
 unsafe descriptor borrows such as `NcStaticUtf8::as_str` from owned string copies.
@@ -292,14 +288,15 @@ messages without an intermediate component relay.
 
 ## Executed compatibility checks
 
-The [compatibility matrix](docs/abi-v1.md#independent-build-compatibility) defines independent runtime,
-host and plugin builds, mixed compiler/profile policies, relocated execution,
+The [compatibility matrix](docs/abi-v1.md#independent-build-compatibility) defines independent host/runtime and
+provider builds, mixed compiler/profile policies, relocated execution,
 and the separate Miri/sanitizer checks. One standard-library Python driver owns
 these checks; shell, PowerShell and CI entry points delegate to it. An ordinary
-`cargo build -p neocogi-com-runtime` produces both its `rlib` and the platform's
-`libnc_com` shared library. Static hosts use the rlib; dynamic hosts and plugins
-share one runtime DSO. Cargo artifact dependencies report their own output paths;
-a contract crate's generated bindings are not a native library.
+`cargo build -p neocogi-com-runtime` produces its ordinary host rlib.
+`#[com_main]` initializes that implementation; dynamic and static providers share
+its registry through supplied C service tables. No runtime DSO or native bridge
+is deployed. Generic Cargo artifacts and resource staging still belong to the
+native application composition; see the [native guide](../../docs/guides/COM_NATIVE.md).
 
 ## Checking the documentation
 
@@ -322,6 +319,6 @@ RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --all-features \
 
 The facade's runnable README examples participate in doctests. Examples marked
 `ignore` are integration sketches requiring application-specific contracts or
-plugin paths. `--all-features` uses static runtime linkage for these checks;
+plugin paths. `--all-features` leaves implementation selection with each final test owner;
 the [plain-Cargo fixture](../../examples/com-plugin/README.md) separately checks
 real shared and monolithic deployments.

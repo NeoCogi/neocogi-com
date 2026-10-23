@@ -70,7 +70,7 @@ mod tests {
     /// Registry fixtures use the same complete validation as production records.
     const fn description(name: &'static str) -> NcPluginDescriptor {
         /// Publication and lookup must never invoke this entrypoint.
-        unsafe extern "C" fn acquire(out: *mut neocogi_com_core::ComRaw<IUnknown>) -> neocogi_com_core::NcStatus {
+        unsafe extern "C" fn acquire(_host: *const neocogi_com_core::NcHostApiV1, out: *mut neocogi_com_core::ComRaw<IUnknown>) -> neocogi_com_core::NcStatus {
             // SAFETY: the descriptor ABI grants one writable output on invocation.
             unsafe { out.write(neocogi_com_core::ComRaw::null()) };
             NC_E_CLOSED

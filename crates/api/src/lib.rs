@@ -1,4 +1,4 @@
-//! Typed COM ownership, local implementation support and stateless runtime clients.
+//! Typed COM ownership, local implementation support and supplied-host service clients.
 //!
 //! Cross-component contracts are `.ncidl` sources compiled by `neocogi-idl`.
 //! The resolver binds names and computes identities and signatures. A shared
@@ -83,17 +83,16 @@
 //! an explicit aligned-field serialization codec. IDL owns no native packing,
 //! alignment, or external-field admission switches.
 //!
-//! With `runtime`, `Runtime::global` is a stateless facade over the runtime
-//! chosen by the final assembly. Native hosts and plugins import the same shared
-//! `nc_com` library and global registry. Libraries and facade features never
-//! select a second implementation. A final monolith/browser explicitly retains
-//! `neocogi-com-runtime`; plugin registration and typed acquisition still use
-//! one catalog in that assembly. Caller-owned persistence registries and event
-//! queues have separate ownership and do not replace the global plugin catalog.
+//! The host explicitly links `neocogi-com-runtime` and initializes its one catalog
+//! through [`com_main`]. A copyable [`Runtime`] lends access to that host's immutable
+//! C operation tables. Plugin acquisition and reusable libraries receive it from
+//! their caller; the facade selects no implementation or named-symbol discovery.
+//! Caller-owned persistence registries and UI event queues retain their separate
+//! ownership and do not replace the process-global plugin catalog.
 //!
 //! Default features are `std` and `macros`. `alloc` enables owned values and
 //! output buffers; `macros` exports implementation/persistence procedures.
-//! `runtime` enables stateless clients and implies `std`, without choosing linkage.
+//! `runtime` enables service clients and implies `std`; the handle itself needs neither.
 //! With all defaults disabled, raw ABI types, persistence contracts and
 //! allocation-free pointer/client support remain available.
 
@@ -113,6 +112,8 @@ mod data;
 /// Static descriptions of generated IDL interfaces, methods and value types.
 pub mod idl_metadata;
 mod object;
+mod runtime_access;
+pub use runtime_access::Runtime;
 pub mod persistence;
 #[cfg(feature = "runtime")]
 mod runtime;
@@ -127,7 +128,7 @@ pub use neocogi_com_core::{NcHostApiV1, validate_host_api};
 #[cfg(feature = "alloc")]
 pub use data::{INcBytesComPtrExt, INcStringComPtrExt, NC_COM_DEFAULT_OWNED_COPY_MAX_BYTES, NcBytes, NcString};
 #[cfg(feature = "macros")]
-pub use neocogi_com_macros::{ComDeserialize, ComSerialize, com_object, plugin};
+pub use neocogi_com_macros::{ComDeserialize, ComSerialize, com_object, com_main, plugin};
 #[cfg(feature = "alloc")]
 pub use neocogi_com_core::{format_abi_signature, format_method_signature};
 pub use neocogi_com_core::{
@@ -149,9 +150,8 @@ pub use neocogi_com_core::{
     NcInspectPluginDescriptorCallbackV1, NcInterfaceDescriptor, NcInterfaceId, NcMethodDescriptor, NcMethodParamDescriptor, NcPersistenceApiV1,
     NcPersistenceContext, NcPersistenceLimitsV1, NcPersistenceWriteBytesV1, NcMethodReturnDescriptor, NcPluginDependencyDescriptor, NcFactoryInfoV1,
     NcPluginInfoV1, NcQualifiedNameError, NcRuntimeApiV1, NcStaticUtf8, NcStatus, NcUtf8View, NcVersionTextError, ParseGuidError, QUALIFIED_NAME_INC_BYTES,
-    QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel, PluginRootAcquire, write_plugin_root, guid_from_qualified_name, raw,
-    return_plugin_descriptor, validate_plugin_descriptor, validate_qualified_name, validate_version_text, validate_rust_path, NcRustPathError,
-    NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
+    QUALIFIED_NAME_INC_STRING, ThreadLocal, ThreadSafe, ThreadingModel, write_plugin_root, guid_from_qualified_name, raw, return_plugin_descriptor,
+    validate_plugin_descriptor, validate_qualified_name, validate_version_text, validate_rust_path, NcRustPathError, NC_DESCRIPTOR_RUST_PATH_MAX_LEN,
 };
 pub use object::{
     __ComCallGate, __ComSharedCall, __ComExclusiveCall, __ComExclusiveLease, __ComSharedLease, __com_add_ref_count, __com_release_ref_count, ComObject,
@@ -166,7 +166,7 @@ pub use neocogi_com_core::__ComSupportsInterfaceThreading;
 #[cfg(feature = "runtime")]
 pub use runtime::{
     Debug, DebugMessenger, NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES, NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, FactoryInfo,
-    PluginInfo, PluginOrigin, Runtime,
+    PluginInfo, PluginOrigin,
 };
 
 #[doc(hidden)]

@@ -11,12 +11,12 @@ use super::{Runtime, status_to_result};
 /// Callback-based runtime diagnostics.
 #[derive(Clone, Copy, Debug)]
 pub struct Debug<'runtime> {
-    /// Stateless facade used to resolve and validate the debug ABI table.
+    /// Supplied access to the already admitted debug ABI table.
     runtime: &'runtime Runtime,
 }
 
 impl<'runtime> Debug<'runtime> {
-    /// Creates a debug context borrowing the process-global runtime facade.
+    /// Creates a debug context borrowing the supplied host access.
     pub(super) const fn new(runtime: &'runtime Runtime) -> Self {
         Self { runtime }
     }

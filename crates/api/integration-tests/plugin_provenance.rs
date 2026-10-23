@@ -5,12 +5,7 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use neocogi_com::{NC_E_CLOSED, NC_OK, NcGuid, NcRuntimeApiV1, PluginOrigin, Runtime, guid_from_qualified_name};
-
-unsafe extern "C" {
-    /// Calls the actual linked runtime in either static or shared mode.
-    fn nc_com_get_runtime_api_v1() -> *const NcRuntimeApiV1;
-}
+use neocogi_com::{NC_E_CLOSED, NC_OK, NcGuid, PluginOrigin, guid_from_qualified_name};
 
 /// Carries the parent's distinct native files into the fatal-conflict subprocess.
 const CONFLICT_PATHS: &str = "NC_COM_PROVENANCE_CONFLICT_PATHS";
@@ -38,7 +33,7 @@ fn native_plugin_origin_is_atomic_idempotent_and_process_pinned() {
     assert!(stderr.contains("NC_E_INVALID_ARG"), "{stderr}");
     std::fs::remove_file(second).unwrap();
 
-    let runtime = Runtime::default();
+    let runtime = crate::host_runtime();
     let id = guid_from_qualified_name("nc.tests.provenance");
     // Unregistered inspection borrows a validated descriptor, returns visitor
     // results/errors synchronously, and permits reentrant metadata reads.
@@ -66,7 +61,7 @@ fn native_plugin_origin_is_atomic_idempotent_and_process_pinned() {
     let mut raw_id = NcGuid::nil();
     // SAFETY: The v1 table is linked from this checkout. Path bytes and output
     // storage remain live for the synchronous ABI call.
-    let status = unsafe { ((*nc_com_get_runtime_api_v1()).load_plugin_library_utf8)(bytes.as_ptr(), bytes.len(), &mut raw_id) };
+    let status = unsafe { ((*nc_com::initialize_process().runtime).load_plugin_library_utf8)(bytes.as_ptr(), bytes.len(), &mut raw_id) };
     assert_eq!(status, NC_OK);
     assert_eq!(raw_id, id);
     let info = runtime.plugin_info(id).unwrap().unwrap();
@@ -87,7 +82,7 @@ fn conflicting_provider_child() {
     let Some(paths) = std::env::var_os(CONFLICT_PATHS) else {
         return;
     };
-    let runtime = Runtime::default();
+    let runtime = crate::host_runtime();
     for path in std::env::split_paths(&paths) {
         // SAFETY: The parent created these trusted independent native fixtures.
         unsafe { runtime.load_plugin_library(path) };
@@ -117,3 +112,9 @@ fn build_library() -> PathBuf {
 
 // This final test executable owns its isolated process runtime.
 extern crate nc_com as _;
+
+/// Initializes this final test executable's selected host and admits its static tables.
+fn host_runtime() -> neocogi_com::Runtime {
+    // SAFETY: the explicit implementation owns its complete process-lived graph.
+    unsafe { neocogi_com::Runtime::__from_host_api(nc_com::initialize_process()) }.expect("test host API is compatible")
+}

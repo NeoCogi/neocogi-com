@@ -18,24 +18,6 @@ crate-type = ["rlib"]
 default = []
 # Only the final shared library owns the versioned native entry point.
 dynamic-plugin = []
-# Hosts select the shared runtime unless they explicitly request a monolith.
-host = ["neocogi-com/runtime"]
-monolith = ["host", "dep:neocogi-com-runtime"]
-
 [dependencies]
-neocogi-com-runtime = { workspace = true, optional = true }
 neocogi-com = { workspace = true, features = ["macros", "std"] }
 neocogi-idl-example-contracts = { path = "../../tools/idl/example-contracts" }
-
-[[bin]]
-name = "neocogi-example-com"
-path = "src/main.rs"
-required-features = ["host"]
-
-[dev-dependencies]
-tempfile.workspace = true
-
-[[example]]
-name = "event_allocations"
-path = "examples/event_allocations.rs"
-required-features = ["monolith"]

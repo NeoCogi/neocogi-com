@@ -134,6 +134,12 @@ mod tests {
         plugin_dependencies_offset: usize,
         plugin_dependency_count_offset: usize,
         debug_first_function_offset: usize,
+        host_size: usize,
+        host_runtime_version_offset: usize,
+        host_core_version_offset: usize,
+        host_runtime_offset: usize,
+        host_debug_offset: usize,
+        host_persistence_offset: usize,
         aggregate_size: usize,
         aggregate_align: usize,
         aggregate_count_offset: usize,
@@ -240,6 +246,12 @@ mod tests {
             plugin_dependencies_offset: core::mem::offset_of!(NcPluginInfoV1, dependencies),
             plugin_dependency_count_offset: core::mem::offset_of!(NcPluginInfoV1, dependency_count),
             debug_first_function_offset: core::mem::offset_of!(NcDebugApiV1, create_messenger),
+            host_size: core::mem::size_of::<neocogi_com::NcHostApiV1>(),
+            host_runtime_version_offset: core::mem::offset_of!(neocogi_com::NcHostApiV1, runtime_abi_version),
+            host_core_version_offset: core::mem::offset_of!(neocogi_com::NcHostApiV1, core_abi_version),
+            host_runtime_offset: core::mem::offset_of!(neocogi_com::NcHostApiV1, runtime),
+            host_debug_offset: core::mem::offset_of!(neocogi_com::NcHostApiV1, debug),
+            host_persistence_offset: core::mem::offset_of!(neocogi_com::NcHostApiV1, persistence),
             aggregate_size: core::mem::size_of::<<NativeAggregate as neocogi_com::ComValue>::Wire>(),
             aggregate_align: core::mem::align_of::<<NativeAggregate as neocogi_com::ComValue>::Wire>(),
             aggregate_count_offset: core::mem::offset_of!(<NativeAggregate as neocogi_com::ComValue>::Wire, count),
@@ -301,3 +313,6 @@ fn c_output_getter_uses_fresh_wire_storage_and_separate_prefix_count() {
         1
     );
 }
+
+#[cfg(test)]
+mod host_abi;

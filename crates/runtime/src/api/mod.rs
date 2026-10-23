@@ -1,11 +1,9 @@
 //! Assembly of runtime ABI v1 operations and shared C callback utilities.
 //!
-//! Only the version function and three table getters are exported as dynamic
-//! symbols. Operation callbacks remain private function pointers inside these
-//! immutable tables, keeping the shared-library symbol surface small while
-//! still grouping behavior by responsibility. Common helpers validate borrowed
-//! UTF-8 paths, implement count/fill copies, and route detailed failures through
-//! the process debug messenger registry.
+//! The host lends one immutable service graph to application and provider code.
+//! Operation callbacks remain private function pointers and reach this host's
+//! singleton. Helpers validate borrowed paths, implement count/fill copies and
+//! route failures through the same host's debug registry.
 
 use core::{mem, slice, str};
 use std::path::Path;
@@ -16,7 +14,6 @@ use neocogi_com_core::{
     NcRuntimeApiV1, NcStatus, NcUtf8View,
 };
 
-mod exports;
 #[cfg(test)]
 mod host_tests;
 mod inspection;
@@ -27,7 +24,7 @@ use persistence::PERSISTENCE_API_V1;
 use inspection::{inspect_plugin_library_utf8, plugin_count, plugin_info, plugin_infos};
 use runtime::{acquire_factory_plugin, load_plugin_library_utf8, register_plugin_descriptor};
 
-/// Immutable runtime-operation table returned by the exported generation-checked getter.
+/// Immutable runtime-operation table supplied by the host API description.
 pub(super) static RUNTIME_API_V1: NcRuntimeApiV1 = NcRuntimeApiV1 {
     size: mem::size_of::<NcRuntimeApiV1>(),
     core_abi_version: NC_COM_CORE_ABI_VERSION,
@@ -41,7 +38,7 @@ pub(super) static RUNTIME_API_V1: NcRuntimeApiV1 = NcRuntimeApiV1 {
     inspect_plugin_library_utf8,
 };
 
-/// Immutable debug-messenger table returned by the exported generation-checked getter.
+/// Immutable debug-messenger table supplied by the host API description.
 pub(super) static DEBUG_API_V1: NcDebugApiV1 = NcDebugApiV1 {
     size: mem::size_of::<NcDebugApiV1>(),
     create_messenger: debug::create_messenger,
@@ -123,7 +120,6 @@ fn emit_error(value_type: u32, status: NcStatus, text: &str) {
 #[cfg(test)]
 mod tests {
     use core::ptr;
-    use super::exports::{nc_com_get_persistence_api_v1, nc_com_get_debug_api_v1, nc_com_get_runtime_api_v1, nc_com_runtime_abi_version};
     use super::*;
     use core::ffi::c_void;
     use core::sync::atomic::{AtomicI32, Ordering};
@@ -146,15 +142,15 @@ mod tests {
 
     /// The pre-release contract changes in place within runtime ABI v1.
     #[test]
-    fn exported_runtime_version_remains_one() {
-        assert_eq!(nc_com_runtime_abi_version(), 1);
+    fn host_runtime_version_remains_one() {
+        assert_eq!(crate::initialize_process().runtime_abi_version, 1);
     }
 
     #[test]
-    fn getters_return_complete_static_tables() {
-        let runtime = unsafe { &*nc_com_get_runtime_api_v1() };
-        let debug = unsafe { &*nc_com_get_debug_api_v1() };
-        let persistence = unsafe { &*nc_com_get_persistence_api_v1() };
+    fn host_supplies_complete_static_tables() {
+        let runtime = unsafe { &*crate::initialize_process().runtime };
+        let debug = unsafe { &*crate::initialize_process().debug };
+        let persistence = unsafe { &*crate::initialize_process().persistence };
 
         assert_eq!(persistence.size, mem::size_of::<neocogi_com_core::NcPersistenceApiV1>());
         assert_eq!(persistence.core_abi_version, NC_COM_CORE_ABI_VERSION);
@@ -165,7 +161,7 @@ mod tests {
 
     #[test]
     fn direct_counts_and_fill_contract_are_separate() {
-        let api = unsafe { &*nc_com_get_runtime_api_v1() };
+        let api = unsafe { &*crate::initialize_process().runtime };
         let count = unsafe { (api.plugin_count)() };
         let mut out_len = usize::MAX;
         let mut values = Vec::<neocogi_com_core::NcPluginInfoV1>::with_capacity(count);
@@ -254,11 +250,11 @@ mod tests {
             callback: Some(record_debug_status),
             user_data: ptr::from_ref(&observed).cast_mut().cast(),
         };
-        let debug = unsafe { &*nc_com_get_debug_api_v1() };
+        let debug = unsafe { &*crate::initialize_process().debug };
         let mut handle = 0;
         assert_eq!(unsafe { (debug.create_messenger)(&create_info, &mut handle) }, NC_OK);
 
-        let runtime = unsafe { &*nc_com_get_runtime_api_v1() };
+        let runtime = unsafe { &*crate::initialize_process().runtime };
         assert_eq!(unsafe { (runtime.register_plugin_descriptor)(ptr::null()) }, NC_E_POINTER);
         assert_eq!(observed.load(Ordering::SeqCst), NC_E_POINTER.code());
 

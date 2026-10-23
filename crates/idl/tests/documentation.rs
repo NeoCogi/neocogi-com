@@ -94,7 +94,7 @@ fn readme_factory_contract_and_bootstrap_execute_as_documented() {
         implementation.push_str(example(document, label));
         implementation.push('\n');
     }
-    implementation.push_str("#[test] fn documented_bootstrap() { static_example().unwrap(); }\n");
+    implementation.push_str("#[test] fn documented_bootstrap() { static_example(unsafe { neocogi_com::Runtime::__from_host_api(nc_com::initialize_process()) }.unwrap()).unwrap(); }\n");
     fs::write(project.path().join("src/lib.rs"), implementation).unwrap();
     let output = Command::new("cargo")
         .args(["test", "--offline", "--features", "dynamic-plugin", "--manifest-path"])

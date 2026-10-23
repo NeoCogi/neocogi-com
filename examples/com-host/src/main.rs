@@ -6,13 +6,16 @@ use neocogi_com::{binary, Runtime, ComPtr, ComRef, IUnknown, NcCopyFromBufferOff
 use neocogi_com::persistence::{FactoryRegistry, snapshot};
 use neocogi_com::NcValueRef;
 
-use nc_example_com::{ExtentState, PERSISTENT_KIND};
+#[path = "../support/extent_state.rs"]
+mod extent_state;
+use extent_state::{ExtentState, PERSISTENT_KIND};
 use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentReport};
 
 /// Registers the selected plugin, acquires its checked factory, and mutates one object.
-fn main() {
-    let runtime = Runtime::global();
-    register_plugin(runtime);
+#[neocogi_com::com_main]
+fn main(runtime: Runtime) {
+    register_plugin(&runtime);
+    qualify_peer(&runtime);
     // The runtime verifies the complete transitive contract before bootstrap.
     let factory = runtime
         .acquire_plugin_root::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
@@ -42,8 +45,8 @@ fn main() {
     let promoted = weak.upgrade().unwrap().expect("live plugin object");
     assert_eq!(promoted.extent().unwrap(), extent);
     drop(promoted);
-    let saved = snapshot(object.query::<IUnknown>().unwrap().as_com_ref()).unwrap();
-    let mut registry = FactoryRegistry::new().unwrap();
+    let saved = snapshot(&runtime, object.query::<IUnknown>().unwrap().as_com_ref()).unwrap();
+    let mut registry = FactoryRegistry::new(&runtime).unwrap();
     registry
         .register(
             PERSISTENT_KIND,
@@ -51,7 +54,7 @@ fn main() {
         )
         .unwrap();
     let restored = registry.restore(&saved).unwrap();
-    assert_eq!(snapshot(restored.as_com_ref()).unwrap(), saved);
+    assert_eq!(snapshot(&runtime, restored.as_com_ref()).unwrap(), saved);
     restored.query::<ExampleObjectAbi>().unwrap().resize(Extent { width: 45, height: 32 }).unwrap();
     let message = messages.try_recv().unwrap();
     let origin = message.source;
@@ -81,6 +84,46 @@ fn register_plugin(runtime: &Runtime) {
     // SAFETY: This demonstration accepts its own trusted build artifact. The
     // runtime retains the mapping while any factory or object can reference it.
     unsafe { runtime.load_plugin_library(std::path::Path::new(&path)) };
+}
+
+/// An optional second native provider proves supplied access reaches one owner.
+/// It is built independently by qualification, never linked into this host.
+#[cfg(not(feature = "monolith"))]
+fn qualify_peer(runtime: &Runtime) {
+    let Some(path) = std::env::args_os().nth(2) else { return };
+    let initial = runtime.plugins().unwrap().len();
+    // SAFETY: qualification supplies its own trusted independently compiled DLL.
+    let peer = unsafe { runtime.load_plugin_library(std::path::PathBuf::from(path)) };
+    let before = runtime.plugins().unwrap();
+    assert_eq!(before.len(), initial + 1);
+    let marker = guid_from_qualified_name("nc.tests.registry-peer.marker");
+    assert!(runtime.plugin_info(marker).unwrap().is_none(), "metadata discovery must not acquire B");
+    let root = runtime.acquire_plugin_root::<ExampleFactoryAbi>(peer).unwrap();
+    assert!(runtime.plugin_info(marker).unwrap().is_some(), "B's mutation must be visible to the host");
+    assert_eq!(runtime.plugins().unwrap().len(), initial + 2);
+    let state = runtime.plugins().unwrap();
+    drop(runtime.acquire_plugin_root::<ExampleFactoryAbi>(peer).unwrap());
+    assert_eq!(runtime.plugins().unwrap(), state, "repeated B acquisition reuses one marker");
+    // SAFETY: this conflicting descriptor is process-lived in this executable.
+    assert_eq!(
+        unsafe { runtime.register_plugin_descriptor(conflict::plugin_descriptor()) },
+        Err(NC_E_INVALID_ARG)
+    );
+    assert_eq!(runtime.plugins().unwrap(), state, "a conflict must preserve the shared catalog");
+    drop(root);
+}
+
+/// Static execution has no separately built peer or native loader requirement.
+#[cfg(feature = "monolith")]
+fn qualify_peer(_runtime: &Runtime) {}
+
+/// Same valid identity in different static storage must conflict with provider A.
+#[cfg(not(feature = "monolith"))]
+mod conflict {
+    #[neocogi_com::plugin(name = "nc.examples.factory_plugin_component")]
+    fn acquire(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<neocogi_idl_example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+        panic!("conflicting metadata must never be acquired")
+    }
 }
 
 /// Adapts an existing typed factory without changing its construction ABI.
@@ -121,7 +164,3 @@ impl neocogi_com::persistence::IPersistenceFactory for PersistenceAdapter {
             .query()
     }
 }
-
-// Embedded ownership belongs to this final executable, never the facade.
-#[cfg(feature = "monolith")]
-extern crate nc_com as _;

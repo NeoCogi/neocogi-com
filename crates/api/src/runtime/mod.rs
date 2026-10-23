@@ -1,24 +1,18 @@
-//! Safe Rust facade over the linked runtime's versioned C tables.
+//! Typed std clients over the supplied host's immutable C service tables.
 //!
-//! `Runtime` is stateless: the linked `libnc_com` owns all process-wide
-//! data. The facade checks the mandatory runtime ABI generation before every
-//! table lookup, validates each table's advertised size, and converts borrowed C
-//! records into owned Rust values. Plugin records combine metadata, factory
-//! contracts and dependencies. Diagnostics retain a separate callback context with their own lifecycle.
+//! Runtime access is admitted once under process-lived backing guarantees.
+//! Operations use those exact tables; no global lookup, implementation import
+//! or fallback discovery can choose another registry. Returned metadata is copied
+//! into caller-owned values, while service owners retain their creation table.
 
 use std::fmt;
 use std::path::Path;
 use std::vec::Vec;
 
 use crate::{
-    ComInterface, ComPtr, IUnknown, NC_COM_RUNTIME_ABI_VERSION, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY,
-    NC_E_OUT_OF_RANGE, NC_E_POINTER, NC_ABI_THREADING_THREAD_LOCAL, NcDebugApiV1, NcPluginDescriptor, NcGuid, NcRuntimeApiV1, NcStatus, NcUtf8View,
-    ThreadingModel,
+    ComInterface, ComPtr, IUnknown, NC_E_INSUFFICIENT_BUFFER, NC_E_INVALID_ARG, NC_E_NOT_FOUND, NC_E_OUT_OF_MEMORY, NC_E_OUT_OF_RANGE, NC_E_POINTER,
+    NC_ABI_THREADING_THREAD_LOCAL, NcDebugApiV1, NcPluginDescriptor, NcGuid, NcRuntimeApiV1, NcStatus, NcUtf8View, ThreadingModel, Runtime,
 };
-use self::ffi as runtime_sys;
-
-/// Linkage declarations shared with the persistence client, without runtime state.
-pub(crate) mod ffi;
 
 mod debug;
 mod plugin;
@@ -44,54 +38,15 @@ pub const NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES: usize = 8;
 /// Maximum UTF-8 byte length copied from one runtime inspection view.
 pub const NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES: usize = 1024 * 1024;
 
-/// Handle for the process-global neocogi-com runtime.
-///
-/// The registry and all API tables are owned by the linked
-/// `libnc_com` shared library.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Runtime {
-    /// Prevents external struct literals while keeping the handle zero-sized.
-    _private: (),
-}
-
-static RUNTIME: Runtime = Runtime { _private: () };
-
 impl Runtime {
-    /// Returns a handle to the process-global runtime.
-    pub fn global() -> &'static Self {
-        &RUNTIME
-    }
-
-    /// Returns the runtime shared-library ABI generation.
-    pub fn runtime_abi_version(&self) -> u32 {
-        // SAFETY: The unversioned version function is the stable discovery
-        // entrypoint shared by runtime ABI generations.
-        unsafe { runtime_sys::nc_com_runtime_abi_version() }
-    }
-
-    /// Returns the core plugin ABI version accepted by the linked runtime.
-    pub fn core_abi_version(&self) -> u32 {
-        self.runtime_api().core_abi_version
-    }
-
-    /// Returns the linked runtime-operation table.
+    /// Borrows the admitted plugin operations without discovery or callbacks.
     fn runtime_api(&self) -> &'static NcRuntimeApiV1 {
-        // Do not cache a table before checking the mandatory generation: a
-        // future runtime may expose an incompatible discovery/table contract.
-        self.assert_runtime_abi();
-        // SAFETY: The runtime version was checked before calling the v1 getter,
-        // whose result follows the static size-prefix table contract.
-        let api = unsafe { table(runtime_sys::nc_com_get_runtime_api_v1()) };
-        assert_eq!(api.core_abi_version, crate::NC_COM_CORE_ABI_VERSION);
-        api
+        self.runtime
     }
 
-    /// Returns the linked debug-messenger table.
+    /// Borrows diagnostics from the same admitted host graph.
     fn debug_api(&self) -> &'static NcDebugApiV1 {
-        self.assert_runtime_abi();
-        // SAFETY: The runtime version was checked before calling the v1 getter,
-        // whose result follows the static size-prefix table contract.
-        unsafe { table(runtime_sys::nc_com_get_debug_api_v1()) }
+        self.debug
     }
 
     /// Returns callback-based runtime diagnostics operations.
@@ -254,53 +209,12 @@ impl Runtime {
         }
         loaded
     }
-
-    /// Aborts the operation if the linked library does not implement ABI v1.
-    fn assert_runtime_abi(&self) {
-        // ABI mismatch is a linkage/configuration error, not a recoverable
-        // plugin status. Fail before dereferencing any version-specific table.
-        let found = self.runtime_abi_version();
-        assert_eq!(
-            found, NC_COM_RUNTIME_ABI_VERSION,
-            "incompatible neocogi-com runtime ABI: expected {}, found {found}",
-            NC_COM_RUNTIME_ABI_VERSION
-        );
-    }
 }
 
 /// Reports an unrecoverable plugin-loading failure and aborts the process.
 fn fatal_plugin_load(detail: impl fmt::Display) -> ! {
     eprintln!("fatal neocogi-com plugin load failure: {detail}");
     std::process::abort()
-}
-
-/// Converts a runtime-owned static table pointer into a checked shared reference.
-///
-/// # Safety
-///
-/// A non-null pointer must be aligned for `T` and refer to immutable storage that
-/// remains live for the duration of the process. The storage must contain a
-/// readable leading `usize` reporting its actual byte size. When that size is at
-/// least `size_of::<T>()`, the known prefix must be a valid `T`.
-unsafe fn table<T>(table: *const T) -> &'static T {
-    assert!(!table.is_null(), "compatible neocogi-com runtime returned a null API table");
-
-    // Read only the common size prefix through the raw pointer. Creating `&T`
-    // before this check would already require the backing allocation to contain
-    // all of `T`, even when the table reports insufficient storage.
-    // SAFETY: The caller guarantees a non-null, aligned pointer readable for the
-    // leading `usize`; null was rejected above.
-    let found = unsafe { table.cast::<usize>().read() };
-    let required = core::mem::size_of::<T>();
-    // A shorter table cannot contain every function pointer this facade calls.
-    assert!(
-        found >= required,
-        "compatible neocogi-com runtime returned a short API table: required {required} bytes, found {found}"
-    );
-
-    // SAFETY: The size check established that the immutable static allocation
-    // contains the complete known `T` prefix promised by the caller.
-    unsafe { &*table }
 }
 
 /// Converts an ABI status to `Result` while preserving its exact error code.
@@ -391,87 +305,9 @@ fn read_utf8_view(view: NcUtf8View) -> Result<String, NcStatus> {
 #[cfg(test)]
 mod tests {
     use std::cell::Cell;
-    use std::panic::catch_unwind;
 
-    use super::{
-        NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES, NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, read_utf8_view, read_vec, table,
-    };
+    use super::{NC_COM_RUNTIME_MAX_ENUMERATION_ITEMS, NC_COM_RUNTIME_MAX_ENUMERATION_RETRIES, NC_COM_RUNTIME_MAX_INSPECTION_TEXT_BYTES, read_utf8_view, read_vec};
     use crate::{NC_E_INSUFFICIENT_BUFFER, NC_E_OUT_OF_RANGE, NC_OK, NcStatus, NcUtf8View};
-
-    #[repr(C)]
-    struct TestApiTable {
-        size: usize,
-        value: u32,
-    }
-
-    #[repr(C)]
-    struct ExtendedTestApiTable {
-        prefix: TestApiTable,
-        appended: u64,
-    }
-
-    #[repr(C)]
-    struct TestApiTableSizePrefix {
-        size: usize,
-    }
-
-    static EXACT_TEST_API_TABLE: TestApiTable = TestApiTable {
-        size: core::mem::size_of::<TestApiTable>(),
-        value: 42,
-    };
-
-    static EXTENDED_TEST_API_TABLE: ExtendedTestApiTable = ExtendedTestApiTable {
-        prefix: TestApiTable {
-            size: core::mem::size_of::<ExtendedTestApiTable>(),
-            value: 42,
-        },
-        appended: 73,
-    };
-
-    static SHORT_TEST_API_TABLE: TestApiTableSizePrefix = TestApiTableSizePrefix {
-        size: core::mem::size_of::<TestApiTableSizePrefix>(),
-    };
-
-    #[test]
-    fn table_accepts_an_exact_sized_static_table() {
-        // SAFETY: The pointer addresses a complete immutable static table.
-        let table = unsafe { table(core::ptr::from_ref(&EXACT_TEST_API_TABLE)) };
-
-        assert_eq!(table.value, 42);
-    }
-
-    #[test]
-    fn table_accepts_an_append_only_extension() {
-        // SAFETY: The extended allocation begins with a complete `TestApiTable`
-        // prefix and remains immutable for the process lifetime.
-        let table = unsafe { table(core::ptr::from_ref(&EXTENDED_TEST_API_TABLE).cast::<TestApiTable>()) };
-
-        assert_eq!(table.value, 42);
-    }
-
-    #[test]
-    fn table_rejects_a_null_pointer() {
-        let result = catch_unwind(|| {
-            // SAFETY: Null is an explicitly supported defensive input that must
-            // be rejected before dereference.
-            unsafe { table::<TestApiTable>(core::ptr::null()) }
-        });
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn table_rejects_a_short_allocation_before_forming_a_full_reference() {
-        let result = catch_unwind(|| {
-            // SAFETY: The allocation is immutable and process-static, aligned for
-            // the table prefix, and readable for its advertised leading `size`.
-            // It intentionally does not contain the remainder of `TestApiTable`;
-            // the checked conversion must reject it using only that prefix.
-            unsafe { table::<TestApiTable>(core::ptr::from_ref(&SHORT_TEST_API_TABLE).cast::<TestApiTable>()) }
-        });
-
-        assert!(result.is_err());
-    }
 
     #[test]
     fn runtime_facade_resource_policy_values_are_stable() {

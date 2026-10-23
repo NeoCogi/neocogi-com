@@ -29,9 +29,9 @@ COM responsibilities have concrete owners: `core` supplies ABI and value support
 `codegen` emits typed Rust bindings; `idl` owns parsing through Cargo integration;
 `macros` supplies thin Rust implementation/persistence entrypoints; `api` supplies
 object helpers, static IDL metadata and runtime clients; `runtime` owns loading, the plugin catalog
-and persistence execution. Only the process runtime is deployed as the COM shared
-library (`libnc_com.so` on Linux). Native hosts and plugins use that one global
-registry. Contracts and facade helpers compile into their consumers. Cargo
+and persistence execution. The final executable links its runtime implementation
+and initializes it through `#[com_main]`. Plugins receive access to that one global
+registry through their acquisition call. No COM runtime DSO is deployed. Contracts and facade helpers compile into their consumers. Cargo
 artifact dependencies build native compositions directly; [the native guide](../guides/COM_NATIVE.md)
 explains the graph and final link ownership.
 `cargo-neocogi` retains module authoring commands. The
@@ -82,7 +82,7 @@ out-of-traversal completions retain the weak origins justified by the UI contrac
 [lifetime errors](../contracts/COM_LIFETIME_ERRORS.md) define synchronous owner
 removal and its distinction from a service's optional close operation. Queues and
 UI origin scopes remain under their own owners, independent of the single global
-plugin registry in shared native `nc_com`.
+plugin registry in the host-owned `nc_com` implementation.
 
 ## Independent-build compatibility
 

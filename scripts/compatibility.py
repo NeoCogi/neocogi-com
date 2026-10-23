@@ -37,19 +37,18 @@ class Build:
 
 @dataclass(frozen=True)
 class Case:
-    """Three independently built roles that must communicate through one declared C ABI."""
+    """Two independently built roles that must communicate through one declared C ABI."""
     name: str  # Stable report/CLI identity; unknown names fail before any build.
-    runtime: Build  # Exactly one shared process runtime is staged.
-    host: Build  # Owns the application queue and executes all behavioral assertions.
+    host: Build  # Owns the runtime, application queue and executes all behavioral assertions.
     plugin: Build  # Owns the object implementation and its allocator-local destruction.
 
 
 # A small deliberate matrix replaces duplicated same-toolchain/profile loops.
 CASES = (
-    Case("linked", Build("stable"), Build("stable"), Build("stable")),
-    Case("stable-host", Build("stable"), Build("stable"), Build("nightly", "release", "abort", "fat", True)),
-    Case("nightly-host", Build("nightly"), Build("nightly", "release", "abort", "thin", True), Build("stable")),
-    Case("stable-release", Build("stable", "release", "abort", "fat"), Build("stable", "release", "unwind", "thin"), Build("stable", "release", "abort", "fat")),
+    Case("linked", Build("stable"), Build("stable")),
+    Case("stable-host", Build("stable"), Build("nightly", "release", "abort", "fat", True)),
+    Case("nightly-host", Build("nightly", "release", "abort", "thin", True), Build("stable")),
+    Case("stable-release", Build("stable", "release", "unwind", "thin"), Build("stable", "release", "abort", "fat")),
 )
 # Keep semantic sentinels next to their actual target, not stale names in several scripts.
 RUNTIME_TESTS = {
@@ -96,7 +95,7 @@ def clean_environment() -> dict[str, str]:
             "CARGO_ENCODED_RUSTFLAGS", "RUSTDOCFLAGS", "CARGO_BUILD_TARGET", "CARGO_BUILD_RUSTFLAGS",
             "CARGO_BUILD_RUSTC", "CARGO_BUILD_RUSTC_WRAPPER", "CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER",
             "MIRIFLAGS", "MIRI_SYSROOT", "ASAN_OPTIONS", "LSAN_OPTIONS", "TSAN_OPTIONS",
-            "NC_COM_RUNTIME_LINK_DIR", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH",
+            "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH",
         }:
             env.pop(key)
     return env
@@ -137,7 +136,7 @@ def cargo(build: Build, target: Path, arguments: list[str], env: dict[str, str],
     flags = ["-Zrandomize-layout", "-Zlayout-seed=107"] if build.randomize else []
     extra = ["--target", native_target]
     if sanitizer:
-        # Instrument std and all three artifacts consistently; sanitizer runs do
+        # Instrument std and the host and provider artifacts consistently; sanitizer runs do
         # not claim support for arbitrary mixtures of instrumented runtimes.
         if native_target != "x86_64-unknown-linux-gnu":
             raise RuntimeError("sanitizer execution currently supports x86_64-unknown-linux-gnu")
@@ -164,8 +163,8 @@ def cargo(build: Build, target: Path, arguments: list[str], env: dict[str, str],
 def ordinary_tests(build: Build, target: Path, env: dict[str, str], native_target: str, sanitizer: str | None) -> None:
     """Execute runtime-free ABI cases and explicitly embedded library owners.
 
-    These are valuable regressions, but their test counts do not prove shared
-    linkage. They receive no staged-runtime loader or link-directory overrides.
+    These are valuable regressions, but their test counts do not prove cross-provider
+    authority. They receive no runtime DSO or loader/link-directory overrides.
     """
     for target_name, sentinel in ABI_TESTS.items():
         # These cases need no runtime client capability. Exporting sanitizer
@@ -192,11 +191,11 @@ def ordinary_tests(build: Build, target: Path, env: dict[str, str], native_targe
         require_execution(cargo(build, target, args, env, native_target))
 
 
-def shared_artifacts(output: str, manifest: Path) -> dict[str, Path]:
-    """Admit the two actual Cargo test artifacts and exclude an embedded runtime.
+def qualification_artifacts(output: str, manifest: Path) -> dict[str, Path]:
+    """Admit the exact maintained final-host test artifacts in fresh or cached builds.
 
     Cached compiler-artifact records count just as fresh ones: admitting only
-    records rebuilt this time would hide a previously compiled runtime rlib.
+    records rebuilt this time must not hide an unexpected test executable.
     The maintained case roots, package manifest and test kinds jointly identify
     this fixed fixture; package/test names alone cannot identify its assembly.
     """
@@ -208,8 +207,6 @@ def shared_artifacts(output: str, manifest: Path) -> dict[str, Path]:
         if record.get("reason") != "compiler-artifact":
             continue
         target = record["target"]
-        if target["name"] == "nc_com":
-            raise RuntimeError("shared qualification contains the nc_com runtime implementation")
         if not record.get("executable"):
             continue
         name = target["name"]
@@ -218,52 +215,27 @@ def shared_artifacts(output: str, manifest: Path) -> dict[str, Path]:
                 or not record["profile"]["test"]
                 or Path(target["src_path"]).resolve() != (manifest.parent / f"../../support/{name}_cases.rs").resolve()
                 or name in artifacts):
-            raise RuntimeError(f"unexpected shared qualification executable: {name}")
+            raise RuntimeError(f"unexpected host qualification executable: {name}")
         artifacts[name] = require_file(Path(record["executable"]))
     if artifacts.keys() != RUNTIME_TESTS.keys():
-        raise RuntimeError("missing shared qualification test artifacts")
+        raise RuntimeError("missing host qualification test artifacts")
     if len(set(artifacts.values())) != len(artifacts):
-        raise RuntimeError("shared qualification executables must be distinct")
+        raise RuntimeError("host qualification executables must be distinct")
     return artifacts
 
 
-def require_runtime_dependency(executable: Path, runtime: Path, env: dict[str, str], cwd: Path) -> None:
-    """Withhold only the staged runtime and reject discovery from the same binary.
-
-    Positive discovery must have happened first. Always restore the runtime,
-    including on process launch errors; never launch another Cargo build here.
-    A failed process that still lists tests does not prove a loader dependency.
-    """
-    require_file(executable)
-    require_file(runtime)
-    withheld = runtime.parent.parent / ("withheld-" + runtime.name)
-    if withheld.exists():
-        raise RuntimeError(f"runtime withholding path already exists: {withheld}")
-    runtime.rename(withheld)
-    try:
-        arguments = [str(executable), "--list"]
-        print("+ (runtime withheld)", subprocess.list2cmdline(arguments), flush=True)
-        process = subprocess.run(arguments, env=env, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        print(process.stdout, end="", flush=True)
-        if process.returncode == 0 or any(line.endswith(": test") for line in process.stdout.splitlines()):
-            raise RuntimeError("shared qualification still discovers tests without the staged runtime")
-    finally:
-        withheld.rename(runtime)
-
-
-def shared_tests(artifacts: dict[str, Path], runtime: Path, env: dict[str, str], cwd: Path) -> dict:
-    """Execute complete relocated suites, then prove the same bytes require nc_com."""
+def qualification_tests(artifacts: dict[str, Path], env: dict[str, str], cwd: Path) -> dict:
+    """Execute complete relocated host-owned suites without a COM runtime DSO."""
     evidence = {}
     for name, executable in artifacts.items():
         digest = hashlib.sha256(require_file(executable).read_bytes()).hexdigest()
         require_tests(run([str(executable), "--list"], env=env, cwd=cwd), RUNTIME_TESTS[name])
         # No sentinel filter: every maintained case, including raw persistence,
-        # executes against the shared implementation in a single-threaded process.
+        # executes against its explicitly owned implementation in a single-threaded process.
         require_execution(run([str(executable), "--test-threads=1"], env=env, cwd=cwd))
-        require_runtime_dependency(executable, runtime, env, cwd)
         if hashlib.sha256(require_file(executable).read_bytes()).hexdigest() != digest:
             raise RuntimeError(f"qualification executable changed during execution: {name}")
-        evidence[name] = {"sha256": digest, "runtime_withheld": "discovery failed"}
+        evidence[name] = {"sha256": digest, "host_owned_runtime": "passed"}
     return evidence
 
 
@@ -283,7 +255,7 @@ def safety() -> dict:
     targets = [
         (["-p", "neocogi-com-core", "--lib", "--features", "std"], "abi::array_tests::array_signature_matches_known_sha256_and_distinguishes_shapes"),
         (["-p", "neocogi-com-runtime", "--lib"], "loader::plan::tests::orders_dependencies_before_dependents_deterministically"),
-        (["-p", "neocogi-com", "--lib", "--features", "runtime"], "runtime::tests::table_rejects_a_short_allocation_before_forming_a_full_reference"),
+        (["-p", "neocogi-com", "--lib", "--features", "runtime"], "tests::metadata_identity_query_checks_and_releases_a_concrete_projection"),
     ]
     targets.extend((["-p", "neocogi-com", "--features", "runtime", "--test", name], sentinel) for name, sentinel in (
         ("local_com", "local_and_foreign_calls_share_one_gate_and_one_model"),
@@ -314,47 +286,37 @@ def safety() -> dict:
 
 
 def execute(case: Case, *, linked: bool = False, sanitizer: str | None = None) -> dict:
-    """Build, remove build outputs, then execute a three-file relocated deployment."""
+    """Build independent providers and their host, remove targets, then run relocated."""
     print(json.dumps({"case": asdict(case), "sanitizer": sanitizer}), flush=True)
     env = clean_environment()
     if not (ROOT / "Cargo.lock").is_file():
         # The source-only fixture starts with no lock; resolution happens once,
         # using an explicitly selected compiler, before all locked role builds.
-        run(["rustup", "run", case.runtime.toolchain, "cargo", "generate-lockfile"], env=env)
+        run(["rustup", "run", case.host.toolchain, "cargo", "generate-lockfile"], env=env)
     versions = {name: run(["rustup", "run", name, "rustc", "-vV"], env=env)
-                for name in sorted({case.runtime.toolchain, case.host.toolchain, case.plugin.toolchain})}
+                for name in sorted({case.host.toolchain, case.plugin.toolchain})}
     # Different target ABIs are not interchangeable build flags. Reject the case
     # rather than leaving this implicit in whichever compiler fails first.
     triples = {version.split("host: ")[1].splitlines()[0] for version in versions.values()}
     if len(triples) != 1:
-        raise RuntimeError("host/runtime/plugin compilers must target the same native C ABI")
+        raise RuntimeError("host/provider compilers must target the same native C ABI")
     with tempfile.TemporaryDirectory(prefix="neocogi-com-compat-") as directory:
         work = Path(directory)
-        stage, link = work / "relocated", work / "link"
+        stage = work / "relocated"
         stage.mkdir()
-        link.mkdir()
         executable = "neocogi-example-com" + (".exe" if os.name == "nt" else "")
         for role, build, arguments, filename in (
-            ("runtime", case.runtime, ["rustc", "-p", "neocogi-com-runtime", "--lib", "--crate-type", "cdylib"], library("nc_com")),
             ("plugin", case.plugin, ["rustc", "-p", "neocogi-example-com-plugin", "--lib", "--crate-type", "cdylib", "--features", "dynamic-plugin"], library("nc_example_com")),
-            ("host", case.host, ["build", "-p", "neocogi-example-com-plugin", "--bin", "neocogi-example-com", "--features", "host"], executable),
+            ("peer", case.plugin, ["rustc", "--manifest-path", str(ROOT / "crates/com/api/integration-tests/fixtures/registry-peer/Cargo.toml"), "--lib", "--crate-type", "cdylib", "--features", "dynamic-plugin"], library("nc_registry_peer")),
+            ("host", case.host, ["build", "-p", "neocogi-example-com-host", "--bin", "neocogi-example-com"], executable),
         ):
             target = work / role
-            cargo(build, target, arguments, {**env, "NC_COM_RUNTIME_LINK_DIR": str(link)}, next(iter(triples)), sanitizer)
+            cargo(build, target, arguments, env, next(iter(triples)), sanitizer)
             output = target / next(iter(triples)) / ("debug" if build.profile == "dev" else build.profile)
             shutil.copy2(require_file(output / filename), stage / filename)
-            if role == "runtime":
-                shutil.copy2(stage / filename, link / filename)
-                if os.name == "nt":
-                    # The facade imports Rust's MSVC nc_com.dll.lib name verbatim.
-                    imports = next((p for p in (output / "nc_com.dll.lib", output / "nc_com.lib", output / "libnc_com.dll.a") if p.is_file()), None)
-                    if imports is None:
-                        raise RuntimeError("runtime import library was not produced")
-                    shutil.copy2(imports, link / ("nc_com.dll.lib" if imports.suffix == ".lib" else imports.name))
             # Nothing in subsequent execution may resolve back into build outputs.
             run(["rustup", "run", build.toolchain, "cargo", "clean", "--target-dir", str(target)], env=env)
-        runtime_env = {**env, "LD_LIBRARY_PATH": str(stage), "DYLD_LIBRARY_PATH": str(stage),
-                       "PATH": str(stage) + os.pathsep + env.get("PATH", "")}
+        runtime_env = dict(env)
         if sanitizer:
             # Plugin mappings and the process-global runtime intentionally remain pinned.
             runtime_env["ASAN_OPTIONS"] = "detect_leaks=0"
@@ -368,24 +330,23 @@ def execute(case: Case, *, linked: bool = False, sanitizer: str | None = None) -
             ordinary_tests(case.host, work / "tests", ordinary_env, next(iter(triples)), sanitizer)
             run(["rustup", "run", case.host.toolchain, "cargo", "clean", "--target-dir", str(work / "tests")], env=env)
             groups["ordinary_abi_and_embedded"] = "passed"
-            manifest = ROOT / "crates/com/api/integration-tests/fixtures/shared-runtime/Cargo.toml"
+            manifest = ROOT / "crates/com/api/integration-tests/fixtures/host-runtime/Cargo.toml"
             require_file(manifest.with_name("Cargo.lock"))
             output = cargo(case.host, work / "tests", ["test", "--manifest-path", str(manifest), "--tests", "--no-run", "--message-format=json"],
-                           {**env, "NC_COM_RUNTIME_LINK_DIR": str(link)}, next(iter(triples)), sanitizer)
+                           env, next(iter(triples)), sanitizer)
             qualification = work / "qualification"
             qualification.mkdir()
             artifacts = {}
-            for name, original in shared_artifacts(output, manifest).items():
+            for name, original in qualification_artifacts(output, manifest).items():
                 artifacts[name] = qualification / original.name
                 shutil.copy2(original, artifacts[name])
             run(["rustup", "run", case.host.toolchain, "cargo", "clean", "--target-dir", str(work / "tests")], env=env)
-        shutil.rmtree(link)
         if linked or sanitizer:
-            groups["shared_runtime_regressions"] = shared_tests(artifacts, stage / library("nc_com"), runtime_env, qualification)
-        expected = {executable, library("nc_com"), library("nc_example_com")}
+            groups["host_runtime_regressions"] = qualification_tests(artifacts, runtime_env, qualification)
+        expected = {executable, library("nc_example_com"), library("nc_registry_peer")}
         if {path.name for path in stage.iterdir()} != expected:
-            raise RuntimeError("deployment must contain exactly host, runtime and plugin")
-        output = run([str(stage / executable), str(stage / library("nc_example_com"))], env=runtime_env, cwd=stage)
+            raise RuntimeError("deployment must contain exactly the host and two runtime-free providers")
+        output = run([str(stage / executable), str(stage / library("nc_example_com")), str(stage / library("nc_registry_peer"))], env=runtime_env, cwd=stage)
         if output.strip() != SUCCESS:
             raise RuntimeError("host did not report completion of its behavioral checks")
         groups["independent_sample"] = "passed"
@@ -405,7 +366,7 @@ def main() -> None:
         case "build-flags": selected = CASES[1:]
         case "address" | "thread" | "sanitizers":
             names = ("address", "thread") if args.suite == "sanitizers" else (args.suite,)
-            selected = tuple(Case(name, Build("nightly"), Build("nightly"), Build("nightly")) for name in names)
+            selected = tuple(Case(name, Build("nightly"), Build("nightly")) for name in names)
     results = []
     def report(status: str, error: str | None = None) -> None:
         """Overwrite old evidence before starting; interrupted/failed work must not look green."""

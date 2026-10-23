@@ -15,7 +15,9 @@ use crate::{NC_COM_CORE_ABI_VERSION, NC_E_ABI_VERSION, NC_E_POINTER, NC_OK, NcSt
 /// All three tables belong to the same host implementation. Copies of this
 /// record copy access, never a registry or another runtime owner. The host keeps
 /// its tables, callback code and state alive for the process/Wasm-instance
-/// lifetime, including after an authored application main returns.
+/// lifetime, including after an authored application main returns. Host entrypoints
+/// support concurrent access. Caller-owned persistence contexts remain subject
+/// to their own thread-local and exclusive-borrow operation contracts.
 ///
 /// Pre-release ABI-v1 changes in place: rebuild host and providers together.
 #[repr(C)]

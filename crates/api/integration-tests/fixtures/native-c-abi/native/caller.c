@@ -78,6 +78,20 @@ typedef struct NcDebugApiV1Prefix {
     void (*create_messenger)(void);
 } NcDebugApiV1Prefix;
 
+/* Host access groups immutable tables; it owns no C registry allocation. */
+typedef struct NcPersistenceApiV1 NcPersistenceApiV1;
+typedef struct NcHostApiV1 {
+    size_t size;
+    uint32_t runtime_abi_version, core_abi_version;
+    const NcRuntimeApiV1 *runtime;
+    const NcDebugApiV1Prefix *debug;
+    const NcPersistenceApiV1 *persistence;
+} NcHostApiV1;
+/* The output capability is defined below; both parameters are part of ABI-v1. */
+typedef NcStatus (*NcAcquirePluginFactory)(const NcHostApiV1 *, IUnknown *);
+_Static_assert(offsetof(NcHostApiV1, runtime_abi_version) == sizeof(size_t), "host version prefix");
+_Static_assert(sizeof(NcHostApiV1) == (sizeof(void *) == 8 ? 40 : 24), "host C layout");
+
 /* A raw borrowed/owned capability; ownership follows the enclosing operation. */
 struct IUnknown {
     void *object;
@@ -224,6 +238,8 @@ typedef struct NativeAbiLayouts {
     size_t runtime_size, runtime_plugin_infos_offset;
     size_t plugin_info_size, plugin_factory_offset, plugin_dependencies_offset, plugin_dependency_count_offset;
     size_t debug_first_function_offset;
+    size_t host_size, host_runtime_version_offset, host_core_version_offset;
+    size_t host_runtime_offset, host_debug_offset, host_persistence_offset;
     size_t aggregate_size;
     size_t aggregate_align;
     size_t aggregate_count_offset;
@@ -294,6 +310,12 @@ int32_t nc_c_validate_abi_layouts(const NativeAbiLayouts *layouts) {
         layouts->plugin_dependencies_offset == offsetof(NcPluginInfoV1, dependencies) &&
         layouts->plugin_dependency_count_offset == offsetof(NcPluginInfoV1, dependency_count) &&
         layouts->debug_first_function_offset == offsetof(NcDebugApiV1Prefix, create_messenger) &&
+        layouts->host_size == sizeof(NcHostApiV1) &&
+        layouts->host_runtime_version_offset == offsetof(NcHostApiV1, runtime_abi_version) &&
+        layouts->host_core_version_offset == offsetof(NcHostApiV1, core_abi_version) &&
+        layouts->host_runtime_offset == offsetof(NcHostApiV1, runtime) &&
+        layouts->host_debug_offset == offsetof(NcHostApiV1, debug) &&
+        layouts->host_persistence_offset == offsetof(NcHostApiV1, persistence) &&
         layouts->aggregate_size == sizeof(NativeAggregate) &&
         layouts->aggregate_align == _Alignof(NativeAggregate) &&
         layouts->aggregate_count_offset == offsetof(NativeAggregate, count) &&
@@ -569,4 +591,13 @@ int32_t nc_c_exercise_choice_output(void *object, NativeChoiceOutput output,
     if (output(object, 0, 0, NULL, NULL, &required) != pointer_status)
         return 0;
     return 1;
+}
+
+/* This checks a real typed bootstrap call, not merely function-pointer size. */
+int32_t nc_c_exercise_host_bootstrap(const NcHostApiV1 *host, NcAcquirePluginFactory acquire, NcStatus expected) {
+    if (!host || host->size != sizeof(*host) || host->runtime_abi_version != 1 ||
+        host->core_abi_version != 1 || !host->runtime || !host->debug || !host->persistence) return 0;
+    IUnknown out = {0};
+    NcStatus status = acquire(host, &out);
+    return status == expected && out.object == NULL && out.vtable == NULL && host->runtime->plugin_count() == 17;
 }

@@ -1,8 +1,10 @@
 //! One plugin implementation built as either a shared library or a linked Rust library.
 
-use neocogi_com::{
-    binary, ComDeserialize, ComSerialize, ComPtr, NcValueRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, com_object,
-};
+use neocogi_com::{binary, ComPtr, NcValueRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, com_object};
+#[path = "../../com-host/support/extent_state.rs"]
+mod extent_state;
+use extent_state::{ExtentState, PERSISTENT_KIND};
+
 use neocogi_idl_example_contracts::{ExampleFactory, ExampleObject, ExampleObjectAbi, Extent, ExtentReport, IMeasured};
 
 /// Private mutable object constructed only through `ExampleFactory`.
@@ -58,23 +60,11 @@ impl ExampleFactory for DynamicExampleFactory {
 
 /// Acquires one owned root; object construction remains on its typed methods.
 #[neocogi_com::plugin(name = "nc.examples.factory_plugin_component")]
-fn acquire_root() -> Result<neocogi_com::ComPtr<neocogi_idl_example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+fn acquire_root(_runtime: ::neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<neocogi_idl_example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
     DynamicExampleFactory::from_value(DynamicExampleFactory).query()
 }
 
 // Only the final DSO exports this symbol; monoliths call the Rust getter.
-
-/// Recipe identity used by the explicitly registered persistence adapter.
-pub const PERSISTENT_KIND: NcGuid = neocogi_com::guid_from_qualified_name("nc.examples.extent-state");
-
-/// Version-one persistent state; neither Rust layout nor event receivers are saved.
-#[derive(ComSerialize, ComDeserialize)]
-pub struct ExtentState {
-    /// Authored/current width.
-    pub width: u32,
-    /// Authored/current height.
-    pub height: u32,
-}
 
 impl neocogi_com::persistence::IPersistable for DynamicExampleObject {
     /// Returns a recipe identity independent from ABI revisions.

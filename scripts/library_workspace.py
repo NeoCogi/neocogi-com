@@ -21,7 +21,7 @@ MEMBERS = (
     "crates/com/core", "crates/com/codegen", "crates/com/test-contracts", "crates/com/macros", "crates/com/idl", "crates/com/api",
     "crates/com/runtime", "tools/idl/example-contracts",
     "tools/idl/example-consumer-contracts", "tools/neocogi-inspect",
-    "tools/cargo-neocogi", "examples/com-plugin",
+    "tools/cargo-neocogi", "examples/com-plugin", "examples/com-host",
 )
 
 
@@ -31,7 +31,7 @@ def library_workspace():
     with tempfile.TemporaryDirectory(prefix="neocogi-library-sources-") as directory:
         root = Path(directory)
         for relative in ("crates/com", "tools/idl", "tools/neocogi-inspect", "tools/cargo-neocogi",
-                         "examples/com-plugin", "docs/contracts", "docs/guides", "docs/architecture"):
+                         "examples/com-plugin", "examples/com-host", "docs/contracts", "docs/guides", "docs/architecture"):
             shutil.copytree(ROOT / relative, root / relative,
                             ignore=shutil.ignore_patterns("target", "__pycache__"))
         for relative in ("README.md", "rustfmt.toml"):

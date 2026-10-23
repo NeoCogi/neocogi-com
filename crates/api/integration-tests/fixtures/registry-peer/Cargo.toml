@@ -1,0 +1,19 @@
+[workspace]
+
+[package]
+name = "nc-registry-peer-fixture"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[lib]
+name = "nc_registry_peer"
+crate-type = ["rlib"]
+
+[features]
+dynamic-plugin = []
+
+[dependencies]
+neocogi-com = { path = "../../..", features = ["runtime"] }
+neocogi-idl-example-contracts = { path = "../../../../../../tools/idl/example-contracts" }

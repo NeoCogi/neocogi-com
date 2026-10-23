@@ -10,8 +10,8 @@ component workspaces, wrapper library packages, assembly variants or `plugins.tx
 The repository pins nightly-2026-09-29 in `rust-toolchain.toml` and enables Cargo
 artifact dependencies in `.cargo/config.toml`. Rustup installs the selected tools.
 Artifact dependencies currently require [nightly Cargo](https://doc.rust-lang.org/cargo/reference/unstable.html#artifact-dependencies). The COM ABI, macros and
-IDL library retain their stable Rust 1.85 boundary; the isolated native linkage
-and staging crates use nightly Rust. External stable consumers can use the SDK from their
+IDL library retain their stable Rust 1.85 boundary; the generic native
+staging crate use nightly Rust. External stable consumers can use the SDK from their
 own workspaces.
 
 ```sh
@@ -71,7 +71,8 @@ let filename = neocogi_native_layout::stage_library!("CARGO_CDYLIB_FILE_UI_LIBRA
 let executable = std::env::current_exe()?;
 let path = executable.parent().unwrap().join("lib").join(filename);
 // SAFETY: this is the trusted artifact built from the selected Cargo graph.
-unsafe { neocogi_com::Runtime::global().load_plugin_library(&path); }
+// runtime was supplied by the executable entry.
+unsafe { runtime.load_plugin_library(&path); }
 ```
 
 There is no generated startup file. Registration lists actual selected Cargo
@@ -84,61 +85,25 @@ in one package as separate artifact and normal Rust dependencies. Keeping DLL
 references in their own small crate permits the host's monolith/browser path to
 use normal Rust providers. This crate neither invokes Cargo nor resolves packages.
 
-## One shared runtime
+## One host-owned runtime
 
-Every dynamic consumer resolves process-wide registration, provenance, dependency
-checks and pinned code through one `nc_com`. A DLL must never privately link a
-runtime instance. `neocogi-com` is the typed facade; it owns no runtime state or
-implementation linkage. Its `runtime` feature adds only stateless clients.
+The final executable depends on `neocogi-com-runtime` and initializes its one
+registry through `#[neocogi_com::com_main]`. Its authored main receives `Runtime`;
+application libraries accept that handle. Each plugin's typed acquisition accepts
+one supplied handle, with the generated C bootstrap forwarding the immutable
+host service graph. Callbacks execute in that host; plugin code owns no registry.
 
-The native composition and each dynamic plugin use one small
-`neocogi-native-runtime-link` integration crate. It declares `nc_com` as a normal
-`artifact = "cdylib"` dependency, with no Rust implementation library attached.
-Cargo therefore builds the deployed runtime using the target's selected profile,
-including its optimization, panic strategy and standard library. Never declare
-this deployed library under `build-dependencies`: Cargo's build-tool profile
-otherwise silently selects unoptimized code and unwinding even in a size build.
+Native providers need the facade and contracts only. `dynamic-plugin` enables
+their descriptor export without selecting any implementation. Static/browser
+composition registers the same linked descriptors with supplied access. There
+is no COM runtime DLL, import library, native-link bridge or runtime-specific
+RPATH. Generic Cargo artifact staging still copies selected provider libraries
+and assets beside the executable. Platform/system dependencies remain ordinary
+requirements of those providers.
 
-```toml
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-neocogi-native-runtime-link = { workspace = true, optional = true }
-```
-
-A dynamic provider enables that dependency with `dynamic-plugin` and imports its
-metadata using `use neocogi_native_runtime_link as _;`. This never embeds runtime
-state. The bridge owns the explicit shared import as well as deployment metadata.
-Cargo deduplicates the normal runtime artifact across consumers. Test-helper
-features cannot suppress this import or inject a private implementation.
-
-Normal artifact paths are available while compiling Rust, not to `build.rs`.
-The private `neocogi-native-layout` macro reads those paths during compilation
-and copies the runtime into the application's `lib/`. The linkage crate's small
-build script supplies that directory for linking and Cargo's test loader environment;
-it never declares the runtime as a build dependency. Linux runtime lookup uses
-`$ORIGIN/lib:$ORIGIN`; macOS uses `@loader_path/lib` and `@loader_path`, with
-`@rpath` library identities. These relative paths serve both executables and
-independently loaded plugins. No build-machine directory enters runtime lookup.
-
-This native-workspace bridge uses nightly Rust's `link_arg_attribute` and tracked
-procedural-macro inputs in addition to Cargo's nightly artifact dependencies.
-It is isolated from the portable COM/IDL SDK and its stable Rust 1.85 consumers.
-On Windows it copies `nc_com.dll` beside the executable for initial imports;
-compile-only import libraries stay in `lib-imports/`. The bridge names MSVC's
-`nc_com.dll.lib` import library
-[verbatim](https://doc.rust-lang.org/reference/items/external-blocks.html#r-items.extern.attributes.link.modifiers.verbatim).
-Platform execution evidence is recorded separately; Linux checks do not establish
-Windows or macOS loader behavior.
-
-Final monolith/browser owners instead directly depend on `neocogi-com-runtime`
-and retain `extern crate nc_com as _;` once. Unit/integration test executables do
-the same through a dev dependency and an explicit root import. Reusable helpers
-never select implementation linkage through COM/UI facade features. The demo
-host and portable example reject contradictory final shared/embedded modes.
-
-The runtime still verifies a requested root's exact IID, transitive signature and
-threading before entering plugin code, then validates the returned owned
-projection. Libraries remain pinned until process exit. Acquisition transfers one
-reference; it promises neither a singleton nor stable identity between calls.
+Host services and loaded provider code remain process/Wasm-instance-lived, so
+returned COM objects and browser callbacks can outlive main's invocation.
+See the [portable host/provider example](../../examples/com-plugin/README.md).
 
 ## Interfaces and implementation
 
@@ -151,7 +116,7 @@ publication live in its Rust implementation crate:
 struct Provider;
 
 #[neocogi_com::plugin(name = "example.provider")]
-fn acquire_root() -> Result<neocogi_com::ComPtr<api::IProviderAbi>, neocogi_com::NcStatus> {
+fn acquire_root(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<api::IProviderAbi>, neocogi_com::NcStatus> {
     Provider::from_value(Provider).query()
 }
 ```
@@ -187,14 +152,13 @@ The resulting layout is:
 ```text
 target/<profile>/
   neocogi-demo-full[.exe]
-  nc_com.dll                 # Windows initial import only
-  lib/                       # shared runtime and selected plugin libraries
+  lib/                       # selected provider libraries
   assets/                    # file-backed resources, unless embedded
   themes/                    # file-backed themes, unless embedded
 ```
 
 Copy these entries together to relocate an application. Do not copy the whole
-Cargo target directory: `lib-imports/`, compiler caches and debug unremapping
+Cargo target directory: compiler caches and debug unremapping
 sidecars are compilation inputs, not distribution files. Workspace profiles use
 Cargo's `trim-paths = "all"` so panic/debug/compiler source locations do not
 disclose checkout or Cargo-home paths. **`*.trim-paths.json` sidecars deliberately
@@ -253,11 +217,11 @@ dependency on a package advertising both rlib/cdylib may also emit an unused sha
 library during monolith/browser builds; removing that extra link would require
 separate static/dynamic target packages or another crate-type selection mechanism.
 
-Short native target names remain `nc_com`, `nc_ui`, `nc_ui_nodes`, `nc_render`,
+The host implementation Rust target is `nc_com`. Native provider names remain `nc_ui`, `nc_ui_nodes`, `nc_render`,
 `nc_gfx`, `nc_skin` and optional `nc_ui_extension`. The executable is in the usual
 `target/<profile>` directory when no explicit target is selected. Dependency DLLs
 remain in Cargo's artifact directories as compiler inputs, with deployment copies
-in `lib/`. Registration embeds filenames and native linkage uses relative paths.
+in `lib/`. Registration joins those filenames to the executable directory.
 Do not reconstruct hashes or cache paths across builds.
 An explicit `--target` adds Cargo's normal target-specific output directory.
 

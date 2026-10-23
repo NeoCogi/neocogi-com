@@ -11,7 +11,7 @@ use neocogi_com_core::{
 use super::{HOST_API, PERSISTENCE_API_V1, RUNTIME_API_V1};
 
 /// Descriptor-only fixture; admission and lookup must never acquire a factory.
-unsafe extern "C" fn unused_acquisition(out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn unused_acquisition(_host: *const neocogi_com_core::NcHostApiV1, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }

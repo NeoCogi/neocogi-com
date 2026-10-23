@@ -37,7 +37,7 @@ contents it retains.
 
 This is a component ABI with its own registry and lifetime protocol; it supplies
 no Windows COM activation, apartments or operating-system marshalling. The one
-global native plugin registry lives in shared `nc_com`. Object storage and
+global native plugin registry belongs to the executable-owned `nc_com`. Object storage and
 caller-owned persistence contexts retain their separate responsibilities.
 
 
@@ -585,20 +585,27 @@ per process.
 
 ## Runtime and global registry
 
-### Why keep a shared registry?
+### One host, supplied access
 
-The process needs one authority for plugin GUIDs, dependency validation,
-registration order, first registration provenance and pinned native code. The
-registry lives in the shared `nc_com`, not in consumer facades or individual
-DLLs. Passing a runtime implementation into each component would permit
-independent registries and break those process-wide assumptions.
+One authority owns plugin GUIDs, dependency validation, registration order, first
+provenance and pinned native code. The executable links `neocogi-com-runtime`
+(the Rust library `nc_com`). Its normal `#[com_main]` entry initializes that
+implementation once and passes a copyable `Runtime` to application code.
 
-`Runtime` is a stateless Rust handle to that implementation. Static/browser hosts
-link the same implementation once; shared hosts and DLL consumers import the
-sole shared runtime. The internal catalog remains useful, but does not require
-public registry or inspection context objects. Plugin operations use one table;
-diagnostics and persistence retain separate tables because their callback and
-caller-owned context lifecycles are independent of plugin registration.
+Every provider bootstrap receives access to those same immutable host tables.
+A context-free callback in a table executes in the host and reaches its private
+singleton. A nested acquisition from plugin A to B forwards the canonical host
+bundle again. Handles own no registry and select no implementation; reusable
+libraries take a handle from their caller. There is no global/default facade,
+per-plugin cache, fallback, runtime DSO or named service getter.
+
+The supported application has one ordinary startup. Additional independent
+initialization requires an explicit path outside that composition; mere linkage
+does not initialize state. No owner counter or Cargo/linker singleton detector
+is part of the contract. Separate processes/Wasm instances have separate owners.
+
+Plugin operations use one table; diagnostics and persistence keep independent
+tables because their callback and caller-owned context lifecycles differ.
 
 ## Provider descriptor and registered information
 
@@ -702,15 +709,16 @@ lifetime additionally requires that lifetime for every reachable table/code
 allocation; a static outer description alone proves no child lifetime. This is
 part of pre-release ABI-v1, with no new ABI generation or identity changes.
 
-Check `nc_com_runtime_abi_version() == 1` before obtaining a versioned table. Check
-its size prefix before reading its full layout, then match `core_abi_version`.
-The pre-release v1 layouts are revision-specific even when sizes happen to match.
-
-Only the version export and three getters remain:
-
-- `nc_com_get_runtime_api_v1`: `NcRuntimeApiV1`, all plugin operations below.
-- `nc_com_get_debug_api_v1`: `NcDebugApiV1`, debug messenger lifecycle.
-- `nc_com_get_persistence_api_v1`: `NcPersistenceApiV1`, caller-owned persistence contexts.
+The supplied record replaces named runtime symbols. All three tables are required:
+`NcRuntimeApiV1` for plugin operations, `NcDebugApiV1` for diagnostics, and
+`NcPersistenceApiV1` for caller-owned persistence contexts. The safe handle stores
+private references only after size/version checks and under the unsafe caller's
+complete process-lived graph guarantee. Unsupported versions and short records
+return `NC_E_ABI_VERSION`; required null pointers return `NC_E_POINTER`.
+Handle copies can cross threads. Unsafe adoption therefore also guarantees
+concurrently callable host entrypoints; caller-owned persistence contexts keep
+their own thread-local and exclusive-borrow restrictions.
+The pre-release v1 layouts remain revision-specific: rebuild participants together.
 
 | Runtime operation | Result and purpose |
 | --- | --- |
@@ -757,23 +765,29 @@ resource limits, separate from the dynamic-provider limit.
 Registered metadata is available directly on `Runtime`; no intermediate
 `Inspection` or `PluginRegistry` context is needed:
 
-An embedded executable explicitly retains one runtime implementation:
+The executable explicitly selects the host implementation in Cargo and uses:
 
 ```rust
-extern crate nc_com as _;
-use neocogi_com::Runtime;
-let runtime = Runtime::global(); // Obtains the stateless global handle.
-let plugins = runtime.plugins().unwrap(); // Checks discovery/table size/core ABI v1.
-for plugin in plugins {
-    println!("{} {}", plugin.qualified_name, plugin.version);
+#[neocogi_com::com_main]
+fn main(runtime: neocogi_com::Runtime) {
+    for plugin in runtime.plugins().unwrap() {
+        println!("{} {}", plugin.qualified_name, plugin.version);
+    }
 }
 ```
 
-This example's manifest enables `neocogi-com/runtime` and directly depends on
-`neocogi-com-runtime` (Rust crate name `nc_com`). Dynamic native applications and
-plugins instead import the one shared library; they must not retain private
-implementation copies. The [factory walkthrough](../README.md) executes a complete
-generated typed registration/acquisition example.
+Its manifest enables `neocogi-com`'s `runtime` clients and directly depends on
+`neocogi-com-runtime`. The handle itself is available without `std` or `runtime`;
+only richer clients require that feature. `com_main` supports safe synchronous
+nongeneric `fn main(runtime: Runtime)`, preserving normal `()`/`ExitCode`/`Result`
+returns, `?`, cfg and lint scopes. Explicit `neocogi_com = path, nc_com = path`
+arguments support renamed dependencies. It adds no executor or UI launch loop.
+A mismatched selected implementation is a fatal startup configuration error.
+
+The [factory walkthrough](../README.md) executes generated typed registration,
+acquisition and ordinary construction. Tests may initialize their explicitly
+selected host with `nc_com::initialize_process()` and unsafe checked adoption;
+ordinary reusable libraries accept the resulting handle rather than initialize.
 
 `plugin_info` returns `None` only for an unknown GUID. `plugins` returns owned
 complete records in registration order; clients no longer enumerate IDs and then
@@ -795,7 +809,15 @@ thread even if the provider supports shared threading.
 
 Acquisition means obtaining one owned root factory COM reference. The descriptor
 stores `acquire: Option<NcAcquirePluginFactory>`; generated bootstrap code adapts
-the implementation's typed construction policy to that fixed no-argument ABI.
+the implementation's typed construction policy to that fixed supplied-host ABI.
+The raw bootstrap is
+`unsafe extern "C" fn(*const NcHostApiV1, *mut ComRaw<IUnknown>) -> NcStatus`.
+The authored `#[plugin]` function accepts one `Runtime` and returns its existing
+exact typed `Result<ComPtr<FactoryAbi>, NcStatus>`. Its adapter clears output
+before admitting host access; invalid access enters no provider code and
+transfers no owner. `write_plugin_root` invokes an unboxed `FnOnce` only after
+output preflight. Metadata discovery needs no host or acquisition.
+
 A provider may create a fresh factory or retain an existing instance. The runtime
 promises no singleton and no identity reuse between successful calls.
 
@@ -837,7 +859,7 @@ so the plugin remains callable after its file is removed.
 1,024. Static registrations, repeats and inspection-only opens are excluded. The
 count derives from authoritative records. Inspection-only pins therefore remain
 outside that bound; build tooling inspects in a short-lived process. There is no
-unloading, path discovery, recursive dependency loading or injected runtime.
+unloading, path discovery, recursive dependency loading or an independently initialized runtime.
 
 ## Unregistered inspection and errors
 
@@ -866,7 +888,7 @@ views across catalog growth, null/empty/undersized buffers and untouched spare
 slots. They also verify that metadata does not invoke bootstrap, that ABI remains
 v1, and that independent C layouts match the combined table and plugin record.
 Native-library tests cover provenance, identity conflicts, post-unlink metadata
-and retained factory code. Both shared-runtime and static configurations exercise
+and retained factory code. Both independently loaded and statically linked providers exercise
 the same contracts; generated factories still undergo exact identity checks.
 
 ## Persistence and diagnostics
@@ -905,22 +927,20 @@ bytes, dependency arrays and code; a static outer reference does not prove raw
 children are static. Copy callback metadata needed after a callback. See the
 [text/lifetime table](../core/README.md#text-bytes-and-borrowed-storage).
 
-## Native and embedded linkage
+## Native and static composition
 
-The COM facade contains stateless declarations and clients. Its `runtime` feature
-does not choose a runtime implementation. Every final native host and plugin
-imports the one `nc_com` shared image. Workspace native owners use
-`neocogi-native-runtime-link` for Cargo's normal target-profile cdylib artifact,
-explicit imports, staging and relative loader paths. Declaring the deployed
-runtime as a build dependency would apply build-tool profile policy.
+The facade provides typed clients and owns no implementation dependency, including
+with all features. The final executable links the ordinary `nc_com` rlib. Native
+providers link contracts/facade only and export their version-one descriptor.
+Static composition registers a linked provider descriptor; dynamic composition
+loads a provider library. Both use the same host-owned registry and C service graph.
 
-Final monolith/browser/test executables instead retain the runtime implementation
-once through a direct dependency and `extern crate nc_com as _;`. Reusable
-facades/helpers never select embedded linkage through additive features.
-Process-pinned native mappings retain provider code through final object/weak
-release. File relocation and import-library policy belong to final deployment;
-see the [native guide](../../../docs/guides/COM_NATIVE.md).
-
+No COM shared image, import library, bridge crate, runtime environment variable or
+runtime-specific search path is deployed. Generic native library/resource staging
+remains responsible for providers and assets. Provider mappings stay process-pinned
+through final object/weak release. Host state, tables and callback code also stay
+process/Wasm-instance-lived after main returns, allowing browser callbacks.
+See the [native guide](../../../docs/guides/COM_NATIVE.md).
 
 ## Independent-build compatibility
 
@@ -932,8 +952,8 @@ old contract revisions or different architectures are interchangeable.
 
 [`scripts/compatibility.py`](../scripts/compatibility.py) owns the independent
 build and execution policy. It uses installed Rustup toolchains and Python 3.10+
-with only the standard library. An unpublished final test fixture imports the
-shared runtime; no extra production crate is introduced. From the repository root, run:
+with only the standard library. An unpublished final test fixture owns its host
+implementation; no additional production registry is introduced. From the repository root, run:
 
 ```sh
 python3 crates/com/scripts/compatibility.py --suite cross-version --report /tmp/com-cross.json
@@ -945,26 +965,22 @@ python3 -m unittest discover -s crates/com/scripts -p test_compatibility.py
 The matrix is deliberately explicit, rather than a claim that every possible
 compiler flag is interchangeable:
 
-| Case | Shared runtime | Host | Plugin |
-| --- | --- | --- | --- |
-| linked | stable, debug | stable, debug | stable, debug |
-| stable-host | stable, debug | stable, debug | nightly, release, abort, fat LTO, randomized private layout |
-| nightly-host | nightly, debug | nightly, release, abort, thin LTO, randomized private layout | stable, debug |
-| stable-release | stable, release, abort, fat LTO | stable, release, unwind, thin LTO | stable, release, abort, fat LTO |
+| Case | Host and its runtime | Providers |
+| --- | --- | --- |
+| linked | stable, debug | stable, debug |
+| stable-host | stable, debug | nightly, release, abort, fat LTO, randomized private layout |
+| nightly-host | nightly, release, abort, thin LTO, randomized private layout | stable, debug |
+| stable-release | stable, release, unwind, thin LTO | stable, release, abort, fat LTO |
 
 Unspecified panic/LTO settings are unwind/off. Randomization uses seed 107.
 `cross-version` executes the two mixed-compiler rows; `build-flags` adds
-`stable-release`. `linked` separates ordinary C-layout, checked-value,
-recursive-interface, output-completion and lifetime regressions from actual shared
-runtime qualification. Factory registration/acquisition and persistence execute
-their complete maintained cases through the independent
-[`shared-runtime` final fixture](../api/integration-tests/fixtures/shared-runtime/Cargo.toml).
-The same case files are included by the ordinary embedded roots. Capability
-features never choose an implementation; each final assembly owns that choice.
-The ordinary ABI group enables no unused runtime client capability. Sanitizer
-executables export their hooks, which can retain otherwise unused public facade
-functions; compiling runtime clients into a pure ABI test would then require
-native imports that the test does not own.
+`stable-release`. `linked` executes ordinary C-layout, checked-value,
+recursive-interface, output-completion and lifetime regressions, then the complete
+factory/persistence suites through the independent
+[`host-runtime` final fixture](../api/integration-tests/fixtures/host-runtime/Cargo.toml).
+The same case files are reused by the ordinary test roots. Each final executable
+explicitly owns its implementation; pure ABI tests enable no unused service clients.
+
 Exact names, nonempty execution and actual Cargo artifacts are checked. Installing
 nightly or finding a successfully compiled binary never passes a compatibility case.
 
@@ -987,44 +1003,31 @@ Reports record `rustc -vV` for every selected compiler plus each role's exact
 profile, panic and LTO policy. Reports change to `running` before work begins and
 `failed` on error; an older success cannot remain as the current result. The
 platform must permit native execution with matching host triples. Linux, macOS
-and Windows artifact names are handled; MSVC's import library is prepared only
-for linking and is not shipped as a runtime dependency. Platform qualification
+and Windows provider artifact names are handled. No COM runtime import library
+is needed. Platform qualification
 comes from executing its CI row, not from another platform's successful build.
 
 ## What one case does
 
-1. Validate installed compilers and their native target agreement. Remove ambient
-   compiler, target, profile and loader-path overrides from the build environment.
-2. Build the runtime explicitly as a `cdylib`. Its manifest offers both `rlib`
-   and `cdylib`: static consumers select the former; shared hosts use `libnc_com`.
-3. Build the plugin and host independently, each with its own Cargo target and
-   compiler/profile policy. The host links the freshly built runtime.
-4. Require the exact nonempty artifacts. Copy only the executable, runtime and
-   plugin into a relocation directory. Clean each build target after copying it.
-5. In linked/instrumented rows, run the ordinary ABI group without staged runtime
-   paths. Build the independent shared test fixture once with `--locked --no-run
-   --message-format=json`. Its committed lockfile supports Rust 1.85; missing or
-   stale child locks fail rather than being regenerated. Admit exactly its two
-   expected test artifacts and maintained case roots, rejecting runtime
-   implementation artifacts even when cached. Cargo supplies executable paths.
-   The fixture's build script owns final test linker arguments (`-lnc_com`, or
-   `nc_com.dll.lib` on MSVC). This keeps the import after Rust library references
-   on Rust 1.85, whose `rustc-link-lib` ordering can otherwise discard it under
-   ELF `--as-needed`. No runtime implementation is a Rust dependency of this fixture.
-6. Relocate these two executables into a private sibling directory, then clean
-   their build target and remove the runtime link directory before discovery.
-   Discover exact sentinels and execute both complete suites with
-   `--test-threads=1`. Withhold only the staged runtime and require discovery to
-   fail without listing tests, restoring the library even on launch failure.
-   Check the executables' unchanged hashes. Neither matching test counts nor
-   exported-symbol absence alone establishes the final assembly.
-7. Run the existing [example host](../../../examples/com-plugin/src/main.rs) from
-   that directory, with the loader path restricted to the staged libraries and
-   the temporary runtime link directory removed. Ordinary OS dependencies remain.
-8. Require successful exit and the completion marker printed after all assertions.
-   Reports distinguish the ordinary group, shared runtime cases and sample.
+1. Validate installed compilers and matching native C ABI; remove ambient build
+   and loader overrides.
+2. Build provider A, independent peer B, and the host in separate targets with
+   explicit compiler/profile policies. The host owns its runtime; providers do not.
+3. Require each exact nonempty artifact, copy it and clean its build target.
+   The relocated sample contains exactly one executable and two providers.
+4. In linked/instrumented rows, build the maintained host-runtime test fixture.
+   Its committed lockfile and actual Cargo manifest/source/kind fields identify
+   both exact test executables, whether fresh or cached. Copy and clean them.
+5. Discover exact sentinels and execute both unfiltered suites single-threaded
+   after build outputs are gone. Check unchanged executable hashes. Counts alone
+   cannot establish that the maintained bodies executed.
+6. Run the [sample host](../../../examples/com-host/src/main.rs) without COM
+   loader paths. B publishes a marker visible to the host and acquires A through
+   its supplied handle. The host checks conflict rejection preserves its catalog.
+7. Require successful exit and the marker emitted after all behavioral assertions.
+   Reports distinguish ordinary tests, host-runtime cases and independent providers.
 
-The shared example exercises typed factory construction, inherited interface
+The independent sample exercises typed factory construction, inherited interface
 calls, exclusive mutation, domain notifications delivered into the host's concrete queue,
 canonical weak-origin identity, fresh copied output (nested enum/boolean and short
 prefix) through ABI v1, persistence through provider-owned byte buffers,
@@ -1035,10 +1038,10 @@ settings are build policies, not permission to unwind over a COM call.
 
 Native C layout and malformed copied/nested boolean values are separate explicit
 checks in `linked`, as are the runtime-free unique-owner and weak-lifetime test
-targets. These ordinary assemblies do not qualify shared runtime linkage. The
-separate final fixture qualifies both factory and persistence cases against the
-staged library. The monolith remains a separate integration test
-because it must work without any native NeoCogi libraries.
+targets. The relocated sample establishes cross-provider authority; the final fixture
+executes the complete factory and persistence cases with host-owned services.
+The monolith remains a separate integration test because it runs without any
+native NeoCogi provider library.
 
 ## Entry points, safety checks and CI
 
@@ -1058,7 +1061,7 @@ budget traversals and the output-completion maximum-variant/provider-publication
 stress tests. Their exact names live in the driver. They run in linked, ASan and
 TSan suites; Miri runs the remaining 13 checked-value tests, six directional output-buffer
 tests and eleven output-completion tests, including allocation injection, preserved owners, and malformed outputs.
-Facade tests select the static runtime because Miri interprets pure Rust and
+Final runtime test executables explicitly select their implementation because Miri interprets pure Rust and
 cannot load native plugins.
 That is a different check from executing the real shared-library boundary.
 
@@ -1072,8 +1075,8 @@ may need a hook that the host itself never called. Without that export,
 ThreadSanitizer tests could pass before plugin acquisition failed on an undefined
 `__tsan_atomic64_exchange`. The six runtime-free Rust targets and three intentionally
 embedded library suites retain their ordinary mode under instrumentation. The
-two independent factory/persistence targets import the instrumented shared runtime
-and run after build/link cleanup, including the missing-runtime control. The
+two independent factory/persistence targets own their instrumented host runtime
+and run after build cleanup without any COM runtime library. The
 relocated example then executes without its build targets. Native-C layout
 checks remain in `linked`, since this driver does not instrument the C compiler.
 Leak reporting is disabled for sanitizer execution because successful plugin

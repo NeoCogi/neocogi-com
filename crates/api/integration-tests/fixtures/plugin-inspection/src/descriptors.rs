@@ -11,7 +11,7 @@ pub fn acquisition_count() -> usize {
 }
 
 /// The first deliberate acquisition returns CLOSED; any earlier implicit entry changes that result.
-unsafe extern "C" fn acquire(out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn acquire(_host: *const neocogi_com_core::NcHostApiV1, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }

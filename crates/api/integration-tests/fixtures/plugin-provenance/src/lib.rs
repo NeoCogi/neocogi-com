@@ -7,7 +7,7 @@ use neocogi_com_core::{
 };
 
 /// This test does not construct an object; successful lookup reaches this code.
-unsafe extern "C" fn acquire(out: *mut ComRaw<IUnknown>) -> NcStatus {
+unsafe extern "C" fn acquire(_host: *const neocogi_com_core::NcHostApiV1, out: *mut ComRaw<IUnknown>) -> NcStatus {
     if out.is_null() {
         return NC_E_POINTER;
     }

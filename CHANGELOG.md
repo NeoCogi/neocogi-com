@@ -4,6 +4,18 @@ The current contract is [pre-release ABI v1](docs/abi-v1.md). Entries below reco
 its development; later entries can supersede older implementation details.
 Historical draft numbers do not define additional supported COM baselines.
 
+## Host-owned services within ABI v1
+
+Initialize one selected executable-owned implementation with `#[com_main]` and
+pass copyable `Runtime` access into plugin acquisition and reusable libraries.
+Keep the process-wide registry, pinned provider code and caller-owned context
+lifetimes. Remove global/default discovery, named getters, the COM native-link
+bridge and the runtime cdylib; the runtime crate remains the host's ordinary rlib.
+Static and dynamic providers use the same supplied C service graph. Split the
+portable host/provider sample and update persistence clients, real applications,
+C layout/bootstrap coverage and native/SDK qualification. Core/runtime/plugin
+stay unreleased ABI-v1; IDL v13, NCB v1 and fixed identities are unchanged.
+
 ## One pre-release ABI-v1 specification
 
 Consolidate the core object, runtime discovery and compatibility specifications

@@ -32,7 +32,7 @@ errors. It exposes plugin/factory data, not a runtime inventory of contract
 declarations. Static registration and later factory calls retain their existing
 status-returning contracts; they are separate operations from live loading.
 
-[Runtime ABI v1](../docs/abi-v1.md#runtime-and-global-registry) has three C tables:
+[Runtime ABI v1](https://github.com/NeoCogi/foundations/blob/master/crates/com/docs/abi-v1.md#runtime-and-global-registry) has three C tables:
 complete plugin operations, diagnostics and persistence. Plugin lookup and
 enumeration share one projection containing identity, factory and dependencies. Loading
 returns a plugin GUID. Plugin inspection reports static origin or the first
@@ -44,27 +44,22 @@ Plugin descriptor ABI v1 and core object ABI v1 remain independently versioned.
 
 ## Build and link
 
-The package owns both `rlib` and `cdylib` targets under the short name `nc_com`.
-A normal Cargo artifact dependency requests its shared target directly and uses
-the target profile. Declaring a deployed runtime as a build dependency incorrectly
-applies build-tool optimization and panic settings. Native workspace consumers
-use `neocogi-native-runtime-link` for transitive search/rpath metadata; normal static
-consumers link the rlib. `cargo build -p neocogi-com-runtime` builds both.
-There is no generated wrapper package. Output names are `libnc_com.so` on Linux,
-`libnc_com.dylib` on macOS and `nc_com.dll` on Windows. The
-[native guide](../../../docs/guides/COM_NATIVE.md) explains Cargo artifact paths
-and the distinction between development builds and installation.
+The package builds the ordinary Rust `nc_com` rlib. Native and browser final
+hosts depend on it directly and use `#[neocogi_com::com_main]` to initialize its
+existing singleton and obtain a copyable access handle. Reusable libraries take
+that handle from their caller. Plugin acquisition receives it through the C
+bootstrap; providers select no implementation. No runtime DSO or native bridge
+is built or deployed. The runtime requires `std`; core and the access handle
+retain reduced-feature support. See the [sample host](https://github.com/NeoCogi/foundations/tree/master/examples/com-host).
 
-A monolithic/browser final owner enables the facade's `runtime` clients, directly
-depends on `neocogi-com-runtime`, and retains `extern crate nc_com as _;` once.
-The facade has no implementation-selection feature. Native shared owners instead
-supply the import from this sole shared runtime image. No wrapper project is required. See the
-[plain-Cargo example](../../../examples/com-plugin/README.md) for both modes.
-The runtime is `std`-only; core ABI and reduced-feature contracts retain
-`no_std` support.
+`initialize_process()` is infallible/idempotent and invokes no plugin. Its
+immutable `NcHostApiV1`, child tables, state and code remain process/instance-lived
+even after application main returns. The three existing C tables remain separate
+services. Callbacks execute here and reach this host's one private registry;
+nested provider acquisition forwards this canonical bundle.
 
 Persistence operations are available through `neocogi_com::persistence` when the
-facade's `runtime` feature is enabled. `FactoryRegistry::new()` returns a
+facade's `runtime` feature is enabled. `FactoryRegistry::new(&runtime)` returns a
 fallible owner of one runtime-allocated context. Registration requires mutable
 access; restore only borrows the context. Contexts never populate the global
 plugin catalog, and dropping a context releases its retained factories through
@@ -74,7 +69,7 @@ The persistence table validates inputs, captures bounded object trees, preflight
 all recipes and provider state, and constructs descendants before their parents.
 Snapshot bytes are delivered once through a synchronous borrowed-byte callback;
 the Rust facade copies them into its own allocator. No Rust vector, map, or
-allocator ownership crosses the ABI. Shared and static hosts execute the same
+allocator ownership crosses the ABI. Native and browser hosts execute the same
 implementation, while providers need only the built-in core contracts and
 the facade's implementation helpers. See [persistence](PERSISTENCE.md) for
 limits, provider obligations, and reconstruction semantics.

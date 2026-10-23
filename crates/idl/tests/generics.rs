@@ -136,8 +136,8 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='generic-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/com/api")
+            "[package]\nname='generic-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\nneocogi-com-runtime={{path={:?}}}\n",
+            root.join("crates/com/api"), root.join("crates/com/runtime")
         ),
     )
     .unwrap();
@@ -166,14 +166,14 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
         }}
         #[neocogi_com::plugin(name = "proof.closed.generic")]
         /// Closed generic projections are ordinary plugin roots.
-        fn acquire_root() -> Result<neocogi_com::ComPtr<producer::{contract}Abi>, neocogi_com::NcStatus> {{
+        fn acquire_root(_runtime: ::neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<producer::{contract}Abi>, neocogi_com::NcStatus> {{
             Counter::from_value(Counter {{ value: 7 }}).query()
         }}
         #[test]
         fn calls_peer_specialization() {{
             let mut raw = neocogi_com::ComRaw::null();
             // SAFETY: the generated adapter receives valid raw output storage.
-            assert_eq!(unsafe {{ (plugin_descriptor().acquire.unwrap())(&mut raw) }}, neocogi_com::NC_OK);
+            assert_eq!(unsafe {{ (plugin_descriptor().acquire.unwrap())(nc_com::initialize_process(), &mut raw) }}, neocogi_com::NC_OK);
             // SAFETY: the adapter transferred the exact generated specialization.
             let owner = unsafe {{ neocogi_com::ComPtr::<producer::{contract}Abi>::__nc_from_raw_owned_checked(raw.cast()) }}.unwrap();
             let mut peer = owner.query::<consumer::{contract}Abi>().unwrap();
@@ -306,8 +306,8 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
-            "[package]\nname='generic-values-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/com/api")
+            "[package]\nname='generic-values-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\nneocogi-com-runtime={{path={:?}}}\n",
+            root.join("crates/com/api"), root.join("crates/com/runtime")
         ),
     )
     .unwrap();

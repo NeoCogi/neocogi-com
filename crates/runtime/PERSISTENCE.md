@@ -12,7 +12,7 @@ state owns edge properties such as grid placement. Repeated noncyclic references
 are copied as separate tree instances; graph aliasing is not preserved.
 
 Through `neocogi_com::persistence`, the application registers context-bound `IPersistenceFactory` objects in a
-`FactoryRegistry`. Creating a registry is fallible: `FactoryRegistry::new()?`. `restore` decodes a bounded `ObjectRecord` tree, validates
+`FactoryRegistry`. Creating a registry is fallible: `FactoryRegistry::new(&runtime)?`. `restore` decodes a bounded `ObjectRecord` tree, validates
 all recipe IDs, revisions and provider state, then constructs descendants
 before their parents. Provider `validate` must be observational; `restore`
 must still validate its input when called directly through COM. A factory can
@@ -54,10 +54,10 @@ generic COM object-persistence service.
 ## Ownership and linkage
 
 Persistence is implemented in `neocogi-com-runtime` and called through
-`NcPersistenceApiV1`, returned by `nc_com_get_persistence_api_v1`. Enable the
-facade's `runtime` feature for callers. Native final owners import the shared
-runtime; final monolith/browser owners directly retain its implementation rlib. Runtime and host must be rebuilt together for this added
-pre-alpha ABI table. Providers only implementing the contracts need neither
+`NcPersistenceApiV1`, supplied in the admitted host API description. Enable the
+facade's `runtime` feature for callers. All final hosts link the implementation
+rlib and pass access to registry creation and capture. The unreleased ABI-v1
+tables change in place; rebuild the host and providers together. Providers only implementing the contracts need neither
 feature. The built-in contracts remain available without allocation; portable
 `ObjectRecord` authoring requires `alloc` but no linked runtime.
 
@@ -105,12 +105,11 @@ including codec limits, so callers must not assume every limit failure has one
 status. Application bindings and publication remain the caller's responsibility
 after a successful restore.
 
-## Crate migration
+## Rust access
 
-Replace imports from `neocogi_com_persistence` or
-`neocogi_com_persistence_contracts` with `neocogi_com::persistence` and remove the
-old Cargo dependencies. Snapshot/restore consumers enable `neocogi-com/runtime`.
-Use `FactoryRegistry::new()?` (or explicitly handle its error) instead of the old
-infallible constructor or `Default`. Context creation checks runtime and core ABI
-compatibility before calling the table. Interface identities, signatures, recipe
-semantics, and the NCB-v1 record bytes remain unchanged.
+Snapshot and restore callers enable `neocogi-com/runtime`. Construct an owned
+context with `FactoryRegistry::new(&runtime)?`; capture with
+`snapshot(&runtime, object)` or `snapshot_with_limits(&runtime, object, limits)`.
+The supplied handle already admits the required runtime/core versions. Contexts
+retain their exact creation table for operations and Drop. Provider interface
+identities, application recipe schemas and NCB-v1 bytes remain independent.

@@ -13,7 +13,7 @@ use quote::quote;
 /// Builds ambient constants from the actual generated bindings, excluding every
 /// authored identifier. This keeps the regression effective when private names
 /// change or new bindings are added; consumer compilation checks lexical scope.
-fn ambient_binding_constants(authored: &str, generated: &syn::File) -> String {
+pub(super) fn ambient_binding_constants(authored: &str, generated: &syn::File) -> String {
     use std::collections::BTreeSet;
     use syn::visit::Visit;
 
@@ -57,13 +57,12 @@ fn ambient_binding_constants(authored: &str, generated: &syn::File) -> String {
 /// Runs several complete source selections in one real SDK consumer.
 /// The scratch target is removed with the consumer after every child has exited.
 pub(super) fn run_consumers(name: &str, cases: impl IntoIterator<Item = (String, String)>) {
-    run_consumers_with_files(name, cases, &[]);
+    run_consumers_with_files(super::test_consumer::Consumer::new(name), cases, &[]);
 }
 
 /// Additional integration targets compile as separate crates, so public wires
 /// must remain usable without access to the native field-resolution scope.
-fn run_consumers_with_files(name: &str, cases: impl IntoIterator<Item = (String, String)>, files: &[(&str, &str)]) {
-    let consumer = super::test_consumer::Consumer::new(name);
+pub(super) fn run_consumers_with_files(consumer: super::test_consumer::Consumer, cases: impl IntoIterator<Item = (String, String)>, files: &[(&str, &str)]) {
     for (path, source) in files {
         let path = consumer.directory.path().join(path);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -242,7 +241,7 @@ fn plugin_implementation_items_have_private_lexical_ownership() {
                     #[neocogi_com::com_object(interfaces(IRoot))] struct Root;
                     impl IRoot for Root {{ fn value(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(73) }} }}
                     #[neocogi_com::plugin(name = "test.naming.Plugin", plugin_id({identifier}), version = "1.2.3", dependencies = [NC_COM_PLUGIN_DEPENDENCIES])]
-                    fn __nc_acquire_plugin_root() -> Result<neocogi_com::ComPtr<IRootAbi>, neocogi_com::NcStatus> {{ {acquisition} }}
+                    fn __nc_acquire_plugin_root(_runtime: ::neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<IRootAbi>, neocogi_com::NcStatus> {{ {acquisition} }}
                 "#
                 );
                 let declarations = source_items(&declarations, expand);
@@ -261,7 +260,7 @@ fn plugin_implementation_items_have_private_lexical_ownership() {
                             let root = Root::from_value(Root);
                             // A rejected adapter must overwrite even a non-null sentinel with null.
                             let mut raw = root.as_raw();
-                            let status = unsafe {{ descriptor.acquire.unwrap()(&mut raw) }};
+                            let status = unsafe {{ descriptor.acquire.unwrap()(nc_com::initialize_process(), &mut raw) }};
                             if {rejected} {{
                                 assert_eq!(status, neocogi_com::NC_E_CLOSED);
                                 assert!(raw.is_null());
@@ -279,7 +278,11 @@ fn plugin_implementation_items_have_private_lexical_ownership() {
         }
         (format!("printed={expand}"), source)
     });
-    run_consumers("plugin-item-ownership-proof", cases);
+    run_consumers_with_files(
+        super::test_consumer::Consumer::new("plugin-item-ownership-proof").with_runtime_owner(),
+        cases,
+        &[],
+    );
 }
 
 /// Authored const expressions stay in their own namespace even when an operation
@@ -386,7 +389,7 @@ fn field_types_keep_application_self_and_opaque_macro_scope() {
         )
     });
     run_consumers_with_files(
-        "field-type-ownership-proof",
+        super::test_consumer::Consumer::new("field-type-ownership-proof"),
         cases,
         &[(
             "tests/public_wire.rs",

@@ -12,9 +12,9 @@ keywords = ["com", "abi", "ffi", "plugin"]
 categories = ["api-bindings", "development-tools::ffi"]
 
 [lib]
-# Keep direct Cargo builds and packaged shared libraries under the same short name.
+# The final host links this implementation; providers use only supplied access.
 name = "nc_com"
-crate-type = ["rlib", "cdylib"]
+crate-type = ["rlib"]
 
 [dependencies]
 neocogi-com-core = { workspace = true, default-features = false, features = ["std"] }

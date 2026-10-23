@@ -152,7 +152,7 @@ Interfaces have no implementation-role discriminator in their canonical encoding
 Revision v13 removes UI event publication edges from callable contract identity;
 IDL has no event-reference slots. Rebuild affected contracts, providers and hosts
 together, including built-in persistence bindings. Nominal IDs, core ABI v1,
-source-graph schema and the shared-runtime registry are separate contracts;
+source-graph schema and the host-owned runtime registry are separate contracts;
 runtime discovery remains ABI v1. Closed generic interfaces work as object
 contracts and plugin roots; open templates have no callable ABI.
 
@@ -804,7 +804,7 @@ A plugin is a typed zero-argument acquisition function in its implementation cra
 
 ```rust,ignore
 #[neocogi_com::plugin(name = "example.plugin")]
-fn acquire_root() -> Result<neocogi_com::ComPtr<api::IRootAbi>, neocogi_com::NcStatus> {
+fn acquire_root(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<api::IRootAbi>, neocogi_com::NcStatus> {
     Root::from_value(Root::new()).query()
 }
 ```

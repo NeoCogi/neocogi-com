@@ -1,0 +1,29 @@
+[package]
+name = "neocogi-example-com-host"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+default = []
+# Static and dynamic provider selection share the same host-owned runtime.
+monolith = ["dep:neocogi-example-com-plugin"]
+
+[dependencies]
+neocogi-com = { workspace = true, features = ["macros", "runtime"] }
+neocogi-com-runtime.workspace = true
+neocogi-idl-example-contracts = { path = "../../tools/idl/example-contracts" }
+neocogi-example-com-plugin = { path = "../com-plugin", optional = true }
+
+[[bin]]
+name = "neocogi-example-com"
+path = "src/main.rs"
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[[example]]
+name = "event_allocations"
+path = "examples/event_allocations.rs"
+required-features = ["monolith"]

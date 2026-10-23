@@ -38,7 +38,7 @@ fn build_case(case: usize, directory: &Path) -> PathBuf {
 fn inspection_and_registration_share_admission_without_sharing_publication() {
     let directory = std::env::temp_dir().join(format!("nc-inspection-cases-{}", std::process::id()));
     std::fs::create_dir_all(&directory).unwrap();
-    let runtime = Runtime::global();
+    let runtime = crate::host_runtime();
     assert!(runtime.plugins().unwrap().is_empty());
     for (case, expected) in [
         NC_OK,
@@ -107,7 +107,7 @@ fn inspection_and_registration_share_admission_without_sharing_publication() {
             let mut out = ComRaw::null();
             // SAFETY: every native open is process-pinned; even after unlink its code is live.
             // CLOSED on the first explicit call proves metadata operations did not bootstrap it.
-            assert_eq!(unsafe { acquire(&mut out) }, NC_E_CLOSED);
+            assert_eq!(unsafe { acquire(nc_com::initialize_process(), &mut out) }, NC_E_CLOSED);
             assert!(out.is_null());
         } else {
             assert_eq!(owned.unwrap_err().status(), Some(expected), "owned case {case}");
@@ -135,3 +135,9 @@ fn inspection_and_registration_share_admission_without_sharing_publication() {
 
 // This final executable owns exactly one process runtime; fixture DSOs use core only.
 extern crate nc_com as _;
+
+/// Initializes this final test executable's selected host and admits its static tables.
+fn host_runtime() -> neocogi_com::Runtime {
+    // SAFETY: the explicit implementation owns its complete process-lived graph.
+    unsafe { neocogi_com::Runtime::__from_host_api(nc_com::initialize_process()) }.expect("test host API is compatible")
+}

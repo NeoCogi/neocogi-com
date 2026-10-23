@@ -31,5 +31,5 @@ as breaking; plugin version text is diagnostic.
 
 Inspection maps trusted native code and can execute platform loader initializers.
 It never calls the factory bootstrap or recursively locates provider plugins.
-The [sample plugin](../../examples/com-plugin/README.md) can be built and
+The [sample plugin](https://github.com/NeoCogi/foundations/blob/master/examples/com-plugin/README.md) can be built and
 inspected with ordinary Cargo, without the assembly driver.

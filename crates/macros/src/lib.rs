@@ -69,7 +69,7 @@ pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /// Describes one plugin using a safe typed acquisition function.
-/// The function takes no arguments and explicitly returns
+/// The function takes one supplied `Runtime` argument and explicitly returns
 /// `Result<ComPtr<InterfaceAbi>, NcStatus>`. Its return interface supplies the
 /// root identity, ABI signature and threading. `name` derives the plugin ID;
 /// optional `version` defaults to the Cargo package version. Explicit
@@ -85,6 +85,24 @@ pub fn plugin(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr as neocogi_com_codegen::PluginArgs);
     let input = parse_macro_input!(item as syn::ItemFn);
     match neocogi_com_codegen::expand_plugin(args, input) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.to_compile_error().into(),
+    }
+}
+
+/// Initializes the selected host implementation and supplies `Runtime` to main.
+///
+/// Apply to a safe synchronous `fn main(runtime: Runtime)` with the ordinary
+/// Rust return type (`()`, `ExitCode` or a supported `Result`). The generated
+/// entry calls the explicit `nc_com` dependency; facade features never select
+/// that implementation. Services survive main's return for scheduled callbacks.
+/// Reusable libraries and plugins receive access rather than using this macro.
+/// `neocogi_com = path` and `nc_com = path` support renamed dependencies.
+#[proc_macro_attribute]
+pub fn com_main(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as neocogi_com_codegen::MainArgs);
+    let input = parse_macro_input!(item as syn::ItemFn);
+    match neocogi_com_codegen::expand_com_main(args, input) {
         Ok(tokens) => tokens.into(),
         Err(error) => error.to_compile_error().into(),
     }

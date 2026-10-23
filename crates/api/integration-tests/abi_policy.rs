@@ -124,7 +124,7 @@ impl ValueFactory for ValueFactoryObject {
 
 /// Acquires one owned root; object construction remains on its typed methods.
 #[neocogi_com::plugin(name = "nc.tests.factory_plugin", version = "1.0.0")]
-fn acquire_root() -> Result<neocogi_com::ComPtr<ValueFactoryAbi>, neocogi_com::NcStatus> {
+fn acquire_root(_runtime: ::neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<ValueFactoryAbi>, neocogi_com::NcStatus> {
     ValueFactoryObject::from_value(ValueFactoryObject).query()
 }
 
@@ -148,7 +148,7 @@ fn idl_descriptions_separate_shape_from_construction() {
 fn factory_bootstrap_transfers_the_exact_typed_root() {
     let mut unknown = neocogi_com::ComRaw::<IUnknown>::null();
     // SAFETY: The local output slot accepts one erased owned factory pair.
-    assert_eq!(unsafe { write_plugin_root(&mut unknown, acquire_root) }, NC_OK);
+    assert_eq!(unsafe { write_plugin_root(&mut unknown, || acquire_root(crate::host_runtime())) }, NC_OK);
     // SAFETY: Successful acquisition transferred exactly one live reference.
     let factory =
         unsafe { ComPtr::<ValueFactoryAbi>::__nc_from_raw_owned_checked(unknown.cast()) }.expect("acquisition did not return the exact declared factory table");
@@ -235,4 +235,10 @@ fn generated_method_order_and_signatures_are_stable() {
             signature_text(IPolicyValueAbi::ABI_SIGNATURE)
         )
     );
+}
+
+/// Initializes this final test executable's selected host and admits its static tables.
+fn host_runtime() -> neocogi_com::Runtime {
+    // SAFETY: the explicit implementation owns its complete process-lived graph.
+    unsafe { neocogi_com::Runtime::__from_host_api(nc_com::initialize_process()) }.expect("test host API is compatible")
 }

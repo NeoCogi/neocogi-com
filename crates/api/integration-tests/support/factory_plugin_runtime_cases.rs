@@ -2,7 +2,7 @@
 extern crate self as fixture_factory_plugin_runtime;
 neocogi_com_test_contracts::factory_plugin_runtime!();
 
-use neocogi_com::{ComPtr, NcStatus, Runtime, com_object, guid_from_qualified_name};
+use neocogi_com::{ComPtr, NcStatus, com_object, guid_from_qualified_name};
 use neocogi_idl_example_contracts::{ExampleFactory, ExampleFactoryAbi, ExampleObject, ExampleObjectAbi, Extent, IMeasured};
 
 /// Private mutable implementation of the constructor-free IDL class.
@@ -43,7 +43,11 @@ struct ExampleFactoryImplementation;
 
 impl ExampleFactory for ExampleFactoryImplementation {
     /// Creates one object directly without a runtime class registry lookup.
-    fn create(&self, extent: Extent, events: neocogi_com::NcValueRef<'_, neocogi_idl_example_contracts::ExtentBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
+    fn create(
+        &self,
+        extent: Extent,
+        events: neocogi_com::NcValueRef<'_, neocogi_idl_example_contracts::ExtentBinding>,
+    ) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
         let binding = events.to_owned()?;
         let local = ExampleObjectImplementation::into_local(ExampleObjectImplementation {
             extent,
@@ -57,15 +61,15 @@ impl ExampleFactory for ExampleFactoryImplementation {
 
 /// Acquires one owned root; object construction remains on its typed methods.
 #[neocogi_com::plugin(name = "nc.tests.generated_factory_plugin", version = "1.0.0")]
-fn acquire_root() -> Result<neocogi_com::ComPtr<neocogi_idl_example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+fn acquire_root(_runtime: ::neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<neocogi_idl_example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
     ExampleFactoryImplementation::from_value(ExampleFactoryImplementation).query()
 }
 
 /// Verifies one facade observes registration and typed acquisition through the
-/// linked registry, in both shared-runtime and intentional static modes.
+/// host-owned registry with both linked and independently compiled providers.
 #[test]
 fn generated_contract_factory_acquires_without_a_class_table() {
-    let runtime = Runtime::default();
+    let runtime = crate::host_runtime();
     // SAFETY: Macro-generated plugin and linked contract metadata are immutable
     // statics retained by the test executable for the process lifetime.
     unsafe { runtime.register_plugin_descriptor(plugin_descriptor()) }.expect("interface plugin registration failed");
@@ -100,7 +104,7 @@ fn generated_contract_factory_acquires_without_a_class_table() {
 fn complete_plugin_info_and_direct_acquisition_work_without_filesystem_path() {
     use neocogi_com::{ComInterface, NC_E_NOT_FOUND, NcGuid};
 
-    let runtime = Runtime::default();
+    let runtime = crate::host_runtime();
     let plugin_id = guid_from_qualified_name("nc.tests.generated_factory_plugin");
 
     // SAFETY: The static description outlives the process.
@@ -139,7 +143,7 @@ fn complete_plugin_info_and_direct_acquisition_work_without_filesystem_path() {
 
 /// A plugin may publish a finished service without a construction-role marker.
 mod service_root {
-    use neocogi_com::{ComInterface, ComPtr, NcStatus, Runtime, ThreadSafe, com_object};
+    use neocogi_com::{ComInterface, ComPtr, NcStatus, ThreadSafe, com_object};
     use std::sync::atomic::{AtomicU32, Ordering};
 
     /// Tracks initialization separately from metadata inspection.
@@ -174,7 +178,7 @@ mod service_root {
 
     #[neocogi_com::plugin(name = "nc.tests.plugin.service")]
     /// Creates one initialized service with the interface's declared threading.
-    fn acquire() -> Result<ComPtr<IServiceAbi, ThreadSafe>, NcStatus> {
+    fn acquire(_runtime: ::neocogi_com::Runtime) -> Result<ComPtr<IServiceAbi, ThreadSafe>, NcStatus> {
         Service::from_value(Service {
             sequence: ACQUIRED.fetch_add(1, Ordering::SeqCst),
         })
@@ -188,7 +192,7 @@ mod service_root {
         assert_eq!(descriptor.root_factory, IServiceAbi::INTERFACE_ID);
         assert_eq!(unsafe { descriptor.plugin_version.as_str() }.unwrap(), env!("CARGO_PKG_VERSION"));
         assert_eq!(ACQUIRED.load(Ordering::SeqCst), 0);
-        let runtime = Runtime::global();
+        let runtime = crate::host_runtime();
         // SAFETY: the descriptor and provider code are retained by this executable.
         unsafe { runtime.register_plugin_descriptor(descriptor) }.unwrap();
         assert_eq!(ACQUIRED.load(Ordering::SeqCst), 0);
@@ -213,7 +217,7 @@ mod failed_root {
 
     #[neocogi_com::plugin(name = "nc.tests.plugin.failure", version = "2.3.4")]
     /// Deliberately misuses a successful status as an error to test normalization.
-    fn acquire() -> Result<ComPtr<ExampleFactoryAbi>, NcStatus> {
+    fn acquire(_runtime: ::neocogi_com::Runtime) -> Result<ComPtr<ExampleFactoryAbi>, NcStatus> {
         CALLED.fetch_add(1, Ordering::SeqCst);
         Err(neocogi_com::NC_OK)
     }
@@ -223,15 +227,36 @@ mod failed_root {
     fn acquisition_clears_output_before_failure_and_normalizes_status() {
         let acquire = plugin_descriptor().acquire.unwrap();
         // SAFETY: null is a supported defensive ABI input.
-        assert_eq!(unsafe { acquire(core::ptr::null_mut()) }, NC_E_POINTER);
+        assert_eq!(unsafe { acquire(nc_com::initialize_process(), core::ptr::null_mut()) }, NC_E_POINTER);
+        assert_eq!(CALLED.load(Ordering::SeqCst), 0);
+        // Host admission also precedes provider entry and clears stale output.
+        let mut rejected = ComRaw::<IUnknown> {
+            object: core::ptr::dangling_mut(),
+            vtable: core::ptr::dangling(),
+        };
+        // SAFETY: Null host is a supported rejection input; output is writable.
+        assert_eq!(unsafe { acquire(core::ptr::null(), &mut rejected) }, NC_E_POINTER);
+        assert!(rejected.is_null());
+        assert_eq!(CALLED.load(Ordering::SeqCst), 0);
+        let mut incompatible = *nc_com::initialize_process();
+        incompatible.runtime_abi_version += 1;
+        // SAFETY: Readable unsupported prefix; all child tables remain static.
+        assert_eq!(unsafe { acquire(&incompatible, &mut rejected) }, neocogi_com::NC_E_ABI_VERSION);
+        assert!(rejected.is_null());
         assert_eq!(CALLED.load(Ordering::SeqCst), 0);
         let mut out = ComRaw::<IUnknown> {
             object: core::ptr::dangling_mut(),
             vtable: core::ptr::dangling(),
         };
         // SAFETY: output storage is valid; the stale pair is never dereferenced.
-        assert!(unsafe { acquire(&mut out) }.is_err());
+        assert!(unsafe { acquire(nc_com::initialize_process(), &mut out) }.is_err());
         assert!(out.is_null());
         assert_eq!(CALLED.load(Ordering::SeqCst), 1);
     }
+}
+
+/// Initializes this final test executable's selected host and admits its static tables.
+fn host_runtime() -> neocogi_com::Runtime {
+    // SAFETY: the explicit implementation owns its complete process-lived graph.
+    unsafe { neocogi_com::Runtime::__from_host_api(nc_com::initialize_process()) }.expect("test host API is compatible")
 }
