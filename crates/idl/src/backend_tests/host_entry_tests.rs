@@ -84,3 +84,34 @@ fn host_entry_runs_with_normal_printed_and_renamed_dependencies() {
         }
     }
 }
+
+/// The ordinary Rust call checks the parameter's actual type, allowing aliases
+/// while rejecting a same-arity function that expects unrelated application data.
+#[test]
+fn plugin_bootstrap_requires_the_actual_supplied_runtime_type() {
+    // A pure provider needs no implementation dependency to compile its adapter.
+    let consumer = Consumer::new("plugin-runtime-type-proof");
+    fs::write(
+        consumer.directory.path().join("src/lib.rs"),
+        r#"
+        #[neocogi_com::com_object(interfaces())]
+        struct Root;
+        #[neocogi_com::plugin(name = "nc.tests.wrong-runtime-argument")]
+        fn acquire(_application_value: u32) -> Result<neocogi_com::ComPtr<neocogi_com::IUnknown>, neocogi_com::NcStatus> {
+            Ok(Root::from_value(Root))
+        }
+    "#,
+    )
+    .unwrap();
+    let output = Command::new("cargo")
+        .args(["check", "--offline", "--manifest-path"])
+        .arg(consumer.directory.path().join("Cargo.toml"))
+        .output()
+        .unwrap();
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "an unrelated argument type must not compile");
+    assert!(
+        diagnostic.contains("E0308") && diagnostic.contains("Runtime") && diagnostic.contains("u32"),
+        "{diagnostic}"
+    );
+}

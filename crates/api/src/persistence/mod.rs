@@ -4,9 +4,9 @@
 //! The core owns their ABI identities; this module supplies the object thunks
 //! used by `com_object` without introducing a dependency back into the facade.
 //!
-//! With `runtime`, `FactoryRegistry` and `snapshot` forward operations to the
-//! runtime chosen by the final assembly: one shared native image, or one directly
-//! retained implementation in a monolith/browser/test. Contracts need no runtime feature.
+//! With `runtime`, `FactoryRegistry` and `snapshot` use caller-supplied `Runtime`
+//! access to the host owner. Every registry retains its creation table through
+//! Drop; contracts need no runtime feature or implementation dependency.
 
 pub use neocogi_com_core::persistence::*;
 #[rustfmt::skip]

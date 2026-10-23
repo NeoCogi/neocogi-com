@@ -259,6 +259,7 @@ def safety() -> dict:
     ]
     targets.extend((["-p", "neocogi-com", "--features", "runtime", "--test", name], sentinel) for name, sentinel in (
         ("local_com", "local_and_foreign_calls_share_one_gate_and_one_model"),
+        ("com_main", "copied_access::copied_access_outlives_the_outer_record_and_shares_state_across_threads"),
         ("borrowed_values", "owned_message_outlives_producer_guard_and_source"),
         # Name required targets explicitly: reordering the native table must
         # not silently substitute a different Miri workload after a migration.

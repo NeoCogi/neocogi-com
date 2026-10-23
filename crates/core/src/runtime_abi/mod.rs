@@ -1,4 +1,4 @@
-//! Versioned ABI tables exposed by the process-global runtime library.
+//! Versioned ABI tables supplied by the host's process-global runtime owner.
 //!
 //! This module groups plugin operations, diagnostics and persistence contracts while keeping their `repr(C)` layouts in the allocation-free
 //! core crate. Every table begins with a byte size checked by consumers. This
@@ -20,7 +20,7 @@ pub use plugin::{NC_COM_RUNTIME_MAX_DYNAMIC_PLUGINS, NcFactoryInfoV1, NcInspectP
 pub use runtime::NcRuntimeApiV1;
 pub use host::{NcHostApiV1, validate_host_api};
 
-/// Pre-alpha runtime shared-library ABI generation.
+/// Pre-release host-service ABI generation.
 ///
 /// Version one identifies this pre-release family, not cross-revision binary
 /// compatibility. Contracts may change in place; all roles must be rebuilt from
@@ -34,8 +34,9 @@ pub const NC_COM_RUNTIME_ABI_VERSION: u32 = 1;
 /// `len` readable bytes containing valid UTF-8.
 ///
 /// Unless a narrower lifetime is documented, views returned by runtime
-/// inspection calls remain valid until the runtime shared library is unloaded.
-/// The view itself does not retain that library or encode a Rust borrow lifetime.
+/// inspection calls remain valid for the process/Wasm-instance lifetime. The
+/// host retains its runtime state and process-pins opened provider mappings.
+/// The view itself owns no storage and encodes no Rust borrow lifetime.
 /// Its public API consists of the raw fields and [`Self::EMPTY`]; it has no
 /// `as_str` or `as_bytes` method. The COM facade validates and copies inspection
 /// text into owned `String` values before returning it to application code.

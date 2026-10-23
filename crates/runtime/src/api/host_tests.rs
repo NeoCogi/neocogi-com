@@ -4,7 +4,7 @@ use core::{mem, ptr};
 
 use neocogi_com_core::{
     ComRaw, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_COM_CORE_ABI_VERSION, NC_COM_RUNTIME_ABI_VERSION, NC_E_ABI_VERSION, NC_E_CLOSED, NC_E_POINTER, NC_OK,
-    NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NcHostApiV1, NcPersistenceApiV1, NcPluginDescriptor, NcPluginInfoV1, NcStaticUtf8, NcStatus, guid_from_qualified_name,
+    NC_PLUGIN_DESCRIPTOR_ABI_VERSION, NcPersistenceApiV1, NcPluginDescriptor, NcPluginInfoV1, NcStaticUtf8, NcStatus, guid_from_qualified_name,
     validate_host_api,
 };
 

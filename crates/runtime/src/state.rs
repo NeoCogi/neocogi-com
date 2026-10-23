@@ -10,7 +10,7 @@ use std::sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use crate::debug::DebugState;
 use crate::factory_plugin_registry::FactoryPluginRegistry;
 
-/// One lazily constructed catalog per linked runtime image.
+/// Catalog retained by the selected host implementation after initialization.
 static STATE: OnceLock<RuntimeState> = OnceLock::new();
 
 /// Process-global owner of all mutable runtime state.
@@ -22,7 +22,7 @@ pub(crate) struct RuntimeState {
 }
 
 impl RuntimeState {
-    /// Returns the process-wide catalog without a host initialization protocol.
+    /// Returns this host implementation's process-wide catalog.
     /// The singleton is required by context-free C callbacks; it contains no
     /// fallible contract seeding or component-specific startup state.
     pub(crate) fn global() -> &'static Self {

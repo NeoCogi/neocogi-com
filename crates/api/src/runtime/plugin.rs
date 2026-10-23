@@ -168,7 +168,7 @@ impl Runtime {
 }
 
 /// Validates scalar/array shape and copies the runtime's process-lived views.
-/// Pointer readability comes from the linked runtime contract, not these checks.
+/// Pointer readability comes from the admitted host-service contract, not these checks.
 fn owned_plugin_info(info: NcPluginInfoV1) -> Result<PluginInfo, NcStatus> {
     let threading = crate::NcAbiThreadingMode::from_raw(info.factory.threading).ok_or(NC_E_INVALID_ARG)?;
     let count = super::checked_enumeration_capacity(info.dependency_count)?;

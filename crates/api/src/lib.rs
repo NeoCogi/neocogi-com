@@ -84,7 +84,7 @@
 //! alignment, or external-field admission switches.
 //!
 //! The host explicitly links `neocogi-com-runtime` and initializes its one catalog
-//! through [`com_main`]. A copyable [`Runtime`] lends access to that host's immutable
+//! through `#[com_main]`. A copyable [`Runtime`] lends access to that host's immutable
 //! C operation tables. Plugin acquisition and reusable libraries receive it from
 //! their caller; the facade selects no implementation or named-symbol discovery.
 //! Caller-owned persistence registries and UI event queues retain their separate

@@ -1053,14 +1053,15 @@ matrix or old arbitrary Cargo-argument forwarding to keep in sync.
 
 `test-safety.sh` selects `--suite safety`. It requires nightly with `miri` and
 `rust-src` installed. It discovers and interprets the complete COM core, runtime,
-and facade library tests, plus current `local_com`, `borrowed_values`,
+and facade library tests, plus current `local_com`, `com_main`, `borrowed_values`,
 `checked_values`, `output_buffers`, `output_completion`, `exclusive_com` and
 `weak_com` targets.
 Four explicit large-buffer stress cases remain native-only: the two checked-value
 budget traversals and the output-completion maximum-variant/provider-publication
 stress tests. Their exact names live in the driver. They run in linked, ASan and
-TSan suites; Miri runs the remaining 13 checked-value tests, six directional output-buffer
-tests and eleven output-completion tests, including allocation injection, preserved owners, and malformed outputs.
+TSan suites. Miri runs all remaining cases in those targets, including allocation
+injection, preserved owners and malformed outputs. Each run records its actual
+discovery/execution counts; historical counts are not an acceptance threshold.
 Final runtime test executables explicitly select their implementation because Miri interprets pure Rust and
 cannot load native plugins.
 That is a different check from executing the real shared-library boundary.

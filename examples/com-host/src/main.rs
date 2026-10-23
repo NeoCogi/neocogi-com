@@ -96,6 +96,10 @@ fn qualify_peer(runtime: &Runtime) {
     let peer = unsafe { runtime.load_plugin_library(std::path::PathBuf::from(path)) };
     let before = runtime.plugins().unwrap();
     assert_eq!(before.len(), initial + 1);
+    assert_eq!(
+        runtime.plugin_info(peer).unwrap().unwrap().dependencies,
+        [guid_from_qualified_name("nc.examples.factory_plugin_component")]
+    );
     let marker = guid_from_qualified_name("nc.tests.registry-peer.marker");
     assert!(runtime.plugin_info(marker).unwrap().is_none(), "metadata discovery must not acquire B");
     let root = runtime.acquire_plugin_root::<ExampleFactoryAbi>(peer).unwrap();

@@ -96,7 +96,7 @@ and final weak release frees through the allocating provider. `MaybeUninit` keep
 storage valid after value destruction. Non-generic lifecycle algorithms and
 synchronous exclusive destruction are unchanged. No shared/exclusive runtime
 policy branch or second borrow gate is added. All process registration remains
-inside the one shared `nc_com` runtime; typed storage has no registry state.
+inside the one host-owned `nc_com` runtime; typed storage has no registry state.
 
 This change reduces generated unsafe layout code. Generic support still
 monomorphizes; neither binary-size reduction nor faster dispatch follows from

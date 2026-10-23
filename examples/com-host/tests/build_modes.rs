@@ -41,7 +41,7 @@ fn ordinary_cargo_builds_a_relocatable_monolith() {
     // No native plugin export or runtime search directory is required.
     run(&mut cargo(
         &workspace,
-        &target,
+        target,
         &[
             "build",
             "-p",
