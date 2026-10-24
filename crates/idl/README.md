@@ -117,7 +117,7 @@ must prove its own resolved declaration identity during compilation; module
 constants alone cannot certify a facade's reexports. Inheritance uses the checked
 marker's associated client and table. A stale or differently named generated
 definition therefore fails compilation before it can supply an incompatible codec
-or table. The [binding contract](../../../docs/contracts/IDL_MODULES.md#shared-idl-sources)
+or table. The [binding contract](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/IDL_MODULES.md#shared-idl-sources)
 also defines semantic-only templates and unused mappings, which require no
 compiled owner.
 
