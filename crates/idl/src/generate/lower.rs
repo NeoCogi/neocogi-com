@@ -5,7 +5,7 @@ use crate::codegen::model::{AbiArg, AbiArgKind, AbiMethod, AbiReceiver, AbiRetur
 use syn::parse::Parser;
 
 /// Lowers source methods once; traits, clients, thunks and metadata share this plan.
-pub(super) fn methods(graph: &Generation<'_>, module: &ResolvedModule, methods: &[Method]) -> Result<Vec<AbiMethod>, GenerateError> {
+pub(super) fn methods(graph: &mut Generation<'_>, module: &ResolvedModule, methods: &[Method]) -> Result<Vec<AbiMethod>, GenerateError> {
     methods
         .iter()
         .map(|method| {
@@ -41,7 +41,7 @@ fn syntax_error(error: syn::Error) -> GenerateError {
 }
 
 /// Selects one exact interface marker and threading proof from its bound target.
-pub(super) fn object(graph: &Generation<'_>, module: &ResolvedModule, target: &AbiType) -> Result<(syn::Type, Option<Box<syn::Type>>), GenerateError> {
+pub(super) fn object(graph: &mut Generation<'_>, module: &ResolvedModule, target: &AbiType) -> Result<(syn::Type, Option<Box<syn::Type>>), GenerateError> {
     let AbiType::Named(name) = target else {
         return Err(GenerateError::new("resolved object target is not named"));
     };
@@ -77,7 +77,7 @@ fn buffer(element_ty: syn::Type, output: bool) -> (syn::Type, syn::Type, AbiArgK
 }
 
 /// Ownership alternatives are exhaustive over the validated IDL input grammar.
-fn argument(graph: &Generation<'_>, module: &ResolvedModule, parameter: &Parameter) -> Result<AbiArg, GenerateError> {
+fn argument(graph: &mut Generation<'_>, module: &ResolvedModule, parameter: &Parameter) -> Result<AbiArg, GenerateError> {
     let (rust_ty, abi_ty, kind) = match &parameter.ty {
         AbiType::Scalar(_) | AbiType::Named(_) | AbiType::Array { .. } => {
             let ty = rust_type(value_type(graph, module, &parameter.ty)?)?;
@@ -145,7 +145,7 @@ fn argument(graph: &Generation<'_>, module: &ResolvedModule, parameter: &Paramet
 }
 
 /// Return ownership is explicit in the source graph, including both weak families.
-fn result(graph: &Generation<'_>, module: &ResolvedModule, output: &AbiType) -> Result<AbiReturn, GenerateError> {
+fn result(graph: &mut Generation<'_>, module: &ResolvedModule, output: &AbiType) -> Result<AbiReturn, GenerateError> {
     if matches!(output, AbiType::Unit) {
         return Ok(AbiReturn {
             rust_ty: syn::parse_quote!(()),

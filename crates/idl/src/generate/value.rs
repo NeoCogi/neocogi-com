@@ -70,7 +70,7 @@ pub(super) fn generate_scalar(graph: &Generation<'_>, declaration: &Declaration,
 /// Lowers a bound aggregate once into application fields and checked wire cases.
 /// Native record layout is local; only the backend's explicit C wire crosses COM.
 pub(super) fn generate_aggregate(
-    graph: &Generation<'_>,
+    graph: &mut Generation<'_>,
     module: &ResolvedModule,
     declaration: &Declaration,
     identity: &crate::DeclarationIdentity,
@@ -193,7 +193,7 @@ pub(super) fn generate_aggregate(
 }
 
 /// Builds application fields directly from their bound IDL field uses.
-fn named_fields(graph: &Generation<'_>, module: &ResolvedModule, fields: &[crate::Field], public: bool) -> Result<syn::FieldsNamed, GenerateError> {
+fn named_fields(graph: &mut Generation<'_>, module: &ResolvedModule, fields: &[crate::Field], public: bool) -> Result<syn::FieldsNamed, GenerateError> {
     Ok(syn::FieldsNamed {
         brace_token: Default::default(),
         named: fields
@@ -214,7 +214,7 @@ fn named_fields(graph: &Generation<'_>, module: &ResolvedModule, fields: &[crate
 
 /// Only Rust syntax is represented here; no field spelling is resolved again.
 fn field(
-    graph: &Generation<'_>,
+    graph: &mut Generation<'_>,
     module: &ResolvedModule,
     ident: Option<Ident>,
     ty: &AbiType,
@@ -239,7 +239,7 @@ fn attributes(tokens: TokenStream) -> Result<Vec<syn::Attribute>, GenerateError>
 }
 
 /// Maps a recursive field to application ownership; no native wire copying occurs here.
-pub(super) fn owned_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
+pub(super) fn owned_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
     Ok(match ty {
         AbiType::Unit => quote! { () },
         AbiType::Scalar(name) => scalar(name)?,

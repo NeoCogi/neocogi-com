@@ -82,6 +82,8 @@ impl SharedSources {
 
     /// Uses an ordinary dependency's generated Rust definitions for an import.
     /// Source still comes from the shared roots and is checked in this build.
+    /// Emitted uses certify the selected Rust type's own resolved declaration
+    /// identity at compilation; matching module constants alone are insufficient.
     pub fn import(mut self, module: impl Into<String>, rust_path: impl Into<String>) -> Self {
         self.bindings.push(Binding {
             module: module.into(),

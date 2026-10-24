@@ -635,7 +635,25 @@ No `links` owner, `DEP_*` exchange or contract package is needed. Each reachable
 non-bundled module has an explicit Rust location: `.module(name, rust_path)` emits
 that consumer's bindings; `.import(name, rust_path)` uses definitions exposed by
 an existing ordinary library when Rust helper calls exchange those concrete types.
-Both resolve shared IDL and compute the normal transitive ABI. Add other
+Both resolve shared IDL and compute the normal transitive ABI. Every external
+Rust declaration actually selected by emission must also match its resolved IDL
+identity at compilation. Generated anonymous const assertions compare a value's
+`ComValueType::VALUE_SIGNATURE`, or an interface marker's complete
+`ComInterface::INTERFACE_ID`, with the resolver's finished declaration identity.
+This includes emitted imports even when otherwise unused, fully qualified names,
+fields, borrowed/buffer/owned types, and supplying projections of closed generics.
+Local definitions are emitted directly; unused path mappings and semantic-only
+open templates create no extra Rust dependency. Normal and printed generation,
+shared roots and packaged source graphs use this same selection/check owner.
+
+Module `MODULE_ID`/`ABI_FINGERPRINT` constants are descriptive facts: a facade can
+reexport current constants with an older explicit type. Equal size/alignment is
+also insufficient. A mismatch names the logical declaration and selected Rust
+path and rejects compilation, before runtime queries can accept an advertised
+contract that differs from its codec. No runtime registry entry or extra object
+state is created, and canonical ABI signatures are unchanged.
+
+Add other
 subsystems with `.include_root("../../ui/schemas")`. Every reachable module must have
 exactly one source owner across all roots; root order cannot shadow a definition.
 Repeating a canonical root is harmless. Source maps preserve the actual owning root.

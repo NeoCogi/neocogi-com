@@ -15,8 +15,10 @@ mod lower;
 mod mapping;
 mod method_metadata;
 mod paths;
+mod selection;
 mod value;
 pub use paths::RustModulePaths;
+use selection::named_rust_type;
 
 /// Failure to select a module or lower one validated IDL construct to Rust.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -53,9 +55,9 @@ pub fn generate_rust(graph: &ResolvedModules, module_name: &str) -> Result<Strin
 
 /// Generates bindings using explicit Rust locations independently of ABI identity.
 ///
-/// Paths only affect emitted Rust imports. The already-resolved module graph and
-/// all declaration signatures remain unchanged. Unmapped modules retain the
-/// conventional `<dotted_module_with_underscores>_contracts` crate location.
+/// Paths select emitted Rust types and their compile-time identity obligations.
+/// The already-resolved graph and declaration signatures remain unchanged.
+/// Unmapped modules retain the conventional `<dotted_module_with_underscores>_contracts` crate location.
 pub fn generate_rust_with_paths(graph: &ResolvedModules, module_name: &str, paths: &RustModulePaths) -> Result<String, GenerateError> {
     generate_rust_with_paths_and_source_map(graph, module_name, paths).map(|generated| generated.source)
 }
@@ -79,16 +81,31 @@ pub fn generate_rust_with_paths_and_source_map(
             return Err(GenerateError::new(format!("Rust location names unknown IDL module {name:?}")));
         }
     }
-    crate::syntax::with_syntax_stack(|| generate_module(&Generation { graph, paths }, module_name))
+    crate::syntax::with_syntax_stack(|| generate_module(&mut Generation::new(graph, paths), module_name))
         .map_err(|error| GenerateError::new(format!("cannot start generated-Rust syntax worker: {error}")))?
 }
 
-/// Immutable resolved graph and Rust locations shared by every declaration backend.
+/// One module emission over an immutable semantic graph and Rust locations.
+/// Selected external types accumulate identity obligations through the same
+/// exclusive path that supplies their emitted Rust syntax.
 struct Generation<'a> {
     /// Canonical semantic ownership, identity, and type resolution.
     graph: &'a ResolvedModules,
     /// Backend-only Rust locations; never part of an ABI fingerprint.
     paths: &'a RustModulePaths,
+    /// Actual selected external declarations, deduplicated for this emission.
+    bindings: selection::ExternalBindings<'a>,
+}
+
+impl<'a> Generation<'a> {
+    /// Starts one independent emission without reusing another module's checks.
+    fn new(graph: &'a ResolvedModules, paths: &'a RustModulePaths) -> Self {
+        Self {
+            graph,
+            paths,
+            bindings: Default::default(),
+        }
+    }
 }
 
 /// Generated allocation-free interface contracts and their facade-owned providers.
@@ -112,25 +129,26 @@ pub fn generate_bootstrap(graph: &ResolvedModules, module_name: &str) -> Result<
 /// Keeps bootstrap lowering, formatting and syntax destruction on one worker.
 fn generate_bootstrap_inner(graph: &ResolvedModules, module_name: &str) -> Result<BootstrapBindings, GenerateError> {
     let paths = RustModulePaths::default();
-    let generation = Generation { graph, paths: &paths };
+    let mut generation = Generation::new(graph, &paths);
     let module = graph.module(module_name).ok_or_else(|| GenerateError::new("bootstrap module is absent"))?;
     if !module.source.templates.is_empty() {
         return Err(GenerateError::new("bootstrap cannot contain open templates"));
     }
-    let mut abi = module_header(&generation, module)?;
+    let mut abi = module_header(&mut generation, module)?;
     let mut provider = String::new();
     for declaration in &module.source.declarations {
-        let parts = interface_parts(&generation, module, declaration)?;
+        let parts = interface_parts(&mut generation, module, declaration)?;
         abi.push_str(&format_rust(parts.abi)?);
         provider.push_str(&format_rust(parts.provider)?);
     }
+    abi.push_str(&format_rust(generation.bindings.assertions())?);
     Ok(BootstrapBindings { abi, provider })
 }
 
 /// Emits one module after validating backend mappings against its semantic graph.
 /// Generated support paths are absolute: local IDL declarations such as Option,
 /// Some and None must remain application names, never capture Rust scaffolding.
-fn generate_module(graph: &Generation<'_>, module_name: &str) -> Result<crate::GeneratedRust, GenerateError> {
+fn generate_module(graph: &mut Generation<'_>, module_name: &str) -> Result<crate::GeneratedRust, GenerateError> {
     let module = graph
         .graph
         .module(module_name)
@@ -152,11 +170,14 @@ fn generate_module(graph: &Generation<'_>, module_name: &str) -> Result<crate::G
         line_offset += declaration.lines().count();
         source.push_str(&declaration);
     }
+    // Checks follow the mapped declarations so their addition cannot move the
+    // authored-source ranges. The diagnostic itself names both selected owners.
+    source.push_str(&format_rust(graph.bindings.assertions())?);
     Ok(crate::GeneratedRust { source, source_map })
 }
 
 /// Formats the contract header once for ordinary emission and core bootstrap.
-fn module_header(graph: &Generation<'_>, module: &ResolvedModule) -> Result<String, GenerateError> {
+fn module_header(graph: &mut Generation<'_>, module: &ResolvedModule) -> Result<String, GenerateError> {
     let imports = generate_imports(graph, module)?;
     let dependency_exports = graph.paths.dependency_exports(graph.graph)?;
     let value_alloc = module
@@ -464,19 +485,39 @@ fn needs_value_allocation(value: &crate::ValueType) -> bool {
 }
 
 /// Generates authored imports through accessible typed dependency paths.
-fn generate_imports(graph: &Generation<'_>, module: &ResolvedModule) -> Result<TokenStream, GenerateError> {
+fn generate_imports(graph: &mut Generation<'_>, module: &ResolvedModule) -> Result<TokenStream, GenerateError> {
     let imports = module.source.imports.iter().map(|import| {
-        let crate_ident = graph.paths.dependency_path(&import.module)?;
-        let name = rust_ident(&import.name)?;
+        // Imports already name an exact admitted module/declaration. Open
+        // template imports were consumed by specialization and are not Rust types.
+        let owner = graph
+            .graph
+            .module(&import.module)
+            .ok_or_else(|| GenerateError::new("resolved import lost its module"))?;
+        let index = owner
+            .source
+            .declarations
+            .iter()
+            .position(|value| value.name == import.name)
+            .ok_or_else(|| GenerateError::new("resolved import lost its declaration"))?;
+        let selected = named_rust_type(
+            graph,
+            module,
+            ResolvedDeclaration {
+                module: owner,
+                declaration: &owner.source.declarations[index],
+                identity: &owner.declarations[index],
+            },
+            false,
+        )?;
         let origin = origin_docs(&[], &import.span);
-        Ok(quote! { #origin pub use #crate_ident::#name; })
+        Ok(quote! { #origin pub use #selected; })
     });
     let imports = imports.collect::<Result<Vec<_>, GenerateError>>()?;
     Ok(quote! { #(#imports)* })
 }
 
 /// Generates one public declaration from its resolved source-order identity.
-fn generate_declaration(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration, source_index: usize) -> Result<String, GenerateError> {
+fn generate_declaration(graph: &mut Generation<'_>, module: &ResolvedModule, declaration: &Declaration, source_index: usize) -> Result<String, GenerateError> {
     let identity = module
         .declarations
         .get(source_index)
@@ -505,7 +546,11 @@ fn format_rust(tokens: TokenStream) -> Result<String, GenerateError> {
 
 /// Emits both interface halves from one resolved ownership plan. The backend
 /// does not parse provider Rust wrappers to recover the contract it just received.
-fn interface_parts(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration) -> Result<crate::codegen::InterfaceExpansion, GenerateError> {
+fn interface_parts(
+    graph: &mut Generation<'_>,
+    module: &ResolvedModule,
+    declaration: &Declaration,
+) -> Result<crate::codegen::InterfaceExpansion, GenerateError> {
     use crate::codegen::{model::InterfacePlan, InterfaceThreading};
     let DeclarationKind::Interface(interface) = &declaration.kind else {
         return Err(GenerateError::new("interface emission requires a callable declaration"));
@@ -568,7 +613,7 @@ fn snake_case(value: &str) -> String {
 }
 
 /// Lowers one copied aggregate field or payload type.
-fn value_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
+fn value_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
     match ty {
         AbiType::Scalar(name) => scalar(name),
         AbiType::Named(name) => {
@@ -593,24 +638,6 @@ fn resolve<'a>(graph: &Generation<'a>, module: &ResolvedModule, name: &NamedType
         .graph
         .resolve_declaration(name)
         .ok_or_else(|| GenerateError::new(format!("resolved module {} lost type mapping for {}", module.source.name, name.rust_path())))
-}
-
-/// Selects a native value type or an interface marker from local/imported bindings.
-/// Only interfaces use the Abi suffix; copied values always use their native type.
-fn named_rust_type(graph: &Generation<'_>, module: &ResolvedModule, resolved: ResolvedDeclaration<'_>, abi_suffix: bool) -> Result<TokenStream, GenerateError> {
-    let mut name = resolved.declaration.name.clone();
-    if abi_suffix && matches!(resolved.declaration.kind, DeclarationKind::Interface(_)) {
-        name.push_str(NcComInterfaceCompanion::Abi.suffix());
-    }
-    let name = rust_ident(&name)?;
-    if resolved.module.source.name == module.source.name {
-        // Generation owns this module location; local references cannot become
-        // private generic binders introduced by a subsequent macro expansion.
-        Ok(quote! { self::#name })
-    } else {
-        let crate_ident = graph.paths.dependency_path(&resolved.module.source.name.to_string())?;
-        Ok(quote! { #crate_ident::#name })
-    }
 }
 
 /// Generates doc attributes while preserving authored text exactly.
@@ -759,7 +786,7 @@ fn origin_docs(lines: &[String], span: &crate::SourceSpan) -> TokenStream {
 }
 
 /// Emits explicit object ownership using the bound target's exact threading proof.
-fn owned_object_type(graph: &Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
+fn owned_object_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
     let (target, wrapper) = match ty {
         AbiType::ComPtr(target) => (target, "ComPtr"),
         AbiType::WeakComPtr(target) => (target, "WeakComPtr"),
