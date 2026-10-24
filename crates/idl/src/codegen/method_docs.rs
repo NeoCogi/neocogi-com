@@ -2,7 +2,7 @@
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 use syn::Ident;
-use crate::model::{AbiMethod, AbiArg, AbiArgKind, AbiReturn, AbiReturnKind, InterfaceOwnership};
+use crate::codegen::model::{AbiMethod, AbiArg, AbiArgKind, AbiReturn, AbiReturnKind, InterfaceOwnership};
 
 /// Backend-created prose is evaluated here; consumers receive only literal text.
 /// Authored documentation/provenance attributes are retained separately by callers.

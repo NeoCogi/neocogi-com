@@ -9,7 +9,7 @@ establish this contract.
 
 IDL is the only callable/value declaration frontend. Its resolver binds each
 reference once, retains the supplying Rust projection separately from canonical
-identity, and passes typed ownership plans to `neocogi-com-codegen`. The backend
+identity, and passes typed ownership plans to `neocogi_idl::codegen`. This compiler-owned backend
 emits complete Rust. It never parses generated Rust wrappers to rediscover a
 contract and accepts no optional author-assigned identity/signature modes.
 

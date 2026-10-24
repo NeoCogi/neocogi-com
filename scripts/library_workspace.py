@@ -18,7 +18,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[3]
 MEMBERS = (
-    "crates/com/core", "crates/com/codegen", "crates/com/macros", "crates/com/idl", "crates/com/api",
+    "crates/com/core", "crates/com/macros", "crates/com/idl", "crates/com/api",
     "crates/com/runtime",
     "tools/neocogi-inspect",
     "examples/com-plugin", "examples/com-host",

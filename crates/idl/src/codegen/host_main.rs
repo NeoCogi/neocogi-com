@@ -8,7 +8,7 @@ use syn::ext::IdentExt;
 use syn::parse::{Parse, ParseStream};
 use syn::{Ident, ItemFn, Path, Result, Token};
 
-use crate::util::{PrivateNames, runtime_crate_path};
+use crate::codegen::util::{PrivateNames, runtime_crate_path};
 
 /// Optional explicit paths for renamed facade and host implementation crates.
 #[derive(Default)]

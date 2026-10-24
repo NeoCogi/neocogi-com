@@ -143,7 +143,7 @@ fn accepted_names_execute_through_shared_borrowed_exclusive_and_weak_clients() {
 fn plugin_accessor_checks_rust_identity_at_input() {
     for name in ["plugin_descriptor", "r#plugin_descriptor"] {
         let function = syn::parse_str(&format!("fn {name}() -> Result<ComPtr<RootAbi>, NcStatus> {{ todo!() }}")).unwrap();
-        let error = neocogi_com_codegen::expand_plugin(syn::parse_str("name = \"proof.names\"").unwrap(), function).unwrap_err();
+        let error = crate::codegen::expand_plugin(syn::parse_str("name = \"proof.names\"").unwrap(), function).unwrap_err();
         assert!(error.to_string().contains("generated plugin_descriptor accessor"));
     }
 }
@@ -165,7 +165,7 @@ fn plugin_export_spelling_is_legal_with_dynamic_feature_off_and_on() {
         };
         let args = quote::quote! { name = "proof.public_names" };
         let plugin = if printed {
-            neocogi_com_codegen::expand_plugin(syn::parse2(args).unwrap(), function).unwrap()
+            crate::codegen::expand_plugin(syn::parse2(args).unwrap(), function).unwrap()
         } else {
             quote::quote! { #[neocogi_com::plugin(#args)] #function }
         };

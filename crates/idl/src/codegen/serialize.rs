@@ -3,7 +3,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Result};
-use crate::util::{PrivateNames, validate_no_generics};
+use crate::codegen::util::{PrivateNames, validate_no_generics};
 
 /// Generates field-by-field writes, never ABI-offset inspection or type erasure.
 pub fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
@@ -22,7 +22,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream> {
     }
     let name = &input.ident;
     let nc: syn::Path = syn::parse_quote!(::neocogi_com);
-    let options = crate::deserialize::parse_options(&input.attrs)?;
+    let options = crate::codegen::deserialize::parse_options(&input.attrs)?;
     let mut names = PrivateNames::new(quote! { #input #nc });
     let serializer = names.binding("__nc_serializer");
     let body = match &input.data {

@@ -259,13 +259,13 @@ protocol. Live COM calls retain their separate checked wire representation.
 ## Crates
 
 - `neocogi-com-core`: raw ABI layouts and traits (`no_std` by default).
-- `neocogi-com-codegen`: one typed Rust backend for IDL and implementation helpers.
-- `neocogi-com-macros`: thin procedural entrypoints over that backend.
+- `neocogi-com-macros`: thin procedural entrypoints over IDL's shared backend.
 - `neocogi-com`: typed object/data helpers and optional supplied-host service clients.
 - `neocogi-com-runtime`: plugin catalog, loader, and persistence implementation;
   its Rust library target is `nc_com`.
-- `neocogi-idl` under `crates/com/idl`: IDL parser/resolver
-  and Cargo build integration used directly by consuming libraries and applications.
+- `neocogi-idl` under `crates/com/idl`: IDL parser/resolver, the shared `codegen`
+  backend for contracts and Rust implementation macros, and Cargo build integration
+  used directly by consuming libraries and applications.
 
 The facade's defaults (`std`, `macros`) support local objects without linking a
 runtime. `runtime` enables service clients; every final native/browser host

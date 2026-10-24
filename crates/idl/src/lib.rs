@@ -1,5 +1,9 @@
 //! NeoCogi IDL parsing, canonical resolution, Rust generation, and Cargo integration.
 //!
+//! The shared [`codegen`] backend also expands concrete Rust implementation and
+//! persistence macros. Procedural entrypoints live in `neocogi-com-macros`; this
+//! ordinary library serves both them and consumer build scripts without a cycle.
+//!
 //! A module name comes from its normalized source file or directory path below
 //! an explicitly selected IDL root. The parser accepts the deliberately small
 //! Rust-like language documented in `docs/contracts/IDL_MODULES.md`; it does not accept
@@ -61,6 +65,8 @@ impl Module {
 
 /// Build-script integration and transitive contract source exchange.
 pub mod cargo;
+/// Shared Rust emission and implementation-macro expansion.
+pub mod codegen;
 /// Pure Rust binding generation; deployment and runtime policy remain elsewhere.
 pub mod generate;
 pub use cargo::{BuildError, BuildOutput, ModuleSources};

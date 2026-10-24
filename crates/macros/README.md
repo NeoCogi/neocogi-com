@@ -4,9 +4,12 @@
 `neocogi-com`. Application and plugin crates should use those re-exports rather
 than depend on this implementation crate directly.
 
-Public contracts are written in `.ncidl` files. The compiler passes bound typed
-plans to `neocogi-com-codegen`, which emits their complete Rust ABI. This crate
-exports only `com_object`, `plugin`, `ComSerialize`, and `ComDeserialize`.
+Public contracts are written in `.ncidl` files. `neocogi-idl` passes bound typed
+plans to its `codegen` module, which emits their complete Rust ABI. This thin
+`proc-macro` crate calls the same library for `com_object`, `plugin`, `com_main`,
+`ComSerialize`, and `ComDeserialize`. It owns no second emitter; IDL does not
+depend on this crate. Macro expansion compiles the compiler library on the build
+machine and adds no runtime compiler dependency.
 
 ## Object implementations
 

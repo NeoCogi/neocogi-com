@@ -28,7 +28,7 @@ fn decoder_source(style: Decoder, unrelated_return: bool, expand: bool) -> Strin
         (Decoder::Derive, false) => quote! { #[derive(neocogi_com::ComDeserialize)] #[com_deserialize(default)] #record }.to_string(),
         (Decoder::Derive, true) => {
             let input = syn::parse2(quote! { #[com_deserialize(default)] #record }).unwrap();
-            let implementation = neocogi_com_codegen::expand_com_deserialize_derive(input).unwrap();
+            let implementation = crate::codegen::expand_com_deserialize_derive(input).unwrap();
             printed(quote! { #record #implementation })
         }
         (Decoder::Copied | Decoder::Owned, _) => {
@@ -84,7 +84,7 @@ fn plugin_source(shadow: &str, explicit_version: bool, expand: bool) -> String {
         }
     };
     let plugin = if expand {
-        printed(neocogi_com_codegen::expand_plugin(syn::parse2(args).unwrap(), function).unwrap())
+        printed(crate::codegen::expand_plugin(syn::parse2(args).unwrap(), function).unwrap())
     } else {
         quote! { #[neocogi_com::plugin(#args)] #function }.to_string()
     };

@@ -140,13 +140,14 @@ fn active_guides_do_not_reintroduce_retired_protocol_prescriptions() {
         "crates/com/README.md",
         "crates/com/api/README.md",
         "crates/com/macros/README.md",
-        "crates/com/codegen/README.md",
+        "crates/com/idl/README.md",
     ] {
         files.push(root.join(relative));
     }
     files.sort();
     assert!(files.len() > 30, "scan must retain the full active normative guide set");
     let retired = [
+        "`neocogi-com-codegen`",
         "Writable buffers are initialized in/out storage",
         "A bare struct or enum parameter is copied by value",
         "`String` is an owned immutable COM string",

@@ -1,6 +1,6 @@
 //! One typed application/value plan for copied and owning IDL aggregates.
 use super::*;
-use neocogi_com_codegen::{ScalarDomain, ScalarMember, ScalarPlan, ValueCase};
+use crate::codegen::{ScalarDomain, ScalarMember, ScalarPlan, ValueCase};
 use syn::parse::Parser;
 
 /// Lowers checked integer values directly into the shared backend's scalar plan.
@@ -64,7 +64,7 @@ pub(super) fn generate_scalar(graph: &Generation<'_>, declaration: &Declaration,
         signature: quote! { ::neocogi_com::NcAbiSignature::from_static(#signature) },
         persistence: graph.graph.values.definitions[&identity.qualified_name].persistence == crate::Persistence::Supported,
     };
-    format_rust(neocogi_com_codegen::emit_scalar(&plan, &syn::parse_quote!(::neocogi_com)))
+    format_rust(crate::codegen::emit_scalar(&plan, &syn::parse_quote!(::neocogi_com)))
 }
 
 /// Lowers a bound aggregate once into application fields and checked wire cases.
@@ -140,7 +140,7 @@ pub(super) fn generate_aggregate(
         _ => return Err(GenerateError::new("aggregate emission requires a record or payload enum")),
     };
     let nc = syn::parse_quote!(::neocogi_com);
-    let codec = neocogi_com_codegen::emit_value(
+    let codec = crate::codegen::emit_value(
         &name,
         &syn::parse_quote!(pub),
         &cases,
@@ -167,17 +167,17 @@ pub(super) fn generate_aggregate(
     });
     let persistence = if graph.graph.values.definitions[&identity.qualified_name].persistence == crate::Persistence::Supported {
         let decoder = match &data {
-            syn::Data::Struct(record) => neocogi_com_codegen::emit_record_decoder(
+            syn::Data::Struct(record) => crate::codegen::emit_record_decoder(
                 &name,
                 &record.fields,
                 &nc,
                 matches!(&declaration.kind, DeclarationKind::Struct(record) if record.persistence == crate::PersistencePolicy::Default),
             ),
-            syn::Data::Enum(enumeration) => neocogi_com_codegen::emit_enum_decoder(&name, enumeration, &nc),
+            syn::Data::Enum(enumeration) => crate::codegen::emit_enum_decoder(&name, enumeration, &nc),
             syn::Data::Union(_) => unreachable!("IDL has no native unions"),
         }
         .map_err(|error| GenerateError::new(error.to_string()))?;
-        let serializer = neocogi_com_codegen::expand_com_serialize_derive(syn::DeriveInput {
+        let serializer = crate::codegen::expand_com_serialize_derive(syn::DeriveInput {
             attrs: Vec::new(),
             vis: syn::parse_quote!(pub),
             ident: name.clone(),

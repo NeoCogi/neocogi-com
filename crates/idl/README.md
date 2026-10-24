@@ -13,10 +13,13 @@ The single `neocogi-idl` package separates responsibilities into Rust modules:
   each consuming crate, without Cargo ownership packages. `cargo::Module` also
   supports packaged source dependencies through Cargo `links`/`DEP_*` exchange.
 - `generate` lowers bound ownership into typed method/value plans and emits complete
-  Rust through `neocogi-com-codegen`, with fixed declaration signatures. Generated
+  Rust through this library's `codegen` module, with fixed declaration signatures. Generated
   contracts do not invoke interface/value attribute or scalar declaration macros,
   rewrite formatted declarations, or reparse Rust types to recover their contracts.
   Its pure entrypoints perform no Cargo environment access.
+- `codegen` owns the shared Rust emitter and concrete implementation/persistence
+  expansion used by `neocogi-com-macros`. The procedural macro crate delegates to
+  this ordinary library; IDL never depends on the macro crate or runtime facade.
 - The shared example IDL covers standalone and imported contracts. [examples/com-plugin](https://github.com/NeoCogi/foundations/tree/master/examples/com-plugin)
   demonstrates their dynamic and monolithic use.
 
@@ -34,6 +37,33 @@ application event syntax or event-root dependency. UI declares producer outputs
 with `ui_event_sources!` beside generated Rust bindings, and validates snapshot
 getters when publishing a catalog. See
 [UI event metadata](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/UI_EVENT_METADATA.md).
+
+## One Rust generation backend
+
+`neocogi_idl::codegen` emits interface traits, clients, physical vtables and
+provider thunks from resolved plans. The same backend supplies checked value
+conversion, persistence and Rust object/plugin/host-entry expansion. Its method
+plans retain authored documentation, ownership and physical argument/result
+types together; safe and raw documentation describe their respective types.
+Code generation never recovers a contract by reparsing printed Rust.
+
+The compiler and its backend are one package. `neocogi-com-macros` remains a
+separate `proc-macro` crate because Rust requires that crate type for procedural
+entrypoints. Its calls to `neocogi_idl::codegen` reuse the same implementation
+as IDL generation. A macro-only consumer therefore also compiles the ordinary
+IDL library and its parser dependencies on the build machine. This adds no
+runtime dependency or registry and does not change the unreleased ABI-v1 contract.
+
+Core remains independent of the compiler. Its checked-in persistence ABI stays
+freshness-checked against the same emitter. Archive dependency order is core →
+IDL → macros → facade → host implementation/inspector. Backend emission unit
+tests and compiler-dependent executable/name-binding regressions all belong to
+the IDL package; run `cargo test -p neocogi-idl` for both groups.
+
+Generated raw vtable fields narrowly allow Clippy's type-complexity lint because
+their flattened signatures are the physical IDL calling convention. This does
+not cover safe methods, providers or ordinary algorithms. No private ABI aliases
+are generated solely to satisfy that lint; other downstream warnings stay checked.
 
 ## Shared sources in consuming crates
 

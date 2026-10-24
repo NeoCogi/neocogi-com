@@ -10,7 +10,7 @@ use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::{Ident, LitStr, Path, Result, Token, parenthesized};
 
-use crate::util::{interface_companion_ident, path_with_last_ident};
+use crate::codegen::util::{interface_companion_ident, path_with_last_ident};
 
 /// Parsed options for concrete `#[com_object]` storage generation.
 pub struct ObjectArgs {

@@ -10,8 +10,8 @@ use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 use syn::{GenericArgument, Ident, ItemFn, LitStr, Path, PathArguments, Result, ReturnType, Token, Type, bracketed, parenthesized};
 
-use crate::args::{PluginGuid, parse_guid_arg};
-use crate::util::{PrivateNames, checked_u32_len, runtime_crate_path, stable_guid, validate_version_literal};
+use crate::codegen::args::{PluginGuid, parse_guid_arg};
+use crate::codegen::util::{PrivateNames, checked_u32_len, runtime_crate_path, stable_guid, validate_version_literal};
 
 /// Module-level accessor owned by this procedure; source admission uses Rust identity.
 const ACCESSOR_NAME: &str = "plugin_descriptor";

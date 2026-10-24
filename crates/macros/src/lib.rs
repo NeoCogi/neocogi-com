@@ -18,7 +18,7 @@ use syn::{DeriveInput, ItemStruct, parse_macro_input};
 #[proc_macro_derive(ComDeserialize, attributes(com_deserialize))]
 pub fn derive_com_deserialize(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
-    match neocogi_com_codegen::expand_com_deserialize_derive(input) {
+    match neocogi_idl::codegen::expand_com_deserialize_derive(input) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }
@@ -29,7 +29,7 @@ pub fn derive_com_deserialize(item: TokenStream) -> TokenStream {
 #[proc_macro_derive(ComSerialize, attributes(com_deserialize))]
 pub fn derive_com_serialize(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
-    match neocogi_com_codegen::expand_com_serialize_derive(input) {
+    match neocogi_idl::codegen::expand_com_serialize_derive(input) {
         Ok(tokens) => tokens.into(),
         Err(error) => error.to_compile_error().into(),
     }
@@ -63,9 +63,9 @@ pub fn derive_com_serialize(item: TokenStream) -> TokenStream {
 /// This provider-local choice never changes an interface's C ABI or threading.
 #[proc_macro_attribute]
 pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as neocogi_com_codegen::ObjectArgs);
+    let args = parse_macro_input!(attr as neocogi_idl::codegen::ObjectArgs);
     let input = parse_macro_input!(item as ItemStruct);
-    neocogi_com_codegen::expand_com_object(args, input).into()
+    neocogi_idl::codegen::expand_com_object(args, input).into()
 }
 
 /// Describes one plugin using a safe typed acquisition function.
@@ -82,9 +82,9 @@ pub fn com_object(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// is imposed on ordinary interface methods.
 #[proc_macro_attribute]
 pub fn plugin(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as neocogi_com_codegen::PluginArgs);
+    let args = parse_macro_input!(attr as neocogi_idl::codegen::PluginArgs);
     let input = parse_macro_input!(item as syn::ItemFn);
-    match neocogi_com_codegen::expand_plugin(args, input) {
+    match neocogi_idl::codegen::expand_plugin(args, input) {
         Ok(tokens) => tokens.into(),
         Err(error) => error.to_compile_error().into(),
     }
@@ -100,9 +100,9 @@ pub fn plugin(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// `neocogi_com = path` and `nc_com = path` support renamed dependencies.
 #[proc_macro_attribute]
 pub fn com_main(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(attr as neocogi_com_codegen::MainArgs);
+    let args = parse_macro_input!(attr as neocogi_idl::codegen::MainArgs);
     let input = parse_macro_input!(item as syn::ItemFn);
-    match neocogi_com_codegen::expand_com_main(args, input) {
+    match neocogi_idl::codegen::expand_com_main(args, input) {
         Ok(tokens) => tokens.into(),
         Err(error) => error.to_compile_error().into(),
     }

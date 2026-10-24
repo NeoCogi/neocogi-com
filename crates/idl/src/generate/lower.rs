@@ -1,7 +1,7 @@
 //! Typed method plans selected from resolved IDL ownership, never reparsed Rust types.
 use super::*;
 use crate::Parameter;
-use neocogi_com_codegen::model::{AbiArg, AbiArgKind, AbiMethod, AbiReceiver, AbiReturn, AbiReturnKind, InterfaceOwnership};
+use crate::codegen::model::{AbiArg, AbiArgKind, AbiMethod, AbiReceiver, AbiReturn, AbiReturnKind, InterfaceOwnership};
 use syn::parse::Parser;
 
 /// Lowers source methods once; traits, clients, thunks and metadata share this plan.

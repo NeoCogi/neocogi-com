@@ -23,7 +23,7 @@ interface ICalculator {
 ```
 
 `neocogi-idl` binds references, computes canonical identity/signature bytes, and
-passes typed method/value plans to `neocogi-com-codegen`. The backend emits the
+passes typed method/value plans to its own `codegen` module. That shared backend emits the
 complete trait, C vtable, checked codecs, clients and provider thunks directly.
 There are no handwritten interface/value declaration attributes or signature
 options. The packaged [calculator example](examples/calculator.rs) and its

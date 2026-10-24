@@ -28,7 +28,7 @@ fn assert_origin(tokens: TokenStream, name: &str, expected: Span) {
 #[test]
 fn typed_interface_and_value_names_keep_their_supplied_identifier_spans() {
     use quote::quote;
-    use crate::model::{AbiMethod, AbiReceiver, AbiReturn, AbiReturnKind};
+    use crate::codegen::model::{AbiMethod, AbiReceiver, AbiReturn, AbiReturnKind};
     let definition: syn::ItemTrait = syn::parse_str("\n\n pub trait Counter { fn value(&self) -> Result<u32, ::neocogi_com::NcStatus>; }").unwrap();
     let expected = definition.ident.span();
     let method = AbiMethod {
@@ -42,18 +42,18 @@ fn typed_interface_and_value_names_keep_their_supplied_identifier_spans() {
             kind: AbiReturnKind::Plain,
         },
     };
-    let plan = crate::model::InterfacePlan {
+    let plan = crate::codegen::model::InterfacePlan {
         name: definition.ident,
         visibility: definition.vis,
         docs: definition.attrs,
         id: "fa4298eb-5301-4ccb-b132-67bcf98c9102".parse().unwrap(),
         qualified_name: "example.navigation.Counter".into(),
         signature: [3; 32],
-        threading: crate::InterfaceThreading::Local,
+        threading: crate::codegen::InterfaceThreading::Local,
         bases: Vec::new(),
         methods: vec![method],
     };
-    let parts = crate::expand_interface_parts(plan).unwrap();
+    let parts = crate::codegen::expand_interface_parts(plan).unwrap();
     let abi = parts.abi;
     let provider = parts.provider;
     let expanded = quote! { #abi #provider };
@@ -83,14 +83,14 @@ fn typed_interface_and_value_names_keep_their_supplied_identifier_spans() {
         .enumerate()
         .map(|(ordinal, variant)| {
             let tag = proc_macro2::Literal::usize_unsuffixed(ordinal);
-            crate::ValueCase {
+            crate::codegen::ValueCase {
                 variant: Some(variant.ident.clone()),
                 fields: variant.fields.clone(),
                 tag: quote! { #tag },
             }
         })
         .collect::<Vec<_>>();
-    let expanded = crate::emit_value(
+    let expanded = crate::codegen::emit_value(
         &enumeration.ident,
         &enumeration.vis,
         &cases,

@@ -49,7 +49,7 @@ fn host_entry_runs_with_normal_printed_and_renamed_dependencies() {
         "#
         ))
         .unwrap();
-        let expanded = neocogi_com_codegen::expand_com_main(syn::parse_str(args).unwrap(), authored.clone()).unwrap();
+        let expanded = crate::codegen::expand_com_main(syn::parse_str(args).unwrap(), authored.clone()).unwrap();
         let generated: syn::File = syn::parse2(expanded.clone()).unwrap();
         // Use the same adversarial scope construction as the other generator
         // tests, derived from the actual expansion rather than guessed suffixes.

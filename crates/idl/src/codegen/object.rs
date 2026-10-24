@@ -11,8 +11,8 @@
 use quote::quote;
 use syn::ItemStruct;
 
-use crate::args::{ObjectArgs, ObjectOwnership};
-use crate::util::{PrivateNames, runtime_crate_path};
+use crate::codegen::args::{ObjectArgs, ObjectOwnership};
+use crate::codegen::util::{PrivateNames, runtime_crate_path};
 
 /// Generates compact interface bindings, typed borrow adapters and legal constructors.
 pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::TokenStream {

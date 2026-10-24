@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use quote::{ToTokens, format_ident, quote};
 use syn::{Generics, Ident, LitStr, Path, Result};
 
-use crate::args::PluginGuid;
+use crate::codegen::args::PluginGuid;
 
 /// Creates a private local binding with macro-definition hygiene.
 ///

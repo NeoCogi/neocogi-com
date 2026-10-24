@@ -16,5 +16,5 @@ proc-macro = true
 
 
 [dependencies]
-neocogi-com-codegen.workspace = true
+neocogi-idl.workspace = true
 syn.workspace = true

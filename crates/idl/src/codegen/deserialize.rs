@@ -9,7 +9,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Attribute, Data, DeriveInput, Fields, Ident, Path, Result};
 
-use crate::util::{PrivateNames, application_fields, push_error, validate_no_generics};
+use crate::codegen::util::{PrivateNames, application_fields, push_error, validate_no_generics};
 
 /// The sole decoding policy beyond the declared value shape.
 #[derive(Default)]

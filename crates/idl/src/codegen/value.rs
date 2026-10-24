@@ -8,7 +8,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Fields, Ident, Visibility};
 
-use crate::util::{PrivateNames, application_fields};
+use crate::codegen::util::{PrivateNames, application_fields};
 
 /// A record or enum alternative with its declared tag and ordered field shape.
 pub struct ValueCase {

@@ -2,8 +2,9 @@
 //!
 //! IDL owns semantic binding and canonical identities. This backend owns one
 //! method/value emission model, including wire conversion, ownership, call gates
-//! and generated-name scopes. Core never depends on this build-time package.
-#![deny(missing_docs)]
+//! and generated-name scopes. It is also the ordinary-library expansion API
+//! called by the thin `neocogi-com-macros` procedural entrypoints. Core never
+//! depends on this build-time compiler. No runtime state is created by emission.
 
 mod args;
 mod deserialize;

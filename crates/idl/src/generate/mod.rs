@@ -505,12 +505,8 @@ fn format_rust(tokens: TokenStream) -> Result<String, GenerateError> {
 
 /// Emits both interface halves from one resolved ownership plan. The backend
 /// does not parse provider Rust wrappers to recover the contract it just received.
-fn interface_parts(
-    graph: &Generation<'_>,
-    module: &ResolvedModule,
-    declaration: &Declaration,
-) -> Result<neocogi_com_codegen::InterfaceExpansion, GenerateError> {
-    use neocogi_com_codegen::{model::InterfacePlan, InterfaceThreading};
+fn interface_parts(graph: &Generation<'_>, module: &ResolvedModule, declaration: &Declaration) -> Result<crate::codegen::InterfaceExpansion, GenerateError> {
+    use crate::codegen::{model::InterfacePlan, InterfaceThreading};
     let DeclarationKind::Interface(interface) = &declaration.kind else {
         return Err(GenerateError::new("interface emission requires a callable declaration"));
     };
@@ -546,7 +542,7 @@ fn interface_parts(
         bases,
         methods,
     };
-    neocogi_com_codegen::expand_interface_parts(plan).map_err(|error| GenerateError::new(error.to_string()))
+    crate::codegen::expand_interface_parts(plan).map_err(|error| GenerateError::new(error.to_string()))
 }
 
 /// Converts one Rust-like variant identifier into a stable snake-case name.

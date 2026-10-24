@@ -1124,11 +1124,11 @@ including child-list deallocation through its original owning pointer.
 ## Published archive validation
 
 Run `bash crates/com/scripts/test-packages.sh` with Rust 1.85 installed. It creates
-real Cargo archives for the six SDK packages and inspector, extracts them into a
+real Cargo archives for the five SDK packages and inspector, extracts them into a
 fresh directory, and patches dependencies **only to those extracted archives**.
 Rust 1.85 checks all shipped targets and runs shipped executable tests and
-runnable documentation examples. An ordinary runtime build must produce both its
-rlib and platform shared library, matching the public build guide. One temporary shared target
+runnable documentation examples. An ordinary runtime build must produce its host
+rlib; no COM runtime shared library is deployed. One temporary shared target
 cache avoids retaining one copy per package and is removed after verification. The gate also builds a fresh consumer
 with `build.rs`, generates an interface and executes its checked COM call. Runtime
 and descriptor discovery are asserted to remain v1. No-default and alloc-only
@@ -1141,6 +1141,12 @@ advertise test targets whose inputs are absent. Package-local unit tests remain
 included. Compiler backend printer fixtures belong to the IDL archive; the core handle
 source audit belongs to core. The small subprocess helper is deliberately local
 to each owning package rather than requiring a published test-support crate.
+
+IDL owns the shared `codegen` module used for both generated contracts and the
+thin procedural macro crate. There is no separately published backend package.
+The dependency order remains acyclic: core → IDL → macros → facade. Generation
+and macro expansion run on the build machine; runtime peers receive compiled
+bindings and access to the host's one registry.
 
 The IDL package's backend executable tests create an ordinary matching-version facade
 consumer. Cargo metadata supplies the selected core/facade source locations;

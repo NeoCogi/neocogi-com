@@ -1190,7 +1190,7 @@ fn validate_interface_bases(index: usize, interface: &crate::Interface, entries:
 /// Rejects handle lookup conflicts at authored spans, even for unused templates.
 /// Generated/specialized methods reuse the same policy during final validation.
 fn validate_method_names(module: &Module, interface: &crate::Interface) -> Result<(), ResolutionError> {
-    let prefix = neocogi_com_codegen::InterfaceVTablePrefix::select(!interface.bases.is_empty());
+    let prefix = crate::codegen::InterfaceVTablePrefix::select(!interface.bases.is_empty());
     let diagnostics = interface
         .methods
         .iter()

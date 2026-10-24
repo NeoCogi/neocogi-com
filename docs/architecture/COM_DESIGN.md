@@ -28,7 +28,7 @@ state. IDL parsing and macros run on the build machine; runtime calls compare th
 already-computed identities and signatures.
 
 COM responsibilities have concrete owners: `core` supplies ABI and value support;
-`codegen` emits typed Rust bindings; `idl` owns parsing through Cargo integration;
+`idl` owns parsing through Cargo integration, including its shared `codegen` module;
 `macros` supplies thin Rust implementation/persistence entrypoints; `api` supplies
 object helpers, static IDL metadata and runtime clients; `runtime` owns loading, the plugin catalog
 and persistence execution. The final executable links its runtime implementation

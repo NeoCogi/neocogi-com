@@ -71,7 +71,7 @@ fn printed_object_bindings_keep_storage_and_support_names_private() {
     ] {
         let ident = syn::Ident::new(name, proc_macro2::Span::call_site());
         let object = syn::parse2(quote! { struct #ident<Result> { value: u32, _state: Result } }).unwrap();
-        let expanded = neocogi_com_codegen::expand_com_object(syn::parse2(options).unwrap(), object);
+        let expanded = crate::codegen::expand_com_object(syn::parse2(options).unwrap(), object);
         generated += &prettyplease::unparse(&syn::parse2(expanded).unwrap());
         generated += &format!(
             r#"

@@ -48,9 +48,9 @@ if [[ ! -f Cargo.lock ]]; then
   run_cargo "resolve missing workspace lockfile" generate-lockfile
 fi
 run_cargo "Clippy, all targets and features" \
-  clippy -p neocogi-com-core -p neocogi-idl -p neocogi-com-codegen -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --all-targets --all-features --locked -- -D warnings
+  clippy -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --all-targets --all-features --locked -- -D warnings
 run_cargo "COM SDK with all features" \
-  check -p neocogi-com-core -p neocogi-idl -p neocogi-com-codegen -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --all-features --locked
+  check -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --all-features --locked
 run_cargo "neocogi-com without default features" \
   check -p neocogi-com --no-default-features --locked
 run_cargo "neocogi-com with alloc only" \
@@ -66,7 +66,7 @@ echo "==> [quality] Markdown links"
 python3 crates/com/scripts/check-markdown-links.py
 
 run_rustdoc "COM SDK with all features" target/quality-docs/all \
-  -p neocogi-com-core -p neocogi-idl -p neocogi-com-codegen -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --all-features
+  -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --all-features
 run_rustdoc "neocogi-com default features" target/quality-docs/default \
   -p neocogi-com
 run_rustdoc "neocogi-com without default features" target/quality-docs/no-default \

@@ -122,12 +122,12 @@ fn source_items(source: &str, expand: bool) -> String {
                 }
                 item.attrs = attributes;
                 let serialization = if serialize {
-                    neocogi_com_codegen::expand_com_serialize_derive(syn::parse2(quote! { #item }).unwrap()).unwrap()
+                    crate::codegen::expand_com_serialize_derive(syn::parse2(quote! { #item }).unwrap()).unwrap()
                 } else {
                     TokenStream::new()
                 };
                 let deserialization = if deserialize {
-                    neocogi_com_codegen::expand_com_deserialize_derive(syn::parse2(quote! { #item }).unwrap()).unwrap()
+                    crate::codegen::expand_com_deserialize_derive(syn::parse2(quote! { #item }).unwrap()).unwrap()
                 } else {
                     TokenStream::new()
                 };
@@ -138,7 +138,7 @@ fn source_items(source: &str, expand: bool) -> String {
                 let definition = match index {
                     Some(index) => {
                         let attribute = item.attrs.remove(index);
-                        neocogi_com_codegen::expand_com_object(attribute.parse_args().unwrap(), item)
+                        crate::codegen::expand_com_object(attribute.parse_args().unwrap(), item)
                     }
                     None => quote! { #item },
                 };
@@ -151,7 +151,7 @@ fn source_items(source: &str, expand: bool) -> String {
             {
                 Some(index) => {
                     let arguments = item.attrs.remove(index).parse_args().unwrap();
-                    neocogi_com_codegen::expand_plugin(arguments, item).unwrap()
+                    crate::codegen::expand_plugin(arguments, item).unwrap()
                 }
                 None => quote! { #item },
             },

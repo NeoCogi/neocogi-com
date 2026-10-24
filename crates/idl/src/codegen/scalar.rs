@@ -6,7 +6,7 @@ use proc_macro2::{Literal, TokenStream};
 use quote::quote;
 use syn::{Ident, LitStr, Type, Visibility};
 use neocogi_com_core::NcComDenseEnumMember as DenseMember;
-use crate::util::PrivateNames;
+use crate::codegen::util::PrivateNames;
 
 /// One bound scalar constant, including its original documentation/source annotation.
 pub struct ScalarMember {

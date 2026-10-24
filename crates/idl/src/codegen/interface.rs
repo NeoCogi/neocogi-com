@@ -9,10 +9,10 @@ use quote::{format_ident, quote};
 use neocogi_com_core::NcComInterfaceCompanion as Companion;
 use syn::Result;
 
-use crate::method_docs::{literal_doc, raw_vtable_method_docs, safe_method_docs};
-use crate::args::InterfaceThreading;
-use crate::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind, InterfacePlan};
-use crate::util::{checked_u32_len, guid_tokens, private_ident, PrivateNames, interface_companion_ident};
+use crate::codegen::method_docs::{literal_doc, raw_vtable_method_docs, safe_method_docs};
+use crate::codegen::args::InterfaceThreading;
+use crate::codegen::model::{AbiArgKind, AbiMethod, AbiReceiver, AbiReturnKind, InterfacePlan};
+use crate::codegen::util::{checked_u32_len, guid_tokens, private_ident, PrivateNames, interface_companion_ident};
 
 /// Physical public prefix selected by the interface's ordered base list.
 /// Emission and source admission share this policy; only local method slots
@@ -65,7 +65,7 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
         mut methods,
     } = plan;
     let nc: syn::Path = syn::parse_quote!(::neocogi_com);
-    let declarations = methods.iter().map(crate::method_declaration);
+    let declarations = methods.iter().map(crate::codegen::method_declaration);
     let supertraits = if interface_paths.is_empty() {
         quote! {}
     } else {
@@ -912,7 +912,7 @@ fn safe_receiver(receiver: AbiReceiver) -> proc_macro2::TokenStream {
 }
 
 /// Emits the physical descriptor for one lowered parameter.
-fn method_param_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_macro2::TokenStream {
+fn method_param_descriptor(nc: &syn::Path, arg: &crate::codegen::model::AbiArg) -> proc_macro2::TokenStream {
     let name = arg.ident.to_string();
     let passing = arg_passing_descriptor(nc, arg);
     let ty = arg_type_descriptor(nc, arg);
@@ -938,7 +938,7 @@ fn method_return_descriptor(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::
 }
 
 /// Maps an argument kind to its C-shaped passing descriptor.
-fn arg_passing_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_macro2::TokenStream {
+fn arg_passing_descriptor(nc: &syn::Path, arg: &crate::codegen::model::AbiArg) -> proc_macro2::TokenStream {
     match &arg.kind {
         AbiArgKind::ComBox { mode_ty, .. } => {
             let mode = threading_mode_expr(nc, mode_ty.as_deref());
@@ -968,7 +968,7 @@ fn arg_passing_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_ma
 }
 
 /// Maps an argument's source type to its canonical ABI type descriptor.
-fn arg_type_descriptor(nc: &syn::Path, arg: &crate::model::AbiArg) -> proc_macro2::TokenStream {
+fn arg_type_descriptor(nc: &syn::Path, arg: &crate::codegen::model::AbiArg) -> proc_macro2::TokenStream {
     match &arg.kind {
         AbiArgKind::BorrowedValue { value_ty } => quote! {
             #nc::NcAbiTypeDescriptor::from_abi_type(#nc::NcAbiType::Aggregate(
@@ -1010,10 +1010,10 @@ fn return_passing_descriptor(nc: &syn::Path, method: &AbiMethod) -> proc_macro2:
         AbiReturnKind::ComPtr { mode_ty, ownership, .. } => {
             let mode = threading_mode_expr(nc, mode_ty.as_deref());
             let passing = match ownership {
-                crate::model::InterfaceOwnership::Shared => quote! { ComPtrOut },
-                crate::model::InterfaceOwnership::Exclusive => quote! { ComBoxOut },
-                crate::model::InterfaceOwnership::WeakExclusive => quote! { WeakComBoxOut },
-                crate::model::InterfaceOwnership::WeakShared => quote! { WeakComPtrOut },
+                crate::codegen::model::InterfaceOwnership::Shared => quote! { ComPtrOut },
+                crate::codegen::model::InterfaceOwnership::Exclusive => quote! { ComBoxOut },
+                crate::codegen::model::InterfaceOwnership::WeakExclusive => quote! { WeakComBoxOut },
+                crate::codegen::model::InterfaceOwnership::WeakShared => quote! { WeakComPtrOut },
             };
             quote! {
                 #nc::NcAbiPassingDescriptor::from_abi_passing(#nc::NcAbiPassing::#passing {
@@ -1048,7 +1048,7 @@ fn return_type_descriptor(nc: &syn::Path, method: &AbiMethod) -> proc_macro2::To
 }
 
 /// Expands one logical argument into its raw vtable parameter list.
-fn raw_vtable_arg_params(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenStream> {
+fn raw_vtable_arg_params(arg: &crate::codegen::model::AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.binding;
     match &arg.kind {
         AbiArgKind::Plain | AbiArgKind::BorrowedValue { .. } | AbiArgKind::ComRef { .. } | AbiArgKind::ComBox { .. } => {
@@ -1083,7 +1083,7 @@ fn raw_vtable_arg_params(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenSt
 }
 
 /// Emits pre-call pointer/bounds extraction required by a safe wrapper argument.
-fn safe_arg_preparation(nc: &syn::Path, arg: &crate::model::AbiArg) -> Option<proc_macro2::TokenStream> {
+fn safe_arg_preparation(nc: &syn::Path, arg: &crate::codegen::model::AbiArg) -> Option<proc_macro2::TokenStream> {
     match &arg.kind {
         AbiArgKind::ComBox { .. } => None,
         AbiArgKind::Plain => {
@@ -1103,7 +1103,7 @@ fn safe_arg_preparation(nc: &syn::Path, arg: &crate::model::AbiArg) -> Option<pr
 }
 
 /// Emits the raw values passed for one source-level safe argument.
-fn safe_vtable_call_args(arg: &crate::model::AbiArg) -> Vec<proc_macro2::TokenStream> {
+fn safe_vtable_call_args(arg: &crate::codegen::model::AbiArg) -> Vec<proc_macro2::TokenStream> {
     let ident = &arg.binding;
     match &arg.kind {
         AbiArgKind::ComBox { .. } => {
