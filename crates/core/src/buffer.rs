@@ -1,22 +1,17 @@
-//! Borrowed buffer arguments used by generated interface methods.
+//! Borrowed native-value views for readable interface arguments.
 //!
-//! The ABI represents a buffer operation as three independent values: a
-//! logical offset, an element count, and a pointer. This module groups those
-//! values into call-scoped Rust types so generated safe methods can accept
-//! slices while their raw thunks still expose the stable C representation.
-//! Constructors used by generated code validate pointer/count combinations and
-//! integer conversions before creating references. The writable form remains
-//! non-`Copy` so safe Rust cannot duplicate its exclusive slice.
-
-use core::slice;
-
-use crate::{NC_E_OUT_OF_RANGE, NC_E_POINTER, NcStatus};
+//! This view groups a logical offset with an already-valid shared slice. Generated
+//! clients retain direct or converted wire storage in [`crate::EncodedInput`];
+//! providers use [`crate::DecodedInput`] to validate raw input before lending its
+//! native values to an implementation. The guard remains alive throughout the call.
+//! Output uses the separate `NcOutput` and `NcOutputWriter` types.
 
 /// Call-scoped readable buffer parameter with an explicit source offset.
 ///
 /// `NcCopyFromBufferOffset<'a, T>` is the safe Rust parameter form for the
-/// typed `CopyFromBufferOffset<T>` ABI passing mode. The generated raw vtable
-/// lowers it to `(offset: u64, len: u64, ptr: *const T)`.
+/// typed `CopyFromBufferOffset<T>` passing mode. Generated raw methods receive
+/// an offset, a count and a pointer to `T::Wire`, whose representation may differ
+/// from these native elements. Checked input guards own that conversion.
 pub struct NcCopyFromBufferOffset<'a, T> {
     /// Logical source offset interpreted by the receiving interface method.
     offset: u64,
@@ -53,37 +48,12 @@ impl<'a, T> NcCopyFromBufferOffset<'a, T> {
         self.data
     }
 
-    /// Returns the raw readable ABI pointer.
+    /// Returns a pointer to the borrowed native elements.
+    ///
+    /// This is not necessarily an ABI wire pointer. Generated clients obtain
+    /// their wire pointer from [`crate::EncodedInput`] instead.
     pub const fn as_ptr(&self) -> *const T {
         self.data.as_ptr()
-    }
-
-    #[doc(hidden)]
-    /// Converts the slice length to the fixed-width ABI count type.
-    pub fn __nc_len_u64(&self) -> Result<u64, NcStatus> {
-        u64::try_from(self.data.len()).map_err(|_| NC_E_OUT_OF_RANGE)
-    }
-
-    #[doc(hidden)]
-    /// Reconstructs a checked borrowed input buffer from its ABI components.
-    ///
-    /// # Safety
-    ///
-    /// When `len` is nonzero, `ptr` must be valid for `len` readable `T`
-    /// elements for the duration of the generated ABI call.
-    pub unsafe fn __nc_from_raw_parts(offset: u64, ptr: *const T, len: u64) -> Result<Self, NcStatus> {
-        let len = usize::try_from(len).map_err(|_| NC_E_OUT_OF_RANGE)?;
-        if len != 0 && ptr.is_null() {
-            return Err(NC_E_POINTER);
-        }
-        let data = if len == 0 {
-            &[]
-        } else {
-            // SAFETY: The raw ABI caller guarantees that `ptr` is valid for
-            // `len` readable elements for the duration of the call.
-            unsafe { slice::from_raw_parts(ptr, len) }
-        };
-        Ok(Self { offset, data })
     }
 }
 
