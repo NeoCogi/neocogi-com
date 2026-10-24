@@ -1,20 +1,20 @@
 error[E0080]: evaluation panicked: conflicting inherited interface contracts
- --> integration-tests/ui/interface_conflicting_diamond.rs:9:1
-  |
-9 | #[com_object(interfaces(ILeft, IRight))]
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `_::<impl neocogi_com::ComObject for Object>::VTABLES::{constant#0}` failed inside this call
-  |
+  --> integration-tests/ui/interface_conflicting_diamond.rs:11:1
+   |
+11 | #[com_object(interfaces(ILeft, IRight))]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `_::<impl neocogi_com::ComObject for Object>::VTABLES::{constant#0}` failed inside this call
+   |
 note: inside `neocogi_com::__nc_object_interface_count`
- --> /cargo/deps/neocogi-com-core-0.0.0/src/metadata/inheritance.rs:106:16
+  --> /cargo/deps/neocogi-com-core-0.0.0/src/metadata/inheritance.rs:106:16
 note: inside `neocogi_com_core::metadata::inheritance::repeated`
- --> /cargo/deps/neocogi-com-core-0.0.0/src/metadata/inheritance.rs:54:15
+  --> /cargo/deps/neocogi-com-core-0.0.0/src/metadata/inheritance.rs:54:15
 note: inside `neocogi_com_core::metadata::inheritance::same_contract`
- --> /cargo/deps/neocogi-com-core-0.0.0/src/metadata/inheritance.rs:67:4
+  --> /cargo/deps/neocogi-com-core-0.0.0/src/metadata/inheritance.rs:67:4
 note: inside `neocogi_com_core::metadata::inheritance::same_identity`
- --> $RUST/core/src/panic.rs
-  |
-  |         $crate::panicking::panic_fmt($crate::const_format_args!($($t)+));
-  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
- --> /cargo/deps/neocogi-com-core-0.0.0/src/metadata/inheritance.rs:79:4
-  |
-  = note: in this macro invocation
+  --> $RUST/core/src/panic.rs
+   |
+   |         $crate::panicking::panic_fmt($crate::const_format_args!($($t)+));
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  --> /cargo/deps/neocogi-com-core-0.0.0/src/metadata/inheritance.rs:79:4
+   |
+   = note: in this macro invocation

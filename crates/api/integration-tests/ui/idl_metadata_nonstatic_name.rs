@@ -1,5 +1,5 @@
 extern crate self as example_bindings;
-mod example { include!(env!("IDL_EXAMPLE_BINDINGS")); include!(concat!(env!("OUT_DIR"), "/example_helpers.rs")); }
+pub mod example { include!(env!("IDL_EXAMPLE_BINDINGS")); include!(concat!(env!("OUT_DIR"), "/example_helpers.rs")); }
 use neocogi_com::idl_metadata::InterfaceMetadata;
 use crate::example::ExampleObjectAbi;
 

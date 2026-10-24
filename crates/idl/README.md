@@ -72,6 +72,10 @@ conflicting roots fail before any output is written. Root order never hides a
 definition. Repeating the same canonical root is harmless. Source maps preserve
 the actual owning directory of each imported declaration.
 
+Existing inputs and directory membership are tracked by Cargo. Absent candidate
+paths watch their nearest existing source directory, so unchanged builds stay
+cached while added source parts or competing owners invalidate both consumers.
+
 No `links`, contract package, runtime state or `DEP_*` variable is needed.
 
 Independent generation produces distinct Rust types with the same physical ABI,

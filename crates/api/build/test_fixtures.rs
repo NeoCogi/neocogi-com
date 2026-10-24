@@ -78,7 +78,7 @@ pub fn generate(root: &Path) {
         let exports = exports.join(",");
         let scope = format!("__nc_fixture_{fixture}");
         output.push_str(&format!(
-            "/// Complete typed bindings from fixture `{name}`.\nmacro_rules! {fixture} {{ () => {{ #[allow(dead_code)] mod {scope} {{ {rust} }} pub use self::{scope}::{{{exports}}}; }}; }}\npub(crate) use {fixture};\n"
+            "/// Complete typed bindings from fixture `{name}`.\nmacro_rules! {fixture} {{ () => {{ #[allow(dead_code)] mod {scope} {{ {rust} }} #[allow(unused_imports)] pub use self::{scope}::{{{exports}}}; }}; }}\npub(crate) use {fixture};\n"
         ));
     }
     let output_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());

@@ -30,8 +30,9 @@ monolithic builds.
 Cargo writes a `.rs.map` JSON sidecar beside each generated Rust file and inserts
 readable IDL-origin documentation on declarations and authored members. The map
 covers final formatted ranges, including closed generic and message helpers, while
-ABI identity remains independent of paths and locations. Run
-`cargo neocogi module generate <module>` to obtain the exact map path. The
+ABI identity remains independent of paths and locations. Build scripts obtain
+the exact map path from `BuildOutput::source_map`; the repository exposes include
+paths in Cargo’s build-script JSON. The
 [source mapping guide](../guides/IDL_SOURCE_MAPS.md) defines the format and lookup rules.
 
 IDL source parsing and complete Rust generation use one explicit eight-MiB

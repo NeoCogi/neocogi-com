@@ -217,12 +217,15 @@ fn load_sources(roots: &[PathBuf], name: &str) -> Result<(PathBuf, ModuleSources
     for root in roots {
         for (candidate, directory) in [(&relative, true), (&file, false)] {
             let path = root.join(candidate);
-            // Watch absent candidates too: adding another owner invalidates the
-            // build and must cause the same ambiguity error as a clean build.
-            println!("cargo::rerun-if-changed={}", path.display());
             let metadata = match fs::metadata(&path) {
-                Ok(metadata) => metadata,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Ok(metadata) => {
+                    println!("cargo::rerun-if-changed={}", path.display());
+                    metadata
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    watch_missing_source(&path)?;
+                    continue;
+                }
                 Err(source) => {
                     return Err(BuildError::Io {
                         operation: "inspect shared IDL source",
@@ -258,6 +261,31 @@ fn load_sources(roots: &[PathBuf], name: &str) -> Result<(PathBuf, ModuleSources
         println!("cargo::rerun-if-changed={}", root.join(part).display());
     }
     Ok((root, sources))
+}
+
+/// Watches directory membership for an absent source candidate. Cargo treats a
+/// missing rerun-if-changed path as dirty on every build. Watching its nearest
+/// existing parent catches later creation without defeating unchanged-build
+/// caching. This parent contains source inputs, not generated OUT_DIR files.
+fn watch_missing_source(path: &Path) -> Result<(), BuildError> {
+    for parent in path.ancestors().skip(1) {
+        match fs::metadata(parent) {
+            Ok(metadata) if metadata.is_dir() => {
+                println!("cargo::rerun-if-changed={}", parent.display());
+                return Ok(());
+            }
+            Ok(_) => return Err(BuildError::Idl(format!("shared source ancestor is not a directory: {}", parent.display()))),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(source) => {
+                return Err(BuildError::Io {
+                    operation: "inspect shared source parent",
+                    path: parent.to_owned(),
+                    source,
+                });
+            }
+        }
+    }
+    Err(BuildError::Idl(format!("shared source has no existing parent: {}", path.display())))
 }
 
 #[cfg(test)]

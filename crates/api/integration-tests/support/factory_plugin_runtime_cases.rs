@@ -1,7 +1,8 @@
 #[allow(unused_imports, unused_macros)]
 mod test_contracts { include!(concat!(env!("OUT_DIR"), "/test_contracts.rs")); }
 extern crate self as example_bindings;
-mod example { include!(env!("IDL_EXAMPLE_BINDINGS")); include!(concat!(env!("OUT_DIR"), "/example_helpers.rs")); }
+/// Locally generated protocol and delivery helpers for this final test owner.
+pub mod example { include!(env!("IDL_EXAMPLE_BINDINGS")); include!(concat!(env!("OUT_DIR"), "/example_helpers.rs")); }
 // Generated factory registration and acquisition through the selected final runtime.
 extern crate self as fixture_factory_plugin_runtime;
 test_contracts::factory_plugin_runtime!();

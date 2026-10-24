@@ -67,6 +67,7 @@ neocogi-com-runtime.workspace = true
 # its build dependency here ensures clean test runners fetch it first.
 cc = { version = "=1.2.0", default-features = false }
 trybuild.workspace = true
+tempfile.workspace = true
 
 [features]
 default = ["macros", "std"]

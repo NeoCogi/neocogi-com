@@ -367,14 +367,14 @@ calls. Dynamic plugin fixtures exercise discovery and factory normalization.
 Compile-fail tests retain unsafe-interface, lifetime and threading requirements.
 
 Use the same workspace path, compiler, profile and features for size comparisons.
-The staged-deployment command below records the measurement workflow at
-`531e1416`; its custom assembly builder has since been removed. Current builds
-use [Cargo artifact dependencies](../guides/COM_NATIVE.md), whose files live in
-separate Cargo-owned directories. Do not compare their output layout directly
-with these historical packaged totals:
+The measurement workflow at `531e1416` used a custom assembly builder that has
+since been removed; retrieve that exact command with Git when reproducing the
+historical totals. Current builds use [Cargo artifact dependencies](../guides/COM_NATIVE.md),
+whose files live in separate Cargo-owned directories. The current build command
+is below; its output layout cannot be compared directly with historical packaged totals:
 
 ```sh
-cargo run --offline -p cargo-neocogi -- build --assembly full --variant vulkan --profile min-size --offline
+cargo build -p neocogi-demo-full --no-default-features --features dynamic,vulkan --profile min-size --offline
 python3 scripts/measure-deployment.py PATH_TO_STAGED_DIRECTORY --executable neocogi-demo-full --output /tmp/candidate.json --baseline /tmp/baseline.json
 cargo run --offline --release -p neocogi-com --example query_cost
 ```
