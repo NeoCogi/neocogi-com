@@ -1,9 +1,12 @@
 # NeoCogi IDL modules
 
-Contracts are build-time definitions. Each logical module owns an ordinary Cargo
-crate containing generated Rust layouts, typed wrappers, and fixed signatures.
-No contract shared library, native description archive, getter, runtime graph,
-or contract registration step is produced.
+Contracts are build-time definitions. Authoritative `.ncidl` sources live under
+each subsystem's `schemas/` tree. Consumers generate Rust layouts, typed wrappers
+and fixed signatures in their own crates, or import bindings exposed by an
+existing ordinary library when exchanging its concrete Rust helper types.
+Logical modules require no dedicated Cargo package. No contract shared library,
+native description archive, getter, runtime graph or contract registration step
+is produced.
 
 `interface` is the only callable contract declaration. It describes public
 methods, threading, required projections and source metadata. Rust owns
@@ -724,10 +727,12 @@ For example, `a_b.c` becomes `nc_contract_615f622e63`, while `a.b_c` becomes
 `nc_contract_612e625f63`. Demangling strips `nc_contract_`, decodes hex pairs,
 and reads UTF-8. This is a reversible Cargo ownership key, not a native library
 filename, plugin identity or ABI fingerprint. Case remains distinct even when
-Cargo uppercases the key in `DEP_<KEY>_IDL_GRAPH`. The module command writes the
-key and a comment naming the original module into the manifest; generated include
-entries explain it too. No old-key aliases are read. Generated underscore file
-stems remain local to each package and do not establish global ownership.
+Cargo uppercases the key in `DEP_<KEY>_IDL_GRAPH`. The library author writes this
+key into Cargo.toml and invokes `cargo::Module` from build.rs; there is no module
+scaffolding command. `SharedSources` generation from shared subsystem sources
+requires neither a links key nor a source-publishing package. No old-key aliases
+are read. Generated underscore file stems remain local to each package and do not
+establish global ownership.
 
 Its build
 script publishes every source part and a machine-readable transitive IDL graph
@@ -852,7 +857,8 @@ after allocation and before the factory returns. Unit objects also require
 explicit initialized values. Open generic IDL interfaces have no callable ABI;
 a generated closed specialization can be used exactly like any other interface.
 
-A plugin is a typed zero-argument acquisition function in its implementation crate:
+A plugin defines a typed acquisition function taking the host-supplied `Runtime`
+in its implementation crate:
 
 ```rust,ignore
 #[neocogi_com::plugin(name = "example.plugin")]
@@ -868,6 +874,9 @@ from method bodies. Version defaults to `CARGO_PKG_VERSION`. It generates a stat
 `plugin_descriptor()` accessor and the discovery export under `dynamic-plugin`.
 Successful acquisition transfers one reference, without promising a singleton.
 Initialization errors are normalized and the raw output remains empty on failure.
+The generated C adapter receives the host API pointer and factory output slot;
+the safe Rust function receives access to that same host-owned global registry.
+Descriptor discovery only lends static metadata and does not acquire a factory.
 Ordinary interface methods own parameterized object construction; there are no
 IDL `class` or `factory` roles, constructor registries or erased argument bags.
 

@@ -66,7 +66,7 @@ fn readme_factory_contract_and_bootstrap_execute_as_documented() {
         "[package]\nname='documented-com-bootstrap'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[features]\ndynamic-plugin=[]\n[dependencies]\nneocogi-com={{path={:?},features=['runtime']}}\nneocogi-com-runtime={{path={:?}}}\n",
         root.join("crates/com/api"), root.join("crates/com/runtime"),
     )).unwrap();
-    // The guide's generated contract crate is represented by a module here;
+    // The consumer's locally generated bindings are included as a module here;
     // every authored line below comes directly from its marked public block.
     let mut implementation = format!("mod example_contracts {{\n{generated}\n}}\n");
     let language = include_str!("../../../../docs/contracts/IDL_MODULES.md");

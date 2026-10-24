@@ -11,14 +11,20 @@ the minimum threading promise. Any closed interface can be a plugin root. The
 provider's typed Rust acquisition function supplies its exact contract and
 initializes private object state without separate bootstrap or role traits.
 
-A contract crate generates Rust bindings and fixed signatures. It has no native
-module-description library or runtime registry entry. The IDL build helper hashes
-the complete transitive graph and derives each declaration's final 32 bytes.
-Core compares those bytes at factory/interface boundaries and does not hash or
-reconstruct an IDL graph.
+Consumers generate Rust bindings and fixed signatures from shared IDL sources
+in their own crates. They can instead import bindings exposed by an existing
+ordinary library when exchanging its concrete Rust helper types. No dedicated
+contract package, native module-description library or contract registration is
+required. The IDL build helper hashes the complete transitive graph and derives
+each declaration's final 32 bytes. Core compares those bytes at factory/interface
+boundaries and does not hash or reconstruct an IDL graph.
 
 Plugin descriptor ABI v1 publishes plugin identity/version, hard dependencies,
-full root-factory IID/signature, threading, and one zero-argument bootstrap.
+full root-factory IID/signature, threading, and one acquisition bootstrap.
+The safe Rust acquisition function takes the host-supplied `Runtime`; its raw
+C adapter takes a host API pointer and a caller-owned factory output slot.
+Successful acquisition transfers one factory owner using the host's one global
+registry; providers initialize no separate runtime.
 `NcPluginDescriptor` is the provider-authored registration input, returned by
 `nc_get_plugin_descriptor_v1`. `NcPluginInfoV1` is the runtime's complete
 lookup/enumeration output: metadata plus first registration origin, without a

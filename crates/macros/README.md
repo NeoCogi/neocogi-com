@@ -71,8 +71,11 @@ fn acquire_root(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<my
 }
 ```
 
-`#[plugin]` requires a safe zero-argument Rust function with an explicit
-`Result<ComPtr<InterfaceAbi>, NcStatus>` return. It derives metadata from that
+`#[plugin]` requires a safe Rust function taking one host-supplied `Runtime`
+argument, with an explicit `Result<ComPtr<InterfaceAbi>, NcStatus>` return.
+Its generated C adapter accepts the host API pointer and a factory output slot;
+the provider uses the host's registry rather than initializing another runtime.
+The macro derives metadata from that
 interface, defaults version to the Cargo package version, and optionally accepts
 `version = "..."`, `plugin_id(...)`, `dependencies = [ID, ...]` and
 `neocogi_com = facade_path`. The typed return must match the interface's threading.

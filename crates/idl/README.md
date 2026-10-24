@@ -157,7 +157,7 @@ copied-value/interface setup needs no procedural macros; modules with owned valu
 need the facade's `alloc` feature (or `std`) for owned value decoding. `build.rs` owns generation:
 
 ```rust,no_run
-/// Generates this contract crate's bindings during its ordinary Cargo build.
+/// Generates this library's bindings during its ordinary Cargo build.
 fn main() -> Result<(), neocogi_idl::BuildError> {
     // Resolve this directory's module and its imported source graphs through Cargo.
     neocogi_idl::cargo::Module::directory("schemas", "example/widgets").build()?;
@@ -165,7 +165,7 @@ fn main() -> Result<(), neocogi_idl::BuildError> {
 }
 ```
 
-The contract's `src/lib.rs` includes the generated bindings:
+The library's `src/lib.rs` includes the generated bindings:
 
 ```rust,ignore
 #![no_std]
