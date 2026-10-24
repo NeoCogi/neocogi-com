@@ -279,8 +279,10 @@ fn write_module_bindings(
              // The generated filename below is local to this package, not a global identity.\n\
              #[path = \"{stem}.rs\"]\n\
              mod __nc_idl_{stem};\n\
-             // Preserve the contract's public Rust paths at the include site.\n\
+             // Preserve the public surface, including in private consumer modules.\n\
+             #[allow(unused_imports)]\n\
              pub use self::__nc_idl_{stem}::*;\n\
+             #[allow(unused_imports)]\n\
              pub use self::__nc_idl_{stem}::{{{explicit_exports}}};\n"
     );
     write_changed(&include_path, entry.as_bytes())?;

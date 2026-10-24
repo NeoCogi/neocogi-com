@@ -1,8 +1,8 @@
 # COM-owned NeoCogi IDL compiler
 
 The compiler owns contract parsing, canonical transitive ABI signatures, and
-Rust binding generation. It runs during ordinary Cargo builds and is independent
-of the optional `cargo-neocogi` module-authoring tool.
+Rust binding generation. It runs during ordinary Cargo builds; no standalone
+IDL executable or contract package is required.
 
 The single `neocogi-idl` package separates responsibilities into Rust modules:
 
@@ -17,8 +17,7 @@ The single `neocogi-idl` package separates responsibilities into Rust modules:
   contracts do not invoke interface/value attribute or scalar declaration macros,
   rewrite formatted declarations, or reparse Rust types to recover their contracts.
   Its pure entrypoints perform no Cargo environment access.
-- `tools/idl/example-contracts` and `example-consumer-contracts` cover standalone
-  and imported contracts. [examples/com-plugin](https://github.com/NeoCogi/foundations/tree/master/examples/com-plugin)
+- The shared example IDL covers standalone and imported contracts. [examples/com-plugin](https://github.com/NeoCogi/foundations/tree/master/examples/com-plugin)
   demonstrates their dynamic and monolithic use.
 
 Structs, enums, and ordinary interfaces support type parameters. One expansion
@@ -38,7 +37,7 @@ getters when publishing a catalog. See
 
 ## Shared sources in consuming crates
 
-Keep authoritative `.ncidl` files in a common namespace tree. Each application or
+Keep authoritative `.ncidl` files in namespace trees owned by their subsystems. Each application or
 library can generate its own bindings from that tree during its ordinary build:
 
 ```rust,no_run
@@ -67,6 +66,12 @@ The logical name selects `example/widgets.ncidl` or all parts beneath
 with `.module(name, rust_path)` to generate them locally or `.import(name,
 rust_path)` to use definitions exposed by an existing Rust library. Imported IDL
 still comes from the shared tree and is resolved and fingerprinted in this build.
+Use `.include_root("../another-subsystem/idl")` to resolve dependencies from
+additional subsystem trees. Each reachable module must have one source owner;
+conflicting roots fail before any output is written. Root order never hides a
+definition. Repeating the same canonical root is harmless. Source maps preserve
+the actual owning directory of each imported declaration.
+
 No `links`, contract package, runtime state or `DEP_*` variable is needed.
 
 Independent generation produces distinct Rust types with the same physical ABI,
@@ -85,7 +90,7 @@ do not change signatures; member order inside a declaration does.
 
 ```toml
 [package]
-name = "example-widgets-contracts"
+name = "example-widgets"
 version = "0.0.0"
 edition = "2024"
 # Exact dotted IDL module `example.widgets`, UTF-8 encoded as hex.
