@@ -118,6 +118,15 @@ signature. Generated target bindings contain the typed layouts, vtables,
 descriptors, and completed 32 bytes; they do not reconstruct or hash the IDL
 graph at runtime. The IDL compiler computes those hashes during the Cargo build.
 
+When generation selects an external Rust definition, it emits a compile-time
+check of that actual type's identity against the resolved declaration. Module
+constants cannot establish which types an ordinary facade reexports. Inherited
+clients and physical table prefixes come from the checked ABI marker's associated
+types, so a separately reexported companion cannot change their representation.
+These checks add no runtime discovery or registry state; the
+[IDL generation contract](../../../docs/contracts/IDL_MODULES.md#shared-idl-sources)
+describes their scope.
+
 `QueryInterface` matches both GUID and ABI signature. A GUID collision or a
 stale binding therefore cannot silently produce a typed pointer. A successful
 query returns one owned reference. `ComPtr` calls `AddRef` on clone and

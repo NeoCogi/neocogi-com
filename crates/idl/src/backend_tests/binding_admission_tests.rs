@@ -137,7 +137,8 @@ impl Fixture {
 
     /// A semantic type mismatch must fail in the generated identity obligation,
     /// not merely because an unrelated fixture name or trait failed to compile.
-    fn rejected(&self, label: &str, declaration: &str) {
+    /// Returns those diagnostics for cases that also constrain the supplying path.
+    fn rejected(&self, label: &str, declaration: &str) -> Output {
         let output = self.cargo("check");
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(!output.status.success(), "{label}: stale binding compiled");
@@ -145,6 +146,7 @@ impl Fixture {
             stderr.contains("E0080") && stderr.contains("IDL binding mismatch") && stderr.contains(declaration),
             "{label}: {stderr}"
         );
+        output
     }
 }
 
@@ -472,6 +474,116 @@ fn shared_and_packaged_sources_certify_actual_imports_before_real_calls() {
         assert!(output.status.success(), "{label}: {}", String::from_utf8_lossy(&output.stderr));
         assert!(String::from_utf8_lossy(&output.stdout).contains("test real_call ... ok"));
     }
+}
+
+/// A closed template must check its free value through the actual immediate
+/// provider's UUID route, even when the consumer cannot name the leaf crate.
+/// The host generates its own coherent types and executes the inherited call.
+#[test]
+fn transitive_template_free_types_require_the_selected_leaf_identity() {
+    let fixture = Fixture::new("binding-transitive-host", OLD_VALUES, CURRENT_VALUES);
+    let root = fixture.consumer.directory.path();
+    fs::create_dir_all(root.join("schemas/proof")).unwrap();
+    fs::create_dir_all(root.join("bridge/src")).unwrap();
+    let bridge =
+        "extern proof.value; #[version(1)] interface Forward<T> { fn increment(&self, value: proof::value::Value, amount: T) -> Result<proof::value::Value>; }";
+    let service = "extern proof.bridge; #[version(1)] interface Service: proof::bridge::Forward<u32> {}";
+    let graph = crate::resolve_modules(vec![
+        crate::parse_module(Path::new("proof/value.ncidl"), CURRENT_VALUES).unwrap(),
+        crate::parse_module(Path::new("proof/bridge.ncidl"), bridge).unwrap(),
+        crate::parse_module(Path::new("proof/service.ncidl"), service).unwrap(),
+    ])
+    .unwrap();
+    let forward = &graph
+        .module("proof.service")
+        .unwrap()
+        .source
+        .declarations
+        .iter()
+        .find(|value| value.specialization.is_some())
+        .unwrap()
+        .name;
+    let idl = Path::new(env!("CARGO_MANIFEST_DIR"));
+    for (package, module, source, dependency) in [
+        ("helper", "proof.value", CURRENT_VALUES, ""),
+        ("bridge", "proof.bridge", bridge, "binding-helper={path='../helper'}\n"),
+        ("provider", "proof.service", service, "binding-bridge={path='../bridge'}\n"),
+    ] {
+        fixture.write(&format!("schemas/{}.ncidl", module.replace('.', "/")), source);
+        fixture.write(&format!("{package}/Cargo.toml"), &format!(
+            "[package]\nname='binding-{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n{dependency}[build-dependencies]\nneocogi-idl={{path={idl:?}}}\n",
+            crate::cargo::contract_links_name(module), fixture.consumer.facade
+        ));
+        let rust_path = match package {
+            "helper" => "binding_helper::selected",
+            "bridge" => "binding_bridge::bindings",
+            _ => "binding_provider::service",
+        };
+        fixture.write(
+            &format!("{package}/build.rs"),
+            &format!(
+                r#"fn main() {{
+                    let output = neocogi_idl::cargo::Module::new("../schemas", {:?})
+                        .rust_path({rust_path:?}).build().unwrap();
+                    println!("cargo::rustc-env=BINDINGS={{}}", output.include.display());
+                }}"#,
+                format!("{}.ncidl", module.replace('.', "/"))
+            ),
+        );
+    }
+    fixture.write(
+        "bridge/src/lib.rs",
+        r#"
+        extern crate self as binding_bridge;
+        pub mod bindings { include!(env!("BINDINGS")); }
+        pub use binding_helper::selected::Value;
+    "#,
+    );
+    fixture.write(
+        "provider/src/lib.rs",
+        &format!(
+            r#"
+        extern crate self as binding_provider;
+        pub mod service {{ include!(env!("BINDINGS")); }}
+        #[neocogi_com::com_object(service::Service)] struct Counter;
+        impl service::{forward} for Counter {{
+            fn increment(&self, value: binding_bridge::Value, amount: u32)
+                -> Result<binding_bridge::Value, neocogi_com::NcStatus> {{
+                Ok(binding_bridge::Value {{ height: value.height, width: value.width + amount }})
+            }}
+        }}
+        impl service::Service for Counter {{}}
+        pub fn root() -> neocogi_com::ComPtr<neocogi_com::IUnknown> {{ Counter::from_value(Counter) }}
+        "#
+        ),
+    );
+    let mut paths = RustModulePaths::default();
+    paths.insert("proof.value", "binding_transitive_host::value").unwrap();
+    fixture.write("src/value.rs", &generate_rust_with_paths(&graph, "proof.value", &paths).unwrap());
+    fixture.write("src/service.rs", &generate_rust_with_paths(&graph, "proof.service", &paths).unwrap());
+    fixture.write(
+        "src/lib.rs",
+        r#"
+        extern crate self as binding_transitive_host;
+        pub mod value; pub mod service;
+        #[test] fn transitive_real_call() {
+            let service = binding_provider::root().query::<service::ServiceAbi>().unwrap();
+            let output = service.increment(value::Value { height: 3, width: 4 }, 1).unwrap();
+            assert_eq!((output.height, output.width), (3, 5));
+        }
+    "#,
+    );
+    fixture.select("pub use super::old::Value;");
+    let rejected = fixture.rejected("transitive template free value", "proof.value.Value");
+    assert!(
+        String::from_utf8_lossy(&rejected.stderr).contains("binding_bridge::bindings::__nc_dependencies::module_"),
+        "{}",
+        String::from_utf8_lossy(&rejected.stderr)
+    );
+    fixture.select("");
+    let output = fixture.cargo("test");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("test transitive_real_call ... ok"));
 }
 
 /// A mapped module is not itself a selected compiled declaration. Neither an

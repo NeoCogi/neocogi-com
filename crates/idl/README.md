@@ -112,7 +112,16 @@ Independent generation produces distinct Rust types with the same physical ABI,
 IDs and signatures. COM calls negotiate those exact identities. Ordinary Rust
 helper calls still require their declared Rust types: compile helpers beside
 local bindings or explicitly import the helper library's definitions. Changing
-a Rust path never changes the ABI. Source maps retain authored shared-file paths;
+a Rust path never changes the ABI. Every selected external Rust value/interface
+must prove its own resolved declaration identity during compilation; module
+constants alone cannot certify a facade's reexports. Inheritance uses the checked
+marker's associated client and table. A stale or differently named generated
+definition therefore fails compilation before it can supply an incompatible codec
+or table. The [binding contract](../../../docs/contracts/IDL_MODULES.md#shared-idl-sources)
+also defines semantic-only templates and unused mappings, which require no
+compiled owner.
+
+Source maps retain authored shared-file paths;
 output filenames use existing module UUIDs so case and separator variants remain
 distinct even on case-insensitive filesystems.
 
