@@ -137,21 +137,22 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
     let mut client_base = quote! {};
     if let Some(base) = base {
         let base_abi = generated_path(base, Companion::Abi);
-        let base_vtable = generated_path(base, Companion::VTable);
         let base_vtable_for = generated_path(base, Companion::Provider);
-        let base_client = generated_path(base, Companion::Client);
         base_identity = quote! { <#base_abi as #nc::ComInterface>::INTERFACE_ID };
         prefix_field = quote! {
-            /// Complete inherited vtable at offset zero; local slots follow it.
-            pub #prefix: #base_vtable,
+            /// Complete inherited table selected by the checked base marker.
+            /// The provider constructor must produce this exact associated type.
+            pub #prefix: <#base_abi as #nc::ComInterface>::VTable,
         };
         prefix_value = quote! { #prefix: #base_vtable_for::<#provider>::with_identity(#identity_local), };
         client_base = quote! {
             impl<#mode: #nc::ThreadingModel> ::core::ops::Deref for #client_ident<#mode> {
-                type Target = #base_client<#mode>;
+                type Target = <#base_abi as #nc::ComClientInterface>::Client<#mode>;
                 fn deref(&self) -> &Self::Target {
                     // SAFETY: Both generated views are transparent pointer words.
                     // The inherited table is a physical prefix of the derived table.
+                    // The checked marker selects its own client; an independently
+                    // reexported companion name cannot change the cast target.
                     // This lends methods only; ownership and checked base projection
                     // still require QueryInterface on the same object with the actual derived table.
                     unsafe { &*::core::ptr::from_ref(self).cast::<Self::Target>() }

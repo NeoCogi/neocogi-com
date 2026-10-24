@@ -22,6 +22,11 @@ const CURRENT_VALUES: &str = "#[version(1)] struct Value { height: u32, width: u
 /// Independent provider and host must agree on the actual copied codec.
 const SERVICE: &str = "extern proof.value; use proof.value::Value; #[version(1)] interface Service { fn increment(&self, value: Value) -> Result<Value>; }";
 
+/// Both bases have the same physical slot types but opposite method meanings.
+const OLD_BASE: &str = "#[version(1)] interface Base { fn width(&self) -> Result<u32>; fn height(&self) -> Result<u32>; }";
+/// The actual checked marker must determine this height/width ordering.
+const CURRENT_BASE: &str = "#[version(1)] interface Base { fn height(&self) -> Result<u32>; fn width(&self) -> Result<u32>; }";
+
 /// Owns one real helper/provider/host consumer graph for successive facade cases.
 struct Fixture {
     /// Cargo-resolved SDK locations and temporary consumer lifetime.
@@ -51,7 +56,13 @@ impl Fixture {
         fs::write(manifest, source).unwrap();
         for (file, source) in [("old", old), ("current", current)] {
             let graph = graph(source, None);
-            fs::write(root.join(format!("helper/src/{file}.rs")), crate::generate_rust(&graph, "proof.value").unwrap()).unwrap();
+            let mut paths = RustModulePaths::default();
+            paths.insert("proof.value", &format!("binding_helper::{file}")).unwrap();
+            fs::write(
+                root.join(format!("helper/src/{file}.rs")),
+                generate_rust_with_paths(&graph, "proof.value", &paths).unwrap(),
+            )
+            .unwrap();
         }
         Self { consumer }
     }
@@ -174,9 +185,12 @@ fn imported_declaration_identity_rejects_stale_and_nominal_facades() {
     "#,
     );
     fixture.host(CURRENT_VALUES);
-    let output = fixture.cargo("test");
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    assert!(String::from_utf8_lossy(&output.stdout).contains("test real_call ... ok"));
+    for export in ["", "pub use super::old::{MODULE_ID, ABI_FINGERPRINT};"] {
+        fixture.select(export);
+        let output = fixture.cargo("test");
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        assert!(String::from_utf8_lossy(&output.stdout).contains("test real_call ... ok"));
+    }
 }
 
 /// Obligations follow actual emission for imports even without calls, qualified
@@ -217,9 +231,7 @@ fn imported_declaration_checks_cover_each_lowering_route() {
 /// selected Abi marker, even when only its public trait is emitted as an import.
 #[test]
 fn imported_interface_identity_rejects_stale_markers() {
-    let old = "#[version(1)] interface Base { fn width(&self) -> Result<u32>; fn height(&self) -> Result<u32>; }";
-    let current = "#[version(1)] interface Base { fn height(&self) -> Result<u32>; fn width(&self) -> Result<u32>; }";
-    let fixture = Fixture::new("binding-interface-proof", old, current);
+    let fixture = Fixture::new("binding-interface-proof", OLD_BASE, CURRENT_BASE);
     fixture.select("pub use super::old::{Base, BaseAbi, BaseVTable, BaseVtblFor, BaseClient};");
     for (label, source) in [
         ("base", "use proof.value::Base; #[version(1)] interface Service: Base {}"),
@@ -239,8 +251,12 @@ fn imported_interface_identity_rejects_stale_markers() {
             "exclusive transfer",
             "#[version(1)] interface Service { fn value(&self, value: ComBox<proof::value::Base>) -> Result<ComBox<proof::value::Base>>; }",
         ),
+        (
+            "exclusive weak result",
+            "#[version(1)] interface Service { fn value(&self) -> Result<WeakComBox<proof::value::Base>>; }",
+        ),
     ] {
-        fixture.provider(current, &format!("extern proof.value; {source}"), "binding_helper::selected", "");
+        fixture.provider(CURRENT_BASE, &format!("extern proof.value; {source}"), "binding_helper::selected", "");
         fixture.rejected(label, "proof.value.Base");
     }
 }
@@ -300,4 +316,237 @@ fn closed_specializations_check_free_types_without_requiring_open_rust_types() {
     fixture.select("");
     let output = fixture.cargo("check");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+}
+
+/// Checking BaseAbi alone is insufficient if a facade's unrelated BaseClient or
+/// BaseVTable name still controls inherited unsafe casts/physical prefixes.
+/// Both normal and printed object expansion must use the checked associations.
+#[test]
+fn inherited_calls_use_checked_marker_associations_instead_of_stale_names() {
+    let fixture = Fixture::new("binding-client-proof", OLD_BASE, CURRENT_BASE);
+    let manifest = fixture.consumer.directory.path().join("Cargo.toml");
+    let mut source = fs::read_to_string(&manifest).unwrap();
+    source.push_str("binding-helper={path='helper'}\n");
+    fs::write(manifest, source).unwrap();
+    let service = "extern proof.value; use proof.value::Base; #[version(1)] interface Service: Base {}";
+    let graph = graph(CURRENT_BASE, Some(service));
+    let mut paths = RustModulePaths::default();
+    paths.insert("proof.value", "binding_helper::selected").unwrap();
+    fixture.write("src/service.rs", &generate_rust_with_paths(&graph, "proof.service", &paths).unwrap());
+    fixture.write(
+        "src/lib.rs",
+        r#"
+        pub mod service;
+        #[test] fn inherited_and_queried_calls_agree() {
+            let root = binding_provider::root();
+            let derived = root.query::<service::ServiceAbi>().unwrap();
+            let base = root.query::<binding_helper::selected::BaseAbi>().unwrap();
+            assert_eq!((derived.height().unwrap(), derived.width().unwrap()), (3, 4));
+            assert_eq!((base.height().unwrap(), base.width().unwrap()), (3, 4));
+        }
+    "#,
+    );
+    for printed in [false, true] {
+        let object = if printed {
+            let expanded = crate::codegen::expand_com_object(
+                syn::parse_quote!(service::Service),
+                syn::parse_quote!(
+                    struct Counter;
+                ),
+            );
+            prettyplease::unparse(&syn::parse2(expanded).unwrap())
+        } else {
+            "#[neocogi_com::com_object(service::Service)] struct Counter;".to_owned()
+        };
+        fixture.provider(
+            CURRENT_BASE,
+            service,
+            "binding_helper::selected",
+            &format!(
+                r#"
+            {object}
+            impl binding_helper::selected::Base for Counter {{
+                fn height(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(3) }}
+                fn width(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(4) }}
+            }}
+            impl service::Service for Counter {{}}
+            pub fn root() -> neocogi_com::ComPtr<neocogi_com::IUnknown> {{ Counter::from_value(Counter) }}
+        "#
+            ),
+        );
+        for export in [
+            "pub use super::old::BaseClient;",
+            "pub use super::old::BaseVTable;",
+            "pub use super::old::{BaseClient, BaseVTable};",
+        ] {
+            fixture.select(export);
+            let output = fixture.cargo("test");
+            assert!(
+                output.status.success(),
+                "printed={printed}, {export}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(String::from_utf8_lossy(&output.stdout).contains("test inherited_and_queried_calls_agree ... ok"));
+        }
+    }
+    // A stale constructor cannot supply the current marker's physical table.
+    // The generic provider body must reject its incompatible type/trait bounds.
+    fixture.select("pub use super::old::{BaseVTable, BaseVtblFor};");
+    let output = fixture.cargo("check");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success());
+    assert!(stderr.contains("E0308") || stderr.contains("E0599") || stderr.contains("E0277"), "{stderr}");
+}
+
+/// Both source integrations must reject the same compiled facade mismatch.
+/// The helper is an ordinary Rust library that optionally publishes its source
+/// graph; no standalone production contract package is introduced by the test.
+#[test]
+fn shared_and_packaged_sources_certify_actual_imports_before_real_calls() {
+    let fixture = Fixture::new("binding-admission-host", OLD_VALUES, CURRENT_VALUES);
+    let root = fixture.consumer.directory.path();
+    fs::create_dir_all(root.join("schemas/proof")).unwrap();
+    fixture.write("schemas/proof/value.ncidl", CURRENT_VALUES);
+    fixture.write("schemas/proof/service.ncidl", SERVICE);
+    let idl = Path::new(env!("CARGO_MANIFEST_DIR"));
+    for (package, module) in [("helper", "proof.value"), ("provider", "proof.service")] {
+        let extra = if package == "provider" { "binding-helper={path='../helper'}\n" } else { "" };
+        fixture.write(&format!("{package}/Cargo.toml"), &format!(
+            "[package]\nname='binding-{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n{extra}[build-dependencies]\nneocogi-idl={{path={idl:?}}}\n",
+            crate::cargo::contract_links_name(module), fixture.consumer.facade
+        ));
+    }
+    fixture.write(
+        "helper/build.rs",
+        r#"
+        fn main() {
+            neocogi_idl::cargo::Module::new("../schemas", "proof/value.ncidl")
+                .rust_path("binding_helper::selected").build().unwrap();
+        }
+    "#,
+    );
+    fixture.write(
+        "provider/src/lib.rs",
+        r#"
+        extern crate self as binding_provider;
+        pub mod service { include!(env!("SERVICE_BINDINGS")); }
+        #[neocogi_com::com_object(service::Service)] struct Counter;
+        impl service::Service for Counter {
+            fn increment(&self, value: binding_helper::selected::Value)
+                -> Result<binding_helper::selected::Value, neocogi_com::NcStatus> {
+                Ok(binding_helper::selected::Value { height: value.height, width: value.width + 1 })
+            }
+        }
+        pub fn root() -> neocogi_com::ComPtr<neocogi_com::IUnknown> { Counter::from_value(Counter) }
+    "#,
+    );
+    fixture.host(CURRENT_VALUES);
+    for (label, selection) in [
+        (
+            "shared",
+            r#"neocogi_idl::cargo::SharedSources::new("../schemas")
+            .module("proof.service", "binding_provider::service")
+            .import("proof.value", "binding_helper::selected").build().unwrap().remove(0)"#,
+        ),
+        (
+            "packaged",
+            r#"neocogi_idl::cargo::Module::new("../schemas", "proof/service.ncidl")
+            .rust_path("binding_provider::service").build().unwrap()"#,
+        ),
+    ] {
+        fixture.write(
+            "provider/build.rs",
+            &format!(
+                r#"
+            fn main() {{
+                let output = {selection};
+                println!("cargo::rustc-env=SERVICE_BINDINGS={{}}", output.include.display());
+            }}
+        "#
+            ),
+        );
+        fixture.select("pub use super::old::Value;");
+        fixture.rejected(label, "proof.value.Value");
+        fixture.select("");
+        let output = fixture.cargo("test");
+        assert!(output.status.success(), "{label}: {}", String::from_utf8_lossy(&output.stderr));
+        assert!(String::from_utf8_lossy(&output.stdout).contains("test real_call ... ok"));
+    }
+}
+
+/// A mapped module is not itself a selected compiled declaration. Neither an
+/// unrelated mapping nor an open template needs a phantom Rust owner crate.
+#[test]
+fn semantic_templates_and_unused_mappings_do_not_require_rust_owners() {
+    let fixture = Fixture::new("binding-unused-proof", OLD_VALUES, CURRENT_VALUES);
+    fixture.select("");
+    let graph = crate::resolve_modules(vec![
+        crate::parse_module(Path::new("proof/open.ncidl"), "#[version(1)] struct Envelope<T> { item: T }").unwrap(),
+        crate::parse_module(Path::new("proof/unused.ncidl"), "#[version(1)] struct NeverSelected { item: u32 }").unwrap(),
+        crate::parse_module(
+            Path::new("proof/service.ncidl"),
+            "extern proof.open; use proof.open::Envelope; #[version(1)] interface Service { fn value(&self, value: Envelope<u32>) -> Result<Envelope<u32>>; }",
+        )
+        .unwrap(),
+    ])
+    .unwrap();
+    let mut paths = RustModulePaths::default();
+    paths.insert("proof.service", "binding_provider::service").unwrap();
+    paths.insert("proof.open", "absent_open_owner::bindings").unwrap();
+    paths.insert("proof.unused", "absent_unused_owner::bindings").unwrap();
+    fixture.write("provider/src/service.rs", &generate_rust_with_paths(&graph, "proof.service", &paths).unwrap());
+    fixture.write("provider/src/lib.rs", "extern crate self as binding_provider; pub mod service;");
+    let output = fixture.cargo("check");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+}
+
+/// The source marker's nominal interface identity must match even when a
+/// different interface in that same module has indistinguishable slot types.
+#[test]
+fn nominal_interface_substitution_is_rejected() {
+    let values = format!("{CURRENT_BASE} #[version(1)] interface Other {{ fn height(&self) -> Result<u32>; fn width(&self) -> Result<u32>; }}");
+    let fixture = Fixture::new("binding-nominal-interface", &values, &values);
+    fixture.select("pub use super::current::{Other as Base, OtherAbi as BaseAbi};");
+    fixture.provider(
+        &values,
+        "extern proof.value; use proof.value::Base; #[version(1)] interface Service {}",
+        "binding_helper::selected",
+        "",
+    );
+    fixture.rejected("same-module nominal interface", "proof.value.Base");
+}
+
+/// com_object's existing typed projection proof must keep rejecting a stale
+/// root provider even when the Rust implementation satisfies both old/new traits.
+/// This is independent of IDL's external-use checks and inherited view selection.
+#[test]
+fn object_projection_identity_still_rejects_a_stale_root_provider() {
+    let fixture = Fixture::new("binding-root-provider", OLD_BASE, CURRENT_BASE);
+    fixture.select("pub use super::old::BaseVtblFor;");
+    fixture.provider(
+        CURRENT_BASE,
+        "#[version(1)] interface Service {}",
+        "binding_helper::selected",
+        r#"
+        #[neocogi_com::com_object(interfaces(binding_helper::selected::Base))]
+        struct Counter;
+        impl binding_helper::current::Base for Counter {
+            fn height(&self) -> Result<u32, neocogi_com::NcStatus> { Ok(3) }
+            fn width(&self) -> Result<u32, neocogi_com::NcStatus> { Ok(4) }
+        }
+        impl binding_helper::old::Base for Counter {
+            fn height(&self) -> Result<u32, neocogi_com::NcStatus> { Ok(3) }
+            fn width(&self) -> Result<u32, neocogi_com::NcStatus> { Ok(4) }
+        }
+        pub fn root() -> neocogi_com::ComPtr<neocogi_com::IUnknown> { Counter::from_value(Counter) }
+    "#,
+    );
+    fixture.write("src/lib.rs", "#[test] fn construct() { drop(binding_provider::root()); }");
+    let output = fixture.cargo("test");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success());
+    assert!(
+        stderr.contains("E0080") && stderr.contains("conflicting inherited interface contracts") && stderr.contains("VTABLES"),
+        "{stderr}"
+    );
 }

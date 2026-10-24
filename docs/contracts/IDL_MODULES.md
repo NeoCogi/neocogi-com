@@ -653,6 +653,15 @@ path and rejects compilation, before runtime queries can accept an advertised
 contract that differs from its codec. No runtime registry entry or extra object
 state is created, and canonical ABI signatures are unchanged.
 
+Inherited physical table fields use `<BaseAbi as ComInterface>::VTable` and
+borrowed inherited clients use `<BaseAbi as ComClientInterface>::Client<M>`.
+The checked marker therefore selects both representations, even if a facade
+also exposes an unrelated old `BaseVTable` or `BaseClient` convenience name.
+The selected `BaseVtblFor<T>` constructor must type-check against that associated
+table; existing typed provider-projection identity/ancestry checks still apply.
+Public trait/Abi/VTable/VtblFor/Client names remain available. No extra query,
+reference-count operation, core/compiler dependency or runtime graph is added.
+
 Add other
 subsystems with `.include_root("../../ui/schemas")`. Every reachable module must have
 exactly one source owner across all roots; root order cannot shadow a definition.
