@@ -9,8 +9,9 @@ The single `neocogi-idl` package separates responsibilities into Rust modules:
 - `model`, `parser`, and `resolve` parse files/module directories, resolves copied values
   and interfaces, validates threading/required projections, and fingerprints
   the complete source graph.
-- `cargo` discovers sources and exchanges versioned source graphs through
-  Cargo `links`/`DEP_*`. Build scripts use `neocogi_idl::cargo::Module`.
+- `cargo::SharedSources` generates bindings directly from a shared IDL tree in
+  each consuming crate, without Cargo ownership packages. `cargo::Module` also
+  supports packaged source dependencies through Cargo `links`/`DEP_*` exchange.
 - `generate` lowers bound ownership into typed method/value plans and emits complete
   Rust through `neocogi-com-codegen`, with fixed declaration signatures. Generated
   contracts do not invoke interface/value attribute or scalar declaration macros,
@@ -35,7 +36,48 @@ with `ui_event_sources!` beside generated Rust bindings, and validates snapshot
 getters when publishing a catalog. See
 [UI event metadata](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/UI_EVENT_METADATA.md).
 
-## Contract crate setup
+## Shared sources in consuming crates
+
+Keep authoritative `.ncidl` files in a common namespace tree. Each application or
+library can generate its own bindings from that tree during its ordinary build:
+
+```rust,no_run
+fn main() -> Result<(), neocogi_idl::BuildError> {
+    let modules = neocogi_idl::cargo::SharedSources::new("../../idl")
+        .module("example.widgets", "my_app::widgets")
+        .build()?;
+    println!("cargo::rustc-env=WIDGET_BINDINGS={}", modules[0].include.display());
+    Ok(())
+}
+```
+
+The consuming crate declares `neocogi-idl` as a build dependency and
+`neocogi-com` as a normal dependency. It supplies an explicit self alias for the
+generated Rust paths and includes its own build output:
+
+```rust,ignore
+extern crate self as my_app;
+pub mod widgets {
+    include!(env!("WIDGET_BINDINGS"));
+}
+```
+
+The logical name selects `example/widgets.ncidl` or all parts beneath
+`example/widgets/`; declaring both forms is an error. Declare reachable modules
+with `.module(name, rust_path)` to generate them locally or `.import(name,
+rust_path)` to use definitions exposed by an existing Rust library. Imported IDL
+still comes from the shared tree and is resolved and fingerprinted in this build.
+No `links`, contract package, runtime state or `DEP_*` variable is needed.
+
+Independent generation produces distinct Rust types with the same physical ABI,
+IDs and signatures. COM calls negotiate those exact identities. Ordinary Rust
+helper calls still require their declared Rust types: compile helpers beside
+local bindings or explicitly import the helper library's definitions. Changing
+a Rust path never changes the ABI. Source maps retain authored shared-file paths;
+output filenames use existing module UUIDs so case and separator variants remain
+distinct even on case-insensitive filesystems.
+
+## Packaged source dependencies
 
 For a module named `example.widgets`, place its source parts under
 `idl/example/widgets/`. Top-level declaration order and source-part filenames
