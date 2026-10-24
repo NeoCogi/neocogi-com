@@ -326,6 +326,7 @@ mod tests {
             assert_eq!(left.module_id, right.module_id);
             assert_eq!(left.abi_fingerprint, right.abi_fingerprint);
             let map: crate::RustSourceMap = serde_json::from_slice(&fs::read(&left.source_map).unwrap()).unwrap();
+            assert_eq!(map.generated_file, left.bindings.file_name().unwrap().to_str().unwrap());
             for source in map.sources {
                 assert!(output.join(source.location.unwrap()).exists());
             }

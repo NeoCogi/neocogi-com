@@ -250,7 +250,11 @@ fn write_module_bindings(
         .module(module_name)
         .ok_or_else(|| BuildError::Idl(format!("resolved graph lost module {module_name:?}")))?;
     let mut bindings = generate_rust_with_paths_and_source_map(resolved, module_name, paths).map_err(|source| BuildError::Idl(source.to_string()))?;
-    let bindings_path = output_dir.join(format!("{stem}.rs"));
+    let generated_file = format!("{stem}.rs");
+    let bindings_path = output_dir.join(&generated_file);
+    // The filesystem writer owns physical naming; the pure generator's default
+    // logical-name stem is only a placeholder until this output is selected.
+    bindings.source_map.generated_file = generated_file;
     let include_path = output_dir.join(format!("{stem}.include.rs"));
     let source_map_path = output_dir.join(format!("{stem}.rs.map"));
     source_map::resolve_locations(&mut bindings.source_map, output_dir, source_roots, resolved)?;
