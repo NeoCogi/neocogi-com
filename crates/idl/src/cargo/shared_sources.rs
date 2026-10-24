@@ -52,7 +52,10 @@ enum Emission {
 impl SharedSources {
     /// Selects a shared directory containing file and multipart module sources.
     pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self { roots: vec![root.into()], bindings: Vec::new() }
+        Self {
+            roots: vec![root.into()],
+            bindings: Vec::new(),
+        }
     }
 
     /// Adds a source root owned by another subsystem.
@@ -220,11 +223,13 @@ fn load_sources(roots: &[PathBuf], name: &str) -> Result<(PathBuf, ModuleSources
             let metadata = match fs::metadata(&path) {
                 Ok(metadata) => metadata,
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(source) => return Err(BuildError::Io {
-                    operation: "inspect shared IDL source",
-                    path,
-                    source,
-                }),
+                Err(source) => {
+                    return Err(BuildError::Io {
+                        operation: "inspect shared IDL source",
+                        path,
+                        source,
+                    });
+                }
             };
             if metadata.is_dir() != directory || (!directory && !metadata.is_file()) {
                 return Err(BuildError::Idl(format!("shared IDL source has unexpected file kind: {}", path.display())));
@@ -240,7 +245,8 @@ fn load_sources(roots: &[PathBuf], name: &str) -> Result<(PathBuf, ModuleSources
                 }
                 return Err(BuildError::Idl(format!(
                     "shared module {name:?} has ambiguous source owners: {} and {} (including both file and directory forms)",
-                    prior_root.join(prior_candidate).display(), path.display(),
+                    prior_root.join(prior_candidate).display(),
+                    path.display(),
                 )));
             }
             owner = Some((canonical_root, candidate.clone()));
@@ -322,7 +328,13 @@ mod tests {
         assert!(!output.exists());
         fs::create_dir(root.join("proof/root")).unwrap();
         let request = request.import("proof.value", "values::api");
-        assert!(request.build_at(std::slice::from_ref(&root), &output).unwrap_err().to_string().contains("both file and directory"));
+        assert!(
+            request
+                .build_at(std::slice::from_ref(&root), &output)
+                .unwrap_err()
+                .to_string()
+                .contains("both file and directory")
+        );
         assert!(!output.exists());
     }
 
@@ -350,14 +362,21 @@ mod tests {
     #[test]
     fn subsystem_roots_resolve_imports_without_shadowing() {
         let work = tempfile::tempdir().unwrap();
-        let com = work.path().join("com/idl");
-        let ui = work.path().join("ui/idl");
+        let com = work.path().join("com/schemas");
+        let ui = work.path().join("ui/schemas");
         fs::create_dir_all(com.join("proof")).unwrap();
         fs::create_dir_all(ui.join("proof")).unwrap();
         fs::write(com.join("proof/value.ncidl"), "#[version(1)] struct Value { value: u32 }").unwrap();
-        fs::write(ui.join("proof/root.ncidl"), "extern proof.value; use proof.value::Value; #[version(1)] struct Root { value: Value }").unwrap();
-        let request = SharedSources::new(&ui).include_root(&com).include_root(ui.join("."))
-            .module("proof.root", "consumer::root").module("proof.value", "consumer::value");
+        fs::write(
+            ui.join("proof/root.ncidl"),
+            "extern proof.value; use proof.value::Value; #[version(1)] struct Root { value: Value }",
+        )
+        .unwrap();
+        let request = SharedSources::new(&ui)
+            .include_root(&com)
+            .include_root(ui.join("."))
+            .module("proof.root", "consumer::root")
+            .module("proof.value", "consumer::value");
         let output = work.path().join("output");
         request.build_at(&request.roots, &output).unwrap();
         let graph: GraphRecord = serde_json::from_slice(&fs::read(output.join("neocogi-idl-graph.json")).unwrap()).unwrap();
@@ -385,5 +404,4 @@ mod tests {
         let missing = load_sources(&[work.path().join("missing")], "proof.value").unwrap_err();
         assert!(matches!(missing, BuildError::Idl(_)), "{missing}");
     }
-
 }

@@ -2,7 +2,7 @@
 
 A contract describes values, callable interfaces and required projections at
 compile time. Rust owns concrete object fields and method bodies through
-`#[com_object]`. `#[plugin]` publishes a typed zero-argument acquisition function;
+`#[com_object]`. `#[plugin]` publishes a typed acquisition function receiving host runtime access;
 its root can be a finished service or an ordinary construction provider. Events
 are ordinary typed values passed to an application-supplied receiver.
 
@@ -20,10 +20,12 @@ COM runtime: plugin registry + loaded-library lifetime + checked root acquisitio
 host: supplies paths/dependency order, calls typed factories, owns application state
 ```
 
-Contracts produce ordinary Cargo libraries. Their Cargo `links` metadata carries
-source graphs between build scripts; it does not create a contract shared library
-or runtime contract-registration step. IDL parsing and macros run on the build
-machine. The runtime compares already-computed identities and signatures.
+Contracts live in shared `.ncidl` sources. Consumers generate bindings in their
+own crates through `cargo::SharedSources`; no contract package or `links` owner is
+required. Existing Rust helper APIs may expose their local bindings for direct
+Rust calls. Neither generation nor importing those definitions creates runtime
+state. IDL parsing and macros run on the build machine; runtime calls compare the
+already-computed identities and signatures.
 
 COM responsibilities have concrete owners: `core` supplies ABI and value support;
 `codegen` emits typed Rust bindings; `idl` owns parsing through Cargo integration;
@@ -34,7 +36,7 @@ and initializes it through `#[com_main]`. Plugins receive access to that one glo
 registry through their acquisition call. No COM runtime DSO is deployed. Contracts and facade helpers compile into their consumers. Cargo
 artifact dependencies build native compositions directly; [the native guide](../guides/COM_NATIVE.md)
 explains the graph and final link ownership.
-`cargo-neocogi` retains module authoring commands. The
+The
 [standalone sample](../../examples/com-plugin/README.md) also demonstrates the raw
 shared-library boundary and monolithic linking.
 

@@ -1,14 +1,14 @@
 error[E0597]: `signature` does not live long enough
-  --> integration-tests/ui/idl_metadata_nonstatic_signature.rs:9:24
+  --> integration-tests/ui/idl_metadata_nonstatic_signature.rs:12:24
    |
- 6 |     let mut signature = *ExampleObjectAbi::IDL_INTERFACE.identity.abi_signature;
+ 9 |     let mut signature = *ExampleObjectAbi::IDL_INTERFACE.identity.abi_signature;
    |         ------------- binding `signature` declared here
 ...
- 9 |         abi_signature: &signature,
+12 |         abi_signature: &signature,
    |                        ^^^^^^^^^^
    |                        |
    |                        borrowed value does not live long enough
    |                        this usage requires that `signature` is borrowed for `'static`
 ...
-12 | }
+15 | }
    | - `signature` dropped here while still borrowed

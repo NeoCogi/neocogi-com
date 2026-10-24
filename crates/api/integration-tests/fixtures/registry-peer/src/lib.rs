@@ -1,7 +1,9 @@
 //! Independently compiled provider exercising nested access to the host registry.
+extern crate self as nc_registry_peer;
+mod contracts { include!(env!("IDL_EXAMPLE_BINDINGS")); }
 
 use neocogi_com::{ComPtr, NcStatus, Runtime, guid_from_qualified_name};
-use neocogi_idl_example_contracts::ExampleFactoryAbi;
+use contracts::ExampleFactoryAbi;
 
 /// Required provider A is admitted by the host before publishing this peer.
 const SAMPLE: neocogi_com::NcGuid = guid_from_qualified_name("nc.examples.factory_plugin_component");

@@ -1,7 +1,9 @@
+#[allow(unused_imports, unused_macros)]
+mod test_contracts { include!(concat!(env!("OUT_DIR"), "/test_contracts.rs")); }
 use neocogi_com::{com_object, NcStatus, WeakLocalCom};
 
 extern crate self as fixture_ui_weak_local_thread_affinity;
-neocogi_com_test_contracts::ui_weak_local_thread_affinity!();
+test_contracts::ui_weak_local_thread_affinity!();
 #[com_object(ILocal)]
 struct Local;
 impl ILocal for Local {

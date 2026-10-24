@@ -1,13 +1,13 @@
 error: duplicate COM interface in interfaces(...)
- --> integration-tests/ui/class_duplicate_interface.rs:6:51
+ --> integration-tests/ui/class_duplicate_interface.rs:8:51
   |
-6 | #[com_object(interfaces(IDuplicateClassInterface, IDuplicateClassInterface))]
+8 | #[com_object(interfaces(IDuplicateClassInterface, IDuplicateClassInterface))]
   |                                                   ^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: unused import: `NcStatus`
- --> integration-tests/ui/class_duplicate_interface.rs:1:19
+ --> integration-tests/ui/class_duplicate_interface.rs:3:19
   |
-1 | use neocogi_com::{NcStatus, com_object};
+3 | use neocogi_com::{NcStatus, com_object};
   |                   ^^^^^^^^
   |
   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default

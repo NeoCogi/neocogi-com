@@ -1,8 +1,8 @@
 //! Host-owned domain notification queue; plugin contracts have no channel dependency.
 use neocogi_com::{ComPtr, NcStatus, NcValueRef, NC_E_CLOSED};
-use neocogi_idl_example_contracts::{ExtentNotification, IExtentObserver, IExtentObserverAbi};
+use neocogi_example_com_host::contracts::{ExtentNotification, IExtentObserver, IExtentObserverAbi};
 
-#[neocogi_com::com_object(neocogi_idl_example_contracts::IExtentObserver)]
+#[neocogi_com::com_object(neocogi_example_com_host::contracts::IExtentObserver)]
 /// Retains the sending endpoint, never the producer or application state.
 struct Observer {
     /// Owned facts survive source destruction.

@@ -3,7 +3,7 @@
 Cargo owns application compilation, dependency resolution, feature selection and
 native artifact paths. There is one workspace lockfile. There are no generated
 component workspaces, wrapper library packages, assembly variants or `plugins.txt`.
-`cargo-neocogi` retains [module authoring commands](../../tools/cargo-neocogi/README.md).
+IDL generation belongs to each consumer’s build script, reading shared subsystem sources.
 
 ## Build and run
 

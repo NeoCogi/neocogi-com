@@ -1,7 +1,9 @@
+#[allow(unused_imports, unused_macros)]
+mod test_contracts { include!(concat!(env!("OUT_DIR"), "/test_contracts.rs")); }
 use neocogi_com::{com_object, NcStatus, NcValueRef};
 
 extern crate self as fixture_ui_interface_value_ref_escape;
-neocogi_com_test_contracts::ui_interface_value_ref_escape!();
+test_contracts::ui_interface_value_ref_escape!();
 
 /// Deliberately attempts to keep the receiver's borrowed guard permanently.
 #[com_object(IValueReceiver)]

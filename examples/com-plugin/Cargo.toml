@@ -20,4 +20,6 @@ default = []
 dynamic-plugin = []
 [dependencies]
 neocogi-com = { workspace = true, features = ["macros", "std"] }
-neocogi-idl-example-contracts = { path = "../../tools/idl/example-contracts" }
+
+[build-dependencies]
+neocogi-idl.workspace = true

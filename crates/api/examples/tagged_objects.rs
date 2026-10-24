@@ -1,6 +1,6 @@
 use neocogi_com::{ComPtr, IUnknown, NcStatus, com_object};
 
-// Contract identity and wire codecs are compiled from examples/idl/nc/examples/tagged_objects.ncidl.
+// Contract identity and wire codecs are compiled from examples/schemas/nc/examples/tagged_objects.ncidl.
 #[allow(dead_code, unused_imports)]
 mod bindings {
     include!(concat!(env!("OUT_DIR"), "/example_tagged_objects.rs"));

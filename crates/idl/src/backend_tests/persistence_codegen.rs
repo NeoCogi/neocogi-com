@@ -11,7 +11,7 @@ use std::path::Path;
 #[test]
 fn persistence_bindings_match_idl() {
     let consumer = super::test_consumer::Consumer::new("persistence-binding-proof");
-    let source = std::fs::read_to_string(consumer.core.join("idl/neocogi/com/persistence/objects.ncidl")).unwrap();
+    let source = std::fs::read_to_string(consumer.core.join("schemas/neocogi/com/persistence/objects.ncidl")).unwrap();
     let module = neocogi_idl::parse_module_parts(
         Path::new("neocogi/com/persistence"),
         &[neocogi_idl::ModuleSource {
@@ -34,7 +34,7 @@ fn persistence_bindings_match_idl() {
 fn check_generated(path: &Path, tokens: &str) {
     let file = syn::parse_file(tokens).unwrap();
     let expected = format!(
-        "// Generated from core/idl/neocogi/com/persistence/objects.ncidl.\n\
+        "// Generated from core/schemas/neocogi/com/persistence/objects.ncidl.\n\
          // Regenerate: NC_UPDATE_PERSISTENCE_BINDINGS=1 cargo test -p neocogi-idl persistence_bindings_match_idl\n\n{}",
         prettyplease::unparse(&file),
     );

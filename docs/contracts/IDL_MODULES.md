@@ -591,57 +591,78 @@ opt-ins are removed. See [automatic value persistence](IDL_GENERIC_VALUES.md)
 for the detailed format and capability rules. No COM object machinery is added
 by these static trait implementations.
 
-## Module crates
+## Shared IDL sources
 
-A module is distributed as an ordinary Cargo package so consumers use a normal
-dependency and Cargo observes source changes:
+IDL modules do not require dedicated Cargo packages. Keep authoritative sources
+under the owning subsystem’s `schemas/` namespace tree and run the compiler in each consuming
+application or ordinary library's build script:
 
 ```text
-contracts/neocogi-ui-core-contracts/
+crates/render/schemas/neocogi/renderer/
+  geometry.ncidl
+  resources.ncidl
+  frames.ncidl
+crates/render/core/
   Cargo.toml
   build.rs
-  src/lib.rs
-  idl/neocogi/ui/core/
-    geometry.ncidl
-    input.ncidl
-    resources.ncidl
-    widgets.ncidl
+  src/abi/mod.rs
 ```
 
-The package declares a stable Cargo `links` value for its logical module. Its
-build script invokes the version-pinned `neocogi-idl` library rather than
-an executable found on `PATH`:
+`neocogi-idl` is a version-pinned build dependency, not a binary found on `PATH`.
+The logical name selects a single `.ncidl` file or a multipart directory:
 
 ```rust
 fn main() {
-    neocogi_idl::cargo::Module::directory("idl", "neocogi/ui/core")
-        .build()
-        .expect("failed to build neocogi.ui.core");
+    for module in neocogi_idl::cargo::SharedSources::new("../schemas")
+        .module("neocogi.renderer", "neocogi_render_core::abi")
+        .build().expect("generate renderer bindings") {
+        println!("cargo::rustc-env=RENDERER_BINDINGS={}", module.include.display());
+    }
 }
 ```
 
-`Module::new("idl", "neocogi/ui/core.ncidl")` remains the single-file form. It has
-the same compiler semantics and is useful for small modules; it is not a
-different contract format.
-
-The reusable parser/resolver and build integration live in `neocogi-idl`
-(`crates/com/idl`). This library is independent of the optional `cargo-neocogi`
-authoring command: contract build scripts run through ordinary Cargo. The example
-contract crates under `tools/idl` remain compiler fixtures.
-
-The helper emits precise `cargo::rerun-if-changed` directives. Modifying the
-module source therefore regenerates bindings during the
-next Cargo build. The generated Rust library includes bindings from `OUT_DIR`:
+The consumer supplies the named self alias and includes its own output:
 
 ```rust
-#![no_std]
-
-include!(concat!(env!("OUT_DIR"), "/neocogi_ui_core.include.rs"));
+extern crate self as neocogi_render_core;
+pub mod abi {
+    include!(env!("RENDERER_BINDINGS"));
+}
 ```
 
-The module crate's handwritten `src` must not redeclare a contract `struct`,
-`enum`, `bitenum`, or `interface`. Those declarations belong in
-`.ncidl`.
+No `links` owner, `DEP_*` exchange or contract package is needed. Each reachable
+non-bundled module has an explicit Rust location: `.module(name, rust_path)` emits
+that consumer's bindings; `.import(name, rust_path)` uses definitions exposed by
+an existing ordinary library when Rust helper calls exchange those concrete types.
+Both resolve shared IDL and compute the normal transitive ABI. Add other
+subsystems with `.include_root("../../ui/schemas")`. Every reachable module must have
+exactly one source owner across all roots; root order cannot shadow a definition.
+Repeating a canonical root is harmless. Source maps preserve the actual owning root.
+Unmapped imports, conflicting Rust locations/local-import policies, and simultaneous
+file/directory owners fail the build. Rerun directives track source parts. Generated
+filenames use existing logical module UUIDs to avoid case/separator collisions and
+remain bounded; callers use each returned include path rather than guessing names.
+
+Independent consumers obtain distinct Rust types with matching ABI layouts, IIDs
+and signatures. Their COM calls negotiate that exact identity, and generated
+bindings own no runtime state. The host's sole runtime registry is unaffected.
+The standalone host/provider and independent peer exercise this model. Native
+Rust helper calls still require their declared Rust types: compile helpers with
+local bindings or explicitly import the helper library's binding definitions.
+The repository build-only [routing helper](../../scripts/idl_build.rs) selects existing
+library types for those concrete Rust boundaries; it creates no runtime registry.
+[UI](../../crates/ui/schemas), [renderer](../../crates/render/schemas),
+[platform](../../crates/platform/schemas), [GFX](../../crates/gfx/schemas),
+[skin](../../crates/skin/schemas), [demos](../../demos/schemas),
+[examples](../../examples/schemas) and [COM test fixtures](../../crates/com/schemas)
+share sources within their own subsystem. These directories replace standalone
+contract packages. The obsolete package-scaffolding CLI has been removed;
+ordinary Cargo build scripts own generation.
+Bundled language/persistence sources remain with the compiler SDK so extracted
+archives do not depend on a repository checkout.
+
+Handwritten source must not redeclare an available contract `struct`, `enum`,
+`bitenum`, or `interface`. Those declarations belong in `.ncidl`.
 
 Generated Rust is syntax-aware formatted source rather than a serialized token
 stream. It retains ordinary multiline layout and renders IDL documentation as
@@ -665,7 +686,10 @@ fingerprint. Runtime state, JSON document models, caches, concrete factory
 fields, and other implementation-only types live in their respective
 implementation crates.
 
-Every contract package declares the `links` value returned by
+### Separately distributed source dependencies
+
+When a separately distributed library uses `cargo::Module` to publish its IDL
+source graph, that existing package declares the `links` value returned by
 `neocogi_idl::cargo::contract_links_name(module)`: `nc_contract_` followed by the
 lowercase hexadecimal UTF-8 bytes of the **exact dotted IDL module name**.
 For example, `a_b.c` becomes `nc_contract_615f622e63`, while `a.b_c` becomes
@@ -849,13 +873,13 @@ Generated contract definitions need no procedural macro feature. A package that
 also compiles concrete Rust objects, including handwritten event snapshots, must
 request `neocogi-com/macros` in its own normal dependency. Its name ending in
 `contracts` does not make those implementations generated-only code. Enable `alloc`
-for owned values and `std` where required by local code. UI core contracts own
-event transport and Rust snapshots, requesting `alloc` and `macros` directly.
+for owned values and `std` where required by local code. The UI API owns
+event transport and Rust snapshots, requesting `std` and `macros` directly.
 The UI facade owns the standard-channel helper; COM has no built-in event module.
 
 The checkout check `python3 scripts/check-contract-consumers.py` runs a separate
-consumer for each of three UI event implementation packages, plus generated-only
-SDK and renderer controls. Each event consumer has only its normal contract dependency
+consumer for three UI event consumer graphs (core, nodes and demo), plus generated-only
+SDK and renderer controls. Each event consumer has only its ordinary library dependency
 and constructs, queries, reads and drops a real snapshot. Direct local macro
 requests are checked separately because mandatory transitive dependencies can
 otherwise conceal their omission through feature unification. The check uses
@@ -864,7 +888,7 @@ it does not add application contract packages to the portable SDK archive gate.
 
 - `neocogi-idl` owns parsing, semantic validation, and canonical fingerprints.
 - `neocogi-idl` owns source discovery, graph exchange, and Rust generation.
-- `cargo-neocogi` optionally manages modules; Cargo builds applications/plugins.
+- Each consumer’s build script generates its selected IDL; Cargo builds applications/plugins.
   Its IDL tools can inspect complete source declarations without shipping them.
 - `neocogi-inspect` reads plugin/dependency/factory metadata as inspection schema
   9. It compares exact factory signatures and plans provider load order.
@@ -928,8 +952,9 @@ activates its exact root identity, queries the catalog, and reads the owned
 struct/enum/message and property metadata. `create_widget` constructs a real
 widget through COM; the host verifies its advertised IID and ABI signature.
 The catalog does not transfer Rust references or expose private widget pointers.
-A consuming Rust application still links the generated contract crate to name
-its concrete event getter types and optional form fields.
+A consuming application generates matching bindings from the shared IDL or uses
+those exposed by an existing Rust helper library to name concrete getters and
+optional form fields. It needs no dedicated contract package.
 
 ### Typed class event streams
 

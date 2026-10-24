@@ -1,14 +1,14 @@
 error[E0597]: `name` does not live long enough
-  --> integration-tests/ui/idl_metadata_nonstatic_name.rs:8:25
+  --> integration-tests/ui/idl_metadata_nonstatic_name.rs:11:25
    |
- 6 |     let name = String::from("example.Object");
+ 9 |     let name = String::from("example.Object");
    |         ---- binding `name` declared here
- 7 |     let _metadata = InterfaceMetadata {
- 8 |         qualified_name: &name,
+10 |     let _metadata = InterfaceMetadata {
+11 |         qualified_name: &name,
    |                         ^^^^^
    |                         |
    |                         borrowed value does not live long enough
    |                         this usage requires that `name` is borrowed for `'static`
 ...
-11 | }
+14 | }
    | - `name` dropped here while still borrowed

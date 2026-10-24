@@ -1,4 +1,8 @@
 //! Exclusive ownership through real generated ABI calls, including destruction races.
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 use neocogi_com::{com_object, ComInterface, ComBox, WeakComBox, IUnknown, NcStatus, NC_E_BUSY, NC_E_DROPPED, NC_E_INVALID_ARG};
 use std::sync::{
     Arc, Barrier,
@@ -6,10 +10,10 @@ use std::sync::{
 };
 
 extern crate self as fixture_exclusive_com;
-neocogi_com_test_contracts::exclusive_com!();
+test_contracts::exclusive_com!();
 // Independent revisions deliberately share an IID and negotiate by signature.
 extern crate self as fixture_exclusive_com_other_revision;
-neocogi_com_test_contracts::exclusive_com_other_revision!();
+test_contracts::exclusive_com_other_revision!();
 
 #[com_object(interfaces(IValue), thread_safe, ownership = exclusive)]
 /// Test object whose observations and rendezvous outlive its exclusive owner.

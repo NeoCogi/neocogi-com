@@ -18,10 +18,10 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[3]
 MEMBERS = (
-    "crates/com/core", "crates/com/codegen", "crates/com/test-contracts", "crates/com/macros", "crates/com/idl", "crates/com/api",
-    "crates/com/runtime", "tools/idl/example-contracts",
-    "tools/idl/example-consumer-contracts", "tools/neocogi-inspect",
-    "tools/cargo-neocogi", "examples/com-plugin", "examples/com-host",
+    "crates/com/core", "crates/com/codegen", "crates/com/macros", "crates/com/idl", "crates/com/api",
+    "crates/com/runtime",
+    "tools/neocogi-inspect",
+    "examples/com-plugin", "examples/com-host",
 )
 
 
@@ -30,8 +30,8 @@ def library_workspace():
     """Lend a temporary source fixture and remove it after its child processes exit."""
     with tempfile.TemporaryDirectory(prefix="neocogi-library-sources-") as directory:
         root = Path(directory)
-        for relative in ("crates/com", "tools/idl", "tools/neocogi-inspect", "tools/cargo-neocogi",
-                         "examples/com-plugin", "examples/com-host", "docs/contracts", "docs/guides", "docs/architecture"):
+        for relative in ("crates/com", "tools/neocogi-inspect",
+                         "examples/com-plugin", "examples/com-host", "examples/schemas", "docs/contracts", "docs/guides", "docs/architecture"):
             shutil.copytree(ROOT / relative, root / relative,
                             ignore=shutil.ignore_patterns("target", "__pycache__"))
         for relative in ("README.md", "rustfmt.toml"):

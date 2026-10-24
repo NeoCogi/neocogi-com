@@ -1,9 +1,11 @@
 //! Concrete interfaces over generic owned state, without generic contracts or registered constructors.
+#[allow(unused_imports, unused_macros)]
+mod test_contracts { include!(concat!(env!("OUT_DIR"), "/test_contracts.rs")); }
 use neocogi_com::{com_object, ComPtr, NcStatus};
 use std::{cell::Cell, rc::Rc};
 
 extern crate self as fixture_ui_class_generic_owned;
-neocogi_com_test_contracts::ui_class_generic_owned!();
+test_contracts::ui_class_generic_owned!();
 
 /// Rust-local handler trait keeps data and behavior explicit inside one binary.
 trait Handler {

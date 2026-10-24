@@ -25,6 +25,14 @@ does not reassign existing IIDs, built-in signature bytes, IDL fingerprints or
 application catalog schemas. Ordinary IDL signatures continue to describe exact
 transitive contracts; core discovery checks the enclosing binary contract.
 
+Shared `.ncidl` files stay under their owning subsystem. Each consumer may
+compile them into its own `OUT_DIR` with `cargo::SharedSources`, adding explicit
+subsystem roots with `include_root`. No dedicated contract package is required.
+Independent Rust definitions retain the same logical IDs and canonical ABI;
+ordinary Rust helper calls still use the helper library's concrete Rust types.
+This source/build ownership change adds no registry or runtime and changes no
+ABI version. The host supplies access to its one runtime registry to all plugins.
+
 ## Scope
 
 The boundary uses fixed-width values, explicit C-layout records and `extern "C"`

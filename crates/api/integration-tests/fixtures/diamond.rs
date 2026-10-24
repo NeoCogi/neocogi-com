@@ -1,4 +1,8 @@
 //! Repeated diamonds exercise physical storage, all-pairs queries, and one owner.
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -6,7 +10,7 @@ use std::sync::{
 use neocogi_com::{com_object, ComInterface, IUnknown, NcInterfaceId, NcStatus, NC_E_ABI_VERSION, NC_E_BUSY, NC_E_NOINTERFACE, NC_OK};
 
 extern crate self as fixture_diamond;
-neocogi_com_test_contracts::diamond!();
+test_contracts::diamond!();
 
 impl<T: 'static> IA1 for Diamond<T> {}
 

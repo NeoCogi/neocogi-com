@@ -1,5 +1,9 @@
 #![cfg(unix)]
 
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 use neocogi_com::{ComPtr, IUnknown, NcStatus, com_object};
 use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, Output};
@@ -10,7 +14,7 @@ const THUNK_RETURNED_STATUS_EXIT_CODE: i32 = 97;
 const RELEASE_RETURNED_EXIT_CODE: i32 = 98;
 
 extern crate self as fixture_panic_behavior;
-neocogi_com_test_contracts::panic_behavior!();
+test_contracts::panic_behavior!();
 
 #[com_object(interfaces(IPanics))]
 pub struct PanickingObject;

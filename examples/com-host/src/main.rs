@@ -9,7 +9,7 @@ use neocogi_com::NcValueRef;
 #[path = "../support/extent_state.rs"]
 mod extent_state;
 use extent_state::{ExtentState, PERSISTENT_KIND};
-use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentReport};
+use neocogi_example_com_host::contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent, ExtentReport};
 
 /// Registers the selected plugin, acquires its checked factory, and mutates one object.
 #[neocogi_com::com_main]
@@ -21,7 +21,7 @@ fn main(runtime: Runtime) {
         .acquire_plugin_root::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .expect("compatible example factory");
     let (queue, messages) = notification_channel::channel();
-    let binding = neocogi_idl_example_contracts::ExtentBinding::from_observer(Some(queue.as_com_ref())).expect("shared application receiver");
+    let binding = neocogi_example_com_host::contracts::ExtentBinding::from_observer(Some(queue.as_com_ref())).expect("shared application receiver");
     let mut object = factory
         .create(Extent { width: 20, height: 10 }, NcValueRef::new(&binding).unwrap())
         .expect("typed object construction");
@@ -125,7 +125,7 @@ fn qualify_peer(_runtime: &Runtime) {}
 #[cfg(not(feature = "monolith"))]
 mod conflict {
     #[neocogi_com::plugin(name = "nc.examples.factory_plugin_component")]
-    fn acquire(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<neocogi_idl_example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+    fn acquire(_runtime: neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<neocogi_example_com_host::contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
         panic!("conflicting metadata must never be acquired")
     }
 }
@@ -137,7 +137,7 @@ struct PersistenceAdapter {
     factory: ComPtr<ExampleFactoryAbi>,
     /// Same application queue is shared by ordinary and restored objects.
     /// Live routing state is supplied separately from persisted dimensions.
-    queue: ComPtr<neocogi_idl_example_contracts::IExtentObserverAbi>,
+    queue: ComPtr<neocogi_example_com_host::contracts::IExtentObserverAbi>,
 }
 /// Validates the explicitly supported schema before invoking plugin construction.
 fn decode(version: u32, state: NcCopyFromBufferOffset<'_, u8>, children: u32) -> Result<ExtentState, NcStatus> {
@@ -162,7 +162,7 @@ impl neocogi_com::persistence::IPersistenceFactory for PersistenceAdapter {
         children: ComRef<'_, neocogi_com::persistence::IObjectChildrenAbi>,
     ) -> Result<ComPtr<IUnknown>, NcStatus> {
         let state = decode(version, state, children.count()?)?;
-        let binding = neocogi_idl_example_contracts::ExtentBinding::from_observer(Some(self.queue.as_com_ref()))?;
+        let binding = neocogi_example_com_host::contracts::ExtentBinding::from_observer(Some(self.queue.as_com_ref()))?;
         self.factory
             .create(Extent { width: state.width, height: state.height }, NcValueRef::new(&binding)?)?
             .query()

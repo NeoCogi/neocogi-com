@@ -1,13 +1,13 @@
 # One provider, dynamic or static
 
-The provider implements generated [contracts](../../tools/idl/example-contracts)
+The provider independently generates bindings from shared [IDL sources](../../examples/schemas/neocogi/idl_example)
 with private ordinary Rust state and typed factory methods. It depends on the
-facade and contracts, and receives access from its host:
+COM facade, runs IDL as a build dependency, and receives runtime access from its host:
 
 ```rust,ignore
 #[neocogi_com::plugin(name = "nc.examples.factory_plugin_component")]
 fn acquire_root(_runtime: neocogi_com::Runtime)
-    -> Result<neocogi_com::ComPtr<api::ExampleFactoryAbi>, neocogi_com::NcStatus>
+    -> Result<neocogi_com::ComPtr<crate::contracts::ExampleFactoryAbi>, neocogi_com::NcStatus>
 {
     DynamicExampleFactory::from_value(DynamicExampleFactory).query()
 }

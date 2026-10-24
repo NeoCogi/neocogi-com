@@ -1,7 +1,7 @@
 error[E0277]: the trait bound `WeakLocalCom<Value>: From<WeakComPtr<IValueAbi>>` is not satisfied
-  --> integration-tests/ui/weak_local_construction_proof.rs:14:13
+  --> integration-tests/ui/weak_local_construction_proof.rs:16:13
    |
-14 |     foreign.into()
+16 |     foreign.into()
    |             ^^^^ the trait `From<WeakComPtr<IValueAbi>>` is not implemented for `WeakLocalCom<Value>`
    |
    = note: required for `WeakComPtr<IValueAbi>` to implement `Into<WeakLocalCom<Value>>`

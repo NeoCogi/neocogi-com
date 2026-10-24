@@ -12,7 +12,8 @@ source, crate, signature, and tooling model. The
 
 ## Contracts and concrete objects
 
-Write the contract in `.ncidl`; its contract crate owns the Cargo IDL build:
+Write the contract in shared `.ncidl` sources; each consumer can generate its
+own bindings during its ordinary Cargo build:
 
 ```text
 #[version(1)]
@@ -26,7 +27,7 @@ passes typed method/value plans to `neocogi-com-codegen`. The backend emits the
 complete trait, C vtable, checked codecs, clients and provider thunks directly.
 There are no handwritten interface/value declaration attributes or signature
 options. The packaged [calculator example](examples/calculator.rs) and its
-[contract source](examples/idl/nc/examples/calculator.ncidl) show the complete path.
+[contract source](examples/schemas/nc/examples/calculator.ncidl) show the complete path.
 
 Tools can read generated contracts through `neocogi_com::idl_metadata` without
 depending on the compiler. `InterfaceAbi::IDL_INTERFACE` contains an
@@ -164,7 +165,7 @@ upgraded.
 
 ## IDL implementation and factory plugin
 
-Given a generated contract crate, implementation code has this shape:
+Given locally generated bindings, implementation code has this shape:
 
 ```rust,ignore
 use my_contracts::{Button, ButtonAbi, UiFactory};

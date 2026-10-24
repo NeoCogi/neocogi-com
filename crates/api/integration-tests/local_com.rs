@@ -1,5 +1,9 @@
 //! Checks shared ownership and alias exclusion between typed access and COM.
 
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 use neocogi_com::{com_object, NcStatus, NC_E_BUSY};
 use std::{
     rc::Rc,
@@ -7,7 +11,7 @@ use std::{
 };
 
 extern crate self as fixture_local_com;
-neocogi_com_test_contracts::local_com!();
+test_contracts::local_com!();
 
 #[com_object(interfaces(ICounter))]
 /// Owned state survives whichever kind of handle is dropped first.

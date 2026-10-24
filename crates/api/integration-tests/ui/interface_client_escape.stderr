@@ -1,13 +1,13 @@
 warning: unused import: `NcStatus`
- --> integration-tests/ui/interface_client_escape.rs:1:27
+ --> integration-tests/ui/interface_client_escape.rs:3:27
   |
-1 | use neocogi_com::{ComPtr, NcStatus};
+3 | use neocogi_com::{ComPtr, NcStatus};
   |                           ^^^^^^^^
   |
   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
 
 error[E0515]: cannot return reference to function parameter `owner`
- --> integration-tests/ui/interface_client_escape.rs:9:5
-  |
-9 |     &owner
-  |     ^^^^^^ returns a reference to data owned by the current function
+  --> integration-tests/ui/interface_client_escape.rs:11:5
+   |
+11 |     &owner
+   |     ^^^^^^ returns a reference to data owned by the current function

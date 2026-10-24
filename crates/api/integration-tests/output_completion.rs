@@ -1,11 +1,15 @@
 //! Buffer completion reuses storage reserved before any implementation can commit.
 #![recursion_limit = "256"]
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 use neocogi_com::*;
 #[path = "support/allocation_probe.rs"]
 mod allocation_probe;
 
 extern crate self as fixture_output_completion;
-neocogi_com_test_contracts::output_completion!();
+test_contracts::output_completion!();
 
 /// A copied zero-sized return can still exceed the logical traversal limit.
 type Excessive = [[bool; 0]; MAX_VALUE_COUNT];

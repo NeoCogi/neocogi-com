@@ -1,7 +1,7 @@
 error[E0277]: `WeakComPtr<IUnknown>` cannot be sent between threads safely
-  --> integration-tests/ui/weak_local_thread_affinity.rs:16:12
+  --> integration-tests/ui/weak_local_thread_affinity.rs:18:12
    |
-16 |     send::<WeakLocalCom<Local>>();
+18 |     send::<WeakLocalCom<Local>>();
    |            ^^^^^^^^^^^^^^^^^^^ `WeakComPtr<IUnknown>` cannot be sent between threads safely
    |
    = help: within `WeakLocalCom<Local>`, the trait `Send` is not implemented for `WeakComPtr<IUnknown>`
@@ -10,15 +10,15 @@ help: the trait `Send` is implemented for `WeakComPtr<T, neocogi_com::ThreadSafe
 note: required because it appears within the type `WeakLocalCom<Local>`
   --> /cargo/deps/neocogi-com-0.0.0/src/local.rs:37:11
 note: required by a bound in `send`
-  --> integration-tests/ui/weak_local_thread_affinity.rs:13:12
+  --> integration-tests/ui/weak_local_thread_affinity.rs:15:12
    |
-13 | fn send<T: Send>() {}
+15 | fn send<T: Send>() {}
    |            ^^^^ required by this bound in `send`
 
 error[E0277]: `WeakComPtr<IUnknown>` cannot be shared between threads safely
-  --> integration-tests/ui/weak_local_thread_affinity.rs:17:12
+  --> integration-tests/ui/weak_local_thread_affinity.rs:19:12
    |
-17 |     sync::<WeakLocalCom<Local>>();
+19 |     sync::<WeakLocalCom<Local>>();
    |            ^^^^^^^^^^^^^^^^^^^ `WeakComPtr<IUnknown>` cannot be shared between threads safely
    |
    = help: within `WeakLocalCom<Local>`, the trait `Sync` is not implemented for `WeakComPtr<IUnknown>`
@@ -27,7 +27,7 @@ help: the trait `Sync` is implemented for `WeakComPtr<T, neocogi_com::ThreadSafe
 note: required because it appears within the type `WeakLocalCom<Local>`
   --> /cargo/deps/neocogi-com-0.0.0/src/local.rs:37:11
 note: required by a bound in `sync`
-  --> integration-tests/ui/weak_local_thread_affinity.rs:14:12
+  --> integration-tests/ui/weak_local_thread_affinity.rs:16:12
    |
-14 | fn sync<T: Sync>() {}
+16 | fn sync<T: Sync>() {}
    |            ^^^^ required by this bound in `sync`

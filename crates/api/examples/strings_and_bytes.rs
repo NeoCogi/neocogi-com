@@ -4,7 +4,7 @@ use std::cell::Cell;
 const NC_E_EXAMPLE_INVALID_ARG_CODE: i32 = -101;
 const NC_E_EXAMPLE_INVALID_ARG: NcStatus = NcStatus::from_code(NC_E_EXAMPLE_INVALID_ARG_CODE);
 
-// Contract identity and wire codecs are compiled from examples/idl/nc/examples/strings_and_bytes.ncidl.
+// Contract identity and wire codecs are compiled from examples/schemas/nc/examples/strings_and_bytes.ncidl.
 #[allow(dead_code, unused_imports)]
 mod bindings {
     include!(concat!(env!("OUT_DIR"), "/example_strings_and_bytes.rs"));

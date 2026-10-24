@@ -285,6 +285,6 @@ uses `leaf::Fixed`, closing that template in a consumer keeps the original leaf
 Rust type even when the consumer depends only on bridge. Cargo generation selects
 a typed re-export route through the direct provider, including for qualified free
 names without `use`, and does not duplicate the leaf declaration. The
-[Cargo dependency contract](IDL_MODULES.md#module-crates) describes provider
+[Cargo dependency contract](IDL_MODULES.md#separately-distributed-source-dependencies) describes provider
 selection and the generated dependency namespace. Public owner metadata and
 canonical signatures are independent of these consumer access routes.

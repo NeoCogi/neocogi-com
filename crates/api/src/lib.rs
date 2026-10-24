@@ -16,8 +16,8 @@
 //! }
 //! ```
 //!
-//! Its contract crate runs `neocogi_idl::cargo::Module::directory(...).build()`
-//! from `build.rs` and includes the generated module. The IDL module guide and
+//! Its consuming crate runs `neocogi_idl::cargo::SharedSources`
+//! from `build.rs` and includes its own generated module. The IDL module guide and
 //! packaged `calculator` example document a complete source/build/provider flow.
 //!
 //! Concrete Rust state uses `com_object` with those generated interfaces.

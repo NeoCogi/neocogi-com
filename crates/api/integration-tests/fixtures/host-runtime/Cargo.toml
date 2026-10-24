@@ -7,12 +7,9 @@ publish = false
 autotests = false
 
 [workspace]
-
 [dev-dependencies]
 neocogi-com-runtime = { path = "../../../../runtime" }
 neocogi-com = { path = "../../..", features = ["runtime"] }
-neocogi-com-test-contracts = { path = "../../../../test-contracts" }
-neocogi-idl-example-contracts = { path = "../../../../../../tools/idl/example-contracts" }
 
 [[test]]
 name = "factory_plugin_runtime"
@@ -21,3 +18,7 @@ path = "../../support/factory_plugin_runtime_cases.rs"
 [[test]]
 name = "object_persistence"
 path = "../../support/object_persistence_cases.rs"
+
+[build-dependencies]
+neocogi-idl = { path = "../../../../idl" }
+neocogi-com-core = { path = "../../../../core" }

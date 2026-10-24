@@ -1,5 +1,5 @@
 //! Domain-specific construction-bound observation, without a generic event system.
-use crate::{ExampleObjectAbi, Extent, ExtentBinding, ExtentNotification, IExtentObserverAbi};
+use super::{ExampleObjectAbi, Extent, ExtentBinding, ExtentNotification, IExtentObserverAbi};
 use neocogi_com::{ComPtr, ComRef, NcStatus, NcValueRef, WeakComPtr};
 
 impl ExtentBinding {

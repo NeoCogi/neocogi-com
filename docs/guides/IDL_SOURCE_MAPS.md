@@ -1,37 +1,43 @@
 # Tracing generated Rust back to IDL
 
-Every Cargo IDL build writes a readable JSON source map beside its Rust bindings:
+Each consumer's shared-source IDL build writes readable Rust and a JSON source
+map into its own `OUT_DIR`:
 
 ```text
-neocogi_ui_nodes.rs
-neocogi_ui_nodes.rs.map
-neocogi_ui_nodes.include.rs
+module_<logical-module-UUID>.rs
+module_<logical-module-UUID>.rs.map
+module_<logical-module-UUID>.include.rs
 neocogi-idl-graph.json
 ```
 
-Find the actual paths without searching build directories:
+The UUID is the existing logical module identity. Bounded lowercase filenames
+keep case/separator variants distinct on every host. Obtain exact paths from
+`BuildOutput::bindings`, `include` and `source_map`; do not reconstruct a filename
+from the dotted name. Repository build scripts expose their include paths through
+`IDL_<MODULE_NAME>` environment entries in Cargo's build-script JSON:
 
 ```sh
-cargo run -p cargo-neocogi --offline -- module generate neocogi.ui.nodes
+cargo check -p neocogi-ui --message-format=json
 ```
 
-The JSON command result includes `bindings`, `source_map`, `include`, and `dependency_graph`.
-A direct Cargo build of the contract crate produces the same files through its
-existing `build.rs`. `BuildOutput::source_map` and Cargo's `idl_source_map`
-metadata expose the path to build tooling.
+The `build-script-executed` record for `neocogi-ui` contains
+`IDL_NEOCOGI_UI_NODES` in its `env` field. This is the consumer's generated entry;
+its Rust definitions and `.rs.map` are adjacent. Independently compiled consumers
+have their own output directories and maps from the same shared IDL sources.
 
 ## Navigating to generated Rust
 
-Contract crates include the generated **entry file**:
+The consumer includes its returned entry path:
 
 ```rust,ignore
-include!(concat!(env!("OUT_DIR"), "/neocogi_ui_nodes.include.rs"));
+include!(env!("IDL_NEOCOGI_UI_NODES"));
 ```
 
-The entry loads `neocogi_ui_nodes.rs` through a normal private Rust module and
-re-exports its public definitions. Public contract import paths stay the same.
-`BuildOutput::include` and Cargo's `idl_include` metadata identify this entry.
-The definitions and `.rs.map` remain adjacent, with unchanged map coordinates.
+The entry loads its generated definitions through a normal private Rust module
+and re-exports their public surface. It remains relocatable with its adjacent
+binding file, and source-map coordinates describe that actual formatted file.
+`cargo::Module` builds for separately distributed source dependencies expose the
+same `BuildOutput` fields and use their per-package conventional filenames.
 
 The module entry was introduced when contract attribute expansion caused
 rust-analyzer navigation to stop at `include!`. Current IDL generation emits
@@ -41,10 +47,7 @@ For example, `TextboxAbi` is an emitted interface marker; `LayoutTrack` is a
 native Rust enum. Its `Fixed` variant and `extent` field have their own definitions.
 The adjacent map connects each definition to the authored IDL identifier.
 
-Existing external contract crates should change `/<stem>.rs` to
-`/<stem>.include.rs` in their include statement, rebuild, and reload the
-rust-analyzer workspace. New `cargo neocogi module new` crates use the entry
-automatically. Build-script and procedural-macro support must be enabled.
+Enable rust-analyzer build-script and procedural-macro support.
 
 Generated declarations and authored members also carry readable documentation:
 
@@ -55,7 +58,7 @@ pub trait Textbox /* generated requirements and methods */ {}
 
 The annotation names the originating IDL identifier and its owning logical module.
 A source file's normalized `path` is relative to **its owner's** IDL root, which
-may belong to another contract package. Each mapping selects one entry from the
+may be the shared source tree or a separately distributed library. Each mapping selects one entry from the
 map's `sources` table. Cargo fills that file's `location`, relative to the map's
 directory, so tools resolve an authored file as:
 

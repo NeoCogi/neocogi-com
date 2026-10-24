@@ -15,6 +15,7 @@ keywords = ["com", "abi", "ffi", "plugin"]
 categories = ["api-bindings", "development-tools::ffi"]
 
 [build-dependencies]
+neocogi-com-core.workspace = true
 neocogi-idl.workspace = true
 
 [dependencies]
@@ -59,14 +60,12 @@ name = "ui"
 path = "integration-tests/ui.rs"
 
 [dev-dependencies]
-neocogi-com-test-contracts.workspace = true
 # Each test executable explicitly retains this implementation; production facade
 # features never select it for unrelated host/plugin artifacts.
 neocogi-com-runtime.workspace = true
 # The native-C ABI fixture runs Cargo offline from its own workspace. Keeping
 # its build dependency here ensures clean test runners fetch it first.
 cc = { version = "=1.2.0", default-features = false }
-neocogi-idl-example-contracts = { path = "../../../tools/idl/example-contracts" }
 trybuild.workspace = true
 
 [features]

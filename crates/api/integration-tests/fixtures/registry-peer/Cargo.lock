@@ -19,7 +19,7 @@ name = "nc-registry-peer-fixture"
 version = "0.0.0"
 dependencies = [
  "neocogi-com",
- "neocogi-idl-example-contracts",
+ "neocogi-idl",
 ]
 
 [[package]]
@@ -65,14 +65,6 @@ dependencies = [
  "serde",
  "serde_json",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "neocogi-idl-example-contracts"
-version = "0.0.0"
-dependencies = [
- "neocogi-com",
- "neocogi-idl",
 ]
 
 [[package]]

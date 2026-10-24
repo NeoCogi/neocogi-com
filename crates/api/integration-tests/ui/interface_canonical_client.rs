@@ -1,7 +1,9 @@
+#[allow(unused_imports, unused_macros)]
+mod test_contracts { include!(concat!(env!("OUT_DIR"), "/test_contracts.rs")); }
 use neocogi_com::{ComPtr, ComRef, NcStatus};
 
 extern crate self as fixture_ui_interface_canonical_client;
-neocogi_com_test_contracts::ui_interface_canonical_client!();
+test_contracts::ui_interface_canonical_client!();
 
 /// Type-checks every canonical call shape without importing an extension trait.
 fn call_owned_and_borrowed(

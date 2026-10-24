@@ -9,7 +9,7 @@ use std::{
 };
 use neocogi_com::{ComPtr, Runtime, guid_from_qualified_name};
 use neocogi_com::NcValueRef;
-use neocogi_idl_example_contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent};
+use neocogi_example_com_host::contracts::{ExampleFactoryAbi, ExampleObjectAbi, Extent};
 
 /// Gates counting around the measured setup or synchronous delivery only.
 static COUNTING: AtomicBool = AtomicBool::new(false);
@@ -68,7 +68,7 @@ fn count(operation: impl FnOnce()) -> usize {
 }
 
 /// Emits and drains scalar events; assertion formatting only runs on a failure.
-fn deliver(object: &mut ComPtr<ExampleObjectAbi>, messages: &std::sync::mpsc::Receiver<neocogi_idl_example_contracts::ExtentNotification>) {
+fn deliver(object: &mut ComPtr<ExampleObjectAbi>, messages: &std::sync::mpsc::Receiver<neocogi_example_com_host::contracts::ExtentNotification>) {
     for width in 0..10_000 {
         object.resize(Extent { width, height: 1 }).unwrap();
         let message = messages.try_recv().unwrap();
@@ -95,7 +95,7 @@ fn main(runtime: Runtime) {
     let factory = runtime
         .acquire_plugin_root::<ExampleFactoryAbi>(guid_from_qualified_name("nc.examples.factory_plugin_component"))
         .unwrap();
-    let unobserved = neocogi_idl_example_contracts::ExtentBinding::Unobserved;
+    let unobserved = neocogi_example_com_host::contracts::ExtentBinding::Unobserved;
     let mut silent = factory.create(Extent { width: 0, height: 0 }, NcValueRef::new(&unobserved).unwrap()).unwrap();
     let silent_delivery = count(|| {
         for width in 0..10_000 {
@@ -107,7 +107,7 @@ fn main(runtime: Runtime) {
     let mut inbox = None;
     let binding = count(|| inbox = Some(notification_channel::channel()));
     let (queue, messages) = inbox.unwrap();
-    let events = neocogi_idl_example_contracts::ExtentBinding::Observed(queue);
+    let events = neocogi_example_com_host::contracts::ExtentBinding::Observed(queue);
     let mut object = factory.create(Extent { width: 0, height: 0 }, NcValueRef::new(&events).unwrap()).unwrap();
     let delivery = count(|| deliver(&mut object, &messages));
     println!("common receiver and channel: {binding} allocations");

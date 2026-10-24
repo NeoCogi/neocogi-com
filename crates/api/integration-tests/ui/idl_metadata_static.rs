@@ -1,6 +1,7 @@
-#![forbid(unsafe_code)]
+extern crate self as example_bindings;
+mod example { include!(env!("IDL_EXAMPLE_BINDINGS")); include!(concat!(env!("OUT_DIR"), "/example_helpers.rs")); }
 use neocogi_com::idl_metadata::{InterfaceIdentity, InterfaceMetadata};
-use neocogi_idl_example_contracts::ExampleObjectAbi;
+use crate::example::ExampleObjectAbi;
 
 static FIRST: [u8; 32] = [7; 32];
 static SECOND: [u8; 32] = [7; 32];
@@ -10,6 +11,8 @@ static LAST_BYTE_DIFFERS: [u8; 32] = {
     bytes
 };
 
+// Generated FFI bindings are separate from the authored, safe metadata operations.
+#[forbid(unsafe_code)]
 fn main() {
     let first = InterfaceIdentity { abi_signature: &FIRST, ..ExampleObjectAbi::IDL_INTERFACE.identity };
     let second = InterfaceIdentity { abi_signature: &SECOND, ..first };

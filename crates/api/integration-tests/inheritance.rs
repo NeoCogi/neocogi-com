@@ -1,5 +1,9 @@
 //! Single-base layout, identity and ownership checks across generated interfaces.
 
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 use neocogi_com::{com_object, ComInterface, ComPtr, ComRef, IUnknown, NcStatus, NC_E_NOINTERFACE};
 use std::{cell::Cell, rc::Rc};
 
@@ -44,7 +48,7 @@ mod contract {
 }
 
 extern crate self as fixture_inheritance;
-neocogi_com_test_contracts::inheritance!();
+test_contracts::inheritance!();
 
 #[com_object(interfaces(IToggle))]
 #[derive(Default)]

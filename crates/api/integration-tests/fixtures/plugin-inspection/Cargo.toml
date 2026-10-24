@@ -1,5 +1,4 @@
 [workspace]
-
 [package]
 name = "nc-plugin-inspection-fixture"
 version = "0.0.0"

@@ -175,7 +175,7 @@ markers, clients and metadata require neither allocation nor a runtime. With
 `alloc`, the module also provides the portable `ObjectRecord` schema and limits.
 The COM facade re-exports these contracts and supplies concrete-provider thunks.
 
-The canonical IDL is `idl/neocogi/com/persistence/objects.ncidl`. Its built-in
+The canonical IDL is `schemas/neocogi/com/persistence/objects.ncidl`. Its built-in
 bindings are checked in because core cannot depend on its own IDL compiler.
 Verify them with `cargo test -p neocogi-idl persistence_bindings_match_idl`;
 set `NC_UPDATE_PERSISTENCE_BINDINGS=1` on that command to regenerate both halves.

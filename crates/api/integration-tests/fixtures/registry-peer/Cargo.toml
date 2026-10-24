@@ -1,5 +1,4 @@
 [workspace]
-
 [package]
 name = "nc-registry-peer-fixture"
 version = "0.0.0"
@@ -16,4 +15,6 @@ dynamic-plugin = []
 
 [dependencies]
 neocogi-com = { path = "../../..", features = ["runtime"] }
-neocogi-idl-example-contracts = { path = "../../../../../../tools/idl/example-contracts" }
+
+[build-dependencies]
+neocogi-idl = { path = "../../../../idl" }

@@ -1,4 +1,4 @@
-// Generated from core/idl/neocogi/com/persistence/objects.ncidl.
+// Generated from core/schemas/neocogi/com/persistence/objects.ncidl.
 // Regenerate: NC_UPDATE_PERSISTENCE_BINDINGS=1 cargo test -p neocogi-idl persistence_bindings_match_idl
 
 /// Stable logical identity of this generated contract module.

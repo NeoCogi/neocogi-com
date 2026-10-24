@@ -1,7 +1,11 @@
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 use neocogi_com::{ComPtr, IUnknown, NC_E_INVALID_ARG, NC_OK, NcStatus, com_object};
 
 extern crate self as fixture_status_contract;
-neocogi_com_test_contracts::status_contract!();
+test_contracts::status_contract!();
 
 #[com_object(interfaces(IInvalidStatus))]
 pub struct InvalidStatusObject;

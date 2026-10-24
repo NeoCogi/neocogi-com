@@ -1,19 +1,22 @@
 //! One plugin implementation built as either a shared library or a linked Rust library.
 
+extern crate self as neocogi_example_com_plugin;
+/// Independently generated bindings from the common example IDL.
+pub mod contracts;
 use neocogi_com::{binary, ComPtr, NcValueRef, IUnknown, NcBytes, INcBytesAbi, NcGuid, NcStatus, NC_E_INVALID_ARG, NC_E_OUT_OF_RANGE, com_object};
 #[path = "../../com-host/support/extent_state.rs"]
 mod extent_state;
 use extent_state::{ExtentState, PERSISTENT_KIND};
 
-use neocogi_idl_example_contracts::{ExampleFactory, ExampleObject, ExampleObjectAbi, Extent, ExtentReport, IMeasured};
+use crate::contracts::{ExampleFactory, ExampleObject, ExampleObjectAbi, Extent, ExtentReport, IMeasured};
 
 /// Private mutable object constructed only through `ExampleFactory`.
-#[com_object(interfaces(neocogi_idl_example_contracts::ExampleObject, neocogi_com::persistence::IPersistable))]
+#[com_object(interfaces(crate::contracts::ExampleObject, neocogi_com::persistence::IPersistable))]
 struct DynamicExampleObject {
     /// Dimensions owned entirely by this COM object allocation.
     extent: Extent,
     /// Optional concrete destination, excluded from the persistent state.
-    changed: neocogi_idl_example_contracts::notifications::ExtentDelivery,
+    changed: crate::contracts::notifications::ExtentDelivery,
 }
 
 impl IMeasured for DynamicExampleObject {
@@ -39,28 +42,28 @@ impl ExampleObject for DynamicExampleObject {
 }
 
 /// Stateless root factory exported by this plugin assembly.
-#[com_object(neocogi_idl_example_contracts::ExampleFactory)]
+#[com_object(crate::contracts::ExampleFactory)]
 struct DynamicExampleFactory;
 
 impl ExampleFactory for DynamicExampleFactory {
     /// Constructs one typed object without consulting a runtime class table.
-    fn create(&self, extent: Extent, events: NcValueRef<'_, neocogi_idl_example_contracts::ExtentBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
+    fn create(&self, extent: Extent, events: NcValueRef<'_, crate::contracts::ExtentBinding>) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
         let binding = events.to_owned()?;
         let local = DynamicExampleObject::into_local(DynamicExampleObject {
             extent,
-            changed: neocogi_idl_example_contracts::notifications::ExtentDelivery::Unobserved,
+            changed: crate::contracts::notifications::ExtentDelivery::Unobserved,
         });
         // Obtain identity from initialized storage and connect delivery before
         // returning the first application-facing object capability.
         let origin = local.query::<ExampleObjectAbi>()?.downgrade()?;
-        local.try_borrow_mut()?.changed = neocogi_idl_example_contracts::notifications::ExtentDelivery::new(binding, origin);
+        local.try_borrow_mut()?.changed = crate::contracts::notifications::ExtentDelivery::new(binding, origin);
         local.query()
     }
 }
 
 /// Acquires one owned root; object construction remains on its typed methods.
 #[neocogi_com::plugin(name = "nc.examples.factory_plugin_component")]
-fn acquire_root(_runtime: ::neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<neocogi_idl_example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+fn acquire_root(_runtime: ::neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<crate::contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
     DynamicExampleFactory::from_value(DynamicExampleFactory).query()
 }
 

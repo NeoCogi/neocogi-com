@@ -1,10 +1,12 @@
 //! The same IID cannot select incompatible vtables through two ancestry paths.
+#[allow(unused_imports, unused_macros)]
+mod test_contracts { include!(concat!(env!("OUT_DIR"), "/test_contracts.rs")); }
 use neocogi_com::{com_object};
 
 extern crate self as fixture_ui_interface_conflicting_diamond;
-neocogi_com_test_contracts::ui_interface_conflicting_diamond!();
+test_contracts::ui_interface_conflicting_diamond!();
 extern crate self as fixture_ui_conflicting_right;
-neocogi_com_test_contracts::ui_conflicting_right!();
+test_contracts::ui_conflicting_right!();
 
 #[com_object(interfaces(ILeft, IRight))]
 /// Never reaches runtime construction because its layout contract is inconsistent.

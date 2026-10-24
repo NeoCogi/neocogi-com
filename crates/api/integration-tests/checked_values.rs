@@ -1,10 +1,14 @@
-//! Restricted nested fields cross real generated COM slots only as checked wire values.
-// The depth-limit regression deliberately instantiates a 65-level wire type.
 #![recursion_limit = "256"]
+//! Restricted nested fields cross real generated COM slots only as checked wire values.
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
+// The depth-limit regression deliberately instantiates a 65-level wire type.
 use neocogi_com::*;
 
 extern crate self as fixture_checked_values;
-neocogi_com_test_contracts::checked_values!();
+test_contracts::checked_values!();
 
 #[com_object(ICheck)]
 /// Stateless implementation; errors must originate before method dispatch.

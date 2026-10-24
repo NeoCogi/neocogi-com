@@ -15,7 +15,8 @@ fn sources(root: &Path, directory: &Path, modules: &mut BTreeMap<String, Module>
     entries.sort();
     for path in entries {
         if path.is_dir() {
-            sources(root, &path, modules);
+            // Shared multipart fixtures have their own consumer builds.
+            continue;
         } else if path.extension().is_some_and(|extension| extension == "ncidl") {
             println!("cargo:rerun-if-changed={}", path.display());
             let module = parse_module(path.strip_prefix(root).unwrap(), &fs::read_to_string(&path).unwrap()).unwrap_or_else(|error| panic!("{error}"));
@@ -36,11 +37,10 @@ fn dependencies(name: &str, modules: &BTreeMap<String, Module>, selected: &mut B
 }
 
 /// Generates complete Rust behind no-argument fixture macros; it creates no runtime state.
-fn main() {
-    let root = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("idl");
+pub fn generate(root: &Path) {
     println!("cargo:rerun-if-changed={}", root.display());
     let mut modules = BTreeMap::new();
-    sources(&root, &root, &mut modules);
+    sources(root, &root.join("nc/tests"), &mut modules);
     let mut output = String::new();
     for (name, module) in &modules {
         let mut selected = BTreeSet::new();
@@ -78,8 +78,21 @@ fn main() {
         let exports = exports.join(",");
         let scope = format!("__nc_fixture_{fixture}");
         output.push_str(&format!(
-            "/// Complete typed bindings from fixture `{name}`.\n#[macro_export]\nmacro_rules! {fixture} {{ () => {{ mod {scope} {{ {rust} }} pub use self::{scope}::{{{exports}}}; }}; }}\n"
+            "/// Complete typed bindings from fixture `{name}`.\nmacro_rules! {fixture} {{ () => {{ #[allow(dead_code)] mod {scope} {{ {rust} }} pub use self::{scope}::{{{exports}}}; }}; }}\npub(crate) use {fixture};\n"
         ));
     }
-    fs::write(PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("contracts.rs"), output).unwrap();
+    let output_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+    fs::write(output_dir.join("test_contracts.rs"), output).unwrap();
+    let notifications = root
+        .join("../../../examples/schemas/neocogi/idl_example/notifications.rs")
+        .canonicalize()
+        .unwrap();
+    fs::write(
+        output_dir.join("example_helpers.rs"),
+        format!(
+            "/// Domain-specific notification delivery.\n#[path = {:?}] pub mod notifications;\n",
+            notifications
+        ),
+    )
+    .unwrap();
 }

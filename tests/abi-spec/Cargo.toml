@@ -6,7 +6,6 @@ rust-version = "1.85"
 publish = false
 
 [workspace]
-
 [dependencies]
 neocogi-com = { path = "../../api", features = ["runtime"] }
 # The guide's com_main entry explicitly initializes this selected implementation.

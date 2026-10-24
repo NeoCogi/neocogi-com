@@ -5,7 +5,7 @@ use std::{fs, path::Path, process::Command};
 #[test]
 fn current_generated_persistence_peers_call_builtin_providers() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
-    let source = fs::read_to_string(root.join("crates/com/core/idl/neocogi/com/persistence/objects.ncidl")).unwrap();
+    let source = fs::read_to_string(root.join("crates/com/core/schemas/neocogi/com/persistence/objects.ncidl")).unwrap();
     let module = neocogi_idl::parse_module_parts(
         Path::new("neocogi/com/persistence"),
         &[neocogi_idl::ModuleSource {

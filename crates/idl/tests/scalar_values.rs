@@ -9,7 +9,7 @@ fn scalar_bindings_compile_and_execute_without_default_features_or_alloc() {
     // sparse holes and integer endpoints without changing authored member order.
     let source = format!(
         "{}\n{}",
-        include_str!("../../test-contracts/idl/nc/tests/scalar_values.ncidl"),
+        include_str!("../../schemas/nc/tests/scalar_values.ncidl"),
         r#"
         #[version(1)] enum SignedRuns: i8 {
             Minimum = -128, PositiveLast = 6, NegativeLast = -1, Zero = 0,

@@ -1,11 +1,15 @@
 //! Counts lifecycle calls on a foreign-style object to distinguish a borrowed
 //! dispatch from an AddRef/call/Release sequence with the same final count.
 
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 use neocogi_com::{ComInterface, ComPtr, IUnknown, IUnknownVTable, NcInterfaceId, NcStatus, NC_E_NOINTERFACE, NC_OK};
 use std::{cell::Cell, ffi::c_void, rc::Rc};
 
 extern crate self as fixture_borrowed_calls;
-neocogi_com_test_contracts::borrowed_calls!();
+test_contracts::borrowed_calls!();
 
 #[derive(Default)]
 /// Observations kept alive after the foreign object's final release.

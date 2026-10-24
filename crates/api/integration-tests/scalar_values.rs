@@ -1,4 +1,8 @@
 //! Direct IDL scalar emission preserves checked live domains and raw integer persistence.
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 use neocogi_com::*;
 use std::sync::{
     Arc,
@@ -6,7 +10,7 @@ use std::sync::{
 };
 
 extern crate self as fixture_scalar_values;
-neocogi_com_test_contracts::scalar_values!();
+test_contracts::scalar_values!();
 
 #[com_object(IScalars)]
 /// Counts actual generated provider entry separately from caller-side validation.

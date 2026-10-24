@@ -5,7 +5,7 @@
 use neocogi_com::{com_object, ComInterface, IUnknown, NcInterfaceId, NC_OK};
 use std::{hint::black_box, time::Instant};
 
-// Contract identity and wire codecs are compiled from examples/idl/nc/examples/query_cost.ncidl.
+// Contract identity and wire codecs are compiled from examples/schemas/nc/examples/query_cost.ncidl.
 #[allow(dead_code, unused_imports)]
 mod bindings {
     include!(concat!(env!("OUT_DIR"), "/example_query_cost.rs"));

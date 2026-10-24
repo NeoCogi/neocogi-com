@@ -13,7 +13,6 @@ monolith = ["dep:neocogi-example-com-plugin"]
 [dependencies]
 neocogi-com = { workspace = true, features = ["macros", "runtime"] }
 neocogi-com-runtime.workspace = true
-neocogi-idl-example-contracts = { path = "../../tools/idl/example-contracts" }
 neocogi-example-com-plugin = { path = "../com-plugin", optional = true }
 
 [[bin]]
@@ -27,3 +26,6 @@ tempfile.workspace = true
 name = "event_allocations"
 path = "examples/event_allocations.rs"
 required-features = ["monolith"]
+
+[build-dependencies]
+neocogi-idl.workspace = true

@@ -1,5 +1,9 @@
 //! Shared resource accounting and admitted output exercise real generated calls.
 #![recursion_limit = "512"]
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 use neocogi_com::*;
 use std::sync::{
     Arc,
@@ -9,7 +13,7 @@ use std::sync::{
 mod allocation_probe;
 
 extern crate self as fixture_foundation_values;
-neocogi_com_test_contracts::foundation_values!();
+test_contracts::foundation_values!();
 
 #[com_object(IReceiver)]
 /// Entry counting distinguishes producer rejection from provider acquisition.

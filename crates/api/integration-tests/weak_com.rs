@@ -1,4 +1,8 @@
 //! Weak COM lifetime is allocation-wide, independent of logical closure or queued payloads.
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 use neocogi_com::{com_object, ComPtr, IUnknown, NcStatus, WeakComPtr, NC_E_CLOSED, NC_E_DROPPED};
 use std::sync::{
     Arc,
@@ -6,7 +10,7 @@ use std::sync::{
 };
 
 extern crate self as fixture_weak_com;
-neocogi_com_test_contracts::weak_com!();
+test_contracts::weak_com!();
 
 #[com_object(IDerived)]
 /// Stores a weak self reference to prove no self-retention cycle is introduced.

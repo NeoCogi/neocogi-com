@@ -1,5 +1,9 @@
 //! One-way output primitives before and after a synchronous raw provider call.
 //! Generated-call and independent-provider tests additionally cover the binding layer.
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 use neocogi_com::*;
 use std::mem::MaybeUninit;
 #[path = "support/allocation_probe.rs"]
@@ -7,7 +11,7 @@ mod allocation_probe;
 use allocation_probe::Probe;
 
 extern crate self as fixture_output_buffers;
-neocogi_com_test_contracts::output_buffers!();
+test_contracts::output_buffers!();
 
 /// Produces two booleans through the real raw pointer/capacity/count protocol.
 unsafe extern "C" fn flags(pointer: *mut u8, capacity: u64, written: *mut u64) -> NcStatus {

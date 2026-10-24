@@ -42,7 +42,7 @@ library can generate its own bindings from that tree during its ordinary build:
 
 ```rust,no_run
 fn main() -> Result<(), neocogi_idl::BuildError> {
-    let modules = neocogi_idl::cargo::SharedSources::new("../../idl")
+    let modules = neocogi_idl::cargo::SharedSources::new("../../schemas")
         .module("example.widgets", "my_app::widgets")
         .build()?;
     println!("cargo::rustc-env=WIDGET_BINDINGS={}", modules[0].include.display());
@@ -66,7 +66,7 @@ The logical name selects `example/widgets.ncidl` or all parts beneath
 with `.module(name, rust_path)` to generate them locally or `.import(name,
 rust_path)` to use definitions exposed by an existing Rust library. Imported IDL
 still comes from the shared tree and is resolved and fingerprinted in this build.
-Use `.include_root("../another-subsystem/idl")` to resolve dependencies from
+Use `.include_root("../another-subsystem/schemas")` to resolve dependencies from
 additional subsystem trees. Each reachable module must have one source owner;
 conflicting roots fail before any output is written. Root order never hides a
 definition. Repeating the same canonical root is harmless. Source maps preserve
@@ -85,7 +85,7 @@ distinct even on case-insensitive filesystems.
 ## Packaged source dependencies
 
 For a module named `example.widgets`, place its source parts under
-`idl/example/widgets/`. Top-level declaration order and source-part filenames
+`schemas/example/widgets/`. Top-level declaration order and source-part filenames
 do not change signatures; member order inside a declaration does.
 
 ```toml
@@ -99,7 +99,7 @@ links = "nc_contract_6578616d706c652e77696467657473"
 
 [package.metadata.neocogi-contract]
 module = "example.widgets"
-source = "idl/example/widgets"
+source = "schemas/example/widgets"
 
 [dependencies]
 neocogi-com = { version = "0.0.0", default-features = false }
@@ -117,7 +117,7 @@ need the facade's `alloc` feature (or `std`) for owned value decoding. `build.rs
 /// Generates this contract crate's bindings during its ordinary Cargo build.
 fn main() -> Result<(), neocogi_idl::BuildError> {
     // Resolve this directory's module and its imported source graphs through Cargo.
-    neocogi_idl::cargo::Module::directory("idl", "example/widgets").build()?;
+    neocogi_idl::cargo::Module::directory("schemas", "example/widgets").build()?;
     Ok(())
 }
 ```
@@ -129,7 +129,7 @@ The contract's `src/lib.rs` includes the generated bindings:
 include!(concat!(env!("OUT_DIR"), "/example_widgets.include.rs"));
 ```
 
-`Module::new("idl", "example/widgets.ncidl")` selects a single-file module.
+`Module::new("schemas", "example/widgets.ncidl")` selects a single-file module.
 `Module::directory` recursively reads a module's `.ncidl` parts. Both validate
 the exact Cargo `links` name and consume imported graph paths from `DEP_*`.
 `ModuleSources` provides the same file/directory loading for tools; `generate_rust`

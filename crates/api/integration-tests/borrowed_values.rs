@@ -1,10 +1,14 @@
 //! Real generated COM calls may retain acquired values, never borrowed wire guards.
 
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 use neocogi_com::{com_object, ComPtr, NcStatus, NcValueRef};
 use std::sync::LazyLock;
 
 extern crate self as fixture_borrowed_values;
-neocogi_com_test_contracts::borrowed_values!();
+test_contracts::borrowed_values!();
 
 /// Mutable provider state stores the application value without shared mutation.
 #[com_object(IValueReceiver)]

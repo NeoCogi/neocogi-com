@@ -265,7 +265,7 @@ protocol. Live COM calls retain their separate checked wire representation.
 - `neocogi-com-runtime`: plugin catalog, loader, and persistence implementation;
   its Rust library target is `nc_com`.
 - `neocogi-idl` under `crates/com/idl`: IDL parser/resolver
-  and Cargo build integration shared by contract crates and `cargo-neocogi`.
+  and Cargo build integration used directly by consuming libraries and applications.
 
 The facade's defaults (`std`, `macros`) support local objects without linking a
 runtime. `runtime` enables service clients; every final native/browser host

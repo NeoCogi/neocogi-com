@@ -1,6 +1,10 @@
 //! Recursive contracts and independently compiled contract revisions must remain
 //! usable without permitting calls through an incompatible projected interface.
 
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 use neocogi_com::{ComPtr, ComRef, IUnknown, NcStatus, NC_E_ABI_VERSION, NC_E_NOT_FOUND, com_object};
 use std::{cell::Cell, rc::Rc};
 
@@ -107,11 +111,11 @@ pub mod producer {
 }
 
 extern crate self as fixture_recursive_interfaces;
-neocogi_com_test_contracts::recursive_interfaces!();
+test_contracts::recursive_interfaces!();
 extern crate self as fixture_recursive_consumer;
-neocogi_com_test_contracts::recursive_consumer!();
+test_contracts::recursive_consumer!();
 extern crate self as fixture_recursive_producer;
-neocogi_com_test_contracts::recursive_producer!();
+test_contracts::recursive_producer!();
 
 #[com_object(interfaces(INode))]
 /// Stateless echo node, sufficient to exercise recursion and ownership.

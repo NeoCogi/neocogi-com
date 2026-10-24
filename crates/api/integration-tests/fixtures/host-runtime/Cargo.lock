@@ -7,9 +7,9 @@ name = "host-runtime-regressions"
 version = "0.0.0"
 dependencies = [
  "neocogi-com",
+ "neocogi-com-core",
  "neocogi-com-runtime",
- "neocogi-com-test-contracts",
- "neocogi-idl-example-contracts",
+ "neocogi-idl",
 ]
 
 [[package]]
@@ -63,14 +63,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "neocogi-com-test-contracts"
-version = "0.0.0"
-dependencies = [
- "neocogi-com-core",
- "neocogi-idl",
-]
-
-[[package]]
 name = "neocogi-idl"
 version = "0.0.0"
 dependencies = [
@@ -82,14 +74,6 @@ dependencies = [
  "serde",
  "serde_json",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "neocogi-idl-example-contracts"
-version = "0.0.0"
-dependencies = [
- "neocogi-com",
- "neocogi-idl",
 ]
 
 [[package]]

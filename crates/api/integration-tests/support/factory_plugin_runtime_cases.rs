@@ -1,17 +1,21 @@
+#[allow(unused_imports, unused_macros)]
+mod test_contracts { include!(concat!(env!("OUT_DIR"), "/test_contracts.rs")); }
+extern crate self as example_bindings;
+mod example { include!(env!("IDL_EXAMPLE_BINDINGS")); include!(concat!(env!("OUT_DIR"), "/example_helpers.rs")); }
 // Generated factory registration and acquisition through the selected final runtime.
 extern crate self as fixture_factory_plugin_runtime;
-neocogi_com_test_contracts::factory_plugin_runtime!();
+test_contracts::factory_plugin_runtime!();
 
 use neocogi_com::{ComPtr, NcStatus, com_object, guid_from_qualified_name};
-use neocogi_idl_example_contracts::{ExampleFactory, ExampleFactoryAbi, ExampleObject, ExampleObjectAbi, Extent, IMeasured};
+use crate::example::{ExampleFactory, ExampleFactoryAbi, ExampleObject, ExampleObjectAbi, Extent, IMeasured};
 
 /// Private mutable implementation of the constructor-free IDL class.
-#[com_object(neocogi_idl_example_contracts::ExampleObject)]
+#[com_object(example::ExampleObject)]
 struct ExampleObjectImplementation {
     /// Current dimensions returned by both callable projections.
     extent: Extent,
     /// The constructor supplies the sole receiver, retained as private producer state.
-    events: neocogi_idl_example_contracts::notifications::ExtentDelivery,
+    events: example::notifications::ExtentDelivery,
 }
 
 impl IMeasured for ExampleObjectImplementation {
@@ -20,8 +24,8 @@ impl IMeasured for ExampleObjectImplementation {
         Ok(self.extent)
     }
     /// Emits a fresh checked prefix using the same contract as the independent plugin.
-    fn reports(&self, mut output: neocogi_com::NcOutputWriter<'_, neocogi_idl_example_contracts::ExtentReport>) -> Result<u32, NcStatus> {
-        use neocogi_idl_example_contracts::ExtentReport;
+    fn reports(&self, mut output: neocogi_com::NcOutputWriter<'_, example::ExtentReport>) -> Result<u32, NcStatus> {
+        use crate::example::ExtentReport;
         if output.capacity() >= 2 {
             output.extend_from_slice(&[ExtentReport::Current { extent: self.extent, usable: true }, ExtentReport::Empty])?;
         }
@@ -38,7 +42,7 @@ impl ExampleObject for ExampleObjectImplementation {
 }
 
 /// Stateless plugin root that owns object construction policy.
-#[com_object(neocogi_idl_example_contracts::ExampleFactory)]
+#[com_object(example::ExampleFactory)]
 struct ExampleFactoryImplementation;
 
 impl ExampleFactory for ExampleFactoryImplementation {
@@ -46,22 +50,22 @@ impl ExampleFactory for ExampleFactoryImplementation {
     fn create(
         &self,
         extent: Extent,
-        events: neocogi_com::NcValueRef<'_, neocogi_idl_example_contracts::ExtentBinding>,
+        events: neocogi_com::NcValueRef<'_, example::ExtentBinding>,
     ) -> Result<ComPtr<ExampleObjectAbi>, NcStatus> {
         let binding = events.to_owned()?;
         let local = ExampleObjectImplementation::into_local(ExampleObjectImplementation {
             extent,
-            events: neocogi_idl_example_contracts::notifications::ExtentDelivery::Unobserved,
+            events: example::notifications::ExtentDelivery::Unobserved,
         });
         let origin = local.query::<ExampleObjectAbi>()?.downgrade()?;
-        local.try_borrow_mut()?.events = neocogi_idl_example_contracts::notifications::ExtentDelivery::new(binding, origin);
+        local.try_borrow_mut()?.events = example::notifications::ExtentDelivery::new(binding, origin);
         local.query()
     }
 }
 
 /// Acquires one owned root; object construction remains on its typed methods.
 #[neocogi_com::plugin(name = "nc.tests.generated_factory_plugin", version = "1.0.0")]
-fn acquire_root(_runtime: ::neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<neocogi_idl_example_contracts::ExampleFactoryAbi>, neocogi_com::NcStatus> {
+fn acquire_root(_runtime: ::neocogi_com::Runtime) -> Result<neocogi_com::ComPtr<example::ExampleFactoryAbi>, neocogi_com::NcStatus> {
     ExampleFactoryImplementation::from_value(ExampleFactoryImplementation).query()
 }
 
@@ -81,7 +85,7 @@ fn generated_contract_factory_acquires_without_a_class_table() {
     let mut object = factory
         .create(
             Extent { width: 20, height: 10 },
-            neocogi_com::NcValueRef::new(&neocogi_idl_example_contracts::ExtentBinding::Unobserved).unwrap(),
+            neocogi_com::NcValueRef::new(&example::ExtentBinding::Unobserved).unwrap(),
         )
         .expect("interface object creation failed");
     assert_eq!(object.extent().expect("extent query failed"), Extent { width: 20, height: 10 });
@@ -130,7 +134,7 @@ fn complete_plugin_info_and_direct_acquisition_work_without_filesystem_path() {
     let object = factory
         .create(
             Extent { width: 10, height: 10 },
-            neocogi_com::NcValueRef::new(&neocogi_idl_example_contracts::ExtentBinding::Unobserved).unwrap(),
+            neocogi_com::NcValueRef::new(&example::ExtentBinding::Unobserved).unwrap(),
         )
         .expect("interface object creation failed");
     assert_eq!(object.extent().expect("extent query failed"), Extent { width: 10, height: 10 });
@@ -209,7 +213,7 @@ mod service_root {
 /// Fallible provider initialization obeys the same fixed output contract.
 mod failed_root {
     use neocogi_com::{ComPtr, ComRaw, IUnknown, NcStatus, NC_E_POINTER};
-    use neocogi_idl_example_contracts::ExampleFactoryAbi;
+    use crate::example::ExampleFactoryAbi;
     use std::sync::atomic::{AtomicU32, Ordering};
 
     /// Records provider execution so invalid output storage cannot enter it.

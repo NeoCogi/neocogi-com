@@ -1,3 +1,7 @@
+#[allow(unused_imports, unused_macros)]
+mod test_contracts {
+    include!(concat!(env!("OUT_DIR"), "/test_contracts.rs"));
+}
 use neocogi_com::{
     ComInterface, ComPtr, IUnknown, NC_ABI_THREADING_THREAD_LOCAL, NC_OK, NcAbiSignature, NcPluginDescriptor, NcStatus, write_plugin_root, com_object,
     format_abi_signature, format_method_signature, guid_from_qualified_name, validate_plugin_descriptor,
@@ -87,7 +91,7 @@ mod external_fields {
 }
 
 extern crate self as fixture_abi_policy;
-neocogi_com_test_contracts::abi_policy!();
+test_contracts::abi_policy!();
 
 #[com_object(DescribedValue)]
 /// Private state implementing a class that can only be obtained from a factory.
