@@ -228,9 +228,7 @@ construction while an owner is available.
 
 Logical closure is separate from destruction. A closed service retained by a
 strong owner can still be promoted; its methods enforce closure. Owned queued
-facts remain readable after their weak source expires. UI owns event snapshots,
-origin policy and dispatch; those are ordinary domain interfaces rather than
-special IDL or runtime metadata categories.
+facts remain readable after their weak source expires.
 
 ## Allocation and borrowing
 
@@ -306,10 +304,7 @@ shared strong reference.
 An executing method must not destroy its own owner, directly or by removing an
 ancestor; waiting would deadlock. Nor may the dropping thread hold resources
 needed for an admitted call to finish. These are ordinary blocking synchronization
-constraints, not permission to defer destruction. Thread-local UI removal checks
-the existing subtree borrow state before committing and returns Busy on recursive
-removal. Widget behavior posts ordinary typed close intent to its parent, whose
-handler decides removal after the child returns; no COM lifecycle queue is involved.
+constraints, not permission to defer destruction.
 Explicit ThreadSafe objects additionally require Send + Sync
 implementations and permit destruction on the dropping thread.
 
@@ -365,8 +360,7 @@ queue. Destroying one's own active owner remains forbidden by the synchronous
 Drop contract; ownership-taking providers must validate before accepting it.
 
 `ComBox::query` and `LocalBox::into_interface` likewise return the original owner
-on failed projection. UI facade calls preserve the original typed widget or
-compiled component. Private builders that create fresh, unpublished candidates
+on failed projection. Private builders that create fresh, unpublished candidates
 may explicitly discard a returned owner when abandoning their own construction;
 that is a caller decision, never automatic error conversion in COM.
 
@@ -798,7 +792,7 @@ Its manifest enables `neocogi-com`'s `runtime` clients and directly depends on
 only richer clients require that feature. `com_main` supports safe synchronous
 nongeneric `fn main(runtime: Runtime)`, preserving normal `()`/`ExitCode`/`Result`
 returns, `?`, cfg and lint scopes. Explicit `neocogi_com = path, nc_com = path`
-arguments support renamed dependencies. It adds no executor or UI launch loop.
+arguments support renamed dependencies. It adds no executor.
 A mismatched selected implementation is a fatal startup configuration error.
 
 The [factory walkthrough](COM.md) executes generated typed registration,
@@ -1013,8 +1007,7 @@ bash scripts/test-msrv.sh
 
 That suite checks all COM/IDL/inspector targets and features, library tests,
 normative ABI snippets, inspector binary tests, and the facade/core feature
-variants. It verifies compiler support; it does not execute the cross-compiler
-dynamic-loader matrix or promise the same floor for UI/rendering dependencies.
+variants. The cross-compiler dynamic-loader matrix runs separately.
 
 Reports record `rustc -vV` for every selected compiler plus each role's exact
 profile, panic and LTO policy. Reports change to `running` before work begins and
@@ -1193,8 +1186,6 @@ No historical test counts are promoted to acceptance for this ABI-v1 consolidati
   providers, runtime and application ownership.
 - [Object/table representation](contracts/COM_INTERFACE_STORAGE.md): handle
   layout and the reason diamond inheritance does not require object headers.
-- Exclusive widget ownership:
-  `ComBox`, weak observations, synchronous Drop and parent-controlled removal.
 - [Lifetime errors](contracts/COM_LIFETIME_ERRORS.md): dropped objects versus
   closed services and error propagation from live receivers.
 - [Prepared output completion](contracts/COM_OUTPUT_COMPLETION.md): fallible
@@ -1203,7 +1194,5 @@ No historical test counts are promoted to acceptance for this ABI-v1 consolidati
   acquisition, recursion, budgets and metadata.
 - [Local NCB persistence](../crates/core/README.md#why-persistence-is-ncb-only): concrete
   bounded cursors, ordered construction, codec history and independent-plugin checks.
-- Event queues and UI event delivery:
-  concrete queue implementations, weak origins and deferred application behavior.
 - [Independent-build compatibility](#independent-build-compatibility): compiler/flag
   matrix, instrumentation and platform limits.

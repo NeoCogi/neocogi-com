@@ -309,13 +309,7 @@ implementation dependency. Reusable helpers accept `Runtime`; plugin acquisition
 receives it from the host. Tests may explicitly initialize their selected owner.
 There is no COM runtime DSO, import bridge, named getter or fallback discovery.
 Dynamic and static providers reach the same host registry through immutable C
-service tables. Caller-owned persistence contexts and UI queues remain separate.
-
-UI owns its event contracts, immutable snapshots, delivery policy and catalog
-publication. COM only supplies ordinary callable interfaces and ownership.
-See UI event delivery and
-UI authoring metadata.
-COM-only libraries can define domain observer interfaces directly; the
+service tables. Applications can define domain observer interfaces directly; the
 [SDK example](https://github.com/NeoCogi/neocogi-com/blob/master/examples/com-plugin/README.md) demonstrates this.
 
 

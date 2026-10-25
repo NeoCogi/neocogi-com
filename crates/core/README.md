@@ -268,10 +268,8 @@ the existing C-shaped persistence handles and byte buffers. The removed
 `sequence` and `rename_all` policies are rejected rather than silently ignored.
 NCB uses declaration order and variant ordinals for derived enum payloads. IDL
 scalar integer enums and flags retain their existing raw-integer persistence;
-this change does not replace those integers with ordinals. Removing Color's authored
-sequence policy advances that declaration from version 2 to 3 as required by
-the [IDL version contract](https://github.com/NeoCogi/neocogi-com/blob/master/docs/contracts/IDL_MODULES.md#contract-changes-and-versions);
-its field order and NCB bytes stay the same. Rebuild dependent contracts together.
+this change does not replace those integers with ordinals. Authored contract
+changes follow the [IDL version contract](https://github.com/NeoCogi/neocogi-com/blob/master/docs/contracts/IDL_MODULES.md#contract-changes-and-versions).
 
 This change does not make runtime persistence services optional. They have real
 snapshot/restore consumers. Omitting those services from a deployment is a
@@ -287,7 +285,6 @@ Validation on `refactor/ncb-only-persistence` through `3a3f0249`:
 | Codec and ownership | Full COM/core/macros/runtime suites: 273 passed, four existing ignored tests; golden bytes, malformed inputs, exact budget boundaries, partial-value Drop and real object snapshot/factory restore |
 | Compiler | Full IDL suite: 131 passed; generated records/enums/recursive values, rejected retired policies and unchanged canonical fingerprints for unaffected declarations |
 | Allocation-free use | Three core tests with default features disabled; generated `no_std`/no-`alloc` record and enum codecs executed using fixed buffers and measurement |
-| Consumers | 21 UI-document and six theme-authoring tests pass, including exact-limit binary save/load and generated bindings; `cargo check --workspace` regenerates contracts and checks tools, widgets and examples |
 | Independent plugins | Both `compatibility.py --suite cross-version` cases pass on Linux with Rust 1.98.1 and 1.101.0-nightly, differing panic/LTO/private-layout flags; separately built relocated artifacts exercise calls, events, persistence and release |
 
 The compiler matrix qualifies those concrete configurations; it is not a claim

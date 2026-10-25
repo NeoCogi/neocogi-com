@@ -32,12 +32,6 @@ plugin acquisition live in Rust implementations. The [language reference](https:
 owns the grammar. Records and enums share recursive checked conversion;
 there is no separate message declaration category.
 
-UI event transport is an ordinary contract in `neocogi.ui.core`. IDL has no
-application event syntax or event-root dependency. UI declares producer outputs
-with `ui_event_sources!` beside generated Rust bindings, and validates snapshot
-getters when publishing a catalog. See
-UI event metadata.
-
 ## One Rust generation backend
 
 `neocogi_idl::codegen` emits interface traits, clients, physical vtables and
@@ -55,8 +49,7 @@ IDL library and its parser dependencies on the build machine. This adds no
 runtime dependency or registry and does not change the unreleased ABI-v1 contract.
 
 Core remains independent of the compiler. Its checked-in persistence ABI stays
-freshness-checked against the same emitter. Publication order is core,
-IDL, macros, host implementation, facade, then inspector. Backend emission unit
+freshness-checked against the same emitter. Backend emission unit
 tests and compiler-dependent executable/name-binding regressions all belong to
 the IDL package; run `cargo test -p neocogi-idl` for both groups.
 

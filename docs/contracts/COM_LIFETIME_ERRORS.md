@@ -7,13 +7,12 @@ another object or service it used.
 
 | Status | Contract | Examples |
 | --- | --- | --- |
-| `NC_E_DROPPED` (`-14`) | No live owner is available; new access or promotion is rejected. | An exclusive widget's `ComBox` was dropped; a shared weak reference has no strong owner; a required weak runtime dependency cannot upgrade. |
-| `NC_E_CLOSED` (`-13`) | A service, session or channel has closed; its COM capability can still exist. | Explicit runtime shutdown; a dismissed logical window; consumed menu-builder capability; a disconnected transport; explicitly closed shared-producer event port. |
+| `NC_E_DROPPED` (`-14`) | No live owner is available; new access or promotion is rejected. | An exclusive object's `ComBox` was dropped; a shared weak reference has no strong owner; a required weak dependency cannot upgrade. |
+| `NC_E_CLOSED` (`-13`) | A service, session or channel has closed; its COM capability can still exist. | A disconnected transport or explicitly closed application service whose COM handle remains owned. |
 
-`UI_E_CLOSED` aliases only the second meaning. Widget expiration is enforced by
-COM before entering the implementation and returns `NC_E_DROPPED`. A detached
-widget whose owner still exists may instead encounter `NC_E_CLOSED` from its
-shut-down runtime. Empty optional slots are not evidence of dropped ownership.
+Logical closure is application-defined state. A closed object can retain its
+owner and still be promoted through a weak handle; its methods report closure.
+Empty optional slots are not evidence of dropped ownership.
 
 ## Ownership and concurrency
 
@@ -28,7 +27,7 @@ owner Drop clears the owner bit. Already admitted cross-thread calls can finish
 while the dropping thread waits. The status rejects new calls; it does not claim
 that an in-progress destructor has completed. Returning from owner Drop still
 proves synchronous value/descendant destruction. Weak tokens retain bookkeeping,
-not widget values, and do not postpone that destruction.
+not object values, and do not postpone that destruction.
 
 Shared `nc_weak_upgrade` returns `NC_E_DROPPED` when no strong owner remains and
 leaves its output empty. The Rust `WeakComPtr::upgrade` maps that result to
@@ -44,37 +43,20 @@ Promotion can succeed while another call holds the object gate; conflicting
 also keep local promotion possible. Weak clones and formatting never retain the
 value, and neither a foreign strong nor weak interface proves a concrete Rust T.
 
-The shared-producer `EventPort` similarly distinguishes an expired weak origin
-from its existing explicit terminal port state. Exclusive widget queues remain
-ordinary owned fields. There is no widget `close()` phase to reinstate.
+## Error propagation
 
-## Why these meanings were separated
-
-`2cb90ec9` introduced weak widget dispatch snapshots and reused `NC_E_CLOSED` for
-expired exclusive calls. It also suppressed that status in scheduling, treating
-it as proof that the scheduled widget had disappeared. A live handler accessing
-an expired child could return the same status, losing the error and allowing later
-work to execute. The lifetime and scheduling policies had become coupled through
-one ambiguous error name.
-
-Receiver selection must use the existing weak observer's liveness. Once a live
-receiver is called, the scheduler propagates every handler error. Merely adding
-or renaming a status cannot establish which object failed. See the
-dispatch contract.
+A live receiver may return `NC_E_DROPPED` from an expired dependency or
+`NC_E_CLOSED` from a service it calls. Neither result proves the receiver itself
+was destroyed. Use the relevant weak handle's promotion or checked call admission
+to establish liveness, and propagate method errors independently.
 
 ## Verification boundaries
 
 Real generated exclusive calls exercise owner destruction, unchanged rejected
 owning inputs, local weak access, and concurrent admitted calls versus Drop.
 Shared-object tests check successful promotion of a logically closed receiver and
-failed promotion after final destruction. The native C fixture checks raw weak
-promotion and its status through the ABI. A retained event-port test distinguishes
-an expired origin from explicit closure and verifies neither failed call enqueues
-a payload. UI tests distinguish destroyed widgets from retained closed windows,
-child-store views, and detached widgets whose runtime has shut down.
-
-Whole-context `Ui::close()` is terminal teardown, without
-per-window lifecycle posting. It preflights busy widget trees before committing;
-retained services then report `NC_E_CLOSED`, while destroyed widget observers
-report `NC_E_DROPPED`. Ordinary individual-window removal still reports delivery
-errors after its committed transition.
+failed promotion after final destruction. The [native C fixture](../../crates/api/integration-tests/native_c_abi.rs) checks
+raw weak promotion and its status through the ABI. The
+[weak-ownership tests](../../crates/api/integration-tests/weak_com.rs) verify that
+a logically closed object remains promotable while strongly owned and expires
+after its final strong owner is released.

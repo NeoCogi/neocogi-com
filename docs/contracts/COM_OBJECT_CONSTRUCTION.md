@@ -33,23 +33,13 @@ receiver remains fixed after exposure. A later construction error drops the
 initialized value normally, releases its receivers, and expires saved weak
 identities; no provisional weak owner or rollback publication protocol exists.
 
-## Event producers
+## Observer connections
 
-Ordinary widgets use the runtime-owned origin stack described in
-widget event origins. They store no weak self origin.
-
-Shared service ports may still carry explicit weak identities because window,
-popup, menu and choice-menu methods can emit outside widget dispatch. A factory
-obtains those identities from initialized objects. Native window/popup
-registration emits no events; exclusive manager access spans registration,
-ordinary COM allocation and connection of the fresh record's destination.
-The private connection functions expose no COM receiver replacement API.
-Menu rows are connected before insertion into their declaration.
-
-FileDialog completion can occur immediately from application `cancel`/`close`
-calls. Its factory connects the weak completion identity through checked local
-access before transferring its widget root into the runtime. Completion remains
-synchronous and does not require a widget origin scope.
+A factory can connect application-defined observers after allocating a fully
+initialized object and before returning its public interface. Obtain weak identity
+through the selected ownership policy, then finish private wiring through checked
+local access. The [host/provider example](../../examples/com-plugin/README.md)
+uses ordinary COM interfaces for notifications and keeps its queue in the host.
 
 ## Value and allocation lifetime
 

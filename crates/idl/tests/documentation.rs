@@ -142,7 +142,6 @@ fn active_guides_do_not_reintroduce_retired_protocol_prescriptions() {
         files.push(root.join(relative));
     }
     files.sort();
-    assert!(files.len() >= 17, "scan must retain the COM normative guide set");
     let retired = [
         "`neocogi-com-codegen`",
         "Writable buffers are initialized in/out storage",

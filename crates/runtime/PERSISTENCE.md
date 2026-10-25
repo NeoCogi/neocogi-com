@@ -21,7 +21,7 @@ Unknown recipes or revisions fail rather than loading code or guessing defaults.
 
 The registry releases partially built trees on failure. Providers must release
 external resources and undo unpublished topology on construction failure; this
-is not an atomic multi-window publication protocol. Keep construction detached
+does not publish application objects atomically. Keep construction detached
 until the complete root and its application bindings have been accepted.
 
 `snapshot` queries the optional capability, checks owned-path cycles and tree
@@ -39,17 +39,6 @@ traversal, duplicate recipe rejection, and cleanup after parent failure.
 The [plain-Cargo plugin example](../../examples/com-plugin/README.md) snapshots
 objects and attaches typed class streams across a relocated shared library and in a
 monolith. Its adapter reconstructs through the provider's existing typed factory.
-
-The UI round-trip test
-implements a context-bound settings-view provider with real button, checkbox,
-and linear widgets. Application code receives a mountable root and looks up
-concrete children through its composition interface. It clicks the normal UI, snapshots the edited checkbox,
-restores a new component, and rebinds it with the same application messages.
-That example defines one supported composition; it does not automatically add
-persistence to every built-in widget. The UI document layer
-and UI designer define their own authored
-UI schema and integration. Those application contracts are separate from this
-generic COM object-persistence service.
 
 ## Ownership and linkage
 

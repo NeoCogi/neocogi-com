@@ -17,12 +17,11 @@ runtime    -> registers plugins, checks factories, retains loaded libraries
 ```
 
 Contract sources are resolved at build time; generated interfaces, vtables,
-metadata, and signatures remain in their consumers. No separate contract `.so`, native description
-archive, getter, runtime inventory, or event-contract seeding is produced.
+metadata, and signatures remain in their consumers.
 `interface` describes callable behavior and required projections. Implementations
 own private Rust state through `#[com_object]`; `#[plugin]` publishes a typed
 acquisition function. Ordinary methods construct parameterized objects. A domain
-may define its own observer contracts; UI supplies its own event protocol.
+may define its own observer contracts using the same callable interfaces.
 
 The [plain-Cargo sample](../examples/com-plugin/README.md) builds the same
 plugin as a shared library and as an rlib statically linked into a monolith.
@@ -35,9 +34,7 @@ boundaries, and [the current ABI specification](abi-v1.md) for the binary model.
 
 The COM-owned [IDL compiler](../crates/idl) generates checked ABIs for ordinary values
 and callable interfaces. Domains can define their own observer contracts, as in
-the [standalone example](../examples/com-plugin/README.md). UI owns its event
-protocol, publication and widget origin policy; see UI event delivery
-and owner-scoped origins.
+the [standalone example](../examples/com-plugin/README.md).
 
 IDL declares public values and interfaces; the [language reference](contracts/IDL_MODULES.md)
 owns the accepted syntax. Construction surfaces are ordinary interfaces. Concrete
@@ -74,7 +71,7 @@ casing, so `IWidget` in `neocogi/ui.ncidl` is `neocogi.ui.IWidget`.
 An enum may select `u8`, `u16`, `u32`, `i8`, `i16`, or `i32` after its name;
 the default is `u32`.
 
-Every module is an ordinary Cargo crate with `build.rs`. The build helper tracks
+Each consumer is an ordinary Cargo crate with `build.rs`. The build helper tracks
 the `.ncidl` source and transitive module graph, generates Rust bindings into
 `OUT_DIR`, and publishes the graph through Cargo metadata. Ordinary Cargo
 regenerates bindings after an IDL edit; no separate native artifact is built.
@@ -282,9 +279,8 @@ marketplace. Applications own installation, trust, signatures, and path policy.
 [`neocogi_com::persistence`](../crates/runtime/PERSISTENCE.md) provides runtime-owned opt-in semantic snapshots and explicit,
 context-bound factory reconstruction. The portable value codec remains separate
 from object acquisition; arbitrary private object memory is never serialized.
-`events` binds concrete class streams directly. Generated form
-fields expose checked widget interfaces, and typed receivers post application
-messages without an intermediate component relay.
+The [host/provider example](../examples/com-plugin/README.md) reconstructs saved
+objects through a typed factory and reconnects its application-defined observer.
 
 ## Executed compatibility checks
 
@@ -295,8 +291,8 @@ these checks; shell, PowerShell and CI entry points delegate to it. An ordinary
 `cargo build -p neocogi-com-runtime` produces its ordinary host rlib.
 `#[com_main]` initializes that implementation; dynamic and static providers share
 its registry through supplied C service tables. No runtime DSO or native bridge
-is deployed. Generic Cargo artifacts and resource staging still belong to the
-native application composition; see the [native guide](guides/COM_NATIVE.md).
+is deployed. See the [native guide](guides/COM_NATIVE.md) for shared-provider and
+monolithic builds.
 
 ## Checking the documentation
 
