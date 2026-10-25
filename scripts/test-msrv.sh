@@ -34,7 +34,7 @@ run_msrv_cargo() {
 }
 
 run_msrv_cargo "all workspace targets and features" \
-  check -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --all-targets --all-features --locked
+  check -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect -p neocogi-com-tests --all-targets --all-features --locked
 run_msrv_cargo "workspace library tests" \
   test -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --lib --locked
 python3 scripts/qualify_floor.py "$msrv" "$target_dir"

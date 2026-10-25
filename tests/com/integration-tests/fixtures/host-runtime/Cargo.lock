@@ -3,6 +3,16 @@
 version = 4
 
 [[package]]
+name = "host-runtime-regressions"
+version = "0.0.0"
+dependencies = [
+ "neocogi-com",
+ "neocogi-com-core",
+ "neocogi-com-runtime",
+ "neocogi-idl",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -20,7 +30,6 @@ version = "0.0.0"
 dependencies = [
  "neocogi-com-core",
  "neocogi-com-macros",
- "neocogi-idl",
 ]
 
 [[package]]
@@ -33,6 +42,13 @@ version = "0.0.0"
 dependencies = [
  "neocogi-idl",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "neocogi-com-runtime"
+version = "0.0.0"
+dependencies = [
+ "neocogi-com-core",
 ]
 
 [[package]]
@@ -65,14 +81,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "projection-metadata-fixture"
-version = "0.0.0"
-dependencies = [
- "neocogi-com",
- "neocogi-idl",
 ]
 
 [[package]]

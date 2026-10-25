@@ -6,6 +6,7 @@ members = [
     "crates/macros",
     "crates/runtime",
     "crates/api",
+    "tests/com",
     "tools/neocogi-inspect",
     "examples/com-plugin",
     "examples/com-host",

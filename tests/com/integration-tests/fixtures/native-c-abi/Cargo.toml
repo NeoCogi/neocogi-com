@@ -6,8 +6,8 @@ publish = false
 
 [workspace]
 [dependencies]
-neocogi-com = { path = "../../.." }
+neocogi-com = { path = "../../../../../crates/api" }
 
 [build-dependencies]
-neocogi-idl = { path = "../../../../idl" }
+neocogi-idl = { path = "../../../../../crates/idl" }
 cc = { version = "=1.2.0", default-features = false }

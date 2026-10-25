@@ -290,7 +290,7 @@ Validation on `refactor/ncb-only-persistence` through `3a3f0249`:
 The compiler matrix qualifies those concrete configurations; it is not a claim
 about untested targets or every compiler version. No matched deployment-size
 measurement was made for this simplification. The focused regressions live in
-[binary persistence tests](https://github.com/NeoCogi/neocogi-com/blob/master/crates/api/integration-tests/binary_persistence.rs),
+[binary persistence tests](https://github.com/NeoCogi/neocogi-com/blob/master/tests/com/integration-tests/binary_persistence.rs),
 [core fixed-buffer tests](tests/binary.rs) and
 [IDL capability proofs](https://github.com/NeoCogi/neocogi-com/blob/master/crates/idl/tests/capabilities.rs).
 

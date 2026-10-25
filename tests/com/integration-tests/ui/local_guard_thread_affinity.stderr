@@ -13,7 +13,7 @@ help: the trait `Sync` is implemented for `ComPtr<T, neocogi_com::ThreadSafe>`
    | unsafe impl<T: ComInterface + ?Sized> Sync for ComPtr<T, ThreadSafe> {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 note: required because it appears within the type `LocalCom<Model>`
-  --> src/local.rs
+  --> $WORKSPACE/crates/api/src/local.rs
    |
    | pub struct LocalCom<T: ComObject> {
    |            ^^^^^^^^
@@ -24,7 +24,7 @@ note: required because it appears within the type `PhantomData<&LocalCom<Model>>
    | pub struct PhantomData<T: PointeeSized>;
    |            ^^^^^^^^^^^
 note: required because it appears within the type `LocalRef<'_, Model>`
-  --> src/local.rs
+  --> $WORKSPACE/crates/api/src/local.rs
    |
    | pub struct LocalRef<'a, T: ComObject> {
    |            ^^^^^^^^

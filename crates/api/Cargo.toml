@@ -3,9 +3,6 @@ name = "neocogi-com"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-# Repository integration suites inspect sibling packages, docs and native fixtures.
-# Keep them in checkout CI; archives ship local unit tests and downstream examples.
-exclude = ["integration-tests/**"]
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -15,10 +12,6 @@ description = "Typed C-ABI COM clients, object helpers, and optional runtime bin
 keywords = ["com", "abi", "ffi", "plugin"]
 categories = ["api-bindings", "development-tools::ffi"]
 
-[build-dependencies]
-neocogi-com-core.workspace = true
-neocogi-idl.workspace = true
-
 [dependencies]
 neocogi-com-core = { workspace = true, default-features = false }
 neocogi-com-macros = { workspace = true, optional = true }
@@ -27,63 +20,9 @@ neocogi-com-macros = { workspace = true, optional = true }
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-[[test]]
-name = "abi_policy"
-path = "integration-tests/abi_policy.rs"
-
-[[test]]
-name = "com_main"
-path = "integration-tests/com_main.rs"
-required-features = ["macros", "std"]
-
-[[test]]
-name = "foundation_values"
-path = "integration-tests/foundation_values.rs"
-
-[[test]]
-name = "native_c_abi"
-path = "integration-tests/native_c_abi.rs"
-
-[[test]]
-name = "panic_behavior"
-path = "integration-tests/panic_behavior.rs"
-
-[[test]]
-name = "runtime_path"
-path = "integration-tests/runtime_path.rs"
-
-[[test]]
-name = "status_contract"
-path = "integration-tests/status_contract.rs"
-
-[[test]]
-name = "ui"
-path = "integration-tests/ui.rs"
-
-[[test]]
-name = "client_views"
-path = "integration-tests/client_views.rs"
-required-features = ["macros", "std"]
-
-[[test]]
-name = "windows_plugin_paths"
-path = "integration-tests/windows_plugin_paths.rs"
-required-features = ["runtime"]
-
-[[test]]
-name = "client_view_admission"
-path = "integration-tests/client_view_admission.rs"
-required-features = ["macros", "std"]
-
 [dev-dependencies]
-# Each test executable explicitly retains this implementation; production facade
-# features never select it for unrelated host/plugin artifacts.
+# Library-local tests explicitly retain their host implementation.
 neocogi-com-runtime.workspace = true
-# The native-C ABI fixture runs Cargo offline from its own workspace. Keeping
-# its build dependency here ensures clean test runners fetch it first.
-cc = { version = "=1.2.0", default-features = false }
-trybuild.workspace = true
-tempfile.workspace = true
 
 [features]
 default = ["macros", "std"]
@@ -92,85 +31,3 @@ std = ["alloc", "neocogi-com-core/std"]
 alloc = ["neocogi-com-core/alloc"]
 # Supplied-host service clients; this feature chooses no implementation.
 runtime = ["std"]
-
-[[test]]
-name = "recursive_interfaces"
-path = "integration-tests/recursive_interfaces.rs"
-
-[[test]]
-name = "borrowed_calls"
-path = "integration-tests/borrowed_calls.rs"
-
-[[test]]
-name = "local_com"
-path = "integration-tests/local_com.rs"
-
-[[test]]
-name = "inheritance"
-path = "integration-tests/inheritance.rs"
-
-[[test]]
-name = "factory_plugin_runtime"
-path = "integration-tests/factory_plugin_runtime.rs"
-required-features = ["runtime"]
-
-[[test]]
-name = "binary_persistence"
-path = "integration-tests/binary_persistence.rs"
-
-[[test]]
-name = "object_persistence"
-path = "integration-tests/object_persistence.rs"
-required-features = ["runtime"]
-
-[[test]]
-name = "checked_values"
-path = "integration-tests/checked_values.rs"
-
-[[test]]
-name = "scalar_values"
-path = "integration-tests/scalar_values.rs"
-
-[[test]]
-name = "projection_metadata"
-path = "integration-tests/projection_metadata.rs"
-
-[[test]]
-name = "weak_com"
-path = "integration-tests/weak_com.rs"
-
-[[test]]
-name = "borrowed_values"
-path = "integration-tests/borrowed_values.rs"
-
-[[test]]
-name = "plugin_load_failure"
-path = "integration-tests/plugin_load_failure.rs"
-required-features = ["runtime"]
-
-[[test]]
-name = "plugin_provenance"
-path = "integration-tests/plugin_provenance.rs"
-required-features = ["runtime"]
-
-[[test]]
-name = "exclusive_com"
-path = "integration-tests/exclusive_com.rs"
-
-[[test]]
-name = "output_completion"
-path = "integration-tests/output_completion.rs"
-
-[[test]]
-name = "output_buffers"
-path = "integration-tests/output_buffers.rs"
-
-[[test]]
-name = "plugin_catalog"
-path = "integration-tests/plugin_catalog.rs"
-required-features = ["runtime"]
-
-[[test]]
-name = "plugin_inspection"
-path = "integration-tests/plugin_inspection.rs"
-required-features = ["runtime"]

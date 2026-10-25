@@ -153,19 +153,19 @@ no compatibility path in the current backend.
 
 ## Regression evidence
 
-[Output primitive tests](../../crates/api/integration-tests/output_buffers.rs)
+[Output primitive tests](../../tests/com/integration-tests/output_buffers.rs)
 cover uninitialized/short prefixes, bad tags and nested booleans, count/pointer
 shape, resource admission, allocation failure, reuse, and grouped publication.
-[Generated-call tests](../../crates/api/integration-tests/output_completion.rs)
-run the [shared fixture](../../crates/api/integration-tests/support/output_completion_fixture.rs)
+[Generated-call tests](../../tests/com/integration-tests/output_completion.rs)
+run the [shared fixture](../../tests/com/integration-tests/support/output_completion_fixture.rs)
 through two independently [compiled IDL paths](../../crates/idl/tests/output_completion.rs).
 They seed previous successful results, deny every preparation allocation independently, verify exact owner identity
 and destruction, deny all allocation after implementation entry, reject excessive
 maximum alternatives before entry, and exercise malformed successful output.
 
-[Native C](../../crates/api/integration-tests/fixtures/native-c-abi/native/caller.c)
+[Native C](../../tests/com/integration-tests/fixtures/native-c-abi/native/caller.c)
 uses independent output signatures and raw storage. Readable-input regressions
 still reject malformed bits before implementation entry; transformations now
 supply explicit input plus separate output. See
-[output ownership regressions](../../crates/api/integration-tests/output_completion.rs)
+[output ownership regressions](../../tests/com/integration-tests/output_completion.rs)
 for executed behavior checks.

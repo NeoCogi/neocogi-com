@@ -12,7 +12,7 @@ cargo test -p neocogi-com-core --target "$target" --no-default-features --locked
 echo
 echo "==> [32-bit ABI] generated Rust ABI called from native C ($target)"
 cargo test \
-  --manifest-path crates/api/integration-tests/fixtures/native-c-abi/Cargo.toml \
+  --manifest-path tests/com/integration-tests/fixtures/native-c-abi/Cargo.toml \
   --target "$target" \
   --target-dir target/native-c-abi-fixture-32 \
   --locked

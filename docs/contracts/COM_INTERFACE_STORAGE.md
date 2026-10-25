@@ -376,7 +376,7 @@ is below; its output layout cannot be compared directly with historical packaged
 ```sh
 cargo build -p neocogi-demo-full --no-default-features --features dynamic,vulkan --profile min-size --offline
 python3 scripts/measure-deployment.py PATH_TO_STAGED_DIRECTORY --executable neocogi-demo-full --output /tmp/candidate.json --baseline /tmp/baseline.json
-cargo run --offline --release -p neocogi-com --example query_cost
+cargo run --offline --release -p neocogi-com-tests --example query_cost
 ```
 
 The query probe rotates five contracts and balances each successful query with

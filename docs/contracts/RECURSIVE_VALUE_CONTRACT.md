@@ -429,14 +429,14 @@ exclusive and weak object capabilities.
 
 | Contract | Executed proof |
 | --- | --- |
-| Nested booleans never become unchecked Rust values | [Copied argument, enum payload, and readable/writable buffer thunks](../../crates/api/integration-tests/checked_values.rs) receive literal invalid raw bytes and return errors. |
+| Nested booleans never become unchecked Rust values | [Copied argument, enum payload, and readable/writable buffer thunks](../../tests/com/integration-tests/checked_values.rs) receive literal invalid raw bytes and return errors. |
 | Only the selected enum/optional payload is read | [Core value tests](../../crates/core/tests/recursive_values.rs) cover uninitialized absent payloads; copied enum tests cover unknown tags. |
 | Recursion is explicit and bounded | [IDL resolution tests](../../crates/idl/tests/resolution.rs) reject inline cycles; compiled generated bindings round-trip recursive trees and reject cyclic raw pointers. |
 | Sibling fields share resource limits | Core and generated-binding tests exceed cumulative text/storage or depth budgets; zero-sized elements still consume work. |
 | Numeric buffers remain direct borrows | Pointer-identity assertions prove numeric record and writable scalar buffers retain the original allocation; boolean-bearing records use separate storage. |
-| Borrowed values cannot escape the call | [IDL resolution](../../crates/idl/tests/resolution.rs) checks source ownership positions; [compile-fail fixtures](../../crates/api/integration-tests/ui.rs) check receiver and source-guard lifetimes. |
-| Acquired values survive producer storage | [Generated COM calls](../../crates/api/integration-tests/borrowed_values.rs) retain nested strings after source mutation/drop, accept static producer data without a static receiver borrow, and replace empty/repeated messages. |
-| Failed buffer acquisition does not leak an owned result | [Foreign-style lifecycle test](../../crates/api/integration-tests/borrowed_calls.rs) transfers a real reference beside an invalid byte and checks its release plus destination preservation. |
+| Borrowed values cannot escape the call | [IDL resolution](../../crates/idl/tests/resolution.rs) checks source ownership positions; [compile-fail fixtures](../../tests/com/integration-tests/ui.rs) check receiver and source-guard lifetimes. |
+| Acquired values survive producer storage | [Generated COM calls](../../tests/com/integration-tests/borrowed_values.rs) retain nested strings after source mutation/drop, accept static producer data without a static receiver borrow, and replace empty/repeated messages. |
+| Failed buffer acquisition does not leak an owned result | [Foreign-style lifecycle test](../../tests/com/integration-tests/borrowed_calls.rs) transfers a real reference beside an invalid byte and checks its release plus destination preservation. |
 | Generated metadata agrees with the callable contract | [Source-map integration tests](../../crates/idl/tests/source_maps.rs) compile matching metadata and execute the generated interface. |
 | Core's built-in contracts use current lowering without allocation | The persistence regeneration test checks both committed binding halves; core also checks with default features disabled. |
 

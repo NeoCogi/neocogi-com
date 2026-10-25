@@ -44,7 +44,7 @@ run_cargo "format" fmt --all --check
 # The standalone workspace commits its lockfile. Every quality row must use
 # that reviewed graph, including on a fresh checkout.
 run_cargo "Clippy, all targets and features" \
-  clippy -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --all-targets --all-features --locked -- -D warnings
+  clippy -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect -p neocogi-com-tests --all-targets --all-features --locked -- -D warnings
 run_cargo "COM SDK with all features" \
   check -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --all-features --locked
 run_cargo "neocogi-com without default features" \

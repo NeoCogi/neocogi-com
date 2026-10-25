@@ -1,5 +1,5 @@
 //! Controlled five-interface query/ownership probe; no rendering or application work.
-//! Run with `cargo run --release -p neocogi-com --example query_cost`.
+//! Run with `cargo run --release -p neocogi-com-tests --example query_cost`.
 //! Each line reports integer nanoseconds per successful query plus balanced release;
 //! discard the first warmup line and compare the remaining samples on the same host.
 use neocogi_com::{com_object, ComInterface, IUnknown, NcInterfaceId, NC_OK};

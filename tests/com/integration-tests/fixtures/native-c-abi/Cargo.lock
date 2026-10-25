@@ -3,13 +3,12 @@
 version = 4
 
 [[package]]
-name = "host-runtime-regressions"
-version = "0.0.0"
+name = "cc"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1aeb932158bd710538c73702db6945cb68a8fb08c519e6e12706b94263b36db8"
 dependencies = [
- "neocogi-com",
- "neocogi-com-core",
- "neocogi-com-runtime",
- "neocogi-idl",
+ "shlex",
 ]
 
 [[package]]
@@ -25,12 +24,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
+name = "native-c-abi-fixture"
+version = "0.0.0"
+dependencies = [
+ "cc",
+ "neocogi-com",
+ "neocogi-idl",
+]
+
+[[package]]
 name = "neocogi-com"
 version = "0.0.0"
 dependencies = [
  "neocogi-com-core",
  "neocogi-com-macros",
- "neocogi-idl",
 ]
 
 [[package]]
@@ -43,13 +50,6 @@ version = "0.0.0"
 dependencies = [
  "neocogi-idl",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "neocogi-com-runtime"
-version = "0.0.0"
-dependencies = [
- "neocogi-com-core",
 ]
 
 [[package]]
@@ -135,6 +135,12 @@ dependencies = [
  "serde_core",
  "zmij",
 ]
+
+[[package]]
+name = "shlex"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "syn"

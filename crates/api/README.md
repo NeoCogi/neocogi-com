@@ -26,8 +26,8 @@ interface ICalculator {
 passes typed method/value plans to its own `codegen` module. That shared backend emits the
 complete trait, C vtable, checked codecs, clients and provider thunks directly.
 There are no handwritten interface/value declaration attributes or signature
-options. The packaged [calculator example](examples/calculator.rs) and its
-[contract source](examples/schemas/nc/examples/calculator.ncidl) show the complete path.
+options. The checkout [calculator example](https://github.com/NeoCogi/neocogi-com/blob/master/tests/com/examples/calculator.rs) and its
+[contract source](https://github.com/NeoCogi/neocogi-com/blob/master/tests/com/examples/schemas/nc/examples/calculator.ncidl) show the complete path.
 
 Tools can read generated contracts through `neocogi_com::idl_metadata` without
 depending on the compiler. `InterfaceAbi::IDL_INTERFACE` contains an

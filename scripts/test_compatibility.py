@@ -209,7 +209,7 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(evidence["windows_plugin_paths"]["exact"], "passed")
         calls = cargo.call_args_list[:3]
         for call in calls:
-            self.assertEqual(call.args[2], ["test", "-p", "neocogi-com", "--features", "runtime", "--test", "windows_plugin_paths"])
+            self.assertEqual(call.args[2], ["test", "-p", "neocogi-com-tests", "--features", "runtime", "--test", "windows_plugin_paths"])
         self.assertEqual([call.kwargs["harness"] for call in calls], [("--list",), ("--exact", sentinel), ()])
         with patch.object(driver.platform, "system", return_value="Windows"), patch.object(driver, "cargo", side_effect=[sentinel + ": test\n", "test result: ok. 0 passed; 0 failed; 1 ignored;"]), self.assertRaises(RuntimeError):
             driver.ordinary_tests(driver.Build("stable"), Path("target"), {}, "x86_64-pc-windows-msvc", None)

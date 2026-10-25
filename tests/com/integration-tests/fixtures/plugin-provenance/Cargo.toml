@@ -1,6 +1,6 @@
 [workspace]
 [package]
-name = "nc-plugin-inspection-fixture"
+name = "nc-plugin-provenance-fixture"
 version = "0.0.0"
 edition = "2024"
 publish = false
@@ -9,4 +9,4 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-neocogi-com-core = { path = "../../../../core" }
+neocogi-com-core = { path = "../../../../../crates/core" }

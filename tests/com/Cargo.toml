@@ -1,0 +1,164 @@
+[package]
+name = "neocogi-com-tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+autotests = false
+description = "Checkout integration tests and executable COM examples"
+
+[dependencies]
+# Trybuild copies dependencies independently of this package's feature forwarding.
+# Every fixture uses std/macro clients; runtime remains an explicit selection.
+neocogi-com = { workspace = true, features = ["std", "macros"] }
+
+[build-dependencies]
+neocogi-com-core.workspace = true
+neocogi-idl.workspace = true
+
+[dev-dependencies]
+neocogi-com-core.workspace = true
+# Each final executable owns the runtime it deliberately retains.
+neocogi-com-runtime.workspace = true
+# Fetch native fixture inputs before its separate offline Cargo build.
+cc = { version = "=1.2.0", default-features = false }
+trybuild.workspace = true
+tempfile.workspace = true
+
+[features]
+default = ["macros", "std"]
+macros = ["neocogi-com/macros"]
+std = ["alloc", "neocogi-com/std"]
+alloc = ["neocogi-com/alloc"]
+runtime = ["std", "neocogi-com/runtime"]
+
+[[test]]
+name = "abi_policy"
+path = "integration-tests/abi_policy.rs"
+
+[[test]]
+name = "com_main"
+path = "integration-tests/com_main.rs"
+required-features = ["macros", "std"]
+
+[[test]]
+name = "foundation_values"
+path = "integration-tests/foundation_values.rs"
+
+[[test]]
+name = "native_c_abi"
+path = "integration-tests/native_c_abi.rs"
+
+[[test]]
+name = "panic_behavior"
+path = "integration-tests/panic_behavior.rs"
+
+[[test]]
+name = "runtime_path"
+path = "integration-tests/runtime_path.rs"
+
+[[test]]
+name = "status_contract"
+path = "integration-tests/status_contract.rs"
+
+[[test]]
+name = "ui"
+path = "integration-tests/ui.rs"
+
+[[test]]
+name = "client_views"
+path = "integration-tests/client_views.rs"
+required-features = ["macros", "std"]
+
+[[test]]
+name = "windows_plugin_paths"
+path = "integration-tests/windows_plugin_paths.rs"
+required-features = ["runtime"]
+
+[[test]]
+name = "client_view_admission"
+path = "integration-tests/client_view_admission.rs"
+required-features = ["macros", "std"]
+
+[[test]]
+name = "recursive_interfaces"
+path = "integration-tests/recursive_interfaces.rs"
+
+[[test]]
+name = "borrowed_calls"
+path = "integration-tests/borrowed_calls.rs"
+
+[[test]]
+name = "local_com"
+path = "integration-tests/local_com.rs"
+
+[[test]]
+name = "inheritance"
+path = "integration-tests/inheritance.rs"
+
+[[test]]
+name = "factory_plugin_runtime"
+path = "integration-tests/factory_plugin_runtime.rs"
+required-features = ["runtime"]
+
+[[test]]
+name = "binary_persistence"
+path = "integration-tests/binary_persistence.rs"
+
+[[test]]
+name = "object_persistence"
+path = "integration-tests/object_persistence.rs"
+required-features = ["runtime"]
+
+[[test]]
+name = "checked_values"
+path = "integration-tests/checked_values.rs"
+
+[[test]]
+name = "scalar_values"
+path = "integration-tests/scalar_values.rs"
+
+[[test]]
+name = "projection_metadata"
+path = "integration-tests/projection_metadata.rs"
+
+[[test]]
+name = "weak_com"
+path = "integration-tests/weak_com.rs"
+
+[[test]]
+name = "borrowed_values"
+path = "integration-tests/borrowed_values.rs"
+
+[[test]]
+name = "plugin_load_failure"
+path = "integration-tests/plugin_load_failure.rs"
+required-features = ["runtime"]
+
+[[test]]
+name = "plugin_provenance"
+path = "integration-tests/plugin_provenance.rs"
+required-features = ["runtime"]
+
+[[test]]
+name = "exclusive_com"
+path = "integration-tests/exclusive_com.rs"
+
+[[test]]
+name = "output_completion"
+path = "integration-tests/output_completion.rs"
+
+[[test]]
+name = "output_buffers"
+path = "integration-tests/output_buffers.rs"
+
+[[test]]
+name = "plugin_catalog"
+path = "integration-tests/plugin_catalog.rs"
+required-features = ["runtime"]
+
+[[test]]
+name = "plugin_inspection"
+path = "integration-tests/plugin_inspection.rs"
+required-features = ["runtime"]

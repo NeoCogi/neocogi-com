@@ -56,7 +56,7 @@ fn generated_objects_require_their_interface_implementation() {
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
         "[package]\nname='missing-generated-impl'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n[build-dependencies]\nneocogi-idl={{path={:?}}}\n",
-        owner, owner.join("../idl"),
+        owner.join("../../crates/api"), owner.join("../../crates/idl"),
     )).unwrap();
     fs::write(
         project.path().join("build.rs"),

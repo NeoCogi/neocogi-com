@@ -15,9 +15,9 @@ def main() -> None:
     env = dict(os.environ, RUSTUP_TOOLCHAIN=toolchain, CARGO_TARGET_DIR=str(Path(target).resolve()))
     version = run(["rustup", "run", toolchain, "rustc", "-vV"], env=env)
     rows = [
-        ("neocogi-com", "client_views", ABI_TESTS["client_views"]),
-        ("neocogi-com", "client_view_admission", "client_views_cannot_replace_capability_storage"),
-        *(("neocogi-com", name, ABI_TESTS[name]) for name in ("checked_values", "output_buffers", "output_completion")),
+        ("neocogi-com-tests", "client_views", ABI_TESTS["client_views"]),
+        ("neocogi-com-tests", "client_view_admission", "client_views_cannot_replace_capability_storage"),
+        *(("neocogi-com-tests", name, ABI_TESTS[name]) for name in ("checked_values", "output_buffers", "output_completion")),
         ("neocogi-idl", "unit_values", "unit_values_use_checked_storage_in_copied_calls"),
     ]
     evidence = []

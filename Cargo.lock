@@ -106,13 +106,9 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 name = "neocogi-com"
 version = "0.0.0"
 dependencies = [
- "cc",
  "neocogi-com-core",
  "neocogi-com-macros",
  "neocogi-com-runtime",
- "neocogi-idl",
- "tempfile",
- "trybuild",
 ]
 
 [[package]]
@@ -135,6 +131,19 @@ name = "neocogi-com-runtime"
 version = "0.0.0"
 dependencies = [
  "neocogi-com-core",
+]
+
+[[package]]
+name = "neocogi-com-tests"
+version = "0.0.0"
+dependencies = [
+ "cc",
+ "neocogi-com",
+ "neocogi-com-core",
+ "neocogi-com-runtime",
+ "neocogi-idl",
+ "tempfile",
+ "trybuild",
 ]
 
 [[package]]

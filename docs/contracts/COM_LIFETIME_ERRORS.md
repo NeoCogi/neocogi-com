@@ -55,8 +55,8 @@ to establish liveness, and propagate method errors independently.
 Real generated exclusive calls exercise owner destruction, unchanged rejected
 owning inputs, local weak access, and concurrent admitted calls versus Drop.
 Shared-object tests check successful promotion of a logically closed receiver and
-failed promotion after final destruction. The [native C fixture](../../crates/api/integration-tests/native_c_abi.rs) checks
+failed promotion after final destruction. The [native C fixture](../../tests/com/integration-tests/native_c_abi.rs) checks
 raw weak promotion and its status through the ABI. The
-[weak-ownership tests](../../crates/api/integration-tests/weak_com.rs) verify that
+[weak-ownership tests](../../tests/com/integration-tests/weak_com.rs) verify that
 a logically closed object remains promotable while strongly owned and expires
 after its final strong owner is released.

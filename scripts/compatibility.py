@@ -186,7 +186,7 @@ def ordinary_tests(build: Build, target: Path, env: dict[str, str], native_targe
     """
     evidence = {}
     if platform.system() == "Windows":
-        args = ["test", "-p", "neocogi-com", "--features", "runtime", "--test", "windows_plugin_paths"]
+        args = ["test", "-p", "neocogi-com-tests", "--features", "runtime", "--test", "windows_plugin_paths"]
         evidence["windows_plugin_paths"] = execute_tests(
             lambda options: cargo(build, target, args, env, native_target, harness=options),
             "embedded_nul_path_is_rejected_before_descriptor_getter")
@@ -194,7 +194,7 @@ def ordinary_tests(build: Build, target: Path, env: dict[str, str], native_targe
         # These cases need no runtime client capability. Exporting sanitizer
         # hooks retains public functions, so an unused runtime feature would
         # create native imports even though none of these tests calls them.
-        args = ["test", "-p", "neocogi-com", "--test", target_name]
+        args = ["test", "-p", "neocogi-com-tests", "--test", target_name]
         evidence[target_name] = execute_tests(
             lambda options: cargo(build, target, args, env, native_target, sanitizer, options), sentinel)
     if sanitizer:
@@ -209,7 +209,7 @@ def ordinary_tests(build: Build, target: Path, env: dict[str, str], native_targe
     else:
         # Execute the C fixture directly so its target is owned and cleaned here.
         # It checks native C layout; it does not instrument the C compiler itself.
-        manifest = ROOT / "crates/api/integration-tests/fixtures/native-c-abi/Cargo.toml"
+        manifest = ROOT / "tests/com/integration-tests/fixtures/native-c-abi/Cargo.toml"
         args = ["test", "--manifest-path", str(manifest)]
         evidence["native_c_abi"] = execute_tests(
             lambda options: cargo(build, target, args, env, native_target, harness=options))
@@ -280,7 +280,7 @@ def safety() -> dict:
         (["-p", "neocogi-com-runtime", "--lib"], "loader::plan::tests::orders_dependencies_before_dependents_deterministically"),
         (["-p", "neocogi-com", "--lib", "--features", "runtime"], "tests::metadata_identity_query_checks_and_releases_a_concrete_projection"),
     ]
-    targets.extend((["-p", "neocogi-com", "--features", "runtime", "--test", name], sentinel) for name, sentinel in (
+    targets.extend((["-p", "neocogi-com-tests", "--features", "runtime", "--test", name], sentinel) for name, sentinel in (
         ("local_com", "local_and_foreign_calls_share_one_gate_and_one_model"),
         ("com_main", "copied_access::copied_access_outlives_the_outer_record_and_shares_state_across_threads"),
         ("borrowed_values", "owned_message_outlives_producer_guard_and_source"),
@@ -335,7 +335,7 @@ def execute(case: Case, *, linked: bool = False, sanitizer: str | None = None) -
         executable = "neocogi-example-com" + (".exe" if os.name == "nt" else "")
         for role, build, arguments, filename in (
             ("plugin", case.plugin, ["rustc", "-p", "neocogi-example-com-plugin", "--lib", "--crate-type", "cdylib", "--features", "dynamic-plugin"], library("nc_example_com")),
-            ("peer", case.plugin, ["rustc", "--manifest-path", str(ROOT / "crates/api/integration-tests/fixtures/registry-peer/Cargo.toml"), "--lib", "--crate-type", "cdylib", "--features", "dynamic-plugin"], library("nc_registry_peer")),
+            ("peer", case.plugin, ["rustc", "--manifest-path", str(ROOT / "tests/com/integration-tests/fixtures/registry-peer/Cargo.toml"), "--lib", "--crate-type", "cdylib", "--features", "dynamic-plugin"], library("nc_registry_peer")),
             ("host", case.host, ["build", "-p", "neocogi-example-com-host", "--bin", "neocogi-example-com"], executable),
         ):
             target = work / role
@@ -358,7 +358,7 @@ def execute(case: Case, *, linked: bool = False, sanitizer: str | None = None) -
             ordinary_evidence = ordinary_tests(case.host, work / "tests", ordinary_env, next(iter(triples)), sanitizer)
             run(["rustup", "run", case.host.toolchain, "cargo", "clean", "--target-dir", str(work / "tests")], env=env)
             groups["ordinary_abi_and_embedded"] = ordinary_evidence
-            manifest = ROOT / "crates/api/integration-tests/fixtures/host-runtime/Cargo.toml"
+            manifest = ROOT / "tests/com/integration-tests/fixtures/host-runtime/Cargo.toml"
             require_file(manifest.with_name("Cargo.lock"))
             output = cargo(case.host, work / "tests", ["test", "--manifest-path", str(manifest), "--tests", "--no-run", "--message-format=json"],
                            env, next(iter(triples)), sanitizer)

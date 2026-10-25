@@ -1005,7 +1005,7 @@ Unspecified panic/LTO settings are unwind/off. Randomization uses seed 107.
 `stable-release`. `linked` executes ordinary C-layout, checked-value,
 recursive-interface, output-completion and lifetime regressions, then the complete
 factory/persistence suites through the independent
-[`host-runtime` final fixture](../crates/api/integration-tests/fixtures/host-runtime/Cargo.toml).
+[`host-runtime` final fixture](../tests/com/integration-tests/fixtures/host-runtime/Cargo.toml).
 The same case files are reused by the ordinary test roots. Each final executable
 explicitly owns its implementation; pure ABI tests enable no unused service clients.
 
@@ -1160,7 +1160,20 @@ with `build.rs`, generates an interface and executes its checked COM call. Runti
 and descriptor discovery are asserted to remain v1. No-default and alloc-only
 facade checks cover the portable feature boundary. CI runs this same gate.
 
-IDL, facade and inspector repository integration suites inspect sibling packages,
+The unpublished `neocogi-com-tests` package at `tests/com` owns integration
+fixtures, their generation and five executable Cargo examples. The facade has
+no build script or compiler build dependencies. A standalone no-default facade
+consumer's normal/build dependency graph excludes the IDL compiler and its
+syntax/printing dependencies. Default macro consumers still compile the backend
+for macro expansion. Run a checkout example with
+`cargo run -p neocogi-com-tests --example calculator`.
+
+Archive qualification copies the authoritative `strings_and_bytes` source and
+schema from that test owner into a temporary downstream consumer. It runs against
+extracted SDK archives, without the unpublished package, checking the string
+prefix, borrowed-byte call, complete 8/8/7-byte stream and terminal empty chunk.
+
+IDL, the test assembly and inspector repository integration suites inspect sibling packages,
 current guide examples or nested native fixture workspaces. Their source files
 stay in checkout CI and are excluded from registry archives, so Cargo does not
 advertise test targets whose inputs are absent. Package-local unit tests remain

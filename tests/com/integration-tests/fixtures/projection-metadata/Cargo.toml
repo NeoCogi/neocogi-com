@@ -6,7 +6,7 @@ publish = false
 
 [workspace]
 [dependencies]
-neocogi-com = { path = "../../.." }
+neocogi-com = { path = "../../../../../crates/api" }
 
 [features]
 # Inspection is a deliberate runtime consumer, independent of object construction.
@@ -20,4 +20,4 @@ strip = "symbols"
 panic = "abort"
 
 [build-dependencies]
-neocogi-idl = { path = "../../../../idl" }
+neocogi-idl = { path = "../../../../../crates/idl" }

@@ -85,17 +85,34 @@ done
 # Only extracted archives supply SDK dependencies. Cargo and nested consumer
 # tests discover this same patch configuration from the verification directory;
 # no repository sibling or source-only workspace is restored around the archives.
-python3 - "$verify_root" "$version" <<'PYCONFIG'
+python3 - "$verify_root" "$version" "$PWD" <<'PYCONFIG'
 import json
 from pathlib import Path
 import sys
-root, version = Path(sys.argv[1]), sys.argv[2]
+import shutil
+root, version, repository = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
 packages = ("neocogi-com-core", "neocogi-idl", "neocogi-com-macros",
             "neocogi-com-runtime", "neocogi-com", "neocogi-inspect")
 (root / ".cargo").mkdir()
 (root / ".cargo/config.toml").write_text("[patch.crates-io]\n" + "".join(
     f'{name} = {{ path = {json.dumps(str(root / (name + "-" + version)))} }}\n'
     for name in packages))
+# Reuse the checkout's authoritative sample, changing only generation ownership.
+consumer = root / "strings-consumer"
+(consumer / "src").mkdir(parents=True)
+shutil.copy2(repository / "tests/com/examples/strings_and_bytes.rs", consumer / "src/main.rs")
+shutil.copy2(repository / "tests/com/examples/schemas/nc/examples/strings_and_bytes.ncidl", consumer / "contract.ncidl")
+(consumer / "Cargo.toml").write_text(
+    '[package]\nname="archive-strings-consumer"\nversion="0.0.0"\nedition="2024"\n'
+    f'[dependencies]\nneocogi-com="={version}"\n[build-dependencies]\nneocogi-idl="={version}"\n')
+(consumer / "build.rs").write_text(r'''fn main() {
+    let source = std::fs::read_to_string("contract.ncidl").unwrap();
+    let module = neocogi_idl::parse_module(std::path::Path::new("nc/examples/strings_and_bytes.ncidl"), &source).unwrap();
+    let graph = neocogi_idl::resolve_modules(vec![module]).unwrap();
+    let rust = neocogi_idl::generate_rust(&graph, "nc.examples.strings_and_bytes").unwrap();
+    std::fs::write(std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("example_strings_and_bytes.rs"), rust).unwrap();
+}
+''')
 PYCONFIG
 
 # Share dependencies within this run, then discard compiled artifacts with the
@@ -110,23 +127,22 @@ for package in "${packages[@]}"; do
   cargo +1.85.0 check --manifest-path "$manifest" --all-targets --all-features
   echo "==> [packages] all shipped tests: $package"
   cargo +1.85.0 test --manifest-path "$manifest" --tests --all-features
-  if [[ "$package" == neocogi-com ]]; then
-    # Compiling an example does not execute main. Assert the actual extracted
-    # package's full stream; early successful EOF must not satisfy this check.
-    echo "==> [packages] execute strings_and_bytes from the extracted facade"
-    example_output="$(cargo +1.85.0 run --manifest-path "$manifest" --example strings_and_bytes --all-features)"
-    expected_output=$'display name: neocogi-com\nchunk len=8: "chunked "\nchunk len=8: "stream o"\nchunk len=7: "ver COM"'
-    if [[ "$example_output" != "$expected_output" ]]; then
-      printf 'unexpected strings_and_bytes output:\n%s\n' "$example_output" >&2
-      exit 1
-    fi
-    printf '%s\n' "$example_output"
-  fi
   if [[ "$package" != neocogi-inspect ]]; then
     echo "==> [packages] published documentation examples: $package"
     cargo +1.85.0 test --manifest-path "$manifest" --doc --all-features
   fi
 done
+
+# Execute the copied source against extracted SDK archives only. Its internal
+# prefix, borrowed-byte dispatch and EOF checks accompany this full-stream proof.
+echo "==> [packages] authoritative strings_and_bytes downstream consumer"
+example_output="$(cargo +1.85.0 run --manifest-path strings-consumer/Cargo.toml)"
+expected_output=$'display name: neocogi-com\nchunk len=8: "chunked "\nchunk len=8: "stream o"\nchunk len=7: "ver COM"'
+if [[ "$example_output" != "$expected_output" ]]; then
+  printf 'unexpected strings_and_bytes output:\n%s\n' "$example_output" >&2
+  exit 1
+fi
+printf '%s\n' "$example_output"
 
 # The host implementation is an ordinary rlib; there is no runtime DSO mode.
 echo "==> [packages] ordinary runtime build emits its host rlib"
