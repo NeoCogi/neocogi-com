@@ -1,4 +1,5 @@
 [toolchain]
 channel = "stable"
 profile = "minimal"
-components = ["rustfmt", "clippy"]
+# Compile-fail snapshots include standard-library source in compiler diagnostics.
+components = ["rustfmt", "clippy", "rust-src"]

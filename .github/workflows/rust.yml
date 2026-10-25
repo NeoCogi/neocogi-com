@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v6
       - name: Install stable quality tools and the supported compiler floor
         run: |
-          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy --component rust-src
           rustup toolchain install 1.85.0 --profile minimal
       - run: cargo fetch --locked
       - name: Locked workspace and qualification-driver regressions

@@ -8,6 +8,9 @@ Requires stable Rust 1.85 or newer. Native integration tests also require Python
 3.11+, a C compiler, and the platform linker. No UI or rendering libraries are
 part of this workspace.
 
+The checkout's Rust toolchain includes `rust-src` so compile-fail tests produce
+consistent standard-library diagnostics locally and in CI.
+
 | Package | Purpose |
 | --- | --- |
 | `neocogi-com-core` | Raw ABI types and traits; `no_std` by default |
