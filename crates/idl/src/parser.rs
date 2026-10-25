@@ -498,11 +498,14 @@ fn lower_method(source: TraitItemFn) -> syn::Result<Method> {
     let mut inputs = signature.inputs.into_iter();
     let receiver = match inputs.next() {
         Some(FnArg::Receiver(receiver)) if receiver.reference.is_some() && receiver.colon_token.is_none() => {
-            if receiver.mutability.is_some() {
-                Receiver::Mutable
-            } else {
-                Receiver::Shared
+            // Reject before narrowing Syn's receiver to its lifetime-free dispatch mode.
+            if let Some((_, Some(lifetime))) = &receiver.reference {
+                return Err(syn::Error::new_spanned(
+                    lifetime,
+                    "IDL receivers cannot declare lifetimes; use `&self` or `&mut self`",
+                ));
             }
+            if receiver.mutability.is_some() { Receiver::Mutable } else { Receiver::Shared }
         }
         other => return Err(syn::Error::new_spanned(other, "IDL methods must begin with `&self` or `&mut self`")),
     };

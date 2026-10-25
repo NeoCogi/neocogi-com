@@ -13,6 +13,10 @@ methods, threading, required projections and source metadata. Rust owns
 concrete storage (`#[com_object]`) and plugin acquisition (`#[plugin]`). Ordinary
 typed interface methods handle parameterized construction.
 
+Methods begin with ordinary `&self` or `&mut self` receivers. Explicit receiver
+lifetimes (including `'static` and `'_`), typed-self syntax and method lifetime
+parameters are rejected during parsing, even in unused generic declarations.
+
 A suffix such as `interface Button: IWidget + IActions` gives one physical vtable
 prefix (the first entry) and required sibling projections (later entries). All
 are queryable on the same object; requirements are transitive and acyclic.

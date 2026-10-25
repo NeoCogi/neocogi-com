@@ -1032,7 +1032,9 @@ That suite checks all COM/IDL/inspector targets and features, library tests,
 normative ABI snippets, inspector binary tests, and the facade/core feature
 variants. It also discovers and executes exact required semantic cases and then
 the complete client-view, admission, checked-value, output-buffer/completion and
-generated unit-value targets. Snapshot diagnostics remain in stable qualification.
+generated unit-value targets. Parser qualification additionally requires exact
+receiver-lifetime rejection and multipart source-diagnostic cases before running
+the complete parser target. Snapshot diagnostics remain in stable qualification.
 The cross-compiler native-loader cases run in the Linux safety job. The workflow
 contains four jobs total, with one Cargo build job and one test thread per job.
 

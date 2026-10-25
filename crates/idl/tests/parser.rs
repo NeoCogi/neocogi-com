@@ -1,6 +1,123 @@
 use std::path::Path;
 
-use neocogi_idl::{AbiType, DeclarationKind, EnumNames, EnumRepr, ModuleSource, Receiver, Threading, VariantFields, parse_module, parse_module_parts};
+use neocogi_idl::{
+    AbiType, DeclarationKind, EnumNames, EnumRepr, LabelStyle, ModuleSource, ParseError, Receiver, SourcePosition, Threading, VariantFields, generate_rust,
+    parse_module, parse_module_parts, resolve_modules,
+};
+
+/// Checks owned source coordinates after the parser's syntax worker has returned.
+fn assert_receiver_lifetime_diagnostic(error: ParseError, module: &str, path: &Path, source: &str, lifetime: &str) {
+    let ParseError::Source(diagnostic) = error else {
+        panic!("expected an authored syntax error: {error}");
+    };
+    assert_eq!(diagnostic.code, "EIDL001");
+    assert_eq!(diagnostic.message, "IDL receivers cannot declare lifetimes; use `&self` or `&mut self`");
+    assert_eq!(diagnostic.labels.len(), 1);
+    let label = &diagnostic.labels[0];
+    assert_eq!(label.style, LabelStyle::Primary);
+    assert_eq!(label.span.module(), module);
+    assert_eq!(label.span.path(), path.to_str().unwrap());
+
+    let prefix = &source[..source.find(lifetime).unwrap()];
+    let line = prefix.bytes().filter(|&byte| byte == b'\n').count() + 1;
+    let column = prefix.rsplit('\n').next().unwrap().chars().count() + 1;
+    assert_eq!(label.span.start(), SourcePosition { line, column });
+    assert_eq!(
+        label.span.end(),
+        SourcePosition {
+            line,
+            column: column + lifetime.chars().count(),
+        }
+    );
+}
+
+/// Eager syntax admission rejects lifetimes even on templates that are never used.
+#[test]
+fn rejects_explicit_receiver_lifetimes() {
+    let path = Path::new("proof/receivers.ncidl");
+    for lifetime in ["'static", "'not_declared", "'_"] {
+        for mutable in ["", "mut "] {
+            for (parameters, consumer) in [("", ""), ("<T>", ""), ("<T>", "#[version(1)] interface Consumer: Probe<u32> {}")] {
+                let source = format!("#[version(1)]\ninterface Probe{parameters} {{\n    fn read(&{lifetime} {mutable}self) -> Result<u32>;\n}}\n{consumer}");
+                let error = parse_module(path, &source).unwrap_err();
+                assert_receiver_lifetime_diagnostic(error, "proof.receivers", path, &source, lifetime);
+            }
+        }
+    }
+}
+
+/// Sorted multipart admission must attach the failing part, not an earlier valid one.
+#[test]
+fn receiver_lifetime_diagnostics_preserve_source_parts() {
+    let directory = Path::new("proof/receivers");
+    let path = directory.join("z_invalid.ncidl");
+    let valid = ModuleSource {
+        path: Path::new("proof/receivers/a_valid.ncidl"),
+        text: "#[version(1)] interface Earlier { fn read(&self) -> Result<u32>; }",
+    };
+    for lifetime in ["'static", "'not_declared", "'_"] {
+        for mutable in ["", "mut "] {
+            // A non-ASCII comment also distinguishes Unicode columns from byte offsets.
+            let source = format!("#[version(1)]\ninterface Probe {{\n    /* café */ fn read(&{lifetime} {mutable}self) -> Result<u32>;\n}}");
+            let invalid = ModuleSource { path: &path, text: &source };
+            assert_receiver_lifetime_diagnostic(parse_module(&path, &source).unwrap_err(), "proof.receivers.z_invalid", &path, &source, lifetime);
+            for parts in [[valid, invalid], [invalid, valid]] {
+                let error = parse_module_parts(directory, &parts).unwrap_err();
+                assert_receiver_lifetime_diagnostic(error, "proof.receivers", &path, &source, lifetime);
+            }
+        }
+    }
+}
+
+/// Valid modes survive parsing, resolution and typed emission; other receiver syntax stays excluded.
+#[test]
+fn ordinary_receivers_keep_their_semantic_modes() {
+    let path = Path::new("proof/receivers.ncidl");
+    let module = parse_module(
+        path,
+        "#[version(1)] interface Probe { fn read(&self) -> Result<u32>; fn write(&mut self, value: u32) -> Result<()>; }",
+    )
+    .unwrap();
+    let DeclarationKind::Interface(probe) = &module.declaration("Probe").unwrap().kind else {
+        panic!("expected interface");
+    };
+    assert_eq!(probe.methods[0].receiver, Receiver::Shared);
+    assert_eq!(probe.methods[1].receiver, Receiver::Mutable);
+    let graph = resolve_modules(vec![module]).unwrap();
+    let rust = generate_rust(&graph, "proof.receivers").unwrap();
+    let generated = syn::parse_file(&rust).unwrap();
+    let probe = generated
+        .items
+        .iter()
+        .find_map(|item| match item {
+            syn::Item::Trait(item) if item.ident == "Probe" => Some(item),
+            _ => None,
+        })
+        .expect("generated provider trait");
+    assert_eq!(probe.items.len(), 2);
+    for (item, mutable) in probe.items.iter().zip([false, true]) {
+        let syn::TraitItem::Fn(method) = item else { panic!("expected method") };
+        let Some(syn::FnArg::Receiver(receiver)) = method.sig.inputs.first() else {
+            panic!("expected receiver")
+        };
+        assert!(matches!(receiver.reference, Some((_, None))));
+        assert_eq!(receiver.mutability.is_some(), mutable);
+    }
+
+    for method in [
+        "fn read(&self, value: &'static u32) -> Result<u32>;",
+        "fn read(self) -> Result<u32>;",
+        "fn read(mut self) -> Result<u32>;",
+        "fn read(self: &Self) -> Result<u32>;",
+        "fn read() -> Result<u32>;",
+        "fn read<'a>(&'a self) -> Result<u32>;",
+    ] {
+        let source = format!("#[version(1)] interface Probe {{ {method} }}");
+        let error = parse_module(path, &source).unwrap_err();
+        assert!(matches!(error, ParseError::Source(_)), "{method}: {error}");
+    }
+    assert!(parse_module(path, "#[version(1)] interface Probe<'a> { fn read(&'a self) -> Result<u32>; }").is_err());
+}
 
 /// Exercises every initial declaration kind and ownership spelling together.
 #[test]
