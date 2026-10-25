@@ -84,7 +84,15 @@ jobs:
       - uses: actions/checkout@v6
       - run: rustup toolchain install stable --profile minimal
       - run: cargo fetch --locked
-      - run: python3 scripts/compatibility.py --suite linked
+      - name: Native linked qualification
+        run: python3 scripts/compatibility.py --suite linked --report "${{ runner.temp }}/com-linked-macos.json"
+      - name: Retain native qualification receipt
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: com-linked-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/com-linked-macos.json
+          if-no-files-found: error
 
   windows:
     name: Windows native compatibility
@@ -93,4 +101,12 @@ jobs:
       - uses: actions/checkout@v6
       - run: rustup toolchain install stable --profile minimal
       - run: cargo fetch --locked
-      - run: python3 scripts/compatibility.py --suite linked
+      - name: Native linked qualification
+        run: python3 scripts/compatibility.py --suite linked --report "${{ runner.temp }}/com-linked-windows.json"
+      - name: Retain native qualification receipt
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: com-linked-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/com-linked-windows.json
+          if-no-files-found: error

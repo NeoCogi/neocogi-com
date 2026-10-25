@@ -1046,6 +1046,13 @@ and Windows provider artifact names are handled. No COM runtime import library
 is needed. Platform qualification
 comes from executing its CI row, not from another platform's successful build.
 
+The Windows and macOS jobs retain their linked-suite JSON as Actions artifacts
+named for the native OS, architecture, checkout SHA and run attempt. Reports live
+outside the temporary build targets and upload on failure as well as success;
+missing reports fail retention. A receipt closes native qualification only when
+its status is `passed` and its matching run/revision context shows complete native
+execution. A cancelled run or detached JSON is insufficient evidence.
+
 ## What one case does
 
 1. Validate installed compilers and matching native C ABI; remove ambient build
