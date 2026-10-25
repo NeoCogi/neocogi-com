@@ -11,8 +11,7 @@ is produced.
 `interface` is the only callable contract declaration. It describes public
 methods, threading, required projections and source metadata. Rust owns
 concrete storage (`#[com_object]`) and plugin acquisition (`#[plugin]`). Ordinary
-typed interface methods handle parameterized construction. UI separately owns
-event publication and delivery using ordinary interfaces.
+typed interface methods handle parameterized construction.
 
 A suffix such as `interface Button: IWidget + IActions` gives one physical vtable
 prefix (the first entry) and required sibling projections (later entries). All
@@ -153,7 +152,7 @@ followed by its element type. Base slots retain the explicit bound/free grammar
 described above.
 
 Interfaces have no implementation-role discriminator in their canonical encoding.
-Revision v13 removes UI event publication edges from callable contract identity;
+Canonical encoding v13 contains ordinary value and callable-interface contracts;
 IDL has no event-reference slots. Rebuild affected contracts, providers and hosts
 together, including built-in persistence bindings. Nominal IDs, core ABI v1,
 source-graph schema and the host-owned runtime registry are separate contracts;
@@ -184,7 +183,6 @@ interface ITreeInput {
 explicit owner. Replacing `ComPtr<I>` with `I` in that template makes this use
 invalid. Likewise, `Node<bool>` is finite because its children are a sequence;
 `struct Loop<T> { child: Option<Loop<T>> }` fails when instantiated. Generic values can appear in ordinary interface methods and aggregate fields.
-UI event bindings are an ordinary nongeneric UI-owned value.
 
 Closed definitions have consumer-local Rust names and consumer-independent
 contract identities. Inspection reports canonical value identities and the
@@ -274,7 +272,7 @@ interface UiPluginFactory {
 ```
 
 These blocks illustrate the language; their small example contracts are independent
-of the production UI topology. The generic examples above and both modules here
+of any external application framework. The generic examples above and both modules here
 are extracted from this document, resolved, generated and compiled by
 `cargo test -p neocogi-idl --test documentation`. The
 [COM README](../COM.md#idl) adds an executable
@@ -343,8 +341,8 @@ report `EIDL021`. Dense enum variants also cannot duplicate their generated publ
 COUNT/ALL members, or NAMES when `#[names(...)]` is enabled; ordinary enums retain
 those spellings. Admission and emission share core's typed public-name inventories.
 Private code-generation helper names are isolated, rather than reserved from IDL.
-Event publication belongs to UI Rust declarations. IDL rejects `#[events(...)]`
-as an unsupported attribute. See UI event metadata.
+IDL rejects `#[events(...)]` as an unsupported attribute. Application-defined
+observer interfaces use the ordinary method and value rules.
 
 ### Concrete messages and streams
 
@@ -390,13 +388,8 @@ Conversions share cumulative byte, value-count and depth budgets. Defaults are
 readable initialized active raw storage; validation cannot prove an arbitrary
 pointer is live. See [the complete contract](RECURSIVE_VALUE_CONTRACT.md).
 
-For UI event kinds, declare ordinary interfaces derived from the UI `IEvent` and
-publish them using the Rust `ui_event_sources!` declaration. A factory accepts the common `EventBinding`;
-its Observed case contains `IEventReceiver`. The parent supplies that receiver
-before publication. Events transfer as exclusive `ComBox<IEvent>` capabilities.
-There is no later attachment or replacement operation. See
-[typed class event streams](#typed-class-event-streams) and
-the ownership guide.
+The [host/provider example](../../examples/com-plugin/README.md) declares its own
+observer interface and notification values. Its host owns the delivery queue.
 
 The removed `event: Message;` and `#[observer]` syntax is rejected. There are no
 per-variant receiver setters or named-output relays. Application-private messages,
@@ -684,17 +677,10 @@ bindings own no runtime state. The host's sole runtime registry is unaffected.
 The standalone host/provider and independent peer exercise this model. Native
 Rust helper calls still require their declared Rust types: compile helpers with
 local bindings or explicitly import the helper library's binding definitions.
-The repository build-only routing helper selects existing
-library types for those concrete Rust boundaries; it creates no runtime registry.
-UI, renderer,
-platform, GFX,
-skin, demos,
-[examples](../../examples/schemas) and [COM test fixtures](../../schemas)
-share sources within their own subsystem. These directories replace standalone
-contract packages. The obsolete package-scaffolding CLI has been removed;
-ordinary Cargo build scripts own generation.
-Bundled language/persistence sources remain with the compiler SDK so extracted
-archives do not depend on a repository checkout.
+The [example contracts](../../examples/schemas) and
+[COM test fixtures](../../schemas) each own a shared source tree. Ordinary Cargo
+build scripts generate the selected bindings. Bundled language and persistence
+sources ship with the SDK so crate archives build independently of a checkout.
 
 Handwritten source must not redeclare an available contract `struct`, `enum`,
 `bitenum`, or `interface`. Those declarations belong in `.ncidl`.
@@ -828,12 +814,6 @@ module graph or impose a process-wide single revision for each module.
 (9), exclusive owners (12), and exclusive weak observations (13). Closed generic
 identities also preserve this distinction. Existing spellings keep their encoding.
 
-`neocogi.ui.core` owns UI event interfaces and `EventBinding`. IDL treats them
-as ordinary declarations. UI Rust declarations and catalog admission own event
-publication and getter policy. UI scheduling uses `IWidgetDispatcher::dispatch_next`
-and the separate borrowed `IApplicationDispatcher`. The COM runtime owns only
-the single global plugin catalog, shared by native hosts and plugins.
-
 ## Implementation and plugin publication
 
 Shared implementations constructed with `into_local(value)` support
@@ -850,7 +830,7 @@ observers remain valid transported values. Calling their target requires a
 successful `upgrade`. Direct weak inputs, copied weak aggregate parameters/results,
 and implicit persistence of weak references are unsupported. Borrow a named
 record to transfer weak facts. Structural metadata distinguishes `WeakObject`
-from the strong `Object` case; UI design catalog schema 10 carries that distinction.
+from the strong `Object` case.
 
 `#[com_object(Interface)]` implements any closed interface contract using private
 Rust fields. Shared providers use `from_value(initialized_value)`; providers marked
@@ -914,18 +894,7 @@ Generated contract definitions need no procedural macro feature. A package that
 also compiles concrete Rust objects, including handwritten event snapshots, must
 request `neocogi-com/macros` in its own normal dependency. Its name ending in
 `contracts` does not make those implementations generated-only code. Enable `alloc`
-for owned values and `std` where required by local code. The UI API owns
-event transport and Rust snapshots, requesting `std` and `macros` directly.
-The UI facade owns the standard-channel helper; COM has no built-in event module.
-
-The checkout check `python3 scripts/check-contract-consumers.py` runs a separate
-consumer for three UI event consumer graphs (core, nodes and demo), plus generated-only
-SDK and renderer controls. Each event consumer has only its ordinary library dependency
-and constructs, queries, reads and drops a real snapshot. Direct local macro
-requests are checked separately because mandatory transitive dependencies can
-otherwise conceal their omission through feature unification. The check uses
-Python 3.11+ and carries the active repository toolchain into temporary consumers;
-it does not add application contract packages to the portable SDK archive gate.
+for owned values and `std` where required by local code.
 
 - `neocogi-idl` owns parsing, semantic validation, and canonical fingerprints.
 - `neocogi-idl` owns source discovery, graph exchange, and Rust generation.
@@ -936,10 +905,9 @@ it does not add application contract packages to the portable SDK archive gate.
 
 Use `interface` for public capabilities, required projections and typed object
 construction methods. Remove former `class` and `factory` keywords; their names,
-methods, threading and source metadata remain on ordinary interfaces. UI owns
-event publication separately.
+methods, threading and source metadata remain on ordinary interfaces.
 Implement storage with `#[com_object]` and plugin acquisition with `#[plugin]`.
-Exclusive widgets use `ownership = exclusive`; shared services use the default
+Exclusive objects use `ownership = exclusive`; shared services use the default
 shared policy. Keep event receivers in explicit private fields initialized by
 ordinary interface methods. Use interface `IID`, `INTERFACE_ID` and
 `INTERFACE_DESCRIPTOR`. Low-level
@@ -979,52 +947,10 @@ finds a mutable method named `set_value`, one `u32` parameter named `value`, and
 a unit result. It can inspect that data without calling the method or owning an
 implementation. The metadata constants create no runtime registration.
 
-UI declares producer event lists
-in Rust and derives getter fields during validated catalog publication. These
-static references stay local to their owning binary; see
-UI event metadata.
-
 Generated IDL records are Rust-side static data inside their defining binary.
-For independent widget plugins, the root factory implements the shared
-`IDesignWidgetCatalog` COM interface. Its `describe` method copies a bounded,
-versioned `DesignWidgetManifest` built from those records across COM. The
-standalone designer first inspects the plugin's validated plugin descriptor,
-activates its exact root identity, queries the catalog, and reads the owned
-struct/enum/message and property metadata. `create_widget` constructs a real
-widget through COM; the host verifies its advertised IID and ABI signature.
-The catalog does not transfer Rust references or expose private widget pointers.
-A consuming application generates matching bindings from the shared IDL or uses
-those exposed by an existing Rust helper library to name concrete getters and
-optional form fields. It needs no dedicated contract package.
-
-### Typed class event streams
-
-`IEventReceiver` accepts a checked weak `EventOrigin` and transfers an exclusive
-`ComBox<IEvent>`. Concrete event interfaces derive from `IEvent` and expose immutable
-getters. The common `EventBinding` selects permanent Unobserved or Observed delivery.
-Factories accept it before publishing a product; no attachment method is generated.
-
-`ui_event_sources!` declares emitted interface identities in the owning Rust crate.
-`UiEventSource::EVENT_SOURCE` references ordinary `IDL_INTERFACE.methods`; UI
-validates getter policy when copying a design catalog.
-Hosts use `events::channel()` or implement `IEventReceiver` once for their inbox.
-Messages keep the exclusive COM owner until handling. Unsupported event queries
-return `None`; actual ABI/provider errors remain errors.
-
-`EventPort` is a nongeneric shared-service convenience with explicit terminal
-closure. Exclusive widgets keep delivery in `WidgetState`; posting captures the
-active weak origin from the traversal stack. Shared services retain their explicit
-service origin.
-`com_object(Contract, ownership = exclusive)` generates allocation and weak-call
-admission, without event installation or callback adapters. See
-COM event objects.
-
-The queue acquires facts synchronously; application handlers run later with
-`&mut self` after traversal releases its borrows. No parent state pointer or Rust
-closure crosses COM. Catalogs transport declared event interfaces and getter metadata; custom factories
-receive the common constructor binding. See
-the detailed ownership, state and teardown rules.
-
+Applications can define explicit COM interfaces to copy the metadata they need
+across a component boundary. Such interfaces own their data format and validation;
+Rust references and private implementation pointers do not cross COM.
 
 ## Exclusive object transfers
 
@@ -1065,8 +991,7 @@ budgeting. See [prepared output completion](COM_OUTPUT_COMPLETION.md) for an IDL
 example, enum limits, and real generated-call regressions.
 
 The provider threading guarantee is preserved for all three owner/observer
-wrappers. See exclusive widget ownership and
-[current core ABI](../abi-v1.md) for lifetime and concurrency rules.
+wrappers. See the [current core ABI](../abi-v1.md) for lifetime and concurrency rules.
 
 ## Interpreting generated names
 

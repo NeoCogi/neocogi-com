@@ -394,7 +394,6 @@ text, or COM references use the borrowed named-value form. Owning aggregate
 returns remain rejected; a fixed array is eligible exactly when its element is.
 
 An application declares ordinary interfaces for message delivery and commands.
-UI supplies its own event receiver and delivery policy.
 The owning [IDL reference](IDL_MODULES.md#contract-changes-and-versions)
 tracks the current canonical encoding independently of the core ABI.
 
@@ -407,20 +406,15 @@ exact tag. An interface's `IDL_INTERFACE.values` contains the definitions reache
 through its ordinary methods and required projections. Object references remain
 capabilities; their additional methods have separate interface metadata.
 
-UI separately declares the events a widget publishes and merges their getter
-value graphs with the producer's graph. Its versioned `DesignWidgetManifest`
-copies the result through a COM catalog, so the receiving designer need not link
-the provider's Rust crate. See UI event metadata for this
-application-level format. The process runtime's
-[plugin inspection](../abi-v1.md#runtime-and-global-registry) reads plugin/factory
-descriptors rather than these source-level value definitions.
+The runtime's [plugin inspection](../abi-v1.md#runtime-and-global-registry)
+reads plugin and root-factory descriptors. Source-level value definitions remain
+local static metadata. An application that transports an introspection graph
+must define its own COM contract and validate the received graph.
 
-The designer validates unique definitions, known scalar forms, complete named
-references, unique enum cases/tags, bounded field expressions, and finite inline
-layout. Sequences break layout cycles; `Option` and arrays do not. Generated
-IDL fixtures exercise recursive metadata, and the standalone designer test builds
-and loads an independent plugin, then checks the nested definitions received
-through its COM catalog.
+The [IDL source-map tests](../../crates/idl/tests/source_maps.rs) compile generated
+bindings and verify that interface metadata and real COM calls agree. Generated
+fixtures also cover recursive metadata and the distinction between shared,
+exclusive and weak object capabilities.
 
 ## Regression evidence
 
@@ -434,7 +428,7 @@ through its COM catalog.
 | Borrowed values cannot escape the call | [IDL resolution](../../crates/idl/tests/resolution.rs) checks source ownership positions; [compile-fail fixtures](../../crates/api/integration-tests/ui.rs) check receiver and source-guard lifetimes. |
 | Acquired values survive producer storage | [Generated COM calls](../../crates/api/integration-tests/borrowed_values.rs) retain nested strings after source mutation/drop, accept static producer data without a static receiver borrow, and replace empty/repeated messages. |
 | Failed buffer acquisition does not leak an owned result | [Foreign-style lifecycle test](../../crates/api/integration-tests/borrowed_calls.rs) transfers a real reference beside an invalid byte and checks its release plus destination preservation. |
-| Inspection receives nested definitions through COM | Standalone designer test builds and loads a separate plugin and checks the nested event record received from its catalog. |
+| Generated metadata agrees with the callable contract | [Source-map integration tests](../../crates/idl/tests/source_maps.rs) compile matching metadata and execute the generated interface. |
 | Core's built-in contracts use current lowering without allocation | The persistence regeneration test checks both committed binding halves; core also checks with default features disabled. |
 
 These proofs exercise generated calls and independently compiled bindings, in

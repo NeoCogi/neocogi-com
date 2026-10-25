@@ -177,7 +177,7 @@ adopting this encoding. Nominal type IDs remain independent of the encoding
 revision. Parameter-only renames preserve the resulting signatures. Direct generic
 bases follow the same binding rule as type expressions. Base references frame
 their bound/free alternatives; bound parameters have a type-expression tag
-distinct from output buffers. UI event publication is outside this encoding.
+distinct from output buffers.
 Invalid closed substitutions
 remain source-level validation errors rather than internal fingerprint failures.
 
@@ -240,9 +240,7 @@ Rust `Default` for an omitted trailing suffix. Every NCB record already reads an
 writes fields positionally; `#[persistence(sequence)]` is rejected. The default
 policy requires supported fields or IDL reports `EIDL064` at the field/closed use.
 It applies only to records and enters the common contract fingerprint. Changing
-an authored persistence policy requires a declaration version increment. The
-renderer Color contract advances to version 3 when removing its sequence policy;
-its four-byte-element NCB sequence representation remains unchanged.
+an authored persistence policy requires a declaration version increment.
 
 These implementations are ordinary static Rust traits, not COM object classes,
 vtables or factories. Automatic codec generation does not alter value ownership.

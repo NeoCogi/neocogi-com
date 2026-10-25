@@ -17,11 +17,11 @@ from the dotted name. Repository build scripts expose their include paths throug
 `IDL_<MODULE_NAME>` environment entries in Cargo's build-script JSON:
 
 ```sh
-cargo check -p neocogi-ui --message-format=json
+cargo check -p neocogi-example-com-host --message-format=json
 ```
 
-The `build-script-executed` record for `neocogi-ui` contains
-`IDL_NEOCOGI_UI_NODES` in its `env` field. This is the consumer's generated entry;
+The `build-script-executed` record for `neocogi-example-com-host` contains
+`IDL_EXAMPLE_BINDINGS` in its `env` field. This is the consumer's generated entry;
 its Rust definitions and `.rs.map` are adjacent. Independently compiled consumers
 have their own output directories and maps from the same shared IDL sources.
 
@@ -30,7 +30,7 @@ have their own output directories and maps from the same shared IDL sources.
 The consumer includes its returned entry path:
 
 ```rust,ignore
-include!(env!("IDL_NEOCOGI_UI_NODES"));
+include!(env!("IDL_EXAMPLE_BINDINGS"));
 ```
 
 The entry loads its generated definitions through a normal private Rust module
@@ -43,8 +43,8 @@ The module entry was introduced when contract attribute expansion caused
 rust-analyzer navigation to stop at `include!`. Current IDL generation emits
 complete ordinary Rust definitions. Go to Definition reaches the actual emitted
 ABI, client, vtable, native value or scalar wrapper definition in that file.
-For example, `TextboxAbi` is an emitted interface marker; `LayoutTrack` is a
-native Rust enum. Its `Fixed` variant and `extent` field have their own definitions.
+For example, `ExampleObjectAbi` is an emitted interface marker; `ExtentReport` is a
+native Rust enum. Its `Current` variant and `extent` field have their own definitions.
 The adjacent map connects each definition to the authored IDL identifier.
 
 Enable rust-analyzer build-script and procedural-macro support.
@@ -52,8 +52,8 @@ Enable rust-analyzer build-script and procedural-macro support.
 Generated declarations and authored members also carry readable documentation:
 
 ```rust
-/// IDL source: `neocogi/ui/nodes/widgets.ncidl:4:11`.
-pub trait Textbox /* generated requirements and methods */ {}
+/// IDL source: `neocogi/idl_example/objects.ncidl:12:11`.
+pub trait ExampleObject /* generated requirements and methods */ {}
 ```
 
 The annotation names the originating IDL identifier and its owning logical module.
@@ -205,45 +205,12 @@ boundaries and JSON round-tripping. A real Cargo module-generation test verifies
 reported map paths, resolution to the authored file, unchanged-output reuse, and
 location-only edits refreshing the map without changing binding behavior.
 
-The navigation check compiles one independent nodes-contract consumer before
-starting the language server. That same Rust source supplies all thirteen requests:
-Textbox ABI/client/vtable, SliderOptions struct, LayoutTrack/ChildCrossSize enums,
-FillStates wrapper/HOVER flag, and the enum/Fixed/extent identifiers in a native
-constructor, plus `SliderOptions::IDL_TYPE` and `TextboxAbi::IDL_INTERFACE`.
-Each definition must reach emitted nodes Rust and its adjacent map
-must match the exact expected authored IDL file and identifier range. Merely
-selecting an existing IDL file is insufficient.
-
-From the repository directory, provision the selected toolchain's server and run:
+Run the maintained source-map integration suite from the workspace root:
 
 ```sh
-rustup component add rust-analyzer
-python3 scripts/check-idl-navigation.py --rust-analyzer /path/to/rust-analyzer
+cargo test -p neocogi-idl --test source_maps
 ```
 
-Omit `--rust-analyzer` to use the installed rustup shim. An explicitly selected
-standalone server is also supported. The check resolves the active compiler in
-repository cwd, respecting caller overrides, and propagates it to the temporary
-consumer, server and server-spawned Cargo processes. A temporary directory must
-not silently select the user's unrelated default compiler.
-
-The compile-only gate uses the identical source and needs no server:
-
-```sh
-python3 scripts/check-idl-navigation.py --compile-only
-python3 -m unittest discover -s scripts -p test_idl_navigation.py
-```
-
-Compile-only success establishes compilation, not editor navigation. The ordinary
-mode is required for the actual server and exact-map acceptance; both paths run
-in the existing UI CI job. The focused Python tests cover marker positions,
-response forms, Unicode coordinate conversion, range specificity, wrong existing
-origins and server EOF. Compiler source-map tests retain their separate purpose.
-
-The script uses cached Cargo dependencies. A caller-selected `CARGO_TARGET_DIR`
-is retained, with relative paths interpreted from the invocation directory;
-otherwise its scratch target is removed with the temporary consumer. The server
-process is shut down on completion or failure. No editor settings are changed.
-The original eight-symbol navigation result used rust-analyzer 0.3.3057-standalone;
-that historical result predates native enum and direct scalar emission and is not
-current acceptance for these thirteen requests.
+The suite checks emitted mappings and authored locations while compiling
+independent consumers and executing their generated COM calls. Editor-specific
+navigation integrations can consume the same maps and annotations.
