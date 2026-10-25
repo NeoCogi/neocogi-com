@@ -231,8 +231,8 @@ Acquisition compares the exact factory signature before invoking bootstrap.
 Unconnected contract revisions can coexist; incompatible calls fail with
 `NC_E_ABI_VERSION`. Every live plugin load is mandatory: path conversion,
 loading, metadata validation, dependency and registration
-failures diagnose and abort the entire application. This includes designer
-startup. `load_plugin_library` returns the registered plugin GUID on success;
+failures diagnose and abort the entire application.
+`load_plugin_library` returns the registered plugin GUID on success;
 there is no recoverable `try_load_plugin_library` operation. Batch loading
 uses the same policy for each library. Loaded libraries remain mapped until
 process exit. `Runtime::plugin_info(plugin_id)` returns the plugin's identity,

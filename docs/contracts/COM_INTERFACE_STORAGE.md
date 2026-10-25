@@ -113,16 +113,17 @@ inherited method entries still occur in derived tables: eliminating object heade
 does **not** deduplicate those entries. Any proposal to change that is separate
 and must preserve inherited dispatch and inspection.
 
-Full schemas remain available through explicit COM inspection and designer
-catalogs. Ordinary construction/dispatch must not retain them accidentally. The
-release-link regression test checks both sides of this requirement.
+Explicit interface metadata exposes physical method descriptors and exact
+signatures. Ordinary construction and dispatch need not retain their descriptive
+names. The [release-link regression](../../tests/com/integration-tests/projection_metadata.rs)
+checks ordinary dispatch and explicit descriptor inspection separately. The
+[source metadata contract](RECURSIVE_VALUE_CONTRACT.md#com-inspection-graph)
+describes the local Rust value graph and its consumers.
 
 All calls reach one generated shared/exclusive borrow guard. Mutable methods use
 `&mut self`; concurrent or reentrant conflicting calls return `NC_E_BUSY`. The
 existing `UnsafeCell` and guard are needed because independently owned COM handles
-can alias one allocation. This change adds no `Cell`/`RefCell` mechanism. Widget
-event ownership remains one typed stream with one consumer; event delivery,
-behavioral-parent ownership, and application queues are unchanged.
+can alias one allocation.
 
 ## Historical storage tradeoff at the object/table migration
 
@@ -367,15 +368,12 @@ calls. Dynamic plugin fixtures exercise discovery and factory normalization.
 Compile-fail tests retain unsafe-interface, lifetime and threading requirements.
 
 Use the same workspace path, compiler, profile and features for size comparisons.
-The measurement workflow at `531e1416` used a custom assembly builder that has
-since been removed; retrieve that exact command with Git when reproducing the
-historical totals. Current builds use [Cargo artifact dependencies](../guides/COM_NATIVE.md),
-whose files live in separate Cargo-owned directories. The current build command
-is below; its output layout cannot be compared directly with historical packaged totals:
+Reproduce historical deployment totals using their recorded revision, toolchain
+and application workload; the workflow at `531e1416` includes its original
+assembly command. Current SDK builds use [plain Cargo](../guides/COM_NATIVE.md)
+and include this query-only probe:
 
 ```sh
-cargo build -p neocogi-demo-full --no-default-features --features dynamic,vulkan --profile min-size --offline
-python3 scripts/measure-deployment.py PATH_TO_STAGED_DIRECTORY --executable neocogi-demo-full --output /tmp/candidate.json --baseline /tmp/baseline.json
 cargo run --offline --release -p neocogi-com-tests --example query_cost
 ```
 
@@ -386,9 +384,9 @@ measure query plus release, not application throughput. Save logs/binaries outsi
 
 ## Shared weak lifetimes
 
-Shared services use strong and weak reference counts. Widgets instead follow
-exclusive ownership; the ABI specification above
-defines both lifetime policies.
+Shared objects use strong and weak reference counts. Exclusive objects have one
+owner and may expose weak observers. Applications select their ownership policy;
+the [ABI specification](../abi-v1.md#weak-lifetime-references) defines both policies.
 
 The strong object/table handle remains two words; a weak handle now contains one
 control pointer. Generated allocations use the common COM header in place of

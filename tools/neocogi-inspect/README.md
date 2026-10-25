@@ -18,10 +18,9 @@ neocogi-inspect diff old.nccom.json new.nccom.json --compat
 
 JSON uses strict schema 9 and plugin descriptor ABI 1. The core object ABI
 is checked against the current COM runtime contract.
-Unknown fields and unsupported schema versions are rejected. Module/declaration
-inventories are a build-time IDL-tooling concern. This CLI does not reconstruct
-IDL or invoke optional designer catalogs. Removing application-layout tables
-does not change its dump/check/plan/diff capabilities.
+Unknown fields and unsupported schema versions are rejected. The artifact records
+the plugin and its root factory. Source-level method and value definitions belong
+to [local IDL metadata](../../crates/api/src/idl_metadata.rs).
 
 `plan` rejects duplicate plugin identities, missing hard dependencies, and
 cycles, then prints deterministic provider-first order. Disconnected contract

@@ -324,18 +324,13 @@ the same buffer contract as `&[u32]`. A slice type argument does not grant stora
 ownership or make an unsized record field valid. Owned vectors break recursive
 layout cycles; arrays and optional inline payloads do not.
 
-## Metadata and events
+## Metadata
 
 Resolved structural definitions are the source for conversion, layout checks,
 and inspection metadata. Named references retain identity instead of infinitely
-expanding recursive definitions. Inspection transports a finite graph of those
-definitions through COM.
-
-This value contract does not change the event model. A concrete event source has
-one common receiver and one lifetime consumer. Its receiver moves the exclusive
-COM event and weak origin into an inbox. Application dispatch reads the event
-getters later with mutable access to the parent. Routing between widgets remains an
-application concern.
+expanding recursive definitions. The [inspection graph](#com-inspection-graph)
+describes these local Rust definitions and the boundary for application-defined
+transport.
 
 ## Method and buffer positions
 

@@ -19,8 +19,8 @@ Parameterized construction happens through typed factory methods. Different
 unconnected contract revisions may coexist in the process.
 
 Library loading, getters, factory calls, and debug callbacks run outside the
-catalog write lock. Every application plugin load is mandatory, including
-loads requested by the designer. Load failure diagnoses and aborts the process;
+catalog write lock. Every application plugin load is mandatory.
+Load failure diagnoses and aborts the process;
 there is no recoverable loading facade. The internal loader's `Result` carries
 diagnostics and lets it pin an opened library before the C boundary aborts.
 It is not an application retry policy. The Rust facade also aborts on path

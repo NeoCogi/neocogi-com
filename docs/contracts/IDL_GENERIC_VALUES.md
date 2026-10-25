@@ -12,7 +12,7 @@ all consumers.
 | `ComPtr<I>` | Owned reference to a closed interface/class/factory | Stores a retained capability; does not store the implementation inline |
 | `WeakComPtr<I>` | Shared weak reference to a closed interface/class/factory | Record/enum fields and method results; retains bookkeeping without retaining the value |
 | `ComBox<I>` | Exclusive object owner | Explicit consuming method input/result; not an ordinary record/enum field |
-| `WeakComBox<I>` | Weak observation of an exclusive owner | Method result and recursively borrowed record/enum fields; never persists the widget |
+| `WeakComBox<I>` | Weak observation of an exclusive owner | Method result and recursively borrowed record/enum fields; never persists the object |
 | `Vec<T>` | Owned collection of values | Record/enum fields; explicitly indirect, including recursive trees |
 | `Slice<T>` or `[T]` | Unsized sequence referent | Cannot be stored in a record; must be borrowed for a call |
 | `&Slice<T>` or `&[T]` | Readable call-scoped buffer | Elements must support recursively checked copied transport |
@@ -82,7 +82,7 @@ flowchart TD
     E --> H[Named enum inspection metadata]
     F --> I[Checked recursive wire codec]
     G --> I
-    H --> J[Versioned COM designer catalog]
+    H --> J[Local Rust metadata consumers]
 ```
 
 ## Copied and owned optional values
@@ -249,11 +249,11 @@ transfer for returned vectors/text remain outside the supported value contract.
 
 ## Inspection and verification
 
-COM designer catalog schema 5 transports optional values through ordinary named
-enum definitions. Complete-definition, tag, and inline-cycle validation follows
-the same graph as other values. Schema 4's separate `Optional` expression is
-removed; an old descriptor is rejected by version instead of misinterpreted.
-This does not add widget routing or additional event ports.
+Generated local metadata describes optional values through ordinary named enum
+definitions. The compiler checks complete definitions, tags and inline cycles
+using the same resolved graph as other values. The
+[inspection contract](RECURSIVE_VALUE_CONTRACT.md#com-inspection-graph) distinguishes
+these local descriptions from plugin inspection and application-defined transport.
 
 Permanent regressions are in [intrinsic tests](../../crates/idl/tests/intrinsics.rs),
 [enum decoder tests](../../crates/idl/tests/enum_decoders.rs), and
