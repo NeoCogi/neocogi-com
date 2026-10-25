@@ -20,11 +20,11 @@ license = "MIT"
 repository = "https://github.com/NeoCogi/neocogi-com"
 
 [workspace.dependencies]
-neocogi-com-core = { path = "crates/core", version = "=0.1.0", default-features = false }
-neocogi-idl = { path = "crates/idl", version = "=0.1.0" }
-neocogi-com-macros = { path = "crates/macros", version = "=0.1.0", default-features = false }
-neocogi-com-runtime = { path = "crates/runtime", version = "=0.1.0", default-features = false }
-neocogi-com = { path = "crates/api", version = "=0.1.0", default-features = false }
+neocogi-com-core = { path = "crates/core", version = "=0.0.0", default-features = false }
+neocogi-idl = { path = "crates/idl", version = "=0.0.0" }
+neocogi-com-macros = { path = "crates/macros", version = "=0.0.0", default-features = false }
+neocogi-com-runtime = { path = "crates/runtime", version = "=0.0.0", default-features = false }
+neocogi-com = { path = "crates/api", version = "=0.0.0", default-features = false }
 prettyplease = "0.2"
 proc-macro2 = { version = "1", features = ["span-locations"] }
 quote = "1"

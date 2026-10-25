@@ -145,10 +145,10 @@ module = "example.widgets"
 source = "schemas/example/widgets"
 
 [dependencies]
-neocogi-com = { version = "0.1.0", default-features = false }
+neocogi-com = { version = "0.0.0", default-features = false }
 
 [build-dependencies]
-neocogi-idl = "0.1.0"
+neocogi-idl = "0.0.0"
 ```
 
 The version selectors assume published matching packages; inside this checkout
