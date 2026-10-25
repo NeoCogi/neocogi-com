@@ -20,6 +20,8 @@ import shutil
 import subprocess
 import tempfile
 
+from library_workspace import library_workspace
+
 # Resolve from the script, so callers need neither a particular cwd nor shell quoting.
 ROOT = Path(__file__).resolve().parents[1]
 # Printed only after the example verifies calls, event identity, persistence and final release.
@@ -390,7 +392,8 @@ def execute(case: Case, *, linked: bool = False, sanitizer: str | None = None) -
 
 
 def main() -> None:
-    """Select only maintained cases and emit a report only after every requested case passes."""
+    """Own reports from source preparation through case execution and source cleanup."""
+    global ROOT
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--suite", choices=("cross-version", "build-flags", "linked", "safety", "address", "thread", "sanitizers"), default="cross-version")
     parser.add_argument("--report", type=Path, help="write exact compiler/build evidence outside temporary targets")
@@ -410,23 +413,26 @@ def main() -> None:
             args.report.parent.mkdir(parents=True, exist_ok=True)
             args.report.write_text(json.dumps({"suite": args.suite, "status": status, "cases": results, "error": error}, indent=2) + "\n")
     report("running")
+    previous_root = ROOT
     try:
-        if args.suite == "safety":
-            results.append(safety())
-        for case in selected:
-            results.append(execute(case, linked=args.suite == "linked", sanitizer=case.name if case.name in ("address", "thread") else None))
-            report("running")
+        # Source entry and teardown are part of this invocation's result. Keep
+        # copied sources alive for every child, and retire them before success.
+        with library_workspace() as sources:
+            ROOT = sources
+            if args.suite == "safety":
+                results.append(safety())
+            for case in selected:
+                results.append(execute(case, linked=args.suite == "linked", sanitizer=case.name if case.name in ("address", "thread") else None))
+                report("running")
     except Exception as error:
         report("failed", str(error))
         raise
+    finally:
+        # Imported/repeated invocations must not inherit a deleted source root.
+        ROOT = previous_root
     report("passed")
     print(f"Compatibility checks passed: {len(results)} executed case(s)")
 
 
 if __name__ == "__main__":
-    from library_workspace import library_workspace
-    # Independent stable/nightly roles own their sources and embedded test paths
-    # together; no binaries outlive the temporary source workspace.
-    with library_workspace() as sources:
-        ROOT = sources
-        main()
+    main()

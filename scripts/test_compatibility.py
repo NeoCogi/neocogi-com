@@ -3,12 +3,13 @@
 Real compilers and relocated execution are exercised by compatibility.py itself;
 these tests check driver failures without expensive duplicate Cargo builds.
 """
-from contextlib import redirect_stdout
+from contextlib import contextmanager, nullcontext, redirect_stdout
 import io
 import json
 import os
 import copy
 from pathlib import Path
+import shutil
 import sys
 import tempfile
 import subprocess
@@ -20,6 +21,100 @@ import compatibility as driver
 
 class AdmissionTests(unittest.TestCase):
     """Missing tests/artifacts and ambient configuration cannot count as coverage."""
+
+    def test_source_preparation_failure_replaces_a_previous_green_report(self):
+        """The actual executable must invalidate success before copying its sources."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scripts = root / "scripts"
+            scripts.mkdir()
+            for name in ("compatibility.py", "library_workspace.py"):
+                shutil.copy2(Path(driver.__file__).with_name(name), scripts / name)
+            report = root / "result.json"
+            report.write_text(json.dumps({"suite": "linked", "status": "passed", "cases": [{"status": "passed"}], "error": None}))
+            result = subprocess.run([sys.executable, str(scripts / "compatibility.py"), "--suite", "linked", "--report", str(report)],
+                                    cwd=root, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("FileNotFoundError", result.stderr)
+            self.assertIn("crates", result.stderr)
+            self.assertNotIn("Compatibility checks passed:", result.stdout)
+            receipt = json.loads(report.read_text())
+            self.assertEqual(receipt["status"], "failed")
+            self.assertEqual(receipt["cases"], [])
+            self.assertIn("crates", receipt["error"])
+
+    def test_cleanup_failure_preserves_cases_without_publishing_success(self):
+        """A good suite followed by failed source teardown is a failed invocation."""
+        original_root = driver.ROOT
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = root / "result.json"
+            output = io.StringIO()
+
+            @contextmanager
+            def sources():
+                """Inspect publication ordering before deliberately failing cleanup."""
+                self.assertEqual(json.loads(report.read_text())["status"], "running")
+                yield root / "sources"
+                self.assertEqual(driver.ROOT, root / "sources")
+                self.assertEqual(json.loads(report.read_text())["status"], "running")
+                self.assertNotIn("Compatibility checks passed:", output.getvalue())
+                raise OSError("source cleanup failed")
+
+            with patch("sys.argv", ["compatibility.py", "--suite", "linked", "--report", str(report)]), \
+                    patch.object(driver, "library_workspace", sources), \
+                    patch.object(driver, "execute", return_value={"status": "passed"}), redirect_stdout(output):
+                with self.assertRaisesRegex(OSError, "source cleanup failed"):
+                    driver.main()
+            self.assertEqual(driver.ROOT, original_root)
+            receipt = json.loads(report.read_text())
+            self.assertEqual(receipt["status"], "failed")
+            self.assertEqual(receipt["cases"], [{"status": "passed"}])
+            self.assertEqual(receipt["error"], "source cleanup failed")
+            self.assertNotIn("Compatibility checks passed:", output.getvalue())
+
+    def test_success_follows_cleanup_and_keeps_caller_relative_report(self):
+        """The lent root controls builds; the caller still owns relative reports."""
+        original_root = driver.ROOT
+        original_cwd = Path.cwd()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            lent = root / "sources"
+            lent.mkdir()
+            report = root / "result.json"
+            output = io.StringIO()
+            events = []
+
+            @contextmanager
+            def sources():
+                """Check receipt invalidation and keep success unpublished until exit."""
+                self.assertEqual(json.loads(report.read_text())["status"], "running")
+                events.append("enter")
+                yield lent
+                self.assertEqual(json.loads(report.read_text())["status"], "running")
+                self.assertEqual(driver.ROOT, lent)
+                self.assertNotIn("Compatibility checks passed:", output.getvalue())
+                events.append("exit")
+
+            def execute(*_arguments, **_options):
+                """Observe the actual suite root without invoking any compiler."""
+                self.assertEqual(driver.ROOT, lent)
+                events.append("execute")
+                return {"status": "passed"}
+
+            try:
+                os.chdir(root)
+                with patch("sys.argv", ["compatibility.py", "--suite", "linked", "--report", "result.json"]), \
+                        patch.object(driver, "library_workspace", sources), \
+                        patch.object(driver, "execute", execute), redirect_stdout(output):
+                    driver.main()
+            finally:
+                os.chdir(original_cwd)
+            self.assertEqual(driver.ROOT, original_root)
+            self.assertEqual(events, ["enter", "execute", "exit"])
+            self.assertEqual(json.loads(report.read_text())["status"], "passed")
+            self.assertFalse((lent / "result.json").exists())
+            self.assertIn("Compatibility checks passed: 1 executed case(s)", output.getvalue())
 
     def test_child_failure_cannot_be_hidden_by_a_success_marker(self):
         """The process exit is authoritative even when stdout contains the expected marker."""
@@ -264,7 +359,9 @@ class AdmissionTests(unittest.TestCase):
         """A successful ASan case cannot conceal failed TSan or omit it from execution."""
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "result.json"
-            with patch("sys.argv", ["compatibility.py", "--suite", "sanitizers", "--report", str(report)]):
+            original_root = driver.ROOT
+            with patch("sys.argv", ["compatibility.py", "--suite", "sanitizers", "--report", str(report)]), \
+                    patch.object(driver, "library_workspace", return_value=nullcontext(Path(directory) / "sources")):
                 with patch.object(driver, "execute", side_effect=[{"status": "passed"}, RuntimeError("thread failure")]) as execute:
                     with self.assertRaises(RuntimeError):
                         driver.main()
@@ -273,6 +370,7 @@ class AdmissionTests(unittest.TestCase):
             self.assertEqual(result["status"], "failed")
             self.assertEqual(len(result["cases"]), 1)
             self.assertEqual(result["error"], "thread failure")
+            self.assertEqual(driver.ROOT, original_root)
 
     def test_miri_keeps_memory_targets_and_limits_native_only_filters(self):
         """Source-policy parsing stays native while Miri discovers and executes every memory target."""
@@ -327,7 +425,9 @@ class AdmissionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "result.json"
             report.write_text('{"status": "passed"}')
-            with patch("sys.argv", ["compatibility.py", "--suite", "linked", "--report", str(report)]):
+            original_root = driver.ROOT
+            with patch("sys.argv", ["compatibility.py", "--suite", "linked", "--report", str(report)]), \
+                    patch.object(driver, "library_workspace", return_value=nullcontext(Path(directory) / "sources")):
                 with patch.object(driver, "execute", side_effect=RuntimeError("missing artifact")):
                     with self.assertRaises(RuntimeError):
                         driver.main()
@@ -335,6 +435,7 @@ class AdmissionTests(unittest.TestCase):
             self.assertEqual(result["status"], "failed")
             self.assertEqual(result["cases"], [])
             self.assertEqual(result["error"], "missing artifact")
+            self.assertEqual(driver.ROOT, original_root)
 
 
 if __name__ == "__main__":

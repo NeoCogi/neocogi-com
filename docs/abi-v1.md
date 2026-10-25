@@ -1040,9 +1040,13 @@ The cross-compiler native-loader cases run in the Linux safety job. The workflow
 contains four jobs total, with one Cargo build job and one test thread per job.
 
 Reports record `rustc -vV` for every selected compiler plus each role's exact
-profile, panic and LTO policy. Reports change to `running` before work begins and
-`failed` on error; an older success cannot remain as the current result. The
-platform must permit native execution with matching host triples. Linux, macOS
+profile, panic and LTO policy. A writable report changes to `running` before
+source preparation and to `failed` on preparation, execution or cleanup errors,
+retaining completed case evidence. `passed` and the human success message are
+published only after source cleanup finishes. Interrupted work can remain
+`running`; report-write errors fail the command. Relative report paths belong to
+the caller's working directory. The platform must permit native execution with
+matching host triples. Linux, macOS
 and Windows provider artifact names are handled. No COM runtime import library
 is needed. Platform qualification
 comes from executing its CI row, not from another platform's successful build.
