@@ -1031,8 +1031,8 @@ bash scripts/test-msrv.sh
 That suite checks all COM/IDL/inspector targets and features, library tests,
 normative ABI snippets, inspector binary tests, and the facade/core feature
 variants. It also discovers and executes exact required semantic cases and then
-the complete client-view, admission, checked-value, output-buffer/completion and
-generated unit-value targets. Parser qualification additionally requires exact
+the complete client-view and provider-threading targets, capability admission,
+checked values, output buffers/completion and generated unit values. Parser qualification additionally requires exact
 receiver-lifetime rejection and multipart source-diagnostic cases before running
 the complete parser target. Snapshot diagnostics remain in stable qualification.
 The cross-compiler native-loader cases run in the Linux safety job. The workflow

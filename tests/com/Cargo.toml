@@ -82,6 +82,11 @@ path = "integration-tests/client_view_admission.rs"
 required-features = ["macros", "std"]
 
 [[test]]
+name = "provider_threading"
+path = "integration-tests/provider_threading.rs"
+required-features = ["macros", "std"]
+
+[[test]]
 name = "recursive_interfaces"
 path = "integration-tests/recursive_interfaces.rs"
 

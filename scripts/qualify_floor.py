@@ -17,6 +17,7 @@ def main() -> None:
     rows = [
         ("neocogi-com-tests", "client_views", ABI_TESTS["client_views"]),
         ("neocogi-com-tests", "client_view_admission", "client_views_cannot_replace_capability_storage"),
+        ("neocogi-com-tests", "provider_threading", "shared_provider_minimum_is_independent_of_class_mode"),
         *(("neocogi-com-tests", name, ABI_TESTS[name]) for name in ("checked_values", "output_buffers", "output_completion")),
         ("neocogi-idl", "unit_values", "unit_values_use_checked_storage_in_copied_calls"),
         ("neocogi-idl", "parser", ("rejects_explicit_receiver_lifetimes",

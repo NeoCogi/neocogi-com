@@ -140,11 +140,13 @@ pub unsafe trait ComInterface {
     type VTable;
 }
 
-/// Compile-time proof that an implementation satisfies a interface's mode.
+/// Compile-time proof that an implementation satisfies the selected class mode.
 ///
 /// This hidden helper lets generated object storage derive threading from the
-/// IDL interface. Local objects need only own `'static` state, while shared
-/// objects must also be safe to send and access across threads.
+/// primary IDL interface or explicit object policy. Local class modes need only
+/// own `'static` state, while shared class modes must also be safe to send and
+/// access across threads. Separately, every generated shared provider trait
+/// requires Send + Sync even when the selected class mode is local.
 #[doc(hidden)]
 pub trait __ComSupportsInterfaceThreading<M: ThreadingModel> {}
 

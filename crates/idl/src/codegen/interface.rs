@@ -66,10 +66,18 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
     } = plan;
     let nc: syn::Path = syn::parse_quote!(::neocogi_com);
     let declarations = methods.iter().map(crate::codegen::method_declaration);
-    let supertraits = if interface_paths.is_empty() {
+    // The interface minimum belongs to every Rust provider implementation,
+    // independently of a constructor's conservative handle mode. Only the
+    // original interface_paths below select COM bases, identities and tables.
+    let mut provider_bounds = interface_paths.iter().map(|path| quote! { #path }).collect::<Vec<_>>();
+    match requirement {
+        InterfaceThreading::Local => {}
+        InterfaceThreading::Shared => provider_bounds.extend([quote! { ::core::marker::Send }, quote! { ::core::marker::Sync }]),
+    }
+    let supertraits = if provider_bounds.is_empty() {
         quote! {}
     } else {
-        quote! { : #(#interface_paths)+* }
+        quote! { : #(#provider_bounds)+* }
     };
     let input = quote! { #(#docs)* #vis trait #name #supertraits { #(#declarations)* } };
     // All authored syntax is known before introducing provider/client binders or

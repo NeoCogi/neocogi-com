@@ -26,6 +26,12 @@ compile time. The [object/table storage guide](COM_INTERFACE_STORAGE.md) explain
 this settled representation and the earlier reverted experiments. Interfaces
 default to local threading. `#[threading(shared)]` requires implementations to
 be `Send + Sync`; a derived interface cannot weaken a required shared promise.
+Generated shared provider traits enforce both bounds on their concrete
+implementations, including inherited and required projections. The selected
+object/handle mode is separate: an explicit interface list may keep a local
+handle over a valid shared implementation, and queries retain that local mode.
+A local-only interface can use non-Send/non-Sync state unless its object explicitly
+requests thread-safe handles. Shared ownership and shared threading are independent.
 
 See [component design](../architecture/COM_DESIGN.md) for ownership and historical rationale,
 and the [plain-Cargo sample](../../examples/com-plugin/README.md) for dynamic and

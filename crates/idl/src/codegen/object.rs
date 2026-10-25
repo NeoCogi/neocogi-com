@@ -48,7 +48,8 @@ pub fn expand_com_object(args: ObjectArgs, input: ItemStruct) -> proc_macro2::To
     } else {
         quote! { #nc::ThreadLocal }
     };
-    // One proof route for both primary contracts and independent projections.
+    // Prove the selected class/handle mode. Each generated provider trait
+    // separately enforces its interface minimum, even for a local class mode.
     generics.make_where_clause().predicates.push(syn::parse_quote! {
         #object_ident #input_type_generics: #nc::__ComSupportsInterfaceThreading<#declared_threading_model>
     });
