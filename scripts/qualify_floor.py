@@ -17,6 +17,8 @@ def main() -> None:
     rows = [
         ("neocogi-com", "client_views", ABI_TESTS["client_views"]),
         ("neocogi-com", "client_view_admission", "client_views_cannot_replace_capability_storage"),
+        *(("neocogi-com", name, ABI_TESTS[name]) for name in ("checked_values", "output_buffers", "output_completion")),
+        ("neocogi-idl", "unit_values", "unit_values_use_checked_storage_in_copied_calls"),
     ]
     evidence = []
     for package, name, sentinel in rows:

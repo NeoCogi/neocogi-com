@@ -90,6 +90,18 @@ impl_abi_plain_value!(
     NcStatus => NcAbiType::NcStatus,
 );
 
+/// Intrinsic unit data identity. A unit value has a checked one-byte wire;
+/// neither the native zero-sized layout nor status-only Void describes that data.
+/// The exact sixteen-byte domain includes its terminating NUL.
+const UNIT_SIGNATURE: [u8; 32] = crate::__nc_abi_digest(b"neocogi.unit:v1\0");
+
+// SAFETY: this core-owned intrinsic describes ComValue's checked unit codec.
+unsafe impl AbiType for () {
+    const ABI_TYPE: NcAbiType = NcAbiType::Aggregate(NcAbiSignature::from_static(&UNIT_SIGNATURE));
+}
+// SAFETY: unit is durable Copy data with no pointer or release obligations.
+unsafe impl AbiPlainValue for () {}
+
 /// Derives an intrinsic array identity from its element contract and fixed length.
 /// The domain, little-endian tag/count and zero-filled digest slot are normative.
 /// This constant-size calculation never hashes a declaration graph or its fields.
@@ -142,6 +154,33 @@ unsafe impl<T: AbiPlainValue, const N: usize> AbiPlainValue for [T; N] {}
 #[cfg(test)]
 mod array_tests {
     use super::*;
+    /// Independently computed SHA-256 pins the intrinsic without allocation.
+    #[test]
+    fn unit_is_checked_data_with_a_distinct_intrinsic_identity() {
+        const EXPECTED: [u8; 32] = [
+            0x88, 0x89, 0x5e, 0xc8, 0xe3, 0x4f, 0x7f, 0x3c, 0x98, 0x9d, 0x6c, 0x94, 0x0d, 0x69, 0xec, 0x39, 0x51, 0x65, 0x8e, 0x68, 0x94, 0x01, 0xce, 0x5d,
+            0xfa, 0x79, 0x6c, 0xd0, 0x6f, 0xfe, 0x08, 0x91,
+        ];
+        assert_eq!(<()>::ABI_TYPE, NcAbiType::Aggregate(NcAbiSignature::from_static(&EXPECTED)));
+        assert_ne!(<()>::ABI_TYPE, NcAbiType::Void);
+        assert_ne!(<()>::ABI_TYPE, u8::ABI_TYPE);
+        assert_ne!(<[(); 0]>::ABI_TYPE, <[u8; 0]>::ABI_TYPE);
+        assert_ne!(<[(); 2]>::ABI_TYPE, <[u8; 2]>::ABI_TYPE);
+        const {
+            assert!(!<() as crate::ComValue>::BORROW_WIRE);
+        }
+        const {
+            assert!(!<[(); 2] as crate::ComValue>::BORROW_WIRE);
+        }
+        assert_eq!(crate::encode_inline(&()), Ok(0));
+        // SAFETY: initialized u8 storage tests semantic validity, not pointer validity.
+        unsafe {
+            assert_eq!(crate::decode_inline::<()>(0), Ok(()));
+            assert_eq!(crate::decode_inline::<()>(1), Err(crate::NC_E_INVALID_ARG));
+        }
+        fn plain<T: AbiPlainValue>() {}
+        plain::<()>();
+    }
     /// Pins the intrinsic's domain and byte encoding independently of Rust layout.
     #[test]
     fn array_signature_matches_known_sha256_and_distinguishes_shapes() {

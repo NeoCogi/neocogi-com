@@ -1409,7 +1409,7 @@ fn validate_object_target(index: usize, ty: &AbiType, entries: &[ModuleEntry], c
 /// Layout validation separately reports inline cycles with source spans.
 fn copied_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &crate::ValueGraph) -> bool {
     match ty {
-        AbiType::Scalar(_) => true,
+        AbiType::Unit | AbiType::Scalar(_) => true,
         AbiType::Array { element, .. } => copied_type(index, element, entries, values),
         AbiType::Named(name) => resolve_named(index, name, entries).is_ok_and(|symbol| {
             let qualified = &entries[symbol.module].declaration_identities[symbol.declaration].qualified_name;

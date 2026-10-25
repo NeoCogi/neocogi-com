@@ -137,10 +137,10 @@ impl ValueGraph {
     /// Reports implemented copied lowering, rather than merely finite Rust size.
     pub fn is_copied(&self, ty: &ValueType) -> bool {
         match ty {
-            ValueType::Scalar(_) => true,
+            ValueType::Unit | ValueType::Scalar(_) => true,
             ValueType::Array(element, _) => self.is_copied(element),
             ValueType::Named(name) => self.definitions.get(name).is_some_and(|value| value.copied),
-            ValueType::Unit | ValueType::Text | ValueType::Object(_) | ValueType::WeakObject(_) | ValueType::WeakBoxObject(_) | ValueType::Sequence(_) => false,
+            ValueType::Text | ValueType::Object(_) | ValueType::WeakObject(_) | ValueType::WeakBoxObject(_) | ValueType::Sequence(_) => false,
         }
     }
 }

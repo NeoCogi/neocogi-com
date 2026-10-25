@@ -615,6 +615,7 @@ fn snake_case(value: &str) -> String {
 /// Lowers one copied aggregate field or payload type.
 fn value_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &AbiType) -> Result<TokenStream, GenerateError> {
     match ty {
+        AbiType::Unit => Ok(quote! { () }),
         AbiType::Scalar(name) => scalar(name),
         AbiType::Named(name) => {
             let resolved = resolve(graph, module, name)?;
@@ -628,7 +629,7 @@ fn value_type(graph: &mut Generation<'_>, module: &ResolvedModule, ty: &AbiType)
             let len = Literal::u32_unsuffixed(*len);
             Ok(quote! { [#element; #len] })
         }
-        _ => Err(GenerateError::new("borrowed, string, and unit types cannot occupy copied aggregate storage")),
+        _ => Err(GenerateError::new("borrowed and string types cannot occupy copied aggregate storage")),
     }
 }
 

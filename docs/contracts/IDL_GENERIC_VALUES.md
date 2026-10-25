@@ -287,6 +287,11 @@ again before capability analysis, reporting both conflicting source locations.
 Valid recursive and repeated projections retain their existing names and ABI
 bytes. The origin proof stops at nominal references rather than unfolding fields.
 
+`Option<()>` and other unit-containing closed values use the ordinary checked
+unit byte codec. They can occupy copied method positions when every other field
+is copied. This data identity is distinct from a method's status-only unit result;
+see the [recursive value rules](RECURSIVE_VALUE_CONTRACT.md).
+
 ## Free types across Cargo dependencies
 
 A template's nongeneric references keep their lexical owner. If a bridge template

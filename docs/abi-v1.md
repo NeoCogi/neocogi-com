@@ -400,6 +400,17 @@ itself prove safe concurrent method calls or destruction.
 
 ## Contract declarations and checked values
 
+Unit data has the existing Aggregate descriptor tag and the SHA-256 digest of
+the exact sixteen bytes `neocogi.unit:v1\0` (hex
+`6e656f636f67692e756e69743a763100`):
+`88895ec8e34f7f3c989d6c940d69ec3951658e689401ce5dfa796cd06ffe0891`.
+This core-owned intrinsic differs from U8 and Void. Its checked wire is one byte,
+valid only as zero; its native Rust layout is zero-sized and grants no direct
+wire borrowing. Arrays include this element identity even at length zero.
+Named unit-containing results have output storage; root `Result<()>` remains
+status-only. Canonical IDL Unit tags, closed-type identity encoding and structural
+Unit metadata retain their existing encodings.
+
 IDL supports public `struct`, `enum`, `bitenum` and ordinary `interface`
 declarations. Construction and observation are ordinary interface methods;
 concrete classes and plugin acquisition are Rust implementation concerns.

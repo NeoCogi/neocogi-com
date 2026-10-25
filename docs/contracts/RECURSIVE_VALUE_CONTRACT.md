@@ -25,12 +25,21 @@ of bytes; it is not implicitly an opaque binary blob.
 Every boundary conversion follows the same rules:
 
 * Booleans use raw bytes, and only 0 and 1 decode successfully.
+* Nested unit `()` uses one raw byte; only zero decodes successfully. It is
+  eligible in copied records, enum payloads, ordinary Option, arrays and buffers.
+  Native unit is zero-sized, so unit and unit arrays never borrow wire storage
+  directly. Conversion buffers require allocation support. Each unit still
+  consumes one logical value in the shared count/depth budget.
 * An enum uses an integer tag and raw payload storage. Decode matches the tag
   before reading the selected payload. Inactive payloads are never read.
 * Records, arrays, options, and sequence elements recursively use these rules.
 * Strings validate UTF-8 before acquiring owned text.
 * COM references validate the complete interface identity and acquire a reference
   before the producer's borrowed reference expires.
+
+Root `Result<()>` remains a status-only method result with no output slot. A
+named unit-containing result has real checked output storage. Bare unit method
+parameters remain excluded; nested value support does not add that input form.
 
 Application values and wire values are different types. A wire descriptor never
 points at application records whose layout or bit-pattern validity differs from

@@ -128,6 +128,11 @@ value IDs have a separate policy and may still explicitly use nil.
 
 ### Canonical signatures
 
+Unit fields and payloads are checked copied data, including through fixed arrays
+and buffers; their wire byte must be zero. Root `Result<()>` still has no output
+slot, and bare unit inputs remain excluded. The
+[recursive value contract](RECURSIVE_VALUE_CONTRACT.md) defines conversion and budgets.
+
 Templates and concrete declarations share the explicit binary declaration
 encoder under `neocogi-idl:module-abi:v13`. The former separate template string
 encoding and its Debug-formatted policy values are removed. Both paths encode
