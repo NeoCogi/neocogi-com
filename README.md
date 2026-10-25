@@ -40,32 +40,4 @@ Read the [component guide](docs/COM.md),
 [IDL reference](docs/contracts/IDL_MODULES.md), and
 [dynamic/static example](examples/com-plugin/README.md).
 
-## Publishing
-
-All six distributable packages inherit version `0.1.0`, MIT licensing, authors,
-repository metadata, and Rust 1.85 support from the root manifest. Internal
-dependencies specify both a local path and the exact matching registry version.
-The root lockfile is committed; fixture lockfiles are maintained independently.
-
-After running the quality and archive checks, publish in dependency order:
-
-```sh
-cargo publish -p neocogi-com-core --locked
-cargo publish -p neocogi-idl --locked
-cargo publish -p neocogi-com-macros --locked
-cargo publish -p neocogi-com-runtime --locked
-cargo publish -p neocogi-com --locked
-cargo publish -p neocogi-inspect --locked
-```
-
-Wait for each dependency to appear in the registry before publishing its
-dependents. Use `cargo publish --dry-run -p PACKAGE --locked` to check an
-individual package against the registry once its dependencies are available.
-The archive check qualifies the complete unpublished graph locally. Actual
-publication requires ownership of the package names and crates.io credentials.
-
-To release another version, update `[workspace.package].version` and the five
-internal version requirements in `[workspace.dependencies]` together, then
-refresh the root and affected fixture lockfiles and rerun qualification.
-
 Licensed under [MIT](LICENSE-MIT).
