@@ -185,6 +185,11 @@ def ordinary_tests(build: Build, target: Path, env: dict[str, str], native_targe
     authority. They receive no runtime DSO or loader/link-directory overrides.
     """
     evidence = {}
+    if platform.system() == "Windows":
+        args = ["test", "-p", "neocogi-com", "--features", "runtime", "--test", "windows_plugin_paths"]
+        evidence["windows_plugin_paths"] = execute_tests(
+            lambda options: cargo(build, target, args, env, native_target, harness=options),
+            "embedded_nul_path_is_rejected_before_descriptor_getter")
     for target_name, sentinel in ABI_TESTS.items():
         # These cases need no runtime client capability. Exporting sanitizer
         # hooks retains public functions, so an unused runtime feature would

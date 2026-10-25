@@ -66,6 +66,11 @@ path = "integration-tests/client_views.rs"
 required-features = ["macros", "std"]
 
 [[test]]
+name = "windows_plugin_paths"
+path = "integration-tests/windows_plugin_paths.rs"
+required-features = ["runtime"]
+
+[[test]]
 name = "client_view_admission"
 path = "integration-tests/client_view_admission.rs"
 required-features = ["macros", "std"]

@@ -607,6 +607,12 @@ per process.
 
 ## Runtime and global registry
 
+Native Rust loading and owned inspection reject an interior NUL before entering
+the platform loader. Windows checks the encoded UTF-16 path before LoadLibraryW;
+Unix checks its byte path before dlopen. Both report the existing OpenLibrary
+phase. The facade's UTF-8 path adapter retains its invalid-argument rejection.
+Successfully opened native mappings remain process-pinned.
+
 ### One host, supplied access
 
 One authority owns plugin GUIDs, dependency validation, registration order, first
@@ -1007,18 +1013,20 @@ Exact names, nonempty execution and actual Cargo artifacts are checked. Installi
 nightly or finding a successfully compiled binary never passes a compatibility case.
 
 Stable/nightly are rolling selectors, independent of the COM crates' declared
-Rust 1.85 minimum. The separate `com-msrv` CI job runs the existing floor suite:
+Rust 1.85 minimum. The Linux SDK job runs the floor suite sequentially:
 
 ```sh
 rustup toolchain install 1.85.0 --profile minimal
-# The workspace lock is untracked; resolve once before the locked suite.
-cargo +1.85.0 generate-lockfile
 bash scripts/test-msrv.sh
 ```
 
 That suite checks all COM/IDL/inspector targets and features, library tests,
 normative ABI snippets, inspector binary tests, and the facade/core feature
-variants. The cross-compiler dynamic-loader matrix runs separately.
+variants. It also discovers and executes exact required semantic cases and then
+the complete client-view, admission, checked-value, output-buffer/completion and
+generated unit-value targets. Snapshot diagnostics remain in stable qualification.
+The cross-compiler native-loader cases run in the Linux safety job. The workflow
+contains four jobs total, with one Cargo build job and one test thread per job.
 
 Reports record `rustc -vV` for every selected compiler plus each role's exact
 profile, panic and LTO policy. Reports change to `running` before work begins and

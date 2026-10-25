@@ -50,6 +50,14 @@ impl DynamicLibrary {
     /// Opens a Windows library path after UTF-16 encoding.
     pub(in crate::loader) fn open(path: &Path) -> Result<Self, Error> {
         let mut wide: Vec<u16> = path.as_os_str().encode_wide().collect();
+        // Reject before entering the native loader: otherwise LoadLibraryW
+        // silently opens the prefix before the first zero, including DLL code.
+        if wide.contains(&0) {
+            return Err(Error {
+                kind: PluginLoadErrorKind::OpenLibrary,
+                message: "library path contains an interior NUL code unit".to_string(),
+            });
+        }
         wide.push(0);
         // SAFETY: `wide` is a NUL-terminated UTF-16 path.
         let handle = unsafe { LoadLibraryW(wide.as_ptr()) };

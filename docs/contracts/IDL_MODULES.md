@@ -283,16 +283,6 @@ are extracted from this document, resolved, generated and compiled by
 [COM README](../COM.md#idl) adds an executable
 implementation and factory bootstrap checked by the same test.
 
-The production `neocogi.ui.core` module owns shared node,
-window, menu, and popup protocols. `neocogi.ui.nodes` imports core and owns
-built-in object interfaces, specialized events, and `UiFactory`. Core
-`UiRuntime::construction_host()` returns its canonical `IConstructionHost`; core never imports nodes. An
-independently activated `NodesPluginFactory` binds that runtime and returns `UiFactory`. The
-generated core module owns `ChoiceMenuEntry`, `MenuTextRange`, `ChoiceSelection`, `IChoiceMenu`,
-and its changed event because reusable hierarchy, popup lifecycle, and committed selection are
-core menu policy. Nodes owns Combo presentation and the other concrete controls, so the
-handwritten facade duplicates none of those records.
-
 The optional suffix after an enum name selects its discriminant or tag type:
 `u8`, `u16`, `u32`, `i8`, `i16`, or `i32`. Omitting it defaults to `u32`.
 Representation is IDL syntax (`enum Name: u8`), not a Rust `#[repr]` attribute.

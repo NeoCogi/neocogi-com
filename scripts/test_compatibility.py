@@ -191,11 +191,28 @@ class AdmissionTests(unittest.TestCase):
             outputs.extend([sentinel + ": test\n", "test result: ok. 1 passed; 0 failed;",
                             "test result: ok. 2 passed; 0 failed;"])
         outputs.extend(["native_layout: test\n", "test result: ok. 1 passed; 0 failed;"])
-        with patch.object(driver, "cargo", side_effect=outputs) as cargo:
+        with patch.object(driver.platform, "system", return_value="Linux"), patch.object(driver, "cargo", side_effect=outputs) as cargo:
             driver.ordinary_tests(driver.Build("stable"), Path("target"), {}, "x86_64-unknown-linux-gnu", None)
         for call in cargo.call_args_list[:3 * len(driver.ABI_TESTS)]:
             self.assertNotIn("--features", call.args[2])
             self.assertEqual(call.args[3], {})
+
+    def test_windows_native_path_case_requires_exact_and_complete_execution(self):
+        """The Windows linked route must actually admit its platform regression."""
+        sentinel = "embedded_nul_path_is_rejected_before_descriptor_getter"
+        outputs = [sentinel + ": test\n", "test result: ok. 1 passed; 0 failed;", "test result: ok. 2 passed; 0 failed;"]
+        for required in driver.ABI_TESTS.values():
+            outputs.extend([required + ": test\n", "test result: ok. 1 passed; 0 failed;", "test result: ok. 2 passed; 0 failed;"])
+        outputs.extend(["native_layout: test\n", "test result: ok. 1 passed; 0 failed;"])
+        with patch.object(driver.platform, "system", return_value="Windows"), patch.object(driver, "cargo", side_effect=outputs) as cargo:
+            evidence = driver.ordinary_tests(driver.Build("stable"), Path("target"), {}, "x86_64-pc-windows-msvc", None)
+        self.assertEqual(evidence["windows_plugin_paths"]["exact"], "passed")
+        calls = cargo.call_args_list[:3]
+        for call in calls:
+            self.assertEqual(call.args[2], ["test", "-p", "neocogi-com", "--features", "runtime", "--test", "windows_plugin_paths"])
+        self.assertEqual([call.kwargs["harness"] for call in calls], [("--list",), ("--exact", sentinel), ()])
+        with patch.object(driver.platform, "system", return_value="Windows"), patch.object(driver, "cargo", side_effect=[sentinel + ": test\n", "test result: ok. 0 passed; 0 failed; 1 ignored;"]), self.assertRaises(RuntimeError):
+            driver.ordinary_tests(driver.Build("stable"), Path("target"), {}, "x86_64-pc-windows-msvc", None)
 
     def test_ambient_compiler_flags_profiles_and_loader_paths_are_removed(self):
         """The build case owns these settings; an invoking Cargo process cannot select them."""
