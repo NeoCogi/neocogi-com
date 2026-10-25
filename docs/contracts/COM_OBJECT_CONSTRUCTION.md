@@ -88,6 +88,14 @@ synchronous exclusive destruction are unchanged. No shared/exclusive runtime
 policy branch or second borrow gate is added. All process registration remains
 inside the one host-owned `nc_com` runtime; typed storage has no registry state.
 
+A call lease retains a reference to the typed interior-mutable value slot and
+its selected admission guard. Dereferencing lends T only for the lease borrow;
+the lease itself stores no `&T` or `&mut T` that could remain protected through
+its release. A waiting owner or new writer may access T as soon as admission is
+released. The caller retains allocation storage through the entire lease/drop
+call, even when T is destroyed during that interval. The same rule covers
+generated methods, built-in persistence adapters and local access guards.
+
 This change reduces generated unsafe layout code. Generic support still
 monomorphizes; neither binary-size reduction nor faster dispatch follows from
 source consolidation alone.

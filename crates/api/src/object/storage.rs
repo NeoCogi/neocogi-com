@@ -93,7 +93,7 @@ impl<T: ComObject> __ComSharedStorage<T> {
         // SAFETY: caller retains matching storage; null is rejected before field access.
         let storage = unsafe { object.cast::<Self>().as_ref() }.ok_or(NC_E_POINTER)?;
         // SAFETY: the lease acquires the gate before constructing a reference to T.
-        unsafe { __ComSharedLease::acquire(&storage.access, storage.value.get().cast::<T>()) }
+        unsafe { __ComSharedLease::acquire(&storage.access, &storage.value) }
     }
 
     /// Recovers exclusive access through the shared allocation's call gate.
@@ -104,7 +104,7 @@ impl<T: ComObject> __ComSharedStorage<T> {
         // SAFETY: caller retains matching storage throughout the lease.
         let storage = unsafe { object.cast::<Self>().as_ref() }.ok_or(NC_E_POINTER)?;
         // SAFETY: acquisition rejects readers/reentrant writers before creating &mut T.
-        unsafe { __ComExclusiveLease::acquire(&storage.access, storage.value.get().cast::<T>()) }
+        unsafe { __ComExclusiveLease::acquire(&storage.access, &storage.value) }
     }
 }
 
@@ -129,7 +129,7 @@ impl<T: ComObject> __ComBoxStorage<T> {
         // SAFETY: MaybeUninit keeps the retained storage valid even after T dies.
         let storage = unsafe { object.cast::<Self>().as_ref() }.ok_or(NC_E_POINTER)?;
         // SAFETY: acquisition checks owner presence and borrowing before referencing T.
-        unsafe { __ComSharedLease::acquire_box(object.cast(), storage.value.get().cast::<T>()) }
+        unsafe { __ComSharedLease::acquire_box(object.cast(), &storage.value) }
     }
 
     /// Admits the unique writer atomically against owner removal and other calls.
@@ -140,7 +140,7 @@ impl<T: ComObject> __ComBoxStorage<T> {
         // SAFETY: caller retains the header; no T reference has been constructed.
         let storage = unsafe { object.cast::<Self>().as_ref() }.ok_or(NC_E_POINTER)?;
         // SAFETY: header admission excludes destruction and conflicting borrows.
-        unsafe { __ComExclusiveLease::acquire_box(object.cast(), storage.value.get().cast::<T>()) }
+        unsafe { __ComExclusiveLease::acquire_box(object.cast(), &storage.value) }
     }
 }
 

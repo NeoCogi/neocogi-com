@@ -243,7 +243,15 @@ instances of a class and supplies provider-local destruction and allocation rele
 Generated exclusive storage places `UnsafeCell<MaybeUninit<T>>` after the header.
 It contains no separate call gate. Generated shared storage retains its separate
 borrow gate because its header word counts strong owners. Both policies produce
-a two-word provider-local lease: a value reference and one selected guard.
+a two-word provider-local lease: a typed `UnsafeCell<MaybeUninit<T>>` slot
+reference and one selected guard. The lease creates `&T`/`&mut T` only for
+short guarded reborrows. It must not store a T reference across admission release:
+passing a reference-bearing lease into a drop function can protect that reference
+until after the guard unlocks. A newly admitted writer or waiting exclusive-owner
+destructor may then access T immediately. Retained slot storage outlives the
+complete lease/drop call; `MaybeUninit` permits T to be destroyed within that
+interval once its last value loan and admission have ended. Threading capability
+still requires the corresponding T, guard and owner-mode proofs.
 Shared entry requires the caller to retain a strong owner throughout the call;
 the shared borrow gate does not acquire a replacement ownership reference.
 

@@ -88,6 +88,12 @@ class AdmissionTests(unittest.TestCase):
                         with self.assertRaises(RuntimeError):
                             driver.execute_tests(execute, "required_case", ("--skip", "required_case"))
                         driver.execute_tests(execute, "required_case", ("--skip", "helper"))
+                        driver.execute_tests(execute, ("required_case", "required_case_suffix"))
+                        for second in ("missing_case", "unrelated_ignored"):
+                            with self.assertRaises(RuntimeError):
+                                driver.execute_tests(execute, ("required_case", second))
+                        with self.assertRaises(RuntimeError):
+                            driver.execute_tests(execute, ("required_case", "helper"), ("--skip", "helper"))
 
     def test_expected_artifact_must_exist_and_contain_bytes(self):
         """Do not discover an unrelated DSO elsewhere when the requested build produced none."""
@@ -273,7 +279,8 @@ class AdmissionTests(unittest.TestCase):
         libraries = {
             "neocogi-com-core": "abi::array_tests::array_signature_matches_known_sha256_and_distinguishes_shapes",
             "neocogi-com-runtime": "loader::plan::tests::orders_dependencies_before_dependents_deterministically",
-            "neocogi-com": "tests::metadata_identity_query_checks_and_releases_a_concrete_projection",
+            "neocogi-com": ("tests::metadata_identity_query_checks_and_releases_a_concrete_projection",
+                            "object::tests::lease_release_does_not_keep_a_protected_value_reference"),
         }
         interfaces = {
             "local_com": "local_and_foreign_calls_share_one_gate_and_one_model",
@@ -281,6 +288,7 @@ class AdmissionTests(unittest.TestCase):
             "borrowed_values": "owned_message_outlives_producer_guard_and_source",
             **{name: driver.ABI_TESTS[name] for name in ("client_views", "checked_values", "output_buffers", "output_completion", "exclusive_com", "weak_com")},
         }
+        interfaces["exclusive_com"] = (interfaces["exclusive_com"], "thread_safe_owner_drop_waits_for_admitted_readers_and_writers")
 
         def output(arguments, **_):
             """Supply genuine harness shapes so the normal admission checks remain active."""
@@ -292,13 +300,17 @@ class AdmissionTests(unittest.TestCase):
                 sentinel = interfaces[arguments[arguments.index("--test") + 1]]
             else:
                 sentinel = libraries[arguments[arguments.index("-p") + 1]]
-            return sentinel + ": test\n"
+            names = (sentinel,) if isinstance(sentinel, str) else sentinel
+            return "".join(name + ": test\n" for name in names)
 
         with patch.object(driver, "run", side_effect=output) as run:
             evidence = driver.safety()
         commands = [call.args[0] for call in run.call_args_list if "miri" in call.args[0] and "test" in call.args[0]]
         self.assertEqual(evidence["targets"], len(libraries) + len(interfaces))
-        self.assertEqual(len(commands), 3 * evidence["targets"])
+        self.assertEqual(len(commands), 3 * evidence["targets"] + 2)
+        exact = [command[command.index("--exact") + 1] for command in commands if "--exact" in command]
+        self.assertIn("object::tests::lease_release_does_not_keep_a_protected_value_reference", exact)
+        self.assertIn("thread_safe_owner_drop_waits_for_admitted_readers_and_writers", exact)
         expected_skips = {
             "buffer_count_includes_each_nested_record",
             "buffers_count_selected_variants_without_charging_larger_alternatives",

@@ -133,18 +133,22 @@ def require_execution(output: str) -> None:
         raise RuntimeError("no successful nonempty test execution")
 
 
-def execute_tests(execute: Callable[[tuple[str, ...]], str], required: str | None = None,
+def execute_tests(execute: Callable[[tuple[str, ...]], str], required: str | tuple[str, ...] | None = None,
                   harness: tuple[str, ...] = ()) -> dict:
-    """Prove the required case ran, then retain every maintained case in its target.
+    """Prove every required case ran, then retain the complete maintained target.
 
     Discovery alone includes ignored tests. Selecting the exact required name
     makes an ignored/filtered case produce zero passed tests, so unrelated helper
-    successes cannot substitute for it. Existing skips remain active in both runs.
+    successes cannot substitute for it. Existing skips remain active in every run.
     The callback owns compiler/target/role policy and must reject child failures.
     """
-    require_tests(execute((*harness, "--list")), required)
-    if required is not None:
-        require_execution(execute((*harness, "--exact", required)))
+    names = (required,) if isinstance(required, str) else required or ()
+    listing = execute((*harness, "--list"))
+    require_tests(listing)
+    for name in names:
+        require_tests(listing, name)
+    for name in names:
+        require_execution(execute((*harness, "--exact", name)))
     require_execution(execute(harness))
     return {"required": required, "exact": "passed" if required else None, "complete": "passed"}
 
@@ -278,9 +282,13 @@ def safety() -> dict:
     targets = [
         (["-p", "neocogi-com-core", "--lib", "--features", "std"], "abi::array_tests::array_signature_matches_known_sha256_and_distinguishes_shapes"),
         (["-p", "neocogi-com-runtime", "--lib"], "loader::plan::tests::orders_dependencies_before_dependents_deterministically"),
-        (["-p", "neocogi-com", "--lib", "--features", "runtime"], "tests::metadata_identity_query_checks_and_releases_a_concrete_projection"),
+        (["-p", "neocogi-com", "--lib", "--features", "runtime"], (
+            "tests::metadata_identity_query_checks_and_releases_a_concrete_projection",
+            "object::tests::lease_release_does_not_keep_a_protected_value_reference",
+        )),
     ]
-    targets.extend((["-p", "neocogi-com-tests", "--features", "runtime", "--test", name], sentinel) for name, sentinel in (
+    targets.extend((["-p", "neocogi-com-tests", "--features", "runtime", "--test", name],
+                    (sentinel, "thread_safe_owner_drop_waits_for_admitted_readers_and_writers") if name == "exclusive_com" else sentinel) for name, sentinel in (
         ("local_com", "local_and_foreign_calls_share_one_gate_and_one_model"),
         ("com_main", "copied_access::copied_access_outlives_the_outer_record_and_shares_state_across_threads"),
         ("borrowed_values", "owned_message_outlives_producer_guard_and_source"),
