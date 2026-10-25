@@ -6,7 +6,7 @@
 //! methods, inheritance, borrowed values, and threading exactly once.
 
 use std::collections::HashMap;
-use crate::binding::{Binding, DeclarationKey};
+use crate::binding::{Binding, DeclarationKey, SemanticOrigin, semantic_origin};
 use neocogi_com_core::{NcGuid, guid_from_name, guid_from_qualified_name};
 use crate::{
     AbiType, Declaration, DeclarationKind, DeclarationId, Diagnostic, ExternalModule, Module, NamedType, ResolutionError, SourceSpan, Specialization,
@@ -69,7 +69,18 @@ struct Expansion {
     /// Concrete modules accumulated for ordinary ABI validation.
     modules: Vec<Module>,
     /// One local projection per canonical specialization, including active recursion.
-    instances: HashMap<(usize, NcGuid), DeclarationKey>,
+    instances: HashMap<(usize, NcGuid), Instance>,
+}
+
+/// A reserved projection, including an active recursive instantiation. Its
+/// finite origin is available before field lowering can reenter the cache.
+struct Instance {
+    /// Concrete declaration in the consuming module.
+    key: DeclarationKey,
+    /// Full bound meaning; equal UUIDs alone do not authorize reuse.
+    origin: SemanticOrigin,
+    /// First request, retained to diagnose both sides of an ambiguity.
+    span: SourceSpan,
 }
 
 impl Expansion {
@@ -127,8 +138,20 @@ impl Expansion {
     /// Materializes a closed value or interface once in the consumer's module.
     fn instantiate(&mut self, target: usize, mut name: NamedType, depth: usize) -> Result<NamedType, ResolutionError> {
         let identity = self.type_identity(&AbiType::Named(name.clone()))?;
-        if let Some(key) = self.instances.get(&(target, identity)) {
-            return Ok(projected(name.span, key.clone()));
+        let origin = semantic_origin(&AbiType::Named(name.clone()))?;
+        if let Some(instance) = self.instances.get(&(target, identity)) {
+            if instance.origin != origin {
+                let sources = self.originals.iter().flat_map(|module| module.sources.iter().cloned()).collect::<Vec<_>>();
+                return Err(ResolutionError {
+                    diagnostics: vec![
+                        Diagnostic::new("EIDL060", format!("specialization UUID {identity} has conflicting semantic origins"))
+                            .with_sources(&sources)
+                            .primary(&name.span, format!("conflicting request: {origin:?}"))
+                            .secondary(&instance.span, format!("first request: {:?}", instance.origin)),
+                    ],
+                });
+            }
+            return Ok(projected(name.span, instance.key.clone()));
         }
         if depth > MAX_DEPTH || self.instances.len() >= MAX_INSTANTIATIONS {
             return Err(failure(&name.span, "type specialization exceeds the compiler depth or instance limit"));
@@ -146,7 +169,14 @@ impl Expansion {
             return Err(failure(&name.span, "generated specialization name collides with an authored declaration"));
         }
         let key = DeclarationKey { module: target, name: local.clone() };
-        self.instances.insert((target, identity), key.clone());
+        self.instances.insert(
+            (target, identity),
+            Instance {
+                key: key.clone(),
+                origin,
+                span: name.span.clone(),
+            },
+        );
         substitute_declaration(&mut declaration, &substitutions)?;
         let arguments = std::mem::take(&mut name.arguments);
         declaration.specialization = Some(Specialization { template: name.clone(), arguments });

@@ -276,6 +276,17 @@ typed IDL metadata to interpret the name. This differs from Cargo `links` names,
 whose hex suffix directly encodes the exact dotted module name and is reversible.
 Neither presentation rule changes runtime/descriptor ABI v1.
 
+A canonical name denotes one semantic contract in a resolved graph. Authored
+declarations cannot impersonate a closed specialization's canonical name, even
+when their consumer-local Rust names differ. Repeated closed projections are
+permitted only for the same bound template and ordered argument meanings with
+the same nominal ID. Explicit IDs remain supported; matching a scalar or
+constructor's UUID does not make an authored type equivalent to that argument.
+The compiler checks these finite origins before specialization-cache reuse and
+again before capability analysis, reporting both conflicting source locations.
+Valid recursive and repeated projections retain their existing names and ABI
+bytes. The origin proof stops at nominal references rather than unfolding fields.
+
 ## Free types across Cargo dependencies
 
 A template's nongeneric references keep their lexical owner. If a bridge template

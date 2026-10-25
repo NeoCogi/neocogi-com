@@ -68,6 +68,90 @@ impl Binding {
     }
 }
 
+/// Finite semantic meaning of a closed argument, independent of its UUID digest.
+/// Nominal leaves stop at their bound declaration, so recursive contracts do not
+/// unfold here. Applications retain the original template, never a consumer's
+/// generated projection. One bound template also fixes its complete contract
+/// (kind, version, fields/cases, persistence and method policy).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum SemanticOrigin {
+    /// The intrinsic checked unit value.
+    Unit,
+    /// An intrinsic scalar; its spelling is the language's canonical scalar name.
+    Scalar(String),
+    /// Owned UTF-8 data, distinct from the string COM capability.
+    Text,
+    /// A bound built-in capability or borrowed text view.
+    Intrinsic(Intrinsic),
+    /// An authored declaration, without unfolding its fields.
+    Nominal(DeclarationKey),
+    /// A template and its ordered finite argument meanings.
+    Application(DeclarationKey, Vec<SemanticOrigin>),
+    /// A language constructor, optional array extent, and its child meaning.
+    Constructed(Constructor, Option<u32>, Box<SemanticOrigin>),
+}
+
+/// Distinguishes constructors even when their legacy UUIDs coincide with a
+/// nominal explicit ID. These tags are internal proofs, not new ABI bytes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Constructor {
+    /// Strong shared COM owner.
+    ComPtr,
+    /// Shared weak observer.
+    WeakComPtr,
+    /// Exclusive COM owner.
+    ComBox,
+    /// Exclusive weak observer.
+    WeakComBox,
+    /// Synchronous borrow.
+    Borrowed,
+    /// Owned sequence.
+    Vector,
+    /// Unsized sequence referent.
+    UnsizedSlice,
+    /// Readable buffer.
+    Slice,
+    /// Write-only buffer.
+    OutputSlice,
+    /// Inline fixed-size array.
+    Array,
+}
+
+/// Reads already-bound meaning without another lexical lookup or UUID reduction.
+pub(crate) fn semantic_origin(ty: &crate::AbiType) -> Result<SemanticOrigin, crate::ResolutionError> {
+    use crate::AbiType as T;
+    use SemanticOrigin as O;
+    let constructor = |kind, len, child| Ok(O::Constructed(kind, len, Box::new(semantic_origin(child)?)));
+    match ty {
+        T::Unit => Ok(O::Unit),
+        T::Scalar(name) => Ok(O::Scalar(name.clone())),
+        T::String => Ok(O::Text),
+        T::Named(name) => match &name.binding {
+            Binding::Intrinsic(value) => Ok(O::Intrinsic(*value)),
+            Binding::Declaration(key) if name.arguments.is_empty() => Ok(O::Nominal(key.clone())),
+            Binding::Application { template, .. } => Ok(O::Application(
+                template.clone(),
+                name.arguments.iter().map(semantic_origin).collect::<Result<_, _>>()?,
+            )),
+            _ => Err(crate::ResolutionError {
+                diagnostics: vec![
+                    crate::Diagnostic::new("EIDL060", "closed semantic origin requires a bound type").primary(&name.span, "unbound or open argument"),
+                ],
+            }),
+        },
+        T::ComPtr(child) => constructor(Constructor::ComPtr, None, child),
+        T::WeakComPtr(child) => constructor(Constructor::WeakComPtr, None, child),
+        T::ComBox(child) => constructor(Constructor::ComBox, None, child),
+        T::WeakComBox(child) => constructor(Constructor::WeakComBox, None, child),
+        T::Borrowed(child) => constructor(Constructor::Borrowed, None, child),
+        T::Vector(child) => constructor(Constructor::Vector, None, child),
+        T::UnsizedSlice(child) => constructor(Constructor::UnsizedSlice, None, child),
+        T::Slice(child) => constructor(Constructor::Slice, None, child),
+        T::OutputSlice(child) => constructor(Constructor::OutputSlice, None, child),
+        T::Array { element, len } => constructor(Constructor::Array, Some(*len), element),
+    }
+}
+
 /// Recognizes intrinsic syntax at the binding boundary, after parameter shadowing.
 pub(crate) fn intrinsic(segments: &[String]) -> Option<Intrinsic> {
     match segments {

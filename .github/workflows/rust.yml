@@ -13,6 +13,9 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # Compiler-spawning tests must not multiply Cargo's own build parallelism.
+  CARGO_BUILD_JOBS: 1
+  RUST_TEST_THREADS: 1
 
 # Four jobs total. Group Linux checks sequentially instead of expanding matrices.
 jobs:

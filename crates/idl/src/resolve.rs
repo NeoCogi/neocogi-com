@@ -265,7 +265,8 @@ fn resolve_semantics(mut modules: Vec<Module>) -> Result<ResolvedModules, Resolu
     let modules = crate::specialize::expand(authored.into_iter().map(|entry| entry.module).collect())?;
     let mut entries = build_entries(modules)?;
     connect_externals_and_imports(&mut entries)?;
-    let values = resolve_value_graph(&entries)?;
+    let admitted = admit_canonical_origins(&entries)?;
+    let values = resolve_value_graph(&entries, &admitted)?;
     let mut diagnostics = Vec::new();
     for index in 0..entries.len() {
         if let Err(error) = validate_module(index, &entries, &values) {
@@ -1418,8 +1419,78 @@ fn copied_type(index: usize, ty: &AbiType, entries: &[ModuleEntry], values: &cra
     }
 }
 
+/// One admitted definition for a canonical name. The bound origin proves the
+/// entire deterministic substitution before capabilities or fingerprints exist.
+struct CanonicalOrigin {
+    /// Semantic definition, independent of a consumer's projection or UUID hash.
+    origin: crate::binding::SemanticOrigin,
+    /// Existing nominal ID; origin validation does not change ABI encoding.
+    id: NcGuid,
+    /// First physical declaration, used for diagnostics and the graph backstop.
+    location: (usize, usize),
+    /// Only repeated closed projections may share a canonical name.
+    closed: bool,
+}
+
+/// Authorizes reuse once, before any string-keyed consumer can lose a definition.
+fn admit_canonical_origins(entries: &[ModuleEntry]) -> Result<HashMap<String, CanonicalOrigin>, ResolutionError> {
+    use crate::binding::{DeclarationKey, SemanticOrigin, semantic_origin};
+    let mut admitted = HashMap::<String, CanonicalOrigin>::new();
+    for (module_index, entry) in entries.iter().enumerate() {
+        for (declaration_index, declaration) in entry.module.declarations.iter().enumerate() {
+            let identity = &entry.declaration_identities[declaration_index];
+            let origin = if let Some(specialization) = &declaration.specialization {
+                let mut name = specialization.template.clone();
+                name.arguments = specialization.arguments.clone();
+                // The retained bound template fixes every contract attribute;
+                // finite arguments fix substitution, including phantom fields.
+                let key = name.binding.declaration().expect("bound template");
+                assert!(entries[key.module].module.templates.iter().any(|template| template.name == key.name));
+                semantic_origin(&AbiType::Named(name))?
+            } else {
+                SemanticOrigin::Nominal(DeclarationKey {
+                    module: module_index,
+                    name: declaration.name.clone(),
+                })
+            };
+            let candidate = CanonicalOrigin {
+                origin,
+                id: identity.id,
+                location: (module_index, declaration_index),
+                closed: declaration.specialization.is_some(),
+            };
+            match admitted.entry(identity.qualified_name.clone()) {
+                std::collections::hash_map::Entry::Vacant(slot) => {
+                    slot.insert(candidate);
+                }
+                std::collections::hash_map::Entry::Occupied(slot) => {
+                    let previous = slot.get();
+                    if !(previous.closed && candidate.closed && previous.id == candidate.id && previous.origin == candidate.origin) {
+                        let (owner, index) = previous.location;
+                        let first = &entries[owner].module.declarations[index];
+                        let sources = entries.iter().flat_map(|entry| entry.module.sources.iter().cloned()).collect::<Vec<_>>();
+                        return Err(ResolutionError {
+                            diagnostics: vec![
+                                Diagnostic::new(
+                                    "EIDL060",
+                                    format!("canonical declaration {:?} has conflicting semantic origins", identity.qualified_name),
+                                )
+                                .with_sources(&sources)
+                                .primary(&declaration.span, format!("conflicting definition: {:?}", candidate.origin))
+                                .secondary(&first.span, format!("first definition: {:?}", previous.origin)),
+                            ],
+                        });
+                    }
+                }
+            }
+        }
+    }
+    Ok(admitted)
+}
+
 /// Resolves field paths once into finite named graph edges, including indirect recursion.
-fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, ResolutionError> {
+/// Repeated projections reuse their admitted node; no shape is silently overwritten.
+fn resolve_value_graph(entries: &[ModuleEntry], admitted: &HashMap<String, CanonicalOrigin>) -> Result<crate::ValueGraph, ResolutionError> {
     fn field(index: usize, ty: &AbiType, entries: &[ModuleEntry]) -> Result<crate::ValueType, ResolutionError> {
         use crate::ValueType as V;
         Ok(match ty {
@@ -1467,15 +1538,33 @@ fn resolve_value_graph(entries: &[ModuleEntry]) -> Result<crate::ValueGraph, Res
                 .into_iter()
                 .map(|ty| field(index, ty, entries))
                 .collect::<Result<Vec<_>, _>>()?;
-            graph.definitions.insert(
-                name.clone(),
-                crate::ValueDefinition {
-                    name,
-                    fields,
-                    copied: true,
-                    persistence: crate::Persistence::Supported,
-                },
-            );
+            let proof = admitted.get(&name).expect("canonical admission precedes value analysis");
+            let definition = crate::ValueDefinition {
+                name: name.clone(),
+                fields,
+                copied: true,
+                persistence: crate::Persistence::Supported,
+            };
+            match graph.definitions.entry(name) {
+                std::collections::btree_map::Entry::Vacant(slot) => {
+                    slot.insert(definition);
+                }
+                std::collections::btree_map::Entry::Occupied(slot) => {
+                    // Admission already proves full template/argument meaning,
+                    // not merely these flattened fields. This is a backstop
+                    // against a later lowering bug under that established rule.
+                    if slot.get() != &definition {
+                        let (owner, first) = proof.location;
+                        return Err(ResolutionError {
+                            diagnostics: vec![
+                                Diagnostic::new("EIDL060", "admitted projections have inconsistent value shapes")
+                                    .primary(&declaration.span, "inconsistent projection")
+                                    .secondary(&entries[owner].module.declarations[first].span, "first admitted projection"),
+                            ],
+                        });
+                    }
+                }
+            }
         }
     }
     graph.resolve_capabilities();
