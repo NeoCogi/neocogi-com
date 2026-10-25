@@ -454,6 +454,10 @@ named `neocogi.ui.core.IWidget`.
 
 ### Contract changes and versions
 
+The initial production IDL baseline uses `#[version(1)]` for every declaration,
+including bundled library types. Test fixtures and examples may use other
+versions to exercise contract evolution and compatibility.
+
 A declaration version identifies an authored contract, not merely its physical
 layout or the integers ultimately carried across COM. Increment `#[version(N)]`
 when changing that contract. In particular, replacing implicit enum values with

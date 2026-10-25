@@ -2,7 +2,7 @@
 /// rules as any other enum payload; absence does not provide layout indirection.
 /// Inferred persistence keeps live COM capabilities transportable without
 /// pretending that a decoder can recreate their implementation objects.
-#[version(3)]
+#[version(1)]
 enum Option<T> {
     /// No payload is active and no payload storage may be inspected.
     None,

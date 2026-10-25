@@ -7,9 +7,12 @@ fn graph(name: &str, source: &str) -> neocogi_idl::ResolvedModules {
     resolve_modules(vec![parse_module(Path::new(&format!("proof/{name}.ncidl")), source).unwrap()]).unwrap()
 }
 
-/// Prelude lookup must preserve normal lexical shadowing and stable specialization identity.
+/// The initial bundled version reaches closed identities through both import
+/// paths; prelude lookup still preserves ordinary lexical shadowing.
 #[test]
 fn option_is_an_ordinary_shadowable_library_enum() {
+    let library = parse_module(Path::new("neocogi/lang.ncidl"), include_str!("../stdlib/neocogi/lang.ncidl")).unwrap();
+    assert_eq!(library.declaration("Option").unwrap().id.version, 1, "the bundled template starts at version 1");
     let implicit = graph("first", "#[version(1)] struct Value { value: Option<u32> }");
     let explicit = graph(
         "second",
@@ -28,7 +31,9 @@ fn option_is_an_ordinary_shadowable_library_enum() {
         };
         assert_eq!(value.variants.iter().map(|variant| variant.name.as_str()).collect::<Vec<_>>(), ["None", "Some"]);
         assert!(graph.values.definitions[&module.declaration(&declaration.name).unwrap().qualified_name].copied);
-        module.declaration(&declaration.name).unwrap().clone()
+        let identity = module.declaration(&declaration.name).unwrap();
+        assert_eq!(identity.version, 1, "closed instances preserve the bundled template's declaration version");
+        identity.clone()
     };
     let first = instance(&implicit, "proof.first");
     let second = instance(&explicit, "proof.second");

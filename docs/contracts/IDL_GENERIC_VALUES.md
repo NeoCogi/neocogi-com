@@ -45,7 +45,7 @@ interface projection as `WeakComPtr<I>` across the ABI.
 The compiler ships [this ordinary declaration](../../crates/idl/stdlib/neocogi/lang.ncidl):
 
 ```rust
-#[version(3)]
+#[version(1)]
 enum Option<T> {
     None,
     Some(T),
