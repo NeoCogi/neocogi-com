@@ -149,21 +149,22 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
             impl<#mode: #nc::ThreadingModel> ::core::ops::Deref for #client_ident<#mode> {
                 type Target = <#base_abi as #nc::ComClientInterface>::Client<#mode>;
                 fn deref(&self) -> &Self::Target {
-                    // SAFETY: Both generated views are transparent pointer words.
-                    // The inherited table is a physical prefix of the derived table.
-                    // The checked marker selects its own client; an independently
-                    // reexported companion name cannot change the cast target.
-                    // This lends methods only; ownership and checked base projection
-                    // still require QueryInterface on the same object with the actual derived table.
-                    unsafe { &*::core::ptr::from_ref(self).cast::<Self::Target>() }
+                    // SAFETY: the checked first base supplies the physical table
+                    // prefix. Its marker selects the client, independent of an
+                    // unrelated reexported BaseClient. No ownership is adopted.
+                    <#base_abi as #nc::ComClientInterface>::__nc_client_ref(
+                        unsafe { self.__nc_pointer.prefix::<#base_abi>() }
+                    )
                 }
             }
 
             impl<#mode: #nc::ThreadingModel> ::core::ops::DerefMut for #client_ident<#mode> {
                 fn deref_mut(&mut self) -> &mut Self::Target {
-                    // SAFETY: Both views are transparent pointer words and the
-                    // mutable borrow remains tied to this derived client view.
-                    unsafe { &mut *::core::ptr::from_mut(self).cast::<Self::Target>() }
+                    // SAFETY: the same checked prefix proof, retaining this
+                    // exclusive reborrow and its original threading capability.
+                    <#base_abi as #nc::ComClientInterface>::__nc_client_mut(
+                        unsafe { self.__nc_pointer.prefix_mut::<#base_abi>() }
+                    )
                 }
             }
         };
@@ -603,8 +604,8 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
 
         }
 
-        // The view only lends method lookup. It has no constructor, ownership
-        // conversions or Clone/Copy implementation and cannot outlive its lender.
+        // Opaque core storage is itself unsized. Even code in this generated
+        // module cannot swap its inner field and replace the lender's pair.
         #[repr(transparent)]
         #client_doc
         #vis struct #client_ident<#mode: #nc::ThreadingModel = #nc::ThreadLocal> {
@@ -612,10 +613,24 @@ pub fn expand_interface_parts(plan: InterfacePlan) -> Result<InterfaceExpansion>
             __nc_pointer: #nc::NcClientPointer<#abi_ident, #mode>,
         }
 
-        // SAFETY: The generated view is transparent pointer storage; all safe
-        // methods make synchronous ABI calls and never transfer its borrowed pointer.
+        // SAFETY: the wrapper is transparent over the opaque zero-tail storage;
+        // both hooks preserve its exact borrow, metadata and threading marker.
         unsafe impl #nc::ComClientInterface for #abi_ident {
             type Client<#mode: #nc::ThreadingModel> = #client_ident<#mode>;
+
+            fn __nc_client_ref<#mode: #nc::ThreadingModel>(
+                pointer: &#nc::NcClientPointer<Self, #mode>,
+            ) -> &Self::Client<#mode> {
+                // SAFETY: concrete transparent DST wrappers share zero-tail metadata.
+                unsafe { &*(::core::ptr::from_ref(pointer) as *const #client_ident<#mode>) }
+            }
+
+            fn __nc_client_mut<#mode: #nc::ThreadingModel>(
+                pointer: &mut #nc::NcClientPointer<Self, #mode>,
+            ) -> &mut Self::Client<#mode> {
+                // SAFETY: same layout/metadata proof within the exclusive source borrow.
+                unsafe { &mut *(::core::ptr::from_mut(pointer) as *mut #client_ident<#mode>) }
+            }
         }
 
         const _: () = {

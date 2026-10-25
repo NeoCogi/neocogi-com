@@ -8,6 +8,7 @@ host runs. Shell/PowerShell/CI entry points delegate build policy to this file.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 import hashlib
 import json
@@ -57,6 +58,7 @@ RUNTIME_TESTS = {
 }
 # These targets exercise generated calls and ownership without native runtime imports.
 ABI_TESTS = {
+    "client_views": "mutable_inherited_views_preserve_identity_and_lifecycle",
     "checked_values": "invalid_nested_bool_fails_copied_and_buffer_thunks",
     "output_buffers": "raw_output_initializes_only_reported_prefix_and_reuses_capacity",
     "output_completion": "generated_calls::generated_commit_completes_with_all_further_allocation_denied",
@@ -131,6 +133,22 @@ def require_execution(output: str) -> None:
         raise RuntimeError("no successful nonempty test execution")
 
 
+def execute_tests(execute: Callable[[tuple[str, ...]], str], required: str | None = None,
+                  harness: tuple[str, ...] = ()) -> dict:
+    """Prove the required case ran, then retain every maintained case in its target.
+
+    Discovery alone includes ignored tests. Selecting the exact required name
+    makes an ignored/filtered case produce zero passed tests, so unrelated helper
+    successes cannot substitute for it. Existing skips remain active in both runs.
+    The callback owns compiler/target/role policy and must reject child failures.
+    """
+    require_tests(execute((*harness, "--list")), required)
+    if required is not None:
+        require_execution(execute((*harness, "--exact", required)))
+    require_execution(execute(harness))
+    return {"required": required, "exact": "passed" if required else None, "complete": "passed"}
+
+
 def cargo(build: Build, target: Path, arguments: list[str], env: dict[str, str], native_target: str, sanitizer: str | None = None, harness: tuple[str, ...] = ()) -> str:
     """Apply one build policy to the final artifact and all its Rust dependencies."""
     flags = ["-Zrandomize-layout", "-Zlayout-seed=107"] if build.randomize else []
@@ -160,19 +178,20 @@ def cargo(build: Build, target: Path, arguments: list[str], env: dict[str, str],
                 *(["--", *harness] if harness else [])], env=policy)
 
 
-def ordinary_tests(build: Build, target: Path, env: dict[str, str], native_target: str, sanitizer: str | None) -> None:
+def ordinary_tests(build: Build, target: Path, env: dict[str, str], native_target: str, sanitizer: str | None) -> dict:
     """Execute runtime-free ABI cases and explicitly embedded library owners.
 
     These are valuable regressions, but their test counts do not prove cross-provider
     authority. They receive no runtime DSO or loader/link-directory overrides.
     """
+    evidence = {}
     for target_name, sentinel in ABI_TESTS.items():
         # These cases need no runtime client capability. Exporting sanitizer
         # hooks retains public functions, so an unused runtime feature would
         # create native imports even though none of these tests calls them.
         args = ["test", "-p", "neocogi-com", "--test", target_name]
-        require_tests(cargo(build, target, args, env, native_target, sanitizer, ("--list",)), sentinel)
-        require_execution(cargo(build, target, args, env, native_target, sanitizer))
+        evidence[target_name] = execute_tests(
+            lambda options: cargo(build, target, args, env, native_target, sanitizer, options), sentinel)
     if sanitizer:
         # Preserve pure library coverage without the retired multi-plugin examples.
         for package in ("neocogi-com-core", "neocogi-com-runtime", "neocogi-com"):
@@ -180,15 +199,16 @@ def ordinary_tests(build: Build, target: Path, env: dict[str, str], native_targe
             match package:
                 case "neocogi-com-core": args += ["--features", "std"]
                 case "neocogi-com": args += ["--features", "runtime"]
-            require_tests(cargo(build, target, args, env, native_target, sanitizer, ("--list",)))
-            require_execution(cargo(build, target, args, env, native_target, sanitizer))
+            evidence[package] = execute_tests(
+                lambda options: cargo(build, target, args, env, native_target, sanitizer, options))
     else:
         # Execute the C fixture directly so its target is owned and cleaned here.
         # It checks native C layout; it does not instrument the C compiler itself.
         manifest = ROOT / "crates/api/integration-tests/fixtures/native-c-abi/Cargo.toml"
         args = ["test", "--manifest-path", str(manifest)]
-        require_tests(cargo(build, target, args, env, native_target, harness=("--list",)))
-        require_execution(cargo(build, target, args, env, native_target))
+        evidence["native_c_abi"] = execute_tests(
+            lambda options: cargo(build, target, args, env, native_target, harness=options))
+    return evidence
 
 
 def qualification_artifacts(output: str, manifest: Path) -> dict[str, Path]:
@@ -229,13 +249,11 @@ def qualification_tests(artifacts: dict[str, Path], env: dict[str, str], cwd: Pa
     evidence = {}
     for name, executable in artifacts.items():
         digest = hashlib.sha256(require_file(executable).read_bytes()).hexdigest()
-        require_tests(run([str(executable), "--list"], env=env, cwd=cwd), RUNTIME_TESTS[name])
-        # No sentinel filter: every maintained case, including raw persistence,
-        # executes against its explicitly owned implementation in a single-threaded process.
-        require_execution(run([str(executable), "--test-threads=1"], env=env, cwd=cwd))
+        executed = execute_tests(lambda options: run([str(executable), *options], env=env, cwd=cwd),
+                                 RUNTIME_TESTS[name], ("--test-threads=1",))
         if hashlib.sha256(require_file(executable).read_bytes()).hexdigest() != digest:
             raise RuntimeError(f"qualification executable changed during execution: {name}")
-        evidence[name] = {"sha256": digest, "host_owned_runtime": "passed"}
+        evidence[name] = {"sha256": digest, "host_owned_runtime": "passed", "execution": executed}
     return evidence
 
 
@@ -263,7 +281,7 @@ def safety() -> dict:
         ("borrowed_values", "owned_message_outlives_producer_guard_and_source"),
         # Name required targets explicitly: reordering the native table must
         # not silently substitute a different Miri workload after a migration.
-        *((name, ABI_TESTS[name]) for name in ("checked_values", "output_buffers", "output_completion", "exclusive_com", "weak_com")),
+        *((name, ABI_TESTS[name]) for name in ("client_views", "checked_values", "output_buffers", "output_completion", "exclusive_com", "weak_com")),
     ))
     # Large budget boundaries run in linked/ASan/TSan suites. The handle-name
     # inventory audit parses Rust implementations with syn and runs in native
@@ -278,15 +296,16 @@ def safety() -> dict:
         "method_names::tests::every_public_handle_receiver_is_reserved",
     )
     harness = [argument for name in native_only_tests for argument in ("--skip", name)]
+    executed = []
     with tempfile.TemporaryDirectory(prefix="neocogi-com-miri-") as directory:
         for args, sentinel in targets:
-            command = ["rustup", "run", "nightly", "cargo", "miri", "test", *args, "--locked", "--target-dir", directory, "--", *harness]
-            require_tests(run([*command, "--list"], env=env), sentinel)
-            require_execution(run(command, env=env))
+            command = ["rustup", "run", "nightly", "cargo", "miri", "test", *args, "--locked", "--target-dir", directory, "--"]
+            executed.append({"target": args, **execute_tests(
+                lambda options: run([*command, *options], env=env), sentinel, tuple(harness))})
         # Miri owns a private cache layout below this directory, not a normal
         # Cargo target root. Drop exactly our temporary directory; cargo miri
         # clean would additionally remove the user's shared Miri sysroot cache.
-    return {"suite": "safety", "compiler": version, "status": "passed", "targets": len(targets)}
+    return {"suite": "safety", "compiler": version, "status": "passed", "targets": len(targets), "execution": executed}
 
 
 def execute(case: Case, *, linked: bool = False, sanitizer: str | None = None) -> dict:
@@ -331,9 +350,9 @@ def execute(case: Case, *, linked: bool = False, sanitizer: str | None = None) -
             # of the shared fixture. Instrumentation retains its established
             # pinned-library leak policy without claiming native imports here.
             ordinary_env = {**env, **({"ASAN_OPTIONS": "detect_leaks=0", "LSAN_OPTIONS": "detect_leaks=0"} if sanitizer else {})}
-            ordinary_tests(case.host, work / "tests", ordinary_env, next(iter(triples)), sanitizer)
+            ordinary_evidence = ordinary_tests(case.host, work / "tests", ordinary_env, next(iter(triples)), sanitizer)
             run(["rustup", "run", case.host.toolchain, "cargo", "clean", "--target-dir", str(work / "tests")], env=env)
-            groups["ordinary_abi_and_embedded"] = "passed"
+            groups["ordinary_abi_and_embedded"] = ordinary_evidence
             manifest = ROOT / "crates/api/integration-tests/fixtures/host-runtime/Cargo.toml"
             require_file(manifest.with_name("Cargo.lock"))
             output = cargo(case.host, work / "tests", ["test", "--manifest-path", str(manifest), "--tests", "--no-run", "--message-format=json"],

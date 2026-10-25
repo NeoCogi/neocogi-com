@@ -60,6 +60,16 @@ path = "integration-tests/status_contract.rs"
 name = "ui"
 path = "integration-tests/ui.rs"
 
+[[test]]
+name = "client_views"
+path = "integration-tests/client_views.rs"
+required-features = ["macros", "std"]
+
+[[test]]
+name = "client_view_admission"
+path = "integration-tests/client_view_admission.rs"
+required-features = ["macros", "std"]
+
 [dev-dependencies]
 # Each test executable explicitly retains this implementation; production facade
 # features never select it for unrelated host/plugin artifacts.

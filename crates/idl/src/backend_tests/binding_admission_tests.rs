@@ -329,13 +329,15 @@ fn closed_specializations_check_free_types_without_requiring_open_rust_types() {
 /// Both normal and printed object expansion must use the checked associations.
 #[test]
 fn inherited_calls_use_checked_marker_associations_instead_of_stale_names() {
-    let fixture = Fixture::new("binding-client-proof", OLD_BASE, CURRENT_BASE);
+    let old = OLD_BASE.replace("fn width", "fn set(&mut self, value: u32) -> Result<()>; fn width");
+    let current = CURRENT_BASE.replace("fn width", "fn set(&mut self, value: u32) -> Result<()>; fn width");
+    let fixture = Fixture::new("binding-client-proof", &old, &current);
     let manifest = fixture.consumer.directory.path().join("Cargo.toml");
     let mut source = fs::read_to_string(&manifest).unwrap();
     source.push_str("binding-helper={path='helper'}\n");
     fs::write(manifest, source).unwrap();
     let service = "extern proof.value; use proof.value::Base; #[version(1)] interface Service: Base {}";
-    let graph = graph(CURRENT_BASE, Some(service));
+    let graph = graph(&current, Some(service));
     let mut paths = RustModulePaths::default();
     paths.insert("proof.value", "binding_helper::selected").unwrap();
     fixture.write("src/service.rs", &generate_rust_with_paths(&graph, "proof.service", &paths).unwrap());
@@ -345,10 +347,14 @@ fn inherited_calls_use_checked_marker_associations_instead_of_stale_names() {
         pub mod service;
         #[test] fn inherited_and_queried_calls_agree() {
             let root = binding_provider::root();
-            let derived = root.query::<service::ServiceAbi>().unwrap();
-            let base = root.query::<binding_helper::selected::BaseAbi>().unwrap();
+            let mut derived = root.query::<service::ServiceAbi>().unwrap();
+            let mut base = root.query::<binding_helper::selected::BaseAbi>().unwrap();
             assert_eq!((derived.height().unwrap(), derived.width().unwrap()), (3, 4));
             assert_eq!((base.height().unwrap(), base.width().unwrap()), (3, 4));
+            derived.set(19).unwrap();
+            assert_eq!((derived.height().unwrap(), base.height().unwrap()), (19, 19));
+            base.set(23).unwrap();
+            assert_eq!(derived.height().unwrap(), 23);
         }
     "#,
     );
@@ -357,26 +363,29 @@ fn inherited_calls_use_checked_marker_associations_instead_of_stale_names() {
             let expanded = crate::codegen::expand_com_object(
                 syn::parse_quote!(service::Service),
                 syn::parse_quote!(
-                    struct Counter;
+                    struct Counter {
+                        height: u32,
+                    }
                 ),
             );
             prettyplease::unparse(&syn::parse2(expanded).unwrap())
         } else {
-            "#[neocogi_com::com_object(service::Service)] struct Counter;".to_owned()
+            "#[neocogi_com::com_object(service::Service)] struct Counter { height: u32 }".to_owned()
         };
         fixture.provider(
-            CURRENT_BASE,
+            &current,
             service,
             "binding_helper::selected",
             &format!(
                 r#"
             {object}
             impl binding_helper::selected::Base for Counter {{
-                fn height(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(3) }}
+                fn height(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(self.height) }}
+                fn set(&mut self, value: u32) -> Result<(), neocogi_com::NcStatus> {{ self.height = value; Ok(()) }}
                 fn width(&self) -> Result<u32, neocogi_com::NcStatus> {{ Ok(4) }}
             }}
             impl service::Service for Counter {{}}
-            pub fn root() -> neocogi_com::ComPtr<neocogi_com::IUnknown> {{ Counter::from_value(Counter) }}
+            pub fn root() -> neocogi_com::ComPtr<neocogi_com::IUnknown> {{ Counter::from_value(Counter {{ height: 3 }}) }}
         "#
             ),
         );

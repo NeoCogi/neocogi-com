@@ -223,6 +223,12 @@ without constructing objects. IDL tools retain build-time source inventories.
   `'a`. Generated interface parameters restrict that borrow to the ABI call.
 - Both handle kinds lend the same generated client method view; derived client
   views provide inherited lookup without generating another calling trait.
+  These views are unsized, with private core storage: mutable lookup permits
+  declared mutable calls but cannot replace the lender's object/table pair.
+  Borrowing a view adds no lifecycle traffic. Client references carry zero-length
+  slice metadata; stored handles and C ABI pairs remain two words. Inherited
+  views retain the original pair and threading capability, and use the checked
+  base marker's client association. An owned base projection requires a query.
 - `Result<()>` lowers without an output slot; other successful returns write
   one explicit output slot.
 - Copied records and payload enums use generated checked wire layouts.

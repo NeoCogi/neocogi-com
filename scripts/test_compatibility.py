@@ -45,6 +45,50 @@ class AdmissionTests(unittest.TestCase):
                 driver.require_execution(output)
         driver.require_execution("test result: ok. 3 passed; 0 failed; 0 ignored;")
 
+    def test_required_case_must_execute_before_complete_target_is_admitted(self):
+        """Real ignored/failed/excluded semantic cases cannot hide behind helpers."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "cases.rs"
+            source.write_text('''
+                #[test]
+                #[cfg_attr(ignored_required, ignore)]
+                fn required_case() { assert!(!cfg!(failing_required)); }
+                #[test]
+                fn required_case_suffix() {}
+                #[test]
+                fn helper() { std::fs::write(std::env::var_os("HELPER_MARKER").unwrap(), b"ran").unwrap(); }
+                #[test] #[ignore]
+                fn unrelated_ignored() {}
+            ''')
+            for mode, flags in (("ignored", ["--cfg", "ignored_required"]),
+                                ("failed", ["--cfg", "failing_required"]), ("active", [])):
+                binary = root / (mode + (".exe" if os.name == "nt" else ""))
+                built = subprocess.run(["rustc", "--edition=2024", "--test", str(source),
+                                        *flags, "-o", str(binary)], capture_output=True, text=True)
+                self.assertEqual(built.returncode, 0, built.stderr)
+                marker = root / (mode + ".marker")
+                env = {**os.environ, "HELPER_MARKER": str(marker)}
+
+                def execute(options):
+                    """Use the real process-status and harness-result boundary."""
+                    return driver.run([str(binary), *options], env=env)
+
+                with redirect_stdout(io.StringIO()):
+                    if mode != "active":
+                        with self.assertRaises(RuntimeError):
+                            driver.execute_tests(execute, "required_case")
+                    else:
+                        result = driver.execute_tests(execute, "required_case")
+                        self.assertEqual(result["exact"], "passed")
+                        self.assertEqual(marker.read_bytes(), b"ran", "complete target must still run helpers")
+                        for missing in ("missing_case", "required_cas"):
+                            with self.assertRaises(RuntimeError):
+                                driver.execute_tests(execute, missing)
+                        with self.assertRaises(RuntimeError):
+                            driver.execute_tests(execute, "required_case", ("--skip", "required_case"))
+                        driver.execute_tests(execute, "required_case", ("--skip", "helper"))
+
     def test_expected_artifact_must_exist_and_contain_bytes(self):
         """Do not discover an unrelated DSO elsewhere when the requested build produced none."""
         with tempfile.TemporaryDirectory() as directory:
@@ -125,12 +169,17 @@ class AdmissionTests(unittest.TestCase):
             artifacts = driver.qualification_artifacts("\n".join(map(json.dumps, records)), manifest)
             outputs = []
             for name in artifacts:
-                outputs.extend([driver.RUNTIME_TESTS[name] + ": test\n", "test result: ok. 4 passed; 0 failed;"])
+                outputs.extend([driver.RUNTIME_TESTS[name] + ": test\n",
+                                "test result: ok. 1 passed; 0 failed;", "test result: ok. 4 passed; 0 failed;"])
             with patch.object(driver, "run", side_effect=outputs) as run:
                 evidence = driver.qualification_tests(artifacts, {}, manifest.parent)
             self.assertEqual(evidence.keys(), artifacts.keys())
-            self.assertEqual([call.args[0][1:] for call in run.call_args_list],
-                             [["--list"], ["--test-threads=1"], ["--list"], ["--test-threads=1"]])
+            expected = []
+            for name in artifacts:
+                expected.extend([["--test-threads=1", "--list"],
+                                 ["--test-threads=1", "--exact", driver.RUNTIME_TESTS[name]],
+                                 ["--test-threads=1"]])
+            self.assertEqual([call.args[0][1:] for call in run.call_args_list], expected)
             for output in ("0 tests", "test result: ok. 0 passed; 0 failed;"):
                 with patch.object(driver, "run", return_value=output), self.assertRaises(RuntimeError):
                     driver.qualification_tests(artifacts, {}, manifest.parent)
@@ -139,11 +188,12 @@ class AdmissionTests(unittest.TestCase):
         """Sanitizer exports must not turn a pure test into an unresolved native importer."""
         outputs = []
         for sentinel in driver.ABI_TESTS.values():
-            outputs.extend([sentinel + ": test\n", "test result: ok. 1 passed; 0 failed;"])
+            outputs.extend([sentinel + ": test\n", "test result: ok. 1 passed; 0 failed;",
+                            "test result: ok. 2 passed; 0 failed;"])
         outputs.extend(["native_layout: test\n", "test result: ok. 1 passed; 0 failed;"])
         with patch.object(driver, "cargo", side_effect=outputs) as cargo:
             driver.ordinary_tests(driver.Build("stable"), Path("target"), {}, "x86_64-unknown-linux-gnu", None)
-        for call in cargo.call_args_list[:2 * len(driver.ABI_TESTS)]:
+        for call in cargo.call_args_list[:3 * len(driver.ABI_TESTS)]:
             self.assertNotIn("--features", call.args[2])
             self.assertEqual(call.args[3], {})
 
@@ -212,7 +262,7 @@ class AdmissionTests(unittest.TestCase):
             "local_com": "local_and_foreign_calls_share_one_gate_and_one_model",
             "com_main": "copied_access::copied_access_outlives_the_outer_record_and_shares_state_across_threads",
             "borrowed_values": "owned_message_outlives_producer_guard_and_source",
-            **{name: driver.ABI_TESTS[name] for name in ("checked_values", "output_buffers", "output_completion", "exclusive_com", "weak_com")},
+            **{name: driver.ABI_TESTS[name] for name in ("client_views", "checked_values", "output_buffers", "output_completion", "exclusive_com", "weak_com")},
         }
 
         def output(arguments, **_):
@@ -231,7 +281,7 @@ class AdmissionTests(unittest.TestCase):
             evidence = driver.safety()
         commands = [call.args[0] for call in run.call_args_list if "miri" in call.args[0] and "test" in call.args[0]]
         self.assertEqual(evidence["targets"], len(libraries) + len(interfaces))
-        self.assertEqual(len(commands), 2 * evidence["targets"])
+        self.assertEqual(len(commands), 3 * evidence["targets"])
         expected_skips = {
             "buffer_count_includes_each_nested_record",
             "buffers_count_selected_variants_without_charging_larger_alternatives",

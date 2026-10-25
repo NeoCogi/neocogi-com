@@ -327,13 +327,17 @@ macro_rules! client_view {
             type Target = T::Client<M>;
             /// Lends the transparent method view; checked provider entry protects execution.
             fn deref(&self) -> &Self::Target {
-                unsafe { &*core::ptr::from_ref(&self.raw).cast() }
+                // SAFETY: the owner or retained weak token keeps control/table
+                // storage live; provider entry checks exclusive value lifetime.
+                T::__nc_client_ref(unsafe { crate::NcClientPointer::borrow_live(&self.raw) })
             }
         }
         impl<T: ComClientInterface, M: ThreadingModel> DerefMut for $handle<T, M> {
             /// Mutable lookup still uses the provider's common exclusive borrow gate.
             fn deref_mut(&mut self) -> &mut Self::Target {
-                unsafe { &mut *core::ptr::from_mut(&mut self.raw).cast() }
+                // SAFETY: the source borrow bounds this nonreplaceable view;
+                // it grants no stronger token or object access than the handle.
+                T::__nc_client_mut(unsafe { crate::NcClientPointer::borrow_live_mut(&mut self.raw) })
             }
         }
     };

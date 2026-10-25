@@ -111,6 +111,22 @@ unsafe impl ::neocogi_com::ComClientInterface for IObjectChildrenAbi {
     type Client<__NcThreading: ::neocogi_com::ThreadingModel> = IObjectChildrenClient<
         __NcThreading,
     >;
+    fn __nc_client_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &::neocogi_com::NcClientPointer<Self, __NcThreading>,
+    ) -> &Self::Client<__NcThreading> {
+        unsafe {
+            &*(::core::ptr::from_ref(pointer)
+                as *const IObjectChildrenClient<__NcThreading>)
+        }
+    }
+    fn __nc_client_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &mut ::neocogi_com::NcClientPointer<Self, __NcThreading>,
+    ) -> &mut Self::Client<__NcThreading> {
+        unsafe {
+            &mut *(::core::ptr::from_mut(pointer)
+                as *mut IObjectChildrenClient<__NcThreading>)
+        }
+    }
 }
 const _: () = {
     #[allow(unused_imports)]
@@ -426,6 +442,22 @@ unsafe impl ::neocogi_com::ComClientInterface for IPersistableAbi {
     type Client<__NcThreading: ::neocogi_com::ThreadingModel> = IPersistableClient<
         __NcThreading,
     >;
+    fn __nc_client_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &::neocogi_com::NcClientPointer<Self, __NcThreading>,
+    ) -> &Self::Client<__NcThreading> {
+        unsafe {
+            &*(::core::ptr::from_ref(pointer)
+                as *const IPersistableClient<__NcThreading>)
+        }
+    }
+    fn __nc_client_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &mut ::neocogi_com::NcClientPointer<Self, __NcThreading>,
+    ) -> &mut Self::Client<__NcThreading> {
+        unsafe {
+            &mut *(::core::ptr::from_mut(pointer)
+                as *mut IPersistableClient<__NcThreading>)
+        }
+    }
 }
 const _: () = {
     #[allow(unused_imports)]
@@ -831,6 +863,22 @@ unsafe impl ::neocogi_com::ComClientInterface for IPersistenceFactoryAbi {
     type Client<__NcThreading: ::neocogi_com::ThreadingModel> = IPersistenceFactoryClient<
         __NcThreading,
     >;
+    fn __nc_client_ref<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &::neocogi_com::NcClientPointer<Self, __NcThreading>,
+    ) -> &Self::Client<__NcThreading> {
+        unsafe {
+            &*(::core::ptr::from_ref(pointer)
+                as *const IPersistenceFactoryClient<__NcThreading>)
+        }
+    }
+    fn __nc_client_mut<__NcThreading: ::neocogi_com::ThreadingModel>(
+        pointer: &mut ::neocogi_com::NcClientPointer<Self, __NcThreading>,
+    ) -> &mut Self::Client<__NcThreading> {
+        unsafe {
+            &mut *(::core::ptr::from_mut(pointer)
+                as *mut IPersistenceFactoryClient<__NcThreading>)
+        }
+    }
 }
 const _: () = {
     #[allow(unused_imports)]
