@@ -1,0 +1,60 @@
+name: COM
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+      - run: cargo fetch --locked
+      - run: bash scripts/test-quality.sh
+      - run: cargo test --workspace --all-features --locked
+      - run: cargo test -p neocogi-com -p neocogi-com-runtime --lib --release --locked -- --test-threads=1
+      - run: python3 -m unittest discover -s scripts -p test_compatibility.py
+      - run: rustup toolchain install 1.85.0 --profile minimal
+      - run: bash scripts/test-packages.sh
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: rustup toolchain install 1.85.0 --profile minimal
+      - run: bash scripts/test-msrv.sh
+
+  compatibility:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, suite: linked }
+          - { os: ubuntu-latest, suite: build-flags }
+          - { os: macos-latest, suite: linked }
+          - { os: windows-latest, suite: linked }
+    steps:
+      - uses: actions/checkout@v6
+      - run: rustup toolchain install stable --profile minimal
+      - if: matrix.suite == 'build-flags'
+        run: rustup toolchain install nightly --profile minimal
+      - run: python3 scripts/compatibility.py --suite ${{ matrix.suite }}
+
+  safety:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [safety, address, thread]
+    steps:
+      - uses: actions/checkout@v6
+      - run: rustup toolchain install nightly --profile minimal --component miri --component rust-src
+      - run: python3 scripts/compatibility.py --suite ${{ matrix.suite }}

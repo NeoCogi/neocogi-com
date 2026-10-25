@@ -9,7 +9,7 @@ fn scalar_bindings_compile_and_execute_without_default_features_or_alloc() {
     // sparse holes and integer endpoints without changing authored member order.
     let source = format!(
         "{}\n{}",
-        include_str!("../../schemas/nc/tests/scalar_values.ncidl"),
+        include_str!("../../../schemas/nc/tests/scalar_values.ncidl"),
         r#"
         #[version(1)] enum SignedRuns: i8 {
             Minimum = -128, PositiveLast = 6, NegativeLast = -1, Zero = 0,
@@ -29,12 +29,12 @@ fn scalar_bindings_compile_and_execute_without_default_features_or_alloc() {
     let generated = neocogi_idl::generate_rust(&graph, "proof.scalars").unwrap();
     assert!(!generated.contains("com_int_enum"));
     assert!(!generated.contains("com_bit_enum"));
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
         "[package]\nname='scalar-no-alloc-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?},default-features=false}}\n",
-        root.join("crates/com/api"),
+        root.join("crates/api"),
     )).unwrap();
     fs::write(
         project.path().join("src/lib.rs"),

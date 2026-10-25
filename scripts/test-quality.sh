@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 if ! cargo fmt --version >/dev/null 2>&1; then
   echo "rustfmt is required for quality checks" >&2
@@ -41,12 +41,8 @@ run_rustdoc() {
 }
 
 run_cargo "format" fmt --all --check
-# The development workspace does not commit its root lockfile. Resolve once on
-# a fresh checkout, then keep every quality row on that graph. Existing caller
-# lockfiles stay authoritative: stale ones must still fail the locked checks.
-if [[ ! -f Cargo.lock ]]; then
-  run_cargo "resolve missing workspace lockfile" generate-lockfile
-fi
+# The standalone workspace commits its lockfile. Every quality row must use
+# that reviewed graph, including on a fresh checkout.
 run_cargo "Clippy, all targets and features" \
   clippy -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --all-targets --all-features --locked -- -D warnings
 run_cargo "COM SDK with all features" \
@@ -58,12 +54,12 @@ run_cargo "neocogi-com with alloc only" \
 run_cargo "neocogi-com-core without default features" \
   check -p neocogi-com-core --no-default-features --locked
 run_cargo "ABI v1 normative snippets" \
-  test --manifest-path crates/com/tests/abi-spec/Cargo.toml --doc --locked \
+  test --manifest-path tests/abi-spec/Cargo.toml --doc --locked \
   --target-dir target/abi-spec
 
 echo
 echo "==> [quality] Markdown links"
-python3 crates/com/scripts/check-markdown-links.py
+python3 scripts/check-markdown-links.py
 
 run_rustdoc "COM SDK with all features" target/quality-docs/all \
   -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --all-features

@@ -75,14 +75,14 @@ fn accepted_generic_deserializers_compile_and_reconstruct_values() {
             .values()
             .all(|value| value.persistence == neocogi_idl::Persistence::Supported)
     );
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='operation-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/com/api")
+            root.join("crates/api")
         ),
     )
     .unwrap();
@@ -193,12 +193,12 @@ fn generated_ncb_values_execute_without_allocation_features() {
         #[version(1)] enum Choice { Empty, Pair(u8, u16), Record { enabled: bool }, Point(Point) }
     "#;
     let graph = resolve_modules(vec![parse_module(Path::new("proof/values.ncidl"), source).unwrap()]).unwrap();
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
         "[package]\nname='noalloc-ncb-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?},default-features=false,features=['macros']}}\n",
-        root.join("crates/com/api"),
+        root.join("crates/api"),
     )).unwrap();
     fs::write(
         project.path().join("src/contract.rs"),

@@ -19,10 +19,10 @@ fn main() {
         )
         .expect("write example bindings");
     }
-    let shared = std::path::Path::new("../schemas");
+    let shared = std::path::Path::new("../../schemas");
     if std::path::Path::new("integration-tests").is_dir() {
         test_fixtures::generate(shared);
-        for module in neocogi_idl::cargo::SharedSources::new("../../../examples/schemas")
+        for module in neocogi_idl::cargo::SharedSources::new("../../examples/schemas")
             .module("neocogi.idl_example", "example_bindings::example")
             .build()
             .expect("example test bindings")

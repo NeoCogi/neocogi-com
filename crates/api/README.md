@@ -6,9 +6,9 @@ support, typed plugin roots, and optional clients for
 host-supplied runtime services.
 
 Public cross-library contracts should be authored as Rust-like `.ncidl`
-modules. See [IDL contract modules](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/IDL_MODULES.md) for their
+modules. See [IDL contract modules](https://github.com/NeoCogi/neocogi-com/blob/master/docs/contracts/IDL_MODULES.md) for their
 source, crate, signature, and tooling model. The
-[current core ABI specification](https://github.com/NeoCogi/foundations/blob/master/crates/com/docs/abi-v1.md) defines the binary boundary.
+[current core ABI specification](https://github.com/NeoCogi/neocogi-com/blob/master/docs/abi-v1.md) defines the binary boundary.
 
 ## Contracts and concrete objects
 
@@ -68,7 +68,7 @@ base projections require checked `QueryInterface`.
 IDL rejects method names occupied by handle operations, such as `clone`, `as_raw`
 and `downgrade`, using the core-owned member inventory. Legal data names cannot
 capture implementation support or positional locals. See the
-[identifier policy](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md).
+[identifier policy](https://github.com/NeoCogi/neocogi-com/blob/master/docs/contracts/COM_GENERATED_IDENTIFIER_HYGIENE.md).
 
 `com_object` generates reference-counted storage and signature-checked
 `QueryInterface`. It does not publish the object as something the runtime can
@@ -84,7 +84,7 @@ Shared ancestors occur once in the compiler's contract set; conflicting
 signatures fail compilation. Runtime queries scan static vtable pointers whose
 compact identities are separate from full inspection schemas. Inherited table
 prefixes remain; this change does not deduplicate their function entries.
-See [interface storage](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/COM_INTERFACE_STORAGE.md) and `ComPtr`
+See [interface storage](https://github.com/NeoCogi/neocogi-com/blob/master/docs/contracts/COM_INTERFACE_STORAGE.md) and `ComPtr`
 rustdoc for the architectural rationale, ownership rules, and cost tradeoff.
 
 When the creating binary also needs the concrete implementation, use
@@ -139,7 +139,7 @@ offers no borrowed `as_str` or provider-storage pointer.
 Metadata is different: `NcStaticUtf8::as_str` is an **unsafe**, fallible borrow
 with a caller-chosen lifetime, and `NcUtf8View` has no conversion methods.
 Neither raw descriptor retains its backing library. See the
-[core conversion table](https://github.com/NeoCogi/foundations/blob/master/crates/com/core/README.md#text-bytes-and-borrowed-storage).
+[core conversion table](https://github.com/NeoCogi/neocogi-com/blob/master/crates/core/README.md#text-bytes-and-borrowed-storage).
 Runtime inspection returns owned `PluginInfo` strings and `PluginOrigin` paths.
 These values remain usable independently of subsequent catalog lookups.
 
@@ -240,7 +240,7 @@ release version, static/dynamic origin, single `FactoryInfo` and hard dependency
 GUIDs. `Runtime::plugins()` returns these complete owned records in registration
 order, without separate factory or dependency queries. Repeated provider loads reuse the
 first registration and origin; conflicting providers are rejected. See
-[runtime ABI v1](https://github.com/NeoCogi/foundations/blob/master/crates/com/docs/abi-v1.md#runtime-and-global-registry).
+[runtime ABI v1](https://github.com/NeoCogi/neocogi-com/blob/master/docs/abi-v1.md#runtime-and-global-registry).
 
 Inspection is a separate operation that can report errors without registering
 or acquiring a plugin factory. Its fallible result does not make live loading optional.
@@ -267,7 +267,7 @@ C callback boundary. It borrows the
 validated `NcPluginDescriptor` only for the callback and does not mutate
 the process registry. The inspection JSON schema is factory-native: each plugin
 contains a factory IID/signature/threading record and hard dependencies.
-The [sample plugin](https://github.com/NeoCogi/foundations/blob/master/examples/com-plugin/README.md) demonstrates both
+The [sample plugin](https://github.com/NeoCogi/neocogi-com/blob/master/examples/com-plugin/README.md) demonstrates both
 linkage modes with ordinary Cargo.
 
 ## Object persistence
@@ -290,7 +290,7 @@ Each persistence registry is thread-local and independently owned. Its factories
 remain retained until that registry is dropped; registration requires mutable access.
 The same supplied host allocates, operates on and destroys each context. The
 NCB-v1 document format and provider interface identities remain unchanged.
-See [persistence semantics and ownership](https://github.com/NeoCogi/foundations/blob/master/crates/com/runtime/PERSISTENCE.md).
+See [persistence semantics and ownership](https://github.com/NeoCogi/neocogi-com/blob/master/crates/runtime/PERSISTENCE.md).
 
 ## Features and scope
 
@@ -313,10 +313,10 @@ service tables. Caller-owned persistence contexts and UI queues remain separate.
 
 UI owns its event contracts, immutable snapshots, delivery policy and catalog
 publication. COM only supplies ordinary callable interfaces and ownership.
-See [UI event delivery](https://github.com/NeoCogi/foundations/blob/master/crates/ui/api/EVENTS.md) and
-[UI authoring metadata](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/UI_EVENT_METADATA.md).
+See UI event delivery and
+UI authoring metadata.
 COM-only libraries can define domain observer interfaces directly; the
-[SDK example](https://github.com/NeoCogi/foundations/blob/master/examples/com-plugin/README.md) demonstrates this.
+[SDK example](https://github.com/NeoCogi/neocogi-com/blob/master/examples/com-plugin/README.md) demonstrates this.
 
 
 Concrete providers select one ownership policy. Shared ownership is the default;
@@ -327,18 +327,18 @@ Only that policy's ordinary constructors are generated: shared classes have
 Every constructor takes a fully initialized Rust value. Factories obtain weak
 identities afterward and finish private event wiring before exposing an object;
 there are no cyclic constructors or unpublished-value promotion states. See
-[the construction contract](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/COM_OBJECT_CONSTRUCTION.md).
+[the construction contract](https://github.com/NeoCogi/neocogi-com/blob/master/docs/contracts/COM_OBJECT_CONSTRUCTION.md).
 Factories always remain shared.
 
 Exclusive providers use `into_box` to construct a non-clonable `ComBox`. `WeakComBox` caches its interface table and accesses the
 provider through checked call entries, without promoting to a shared owner.
 Factories can return boxes and containers can consume them through generated
 ABI methods. Ordinary shared services continue using `ComPtr`. See
-[the ownership rationale](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/EXCLUSIVE_WIDGET_OWNERSHIP.md).
+the ownership rationale.
 
 ## Lifetime failure categories
 
 `NC_E_DROPPED` reports lost object ownership. `NC_E_CLOSED` reports a closed
 service or channel whose COM object can still exist. A method can propagate
 either from a dependency, so neither status identifies receiver lifetime. See the
-[precise lifetime error contract](https://github.com/NeoCogi/foundations/blob/master/docs/contracts/COM_LIFETIME_ERRORS.md).
+[precise lifetime error contract](https://github.com/NeoCogi/neocogi-com/blob/master/docs/contracts/COM_LIFETIME_ERRORS.md).

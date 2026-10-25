@@ -1,11 +1,12 @@
 [package]
 name = "neocogi-com-core"
-version = "0.0.0"
-edition = "2024"
-rust-version = "1.85"
-license = "MIT"
-repository = "https://github.com/NeoCogi/foundations"
-documentation = "https://docs.rs/neocogi-com"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation = "https://docs.rs/neocogi-com-core"
 readme = "README.md"
 description = "Experimental core ABI types for neocogi-com"
 keywords = ["com", "abi", "ffi", "plugin"]

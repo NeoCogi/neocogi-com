@@ -1,14 +1,15 @@
 [package]
 name = "neocogi-inspect"
-version = "0.0.0"
-edition = "2024"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 # Repository integration suites inspect sibling packages, docs and native fixtures.
 # Keep them in checkout CI; archives ship local unit tests and downstream examples.
 exclude = ["tests/**"]
-rust-version = "1.85"
-license = "MIT"
-repository = "https://github.com/NeoCogi/foundations"
-documentation = "https://docs.rs/neocogi-com"
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation = "https://docs.rs/neocogi-inspect"
 readme = "README.md"
 description = "Inspection CLI for neocogi-com plugin shared libraries"
 keywords = ["com", "abi", "ffi", "plugin"]

@@ -16,7 +16,7 @@ which cannot prolong a removed value. Dropping the owner rejects new calls;
 Drop waits for admitted calls and completes provider destruction before returning. Final destruction releases
 ordinary fields without a generic widget close callback or recoverable teardown
 result. It must not submit GPU work or invoke application behavior. See
-[exclusive ownership](EXCLUSIVE_WIDGET_OWNERSHIP.md).
+exclusive ownership.
 
 Initially each widget mounts once, under one parent in one runtime. Attachment checks duplicate membership, cycles, and owner compatibility before publishing an edit. Container track/span settings belong to the parent-child relationship. Do not place them in a generic widget property map. Foreign-runtime widgets and foreign-renderer resources are errors, even if their numerical IDs happen to match.
 
@@ -118,7 +118,7 @@ processor. It returns `WeakLocalCom<Dispatcher<Processor>>`; `upgrade()?` return
 an optional strong local owner without borrowing the value. The promoted owner's
 `try_borrow` methods enforce the same gate, and final strong release expires the
 weak handle. Concrete local types stay inside Rust; IDL transports shared weak
-interface references as `WeakComPtr<I>`. See [typed local ownership](../../crates/com/api/README.md).
+interface references as `WeakComPtr<I>`. See [typed local ownership](../../crates/api/README.md).
 
 For coalesced publication, implement `MessageProcessor::apply_pending_changes` (or the
 host's `AppState::apply_pending_changes`) and return `ApplyOutcome::ChangesApplied`
@@ -139,7 +139,7 @@ bookkeeping around one actually consumed input and its settled messages. Keep
 geometry edits and new raw input outside this hook. If commands are decoded
 later, retain markers in their event FIFO and copy each command's input identity
 before consuming subsequent markers. Native polling is not this ownership boundary.
-See the [dispatch contract](WIDGET_EVENT_DISPATCH.md) for failures and budget rules.
+See the dispatch contract for failures and budget rules.
 
 Separate dialogs can bind their same protocol to different application destinations.
 When reusing one dialog across requests, request identity remains application/domain
@@ -149,7 +149,7 @@ Declare cross-COM facts as immutable interfaces derived from `IEvent`; pass the
 common `EventBinding` into the factory. The behavioral parent creates its receiver
 before construction. Ordinary widgets retain that receiver in `WidgetState` and post
 through their existing host; the runtime supplies the current weak origin. See
-[owner-scoped origins](WIDGET_EVENT_ORIGINS.md) for authority, composite forwarding
+owner-scoped origins for authority, composite forwarding
 and producers that must also emit outside widget dispatch.
 Exclusive widgets use `#[com_object(Contract, ownership = exclusive)]`; shared services
 retain the default ownership policy. No later binding operation exists.
@@ -160,7 +160,7 @@ Native update algorithms return errors directly, and record committed geometry
 before fallible snapshot/delivery work. For recoverable domain failures, the common
 `events::error(status, message)` reports through the same queue and source stack;
 transport failures still propagate a status. See the
-[failure contract](UI_EVENT_INTERFACES.md#reported-failures).
+failure contract.
 
 | Event interface | Producers | Captured data |
 | --- | --- | --- |
@@ -181,7 +181,7 @@ relies on when reading an independently implemented event.
 `ui_event_sources!` advertises the emitted interfaces. `UiEventSource::EVENT_SOURCE.events` describes
 their identities and actual getters; catalog registration validates the reachable
 value graph. The loader checks observable keys before construction and the advertised
-interface after it. See [event metadata](UI_EVENT_METADATA.md).
+interface after it. See event metadata.
 
 `*_with_queue` passes `IEventReceiver`; `*_unobserved` chooses permanent non-delivery.
 There is no later attachment API. Windows, popups, menus, built-ins and plugins use
@@ -189,7 +189,7 @@ this same construction discipline. Widget destruction releases its receiver.
 Shared window/popup/menu services can use `EventPort::close`. Queued facts survive
 source removal. The standard channel returns `NC_E_CLOSED` with the event owner
 on disconnection; other receivers choose their own capacity/error policy. Delivery
-errors do not roll back committed state. See [COM event objects](UI_EVENT_INTERFACES.md).
+errors do not roll back committed state. See COM event objects.
 
 Behavioral composites bind their children to queues targeting a private typed
 channel, then own the receiver and model as fields of the concrete widget.
@@ -204,7 +204,7 @@ call returns before its own value is destroyed; no close retry queue is needed.
 The runtime schedules widgets automatically, including in `Ui::update`.
 It settles child messages and layout before dispatching an application message,
 then settles any resulting private work before continuing. Authors need no private
-dispatch loop, child registry or update-cycle object. The [events guide](../../crates/ui/runtime/docs/EVENTS.md)
+dispatch loop, child registry or update-cycle object. The events guide
 defines the full descendant-first schedule, destination ownership, work budget,
 reentrancy and failure rules. Posting does not itself request a platform frame.
 Layout/paint remain observational, and asset installation belongs after update.
@@ -219,8 +219,8 @@ until its next eligible update; hidden editors retain those requests. Authors mu
 distinguish geometry invalidation from behavior that needs another update and retain
 such requests explicitly. Shared external state still requires explicit synchronization.
 
-The [events guide](../../crates/ui/runtime/docs/EVENTS.md) gives a complete small example;
-the [independent extension](../../examples/ui-extension) exercises the same generated
+The events guide gives a complete small example;
+the independent extension exercises the same generated
 protocol through both ordinary-Cargo plugins and static monoliths.
 
 ## Paths, buffers, resources, and errors
@@ -229,7 +229,7 @@ An immutable COM string is UTF-8 display text. It is not a native filesystem pat
 
 Copy buffers are typed, borrowed for one call, and define explicit offset/count semantics. A whole-string replacement requires offset zero, validates UTF-8, and copies before returning. Validate bounds and overflow before writes or allocations. Immutable returned snapshots own their storage and release through their producer's COM reference counting.
 
-The complete resource, replacement and authoring contract is documented in [COM_ASSETS.md](COM_ASSETS.md). Obtain the current bundle through `IWidgetHost::assets` and refresh any independent widget cache when its identity changes. Logical asset metadata and font tables may be cached per immutable bundle revision. Do not introduce a COM call per glyph or per vertex. Rendering crosses the boundary in bulk, ordered frames/batches; resource references are typed capabilities with validated renderer ownership. Preserve source ordering across ordinary UI geometry and custom render items.
+The complete resource, replacement and authoring contract is documented in COM_ASSETS.md. Obtain the current bundle through `IWidgetHost::assets` and refresh any independent widget cache when its identity changes. Logical asset metadata and font tables may be cached per immutable bundle revision. Do not introduce a COM call per glyph or per vertex. Rendering crosses the boundary in bulk, ordered frames/batches; resource references are typed capabilities with validated renderer ownership. Preserve source ordering across ordinary UI geometry and custom render items.
 
 Native GPU integrations belong in the same platform/render plugin as their backend. Rust `wgpu::RenderPass`, `CommandEncoder`, Ash owners, SDL windows, and `Rc<glow::Context>` do not become ABI-safe because the application facade is generic. Keep the backend-specific Rust integration local and expose concrete scene/mesh/camera/render-item interfaces outward. OS-window/context lifetime must cover GPU resource destruction.
 
@@ -306,7 +306,7 @@ implementation. `IWidget::properties().options` reports effective behavior and
 may add transient mouse-wheel or participation flags. It is an observation, not
 a configuration snapshot to feed back into a mutation. Custom widgets implement
 all three methods through their same common state, as shown in the independent
-[UI extension](../../examples/ui-extension/src/lib.rs). Window-specific
+UI extension. Window-specific
 `WindowOptions` remain a distinct interface contract.
 
 The app queues raw input and then updates explicitly:
@@ -530,7 +530,7 @@ Ok(())
 Owner removal rejects new calls before concrete destruction. An admitted child
 can finish after its parent is destroyed; waiting could deadlock self-removal.
 Use ordinary `Drop` for local cleanup. The full thread and ABI contract is in
-[exclusive ownership](EXCLUSIVE_WIDGET_OWNERSHIP.md).
+exclusive ownership.
 
 ## Scoped container layout
 
@@ -1070,7 +1070,7 @@ contract, its conservative enum limit, and failure-injection tests.
 Fresh private builders may deliberately discard returned candidates after a
 failed ABI call, provided those candidates cannot own an active receiver. There
 is no implicit tuple-to-status conversion that would hide that decision. See
-[ABI v1](../../crates/com/docs/abi-v1.md) for wire slots, forwarding, multiple inputs
+[ABI v1](../abi-v1.md) for wire slots, forwarding, multiple inputs
 and the requirement to return valid output after accepting ownership.
 
 For construction code that deliberately abandons failed candidates, convert to

@@ -1,11 +1,12 @@
 [package]
 name = "neocogi-com-macros"
-version = "0.0.0"
-edition = "2024"
-rust-version = "1.85"
-license = "MIT"
-repository = "https://github.com/NeoCogi/foundations"
-documentation = "https://docs.rs/neocogi-com"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation = "https://docs.rs/neocogi-com-macros"
 readme = "README.md"
 description = "Proc macros for neocogi-com's portable C-ABI interface model"
 keywords = ["com", "abi", "ffi", "proc-macro"]

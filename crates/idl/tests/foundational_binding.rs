@@ -131,7 +131,7 @@ fn projection_graph(bystander: bool) -> ResolvedModules {
 /// Metadata provenance and inherited calls work with only the genuine dependencies.
 #[test]
 fn inherited_value_metadata_keeps_the_supplying_projection_without_bystander_dependencies() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let graph = projection_graph(true);
     let without = projection_graph(false);
     assert_eq!(
@@ -148,7 +148,7 @@ fn inherited_value_metadata_keeps_the_supplying_projection_without_bystander_dep
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='binding-peers'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/com/api")
+            root.join("crates/api")
         ),
     )
     .unwrap();

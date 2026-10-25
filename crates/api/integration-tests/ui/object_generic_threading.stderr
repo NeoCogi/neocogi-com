@@ -8,11 +8,32 @@ error[E0277]: `Rc<u32>` cannot be sent between threads safely
    |
    = help: within `Generic<Rc<u32>>`, the trait `Send` is not implemented for `Rc<u32>`
 note: required because it appears within the type `Generic<Rc<u32>>`
-  --> integration-tests/ui/object_generic_threading.rs:7:5
+  --> integration-tests/ui/object_generic_threading.rs:6:8
    |
  6 | struct Generic<T> {
- 7 |     state: T,
-   |     ^^^^^^^^ required by this field
+   |        ^^^^^^^
+   = note: required for `Generic<Rc<u32>>` to implement `neocogi_com::__ComSupportsInterfaceThreading<neocogi_com::ThreadSafe>`
+note: required by a bound in `_::<impl Generic<T>>::from_value`
+  --> integration-tests/ui/object_generic_threading.rs:5:1
+   |
+ 5 | #[com_object(interfaces(), thread_safe)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `_::<impl Generic<T>>::from_value`
+   = note: this error originates in the attribute macro `com_object` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `Rc<u32>` cannot be shared between threads safely
+  --> integration-tests/ui/object_generic_threading.rs:11:38
+   |
+11 |     let _owner = Generic::from_value(Generic { state: Rc::new(1u32) });
+   |                  ------------------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Rc<u32>` cannot be shared between threads safely
+   |                  |
+   |                  required by a bound introduced by this call
+   |
+   = help: within `Generic<Rc<u32>>`, the trait `Sync` is not implemented for `Rc<u32>`
+note: required because it appears within the type `Generic<Rc<u32>>`
+  --> integration-tests/ui/object_generic_threading.rs:6:8
+   |
+ 6 | struct Generic<T> {
+   |        ^^^^^^^
    = note: required for `Generic<Rc<u32>>` to implement `neocogi_com::__ComSupportsInterfaceThreading<neocogi_com::ThreadSafe>`
 note: required by a bound in `_::<impl Generic<T>>::from_value`
   --> integration-tests/ui/object_generic_threading.rs:5:1
@@ -32,13 +53,45 @@ help: the trait `ComObject` is conditionally implemented for `Generic<T>`
   --> integration-tests/ui/object_generic_threading.rs:5:1
    |
  5 | #[com_object(interfaces(), thread_safe)]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied requirement introduced here: `Generic<_>: neocogi_com::__ComSupportsInterfaceThreading<neocogi_com::ThreadSafe>`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   | |
+   | unsatisfied requirement introduced here: `Generic<Rc<u32>>: neocogi_com::__ComSupportsInterfaceThreading<neocogi_com::ThreadSafe>`
+   | unsatisfied requirement introduced here: `Generic<Rc<u32>>: neocogi_com::__ComSupportsInterfaceThreading<neocogi_com::ThreadSafe>`
 note: required because it appears within the type `Generic<Rc<u32>>`
-  --> integration-tests/ui/object_generic_threading.rs:7:5
+  --> integration-tests/ui/object_generic_threading.rs:6:8
    |
  6 | struct Generic<T> {
- 7 |     state: T,
-   |     ^^^^^^^^ required by this field
+   |        ^^^^^^^
+   = note: required for `Generic<Rc<u32>>` to implement `neocogi_com::__ComSupportsInterfaceThreading<neocogi_com::ThreadSafe>`
+note: required for `Generic<Rc<u32>>` to implement `ComObject`
+  --> integration-tests/ui/object_generic_threading.rs:5:1
+   |
+ 5 | #[com_object(interfaces(), thread_safe)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound introduced here
+ 6 | struct Generic<T> {
+   |        ^^^^^^^^^^
+   = note: this error originates in the attribute macro `com_object` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `Rc<u32>` cannot be shared between threads safely
+  --> integration-tests/ui/object_generic_threading.rs:11:18
+   |
+11 |     let _owner = Generic::from_value(Generic { state: Rc::new(1u32) });
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Rc<u32>` cannot be shared between threads safely
+   |
+   = help: within `Generic<Rc<u32>>`, the trait `Sync` is not implemented for `Rc<u32>`
+help: the trait `ComObject` is conditionally implemented for `Generic<T>`
+  --> integration-tests/ui/object_generic_threading.rs:5:1
+   |
+ 5 | #[com_object(interfaces(), thread_safe)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   | |
+   | unsatisfied requirement introduced here: `Generic<Rc<u32>>: neocogi_com::__ComSupportsInterfaceThreading<neocogi_com::ThreadSafe>`
+   | unsatisfied requirement introduced here: `Generic<Rc<u32>>: neocogi_com::__ComSupportsInterfaceThreading<neocogi_com::ThreadSafe>`
+note: required because it appears within the type `Generic<Rc<u32>>`
+  --> integration-tests/ui/object_generic_threading.rs:6:8
+   |
+ 6 | struct Generic<T> {
+   |        ^^^^^^^
    = note: required for `Generic<Rc<u32>>` to implement `neocogi_com::__ComSupportsInterfaceThreading<neocogi_com::ThreadSafe>`
 note: required for `Generic<Rc<u32>>` to implement `ComObject`
   --> integration-tests/ui/object_generic_threading.rs:5:1

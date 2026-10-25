@@ -1,6 +1,6 @@
 # One provider, dynamic or static
 
-The provider independently generates bindings from shared [IDL sources](../../examples/schemas/neocogi/idl_example)
+The provider independently generates bindings from shared [IDL sources](../schemas/neocogi/idl_example)
 with private ordinary Rust state and typed factory methods. It depends on the
 COM facade, runs IDL as a build dependency, and receives runtime access from its host:
 
@@ -50,13 +50,13 @@ restoration. The runtime-free [state schema](../com-host/support/extent_state.rs
 is shared as source between assemblies; dynamic host code links no provider just
 to obtain schema facts.
 
-The [compatibility driver](../../crates/com/scripts/compatibility.py) builds the
+The [compatibility driver](../../scripts/compatibility.py) builds the
 host and providers independently with selected compiler/panic/LTO/layout policies,
 removes targets, and executes a relocated deployment. Its independent peer B
 publishes a host-visible marker and acquires A through supplied access. The host
 also checks that a conflicting descriptor leaves the shared catalog unchanged.
 The [static relocation test](../com-host/tests/build_modes.rs) covers the monolith.
-See [qualification](../../crates/com/docs/abi-v1.md#independent-build-compatibility).
+See [qualification](../../docs/abi-v1.md#independent-build-compatibility).
 
 The allocation probe executes 10,000 delivered notifications and 10,000 unobserved
 updates, checking that unobserved updates allocate nothing:

@@ -20,7 +20,7 @@ import subprocess
 import tempfile
 
 # Resolve from the script, so callers need neither a particular cwd nor shell quoting.
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[1]
 # Printed only after the example verifies calls, event identity, persistence and final release.
 SUCCESS = "factory object: 44 x 31"
 
@@ -185,7 +185,7 @@ def ordinary_tests(build: Build, target: Path, env: dict[str, str], native_targe
     else:
         # Execute the C fixture directly so its target is owned and cleaned here.
         # It checks native C layout; it does not instrument the C compiler itself.
-        manifest = ROOT / "crates/com/api/integration-tests/fixtures/native-c-abi/Cargo.toml"
+        manifest = ROOT / "crates/api/integration-tests/fixtures/native-c-abi/Cargo.toml"
         args = ["test", "--manifest-path", str(manifest)]
         require_tests(cargo(build, target, args, env, native_target, harness=("--list",)))
         require_execution(cargo(build, target, args, env, native_target))
@@ -308,7 +308,7 @@ def execute(case: Case, *, linked: bool = False, sanitizer: str | None = None) -
         executable = "neocogi-example-com" + (".exe" if os.name == "nt" else "")
         for role, build, arguments, filename in (
             ("plugin", case.plugin, ["rustc", "-p", "neocogi-example-com-plugin", "--lib", "--crate-type", "cdylib", "--features", "dynamic-plugin"], library("nc_example_com")),
-            ("peer", case.plugin, ["rustc", "--manifest-path", str(ROOT / "crates/com/api/integration-tests/fixtures/registry-peer/Cargo.toml"), "--lib", "--crate-type", "cdylib", "--features", "dynamic-plugin"], library("nc_registry_peer")),
+            ("peer", case.plugin, ["rustc", "--manifest-path", str(ROOT / "crates/api/integration-tests/fixtures/registry-peer/Cargo.toml"), "--lib", "--crate-type", "cdylib", "--features", "dynamic-plugin"], library("nc_registry_peer")),
             ("host", case.host, ["build", "-p", "neocogi-example-com-host", "--bin", "neocogi-example-com"], executable),
         ):
             target = work / role
@@ -331,7 +331,7 @@ def execute(case: Case, *, linked: bool = False, sanitizer: str | None = None) -
             ordinary_tests(case.host, work / "tests", ordinary_env, next(iter(triples)), sanitizer)
             run(["rustup", "run", case.host.toolchain, "cargo", "clean", "--target-dir", str(work / "tests")], env=env)
             groups["ordinary_abi_and_embedded"] = "passed"
-            manifest = ROOT / "crates/com/api/integration-tests/fixtures/host-runtime/Cargo.toml"
+            manifest = ROOT / "crates/api/integration-tests/fixtures/host-runtime/Cargo.toml"
             require_file(manifest.with_name("Cargo.lock"))
             output = cargo(case.host, work / "tests", ["test", "--manifest-path", str(manifest), "--tests", "--no-run", "--message-format=json"],
                            env, next(iter(triples)), sanitizer)
@@ -390,8 +390,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     from library_workspace import library_workspace
-    # Independent stable/nightly roles use the library source boundary, not the
-    # development workspace's nightly artifact dependency declarations.
+    # Independent stable/nightly roles own their sources and embedded test paths
+    # together; no binaries outlive the temporary source workspace.
     with library_workspace() as sources:
         ROOT = sources
         main()

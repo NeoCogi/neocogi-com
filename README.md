@@ -1,0 +1,71 @@
+# NeoCogi COM
+
+A standalone Rust workspace for NeoCogi's experimental component ABI, IDL
+compiler, object helpers, host runtime, and plugin inspection tools. Separately
+built components communicate through explicit C ABI contracts.
+
+Requires stable Rust 1.85 or newer. Native integration tests also require Python
+3.11+, a C compiler, and the platform linker. No UI or rendering libraries are
+part of this workspace.
+
+| Package | Purpose |
+| --- | --- |
+| `neocogi-com-core` | Raw ABI types and traits; `no_std` by default |
+| `neocogi-idl` | Contract compiler, shared code generation, Cargo integration |
+| `neocogi-com-macros` | Object, plugin, persistence, and host entry macros |
+| `neocogi-com` | Typed interface ownership, values, and optional host clients |
+| `neocogi-com-runtime` | Host-owned runtime and native plugin loader (`nc_com` rlib) |
+| `neocogi-inspect` | Plugin metadata inspection, checks, plans, and comparisons |
+
+The two unpublished example packages demonstrate a COM host and provider with
+both static and shared-library deployment. ABI fixtures remain isolated,
+unpublished workspaces so they can exercise independent compiler builds.
+
+```sh
+cargo test --workspace --all-features --locked
+cargo run -p neocogi-example-com-host --features monolith --locked
+bash scripts/test-quality.sh
+bash scripts/test-msrv.sh
+bash scripts/test-packages.sh
+```
+
+The package check builds the six actual crate archives, extracts them outside
+the source tree, runs their shipped tests on Rust 1.85, and executes a downstream
+consumer using only those extracted packages. Install that compiler with
+`rustup toolchain install 1.85.0 --profile minimal`. The package check uses cached
+registry inputs; run `cargo fetch --locked` first on a fresh machine.
+
+Read the [component guide](docs/COM.md),
+[ABI specification](docs/abi-v1.md),
+[IDL reference](docs/contracts/IDL_MODULES.md), and
+[dynamic/static example](examples/com-plugin/README.md).
+
+## Publishing
+
+All six distributable packages inherit version `0.1.0`, MIT licensing, authors,
+repository metadata, and Rust 1.85 support from the root manifest. Internal
+dependencies specify both a local path and the exact matching registry version.
+The root lockfile is committed; fixture lockfiles are maintained independently.
+
+After running the quality and archive checks, publish in dependency order:
+
+```sh
+cargo publish -p neocogi-com-core --locked
+cargo publish -p neocogi-idl --locked
+cargo publish -p neocogi-com-macros --locked
+cargo publish -p neocogi-com-runtime --locked
+cargo publish -p neocogi-com --locked
+cargo publish -p neocogi-inspect --locked
+```
+
+Wait for each dependency to appear in the registry before publishing its
+dependents. Use `cargo publish --dry-run -p PACKAGE --locked` to check an
+individual package against the registry once its dependencies are available.
+The archive check qualifies the complete unpublished graph locally. Actual
+publication requires ownership of the package names and crates.io credentials.
+
+To release another version, update `[workspace.package].version` and the five
+internal version requirements in `[workspace.dependencies]` together, then
+refresh the root and affected fixture lockfiles and rerun qualification.
+
+Licensed under [MIT](LICENSE-MIT).

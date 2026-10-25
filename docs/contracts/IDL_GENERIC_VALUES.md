@@ -42,7 +42,7 @@ interface projection as `WeakComPtr<I>` across the ABI.
 
 ## Option is library source
 
-The compiler ships [this ordinary declaration](../../crates/com/idl/stdlib/neocogi/lang.ncidl):
+The compiler ships [this ordinary declaration](../../crates/idl/stdlib/neocogi/lang.ncidl):
 
 ```rust
 #[version(3)]
@@ -117,7 +117,7 @@ Neither the native enum's layout nor Rust's built-in `std::option::Option`
 niche/nullable layout is an IDL promise. Native Rust optional helpers used by
 hand-authored COM APIs are separate from this ordinary IDL library definition.
 
-The [compiled example](../../crates/com/idl/examples/generic_values.ncidl) covers
+The [compiled example](../../crates/idl/examples/generic_values.ncidl) covers
 copied optional results, optional text, optional live capabilities, and readable
 buffers of optional booleans.
 
@@ -190,10 +190,10 @@ Authored persistent-format, dense-domain and naming policies use the same explic
 for templates and concrete declarations. Matching physical layouts never erase
 these contract distinctions.
 
-[Parameter-position tests](../../crates/com/idl/tests/generic_parameter_positions.rs)
+[Parameter-position tests](../../crates/idl/tests/generic_parameter_positions.rs)
 compare independently resolved modules and signatures, exercise nested and
 recursive values and interface positions, and verify that free names and source
-binders are preserved. The [generated COM regression](../../crates/com/idl/tests/generics.rs)
+binders are preserved. The [generated COM regression](../../crates/idl/tests/generics.rs)
 compiles a producer with the original names and a consumer with renamed binders.
 It negotiates an interface, round-trips a copied boolean record, and sends a
 recursive enum event to the independently generated consumer sink. A third
@@ -257,9 +257,9 @@ the same graph as other values. Schema 4's separate `Optional` expression is
 removed; an old descriptor is rejected by version instead of misinterpreted.
 This does not add widget routing or additional event ports.
 
-Permanent regressions are in [intrinsic tests](../../crates/com/idl/tests/intrinsics.rs),
-[enum decoder tests](../../crates/com/idl/tests/enum_decoders.rs), and
-[standard library tests](../../crates/com/idl/tests/standard_library.rs). They compile
+Permanent regressions are in [intrinsic tests](../../crates/idl/tests/intrinsics.rs),
+[enum decoder tests](../../crates/idl/tests/enum_decoders.rs), and
+[standard library tests](../../crates/idl/tests/standard_library.rs). They compile
 generated Rust, call actual COM thunks, check malformed booleans/tags, exercise
 both copied and borrowed ownership, build through Cargo with an explicit standard
 import, and inspect the generated enum graph. The

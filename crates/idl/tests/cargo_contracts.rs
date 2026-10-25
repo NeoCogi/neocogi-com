@@ -27,7 +27,7 @@ fn contract_owner_names_round_trip_without_normalization_collisions() {
 /// copied-value codecs and a real COM call exercise the selected source graphs.
 #[test]
 fn colliding_display_names_build_and_call_together() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     let packages = [
         ("left", "a_b.c", "Left", 1),
@@ -50,14 +50,14 @@ fn colliding_display_names_build_and_call_together() {
         let mut manifest = format!(
             "[package]\nname='{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n",
             contract_links_name(module),
-            root.join("crates/com/api"),
+            root.join("crates/api"),
         );
         if package == "host" {
             for (dependency, _, _, _) in &packages[..4] {
                 manifest.push_str(&format!("{dependency}={{path='../{dependency}'}}\n"));
             }
         }
-        manifest.push_str(&format!("[build-dependencies]\nneocogi-idl={{path={:?}}}\n", root.join("crates/com/idl")));
+        manifest.push_str(&format!("[build-dependencies]\nneocogi-idl={{path={:?}}}\n", root.join("crates/idl")));
         fs::write(path.join("Cargo.toml"), manifest).unwrap();
         fs::write(
             path.join("build.rs"),
@@ -124,7 +124,7 @@ fn selected_contracts_execute() {
 /// types are qualified in templates and no IDL import re-exports them by name.
 #[test]
 fn imported_generics_use_typed_routes_through_direct_providers() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     let sources = [
         (
@@ -232,12 +232,12 @@ fn imported_generics_use_typed_routes_through_direct_providers() {
         let mut manifest = format!(
             "[package]\nname='{package}'\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n",
             contract_links_name(module),
-            root.join("crates/com/api"),
+            root.join("crates/api"),
         );
         for dependency in dependencies {
             manifest.push_str(&format!("{dependency}={{path='../{dependency}'}}\n"));
         }
-        manifest.push_str(&format!("[build-dependencies]\nneocogi-idl={{path={:?}}}\n", root.join("crates/com/idl")));
+        manifest.push_str(&format!("[build-dependencies]\nneocogi-idl={{path={:?}}}\n", root.join("crates/idl")));
         fs::write(path.join("Cargo.toml"), manifest).unwrap();
         fs::write(
             path.join("build.rs"),

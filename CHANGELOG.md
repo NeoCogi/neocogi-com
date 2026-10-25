@@ -119,7 +119,7 @@ construction phase. Shared/exclusive borrowing, interface tables,
 threading promises, descriptor ABI v1, core ABI v1 and fingerprint domain 10
 remain unchanged. This supersedes the cyclic construction described in the
 historical ABI 11/12 entries below. See
-[the construction contract](../../docs/contracts/COM_OBJECT_CONSTRUCTION.md).
+[the construction contract](docs/contracts/COM_OBJECT_CONSTRUCTION.md).
 
 ## Shared allocation lifetimes (experimental ABI 12)
 
@@ -154,7 +154,7 @@ while unescaped reserved words and unsupported syntax fail with field context.
 No new crate, runtime syntax-parser dependency, ABI or catalog schema is added.
 Regression coverage compiles IDL published under `r#type`, copies its descriptor
 through real catalog COM calls, compiles exported forms in a downstream crate,
-and dispatches the typed event. See the [descriptor text contract](core/README.md#descriptor-text-validation).
+and dispatches the typed event. See the [descriptor text contract](crates/core/README.md#descriptor-text-validation).
 
 ## Object/table handles (core ABI v1)
 
@@ -165,7 +165,7 @@ reference count and borrow guard. Raw nullable pairs distinguish absence from
 half-null errors. Plugin factories, persistence, native C fixtures and consumers
 use the new representation; older core generations are rejected. The deliberate
 16-byte handle and its memory tradeoff are documented on `ComPtr` and in the
-[storage decision](../../docs/contracts/COM_INTERFACE_STORAGE.md). Static inherited method
+[storage decision](docs/contracts/COM_INTERFACE_STORAGE.md). Static inherited method
 prefixes and full explicit inspection remain supported.
 
 
@@ -187,7 +187,7 @@ prefixes and full explicit inspection remain supported.
   generic enum, remove special optional lowering, and require borrowing the whole
   enum for owned payloads. Expose enum deserialization and conditional library
   decoder policies. COM designer catalog schema 5 uses named enum definitions
-  for optional fields. See [the generic value contract](../../docs/contracts/IDL_GENERIC_VALUES.md) for syntax,
+  for optional fields. See [the generic value contract](docs/contracts/IDL_GENERIC_VALUES.md) for syntax,
   ownership, migration rules, and the remaining explicit limits.
 
 - Unify IDL records/enums as recursively checked values and remove `#[message]`.
@@ -200,7 +200,7 @@ prefixes and full explicit inspection remain supported.
 - Transport complete structured value definitions, named recursion, and enum tags
   through COM designer catalog schema 4. Keep one stream/one lifetime consumer
   and explicit application handlers; values no longer manufacture receivers.
-  See [the recursive value contract](../../docs/contracts/RECURSIVE_VALUE_CONTRACT.md) for the supported positions and validation evidence.
+  See [the recursive value contract](docs/contracts/RECURSIVE_VALUE_CONTRACT.md) for the supported positions and validation evidence.
 
 - Enforce the same byte, element, value, and depth policy when encoding and
   decoding binary persistence values. Count scalar and container values through
@@ -224,7 +224,7 @@ prefixes and full explicit inspection remain supported.
   core, provider helpers into the facade, and snapshot/restore execution into
   the runtime's fifth ABI v1 table. `FactoryRegistry::new()` is fallible;
   registration uses `&mut self` and contexts remain caller-owned and thread-local.
-- Adopt NeoCogi Foundations naming. The runtime package remains
+- Adopt NeoCogi COM package naming. The runtime package remains
   `neocogi-com-runtime`, its Rust target is `nc_com`, and native shared builds
   emit `libnc_com.so`, `libnc_com.dylib`, or `nc_com.dll`.
 - Align crate guides and rustdoc with the current ABI, feature/linkage choices,

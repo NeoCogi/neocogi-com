@@ -94,7 +94,7 @@ fn conflicting_provider_child() {
 /// target directory so the repository's cargo-clean policy removes them.
 fn build_library() -> PathBuf {
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let target = manifest.join("../../../target/plugin-provenance-fixture");
+    let target = manifest.join("../../target/plugin-provenance-fixture");
     let output = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
         .args(["build", "--offline", "--locked", "--manifest-path"])
         .arg(manifest.join("integration-tests/fixtures/plugin-provenance/Cargo.toml"))

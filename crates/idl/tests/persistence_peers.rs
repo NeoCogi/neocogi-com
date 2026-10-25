@@ -4,8 +4,8 @@ use std::{fs, path::Path, process::Command};
 /// Exercises all three contracts in both directions, rather than comparing only digest text.
 #[test]
 fn current_generated_persistence_peers_call_builtin_providers() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
-    let source = fs::read_to_string(root.join("crates/com/core/schemas/neocogi/com/persistence/objects.ncidl")).unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
+    let source = fs::read_to_string(root.join("crates/core/schemas/neocogi/com/persistence/objects.ncidl")).unwrap();
     let module = neocogi_idl::parse_module_parts(
         Path::new("neocogi/com/persistence"),
         &[neocogi_idl::ModuleSource {
@@ -22,7 +22,7 @@ fn current_generated_persistence_peers_call_builtin_providers() {
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='persistence-peers-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/com/api"),
+            root.join("crates/api"),
         ),
     )
     .unwrap();

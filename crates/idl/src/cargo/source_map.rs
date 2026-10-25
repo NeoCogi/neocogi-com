@@ -94,7 +94,7 @@ mod tests {
         let source = root.path().join("contract source/idl");
         fs::create_dir_all(&output).unwrap();
         fs::create_dir_all(&source).unwrap();
-        let mapped = relative_location(&output, &source.join("../idl")).unwrap();
+        let mapped = relative_location(&output, &source.join(".")).unwrap();
         assert!(!Path::new(&mapped).is_absolute());
         assert_eq!(output.join(mapped).canonicalize().unwrap(), source.canonicalize().unwrap());
         assert_eq!(relative_location(&source, &source).unwrap(), ".");

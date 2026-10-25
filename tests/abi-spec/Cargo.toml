@@ -7,6 +7,6 @@ publish = false
 
 [workspace]
 [dependencies]
-neocogi-com = { path = "../../api", features = ["runtime"] }
+neocogi-com = { path = "../../crates/api", features = ["runtime"] }
 # The guide's com_main entry explicitly initializes this selected implementation.
-neocogi-com-runtime = { path = "../../runtime" }
+neocogi-com-runtime = { path = "../../crates/runtime" }

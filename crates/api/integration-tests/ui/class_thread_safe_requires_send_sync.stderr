@@ -6,14 +6,24 @@ error[E0277]: `Rc<u32>` cannot be sent between threads safely
    |
    = help: within `NotActuallyThreadSafe`, the trait `Send` is not implemented for `Rc<u32>`
 note: required because it appears within the type `NotActuallyThreadSafe`
-  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:11:5
+  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
    |
 10 | pub struct NotActuallyThreadSafe {
-11 |     value: Rc<u32>,
-   |     ^^^^^^^^^^^^^^ required by this field
+   |            ^^^^^^^^^^^^^^^^^^^^^
    = note: required for `NotActuallyThreadSafe` to implement `neocogi_com::__ComSupportsInterfaceThreading<neocogi_com::ThreadSafe>`
    = note: this error originates in the attribute macro `com_object` (in Nightly builds, run with -Z macro-backtrace for more info)
-help: add `#![feature(trivial_bounds)]` to the crate attributes to enable
+
+error[E0277]: `Rc<u32>` cannot be shared between threads safely
+  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:9:1
    |
- 1 + #![feature(trivial_bounds)]
+ 9 | #[com_object(thread_safe, interfaces(IThreadSafeRequiresSendSync))]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `Rc<u32>` cannot be shared between threads safely
    |
+   = help: within `NotActuallyThreadSafe`, the trait `Sync` is not implemented for `Rc<u32>`
+note: required because it appears within the type `NotActuallyThreadSafe`
+  --> integration-tests/ui/class_thread_safe_requires_send_sync.rs:10:12
+   |
+10 | pub struct NotActuallyThreadSafe {
+   |            ^^^^^^^^^^^^^^^^^^^^^
+   = note: required for `NotActuallyThreadSafe` to implement `neocogi_com::__ComSupportsInterfaceThreading<neocogi_com::ThreadSafe>`
+   = note: this error originates in the attribute macro `com_object` (in Nightly builds, run with -Z macro-backtrace for more info)

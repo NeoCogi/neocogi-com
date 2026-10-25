@@ -6,3 +6,8 @@ error: lifetime may not live long enough
   |                                  |    |
   |                                  |    return type of closure is &'2 mut u32
   |                                  has type `&'1 mut Model`
+  |
+help: dereference the return value
+  |
+9 |     let escaped = weak.with_mut(|value| *&mut value.value).unwrap();
+  |                                         +

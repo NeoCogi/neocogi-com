@@ -67,20 +67,20 @@ a Rust reference; conflicting or reentrant access returns `NC_E_BUSY`. Shared
 objects keep their method borrow state separate from strong counting. Exclusive
 objects combine owner presence and reader/writer admission in one atomic word.
 The ABI implementation contains the necessary `UnsafeCell`; semantic state stays
-in ordinary fields. See the [current ABI](../../crates/com/docs/abi-v1.md) for layouts,
+in ordinary fields. See the [current ABI](../abi-v1.md) for layouts,
 ownership transfer and the limits of concurrent Drop.
 
 ## Events and UI ownership
 
 COM provides ordinary callable interfaces and explicit ownership. Domains can
 use typed observers without depending on UI, as the [standalone example](../../examples/com-plugin/README.md)
-demonstrates. UI owns its [event protocol and deferred delivery](../../crates/ui/api/EVENTS.md),
-[producer publication](../contracts/UI_EVENT_METADATA.md) and [widget origins](../contracts/WIDGET_EVENT_ORIGINS.md).
+demonstrates. UI owns its event protocol and deferred delivery,
+producer publication and widget origins.
 Those contracts do not add event syntax or policy to IDL or the COM process runtime.
 
 Ordinary widgets post through their owning traversal scope; services and explicit
 out-of-traversal completions retain the weak origins justified by the UI contract.
-[Exclusive ownership](../contracts/EXCLUSIVE_WIDGET_OWNERSHIP.md) and
+Exclusive ownership and
 [lifetime errors](../contracts/COM_LIFETIME_ERRORS.md) define synchronous owner
 removal and its distinction from a service's optional close operation. Queues and
 UI origin scopes remain under their own owners, independent of the single global
@@ -110,8 +110,8 @@ Dynamic and static assemblies use the same typed acquisition. Dynamic builds exp
 `nc_get_plugin_descriptor_v1`; monoliths register the same provider's Rust
 descriptor and link the runtime statically. Independent compiler versions and
 build flags are supported when the target C ABI, core generation and exact contract
-signatures agree. The [compatibility matrix](../../crates/com/docs/abi-v1.md#independent-build-compatibility)
-records actual cross-build verification. The [current contract index](../../crates/com/docs/abi-v1.md)
+signatures agree. The [compatibility matrix](../abi-v1.md#independent-build-compatibility)
+records actual cross-build verification. The [current contract index](../abi-v1.md)
 separates core ABI generation from discovery versions and IDL hash encoding.
 
 Inspection exposes plugin and factory compatibility metadata. A custom widget

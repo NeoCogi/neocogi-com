@@ -36,7 +36,7 @@ identities; no provisional weak owner or rollback publication protocol exists.
 ## Event producers
 
 Ordinary widgets use the runtime-owned origin stack described in
-[widget event origins](WIDGET_EVENT_ORIGINS.md). They store no weak self origin.
+widget event origins. They store no weak self origin.
 
 Shared service ports may still carry explicit weak identities because window,
 popup, menu and choice-menu methods can emit outside widget dispatch. A factory

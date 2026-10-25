@@ -170,7 +170,7 @@ fn split_imports_keep_each_identifier_and_do_not_change_the_abi() {
 #[test]
 fn cargo_maps_resolve_transitive_templates_and_bundled_sources() {
     use std::{fs, process::Command};
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::write(
         project.path().join("Cargo.toml"),
@@ -201,12 +201,12 @@ fn cargo_maps_resolve_transitive_templates_and_bundled_sources() {
         let mut manifest = format!(
             "[package]\nname={package:?}\nversion='0.0.0'\nedition='2024'\nlinks={:?}\n[dependencies]\nneocogi-com={{path={:?}}}\n",
             neocogi_idl::cargo::contract_links_name(module),
-            root.join("crates/com/api")
+            root.join("crates/api")
         );
         if let Some(dependency) = dependency {
             manifest.push_str(&format!("{dependency}={{path='../{dependency}'}}\n"));
         }
-        manifest.push_str(&format!("[build-dependencies]\nneocogi-idl={{path={:?}}}\n", root.join("crates/com/idl")));
+        manifest.push_str(&format!("[build-dependencies]\nneocogi-idl={{path={:?}}}\n", root.join("crates/idl")));
         fs::write(directory.join("Cargo.toml"), manifest).unwrap();
         let constructor = if package == "maps-host" { "directory" } else { "new" };
         fs::write(

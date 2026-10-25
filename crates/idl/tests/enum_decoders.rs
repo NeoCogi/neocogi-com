@@ -25,14 +25,14 @@ fn ordinary_enum_decoders_compile_and_reconstruct_every_payload_shape() {
     "#;
     let graph = resolve_modules(vec![parse_module(Path::new("proof/enums.ncidl"), source).unwrap()]).unwrap();
     assert_eq!(graph.values.definitions["proof.enums.Number"].persistence, neocogi_idl::Persistence::Supported);
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='enum-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/com/api")
+            root.join("crates/api")
         ),
     )
     .unwrap();

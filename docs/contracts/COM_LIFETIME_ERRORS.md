@@ -60,7 +60,7 @@ one ambiguous error name.
 Receiver selection must use the existing weak observer's liveness. Once a live
 receiver is called, the scheduler propagates every handler error. Merely adding
 or renaming a status cannot establish which object failed. See the
-[dispatch contract](WIDGET_EVENT_DISPATCH.md).
+dispatch contract.
 
 ## Verification boundaries
 
@@ -73,7 +73,7 @@ an expired origin from explicit closure and verifies neither failed call enqueue
 a payload. UI tests distinguish destroyed widgets from retained closed windows,
 child-store views, and detached widgets whose runtime has shut down.
 
-Whole-context `Ui::close()` is [terminal teardown](UI_RUNTIME_SHUTDOWN.md), without
+Whole-context `Ui::close()` is terminal teardown, without
 per-window lifecycle posting. It preflights busy widget trees before committing;
 retained services then report `NC_E_CLOSED`, while destroyed widget observers
 report `NC_E_DROPPED`. Ordinary individual-window removal still reports delivery

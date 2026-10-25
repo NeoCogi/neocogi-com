@@ -38,7 +38,7 @@ fn ordinary_objects_discard_schemas_but_explicit_inspection_retains_them() {
     let manifest = root.join("integration-tests/fixtures/projection-metadata/Cargo.toml");
     let target = std::env::var_os("CARGO_TARGET_DIR")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| root.join("../../../target"));
+        .unwrap_or_else(|| root.join("../../target"));
     let ordinary = linked_fixture(&manifest, &target, false);
     let inspected = linked_fixture(&manifest, &target, true);
     for marker in [b"MetadataRetentionSentinel".as_slice(), b"metadata_retention_sentinel_method".as_slice()] {

@@ -14,7 +14,7 @@ alive. It can be stored recursively in borrowed aggregates or returned directly;
 its wire is `NcWeakRaw`. Acquisition validates shared ownership and the exact
 interface, then retains a weak token without promotion. Expired tokens remain
 valid transport values. Weak fields have distinct design metadata and do not
-acquire copied-buffer or persistence capability. See [ABI v1](../../crates/com/docs/abi-v1.md#shared-weak-result-and-value-transport).
+acquire copied-buffer or persistence capability. See [ABI v1](../abi-v1.md#shared-weak-result-and-value-transport).
 
 A value consists of scalar leaves or recursively composed aggregates: records,
 tagged enum alternatives, fixed arrays, and sequences. `Option<T>` is a bundled
@@ -274,21 +274,21 @@ flowchart TD
     C --> V
 ```
 
-[Permanent operation tests](../../crates/com/idl/tests/capabilities.rs) reject the
+[Permanent operation tests](../../crates/idl/tests/capabilities.rs) reject the
 unsupported explicit format requests containing COM references, including their
 optional, array, sequence, recursive and generic forms. They also compile accepted generated code and reconstruct a
 recursive `Node<String>` with optional records, boolean arrays, positional generic
 records, and an explicit custom-default policy. The
-[generated persistence tests](../../crates/com/idl/tests/enum_decoders.rs) additionally
+[generated persistence tests](../../crates/idl/tests/enum_decoders.rs) additionally
 round-trip generated encoders and decoders and verify that live-reference
 specializations fail Rust persistence trait bounds. The
-[generic contract tests](../../crates/com/idl/tests/generics.rs) independently compile
+[generic contract tests](../../crates/idl/tests/generics.rs) independently compile
 producer/consumer bindings with different generic parameter names, pass copied
 values through COM, and deliver recursive generic enum events to the peer's sink.
 A third binding changes parameter positions while retaining identical concrete
 field types and must fail signature negotiation. The
 [parameter-position contract](IDL_GENERIC_VALUES.md#parameter-positions-and-contract-signatures)
-and [focused tests](../../crates/com/idl/tests/generic_parameter_positions.rs) cover
+and [focused tests](../../crates/idl/tests/generic_parameter_positions.rs) cover
 fingerprints, lexical scope, nested types, and retained source names.
 
 ## Collection constructors and borrows
@@ -360,7 +360,7 @@ that claims ownership has been restored.
 External native adapters must explicitly implement the generated contract's
 checked wire semantics. Native C layout alone does not prove restricted field
 validity. IDL owns no native packing, alignment, or external-field mode. See the
-[current ABI entrypoint](../../crates/com/docs/abi-v1.md) for binary versions.
+[current ABI entrypoint](../abi-v1.md) for binary versions.
 
 ## Current IDL spelling and supported use sites
 
@@ -394,7 +394,7 @@ text, or COM references use the borrowed named-value form. Owning aggregate
 returns remain rejected; a fixed array is eligible exactly when its element is.
 
 An application declares ordinary interfaces for message delivery and commands.
-UI supplies its own [event receiver and delivery policy](UI_EVENT_INTERFACES.md).
+UI supplies its own event receiver and delivery policy.
 The owning [IDL reference](IDL_MODULES.md#contract-changes-and-versions)
 tracks the current canonical encoding independently of the core ABI.
 
@@ -410,9 +410,9 @@ capabilities; their additional methods have separate interface metadata.
 UI separately declares the events a widget publishes and merges their getter
 value graphs with the producer's graph. Its versioned `DesignWidgetManifest`
 copies the result through a COM catalog, so the receiving designer need not link
-the provider's Rust crate. See [UI event metadata](UI_EVENT_METADATA.md) for this
+the provider's Rust crate. See UI event metadata for this
 application-level format. The process runtime's
-[plugin inspection](../../crates/com/docs/abi-v1.md#runtime-and-global-registry) reads plugin/factory
+[plugin inspection](../abi-v1.md#runtime-and-global-registry) reads plugin/factory
 descriptors rather than these source-level value definitions.
 
 The designer validates unique definitions, known scalar forms, complete named
@@ -426,15 +426,15 @@ through its COM catalog.
 
 | Contract | Executed proof |
 | --- | --- |
-| Nested booleans never become unchecked Rust values | [Copied argument, enum payload, and readable/writable buffer thunks](../../crates/com/api/integration-tests/checked_values.rs) receive literal invalid raw bytes and return errors. |
-| Only the selected enum/optional payload is read | [Core value tests](../../crates/com/core/tests/recursive_values.rs) cover uninitialized absent payloads; copied enum tests cover unknown tags. |
-| Recursion is explicit and bounded | [IDL resolution tests](../../crates/com/idl/tests/resolution.rs) reject inline cycles; [compiled generated bindings](../../crates/ui/api/tests/fixtures/messages.rs) round-trip recursive trees and reject cyclic raw pointers. |
+| Nested booleans never become unchecked Rust values | [Copied argument, enum payload, and readable/writable buffer thunks](../../crates/api/integration-tests/checked_values.rs) receive literal invalid raw bytes and return errors. |
+| Only the selected enum/optional payload is read | [Core value tests](../../crates/core/tests/recursive_values.rs) cover uninitialized absent payloads; copied enum tests cover unknown tags. |
+| Recursion is explicit and bounded | [IDL resolution tests](../../crates/idl/tests/resolution.rs) reject inline cycles; compiled generated bindings round-trip recursive trees and reject cyclic raw pointers. |
 | Sibling fields share resource limits | Core and generated-binding tests exceed cumulative text/storage or depth budgets; zero-sized elements still consume work. |
 | Numeric buffers remain direct borrows | Pointer-identity assertions prove numeric record and writable scalar buffers retain the original allocation; boolean-bearing records use separate storage. |
-| Borrowed values cannot escape the call | [IDL resolution](../../crates/com/idl/tests/resolution.rs) checks source ownership positions; [compile-fail fixtures](../../crates/com/api/integration-tests/ui.rs) check receiver and source-guard lifetimes. |
-| Acquired values survive producer storage | [Generated COM calls](../../crates/com/api/integration-tests/borrowed_values.rs) retain nested strings after source mutation/drop, accept static producer data without a static receiver borrow, and replace empty/repeated messages. |
-| Failed buffer acquisition does not leak an owned result | [Foreign-style lifecycle test](../../crates/com/api/integration-tests/borrowed_calls.rs) transfers a real reference beside an invalid byte and checks its release plus destination preservation. |
-| Inspection receives nested definitions through COM | [Standalone designer test](../../tools/ui-designer/src/app/tests.rs) builds and loads a separate plugin and checks the nested event record received from its catalog. |
+| Borrowed values cannot escape the call | [IDL resolution](../../crates/idl/tests/resolution.rs) checks source ownership positions; [compile-fail fixtures](../../crates/api/integration-tests/ui.rs) check receiver and source-guard lifetimes. |
+| Acquired values survive producer storage | [Generated COM calls](../../crates/api/integration-tests/borrowed_values.rs) retain nested strings after source mutation/drop, accept static producer data without a static receiver borrow, and replace empty/repeated messages. |
+| Failed buffer acquisition does not leak an owned result | [Foreign-style lifecycle test](../../crates/api/integration-tests/borrowed_calls.rs) transfers a real reference beside an invalid byte and checks its release plus destination preservation. |
+| Inspection receives nested definitions through COM | Standalone designer test builds and loads a separate plugin and checks the nested event record received from its catalog. |
 | Core's built-in contracts use current lowering without allocation | The persistence regeneration test checks both committed binding halves; core also checks with default features disabled. |
 
 These proofs exercise generated calls and independently compiled bindings, in

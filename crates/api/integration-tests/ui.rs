@@ -70,7 +70,7 @@ fn generated_objects_require_their_interface_implementation() {
             }}
         }}
     "#,
-            owner.join("../schemas")
+            owner.join("../../schemas")
         ),
     )
     .unwrap();
@@ -89,7 +89,7 @@ fn generated_objects_require_their_interface_implementation() {
         .arg(project.path().join("Cargo.toml"))
         .env(
             "CARGO_TARGET_DIR",
-            std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| owner.join("../../../target").into_os_string()),
+            std::env::var_os("CARGO_TARGET_DIR").unwrap_or_else(|| owner.join("../../target").into_os_string()),
         )
         .output()
         .unwrap();

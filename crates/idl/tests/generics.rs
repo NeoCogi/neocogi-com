@@ -130,14 +130,14 @@ fn closed_generic_calls_cross_generated_module_boundaries() {
     let graph = resolve_modules(vec![template, module("proof/producer.ncidl", source), module("proof/consumer.ncidl", source)]).unwrap();
     let owner = graph.module("proof.producer").unwrap();
     let contract = &owner.source.declarations.iter().find(|source| source.specialization.is_some()).unwrap().name;
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='generic-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\nneocogi-com-runtime={{path={:?}}}\n",
-            root.join("crates/com/api"), root.join("crates/com/runtime")
+            root.join("crates/api"), root.join("crates/runtime")
         ),
     )
     .unwrap();
@@ -232,7 +232,7 @@ fn generic_values_reject_invalid_closed_layout_and_ownership() {
 #[test]
 fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
     use std::{fs, process::Command};
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let template_source = r#"
         #[version(1)] struct Pair<T, U> { first: T, second: U }
         #[version(1)] struct Node<T> { value: T, children: Vec<Node<T>> }
@@ -307,7 +307,7 @@ fn parameter_renames_preserve_cross_module_calls_and_event_adapters() {
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='generic-values-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\nneocogi-com-runtime={{path={:?}}}\n",
-            root.join("crates/com/api"), root.join("crates/com/runtime")
+            root.join("crates/api"), root.join("crates/runtime")
         ),
     )
     .unwrap();

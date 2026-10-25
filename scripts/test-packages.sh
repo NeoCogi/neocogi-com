@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 # Archive qualification uses cached inputs for the driver and nested consumers.
 export CARGO_NET_OFFLINE=true
@@ -13,7 +13,7 @@ for command in cargo tar cmp mktemp python3; do
   fi
 done
 
-version="$(awk -F '"' '/^version = "/ { print $2; exit }' crates/com/api/Cargo.toml)"
+version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')"
 if [[ -z "$version" ]]; then
   echo "failed to read the workspace package version" >&2
   exit 1
@@ -31,14 +31,14 @@ packages=(
 for package in "${packages[@]}"; do
   # Published package names intentionally differ from their workspace folders.
   case "$package" in
-    neocogi-com-core) package_license="crates/com/core/LICENSE-MIT" ;;
-    neocogi-idl) package_license="crates/com/idl/LICENSE-MIT" ;;
-    neocogi-com-macros) package_license="crates/com/macros/LICENSE-MIT" ;;
-    neocogi-com-runtime) package_license="crates/com/runtime/LICENSE-MIT" ;;
-    neocogi-com) package_license="crates/com/api/LICENSE-MIT" ;;
+    neocogi-com-core) package_license="crates/core/LICENSE-MIT" ;;
+    neocogi-idl) package_license="crates/idl/LICENSE-MIT" ;;
+    neocogi-com-macros) package_license="crates/macros/LICENSE-MIT" ;;
+    neocogi-com-runtime) package_license="crates/runtime/LICENSE-MIT" ;;
+    neocogi-com) package_license="crates/api/LICENSE-MIT" ;;
     neocogi-inspect) package_license="tools/neocogi-inspect/LICENSE-MIT" ;;
   esac
-  if [[ ! -f "$package_license" ]] || ! cmp -s crates/com/LICENSE-MIT "$package_license"; then
+  if [[ ! -f "$package_license" ]] || ! cmp -s LICENSE-MIT "$package_license"; then
     echo "$package_license must be an exact copy of the root LICENSE-MIT" >&2
     exit 1
   fi

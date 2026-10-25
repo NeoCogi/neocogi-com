@@ -148,14 +148,14 @@ fn generated_bound_reference_peers_execute_real_com_and_method_metadata() {
     let second = graph(("Base", "Event"), "Base", "Event", true).unwrap();
     let base = instance(&first, "ForwardBase");
     let events = instance(&first, "ForwardCapability");
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='bound-reference-peers'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/com/api")
+            root.join("crates/api")
         ),
     )
     .unwrap();

@@ -19,15 +19,17 @@ fn com_abi_v1_has_one_specification_and_matching_discovery_versions() {
     assert_eq!(neocogi_com_core::NC_COM_CORE_ABI_VERSION, 1);
     assert_eq!(neocogi_com_core::NC_COM_RUNTIME_ABI_VERSION, 1);
     assert_eq!(neocogi_com_core::NC_PLUGIN_DESCRIPTOR_ABI_VERSION, 1);
-    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../docs");
+    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs");
     let mut specifications = fs::read_dir(&directory)
         .unwrap()
         .map(|entry| entry.unwrap().path())
-        .filter(|path| path.extension().is_some_and(|extension| extension == "md"))
+        .filter(|path| {
+            path.file_name().is_some_and(|name| name.to_string_lossy().starts_with("abi-")) && path.extension().is_some_and(|extension| extension == "md")
+        })
         .collect::<Vec<_>>();
     specifications.sort();
     assert_eq!(specifications, [directory.join("abi-v1.md")], "keep one COM ABI document");
-    let document = include_str!("../../docs/abi-v1.md");
+    let document = include_str!("../../../docs/abi-v1.md");
     assert!(document.starts_with("# COM ABI v1\n"));
 }
 
@@ -36,7 +38,7 @@ fn com_abi_v1_has_one_specification_and_matching_discovery_versions() {
 #[test]
 fn authoring_guides_match_current_encoding_and_module_mangling() {
     let domain = std::str::from_utf8(neocogi_idl::MODULE_ABI_ENCODING_DOMAIN).unwrap().trim_end_matches('\0');
-    let language = include_str!("../../../../docs/contracts/IDL_MODULES.md");
+    let language = include_str!("../../../docs/contracts/IDL_MODULES.md");
     assert!(
         language.contains(&format!("`{domain}`")),
         "owning language reference must name the current encoding"
@@ -55,21 +57,21 @@ fn authoring_guides_match_current_encoding_and_module_mangling() {
 /// The guides' ownership spelling, generated bindings and plugin bootstrap must work together.
 #[test]
 fn readme_factory_contract_and_bootstrap_execute_as_documented() {
-    let document = include_str!("../../README.md");
+    let document = include_str!("../../../docs/COM.md");
     let source = neocogi_idl::parse_module(Path::new("example/contracts.ncidl"), example(document, "idl")).unwrap();
     let graph = neocogi_idl::resolve_modules(vec![source]).unwrap();
     let generated = neocogi_idl::generate_rust(&graph, "example.contracts").unwrap();
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("Cargo.toml"), format!(
         "[package]\nname='documented-com-bootstrap'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[features]\ndynamic-plugin=[]\n[dependencies]\nneocogi-com={{path={:?},features=['runtime']}}\nneocogi-com-runtime={{path={:?}}}\n",
-        root.join("crates/com/api"), root.join("crates/com/runtime"),
+        root.join("crates/api"), root.join("crates/runtime"),
     )).unwrap();
     // The consumer's locally generated bindings are included as a module here;
     // every authored line below comes directly from its marked public block.
     let mut implementation = format!("mod example_contracts {{\n{generated}\n}}\n");
-    let language = include_str!("../../../../docs/contracts/IDL_MODULES.md");
+    let language = include_str!("../../../docs/contracts/IDL_MODULES.md");
     for (label, module) in [("generic-stream", "stream"), ("generic-values", "values")] {
         let source = neocogi_idl::parse_module(Path::new(&format!("example/{module}.ncidl")), example(language, label)).unwrap();
         let graph = neocogi_idl::resolve_modules(vec![source]).unwrap();
@@ -131,21 +133,16 @@ fn active_guides_do_not_reintroduce_retired_protocol_prescriptions() {
             }
         }
     }
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut files = Vec::new();
     for relative in ["docs/contracts", "docs/guides", "docs/architecture"] {
         markdown(&root.join(relative), &mut files);
     }
-    for relative in [
-        "crates/com/README.md",
-        "crates/com/api/README.md",
-        "crates/com/macros/README.md",
-        "crates/com/idl/README.md",
-    ] {
+    for relative in ["docs/COM.md", "crates/api/README.md", "crates/macros/README.md", "crates/idl/README.md"] {
         files.push(root.join(relative));
     }
     files.sort();
-    assert!(files.len() > 30, "scan must retain the full active normative guide set");
+    assert!(files.len() >= 17, "scan must retain the COM normative guide set");
     let retired = [
         "`neocogi-com-codegen`",
         "Writable buffers are initialized in/out storage",

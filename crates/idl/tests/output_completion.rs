@@ -4,7 +4,7 @@ use std::{fs, path::Path, process::Command};
 /// Runs the shared real-ABI fixture against actual generated IDL declarations.
 #[test]
 fn generated_consuming_outputs_prepare_before_acceptance() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let graph = neocogi_idl::resolve_modules(vec![
         neocogi_idl::parse_module(Path::new("proof/completion.ncidl"), include_str!("fixtures/output_completion.ncidl")).unwrap(),
     ])
@@ -15,12 +15,12 @@ fn generated_consuming_outputs_prepare_before_acceptance() {
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='output-completion-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/com/api"),
+            root.join("crates/api"),
         ),
     )
     .unwrap();
     let generated = neocogi_idl::generate_rust(&graph, "proof.completion").unwrap();
-    let support = root.join("crates/com/api/integration-tests/support");
+    let support = root.join("crates/api/integration-tests/support");
     fs::write(project.path().join("src/lib.rs"), format!(
         "{generated}\n#[cfg(test)] use neocogi_com::*;\n#[cfg(test)] type Excessive = [[bool; 0]; MAX_VALUE_COUNT];\n#[cfg(test)] #[path={:?}] mod allocation_probe;\n#[cfg(test)] #[path={:?}] mod generated_calls;\n",
         support.join("allocation_probe.rs"), support.join("output_completion_fixture.rs"),

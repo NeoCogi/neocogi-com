@@ -32,7 +32,7 @@ errors. It exposes plugin/factory data, not a runtime inventory of contract
 declarations. Static registration and later factory calls retain their existing
 status-returning contracts; they are separate operations from live loading.
 
-[Runtime ABI v1](https://github.com/NeoCogi/foundations/blob/master/crates/com/docs/abi-v1.md#runtime-and-global-registry) has three C tables:
+[Runtime ABI v1](https://github.com/NeoCogi/neocogi-com/blob/master/docs/abi-v1.md#runtime-and-global-registry) has three C tables:
 complete plugin operations, diagnostics and persistence. Plugin lookup and
 enumeration share one projection containing identity, factory and dependencies. Loading
 returns a plugin GUID. Plugin inspection reports static origin or the first
@@ -50,7 +50,7 @@ existing singleton and obtain a copyable access handle. Reusable libraries take
 that handle from their caller. Plugin acquisition receives it through the C
 bootstrap; providers select no implementation. No runtime DSO or native bridge
 is built or deployed. The runtime requires `std`; core and the access handle
-retain reduced-feature support. See the [sample host](https://github.com/NeoCogi/foundations/tree/master/examples/com-host).
+retain reduced-feature support. See the [sample host](https://github.com/NeoCogi/neocogi-com/tree/master/examples/com-host).
 
 `initialize_process()` is infallible/idempotent and invokes no plugin. Its
 immutable `NcHostApiV1`, child tables, state and code remain process/instance-lived

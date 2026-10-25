@@ -125,12 +125,16 @@ impl Fixture {
         fs::write(self.consumer.directory.path().join(file), source).unwrap();
     }
 
-    /// Uses Cargo's selected compiler and inherited one-job/target configuration.
-    /// Each child completes before the next case or fixture teardown.
+    /// Each fixture owns its build artifacts: these graphs deliberately reuse
+    /// helper/provider package names while changing their generated contracts.
+    /// Sharing a target between parallel fixtures can reuse another graph's
+    /// metadata or executable and invalidate both acceptance and rejection tests.
     fn cargo(&self, verb: &str) -> Output {
         Command::new("cargo")
             .args([verb, "--offline", "--lib", "--manifest-path"])
             .arg(self.consumer.directory.path().join("Cargo.toml"))
+            .env("CARGO_TARGET_DIR", self.consumer.directory.path().join("target"))
+            .env("CARGO_BUILD_JOBS", "1")
             .output()
             .unwrap()
     }

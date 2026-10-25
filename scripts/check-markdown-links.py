@@ -4,13 +4,12 @@
 from __future__ import annotations
 
 import re
-import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[1]
 INLINE_LINK = re.compile(r"!?\[[^\]]*\]\((?P<target><[^>]+>|[^\s)]+)(?:\s+[^)]*)?\)")
 REFERENCE_LINK = re.compile(r"^\s*\[[^\]]+\]:\s*(?P<target><[^>]+>|\S+)")
 HTML_LINK = re.compile(r"\b(?:href|src)=[\"'](?P<target>[^\"']+)[\"']")
@@ -19,14 +18,12 @@ EXTERNAL_SCHEMES = {"http", "https", "mailto", "tel"}
 
 
 def tracked_markdown_files() -> list[Path]:
-    result = subprocess.run(
-        ["git", "ls-files", "--", "*.md"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return [ROOT / line for line in result.stdout.splitlines() if line]
+    """Include the complete COM documentation, even before the first commit."""
+    roots = [ROOT / relative for relative in ("crates", "tools", "examples", "docs", "schemas", "tests")]
+    files = [ROOT / "README.md", ROOT / "CHANGELOG.md"]
+    files += [path for directory in roots for path in directory.rglob("*.md")
+              if not {"target", ".git", "__pycache__"}.intersection(path.relative_to(ROOT).parts)]
+    return sorted(path for path in files if path.is_file())
 
 
 def github_anchor(text: str) -> str:

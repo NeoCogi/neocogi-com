@@ -1,13 +1,14 @@
 [package]
 name = "neocogi-com"
-version = "0.0.0"
-edition = "2024"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 # Repository integration suites inspect sibling packages, docs and native fixtures.
 # Keep them in checkout CI; archives ship local unit tests and downstream examples.
 exclude = ["integration-tests/**"]
-rust-version = "1.85"
-license = "MIT"
-repository = "https://github.com/NeoCogi/foundations"
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
 documentation = "https://docs.rs/neocogi-com"
 readme = "README.md"
 description = "Typed C-ABI COM clients, object helpers, and optional runtime bindings"

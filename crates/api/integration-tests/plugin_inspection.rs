@@ -17,7 +17,7 @@ fn build_case(case: usize, directory: &Path) -> PathBuf {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let target = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| root.join("../../../target"));
+        .unwrap_or_else(|| root.join("../../target"));
     let output = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
         .args(["build", "--offline", "--locked", "--manifest-path"])
         .arg(root.join("integration-tests/fixtures/plugin-inspection/Cargo.toml"))

@@ -5,16 +5,30 @@ error[E0080]: evaluation panicked: conflicting inherited interface contracts
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `_::<impl neocogi_com::ComObject for Object>::VTABLES::{constant#0}` failed inside this call
    |
 note: inside `neocogi_com::__nc_object_interface_count`
-  --> /cargo/deps/neocogi-com-core-0.0.0/src/metadata/inheritance.rs:106:16
+  --> $WORKSPACE/crates/core/src/metadata/inheritance.rs
+   |
+   |             if !repeated(chains, chain, item) {
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 note: inside `neocogi_com_core::metadata::inheritance::repeated`
-  --> /cargo/deps/neocogi-com-core-0.0.0/src/metadata/inheritance.rs:54:15
+  --> $WORKSPACE/crates/core/src/metadata/inheritance.rs
+   |
+   |             if same_contract(current, previous) {
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 note: inside `neocogi_com_core::metadata::inheritance::same_contract`
-  --> /cargo/deps/neocogi-com-core-0.0.0/src/metadata/inheritance.rs:67:4
+  --> $WORKSPACE/crates/core/src/metadata/inheritance.rs
+   |
+   | /     same_identity(
+   | |         &NcInterfaceId::new(left.interface_id, left.abi_signature),
+   | |         &NcInterfaceId::new(right.interface_id, right.abi_signature),
+   | |     )
+   | |_____^
 note: inside `neocogi_com_core::metadata::inheritance::same_identity`
   --> $RUST/core/src/panic.rs
    |
    |         $crate::panicking::panic_fmt($crate::const_format_args!($($t)+));
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  --> /cargo/deps/neocogi-com-core-0.0.0/src/metadata/inheritance.rs:79:4
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the failure occurred here
    |
-   = note: in this macro invocation
+  ::: $WORKSPACE/crates/core/src/metadata/inheritance.rs
+   |
+   |     assert!(left.abi_signature.__const_eq(right.abi_signature), "conflicting inherited interface contracts");
+   |     -------------------------------------------------------------------------------------------------------- in this macro invocation

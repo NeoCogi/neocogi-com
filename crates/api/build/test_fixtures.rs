@@ -83,10 +83,7 @@ pub fn generate(root: &Path) {
     }
     let output_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
     fs::write(output_dir.join("test_contracts.rs"), output).unwrap();
-    let notifications = root
-        .join("../../../examples/schemas/neocogi/idl_example/notifications.rs")
-        .canonicalize()
-        .unwrap();
+    let notifications = root.join("../examples/schemas/neocogi/idl_example/notifications.rs").canonicalize().unwrap();
     fs::write(
         output_dir.join("example_helpers.rs"),
         format!(

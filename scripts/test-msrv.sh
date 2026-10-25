@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-# Stable package testing excludes the development-only artifact manifests.
+# Each compiler-floor run owns its source and target paths independently.
 if [[ "${NEOCOGI_LIBRARY_WORKSPACE:-0}" != 1 ]]; then
-  exec python3 crates/com/scripts/library_workspace.py bash crates/com/scripts/test-msrv.sh
+  exec python3 scripts/library_workspace.py bash scripts/test-msrv.sh
 fi
 cargo +1.85.0 generate-lockfile
 
@@ -38,7 +38,7 @@ run_msrv_cargo "all workspace targets and features" \
 run_msrv_cargo "workspace library tests" \
   test -p neocogi-com-core -p neocogi-idl -p neocogi-com-macros -p neocogi-com-runtime -p neocogi-com -p neocogi-inspect --lib --locked
 run_msrv_cargo "ABI v1 normative snippets" \
-  test --manifest-path crates/com/tests/abi-spec/Cargo.toml --doc --locked
+  test --manifest-path tests/abi-spec/Cargo.toml --doc --locked
 run_msrv_cargo "inspector binary tests" \
   test -p neocogi-inspect --bin neocogi-inspect --locked
 run_msrv_cargo "neocogi-com default features" \

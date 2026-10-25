@@ -1,7 +1,7 @@
 # COM ABI v1
 
 This is the single current COM binary contract. The authoritative layouts are
-the public `#[repr(C)]` definitions in [core](../core/src/lib.rs); this document
+the public `#[repr(C)]` definitions in [core](../crates/core/src/lib.rs); this document
 describes how their calling, ownership, runtime and deployment rules compose.
 
 COM is pre-release. Core, runtime-table and plugin-descriptor discovery all
@@ -104,7 +104,7 @@ identical static tables without changing those contracts.
 
 Discovery checks core ABI v1 before dispatch. Exact interface signatures do
 not replace that global layout/behavior check. See the
-[storage rationale](../../../docs/contracts/COM_INTERFACE_STORAGE.md) for the
+[storage rationale](contracts/COM_INTERFACE_STORAGE.md) for the
 object/table design and its measurement boundaries.
 
 The IDL resolver computes the module fingerprint before target Rust compilation. It
@@ -124,7 +124,7 @@ constants cannot establish which types an ordinary facade reexports. Inherited
 clients and physical table prefixes come from the checked ABI marker's associated
 types, so a separately reexported companion cannot change their representation.
 These checks add no runtime discovery or registry state; the
-[IDL generation contract](../../../docs/contracts/IDL_MODULES.md#shared-idl-sources)
+[IDL generation contract](contracts/IDL_MODULES.md#shared-idl-sources)
 describes their scope.
 
 `QueryInterface` matches both GUID and ABI signature. A GUID collision or a
@@ -203,7 +203,7 @@ typedef struct NcWeakControl NcWeakControl;
 typedef struct NcWeakRaw { NcWeakControl *control; } NcWeakRaw;
 ```
 
-The [common lifetime engine](../core/src/lifetime.rs) defines `NcWeakControl`
+The [common lifetime engine](../crates/core/src/lifetime.rs) defines `NcWeakControl`
 in this field order: `state: AtomicUsize`, `weak: AtomicUsize`, and
 `class: *const NcClassLifetime`. Its immutable class metadata contains provider-local
 `destroy_value` and `deallocate` C callbacks followed by the interface-table
@@ -355,7 +355,7 @@ buffers prepay their complete finite capacity before invocation; conversion uses
 reserved storage and publishes only after every output succeeds. Input-only
 values charge actual work. Unavailable required maxima reject the declaration;
 known unaffordable work returns `NC_E_OUT_OF_RANGE` with original owners intact.
-See [prepared completion](../../../docs/contracts/COM_OUTPUT_COMPLETION.md)
+See [prepared completion](contracts/COM_OUTPUT_COMPLETION.md)
 for exact ordering and resource accounting.
 
 The caller decides whether to retry or destroy returned inputs. In particular,
@@ -409,7 +409,7 @@ itself prove safe concurrent method calls or destruction.
 IDL supports public `struct`, `enum`, `bitenum` and ordinary `interface`
 declarations. Construction and observation are ordinary interface methods;
 concrete classes and plugin acquisition are Rust implementation concerns.
-The [IDL reference](../../../docs/contracts/IDL_MODULES.md) owns accepted syntax,
+The [IDL reference](contracts/IDL_MODULES.md) owns accepted syntax,
 identity and canonical encoding. Special class/factory/event IDL roles are absent.
 
 `ComValue` supplies separate raw `Wire` and concrete producer `Storage` types.
@@ -436,7 +436,7 @@ identity-wire proofs permit unrestricted numeric/direct buffers without per-elem
 conversion or allocation; their lengths are not capped by hypothetical conversion
 work. Operation-specific bounds still apply. Inline cycles fail resolution;
 sequence indirection permits finite recursive values. See the
-[recursive-value contract](../../../docs/contracts/RECURSIVE_VALUE_CONTRACT.md).
+[recursive-value contract](contracts/RECURSIVE_VALUE_CONTRACT.md).
 
 Built-in data interfaces exercise shared ownership and checked native calls:
 
@@ -583,8 +583,8 @@ They have never interpreted old bytes as input, need no enum conversion, and do
 not represent the removed generic mutable-value path. IDL and its typed backend
 output parameters always use the new four-slot protocol.
 
-See [directional output](../../../docs/contracts/COM_OUTPUT_BUFFERS.md),
-[ownership completion](../../../docs/contracts/COM_OUTPUT_COMPLETION.md) for examples
+See [directional output](contracts/COM_OUTPUT_BUFFERS.md),
+[ownership completion](contracts/COM_OUTPUT_COMPLETION.md) for examples
 and regression requirements.
 
 ## Compile-time modules
@@ -801,7 +801,7 @@ returns, `?`, cfg and lint scopes. Explicit `neocogi_com = path, nc_com = path`
 arguments support renamed dependencies. It adds no executor or UI launch loop.
 A mismatched selected implementation is a fatal startup configuration error.
 
-The [factory walkthrough](../README.md) executes generated typed registration,
+The [factory walkthrough](COM.md) executes generated typed registration,
 acquisition and ordinary construction. Tests may initialize their explicitly
 selected host with `nc_com::initialize_process()` and unsafe checked adoption;
 ordinary reusable libraries accept the resulting handle rather than initialize.
@@ -925,14 +925,14 @@ the canonical allocation along active ancestors; repeated siblings are legal.
 Logical interface equality is not allocation identity. Validate the whole recipe
 before constructing objects and release partial restored owners on failure.
 NCB v1, live-call wire validation and application reconstruction remain distinct
-contracts; see [persistence](../runtime/PERSISTENCE.md).
+contracts; see [persistence](../crates/runtime/PERSISTENCE.md).
 
 `NcDebugApiV1` separately owns callback messenger creation/destruction. At most
 64 messengers are live; callbacks execute outside runtime catalog locks. Final
 destruction prevents new entry and waits for admitted callbacks to finish.
 Callbacks may run concurrently on any thread and must not destroy a messenger.
 Callback data is call-scoped. Its lifecycle does not belong in the
-plugin operation table or a persistence context; see [debug ABI](../core/src/runtime_abi/debug.rs).
+plugin operation table or a persistence context; see [debug ABI](../crates/core/src/runtime_abi/debug.rs).
 
 ## Borrowed metadata storage
 
@@ -942,7 +942,7 @@ UTF-8 is checked, but readable backing storage and its returned lifetime remain
 caller obligations. Static/pinned descriptor graphs must retain names, signature
 bytes, dependency arrays and code; a static outer reference does not prove raw
 children are static. Copy callback metadata needed after a callback. See the
-[text/lifetime table](../core/README.md#text-bytes-and-borrowed-storage).
+[text/lifetime table](../crates/core/README.md#text-bytes-and-borrowed-storage).
 
 ## Native and static composition
 
@@ -957,7 +957,7 @@ runtime-specific search path is deployed. Generic native library/resource stagin
 remains responsible for providers and assets. Provider mappings stay process-pinned
 through final object/weak release. Host state, tables and callback code also stay
 process/Wasm-instance-lived after main returns, allowing browser callbacks.
-See the [native guide](../../../docs/guides/COM_NATIVE.md).
+See the [native guide](guides/COM_NATIVE.md).
 
 ## Independent-build compatibility
 
@@ -973,10 +973,10 @@ with only the standard library. An unpublished final test fixture owns its host
 implementation; no additional production registry is introduced. From the repository root, run:
 
 ```sh
-python3 crates/com/scripts/compatibility.py --suite cross-version --report /tmp/com-cross.json
-python3 crates/com/scripts/compatibility.py --suite build-flags --report /tmp/com-flags.json
-python3 crates/com/scripts/compatibility.py --suite linked --report /tmp/com-linked.json
-python3 -m unittest discover -s crates/com/scripts -p test_compatibility.py
+python3 scripts/compatibility.py --suite cross-version --report /tmp/com-cross.json
+python3 scripts/compatibility.py --suite build-flags --report /tmp/com-flags.json
+python3 scripts/compatibility.py --suite linked --report /tmp/com-linked.json
+python3 -m unittest discover -s scripts -p test_compatibility.py
 ```
 
 The matrix is deliberately explicit, rather than a claim that every possible
@@ -994,7 +994,7 @@ Unspecified panic/LTO settings are unwind/off. Randomization uses seed 107.
 `stable-release`. `linked` executes ordinary C-layout, checked-value,
 recursive-interface, output-completion and lifetime regressions, then the complete
 factory/persistence suites through the independent
-[`host-runtime` final fixture](../api/integration-tests/fixtures/host-runtime/Cargo.toml).
+[`host-runtime` final fixture](../crates/api/integration-tests/fixtures/host-runtime/Cargo.toml).
 The same case files are reused by the ordinary test roots. Each final executable
 explicitly owns its implementation; pure ABI tests enable no unused service clients.
 
@@ -1008,7 +1008,7 @@ Rust 1.85 minimum. The separate `com-msrv` CI job runs the existing floor suite:
 rustup toolchain install 1.85.0 --profile minimal
 # The workspace lock is untracked; resolve once before the locked suite.
 cargo +1.85.0 generate-lockfile
-bash crates/com/scripts/test-msrv.sh
+bash scripts/test-msrv.sh
 ```
 
 That suite checks all COM/IDL/inspector targets and features, library tests,
@@ -1038,7 +1038,7 @@ comes from executing its CI row, not from another platform's successful build.
 5. Discover exact sentinels and execute both unfiltered suites single-threaded
    after build outputs are gone. Check unchanged executable hashes. Counts alone
    cannot establish that the maintained bodies executed.
-6. Run the [sample host](../../../examples/com-host/src/main.rs) without COM
+6. Run the [sample host](../examples/com-host/src/main.rs) without COM
    loader paths. B publishes a marker visible to the host and acquires A through
    its supplied handle. The host checks conflict rejection preserves its catalog.
 7. Require successful exit and the marker emitted after all behavioral assertions.
@@ -1103,9 +1103,9 @@ and data-race checks remain enabled. Miri receives no suppression flags.
 
 ```sh
 rustup toolchain install nightly --component miri --component rust-src
-crates/com/scripts/test-safety.sh --report /tmp/com-miri.json
-python3 crates/com/scripts/compatibility.py --suite address --report /tmp/com-asan.json
-python3 crates/com/scripts/compatibility.py --suite thread --report /tmp/com-tsan.json
+scripts/test-safety.sh --report /tmp/com-miri.json
+python3 scripts/compatibility.py --suite address --report /tmp/com-asan.json
+python3 scripts/compatibility.py --suite thread --report /tmp/com-tsan.json
 ```
 
 Missing components, unsupported sanitizer targets, discovery mismatches and
@@ -1116,7 +1116,7 @@ passing native roles also run explicit `cargo clean` after copying. Miri's task
 owns its private temporary target, not the user's shared interpreter sysroot
 cache; cleanup leaves that shared compiler cache intact.
 
-[CI](../../../.github/workflows/rust.yml) keeps ordinary static/unit/IDL tests
+[CI](../.github/workflows/rust.yml) keeps ordinary static/unit/IDL tests
 separate from the independent-build matrix. Linux executes the three mixed-build
 rows; Linux, macOS and Windows each execute the linked row. Separate Linux jobs
 run Miri and both sanitizers. A platform job is not evidence until it actually
@@ -1132,7 +1132,7 @@ including child-list deallocation through its original owning pointer.
 
 ## Published archive validation
 
-Run `bash crates/com/scripts/test-packages.sh` with Rust 1.85 installed. It creates
+Run `bash scripts/test-packages.sh` with Rust 1.85 installed. It creates
 real Cargo archives for the five SDK packages and inspector, extracts them into a
 fresh directory, and patches dependencies **only to those extracted archives**.
 Rust 1.85 checks all shipped targets and runs shipped executable tests and
@@ -1173,32 +1173,32 @@ Record actual source, compiler/profile/features, platform, executed/ignored case
 and limitations with each run. Native C layout, relocated shared ownership,
 Miri, sanitizers, compiler floor and extracted archives are distinct scopes.
 Dated runs and old specifications remain retrievable in Git, not as competing
-normative files. [Validation](../../../docs/validation/README.md) owns procedures;
-[review history](../../../docs/reviews/archive/README.md) owns recorded dispositions.
+normative files. Validation owns procedures;
+review history owns recorded dispositions.
 No historical test counts are promoted to acceptance for this ABI-v1 consolidation.
 
 ## Related contracts
 
 
-- [COM overview and executed factory example](../README.md): contract authoring,
+- [COM overview and executed factory example](COM.md): contract authoring,
   implementations, plugin export and bootstrap.
-- [IDL language and generation](../../../docs/contracts/IDL_MODULES.md): accepted syntax,
+- [IDL language and generation](contracts/IDL_MODULES.md): accepted syntax,
   identities, revisions, value shapes and Cargo integration.
-- [Component responsibilities](../../../docs/architecture/COM_DESIGN.md): build tools,
+- [Component responsibilities](architecture/COM_DESIGN.md): build tools,
   providers, runtime and application ownership.
-- [Object/table representation](../../../docs/contracts/COM_INTERFACE_STORAGE.md): handle
+- [Object/table representation](contracts/COM_INTERFACE_STORAGE.md): handle
   layout and the reason diamond inheritance does not require object headers.
-- [Exclusive widget ownership](../../../docs/contracts/EXCLUSIVE_WIDGET_OWNERSHIP.md):
+- Exclusive widget ownership:
   `ComBox`, weak observations, synchronous Drop and parent-controlled removal.
-- [Lifetime errors](../../../docs/contracts/COM_LIFETIME_ERRORS.md): dropped objects versus
+- [Lifetime errors](contracts/COM_LIFETIME_ERRORS.md): dropped objects versus
   closed services and error propagation from live receivers.
-- [Prepared output completion](../../../docs/contracts/COM_OUTPUT_COMPLETION.md): fallible
+- [Prepared output completion](contracts/COM_OUTPUT_COMPLETION.md): fallible
   preparation and the ownership boundary of consuming ABI calls.
-- [Recursive values](../../../docs/contracts/RECURSIVE_VALUE_CONTRACT.md): checked wire
+- [Recursive values](contracts/RECURSIVE_VALUE_CONTRACT.md): checked wire
   acquisition, recursion, budgets and metadata.
-- [Local NCB persistence](../core/README.md#why-persistence-is-ncb-only): concrete
+- [Local NCB persistence](../crates/core/README.md#why-persistence-is-ncb-only): concrete
   bounded cursors, ordered construction, codec history and independent-plugin checks.
-- [Event queues](../../ui/api/EVENTS.md) and [UI event delivery](../../ui/runtime/docs/EVENTS.md):
+- Event queues and UI event delivery:
   concrete queue implementations, weak origins and deferred application behavior.
 - [Independent-build compatibility](#independent-build-compatibility): compiler/flag
   matrix, instrumentation and platform limits.

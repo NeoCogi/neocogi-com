@@ -5,7 +5,7 @@ through an explicit C-shaped ABI. Rust-like IDL is the source of public contract
 truth; generated COM interfaces carry calls, and plugins expose one typed root
 factory.
 
-The [current COM contract](docs/abi-v1.md) is experimental and may change before ratification.
+The [current COM contract](abi-v1.md) is experimental and may change before ratification.
 
 ## Component model
 
@@ -24,22 +24,22 @@ own private Rust state through `#[com_object]`; `#[plugin]` publishes a typed
 acquisition function. Ordinary methods construct parameterized objects. A domain
 may define its own observer contracts; UI supplies its own event protocol.
 
-The [plain-Cargo sample](../../examples/com-plugin/README.md) builds the same
+The [plain-Cargo sample](../examples/com-plugin/README.md) builds the same
 plugin as a shared library and as an rlib statically linked into a monolith.
 
-See [IDL contract modules](../../docs/contracts/IDL_MODULES.md) for authoring and native
-builds, [component design](../../docs/architecture/COM_DESIGN.md) for responsibility
-boundaries, and [the current ABI specification](docs/abi-v1.md) for the binary model.
+See [IDL contract modules](contracts/IDL_MODULES.md) for authoring and native
+builds, [component design](architecture/COM_DESIGN.md) for responsibility
+boundaries, and [the current ABI specification](abi-v1.md) for the binary model.
 
 ## IDL
 
-The COM-owned [IDL compiler](idl) generates checked ABIs for ordinary values
+The COM-owned [IDL compiler](../crates/idl) generates checked ABIs for ordinary values
 and callable interfaces. Domains can define their own observer contracts, as in
-the [standalone example](../../examples/com-plugin/README.md). UI owns its event
-protocol, publication and widget origin policy; see [UI event delivery](../ui/api/EVENTS.md)
-and [owner-scoped origins](../../docs/contracts/WIDGET_EVENT_ORIGINS.md).
+the [standalone example](../examples/com-plugin/README.md). UI owns its event
+protocol, publication and widget origin policy; see UI event delivery
+and owner-scoped origins.
 
-IDL declares public values and interfaces; the [language reference](../../docs/contracts/IDL_MODULES.md)
+IDL declares public values and interfaces; the [language reference](contracts/IDL_MODULES.md)
 owns the accepted syntax. Construction surfaces are ordinary interfaces. Concrete
 classes and plugin acquisition are Rust implementation concerns. All IDL
 declarations and members are public by definition:
@@ -84,7 +84,7 @@ without depending on the compiler. `InterfaceAbi::IDL_INTERFACE` describes
 methods and their argument/result types; `Value::IDL_TYPE` describes fields,
 enum cases or bit flags. These records stay local to their defining binary.
 Domains own any transported catalog format and its application rules; see
-[generated IDL metadata](../../docs/contracts/IDL_MODULES.md#generated-idl-metadata).
+[generated IDL metadata](contracts/IDL_MODULES.md#generated-idl-metadata).
 
 ## Implementing interfaces
 
@@ -199,7 +199,7 @@ cargo test -p neocogi-idl --test documentation
 Dynamic hosts use `runtime.load_plugin_library(path)` for an application-selected
 trusted library, then call `acquire_plugin_root` with its plugin ID. Loading
 is unsafe because the library contains native code. The
-[plain-Cargo example](../../examples/com-plugin/README.md) covers full shared
+[plain-Cargo example](../examples/com-plugin/README.md) covers full shared
 and monolithic builds rather than leaving that deployment setup implicit.
 
 Loading validates the factory descriptor and hard dependencies before one
@@ -212,7 +212,7 @@ Runtime ABI v1 has one complete plugin-operation table, plus debug and
 caller-scoped persistence tables. Lookup and enumeration return the same complete
 plugin description, including its factory contract and dependency GUIDs. Loading returns the plugin GUID; inspection
 reports its first static/dynamic origin. Separate module identities and module
-queries were removed. See [the runtime contract](docs/abi-v1.md#runtime-and-global-registry).
+queries were removed. See [the runtime contract](abi-v1.md#runtime-and-global-registry).
 Acquisition checks the exact factory signature before bootstrap. Unconnected
 contract revisions can coexist; incompatible pointer transfers are rejected.
 `neocogi-inspect` emits schema 9 with plugin/dependency/root-factory metadata,
@@ -251,7 +251,7 @@ without a validation-mode build setting.
 `ComSerialize` and `ComDeserialize` operate on concrete bounded NCB cursors
 inside one Rust artifact. Struct fields are constructed in declaration order;
 enums select an ordinal and construct only their typed payload. The
-[persistence contract](core/README.md#experimental-persistent-values) specifies
+[persistence contract](../crates/core/README.md#experimental-persistent-values) specifies
 the format, shared limits, trailing defaults and allocation-free entrypoints.
 Other file formats own their own codecs; they do not implement a COM format-adapter
 protocol. Live COM calls retain their separate checked wire representation.
@@ -263,15 +263,15 @@ protocol. Live COM calls retain their separate checked wire representation.
 - `neocogi-com`: typed object/data helpers and optional supplied-host service clients.
 - `neocogi-com-runtime`: plugin catalog, loader, and persistence implementation;
   its Rust library target is `nc_com`.
-- `neocogi-idl` under `crates/com/idl`: IDL parser/resolver, the shared `codegen`
+- `neocogi-idl` under `crates/idl`: IDL parser/resolver, the shared `codegen`
   backend for contracts and Rust implementation macros, and Cargo build integration
   used directly by consuming libraries and applications.
 
 The facade's defaults (`std`, `macros`) support local objects without linking a
 runtime. `runtime` enables service clients; every final native/browser host
 explicitly links the `nc_com` rlib and supplies access to reusable libraries/plugins.
-See the [feature and deployment table](api/README.md#features-and-scope).
-The [core data guide](core/README.md#text-bytes-and-borrowed-storage) distinguishes
+See the [feature and deployment table](../crates/api/README.md#features-and-scope).
+The [core data guide](../crates/core/README.md#text-bytes-and-borrowed-storage) distinguishes
 unsafe descriptor borrows such as `NcStaticUtf8::as_str` from owned string copies.
 
 This runtime is trusted same-process native code, not a sandbox or plugin
@@ -279,16 +279,16 @@ marketplace. Applications own installation, trust, signatures, and path policy.
 
 ## Experimental object persistence and typed integration
 
-[`neocogi_com::persistence`](runtime/PERSISTENCE.md) provides runtime-owned opt-in semantic snapshots and explicit,
+[`neocogi_com::persistence`](../crates/runtime/PERSISTENCE.md) provides runtime-owned opt-in semantic snapshots and explicit,
 context-bound factory reconstruction. The portable value codec remains separate
 from object acquisition; arbitrary private object memory is never serialized.
-[`events`](../ui/api/EVENTS.md) binds concrete class streams directly. Generated form
+`events` binds concrete class streams directly. Generated form
 fields expose checked widget interfaces, and typed receivers post application
 messages without an intermediate component relay.
 
 ## Executed compatibility checks
 
-The [compatibility matrix](docs/abi-v1.md#independent-build-compatibility) defines independent host/runtime and
+The [compatibility matrix](abi-v1.md#independent-build-compatibility) defines independent host/runtime and
 provider builds, mixed compiler/profile policies, relocated execution,
 and the separate Miri/sanitizer checks. One standard-library Python driver owns
 these checks; shell, PowerShell and CI entry points delegate to it. An ordinary
@@ -296,11 +296,11 @@ these checks; shell, PowerShell and CI entry points delegate to it. An ordinary
 `#[com_main]` initializes that implementation; dynamic and static providers share
 its registry through supplied C service tables. No runtime DSO or native bridge
 is deployed. Generic Cargo artifacts and resource staging still belong to the
-native application composition; see the [native guide](../../docs/guides/COM_NATIVE.md).
+native application composition; see the [native guide](guides/COM_NATIVE.md).
 
 ## Checking the documentation
 
-The complete maintained quality gate is `bash crates/com/scripts/test-quality.sh`.
+The complete maintained quality gate is `bash scripts/test-quality.sh`.
 It checks workspace formatting, all SDK targets/features with strict Clippy,
 supported allocation modes, ABI snippets, local links and strict rustdoc. The COM
 CI job runs that same script without dropping dependency lint coverage. Native
@@ -310,7 +310,7 @@ Run these commands from the workspace root:
 
 ```sh
 cargo test -p neocogi-com-core -p neocogi-com --doc --all-features
-python3 crates/com/scripts/check-markdown-links.py
+python3 scripts/check-markdown-links.py
 RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --all-features \
   -p neocogi-com-core -p neocogi-com -p neocogi-com-macros \
   -p neocogi-com-runtime \
@@ -320,5 +320,5 @@ RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --all-features \
 The facade's runnable README examples participate in doctests. Examples marked
 `ignore` are integration sketches requiring application-specific contracts or
 plugin paths. `--all-features` leaves implementation selection with each final test owner;
-the [plain-Cargo fixture](../../examples/com-plugin/README.md) separately checks
+the [plain-Cargo fixture](../examples/com-plugin/README.md) separately checks
 real shared and monolithic deployments.

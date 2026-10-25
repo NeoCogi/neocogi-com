@@ -79,7 +79,7 @@ fn mandatory_load_child() {
 fn build_library(case: &str) -> PathBuf {
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
     // Keep all fixture artifacts beneath the workspace target for cargo clean.
-    let target = manifest.join("../../../target/plugin-load-failure-fixtures");
+    let target = manifest.join("../../target/plugin-load-failure-fixtures");
     std::fs::create_dir_all(&target).expect("create fixture output directory");
     let library = target.join(format!("{}{case}{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX));
     let output = Command::new(std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into()))

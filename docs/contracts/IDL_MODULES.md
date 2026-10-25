@@ -12,7 +12,7 @@ is produced.
 methods, threading, required projections and source metadata. Rust owns
 concrete storage (`#[com_object]`) and plugin acquisition (`#[plugin]`). Ordinary
 typed interface methods handle parameterized construction. UI separately owns
-[event publication and delivery](UI_EVENT_METADATA.md) using ordinary interfaces.
+event publication and delivery using ordinary interfaces.
 
 A suffix such as `interface Button: IWidget + IActions` gives one physical vtable
 prefix (the first entry) and required sibling projections (later entries). All
@@ -277,7 +277,7 @@ These blocks illustrate the language; their small example contracts are independ
 of the production UI topology. The generic examples above and both modules here
 are extracted from this document, resolved, generated and compiled by
 `cargo test -p neocogi-idl --test documentation`. The
-[COM README](../../crates/com/README.md#idl) adds an executable
+[COM README](../COM.md#idl) adds an executable
 implementation and factory bootstrap checked by the same test.
 
 The production `neocogi.ui.core` module owns shared node,
@@ -344,7 +344,7 @@ COUNT/ALL members, or NAMES when `#[names(...)]` is enabled; ordinary enums reta
 those spellings. Admission and emission share core's typed public-name inventories.
 Private code-generation helper names are isolated, rather than reserved from IDL.
 Event publication belongs to UI Rust declarations. IDL rejects `#[events(...)]`
-as an unsupported attribute. See [UI event metadata](UI_EVENT_METADATA.md).
+as an unsupported attribute. See UI event metadata.
 
 ### Concrete messages and streams
 
@@ -396,7 +396,7 @@ its Observed case contains `IEventReceiver`. The parent supplies that receiver
 before publication. Events transfer as exclusive `ComBox<IEvent>` capabilities.
 There is no later attachment or replacement operation. See
 [typed class event streams](#typed-class-event-streams) and
-[the ownership guide](CLASS_EVENT_STREAMS.md).
+the ownership guide.
 
 The removed `event: Message;` and `#[observer]` syntax is rejected. There are no
 per-variant receiver setters or named-output relays. Application-private messages,
@@ -680,12 +680,12 @@ bindings own no runtime state. The host's sole runtime registry is unaffected.
 The standalone host/provider and independent peer exercise this model. Native
 Rust helper calls still require their declared Rust types: compile helpers with
 local bindings or explicitly import the helper library's binding definitions.
-The repository build-only [routing helper](../../scripts/idl_build.rs) selects existing
+The repository build-only routing helper selects existing
 library types for those concrete Rust boundaries; it creates no runtime registry.
-[UI](../../crates/ui/schemas), [renderer](../../crates/render/schemas),
-[platform](../../crates/platform/schemas), [GFX](../../crates/gfx/schemas),
-[skin](../../crates/skin/schemas), [demos](../../demos/schemas),
-[examples](../../examples/schemas) and [COM test fixtures](../../crates/com/schemas)
+UI, renderer,
+platform, GFX,
+skin, demos,
+[examples](../../examples/schemas) and [COM test fixtures](../../schemas)
 share sources within their own subsystem. These directories replace standalone
 contract packages. The obsolete package-scaffolding CLI has been removed;
 ordinary Cargo build scripts own generation.
@@ -946,7 +946,7 @@ removed runtime contract mechanism.
 
 ### Generated IDL metadata
 
-[`neocogi_com::idl_metadata`](../../crates/com/api/src/idl_metadata.rs) contains
+[`neocogi_com::idl_metadata`](../../crates/api/src/idl_metadata.rs) contains
 static descriptions of interfaces and values for tools that need to read a
 contract without linking the IDL compiler. `InterfaceAbi::IDL_INTERFACE` is an
 `InterfaceMetadata`: it describes methods, receiver access, argument/result
@@ -978,7 +978,7 @@ implementation. The metadata constants create no runtime registration.
 UI declares producer event lists
 in Rust and derives getter fields during validated catalog publication. These
 static references stay local to their owning binary; see
-[UI event metadata](UI_EVENT_METADATA.md).
+UI event metadata.
 
 Generated IDL records are Rust-side static data inside their defining binary.
 For independent widget plugins, the root factory implements the shared
@@ -1013,13 +1013,13 @@ active weak origin from the traversal stack. Shared services retain their explic
 service origin.
 `com_object(Contract, ownership = exclusive)` generates allocation and weak-call
 admission, without event installation or callback adapters. See
-[COM event objects](UI_EVENT_INTERFACES.md).
+COM event objects.
 
 The queue acquires facts synchronously; application handlers run later with
 `&mut self` after traversal releases its borrows. No parent state pointer or Rust
 closure crosses COM. Catalogs transport declared event interfaces and getter metadata; custom factories
 receive the common constructor binding. See
-[the detailed ownership, state and teardown rules](CLASS_EVENT_STREAMS.md).
+the detailed ownership, state and teardown rules.
 
 
 ## Exclusive object transfers
@@ -1061,8 +1061,8 @@ budgeting. See [prepared output completion](COM_OUTPUT_COMPLETION.md) for an IDL
 example, enum limits, and real generated-call regressions.
 
 The provider threading guarantee is preserved for all three owner/observer
-wrappers. See [exclusive widget ownership](EXCLUSIVE_WIDGET_OWNERSHIP.md) and
-[current core ABI](../../crates/com/docs/abi-v1.md) for lifetime and concurrency rules.
+wrappers. See exclusive widget ownership and
+[current core ABI](../abi-v1.md) for lifetime and concurrency rules.
 
 ## Interpreting generated names
 

@@ -88,14 +88,14 @@ fn copied_arrays_compile_and_cross_real_com_thunks() {
     "#,
     );
     assert!(resolved.values.definitions["proof.intrinsics.Flags"].copied);
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap();
     let project = tempfile::tempdir().unwrap();
     std::fs::create_dir(project.path().join("src")).unwrap();
     std::fs::write(
         project.path().join("Cargo.toml"),
         format!(
             "[package]\nname='array-proof'\nversion='0.0.0'\nedition='2024'\n[workspace]\n[dependencies]\nneocogi-com={{path={:?}}}\n",
-            root.join("crates/com/api")
+            root.join("crates/api")
         ),
     )
     .unwrap();
