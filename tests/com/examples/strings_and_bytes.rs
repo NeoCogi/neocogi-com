@@ -1,5 +1,4 @@
 use neocogi_com::{ComPtr, ComRef, INcBytesAbi, INcBytesComPtrExt, INcStringComPtrExt, IUnknown, NcBytes, NcStatus, NcString, com_object};
-use std::cell::Cell;
 
 const NC_E_EXAMPLE_INVALID_ARG_CODE: i32 = -101;
 const NC_E_EXAMPLE_INVALID_ARG: NcStatus = NcStatus::from_code(NC_E_EXAMPLE_INVALID_ARG_CODE);
@@ -11,33 +10,39 @@ mod bindings {
 }
 use bindings::*;
 
+/// A local stream whose generated mutable receiver admits one cursor update at a time.
 #[com_object(interfaces(IByteStream))]
 pub struct MemoryByteStream {
+    /// Immutable source copied into independently owned byte chunks.
     bytes: Vec<u8>,
-    offset: Cell<usize>,
+    /// Next unread byte, always at most bytes.len(); equality is terminal EOF.
+    offset: usize,
 }
 
 impl MemoryByteStream {
+    /// Owns the complete source and returns its checked stream projection.
     fn create_stream(bytes: Vec<u8>) -> ComPtr<IByteStreamAbi> {
-        let unknown: ComPtr<IUnknown> = MemoryByteStream::from_value(Self { bytes, offset: Cell::new(0) });
+        let unknown: ComPtr<IUnknown> = MemoryByteStream::from_value(Self { bytes, offset: 0 });
         unknown.query::<IByteStreamAbi>().expect("MemoryByteStream exposes IByteStream")
     }
 }
 
 impl IByteStream for MemoryByteStream {
-    fn next_chunk(&self, max_len: u64) -> Result<ComPtr<INcBytesAbi>, NcStatus> {
+    /// Copies an admitted prefix and advances only while the writer gate is held.
+    fn next_chunk(&mut self, max_len: u64) -> Result<ComPtr<INcBytesAbi>, NcStatus> {
+        // Zero remains invalid at EOF and must never advance the cursor.
         if max_len == 0 {
             return Err(NC_E_EXAMPLE_INVALID_ARG);
         }
 
-        let start = self.offset.get();
+        let start = self.offset;
         if start >= self.bytes.len() {
             return Ok(NcBytes::from_vec(Vec::new()));
         }
 
         let requested = if max_len > usize::MAX as u64 { usize::MAX } else { max_len as usize };
         let end = start + requested.min(self.bytes.len() - start);
-        self.offset.set(end);
+        self.offset = end;
 
         Ok(NcBytes::from_slice(&self.bytes[start..end]))
     }
@@ -52,6 +57,7 @@ impl IByteConsumer for ByteCounter {
     }
 }
 
+/// Runs the real checked calls, including silent boundaries reused by archive qualification.
 fn main() -> Result<(), NcStatus> {
     let display_name = NcString::from_utf8_str("neocogi-com");
     println!("display name: {}", display_name.to_string()?);
@@ -61,7 +67,10 @@ fn main() -> Result<(), NcStatus> {
 
     let counter_unknown: ComPtr<IUnknown> = ByteCounter::from_value(ByteCounter);
     let counter = counter_unknown.query::<IByteConsumerAbi>()?;
-    let stream = MemoryByteStream::create_stream(b"chunked stream over COM".to_vec());
+    let mut stream = MemoryByteStream::create_stream(b"chunked stream over COM".to_vec());
+    let mut peer = stream.clone();
+    assert!(matches!(stream.next_chunk(0), Err(status) if status == NC_E_EXAMPLE_INVALID_ARG));
+    let mut expected = [b"chunked ".as_slice(), b"stream o", b"ver COM"].into_iter();
 
     loop {
         let chunk = stream.next_chunk(8)?;
@@ -70,9 +79,23 @@ fn main() -> Result<(), NcStatus> {
             break;
         }
 
-        let text = String::from_utf8(chunk.to_vec()?).expect("example data is UTF-8");
+        let bytes = chunk.to_vec()?;
+        assert_eq!(bytes.as_slice(), expected.next().expect("exactly three chunks"));
+        let text = String::from_utf8(bytes).expect("example data is UTF-8");
         println!("chunk len={len}: {text:?}");
     }
+    assert!(expected.next().is_none());
+    assert!(stream.next_chunk(8)?.to_vec()?.is_empty());
+    assert!(peer.next_chunk(8)?.to_vec()?.is_empty());
+    assert!(matches!(stream.next_chunk(0), Err(status) if status == NC_E_EXAMPLE_INVALID_ARG));
+
+    let mut empty = MemoryByteStream::create_stream(Vec::new());
+    assert!(empty.next_chunk(8)?.to_vec()?.is_empty());
+    let mut short = MemoryByteStream::create_stream(b"tail".to_vec());
+    let remainder = short.next_chunk(u64::MAX)?;
+    assert!(short.next_chunk(1)?.to_vec()?.is_empty());
+    drop(short);
+    assert_eq!(remainder.to_vec()?, b"tail");
 
     Ok(())
 }

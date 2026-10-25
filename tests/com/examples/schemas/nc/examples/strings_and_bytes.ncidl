@@ -3,7 +3,7 @@ interface IByteConsumer {
     fn consume(&self, bytes: &INcBytes) -> Result<u64>;
 }
 
-#[id(1, "513e1e77-d1f9-5649-9c0a-2c62f90120a4")]
+#[id(2, "513e1e77-d1f9-5649-9c0a-2c62f90120a4")]
 interface IByteStream {
-    fn next_chunk(&self, max_len: u64) -> Result<ComPtr<INcBytes>>;
+    fn next_chunk(&mut self, max_len: u64) -> Result<ComPtr<INcBytes>>;
 }
