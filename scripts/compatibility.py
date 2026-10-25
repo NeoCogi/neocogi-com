@@ -265,16 +265,19 @@ def safety() -> dict:
         # not silently substitute a different Miri workload after a migration.
         *((name, ABI_TESTS[name]) for name in ("checked_values", "output_buffers", "output_completion", "exclusive_com", "weak_com")),
     ))
-    # These tests traverse hundreds of thousands of values at the public budget
-    # boundary. They run in linked/ASan/TSan suites; Miri covers allocation faults,
-    # ownership completion, and malformed fields using the small checked cases.
-    native_budget_tests = (
+    # Large budget boundaries run in linked/ASan/TSan suites. The handle-name
+    # inventory audit parses Rust implementations with syn and runs in native
+    # unit tests; interpreting that compiler-policy work does not exercise COM
+    # memory access. Miri retains all ownership/raw-storage cases and the small
+    # checked allocation-fault and budget tests.
+    native_only_tests = (
         "buffer_count_includes_each_nested_record",
         "buffers_count_selected_variants_without_charging_larger_alternatives",
         "maximum_variant_cost_is_admitted_before_dispatch_on_both_sides",
         "provider_validates_all_converted_outputs_before_publishing_any",
+        "method_names::tests::every_public_handle_receiver_is_reserved",
     )
-    harness = [argument for name in native_budget_tests for argument in ("--skip", name)]
+    harness = [argument for name in native_only_tests for argument in ("--skip", name)]
     with tempfile.TemporaryDirectory(prefix="neocogi-com-miri-") as directory:
         for args, sentinel in targets:
             command = ["rustup", "run", "nightly", "cargo", "miri", "test", *args, "--locked", "--target-dir", directory, "--", *harness]

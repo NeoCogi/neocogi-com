@@ -1069,14 +1069,16 @@ They accept driver arguments such as `--report`; there is no independent shell
 matrix or old arbitrary Cargo-argument forwarding to keep in sync.
 
 `test-safety.sh` selects `--suite safety`. It requires nightly with `miri` and
-`rust-src` installed. It discovers and interprets the complete COM core, runtime,
+`rust-src` installed. It discovers and interprets the COM core, runtime,
 and facade library tests, plus current `local_com`, `com_main`, `borrowed_values`,
 `checked_values`, `output_buffers`, `output_completion`, `exclusive_com` and
 `weak_com` targets.
 Four explicit large-buffer stress cases remain native-only: the two checked-value
 budget traversals and the output-completion maximum-variant/provider-publication
 stress tests. Their exact names live in the driver. They run in linked, ASan and
-TSan suites. Miri runs all remaining cases in those targets, including allocation
+TSan suites. The handle-method inventory audit also runs natively: its `syn`
+parsing of Rust source checks compiler naming policy, not COM memory operations.
+Miri omits that parser workload and runs all remaining cases, including allocation
 injection, preserved owners and malformed outputs. Each run records its actual
 discovery/execution counts; historical counts are not an acceptance threshold.
 Final runtime test executables explicitly select their implementation because Miri interprets pure Rust and
@@ -1116,11 +1118,14 @@ passing native roles also run explicit `cargo clean` after copying. Miri's task
 owns its private temporary target, not the user's shared interpreter sysroot
 cache; cleanup leaves that shared compiler cache intact.
 
-[CI](../.github/workflows/rust.yml) keeps ordinary static/unit/IDL tests
-separate from the independent-build matrix. Linux executes the three mixed-build
-rows; Linux, macOS and Windows each execute the linked row. Separate Linux jobs
-run Miri and both sanitizers. A platform job is not evidence until it actually
-runs successfully; local Linux validation does not imply macOS/Windows execution.
+[CI](../.github/workflows/rust.yml) uses four jobs without matrix expansion.
+The Linux SDK job runs quality, workspace/release tests, Rust 1.85, archive
+qualification and the linked row. A second Linux job runs the three mixed-build
+rows, Miri, AddressSanitizer and ThreadSanitizer sequentially. macOS and Windows
+have one linked job each. Grouped Linux checks still run after an earlier check
+fails, unless the run is cancelled; each failure keeps the job unsuccessful.
+A platform job is not evidence until it actually runs successfully; local Linux
+validation does not imply macOS/Windows execution.
 
 The ordinary COM job also runs facade/runtime library tests in release mode.
 Strong-only retain exhaustion formerly returned uncounted owners only when debug

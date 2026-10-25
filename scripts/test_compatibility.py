@@ -201,6 +201,48 @@ class AdmissionTests(unittest.TestCase):
             self.assertEqual(len(result["cases"]), 1)
             self.assertEqual(result["error"], "thread failure")
 
+    def test_miri_keeps_memory_targets_and_limits_native_only_filters(self):
+        """Source-policy parsing stays native while Miri discovers and executes every memory target."""
+        libraries = {
+            "neocogi-com-core": "abi::array_tests::array_signature_matches_known_sha256_and_distinguishes_shapes",
+            "neocogi-com-runtime": "loader::plan::tests::orders_dependencies_before_dependents_deterministically",
+            "neocogi-com": "tests::metadata_identity_query_checks_and_releases_a_concrete_projection",
+        }
+        interfaces = {
+            "local_com": "local_and_foreign_calls_share_one_gate_and_one_model",
+            "com_main": "copied_access::copied_access_outlives_the_outer_record_and_shares_state_across_threads",
+            "borrowed_values": "owned_message_outlives_producer_guard_and_source",
+            **{name: driver.ABI_TESTS[name] for name in ("checked_values", "output_buffers", "output_completion", "exclusive_com", "weak_com")},
+        }
+
+        def output(arguments, **_):
+            """Supply genuine harness shapes so the normal admission checks remain active."""
+            if "miri" not in arguments or "test" not in arguments:
+                return "selected nightly compiler\n"
+            if "--list" not in arguments:
+                return "test result: ok. 1 passed; 0 failed;\n"
+            if "--test" in arguments:
+                sentinel = interfaces[arguments[arguments.index("--test") + 1]]
+            else:
+                sentinel = libraries[arguments[arguments.index("-p") + 1]]
+            return sentinel + ": test\n"
+
+        with patch.object(driver, "run", side_effect=output) as run:
+            evidence = driver.safety()
+        commands = [call.args[0] for call in run.call_args_list if "miri" in call.args[0] and "test" in call.args[0]]
+        self.assertEqual(evidence["targets"], len(libraries) + len(interfaces))
+        self.assertEqual(len(commands), 2 * evidence["targets"])
+        expected_skips = {
+            "buffer_count_includes_each_nested_record",
+            "buffers_count_selected_variants_without_charging_larger_alternatives",
+            "maximum_variant_cost_is_admitted_before_dispatch_on_both_sides",
+            "provider_validates_all_converted_outputs_before_publishing_any",
+            "method_names::tests::every_public_handle_receiver_is_reserved",
+        }
+        for command in commands:
+            skipped = {command[index + 1] for index, argument in enumerate(command) if argument == "--skip"}
+            self.assertEqual(skipped, expected_skips)
+
     def test_failed_run_overwrites_a_previous_green_report(self):
         """A stale success JSON must never survive a failed current invocation."""
         with tempfile.TemporaryDirectory() as directory:

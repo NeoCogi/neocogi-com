@@ -7,54 +7,87 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: com-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
+# Four jobs total. Group Linux checks sequentially instead of expanding matrices.
 jobs:
-  quality:
+  linux:
+    name: Linux SDK and native compatibility
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+      - name: Install stable quality tools and the supported compiler floor
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup toolchain install 1.85.0 --profile minimal
       - run: cargo fetch --locked
-      - run: bash scripts/test-quality.sh
-      - run: cargo test --workspace --all-features --locked
-      - run: cargo test -p neocogi-com -p neocogi-com-runtime --lib --release --locked -- --test-threads=1
-      - run: python3 -m unittest discover -s scripts -p test_compatibility.py
-      - run: rustup toolchain install 1.85.0 --profile minimal
-      - run: bash scripts/test-packages.sh
+      - name: Locked workspace and qualification-driver regressions
+        if: ${{ !cancelled() }}
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+      - name: Formatting, Clippy, feature boundaries and strict documentation
+        if: ${{ !cancelled() }}
+        run: bash scripts/test-quality.sh
+      - name: Complete workspace tests
+        if: ${{ !cancelled() }}
+        run: cargo test --workspace --all-features --locked
+      - name: Optimized ownership and native abort checks
+        if: ${{ !cancelled() }}
+        run: cargo test -p neocogi-com -p neocogi-com-runtime --lib --release --locked -- --test-threads=1
+      - name: Release native build artifacts before isolated qualification
+        if: ${{ !cancelled() }}
+        run: cargo clean
+      - name: Rust 1.85 qualification
+        if: ${{ !cancelled() }}
+        run: bash scripts/test-msrv.sh
+      - name: Extracted crate archives and downstream consumer
+        if: ${{ !cancelled() }}
+        run: bash scripts/test-packages.sh
+      - name: Relocated Linux providers and host runtime
+        if: ${{ !cancelled() }}
+        run: python3 scripts/compatibility.py --suite linked
 
-  msrv:
+  linux-safety:
+    name: Linux compiler policies and safety
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - run: rustup toolchain install 1.85.0 --profile minimal
-      - run: bash scripts/test-msrv.sh
+      - name: Install independent compilers, interpreter and sanitizer sources
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup toolchain install nightly --profile minimal --component miri --component rust-src
+      - run: cargo fetch --locked
+      - name: Independent compiler, panic, LTO and layout policies
+        if: ${{ !cancelled() }}
+        run: python3 scripts/compatibility.py --suite build-flags
+      - name: Miri ownership and raw-value checks
+        if: ${{ !cancelled() }}
+        run: python3 scripts/compatibility.py --suite safety
+      - name: AddressSanitizer across native plugin boundaries
+        if: ${{ !cancelled() }}
+        run: python3 scripts/compatibility.py --suite address
+      - name: ThreadSanitizer across native plugin boundaries
+        if: ${{ !cancelled() }}
+        run: python3 scripts/compatibility.py --suite thread
 
-  compatibility:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: ubuntu-latest, suite: linked }
-          - { os: ubuntu-latest, suite: build-flags }
-          - { os: macos-latest, suite: linked }
-          - { os: windows-latest, suite: linked }
+  macos:
+    name: macOS native compatibility
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
       - run: rustup toolchain install stable --profile minimal
-      - if: matrix.suite == 'build-flags'
-        run: rustup toolchain install nightly --profile minimal
-      - run: python3 scripts/compatibility.py --suite ${{ matrix.suite }}
+      - run: cargo fetch --locked
+      - run: python3 scripts/compatibility.py --suite linked
 
-  safety:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        suite: [safety, address, thread]
+  windows:
+    name: Windows native compatibility
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
-      - run: rustup toolchain install nightly --profile minimal --component miri --component rust-src
-      - run: python3 scripts/compatibility.py --suite ${{ matrix.suite }}
+      - run: rustup toolchain install stable --profile minimal
+      - run: cargo fetch --locked
+      - run: python3 scripts/compatibility.py --suite linked
